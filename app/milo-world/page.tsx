@@ -143,6 +143,33 @@ type DailyPuzzleAttempt = {
   feedback: ("correct" | "present" | "absent")[];
 };
 
+type KeyboardLetterState = "correct" | "present" | "absent";
+
+const keyboardRows = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
+
+function getKeyboardLetterStates(attempts: DailyPuzzleAttempt[]) {
+  const states: Record<string, KeyboardLetterState> = {};
+
+  const priority: Record<KeyboardLetterState, number> = {
+    absent: 1,
+    present: 2,
+    correct: 3,
+  };
+
+  attempts.forEach((attempt) => {
+    attempt.guess.split("").forEach((letter, index) => {
+      const state = attempt.feedback[index];
+      const existingState = states[letter];
+
+      if (!existingState || priority[state] > priority[existingState]) {
+        states[letter] = state;
+      }
+    });
+  });
+
+  return states;
+}
+
 const baseColourOptions = [
   "Matte Warm White",
   "Charcoal Black",
@@ -313,7 +340,7 @@ const popupContent: Record<PopupKind, PopupContent> = {
       },
       {
         name: "Categories",
-        subtitle: "Timed 16+ quiz with solo and multiplayer modes.",
+        subtitle: "Timed quiz with solo and multiplayer modes.",
         description: "",
         priceFrom: "Single or multiplayer",
         imageSrc: "/milo-world/activities/categories-quiz.png",
@@ -3410,82 +3437,125 @@ function ActivityDetail({
             </div>
 
             <form onSubmit={submitPuzzle} style={{ marginTop: "18px" }}>
-              <label style={{ display: "grid", gap: "10px" }}>
-                <span
-                  style={{
-                    color: "rgba(7,17,31,0.58)",
-                    fontSize: "12px",
-                    letterSpacing: "0.12em",
-                    textTransform: "uppercase",
-                    fontWeight: 850,
-                  }}
-                >
-                  Your 5-Letter Guess
-                </span>
+              <div
+  style={{
+    display: "grid",
+    gridTemplateColumns: isMobile ? "1fr" : "minmax(280px, 1fr) 360px",
+    gap: "18px",
+    alignItems: "end",
+  }}
+>
+  <label style={{ display: "grid", gap: "10px" }}>
+    <span
+      style={{
+        color: "rgba(7,17,31,0.58)",
+        fontSize: "12px",
+        letterSpacing: "0.12em",
+        textTransform: "uppercase",
+        fontWeight: 850,
+      }}
+    >
+      Your 5-Letter Guess
+    </span>
 
-                <input
-                  ref={guessInputRef}
-                  value={puzzleAnswer}
-                  onChange={(event) =>
-                    setPuzzleAnswer(
-                      event.target.value
-                        .toUpperCase()
-                        .replace(/[^A-Z]/g, "")
-                        .slice(0, 5)
-                    )
-                  }
-                  maxLength={5}
-                  autoComplete="off"
-                  style={{
-                    position: "absolute",
-                    opacity: 0,
-                    pointerEvents: "none",
-                    width: 1,
-                    height: 1,
-                  }}
-                />
+    <input
+      ref={guessInputRef}
+      value={puzzleAnswer}
+      onChange={(event) =>
+        setPuzzleAnswer(
+          event.target.value
+            .toUpperCase()
+            .replace(/[^A-Z]/g, "")
+            .slice(0, 5)
+        )
+      }
+      maxLength={5}
+      autoComplete="off"
+      style={{
+        position: "absolute",
+        opacity: 0,
+        pointerEvents: "none",
+        width: 1,
+        height: 1,
+      }}
+    />
 
-                <button
-                  type="button"
-                  onClick={() => guessInputRef.current?.focus()}
-                  style={{
-                    border: "none",
-                    background: "transparent",
-                    padding: 0,
-                    display: "grid",
-                    gridTemplateColumns: "repeat(5, 54px)",
-                    gap: "8px",
-                    cursor: "text",
-                    justifyContent: "start",
-                  }}
-                >
-                  {Array.from({ length: 5 }).map((_, index) => {
-                    const letter = puzzleAnswer[index] || "";
-                    return (
-                      <span
-                        key={index}
-                        style={{
-                          width: "54px",
-                          height: "54px",
-                          borderRadius: "12px",
-                          border: letter
-                            ? "2px solid rgba(7,17,31,0.7)"
-                            : "2px solid rgba(7,17,31,0.16)",
-                          background: "rgba(255,255,255,0.78)",
-                          color: "#07111f",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontWeight: 900,
-                          fontSize: "22px",
-                        }}
-                      >
-                        {letter}
-                      </span>
-                    );
-                  })}
-                </button>
-              </label>
+    <button
+      type="button"
+      onClick={() => guessInputRef.current?.focus()}
+      style={{
+        border: "none",
+        background: "transparent",
+        padding: 0,
+        display: "grid",
+        gridTemplateColumns: "repeat(5, 54px)",
+        gap: "8px",
+        cursor: "text",
+        justifyContent: "start",
+      }}
+    >
+      {Array.from({ length: 5 }).map((_, index) => {
+        const letter = puzzleAnswer[index] || "";
+
+        return (
+          <span
+            key={index}
+            style={{
+              width: "54px",
+              height: "54px",
+              borderRadius: "12px",
+              border: letter
+                ? "2px solid rgba(7,17,31,0.7)"
+                : "2px solid rgba(7,17,31,0.16)",
+              background: "rgba(255,255,255,0.78)",
+              color: "#07111f",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 900,
+              fontSize: "22px",
+            }}
+          >
+            {letter}
+          </span>
+        );
+      })}
+    </button>
+  </label>
+
+  <DailyCodeKeyboard
+    attempts={attempts}
+    onLetterClick={(letter) => {
+      setPuzzleAnswer((current) =>
+        `${current}${letter}`
+          .toUpperCase()
+          .replace(/[^A-Z]/g, "")
+          .slice(0, 5)
+      );
+
+      <button
+  type="button"
+  onClick={() => {
+    setPuzzleAnswer("");
+    guessInputRef.current?.focus();
+  }}
+  style={{
+    height: "42px",
+    borderRadius: "12px",
+    border: "1px solid rgba(7,17,31,0.12)",
+    background: "rgba(255,255,255,0.72)",
+    color: "#07111f",
+    fontWeight: 850,
+    cursor: "pointer",
+  }}
+>
+  Clear Guess
+</button>
+
+      guessInputRef.current?.focus();
+    }}
+  />
+</div>
 
               {(clueBought || letterBought) && (
                 <div
@@ -3996,6 +4066,108 @@ function ActivityDetail({
   );
 }
 
+function DailyCodeKeyboard({
+  attempts,
+  onLetterClick,
+}: {
+  attempts: DailyPuzzleAttempt[];
+  onLetterClick: (letter: string) => void;
+}) {
+  const letterStates = getKeyboardLetterStates(attempts);
+
+  function getKeyStyle(letter: string) {
+    const state = letterStates[letter];
+
+    if (state === "correct") {
+      return {
+        background: "#4f9f64",
+        border: "1px solid rgba(79,159,100,0.7)",
+        color: "white",
+      };
+    }
+
+    if (state === "present") {
+      return {
+        background: "#d2a742",
+        border: "1px solid rgba(210,167,66,0.7)",
+        color: "white",
+      };
+    }
+
+    if (state === "absent") {
+      return {
+        background: "#8b919a",
+        border: "1px solid rgba(139,145,154,0.7)",
+        color: "white",
+      };
+    }
+
+    return {
+      background: "rgba(255,255,255,0.78)",
+      border: "1px solid rgba(7,17,31,0.14)",
+      color: "#07111f",
+    };
+  }
+
+  return (
+    <div
+      style={{
+        borderRadius: "18px",
+        border: "1px solid rgba(7,17,31,0.1)",
+        background: "rgba(255,255,255,0.58)",
+        padding: "16px",
+      }}
+    >
+      <p
+        style={{
+          margin: "0 0 12px",
+          color: "rgba(7,17,31,0.58)",
+          fontSize: "12px",
+          letterSpacing: "0.14em",
+          textTransform: "uppercase",
+          fontWeight: 850,
+        }}
+      >
+        Letter Board
+      </p>
+
+      <div style={{ display: "grid", gap: "7px" }}>
+        {keyboardRows.map((row, rowIndex) => (
+          <div
+            key={row}
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              gap: "6px",
+              paddingLeft: rowIndex === 1 ? "14px" : rowIndex === 2 ? "28px" : 0,
+              paddingRight: rowIndex === 1 ? "14px" : rowIndex === 2 ? "28px" : 0,
+            }}
+          >
+            {row.split("").map((letter) => (
+              <button
+                key={letter}
+                type="button"
+                onClick={() => onLetterClick(letter)}
+                style={{
+                  width: "34px",
+                  height: "40px",
+                  borderRadius: "9px",
+                  fontSize: "14px",
+                  fontWeight: 900,
+                  cursor: "pointer",
+                  boxShadow: "inset 0 -2px 0 rgba(0,0,0,0.1)",
+                  ...getKeyStyle(letter),
+                }}
+              >
+                {letter}
+              </button>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function MilestoneCard({ title, text }: { title: string; text: string }) {
   return (
