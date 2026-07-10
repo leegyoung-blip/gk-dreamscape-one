@@ -4,14 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
-type CustomBolt = {
-  id: string;
-  antenna: string;
-  eye: string;
-  leg: string;
-  created_at: string;
-};
-
 type DreamTokenTransaction = {
   id: string;
   user_id: string;
@@ -21,62 +13,6 @@ type DreamTokenTransaction = {
   token_kind: "virtual" | "physical";
   created_at: string;
 };
-
-const antennaImages: Record<string, string> = {
-  "Explorer Antenna":
-    "/activities/robot-workshop/bolt-final/explorer-antenna.png",
-  "Lightning Antenna":
-    "/activities/robot-workshop/bolt-final/lightning-antenna.png",
-  "Satellite Antenna":
-    "/activities/robot-workshop/bolt-final/satellite-antenna.png",
-};
-
-const eyeImages: Record<string, string> = {
-  "Blue Lens": "/activities/robot-workshop/bolt-final/eye-blue-lens.png",
-  "Green Scan": "/activities/robot-workshop/bolt-final/eye-green-scan.png",
-  "Multi Scan": "/activities/robot-workshop/bolt-final/eye-multi-scan.png",
-  "Green Scan Lens": "/activities/robot-workshop/bolt-final/eye-green-scan.png",
-  "Multi-Scan Lens": "/activities/robot-workshop/bolt-final/eye-multi-scan.png",
-};
-
-const legImages: Record<string, string> = {
-  "All-Terrain Leg":
-    "/activities/robot-workshop/bolt-final/all-terrain leg.png",
-  "Flying Leg": "/activities/robot-workshop/bolt-final/flying-leg.png",
-  "Speed Leg": "/activities/robot-workshop/bolt-final/speed-leg.png",
-};
-
-function resolvePartImage(
-  value: string | null | undefined,
-  imageMap: Record<string, string>
-) {
-  if (!value) return "";
-
-  if (value.startsWith("/")) {
-    return value;
-  }
-
-  return imageMap[value] || "";
-}
-
-function addBoltToCart(bolt: CustomBolt) {
-  const existingCart = JSON.parse(
-    localStorage.getItem("dreamscape-cart") || "[]"
-  );
-
-  existingCart.push({
-    type: "custom-bolt",
-    antenna: bolt.antenna,
-    eye: bolt.eye,
-    leg: bolt.leg,
-    quantity: 1,
-  });
-
-  localStorage.setItem("dreamscape-cart", JSON.stringify(existingCart));
-
-  alert("Bolt added to cart!");
-  window.location.href = "/cart";
-}
 
 function formatTransactionAmount(transaction: DreamTokenTransaction) {
   const prefix = transaction.amount > 0 ? "+" : "";
@@ -103,7 +39,7 @@ function CartIcon() {
       height="20"
       viewBox="0 0 24 24"
       fill="none"
-      stroke="#05050a"
+      stroke="white"
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -115,70 +51,11 @@ function CartIcon() {
   );
 }
 
-function BoltPreview({ bolt }: { bolt: CustomBolt }) {
-  const antennaSrc = resolvePartImage(bolt.antenna, antennaImages);
-  const eyeSrc = resolvePartImage(bolt.eye, eyeImages);
-  const legSrc = resolvePartImage(bolt.leg, legImages);
-
-  return (
-    <div className="relative mx-auto h-[360px] w-[260px] overflow-hidden rounded-2xl bg-white">
-      <img
-        src="/activities/robot-workshop/Bolt-Base.png"
-        alt="Custom Bolt"
-        className="h-full w-full object-contain object-center"
-      />
-
-      {antennaSrc && (
-        <img
-          src={antennaSrc}
-          alt={bolt.antenna}
-          style={{
-            position: "absolute",
-            left: "52%",
-            top: "0px",
-            width: "45px",
-            transform: "translateX(-50%)",
-          }}
-        />
-      )}
-
-      {eyeSrc && (
-        <img
-          src={eyeSrc}
-          alt={bolt.eye}
-          style={{
-            position: "absolute",
-            left: "51%",
-            top: "75px",
-            width: "105px",
-            transform: "translateX(-50%)",
-          }}
-        />
-      )}
-
-      {legSrc && (
-        <img
-          src={legSrc}
-          alt={bolt.leg}
-          style={{
-            position: "absolute",
-            left: "50%",
-            top: "220px",
-            width: "160px",
-            transform: "translateX(-50%)",
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
 export default function ProfilePage() {
   const router = useRouter();
 
   const [email, setEmail] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [bolts, setBolts] = useState<CustomBolt[]>([]);
   const [tokenTransactions, setTokenTransactions] = useState<
     DreamTokenTransaction[]
   >([]);
@@ -206,7 +83,6 @@ export default function ProfilePage() {
       if (!data.user) {
         setEmail(null);
         setIsAdmin(false);
-        setBolts([]);
         setTokenTransactions([]);
         setIsLoadingTokens(false);
         return;
@@ -226,18 +102,6 @@ export default function ProfilePage() {
 
       setIsAdmin(profile?.role?.trim().toLowerCase() === "admin");
 
-      const { data: savedBolts, error: boltsError } = await supabase
-        .from("custom_bolts")
-        .select("*")
-        .eq("user_id", data.user.id)
-        .order("created_at", { ascending: false });
-
-      if (boltsError) {
-        console.error("Bolts error:", boltsError.message);
-      }
-
-      setBolts(savedBolts ?? []);
-
       const { data: savedTokenTransactions, error: tokenError } =
         await supabase
           .from("dream_token_transactions")
@@ -256,21 +120,6 @@ export default function ProfilePage() {
     loadProfile();
   }, []);
 
-  async function deleteBolt(id: string) {
-    const confirmDelete = window.confirm("Delete this saved Bolt?");
-
-    if (!confirmDelete) return;
-
-    const { error } = await supabase.from("custom_bolts").delete().eq("id", id);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    setBolts((current) => current.filter((bolt) => bolt.id !== id));
-  }
-
   async function logout() {
     localStorage.removeItem("seen-prologue");
     localStorage.removeItem("seen-chapter-guide");
@@ -281,207 +130,198 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="relative min-h-screen bg-white px-8 py-10 text-indigo-950">
+    <main className="relative min-h-screen overflow-hidden bg-[#020813] px-5 py-8 text-white sm:px-8 sm:py-10">
+      <div className="pointer-events-none fixed inset-0 z-0">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(126,232,255,0.18),transparent_34%),linear-gradient(180deg,#041124_0%,#020813_100%)]" />
+        <div className="absolute left-[-120px] top-[-120px] h-[360px] w-[360px] rounded-full bg-cyan-400/10 blur-3xl" />
+        <div className="absolute bottom-[-140px] right-[-120px] h-[380px] w-[380px] rounded-full bg-violet-500/10 blur-3xl" />
+      </div>
+
       <button
         onClick={() => router.push("/")}
-        className="absolute left-8 top-8 z-30 rounded-full bg-white px-5 py-2 text-sm tracking-wide text-indigo-950 shadow-md transition hover:scale-[1.03]"
+        className="absolute left-5 top-5 z-30 rounded-full border border-cyan-200/25 bg-white/6 px-5 py-2 text-sm tracking-wide text-white shadow-[0_16px_36px_rgba(0,0,0,0.28)] backdrop-blur-xl transition hover:scale-[1.03] hover:border-cyan-200/45 sm:left-8 sm:top-8"
       >
         ← Back to World
       </button>
 
-      <div className="fixed right-8 top-8 z-50 flex items-center gap-3">
+      <div className="fixed right-5 top-5 z-50 flex items-center gap-3 sm:right-8 sm:top-8">
         {isAdmin && (
-  <button
-    type="button"
-    onClick={() => router.push("/admin/dream-tokens")}
-    style={{
-      backgroundColor: "#6d4f8f",
-      color: "#ffffff",
-      padding: "12px 24px",
-      minWidth: "150px",
-      height: "46px",
-      borderRadius: "999px",
-      border: "none",
-      fontSize: "13px",
-      fontWeight: 800,
-      letterSpacing: "0.12em",
-      cursor: "pointer",
-      boxShadow: "0 12px 28px rgba(109, 79, 143, 0.28)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      whiteSpace: "nowrap",
-      textTransform: "uppercase",
-    }}
-  >
-    ADMIN PANEL
-  </button>
-)}
+          <button
+            type="button"
+            onClick={() => router.push("/admin/dream-tokens")}
+            className="hidden h-[46px] items-center justify-center rounded-full border border-violet-200/25 bg-violet-500/25 px-5 text-xs font-extrabold uppercase tracking-[0.12em] text-white shadow-[0_12px_28px_rgba(109,79,143,0.28)] backdrop-blur-xl transition hover:scale-[1.03] sm:flex"
+          >
+            Admin Panel
+          </button>
+        )}
 
         <button
           type="button"
           onClick={logout}
-          className="rounded-full bg-indigo-950 px-5 py-3 text-sm tracking-wide text-white shadow-md transition hover:scale-[1.03]"
+          className="h-[46px] rounded-full border border-cyan-200/25 bg-white/8 px-5 text-xs font-bold uppercase tracking-[0.12em] text-white shadow-[0_12px_28px_rgba(0,0,0,0.22)] backdrop-blur-xl transition hover:scale-[1.03]"
         >
-          LOG OUT
+          Log Out
         </button>
 
         <button
           type="button"
           onClick={() => router.push("/cart")}
           aria-label="Cart"
-          style={{
-            width: "46px",
-            height: "46px",
-            borderRadius: "999px",
-            backgroundColor: "#ffffff",
-            border: "1px solid rgba(36, 18, 77, 0.12)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            boxShadow: "0 12px 28px rgba(36, 18, 77, 0.12)",
-          }}
+          className="flex h-[46px] w-[46px] items-center justify-center rounded-full border border-cyan-200/25 bg-white/8 shadow-[0_12px_28px_rgba(0,0,0,0.22)] backdrop-blur-xl transition hover:scale-[1.03]"
         >
           <CartIcon />
         </button>
       </div>
 
-      <div className="mx-auto max-w-6xl pt-2">
-        <div>
-          <h1 className="text-5xl font-extralight tracking-[0.16em]">
-            MY PROFILE
+      <div className="relative z-10 mx-auto max-w-6xl pt-24 sm:pt-20">
+        <section className="text-center">
+          <p className="m-0 text-xs font-bold uppercase tracking-[0.24em] text-[#7ee8ff]">
+            Dreamscape One
+          </p>
+
+          <h1 className="mt-4 text-5xl font-extralight tracking-[-0.05em] text-white drop-shadow-[0_0_28px_rgba(126,232,255,0.18)] sm:text-7xl">
+            My Profile
           </h1>
 
-          <p className="mt-4 text-indigo-950/60">
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-white/62">
             {email ? `Logged in as ${email}` : "Not logged in"}
           </p>
-        </div>
-
-        <section className="mt-10 rounded-3xl border border-violet-200 bg-white p-6 shadow-[0_0_50px_rgba(167,139,250,0.25)]">
-          <h2 className="text-2xl font-light">My Custom Bolts</h2>
-
-          {bolts.length === 0 ? (
-            <p className="mt-3 text-sm text-indigo-950/60">
-              Your saved Bolt designs will appear here.
-            </p>
-          ) : (
-            <div className="mt-6 grid gap-6 md:grid-cols-3">
-              {bolts.map((bolt) => (
-                <div
-                  key={bolt.id}
-                  className="rounded-3xl border border-indigo-100 bg-indigo-50/60 p-5"
-                >
-                  <BoltPreview bolt={bolt} />
-
-                  <button
-                    onClick={() => addBoltToCart(bolt)}
-                    className="mt-4 w-full rounded-full bg-indigo-950 px-5 py-3 text-sm tracking-[0.08em] text-white transition hover:scale-[1.02]"
-                  >
-                    BRING BOLT TO LIFE
-                  </button>
-
-                  <button
-                    onClick={() => deleteBolt(bolt.id)}
-                    className="mt-3 w-full rounded-full bg-white px-5 py-3 text-sm tracking-[0.08em] text-red-500 shadow-sm transition hover:bg-red-50"
-                  >
-                    DELETE BOLT
-                  </button>
-
-                  <p className="mt-3 text-center text-xs text-indigo-950/60">
-                    Turn your custom Bolt into a real 3D printed collectible.
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
         </section>
 
-        <section className="mt-8">
-          <button
-            onClick={() => setShowTokenHistory(true)}
-            className="w-full rounded-3xl border border-yellow-300/50 bg-white p-5 text-left shadow-[0_0_35px_rgba(250,204,21,0.18)] transition hover:scale-[1.01] hover:shadow-[0_0_45px_rgba(250,204,21,0.28)]"
-          >
-            <div className="flex items-center justify-between gap-5">
-              <div className="flex items-center gap-4">
-                <img
-                  src="/dreamscape/dream-token.png"
-                  alt="Dream Token"
-                  className="h-14 w-14 object-contain"
-                />
+        <section className="mt-12 grid gap-6 md:grid-cols-[1.05fr_0.95fr]">
+          <div className="rounded-[32px] border border-cyan-200/18 bg-white/[0.045] p-7 shadow-[0_24px_70px_rgba(0,0,0,0.26)] backdrop-blur-xl sm:p-8">
+            <p className="m-0 text-xs font-bold uppercase tracking-[0.2em] text-[#7ee8ff]">
+              Account
+            </p>
 
-                <div>
-                  <p className="text-xs uppercase tracking-[0.22em] text-yellow-700">
-                    Dream Token Wallet
-                  </p>
+            <h2 className="mt-4 text-3xl font-bold tracking-[-0.04em] text-white sm:text-4xl">
+              Dreamscape Access
+            </h2>
 
-                  <h2 className="mt-1 text-xl font-light text-indigo-950">
-                    View balance and history
-                  </h2>
-                </div>
+            <div className="mt-7 grid gap-4">
+              <div className="rounded-2xl border border-cyan-200/14 bg-[#061632]/75 p-5">
+                <p className="text-xs uppercase tracking-[0.18em] text-white/42">
+                  Email
+                </p>
+
+                <p className="mt-2 break-all text-lg text-white/86">
+                  {email || "No active login"}
+                </p>
               </div>
 
-              <div className="flex items-center gap-2 rounded-full bg-yellow-50 px-5 py-3">
+              <div className="rounded-2xl border border-cyan-200/14 bg-[#061632]/75 p-5">
+                <p className="text-xs uppercase tracking-[0.18em] text-white/42">
+                  Role
+                </p>
+
+                <p className="mt-2 text-lg text-white/86">
+                  {isAdmin ? "Admin" : "Student / Member"}
+                </p>
+              </div>
+            </div>
+
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => router.push("/admin/dream-tokens")}
+                className="mt-6 w-full rounded-2xl border border-violet-200/25 bg-violet-500/24 px-5 py-4 text-sm font-extrabold uppercase tracking-[0.14em] text-white transition hover:scale-[1.01] hover:bg-violet-500/34 sm:hidden"
+              >
+                Admin Panel
+              </button>
+            )}
+          </div>
+
+          <button
+            onClick={() => setShowTokenHistory(true)}
+            className="group rounded-[32px] border border-yellow-300/28 bg-[linear-gradient(180deg,rgba(112,57,18,0.42),rgba(4,20,48,0.82))] p-7 text-left shadow-[0_0_42px_rgba(250,204,21,0.08),0_24px_70px_rgba(0,0,0,0.26)] backdrop-blur-xl transition hover:scale-[1.01] hover:border-yellow-200/44 hover:shadow-[0_0_52px_rgba(250,204,21,0.14)] sm:p-8"
+          >
+            <div className="flex items-start justify-between gap-5">
+              <div>
+                <p className="m-0 text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
+                  Dream Token Wallet
+                </p>
+
+                <h2 className="mt-4 text-3xl font-bold tracking-[-0.04em] text-white sm:text-4xl">
+                  View balance and history
+                </h2>
+
+                <p className="mt-4 max-w-md text-sm leading-6 text-white/62">
+                  Track Dreamscape Tokens earned from classes, activities, and
+                  future unlocks.
+                </p>
+              </div>
+
+              <img
+                src="/dreamscape/dream-token.png"
+                alt="Dream Token"
+                className="h-16 w-16 shrink-0 object-contain drop-shadow-[0_0_22px_rgba(250,204,21,0.28)]"
+              />
+            </div>
+
+            <div className="mt-9 flex items-end justify-between gap-5 rounded-3xl border border-yellow-200/16 bg-black/24 p-5">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-white/42">
+                  Current Balance
+                </p>
+
                 {isLoadingTokens ? (
-                  <span className="text-sm text-indigo-950/50">Loading...</span>
+                  <p className="mt-2 text-lg text-white/52">Loading...</p>
                 ) : (
-                  <>
-                    <span className="text-2xl font-bold text-indigo-950">
+                  <div className="mt-2 flex items-end gap-3">
+                    <span className="text-5xl font-extrabold leading-none text-white">
                       {dreamTokenBalance.toLocaleString()}
                     </span>
 
-                    <span className="text-sm font-semibold tracking-[0.16em] text-yellow-700">
+                    <span className="pb-2 text-sm font-bold tracking-[0.16em] text-[#ffd18a]">
                       DT
                     </span>
-                  </>
+                  </div>
                 )}
               </div>
+
+              <span className="rounded-full border border-yellow-200/20 bg-yellow-200/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-[#ffd18a]">
+                Open Wallet
+              </span>
             </div>
           </button>
         </section>
       </div>
 
       {showTokenHistory && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-indigo-950/70 px-4 py-10 backdrop-blur-sm">
-          <div className="relative h-[70vh] w-full max-w-4xl overflow-hidden rounded-3xl border border-yellow-300/40 bg-white shadow-2xl">
+        <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-[#020813]/78 px-4 py-10 backdrop-blur-md">
+          <div className="relative h-[74vh] w-full max-w-4xl overflow-hidden rounded-[30px] border border-yellow-300/30 bg-[#041124] shadow-[0_0_55px_rgba(250,204,21,0.12),0_30px_90px_rgba(0,0,0,0.55)]">
             <button
               onClick={() => setShowTokenHistory(false)}
-              className="absolute right-5 top-5 z-20 rounded-full bg-indigo-50 px-3 py-1 text-indigo-950 transition hover:bg-indigo-100"
+              className="absolute right-5 top-5 z-20 rounded-full border border-white/14 bg-white/8 px-3 py-1 text-white transition hover:bg-white/14"
             >
               ✕
             </button>
 
             <div className="grid h-full grid-rows-[auto_1fr_auto]">
-              <div className="border-b border-indigo-100 px-6 py-4">
+              <div className="border-b border-white/10 bg-white/[0.03] px-6 py-5">
                 <div className="flex items-center gap-4">
                   <img
                     src="/dreamscape/dream-token.png"
                     alt="Dream Token"
-                    className="object-contain"
-                    style={{
-                      width: "64px",
-                      height: "64px",
-                      maxWidth: "64px",
-                      maxHeight: "64px",
-                    }}
+                    className="h-16 w-16 object-contain drop-shadow-[0_0_22px_rgba(250,204,21,0.26)]"
                   />
 
                   <div>
-                    <p className="text-xs uppercase tracking-[0.22em] text-yellow-700">
+                    <p className="text-xs uppercase tracking-[0.22em] text-[#ffd18a]">
                       Dream Token Wallet
                     </p>
 
-                    <div className="mt-1 flex items-end gap-2">
-                      <p className="text-3xl font-light leading-none text-indigo-950">
+                    <div className="mt-2 flex items-end gap-2">
+                      <p className="text-4xl font-light leading-none text-white">
                         {dreamTokenBalance.toLocaleString()}
                       </p>
 
-                      <p className="pb-1 text-sm font-semibold tracking-[0.16em] text-indigo-950">
+                      <p className="pb-1 text-sm font-semibold tracking-[0.16em] text-[#ffd18a]">
                         DT
                       </p>
                     </div>
 
-                    <p className="mt-1 text-sm text-indigo-950/50">
+                    <p className="mt-2 text-sm text-white/48">
                       {physicalTokenBalance} physical Dream Tokens collected
                     </p>
                   </div>
@@ -489,19 +329,19 @@ export default function ProfilePage() {
               </div>
 
               <div className="min-h-0 overflow-y-auto px-6 py-5">
-                <div className="rounded-2xl bg-indigo-50 p-4">
-                  <h3 className="text-lg font-medium text-indigo-950">
+                <div className="rounded-2xl border border-cyan-200/12 bg-white/[0.045] p-4">
+                  <h3 className="text-lg font-medium text-white">
                     Dream Token History
                   </h3>
 
-                  <p className="mt-1 text-sm text-indigo-950/50">
+                  <p className="mt-1 text-sm text-white/48">
                     Track tokens earned from classes, items unlocked, and
                     physical tokens collected.
                   </p>
                 </div>
 
                 {tokenTransactions.length === 0 ? (
-                  <p className="mt-6 text-sm text-indigo-950/50">
+                  <p className="mt-6 text-sm text-white/48">
                     No Dream Token activity yet.
                   </p>
                 ) : (
@@ -509,14 +349,14 @@ export default function ProfilePage() {
                     {tokenTransactions.map((transaction) => (
                       <div
                         key={transaction.id}
-                        className="flex items-center justify-between gap-4 rounded-2xl border border-indigo-100 bg-white px-4 py-3 shadow-sm"
+                        className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 shadow-sm"
                       >
                         <div>
-                          <p className="font-medium text-indigo-950">
+                          <p className="font-medium text-white">
                             {transaction.title}
                           </p>
 
-                          <p className="mt-1 text-sm text-indigo-950/50">
+                          <p className="mt-1 text-sm text-white/42">
                             {formatTransactionDate(transaction.created_at)}
                           </p>
                         </div>
@@ -524,10 +364,10 @@ export default function ProfilePage() {
                         <p
                           className={`shrink-0 font-bold ${
                             transaction.type === "spend"
-                              ? "text-red-500"
+                              ? "text-red-300"
                               : transaction.type === "physical"
-                              ? "text-blue-500"
-                              : "text-green-600"
+                              ? "text-blue-300"
+                              : "text-green-300"
                           }`}
                         >
                           {formatTransactionAmount(transaction)}
@@ -538,12 +378,12 @@ export default function ProfilePage() {
                 )}
               </div>
 
-              <div className="border-t border-indigo-100 bg-white px-6 py-4">
+              <div className="border-t border-white/10 bg-white/[0.03] px-6 py-4">
                 <button
                   onClick={() => setShowTokenHistory(false)}
-                  className="w-full rounded-full bg-indigo-950 px-5 py-3 text-sm tracking-[0.12em] text-white transition hover:scale-[1.01]"
+                  className="w-full rounded-full bg-white px-5 py-3 text-sm font-bold uppercase tracking-[0.12em] text-[#061632] transition hover:scale-[1.01]"
                 >
-                  CLOSE WALLET
+                  Close Wallet
                 </button>
               </div>
             </div>
