@@ -72,27 +72,52 @@ export default function CartPage() {
   }
 
   const total = cart.reduce((sum, item) => {
-    return sum + (item.price || 12.9) * item.quantity;
+    return sum + (item.price || 19.9) * item.quantity;
   }, 0);
 
   return (
-    <main className="min-h-screen bg-white px-8 py-10 text-indigo-950">
-      <div className="mx-auto max-w-4xl">
+    <main className="relative min-h-screen overflow-hidden bg-[#020813] px-5 py-8 text-white sm:px-8 sm:py-10">
+      <div className="pointer-events-none fixed inset-0 z-0">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(126,232,255,0.18),transparent_34%),linear-gradient(180deg,#041124_0%,#020813_100%)]" />
+        <div className="absolute left-[-120px] top-[-120px] h-[360px] w-[360px] rounded-full bg-cyan-400/10 blur-3xl" />
+        <div className="absolute bottom-[-140px] right-[-120px] h-[380px] w-[380px] rounded-full bg-violet-500/10 blur-3xl" />
+      </div>
+
+      <div className="relative z-10 mx-auto max-w-5xl">
         <Link
           href="/profile"
-          className="rounded-full bg-white px-5 py-2 text-sm shadow-md"
+          className="inline-flex h-11 items-center rounded-full border border-cyan-200/25 bg-white/6 px-5 text-sm tracking-wide text-white shadow-[0_16px_36px_rgba(0,0,0,0.28)] backdrop-blur-xl transition hover:scale-[1.03] hover:border-cyan-200/45"
         >
           ← Back to Profile
         </Link>
 
-        <h1 className="mt-10 text-5xl font-extralight tracking-[0.16em]">
-          CART
-        </h1>
+        <section className="mt-14 text-center">
+          <p className="m-0 text-xs font-bold uppercase tracking-[0.24em] text-[#7ee8ff]">
+            Dreamscape One
+          </p>
+
+          <h1 className="mt-4 text-5xl font-extralight tracking-[-0.05em] text-white drop-shadow-[0_0_28px_rgba(126,232,255,0.18)] sm:text-7xl">
+            Cart
+          </h1>
+
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-white/62">
+            Review your Dreamscape items before checkout.
+          </p>
+        </section>
 
         {cart.length === 0 ? (
-          <p className="mt-8 text-indigo-950/60">Your cart is empty.</p>
+          <section className="mt-12 rounded-[32px] border border-cyan-200/18 bg-white/[0.045] p-8 text-center shadow-[0_24px_70px_rgba(0,0,0,0.26)] backdrop-blur-xl">
+            <p className="text-lg text-white/72">Your cart is empty.</p>
+
+            <Link
+              href="/"
+              className="mt-6 inline-flex h-12 items-center justify-center rounded-full bg-white px-6 text-sm font-bold uppercase tracking-[0.12em] text-[#061632] transition hover:scale-[1.02]"
+            >
+              Return to World
+            </Link>
+          </section>
         ) : (
-          <div className="mt-8 space-y-5">
+          <div className="mt-12 space-y-5">
             {cart.map((item, index) => {
               const isBolt =
                 item.productType === "bolt" ||
@@ -105,27 +130,31 @@ export default function CartPage() {
                 item.productType === "inventor-tag" ||
                 item.productType === "gadget-crate";
 
-                const displayImage = getCartImage(item);
+              const displayImage = getCartImage(item);
 
               return (
                 <div
                   key={item.id || index}
-                  className="rounded-3xl border border-violet-200 bg-white p-6 shadow-[0_0_40px_rgba(167,139,250,0.25)]"
+                  className="rounded-[30px] border border-cyan-200/18 bg-white/[0.045] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.26)] backdrop-blur-xl sm:p-6"
                 >
                   <div className="flex flex-col gap-6 md:flex-row md:items-start">
                     {displayImage && (
-                  <div className="flex h-40 w-full items-center justify-center rounded-2xl bg-violet-50 md:w-48">
-                    <img
-                      src={displayImage}
-                      alt={item.name || "Cart item"}
-                      className="h-full w-full object-contain p-3"
-                      draggable={false}
-                    />
-                  </div>
-                )}
+                      <div className="flex h-44 w-full shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-cyan-200/12 bg-[#061632]/75 md:w-52">
+                        <img
+                          src={displayImage}
+                          alt={item.name || "Cart item"}
+                          className="h-full w-full object-contain p-3 drop-shadow-[0_16px_28px_rgba(0,0,0,0.25)]"
+                          draggable={false}
+                        />
+                      </div>
+                    )}
 
                     <div className="flex-1">
-                      <h2 className="text-2xl font-light">
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7ee8ff]">
+                        Cart Item
+                      </p>
+
+                      <h2 className="mt-3 text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
                         {item.name ||
                           (isBolt
                             ? "Custom 3D Printed Bolt"
@@ -133,39 +162,38 @@ export default function CartPage() {
                       </h2>
 
                       {isBolt && (
-                        <div className="mt-4 space-y-1">
-                          {item.antenna && (
-                            <p className="text-sm">Antenna: {item.antenna}</p>
-                          )}
-                          {item.eye && (
-                            <p className="text-sm">Eye: {item.eye}</p>
-                          )}
-                          {item.leg && (
-                            <p className="text-sm">Leg: {item.leg}</p>
-                          )}
+                        <div className="mt-5 grid gap-2 rounded-2xl border border-cyan-200/12 bg-[#061632]/75 p-4 text-sm text-white/72">
+                          {item.antenna && <p>Antenna: {item.antenna}</p>}
+                          {item.eye && <p>Eye: {item.eye}</p>}
+                          {item.leg && <p>Leg: {item.leg}</p>}
                         </div>
                       )}
 
                       {isCustomNovaPick && (
-                        <div className="mt-4 space-y-1">
-                          <p className="text-sm">Colour: {item.colour}</p>
-                          <p className="text-sm">Name: {item.customName}</p>
+                        <div className="mt-5 grid gap-2 rounded-2xl border border-cyan-200/12 bg-[#061632]/75 p-4 text-sm text-white/72">
+                          <p>Colour: {item.colour}</p>
+                          <p>Name: {item.customName}</p>
                         </div>
                       )}
 
-                      <p className="mt-3 text-sm">
-                        Quantity: {item.quantity}
-                      </p>
+                      <div className="mt-5 flex flex-wrap items-center gap-3">
+                        <div className="rounded-full border border-cyan-200/14 bg-white/[0.05] px-4 py-2 text-sm text-white/72">
+                          Quantity:{" "}
+                          <span className="font-bold text-white">
+                            {item.quantity}
+                          </span>
+                        </div>
 
-                      <p className="mt-5 text-lg font-medium">
-                        ${((item.price || 19.9) * item.quantity).toFixed(2)}
-                      </p>
+                        <div className="rounded-full border border-yellow-200/18 bg-yellow-200/10 px-4 py-2 text-sm text-[#ffd18a]">
+                          ${((item.price || 19.9) * item.quantity).toFixed(2)}
+                        </div>
+                      </div>
 
                       <button
                         onClick={() => removeItem(index)}
-                        className="mt-4 rounded-full bg-red-50 px-4 py-2 text-xs text-red-600 hover:bg-red-100"
+                        className="mt-5 rounded-full border border-red-300/20 bg-red-400/10 px-5 py-2 text-xs font-bold uppercase tracking-[0.12em] text-red-200 transition hover:bg-red-400/18"
                       >
-                        REMOVE
+                        Remove
                       </button>
                     </div>
                   </div>
@@ -173,23 +201,36 @@ export default function CartPage() {
               );
             })}
 
-            <div className="rounded-3xl border border-violet-200 bg-violet-50 p-6">
-              <div className="flex items-center justify-between text-lg">
-                <span>Total</span>
-                <span className="font-semibold">${total.toFixed(2)}</span>
+            <section className="rounded-[30px] border border-yellow-300/28 bg-[linear-gradient(180deg,rgba(112,57,18,0.42),rgba(4,20,48,0.82))] p-6 shadow-[0_0_42px_rgba(250,204,21,0.08),0_24px_70px_rgba(0,0,0,0.26)] backdrop-blur-xl">
+              <div className="flex items-center justify-between gap-5">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ffd18a]">
+                    Order Summary
+                  </p>
+
+                  <h2 className="mt-2 text-2xl font-bold tracking-[-0.03em] text-white">
+                    Total
+                  </h2>
+                </div>
+
+                <p className="text-4xl font-extrabold text-white">
+                  ${total.toFixed(2)}
+                </p>
               </div>
+            </section>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button
+                onClick={clearCart}
+                className="h-13 rounded-full border border-cyan-200/18 bg-white/[0.06] px-5 py-4 text-sm font-bold uppercase tracking-[0.12em] text-white transition hover:scale-[1.01] hover:bg-white/[0.1]"
+              >
+                Clear Cart
+              </button>
+
+              <button className="h-13 rounded-full bg-white px-5 py-4 text-sm font-bold uppercase tracking-[0.12em] text-[#061632] shadow-[0_0_30px_rgba(126,232,255,0.14)] transition hover:scale-[1.01]">
+                Checkout Coming Soon
+              </button>
             </div>
-
-            <button
-              onClick={clearCart}
-              className="w-full rounded-full bg-violet-100 px-5 py-3 text-sm text-indigo-950 hover:bg-violet-200"
-            >
-              CLEAR CART
-            </button>
-
-            <button className="w-full rounded-full bg-indigo-950 px-5 py-3 text-sm tracking-[0.12em] text-white">
-              CHECKOUT COMING SOON
-            </button>
           </div>
         )}
       </div>
