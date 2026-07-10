@@ -253,80 +253,65 @@ const NOVA_BLIND_BOX_PREVIEWS: BlindBoxPreview[] = [
 
 const HUB_AREAS: HubArea[] = [
   {
-    id: "prototype-lab",
-    title: "Prototype Lab",
-    label: "Future inventions in development.",
-    status: "locked",
-    positionClass: "hotspotPrototype",
-    items: [
-      {
-        id: "skyforge-hangar",
-        name: "Skyforge Hangar",
-        type: "Future Expansion",
-        image: "",
-        description: "Unlock future vehicle-building activities.",
-        status: "coming soon",
-      },
-    ],
-  },
-  {
     id: "parts-supplies",
-    title: "Dreamscape Modular System",
-    label: "Build your own Dreamscape structures.",
+    title: "Nova Build Sets",
+    label: "Prefab sets for building areas inside Nova's World.",
     status: "open",
     positionClass: "hotspotParts",
     items: [
       {
-        id: "starter-build-kit",
-        name: "Dreamscape Starter Build Kit",
-        type: "Modular Building System",
+        id: "nova-room-set",
+        name: "Nova Room Set",
+        type: "Prefab Build Set",
         image: "",
         description:
-          "A modular block-style kit for building Dreamscape rooms, towers, paths, and display structures.",
+          "A starter prefab set for building Nova-style rooms, learning spaces, and display areas inside Nova's World.",
         status: "coming soon",
       },
       {
-        id: "connector-pack",
-        name: "Connector Pack",
-        type: "Modular Expansion",
+        id: "mission-zone-set",
+        name: "Mission Zone Set",
+        type: "Prefab Build Set",
         image: "",
         description:
-          "Special Dreamscape connectors that allow students to expand and combine different build modules.",
+          "A modular area-building set for creating quiz stations, mission corners, and activity zones.",
         status: "coming soon",
       },
       {
-        id: "world-detail-pack",
-        name: "World Detail Pack",
-        type: "Modular Decoration",
+        id: "inventor-lab-set",
+        name: "Inventor Lab Set",
+        type: "Prefab Build Set",
         image: "",
         description:
-          "Add signs, crystals, small machines, plants, lights, and themed decorations to the build system.",
+          "A themed prefab set for building a mini inventor lab with machines, platforms, and tech details.",
         status: "coming soon",
       },
     ],
   },
   {
-    id: "novas-picks",
-    title: "Nova's Picks",
-    label: "Nova's favourite discoveries.",
+    id: "educational-resources",
+    title: "Educational Resources",
+    label: "Learning products and practice resources.",
     status: "open",
     positionClass: "hotspotPicks",
     items: [
       {
-        id: "inventor-tag",
-        name: "Inventor Tag",
-        type: "Customisable Product",
-        image: "/store/nova-picks/inventor-tag-blue.png",
-        description: "Create your own Nova-style inventor name tag.",
-        status: "available",
+        id: "high-ability-practice-papers",
+        name: "High Ability Practice Papers",
+        type: "Practice Papers",
+        image: "",
+        description:
+          "Placeholder for GKP High Ability practice papers designed for advanced thinking and problem-solving.",
+        status: "coming soon",
       },
       {
-        id: "gadget-crate",
-        name: "Gadget Crate",
-        type: "Customisable Product",
-        image: "/store/nova-picks/gadget-crate-blue.png",
-        description: "Choose your own Nova-style gadget storage crate.",
-        status: "available",
+        id: "word-realms",
+        name: "Word Realms",
+        type: "Vocabulary Game",
+        image: "",
+        description:
+          "Placeholder for a vocabulary-based learning game built around words, meanings, and quick-thinking challenges.",
+        status: "coming soon",
       },
     ],
   },
@@ -351,17 +336,18 @@ const HUB_AREAS: HubArea[] = [
   {
     id: "machine-zone",
     title: "Machine Zone",
-    label: "Customise your own Nova figurine.",
+    label: "Coming soon for Student Access members.",
     status: "open",
     positionClass: "hotspotMachine",
     items: [
       {
-        id: "custom-nova-figurine",
-        name: "Custom Nova Figurine",
-        type: "Premium Custom Product",
-        image: "/nova/nova-character.png",
-        description: "Choose Nova's colour, pose, and weapon.",
-        status: "available",
+        id: "machine-zone-coming-soon",
+        name: "Machine Zone",
+        type: "Exclusive Student Access Area",
+        image: "",
+        description:
+          "Coming soon. This will be an exclusive area for Student Access members.",
+        status: "coming soon",
       },
     ],
   },
@@ -421,13 +407,17 @@ export default function InventorHubPage() {
   }
 
   function openProduct(product: Product) {
-    if (product.id === "inventor-tag" || product.id === "gadget-crate") {
-      setSelectedProduct(product);
-      setInventorTagStep(1);
-      setSelectedTagColour("blue");
-      setInventorName("");
-    }
+  if (product.status !== "available") {
+    return;
   }
+
+  if (product.id === "inventor-tag" || product.id === "gadget-crate") {
+    setSelectedProduct(product);
+    setInventorTagStep(1);
+    setSelectedTagColour("blue");
+    setInventorName("");
+  }
+}
 
   function closeProduct() {
     setSelectedProduct(null);
@@ -763,248 +753,52 @@ export default function InventorHubPage() {
       )}
 
       {selectedArea?.id === "machine-zone" && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-md"
-          onClick={closeArea}
-        >
-          <section
-            className="relative max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-[30px] border border-cyan-200/50 bg-gradient-to-br from-slate-950 via-blue-950 to-purple-950 p-8 text-white shadow-[0_0_55px_rgba(0,220,255,0.35)]"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "0.95fr 1.05fr",
-              gap: "24px",
-            }}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button
-              onClick={closeArea}
-              className="absolute right-5 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-3xl text-white hover:bg-white/20"
-            >
-              ×
-            </button>
+  <div
+    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-md"
+    onClick={closeArea}
+  >
+    <section
+      className="relative w-full max-w-3xl rounded-[30px] border border-cyan-200/50 bg-gradient-to-br from-slate-950 via-blue-950 to-purple-950 p-8 text-center text-white shadow-[0_0_55px_rgba(0,220,255,0.35)]"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <button
+        onClick={closeArea}
+        className="absolute right-5 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-3xl text-white hover:bg-white/20"
+      >
+        ×
+      </button>
 
-            <div className="rounded-[26px] border border-white/10 bg-white/10 p-5">
-              <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-cyan-300">
-                Machine Zone Preview
-              </p>
+      <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-cyan-300">
+        Machine Zone
+      </p>
 
-              <h1 className="mt-2 text-4xl font-black">Custom Nova</h1>
+      <h1 className="mt-3 text-4xl font-black md:text-6xl">Coming Soon</h1>
 
-              <div className="mt-6 flex min-h-[520px] items-center justify-center rounded-[22px] border border-cyan-200/20 bg-slate-950/55">
-                <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-[22px]">
-                  <div
-                    className={`absolute inset-8 rounded-full bg-gradient-to-br ${selectedNovaColour.className} opacity-20 blur-3xl`}
-                  />
+      <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-cyan-50/85">
+        The Machine Zone is being prepared as an exclusive area for Student
+        Access members.
+      </p>
 
-                  <img
-                    src={currentNovaPreviewImage}
-                    alt="Custom Nova Preview"
-                    className="relative z-10 max-h-[520px] w-full object-contain drop-shadow-[0_0_35px_rgba(0,220,255,0.35)]"
-                    draggable={false}
-                  />
-                </div>
-              </div>
+      <div className="mx-auto mt-8 max-w-md rounded-[24px] border border-cyan-200/20 bg-white/10 p-6">
+        <p className="text-sm font-black uppercase tracking-[0.16em] text-cyan-300">
+          Student Access Exclusive
+        </p>
 
-              <div className="mt-5 rounded-2xl border border-white/10 bg-white/10 p-4">
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-300">
-                  Current Build
-                </p>
+        <p className="mt-3 text-sm leading-relaxed text-slate-200/75">
+          Future tools, member-only activities, and advanced creation features
+          will appear here later.
+        </p>
+      </div>
 
-                <p className="mt-2 text-lg font-black">
-                  {selectedNovaColour.name} · {selectedNovaPose.name}
-                </p>
-
-                <p className="mt-1 text-sm text-slate-200/75">
-                  Equipped with {selectedNovaWeapon.name}
-                </p>
-              </div>
-
-              <p className="mt-4 rounded-2xl border border-amber-300/30 bg-amber-300/10 p-4 text-xs leading-relaxed text-amber-100/90">
-                Disclaimer: This preview is a digital concept render. The actual
-                3D printed product will not look this detailed. Small details may
-                be simplified, layer lines may be visible, and colours may vary
-                slightly depending on print settings and material availability.
-              </p>
-            </div>
-
-            <div className="rounded-[26px] border border-white/10 bg-white/10 p-5">
-              {machineStep === 1 && (
-                <>
-                  <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-cyan-300">
-                    Step 1
-                  </p>
-
-                  <h2 className="mt-2 text-3xl font-black">
-                    Design your Nova figurine
-                  </h2>
-
-                  <p className="mt-2 text-sm text-slate-200/80">
-                    Choose Nova's colour, pose, and weapon. Your preview will
-                    update on the left.
-                  </p>
-
-                  <OptionGroup title="Nova Colour">
-                    {NOVA_COLOURS.map((option) => (
-                      <button
-                        key={option.id}
-                        onClick={() => setNovaColour(option.id)}
-                        className={`flex items-center gap-4 rounded-2xl border p-4 text-left transition ${
-                          novaColour === option.id
-                            ? "border-cyan-300 bg-cyan-300/15"
-                            : "border-white/10 bg-white/10 hover:bg-white/20"
-                        }`}
-                      >
-                        <span
-                          className={`h-14 w-14 rounded-2xl bg-gradient-to-br ${option.className}`}
-                        />
-
-                        <span>
-                          <span className="block text-lg font-black">
-                            {option.name}
-                          </span>
-                          <span className="mt-1 block text-sm text-slate-200/70">
-                            {option.label}
-                          </span>
-                        </span>
-                      </button>
-                    ))}
-                  </OptionGroup>
-
-                  <OptionGroup title="Pose">
-                    {NOVA_POSES.map((option) => (
-                      <button
-                        key={option.id}
-                        onClick={() => setNovaPose(option.id)}
-                        className={`rounded-2xl border p-4 text-left transition ${
-                          novaPose === option.id
-                            ? "border-cyan-300 bg-cyan-300/15"
-                            : "border-white/10 bg-white/10 hover:bg-white/20"
-                        }`}
-                      >
-                        <span className="block text-lg font-black">
-                          {option.name}
-                        </span>
-                        <span className="mt-1 block text-sm text-slate-200/70">
-                          {option.label}
-                        </span>
-                      </button>
-                    ))}
-                  </OptionGroup>
-
-                  <OptionGroup title="Weapon">
-                    {NOVA_WEAPONS.map((option) => (
-                      <button
-                        key={option.id}
-                        onClick={() => setNovaWeapon(option.id)}
-                        className={`rounded-2xl border p-4 text-left transition ${
-                          novaWeapon === option.id
-                            ? "border-cyan-300 bg-cyan-300/15"
-                            : "border-white/10 bg-white/10 hover:bg-white/20"
-                        }`}
-                      >
-                        <span className="block text-lg font-black">
-                          {option.name}
-                        </span>
-                        <span className="mt-1 block text-sm text-slate-200/70">
-                          {option.label}
-                        </span>
-                      </button>
-                    ))}
-                  </OptionGroup>
-
-                  <button
-                    onClick={() => setMachineStep(2)}
-                    className="mt-6 w-full rounded-full bg-cyan-300 px-6 py-4 text-lg font-black text-slate-950 hover:bg-cyan-200"
-                  >
-                    Continue to Purchase Options
-                  </button>
-                </>
-              )}
-
-              {machineStep === 2 && (
-                <>
-                  <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-cyan-300">
-                    Step 2
-                  </p>
-
-                  <h2 className="mt-2 text-3xl font-black">
-                    Choose purchase option
-                  </h2>
-
-                  <p className="mt-2 text-sm leading-relaxed text-slate-200/80">
-                    Custom Nova Figurine · Approx. 8cm height · 3D printed PLA ·
-                    Display collectible. Final print quality depends on selected
-                    version.
-                  </p>
-
-                  <div className="mt-6 grid grid-cols-1 gap-4">
-                    {PURCHASE_OPTIONS.map((option) => (
-                      <button
-                        key={option.id}
-                        onClick={() => setSelectedPurchaseTier(option.id)}
-                        className={`rounded-2xl border p-5 text-left transition ${
-                          selectedPurchaseTier === option.id
-                            ? "border-cyan-300 bg-cyan-300/15"
-                            : "border-white/10 bg-white/10 hover:bg-white/20"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <p className="text-xl font-black">{option.name}</p>
-
-                            <p className="mt-1 text-sm text-cyan-200">
-                              {option.label}
-                            </p>
-                          </div>
-
-                          <p className="text-2xl font-black text-cyan-300">
-                            ${option.price.toFixed(2)}
-                          </p>
-                        </div>
-
-                        <p className="mt-3 text-sm leading-relaxed text-slate-200/75">
-                          {option.description}
-                        </p>
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="mt-6 rounded-2xl border border-white/10 bg-white/10 p-4 text-sm leading-relaxed text-slate-200/80">
-                    <p className="font-bold text-white">Product Description</p>
-
-                    <ul className="mt-2 list-disc space-y-1 pl-5">
-                      <li>Custom Nova figurine based on selected preview.</li>
-                      <li>Approximate height: 8cm.</li>
-                      <li>Material: 3D printed PLA.</li>
-                      <li>Standard version: simplified 2-colour print.</li>
-                      <li>
-                        Premium version: more detailed, up to 4-colour print.
-                      </li>
-                      <li>Made as a display collectible, not a rough-play toy.</li>
-                    </ul>
-                  </div>
-
-                  <div className="mt-6 flex gap-3">
-                    <button
-                      onClick={() => setMachineStep(1)}
-                      className="w-1/2 rounded-full border border-white/20 bg-white/10 px-6 py-4 text-lg font-black text-white hover:bg-white/20"
-                    >
-                      Back
-                    </button>
-
-                    <button
-                      onClick={addCustomNovaToCart}
-                      className="w-1/2 rounded-full bg-cyan-300 px-6 py-4 text-lg font-black text-slate-950 hover:bg-cyan-200"
-                    >
-                      Add to Cart · ${selectedPurchaseOption.price.toFixed(2)}
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </section>
-        </div>
-      )}
+      <button
+        onClick={closeArea}
+        className="mt-8 rounded-full bg-cyan-300 px-8 py-4 text-sm font-black uppercase tracking-[0.12em] text-slate-950 hover:bg-cyan-200"
+      >
+        Back to Inventor Hub
+      </button>
+    </section>
+  </div>
+)}
 
       {(selectedProduct?.id === "inventor-tag" ||
         selectedProduct?.id === "gadget-crate") && (
