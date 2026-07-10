@@ -23,7 +23,75 @@ type CategoriesStage =
   | "answered"
   | "finished";
 
-const fallbackCategoryNames = ["Geography", "Science"];
+type UserAccess = {
+  isLoggedIn: boolean;
+  userId: string | null;
+  email: string | null;
+  role: string | null;
+  canEarnTokens: boolean;
+};
+
+const fallbackCategoryNames = ["Geography", "Science", "History"];
+
+function getSingaporeWeekKey() {
+  const now = new Date();
+
+  const singaporeDateString = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Singapore",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+
+  const singaporeDate = new Date(`${singaporeDateString}T00:00:00+08:00`);
+  const day = singaporeDate.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+
+  singaporeDate.setDate(singaporeDate.getDate() + diffToMonday);
+
+  const year = singaporeDate.getFullYear();
+  const month = String(singaporeDate.getMonth() + 1).padStart(2, "0");
+  const date = String(singaporeDate.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${date}`;
+}
+
+function getWeekStartIso() {
+  const weekKey = getSingaporeWeekKey();
+  return new Date(`${weekKey}T00:00:00+08:00`).toISOString();
+}
+
+function normaliseRole(role: string | null) {
+  return String(role || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/_/g, "-");
+}
+
+function canRoleEarnTokens(role: string | null) {
+  const cleanRole = normaliseRole(role);
+
+  return [
+    "admin",
+    "student",
+    "gkp-student",
+    "gkp-students",
+    "student-access",
+    "club",
+    "milo-club",
+    "milos-club",
+    "milo-club-member",
+    "pro",
+  ].includes(cleanRole);
+}
+
+function getTokenReward(score: number) {
+  if (score >= 9) return 10;
+  if (score >= 7) return 7;
+  if (score >= 5) return 5;
+  return 0;
+}
 
 export default function MiloCategoriesPage() {
   const [categoriesStage, setCategoriesStage] =
@@ -50,13 +118,80 @@ export default function MiloCategoriesPage() {
     useState<"A" | "B" | "C" | "D" | null>(null);
 
   const [categoryScore, setCategoryScore] = useState(0);
+  const [categoryPoints, setCategoryPoints] = useState(0);
+  const [lastQuestionPoints, setLastQuestionPoints] = useState(0);
+
   const [questionCountdown, setQuestionCountdown] = useState(10);
   const [nextQuestionCountdown, setNextQuestionCountdown] = useState(3);
   const [categoryMessage, setCategoryMessage] = useState("");
   const [isLoadingCategoryQuiz, setIsLoadingCategoryQuiz] = useState(false);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
 
+  const [userAccess, setUserAccess] = useState<UserAccess>({
+    isLoggedIn: false,
+    userId: null,
+    email: null,
+    role: null,
+    canEarnTokens: false,
+  });
+
+  const [rewardMessage, setRewardMessage] = useState("");
+  const [rewardChecked, setRewardChecked] = useState(false);
+  const [alreadyRewardedThisWeek, setAlreadyRewardedThisWeek] = useState(false);
+  const [earnedTokens, setEarnedTokens] = useState(0);
+
   const currentCategoryQuestion = categoryQuestions[categoryQuestionIndex];
+
+  useEffect(() => {
+    async function loadUserAccess() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setUserAccess({
+          isLoggedIn: false,
+          userId: null,
+          email: null,
+          role: null,
+          canEarnTokens: false,
+        });
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profileError) {
+        console.warn("Could not load profile role:", profileError.message);
+      }
+
+      const role = profile?.role || null;
+
+      setUserAccess({
+        isLoggedIn: true,
+        userId: user.id,
+        email: user.email || null,
+        role,
+        canEarnTokens: canRoleEarnTokens(role),
+      });
+    }
+
+    loadUserAccess();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
+      loadUserAccess();
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     async function loadCategories() {
@@ -137,12 +272,17 @@ export default function MiloCategoriesPage() {
     }
 
     setCategoryMessage("");
+    setRewardMessage("");
     setCategoriesStage("category");
   }
 
   async function startSinglePlayerCategoryQuiz() {
     setIsLoadingCategoryQuiz(true);
     setCategoryMessage("");
+    setRewardMessage("");
+    setRewardChecked(false);
+    setAlreadyRewardedThisWeek(false);
+    setEarnedTokens(0);
 
     const { data, error } = await supabase.rpc("get_milo_category_quiz", {
       p_category: selectedCategory,
@@ -169,6 +309,8 @@ export default function MiloCategoriesPage() {
     setCategoryQuestionIndex(0);
     setSelectedCategoryAnswer(null);
     setCategoryScore(0);
+    setCategoryPoints(0);
+    setLastQuestionPoints(0);
     setQuestionCountdown(10);
     setNextQuestionCountdown(3);
     setCategoriesStage("playing");
@@ -181,9 +323,15 @@ export default function MiloCategoriesPage() {
     setCategoryQuestionIndex(0);
     setSelectedCategoryAnswer(null);
     setCategoryScore(0);
+    setCategoryPoints(0);
+    setLastQuestionPoints(0);
     setQuestionCountdown(10);
     setNextQuestionCountdown(3);
     setCategoryMessage("");
+    setRewardMessage("");
+    setRewardChecked(false);
+    setAlreadyRewardedThisWeek(false);
+    setEarnedTokens(0);
   }
 
   function submitCategoryAnswer(answer: "A" | "B" | "C" | "D" | null) {
@@ -192,14 +340,21 @@ export default function MiloCategoriesPage() {
 
     const finalAnswer = answer || selectedCategoryAnswer;
     const isCorrect = finalAnswer === currentCategoryQuestion.correct_option;
+    const pointsEarned = isCorrect ? Math.max(10, questionCountdown * 10) : 0;
 
     if (isCorrect) {
       setCategoryScore((score) => score + 1);
+      setCategoryPoints((points) => points + pointsEarned);
     }
 
+    setLastQuestionPoints(pointsEarned);
     setSelectedCategoryAnswer(finalAnswer);
     setCategoryMessage(
-      finalAnswer ? (isCorrect ? "Correct." : "Not quite.") : "Time is up."
+      finalAnswer
+        ? isCorrect
+          ? `Correct. +${pointsEarned} points.`
+          : "Not quite. +0 points."
+        : "Time is up. +0 points."
     );
 
     setNextQuestionCountdown(3);
@@ -211,6 +366,11 @@ export default function MiloCategoriesPage() {
 
     if (nextIndex >= categoryQuestions.length) {
       setCategoriesStage("finished");
+
+      const finalScore = categoryScore;
+      const finalPoints = categoryPoints;
+
+      checkAndAwardWeeklyTokens(finalScore, finalPoints);
       return;
     }
 
@@ -219,7 +379,93 @@ export default function MiloCategoriesPage() {
     setQuestionCountdown(10);
     setNextQuestionCountdown(3);
     setCategoryMessage("");
+    setLastQuestionPoints(0);
     setCategoriesStage("playing");
+  }
+
+  async function checkAndAwardWeeklyTokens(finalScore: number, finalPoints: number) {
+    if (rewardChecked) return;
+
+    setRewardChecked(true);
+
+    const tokenReward = getTokenReward(finalScore);
+
+    if (!userAccess.isLoggedIn || !userAccess.userId) {
+      setRewardMessage(
+        "Log in with a Student Access or Milo’s Club account to earn Dreamscape Tokens."
+      );
+      return;
+    }
+
+    if (!userAccess.canEarnTokens) {
+      setRewardMessage(
+        "Dreamscape Token rewards are available for Student Access and Milo’s Club members."
+      );
+      return;
+    }
+
+    if (tokenReward <= 0) {
+      setRewardMessage(
+        "You need at least 5 correct answers to earn Dreamscape Tokens this week."
+      );
+      return;
+    }
+
+    const weekKey = getSingaporeWeekKey();
+    const weekStartIso = getWeekStartIso();
+    const rewardTitle = `Milo Categories Weekly Reward · ${selectedCategory} · ${weekKey}`;
+
+    const { data: existingReward, error: existingRewardError } = await supabase
+      .from("dream_token_transactions")
+      .select("id")
+      .eq("user_id", userAccess.userId)
+      .eq("token_kind", "virtual")
+      .eq("title", rewardTitle)
+      .gte("created_at", weekStartIso)
+      .maybeSingle();
+
+    if (existingRewardError) {
+      console.warn(
+        "Could not check weekly reward:",
+        existingRewardError.message
+      );
+      setRewardMessage(
+        "Could not check weekly token reward. Please try again later."
+      );
+      return;
+    }
+
+    if (existingReward) {
+      setAlreadyRewardedThisWeek(true);
+      setRewardMessage(
+        "You already earned Dreamscape Tokens for this category this week. You can still replay for a better points score."
+      );
+      return;
+    }
+
+    const { error: insertError } = await supabase
+      .from("dream_token_transactions")
+      .insert({
+        user_id: userAccess.userId,
+        amount: tokenReward,
+        token_kind: "virtual",
+        type: "earn",
+        title: rewardTitle,
+      });
+
+    if (insertError) {
+      console.warn("Could not award weekly tokens:", insertError.message);
+      setRewardMessage(
+        "Could not award Dreamscape Tokens. Please check Supabase policies."
+      );
+      return;
+    }
+
+    window.dispatchEvent(new Event("dream-tokens-updated"));
+    setEarnedTokens(tokenReward);
+    setRewardMessage(
+      `You earned ${tokenReward} Dreamscape Tokens for scoring ${finalScore}/10 with ${finalPoints} points. This reward can be earned once per week for this category.`
+    );
   }
 
   function getCategoryOptionClass(optionLetter: "A" | "B" | "C" | "D") {
@@ -268,9 +514,34 @@ export default function MiloCategoriesPage() {
           </h1>
 
           <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-white/62">
-            10 random questions. 10 seconds per question. Questions are loaded
-            from Supabase.
+            10 random questions. 10 seconds per question. Correct answers earn
+            more points when answered faster.
           </p>
+
+          <div className="mx-auto mt-6 grid max-w-3xl gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-cyan-200/14 bg-white/[0.045] p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-white/40">
+                Score
+              </p>
+              <p className="mt-1 text-2xl font-bold">{categoryScore}/10</p>
+            </div>
+
+            <div className="rounded-2xl border border-cyan-200/14 bg-white/[0.045] p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-white/40">
+                Points
+              </p>
+              <p className="mt-1 text-2xl font-bold">{categoryPoints}</p>
+            </div>
+
+            <div className="rounded-2xl border border-orange-200/14 bg-orange-300/10 p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-white/40">
+                Rewards
+              </p>
+              <p className="mt-1 text-sm font-bold text-orange-100">
+                Weekly DT for members
+              </p>
+            </div>
+          </div>
         </section>
 
         <section className="mx-auto mt-12 max-w-3xl rounded-[32px] border border-cyan-200/18 bg-white/[0.045] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.26)] backdrop-blur-xl sm:p-8">
@@ -288,8 +559,8 @@ export default function MiloCategoriesPage() {
                 >
                   <span className="text-2xl font-bold">Single Player</span>
                   <span className="mt-3 block text-sm leading-6 text-white/58">
-                    Start a 10-question timed quiz using questions from
-                    Supabase.
+                    Start a 10-question timed quiz. Faster correct answers earn
+                    more points.
                   </span>
                 </button>
 
@@ -303,6 +574,20 @@ export default function MiloCategoriesPage() {
                     Coming next: challenge another player in real time.
                   </span>
                 </button>
+              </div>
+
+              <div className="mt-6 rounded-3xl border border-yellow-200/18 bg-yellow-300/10 p-5">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ffd18a]">
+                  Reward Rules
+                </p>
+
+                <div className="mt-3 grid gap-2 text-sm leading-6 text-white/66">
+                  <p>• Correct answer points: remaining seconds × 10.</p>
+                  <p>• 9–10 correct: 10 DT for eligible members.</p>
+                  <p>• 7–8 correct: 7 DT for eligible members.</p>
+                  <p>• 5–6 correct: 5 DT for eligible members.</p>
+                  <p>• Token rewards can be earned once per week per category.</p>
+                </div>
               </div>
             </>
           )}
@@ -369,6 +654,33 @@ export default function MiloCategoriesPage() {
                   </span>
                 </div>
 
+                <div className="mb-6 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-cyan-200/14 bg-white/[0.045] p-4">
+                    <p className="text-xs uppercase tracking-[0.18em] text-white/40">
+                      Current Score
+                    </p>
+                    <p className="mt-1 text-xl font-bold">
+                      {categoryScore}/10
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-cyan-200/14 bg-white/[0.045] p-4">
+                    <p className="text-xs uppercase tracking-[0.18em] text-white/40">
+                      Total Points
+                    </p>
+                    <p className="mt-1 text-xl font-bold">{categoryPoints}</p>
+                  </div>
+
+                  <div className="rounded-2xl border border-yellow-200/14 bg-yellow-300/10 p-4">
+                    <p className="text-xs uppercase tracking-[0.18em] text-white/40">
+                      Last Question
+                    </p>
+                    <p className="mt-1 text-xl font-bold text-[#ffd18a]">
+                      +{lastQuestionPoints}
+                    </p>
+                  </div>
+                </div>
+
                 <h2 className="text-2xl font-bold leading-snug text-white sm:text-3xl">
                   {currentCategoryQuestion.question}
                 </h2>
@@ -423,6 +735,10 @@ export default function MiloCategoriesPage() {
                 {categoryScore} / 10
               </h2>
 
+              <p className="mt-3 text-3xl font-extrabold text-[#ffd18a]">
+                {categoryPoints} points
+              </p>
+
               <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-white/58">
                 {categoryScore >= 8
                   ? "Excellent. That was a strong mastery score."
@@ -430,6 +746,28 @@ export default function MiloCategoriesPage() {
                   ? "Good pass. Try another category to improve your score."
                   : "Keep practising. These questions are designed to be tougher."}
               </p>
+
+              <div className="mt-7 rounded-3xl border border-yellow-200/18 bg-yellow-300/10 p-5 text-left">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ffd18a]">
+                  Dreamscape Token Reward
+                </p>
+
+                <p className="mt-3 text-sm leading-6 text-white/68">
+                  {rewardMessage || "Checking weekly reward eligibility..."}
+                </p>
+
+                {earnedTokens > 0 && (
+                  <p className="mt-4 text-3xl font-extrabold text-[#ffd18a]">
+                    +{earnedTokens} DT
+                  </p>
+                )}
+
+                {alreadyRewardedThisWeek && (
+                  <p className="mt-4 text-sm font-bold text-orange-100">
+                    Weekly reward already claimed.
+                  </p>
+                )}
+              </div>
 
               <button
                 type="button"
