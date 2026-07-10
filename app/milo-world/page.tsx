@@ -111,6 +111,7 @@ type PopupOption = {
   buttonLabel: string;
   formKind?: ServiceFormKind;
   activityKind?: ActivityKind;
+  href?: string;
   customisation?: CustomisationConfig;
 };
 
@@ -318,7 +319,7 @@ const popupContent: Record<PopupKind, PopupContent> = {
         imageSrc: "/milo-world/activities/categories-quiz.png",
         imageFit: "cover",
         buttonLabel: "Enter Categories",
-        activityKind: "categoriesQuiz",
+        href: "/milo-world/categories",
       },
     ],
   },
@@ -1319,6 +1320,11 @@ function OptionCard({
         <button
           type="button"
           onClick={() => {
+            if (option.href) {
+              window.location.href = option.href;
+              return;
+            }
+
             if (option.customisation) {
               onStartCustomisation?.(option);
               return;
@@ -1333,6 +1339,7 @@ function OptionCard({
               onOpenActivity?.(option);
             }
           }}
+
           style={{
             marginTop: "18px",
             width: "100%",
