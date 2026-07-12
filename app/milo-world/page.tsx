@@ -3021,7 +3021,15 @@ function ActivityDetail({
   };
 
   return (
-    <div style={{ position: "relative", zIndex: 2, padding: isMobile ? "0 18px 32px" : "0 58px 58px" }}>
+    <div
+      style={{
+        position: "relative",
+        zIndex: 2,
+        padding: isMobile ? "0 14px 28px" : "0 58px 58px",
+        width: "100%",
+        boxSizing: "border-box",
+      }}
+    >
       <button
         type="button"
         onClick={onBackToOptions}
@@ -3370,11 +3378,13 @@ function ActivityDetail({
   <div
     style={{
       maxWidth: "820px",
+      width: "100%",
+      boxSizing: "border-box",
       margin: "0 auto",
       borderRadius: "26px",
       border: "1px solid rgba(7,17,31,0.1)",
       background: "rgba(255,255,255,0.78)",
-      padding: isMobile ? "24px 18px" : "32px",
+      padding: isMobile ? "22px 18px" : "32px",
       boxShadow: "0 22px 55px rgba(0,0,0,0.12)",
       textAlign: "center",
     }}
@@ -3400,7 +3410,7 @@ function ActivityDetail({
         borderRadius: "20px",
         border: "1px dashed rgba(40,117,160,0.28)",
         background: "rgba(40,117,160,0.06)",
-        padding: "20px 24px",
+        padding: isMobile ? "16px 14px" : "20px 24px",
         textAlign: "left",
       }}
     >
@@ -3472,8 +3482,8 @@ function ActivityDetail({
           background: "transparent",
           padding: 0,
           display: "grid",
-          gridTemplateRows: "repeat(5, 54px)",
-          gap: "8px",
+          gridTemplateRows: `repeat(5, ${isMobile ? "46px" : "54px"})`,
+          gap: isMobile ? "6px" : "8px",
           cursor: "text",
           justifyContent: "center",
           margin: "0 auto",
@@ -3489,8 +3499,8 @@ function ActivityDetail({
               key={rowIndex}
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(5, 54px)",
-                gap: "8px",
+                gridTemplateColumns: `repeat(5, ${isMobile ? "46px" : "54px"})`,
+                gap: isMobile ? "6px" : "8px",
                 justifyContent: "center",
               }}
             >
@@ -3516,8 +3526,8 @@ function ActivityDetail({
                   <span
                     key={letterIndex}
                     style={{
-                      width: "54px",
-                      height: "54px",
+                      width: isMobile ? "46px" : "54px",
+                      height: isMobile ? "46px" : "54px",
                       borderRadius: "12px",
                       border: letter
                         ? "2px solid rgba(7,17,31,0.7)"
@@ -3528,7 +3538,7 @@ function ActivityDetail({
                       alignItems: "center",
                       justifyContent: "center",
                       fontWeight: 900,
-                      fontSize: "22px",
+                      fontSize: isMobile ? "19px" : "22px",
                       boxShadow: feedback
                         ? "inset 0 -3px 0 rgba(0,0,0,0.12)"
                         : "none",
@@ -4131,6 +4141,8 @@ function DailyCodeKeyboard({
   onLetterClick: (letter: string) => void;
   onDelete: () => void;
 }) {
+  const screenMode = useResponsiveMode();
+  const isMobile = screenMode === "mobile";
   const letterStates = getKeyboardLetterStates(attempts);
 
   function getKeyStyle(letter: string) {
@@ -4167,16 +4179,22 @@ function DailyCodeKeyboard({
     };
   }
 
+  const keyWidth = isMobile ? "30px" : "38px";
+  const keyHeight = isMobile ? "38px" : "42px";
+  const keyGap = isMobile ? "4px" : "7px";
+
   return (
     <div
       style={{
         margin: "22px auto 0",
         width: "100%",
-        maxWidth: "560px",
+        maxWidth: isMobile ? "100%" : "560px",
         borderRadius: "20px",
         border: "1px solid rgba(7,17,31,0.1)",
         background: "rgba(255,255,255,0.58)",
-        padding: "18px",
+        padding: isMobile ? "14px 8px" : "18px",
+        boxSizing: "border-box",
+        overflow: "hidden",
       }}
     >
       <p
@@ -4193,16 +4211,36 @@ function DailyCodeKeyboard({
         Letter Board
       </p>
 
-      <div style={{ display: "grid", gap: "8px" }}>
+      <div style={{ display: "grid", gap: isMobile ? "6px" : "8px" }}>
         {keyboardRows.map((row, rowIndex) => (
           <div
             key={row}
             style={{
               display: "flex",
               justifyContent: "center",
-              gap: "7px",
-              paddingLeft: rowIndex === 1 ? "18px" : rowIndex === 2 ? "34px" : 0,
-              paddingRight: rowIndex === 1 ? "18px" : rowIndex === 2 ? "34px" : 0,
+              gap: keyGap,
+              paddingLeft: isMobile
+                ? rowIndex === 1
+                  ? "8px"
+                  : rowIndex === 2
+                  ? "14px"
+                  : 0
+                : rowIndex === 1
+                ? "18px"
+                : rowIndex === 2
+                ? "34px"
+                : 0,
+              paddingRight: isMobile
+                ? rowIndex === 1
+                  ? "8px"
+                  : rowIndex === 2
+                  ? "14px"
+                  : 0
+                : rowIndex === 1
+                ? "18px"
+                : rowIndex === 2
+                ? "34px"
+                : 0,
             }}
           >
             {row.split("").map((letter) => (
@@ -4211,13 +4249,14 @@ function DailyCodeKeyboard({
                 type="button"
                 onClick={() => onLetterClick(letter)}
                 style={{
-                  width: "38px",
-                  height: "42px",
-                  borderRadius: "10px",
-                  fontSize: "14px",
+                  width: keyWidth,
+                  height: keyHeight,
+                  borderRadius: isMobile ? "8px" : "10px",
+                  fontSize: isMobile ? "12px" : "14px",
                   fontWeight: 900,
                   cursor: "pointer",
                   boxShadow: "inset 0 -2px 0 rgba(0,0,0,0.1)",
+                  flexShrink: 0,
                   ...getKeyStyle(letter),
                 }}
               >
@@ -4230,15 +4269,16 @@ function DailyCodeKeyboard({
                 type="button"
                 onClick={onDelete}
                 style={{
-                  width: "64px",
-                  height: "42px",
-                  borderRadius: "10px",
+                  width: isMobile ? "46px" : "64px",
+                  height: keyHeight,
+                  borderRadius: isMobile ? "8px" : "10px",
                   border: "1px solid rgba(7,17,31,0.14)",
                   background: "rgba(255,255,255,0.78)",
                   color: "#07111f",
-                  fontSize: "12px",
+                  fontSize: isMobile ? "10px" : "12px",
                   fontWeight: 900,
                   cursor: "pointer",
+                  flexShrink: 0,
                 }}
               >
                 DEL
@@ -4311,21 +4351,17 @@ function WorldPopup({
 
   const useCompactPopup = isActivityLabOptions || isCategoriesActivity;
 
-  const popupWidth = useCompactPopup
-    ? isMobile
-      ? "96vw"
-      : "min(980px, 92vw)"
-    : isMobile
-    ? "96vw"
-    : "min(1680px, 96vw)";
+  const popupWidth = isMobile
+  ? "calc(100vw - 20px)"
+  : useCompactPopup
+  ? "min(980px, 92vw)"
+  : "min(1680px, 96vw)";
 
-  const popupHeight = useCompactPopup
-    ? isMobile
-      ? "86dvh"
-      : "min(720px, 86vh)"
-    : isMobile
-    ? "90dvh"
-    : "min(900px, 90vh)";
+const popupHeight = isMobile
+  ? "calc(100dvh - 20px)"
+  : useCompactPopup
+  ? "min(720px, 86vh)"
+  : "min(900px, 90vh)";
 
   function startCustomisation(option: PopupOption) {
     if (!option.customisation) return;
@@ -4394,9 +4430,9 @@ function WorldPopup({
         inset: 0,
         zIndex: 75,
         display: "flex",
-        alignItems: "center",
+        alignItems: isMobile ? "flex-start" : "center",
         justifyContent: "center",
-        padding: isMobile ? "12px" : isCompact ? "22px" : "44px",
+        padding: isMobile ? "10px" : isCompact ? "22px" : "44px",
         background: "rgba(0,0,0,0.5)",
         backdropFilter: "blur(5px)",
         WebkitBackdropFilter: "blur(5px)",
@@ -4409,7 +4445,8 @@ function WorldPopup({
           position: "relative",
           width: popupWidth,
           height: popupHeight,
-          borderRadius: isMobile ? "22px" : "34px",
+          maxHeight: popupHeight,
+          borderRadius: isMobile ? "20px" : "34px",
           overflowY: "auto",
           overflowX: "hidden",
           background:
@@ -4425,11 +4462,11 @@ function WorldPopup({
           onClick={onClose}
           style={{
             position: "sticky",
-            top: "24px",
-            left: "calc(100% - 70px)",
-            zIndex: 8,
-            width: "44px",
-            height: "44px",
+            top: isMobile ? "10px" : "24px",
+            left: "calc(100% - 58px)",
+            zIndex: 20,
+            width: isMobile ? "40px" : "44px",
+            height: isMobile ? "40px" : "44px",
             borderRadius: "999px",
             border: "1px solid rgba(7,17,31,0.12)",
             background: "rgba(255,255,255,0.82)",
