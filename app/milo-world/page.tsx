@@ -11,8 +11,7 @@ const MILOS_CLUB_URL =
 type PopupKind =
   | "membership"
   | "printStudio"
-  | "masteryLab"
-  | "blindBox";
+  | "masteryLab";
 
 type ServiceFormKind =
   | "corporateBulk"
@@ -235,17 +234,17 @@ const zones: Zone[] = [
     },
   },
   {
-    number: "4",
-    icon: "◈",
-    title: "Milo’s Blind Box",
-    description: "Monthly surprise prints from Milo’s studio.",
-    action: "blindBox",
-    style: {
-      top: "570px",
-      left: "365px",
-      width: "455px",
-    },
+  number: "4",
+  icon: "◈",
+  title: "Dream Shop",
+  description: "Collectibles, limited drops, and Dreamscape items.",
+  href: "/milo-world/dream-shop",
+  style: {
+    top: "570px",
+    left: "365px",
+    width: "455px",
   },
+},
     {
     number: "5",
     icon: "★",
@@ -350,49 +349,10 @@ const popupContent: Record<PopupKind, PopupContent> = {
       },
     ],
   },
-
-  blindBox: {
-    eyebrow: "Spark Local Legends: Series 01",
-    title: "Milo’s Monthly Blind Box",
-    description:
-      "Each blind box contains one mystery Spark collectible from the launch set. The first set features local role-inspired Spark variations.",
-    options: [
-      {
-        name: "Delivery Spark",
-        subtitle: "A local delivery-rider inspired Spark with a parcel pack.",
-        description:
-          "A green courier-style Spark variation with a delivery bag and friendly helper expression.",
-        priceFrom: "Possible pull",
-        imageSrc: "/milo-world/blind-box/delivery-spark.png",
-        imageFit: "contain",
-        buttonLabel: "Preview Only",
-      },
-      {
-        name: "Hawker Spark",
-        subtitle: "A hawker-helper Spark with a simple food tray theme.",
-        description:
-          "A warm orange and cream Spark variation inspired by everyday hawker stall energy.",
-        priceFrom: "Possible pull",
-        imageSrc: "/milo-world/blind-box/hawker-spark.png",
-        imageFit: "contain",
-        buttonLabel: "Preview Only",
-      },
-      {
-        name: "Barista Spark",
-        subtitle: "A café barista Spark with a green apron and coffee cup.",
-        description:
-          "A coffeehouse-inspired Spark variation with a clean green apron and takeaway cup accessory.",
-        priceFrom: "Possible pull",
-        imageSrc: "/milo-world/blind-box/barista-spark.png",
-        imageFit: "contain",
-        buttonLabel: "Preview Only",
-      },
-    ],
-  },
 };
 
 const introText =
-  "Hi, I’m Milo. Welcome to my Design District. This is where Dreamscape members manage their access, businesses request 3D printing services, advanced users take on tougher mastery challenges, and collectors discover monthly blind boxes. Choose any zone to begin.";
+  "Hi, I’m Milo. Welcome to my Design District. This is where Dreamscape members manage their access, businesses request 3D printing services, advanced users take on tougher mastery challenges, and collectors visit the Dream Shop for limited drops. Choose any zone to begin.";
 
 function createInitialChoices(option: PopupOption): CustomChoices {
   return {
@@ -4405,24 +4365,6 @@ const popupHeight = isMobile
     onClose();
   }
 
-  function addBlindBoxToCart() {
-    const cartItem = {
-      id: `spark-blind-box-${Date.now()}`,
-      productType: "milo-blind-box",
-      name: "Spark Local Legends Blind Box",
-      description: "One mystery Spark collectible from Series 01.",
-      series: "Spark Local Legends: Series 01",
-      possiblePulls: ["Delivery Spark", "Hawker Spark", "Barista Spark"],
-      image: "/milo-world/blind-box/delivery-spark.png",
-      price: 19.9,
-      quantity: 1,
-    };
-
-    const savedCart = JSON.parse(localStorage.getItem("dreamscape-cart") || "[]");
-    localStorage.setItem("dreamscape-cart", JSON.stringify([...savedCart, cartItem]));
-    onClose();
-  }
-
   return (
     <div
       style={{
@@ -4539,268 +4481,50 @@ const popupHeight = isMobile
               }}
             >
               {activePopup === "membership" ? (
-                <MembershipPlans onClose={onClose} />
-              ) : activePopup === "blindBox" ? (
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: isCompact ? "1fr" : "minmax(0, 1fr) 330px",
-                    gap: "28px",
-                    alignItems: "start",
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: isCompact ? "1fr" : "repeat(3, minmax(0, 1fr))",
-                        gap: "22px",
-                      }}
-                    >
-                      {content.options.map((option) => (
-                        <article
-                          key={option.name}
-                          style={{
-                            minHeight: "520px",
-                            borderRadius: "26px",
-                            border: "1px solid rgba(5,13,28,0.12)",
-                            background: "rgba(255,255,255,0.76)",
-                            boxShadow: "0 22px 55px rgba(0,0,0,0.14)",
-                            overflow: "hidden",
-                            display: "grid",
-                            gridTemplateRows: isMobile ? "240px 1fr" : "350px 1fr",
-                          }}
-                        >
-                          <div
-                            style={{
-                              position: "relative",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              background:
-                                "radial-gradient(circle at 50% 42%, rgba(83,215,255,0.12), rgba(255,255,255,0.62) 42%, rgba(255,255,255,0.86))",
-                              borderBottom: "1px solid rgba(5,13,28,0.08)",
-                            }}
-                          >
-                            <div
-                              style={{
-                                position: "absolute",
-                                inset: "22px",
-                                borderRadius: "22px",
-                                border: "1px dashed rgba(5,13,28,0.16)",
-                              }}
-                            />
-                            <img
-                              src={option.imageSrc}
-                              alt={option.name}
-                              style={{
-                                position: "relative",
-                                zIndex: 2,
-                                width: "94%",
-                                height: "94%",
-                                objectFit: "contain",
-                                filter: "drop-shadow(0 20px 24px rgba(0,0,0,0.16))",
-                              }}
-                            />
-                          </div>
+  <MembershipPlans onClose={onClose} />
+) : (
+  <>
+    <div
+      style={{
+        display: "flex",
+        gap: "24px",
+        overflowX: "auto",
+        overflowY: "hidden",
+        padding: "8px 4px 28px",
+        scrollSnapType: "x mandatory",
+      }}
+    >
+      {content.options.map((option) => (
+        <OptionCard
+          key={option.name}
+          option={option}
+          onStartCustomisation={
+            supportsCustomisation ? startCustomisation : undefined
+          }
+          onOpenServiceForm={openServiceForm}
+          onOpenActivity={openActivity}
+        />
+      ))}
+    </div>
 
-                          <div style={{ padding: "24px", color: "#07111f" }}>
-                            <p
-                              style={{
-                                margin: 0,
-                                color: "#2875a0",
-                                fontSize: "12px",
-                                letterSpacing: "0.16em",
-                                textTransform: "uppercase",
-                                fontWeight: 900,
-                              }}
-                            >
-                              Possible Pull
-                            </p>
-
-                            <h3
-                              style={{
-                                margin: "10px 0 0",
-                                fontSize: "25px",
-                                lineHeight: 1.1,
-                                fontWeight: 900,
-                              }}
-                            >
-                              {option.name}
-                            </h3>
-
-                            <p
-                              title={option.subtitle}
-                              style={{
-                                margin: "12px 0 0",
-                                color: "rgba(7,17,31,0.62)",
-                                fontSize: "14px",
-                                lineHeight: 1.45,
-                                fontWeight: 650,
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                              }}
-                            >
-                              {option.subtitle}
-                            </p>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-
-                    <div
-                      style={{
-                        marginTop: "14px",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        color: "rgba(7,17,31,0.46)",
-                        fontSize: "13px",
-                      }}
-                    >
-                      <span>All three Spark variations are shown above.</span>
-                      <span>{content.options.length} possible pulls</span>
-                    </div>
-                  </div>
-
-                  <aside
-                    style={{
-                      position: isCompact ? "relative" : "sticky",
-                      top: isCompact ? "auto" : "80px",
-                      borderRadius: "24px",
-                      border: "1px solid rgba(7,17,31,0.1)",
-                      background: "rgba(255,255,255,0.76)",
-                      padding: "24px",
-                      boxShadow: "0 18px 48px rgba(0,0,0,0.1)",
-                    }}
-                  >
-                    <p
-                      style={{
-                        margin: 0,
-                        color: "#2875a0",
-                        fontSize: "12px",
-                        letterSpacing: "0.16em",
-                        textTransform: "uppercase",
-                        fontWeight: 900,
-                      }}
-                    >
-                      Mystery Box Purchase
-                    </p>
-
-                    <h3 style={{ margin: "8px 0 0", fontSize: "26px", color: "#07111f", lineHeight: 1.15 }}>
-                      Spark Local Legends Blind Box
-                    </h3>
-
-                    <p
-                      style={{
-                        margin: "10px 0 0",
-                        color: "rgba(7,17,31,0.58)",
-                        fontSize: "14px",
-                        lineHeight: 1.5,
-                      }}
-                    >
-                      One box contains one random Spark from the three launch variations shown here.
-                    </p>
-
-                    <div
-                      style={{
-                        marginTop: "20px",
-                        padding: "16px",
-                        borderRadius: "18px",
-                        background: "rgba(7,17,31,0.04)",
-                        border: "1px solid rgba(7,17,31,0.08)",
-                      }}
-                    >
-                      <span
-                        style={{
-                          display: "block",
-                          color: "rgba(7,17,31,0.48)",
-                          fontSize: "12px",
-                          letterSpacing: "0.14em",
-                          textTransform: "uppercase",
-                          fontWeight: 900,
-                        }}
-                      >
-                        Price
-                      </span>
-                      <strong style={{ display: "block", marginTop: "6px", fontSize: "34px", color: "#07111f" }}>
-                        $19.90
-                      </strong>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={addBlindBoxToCart}
-                      style={{
-                        marginTop: "18px",
-                        width: "100%",
-                        height: "52px",
-                        borderRadius: "14px",
-                        border: "none",
-                        background: "#07111f",
-                        color: "white",
-                        fontWeight: 900,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Add Blind Box to Cart
-                    </button>
-
-                    <p
-                      style={{
-                        margin: "18px 0 0",
-                        color: "rgba(7,17,31,0.48)",
-                        fontSize: "12px",
-                        lineHeight: 1.55,
-                      }}
-                    >
-                      <strong>Disclaimer:</strong> This preview is a digital concept render. The actual 3D printed product will not look this detailed. Small details may be simplified, layer lines may be visible, and colours may vary slightly depending on print settings and material availability.
-                    </p>
-                  </aside>
-                </div>              ) : (
-                <>
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "24px",
-                      overflowX: "auto",
-                      overflowY: "hidden",
-                      padding: "8px 4px 28px",
-                      scrollSnapType: "x mandatory",
-                    }}
-                  >
-                    {content.options.map((option) => (
-                      <OptionCard
-                        key={option.name}
-                        option={option}
-                        onStartCustomisation={
-                          supportsCustomisation ? startCustomisation : undefined
-                        }
-                        onOpenServiceForm={openServiceForm}
-                        onOpenActivity={openActivity}
-                      />
-                    ))}
-                  </div>
-
-                  <div
-                    style={{
-                      marginTop: "4px",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      color: "rgba(7,17,31,0.46)",
-                      fontSize: "13px",
-                    }}
-                  >
-                    <span>Scroll sideways to view more options.</span>
-                    <span>{content.options.length} options</span>
-                  </div>
-                </>
-              )}
-            </div>
-          </>
-        )}
+    <div
+      style={{
+        marginTop: "4px",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        color: "rgba(7,17,31,0.46)",
+        fontSize: "13px",
+      }}
+    >
+      <span>Scroll sideways to view more options.</span>
+      <span>{content.options.length} options</span>
+    </div>
+  </>
+)}
+</div>
+</>
+)}
 
         {selectedServiceOption && (
           <ServiceRequestForm
