@@ -571,7 +571,10 @@ export default function InventorHubPage() {
   }
 
   function addHapProductToCart() {
-    if (!selectedProduct || selectedProduct.id !== "high-ability-practice-papers") {
+    if (
+      !selectedProduct ||
+      selectedProduct.id !== "high-ability-practice-papers"
+    ) {
       return;
     }
 
@@ -653,17 +656,17 @@ export default function InventorHubPage() {
 
       <button
         onClick={() => router.push("/inventor")}
-        className="absolute left-6 top-6 z-20 rounded-full border border-cyan-300/60 bg-slate-950/60 px-5 py-3 text-sm font-bold tracking-[0.12em] text-cyan-50 shadow-[0_0_24px_rgba(0,220,255,0.35)] backdrop-blur-md hover:bg-cyan-400/20"
+        className="absolute left-5 top-5 z-20 rounded-full border border-cyan-300/60 bg-slate-950/60 px-4 py-2 text-xs font-bold tracking-[0.12em] text-cyan-50 shadow-[0_0_24px_rgba(0,220,255,0.35)] backdrop-blur-md hover:bg-cyan-400/20 sm:left-6 sm:top-6 sm:px-5 sm:py-3 sm:text-sm"
       >
         ← Exit Inventor Hub
       </button>
 
-      <div className="absolute left-6 top-24 z-20 max-w-[320px] rounded-[22px] border border-cyan-300/35 bg-slate-950/55 px-5 py-4 text-cyan-50 shadow-[0_0_28px_rgba(0,220,255,0.22)] backdrop-blur-md">
+      <div className="absolute left-5 right-5 top-20 z-20 rounded-[22px] border border-cyan-300/35 bg-slate-950/55 px-5 py-4 text-cyan-50 shadow-[0_0_28px_rgba(0,220,255,0.22)] backdrop-blur-md sm:left-6 sm:right-auto sm:top-24 sm:max-w-[320px]">
         <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-300">
           Inventor Hub
         </p>
 
-        <h1 className="mt-2 text-2xl font-black leading-tight text-white">
+        <h1 className="mt-2 text-xl font-black leading-tight text-white sm:text-2xl">
           Explore the 4 zones
         </h1>
 
@@ -674,15 +677,15 @@ export default function InventorHubPage() {
           </span>
 
           <span className="sm:hidden">
-            Tap each zone to discover build sets, learning resources, collectibles,
-            and future tools.
+            Tap each zone to discover build sets, learning resources,
+            collectibles, and future tools.
           </span>
         </p>
       </div>
 
       <button
         onClick={() => router.push("/cart")}
-        className="absolute right-6 top-6 z-20 flex items-center gap-2 rounded-full border border-cyan-300/60 bg-slate-950/60 px-5 py-3 text-sm font-bold tracking-[0.12em] text-cyan-50 shadow-[0_0_24px_rgba(0,220,255,0.35)] backdrop-blur-md hover:bg-cyan-400/20"
+        className="absolute right-5 top-5 z-20 flex items-center gap-2 rounded-full border border-cyan-300/60 bg-slate-950/60 px-4 py-2 text-xs font-bold tracking-[0.12em] text-cyan-50 shadow-[0_0_24px_rgba(0,220,255,0.35)] backdrop-blur-md hover:bg-cyan-400/20 sm:right-6 sm:top-6 sm:px-5 sm:py-3 sm:text-sm"
       >
         <span>🛒</span>
         Cart
@@ -855,7 +858,10 @@ export default function InventorHubPage() {
 
                 <ul className="mt-3 list-disc space-y-2 pl-5">
                   <li>Includes 1 random Bolt variant from the launch series.</li>
-                  <li>Possible variants: Delivery Bolt, Hawker Bolt, or Barista Bolt.</li>
+                  <li>
+                    Possible variants: Delivery Bolt, Hawker Bolt, or Barista
+                    Bolt.
+                  </li>
                   <li>Approximate size: 8cm height.</li>
                   <li>Material: 3D printed PLA.</li>
                   <li>Designed as a collectible display figurine.</li>
@@ -915,11 +921,13 @@ export default function InventorHubPage() {
               Machine Zone
             </p>
 
-            <h1 className="mt-3 text-4xl font-black md:text-6xl">Coming Soon</h1>
+            <h1 className="mt-3 text-4xl font-black md:text-6xl">
+              Coming Soon
+            </h1>
 
             <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-cyan-50/85">
-              The Machine Zone is being prepared as an exclusive area for Student
-              Access members.
+              The Machine Zone is being prepared as an exclusive area for
+              Student Access members.
             </p>
 
             <div className="mx-auto mt-8 max-w-md rounded-[24px] border border-cyan-200/20 bg-white/10 p-6">
@@ -928,8 +936,8 @@ export default function InventorHubPage() {
               </p>
 
               <p className="mt-3 text-sm leading-relaxed text-slate-200/75">
-                Future tools, member-only activities, and advanced creation features
-                will appear here later.
+                Future tools, member-only activities, and advanced creation
+                features will appear here later.
               </p>
             </div>
 
@@ -1290,9 +1298,9 @@ export default function InventorHubPage() {
         .hotspotLabel {
           position: absolute;
           left: 50%;
-          bottom: 100%;
+          top: 50%;
           min-width: 230px;
-          transform: translateX(-50%) translateY(-12px);
+          transform: translate(-50%, -50%);
           border-radius: 16px;
           border: 1px solid rgba(125, 247, 255, 0.38);
           background: rgba(4, 12, 32, 0.58);
@@ -1327,7 +1335,7 @@ export default function InventorHubPage() {
         .hubHotspot:hover .hotspotLabel,
         .hubHotspot:focus-visible .hotspotLabel {
           opacity: 1;
-          transform: translateX(-50%) translateY(-18px);
+          transform: translate(-50%, -50%) scale(1.03);
           border-color: rgba(125, 247, 255, 0.85);
           background: rgba(4, 12, 32, 0.92);
           box-shadow: 0 0 28px rgba(0, 225, 255, 0.38);
@@ -1337,15 +1345,6 @@ export default function InventorHubPage() {
         .hubHotspot:focus-visible .hotspotLabel small {
           color: rgba(255, 255, 255, 0.95);
         }
-
-        @media (hover: none) {
-        .hotspotLabel {
-          opacity: 0.82;
-          transform: translateX(-50%) translateY(-14px);
-          background: rgba(4, 12, 32, 0.82);
-          border-color: rgba(125, 247, 255, 0.58);
-        }
-      }
 
         .hotspotPrototype {
           left: 35%;
@@ -1380,6 +1379,71 @@ export default function InventorHubPage() {
           top: 24%;
           width: 24%;
           height: 52%;
+        }
+
+        @media (hover: none) {
+          .hotspotLabel {
+            opacity: 0.92;
+            background: rgba(4, 12, 32, 0.82);
+            border-color: rgba(125, 247, 255, 0.58);
+          }
+        }
+
+        @media (max-width: 768px) {
+          .hubHotspot {
+            left: 18px !important;
+            right: 18px !important;
+            width: auto !important;
+            height: 76px !important;
+          }
+
+          .hotspotParts {
+            top: 238px !important;
+          }
+
+          .hotspotPicks {
+            top: 326px !important;
+          }
+
+          .hotspotExclusive {
+            top: 414px !important;
+          }
+
+          .hotspotMachine {
+            top: 502px !important;
+          }
+
+          .hotspotLabel {
+            left: 0;
+            top: 0;
+            width: 100%;
+            min-width: 0;
+            height: 76px;
+            transform: none;
+            opacity: 0.94;
+            border-radius: 18px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            background: rgba(4, 12, 32, 0.82);
+            border-color: rgba(125, 247, 255, 0.5);
+            box-shadow: 0 0 18px rgba(0, 225, 255, 0.18);
+          }
+
+          .hubHotspot:hover .hotspotLabel,
+          .hubHotspot:focus-visible .hotspotLabel {
+            transform: none;
+            opacity: 1;
+          }
+
+          .hotspotLabel strong {
+            font-size: 14px;
+          }
+
+          .hotspotLabel small {
+            font-size: 11px;
+            line-height: 1.35;
+          }
         }
       `}</style>
     </main>
