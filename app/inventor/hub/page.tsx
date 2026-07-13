@@ -288,33 +288,35 @@ const HUB_AREAS: HubArea[] = [
       },
     ],
   },
+  
   {
-    id: "educational-resources",
-    title: "Educational Resources",
-    label: "Learning products and practice resources.",
-    status: "open",
-    positionClass: "hotspotPicks",
-    items: [
-      {
-        id: "high-ability-practice-papers",
-        name: "High Ability Practice Papers",
-        type: "Practice Papers",
-        image: "",
-        description:
-          "Placeholder for GKP High Ability practice papers designed for advanced thinking and problem-solving.",
-        status: "coming soon",
-      },
-      {
-        id: "word-realms",
-        name: "Word Realms",
-        type: "Vocabulary Game",
-        image: "",
-        description:
-          "Placeholder for a vocabulary-based learning game built around words, meanings, and quick-thinking challenges.",
-        status: "coming soon",
-      },
-    ],
-  },
+  id: "educational-resources",
+  title: "Educational Resources",
+  label: "Learning products and practice resources.",
+  status: "open",
+  positionClass: "hotspotPicks",
+  items: [
+    {
+      id: "high-ability-practice-papers",
+      name: "High Ability Practice Papers",
+      type: "Practice Papers",
+      image: "/store/educational-resources/hap-practice-papers.png",
+      description:
+        "High Ability practice papers designed for advanced thinking, problem-solving, and challenging enrichment practice.",
+      status: "coming soon",
+    },
+    {
+      id: "word-realms",
+      name: "Word Realms",
+      type: "Vocabulary Game",
+      image: "/store/educational-resources/word-realms.png",
+      description:
+        "A vocabulary-based learning game built around words, meanings, memory, and quick-thinking challenges.",
+      status: "coming soon",
+    },
+  ],
+},
+
   {
     id: "exclusive",
     title: "Nova's Blind Box",
