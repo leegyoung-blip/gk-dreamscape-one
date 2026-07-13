@@ -119,12 +119,62 @@ type CoreMissionQuestion = {
   difficulty: string;
 };
 
+type CompletedCoreAttempt = {
+  quiz_id: string;
+  score: number;
+  correct_count: number;
+  tokens_earned: number;
+};
+
 const allowedCoreMissionTiers = [
   "admin",
   "gkp_student",
   "paid_student",
   "student",
   "pro",
+];
+
+const coreUpgradeTrack = [
+  {
+    missionsRequired: 0,
+    name: "Basic Rover Frame",
+    description: "Nova has the starting frame of her Skyforge Rover.",
+  },
+  {
+    missionsRequired: 1,
+    name: "Energy Engine",
+    description: "The rover can now power up and move through Dreamscape.",
+  },
+  {
+    missionsRequired: 3,
+    name: "Navigation Console",
+    description: "Nova can now find safer paths through mission zones.",
+  },
+  {
+    missionsRequired: 5,
+    name: "Turbo Wheels",
+    description: "The rover moves faster across learning routes.",
+  },
+  {
+    missionsRequired: 8,
+    name: "Shield Plating",
+    description: "The rover is protected during harder missions.",
+  },
+  {
+    missionsRequired: 12,
+    name: "Hover Boosters",
+    description: "Nova can now cross broken paths and floating platforms.",
+  },
+  {
+    missionsRequired: 16,
+    name: "Sky Wings",
+    description: "The rover begins transforming into a flying vehicle.",
+  },
+  {
+    missionsRequired: 20,
+    name: "Skyforge Rover Complete",
+    description: "Nova’s vehicle is fully upgraded for major expeditions.",
+  },
 ];
 
 const coreSubjects: {
@@ -182,6 +232,24 @@ const coreLevelBands: {
   },
 ];
 
+function getCurrentUpgrade(completedCount: number) {
+  let currentUpgrade = coreUpgradeTrack[0];
+
+  for (const upgrade of coreUpgradeTrack) {
+    if (completedCount >= upgrade.missionsRequired) {
+      currentUpgrade = upgrade;
+    }
+  }
+
+  return currentUpgrade;
+}
+
+function getNextUpgrade(completedCount: number) {
+  return coreUpgradeTrack.find(
+    (upgrade) => completedCount < upgrade.missionsRequired
+  );
+}
+
 function CoreMissionsActivity({
   onExit,
   tokenBalance,
@@ -208,8 +276,6 @@ function CoreMissionsActivity({
   >("checking");
 
   const [userId, setUserId] = useState<string | null>(null);
-  const [accessTier, setAccessTier] = useState<string | null>(null);
-
   const [selectedSubject, setSelectedSubject] = useState<CoreSubject | null>(
     null
   );
@@ -233,7 +299,34 @@ function CoreMissionsActivity({
   const [rewardSaved, setRewardSaved] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const [completedAttempts, setCompletedAttempts] = useState<
+    CompletedCoreAttempt[]
+  >([]);
+
   const currentQuestion = questions[questionIndex];
+
+  const completedQuizIds = new Set(
+    completedAttempts.map((attempt) => attempt.quiz_id)
+  );
+
+  const completedMissionCount = completedAttempts.length;
+  const currentUpgrade = getCurrentUpgrade(completedMissionCount);
+  const nextUpgrade = getNextUpgrade(completedMissionCount);
+
+  const progressTarget =
+    nextUpgrade?.missionsRequired ??
+    coreUpgradeTrack[coreUpgradeTrack.length - 1].missionsRequired;
+
+  const previousTarget = currentUpgrade.missionsRequired;
+  const progressRange = Math.max(1, progressTarget - previousTarget);
+  const progressWithinRange = Math.max(
+    0,
+    completedMissionCount - previousTarget
+  );
+
+  const progressPercentage = nextUpgrade
+    ? Math.min(100, Math.round((progressWithinRange / progressRange) * 100))
+    : 100;
 
   useEffect(() => {
     checkAccess();
@@ -265,14 +358,45 @@ function CoreMissionsActivity({
       return;
     }
 
-    setAccessTier(data.tier);
-
     if (!allowedCoreMissionTiers.includes(data.tier)) {
       setScreen("locked");
       return;
     }
 
+    await loadCompletedAttempts(user.id);
     setScreen("subject");
+  }
+
+  async function loadCompletedAttempts(activeUserId: string) {
+    const { data, error } = await supabase
+      .from("core_mission_attempts")
+      .select("quiz_id, score, correct_count, tokens_earned")
+      .eq("user_id", activeUserId);
+
+    if (error) {
+      console.warn("Could not load completed Core Mission attempts:", error);
+      setCompletedAttempts([]);
+      return;
+    }
+
+    const uniqueAttempts = new Map<string, CompletedCoreAttempt>();
+
+    for (const attempt of data ?? []) {
+      if (!uniqueAttempts.has(attempt.quiz_id)) {
+        uniqueAttempts.set(attempt.quiz_id, {
+          quiz_id: attempt.quiz_id,
+          score: attempt.score,
+          correct_count: attempt.correct_count,
+          tokens_earned: attempt.tokens_earned,
+        });
+      }
+    }
+
+    setCompletedAttempts(Array.from(uniqueAttempts.values()));
+  }
+
+  function isQuizCompleted(quizId: string) {
+    return completedQuizIds.has(quizId);
   }
 
   async function chooseSubject(subject: CoreSubject) {
@@ -281,6 +405,7 @@ function CoreMissionsActivity({
     setSelectedQuiz(null);
     setQuizzes([]);
     setQuestions([]);
+    setLoadError(null);
     setScreen("level");
   }
 
@@ -403,7 +528,13 @@ function CoreMissionsActivity({
       return;
     }
 
-    const reward = calculateTokenReward(score, correctCount);
+    const finalScore = score;
+    const finalCorrectCount = correctCount;
+    const hasCompletedThisQuizBefore = isQuizCompleted(selectedQuiz.id);
+
+    const reward = hasCompletedThisQuizBefore
+      ? 0
+      : calculateTokenReward(finalScore, finalCorrectCount);
 
     setTokensEarned(reward);
     setScreen("results");
@@ -413,14 +544,32 @@ function CoreMissionsActivity({
       .insert({
         user_id: userId,
         quiz_id: selectedQuiz.id,
-        score,
-        correct_count: correctCount,
+        score: finalScore,
+        correct_count: finalCorrectCount,
         total_questions: questions.length,
         tokens_earned: reward,
       });
 
     if (attemptError) {
       console.warn("Could not save Core Mission attempt:", attemptError);
+      setRewardSaved(false);
+      return;
+    }
+
+    if (!hasCompletedThisQuizBefore) {
+      const newAttempt: CompletedCoreAttempt = {
+        quiz_id: selectedQuiz.id,
+        score: finalScore,
+        correct_count: finalCorrectCount,
+        tokens_earned: reward,
+      };
+
+      setCompletedAttempts((prev) => [...prev, newAttempt]);
+    }
+
+    if (reward <= 0) {
+      setRewardSaved(true);
+      return;
     }
 
     const { error: tokenError } = await supabase
@@ -435,6 +584,7 @@ function CoreMissionsActivity({
 
     if (tokenError) {
       console.warn("Could not award Core Mission tokens:", tokenError);
+      setRewardSaved(false);
       return;
     }
 
@@ -457,6 +607,7 @@ function CoreMissionsActivity({
     setCorrectCount(0);
     setTokensEarned(0);
     setRewardSaved(false);
+    setLoadError(null);
     setScreen("subject");
   }
 
@@ -466,6 +617,7 @@ function CoreMissionsActivity({
     setQuizzes([]);
     setQuestions([]);
     setQuestionIndex(0);
+    setLoadError(null);
     setScreen("level");
   }
 
@@ -478,6 +630,7 @@ function CoreMissionsActivity({
     setFeedback(null);
     setScore(0);
     setCorrectCount(0);
+    setLoadError(null);
     setScreen("quiz-list");
   }
 
@@ -494,26 +647,31 @@ function CoreMissionsActivity({
       style={{
         minHeight: "100dvh",
         width: "100%",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
         padding: isMobile ? "86px 14px 28px" : "96px 26px 42px",
-        background:
-          "radial-gradient(circle at 50% 0%, rgba(126,232,255,0.2), transparent 35%), #020813",
+        backgroundImage: `
+          linear-gradient(
+            180deg,
+            rgba(2,8,19,0.78),
+            rgba(2,8,19,0.84)
+          ),
+          radial-gradient(circle at 50% 0%, rgba(126,232,255,0.22), transparent 35%),
+          url("/learning-missions/core/core-vehicle-bay.png")
+        `,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundAttachment: isMobile ? "scroll" : "fixed",
         color: "white",
         fontFamily: "Arial, Helvetica, sans-serif",
       }}
     >
       <div
         style={{
-          position: "relative",
           width: "min(1180px, 94vw)",
-          maxHeight: isMobile ? "88dvh" : "92vh",
-          overflowY: "auto",
+          margin: "0 auto",
           borderRadius: isMobile ? "22px" : "30px",
           border: "1px solid rgba(126, 221, 255, 0.62)",
           background:
-            "linear-gradient(145deg, rgba(15, 48, 88, 0.96), rgba(9, 24, 56, 0.98))",
+            "linear-gradient(145deg, rgba(15, 48, 88, 0.94), rgba(9, 24, 56, 0.96))",
           boxShadow:
             "0 0 45px rgba(85, 215, 255, 0.35), 0 30px 90px rgba(0, 0, 0, 0.55)",
           padding: isMobile ? "28px 18px 24px" : "34px 46px 38px",
@@ -524,28 +682,31 @@ function CoreMissionsActivity({
           type="button"
           onClick={onExit}
           style={{
-            position: "absolute",
+            position: "fixed",
             top: isMobile ? "14px" : "22px",
-            right: isMobile ? "14px" : "22px",
-            width: isMobile ? "38px" : "44px",
-            height: isMobile ? "38px" : "44px",
+            left: isMobile ? "14px" : "22px",
+            zIndex: 40,
+            height: isMobile ? "40px" : "46px",
+            padding: isMobile ? "0 14px" : "0 22px",
             borderRadius: "999px",
             border: "1px solid rgba(150, 231, 255, 0.7)",
-            background: "rgba(255, 255, 255, 0.08)",
+            background: "rgba(2,8,19,0.7)",
             color: "white",
-            fontSize: isMobile ? "24px" : "28px",
-            lineHeight: 1,
+            fontSize: isMobile ? "12px" : "14px",
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
             cursor: "pointer",
+            backdropFilter: "blur(14px)",
             boxShadow: "0 0 18px rgba(83, 215, 255, 0.22)",
           }}
         >
-          ×
+          ← Missions
         </button>
 
         <div
           style={{
             textAlign: "center",
-            padding: isMobile ? "0 42px" : "0 70px",
+            padding: isMobile ? "0 16px" : "0 70px",
           }}
         >
           <p
@@ -563,36 +724,38 @@ function CoreMissionsActivity({
           <h2
             style={{
               margin: "10px 0 0",
-              fontSize: isMobile ? "32px" : "44px",
+              fontSize: isMobile ? "34px" : "52px",
               fontWeight: 500,
               letterSpacing: "-0.03em",
               textShadow: "0 0 24px rgba(126, 221, 255, 0.35)",
             }}
           >
-            Core Missions
+            Build Nova’s Skyforge Rover
           </h2>
 
           <p
             style={{
-              margin: "10px 0 0",
+              margin: "12px auto 0",
+              maxWidth: "760px",
               fontSize: isMobile ? "16px" : "20px",
-              color: "#7ee8ff",
+              color: "#bdf6ff",
+              lineHeight: 1.55,
               fontWeight: 300,
             }}
           >
-            Practise focused English and Math missions by level band.
+            Nova is preparing for a bigger Dreamscape expedition, but her
+            vehicle is still unfinished. Complete English and Math missions to
+            power each vehicle system and unlock new upgrades.
           </p>
-
-          <div
-            style={{
-              width: "210px",
-              height: "1px",
-              margin: "20px auto 0",
-              background:
-                "linear-gradient(90deg, transparent, rgba(126,232,255,0.9), transparent)",
-            }}
-          />
         </div>
+
+        <CoreUpgradePanel
+          isMobile={isMobile}
+          completedMissionCount={completedMissionCount}
+          currentUpgrade={currentUpgrade}
+          nextUpgrade={nextUpgrade}
+          progressPercentage={progressPercentage}
+        />
 
         {screen === "checking" && (
           <CoreMessageCard message="Checking your Core Missions access..." />
@@ -757,61 +920,97 @@ function CoreMissionsActivity({
                   gap: "16px",
                 }}
               >
-                {quizzes.map((quiz) => (
-                  <button
-                    key={quiz.id}
-                    type="button"
-                    onClick={() => startQuiz(quiz)}
-                    style={{
-                      minHeight: isMobile ? "auto" : "210px",
-                      borderRadius: "22px",
-                      padding: "20px",
-                      border: "1px solid rgba(126,232,255,0.36)",
-                      background:
-                        "linear-gradient(180deg, rgba(20, 58, 100, 0.74), rgba(8, 25, 56, 0.9))",
-                      color: "white",
-                      textAlign: "left",
-                      cursor: "pointer",
-                      display: "flex",
-                      flexDirection: "column",
-                    }}
-                  >
-                    <p
+                {quizzes.map((quiz) => {
+                  const completed = isQuizCompleted(quiz.id);
+                  const completedAttempt = completedAttempts.find(
+                    (attempt) => attempt.quiz_id === quiz.id
+                  );
+
+                  return (
+                    <button
+                      key={quiz.id}
+                      type="button"
+                      onClick={() => startQuiz(quiz)}
                       style={{
-                        margin: 0,
-                        color: "#7ee8ff",
-                        fontSize: "12px",
-                        letterSpacing: "0.14em",
-                        textTransform: "uppercase",
+                        minHeight: isMobile ? "auto" : "230px",
+                        borderRadius: "22px",
+                        padding: "20px",
+                        border: completed
+                          ? "1px solid rgba(74,222,128,0.5)"
+                          : "1px solid rgba(126,232,255,0.36)",
+                        background: completed
+                          ? "linear-gradient(180deg, rgba(20, 92, 60, 0.72), rgba(8, 35, 36, 0.9))"
+                          : "linear-gradient(180deg, rgba(20, 58, 100, 0.74), rgba(8, 25, 56, 0.9))",
+                        color: "white",
+                        textAlign: "left",
+                        cursor: "pointer",
+                        display: "flex",
+                        flexDirection: "column",
+                        opacity: completed ? 0.9 : 1,
                       }}
                     >
-                      Quiz {quiz.quiz_order}
-                    </p>
+                      <p
+                        style={{
+                          margin: 0,
+                          color: completed ? "#86efac" : "#7ee8ff",
+                          fontSize: "12px",
+                          letterSpacing: "0.14em",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {completed ? "Completed Once" : `Quiz ${quiz.quiz_order}`}
+                      </p>
 
-                    <h3
-                      style={{
-                        margin: "12px 0 0",
-                        fontSize: "21px",
-                        lineHeight: 1.2,
-                      }}
-                    >
-                      {quiz.title}
-                    </h3>
+                      <h3
+                        style={{
+                          margin: "12px 0 0",
+                          fontSize: "21px",
+                          lineHeight: 1.2,
+                        }}
+                      >
+                        {quiz.title}
+                      </h3>
 
-                    <p
-                      style={{
-                        margin: "10px 0 0",
-                        fontSize: "13px",
-                        lineHeight: 1.45,
-                        color: "rgba(255,255,255,0.72)",
-                      }}
-                    >
-                      {quiz.description}
-                    </p>
+                      <p
+                        style={{
+                          margin: "10px 0 0",
+                          fontSize: "13px",
+                          lineHeight: 1.45,
+                          color: "rgba(255,255,255,0.72)",
+                        }}
+                      >
+                        {quiz.description}
+                      </p>
 
-                    <div style={coreSmallButtonLook}>Start 20 Questions ›</div>
-                  </button>
-                ))}
+                      {completed && completedAttempt && (
+                        <p
+                          style={{
+                            margin: "14px 0 0",
+                            color: "rgba(255,255,255,0.76)",
+                            fontSize: "13px",
+                            lineHeight: 1.45,
+                          }}
+                        >
+                          Counted score: {completedAttempt.score}/100 · Correct:{" "}
+                          {completedAttempt.correct_count}/20 · Tokens: +
+                          {completedAttempt.tokens_earned}
+                        </p>
+                      )}
+
+                      <div
+                        style={{
+                          ...coreSmallButtonLook,
+                          background: completed
+                            ? "linear-gradient(135deg, #86efac, #22c55e)"
+                            : coreSmallButtonLook.background,
+                          color: completed ? "#052e16" : "white",
+                        }}
+                      >
+                        {completed ? "Replay Mission" : "Start 20 Questions ›"}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1040,7 +1239,7 @@ function CoreMissionsActivity({
           <div
             style={{
               margin: "42px auto 0",
-              maxWidth: "720px",
+              maxWidth: "760px",
               borderRadius: "26px",
               border: "1px solid rgba(126,232,255,0.5)",
               background:
@@ -1098,9 +1297,11 @@ function CoreMissionsActivity({
                 color: "rgba(255,255,255,0.78)",
               }}
             >
-              {rewardSaved
-                ? "Your Core Mission attempt and Dreamscape Token reward have been saved."
-                : "Your mission is complete. Token reward may not have been saved."}
+              {rewardSaved && tokensEarned > 0
+                ? "Your Core Mission attempt, Skyforge Rover progress, and Dreamscape Token reward have been saved."
+                : rewardSaved
+                ? "Practice attempt saved. This quiz was already completed before, so no extra upgrade progress or tokens were awarded."
+                : "Your mission is complete, but the reward may not have been saved."}
             </p>
 
             <div
@@ -1128,6 +1329,187 @@ function CoreMissionsActivity({
         )}
       </div>
     </main>
+  );
+}
+
+function CoreUpgradePanel({
+  isMobile,
+  completedMissionCount,
+  currentUpgrade,
+  nextUpgrade,
+  progressPercentage,
+}: {
+  isMobile: boolean;
+  completedMissionCount: number;
+  currentUpgrade: {
+    missionsRequired: number;
+    name: string;
+    description: string;
+  };
+  nextUpgrade:
+    | {
+        missionsRequired: number;
+        name: string;
+        description: string;
+      }
+    | undefined;
+  progressPercentage: number;
+}) {
+  const missionsToNext = nextUpgrade
+    ? Math.max(0, nextUpgrade.missionsRequired - completedMissionCount)
+    : 0;
+
+  return (
+    <section
+      style={{
+        marginTop: "32px",
+        display: "grid",
+        gridTemplateColumns: isMobile ? "1fr" : "1.1fr 0.9fr",
+        gap: "20px",
+      }}
+    >
+      <div
+        style={{
+          borderRadius: "24px",
+          border: "1px solid rgba(126,232,255,0.35)",
+          background:
+            "linear-gradient(145deg, rgba(5,22,48,0.76), rgba(10,48,82,0.62))",
+          padding: "24px",
+          boxShadow: "0 0 24px rgba(83,215,255,0.16)",
+        }}
+      >
+        <p
+          style={{
+            margin: 0,
+            color: "#7ee8ff",
+            fontSize: "12px",
+            letterSpacing: "0.18em",
+            textTransform: "uppercase",
+            fontWeight: 700,
+          }}
+        >
+          Vehicle Upgrade Progress
+        </p>
+
+        <h3
+          style={{
+            margin: "12px 0 0",
+            fontSize: isMobile ? "26px" : "34px",
+            lineHeight: 1.15,
+          }}
+        >
+          {currentUpgrade.name}
+        </h3>
+
+        <p
+          style={{
+            margin: "12px 0 0",
+            color: "rgba(255,255,255,0.78)",
+            fontSize: "15px",
+            lineHeight: 1.6,
+          }}
+        >
+          {currentUpgrade.description}
+        </p>
+
+        <div
+          style={{
+            marginTop: "22px",
+            height: "14px",
+            borderRadius: "999px",
+            border: "1px solid rgba(126,232,255,0.28)",
+            background: "rgba(255,255,255,0.08)",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              width: `${progressPercentage}%`,
+              height: "100%",
+              borderRadius: "999px",
+              background: "linear-gradient(90deg, #7ee8ff, #35c5ff)",
+              boxShadow: "0 0 18px rgba(126,232,255,0.45)",
+            }}
+          />
+        </div>
+
+        <p
+          style={{
+            margin: "12px 0 0",
+            color: "rgba(255,255,255,0.66)",
+            fontSize: "14px",
+          }}
+        >
+          Counted Core Missions:{" "}
+          <strong style={{ color: "#7ee8ff" }}>{completedMissionCount}</strong>
+        </p>
+      </div>
+
+      <div
+        style={{
+          borderRadius: "24px",
+          border: "1px solid rgba(255,215,106,0.35)",
+          background:
+            "linear-gradient(145deg, rgba(74,47,12,0.62), rgba(18,22,45,0.82))",
+          padding: "24px",
+        }}
+      >
+        <p
+          style={{
+            margin: 0,
+            color: "#ffd76a",
+            fontSize: "12px",
+            letterSpacing: "0.18em",
+            textTransform: "uppercase",
+            fontWeight: 700,
+          }}
+        >
+          Next Unlock
+        </p>
+
+        <h3
+          style={{
+            margin: "12px 0 0",
+            fontSize: isMobile ? "24px" : "30px",
+            lineHeight: 1.15,
+          }}
+        >
+          {nextUpgrade ? nextUpgrade.name : "Skyforge Rover Complete"}
+        </h3>
+
+        <p
+          style={{
+            margin: "12px 0 0",
+            color: "rgba(255,255,255,0.78)",
+            fontSize: "15px",
+            lineHeight: 1.6,
+          }}
+        >
+          {nextUpgrade
+            ? nextUpgrade.description
+            : "Nova’s vehicle is fully upgraded. Future Core Missions can still be replayed for practice."}
+        </p>
+
+        <div
+          style={{
+            marginTop: "18px",
+            borderRadius: "16px",
+            background: "rgba(255,215,106,0.12)",
+            border: "1px solid rgba(255,215,106,0.28)",
+            padding: "14px 16px",
+            color: "#ffe6a8",
+            fontSize: "14px",
+            lineHeight: 1.45,
+          }}
+        >
+          {nextUpgrade
+            ? `Complete ${missionsToNext} new Core Mission${
+                missionsToNext === 1 ? "" : "s"
+              } to unlock this upgrade. Replays are saved, but they do not add upgrade progress.`
+            : "All current vehicle upgrades unlocked."}
+        </div>
+      </div>
+    </section>
   );
 }
 
