@@ -655,7 +655,7 @@ function CoreMissionsActivity({
             rgba(2,8,19,0.84)
           ),
           radial-gradient(circle at 50% 0%, rgba(126,232,255,0.22), transparent 35%),
-          url("/learning-missions/core/core-vehicle-bay.png")
+          url("/activities/learning-missions/core/core-vehicle-bay.png")
         `,
         backgroundSize: "cover",
         backgroundPosition: "center",
