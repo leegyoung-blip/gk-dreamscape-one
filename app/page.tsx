@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -109,27 +109,6 @@ const ecosystemSteps = [
 ];
 
 function WorldPanel({ world, isMobile }: { world: World; isMobile: boolean }) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [hovered, setHovered] = useState(false);
-
-  function handleMouseEnter() {
-    setHovered(true);
-
-    if (!videoRef.current) return;
-
-    videoRef.current.currentTime = 0;
-    videoRef.current.play().catch(() => {});
-  }
-
-  function handleMouseLeave() {
-    setHovered(false);
-
-    if (!videoRef.current) return;
-
-    videoRef.current.pause();
-    videoRef.current.currentTime = 0;
-  }
-
   const panelStyle: CSSProperties = {
     position: "relative",
     height: isMobile ? "520px" : "calc(100vh - 86px)",
@@ -148,12 +127,11 @@ function WorldPanel({ world, isMobile }: { world: World; isMobile: boolean }) {
     `,
     backgroundSize: "cover",
     backgroundPosition: "center",
-    transform: hovered ? "scale(1.012)" : "scale(1)",
-    transition: "transform 650ms ease, filter 650ms ease",
-    filter: hovered ? "saturate(1.08) contrast(1.04)" : "none",
-    zIndex: hovered ? 8 : 1,
+    transition: "filter 650ms ease",
     borderRight:
-      world.key === "nova" ? "1px solid rgba(255,255,255,0.18)" : "none",
+      world.key === "nova" && !isMobile
+        ? "1px solid rgba(255,255,255,0.18)"
+        : "none",
   };
 
   const contentStyle: CSSProperties = {
@@ -163,27 +141,19 @@ function WorldPanel({ world, isMobile }: { world: World; isMobile: boolean }) {
     right: isMobile ? "28px" : world.key === "milo" ? "122px" : "auto",
     bottom: isMobile ? "54px" : "104px",
     width: isMobile ? "auto" : world.key === "milo" ? "520px" : "auto",
-    transform: hovered ? "translateY(-8px)" : "translateY(0)",
-    transition: "transform 600ms ease",
   };
 
   return (
-    <Link
-      href={world.href}
-      style={panelStyle}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-      onFocus={handleMouseEnter}
-      onBlur={handleMouseLeave}
-    >
+    <Link href={world.href} style={panelStyle}>
       {world.videoSrc && (
         <video
-          ref={videoRef}
           src={world.videoSrc}
+          autoPlay
           muted
           playsInline
           loop
-          preload="metadata"
+          preload="auto"
+          poster={world.imageSrc}
           style={{
             position: "absolute",
             inset: 0,
@@ -248,34 +218,24 @@ function WorldPanel({ world, isMobile }: { world: World; isMobile: boolean }) {
 
         <div
           style={{
-            marginTop: "29px",
-            display: "flex",
+            marginTop: "26px",
+            display: "inline-flex",
             alignItems: "center",
-            gap: "22px",
-            fontSize: "16px",
-            fontWeight: 300,
-            color: "rgba(255,255,255,0.88)",
+            gap: "12px",
+            padding: "12px 18px",
+            borderRadius: "999px",
+            border: "1px solid rgba(255,255,255,0.5)",
+            background: "rgba(2,8,18,0.32)",
+            backdropFilter: "blur(12px)",
+            color: "rgba(255,255,255,0.92)",
+            fontSize: "13px",
+            fontWeight: 700,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
           }}
         >
-          <span
-            style={{
-              width: "41px",
-              height: "41px",
-              borderRadius: "999px",
-              border: "1px solid rgba(255,255,255,0.72)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "11px",
-              paddingLeft: "2px",
-              background: "rgba(2,8,18,0.2)",
-              backdropFilter: "blur(10px)",
-            }}
-          >
-            ▶
-          </span>
-
-          <span>Hover to preview</span>
+          Enter World
+          <span style={{ fontSize: "14px" }}>→</span>
         </div>
       </div>
     </Link>
@@ -472,6 +432,7 @@ function FirstVisitPopup({
             >
               {recommendation.eyebrow}
             </p>
+
             <h3
               style={{
                 margin: "12px 0 0",
@@ -481,6 +442,7 @@ function FirstVisitPopup({
             >
               {recommendation.title}
             </h3>
+
             <p
               style={{
                 margin: "14px auto 0",
@@ -712,7 +674,7 @@ export default function Home() {
 
     return {
       position: "relative",
-      height: isMobile ? "72px" : "86px",
+      height: "86px",
       border: "none",
       background: "transparent",
       color: isActive ? "white" : "rgba(255,255,255,0.78)",
@@ -796,7 +758,8 @@ export default function Home() {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: isMobile ? "0 18px" : "0 43px",
+          gap: isMobile ? "12px" : "24px",
+          padding: isMobile ? "0 14px" : "0 43px",
           background: "rgba(2,8,19,0.92)",
           borderBottom: "1px solid rgba(255,255,255,0.14)",
           backdropFilter: "blur(18px)",
@@ -807,23 +770,26 @@ export default function Home() {
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "19px",
+            gap: isMobile ? "10px" : "19px",
             color: "white",
             background: "transparent",
             border: "none",
             padding: 0,
             cursor: "pointer",
+            minWidth: 0,
+            flexShrink: 1,
           }}
         >
           <img
             src="/home/dreamscape-logo.png"
             alt="Dreamscape One logo"
             style={{
-              width: isMobile ? "42px" : "54px",
-              height: isMobile ? "42px" : "54px",
+              width: isMobile ? "38px" : "54px",
+              height: isMobile ? "38px" : "54px",
               objectFit: "contain",
               display: "block",
               borderRadius: "999px",
+              flexShrink: 0,
               boxShadow:
                 "0 0 18px rgba(197,140,255,0.32), 0 0 22px rgba(255,138,43,0.18)",
             }}
@@ -835,13 +801,14 @@ export default function Home() {
               flexDirection: "column",
               alignItems: "flex-start",
               lineHeight: 1,
+              minWidth: 0,
             }}
           >
             <span
               style={{
-                fontSize: isMobile ? "13px" : "18px",
+                fontSize: isMobile ? "12px" : "18px",
                 fontWeight: 400,
-                letterSpacing: isMobile ? "5px" : "10px",
+                letterSpacing: isMobile ? "2.8px" : "10px",
                 whiteSpace: "nowrap",
               }}
             >
@@ -850,10 +817,10 @@ export default function Home() {
 
             <span
               style={{
-                marginTop: "8px",
-                fontSize: isMobile ? "8px" : "10px",
+                marginTop: "7px",
+                fontSize: isMobile ? "7px" : "10px",
                 fontWeight: 400,
-                letterSpacing: isMobile ? "2px" : "3.2px",
+                letterSpacing: isMobile ? "1.4px" : "3.2px",
                 color: "rgba(255,255,255,0.58)",
                 textTransform: "uppercase",
                 whiteSpace: "nowrap",
@@ -868,33 +835,39 @@ export default function Home() {
           style={{
             display: "flex",
             alignItems: "center",
-            gap: isMobile ? "14px" : "34px",
+            justifyContent: "flex-end",
+            gap: isMobile ? "8px" : "34px",
+            flexShrink: 0,
           }}
         >
-          <button
-            type="button"
-            onClick={() => scrollToSection("home")}
-            style={navButtonStyle("home")}
-          >
-            Home
-            <span style={navLineStyle("home")} />
-          </button>
+          {!isMobile && (
+            <>
+              <button
+                type="button"
+                onClick={() => scrollToSection("home")}
+                style={navButtonStyle("home")}
+              >
+                Home
+                <span style={navLineStyle("home")} />
+              </button>
 
-          <button
-            type="button"
-            onClick={() => scrollToSection("about")}
-            style={navButtonStyle("about")}
-          >
-            About
-            <span style={navLineStyle("about")} />
-          </button>
+              <button
+                type="button"
+                onClick={() => scrollToSection("about")}
+                style={navButtonStyle("about")}
+              >
+                About
+                <span style={navLineStyle("about")} />
+              </button>
+            </>
+          )}
 
           <div
             style={{
-              marginLeft: isMobile ? "4px" : "18px",
+              marginLeft: isMobile ? 0 : "18px",
               display: "flex",
               alignItems: "center",
-              gap: isMobile ? "10px" : "14px",
+              gap: isMobile ? "8px" : "14px",
             }}
           >
             <button
@@ -905,11 +878,11 @@ export default function Home() {
                 color: "#24124d",
                 border: "1px solid rgba(255,255,255,0.45)",
                 borderRadius: "999px",
-                padding: isMobile ? "9px 14px" : "11px 22px",
-                minWidth: isMobile ? "92px" : "138px",
-                fontSize: isMobile ? "10px" : "12px",
+                padding: isMobile ? "9px 11px" : "11px 22px",
+                minWidth: isMobile ? "76px" : "138px",
+                fontSize: isMobile ? "9px" : "12px",
                 fontWeight: 800,
-                letterSpacing: "0.1em",
+                letterSpacing: isMobile ? "0.06em" : "0.1em",
                 cursor: "pointer",
                 whiteSpace: "nowrap",
                 textAlign: "center",
@@ -917,7 +890,7 @@ export default function Home() {
                 backdropFilter: "blur(14px)",
               }}
             >
-              {isCheckingAccount ? "..." : isLoggedIn ? "MY ACCOUNT" : "LOG IN"}
+              {isCheckingAccount ? "..." : isLoggedIn ? "ACCOUNT" : "LOG IN"}
             </button>
 
             <button
@@ -925,8 +898,8 @@ export default function Home() {
               onClick={() => router.push("/cart")}
               aria-label="Cart"
               style={{
-                width: isMobile ? "40px" : "44px",
-                height: isMobile ? "40px" : "44px",
+                width: isMobile ? "38px" : "44px",
+                height: isMobile ? "38px" : "44px",
                 borderRadius: "999px",
                 background: "#05050a",
                 border: "1px solid rgba(255,255,255,0.18)",
@@ -935,11 +908,12 @@ export default function Home() {
                 justifyContent: "center",
                 cursor: "pointer",
                 boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
+                flexShrink: 0,
               }}
             >
               <svg
-                width={isMobile ? "18" : "20"}
-                height={isMobile ? "18" : "20"}
+                width={isMobile ? "17" : "20"}
+                height={isMobile ? "17" : "20"}
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="white"
@@ -1185,12 +1159,7 @@ export default function Home() {
               }}
             >
               {ecosystemSteps.map((step, index) => (
-                <div
-                  key={step.title}
-                  style={{
-                    display: "contents",
-                  }}
-                >
+                <div key={step.title} style={{ display: "contents" }}>
                   <EcosystemCard
                     title={step.title}
                     subtitle={step.subtitle}
@@ -1309,11 +1278,7 @@ export default function Home() {
                 }}
               />
 
-              <div
-                style={{
-                  textAlign: "left",
-                }}
-              >
+              <div style={{ textAlign: "left" }}>
                 <p
                   style={{
                     margin: 0,
