@@ -1269,23 +1269,55 @@ export default function MiloCategoriesPage() {
               </button>
 
               <div className="mt-7">
-                <label className="grid gap-3">
-                  <span className="text-xs font-bold uppercase tracking-[0.18em] text-white/44">
-                    Choose Topic
-                  </span>
+                <div className="grid gap-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/44">
+                        Choose Topic
+                      </p>
 
-                  <select
-                    value={selectedCategory}
-                    onChange={(event) => setSelectedCategory(event.target.value)}
-                    className="h-12 rounded-2xl border border-cyan-200/18 bg-[#061632] px-4 text-white outline-none"
-                  >
-                    {availableCategories.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                      <p className="mt-2 text-sm leading-6 text-white/52">
+                        Pick the quiz category for this multiplayer lobby.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {availableCategories.map((category, index) => {
+                        const isSelected = selectedCategory === category;
+
+                        return (
+                          <button
+                            key={category}
+                            type="button"
+                            onClick={() => setSelectedCategory(category)}
+                            disabled={isLoadingCategories}
+                            className={`min-h-[128px] rounded-3xl border p-5 text-left transition hover:scale-[1.02] disabled:cursor-wait disabled:opacity-50 ${
+                              isSelected
+                                ? "border-orange-200/55 bg-orange-300/18 shadow-[0_0_32px_rgba(251,146,60,0.16)]"
+                                : "border-cyan-200/18 bg-[#061632]/75 hover:border-cyan-200/40 hover:bg-white/[0.065]"
+                            }`}
+                          >
+                            <span className="text-xs font-bold uppercase tracking-[0.16em] text-white/42">
+                              Category {index + 1}
+                            </span>
+
+                            <span className="mt-3 block text-2xl font-bold text-white">
+                              {category}
+                            </span>
+
+                            <span className="mt-3 block text-sm leading-6 text-white/56">
+                              10 timed questions for all players in the lobby.
+                            </span>
+
+                            {isSelected && (
+                              <span className="mt-4 inline-flex rounded-full border border-orange-200/25 bg-orange-300/14 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-orange-100">
+                                Selected
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
                 <button
                   type="button"
