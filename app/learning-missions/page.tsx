@@ -130,9 +130,6 @@ export default function LearningMissionsPage() {
   const isMobile = screenMode === "mobile";
 
   const [hoveredZone, setHoveredZone] = useState<MissionZone | null>(null);
-  const [showCoreMissions, setShowCoreMissions] = useState(false);
-  const [showThinkMissions, setShowThinkMissions] = useState(false);
-  const [showExpressMissions, setShowExpressMissions] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [tokenBalance, setTokenBalance] = useState(0);
 
@@ -190,13 +187,28 @@ export default function LearningMissionsPage() {
 
   function getZoneClick(zoneId: string) {
   if (zoneId === "knowledge-arena") {
-  return () => {
-    window.location.href = "/learning-missions/knowledge-arena";
-  };
-}
-  if (zoneId === "core-missions") return () => setShowCoreMissions(true);
-  if (zoneId === "think-missions") return () => setShowThinkMissions(true);
-  if (zoneId === "express-missions") return () => setShowExpressMissions(true);
+    return () => {
+      window.location.href = "/learning-missions/knowledge-arena";
+    };
+  }
+
+  if (zoneId === "core-missions") {
+    return () => {
+      window.location.href = "/learning-missions/core";
+    };
+  }
+
+  if (zoneId === "think-missions") {
+    return () => {
+      window.location.href = "/learning-missions/think";
+    };
+  }
+
+  if (zoneId === "express-missions") {
+    return () => {
+      window.location.href = "/learning-missions/express";
+    };
+  }
 
   return undefined;
 }
@@ -347,30 +359,6 @@ export default function LearningMissionsPage() {
             <MissionCard key={zone.id} zone={zone} onClick={getZoneClick(zone.id)} />
           ))}
         </div>
-      )}
-
-      {showCoreMissions && (
-        <CoreMissionsPopup
-          onClose={() => setShowCoreMissions(false)}
-          tokenBalance={tokenBalance}
-          onTokenBalanceChange={setTokenBalance}
-        />
-      )}
-
-      {showThinkMissions && (
-        <ThinkMissionsPopup
-          onClose={() => setShowThinkMissions(false)}
-          tokenBalance={tokenBalance}
-          onTokenBalanceChange={setTokenBalance}
-        />
-      )}
-
-      {showExpressMissions && (
-        <ExpressMissionsPopup
-          onClose={() => setShowExpressMissions(false)}
-          tokenBalance={tokenBalance}
-          onTokenBalanceChange={setTokenBalance}
-        />
       )}
     </main>
   );
