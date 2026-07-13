@@ -248,7 +248,7 @@ export default function ProfilePage() {
             </p>
 
             <h2 className="mt-4 text-3xl font-bold tracking-[-0.04em] text-white sm:text-4xl">
-              Dreamscape Access TEST
+              Dreamscape Access
             </h2>
 
             <div className="mt-7 grid gap-4">
