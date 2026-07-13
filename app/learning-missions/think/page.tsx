@@ -118,12 +118,71 @@ type ThinkMissionQuestion = {
   difficulty: string;
 };
 
+type CompletedThinkAttempt = {
+  quiz_id: string;
+  score: number;
+  correct_count: number;
+  tokens_earned: number;
+  mode: ThinkMode;
+};
+
 const allowedThinkMissionTiers = [
   "admin",
   "gkp_student",
   "paid_student",
   "student",
   "pro",
+];
+
+const thinkInventoryTrack = [
+  {
+    missionsRequired: 0,
+    name: "Empty Gear Wall",
+    description:
+      "Nova’s inventory station is ready, but her mission tools are still locked.",
+  },
+  {
+    missionsRequired: 1,
+    name: "Logic Lens",
+    description:
+      "Nova can scan hidden clues and identify important patterns in Dreamscape.",
+  },
+  {
+    missionsRequired: 3,
+    name: "Pattern Scanner",
+    description:
+      "Nova can detect repeating sequences, visual rules and puzzle structures.",
+  },
+  {
+    missionsRequired: 5,
+    name: "Clue Compass",
+    description:
+      "Nova can track missing information and find the next step in harder missions.",
+  },
+  {
+    missionsRequired: 8,
+    name: "Puzzle Shield",
+    description:
+      "Nova gains protection against confusing traps, false clues and tricky choices.",
+  },
+  {
+    missionsRequired: 12,
+    name: "Energy Wrench",
+    description:
+      "Nova can repair broken logic gates and restore puzzle systems across Dreamscape.",
+  },
+  {
+    missionsRequired: 16,
+    name: "Spark Staff",
+    description:
+      "Nova unlocks an advanced reasoning tool that powers complex mission routes.",
+  },
+  {
+    missionsRequired: 20,
+    name: "Advanced Gear Inventory",
+    description:
+      "Nova’s full Think Mission inventory is ready for major Dreamscape expeditions.",
+  },
 ];
 
 const thinkLevelBands: {
@@ -179,6 +238,24 @@ const thinkModes: {
   },
 ];
 
+function getCurrentInventoryUpgrade(completedCount: number) {
+  let currentUpgrade = thinkInventoryTrack[0];
+
+  for (const upgrade of thinkInventoryTrack) {
+    if (completedCount >= upgrade.missionsRequired) {
+      currentUpgrade = upgrade;
+    }
+  }
+
+  return currentUpgrade;
+}
+
+function getNextInventoryUpgrade(completedCount: number) {
+  return thinkInventoryTrack.find(
+    (upgrade) => completedCount < upgrade.missionsRequired
+  );
+}
+
 function ThinkMissionsActivity({
   onExit,
   tokenBalance,
@@ -232,7 +309,36 @@ function ThinkMissionsActivity({
   const [timeLeft, setTimeLeft] = useState(15 * 60);
   const [isFinishing, setIsFinishing] = useState(false);
 
+  const [completedAttempts, setCompletedAttempts] = useState<
+    CompletedThinkAttempt[]
+  >([]);
+
   const currentQuestion = questions[questionIndex];
+
+  const completedQuizIds = new Set(
+    completedAttempts.map((attempt) => attempt.quiz_id)
+  );
+
+  const completedMissionCount = completedAttempts.length;
+  const currentInventoryUpgrade =
+    getCurrentInventoryUpgrade(completedMissionCount);
+  const nextInventoryUpgrade =
+    getNextInventoryUpgrade(completedMissionCount);
+
+  const progressTarget =
+    nextInventoryUpgrade?.missionsRequired ??
+    thinkInventoryTrack[thinkInventoryTrack.length - 1].missionsRequired;
+
+  const previousTarget = currentInventoryUpgrade.missionsRequired;
+  const progressRange = Math.max(1, progressTarget - previousTarget);
+  const progressWithinRange = Math.max(
+    0,
+    completedMissionCount - previousTarget
+  );
+
+  const progressPercentage = nextInventoryUpgrade
+    ? Math.min(100, Math.round((progressWithinRange / progressRange) * 100))
+    : 100;
 
   useEffect(() => {
     checkAccess();
@@ -286,7 +392,41 @@ function ThinkMissionsActivity({
       return;
     }
 
+    await loadCompletedAttempts(user.id);
     setScreen("level");
+  }
+
+  async function loadCompletedAttempts(activeUserId: string) {
+    const { data, error } = await supabase
+      .from("think_mission_attempts")
+      .select("quiz_id, mode, score, correct_count, tokens_earned")
+      .eq("user_id", activeUserId);
+
+    if (error) {
+      console.warn("Could not load completed Think Mission attempts:", error);
+      setCompletedAttempts([]);
+      return;
+    }
+
+    const uniqueAttempts = new Map<string, CompletedThinkAttempt>();
+
+    for (const attempt of data ?? []) {
+      if (!uniqueAttempts.has(attempt.quiz_id) && attempt.tokens_earned > 0) {
+        uniqueAttempts.set(attempt.quiz_id, {
+          quiz_id: attempt.quiz_id,
+          mode: attempt.mode as ThinkMode,
+          score: attempt.score,
+          correct_count: attempt.correct_count,
+          tokens_earned: attempt.tokens_earned,
+        });
+      }
+    }
+
+    setCompletedAttempts(Array.from(uniqueAttempts.values()));
+  }
+
+  function isQuizCompleted(quizId: string) {
+    return completedQuizIds.has(quizId);
   }
 
   async function chooseLevel(levelBand: ThinkLevelBand) {
@@ -319,6 +459,7 @@ function ThinkMissionsActivity({
   function chooseQuiz(quiz: ThinkMissionQuiz) {
     setSelectedQuiz(quiz);
     setSelectedMode(null);
+    setLoadError(null);
     setScreen("mode");
   }
 
@@ -425,21 +566,34 @@ function ThinkMissionsActivity({
 
     setIsFinishing(true);
 
-    const finalMode = selectedMode ?? "normal";
-    const finalTimeTaken =
-      finalMode === "challenge" ? Math.max(0, 15 * 60 - timeLeft) : null;
+    if (!userId || !selectedQuiz) {
+      setScreen("results");
+      return;
+    }
 
-    const reward = calculateTokenReward(
-      finalMode,
-      score,
-      correctCount,
-      timeLeft
-    );
+    const finalMode = selectedMode ?? "normal";
+    const finalScore = score;
+    const finalCorrectCount = correctCount;
+    const finalTimeLeft = timeLeft;
+
+    const finalTimeTaken =
+      finalMode === "challenge"
+        ? Math.max(0, 15 * 60 - finalTimeLeft)
+        : null;
+
+    const hasCompletedThisQuizBefore = isQuizCompleted(selectedQuiz.id);
+
+    const reward = hasCompletedThisQuizBefore
+      ? 0
+      : calculateTokenReward(
+          finalMode,
+          finalScore,
+          finalCorrectCount,
+          finalTimeLeft
+        );
 
     setTokensEarned(reward);
     setScreen("results");
-
-    if (!userId || !selectedQuiz) return;
 
     const { error: attemptError } = await supabase
       .from("think_mission_attempts")
@@ -447,8 +601,8 @@ function ThinkMissionsActivity({
         user_id: userId,
         quiz_id: selectedQuiz.id,
         mode: finalMode,
-        score,
-        correct_count: correctCount,
+        score: finalScore,
+        correct_count: finalCorrectCount,
         total_questions: questions.length,
         time_taken_seconds: finalTimeTaken,
         tokens_earned: reward,
@@ -456,6 +610,25 @@ function ThinkMissionsActivity({
 
     if (attemptError) {
       console.warn("Could not save Think Mission attempt:", attemptError);
+      setRewardSaved(false);
+      return;
+    }
+
+    if (!hasCompletedThisQuizBefore) {
+      const newAttempt: CompletedThinkAttempt = {
+        quiz_id: selectedQuiz.id,
+        mode: finalMode,
+        score: finalScore,
+        correct_count: finalCorrectCount,
+        tokens_earned: reward,
+      };
+
+      setCompletedAttempts((prev) => [...prev, newAttempt]);
+    }
+
+    if (reward <= 0) {
+      setRewardSaved(true);
+      return;
     }
 
     const { error: tokenError } = await supabase
@@ -473,6 +646,7 @@ function ThinkMissionsActivity({
 
     if (tokenError) {
       console.warn("Could not award Think Mission tokens:", tokenError);
+      setRewardSaved(false);
       return;
     }
 
@@ -497,6 +671,7 @@ function ThinkMissionsActivity({
     setRewardSaved(false);
     setTimeLeft(15 * 60);
     setIsFinishing(false);
+    setLoadError(null);
     setScreen("level");
   }
 
@@ -514,6 +689,7 @@ function ThinkMissionsActivity({
     setRewardSaved(false);
     setTimeLeft(15 * 60);
     setIsFinishing(false);
+    setLoadError(null);
     setScreen("quiz-list");
   }
 
@@ -530,6 +706,7 @@ function ThinkMissionsActivity({
     setRewardSaved(false);
     setTimeLeft(15 * 60);
     setIsFinishing(false);
+    setLoadError(null);
     setScreen("mode");
   }
 
@@ -549,26 +726,31 @@ function ThinkMissionsActivity({
       style={{
         minHeight: "100dvh",
         width: "100%",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
         padding: isMobile ? "86px 14px 28px" : "96px 26px 42px",
-        background:
-          "radial-gradient(circle at 50% 0%, rgba(96,240,208,0.18), transparent 35%), #020813",
+        backgroundImage: `
+          linear-gradient(
+            180deg,
+            rgba(2,8,19,0.76),
+            rgba(2,8,19,0.88)
+          ),
+          radial-gradient(circle at 50% 0%, rgba(96,240,208,0.2), transparent 35%),
+          url("activities/learning-missions/think/think-inventory-bg.png")
+        `,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundAttachment: isMobile ? "scroll" : "fixed",
         color: "white",
         fontFamily: "Arial, Helvetica, sans-serif",
       }}
     >
       <div
         style={{
-          position: "relative",
           width: "min(1180px, 94vw)",
-          maxHeight: isMobile ? "88dvh" : "92vh",
-          overflowY: "auto",
+          margin: "0 auto",
           borderRadius: isMobile ? "22px" : "30px",
           border: "1px solid rgba(126, 221, 255, 0.62)",
           background:
-            "linear-gradient(145deg, rgba(30, 32, 90, 0.96), rgba(10, 22, 56, 0.98))",
+            "linear-gradient(145deg, rgba(30, 32, 90, 0.94), rgba(10, 22, 56, 0.96))",
           boxShadow:
             "0 0 45px rgba(126, 232, 255, 0.28), 0 30px 90px rgba(0, 0, 0, 0.55)",
           padding: isMobile ? "28px 18px 24px" : "34px 46px 38px",
@@ -579,34 +761,37 @@ function ThinkMissionsActivity({
           type="button"
           onClick={onExit}
           style={{
-            position: "absolute",
+            position: "fixed",
             top: isMobile ? "14px" : "22px",
-            right: isMobile ? "14px" : "22px",
-            width: isMobile ? "38px" : "44px",
-            height: isMobile ? "38px" : "44px",
+            left: isMobile ? "14px" : "22px",
+            zIndex: 40,
+            height: isMobile ? "40px" : "46px",
+            padding: isMobile ? "0 14px" : "0 22px",
             borderRadius: "999px",
             border: "1px solid rgba(150, 231, 255, 0.7)",
-            background: "rgba(255, 255, 255, 0.08)",
+            background: "rgba(2,8,19,0.7)",
             color: "white",
-            fontSize: isMobile ? "24px" : "28px",
-            lineHeight: 1,
+            fontSize: isMobile ? "12px" : "14px",
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
             cursor: "pointer",
+            backdropFilter: "blur(14px)",
             boxShadow: "0 0 18px rgba(83, 215, 255, 0.22)",
           }}
         >
-          ×
+          ← Missions
         </button>
 
         <div
           style={{
             textAlign: "center",
-            padding: isMobile ? "0 42px" : "0 70px",
+            padding: isMobile ? "0 16px" : "0 70px",
           }}
         >
           <p
             style={{
               margin: 0,
-              color: "#7ee8ff",
+              color: "#60f0d0",
               fontSize: "13px",
               letterSpacing: "0.22em",
               textTransform: "uppercase",
@@ -618,36 +803,38 @@ function ThinkMissionsActivity({
           <h2
             style={{
               margin: "10px 0 0",
-              fontSize: isMobile ? "32px" : "44px",
+              fontSize: isMobile ? "34px" : "52px",
               fontWeight: 500,
               letterSpacing: "-0.03em",
-              textShadow: "0 0 24px rgba(126, 221, 255, 0.35)",
+              textShadow: "0 0 24px rgba(96, 240, 208, 0.35)",
             }}
           >
-            Think Missions
+            Unlock Nova’s Gear Inventory
           </h2>
 
           <p
             style={{
-              margin: "10px 0 0",
+              margin: "12px auto 0",
+              maxWidth: "780px",
               fontSize: isMobile ? "16px" : "20px",
-              color: "#7ee8ff",
+              color: "#c8fff3",
+              lineHeight: 1.55,
               fontWeight: 300,
             }}
           >
-            Logic, patterns, deduction and non-routine thinking challenges.
+            Dreamscape is filled with locked puzzles, strange patterns and hidden
+            logic gates. Complete Think Missions to unlock Nova’s scanners,
+            shields and advanced mission tools.
           </p>
-
-          <div
-            style={{
-              width: "210px",
-              height: "1px",
-              margin: "20px auto 0",
-              background:
-                "linear-gradient(90deg, transparent, rgba(126,232,255,0.9), transparent)",
-            }}
-          />
         </div>
+
+        <ThinkInventoryPanel
+          isMobile={isMobile}
+          completedMissionCount={completedMissionCount}
+          currentUpgrade={currentInventoryUpgrade}
+          nextUpgrade={nextInventoryUpgrade}
+          progressPercentage={progressPercentage}
+        />
 
         {screen === "checking" && (
           <ThinkMessageCard message="Checking your Think Missions access..." />
@@ -770,61 +957,99 @@ function ThinkMissionsActivity({
                 gap: "20px",
               }}
             >
-              {quizzes.map((quiz) => (
-                <button
-                  key={quiz.id}
-                  type="button"
-                  onClick={() => chooseQuiz(quiz)}
-                  style={{
-                    minHeight: isMobile ? "auto" : "280px",
-                    borderRadius: "24px",
-                    padding: "26px",
-                    border: "1px solid rgba(126,232,255,0.36)",
-                    background:
-                      "linear-gradient(180deg, rgba(35, 60, 120, 0.78), rgba(8, 25, 56, 0.92))",
-                    color: "white",
-                    textAlign: "left",
-                    cursor: "pointer",
-                    display: "flex",
-                    flexDirection: "column",
-                  }}
-                >
-                  <p
+              {quizzes.map((quiz) => {
+                const completed = isQuizCompleted(quiz.id);
+                const completedAttempt = completedAttempts.find(
+                  (attempt) => attempt.quiz_id === quiz.id
+                );
+
+                return (
+                  <button
+                    key={quiz.id}
+                    type="button"
+                    onClick={() => chooseQuiz(quiz)}
                     style={{
-                      margin: 0,
-                      color: "#7ee8ff",
-                      fontSize: "12px",
-                      letterSpacing: "0.14em",
-                      textTransform: "uppercase",
+                      minHeight: isMobile ? "auto" : "290px",
+                      borderRadius: "24px",
+                      padding: "26px",
+                      border: completed
+                        ? "1px solid rgba(74,222,128,0.5)"
+                        : "1px solid rgba(126,232,255,0.36)",
+                      background: completed
+                        ? "linear-gradient(180deg, rgba(20, 92, 60, 0.72), rgba(8, 35, 36, 0.9))"
+                        : "linear-gradient(180deg, rgba(35, 60, 120, 0.78), rgba(8, 25, 56, 0.92))",
+                      color: "white",
+                      textAlign: "left",
+                      cursor: "pointer",
+                      display: "flex",
+                      flexDirection: "column",
+                      opacity: completed ? 0.9 : 1,
                     }}
                   >
-                    Think Quiz {quiz.quiz_order}
-                  </p>
+                    <p
+                      style={{
+                        margin: 0,
+                        color: completed ? "#86efac" : "#7ee8ff",
+                        fontSize: "12px",
+                        letterSpacing: "0.14em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {completed
+                        ? "Completed Once"
+                        : `Think Quiz ${quiz.quiz_order}`}
+                    </p>
 
-                  <h3
-                    style={{
-                      margin: "16px 0 0",
-                      fontSize: "28px",
-                      lineHeight: 1.15,
-                    }}
-                  >
-                    {quiz.title}
-                  </h3>
+                    <h3
+                      style={{
+                        margin: "16px 0 0",
+                        fontSize: "28px",
+                        lineHeight: 1.15,
+                      }}
+                    >
+                      {quiz.title}
+                    </h3>
 
-                  <p
-                    style={{
-                      margin: "12px 0 0",
-                      fontSize: "15px",
-                      lineHeight: 1.5,
-                      color: "rgba(255,255,255,0.72)",
-                    }}
-                  >
-                    {quiz.description}
-                  </p>
+                    <p
+                      style={{
+                        margin: "12px 0 0",
+                        fontSize: "15px",
+                        lineHeight: 1.5,
+                        color: "rgba(255,255,255,0.72)",
+                      }}
+                    >
+                      {quiz.description}
+                    </p>
 
-                  <div style={thinkSmallButtonLook}>Choose Mode ›</div>
-                </button>
-              ))}
+                    {completed && completedAttempt && (
+                      <p
+                        style={{
+                          margin: "14px 0 0",
+                          color: "rgba(255,255,255,0.76)",
+                          fontSize: "13px",
+                          lineHeight: 1.45,
+                        }}
+                      >
+                        Counted score: {completedAttempt.score}/100 · Correct:{" "}
+                        {completedAttempt.correct_count}/20 · Tokens: +
+                        {completedAttempt.tokens_earned}
+                      </p>
+                    )}
+
+                    <div
+                      style={{
+                        ...thinkSmallButtonLook,
+                        background: completed
+                          ? "linear-gradient(135deg, #86efac, #22c55e)"
+                          : thinkSmallButtonLook.background,
+                        color: completed ? "#052e16" : "white",
+                      }}
+                    >
+                      {completed ? "Replay Mission" : "Choose Mode ›"}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
@@ -870,9 +1095,7 @@ function ThinkMissionsActivity({
 
                   <p style={thinkCardTextStyle}>{mode.subtitle}</p>
 
-                  <div style={thinkCardButtonLook}>
-                    Start {mode.title} ›
-                  </div>
+                  <div style={thinkCardButtonLook}>Start {mode.title} ›</div>
                 </button>
               ))}
             </div>
@@ -1194,9 +1417,11 @@ function ThinkMissionsActivity({
                 color: "rgba(255,255,255,0.78)",
               }}
             >
-              {rewardSaved
-                ? "Your Think Mission attempt and Dreamscape Token reward have been saved."
-                : "Your mission is complete. Token reward may not have been saved."}
+              {rewardSaved && tokensEarned > 0
+                ? "Your Think Mission attempt, Nova gear progress, and Dreamscape Token reward have been saved."
+                : rewardSaved
+                ? "Practice attempt saved. This quiz was already completed before, so no extra gear progress or tokens were awarded."
+                : "Your mission is complete, but the reward may not have been saved."}
             </p>
 
             <div
@@ -1224,6 +1449,187 @@ function ThinkMissionsActivity({
         )}
       </div>
     </main>
+  );
+}
+
+function ThinkInventoryPanel({
+  isMobile,
+  completedMissionCount,
+  currentUpgrade,
+  nextUpgrade,
+  progressPercentage,
+}: {
+  isMobile: boolean;
+  completedMissionCount: number;
+  currentUpgrade: {
+    missionsRequired: number;
+    name: string;
+    description: string;
+  };
+  nextUpgrade:
+    | {
+        missionsRequired: number;
+        name: string;
+        description: string;
+      }
+    | undefined;
+  progressPercentage: number;
+}) {
+  const missionsToNext = nextUpgrade
+    ? Math.max(0, nextUpgrade.missionsRequired - completedMissionCount)
+    : 0;
+
+  return (
+    <section
+      style={{
+        marginTop: "32px",
+        display: "grid",
+        gridTemplateColumns: isMobile ? "1fr" : "1.1fr 0.9fr",
+        gap: "20px",
+      }}
+    >
+      <div
+        style={{
+          borderRadius: "24px",
+          border: "1px solid rgba(96,240,208,0.35)",
+          background:
+            "linear-gradient(145deg, rgba(5,22,48,0.76), rgba(16,62,74,0.62))",
+          padding: "24px",
+          boxShadow: "0 0 24px rgba(96,240,208,0.16)",
+        }}
+      >
+        <p
+          style={{
+            margin: 0,
+            color: "#60f0d0",
+            fontSize: "12px",
+            letterSpacing: "0.18em",
+            textTransform: "uppercase",
+            fontWeight: 700,
+          }}
+        >
+          Gear Inventory Progress
+        </p>
+
+        <h3
+          style={{
+            margin: "12px 0 0",
+            fontSize: isMobile ? "26px" : "34px",
+            lineHeight: 1.15,
+          }}
+        >
+          {currentUpgrade.name}
+        </h3>
+
+        <p
+          style={{
+            margin: "12px 0 0",
+            color: "rgba(255,255,255,0.78)",
+            fontSize: "15px",
+            lineHeight: 1.6,
+          }}
+        >
+          {currentUpgrade.description}
+        </p>
+
+        <div
+          style={{
+            marginTop: "22px",
+            height: "14px",
+            borderRadius: "999px",
+            border: "1px solid rgba(96,240,208,0.28)",
+            background: "rgba(255,255,255,0.08)",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              width: `${progressPercentage}%`,
+              height: "100%",
+              borderRadius: "999px",
+              background: "linear-gradient(90deg, #60f0d0, #35c5ff)",
+              boxShadow: "0 0 18px rgba(96,240,208,0.45)",
+            }}
+          />
+        </div>
+
+        <p
+          style={{
+            margin: "12px 0 0",
+            color: "rgba(255,255,255,0.66)",
+            fontSize: "14px",
+          }}
+        >
+          Counted Think Missions:{" "}
+          <strong style={{ color: "#60f0d0" }}>{completedMissionCount}</strong>
+        </p>
+      </div>
+
+      <div
+        style={{
+          borderRadius: "24px",
+          border: "1px solid rgba(255,215,106,0.35)",
+          background:
+            "linear-gradient(145deg, rgba(74,47,12,0.62), rgba(18,22,45,0.82))",
+          padding: "24px",
+        }}
+      >
+        <p
+          style={{
+            margin: 0,
+            color: "#ffd76a",
+            fontSize: "12px",
+            letterSpacing: "0.18em",
+            textTransform: "uppercase",
+            fontWeight: 700,
+          }}
+        >
+          Next Unlock
+        </p>
+
+        <h3
+          style={{
+            margin: "12px 0 0",
+            fontSize: isMobile ? "24px" : "30px",
+            lineHeight: 1.15,
+          }}
+        >
+          {nextUpgrade ? nextUpgrade.name : "Advanced Gear Inventory Complete"}
+        </h3>
+
+        <p
+          style={{
+            margin: "12px 0 0",
+            color: "rgba(255,255,255,0.78)",
+            fontSize: "15px",
+            lineHeight: 1.6,
+          }}
+        >
+          {nextUpgrade
+            ? nextUpgrade.description
+            : "Nova’s full thinking inventory is unlocked. Future Think Missions can still be replayed for practice."}
+        </p>
+
+        <div
+          style={{
+            marginTop: "18px",
+            borderRadius: "16px",
+            background: "rgba(255,215,106,0.12)",
+            border: "1px solid rgba(255,215,106,0.28)",
+            padding: "14px 16px",
+            color: "#ffe6a8",
+            fontSize: "14px",
+            lineHeight: 1.45,
+          }}
+        >
+          {nextUpgrade
+            ? `Complete ${missionsToNext} new Think Mission${
+                missionsToNext === 1 ? "" : "s"
+              } to unlock this gear. Replays are saved, but they do not add gear progress.`
+            : "All current gear inventory upgrades unlocked."}
+        </div>
+      </div>
+    </section>
   );
 }
 
