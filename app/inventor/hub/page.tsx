@@ -1272,15 +1272,20 @@ export default function InventorHubPage() {
           min-width: 230px;
           transform: translateX(-50%) translateY(-12px);
           border-radius: 16px;
-          border: 1px solid rgba(125, 247, 255, 0.75);
-          background: rgba(4, 12, 32, 0.9);
+          border: 1px solid rgba(125, 247, 255, 0.38);
+          background: rgba(4, 12, 32, 0.58);
           padding: 12px 14px;
           color: white;
-          opacity: 0;
+          opacity: 0.38;
           pointer-events: none;
-          box-shadow: 0 0 24px rgba(0, 225, 255, 0.35);
+          box-shadow: 0 0 18px rgba(0, 225, 255, 0.16);
           backdrop-filter: blur(10px);
-          transition: 0.25s ease;
+          transition:
+            opacity 260ms ease,
+            transform 260ms ease,
+            border-color 260ms ease,
+            background 260ms ease,
+            box-shadow 260ms ease;
         }
 
         .hotspotLabel strong {
@@ -1293,18 +1298,32 @@ export default function InventorHubPage() {
         .hotspotLabel small {
           display: block;
           margin-top: 4px;
-          color: white;
+          color: rgba(255, 255, 255, 0.78);
           font-size: 12px;
         }
 
-        .hubHotspot:hover .hotspotGlow {
-          display: none;
-        }
-
-        .hubHotspot:hover .hotspotLabel {
+        .hubHotspot:hover .hotspotLabel,
+        .hubHotspot:focus-visible .hotspotLabel {
           opacity: 1;
           transform: translateX(-50%) translateY(-18px);
+          border-color: rgba(125, 247, 255, 0.85);
+          background: rgba(4, 12, 32, 0.92);
+          box-shadow: 0 0 28px rgba(0, 225, 255, 0.38);
         }
+
+        .hubHotspot:hover .hotspotLabel small,
+        .hubHotspot:focus-visible .hotspotLabel small {
+          color: rgba(255, 255, 255, 0.95);
+        }
+
+        @media (hover: none) {
+        .hotspotLabel {
+          opacity: 0.82;
+          transform: translateX(-50%) translateY(-14px);
+          background: rgba(4, 12, 32, 0.82);
+          border-color: rgba(125, 247, 255, 0.58);
+        }
+      }
 
         .hotspotPrototype {
           left: 35%;
