@@ -7,6 +7,52 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 type Section = "home" | "about";
+type AgeGroup = "5-8" | "9-12" | "13-17" | "18+";
+
+type Recommendation = {
+  eyebrow: string;
+  title: string;
+  description: string;
+  href: string;
+  buttonLabel: string;
+};
+
+const FIRST_VISIT_KEY = "dreamscape-first-visit-complete";
+
+const recommendations: Record<AgeGroup, Recommendation> = {
+  "5-8": {
+    eyebrow: "Recommended starting point",
+    title: "Begin with Nova’s World",
+    description:
+      "Explore beginner-friendly learning missions, discoveries, and creative challenges designed for younger adventurers.",
+    href: "/inventor",
+    buttonLabel: "Enter Nova’s World",
+  },
+  "9-12": {
+    eyebrow: "Recommended starting point",
+    title: "Explore Nova’s World",
+    description:
+      "Take on learning missions, thinking challenges, inventions, and discoveries built for curious students.",
+    href: "/inventor",
+    buttonLabel: "Enter Nova’s World",
+  },
+  "13-17": {
+    eyebrow: "Recommended starting point",
+    title: "Start in Nova’s World",
+    description:
+      "Discover advanced challenges, invention experiences, progress systems, and exclusive student creations.",
+    href: "/inventor",
+    buttonLabel: "Enter Nova’s World",
+  },
+  "18+": {
+    eyebrow: "Recommended starting point",
+    title: "Discover Milo’s World",
+    description:
+      "Explore custom products, 3D printing, prototypes, gifts, and creative production for older creators.",
+    href: "/milo-world",
+    buttonLabel: "Enter Milo’s World",
+  },
+};
 
 type World = {
   key: "nova" | "milo";
@@ -62,13 +108,7 @@ const ecosystemSteps = [
   },
 ];
 
-function WorldPanel({
-  world,
-  isMobile,
-}: {
-  world: World;
-  isMobile: boolean;
-}) {
+function WorldPanel({ world, isMobile }: { world: World; isMobile: boolean }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [hovered, setHovered] = useState(false);
 
@@ -117,15 +157,15 @@ function WorldPanel({
   };
 
   const contentStyle: CSSProperties = {
-  position: "absolute",
-  zIndex: 10,
-  left: isMobile ? "28px" : world.key === "nova" ? "122px" : "auto",
-  right: isMobile ? "28px" : world.key === "milo" ? "122px" : "auto",
-  bottom: isMobile ? "54px" : "104px",
-  width: isMobile ? "auto" : world.key === "milo" ? "520px" : "auto",
-  transform: hovered ? "translateY(-8px)" : "translateY(0)",
-  transition: "transform 600ms ease",
-};
+    position: "absolute",
+    zIndex: 10,
+    left: isMobile ? "28px" : world.key === "nova" ? "122px" : "auto",
+    right: isMobile ? "28px" : world.key === "milo" ? "122px" : "auto",
+    bottom: isMobile ? "54px" : "104px",
+    width: isMobile ? "auto" : world.key === "milo" ? "520px" : "auto",
+    transform: hovered ? "translateY(-8px)" : "translateY(0)",
+    transition: "transform 600ms ease",
+  };
 
   return (
     <Link
@@ -242,6 +282,294 @@ function WorldPanel({
   );
 }
 
+function FirstVisitPopup({
+  isMobile,
+  selectedAge,
+  onSelectAge,
+  onContinue,
+  onIntro,
+  onDismiss,
+}: {
+  isMobile: boolean;
+  selectedAge: AgeGroup | null;
+  onSelectAge: (age: AgeGroup | null) => void;
+  onContinue: () => void;
+  onIntro: () => void;
+  onDismiss: () => void;
+}) {
+  const recommendation = selectedAge ? recommendations[selectedAge] : null;
+  const ageOptions: AgeGroup[] = ["5-8", "9-12", "13-17", "18+"];
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="first-visit-title"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 200,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: isMobile ? "18px" : "32px",
+        background: "rgba(1,4,11,0.78)",
+        backdropFilter: "blur(14px)",
+      }}
+    >
+      <div
+        style={{
+          position: "relative",
+          width: "100%",
+          maxWidth: "720px",
+          maxHeight: "calc(100vh - 36px)",
+          overflowY: "auto",
+          borderRadius: isMobile ? "24px" : "32px",
+          padding: isMobile ? "30px 22px 24px" : "44px 46px 38px",
+          border: "1px solid rgba(116,200,255,0.35)",
+          background:
+            "radial-gradient(circle at 12% 0%, rgba(83,215,255,0.18), transparent 36%), radial-gradient(circle at 100% 100%, rgba(197,140,255,0.18), transparent 38%), rgba(3,10,23,0.97)",
+          boxShadow:
+            "0 34px 100px rgba(0,0,0,0.58), inset 0 0 38px rgba(83,215,255,0.04)",
+          color: "white",
+          textAlign: "center",
+        }}
+      >
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Close welcome guide"
+          style={{
+            position: "absolute",
+            top: isMobile ? "16px" : "20px",
+            right: isMobile ? "16px" : "20px",
+            width: "38px",
+            height: "38px",
+            borderRadius: "999px",
+            border: "1px solid rgba(255,255,255,0.16)",
+            background: "rgba(255,255,255,0.06)",
+            color: "rgba(255,255,255,0.8)",
+            fontSize: "20px",
+            cursor: "pointer",
+          }}
+        >
+          ×
+        </button>
+
+        <img
+          src="/home/dreamscape-logo.png"
+          alt=""
+          style={{
+            width: isMobile ? "62px" : "74px",
+            height: isMobile ? "62px" : "74px",
+            objectFit: "contain",
+            borderRadius: "999px",
+            boxShadow:
+              "0 0 22px rgba(83,215,255,0.25), 0 0 28px rgba(197,140,255,0.22)",
+          }}
+        />
+
+        <p
+          style={{
+            margin: "22px 0 0",
+            color: "#8ee8ff",
+            fontSize: "12px",
+            fontWeight: 700,
+            letterSpacing: "0.24em",
+            textTransform: "uppercase",
+          }}
+        >
+          Your Dreamscape Guide
+        </p>
+
+        <h2
+          id="first-visit-title"
+          style={{
+            margin: "14px 0 0",
+            fontFamily: 'Georgia, "Times New Roman", serif',
+            fontSize: isMobile ? "36px" : "48px",
+            fontWeight: 400,
+            lineHeight: 1.08,
+          }}
+        >
+          Welcome to Dreamscape One
+        </h2>
+
+        {!recommendation ? (
+          <>
+            <p
+              style={{
+                margin: "18px auto 0",
+                maxWidth: "560px",
+                color: "rgba(255,255,255,0.7)",
+                fontSize: isMobile ? "16px" : "18px",
+                lineHeight: 1.6,
+                fontWeight: 300,
+              }}
+            >
+              Tell us your age and we’ll recommend the best place to begin.
+            </p>
+
+            <p
+              style={{
+                margin: "30px 0 14px",
+                fontSize: "14px",
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+              }}
+            >
+              How old are you?
+            </p>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)",
+                gap: "12px",
+              }}
+            >
+              {ageOptions.map((age) => (
+                <button
+                  key={age}
+                  type="button"
+                  onClick={() => onSelectAge(age)}
+                  style={{
+                    minHeight: "58px",
+                    borderRadius: "16px",
+                    border: "1px solid rgba(116,200,255,0.3)",
+                    background: "rgba(255,255,255,0.055)",
+                    color: "white",
+                    fontSize: "16px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  {age}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div
+            style={{
+              marginTop: "28px",
+              padding: isMobile ? "24px 18px" : "28px 30px",
+              borderRadius: "22px",
+              border: "1px solid rgba(116,200,255,0.24)",
+              background: "rgba(255,255,255,0.045)",
+            }}
+          >
+            <p
+              style={{
+                margin: 0,
+                color: "#8ee8ff",
+                fontSize: "11px",
+                fontWeight: 700,
+                letterSpacing: "0.2em",
+                textTransform: "uppercase",
+              }}
+            >
+              {recommendation.eyebrow}
+            </p>
+            <h3
+              style={{
+                margin: "12px 0 0",
+                fontSize: isMobile ? "27px" : "32px",
+                fontWeight: 600,
+              }}
+            >
+              {recommendation.title}
+            </h3>
+            <p
+              style={{
+                margin: "14px auto 0",
+                maxWidth: "520px",
+                color: "rgba(255,255,255,0.68)",
+                fontSize: "16px",
+                lineHeight: 1.6,
+              }}
+            >
+              {recommendation.description}
+            </p>
+          </div>
+        )}
+
+        <div
+          style={{
+            marginTop: "26px",
+            display: "flex",
+            flexDirection: isMobile ? "column" : "row",
+            justifyContent: "center",
+            gap: "12px",
+          }}
+        >
+          {recommendation && (
+            <button
+              type="button"
+              onClick={onContinue}
+              style={{
+                minHeight: "52px",
+                padding: "0 24px",
+                borderRadius: "999px",
+                border: "1px solid rgba(255,255,255,0.32)",
+                background: "linear-gradient(135deg, #53d7ff, #a68cff)",
+                color: "#07101e",
+                fontSize: "13px",
+                fontWeight: 900,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                cursor: "pointer",
+              }}
+            >
+              {recommendation.buttonLabel}
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={onIntro}
+            style={{
+              minHeight: "52px",
+              padding: "0 24px",
+              borderRadius: "999px",
+              border: "1px solid rgba(116,200,255,0.38)",
+              background: "rgba(255,255,255,0.055)",
+              color: "white",
+              fontSize: "13px",
+              fontWeight: 800,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              cursor: "pointer",
+            }}
+          >
+            Meet Dreamscape
+          </button>
+        </div>
+
+        {recommendation && (
+          <button
+            type="button"
+            onClick={() => onSelectAge(null)}
+            style={{
+              marginTop: "18px",
+              border: "none",
+              background: "transparent",
+              color: "rgba(255,255,255,0.54)",
+              fontSize: "13px",
+              cursor: "pointer",
+              textDecoration: "underline",
+              textUnderlineOffset: "4px",
+            }}
+          >
+            Choose a different age
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const router = useRouter();
 
@@ -250,6 +578,8 @@ export default function Home() {
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isCheckingAccount, setIsCheckingAccount] = useState(true);
+  const [showFirstVisitPopup, setShowFirstVisitPopup] = useState(false);
+  const [selectedAge, setSelectedAge] = useState<AgeGroup | null>(null);
 
   useEffect(() => {
     function checkScreenSize() {
@@ -266,34 +596,49 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-  let mounted = true;
+    let mounted = true;
 
-  async function checkUser() {
+    async function checkUser() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!mounted) return;
+
+      const hasAccount = !!session?.user;
+      setIsLoggedIn(hasAccount);
+      setIsCheckingAccount(false);
+
+      if (hasAccount) {
+        setShowFirstVisitPopup(false);
+        return;
+      }
+
+      const hasCompletedFirstVisit =
+        window.localStorage.getItem(FIRST_VISIT_KEY) === "true";
+      setShowFirstVisitPopup(!hasCompletedFirstVisit);
+    }
+
+    checkUser();
+
     const {
-      data: { session },
-    } = await supabase.auth.getSession();
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      const hasAccount = !!session?.user;
+      setIsLoggedIn(hasAccount);
+      setIsCheckingAccount(false);
 
-    if (!mounted) return;
+      if (hasAccount) {
+        setShowFirstVisitPopup(false);
+      }
+    });
 
-    setIsLoggedIn(!!session?.user);
-    setIsCheckingAccount(false);
-  }
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
-  checkUser();
-
-  const {
-    data: { subscription },
-  } = supabase.auth.onAuthStateChange((_event, session) => {
-    setIsLoggedIn(!!session?.user);
-    setIsCheckingAccount(false);
-  });
-
-  return () => {
-    mounted = false;
-    subscription.unsubscribe();
-  };
-}, []);
-  
   useEffect(() => {
     function updateActiveSection() {
       const aboutSection = document.getElementById("about");
@@ -320,6 +665,35 @@ export default function Home() {
       window.removeEventListener("resize", updateActiveSection);
     };
   }, []);
+
+  useEffect(() => {
+    if (!showFirstVisitPopup) return;
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [showFirstVisitPopup]);
+
+  function completeFirstVisit() {
+    window.localStorage.setItem(FIRST_VISIT_KEY, "true");
+    setShowFirstVisitPopup(false);
+  }
+
+  function goToRecommendation() {
+    if (!selectedAge) return;
+
+    const destination = recommendations[selectedAge].href;
+    completeFirstVisit();
+    router.push(destination);
+  }
+
+  function goToIntro() {
+    completeFirstVisit();
+    router.push("/intro");
+  }
 
   function scrollToSection(section: Section) {
     const targetId = section === "home" ? "home" : "about";
@@ -370,23 +744,23 @@ export default function Home() {
   }
 
   const footerLinkStyle: CSSProperties = {
-  color: "rgba(255,255,255,0.68)",
-  textDecoration: "none",
-  fontSize: "15px",
-  fontWeight: 300,
-  lineHeight: 1.4,
-  transition: "color 220ms ease",
-};
+    color: "rgba(255,255,255,0.68)",
+    textDecoration: "none",
+    fontSize: "15px",
+    fontWeight: 300,
+    lineHeight: 1.4,
+    transition: "color 220ms ease",
+  };
 
-const footerButtonStyle: CSSProperties = {
-  ...footerLinkStyle,
-  padding: 0,
-  border: "none",
-  background: "transparent",
-  textAlign: "left",
-  cursor: "pointer",
-  fontFamily: "Arial, Helvetica, sans-serif",
-};
+  const footerButtonStyle: CSSProperties = {
+    ...footerLinkStyle,
+    padding: 0,
+    border: "none",
+    background: "transparent",
+    textAlign: "left",
+    cursor: "pointer",
+    fontFamily: "Arial, Helvetica, sans-serif",
+  };
 
   return (
     <main
@@ -400,7 +774,17 @@ const footerButtonStyle: CSSProperties = {
         scrollBehavior: "smooth",
       }}
     >
-      
+      {showFirstVisitPopup && !isCheckingAccount && !isLoggedIn && (
+        <FirstVisitPopup
+          isMobile={isMobile}
+          selectedAge={selectedAge}
+          onSelectAge={setSelectedAge}
+          onContinue={goToRecommendation}
+          onIntro={goToIntro}
+          onDismiss={completeFirstVisit}
+        />
+      )}
+
       <header
         style={{
           position: "fixed",
@@ -445,7 +829,7 @@ const footerButtonStyle: CSSProperties = {
             }}
           />
 
-                    <div
+          <div
             style={{
               display: "flex",
               flexDirection: "column",
@@ -453,123 +837,123 @@ const footerButtonStyle: CSSProperties = {
               lineHeight: 1,
             }}
           >
-      <span
-        style={{
-          fontSize: isMobile ? "13px" : "18px",
-          fontWeight: 400,
-          letterSpacing: isMobile ? "5px" : "10px",
-          whiteSpace: "nowrap",
-        }}
-      >
-        DREAMSCAPE ONE
-      </span>
+            <span
+              style={{
+                fontSize: isMobile ? "13px" : "18px",
+                fontWeight: 400,
+                letterSpacing: isMobile ? "5px" : "10px",
+                whiteSpace: "nowrap",
+              }}
+            >
+              DREAMSCAPE ONE
+            </span>
 
-      <span
-        style={{
-          marginTop: "8px",
-          fontSize: isMobile ? "8px" : "10px",
-          fontWeight: 400,
-          letterSpacing: isMobile ? "2px" : "3.2px",
-          color: "rgba(255,255,255,0.58)",
-          textTransform: "uppercase",
-          whiteSpace: "nowrap",
-        }}
-      >
-        Powered by Guru Kids Pro
-      </span>
-    </div>
+            <span
+              style={{
+                marginTop: "8px",
+                fontSize: isMobile ? "8px" : "10px",
+                fontWeight: 400,
+                letterSpacing: isMobile ? "2px" : "3.2px",
+                color: "rgba(255,255,255,0.58)",
+                textTransform: "uppercase",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Powered by Guru Kids Pro
+            </span>
+          </div>
         </button>
 
         <nav
-  style={{
-    display: "flex",
-    alignItems: "center",
-    gap: isMobile ? "14px" : "34px",
-  }}
->
-  <button
-    type="button"
-    onClick={() => scrollToSection("home")}
-    style={navButtonStyle("home")}
-  >
-    Home
-    <span style={navLineStyle("home")} />
-  </button>
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: isMobile ? "14px" : "34px",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => scrollToSection("home")}
+            style={navButtonStyle("home")}
+          >
+            Home
+            <span style={navLineStyle("home")} />
+          </button>
 
-  <button
-    type="button"
-    onClick={() => scrollToSection("about")}
-    style={navButtonStyle("about")}
-  >
-    About
-    <span style={navLineStyle("about")} />
-  </button>
+          <button
+            type="button"
+            onClick={() => scrollToSection("about")}
+            style={navButtonStyle("about")}
+          >
+            About
+            <span style={navLineStyle("about")} />
+          </button>
 
-  <div
-    style={{
-      marginLeft: isMobile ? "4px" : "18px",
-      display: "flex",
-      alignItems: "center",
-      gap: isMobile ? "10px" : "14px",
-    }}
-  >
-    <button
-      type="button"
-      onClick={() => router.push(isLoggedIn ? "/profile" : "/login")}
-      style={{
-        background: "rgba(255,255,255,0.94)",
-        color: "#24124d",
-        border: "1px solid rgba(255,255,255,0.45)",
-        borderRadius: "999px",
-        padding: isMobile ? "9px 14px" : "11px 22px",
-        minWidth: isMobile ? "92px" : "138px",
-        fontSize: isMobile ? "10px" : "12px",
-        fontWeight: 800,
-        letterSpacing: "0.1em",
-        cursor: "pointer",
-        whiteSpace: "nowrap",
-        textAlign: "center",
-        boxShadow: "0 10px 30px rgba(20,10,60,0.18)",
-        backdropFilter: "blur(14px)",
-      }}
-    >
-      {isCheckingAccount ? "..." : isLoggedIn ? "MY ACCOUNT" : "LOG IN"}
-    </button>
+          <div
+            style={{
+              marginLeft: isMobile ? "4px" : "18px",
+              display: "flex",
+              alignItems: "center",
+              gap: isMobile ? "10px" : "14px",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => router.push(isLoggedIn ? "/profile" : "/login")}
+              style={{
+                background: "rgba(255,255,255,0.94)",
+                color: "#24124d",
+                border: "1px solid rgba(255,255,255,0.45)",
+                borderRadius: "999px",
+                padding: isMobile ? "9px 14px" : "11px 22px",
+                minWidth: isMobile ? "92px" : "138px",
+                fontSize: isMobile ? "10px" : "12px",
+                fontWeight: 800,
+                letterSpacing: "0.1em",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                textAlign: "center",
+                boxShadow: "0 10px 30px rgba(20,10,60,0.18)",
+                backdropFilter: "blur(14px)",
+              }}
+            >
+              {isCheckingAccount ? "..." : isLoggedIn ? "MY ACCOUNT" : "LOG IN"}
+            </button>
 
-    <button
-      type="button"
-      onClick={() => router.push("/cart")}
-      aria-label="Cart"
-      style={{
-        width: isMobile ? "40px" : "44px",
-        height: isMobile ? "40px" : "44px",
-        borderRadius: "999px",
-        background: "#05050a",
-        border: "1px solid rgba(255,255,255,0.18)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        cursor: "pointer",
-        boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
-      }}
-    >
-      <svg
-        width={isMobile ? "18" : "20"}
-        height={isMobile ? "18" : "20"}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="white"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <circle cx="9" cy="21" r="1" />
-        <circle cx="20" cy="21" r="1" />
-        <path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 2-1.6L23 6H6" />
-      </svg>
-    </button>
-  </div>
-</nav>
+            <button
+              type="button"
+              onClick={() => router.push("/cart")}
+              aria-label="Cart"
+              style={{
+                width: isMobile ? "40px" : "44px",
+                height: isMobile ? "40px" : "44px",
+                borderRadius: "999px",
+                background: "#05050a",
+                border: "1px solid rgba(255,255,255,0.18)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
+              }}
+            >
+              <svg
+                width={isMobile ? "18" : "20"}
+                height={isMobile ? "18" : "20"}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="white"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="9" cy="21" r="1" />
+                <circle cx="20" cy="21" r="1" />
+                <path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 2-1.6L23 6H6" />
+              </svg>
+            </button>
+          </div>
+        </nav>
       </header>
 
       <section
@@ -824,273 +1208,273 @@ const footerButtonStyle: CSSProperties = {
           </div>
 
           <div
-  style={{
-    marginTop: "62px",
-    width: "100%",
-    display: "grid",
-    gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
-    gap: isMobile ? "24px" : "52px",
-    maxWidth: "1550px",
-    alignItems: "stretch",
-    justifyContent: "center",
-  }}
->
-  <AboutCard
-    imageSrc="/nova/nova-character.png"
-    title="Nova’s World"
-    audience="Built for ages 6–16"
-    description="A student world for learning missions, thinking challenges, invention, progress, and exclusive student creations."
-  />
+            style={{
+              marginTop: "62px",
+              width: "100%",
+              display: "grid",
+              gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+              gap: isMobile ? "24px" : "52px",
+              maxWidth: "1550px",
+              alignItems: "stretch",
+              justifyContent: "center",
+            }}
+          >
+            <AboutCard
+              imageSrc="/nova/nova-character.png"
+              title="Nova’s World"
+              audience="Built for ages 6–16"
+              description="A student world for learning missions, thinking challenges, invention, progress, and exclusive student creations."
+            />
 
-  <AboutCard
-    imageSrc="/milo-world/milo-character.png"
-    title="Milo’s World"
-    audience="Built for ages 16+"
-    description="A creator world for custom products, 3D printing services, prototypes, gifts, and small-batch production."
-  />
-</div>
+            <AboutCard
+              imageSrc="/milo-world/milo-character.png"
+              title="Milo’s World"
+              audience="Built for ages 16+"
+              description="A creator world for custom products, 3D printing services, prototypes, gifts, and small-batch production."
+            />
+          </div>
 
-<button
-  type="button"
-  onClick={() => scrollToSection("home")}
-  style={{
-    marginTop: "54px",
-    padding: "14px 28px",
-    borderRadius: "999px",
-    border: "1px solid rgba(83,215,255,0.45)",
-    background:
-      "linear-gradient(135deg, rgba(83,215,255,0.16), rgba(197,140,255,0.12))",
-    color: "white",
-    fontSize: "14px",
-    fontWeight: 400,
-    letterSpacing: "0.18em",
-    textTransform: "uppercase",
-    cursor: "pointer",
-    boxShadow:
-      "0 18px 42px rgba(0,0,0,0.32), inset 0 0 18px rgba(83,215,255,0.06)",
-    backdropFilter: "blur(12px)",
-  }}
->
-  Back to top
-</button>
+          <button
+            type="button"
+            onClick={() => scrollToSection("home")}
+            style={{
+              marginTop: "54px",
+              padding: "14px 28px",
+              borderRadius: "999px",
+              border: "1px solid rgba(83,215,255,0.45)",
+              background:
+                "linear-gradient(135deg, rgba(83,215,255,0.16), rgba(197,140,255,0.12))",
+              color: "white",
+              fontSize: "14px",
+              fontWeight: 400,
+              letterSpacing: "0.18em",
+              textTransform: "uppercase",
+              cursor: "pointer",
+              boxShadow:
+                "0 18px 42px rgba(0,0,0,0.32), inset 0 0 18px rgba(83,215,255,0.06)",
+              backdropFilter: "blur(12px)",
+            }}
+          >
+            Back to top
+          </button>
         </div>
       </section>
 
-<footer
-  style={{
-    position: "relative",
-    zIndex: 2,
-    padding: "54px 7.6vw 42px",
-    background:
-      "linear-gradient(180deg, rgba(2,8,19,0.96), rgba(1,4,10,1))",
-    borderTop: "1px solid rgba(116,200,255,0.18)",
-    color: "white",
-  }}
->
-  <div
-    style={{
-      maxWidth: "1540px",
-      margin: "0 auto",
-      display: "grid",
-      gridTemplateColumns: isMobile ? "1fr" : "1.2fr 1fr 1fr",
-      gap: isMobile ? "34px" : "42px",
-      alignItems: "start",
-    }}
-  >
-    <div>
-      <button
-        type="button"
-        onClick={() => scrollToSection("home")}
+      <footer
         style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "16px",
-          padding: 0,
-          border: "none",
-          background: "transparent",
+          position: "relative",
+          zIndex: 2,
+          padding: "54px 7.6vw 42px",
+          background:
+            "linear-gradient(180deg, rgba(2,8,19,0.96), rgba(1,4,10,1))",
+          borderTop: "1px solid rgba(116,200,255,0.18)",
           color: "white",
-          cursor: "pointer",
         }}
       >
-        <img
-          src="/home/dreamscape-logo.png"
-          alt="Dreamscape One logo"
+        <div
           style={{
-            width: "48px",
-            height: "48px",
-            objectFit: "contain",
-            borderRadius: "999px",
-            boxShadow:
-              "0 0 16px rgba(197,140,255,0.26), 0 0 20px rgba(255,138,43,0.14)",
+            maxWidth: "1540px",
+            margin: "0 auto",
+            display: "grid",
+            gridTemplateColumns: isMobile ? "1fr" : "1.2fr 1fr 1fr",
+            gap: isMobile ? "34px" : "42px",
+            alignItems: "start",
           }}
-        />
+        >
+          <div>
+            <button
+              type="button"
+              onClick={() => scrollToSection("home")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "16px",
+                padding: 0,
+                border: "none",
+                background: "transparent",
+                color: "white",
+                cursor: "pointer",
+              }}
+            >
+              <img
+                src="/home/dreamscape-logo.png"
+                alt="Dreamscape One logo"
+                style={{
+                  width: "48px",
+                  height: "48px",
+                  objectFit: "contain",
+                  borderRadius: "999px",
+                  boxShadow:
+                    "0 0 16px rgba(197,140,255,0.26), 0 0 20px rgba(255,138,43,0.14)",
+                }}
+              />
+
+              <div
+                style={{
+                  textAlign: "left",
+                }}
+              >
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: "17px",
+                    letterSpacing: "0.32em",
+                    textTransform: "uppercase",
+                    color: "white",
+                  }}
+                >
+                  Dreamscape One
+                </p>
+
+                <p
+                  style={{
+                    margin: "8px 0 0",
+                    fontSize: "11px",
+                    letterSpacing: "0.22em",
+                    textTransform: "uppercase",
+                    color: "rgba(255,255,255,0.56)",
+                  }}
+                >
+                  Powered by Guru Kids Pro
+                </p>
+              </div>
+            </button>
+
+            <p
+              style={{
+                margin: "24px 0 0",
+                maxWidth: "440px",
+                fontSize: "15px",
+                lineHeight: 1.7,
+                color: "rgba(255,255,255,0.62)",
+                fontWeight: 300,
+              }}
+            >
+              A creative learning and design world where students and creators
+              bring ideas to life through learning missions, invention, custom
+              products, and 3D printing.
+            </p>
+          </div>
+
+          <div>
+            <p
+              style={{
+                margin: 0,
+                color: "#8ee8ff",
+                fontSize: "13px",
+                letterSpacing: "0.22em",
+                textTransform: "uppercase",
+              }}
+            >
+              Explore
+            </p>
+
+            <div
+              style={{
+                marginTop: "18px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "13px",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => scrollToSection("home")}
+                style={footerButtonStyle}
+              >
+                Home
+              </button>
+
+              <button
+                type="button"
+                onClick={() => scrollToSection("about")}
+                style={footerButtonStyle}
+              >
+                About
+              </button>
+
+              <Link href="/inventor" style={footerLinkStyle}>
+                Nova’s World
+              </Link>
+
+              <Link href="/milo-world" style={footerLinkStyle}>
+                Milo’s World
+              </Link>
+            </div>
+          </div>
+
+          <div>
+            <p
+              style={{
+                margin: 0,
+                color: "#8ee8ff",
+                fontSize: "13px",
+                letterSpacing: "0.22em",
+                textTransform: "uppercase",
+              }}
+            >
+              Connected Sites
+            </p>
+
+            <div
+              style={{
+                marginTop: "18px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "13px",
+              }}
+            >
+              <a
+                href="https://gurukidspro.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={footerLinkStyle}
+              >
+                Guru Kids Pro
+              </a>
+
+              <a
+                href="https://gurukidspro.com/pages/design-lab"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={footerLinkStyle}
+              >
+                GKDL Production
+              </a>
+
+              <a
+                href="https://www.instagram.com/gurukidspro/"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={footerLinkStyle}
+              >
+                @gurukidspro
+              </a>
+            </div>
+          </div>
+        </div>
 
         <div
           style={{
-            textAlign: "left",
+            maxWidth: "1540px",
+            margin: "42px auto 0",
+            paddingTop: "24px",
+            borderTop: "1px solid rgba(255,255,255,0.1)",
+            display: "flex",
+            flexDirection: isMobile ? "column" : "row",
+            alignItems: isMobile ? "flex-start" : "center",
+            justifyContent: "space-between",
+            gap: "24px",
+            color: "rgba(255,255,255,0.46)",
+            fontSize: "13px",
+            lineHeight: 1.5,
           }}
         >
-          <p
-            style={{
-              margin: 0,
-              fontSize: "17px",
-              letterSpacing: "0.32em",
-              textTransform: "uppercase",
-              color: "white",
-            }}
-          >
-            Dreamscape One
-          </p>
-
-          <p
-            style={{
-              margin: "8px 0 0",
-              fontSize: "11px",
-              letterSpacing: "0.22em",
-              textTransform: "uppercase",
-              color: "rgba(255,255,255,0.56)",
-            }}
-          >
-            Powered by Guru Kids Pro
-          </p>
+          <span>© {new Date().getFullYear()} Dreamscape One.</span>
+          <span>Learning · Creation · 3D Printing · Custom Products</span>
         </div>
-      </button>
-
-      <p
-        style={{
-          margin: "24px 0 0",
-          maxWidth: "440px",
-          fontSize: "15px",
-          lineHeight: 1.7,
-          color: "rgba(255,255,255,0.62)",
-          fontWeight: 300,
-        }}
-      >
-        A creative learning and design world where students and creators bring
-        ideas to life through learning missions, invention, custom products, and
-        3D printing.
-      </p>
-    </div>
-
-    <div>
-      <p
-        style={{
-          margin: 0,
-          color: "#8ee8ff",
-          fontSize: "13px",
-          letterSpacing: "0.22em",
-          textTransform: "uppercase",
-        }}
-      >
-        Explore
-      </p>
-
-      <div
-        style={{
-          marginTop: "18px",
-          display: "flex",
-          flexDirection: "column",
-          gap: "13px",
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => scrollToSection("home")}
-          style={footerButtonStyle}
-        >
-          Home
-        </button>
-
-        <button
-          type="button"
-          onClick={() => scrollToSection("about")}
-          style={footerButtonStyle}
-        >
-          About
-        </button>
-
-        <Link href="/inventor" style={footerLinkStyle}>
-          Nova’s World
-        </Link>
-
-        <Link href="/milo-world" style={footerLinkStyle}>
-          Milo’s World
-        </Link>
-      </div>
-    </div>
-
-    <div>
-      <p
-        style={{
-          margin: 0,
-          color: "#8ee8ff",
-          fontSize: "13px",
-          letterSpacing: "0.22em",
-          textTransform: "uppercase",
-        }}
-      >
-        Connected Sites
-      </p>
-
-      <div
-        style={{
-          marginTop: "18px",
-          display: "flex",
-          flexDirection: "column",
-          gap: "13px",
-        }}
-      >
-        <a
-          href="https://gurukidspro.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={footerLinkStyle}
-        >
-          Guru Kids Pro
-        </a>
-
-        <a
-          href="https://gurukidspro.com/pages/design-lab"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={footerLinkStyle}
-        >
-          GKDL Production
-        </a>
-
-        <a
-          href="https://www.instagram.com/gurukidspro/"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={footerLinkStyle}
-        >
-          @gurukidspro
-        </a>
-      </div>
-    </div>
-  </div>
-
-  <div
-    style={{
-      maxWidth: "1540px",
-      margin: "42px auto 0",
-      paddingTop: "24px",
-      borderTop: "1px solid rgba(255,255,255,0.1)",
-      display: "flex",
-      flexDirection: isMobile ? "column" : "row",
-      alignItems: isMobile ? "flex-start" : "center",
-      justifyContent: "space-between",
-      gap: "24px",
-      color: "rgba(255,255,255,0.46)",
-      fontSize: "13px",
-      lineHeight: 1.5,
-    }}
-  >
-    <span>© {new Date().getFullYear()} Dreamscape One.</span>
-    <span>Learning · Creation · 3D Printing · Custom Products</span>
-  </div>
-</footer>
-</main>
+      </footer>
+    </main>
   );
 }
 
@@ -1360,4 +1744,3 @@ function AboutCard({
     </article>
   );
 }
-
