@@ -68,7 +68,7 @@ const worlds: World[] = [
   {
     key: "nova",
     title: "Nova’s World",
-    subtitle: "Invent, customise, and discover.",
+    subtitle: "Learn, invent, and complete missions.",
     href: "/inventor",
     imageSrc: "/home/nova-world-cover.png",
     videoSrc: "/home/nova-world-preview.mp4",
@@ -77,7 +77,7 @@ const worlds: World[] = [
   {
     key: "milo",
     title: "Milo’s World",
-    subtitle: "Create, print, and bring ideas to life.",
+    subtitle: "Create, play, and bring ideas to life.",
     href: "/milo-world",
     imageSrc: "/home/milo-world-cover.png",
     videoSrc: "/home/milo-world-preview.mp4",

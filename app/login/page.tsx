@@ -9,6 +9,8 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [referralCode, setReferralCode] = useState("");
+
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -16,7 +18,9 @@ export default function LoginPage() {
     setMessage("");
     setLoading(true);
 
-    const { error } = await supabase.auth.signUp({
+    const cleanReferralCode = referralCode.trim().toUpperCase();
+
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -27,14 +31,45 @@ export default function LoginPage() {
       },
     });
 
-    setLoading(false);
-
     if (error) {
+      setLoading(false);
       setMessage(error.message);
       return;
     }
 
-    setMessage("Account created. Please check your email to confirm your account.");
+    const newUserId = data.user?.id;
+
+    if (newUserId && cleanReferralCode) {
+      const { data: referralResult, error: referralError } = await supabase.rpc(
+        "apply_referral_bonus",
+        {
+          new_user_id: newUserId,
+          input_referral_code: cleanReferralCode,
+        }
+      );
+
+      if (referralError) {
+        console.error("Referral error:", referralError.message);
+
+        setMessage(
+          "Account created. Please check your email to confirm your account. Referral code could not be applied."
+        );
+      } else if (referralResult?.success) {
+        setMessage(
+          "Account created. Please check your email to confirm your account. Your 10 bonus Dream Tokens have been added."
+        );
+      } else {
+        setMessage(
+          `Account created. Please check your email to confirm your account. ${
+            referralResult?.message || "Referral code was not applied."
+          }`
+        );
+      }
+    } else {
+      setMessage("Account created. Please check your email to confirm your account.");
+    }
+
+    setLoading(false);
   }
 
   async function login() {
@@ -100,6 +135,10 @@ export default function LoginPage() {
           Login to Dreamscape
         </h1>
 
+        <p className="mt-3 text-sm leading-6 text-indigo-950/55">
+          Log in to continue your journey, or create a new Dreamscape account.
+        </p>
+
         <input
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -115,6 +154,25 @@ export default function LoginPage() {
           type="password"
           className="mt-3 w-full rounded-2xl border border-indigo-100 px-4 py-3 text-sm outline-none"
         />
+
+        <div className="mt-4 rounded-2xl border border-violet-100 bg-violet-50/60 p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-indigo-950/55">
+            New account bonus
+          </p>
+
+          <input
+            value={referralCode}
+            onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+            placeholder="Referral code optional"
+            type="text"
+            className="mt-3 w-full rounded-2xl border border-violet-100 bg-white px-4 py-3 text-sm uppercase tracking-[0.08em] text-indigo-950 outline-none"
+          />
+
+          <p className="mt-2 text-xs leading-5 text-indigo-950/50">
+            Have a referral code? Enter it when creating an account to receive
+            10 bonus Dream Tokens.
+          </p>
+        </div>
 
         <button
           onClick={login}
@@ -140,7 +198,11 @@ export default function LoginPage() {
           Continue with Google
         </button>
 
-        {message && <p className="mt-4 text-sm text-indigo-950/70">{message}</p>}
+        {message && (
+          <p className="mt-4 rounded-2xl bg-indigo-50 px-4 py-3 text-sm leading-6 text-indigo-950/70">
+            {message}
+          </p>
+        )}
       </div>
     </main>
   );

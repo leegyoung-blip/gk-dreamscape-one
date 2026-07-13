@@ -55,6 +55,9 @@ export default function ProfilePage() {
   const router = useRouter();
 
   const [email, setEmail] = useState<string | null>(null);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [copiedReferralCode, setCopiedReferralCode] = useState(false);
+
   const [isAdmin, setIsAdmin] = useState(false);
   const [tokenTransactions, setTokenTransactions] = useState<
     DreamTokenTransaction[]
@@ -82,6 +85,7 @@ export default function ProfilePage() {
 
       if (!data.user) {
         setEmail(null);
+        setReferralCode(null);
         setIsAdmin(false);
         setTokenTransactions([]);
         setIsLoadingTokens(false);
@@ -92,7 +96,7 @@ export default function ProfilePage() {
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("role")
+        .select("role, referral_code")
         .eq("id", data.user.id)
         .maybeSingle();
 
@@ -101,6 +105,7 @@ export default function ProfilePage() {
       }
 
       setIsAdmin(profile?.role?.trim().toLowerCase() === "admin");
+      setReferralCode(profile?.referral_code ?? null);
 
       const { data: savedTokenTransactions, error: tokenError } =
         await supabase
@@ -119,6 +124,17 @@ export default function ProfilePage() {
 
     loadProfile();
   }, []);
+
+  async function copyReferralCode() {
+    if (!referralCode) return;
+
+    await navigator.clipboard.writeText(referralCode);
+    setCopiedReferralCode(true);
+
+    window.setTimeout(() => {
+      setCopiedReferralCode(false);
+    }, 1800);
+  }
 
   async function logout() {
     localStorage.removeItem("seen-prologue");
@@ -216,6 +232,33 @@ export default function ProfilePage() {
 
                 <p className="mt-2 text-lg text-white/86">
                   {isAdmin ? "Admin" : "Student / Member"}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-violet-200/18 bg-[#120b2e]/75 p-5">
+                <p className="text-xs uppercase tracking-[0.18em] text-white/42">
+                  Referral Code
+                </p>
+
+                <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="break-all text-2xl font-extrabold tracking-[0.16em] text-white">
+                    {referralCode || "Loading..."}
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={copyReferralCode}
+                    disabled={!referralCode}
+                    className="rounded-full border border-violet-200/25 bg-violet-400/18 px-5 py-2 text-xs font-bold uppercase tracking-[0.12em] text-white transition hover:scale-[1.03] disabled:opacity-50"
+                  >
+                    {copiedReferralCode ? "Copied" : "Copy Code"}
+                  </button>
+                </div>
+
+                <p className="mt-3 text-sm leading-6 text-white/54">
+                  Share your code with a friend. They get 10 Dream Tokens when
+                  they join, and you get 20 Dream Tokens when they use your
+                  code.
                 </p>
               </div>
             </div>
