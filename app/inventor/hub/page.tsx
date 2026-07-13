@@ -729,7 +729,7 @@ export default function InventorHubPage() {
                         : "cursor-not-allowed border-white/80 bg-white opacity-95"
                     }`}
                   >
-                    <div className="relative flex h-44 w-full items-center justify-center overflow-hidden rounded-[18px] bg-white">
+                    <div className="relative flex h-44 w-full items-center justify-center overflow-hidden rounded-[18px] bg-[#ffffff]">
                       {item.image ? (
                         <img
                           src={item.image}
@@ -738,7 +738,7 @@ export default function InventorHubPage() {
                           draggable={false}
                         />
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center rounded-[18px] bg-slate-100 text-4xl text-slate-500">
+                        <div className="flex h-full w-full items-center justify-center rounded-[18px] bg-[#ffffff] text-4xl text-slate-500">
                           ⚡
                         </div>
                       )}
@@ -1101,11 +1101,11 @@ export default function InventorHubPage() {
                   Preview
                 </p>
 
-                <div className="flex min-h-[430px] items-center justify-center rounded-[22px] bg-white p-4">
+                <div className="flex min-h-[430px] items-center justify-center rounded-[22px] bg-[#ffffff] p-4">
                   <img
                     src={currentHapPreviewImage}
                     alt={`${selectedHapSetData.name} ${selectedHapPackData.name}`}
-                    className="max-h-[400px] w-full object-contain drop-shadow-[0_18px_35px_rgba(0,0,0,0.25)]"
+                    className="max-h-[400px] w-full object-contain"
                     draggable={false}
                   />
                 </div>
