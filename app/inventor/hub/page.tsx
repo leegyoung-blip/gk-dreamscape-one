@@ -36,6 +36,9 @@ type NovaPose = "inventor" | "action";
 type NovaWeapon = "energy-wrench" | "spark-staff";
 type PurchaseTier = "standard" | "premium";
 
+type HapSet = "foundation" | "challenge";
+type HapPack = "single" | "pack-3";
+
 const TAG_COLOURS: {
   id: TagColour;
   name: string;
@@ -224,6 +227,55 @@ const PURCHASE_OPTIONS: {
   },
 ];
 
+const HAP_SETS: {
+  id: HapSet;
+  name: string;
+  age: string;
+  label: string;
+  description: string;
+}[] = [
+  {
+    id: "foundation",
+    name: "Foundation Set",
+    age: "7–8 years old",
+    label: "Younger learners",
+    description:
+      "High Ability practice for younger learners building strong thinking, reasoning, and problem-solving skills.",
+  },
+  {
+    id: "challenge",
+    name: "Challenge Set",
+    age: "9–10 years old",
+    label: "Older learners",
+    description:
+      "A more challenging High Ability set for students ready for tougher enrichment-style practice.",
+  },
+];
+
+const HAP_PACKS: {
+  id: HapPack;
+  name: string;
+  label: string;
+  price: number;
+}[] = [
+  {
+    id: "single",
+    name: "Single Pack",
+    label: "One practice paper",
+    price: 29.9,
+  },
+  {
+    id: "pack-3",
+    name: "Pack of 3",
+    label: "Recommended bundle",
+    price: 79.9,
+  },
+];
+
+function getHapProductImage(set: HapSet, pack: HapPack) {
+  return `/store/educational-resources/hap-${set}-${pack}.png`;
+}
+
 const NOVA_BLIND_BOX_PREVIEWS: BlindBoxPreview[] = [
   {
     id: "delivery-bolt",
@@ -288,35 +340,33 @@ const HUB_AREAS: HubArea[] = [
       },
     ],
   },
-  
   {
-  id: "educational-resources",
-  title: "Educational Resources",
-  label: "Learning products and practice resources.",
-  status: "open",
-  positionClass: "hotspotPicks",
-  items: [
-    {
-      id: "high-ability-practice-papers",
-      name: "High Ability Practice Papers",
-      type: "Practice Papers",
-      image: "/store/educational-resources/hap-practice-papers.png",
-      description:
-        "High Ability practice papers designed for advanced thinking, problem-solving, and challenging enrichment practice.",
-      status: "coming soon",
-    },
-    {
-      id: "word-realms",
-      name: "Word Realms",
-      type: "Vocabulary Game",
-      image: "/store/educational-resources/word-realms.png",
-      description:
-        "A vocabulary-based learning game built around words, meanings, memory, and quick-thinking challenges.",
-      status: "coming soon",
-    },
-  ],
-},
-
+    id: "educational-resources",
+    title: "Educational Resources",
+    label: "Learning products and practice resources.",
+    status: "open",
+    positionClass: "hotspotPicks",
+    items: [
+      {
+        id: "high-ability-practice-papers",
+        name: "High Ability Practice Papers",
+        type: "Practice Papers",
+        image: "/store/educational-resources/hap-foundation-pack-3.png",
+        description:
+          "High Ability practice papers for advanced thinking, reasoning, and problem-solving.",
+        status: "available",
+      },
+      {
+        id: "word-realms",
+        name: "Word Realms",
+        type: "Vocabulary Game",
+        image: "/store/educational-resources/word-realms.png",
+        description:
+          "A vocabulary-based learning game built around words, meanings, and quick-thinking challenges.",
+        status: "coming soon",
+      },
+    ],
+  },
   {
     id: "exclusive",
     title: "Nova's Blind Box",
@@ -374,6 +424,9 @@ export default function InventorHubPage() {
   const [selectedPurchaseTier, setSelectedPurchaseTier] =
     useState<PurchaseTier>("standard");
 
+  const [selectedHapSet, setSelectedHapSet] = useState<HapSet>("foundation");
+  const [selectedHapPack, setSelectedHapPack] = useState<HapPack>("single");
+
   const currentOptions =
     selectedProduct?.id === "gadget-crate"
       ? GADGET_CRATE_COLOURS
@@ -396,8 +449,19 @@ export default function InventorHubPage() {
     PURCHASE_OPTIONS.find((item) => item.id === selectedPurchaseTier) ??
     PURCHASE_OPTIONS[0];
 
+  const selectedHapSetData =
+    HAP_SETS.find((item) => item.id === selectedHapSet) ?? HAP_SETS[0];
+
+  const selectedHapPackData =
+    HAP_PACKS.find((item) => item.id === selectedHapPack) ?? HAP_PACKS[0];
+
   const currentNovaPreviewImage =
     NOVA_PREVIEW_IMAGES[novaColour][novaPose][novaWeapon];
+
+  const currentHapPreviewImage = getHapProductImage(
+    selectedHapSet,
+    selectedHapPack
+  );
 
   function openArea(area: HubArea) {
     setSelectedArea(area);
@@ -409,23 +473,32 @@ export default function InventorHubPage() {
   }
 
   function openProduct(product: Product) {
-  if (product.status !== "available") {
-    return;
-  }
+    if (product.status !== "available") {
+      return;
+    }
 
-  if (product.id === "inventor-tag" || product.id === "gadget-crate") {
-    setSelectedProduct(product);
-    setInventorTagStep(1);
-    setSelectedTagColour("blue");
-    setInventorName("");
+    if (product.id === "inventor-tag" || product.id === "gadget-crate") {
+      setSelectedProduct(product);
+      setInventorTagStep(1);
+      setSelectedTagColour("blue");
+      setInventorName("");
+      return;
+    }
+
+    if (product.id === "high-ability-practice-papers") {
+      setSelectedProduct(product);
+      setSelectedHapSet("foundation");
+      setSelectedHapPack("single");
+    }
   }
-}
 
   function closeProduct() {
     setSelectedProduct(null);
     setInventorTagStep(1);
     setSelectedTagColour("blue");
     setInventorName("");
+    setSelectedHapSet("foundation");
+    setSelectedHapPack("single");
   }
 
   function closeArea() {
@@ -496,6 +569,37 @@ export default function InventorHubPage() {
 
     alert(`${selectedPurchaseOption.name} added to cart!`);
     closeArea();
+  }
+
+  function addHapProductToCart() {
+    if (!selectedProduct || selectedProduct.id !== "high-ability-practice-papers") {
+      return;
+    }
+
+    const cartItem = {
+      id: `hap-${selectedHapSet}-${selectedHapPack}-${Date.now()}`,
+      productType: "high-ability-practice-papers",
+      name: `High Ability Practice Papers · ${selectedHapSetData.name} · ${selectedHapPackData.name}`,
+      set: selectedHapSetData.name,
+      age: selectedHapSetData.age,
+      pack: selectedHapPackData.name,
+      description: selectedHapSetData.description,
+      image: currentHapPreviewImage,
+      quantity: 1,
+      price: selectedHapPackData.price,
+    };
+
+    const existingCart = JSON.parse(
+      localStorage.getItem("dreamscape-cart") || "[]"
+    );
+
+    localStorage.setItem(
+      "dreamscape-cart",
+      JSON.stringify([...existingCart, cartItem])
+    );
+
+    alert(`${cartItem.name} added to cart!`);
+    closeProduct();
   }
 
   function addNovaBlindBoxToCart() {
@@ -642,6 +746,12 @@ export default function InventorHubPage() {
                     <p className="mt-2 text-sm text-slate-200/80">
                       {item.description}
                     </p>
+
+                    {item.status === "coming soon" && (
+                      <span className="mt-4 inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-black uppercase tracking-[0.12em] text-white/70">
+                        Coming Soon
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -755,52 +865,52 @@ export default function InventorHubPage() {
       )}
 
       {selectedArea?.id === "machine-zone" && (
-  <div
-    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-md"
-    onClick={closeArea}
-  >
-    <section
-      className="relative w-full max-w-3xl rounded-[30px] border border-cyan-200/50 bg-gradient-to-br from-slate-950 via-blue-950 to-purple-950 p-8 text-center text-white shadow-[0_0_55px_rgba(0,220,255,0.35)]"
-      onClick={(event) => event.stopPropagation()}
-    >
-      <button
-        onClick={closeArea}
-        className="absolute right-5 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-3xl text-white hover:bg-white/20"
-      >
-        ×
-      </button>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-md"
+          onClick={closeArea}
+        >
+          <section
+            className="relative w-full max-w-3xl rounded-[30px] border border-cyan-200/50 bg-gradient-to-br from-slate-950 via-blue-950 to-purple-950 p-8 text-center text-white shadow-[0_0_55px_rgba(0,220,255,0.35)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              onClick={closeArea}
+              className="absolute right-5 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-3xl text-white hover:bg-white/20"
+            >
+              ×
+            </button>
 
-      <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-cyan-300">
-        Machine Zone
-      </p>
+            <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-cyan-300">
+              Machine Zone
+            </p>
 
-      <h1 className="mt-3 text-4xl font-black md:text-6xl">Coming Soon</h1>
+            <h1 className="mt-3 text-4xl font-black md:text-6xl">Coming Soon</h1>
 
-      <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-cyan-50/85">
-        The Machine Zone is being prepared as an exclusive area for Student
-        Access members.
-      </p>
+            <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-cyan-50/85">
+              The Machine Zone is being prepared as an exclusive area for Student
+              Access members.
+            </p>
 
-      <div className="mx-auto mt-8 max-w-md rounded-[24px] border border-cyan-200/20 bg-white/10 p-6">
-        <p className="text-sm font-black uppercase tracking-[0.16em] text-cyan-300">
-          Student Access Exclusive
-        </p>
+            <div className="mx-auto mt-8 max-w-md rounded-[24px] border border-cyan-200/20 bg-white/10 p-6">
+              <p className="text-sm font-black uppercase tracking-[0.16em] text-cyan-300">
+                Student Access Exclusive
+              </p>
 
-        <p className="mt-3 text-sm leading-relaxed text-slate-200/75">
-          Future tools, member-only activities, and advanced creation features
-          will appear here later.
-        </p>
-      </div>
+              <p className="mt-3 text-sm leading-relaxed text-slate-200/75">
+                Future tools, member-only activities, and advanced creation features
+                will appear here later.
+              </p>
+            </div>
 
-      <button
-        onClick={closeArea}
-        className="mt-8 rounded-full bg-cyan-300 px-8 py-4 text-sm font-black uppercase tracking-[0.12em] text-slate-950 hover:bg-cyan-200"
-      >
-        Back to Inventor Hub
-      </button>
-    </section>
-  </div>
-)}
+            <button
+              onClick={closeArea}
+              className="mt-8 rounded-full bg-cyan-300 px-8 py-4 text-sm font-black uppercase tracking-[0.12em] text-slate-950 hover:bg-cyan-200"
+            >
+              Back to Inventor Hub
+            </button>
+          </section>
+        </div>
+      )}
 
       {(selectedProduct?.id === "inventor-tag" ||
         selectedProduct?.id === "gadget-crate") && (
@@ -941,6 +1051,192 @@ export default function InventorHubPage() {
                     </div>
                   </>
                 )}
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {selectedProduct?.id === "high-ability-practice-papers" && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 px-4 backdrop-blur-md"
+          onClick={closeProduct}
+        >
+          <section
+            className="relative max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-[30px] border border-cyan-200/50 bg-gradient-to-br from-slate-950 via-blue-950 to-purple-950 p-8 text-white shadow-[0_0_55px_rgba(0,220,255,0.35)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              onClick={closeProduct}
+              className="absolute right-5 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-3xl text-white hover:bg-white/20"
+            >
+              ×
+            </button>
+
+            <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-cyan-300">
+              Educational Resources
+            </p>
+
+            <h1 className="mt-2 text-4xl font-black md:text-6xl">
+              High Ability Practice Papers
+            </h1>
+
+            <p className="mt-3 max-w-3xl text-lg leading-relaxed text-cyan-50/85">
+              Choose between Foundation or Challenge, then select a single pack
+              or the recommended pack of 3.
+            </p>
+
+            <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1.1fr]">
+              <div className="rounded-[26px] border border-white/10 bg-white/10 p-5">
+                <p className="mb-4 text-sm font-black uppercase tracking-wider text-cyan-300">
+                  Preview
+                </p>
+
+                <div className="flex min-h-[430px] items-center justify-center rounded-[22px] bg-slate-950/45 p-4">
+                  <img
+                    src={currentHapPreviewImage}
+                    alt={`${selectedHapSetData.name} ${selectedHapPackData.name}`}
+                    className="max-h-[400px] w-full object-contain drop-shadow-[0_18px_35px_rgba(0,0,0,0.35)]"
+                    draggable={false}
+                  />
+                </div>
+
+                <div className="mt-5 rounded-2xl border border-cyan-200/18 bg-cyan-300/10 p-4">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-300">
+                    Selected
+                  </p>
+
+                  <p className="mt-2 text-2xl font-black">
+                    {selectedHapSetData.name} · {selectedHapPackData.name}
+                  </p>
+
+                  <p className="mt-1 text-sm text-slate-200/75">
+                    {selectedHapSetData.age}
+                  </p>
+
+                  <p className="mt-4 text-4xl font-black text-amber-200">
+                    ${selectedHapPackData.price.toFixed(2)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-[26px] border border-white/10 bg-white/10 p-5">
+                <p className="text-sm font-black uppercase tracking-wider text-cyan-300">
+                  Step 1
+                </p>
+
+                <h2 className="mt-2 text-3xl font-black">Choose Your Set</h2>
+
+                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                  {HAP_SETS.map((set) => {
+                    const isSelected = selectedHapSet === set.id;
+
+                    return (
+                      <button
+                        key={set.id}
+                        type="button"
+                        onClick={() => setSelectedHapSet(set.id)}
+                        className={`rounded-3xl border p-5 text-left transition hover:scale-[1.02] ${
+                          isSelected
+                            ? "border-cyan-300 bg-cyan-300/15"
+                            : "border-white/10 bg-white/10 hover:bg-white/20"
+                        }`}
+                      >
+                        <span className="block text-2xl font-black">
+                          {set.name}
+                        </span>
+
+                        <span className="mt-2 block text-sm font-bold text-cyan-100">
+                          {set.age}
+                        </span>
+
+                        <span className="mt-3 block text-sm leading-6 text-slate-200/75">
+                          {set.description}
+                        </span>
+
+                        {isSelected && (
+                          <span className="mt-4 inline-flex rounded-full bg-cyan-300 px-3 py-1 text-xs font-black uppercase tracking-[0.12em] text-slate-950">
+                            Selected
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <p className="mt-8 text-sm font-black uppercase tracking-wider text-cyan-300">
+                  Step 2
+                </p>
+
+                <h2 className="mt-2 text-3xl font-black">Choose Pack</h2>
+
+                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                  {HAP_PACKS.map((pack) => {
+                    const isSelected = selectedHapPack === pack.id;
+
+                    return (
+                      <button
+                        key={pack.id}
+                        type="button"
+                        onClick={() => setSelectedHapPack(pack.id)}
+                        className={`rounded-3xl border p-5 text-left transition hover:scale-[1.02] ${
+                          isSelected
+                            ? "border-amber-300 bg-amber-300/15"
+                            : "border-white/10 bg-white/10 hover:bg-white/20"
+                        }`}
+                      >
+                        <span className="block text-xl font-black">
+                          {pack.name}
+                        </span>
+
+                        <span className="mt-2 block text-sm text-slate-200/70">
+                          {pack.label}
+                        </span>
+
+                        <span className="mt-4 block text-3xl font-black text-amber-200">
+                          ${pack.price.toFixed(2)}
+                        </span>
+
+                        {pack.id === "pack-3" && (
+                          <span className="mt-3 inline-flex rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-xs font-black uppercase tracking-[0.12em] text-amber-100">
+                            Best Value
+                          </span>
+                        )}
+
+                        {isSelected && (
+                          <span className="mt-3 inline-flex rounded-full bg-amber-300 px-3 py-1 text-xs font-black uppercase tracking-[0.12em] text-slate-950">
+                            Selected
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-8 rounded-3xl border border-cyan-200/20 bg-slate-950/45 p-5">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-300">
+                    Order Summary
+                  </p>
+
+                  <p className="mt-3 text-xl font-black">
+                    {selectedHapSetData.name} · {selectedHapPackData.name}
+                  </p>
+
+                  <p className="mt-1 text-sm text-slate-200/70">
+                    {selectedHapSetData.age}
+                  </p>
+
+                  <p className="mt-4 text-4xl font-black text-amber-200">
+                    ${selectedHapPackData.price.toFixed(2)}
+                  </p>
+                </div>
+
+                <button
+                  onClick={addHapProductToCart}
+                  className="mt-6 w-full rounded-full bg-cyan-300 px-6 py-4 text-lg font-black text-slate-950 hover:bg-cyan-200"
+                >
+                  Add to Cart
+                </button>
               </div>
             </div>
           </section>
