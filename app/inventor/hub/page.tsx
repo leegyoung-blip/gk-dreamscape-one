@@ -658,6 +658,28 @@ export default function InventorHubPage() {
         ← Exit Inventor Hub
       </button>
 
+      <div className="absolute left-6 top-24 z-20 max-w-[320px] rounded-[22px] border border-cyan-300/35 bg-slate-950/55 px-5 py-4 text-cyan-50 shadow-[0_0_28px_rgba(0,220,255,0.22)] backdrop-blur-md">
+        <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-300">
+          Inventor Hub
+        </p>
+
+        <h1 className="mt-2 text-2xl font-black leading-tight text-white">
+          Explore the 4 zones
+        </h1>
+
+        <p className="mt-2 text-sm leading-6 text-cyan-50/75">
+          <span className="hidden sm:inline">
+            Hover over each zone to discover build sets, learning resources,
+            collectibles, and future tools.
+          </span>
+
+          <span className="sm:hidden">
+            Tap each zone to discover build sets, learning resources, collectibles,
+            and future tools.
+          </span>
+        </p>
+      </div>
+
       <button
         onClick={() => router.push("/cart")}
         className="absolute right-6 top-6 z-20 flex items-center gap-2 rounded-full border border-cyan-300/60 bg-slate-950/60 px-5 py-3 text-sm font-bold tracking-[0.12em] text-cyan-50 shadow-[0_0_24px_rgba(0,220,255,0.35)] backdrop-blur-md hover:bg-cyan-400/20"
