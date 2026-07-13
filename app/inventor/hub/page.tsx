@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Product = {
@@ -182,7 +182,6 @@ const NOVA_PREVIEW_IMAGES: Record<
         "/activities/machine-zone/nova-previews/nova-blue-action-spark-staff.png",
     },
   },
-
   purple: {
     inventor: {
       "energy-wrench":
@@ -315,7 +314,7 @@ const HUB_AREAS: HubArea[] = [
         id: "nova-room-set",
         name: "Nova Room Set",
         type: "Prefab Build Set",
-        image: "",
+        image: "/store/nova-build-sets/nova-room-set-placeholder.png",
         description:
           "A starter prefab set for building Nova-style rooms, learning spaces, and display areas inside Nova's World.",
         status: "coming soon",
@@ -324,7 +323,7 @@ const HUB_AREAS: HubArea[] = [
         id: "mission-zone-set",
         name: "Mission Zone Set",
         type: "Prefab Build Set",
-        image: "",
+        image: "/store/nova-build-sets/mission-zone-set-placeholder.png",
         description:
           "A modular area-building set for creating quiz stations, mission corners, and activity zones.",
         status: "coming soon",
@@ -333,7 +332,7 @@ const HUB_AREAS: HubArea[] = [
         id: "inventor-lab-set",
         name: "Inventor Lab Set",
         type: "Prefab Build Set",
-        image: "",
+        image: "/store/nova-build-sets/inventor-lab-set-placeholder.png",
         description:
           "A themed prefab set for building a mini inventor lab with machines, platforms, and tech details.",
         status: "coming soon",
@@ -416,9 +415,9 @@ export default function InventorHubPage() {
     useState<TagColour>("blue");
   const [inventorName, setInventorName] = useState("");
 
-  const [novaColour, setNovaColour] = useState<NovaColour>("purple");
-  const [novaPose, setNovaPose] = useState<NovaPose>("inventor");
-  const [novaWeapon, setNovaWeapon] = useState<NovaWeapon>("energy-wrench");
+  const [novaColour] = useState<NovaColour>("purple");
+  const [novaPose] = useState<NovaPose>("inventor");
+  const [novaWeapon] = useState<NovaWeapon>("energy-wrench");
 
   const [machineStep, setMachineStep] = useState<1 | 2>(1);
   const [selectedPurchaseTier, setSelectedPurchaseTier] =
@@ -712,46 +711,56 @@ export default function InventorHubPage() {
                 {selectedArea.label}
               </p>
 
-              <div className="mt-7 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+              {selectedArea.id === "parts-supplies" && (
+                <p className="mt-4 inline-flex rounded-full border border-cyan-200/25 bg-cyan-300/10 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-cyan-100">
+                  Coming Soon
+                </p>
+              )}
+
+              <div className="mt-7 grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3">
                 {selectedArea.items.map((item) => (
                   <button
                     key={item.id}
                     onClick={() => openProduct(item)}
                     disabled={item.status !== "available"}
-                    className={`rounded-2xl border border-white/10 bg-white/10 p-5 text-left transition ${
+                    className={`rounded-[24px] border p-5 text-left shadow-[0_18px_35px_rgba(0,0,0,0.18)] transition ${
                       item.status === "available"
-                        ? "cursor-pointer hover:-translate-y-1 hover:bg-white/20"
-                        : "cursor-not-allowed opacity-70"
+                        ? "cursor-pointer border-white bg-white hover:-translate-y-1 hover:shadow-[0_26px_50px_rgba(0,0,0,0.28)]"
+                        : "cursor-not-allowed border-white/80 bg-white opacity-95"
                     }`}
                   >
-                    {item.image ? (
-                      <img
-                        src={item.image}
-                        alt={item.name}
-                        className="h-36 w-full rounded-xl object-contain"
-                        draggable={false}
-                      />
-                    ) : (
-                      <div className="flex h-36 w-full items-center justify-center rounded-xl bg-slate-950/50 text-4xl">
-                        ⚡
-                      </div>
-                    )}
+                    <div className="relative flex h-44 w-full items-center justify-center overflow-hidden rounded-[18px] bg-white">
+                      {item.image ? (
+                        <img
+                          src={item.image}
+                          alt={item.name}
+                          className="h-full w-full object-contain p-3"
+                          draggable={false}
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center rounded-[18px] bg-slate-100 text-4xl text-slate-500">
+                          ⚡
+                        </div>
+                      )}
 
-                    <p className="mt-3 text-xs font-bold uppercase tracking-wider text-cyan-300">
+                      {item.status === "coming soon" && (
+                        <span className="absolute right-3 top-3 rounded-full border border-slate-200 bg-white/95 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-700 shadow-sm">
+                          Coming Soon
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="mt-4 text-xs font-black uppercase tracking-[0.16em] text-cyan-700">
                       {item.type}
                     </p>
 
-                    <h3 className="mt-1 text-lg font-black">{item.name}</h3>
+                    <h3 className="mt-2 text-xl font-black leading-snug text-slate-950">
+                      {item.name}
+                    </h3>
 
-                    <p className="mt-2 text-sm text-slate-200/80">
+                    <p className="mt-3 text-sm leading-6 text-slate-700">
                       {item.description}
                     </p>
-
-                    {item.status === "coming soon" && (
-                      <span className="mt-4 inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-black uppercase tracking-[0.12em] text-white/70">
-                        Coming Soon
-                      </span>
-                    )}
                   </button>
                 ))}
               </div>
@@ -1092,11 +1101,11 @@ export default function InventorHubPage() {
                   Preview
                 </p>
 
-                <div className="flex min-h-[430px] items-center justify-center rounded-[22px] bg-slate-950/45 p-4">
+                <div className="flex min-h-[430px] items-center justify-center rounded-[22px] bg-white p-4">
                   <img
                     src={currentHapPreviewImage}
                     alt={`${selectedHapSetData.name} ${selectedHapPackData.name}`}
-                    className="max-h-[400px] w-full object-contain drop-shadow-[0_18px_35px_rgba(0,0,0,0.35)]"
+                    className="max-h-[400px] w-full object-contain drop-shadow-[0_18px_35px_rgba(0,0,0,0.25)]"
                     draggable={false}
                   />
                 </div>
@@ -1333,23 +1342,5 @@ export default function InventorHubPage() {
         }
       `}</style>
     </main>
-  );
-}
-
-function OptionGroup({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="mt-6">
-      <p className="mb-3 text-sm font-black uppercase tracking-wider text-cyan-300">
-        {title}
-      </p>
-
-      <div className="grid grid-cols-1 gap-3">{children}</div>
-    </div>
   );
 }
