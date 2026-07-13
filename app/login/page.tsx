@@ -48,20 +48,25 @@ export default function LoginPage() {
         }
       );
 
+      const referralData = referralResult as {
+        success?: boolean;
+        message?: string;
+      } | null;
+
       if (referralError) {
         console.error("Referral error:", referralError.message);
 
         setMessage(
           "Account created. Please check your email to confirm your account. Referral code could not be applied."
         );
-      } else if (referralResult?.success) {
+      } else if (referralData?.success) {
         setMessage(
           "Account created. Please check your email to confirm your account. Your 10 bonus Dream Tokens have been added."
         );
       } else {
         setMessage(
           `Account created. Please check your email to confirm your account. ${
-            referralResult?.message || "Referral code was not applied."
+            referralData?.message || "Referral code was not applied."
           }`
         );
       }
@@ -94,6 +99,12 @@ export default function LoginPage() {
   async function loginWithGoogle() {
     setMessage("");
     setLoading(true);
+
+    const cleanReferralCode = referralCode.trim().toUpperCase();
+
+    if (cleanReferralCode && typeof window !== "undefined") {
+      localStorage.setItem("pending-referral-code", cleanReferralCode);
+    }
 
     const redirectTo =
       typeof window !== "undefined"
@@ -169,8 +180,8 @@ export default function LoginPage() {
           />
 
           <p className="mt-2 text-xs leading-5 text-indigo-950/50">
-            Have a referral code? Enter it when creating an account to receive
-            10 bonus Dream Tokens.
+            Have a referral code? Enter it before creating an account or
+            continuing with Google to receive 10 bonus Dream Tokens.
           </p>
         </div>
 

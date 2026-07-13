@@ -57,6 +57,7 @@ export default function ProfilePage() {
   const [email, setEmail] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [copiedReferralCode, setCopiedReferralCode] = useState(false);
+  const [referralMessage, setReferralMessage] = useState("");
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [tokenTransactions, setTokenTransactions] = useState<
@@ -101,11 +102,40 @@ export default function ProfilePage() {
         .maybeSingle();
 
       if (profileError) {
-        console.error("Profile role error:", profileError.message);
+        console.error("Profile error:", profileError.message);
       }
 
       setIsAdmin(profile?.role?.trim().toLowerCase() === "admin");
       setReferralCode(profile?.referral_code ?? null);
+
+      const pendingReferralCode =
+        typeof window !== "undefined"
+          ? localStorage.getItem("pending-referral-code")
+          : null;
+
+      if (pendingReferralCode) {
+        const { data: referralResult, error: referralError } =
+          await supabase.rpc("apply_referral_bonus", {
+            new_user_id: data.user.id,
+            input_referral_code: pendingReferralCode,
+          });
+
+        const referralData = referralResult as {
+          success?: boolean;
+          message?: string;
+        } | null;
+
+        if (referralError) {
+          console.error("Google referral error:", referralError.message);
+          setReferralMessage("Referral code could not be applied.");
+        } else if (referralData?.success) {
+          setReferralMessage("Referral bonus applied. You received 10 Dream Tokens.");
+        } else if (referralData?.message) {
+          setReferralMessage(referralData.message);
+        }
+
+        localStorage.removeItem("pending-referral-code");
+      }
 
       const { data: savedTokenTransactions, error: tokenError } =
         await supabase
@@ -139,6 +169,7 @@ export default function ProfilePage() {
   async function logout() {
     localStorage.removeItem("seen-prologue");
     localStorage.removeItem("seen-chapter-guide");
+    localStorage.removeItem("pending-referral-code");
 
     await supabase.auth.signOut();
 
@@ -202,6 +233,12 @@ export default function ProfilePage() {
           <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-white/62">
             {email ? `Logged in as ${email}` : "Not logged in"}
           </p>
+
+          {referralMessage && (
+            <div className="mx-auto mt-6 max-w-xl rounded-2xl border border-violet-200/20 bg-violet-400/12 px-5 py-4 text-sm leading-6 text-white/78">
+              {referralMessage}
+            </div>
+          )}
         </section>
 
         <section className="mt-12 grid gap-6 md:grid-cols-[1.05fr_0.95fr]">
