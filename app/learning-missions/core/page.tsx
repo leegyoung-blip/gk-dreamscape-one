@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import {
+  getCoreRoverProgress,
+  type CoreRoverUpgrade,
+} from "@/lib/coreRoverProgress";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 
@@ -126,57 +130,6 @@ type CompletedCoreAttempt = {
   tokens_earned: number;
 };
 
-const allowedCoreMissionTiers = [
-  "admin",
-  "gkp_student",
-  "paid_student",
-  "student",
-  "pro",
-];
-
-const coreUpgradeTrack = [
-  {
-    missionsRequired: 0,
-    name: "Basic Rover Frame",
-    description: "Nova has the starting frame of her Skyforge Rover.",
-  },
-  {
-    missionsRequired: 1,
-    name: "Energy Engine",
-    description: "The rover can now power up and move through Dreamscape.",
-  },
-  {
-    missionsRequired: 3,
-    name: "Navigation Console",
-    description: "Nova can now find safer paths through mission zones.",
-  },
-  {
-    missionsRequired: 5,
-    name: "Turbo Wheels",
-    description: "The rover moves faster across learning routes.",
-  },
-  {
-    missionsRequired: 8,
-    name: "Shield Plating",
-    description: "The rover is protected during harder missions.",
-  },
-  {
-    missionsRequired: 12,
-    name: "Hover Boosters",
-    description: "Nova can now cross broken paths and floating platforms.",
-  },
-  {
-    missionsRequired: 16,
-    name: "Sky Wings",
-    description: "The rover begins transforming into a flying vehicle.",
-  },
-  {
-    missionsRequired: 20,
-    name: "Skyforge Rover Complete",
-    description: "Nova’s vehicle is fully upgraded for major expeditions.",
-  },
-];
-
 const coreSubjects: {
   id: CoreSubject;
   title: string;
@@ -232,22 +185,17 @@ const coreLevelBands: {
   },
 ];
 
-function getCurrentUpgrade(completedCount: number) {
-  let currentUpgrade = coreUpgradeTrack[0];
-
-  for (const upgrade of coreUpgradeTrack) {
-    if (completedCount >= upgrade.missionsRequired) {
-      currentUpgrade = upgrade;
-    }
-  }
-
-  return currentUpgrade;
+function normaliseRole(role: string | null | undefined) {
+  return String(role || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/_/g, "-");
 }
 
-function getNextUpgrade(completedCount: number) {
-  return coreUpgradeTrack.find(
-    (upgrade) => completedCount < upgrade.missionsRequired
-  );
+function roleHasFullCoreAccess(role: string | null | undefined) {
+  const cleanRole = normaliseRole(role);
+  return cleanRole === "admin" || cleanRole === "student";
 }
 
 function CoreMissionsActivity({
@@ -310,23 +258,9 @@ function CoreMissionsActivity({
   );
 
   const completedMissionCount = completedAttempts.length;
-  const currentUpgrade = getCurrentUpgrade(completedMissionCount);
-  const nextUpgrade = getNextUpgrade(completedMissionCount);
 
-  const progressTarget =
-    nextUpgrade?.missionsRequired ??
-    coreUpgradeTrack[coreUpgradeTrack.length - 1].missionsRequired;
-
-  const previousTarget = currentUpgrade.missionsRequired;
-  const progressRange = Math.max(1, progressTarget - previousTarget);
-  const progressWithinRange = Math.max(
-    0,
-    completedMissionCount - previousTarget
-  );
-
-  const progressPercentage = nextUpgrade
-    ? Math.min(100, Math.round((progressWithinRange / progressRange) * 100))
-    : 100;
+  const { currentUpgrade, nextUpgrade, progressPercentage } =
+    getCoreRoverProgress(completedMissionCount);
 
   useEffect(() => {
     checkAccess();
@@ -346,19 +280,40 @@ function CoreMissionsActivity({
 
     setUserId(user.id);
 
-    const { data, error } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("tier")
+      .select("*")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
-    if (error || !data) {
-      console.warn("Could not check Core Missions access:", error);
+    if (profileError || !profile) {
+      console.warn("Could not check Core Missions profile:", profileError);
       setScreen("locked");
       return;
     }
 
-    if (!allowedCoreMissionTiers.includes(data.tier)) {
+    const userRole = profile.role || profile.tier || null;
+
+    if (roleHasFullCoreAccess(userRole)) {
+      await loadCompletedAttempts(user.id);
+      setScreen("subject");
+      return;
+    }
+
+    const { data: accessRow, error: accessError } = await supabase
+      .from("learning_mission_zone_access")
+      .select("is_unlocked")
+      .eq("user_id", user.id)
+      .eq("zone_key", "core")
+      .maybeSingle();
+
+    if (accessError) {
+      console.warn("Could not check Core zone unlock:", accessError.message);
+      setScreen("locked");
+      return;
+    }
+
+    if (!accessRow?.is_unlocked) {
       setScreen("locked");
       return;
     }
@@ -812,8 +767,9 @@ function CoreMissionsActivity({
                   color: "rgba(255,255,255,0.78)",
                 }}
               >
-                Core Missions are available for GKP students, paid Student
-                Access members, Pro users and admins.
+                Core Missions are available for accounts with Core zone access.
+                Ask your teacher or admin to unlock this zone based on your
+                current course.
               </p>
 
               <div
@@ -1373,37 +1329,136 @@ function CoreVehicleShowcase({
   isMobile: boolean;
   completedMissionCount: number;
 }) {
-  const engineUnlocked = completedMissionCount >= 1;
+  const { currentUpgrade, nextUpgrade, missionsToNext, isComplete } =
+    getCoreRoverProgress(completedMissionCount);
 
   return (
     <div
       style={{
-        display: "grid",
-        gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
-        gap: "16px",
+        borderRadius: "30px",
+        border: `1px solid ${currentUpgrade.accent}88`,
+        background:
+          "linear-gradient(145deg, rgba(6,24,52,0.78), rgba(3,13,34,0.9))",
+        boxShadow: `0 0 30px ${currentUpgrade.accent}24, 0 24px 70px rgba(0,0,0,0.4)`,
+        overflow: "hidden",
+        backdropFilter: "blur(20px)",
       }}
     >
-      <UpgradeItemCard
-        title="Basic Rover Frame"
-        label="Unlocked"
-        description="The starting frame of Nova’s Skyforge Rover."
-        icon="▰"
-        accent="#7ee8ff"
-        unlocked
-      />
+      <div
+        style={{
+          padding: isMobile ? "18px" : "20px 22px 0",
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: "14px",
+        }}
+      >
+        <div>
+          <p
+            style={{
+              margin: 0,
+              color: currentUpgrade.accent,
+              fontSize: "11px",
+              letterSpacing: "0.18em",
+              textTransform: "uppercase",
+              fontWeight: 900,
+            }}
+          >
+            Current Rover Build
+          </p>
 
-      <UpgradeItemCard
-        title="Energy Engine"
-        label={engineUnlocked ? "Unlocked" : "Next Unlock"}
-        description={
-          engineUnlocked
-            ? "The rover can now power up and move through Dreamscape."
-            : "Complete 1 new Core Mission to install the engine."
-        }
-        icon="✦"
-        accent="#ffd76a"
-        unlocked={engineUnlocked}
-      />
+          <h2
+            style={{
+              margin: "8px 0 0",
+              fontSize: isMobile ? "25px" : "30px",
+              lineHeight: 1.1,
+              fontWeight: 800,
+            }}
+          >
+            {currentUpgrade.name}
+          </h2>
+        </div>
+
+        <div
+          style={{
+            minWidth: "82px",
+            padding: "9px 12px",
+            borderRadius: "999px",
+            border: "1px solid rgba(255,255,255,0.16)",
+            background: "rgba(255,255,255,0.08)",
+            color: "#c9f9ff",
+            fontSize: "12px",
+            fontWeight: 900,
+            textAlign: "center",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {completedMissionCount} done
+        </div>
+      </div>
+
+      <div
+        style={{
+          margin: isMobile ? "0 18px" : "16px 22px 0",
+          borderRadius: "24px",
+          border: "1px solid rgba(255,255,255,0.1)",
+          background:
+            "radial-gradient(circle at 50% 42%, rgba(126,232,255,0.12), rgba(255,255,255,0.03) 48%, rgba(0,0,0,0.12))",
+          minHeight: isMobile ? "230px" : "310px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          overflow: "hidden",
+        }}
+      >
+        <img
+          src={currentUpgrade.imageSrc}
+          alt={currentUpgrade.name}
+          draggable={false}
+          style={{
+            width: "100%",
+            maxWidth: isMobile ? "360px" : "520px",
+            height: "100%",
+            maxHeight: isMobile ? "230px" : "310px",
+            objectFit: "contain",
+            display: "block",
+            filter: "drop-shadow(0 24px 34px rgba(0,0,0,0.45))",
+          }}
+        />
+      </div>
+
+      <div
+        style={{
+          padding: isMobile ? "18px" : "18px 22px 22px",
+          display: "grid",
+          gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
+          gap: "14px",
+        }}
+      >
+        <UpgradeItemCard
+          title={currentUpgrade.name}
+          label="Unlocked"
+          description={currentUpgrade.description}
+          icon="✓"
+          accent={currentUpgrade.accent}
+          unlocked
+        />
+
+        <UpgradeItemCard
+          title={nextUpgrade ? nextUpgrade.name : "All Upgrades Complete"}
+          label={nextUpgrade ? "Next Unlock" : "Complete"}
+          description={
+            nextUpgrade
+              ? `Complete ${missionsToNext} new Core Mission${
+                  missionsToNext === 1 ? "" : "s"
+                } to unlock.`
+              : "Nova’s Skyforge Rover is fully upgraded."
+          }
+          icon={isComplete ? "★" : "✦"}
+          accent={nextUpgrade ? nextUpgrade.accent : currentUpgrade.accent}
+          unlocked={isComplete}
+        />
+      </div>
     </div>
   );
 }
@@ -1426,29 +1481,29 @@ function UpgradeItemCard({
   return (
     <div
       style={{
-        minHeight: "190px",
-        borderRadius: "26px",
+        minHeight: "150px",
+        borderRadius: "22px",
         border: `1px solid ${unlocked ? accent : "rgba(255,255,255,0.16)"}`,
         background: unlocked
           ? "linear-gradient(145deg, rgba(8,34,64,0.82), rgba(4,14,34,0.88))"
           : "linear-gradient(145deg, rgba(30,30,42,0.62), rgba(8,12,28,0.86))",
-        padding: "22px",
+        padding: "18px",
         boxShadow: unlocked ? `0 0 24px ${accent}28` : "none",
         opacity: unlocked ? 1 : 0.82,
       }}
     >
       <div
         style={{
-          width: "54px",
-          height: "54px",
-          borderRadius: "18px",
+          width: "46px",
+          height: "46px",
+          borderRadius: "16px",
           border: `1px solid ${accent}66`,
           background: unlocked ? `${accent}1f` : "rgba(255,255,255,0.06)",
           color: accent,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          fontSize: "26px",
+          fontSize: "22px",
           fontWeight: 900,
         }}
       >
@@ -1457,9 +1512,9 @@ function UpgradeItemCard({
 
       <p
         style={{
-          margin: "18px 0 0",
+          margin: "14px 0 0",
           color: accent,
-          fontSize: "11px",
+          fontSize: "10px",
           letterSpacing: "0.18em",
           textTransform: "uppercase",
           fontWeight: 900,
@@ -1470,8 +1525,8 @@ function UpgradeItemCard({
 
       <h3
         style={{
-          margin: "8px 0 0",
-          fontSize: "24px",
+          margin: "7px 0 0",
+          fontSize: "20px",
           lineHeight: 1.12,
         }}
       >
@@ -1480,9 +1535,9 @@ function UpgradeItemCard({
 
       <p
         style={{
-          margin: "10px 0 0",
+          margin: "8px 0 0",
           color: "rgba(255,255,255,0.72)",
-          fontSize: "14px",
+          fontSize: "13px",
           lineHeight: 1.45,
         }}
       >
@@ -1501,18 +1556,8 @@ function CoreUpgradePanel({
 }: {
   isMobile: boolean;
   completedMissionCount: number;
-  currentUpgrade: {
-    missionsRequired: number;
-    name: string;
-    description: string;
-  };
-  nextUpgrade:
-    | {
-        missionsRequired: number;
-        name: string;
-        description: string;
-      }
-    | undefined;
+  currentUpgrade: CoreRoverUpgrade;
+  nextUpgrade: CoreRoverUpgrade | undefined;
   progressPercentage: number;
 }) {
   const missionsToNext = nextUpgrade
@@ -1532,17 +1577,17 @@ function CoreUpgradePanel({
       <div
         style={{
           borderRadius: "26px",
-          border: "1px solid rgba(126,232,255,0.35)",
+          border: `1px solid ${currentUpgrade.accent}66`,
           background:
             "linear-gradient(145deg, rgba(5,22,48,0.72), rgba(10,48,82,0.58))",
           padding: isMobile ? "20px" : "24px",
-          boxShadow: "0 0 24px rgba(83,215,255,0.14)",
+          boxShadow: `0 0 24px ${currentUpgrade.accent}22`,
         }}
       >
         <p
           style={{
             margin: 0,
-            color: "#7ee8ff",
+            color: currentUpgrade.accent,
             fontSize: "12px",
             letterSpacing: "0.18em",
             textTransform: "uppercase",
@@ -1588,8 +1633,8 @@ function CoreUpgradePanel({
               width: `${progressPercentage}%`,
               height: "100%",
               borderRadius: "999px",
-              background: "linear-gradient(90deg, #7ee8ff, #35c5ff)",
-              boxShadow: "0 0 18px rgba(126,232,255,0.45)",
+              background: `linear-gradient(90deg, ${currentUpgrade.accent}, #35c5ff)`,
+              boxShadow: `0 0 18px ${currentUpgrade.accent}66`,
             }}
           />
         </div>
@@ -1602,14 +1647,16 @@ function CoreUpgradePanel({
           }}
         >
           Counted Core Missions:{" "}
-          <strong style={{ color: "#7ee8ff" }}>{completedMissionCount}</strong>
+          <strong style={{ color: currentUpgrade.accent }}>
+            {completedMissionCount}
+          </strong>
         </p>
       </div>
 
       <div
         style={{
           borderRadius: "26px",
-          border: "1px solid rgba(255,215,106,0.35)",
+          border: `1px solid ${nextUpgrade?.accent || "#ffd76a"}66`,
           background:
             "linear-gradient(145deg, rgba(74,47,12,0.58), rgba(18,22,45,0.76))",
           padding: isMobile ? "20px" : "24px",
@@ -1618,14 +1665,14 @@ function CoreUpgradePanel({
         <p
           style={{
             margin: 0,
-            color: "#ffd76a",
+            color: nextUpgrade?.accent || "#ffd76a",
             fontSize: "12px",
             letterSpacing: "0.18em",
             textTransform: "uppercase",
             fontWeight: 800,
           }}
         >
-          Next Unlock
+          {nextUpgrade ? "Next Unlock" : "Rover Complete"}
         </p>
 
         <h3

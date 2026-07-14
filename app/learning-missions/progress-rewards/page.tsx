@@ -4,6 +4,10 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
+import {
+  getCoreRoverProgress,
+  type CoreRoverUpgrade,
+} from "@/lib/coreRoverProgress";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 
@@ -81,49 +85,6 @@ type KnowledgeAttempt = {
   tokens_earned?: number;
   created_at?: string;
 };
-
-const coreUpgradeTrack: Upgrade[] = [
-  {
-    missionsRequired: 0,
-    name: "Basic Rover Frame",
-    description: "Nova has the starting frame of her Skyforge Rover.",
-  },
-  {
-    missionsRequired: 1,
-    name: "Energy Engine",
-    description: "The rover can now power up and move through Dreamscape.",
-  },
-  {
-    missionsRequired: 3,
-    name: "Navigation Console",
-    description: "Nova can now find safer paths through mission zones.",
-  },
-  {
-    missionsRequired: 5,
-    name: "Turbo Wheels",
-    description: "The rover moves faster across learning routes.",
-  },
-  {
-    missionsRequired: 8,
-    name: "Shield Plating",
-    description: "The rover is protected during harder missions.",
-  },
-  {
-    missionsRequired: 12,
-    name: "Hover Boosters",
-    description: "Nova can now cross broken paths and floating platforms.",
-  },
-  {
-    missionsRequired: 16,
-    name: "Sky Wings",
-    description: "The rover begins transforming into a flying vehicle.",
-  },
-  {
-    missionsRequired: 20,
-    name: "Skyforge Rover Complete",
-    description: "Nova’s vehicle is fully upgraded for major expeditions.",
-  },
-];
 
 const thinkInventoryTrack: Upgrade[] = [
   {
@@ -399,6 +360,16 @@ export default function ProgressRewardsPage() {
     }
 
     loadProgress();
+
+    function handleTokenUpdate() {
+      loadProgress();
+    }
+
+    window.addEventListener("dream-tokens-updated", handleTokenUpdate);
+
+    return () => {
+      window.removeEventListener("dream-tokens-updated", handleTokenUpdate);
+    };
   }, []);
 
   const coreCompleted = useMemo(
@@ -433,8 +404,13 @@ export default function ProgressRewardsPage() {
   const totalCountedMissions =
     coreCompleted + thinkCompleted + expressCompleted + knowledgeCompleted;
 
-  const coreCurrent = getCurrentUpgrade(coreUpgradeTrack, coreCompleted);
-  const coreNext = getNextUpgrade(coreUpgradeTrack, coreCompleted);
+  const {
+    currentUpgrade: coreCurrent,
+    nextUpgrade: coreNext,
+    progressPercentage: coreProgressPercentage,
+    missionsToNext: coreMissionsToNext,
+    isComplete: coreRoverComplete,
+  } = getCoreRoverProgress(coreCompleted);
 
   const thinkCurrent = getCurrentUpgrade(thinkInventoryTrack, thinkCompleted);
   const thinkNext = getNextUpgrade(thinkInventoryTrack, thinkCompleted);
@@ -715,6 +691,16 @@ export default function ProgressRewardsPage() {
               />
             </section>
 
+            <ProgressRoverCard
+              isMobile={isMobile}
+              completedCoreMissionCount={coreCompleted}
+              currentUpgrade={coreCurrent}
+              nextUpgrade={coreNext}
+              progressPercentage={coreProgressPercentage}
+              missionsToNext={coreMissionsToNext}
+              isComplete={coreRoverComplete}
+            />
+
             <section
               style={{
                 width: "min(1240px, 100%)",
@@ -730,7 +716,7 @@ export default function ProgressRewardsPage() {
                 completed={coreCompleted}
                 current={coreCurrent}
                 next={coreNext}
-                accent="#7ee8ff"
+                accent={coreCurrent.accent}
               />
 
               <UpgradePanel
@@ -835,6 +821,160 @@ export default function ProgressRewardsPage() {
         )}
       </section>
     </main>
+  );
+}
+
+function ProgressRoverCard({
+  isMobile,
+  completedCoreMissionCount,
+  currentUpgrade,
+  nextUpgrade,
+  progressPercentage,
+  missionsToNext,
+  isComplete,
+}: {
+  isMobile: boolean;
+  completedCoreMissionCount: number;
+  currentUpgrade: CoreRoverUpgrade;
+  nextUpgrade: CoreRoverUpgrade | undefined;
+  progressPercentage: number;
+  missionsToNext: number;
+  isComplete: boolean;
+}) {
+  return (
+    <section
+      style={{
+        width: "min(1240px, 100%)",
+        margin: "28px auto 0",
+        borderRadius: isMobile ? "24px" : "32px",
+        border: `1px solid ${currentUpgrade.accent}66`,
+        background:
+          "linear-gradient(145deg, rgba(6,24,52,0.78), rgba(3,13,34,0.92))",
+        boxShadow: `0 0 30px ${currentUpgrade.accent}22, 0 28px 80px rgba(0,0,0,0.34)`,
+        padding: isMobile ? "20px" : "28px",
+      }}
+    >
+      <p
+        style={{
+          margin: 0,
+          color: currentUpgrade.accent,
+          fontSize: "12px",
+          letterSpacing: "0.18em",
+          textTransform: "uppercase",
+          fontWeight: 900,
+        }}
+      >
+        Skyforge Rover Progress
+      </p>
+
+      <div
+        style={{
+          marginTop: "16px",
+          display: "grid",
+          gridTemplateColumns: isMobile
+            ? "1fr"
+            : "minmax(0, 1fr) minmax(280px, 420px)",
+          gap: isMobile ? "20px" : "28px",
+          alignItems: "center",
+        }}
+      >
+        <div>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: isMobile ? "30px" : "40px",
+              lineHeight: 1.05,
+            }}
+          >
+            {currentUpgrade.name}
+          </h2>
+
+          <p
+            style={{
+              margin: "14px 0 0",
+              maxWidth: "660px",
+              color: "rgba(255,255,255,0.76)",
+              fontSize: "16px",
+              lineHeight: 1.6,
+            }}
+          >
+            {currentUpgrade.description}
+          </p>
+
+          <div
+            style={{
+              marginTop: "22px",
+              height: "14px",
+              borderRadius: "999px",
+              background: "rgba(255,255,255,0.08)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                width: `${progressPercentage}%`,
+                height: "100%",
+                background: `linear-gradient(90deg, ${currentUpgrade.accent}, #35c5ff)`,
+                boxShadow: `0 0 18px ${currentUpgrade.accent}66`,
+              }}
+            />
+          </div>
+
+          <div
+            style={{
+              marginTop: "14px",
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "12px",
+              color: "rgba(255,255,255,0.68)",
+              fontSize: "14px",
+            }}
+          >
+            <span>
+              Counted Core Missions:{" "}
+              <strong style={{ color: currentUpgrade.accent }}>
+                {completedCoreMissionCount}
+              </strong>
+            </span>
+
+            <span style={{ color: isComplete ? "#86efac" : "#ffd76a" }}>
+              {nextUpgrade
+                ? `${missionsToNext} more to unlock ${nextUpgrade.name}.`
+                : "Final rover stage unlocked."}
+            </span>
+          </div>
+        </div>
+
+        <div
+          style={{
+            minHeight: isMobile ? "220px" : "280px",
+            borderRadius: "26px",
+            border: "1px solid rgba(255,255,255,0.1)",
+            background:
+              "radial-gradient(circle at 50% 42%, rgba(126,232,255,0.13), rgba(255,255,255,0.03) 48%, rgba(0,0,0,0.12))",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            overflow: "hidden",
+          }}
+        >
+          <img
+            src={currentUpgrade.imageSrc}
+            alt={currentUpgrade.name}
+            draggable={false}
+            style={{
+              width: "100%",
+              maxWidth: isMobile ? "360px" : "420px",
+              maxHeight: isMobile ? "240px" : "300px",
+              objectFit: "contain",
+              display: "block",
+              filter: "drop-shadow(0 24px 34px rgba(0,0,0,0.45))",
+            }}
+          />
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -961,8 +1101,8 @@ function UpgradePanel({
   title: string;
   label: string;
   completed: number;
-  current: Upgrade;
-  next?: Upgrade;
+  current: Upgrade | CoreRoverUpgrade;
+  next?: Upgrade | CoreRoverUpgrade;
   accent: string;
 }) {
   const progressTarget = next?.missionsRequired ?? current.missionsRequired;
