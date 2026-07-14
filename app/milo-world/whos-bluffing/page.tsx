@@ -703,21 +703,31 @@ export default function WhosBluffingPage() {
   }
 
   const pageStyle: CSSProperties = {
-    minHeight: "100dvh",
-    overflowX: "hidden",
-    background:
-      "radial-gradient(circle at 50% 12%, rgba(255,190,120,0.2), transparent 34%), radial-gradient(circle at 16% 82%, rgba(83,215,255,0.14), transparent 32%), #020817",
-    color: "white",
-    fontFamily:
-      'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-  };
+  position: "relative",
+  minHeight: "100dvh",
+  overflowX: "hidden",
+  backgroundImage: `
+    linear-gradient(
+      180deg,
+      rgba(2, 8, 23, 0.76),
+      rgba(2, 8, 23, 0.9)
+    ),
+    url('/milo-world/activities/whos-bluffing-bg.png')
+  `,
+  backgroundSize: "cover",
+  backgroundPosition: "center",
+  backgroundAttachment: isMobile ? "scroll" : "fixed",
+  color: "white",
+  fontFamily:
+    'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+};
 
   const panelStyle: CSSProperties = {
     width: isMobile ? "calc(100% - 20px)" : "min(1080px, calc(100% - 32px))",
     margin: "0 auto",
     borderRadius: isMobile ? "22px" : "30px",
     border: "1px solid rgba(255,255,255,0.16)",
-    background: "rgba(255,255,255,0.08)",
+    background: "rgba(3, 10, 23, 0.72)",
     backdropFilter: "blur(18px)",
     WebkitBackdropFilter: "blur(18px)",
     boxShadow: "0 34px 100px rgba(0,0,0,0.45)",
