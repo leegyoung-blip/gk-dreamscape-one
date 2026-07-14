@@ -38,6 +38,7 @@ type PurchaseTier = "standard" | "premium";
 
 type HapSet = "foundation" | "challenge";
 type HapPack = "single" | "pack-3";
+type HapPaper = 1 | 2 | 3;
 
 const TAG_COLOURS: {
   id: TagColour;
@@ -271,8 +272,26 @@ const HAP_PACKS: {
   },
 ];
 
-function getHapProductImage(set: HapSet, pack: HapPack) {
+function getHapDisplayImage(set: HapSet, pack: HapPack) {
   return `/store/educational-resources/hap-${set}-${pack}.png`;
+}
+
+function getHapProductName(set: HapSet, pack: HapPack, paper: HapPaper) {
+  const setName = set === "foundation" ? "Foundation" : "Challenge";
+
+  if (pack === "single") {
+    return `HAP ${setName} Paper ${paper}`;
+  }
+
+  return `HAP ${setName} Pack of 3`;
+}
+
+function getHapProductId(set: HapSet, pack: HapPack, paper: HapPaper) {
+  if (pack === "single") {
+    return `hap-${set}-paper-${paper}`;
+  }
+
+  return `hap-${set}-pack-3`;
 }
 
 const NOVA_BLIND_BOX_PREVIEWS: BlindBoxPreview[] = [
@@ -425,6 +444,7 @@ export default function InventorHubPage() {
 
   const [selectedHapSet, setSelectedHapSet] = useState<HapSet>("foundation");
   const [selectedHapPack, setSelectedHapPack] = useState<HapPack>("single");
+  const [selectedHapPaper, setSelectedHapPaper] = useState<HapPaper>(1);
 
   const currentOptions =
     selectedProduct?.id === "gadget-crate"
@@ -457,10 +477,20 @@ export default function InventorHubPage() {
   const currentNovaPreviewImage =
     NOVA_PREVIEW_IMAGES[novaColour][novaPose][novaWeapon];
 
-  const currentHapPreviewImage = getHapProductImage(
+  const currentHapPreviewImage = getHapDisplayImage(
     selectedHapSet,
     selectedHapPack
   );
+
+  const currentHapProductName = getHapProductName(
+    selectedHapSet,
+    selectedHapPack,
+    selectedHapPaper
+  );
+
+  function notifyCartUpdated() {
+    window.dispatchEvent(new Event("dreamscape-cart-updated"));
+  }
 
   function openArea(area: HubArea) {
     setSelectedArea(area);
@@ -488,6 +518,7 @@ export default function InventorHubPage() {
       setSelectedProduct(product);
       setSelectedHapSet("foundation");
       setSelectedHapPack("single");
+      setSelectedHapPaper(1);
     }
   }
 
@@ -498,6 +529,7 @@ export default function InventorHubPage() {
     setInventorName("");
     setSelectedHapSet("foundation");
     setSelectedHapPack("single");
+    setSelectedHapPaper(1);
   }
 
   function closeArea() {
@@ -534,6 +566,7 @@ export default function InventorHubPage() {
       JSON.stringify([...existingCart, cartItem])
     );
 
+    notifyCartUpdated();
     alert(`${selectedProduct.name} added to cart!`);
     closeProduct();
   }
@@ -566,6 +599,7 @@ export default function InventorHubPage() {
       JSON.stringify([...existingCart, cartItem])
     );
 
+    notifyCartUpdated();
     alert(`${selectedPurchaseOption.name} added to cart!`);
     closeArea();
   }
@@ -579,12 +613,13 @@ export default function InventorHubPage() {
     }
 
     const cartItem = {
-      id: `hap-${selectedHapSet}-${selectedHapPack}-${Date.now()}`,
+      id: getHapProductId(selectedHapSet, selectedHapPack, selectedHapPaper),
       productType: "high-ability-practice-papers",
-      name: `High Ability Practice Papers · ${selectedHapSetData.name} · ${selectedHapPackData.name}`,
+      name: currentHapProductName,
       set: selectedHapSetData.name,
       age: selectedHapSetData.age,
       pack: selectedHapPackData.name,
+      paper: selectedHapPack === "single" ? selectedHapPaper : null,
       description: selectedHapSetData.description,
       image: currentHapPreviewImage,
       quantity: 1,
@@ -600,6 +635,7 @@ export default function InventorHubPage() {
       JSON.stringify([...existingCart, cartItem])
     );
 
+    notifyCartUpdated();
     alert(`${cartItem.name} added to cart!`);
     closeProduct();
   }
@@ -631,6 +667,7 @@ export default function InventorHubPage() {
       JSON.stringify([...existingCart, cartItem])
     );
 
+    notifyCartUpdated();
     alert("Nova's Blind Box added to cart!");
     closeArea();
   }
@@ -1121,8 +1158,8 @@ export default function InventorHubPage() {
             </h1>
 
             <p className="mt-3 max-w-3xl text-lg leading-relaxed text-cyan-50/85">
-              Choose between Foundation or Challenge, then select a single pack
-              or the recommended pack of 3.
+              Choose between Foundation or Challenge. For single packs, select
+              Paper 1, 2, or 3.
             </p>
 
             <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1.1fr]">
@@ -1134,7 +1171,7 @@ export default function InventorHubPage() {
                 <div className="flex min-h-[430px] items-center justify-center rounded-[22px] bg-[#ffffff] p-4">
                   <img
                     src={currentHapPreviewImage}
-                    alt={`${selectedHapSetData.name} ${selectedHapPackData.name}`}
+                    alt={currentHapProductName}
                     className="max-h-[400px] w-full object-contain"
                     draggable={false}
                   />
@@ -1146,7 +1183,7 @@ export default function InventorHubPage() {
                   </p>
 
                   <p className="mt-2 text-2xl font-black">
-                    {selectedHapSetData.name} · {selectedHapPackData.name}
+                    {currentHapProductName}
                   </p>
 
                   <p className="mt-1 text-sm text-slate-200/75">
@@ -1174,7 +1211,10 @@ export default function InventorHubPage() {
                       <button
                         key={set.id}
                         type="button"
-                        onClick={() => setSelectedHapSet(set.id)}
+                        onClick={() => {
+                          setSelectedHapSet(set.id);
+                          setSelectedHapPaper(1);
+                        }}
                         className={`rounded-3xl border p-5 text-left transition hover:scale-[1.02] ${
                           isSelected
                             ? "border-cyan-300 bg-cyan-300/15"
@@ -1217,7 +1257,13 @@ export default function InventorHubPage() {
                       <button
                         key={pack.id}
                         type="button"
-                        onClick={() => setSelectedHapPack(pack.id)}
+                        onClick={() => {
+                          setSelectedHapPack(pack.id);
+
+                          if (pack.id === "pack-3") {
+                            setSelectedHapPaper(1);
+                          }
+                        }}
                         className={`rounded-3xl border p-5 text-left transition hover:scale-[1.02] ${
                           isSelected
                             ? "border-amber-300 bg-amber-300/15"
@@ -1252,13 +1298,55 @@ export default function InventorHubPage() {
                   })}
                 </div>
 
+                {selectedHapPack === "single" && (
+                  <div className="mt-8">
+                    <p className="text-sm font-black uppercase tracking-wider text-cyan-300">
+                      Step 3
+                    </p>
+
+                    <h2 className="mt-2 text-3xl font-black">Choose Paper</h2>
+
+                    <div className="mt-5 grid grid-cols-3 gap-3">
+                      {[1, 2, 3].map((paperNumber) => {
+                        const paper = paperNumber as HapPaper;
+                        const isSelected = selectedHapPaper === paper;
+
+                        return (
+                          <button
+                            key={paper}
+                            type="button"
+                            onClick={() => setSelectedHapPaper(paper)}
+                            className={`rounded-2xl border px-4 py-4 text-center transition hover:scale-[1.02] ${
+                              isSelected
+                                ? "border-yellow-200/60 bg-yellow-300/18 text-yellow-100 shadow-[0_0_24px_rgba(250,204,21,0.16)]"
+                                : "border-white/12 bg-white/[0.055] text-white/72 hover:border-yellow-200/35"
+                            }`}
+                          >
+                            <span className="block text-xs font-bold uppercase tracking-[0.14em] opacity-70">
+                              Paper
+                            </span>
+
+                            <span className="mt-1 block text-2xl font-black">
+                              {paper}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <p className="mt-3 text-sm leading-6 text-white/54">
+                      Choose which single paper will be added to the cart.
+                    </p>
+                  </div>
+                )}
+
                 <div className="mt-8 rounded-3xl border border-cyan-200/20 bg-slate-950/45 p-5">
                   <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-300">
                     Order Summary
                   </p>
 
                   <p className="mt-3 text-xl font-black">
-                    {selectedHapSetData.name} · {selectedHapPackData.name}
+                    {currentHapProductName}
                   </p>
 
                   <p className="mt-1 text-sm text-slate-200/70">
