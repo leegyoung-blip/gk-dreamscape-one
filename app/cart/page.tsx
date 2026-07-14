@@ -31,14 +31,26 @@ const SHOPIFY_STORE_URL = "https://gurukidspro.com";
   Even if a product has only one option, Shopify still uses a variant ID.
 */
 const SHOPIFY_VARIANT_MAP: Record<string, string> = {
-  // HAP products
+  // HAP Foundation single papers
   "hap-foundation-paper-1": "52495062460",
   "hap-foundation-paper-2": "52495062573",
   "hap-foundation-paper-3": "52495069013",
+
+  // Old fallback aliases
+  "hap-foundation-single": "52495062460",
+
+  // HAP Foundation bundle
   "hap-foundation-pack-3": "52268165824795",
+
+  // HAP Challenge single papers
   "hap-challenge-paper-1": "5249061412539",
   "hap-challenge-paper-2": "5249061412537",
   "hap-challenge-paper-3": "5249061418075",
+
+  // Old fallback aliases
+  "hap-challenge-single": "5249061412539",
+
+  // HAP Challenge bundle
   "hap-challenge-pack-3": "52268167430427",
 
   // Blind boxes
@@ -81,10 +93,62 @@ function getShopifyKey(item: CartItem) {
   const productType = item.productType?.toLowerCase() || "";
   const type = item.type?.toLowerCase() || "";
 
-if (SHOPIFY_VARIANT_MAP[itemId]) {
-  return itemId;
-}
+  // Direct exact match
+  if (SHOPIFY_VARIANT_MAP[itemId]) {
+    return itemId;
+  }
 
+  // Handles IDs with timestamps, e.g. hap-foundation-paper-1-123456789
+  if (itemId.includes("hap-foundation-paper-1")) {
+    return "hap-foundation-paper-1";
+  }
+
+  if (itemId.includes("hap-foundation-paper-2")) {
+    return "hap-foundation-paper-2";
+  }
+
+  if (itemId.includes("hap-foundation-paper-3")) {
+    return "hap-foundation-paper-3";
+  }
+
+  if (itemId.includes("hap-challenge-paper-1")) {
+    return "hap-challenge-paper-1";
+  }
+
+  if (itemId.includes("hap-challenge-paper-2")) {
+    return "hap-challenge-paper-2";
+  }
+
+  if (itemId.includes("hap-challenge-paper-3")) {
+    return "hap-challenge-paper-3";
+  }
+
+  // Handles names, e.g. HAP Foundation Paper 2
+  if (itemName.includes("foundation") && itemName.includes("paper 1")) {
+    return "hap-foundation-paper-1";
+  }
+
+  if (itemName.includes("foundation") && itemName.includes("paper 2")) {
+    return "hap-foundation-paper-2";
+  }
+
+  if (itemName.includes("foundation") && itemName.includes("paper 3")) {
+    return "hap-foundation-paper-3";
+  }
+
+  if (itemName.includes("challenge") && itemName.includes("paper 1")) {
+    return "hap-challenge-paper-1";
+  }
+
+  if (itemName.includes("challenge") && itemName.includes("paper 2")) {
+    return "hap-challenge-paper-2";
+  }
+
+  if (itemName.includes("challenge") && itemName.includes("paper 3")) {
+    return "hap-challenge-paper-3";
+  }
+
+  // Old single-pack fallback
   if (
     itemId.includes("hap-foundation-single") ||
     itemName.includes("foundation single")
@@ -93,18 +157,19 @@ if (SHOPIFY_VARIANT_MAP[itemId]) {
   }
 
   if (
+    itemId.includes("hap-challenge-single") ||
+    itemName.includes("challenge single")
+  ) {
+    return "hap-challenge-single";
+  }
+
+  // Pack of 3
+  if (
     itemId.includes("hap-foundation-pack-3") ||
     itemName.includes("foundation pack of 3") ||
     itemName.includes("foundation pack 3")
   ) {
     return "hap-foundation-pack-3";
-  }
-
-  if (
-    itemId.includes("hap-challenge-single") ||
-    itemName.includes("challenge single")
-  ) {
-    return "hap-challenge-single";
   }
 
   if (
@@ -115,6 +180,7 @@ if (SHOPIFY_VARIANT_MAP[itemId]) {
     return "hap-challenge-pack-3";
   }
 
+  // Blind boxes
   if (
     productType === "milo-blind-box" ||
     itemName.includes("spark local legends") ||
@@ -131,6 +197,7 @@ if (SHOPIFY_VARIANT_MAP[itemId]) {
     return "nova-blind-box";
   }
 
+  // Custom products
   if (productType === "inventor-tag" || itemId.includes("inventor-tag")) {
     return "inventor-tag";
   }
@@ -149,6 +216,7 @@ if (SHOPIFY_VARIANT_MAP[itemId]) {
     return "bolt";
   }
 
+  // Memberships
   if (
     itemId.includes("nova-student-access") ||
     itemName.includes("nova student access")
