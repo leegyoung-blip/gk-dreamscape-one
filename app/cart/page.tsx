@@ -39,12 +39,12 @@ const SHOPIFY_VARIANT_MAP: Record<string, string> = {
 
   // Blind boxes
   "nova-blind-box": "10314104078619",
-  "milo-blind-box": "10314106241307",
-  "spark-local-legends": "10314106241307",
+  "milo-blind-box": "52514690228763",
+  "spark-local-legends": "52514690228763",
 
   // Memberships
   "nova-student-access": "10309092114715",
-  "milo-club": "10309117182235",
+  "milo-club": "52499348062491",
 };
 
 function getCartImage(item: CartItem) {
@@ -226,48 +226,66 @@ export default function CartPage() {
   }
 
   function goToShopifyCheckout() {
-    setCheckoutError("");
+  setCheckoutError("");
 
-    if (cart.length === 0) {
-      setCheckoutError("Your cart is empty.");
-      return;
-    }
-
-    const unmappedItems = cart.filter((item) => !getShopifyVariantId(item));
-
-    if (unmappedItems.length > 0) {
-      const itemNames = unmappedItems
-        .map((item) => item.name || "Unnamed item")
-        .join(", ");
-
-      setCheckoutError(
-        `Some products are not connected to Shopify yet: ${itemNames}. Add their Shopify variant IDs first.`
-      );
-
-      return;
-    }
-
-    const customItems = cart.filter((item) => hasCustomOptions(item));
-
-    if (customItems.length > 0) {
-      console.warn(
-        "This cart contains custom options. Shopify cart permalinks add the product variant, but custom details may need to be collected again on Shopify or handled through variants/product options.",
-        customItems
-      );
-    }
-
-    const membershipItems = cart.filter((item) => hasMembershipItem(item));
-
-    if (membershipItems.length > 0) {
-      console.warn(
-        "This cart contains membership products. If these are subscription products, confirm that your Shopify setup supports this cart permalink flow."
-      );
-    }
-
-    const shopifyCartUrl = buildShopifyCartUrl(cart);
-
-    window.location.href = shopifyCartUrl;
+  if (cart.length === 0) {
+    setCheckoutError("Your cart is empty.");
+    return;
   }
+
+  const validCartItems = cart
+    .map((item) => {
+      const variantId = getShopifyVariantId(item);
+
+      if (!variantId) {
+        return null;
+      }
+
+      return {
+        name: item.name || "Unnamed item",
+        variantId,
+        quantity: Math.max(1, item.quantity || 1),
+      };
+    })
+    .filter(Boolean) as {
+    name: string;
+    variantId: string;
+    quantity: number;
+  }[];
+
+  const unmappedItems = cart.filter((item) => !getShopifyVariantId(item));
+
+  if (unmappedItems.length > 0) {
+    const itemNames = unmappedItems
+      .map((item) => item.name || "Unnamed item")
+      .join(", ");
+
+    setCheckoutError(
+      `Some products are not connected to Shopify yet: ${itemNames}. Add their Shopify variant IDs first.`
+    );
+
+    return;
+  }
+
+  if (validCartItems.length === 0) {
+    setCheckoutError(
+      "No valid Shopify products were found in this cart. Check your Shopify variant IDs."
+    );
+    return;
+  }
+
+  const cartParts = validCartItems.map((item) => {
+    return `${item.variantId}:${item.quantity}`;
+  });
+
+  const shopifyCartUrl = `${SHOPIFY_STORE_URL}/cart/${cartParts.join(",")}`;
+
+  console.log("Dreamscape cart:", cart);
+  console.log("Shopify cart items:", validCartItems);
+  console.log("Shopify checkout URL:", shopifyCartUrl);
+
+  window.location.href = shopifyCartUrl;
+}
 
   const total = cart.reduce((sum, item) => {
     return sum + (item.price || 19.9) * item.quantity;
