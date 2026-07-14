@@ -4509,12 +4509,16 @@ const popupHeight = isMobile
       style={{
         display: isActivityLabOptions ? "grid" : "flex",
         gridTemplateColumns: isActivityLabOptions
-          ? "repeat(3, minmax(0, 1fr))"
+          ? isMobile
+            ? "1fr"
+            : isCompact
+            ? "repeat(2, minmax(0, 1fr))"
+            : "repeat(3, minmax(0, 1fr))"
           : undefined,
-        gap: "24px",
+        gap: isMobile ? "18px" : "24px",
         overflowX: isActivityLabOptions ? "visible" : "auto",
-        overflowY: "hidden",
-        padding: "8px 4px 28px",
+        overflowY: "visible",
+        padding: isMobile ? "8px 0 28px" : "8px 4px 28px",
         scrollSnapType: isActivityLabOptions ? "none" : "x mandatory",
       }}
     >
@@ -4535,7 +4539,7 @@ const popupHeight = isMobile
       <div
         style={{
           marginTop: "4px",
-          display: "flex",
+          display: isMobile ? "none" : "flex",
           justifyContent: "space-between",
           alignItems: "center",
           color: "rgba(7,17,31,0.46)",
