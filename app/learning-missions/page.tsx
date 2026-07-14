@@ -257,12 +257,11 @@ export default function LearningMissionsPage() {
           <div
             style={{
               position: "absolute",
-              left: "50%",
-              top: "9%",
-              transform: "translateX(-50%)",
+              left: "5vw",
+              top: "13%",
               zIndex: 20,
-              width: "min(760px, 72vw)",
-              textAlign: "center",
+              width: "min(620px, 42vw)",
+              textAlign: "left",
               pointerEvents: "none",
             }}
           >
@@ -295,8 +294,8 @@ export default function LearningMissionsPage() {
 
             <p
               style={{
-                margin: "18px auto 0",
-                maxWidth: "620px",
+                margin: "18px 0 0",
+                maxWidth: "560px",
                 color: "rgba(229,250,255,0.82)",
                 fontSize: "18px",
                 lineHeight: 1.55,
