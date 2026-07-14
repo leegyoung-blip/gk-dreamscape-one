@@ -32,23 +32,23 @@ const SHOPIFY_STORE_URL = "https://gurukidspro.com";
 */
 const SHOPIFY_VARIANT_MAP: Record<string, string> = {
   // HAP Foundation single papers
-  "hap-foundation-paper-1": "52495062460",
-  "hap-foundation-paper-2": "52495062573",
-  "hap-foundation-paper-3": "52495069013",
+  "hap-foundation-paper-1": "52490596024603",
+  "hap-foundation-paper-2": "52490596057371",
+  "hap-foundation-paper-3": "52490596090139",
 
   // Old fallback aliases
-  "hap-foundation-single": "52495062460",
+  "hap-foundation-single": "52490596024603",
 
   // HAP Foundation bundle
   "hap-foundation-pack-3": "52268165824795",
 
   // HAP Challenge single papers
-  "hap-challenge-paper-1": "5249061412539",
-  "hap-challenge-paper-2": "5249061412537",
-  "hap-challenge-paper-3": "5249061418075",
+  "hap-challenge-paper-1": "52490614112539",
+  "hap-challenge-paper-2": "52490614145307",
+  "hap-challenge-paper-3": "52490614178075",
 
   // Old fallback aliases
-  "hap-challenge-single": "5249061412539",
+  "hap-challenge-single": "52490614112539",
 
   // HAP Challenge bundle
   "hap-challenge-pack-3": "52268167430427",
