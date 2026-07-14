@@ -81,6 +81,10 @@ function getShopifyKey(item: CartItem) {
   const productType = item.productType?.toLowerCase() || "";
   const type = item.type?.toLowerCase() || "";
 
+if (SHOPIFY_VARIANT_MAP[itemId]) {
+  return itemId;
+}
+
   if (
     itemId.includes("hap-foundation-single") ||
     itemName.includes("foundation single")
