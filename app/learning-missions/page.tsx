@@ -7,6 +7,18 @@ import { supabase } from "@/lib/supabase";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 
+type ZoneAccessKey = "core" | "think" | "express";
+
+type ZoneUnlocks = Record<ZoneAccessKey, boolean>;
+
+type UserMissionAccess = {
+  userId: string | null;
+  email: string | null;
+  role: string | null;
+  hasFullAccess: boolean;
+  zoneUnlocks: ZoneUnlocks;
+};
+
 function useResponsiveMode() {
   const [screenMode, setScreenMode] = useState<ScreenMode>("desktop");
 
@@ -40,7 +52,38 @@ type MissionZone = {
   description: string;
   position: CSSProperties;
   accent: string;
+  accessKey?: ZoneAccessKey;
 };
+
+const emptyZoneUnlocks: ZoneUnlocks = {
+  core: false,
+  think: false,
+  express: false,
+};
+
+function normaliseRole(role: string | null) {
+  return String(role || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/_/g, "-");
+}
+
+function roleHasFullLearningAccess(role: string | null) {
+  const cleanRole = normaliseRole(role);
+
+  return cleanRole === "admin" || cleanRole === "student";
+}
+
+function getZoneHref(zoneId: string) {
+  if (zoneId === "knowledge-arena") return "/learning-missions/knowledge-arena";
+  if (zoneId === "core-missions") return "/learning-missions/core";
+  if (zoneId === "think-missions") return "/learning-missions/think";
+  if (zoneId === "express-missions") return "/learning-missions/express";
+  if (zoneId === "progress-rewards") return "/learning-missions/progress-rewards";
+
+  return null;
+}
 
 const missionZones: MissionZone[] = [
   {
@@ -62,6 +105,7 @@ const missionZones: MissionZone[] = [
     description:
       "Complete English and Math missions to upgrade Nova’s Skyforge Rover.",
     accent: "#7ecbff",
+    accessKey: "core",
     position: {
       left: "4%",
       top: "54%",
@@ -75,6 +119,7 @@ const missionZones: MissionZone[] = [
     description:
       "Train reasoning, logic, pattern spotting and HAP-style thinking to unlock Nova’s gear inventory.",
     accent: "#60f0d0",
+    accessKey: "think",
     position: {
       left: "5%",
       top: "21%",
@@ -88,6 +133,7 @@ const missionZones: MissionZone[] = [
     description:
       "Complete writing missions to power Nova’s story system, word tools and Dreamscribe archive.",
     accent: "#ff9df0",
+    accessKey: "express",
     position: {
       right: "5%",
       top: "53%",
@@ -129,8 +175,17 @@ export default function LearningMissionsPage() {
   const isMobile = screenMode === "mobile";
 
   const [hoveredZone, setHoveredZone] = useState<MissionZone | null>(null);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [tokenBalance, setTokenBalance] = useState(0);
+  const [lockedZoneMessage, setLockedZoneMessage] = useState("");
+
+  const [userMissionAccess, setUserMissionAccess] =
+    useState<UserMissionAccess>({
+      userId: null,
+      email: null,
+      role: null,
+      hasFullAccess: false,
+      zoneUnlocks: emptyZoneUnlocks,
+    });
 
   useEffect(() => {
     async function loadUserAndTokens() {
@@ -139,12 +194,76 @@ export default function LearningMissionsPage() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        setUserEmail(null);
+        setUserMissionAccess({
+          userId: null,
+          email: null,
+          role: null,
+          hasFullAccess: false,
+          zoneUnlocks: emptyZoneUnlocks,
+        });
+
         setTokenBalance(0);
         return;
       }
 
-      setUserEmail(user.email ?? null);
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profileError) {
+        console.warn("Could not load user profile role:", profileError.message);
+      }
+
+      const role = profile?.role || null;
+      const hasFullAccess = roleHasFullLearningAccess(role);
+
+      let nextZoneUnlocks: ZoneUnlocks = {
+        core: false,
+        think: false,
+        express: false,
+      };
+
+      if (hasFullAccess) {
+        nextZoneUnlocks = {
+          core: true,
+          think: true,
+          express: true,
+        };
+      } else {
+        const { data: accessRows, error: accessError } = await supabase
+          .from("learning_mission_zone_access")
+          .select("zone_key,is_unlocked")
+          .eq("user_id", user.id);
+
+        if (accessError) {
+          console.warn(
+            "Could not load learning mission access:",
+            accessError.message
+          );
+        }
+
+        (accessRows || []).forEach((row) => {
+          const zoneKey = row.zone_key as ZoneAccessKey;
+
+          if (
+            zoneKey === "core" ||
+            zoneKey === "think" ||
+            zoneKey === "express"
+          ) {
+            nextZoneUnlocks[zoneKey] = Boolean(row.is_unlocked);
+          }
+        });
+      }
+
+      setUserMissionAccess({
+        userId: user.id,
+        email: user.email ?? null,
+        role,
+        hasFullAccess,
+        zoneUnlocks: nextZoneUnlocks,
+      });
 
       const { data, error } = await supabase
         .from("dream_token_transactions")
@@ -184,38 +303,39 @@ export default function LearningMissionsPage() {
     };
   }, []);
 
-  function getZoneClick(zoneId: string) {
-    if (zoneId === "knowledge-arena") {
-      return () => {
-        window.location.href = "/learning-missions/knowledge-arena";
-      };
+  function isZoneUnlocked(zone: MissionZone) {
+    if (!zone.accessKey) return true;
+
+    if (userMissionAccess.hasFullAccess) return true;
+
+    return userMissionAccess.zoneUnlocks[zone.accessKey];
+  }
+
+  function isZoneLocked(zone: MissionZone) {
+    return Boolean(zone.accessKey && !isZoneUnlocked(zone));
+  }
+
+  function getLockedMessage(zone: MissionZone) {
+    if (!userMissionAccess.userId) {
+      return "Please log in to access this mission zone.";
     }
 
-    if (zoneId === "core-missions") {
-      return () => {
-        window.location.href = "/learning-missions/core";
-      };
-    }
+    return `${zone.title} is not unlocked for this account yet. Ask your teacher or admin to unlock it based on your current course.`;
+  }
 
-    if (zoneId === "think-missions") {
-      return () => {
-        window.location.href = "/learning-missions/think";
-      };
-    }
+  function getZoneClick(zone: MissionZone) {
+    const href = getZoneHref(zone.id);
 
-    if (zoneId === "express-missions") {
-      return () => {
-        window.location.href = "/learning-missions/express";
-      };
-    }
+    if (!href) return undefined;
 
-    if (zoneId === "progress-rewards") {
-      return () => {
-        window.location.href = "/learning-missions/progress-rewards";
-      };
-    }
+    return () => {
+      if (isZoneLocked(zone)) {
+        setLockedZoneMessage(getLockedMessage(zone));
+        return;
+      }
 
-    return undefined;
+      window.location.href = href;
+    };
   }
 
   return (
@@ -231,7 +351,7 @@ export default function LearningMissionsPage() {
       }}
     >
       <FloatingMissionControls
-        userEmail={userEmail}
+        userEmail={userMissionAccess.email}
         tokenBalance={tokenBalance}
         screenMode={screenMode}
       />
@@ -305,19 +425,44 @@ export default function LearningMissionsPage() {
               Choose a mission zone to train skills, unlock Nova upgrades and
               earn Dreamscape Tokens.
             </p>
+
+            {lockedZoneMessage && (
+              <div
+                style={{
+                  marginTop: "18px",
+                  maxWidth: "560px",
+                  borderRadius: "16px",
+                  border: "1px solid rgba(255,215,106,0.36)",
+                  background: "rgba(255,215,106,0.1)",
+                  color: "#ffd76a",
+                  padding: "14px 16px",
+                  fontSize: "14px",
+                  lineHeight: 1.5,
+                  pointerEvents: "auto",
+                }}
+              >
+                {lockedZoneMessage}
+              </div>
+            )}
           </div>
 
           {missionZones.map((zone) => (
             <MissionHotspot
               key={zone.id}
               zone={zone}
+              isLocked={isZoneLocked(zone)}
               onEnter={() => setHoveredZone(zone)}
               onLeave={() => setHoveredZone(null)}
-              onClick={getZoneClick(zone.id)}
+              onClick={getZoneClick(zone)}
             />
           ))}
 
-          {hoveredZone && <ZoneHoverPopup zone={hoveredZone} />}
+          {hoveredZone && (
+            <ZoneHoverPopup
+              zone={hoveredZone}
+              isLocked={isZoneLocked(hoveredZone)}
+            />
+          )}
 
           <div
             style={{
@@ -405,6 +550,24 @@ export default function LearningMissionsPage() {
               earn Dreamscape Tokens.
             </p>
 
+            {lockedZoneMessage && (
+              <div
+                style={{
+                  marginTop: "18px",
+                  maxWidth: "680px",
+                  borderRadius: "16px",
+                  border: "1px solid rgba(255,215,106,0.36)",
+                  background: "rgba(255,215,106,0.1)",
+                  color: "#ffd76a",
+                  padding: "14px 16px",
+                  fontSize: "14px",
+                  lineHeight: 1.5,
+                }}
+              >
+                {lockedZoneMessage}
+              </div>
+            )}
+
             <div
               style={{
                 marginTop: "28px",
@@ -419,7 +582,8 @@ export default function LearningMissionsPage() {
                 <MissionCard
                   key={zone.id}
                   zone={zone}
-                  onClick={getZoneClick(zone.id)}
+                  isLocked={isZoneLocked(zone)}
+                  onClick={getZoneClick(zone)}
                 />
               ))}
             </div>
@@ -576,11 +740,13 @@ function FloatingMissionControls({
 
 function MissionHotspot({
   zone,
+  isLocked,
   onEnter,
   onLeave,
   onClick,
 }: {
   zone: MissionZone;
+  isLocked: boolean;
   onEnter: () => void;
   onLeave: () => void;
   onClick?: () => void;
@@ -601,16 +767,18 @@ function MissionHotspot({
         cursor: onClick ? "pointer" : "default",
         outline: "none",
       }}
-      aria-label={zone.title}
+      aria-label={isLocked ? `${zone.title} locked` : zone.title}
     />
   );
 }
 
 function MissionCard({
   zone,
+  isLocked,
   onClick,
 }: {
   zone: MissionZone;
+  isLocked: boolean;
   onClick?: () => void;
 }) {
   return (
@@ -630,20 +798,21 @@ function MissionCard({
         color: "white",
         textAlign: "left",
         cursor: onClick ? "pointer" : "default",
-        opacity: onClick ? 1 : 0.66,
+        opacity: isLocked ? 0.58 : onClick ? 1 : 0.66,
+        filter: isLocked ? "saturate(0.45)" : "none",
       }}
     >
       <p
         style={{
           margin: 0,
-          color: zone.accent,
+          color: isLocked ? "#ffd76a" : zone.accent,
           fontSize: "12px",
           letterSpacing: "0.18em",
           textTransform: "uppercase",
           fontWeight: 700,
         }}
       >
-        Learning Zone
+        {isLocked ? "Locked Zone" : "Learning Zone"}
       </p>
 
       <h2
@@ -671,18 +840,24 @@ function MissionCard({
       <div
         style={{
           marginTop: "18px",
-          color: onClick ? zone.accent : "rgba(255,255,255,0.45)",
+          color: isLocked ? "#ffd76a" : onClick ? zone.accent : "rgba(255,255,255,0.45)",
           fontSize: "14px",
           fontWeight: 700,
         }}
       >
-        {onClick ? "Enter Mission ›" : "Coming Soon"}
+        {isLocked ? "Locked" : onClick ? "Enter Mission ›" : "Coming Soon"}
       </div>
     </button>
   );
 }
 
-function ZoneHoverPopup({ zone }: { zone: MissionZone }) {
+function ZoneHoverPopup({
+  zone,
+  isLocked,
+}: {
+  zone: MissionZone;
+  isLocked: boolean;
+}) {
   const popupPosition = getPopupPosition(zone.id);
 
   return (
@@ -693,11 +868,13 @@ function ZoneHoverPopup({ zone }: { zone: MissionZone }) {
         ...popupPosition,
         width: "330px",
         borderRadius: "20px",
-        border: `1px solid ${zone.accent}aa`,
+        border: `1px solid ${isLocked ? "#ffd76a" : zone.accent}aa`,
         background:
           "linear-gradient(145deg, rgba(8,35,70,0.88), rgba(3,13,34,0.92))",
         backdropFilter: "blur(18px)",
-        boxShadow: `0 0 28px ${zone.accent}55, 0 24px 60px rgba(0,0,0,0.45)`,
+        boxShadow: `0 0 28px ${
+          isLocked ? "#ffd76a55" : `${zone.accent}55`
+        }, 0 24px 60px rgba(0,0,0,0.45)`,
         padding: "22px 24px",
         pointerEvents: "none",
         color: "white",
@@ -706,14 +883,14 @@ function ZoneHoverPopup({ zone }: { zone: MissionZone }) {
       <p
         style={{
           margin: 0,
-          color: zone.accent,
+          color: isLocked ? "#ffd76a" : zone.accent,
           fontSize: "12px",
           letterSpacing: "0.18em",
           textTransform: "uppercase",
           fontWeight: 700,
         }}
       >
-        Learning Zone
+        {isLocked ? "Locked Zone" : "Learning Zone"}
       </p>
 
       <h2
@@ -738,11 +915,27 @@ function ZoneHoverPopup({ zone }: { zone: MissionZone }) {
         {zone.description}
       </p>
 
+      {isLocked && (
+        <p
+          style={{
+            margin: "14px 0 0",
+            color: "#ffd76a",
+            fontSize: "13px",
+            lineHeight: 1.45,
+            fontWeight: 700,
+          }}
+        >
+          This zone is not unlocked for your account yet.
+        </p>
+      )}
+
       <div
         style={{
           marginTop: "18px",
           height: "1px",
-          background: `linear-gradient(90deg, transparent, ${zone.accent}, transparent)`,
+          background: `linear-gradient(90deg, transparent, ${
+            isLocked ? "#ffd76a" : zone.accent
+          }, transparent)`,
         }}
       />
     </div>
