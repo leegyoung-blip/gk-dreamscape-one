@@ -6,6 +6,8 @@ import type { CSSProperties, FormEvent } from "react";
 import { supabase } from "@/lib/supabase";
 
 type LobbyStatus = "lobby" | "submitting" | "voting" | "results" | "finished";
+type ScreenMode = "desktop" | "tablet" | "mobile";
+type RoundCount = 5 | 10 | 20;
 
 type Lobby = {
   id: string;
@@ -62,6 +64,31 @@ type VoteOption = {
   ownerPlayerId?: string;
 };
 
+function useResponsiveMode() {
+  const [screenMode, setScreenMode] = useState<ScreenMode>("desktop");
+
+  useEffect(() => {
+    function checkScreenSize() {
+      const width = window.innerWidth;
+
+      if (width <= 720) {
+        setScreenMode("mobile");
+      } else if (width <= 1080) {
+        setScreenMode("tablet");
+      } else {
+        setScreenMode("desktop");
+      }
+    }
+
+    checkScreenSize();
+    window.addEventListener("resize", checkScreenSize);
+
+    return () => window.removeEventListener("resize", checkScreenSize);
+  }, []);
+
+  return screenMode;
+}
+
 function generateRoomCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   return Array.from({ length: 6 })
@@ -91,8 +118,14 @@ function getPlayerName(players: Player[], playerId: string | undefined) {
 }
 
 export default function WhosBluffingPage() {
+  const screenMode = useResponsiveMode();
+  const isMobile = screenMode === "mobile";
+  const isCompact = screenMode !== "desktop";
+
   const [nickname, setNickname] = useState("");
   const [joinCode, setJoinCode] = useState("");
+  const [selectedMaxRounds, setSelectedMaxRounds] = useState<RoundCount>(5);
+
   const [lobbyId, setLobbyId] = useState<string | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
 
@@ -116,7 +149,10 @@ export default function WhosBluffingPage() {
   const voteSecondsLeft = getSecondsLeft(lobby?.vote_ends_at);
 
   const sortedPlayers = useMemo(
-    () => [...players].sort((a, b) => b.score - a.score || a.nickname.localeCompare(b.nickname)),
+    () =>
+      [...players].sort(
+        (a, b) => b.score - a.score || a.nickname.localeCompare(b.nickname)
+      ),
     [players]
   );
 
@@ -218,6 +254,16 @@ export default function WhosBluffingPage() {
     }
   }, [lobby?.status, submitSecondsLeft, voteSecondsLeft, nowTick]);
 
+  useEffect(() => {
+    if (!lobby) return;
+    if (lobby.status !== "voting") return;
+    if (players.length < 2) return;
+
+    if (votes.length >= players.length) {
+      void finishVotingAndScore();
+    }
+  }, [lobby?.status, lobby?.id, lobby?.current_round, votes.length, players.length]);
+
   async function loadGameState(nextLobbyId: string) {
     const { data: lobbyData, error: lobbyError } = await supabase
       .from("milo_bluff_lobbies")
@@ -303,7 +349,7 @@ export default function WhosBluffingPage() {
           room_code: roomCode,
           status: "lobby",
           current_round: 0,
-          max_rounds: 5,
+          max_rounds: selectedMaxRounds,
         })
         .select("*")
         .single();
@@ -477,15 +523,13 @@ export default function WhosBluffingPage() {
       return;
     }
 
-    const submitEndsAt = new Date(Date.now() + 20_000).toISOString();
-
     await supabase
       .from("milo_bluff_lobbies")
       .update({
         status: "submitting",
         current_round: nextRound,
         current_question_id: selectedQuestion.id,
-        submit_ends_at: submitEndsAt,
+        submit_ends_at: new Date(Date.now() + 20_000).toISOString(),
         vote_ends_at: null,
         scoring_applied: false,
         updated_at: new Date().toISOString(),
@@ -613,6 +657,7 @@ export default function WhosBluffingPage() {
       .eq("round_number", lobby.current_round);
 
     const answerOwner: Record<string, string> = {};
+
     (latestAnswers || []).forEach((answer) => {
       answerOwner[answer.id] = answer.player_id;
     });
@@ -659,6 +704,7 @@ export default function WhosBluffingPage() {
 
   const pageStyle: CSSProperties = {
     minHeight: "100dvh",
+    overflowX: "hidden",
     background:
       "radial-gradient(circle at 50% 12%, rgba(255,190,120,0.2), transparent 34%), radial-gradient(circle at 16% 82%, rgba(83,215,255,0.14), transparent 32%), #020817",
     color: "white",
@@ -667,9 +713,9 @@ export default function WhosBluffingPage() {
   };
 
   const panelStyle: CSSProperties = {
-    width: "min(1080px, calc(100% - 32px))",
+    width: isMobile ? "calc(100% - 20px)" : "min(1080px, calc(100% - 32px))",
     margin: "0 auto",
-    borderRadius: "30px",
+    borderRadius: isMobile ? "22px" : "30px",
     border: "1px solid rgba(255,255,255,0.16)",
     background: "rgba(255,255,255,0.08)",
     backdropFilter: "blur(18px)",
@@ -683,7 +729,7 @@ export default function WhosBluffingPage() {
     height: "52px",
     borderRadius: "14px",
     border: "1px solid rgba(255,255,255,0.18)",
-    background: "rgba(255,255,255,0.9)",
+    background: "rgba(255,255,255,0.92)",
     color: "#07111f",
     padding: "0 16px",
     fontSize: "16px",
@@ -720,10 +766,11 @@ export default function WhosBluffingPage() {
           position: "relative",
           zIndex: 3,
           display: "flex",
+          flexDirection: isMobile ? "column" : "row",
           justifyContent: "space-between",
-          alignItems: "center",
+          alignItems: isMobile ? "stretch" : "center",
           gap: "12px",
-          padding: "20px",
+          padding: isMobile ? "12px 10px" : "20px",
         }}
       >
         <Link
@@ -735,6 +782,7 @@ export default function WhosBluffingPage() {
             textDecoration: "none",
             display: "inline-flex",
             alignItems: "center",
+            justifyContent: "center",
           }}
         >
           ← Back to Milo’s World
@@ -755,11 +803,11 @@ export default function WhosBluffingPage() {
         )}
       </header>
 
-      <section style={{ padding: "22px 0 56px" }}>
+      <section style={{ padding: isMobile ? "10px 0 34px" : "22px 0 56px" }}>
         <div style={panelStyle}>
           <div
             style={{
-              padding: "34px",
+              padding: isMobile ? "24px 20px" : "34px",
               borderBottom: "1px solid rgba(255,255,255,0.12)",
               background:
                 "linear-gradient(145deg, rgba(255,176,83,0.16), rgba(83,215,255,0.08))",
@@ -769,8 +817,8 @@ export default function WhosBluffingPage() {
               style={{
                 margin: 0,
                 color: "#ffd18a",
-                fontSize: "13px",
-                letterSpacing: "0.22em",
+                fontSize: "12px",
+                letterSpacing: "0.2em",
                 textTransform: "uppercase",
                 fontWeight: 900,
               }}
@@ -782,7 +830,7 @@ export default function WhosBluffingPage() {
               style={{
                 margin: "14px 0 0",
                 fontFamily: 'Georgia, "Times New Roman", serif',
-                fontSize: "clamp(44px, 7vw, 78px)",
+                fontSize: isMobile ? "46px" : "clamp(44px, 7vw, 78px)",
                 lineHeight: 0.95,
                 fontWeight: 500,
               }}
@@ -795,7 +843,7 @@ export default function WhosBluffingPage() {
                 margin: "18px 0 0",
                 maxWidth: "740px",
                 color: "rgba(255,255,255,0.76)",
-                fontSize: "17px",
+                fontSize: isMobile ? "15px" : "17px",
                 lineHeight: 1.6,
               }}
             >
@@ -807,10 +855,12 @@ export default function WhosBluffingPage() {
           {!lobby && (
             <div
               style={{
-                padding: "34px",
+                padding: isMobile ? "20px" : "34px",
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-                gap: "24px",
+                gridTemplateColumns: isMobile
+                  ? "1fr"
+                  : "repeat(auto-fit, minmax(280px, 1fr))",
+                gap: isMobile ? "16px" : "24px",
               }}
             >
               <form
@@ -819,13 +869,23 @@ export default function WhosBluffingPage() {
                   borderRadius: "24px",
                   border: "1px solid rgba(255,255,255,0.14)",
                   background: "rgba(255,255,255,0.08)",
-                  padding: "24px",
+                  padding: isMobile ? "20px" : "24px",
                   display: "grid",
                   gap: "14px",
                 }}
               >
-                <h2 style={{ margin: 0, fontSize: "28px" }}>Create Lobby</h2>
-                <p style={{ margin: 0, color: "rgba(255,255,255,0.62)", lineHeight: 1.5 }}>
+                <h2 style={{ margin: 0, fontSize: isMobile ? "25px" : "28px" }}>
+                  Create Lobby
+                </h2>
+
+                <p
+                  style={{
+                    margin: 0,
+                    color: "rgba(255,255,255,0.62)",
+                    lineHeight: 1.5,
+                    fontSize: isMobile ? "14px" : "15px",
+                  }}
+                >
                   Start a new room and share the lobby code with your players.
                 </p>
 
@@ -836,6 +896,32 @@ export default function WhosBluffingPage() {
                   maxLength={18}
                   style={inputStyle}
                 />
+
+                <label style={{ display: "grid", gap: "8px" }}>
+                  <span
+                    style={{
+                      color: "#ffd18a",
+                      fontSize: "12px",
+                      letterSpacing: "0.16em",
+                      textTransform: "uppercase",
+                      fontWeight: 900,
+                    }}
+                  >
+                    Game Length
+                  </span>
+
+                  <select
+                    value={selectedMaxRounds}
+                    onChange={(event) =>
+                      setSelectedMaxRounds(Number(event.target.value) as RoundCount)
+                    }
+                    style={inputStyle}
+                  >
+                    <option value={5}>5 rounds</option>
+                    <option value={10}>10 rounds</option>
+                    <option value={20}>20 rounds</option>
+                  </select>
+                </label>
 
                 <button type="submit" disabled={busy} style={primaryButtonStyle}>
                   Create Lobby
@@ -848,13 +934,23 @@ export default function WhosBluffingPage() {
                   borderRadius: "24px",
                   border: "1px solid rgba(255,255,255,0.14)",
                   background: "rgba(255,255,255,0.08)",
-                  padding: "24px",
+                  padding: isMobile ? "20px" : "24px",
                   display: "grid",
                   gap: "14px",
                 }}
               >
-                <h2 style={{ margin: 0, fontSize: "28px" }}>Join Lobby</h2>
-                <p style={{ margin: 0, color: "rgba(255,255,255,0.62)", lineHeight: 1.5 }}>
+                <h2 style={{ margin: 0, fontSize: isMobile ? "25px" : "28px" }}>
+                  Join Lobby
+                </h2>
+
+                <p
+                  style={{
+                    margin: 0,
+                    color: "rgba(255,255,255,0.62)",
+                    lineHeight: 1.5,
+                    fontSize: isMobile ? "14px" : "15px",
+                  }}
+                >
                   Enter the lobby code from the host.
                 </p>
 
@@ -890,10 +986,10 @@ export default function WhosBluffingPage() {
           {lobby && (
             <div
               style={{
-                padding: "34px",
+                padding: isMobile ? "20px" : "34px",
                 display: "grid",
-                gridTemplateColumns: "minmax(220px, 300px) 1fr",
-                gap: "24px",
+                gridTemplateColumns: isCompact ? "1fr" : "minmax(220px, 300px) 1fr",
+                gap: isMobile ? "16px" : "24px",
               }}
             >
               <aside
@@ -901,7 +997,7 @@ export default function WhosBluffingPage() {
                   borderRadius: "24px",
                   border: "1px solid rgba(255,255,255,0.14)",
                   background: "rgba(255,255,255,0.08)",
-                  padding: "20px",
+                  padding: isMobile ? "18px" : "20px",
                   alignSelf: "start",
                 }}
               >
@@ -929,7 +1025,7 @@ export default function WhosBluffingPage() {
                     border: "1px solid rgba(255,255,255,0.16)",
                     background: "rgba(5,13,28,0.82)",
                     color: "white",
-                    fontSize: "30px",
+                    fontSize: isMobile ? "26px" : "30px",
                     fontWeight: 950,
                     letterSpacing: "0.12em",
                     cursor: "pointer",
@@ -946,7 +1042,7 @@ export default function WhosBluffingPage() {
                     lineHeight: 1.4,
                   }}
                 >
-                  Click code to copy.
+                  Click code to copy. Game length: {lobby.max_rounds} rounds.
                 </p>
 
                 <div style={{ marginTop: "22px" }}>
@@ -980,7 +1076,7 @@ export default function WhosBluffingPage() {
                           padding: "10px 12px",
                         }}
                       >
-                        <span style={{ fontWeight: 850 }}>
+                        <span style={{ fontWeight: 850, overflowWrap: "anywhere" }}>
                           {index + 1}. {player.nickname}
                           {player.id === lobby.host_player_id ? " ★" : ""}
                         </span>
@@ -995,11 +1091,11 @@ export default function WhosBluffingPage() {
 
               <section
                 style={{
-                  minHeight: "420px",
+                  minHeight: isMobile ? "auto" : "420px",
                   borderRadius: "24px",
                   border: "1px solid rgba(255,255,255,0.14)",
                   background: "rgba(255,255,255,0.08)",
-                  padding: "24px",
+                  padding: isMobile ? "20px" : "24px",
                 }}
               >
                 {lobby.status === "lobby" && (
@@ -1017,7 +1113,7 @@ export default function WhosBluffingPage() {
                       Waiting Room
                     </p>
 
-                    <h2 style={{ margin: "12px 0 0", fontSize: "34px" }}>
+                    <h2 style={{ margin: "12px 0 0", fontSize: isMobile ? "28px" : "34px" }}>
                       Waiting for players.
                     </h2>
 
@@ -1078,7 +1174,13 @@ export default function WhosBluffingPage() {
                       </span>
                     </div>
 
-                    <h2 style={{ margin: "18px 0 0", fontSize: "32px", lineHeight: 1.2 }}>
+                    <h2
+                      style={{
+                        margin: "18px 0 0",
+                        fontSize: isMobile ? "25px" : "32px",
+                        lineHeight: 1.2,
+                      }}
+                    >
                       {currentQuestion.question}
                     </h2>
 
@@ -1160,7 +1262,13 @@ export default function WhosBluffingPage() {
                       </span>
                     </div>
 
-                    <h2 style={{ margin: "18px 0 0", fontSize: "30px", lineHeight: 1.2 }}>
+                    <h2
+                      style={{
+                        margin: "18px 0 0",
+                        fontSize: isMobile ? "24px" : "30px",
+                        lineHeight: 1.2,
+                      }}
+                    >
                       {currentQuestion.question}
                     </h2>
 
@@ -1168,6 +1276,7 @@ export default function WhosBluffingPage() {
                       {voteOptions.map((option) => {
                         const isOwnFake =
                           option.kind === "fake" && option.ownerPlayerId === playerId;
+
                         const selected =
                           myVote?.selected_kind === option.kind &&
                           (option.kind === "correct" ||
@@ -1193,9 +1302,10 @@ export default function WhosBluffingPage() {
                               color: isOwnFake ? "rgba(255,255,255,0.34)" : "white",
                               padding: "14px 16px",
                               textAlign: "left",
-                              fontSize: "16px",
+                              fontSize: isMobile ? "15px" : "16px",
                               fontWeight: 850,
                               cursor: Boolean(myVote) || isOwnFake ? "not-allowed" : "pointer",
+                              overflowWrap: "anywhere",
                             }}
                           >
                             {option.text}
@@ -1235,7 +1345,7 @@ export default function WhosBluffingPage() {
                       Round Results
                     </p>
 
-                    <h2 style={{ margin: "12px 0 0", fontSize: "32px" }}>
+                    <h2 style={{ margin: "12px 0 0", fontSize: isMobile ? "26px" : "32px" }}>
                       Correct answer: {currentQuestion.correct_answer}
                     </h2>
 
@@ -1273,6 +1383,7 @@ export default function WhosBluffingPage() {
                                   ? "rgba(34,197,94,0.12)"
                                   : "rgba(255,255,255,0.08)",
                               padding: "16px",
+                              overflowWrap: "anywhere",
                             }}
                           >
                             <strong>{option.text}</strong>
@@ -1329,7 +1440,7 @@ export default function WhosBluffingPage() {
                       Final Results
                     </p>
 
-                    <h2 style={{ margin: "12px 0 0", fontSize: "38px" }}>
+                    <h2 style={{ margin: "12px 0 0", fontSize: isMobile ? "30px" : "38px" }}>
                       Winner: {sortedPlayers[0]?.nickname || "No winner"}
                     </h2>
 
@@ -1353,7 +1464,7 @@ export default function WhosBluffingPage() {
                             padding: "14px 16px",
                           }}
                         >
-                          <strong>
+                          <strong style={{ overflowWrap: "anywhere" }}>
                             {index + 1}. {player.nickname}
                           </strong>
                           <strong style={{ color: "#ffd18a" }}>{player.score}</strong>
