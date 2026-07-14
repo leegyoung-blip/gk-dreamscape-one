@@ -115,12 +115,103 @@ type ExpressMissionTask = {
   difficulty: string;
 };
 
+type CompletedExpressAttempt = {
+  mission_id: string;
+  mode: ExpressMode;
+  completed_tasks: number;
+  tokens_earned: number;
+};
+
+type ExpressStoryUpgrade = {
+  missionsRequired: number;
+  name: string;
+  description: string;
+  image: string;
+  icon: string;
+  accent: string;
+};
+
 const allowedExpressMissionTiers = [
   "admin",
   "gkp_student",
   "paid_student",
   "student",
   "pro",
+];
+
+const expressStoryTrack: ExpressStoryUpgrade[] = [
+  {
+    missionsRequired: 0,
+    name: "Blank Story Log",
+    description:
+      "Nova’s story archive is ready, but the pages are still empty.",
+    image: "/learning-missions/express/items/blank-story-log.png",
+    icon: "□",
+    accent: "#ff9df0",
+  },
+  {
+    missionsRequired: 1,
+    name: "Word Beacon",
+    description:
+      "Nova can send simple word signals across Dreamscape pathways.",
+    image: "/learning-missions/express/items/word-beacon.png",
+    icon: "✎",
+    accent: "#ff9df0",
+  },
+  {
+    missionsRequired: 3,
+    name: "Sentence Spark",
+    description:
+      "Nova can form clearer sentences that activate hidden story doors.",
+    image: "/learning-missions/express/items/sentence-spark.png",
+    icon: "✦",
+    accent: "#ffd76a",
+  },
+  {
+    missionsRequired: 5,
+    name: "Description Lens",
+    description:
+      "Nova can make scenes clearer with stronger details and vivid descriptions.",
+    image: "/learning-missions/express/items/description-lens.png",
+    icon: "◉",
+    accent: "#b58cff",
+  },
+  {
+    missionsRequired: 8,
+    name: "Emotion Crystal",
+    description:
+      "Nova can capture feelings, reactions and inner thoughts more powerfully.",
+    image: "/learning-missions/express/items/emotion-crystal.png",
+    icon: "◇",
+    accent: "#ffb8f5",
+  },
+  {
+    missionsRequired: 12,
+    name: "Story Map",
+    description:
+      "Nova can connect openings, problems, climaxes and endings into stronger stories.",
+    image: "/learning-missions/express/items/story-map.png",
+    icon: "⌁",
+    accent: "#7ee8ff",
+  },
+  {
+    missionsRequired: 16,
+    name: "Memory Archive",
+    description:
+      "Nova can store important moments, character actions and story discoveries.",
+    image: "/learning-missions/express/items/memory-archive.png",
+    icon: "▣",
+    accent: "#60f0d0",
+  },
+  {
+    missionsRequired: 20,
+    name: "Dreamscribe System",
+    description:
+      "Nova’s full writing system is complete and ready to unlock advanced story pathways.",
+    image: "/learning-missions/express/items/dreamscribe-system.png",
+    icon: "✧",
+    accent: "#ff9df0",
+  },
 ];
 
 const expressLevelBands: {
@@ -176,6 +267,36 @@ const expressModes: {
   },
 ];
 
+function getCurrentStoryUpgrade(completedCount: number) {
+  let currentUpgrade = expressStoryTrack[0];
+
+  for (const upgrade of expressStoryTrack) {
+    if (completedCount >= upgrade.missionsRequired) {
+      currentUpgrade = upgrade;
+    }
+  }
+
+  return currentUpgrade;
+}
+
+function getNextStoryUpgrade(completedCount: number) {
+  return expressStoryTrack.find(
+    (upgrade) => completedCount < upgrade.missionsRequired
+  );
+}
+
+function getUnlockedStoryItems(completedCount: number) {
+  return expressStoryTrack.filter(
+    (upgrade) => completedCount >= upgrade.missionsRequired
+  );
+}
+
+function getPreviewStoryItems(completedCount: number) {
+  return expressStoryTrack.filter(
+    (upgrade) => upgrade.missionsRequired <= Math.max(5, completedCount + 5)
+  );
+}
+
 function ExpressMissionsActivity({
   onExit,
   tokenBalance,
@@ -225,7 +346,39 @@ function ExpressMissionsActivity({
   const [tokensEarned, setTokensEarned] = useState(0);
   const [rewardSaved, setRewardSaved] = useState(false);
 
+  const [completedAttempts, setCompletedAttempts] = useState<
+    CompletedExpressAttempt[]
+  >([]);
+
   const currentTask = tasks[taskIndex];
+
+  const completedMissionIds = new Set(
+    completedAttempts.map((attempt) => attempt.mission_id)
+  );
+
+  const completedMissionCount = completedAttempts.length;
+  const currentStoryUpgrade = getCurrentStoryUpgrade(completedMissionCount);
+  const nextStoryUpgrade = getNextStoryUpgrade(completedMissionCount);
+
+  const unlockedStoryItems = getUnlockedStoryItems(completedMissionCount);
+  const previewStoryItems = getPreviewStoryItems(completedMissionCount);
+
+  const progressTarget =
+    nextStoryUpgrade?.missionsRequired ??
+    expressStoryTrack[expressStoryTrack.length - 1].missionsRequired;
+
+  const previousTarget = currentStoryUpgrade.missionsRequired;
+  const progressRange = Math.max(1, progressTarget - previousTarget);
+  const progressWithinRange = Math.max(
+    0,
+    completedMissionCount - previousTarget
+  );
+
+  const progressPercentage = nextStoryUpgrade
+    ? Math.min(100, Math.round((progressWithinRange / progressRange) * 100))
+    : 100;
+
+  const completedCount = Object.keys(submittedResponses).length;
 
   useEffect(() => {
     checkAccess();
@@ -279,7 +432,43 @@ function ExpressMissionsActivity({
       return;
     }
 
+    await loadCompletedAttempts(user.id);
     setScreen("level");
+  }
+
+  async function loadCompletedAttempts(activeUserId: string) {
+    const { data, error } = await supabase
+      .from("express_mission_attempts")
+      .select("mission_id, mode, completed_tasks, tokens_earned")
+      .eq("user_id", activeUserId);
+
+    if (error) {
+      console.warn("Could not load completed Express Mission attempts:", error);
+      setCompletedAttempts([]);
+      return;
+    }
+
+    const uniqueAttempts = new Map<string, CompletedExpressAttempt>();
+
+    for (const attempt of data ?? []) {
+      if (
+        !uniqueAttempts.has(attempt.mission_id) &&
+        attempt.tokens_earned > 0
+      ) {
+        uniqueAttempts.set(attempt.mission_id, {
+          mission_id: attempt.mission_id,
+          mode: attempt.mode as ExpressMode,
+          completed_tasks: attempt.completed_tasks,
+          tokens_earned: attempt.tokens_earned,
+        });
+      }
+    }
+
+    setCompletedAttempts(Array.from(uniqueAttempts.values()));
+  }
+
+  function isMissionCompleted(missionId: string) {
+    return completedMissionIds.has(missionId);
   }
 
   async function chooseLevel(levelBand: ExpressLevelBand) {
@@ -312,6 +501,7 @@ function ExpressMissionsActivity({
   function chooseMission(mission: ExpressMissionSet) {
     setSelectedMission(mission);
     setSelectedMode(null);
+    setLoadError(null);
     setScreen("mode");
   }
 
@@ -407,10 +597,10 @@ function ExpressMissionsActivity({
     setLoadError(null);
   }
 
-  function calculateReward(finalCompletedCount: number) {
+  function calculateReward(finalCompletedCount: number, finalTimeLeft: number) {
     if (finalCompletedCount < 10) return 0;
 
-    if (selectedMode === "challenge" && timeLeft > 0) {
+    if (selectedMode === "challenge" && finalTimeLeft > 0) {
       return 6;
     }
 
@@ -422,23 +612,36 @@ function ExpressMissionsActivity({
 
     setIsFinishing(true);
 
-    const completedCount = Object.keys(submittedResponses).length;
-    const finalReward = calculateReward(completedCount);
+    const finalCompletedCount = Object.keys(submittedResponses).length;
+    const finalTimeLeft = timeLeft;
+    const finalMode = selectedMode ?? "practice";
+
     const finalTimeTaken =
-      selectedMode === "challenge" ? Math.max(0, 20 * 60 - timeLeft) : null;
+      finalMode === "challenge" ? Math.max(0, 20 * 60 - finalTimeLeft) : null;
+
+    if (!userId || !selectedMission) {
+      setScreen("results");
+      return;
+    }
+
+    const hasCompletedThisMissionBefore = isMissionCompleted(
+      selectedMission.id
+    );
+
+    const finalReward = hasCompletedThisMissionBefore
+      ? 0
+      : calculateReward(finalCompletedCount, finalTimeLeft);
 
     setTokensEarned(finalReward);
     setScreen("results");
-
-    if (!userId || !selectedMission) return;
 
     const { error: attemptError } = await supabase
       .from("express_mission_attempts")
       .insert({
         user_id: userId,
         mission_id: selectedMission.id,
-        mode: selectedMode ?? "practice",
-        completed_tasks: completedCount,
+        mode: finalMode,
+        completed_tasks: finalCompletedCount,
         total_tasks: tasks.length,
         time_taken_seconds: finalTimeTaken,
         tokens_earned: finalReward,
@@ -446,9 +649,25 @@ function ExpressMissionsActivity({
 
     if (attemptError) {
       console.warn("Could not save Express Mission attempt:", attemptError);
+      setRewardSaved(false);
+      return;
     }
 
-    if (finalReward <= 0) return;
+    if (!hasCompletedThisMissionBefore && finalReward > 0) {
+      const newAttempt: CompletedExpressAttempt = {
+        mission_id: selectedMission.id,
+        mode: finalMode,
+        completed_tasks: finalCompletedCount,
+        tokens_earned: finalReward,
+      };
+
+      setCompletedAttempts((prev) => [...prev, newAttempt]);
+    }
+
+    if (finalReward <= 0) {
+      setRewardSaved(true);
+      return;
+    }
 
     const { error: tokenError } = await supabase
       .from("dream_token_transactions")
@@ -456,7 +675,7 @@ function ExpressMissionsActivity({
         user_id: userId,
         type: "earn",
         title:
-          selectedMode === "challenge"
+          finalMode === "challenge"
             ? "Express Missions Challenge Reward"
             : "Express Missions Reward",
         amount: finalReward,
@@ -465,6 +684,7 @@ function ExpressMissionsActivity({
 
     if (tokenError) {
       console.warn("Could not award Express Mission tokens:", tokenError);
+      setRewardSaved(false);
       return;
     }
 
@@ -533,713 +753,1070 @@ function ExpressMissionsActivity({
     (level) => level.id === selectedLevelBand
   );
 
-  const completedCount = Object.keys(submittedResponses).length;
-
   return (
     <main
       style={{
         minHeight: "100dvh",
         width: "100%",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: isMobile ? "86px 14px 28px" : "96px 26px 42px",
-        background:
-          "radial-gradient(circle at 50% 0%, rgba(255,157,240,0.18), transparent 35%), #020813",
+        backgroundImage: `
+          linear-gradient(
+            180deg,
+            rgba(2,8,19,0.58),
+            rgba(2,8,19,0.9)
+          ),
+          url("/learning-missions/express/express-story-bg.png")
+        `,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundAttachment: isMobile ? "scroll" : "fixed",
         color: "white",
         fontFamily: "Arial, Helvetica, sans-serif",
       }}
     >
-      <div
+      <button
+        type="button"
+        onClick={onExit}
         style={{
-          position: "relative",
-          width: "min(1180px, 94vw)",
-          maxHeight: isMobile ? "88dvh" : "92vh",
-          overflowY: "auto",
-          borderRadius: isMobile ? "22px" : "30px",
-          border: "1px solid rgba(255, 157, 240, 0.62)",
-          background:
-            "linear-gradient(145deg, rgba(64, 24, 78, 0.96), rgba(15, 20, 58, 0.98))",
-          boxShadow:
-            "0 0 45px rgba(255, 157, 240, 0.28), 0 30px 90px rgba(0, 0, 0, 0.55)",
-          padding: isMobile ? "28px 18px 24px" : "34px 46px 38px",
+          position: "fixed",
+          top: isMobile ? "14px" : "22px",
+          left: isMobile ? "14px" : "22px",
+          zIndex: 40,
+          height: isMobile ? "40px" : "46px",
+          padding: isMobile ? "0 14px" : "0 22px",
+          borderRadius: "999px",
+          border: "1px solid rgba(255, 157, 240, 0.7)",
+          background: "rgba(2,8,19,0.72)",
           color: "white",
+          fontSize: isMobile ? "12px" : "14px",
+          letterSpacing: "0.1em",
+          textTransform: "uppercase",
+          cursor: "pointer",
+          backdropFilter: "blur(14px)",
+          boxShadow: "0 0 18px rgba(255, 157, 240, 0.22)",
         }}
       >
-        <button
-          type="button"
-          onClick={onExit}
+        ← Missions
+      </button>
+
+      <section
+        style={{
+          minHeight: "100dvh",
+          width: "100%",
+          padding: isMobile
+            ? "82px 18px 32px"
+            : isCompact
+            ? "92px 32px 42px"
+            : "92px 5vw 54px",
+          display: "grid",
+          gridTemplateRows: "auto auto 1fr",
+          gap: isMobile ? "24px" : "30px",
+        }}
+      >
+        <header
           style={{
-            position: "absolute",
-            top: isMobile ? "14px" : "22px",
-            right: isMobile ? "14px" : "22px",
-            width: isMobile ? "38px" : "44px",
-            height: isMobile ? "38px" : "44px",
-            borderRadius: "999px",
-            border: "1px solid rgba(255, 180, 245, 0.7)",
-            background: "rgba(255, 255, 255, 0.08)",
-            color: "white",
-            fontSize: isMobile ? "24px" : "28px",
-            lineHeight: 1,
-            cursor: "pointer",
+            width: "min(1240px, 100%)",
+            margin: "0 auto",
+            display: "grid",
+            gridTemplateColumns: isCompact ? "1fr" : "1.05fr 0.95fr",
+            gap: isMobile ? "22px" : "34px",
+            alignItems: "end",
           }}
         >
-          ×
-        </button>
+          <div>
+            <p
+              style={{
+                margin: 0,
+                color: "#ff9df0",
+                fontSize: "13px",
+                letterSpacing: "0.22em",
+                textTransform: "uppercase",
+                fontWeight: 800,
+              }}
+            >
+              Express Missions
+            </p>
 
-        <div
-          style={{
-            textAlign: "center",
-            padding: isMobile ? "0 42px" : "0 70px",
-          }}
-        >
-          <p
-            style={{
-              margin: 0,
-              color: "#ff9df0",
-              fontSize: "13px",
-              letterSpacing: "0.22em",
-              textTransform: "uppercase",
-            }}
-          >
-            Learning Missions
-          </p>
-
-          <h2
-            style={{
-              margin: "10px 0 0",
-              fontSize: isMobile ? "32px" : "44px",
-              fontWeight: 500,
-              letterSpacing: "-0.03em",
-              textShadow: "0 0 24px rgba(255, 157, 240, 0.35)",
-            }}
-          >
-            Express Missions
-          </h2>
-
-          <p
-            style={{
-              margin: "10px 0 0",
-              fontSize: isMobile ? "16px" : "20px",
-              color: "#ffb8f5",
-              fontWeight: 300,
-            }}
-          >
-            Build writing skills through guided sentence, paragraph and
-            composition tasks.
-          </p>
-
-          <div
-            style={{
-              width: "210px",
-              height: "1px",
-              margin: "20px auto 0",
-              background:
-                "linear-gradient(90deg, transparent, rgba(255,157,240,0.9), transparent)",
-            }}
-          />
-        </div>
-
-        {screen === "checking" && (
-          <ExpressMessageCard message="Checking your Express Missions access..." />
-        )}
-
-        {screen === "locked" && (
-          <div
-            style={{
-              margin: "42px auto 0",
-              maxWidth: "680px",
-              borderRadius: "26px",
-              border: "1px solid rgba(255,215,106,0.5)",
-              background:
-                "linear-gradient(180deg, rgba(90, 62, 16, 0.55), rgba(30, 20, 8, 0.72))",
-              padding: "34px",
-              textAlign: "center",
-            }}
-          >
-            <h3 style={{ margin: 0, fontSize: "30px" }}>
-              Express Missions Locked
-            </h3>
+            <h1
+              style={{
+                margin: "12px 0 0",
+                fontSize: isMobile ? "38px" : isCompact ? "54px" : "72px",
+                lineHeight: 0.95,
+                fontWeight: 600,
+                letterSpacing: "-0.055em",
+                textShadow: "0 0 30px rgba(255, 157, 240, 0.28)",
+              }}
+            >
+              Power Nova’s
+              <br />
+              Story System
+            </h1>
 
             <p
               style={{
-                margin: "14px 0 0",
-                fontSize: "16px",
+                margin: "20px 0 0",
+                maxWidth: "720px",
+                fontSize: isMobile ? "16px" : "20px",
+                color: "#ffe0fb",
                 lineHeight: 1.6,
-                color: "rgba(255,255,255,0.78)",
+                fontWeight: 300,
               }}
             >
-              Express Missions are available for GKP students, paid Student
-              Access members, Pro users and admins.
+              Some Dreamscape doors only open through powerful words. Complete
+              writing missions to unlock Nova’s story log, word beacons,
+              description tools and Dreamscribe system.
             </p>
+          </div>
 
+          <ExpressStoryShowcase
+            isMobile={isMobile}
+            completedMissionCount={completedMissionCount}
+            previewStoryItems={previewStoryItems}
+          />
+        </header>
+
+        <ExpressStoryPanel
+          isMobile={isMobile}
+          completedMissionCount={completedMissionCount}
+          currentUpgrade={currentStoryUpgrade}
+          nextUpgrade={nextStoryUpgrade}
+          progressPercentage={progressPercentage}
+        />
+
+        <section
+          style={{
+            width: "min(1240px, 100%)",
+            margin: "0 auto",
+            borderRadius: isMobile ? "24px" : "32px",
+            border: "1px solid rgba(255,157,240,0.22)",
+            background:
+              "linear-gradient(145deg, rgba(42,12,52,0.74), rgba(26,18,58,0.82))",
+            boxShadow:
+              "0 0 34px rgba(255,157,240,0.12), 0 28px 80px rgba(0,0,0,0.34)",
+            padding: isMobile ? "20px" : "30px",
+          }}
+        >
+          {screen === "checking" && (
+            <ExpressMessageCard message="Checking your Express Missions access..." />
+          )}
+
+          {screen === "locked" && (
             <div
               style={{
-                marginTop: "26px",
-                display: "flex",
-                flexDirection: isMobile ? "column" : "row",
-                justifyContent: "center",
-                gap: "12px",
+                margin: "18px auto",
+                maxWidth: "680px",
+                borderRadius: "26px",
+                border: "1px solid rgba(255,215,106,0.5)",
+                background:
+                  "linear-gradient(180deg, rgba(90, 62, 16, 0.55), rgba(30, 20, 8, 0.72))",
+                padding: "34px",
+                textAlign: "center",
               }}
             >
-              <a href="/login" style={expressPrimaryLinkStyle}>
-                Log In
-              </a>
+              <h3 style={{ margin: 0, fontSize: "30px" }}>
+                Express Missions Locked
+              </h3>
 
-              <button type="button" onClick={onExit} style={expressGhostButton}>
-                Exit
-              </button>
-            </div>
-          </div>
-        )}
-
-        {screen === "level" && (
-          <div
-            style={{
-              marginTop: "42px",
-              display: "grid",
-              gridTemplateColumns: isMobile
-                ? "1fr"
-                : isCompact
-                ? "repeat(2, minmax(0, 1fr))"
-                : "repeat(3, minmax(0, 1fr))",
-              gap: "22px",
-            }}
-          >
-            {expressLevelBands.map((level) => (
-              <button
-                key={level.id}
-                type="button"
-                onClick={() => chooseLevel(level.id)}
-                style={expressLargeCardStyle(level.accent)}
+              <p
+                style={{
+                  margin: "14px 0 0",
+                  fontSize: "16px",
+                  lineHeight: 1.6,
+                  color: "rgba(255,255,255,0.78)",
+                }}
               >
-                <p
-                  style={{
-                    margin: 0,
-                    color: level.accent,
-                    fontSize: "14px",
-                    letterSpacing: "0.16em",
-                    textTransform: "uppercase",
-                  }}
+                Express Missions are available for GKP students, paid Student
+                Access members, Pro users and admins.
+              </p>
+
+              <div
+                style={{
+                  marginTop: "26px",
+                  display: "flex",
+                  flexDirection: isMobile ? "column" : "row",
+                  justifyContent: "center",
+                  gap: "12px",
+                }}
+              >
+                <a href="/login" style={expressPrimaryLinkStyle}>
+                  Log In
+                </a>
+
+                <button
+                  type="button"
+                  onClick={onExit}
+                  style={expressGhostButton}
                 >
-                  {level.label}
-                </p>
+                  Exit
+                </button>
+              </div>
+            </div>
+          )}
 
-                <h3 style={expressCardTitleStyle}>{level.title}</h3>
-
-                <p style={expressCardTextStyle}>{level.subtitle}</p>
-
-                <div style={expressCardButtonLook}>Enter Writing Lab ›</div>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {screen === "loading" && (
-          <ExpressMessageCard message="Loading Express Mission..." />
-        )}
-
-        {screen === "mission-list" && selectedLevelInfo && (
-          <div style={{ marginTop: "38px" }}>
-            <ExpressTopRow
-              leftButton="← Back to Levels"
-              onLeftClick={resetToLevels}
-              rightText={`${selectedLevelInfo.title} · ${selectedLevelInfo.label}`}
-            />
-
-            {loadError && <ExpressErrorMessage message={loadError} />}
-
+          {screen === "level" && (
             <div
               style={{
-                marginTop: "22px",
                 display: "grid",
                 gridTemplateColumns: isMobile
                   ? "1fr"
                   : isCompact
                   ? "repeat(2, minmax(0, 1fr))"
                   : "repeat(3, minmax(0, 1fr))",
-                gap: "20px",
+                gap: "22px",
               }}
             >
-              {missions.map((mission) => (
+              {expressLevelBands.map((level) => (
                 <button
-                  key={mission.id}
+                  key={level.id}
                   type="button"
-                  onClick={() => chooseMission(mission)}
+                  onClick={() => chooseLevel(level.id)}
+                  style={expressLargeCardStyle(level.accent)}
+                >
+                  <p
+                    style={{
+                      margin: 0,
+                      color: level.accent,
+                      fontSize: "14px",
+                      letterSpacing: "0.16em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {level.label}
+                  </p>
+
+                  <h3 style={expressCardTitleStyle}>{level.title}</h3>
+
+                  <p style={expressCardTextStyle}>{level.subtitle}</p>
+
+                  <div style={expressCardButtonLook}>Enter Writing Lab ›</div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {screen === "loading" && (
+            <ExpressMessageCard message="Loading Express Mission..." />
+          )}
+
+          {screen === "mission-list" && selectedLevelInfo && (
+            <div>
+              <ExpressTopRow
+                leftButton="← Back to Levels"
+                onLeftClick={resetToLevels}
+                rightText={`${selectedLevelInfo.title} · ${selectedLevelInfo.label}`}
+              />
+
+              {loadError && <ExpressErrorMessage message={loadError} />}
+
+              <div
+                style={{
+                  marginTop: "22px",
+                  display: "grid",
+                  gridTemplateColumns: isMobile
+                    ? "1fr"
+                    : isCompact
+                    ? "repeat(2, minmax(0, 1fr))"
+                    : "repeat(3, minmax(0, 1fr))",
+                  gap: "20px",
+                }}
+              >
+                {missions.map((mission) => {
+                  const completed = isMissionCompleted(mission.id);
+                  const completedAttempt = completedAttempts.find(
+                    (attempt) => attempt.mission_id === mission.id
+                  );
+
+                  return (
+                    <button
+                      key={mission.id}
+                      type="button"
+                      onClick={() => chooseMission(mission)}
+                      style={{
+                        minHeight: isMobile ? "auto" : "290px",
+                        borderRadius: "24px",
+                        padding: "26px",
+                        border: completed
+                          ? "1px solid rgba(74,222,128,0.5)"
+                          : "1px solid rgba(255,157,240,0.36)",
+                        background: completed
+                          ? "linear-gradient(180deg, rgba(20, 92, 60, 0.72), rgba(8, 35, 36, 0.9))"
+                          : "linear-gradient(180deg, rgba(84, 38, 110, 0.78), rgba(18, 22, 64, 0.92))",
+                        color: "white",
+                        textAlign: "left",
+                        cursor: "pointer",
+                        display: "flex",
+                        flexDirection: "column",
+                        opacity: completed ? 0.9 : 1,
+                      }}
+                    >
+                      <p
+                        style={{
+                          margin: 0,
+                          color: completed ? "#86efac" : "#ff9df0",
+                          fontSize: "12px",
+                          letterSpacing: "0.14em",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {completed
+                          ? "Completed Once"
+                          : `Express Mission ${mission.mission_order}`}
+                      </p>
+
+                      <h3
+                        style={{
+                          margin: "16px 0 0",
+                          fontSize: "28px",
+                          lineHeight: 1.15,
+                        }}
+                      >
+                        {mission.title}
+                      </h3>
+
+                      <p
+                        style={{
+                          margin: "12px 0 0",
+                          fontSize: "15px",
+                          lineHeight: 1.5,
+                          color: "rgba(255,255,255,0.72)",
+                        }}
+                      >
+                        {mission.description}
+                      </p>
+
+                      {completed && completedAttempt && (
+                        <p
+                          style={{
+                            margin: "14px 0 0",
+                            color: "rgba(255,255,255,0.76)",
+                            fontSize: "13px",
+                            lineHeight: 1.45,
+                          }}
+                        >
+                          Counted completion:{" "}
+                          {completedAttempt.completed_tasks}/10 · Tokens: +
+                          {completedAttempt.tokens_earned}
+                        </p>
+                      )}
+
+                      <div
+                        style={{
+                          ...expressSmallButtonLook,
+                          background: completed
+                            ? "linear-gradient(135deg, #86efac, #22c55e)"
+                            : expressSmallButtonLook.background,
+                          color: completed ? "#052e16" : "white",
+                        }}
+                      >
+                        {completed ? "Replay Mission" : "Choose Mode ›"}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {screen === "mode" && selectedMission && (
+            <div>
+              <ExpressTopRow
+                leftButton="← Back to Missions"
+                onLeftClick={resetToMissionList}
+                rightText={selectedMission.title}
+              />
+
+              <div
+                style={{
+                  marginTop: "28px",
+                  display: "grid",
+                  gridTemplateColumns: isMobile
+                    ? "1fr"
+                    : "repeat(2, minmax(0, 1fr))",
+                  gap: "24px",
+                }}
+              >
+                {expressModes.map((mode) => (
+                  <button
+                    key={mode.id}
+                    type="button"
+                    onClick={() => startMission(mode.id)}
+                    style={expressLargeCardStyle(mode.accent)}
+                  >
+                    <p
+                      style={{
+                        margin: 0,
+                        color: mode.accent,
+                        fontSize: "14px",
+                        letterSpacing: "0.16em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {mode.badge}
+                    </p>
+
+                    <h3 style={expressCardTitleStyle}>{mode.title}</h3>
+
+                    <p style={expressCardTextStyle}>{mode.subtitle}</p>
+
+                    <div style={expressCardButtonLook}>
+                      Start {mode.title} ›
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {screen === "task" && currentTask && selectedMission && (
+            <div>
+              <ExpressTopRow
+                leftButton="← Back to Mode"
+                onLeftClick={resetToMode}
+                rightText={
+                  selectedMode === "challenge"
+                    ? `Challenge Mode · ${formatTime(timeLeft)}`
+                    : `Practice Mode · Task ${taskIndex + 1}/10`
+                }
+              />
+
+              {loadError && <ExpressErrorMessage message={loadError} />}
+
+              <div
+                style={{
+                  marginTop: "22px",
+                  display: "grid",
+                  gridTemplateColumns: isCompact
+                    ? "1fr"
+                    : "minmax(0, 1.1fr) 360px",
+                  gap: "24px",
+                }}
+              >
+                <div
                   style={{
-                    minHeight: isMobile ? "auto" : "280px",
                     borderRadius: "24px",
-                    padding: "26px",
-                    border: "1px solid rgba(255,157,240,0.36)",
+                    border: "1px solid rgba(255,157,240,0.42)",
                     background:
-                      "linear-gradient(180deg, rgba(84, 38, 110, 0.78), rgba(18, 22, 64, 0.92))",
-                    color: "white",
-                    textAlign: "left",
-                    cursor: "pointer",
-                    display: "flex",
-                    flexDirection: "column",
+                      "linear-gradient(180deg, rgba(84, 38, 110, 0.74), rgba(18, 22, 64, 0.9))",
+                    padding: "26px",
+                    minHeight: isMobile ? "auto" : "520px",
                   }}
                 >
                   <p
                     style={{
                       margin: 0,
                       color: "#ff9df0",
-                      fontSize: "12px",
+                      fontSize: "13px",
                       letterSpacing: "0.14em",
                       textTransform: "uppercase",
                     }}
                   >
-                    Express Mission {mission.mission_order}
+                    {selectedMission.title}
                   </p>
 
                   <h3
                     style={{
-                      margin: "16px 0 0",
-                      fontSize: "28px",
-                      lineHeight: 1.15,
+                      margin: "8px 0 0",
+                      fontSize: isMobile ? "25px" : "30px",
+                      fontWeight: 600,
                     }}
                   >
-                    {mission.title}
+                    Task {taskIndex + 1}
                   </h3>
 
                   <p
                     style={{
-                      margin: "12px 0 0",
-                      fontSize: "15px",
-                      lineHeight: 1.5,
-                      color: "rgba(255,255,255,0.72)",
+                      margin: "26px 0 0",
+                      fontSize: isMobile ? "21px" : "28px",
+                      lineHeight: 1.35,
+                      fontWeight: 500,
+                      color: "white",
                     }}
                   >
-                    {mission.description}
+                    {currentTask.prompt_text}
                   </p>
 
-                  <div style={expressSmallButtonLook}>Choose Mode ›</div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+                  {currentTask.starter_text && (
+                    <div
+                      style={{
+                        marginTop: "18px",
+                        borderRadius: "18px",
+                        border: "1px solid rgba(255,255,255,0.14)",
+                        background: "rgba(255,255,255,0.07)",
+                        padding: "16px",
+                        color: "rgba(255,255,255,0.82)",
+                        fontSize: "15px",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      <strong style={{ color: "#ffb8f5" }}>Starter:</strong>{" "}
+                      {currentTask.starter_text}
+                    </div>
+                  )}
 
-        {screen === "mode" && selectedMission && (
-          <div style={{ marginTop: "38px" }}>
-            <ExpressTopRow
-              leftButton="← Back to Missions"
-              onLeftClick={resetToMissionList}
-              rightText={selectedMission.title}
-            />
-
-            <div
-              style={{
-                marginTop: "28px",
-                display: "grid",
-                gridTemplateColumns: isMobile
-                  ? "1fr"
-                  : "repeat(2, minmax(0, 1fr))",
-                gap: "24px",
-              }}
-            >
-              {expressModes.map((mode) => (
-                <button
-                  key={mode.id}
-                  type="button"
-                  onClick={() => startMission(mode.id)}
-                  style={expressLargeCardStyle(mode.accent)}
-                >
-                  <p
-                    style={{
-                      margin: 0,
-                      color: mode.accent,
-                      fontSize: "14px",
-                      letterSpacing: "0.16em",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    {mode.badge}
-                  </p>
-
-                  <h3 style={expressCardTitleStyle}>{mode.title}</h3>
-
-                  <p style={expressCardTextStyle}>{mode.subtitle}</p>
-
-                  <div style={expressCardButtonLook}>
-                    Start {mode.title} ›
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {screen === "task" && currentTask && selectedMission && (
-          <div style={{ marginTop: "34px" }}>
-            <ExpressTopRow
-              leftButton="← Back to Mode"
-              onLeftClick={resetToMode}
-              rightText={
-                selectedMode === "challenge"
-                  ? `Challenge Mode · ${formatTime(timeLeft)}`
-                  : `Practice Mode · Task ${taskIndex + 1}/10`
-              }
-            />
-
-            {loadError && <ExpressErrorMessage message={loadError} />}
-
-            <div
-              style={{
-                marginTop: "22px",
-                display: "grid",
-                gridTemplateColumns: isCompact
-                  ? "1fr"
-                  : "minmax(0, 1.1fr) 360px",
-                gap: "24px",
-              }}
-            >
-              <div
-                style={{
-                  borderRadius: "24px",
-                  border: "1px solid rgba(255,157,240,0.42)",
-                  background:
-                    "linear-gradient(180deg, rgba(84, 38, 110, 0.74), rgba(18, 22, 64, 0.9))",
-                  padding: "26px",
-                  minHeight: isMobile ? "auto" : "520px",
-                }}
-              >
-                <p
-                  style={{
-                    margin: 0,
-                    color: "#ff9df0",
-                    fontSize: "13px",
-                    letterSpacing: "0.14em",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {selectedMission.title}
-                </p>
-
-                <h3
-                  style={{
-                    margin: "8px 0 0",
-                    fontSize: isMobile ? "25px" : "30px",
-                    fontWeight: 600,
-                  }}
-                >
-                  Task {taskIndex + 1}
-                </h3>
-
-                <p
-                  style={{
-                    margin: "26px 0 0",
-                    fontSize: isMobile ? "21px" : "28px",
-                    lineHeight: 1.35,
-                    fontWeight: 500,
-                    color: "white",
-                  }}
-                >
-                  {currentTask.prompt_text}
-                </p>
-
-                {currentTask.starter_text && (
                   <div
                     style={{
                       marginTop: "18px",
                       borderRadius: "18px",
-                      border: "1px solid rgba(255,255,255,0.14)",
-                      background: "rgba(255,255,255,0.07)",
+                      border: "1px solid rgba(255,215,106,0.28)",
+                      background: "rgba(255,215,106,0.09)",
                       padding: "16px",
-                      color: "rgba(255,255,255,0.82)",
+                      color: "#ffe6a8",
                       fontSize: "15px",
                       lineHeight: 1.5,
                     }}
                   >
-                    <strong style={{ color: "#ffb8f5" }}>Starter:</strong>{" "}
-                    {currentTask.starter_text}
+                    <strong>Hint:</strong> {currentTask.hint_text}
                   </div>
-                )}
+
+                  <textarea
+                    value={studentResponse}
+                    onChange={(event) => setStudentResponse(event.target.value)}
+                    disabled={hasSubmittedCurrentTask}
+                    placeholder="Write your answer here..."
+                    style={{
+                      marginTop: "22px",
+                      width: "100%",
+                      minHeight: "170px",
+                      resize: "vertical",
+                      borderRadius: "18px",
+                      border: "1px solid rgba(255,157,240,0.42)",
+                      background: "rgba(255,255,255,0.94)",
+                      color: "#111827",
+                      padding: "18px",
+                      fontSize: "16px",
+                      lineHeight: 1.55,
+                      outline: "none",
+                    }}
+                  />
+
+                  {hasSubmittedCurrentTask && (
+                    <div
+                      style={{
+                        marginTop: "22px",
+                        borderRadius: "20px",
+                        border: "1px solid rgba(74, 222, 128, 0.44)",
+                        background: "rgba(34, 197, 94, 0.12)",
+                        padding: "18px",
+                        color: "rgba(255,255,255,0.9)",
+                        fontSize: "15px",
+                        lineHeight: 1.55,
+                      }}
+                    >
+                      <strong
+                        style={{
+                          display: "block",
+                          color: "#86efac",
+                          fontSize: "17px",
+                          marginBottom: "8px",
+                        }}
+                      >
+                        Sample Answer
+                      </strong>
+                      {currentTask.sample_answer}
+
+                      <strong
+                        style={{
+                          display: "block",
+                          color: "#86efac",
+                          fontSize: "17px",
+                          margin: "16px 0 8px",
+                        }}
+                      >
+                        Why it works
+                      </strong>
+                      {currentTask.explanation}
+                    </div>
+                  )}
+                </div>
 
                 <div
                   style={{
-                    marginTop: "18px",
-                    borderRadius: "18px",
-                    border: "1px solid rgba(255,215,106,0.28)",
-                    background: "rgba(255,215,106,0.09)",
-                    padding: "16px",
-                    color: "#ffe6a8",
-                    fontSize: "15px",
-                    lineHeight: 1.5,
+                    borderRadius: "24px",
+                    border: "1px solid rgba(255,157,240,0.42)",
+                    background:
+                      "linear-gradient(180deg, rgba(94, 42, 122, 0.86), rgba(20, 22, 70, 0.98))",
+                    padding: "24px",
                   }}
                 >
-                  <strong>Hint:</strong> {currentTask.hint_text}
-                </div>
+                  <h3
+                    style={{
+                      margin: 0,
+                      fontSize: "22px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Writing Checklist
+                  </h3>
 
-                <textarea
-                  value={studentResponse}
-                  onChange={(event) => setStudentResponse(event.target.value)}
-                  disabled={hasSubmittedCurrentTask}
-                  placeholder="Write your answer here..."
-                  style={{
-                    marginTop: "22px",
-                    width: "100%",
-                    minHeight: "170px",
-                    resize: "vertical",
-                    borderRadius: "18px",
-                    border: "1px solid rgba(255,157,240,0.42)",
-                    background: "rgba(255,255,255,0.94)",
-                    color: "#111827",
-                    padding: "18px",
-                    fontSize: "16px",
-                    lineHeight: 1.55,
-                    outline: "none",
-                  }}
-                />
+                  {selectedMode === "challenge" && (
+                    <div
+                      style={{
+                        marginTop: "14px",
+                        borderRadius: "999px",
+                        border: "1px solid rgba(255,215,106,0.5)",
+                        background: "rgba(255,215,106,0.12)",
+                        padding: "10px 12px",
+                        color: "#ffe6a8",
+                        fontSize: "14px",
+                        fontWeight: 800,
+                        textAlign: "center",
+                      }}
+                    >
+                      {formatTime(timeLeft)}
+                    </div>
+                  )}
 
-                {hasSubmittedCurrentTask && (
+                  <div
+                    style={{
+                      marginTop: "18px",
+                      display: "grid",
+                      gap: "12px",
+                    }}
+                  >
+                    {currentTask.checklist.map((item) => (
+                      <div
+                        key={item}
+                        style={{
+                          borderRadius: "14px",
+                          background: "rgba(255,255,255,0.08)",
+                          border: "1px solid rgba(255,255,255,0.12)",
+                          padding: "13px 14px",
+                          fontSize: "14px",
+                          lineHeight: 1.4,
+                          color: "rgba(255,255,255,0.82)",
+                        }}
+                      >
+                        □ {item}
+                      </div>
+                    ))}
+                  </div>
+
                   <div
                     style={{
                       marginTop: "22px",
-                      borderRadius: "20px",
-                      border: "1px solid rgba(74, 222, 128, 0.44)",
-                      background: "rgba(34, 197, 94, 0.12)",
-                      padding: "18px",
-                      color: "rgba(255,255,255,0.9)",
-                      fontSize: "15px",
-                      lineHeight: 1.55,
+                      display: "grid",
+                      gap: "12px",
                     }}
                   >
-                    <strong
-                      style={{
-                        display: "block",
-                        color: "#86efac",
-                        fontSize: "17px",
-                        marginBottom: "8px",
-                      }}
-                    >
-                      Sample Answer
-                    </strong>
-                    {currentTask.sample_answer}
+                    {!hasSubmittedCurrentTask ? (
+                      <button
+                        type="button"
+                        onClick={submitCurrentTask}
+                        style={expressNextButtonStyle}
+                      >
+                        Submit Writing
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={goToNextTask}
+                        style={expressNextButtonStyle}
+                      >
+                        {taskIndex >= 9 ? "Finish Mission" : "Next Task"}
+                      </button>
+                    )}
 
-                    <strong
+                    <p
                       style={{
-                        display: "block",
-                        color: "#86efac",
-                        fontSize: "17px",
-                        margin: "16px 0 8px",
+                        margin: 0,
+                        color: "rgba(255,255,255,0.62)",
+                        fontSize: "13px",
+                        lineHeight: 1.4,
+                        textAlign: "center",
                       }}
                     >
-                      Why it works
-                    </strong>
-                    {currentTask.explanation}
+                      Completed: {completedCount}/10
+                    </p>
                   </div>
-                )}
+                </div>
               </div>
+            </div>
+          )}
+
+          {screen === "results" && selectedMission && (
+            <div
+              style={{
+                margin: "10px auto",
+                maxWidth: "760px",
+                borderRadius: "26px",
+                border: "1px solid rgba(255,157,240,0.5)",
+                background:
+                  "linear-gradient(180deg, rgba(94, 42, 122, 0.86), rgba(20, 22, 70, 0.98))",
+                padding: isMobile ? "24px" : "36px",
+                textAlign: "center",
+                boxShadow: "0 0 34px rgba(255, 157, 240, 0.26)",
+              }}
+            >
+              <p
+                style={{
+                  margin: 0,
+                  color: "#ff9df0",
+                  fontSize: "13px",
+                  letterSpacing: "0.18em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Express Mission Complete
+              </p>
+
+              <h3
+                style={{
+                  margin: "12px 0 0",
+                  fontSize: isMobile ? "30px" : "38px",
+                  fontWeight: 600,
+                }}
+              >
+                {selectedMission.title}
+              </h3>
 
               <div
                 style={{
-                  borderRadius: "24px",
-                  border: "1px solid rgba(255,157,240,0.42)",
-                  background:
-                    "linear-gradient(180deg, rgba(94, 42, 122, 0.86), rgba(20, 22, 70, 0.98))",
-                  padding: "24px",
+                  marginTop: "28px",
+                  display: "grid",
+                  gridTemplateColumns: isMobile
+                    ? "1fr"
+                    : isCompact
+                    ? "repeat(2, minmax(0, 1fr))"
+                    : "repeat(4, minmax(0, 1fr))",
+                  gap: "12px",
                 }}
               >
-                <h3
-                  style={{
-                    margin: 0,
-                    fontSize: "22px",
-                    fontWeight: 600,
-                  }}
+                <ExpressResultStat
+                  label="Completed"
+                  value={`${completedCount}/10`}
+                />
+                <ExpressResultStat
+                  label="Mode"
+                  value={selectedMode === "challenge" ? "Timed" : "Practice"}
+                />
+                <ExpressResultStat label="Tokens" value={`+${tokensEarned}`} />
+                <ExpressResultStat
+                  label="Balance"
+                  value={String(tokenBalance)}
+                />
+              </div>
+
+              <p
+                style={{
+                  margin: "26px 0 0",
+                  fontSize: "15px",
+                  lineHeight: 1.5,
+                  color: "rgba(255,255,255,0.78)",
+                }}
+              >
+                {rewardSaved && tokensEarned > 0
+                  ? "Your writing responses, Nova story progress, and Dreamscape Token reward have been saved."
+                  : rewardSaved
+                  ? "Practice attempt saved. This mission was already completed before, so no extra story progress or tokens were awarded."
+                  : tokensEarned > 0
+                  ? "Your writing responses were saved. Token reward may not have been saved."
+                  : "Complete all 10 writing tasks to earn the full Express Mission reward."}
+              </p>
+
+              <div
+                style={{
+                  marginTop: "28px",
+                  display: "flex",
+                  flexDirection: isMobile ? "column" : "row",
+                  justifyContent: "center",
+                  gap: "12px",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={resetToMissionList}
+                  style={expressGhostButton}
                 >
-                  Writing Checklist
-                </h3>
+                  Choose Another Mission
+                </button>
 
-                {selectedMode === "challenge" && (
-                  <div
-                    style={{
-                      marginTop: "14px",
-                      borderRadius: "999px",
-                      border: "1px solid rgba(255,215,106,0.5)",
-                      background: "rgba(255,215,106,0.12)",
-                      padding: "10px 12px",
-                      color: "#ffe6a8",
-                      fontSize: "14px",
-                      fontWeight: 800,
-                      textAlign: "center",
-                    }}
-                  >
-                    {formatTime(timeLeft)}
-                  </div>
-                )}
-
-                <div
-                  style={{
-                    marginTop: "18px",
-                    display: "grid",
-                    gap: "12px",
-                  }}
+                <button
+                  type="button"
+                  onClick={onExit}
+                  style={expressPrimaryButton}
                 >
-                  {currentTask.checklist.map((item) => (
-                    <div
-                      key={item}
-                      style={{
-                        borderRadius: "14px",
-                        background: "rgba(255,255,255,0.08)",
-                        border: "1px solid rgba(255,255,255,0.12)",
-                        padding: "13px 14px",
-                        fontSize: "14px",
-                        lineHeight: 1.4,
-                        color: "rgba(255,255,255,0.82)",
-                      }}
-                    >
-                      □ {item}
-                    </div>
-                  ))}
-                </div>
-
-                <div
-                  style={{
-                    marginTop: "22px",
-                    display: "grid",
-                    gap: "12px",
-                  }}
-                >
-                  {!hasSubmittedCurrentTask ? (
-                    <button
-                      type="button"
-                      onClick={submitCurrentTask}
-                      style={expressNextButtonStyle}
-                    >
-                      Submit Writing
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={goToNextTask}
-                      style={expressNextButtonStyle}
-                    >
-                      {taskIndex >= 9 ? "Finish Mission" : "Next Task"}
-                    </button>
-                  )}
-
-                  <p
-                    style={{
-                      margin: 0,
-                      color: "rgba(255,255,255,0.62)",
-                      fontSize: "13px",
-                      lineHeight: 1.4,
-                      textAlign: "center",
-                    }}
-                  >
-                    Completed: {completedCount}/10
-                  </p>
-                </div>
+                  Exit Express Missions
+                </button>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </section>
+      </section>
+    </main>
+  );
+}
 
-        {screen === "results" && selectedMission && (
+function ExpressStoryShowcase({
+  isMobile,
+  completedMissionCount,
+  previewStoryItems,
+}: {
+  isMobile: boolean;
+  completedMissionCount: number;
+  previewStoryItems: ExpressStoryUpgrade[];
+}) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: isMobile
+          ? "repeat(2, minmax(0, 1fr))"
+          : "repeat(3, minmax(0, 1fr))",
+        gap: "14px",
+      }}
+    >
+      {previewStoryItems.slice(0, isMobile ? 4 : 6).map((item) => {
+        const unlocked = completedMissionCount >= item.missionsRequired;
+
+        return <StoryItemCard key={item.name} item={item} unlocked={unlocked} />;
+      })}
+    </div>
+  );
+}
+
+function StoryItemCard({
+  item,
+  unlocked,
+}: {
+  item: ExpressStoryUpgrade;
+  unlocked: boolean;
+}) {
+  return (
+    <div
+      style={{
+        minHeight: "178px",
+        borderRadius: "24px",
+        border: `1px solid ${
+          unlocked ? `${item.accent}aa` : "rgba(255,255,255,0.15)"
+        }`,
+        background: unlocked
+          ? "linear-gradient(145deg, rgba(64,24,78,0.82), rgba(14,8,34,0.88))"
+          : "linear-gradient(145deg, rgba(30,30,42,0.62), rgba(8,12,28,0.86))",
+        padding: "16px",
+        boxShadow: unlocked ? `0 0 24px ${item.accent}28` : "none",
+        opacity: unlocked ? 1 : 0.78,
+      }}
+    >
+      <div
+        style={{
+          height: "72px",
+          borderRadius: "18px",
+          border: `1px solid ${
+            unlocked ? `${item.accent}66` : "rgba(255,255,255,0.12)"
+          }`,
+          backgroundImage: `
+            linear-gradient(145deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)),
+            url("${item.image}")
+          `,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: item.accent,
+          fontSize: "30px",
+          fontWeight: 900,
+        }}
+      >
+        {item.icon}
+      </div>
+
+      <p
+        style={{
+          margin: "12px 0 0",
+          color: unlocked ? item.accent : "rgba(255,255,255,0.45)",
+          fontSize: "10px",
+          letterSpacing: "0.16em",
+          textTransform: "uppercase",
+          fontWeight: 900,
+        }}
+      >
+        {unlocked ? "Unlocked" : `${item.missionsRequired} missions`}
+      </p>
+
+      <h3
+        style={{
+          margin: "7px 0 0",
+          fontSize: "18px",
+          lineHeight: 1.15,
+        }}
+      >
+        {item.name}
+      </h3>
+    </div>
+  );
+}
+
+function ExpressStoryPanel({
+  isMobile,
+  completedMissionCount,
+  currentUpgrade,
+  nextUpgrade,
+  progressPercentage,
+}: {
+  isMobile: boolean;
+  completedMissionCount: number;
+  currentUpgrade: ExpressStoryUpgrade;
+  nextUpgrade: ExpressStoryUpgrade | undefined;
+  progressPercentage: number;
+}) {
+  const missionsToNext = nextUpgrade
+    ? Math.max(0, nextUpgrade.missionsRequired - completedMissionCount)
+    : 0;
+
+  return (
+    <section
+      style={{
+        width: "min(1240px, 100%)",
+        margin: "0 auto",
+        display: "grid",
+        gridTemplateColumns: isMobile ? "1fr" : "1.1fr 0.9fr",
+        gap: "20px",
+      }}
+    >
+      <div
+        style={{
+          borderRadius: "26px",
+          border: "1px solid rgba(255,157,240,0.35)",
+          background:
+            "linear-gradient(145deg, rgba(42,12,52,0.72), rgba(78,26,90,0.58))",
+          padding: isMobile ? "20px" : "24px",
+          boxShadow: "0 0 24px rgba(255,157,240,0.14)",
+        }}
+      >
+        <p
+          style={{
+            margin: 0,
+            color: "#ff9df0",
+            fontSize: "12px",
+            letterSpacing: "0.18em",
+            textTransform: "uppercase",
+            fontWeight: 800,
+          }}
+        >
+          Story System Progress
+        </p>
+
+        <h3
+          style={{
+            margin: "12px 0 0",
+            fontSize: isMobile ? "26px" : "34px",
+            lineHeight: 1.15,
+          }}
+        >
+          {currentUpgrade.name}
+        </h3>
+
+        <p
+          style={{
+            margin: "12px 0 0",
+            color: "rgba(255,255,255,0.78)",
+            fontSize: "15px",
+            lineHeight: 1.6,
+          }}
+        >
+          {currentUpgrade.description}
+        </p>
+
+        <div
+          style={{
+            marginTop: "22px",
+            height: "14px",
+            borderRadius: "999px",
+            border: "1px solid rgba(255,157,240,0.28)",
+            background: "rgba(255,255,255,0.08)",
+            overflow: "hidden",
+          }}
+        >
           <div
             style={{
-              margin: "42px auto 0",
-              maxWidth: "760px",
-              borderRadius: "26px",
-              border: "1px solid rgba(255,157,240,0.5)",
-              background:
-                "linear-gradient(180deg, rgba(94, 42, 122, 0.86), rgba(20, 22, 70, 0.98))",
-              padding: isMobile ? "24px" : "36px",
-              textAlign: "center",
-              boxShadow: "0 0 34px rgba(255, 157, 240, 0.26)",
+              width: `${progressPercentage}%`,
+              height: "100%",
+              borderRadius: "999px",
+              background: "linear-gradient(90deg, #ff9df0, #8b5cf6)",
+              boxShadow: "0 0 18px rgba(255,157,240,0.45)",
             }}
-          >
-            <p
-              style={{
-                margin: 0,
-                color: "#ff9df0",
-                fontSize: "13px",
-                letterSpacing: "0.18em",
-                textTransform: "uppercase",
-              }}
-            >
-              Express Mission Complete
-            </p>
+          />
+        </div>
 
-            <h3
-              style={{
-                margin: "12px 0 0",
-                fontSize: isMobile ? "30px" : "38px",
-                fontWeight: 600,
-              }}
-            >
-              {selectedMission.title}
-            </h3>
-
-            <div
-              style={{
-                marginTop: "28px",
-                display: "grid",
-                gridTemplateColumns: isMobile
-                  ? "1fr"
-                  : isCompact
-                  ? "repeat(2, minmax(0, 1fr))"
-                  : "repeat(4, minmax(0, 1fr))",
-                gap: "12px",
-              }}
-            >
-              <ExpressResultStat
-                label="Completed"
-                value={`${completedCount}/10`}
-              />
-              <ExpressResultStat
-                label="Mode"
-                value={selectedMode === "challenge" ? "Timed" : "Practice"}
-              />
-              <ExpressResultStat label="Tokens" value={`+${tokensEarned}`} />
-              <ExpressResultStat label="Balance" value={String(tokenBalance)} />
-            </div>
-
-            <p
-              style={{
-                margin: "26px 0 0",
-                fontSize: "15px",
-                lineHeight: 1.5,
-                color: "rgba(255,255,255,0.78)",
-              }}
-            >
-              {rewardSaved
-                ? "Your writing responses and Dreamscape Token reward have been saved."
-                : tokensEarned > 0
-                ? "Your writing responses were saved. Token reward may not have been saved."
-                : "Complete all 10 writing tasks to earn the full Express Mission reward."}
-            </p>
-
-            <div
-              style={{
-                marginTop: "28px",
-                display: "flex",
-                flexDirection: isMobile ? "column" : "row",
-                justifyContent: "center",
-                gap: "12px",
-              }}
-            >
-              <button
-                type="button"
-                onClick={resetToMissionList}
-                style={expressGhostButton}
-              >
-                Choose Another Mission
-              </button>
-
-              <button
-                type="button"
-                onClick={onExit}
-                style={expressPrimaryButton}
-              >
-                Exit Express Missions
-              </button>
-            </div>
-          </div>
-        )}
+        <p
+          style={{
+            margin: "12px 0 0",
+            color: "rgba(255,255,255,0.66)",
+            fontSize: "14px",
+          }}
+        >
+          Counted Express Missions:{" "}
+          <strong style={{ color: "#ff9df0" }}>
+            {completedMissionCount}
+          </strong>
+        </p>
       </div>
-    </main>
+
+      <div
+        style={{
+          borderRadius: "26px",
+          border: "1px solid rgba(255,215,106,0.35)",
+          background:
+            "linear-gradient(145deg, rgba(74,47,12,0.58), rgba(18,22,45,0.76))",
+          padding: isMobile ? "20px" : "24px",
+        }}
+      >
+        <p
+          style={{
+            margin: 0,
+            color: "#ffd76a",
+            fontSize: "12px",
+            letterSpacing: "0.18em",
+            textTransform: "uppercase",
+            fontWeight: 800,
+          }}
+        >
+          Next Unlock
+        </p>
+
+        <h3
+          style={{
+            margin: "12px 0 0",
+            fontSize: isMobile ? "24px" : "30px",
+            lineHeight: 1.15,
+          }}
+        >
+          {nextUpgrade ? nextUpgrade.name : "Dreamscribe System Complete"}
+        </h3>
+
+        <p
+          style={{
+            margin: "12px 0 0",
+            color: "rgba(255,255,255,0.78)",
+            fontSize: "15px",
+            lineHeight: 1.6,
+          }}
+        >
+          {nextUpgrade
+            ? nextUpgrade.description
+            : "Nova’s full story system is unlocked. Future Express Missions can still be replayed for writing practice."}
+        </p>
+
+        <div
+          style={{
+            marginTop: "18px",
+            borderRadius: "16px",
+            background: "rgba(255,215,106,0.12)",
+            border: "1px solid rgba(255,215,106,0.28)",
+            padding: "14px 16px",
+            color: "#ffe6a8",
+            fontSize: "14px",
+            lineHeight: 1.45,
+          }}
+        >
+          {nextUpgrade
+            ? `Complete ${missionsToNext} new Express Mission${
+                missionsToNext === 1 ? "" : "s"
+              } to unlock this story item. Replays are saved, but they do not add story progress.`
+            : "All current story system upgrades unlocked."}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -1283,7 +1860,7 @@ function ExpressMessageCard({ message }: { message: string }) {
   return (
     <div
       style={{
-        margin: "52px auto 20px",
+        margin: "20px auto",
         maxWidth: "560px",
         borderRadius: "24px",
         border: "1px solid rgba(255,157,240,0.36)",
@@ -1353,7 +1930,7 @@ function ExpressResultStat({ label, value }: { label: string; value: string }) {
 
 function expressLargeCardStyle(accent: string): CSSProperties {
   return {
-    minHeight: "320px",
+    minHeight: "300px",
     borderRadius: "24px",
     padding: "30px",
     border: `1px solid ${accent}88`,
