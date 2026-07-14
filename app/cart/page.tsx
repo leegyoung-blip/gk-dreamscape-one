@@ -32,18 +32,22 @@ const SHOPIFY_STORE_URL = "https://gurukidspro.com";
 */
 const SHOPIFY_VARIANT_MAP: Record<string, string> = {
   // HAP products
-  "hap-foundation-single": "10307705962779",
-  "hap-foundation-pack-3": "10249079062811",
-  "hap-challenge-single": "10249079128347",
-  "hap-challenge-pack-3": "10249079423259",
+  "hap-foundation-paper-1": "52495062460",
+  "hap-foundation-paper-2": "52495062573",
+  "hap-foundation-paper-3": "52495069013",
+  "hap-foundation-pack-3": "52268165824795",
+  "hap-challenge-paper-1": "5249061412539",
+  "hap-challenge-paper-2": "5249061412537",
+  "hap-challenge-paper-3": "5249061418075",
+  "hap-challenge-pack-3": "52268167430427",
 
   // Blind boxes
-  "nova-blind-box": "10314104078619",
+  "nova-blind-box": "52514636562715",
   "milo-blind-box": "52514690228763",
   "spark-local-legends": "52514690228763",
 
   // Memberships
-  "nova-student-access": "10309092114715",
+  "nova-student-access": "52499180126491",
   "milo-club": "52499348062491",
 };
 
