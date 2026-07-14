@@ -382,7 +382,7 @@ function CoreMissionsActivity({
     const uniqueAttempts = new Map<string, CompletedCoreAttempt>();
 
     for (const attempt of data ?? []) {
-      if (!uniqueAttempts.has(attempt.quiz_id)) {
+      if (!uniqueAttempts.has(attempt.quiz_id) && attempt.tokens_earned > 0) {
         uniqueAttempts.set(attempt.quiz_id, {
           quiz_id: attempt.quiz_id,
           score: attempt.score,
@@ -647,15 +647,13 @@ function CoreMissionsActivity({
       style={{
         minHeight: "100dvh",
         width: "100%",
-        padding: isMobile ? "86px 14px 28px" : "96px 26px 42px",
         backgroundImage: `
           linear-gradient(
             180deg,
-            rgba(2,8,19,0.78),
-            rgba(2,8,19,0.84)
+            rgba(2,8,19,0.58),
+            rgba(2,8,19,0.88)
           ),
-          radial-gradient(circle at 50% 0%, rgba(126,232,255,0.22), transparent 35%),
-          url("/activities/learning-missions/core/core-vehicle-bay.png")
+          url("/skyforge/skyforge-hangar-bg.png")
         `,
         backgroundSize: "cover",
         backgroundPosition: "center",
@@ -664,90 +662,105 @@ function CoreMissionsActivity({
         fontFamily: "Arial, Helvetica, sans-serif",
       }}
     >
-      <div
+      <button
+        type="button"
+        onClick={onExit}
         style={{
-          width: "min(1180px, 94vw)",
-          margin: "0 auto",
-          borderRadius: isMobile ? "22px" : "30px",
-          border: "1px solid rgba(126, 221, 255, 0.62)",
-          background:
-            "linear-gradient(145deg, rgba(15, 48, 88, 0.94), rgba(9, 24, 56, 0.96))",
-          boxShadow:
-            "0 0 45px rgba(85, 215, 255, 0.35), 0 30px 90px rgba(0, 0, 0, 0.55)",
-          padding: isMobile ? "28px 18px 24px" : "34px 46px 38px",
+          position: "fixed",
+          top: isMobile ? "14px" : "22px",
+          left: isMobile ? "14px" : "22px",
+          zIndex: 40,
+          height: isMobile ? "40px" : "46px",
+          padding: isMobile ? "0 14px" : "0 22px",
+          borderRadius: "999px",
+          border: "1px solid rgba(150, 231, 255, 0.7)",
+          background: "rgba(2,8,19,0.72)",
           color: "white",
+          fontSize: isMobile ? "12px" : "14px",
+          letterSpacing: "0.1em",
+          textTransform: "uppercase",
+          cursor: "pointer",
+          backdropFilter: "blur(14px)",
+          boxShadow: "0 0 18px rgba(83, 215, 255, 0.22)",
         }}
       >
-        <button
-          type="button"
-          onClick={onExit}
+        ← Missions
+      </button>
+
+      <section
+        style={{
+          minHeight: "100dvh",
+          width: "100%",
+          padding: isMobile
+            ? "82px 18px 32px"
+            : isCompact
+            ? "92px 32px 42px"
+            : "92px 5vw 54px",
+          display: "grid",
+          gridTemplateRows: "auto auto 1fr",
+          gap: isMobile ? "24px" : "30px",
+        }}
+      >
+        <header
           style={{
-            position: "fixed",
-            top: isMobile ? "14px" : "22px",
-            left: isMobile ? "14px" : "22px",
-            zIndex: 40,
-            height: isMobile ? "40px" : "46px",
-            padding: isMobile ? "0 14px" : "0 22px",
-            borderRadius: "999px",
-            border: "1px solid rgba(150, 231, 255, 0.7)",
-            background: "rgba(2,8,19,0.7)",
-            color: "white",
-            fontSize: isMobile ? "12px" : "14px",
-            letterSpacing: "0.1em",
-            textTransform: "uppercase",
-            cursor: "pointer",
-            backdropFilter: "blur(14px)",
-            boxShadow: "0 0 18px rgba(83, 215, 255, 0.22)",
+            width: "min(1240px, 100%)",
+            margin: "0 auto",
+            display: "grid",
+            gridTemplateColumns: isCompact ? "1fr" : "1.05fr 0.95fr",
+            gap: isMobile ? "22px" : "34px",
+            alignItems: "end",
           }}
         >
-          ← Missions
-        </button>
+          <div>
+            <p
+              style={{
+                margin: 0,
+                color: "#7ee8ff",
+                fontSize: "13px",
+                letterSpacing: "0.22em",
+                textTransform: "uppercase",
+                fontWeight: 800,
+              }}
+            >
+              Core Missions
+            </p>
 
-        <div
-          style={{
-            textAlign: "center",
-            padding: isMobile ? "0 16px" : "0 70px",
-          }}
-        >
-          <p
-            style={{
-              margin: 0,
-              color: "#7ee8ff",
-              fontSize: "13px",
-              letterSpacing: "0.22em",
-              textTransform: "uppercase",
-            }}
-          >
-            Learning Missions
-          </p>
+            <h1
+              style={{
+                margin: "12px 0 0",
+                fontSize: isMobile ? "38px" : isCompact ? "54px" : "72px",
+                lineHeight: 0.95,
+                fontWeight: 600,
+                letterSpacing: "-0.055em",
+                textShadow: "0 0 30px rgba(126, 221, 255, 0.28)",
+              }}
+            >
+              Build Nova’s
+              <br />
+              Skyforge Rover
+            </h1>
 
-          <h2
-            style={{
-              margin: "10px 0 0",
-              fontSize: isMobile ? "34px" : "52px",
-              fontWeight: 500,
-              letterSpacing: "-0.03em",
-              textShadow: "0 0 24px rgba(126, 221, 255, 0.35)",
-            }}
-          >
-            Build Nova’s Skyforge Rover
-          </h2>
+            <p
+              style={{
+                margin: "20px 0 0",
+                maxWidth: "720px",
+                fontSize: isMobile ? "16px" : "20px",
+                color: "#c9f9ff",
+                lineHeight: 1.6,
+                fontWeight: 300,
+              }}
+            >
+              Nova is preparing for a bigger Dreamscape expedition. Complete
+              English and Math missions to power the rover frame, install the
+              energy engine, and unlock stronger vehicle systems.
+            </p>
+          </div>
 
-          <p
-            style={{
-              margin: "12px auto 0",
-              maxWidth: "760px",
-              fontSize: isMobile ? "16px" : "20px",
-              color: "#bdf6ff",
-              lineHeight: 1.55,
-              fontWeight: 300,
-            }}
-          >
-            Nova is preparing for a bigger Dreamscape expedition, but her
-            vehicle is still unfinished. Complete English and Math missions to
-            power each vehicle system and unlock new upgrades.
-          </p>
-        </div>
+          <CoreVehicleShowcase
+            isMobile={isMobile}
+            completedMissionCount={completedMissionCount}
+          />
+        </header>
 
         <CoreUpgradePanel
           isMobile={isMobile}
@@ -757,156 +770,110 @@ function CoreMissionsActivity({
           progressPercentage={progressPercentage}
         />
 
-        {screen === "checking" && (
-          <CoreMessageCard message="Checking your Core Missions access..." />
-        )}
+        <section
+          style={{
+            width: "min(1240px, 100%)",
+            margin: "0 auto",
+            borderRadius: isMobile ? "24px" : "32px",
+            border: "1px solid rgba(126,232,255,0.22)",
+            background:
+              "linear-gradient(145deg, rgba(5,18,42,0.74), rgba(8,26,58,0.82))",
+            boxShadow:
+              "0 0 34px rgba(83,215,255,0.12), 0 28px 80px rgba(0,0,0,0.34)",
+            padding: isMobile ? "20px" : "30px",
+          }}
+        >
+          {screen === "checking" && (
+            <CoreMessageCard message="Checking your Core Missions access..." />
+          )}
 
-        {screen === "locked" && (
-          <div
-            style={{
-              margin: "42px auto 0",
-              maxWidth: "680px",
-              borderRadius: "26px",
-              border: "1px solid rgba(255,215,106,0.5)",
-              background:
-                "linear-gradient(180deg, rgba(90, 62, 16, 0.55), rgba(30, 20, 8, 0.72))",
-              padding: "34px",
-              textAlign: "center",
-            }}
-          >
-            <h3 style={{ margin: 0, fontSize: "30px" }}>
-              Core Missions Locked
-            </h3>
-
-            <p
-              style={{
-                margin: "14px 0 0",
-                fontSize: "16px",
-                lineHeight: 1.6,
-                color: "rgba(255,255,255,0.78)",
-              }}
-            >
-              Core Missions are available for GKP students, paid Student Access
-              members, Pro users and admins.
-            </p>
-
+          {screen === "locked" && (
             <div
               style={{
-                marginTop: "26px",
-                display: "flex",
-                flexDirection: isMobile ? "column" : "row",
-                justifyContent: "center",
-                gap: "12px",
+                margin: "18px auto",
+                maxWidth: "680px",
+                borderRadius: "26px",
+                border: "1px solid rgba(255,215,106,0.5)",
+                background:
+                  "linear-gradient(180deg, rgba(90, 62, 16, 0.55), rgba(30, 20, 8, 0.72))",
+                padding: "34px",
+                textAlign: "center",
               }}
             >
-              <a href="/login" style={corePrimaryLinkStyle}>
-                Log In
-              </a>
+              <h3 style={{ margin: 0, fontSize: "30px" }}>
+                Core Missions Locked
+              </h3>
 
-              <button type="button" onClick={onExit} style={coreGhostButton}>
-                Exit
-              </button>
-            </div>
-          </div>
-        )}
-
-        {screen === "subject" && (
-          <div
-            style={{
-              marginTop: "42px",
-              display: "grid",
-              gridTemplateColumns: isMobile
-                ? "1fr"
-                : "repeat(2, minmax(0, 1fr))",
-              gap: "24px",
-            }}
-          >
-            {coreSubjects.map((subject) => (
-              <button
-                key={subject.id}
-                type="button"
-                onClick={() => chooseSubject(subject.id)}
-                style={coreLargeCardStyle(subject.accent)}
+              <p
+                style={{
+                  margin: "14px 0 0",
+                  fontSize: "16px",
+                  lineHeight: 1.6,
+                  color: "rgba(255,255,255,0.78)",
+                }}
               >
-                <div style={{ fontSize: "46px", color: subject.accent }}>
-                  {subject.icon}
-                </div>
+                Core Missions are available for GKP students, paid Student
+                Access members, Pro users and admins.
+              </p>
 
-                <h3 style={coreCardTitleStyle}>{subject.title}</h3>
+              <div
+                style={{
+                  marginTop: "26px",
+                  display: "flex",
+                  flexDirection: isMobile ? "column" : "row",
+                  justifyContent: "center",
+                  gap: "12px",
+                }}
+              >
+                <a href="/login" style={corePrimaryLinkStyle}>
+                  Log In
+                </a>
 
-                <p style={coreCardTextStyle}>{subject.subtitle}</p>
+                <button type="button" onClick={onExit} style={coreGhostButton}>
+                  Exit
+                </button>
+              </div>
+            </div>
+          )}
 
-                <div style={coreCardButtonLook}>Choose {subject.title} ›</div>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {screen === "level" && selectedSubjectInfo && (
-          <div style={{ marginTop: "38px" }}>
-            <CoreTopRow
-              leftButton="← Back to Subjects"
-              onLeftClick={resetToSubjects}
-              rightText={`Subject: ${selectedSubjectInfo.title}`}
-            />
-
+          {screen === "subject" && (
             <div
               style={{
-                marginTop: "22px",
                 display: "grid",
                 gridTemplateColumns: isMobile
                   ? "1fr"
-                  : isCompact
-                  ? "repeat(2, minmax(0, 1fr))"
-                  : "repeat(3, minmax(0, 1fr))",
-                gap: "20px",
+                  : "repeat(2, minmax(0, 1fr))",
+                gap: "22px",
               }}
             >
-              {coreLevelBands.map((level) => (
+              {coreSubjects.map((subject) => (
                 <button
-                  key={level.id}
+                  key={subject.id}
                   type="button"
-                  onClick={() => chooseLevel(level.id)}
-                  style={coreLargeCardStyle(level.accent)}
+                  onClick={() => chooseSubject(subject.id)}
+                  style={coreLargeCardStyle(subject.accent)}
                 >
-                  <p
-                    style={{
-                      margin: 0,
-                      color: level.accent,
-                      fontSize: "14px",
-                      letterSpacing: "0.16em",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    {level.label}
-                  </p>
+                  <div style={{ fontSize: "46px", color: subject.accent }}>
+                    {subject.icon}
+                  </div>
 
-                  <h3 style={coreCardTitleStyle}>{level.title}</h3>
+                  <h3 style={coreCardTitleStyle}>{subject.title}</h3>
 
-                  <p style={coreCardTextStyle}>{level.subtitle}</p>
+                  <p style={coreCardTextStyle}>{subject.subtitle}</p>
 
-                  <div style={coreCardButtonLook}>View Quizzes ›</div>
+                  <div style={coreCardButtonLook}>Choose {subject.title} ›</div>
                 </button>
               ))}
             </div>
-          </div>
-        )}
+          )}
 
-        {screen === "loading" && (
-          <CoreMessageCard message="Loading Core Mission..." />
-        )}
-
-        {screen === "quiz-list" &&
-          selectedSubjectInfo &&
-          selectedLevelInfo && (
-            <div style={{ marginTop: "38px" }}>
+          {screen === "level" && selectedSubjectInfo && (
+            <div>
               <CoreTopRow
-                leftButton="← Back to Levels"
-                onLeftClick={resetToLevels}
-                rightText={`${selectedSubjectInfo.title} · ${selectedLevelInfo.title} ${selectedLevelInfo.label}`}
+                leftButton="← Back to Subjects"
+                onLeftClick={resetToSubjects}
+                rightText={`Subject: ${selectedSubjectInfo.title}`}
               />
-
-              {loadError && <CoreErrorMessage message={loadError} />}
 
               <div
                 style={{
@@ -916,419 +883,612 @@ function CoreMissionsActivity({
                     ? "1fr"
                     : isCompact
                     ? "repeat(2, minmax(0, 1fr))"
-                    : "repeat(5, minmax(0, 1fr))",
-                  gap: "16px",
+                    : "repeat(3, minmax(0, 1fr))",
+                  gap: "20px",
                 }}
               >
-                {quizzes.map((quiz) => {
-                  const completed = isQuizCompleted(quiz.id);
-                  const completedAttempt = completedAttempts.find(
-                    (attempt) => attempt.quiz_id === quiz.id
-                  );
-
-                  return (
-                    <button
-                      key={quiz.id}
-                      type="button"
-                      onClick={() => startQuiz(quiz)}
+                {coreLevelBands.map((level) => (
+                  <button
+                    key={level.id}
+                    type="button"
+                    onClick={() => chooseLevel(level.id)}
+                    style={coreLargeCardStyle(level.accent)}
+                  >
+                    <p
                       style={{
-                        minHeight: isMobile ? "auto" : "230px",
-                        borderRadius: "22px",
-                        padding: "20px",
-                        border: completed
-                          ? "1px solid rgba(74,222,128,0.5)"
-                          : "1px solid rgba(126,232,255,0.36)",
-                        background: completed
-                          ? "linear-gradient(180deg, rgba(20, 92, 60, 0.72), rgba(8, 35, 36, 0.9))"
-                          : "linear-gradient(180deg, rgba(20, 58, 100, 0.74), rgba(8, 25, 56, 0.9))",
-                        color: "white",
-                        textAlign: "left",
-                        cursor: "pointer",
-                        display: "flex",
-                        flexDirection: "column",
-                        opacity: completed ? 0.9 : 1,
+                        margin: 0,
+                        color: level.accent,
+                        fontSize: "14px",
+                        letterSpacing: "0.16em",
+                        textTransform: "uppercase",
                       }}
                     >
-                      <p
-                        style={{
-                          margin: 0,
-                          color: completed ? "#86efac" : "#7ee8ff",
-                          fontSize: "12px",
-                          letterSpacing: "0.14em",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        {completed ? "Completed Once" : `Quiz ${quiz.quiz_order}`}
-                      </p>
+                      {level.label}
+                    </p>
 
-                      <h3
-                        style={{
-                          margin: "12px 0 0",
-                          fontSize: "21px",
-                          lineHeight: 1.2,
-                        }}
-                      >
-                        {quiz.title}
-                      </h3>
+                    <h3 style={coreCardTitleStyle}>{level.title}</h3>
 
-                      <p
-                        style={{
-                          margin: "10px 0 0",
-                          fontSize: "13px",
-                          lineHeight: 1.45,
-                          color: "rgba(255,255,255,0.72)",
-                        }}
-                      >
-                        {quiz.description}
-                      </p>
+                    <p style={coreCardTextStyle}>{level.subtitle}</p>
 
-                      {completed && completedAttempt && (
-                        <p
-                          style={{
-                            margin: "14px 0 0",
-                            color: "rgba(255,255,255,0.76)",
-                            fontSize: "13px",
-                            lineHeight: 1.45,
-                          }}
-                        >
-                          Counted score: {completedAttempt.score}/100 · Correct:{" "}
-                          {completedAttempt.correct_count}/20 · Tokens: +
-                          {completedAttempt.tokens_earned}
-                        </p>
-                      )}
-
-                      <div
-                        style={{
-                          ...coreSmallButtonLook,
-                          background: completed
-                            ? "linear-gradient(135deg, #86efac, #22c55e)"
-                            : coreSmallButtonLook.background,
-                          color: completed ? "#052e16" : "white",
-                        }}
-                      >
-                        {completed ? "Replay Mission" : "Start 20 Questions ›"}
-                      </div>
-                    </button>
-                  );
-                })}
+                    <div style={coreCardButtonLook}>View Quizzes ›</div>
+                  </button>
+                ))}
               </div>
             </div>
           )}
 
-        {screen === "quiz" && currentQuestion && selectedQuiz && (
-          <div style={{ marginTop: "34px" }}>
-            <CoreTopRow
-              leftButton="← Back to Quiz List"
-              onLeftClick={resetToQuizList}
-              rightText={`Score: ${score} · Question ${questionIndex + 1}/20`}
-            />
+          {screen === "loading" && (
+            <CoreMessageCard message="Loading Core Mission..." />
+          )}
 
-            <div
-              style={{
-                marginTop: "22px",
-                display: "grid",
-                gridTemplateColumns: isCompact
-                  ? "1fr"
-                  : "minmax(0, 1.1fr) 360px",
-                gap: "24px",
-              }}
-            >
-              <div
-                style={{
-                  borderRadius: "24px",
-                  border: "1px solid rgba(150, 220, 255, 0.42)",
-                  background:
-                    "linear-gradient(180deg, rgba(20, 58, 100, 0.74), rgba(8, 25, 56, 0.9))",
-                  padding: "26px",
-                  minHeight: isMobile ? "auto" : "470px",
-                }}
-              >
-                <p
-                  style={{
-                    margin: 0,
-                    color: "#7ee8ff",
-                    fontSize: "13px",
-                    letterSpacing: "0.14em",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {selectedQuiz.title}
-                </p>
+          {screen === "quiz-list" &&
+            selectedSubjectInfo &&
+            selectedLevelInfo && (
+              <div>
+                <CoreTopRow
+                  leftButton="← Back to Levels"
+                  onLeftClick={resetToLevels}
+                  rightText={`${selectedSubjectInfo.title} · ${selectedLevelInfo.title} ${selectedLevelInfo.label}`}
+                />
 
-                <h3
-                  style={{
-                    margin: "8px 0 0",
-                    fontSize: isMobile ? "25px" : "30px",
-                    fontWeight: 600,
-                  }}
-                >
-                  Question {questionIndex + 1}
-                </h3>
-
-                {currentQuestion.question_image && (
-                  <div
-                    style={{
-                      marginTop: "24px",
-                      borderRadius: "20px",
-                      border: "1px solid rgba(126,232,255,0.28)",
-                      background: "rgba(255,255,255,0.95)",
-                      minHeight: "220px",
-                      overflow: "hidden",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <img
-                      src={currentQuestion.question_image}
-                      alt={`Question ${questionIndex + 1}`}
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "contain",
-                      }}
-                      draggable={false}
-                    />
-                  </div>
-                )}
-
-                <p
-                  style={{
-                    margin: "26px 0 0",
-                    fontSize: isMobile ? "21px" : "28px",
-                    lineHeight: 1.35,
-                    fontWeight: 500,
-                    color: "white",
-                  }}
-                >
-                  {currentQuestion.question_text}
-                </p>
-
-                <p
-                  style={{
-                    margin: "14px 0 0",
-                    color: "rgba(255,255,255,0.62)",
-                    fontSize: "14px",
-                  }}
-                >
-                  Skill: {currentQuestion.skill}
-                </p>
-
-                {feedback && (
-                  <div
-                    style={{
-                      marginTop: "24px",
-                      borderRadius: "18px",
-                      border:
-                        selectedAnswer === currentQuestion.correct_answer
-                          ? "1px solid rgba(74, 222, 128, 0.6)"
-                          : "1px solid rgba(248, 113, 113, 0.6)",
-                      background:
-                        selectedAnswer === currentQuestion.correct_answer
-                          ? "rgba(34, 197, 94, 0.14)"
-                          : "rgba(239, 68, 68, 0.14)",
-                      padding: "18px 20px",
-                      fontSize: "16px",
-                      lineHeight: 1.5,
-                      color: "rgba(255,255,255,0.92)",
-                    }}
-                  >
-                    <strong
-                      style={{
-                        display: "block",
-                        marginBottom: "6px",
-                        color:
-                          selectedAnswer === currentQuestion.correct_answer
-                            ? "#86efac"
-                            : "#fca5a5",
-                        fontSize: "18px",
-                      }}
-                    >
-                      {selectedAnswer === currentQuestion.correct_answer
-                        ? "Correct!"
-                        : "Not quite."}
-                    </strong>
-
-                    {feedback}
-                  </div>
-                )}
-              </div>
-
-              <div
-                style={{
-                  borderRadius: "24px",
-                  border: "1px solid rgba(150, 220, 255, 0.42)",
-                  background:
-                    "linear-gradient(180deg, rgba(17, 82, 136, 0.86), rgba(7, 27, 68, 0.98))",
-                  padding: "24px",
-                }}
-              >
-                <h3
-                  style={{
-                    margin: 0,
-                    fontSize: "22px",
-                    fontWeight: 600,
-                  }}
-                >
-                  Choose your answer
-                </h3>
+                {loadError && <CoreErrorMessage message={loadError} />}
 
                 <div
                   style={{
-                    marginTop: "20px",
+                    marginTop: "22px",
                     display: "grid",
-                    gap: "12px",
+                    gridTemplateColumns: isMobile
+                      ? "1fr"
+                      : isCompact
+                      ? "repeat(2, minmax(0, 1fr))"
+                      : "repeat(5, minmax(0, 1fr))",
+                    gap: "16px",
                   }}
                 >
-                  <CoreAnswerButton
-                    label="A"
-                    text={currentQuestion.option_a}
-                    selected={selectedAnswer === "A"}
-                    disabled={answerLocked}
-                    correctAnswer={currentQuestion.correct_answer}
-                    answerLocked={answerLocked}
-                    onClick={() => chooseAnswer("A")}
-                  />
+                  {quizzes.map((quiz) => {
+                    const completed = isQuizCompleted(quiz.id);
+                    const completedAttempt = completedAttempts.find(
+                      (attempt) => attempt.quiz_id === quiz.id
+                    );
 
-                  <CoreAnswerButton
-                    label="B"
-                    text={currentQuestion.option_b}
-                    selected={selectedAnswer === "B"}
-                    disabled={answerLocked}
-                    correctAnswer={currentQuestion.correct_answer}
-                    answerLocked={answerLocked}
-                    onClick={() => chooseAnswer("B")}
-                  />
+                    return (
+                      <button
+                        key={quiz.id}
+                        type="button"
+                        onClick={() => startQuiz(quiz)}
+                        style={{
+                          minHeight: isMobile ? "auto" : "230px",
+                          borderRadius: "22px",
+                          padding: "20px",
+                          border: completed
+                            ? "1px solid rgba(74,222,128,0.5)"
+                            : "1px solid rgba(126,232,255,0.36)",
+                          background: completed
+                            ? "linear-gradient(180deg, rgba(20, 92, 60, 0.72), rgba(8, 35, 36, 0.9))"
+                            : "linear-gradient(180deg, rgba(20, 58, 100, 0.74), rgba(8, 25, 56, 0.9))",
+                          color: "white",
+                          textAlign: "left",
+                          cursor: "pointer",
+                          display: "flex",
+                          flexDirection: "column",
+                          opacity: completed ? 0.9 : 1,
+                        }}
+                      >
+                        <p
+                          style={{
+                            margin: 0,
+                            color: completed ? "#86efac" : "#7ee8ff",
+                            fontSize: "12px",
+                            letterSpacing: "0.14em",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          {completed
+                            ? "Completed Once"
+                            : `Quiz ${quiz.quiz_order}`}
+                        </p>
 
-                  <CoreAnswerButton
-                    label="C"
-                    text={currentQuestion.option_c}
-                    selected={selectedAnswer === "C"}
-                    disabled={answerLocked}
-                    correctAnswer={currentQuestion.correct_answer}
-                    answerLocked={answerLocked}
-                    onClick={() => chooseAnswer("C")}
-                  />
+                        <h3
+                          style={{
+                            margin: "12px 0 0",
+                            fontSize: "21px",
+                            lineHeight: 1.2,
+                          }}
+                        >
+                          {quiz.title}
+                        </h3>
 
-                  <CoreAnswerButton
-                    label="D"
-                    text={currentQuestion.option_d}
-                    selected={selectedAnswer === "D"}
-                    disabled={answerLocked}
-                    correctAnswer={currentQuestion.correct_answer}
-                    answerLocked={answerLocked}
-                    onClick={() => chooseAnswer("D")}
-                  />
+                        <p
+                          style={{
+                            margin: "10px 0 0",
+                            fontSize: "13px",
+                            lineHeight: 1.45,
+                            color: "rgba(255,255,255,0.72)",
+                          }}
+                        >
+                          {quiz.description}
+                        </p>
+
+                        {completed && completedAttempt && (
+                          <p
+                            style={{
+                              margin: "14px 0 0",
+                              color: "rgba(255,255,255,0.76)",
+                              fontSize: "13px",
+                              lineHeight: 1.45,
+                            }}
+                          >
+                            Counted score: {completedAttempt.score}/100 ·
+                            Correct: {completedAttempt.correct_count}/20 ·
+                            Tokens: +{completedAttempt.tokens_earned}
+                          </p>
+                        )}
+
+                        <div
+                          style={{
+                            ...coreSmallButtonLook,
+                            background: completed
+                              ? "linear-gradient(135deg, #86efac, #22c55e)"
+                              : coreSmallButtonLook.background,
+                            color: completed ? "#052e16" : "white",
+                          }}
+                        >
+                          {completed
+                            ? "Replay Mission"
+                            : "Start 20 Questions ›"}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+          {screen === "quiz" && currentQuestion && selectedQuiz && (
+            <div>
+              <CoreTopRow
+                leftButton="← Back to Quiz List"
+                onLeftClick={resetToQuizList}
+                rightText={`Score: ${score} · Question ${questionIndex + 1}/20`}
+              />
+
+              <div
+                style={{
+                  marginTop: "22px",
+                  display: "grid",
+                  gridTemplateColumns: isCompact
+                    ? "1fr"
+                    : "minmax(0, 1.1fr) 360px",
+                  gap: "24px",
+                }}
+              >
+                <div
+                  style={{
+                    borderRadius: "24px",
+                    border: "1px solid rgba(150, 220, 255, 0.42)",
+                    background:
+                      "linear-gradient(180deg, rgba(20, 58, 100, 0.74), rgba(8, 25, 56, 0.9))",
+                    padding: "26px",
+                    minHeight: isMobile ? "auto" : "470px",
+                  }}
+                >
+                  <p
+                    style={{
+                      margin: 0,
+                      color: "#7ee8ff",
+                      fontSize: "13px",
+                      letterSpacing: "0.14em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {selectedQuiz.title}
+                  </p>
+
+                  <h3
+                    style={{
+                      margin: "8px 0 0",
+                      fontSize: isMobile ? "25px" : "30px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Question {questionIndex + 1}
+                  </h3>
+
+                  {currentQuestion.question_image && (
+                    <div
+                      style={{
+                        marginTop: "24px",
+                        borderRadius: "20px",
+                        border: "1px solid rgba(126,232,255,0.28)",
+                        background: "rgba(255,255,255,0.95)",
+                        minHeight: "220px",
+                        overflow: "hidden",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <img
+                        src={currentQuestion.question_image}
+                        alt={`Question ${questionIndex + 1}`}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "contain",
+                        }}
+                        draggable={false}
+                      />
+                    </div>
+                  )}
+
+                  <p
+                    style={{
+                      margin: "26px 0 0",
+                      fontSize: isMobile ? "21px" : "28px",
+                      lineHeight: 1.35,
+                      fontWeight: 500,
+                      color: "white",
+                    }}
+                  >
+                    {currentQuestion.question_text}
+                  </p>
+
+                  <p
+                    style={{
+                      margin: "14px 0 0",
+                      color: "rgba(255,255,255,0.62)",
+                      fontSize: "14px",
+                    }}
+                  >
+                    Skill: {currentQuestion.skill}
+                  </p>
+
+                  {feedback && (
+                    <div
+                      style={{
+                        marginTop: "24px",
+                        borderRadius: "18px",
+                        border:
+                          selectedAnswer === currentQuestion.correct_answer
+                            ? "1px solid rgba(74, 222, 128, 0.6)"
+                            : "1px solid rgba(248, 113, 113, 0.6)",
+                        background:
+                          selectedAnswer === currentQuestion.correct_answer
+                            ? "rgba(34, 197, 94, 0.14)"
+                            : "rgba(239, 68, 68, 0.14)",
+                        padding: "18px 20px",
+                        fontSize: "16px",
+                        lineHeight: 1.5,
+                        color: "rgba(255,255,255,0.92)",
+                      }}
+                    >
+                      <strong
+                        style={{
+                          display: "block",
+                          marginBottom: "6px",
+                          color:
+                            selectedAnswer === currentQuestion.correct_answer
+                              ? "#86efac"
+                              : "#fca5a5",
+                          fontSize: "18px",
+                        }}
+                      >
+                        {selectedAnswer === currentQuestion.correct_answer
+                          ? "Correct!"
+                          : "Not quite."}
+                      </strong>
+
+                      {feedback}
+                    </div>
+                  )}
                 </div>
 
-                {answerLocked && (
-                  <button
-                    type="button"
-                    onClick={nextQuestion}
-                    style={coreNextButtonStyle}
+                <div
+                  style={{
+                    borderRadius: "24px",
+                    border: "1px solid rgba(150, 220, 255, 0.42)",
+                    background:
+                      "linear-gradient(180deg, rgba(17, 82, 136, 0.86), rgba(7, 27, 68, 0.98))",
+                    padding: "24px",
+                  }}
+                >
+                  <h3
+                    style={{
+                      margin: 0,
+                      fontSize: "22px",
+                      fontWeight: 600,
+                    }}
                   >
-                    {questionIndex >= 19 ? "Finish Mission" : "Next Question"}
-                  </button>
-                )}
+                    Choose your answer
+                  </h3>
+
+                  <div
+                    style={{
+                      marginTop: "20px",
+                      display: "grid",
+                      gap: "12px",
+                    }}
+                  >
+                    <CoreAnswerButton
+                      label="A"
+                      text={currentQuestion.option_a}
+                      selected={selectedAnswer === "A"}
+                      disabled={answerLocked}
+                      correctAnswer={currentQuestion.correct_answer}
+                      answerLocked={answerLocked}
+                      onClick={() => chooseAnswer("A")}
+                    />
+
+                    <CoreAnswerButton
+                      label="B"
+                      text={currentQuestion.option_b}
+                      selected={selectedAnswer === "B"}
+                      disabled={answerLocked}
+                      correctAnswer={currentQuestion.correct_answer}
+                      answerLocked={answerLocked}
+                      onClick={() => chooseAnswer("B")}
+                    />
+
+                    <CoreAnswerButton
+                      label="C"
+                      text={currentQuestion.option_c}
+                      selected={selectedAnswer === "C"}
+                      disabled={answerLocked}
+                      correctAnswer={currentQuestion.correct_answer}
+                      answerLocked={answerLocked}
+                      onClick={() => chooseAnswer("C")}
+                    />
+
+                    <CoreAnswerButton
+                      label="D"
+                      text={currentQuestion.option_d}
+                      selected={selectedAnswer === "D"}
+                      disabled={answerLocked}
+                      correctAnswer={currentQuestion.correct_answer}
+                      answerLocked={answerLocked}
+                      onClick={() => chooseAnswer("D")}
+                    />
+                  </div>
+
+                  {answerLocked && (
+                    <button
+                      type="button"
+                      onClick={nextQuestion}
+                      style={coreNextButtonStyle}
+                    >
+                      {questionIndex >= 19 ? "Finish Mission" : "Next Question"}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {screen === "results" && selectedQuiz && (
-          <div
-            style={{
-              margin: "42px auto 0",
-              maxWidth: "760px",
-              borderRadius: "26px",
-              border: "1px solid rgba(126,232,255,0.5)",
-              background:
-                "linear-gradient(180deg, rgba(17, 82, 136, 0.86), rgba(7, 27, 68, 0.98))",
-              padding: isMobile ? "24px" : "36px",
-              textAlign: "center",
-              boxShadow: "0 0 34px rgba(83, 215, 255, 0.28)",
-            }}
-          >
-            <p
-              style={{
-                margin: 0,
-                color: "#7ee8ff",
-                fontSize: "13px",
-                letterSpacing: "0.18em",
-                textTransform: "uppercase",
-              }}
-            >
-              Core Mission Complete
-            </p>
-
-            <h3
-              style={{
-                margin: "12px 0 0",
-                fontSize: isMobile ? "30px" : "38px",
-                fontWeight: 600,
-              }}
-            >
-              {selectedQuiz.title}
-            </h3>
-
+          {screen === "results" && selectedQuiz && (
             <div
               style={{
-                marginTop: "28px",
-                display: "grid",
-                gridTemplateColumns: isMobile
-                  ? "1fr"
-                  : isCompact
-                  ? "repeat(2, minmax(0, 1fr))"
-                  : "repeat(4, minmax(0, 1fr))",
-                gap: "12px",
+                margin: "10px auto",
+                maxWidth: "760px",
+                borderRadius: "26px",
+                border: "1px solid rgba(126,232,255,0.5)",
+                background:
+                  "linear-gradient(180deg, rgba(17, 82, 136, 0.86), rgba(7, 27, 68, 0.98))",
+                padding: isMobile ? "24px" : "36px",
+                textAlign: "center",
+                boxShadow: "0 0 34px rgba(83, 215, 255, 0.28)",
               }}
             >
-              <CoreResultStat label="Correct" value={`${correctCount}/20`} />
-              <CoreResultStat label="Score" value={`${score}/100`} />
-              <CoreResultStat label="Tokens" value={`+${tokensEarned}`} />
-              <CoreResultStat label="Balance" value={String(tokenBalance)} />
-            </div>
-
-            <p
-              style={{
-                margin: "26px 0 0",
-                fontSize: "15px",
-                lineHeight: 1.5,
-                color: "rgba(255,255,255,0.78)",
-              }}
-            >
-              {rewardSaved && tokensEarned > 0
-                ? "Your Core Mission attempt, Skyforge Rover progress, and Dreamscape Token reward have been saved."
-                : rewardSaved
-                ? "Practice attempt saved. This quiz was already completed before, so no extra upgrade progress or tokens were awarded."
-                : "Your mission is complete, but the reward may not have been saved."}
-            </p>
-
-            <div
-              style={{
-                marginTop: "28px",
-                display: "flex",
-                flexDirection: isMobile ? "column" : "row",
-                justifyContent: "center",
-                gap: "12px",
-              }}
-            >
-              <button
-                type="button"
-                onClick={resetToQuizList}
-                style={coreGhostButton}
+              <p
+                style={{
+                  margin: 0,
+                  color: "#7ee8ff",
+                  fontSize: "13px",
+                  letterSpacing: "0.18em",
+                  textTransform: "uppercase",
+                }}
               >
-                Choose Another Quiz
-              </button>
+                Core Mission Complete
+              </p>
 
-              <button type="button" onClick={onExit} style={corePrimaryButton}>
-                Exit Core Missions
-              </button>
+              <h3
+                style={{
+                  margin: "12px 0 0",
+                  fontSize: isMobile ? "30px" : "38px",
+                  fontWeight: 600,
+                }}
+              >
+                {selectedQuiz.title}
+              </h3>
+
+              <div
+                style={{
+                  marginTop: "28px",
+                  display: "grid",
+                  gridTemplateColumns: isMobile
+                    ? "1fr"
+                    : isCompact
+                    ? "repeat(2, minmax(0, 1fr))"
+                    : "repeat(4, minmax(0, 1fr))",
+                  gap: "12px",
+                }}
+              >
+                <CoreResultStat label="Correct" value={`${correctCount}/20`} />
+                <CoreResultStat label="Score" value={`${score}/100`} />
+                <CoreResultStat label="Tokens" value={`+${tokensEarned}`} />
+                <CoreResultStat label="Balance" value={String(tokenBalance)} />
+              </div>
+
+              <p
+                style={{
+                  margin: "26px 0 0",
+                  fontSize: "15px",
+                  lineHeight: 1.5,
+                  color: "rgba(255,255,255,0.78)",
+                }}
+              >
+                {rewardSaved && tokensEarned > 0
+                  ? "Your Core Mission attempt, Skyforge Rover progress, and Dreamscape Token reward have been saved."
+                  : rewardSaved
+                  ? "Practice attempt saved. This quiz was already completed before, so no extra upgrade progress or tokens were awarded."
+                  : "Your mission is complete, but the reward may not have been saved."}
+              </p>
+
+              <div
+                style={{
+                  marginTop: "28px",
+                  display: "flex",
+                  flexDirection: isMobile ? "column" : "row",
+                  justifyContent: "center",
+                  gap: "12px",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={resetToQuizList}
+                  style={coreGhostButton}
+                >
+                  Choose Another Quiz
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onExit}
+                  style={corePrimaryButton}
+                >
+                  Exit Core Missions
+                </button>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </section>
+      </section>
     </main>
+  );
+}
+
+function CoreVehicleShowcase({
+  isMobile,
+  completedMissionCount,
+}: {
+  isMobile: boolean;
+  completedMissionCount: number;
+}) {
+  const engineUnlocked = completedMissionCount >= 1;
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
+        gap: "16px",
+      }}
+    >
+      <UpgradeItemCard
+        title="Basic Rover Frame"
+        label="Unlocked"
+        description="The starting frame of Nova’s Skyforge Rover."
+        icon="▰"
+        accent="#7ee8ff"
+        unlocked
+      />
+
+      <UpgradeItemCard
+        title="Energy Engine"
+        label={engineUnlocked ? "Unlocked" : "Next Unlock"}
+        description={
+          engineUnlocked
+            ? "The rover can now power up and move through Dreamscape."
+            : "Complete 1 new Core Mission to install the engine."
+        }
+        icon="✦"
+        accent="#ffd76a"
+        unlocked={engineUnlocked}
+      />
+    </div>
+  );
+}
+
+function UpgradeItemCard({
+  title,
+  label,
+  description,
+  icon,
+  accent,
+  unlocked,
+}: {
+  title: string;
+  label: string;
+  description: string;
+  icon: string;
+  accent: string;
+  unlocked: boolean;
+}) {
+  return (
+    <div
+      style={{
+        minHeight: "190px",
+        borderRadius: "26px",
+        border: `1px solid ${unlocked ? accent : "rgba(255,255,255,0.16)"}`,
+        background: unlocked
+          ? "linear-gradient(145deg, rgba(8,34,64,0.82), rgba(4,14,34,0.88))"
+          : "linear-gradient(145deg, rgba(30,30,42,0.62), rgba(8,12,28,0.86))",
+        padding: "22px",
+        boxShadow: unlocked ? `0 0 24px ${accent}28` : "none",
+        opacity: unlocked ? 1 : 0.82,
+      }}
+    >
+      <div
+        style={{
+          width: "54px",
+          height: "54px",
+          borderRadius: "18px",
+          border: `1px solid ${accent}66`,
+          background: unlocked ? `${accent}1f` : "rgba(255,255,255,0.06)",
+          color: accent,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: "26px",
+          fontWeight: 900,
+        }}
+      >
+        {icon}
+      </div>
+
+      <p
+        style={{
+          margin: "18px 0 0",
+          color: accent,
+          fontSize: "11px",
+          letterSpacing: "0.18em",
+          textTransform: "uppercase",
+          fontWeight: 900,
+        }}
+      >
+        {label}
+      </p>
+
+      <h3
+        style={{
+          margin: "8px 0 0",
+          fontSize: "24px",
+          lineHeight: 1.12,
+        }}
+      >
+        {title}
+      </h3>
+
+      <p
+        style={{
+          margin: "10px 0 0",
+          color: "rgba(255,255,255,0.72)",
+          fontSize: "14px",
+          lineHeight: 1.45,
+        }}
+      >
+        {description}
+      </p>
+    </div>
   );
 }
 
@@ -1362,7 +1522,8 @@ function CoreUpgradePanel({
   return (
     <section
       style={{
-        marginTop: "32px",
+        width: "min(1240px, 100%)",
+        margin: "0 auto",
         display: "grid",
         gridTemplateColumns: isMobile ? "1fr" : "1.1fr 0.9fr",
         gap: "20px",
@@ -1370,12 +1531,12 @@ function CoreUpgradePanel({
     >
       <div
         style={{
-          borderRadius: "24px",
+          borderRadius: "26px",
           border: "1px solid rgba(126,232,255,0.35)",
           background:
-            "linear-gradient(145deg, rgba(5,22,48,0.76), rgba(10,48,82,0.62))",
-          padding: "24px",
-          boxShadow: "0 0 24px rgba(83,215,255,0.16)",
+            "linear-gradient(145deg, rgba(5,22,48,0.72), rgba(10,48,82,0.58))",
+          padding: isMobile ? "20px" : "24px",
+          boxShadow: "0 0 24px rgba(83,215,255,0.14)",
         }}
       >
         <p
@@ -1385,7 +1546,7 @@ function CoreUpgradePanel({
             fontSize: "12px",
             letterSpacing: "0.18em",
             textTransform: "uppercase",
-            fontWeight: 700,
+            fontWeight: 800,
           }}
         >
           Vehicle Upgrade Progress
@@ -1447,11 +1608,11 @@ function CoreUpgradePanel({
 
       <div
         style={{
-          borderRadius: "24px",
+          borderRadius: "26px",
           border: "1px solid rgba(255,215,106,0.35)",
           background:
-            "linear-gradient(145deg, rgba(74,47,12,0.62), rgba(18,22,45,0.82))",
-          padding: "24px",
+            "linear-gradient(145deg, rgba(74,47,12,0.58), rgba(18,22,45,0.76))",
+          padding: isMobile ? "20px" : "24px",
         }}
       >
         <p
@@ -1461,7 +1622,7 @@ function CoreUpgradePanel({
             fontSize: "12px",
             letterSpacing: "0.18em",
             textTransform: "uppercase",
-            fontWeight: 700,
+            fontWeight: 800,
           }}
         >
           Next Unlock
@@ -1646,7 +1807,7 @@ function CoreMessageCard({ message }: { message: string }) {
   return (
     <div
       style={{
-        margin: "52px auto 20px",
+        margin: "20px auto",
         maxWidth: "560px",
         borderRadius: "24px",
         border: "1px solid rgba(126,232,255,0.36)",
@@ -1716,7 +1877,7 @@ function CoreResultStat({ label, value }: { label: string; value: string }) {
 
 function coreLargeCardStyle(accent: string): CSSProperties {
   return {
-    minHeight: "330px",
+    minHeight: "300px",
     borderRadius: "24px",
     padding: "30px",
     border: `1px solid ${accent}88`,
