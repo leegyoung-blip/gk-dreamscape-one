@@ -764,7 +764,7 @@ function ExpressMissionsActivity({
             rgba(2,8,19,0.58),
             rgba(2,8,19,0.9)
           ),
-          url("/learning-missions/express/express-story-bg.png")
+          url("/activities/learning-missions/express/express-story-bg.png")
         `,
         backgroundSize: "cover",
         backgroundPosition: "center",

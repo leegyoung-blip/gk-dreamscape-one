@@ -783,7 +783,7 @@ function ThinkMissionsActivity({
             rgba(2,8,19,0.58),
             rgba(2,8,19,0.9)
           ),
-          url("/learning-missions/think/think-inventory-bg.png")
+          url("/activities/learning-missions/think/think-inventory-bg.png")
         `,
         backgroundSize: "cover",
         backgroundPosition: "center",
