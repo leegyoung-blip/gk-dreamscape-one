@@ -1,53 +1,720 @@
 "use client";
 
 import Link from "next/link";
-import type { CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties, FormEvent } from "react";
+import { supabase } from "@/lib/supabase";
+
+type LobbyStatus = "lobby" | "submitting" | "voting" | "results" | "finished";
+
+type Lobby = {
+  id: string;
+  room_code: string;
+  host_player_id: string | null;
+  status: LobbyStatus;
+  current_round: number;
+  max_rounds: number;
+  current_question_id: string | null;
+  submit_ends_at: string | null;
+  vote_ends_at: string | null;
+  scoring_applied: boolean;
+};
+
+type Player = {
+  id: string;
+  lobby_id: string;
+  nickname: string;
+  score: number;
+  is_host: boolean;
+};
+
+type BluffQuestion = {
+  id: string;
+  question: string;
+  correct_answer?: string | null;
+  explanation?: string | null;
+};
+
+type BluffAnswer = {
+  id: string;
+  lobby_id: string;
+  question_id: string;
+  round_number: number;
+  player_id: string;
+  answer_text: string;
+};
+
+type BluffVote = {
+  id: string;
+  lobby_id: string;
+  question_id: string;
+  round_number: number;
+  voter_player_id: string;
+  selected_kind: "fake" | "correct";
+  selected_answer_id: string | null;
+};
+
+type VoteOption = {
+  id: string;
+  kind: "fake" | "correct";
+  text: string;
+  answerId?: string;
+  ownerPlayerId?: string;
+};
+
+function generateRoomCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return Array.from({ length: 6 })
+    .map(() => chars[Math.floor(Math.random() * chars.length)])
+    .join("");
+}
+
+function getSecondsLeft(endTime: string | null | undefined) {
+  if (!endTime) return 0;
+  return Math.max(0, Math.ceil((new Date(endTime).getTime() - Date.now()) / 1000));
+}
+
+function stableHash(value: string) {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(index);
+    hash |= 0;
+  }
+
+  return Math.abs(hash);
+}
+
+function getPlayerName(players: Player[], playerId: string | undefined) {
+  if (!playerId) return "Unknown";
+  return players.find((player) => player.id === playerId)?.nickname || "Unknown";
+}
 
 export default function WhosBluffingPage() {
-  const navButtonStyle: CSSProperties = {
-    height: "42px",
-    padding: "0 22px",
-    borderRadius: "999px",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "12px",
-    color: "rgba(255,255,255,0.9)",
-    textDecoration: "none",
-    textTransform: "uppercase",
-    letterSpacing: "0.14em",
-    fontSize: "13px",
+  const [nickname, setNickname] = useState("");
+  const [joinCode, setJoinCode] = useState("");
+  const [lobbyId, setLobbyId] = useState<string | null>(null);
+  const [playerId, setPlayerId] = useState<string | null>(null);
+
+  const [lobby, setLobby] = useState<Lobby | null>(null);
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [currentQuestion, setCurrentQuestion] = useState<BluffQuestion | null>(null);
+  const [answers, setAnswers] = useState<BluffAnswer[]>([]);
+  const [votes, setVotes] = useState<BluffVote[]>([]);
+
+  const [fakeAnswer, setFakeAnswer] = useState("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [nowTick, setNowTick] = useState(Date.now());
+
+  const transitionLockRef = useRef(false);
+
+  const isHost = Boolean(lobby && playerId && lobby.host_player_id === playerId);
+  const myAnswer = answers.find((answer) => answer.player_id === playerId);
+  const myVote = votes.find((vote) => vote.voter_player_id === playerId);
+  const submitSecondsLeft = getSecondsLeft(lobby?.submit_ends_at);
+  const voteSecondsLeft = getSecondsLeft(lobby?.vote_ends_at);
+
+  const sortedPlayers = useMemo(
+    () => [...players].sort((a, b) => b.score - a.score || a.nickname.localeCompare(b.nickname)),
+    [players]
+  );
+
+  const voteOptions = useMemo<VoteOption[]>(() => {
+    const seed = `${lobby?.id || "seed"}-${lobby?.current_round || 0}`;
+
+    const options: VoteOption[] = answers.map((answer) => ({
+      id: `fake-${answer.id}`,
+      kind: "fake",
+      text: answer.answer_text,
+      answerId: answer.id,
+      ownerPlayerId: answer.player_id,
+    }));
+
+    if (currentQuestion?.correct_answer) {
+      options.push({
+        id: "correct-answer",
+        kind: "correct",
+        text: currentQuestion.correct_answer,
+      });
+    }
+
+    return options.sort(
+      (a, b) => stableHash(`${seed}-${a.id}`) - stableHash(`${seed}-${b.id}`)
+    );
+  }, [answers, currentQuestion?.correct_answer, lobby?.current_round, lobby?.id]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setNowTick(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (!lobbyId) return;
+
+    void loadGameState(lobbyId);
+
+    const channel = supabase
+      .channel(`milo-bluff-${lobbyId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "milo_bluff_lobbies",
+          filter: `id=eq.${lobbyId}`,
+        },
+        () => void loadGameState(lobbyId)
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "milo_bluff_players",
+          filter: `lobby_id=eq.${lobbyId}`,
+        },
+        () => void loadGameState(lobbyId)
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "milo_bluff_answers",
+          filter: `lobby_id=eq.${lobbyId}`,
+        },
+        () => void loadGameState(lobbyId)
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "milo_bluff_votes",
+          filter: `lobby_id=eq.${lobbyId}`,
+        },
+        () => void loadGameState(lobbyId)
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [lobbyId]);
+
+  useEffect(() => {
+    if (!lobby) return;
+
+    if (lobby.status === "submitting" && submitSecondsLeft <= 0) {
+      void moveToVoting();
+    }
+
+    if (lobby.status === "voting" && voteSecondsLeft <= 0) {
+      void finishVotingAndScore();
+    }
+  }, [lobby?.status, submitSecondsLeft, voteSecondsLeft, nowTick]);
+
+  async function loadGameState(nextLobbyId: string) {
+    const { data: lobbyData, error: lobbyError } = await supabase
+      .from("milo_bluff_lobbies")
+      .select("*")
+      .eq("id", nextLobbyId)
+      .single();
+
+    if (lobbyError || !lobbyData) {
+      setMessage("Could not load lobby.");
+      return;
+    }
+
+    const nextLobby = lobbyData as Lobby;
+    setLobby(nextLobby);
+
+    const { data: playerData } = await supabase
+      .from("milo_bluff_players")
+      .select("*")
+      .eq("lobby_id", nextLobbyId)
+      .order("joined_at", { ascending: true });
+
+    setPlayers((playerData || []) as Player[]);
+
+    if (nextLobby.current_round > 0) {
+      const { data: answerData } = await supabase
+        .from("milo_bluff_answers")
+        .select("*")
+        .eq("lobby_id", nextLobbyId)
+        .eq("round_number", nextLobby.current_round)
+        .order("created_at", { ascending: true });
+
+      setAnswers((answerData || []) as BluffAnswer[]);
+
+      const { data: voteData } = await supabase
+        .from("milo_bluff_votes")
+        .select("*")
+        .eq("lobby_id", nextLobbyId)
+        .eq("round_number", nextLobby.current_round);
+
+      setVotes((voteData || []) as BluffVote[]);
+    } else {
+      setAnswers([]);
+      setVotes([]);
+    }
+
+    if (nextLobby.current_question_id) {
+      const questionSelect =
+        nextLobby.status === "submitting"
+          ? "id,question"
+          : "id,question,correct_answer,explanation";
+
+      const { data: questionData } = await supabase
+        .from("milo_bluff_questions")
+        .select(questionSelect)
+        .eq("id", nextLobby.current_question_id)
+        .single();
+
+      setCurrentQuestion((questionData || null) as BluffQuestion | null);
+    } else {
+      setCurrentQuestion(null);
+    }
+  }
+
+  async function createLobby(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const cleanName = nickname.trim().slice(0, 18);
+
+    if (!cleanName) {
+      setMessage("Enter a player name first.");
+      return;
+    }
+
+    setBusy(true);
+    setMessage("");
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const roomCode = generateRoomCode();
+
+      const { data: lobbyData, error: lobbyError } = await supabase
+        .from("milo_bluff_lobbies")
+        .insert({
+          room_code: roomCode,
+          status: "lobby",
+          current_round: 0,
+          max_rounds: 5,
+        })
+        .select("*")
+        .single();
+
+      if (lobbyError || !lobbyData) {
+        continue;
+      }
+
+      const { data: playerData, error: playerError } = await supabase
+        .from("milo_bluff_players")
+        .insert({
+          lobby_id: lobbyData.id,
+          nickname: cleanName,
+          is_host: true,
+          score: 0,
+        })
+        .select("*")
+        .single();
+
+      if (playerError || !playerData) {
+        setMessage("Lobby was created, but host player could not be added.");
+        setBusy(false);
+        return;
+      }
+
+      await supabase
+        .from("milo_bluff_lobbies")
+        .update({
+          host_player_id: playerData.id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", lobbyData.id);
+
+      setLobbyId(lobbyData.id);
+      setPlayerId(playerData.id);
+      setBusy(false);
+      return;
+    }
+
+    setMessage("Could not create lobby. Try again.");
+    setBusy(false);
+  }
+
+  async function joinLobby(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const cleanName = nickname.trim().slice(0, 18);
+    const cleanCode = joinCode.trim().toUpperCase();
+
+    if (!cleanName) {
+      setMessage("Enter a player name first.");
+      return;
+    }
+
+    if (!cleanCode) {
+      setMessage("Enter a lobby code.");
+      return;
+    }
+
+    setBusy(true);
+    setMessage("");
+
+    const { data: lobbyData, error: lobbyError } = await supabase
+      .from("milo_bluff_lobbies")
+      .select("*")
+      .eq("room_code", cleanCode)
+      .single();
+
+    if (lobbyError || !lobbyData) {
+      setMessage("Lobby not found.");
+      setBusy(false);
+      return;
+    }
+
+    if (lobbyData.status !== "lobby") {
+      setMessage("This game has already started. Create a new lobby instead.");
+      setBusy(false);
+      return;
+    }
+
+    const { count } = await supabase
+      .from("milo_bluff_players")
+      .select("id", { count: "exact", head: true })
+      .eq("lobby_id", lobbyData.id);
+
+    if ((count || 0) >= 10) {
+      setMessage("This lobby is full.");
+      setBusy(false);
+      return;
+    }
+
+    const { data: playerData, error: playerError } = await supabase
+      .from("milo_bluff_players")
+      .insert({
+        lobby_id: lobbyData.id,
+        nickname: cleanName,
+        is_host: false,
+        score: 0,
+      })
+      .select("*")
+      .single();
+
+    if (playerError || !playerData) {
+      setMessage("Could not join lobby.");
+      setBusy(false);
+      return;
+    }
+
+    setLobbyId(lobbyData.id);
+    setPlayerId(playerData.id);
+    setBusy(false);
+  }
+
+  async function startNextRound() {
+    if (!lobby || !isHost) return;
+
+    if (players.length < 2) {
+      setMessage("You need at least 2 players to start.");
+      return;
+    }
+
+    setBusy(true);
+    setMessage("");
+
+    const nextRound = lobby.current_round + 1;
+
+    if (nextRound > lobby.max_rounds) {
+      await supabase
+        .from("milo_bluff_lobbies")
+        .update({
+          status: "finished",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", lobby.id);
+
+      setBusy(false);
+      return;
+    }
+
+    const { data: usedRounds } = await supabase
+      .from("milo_bluff_rounds")
+      .select("question_id")
+      .eq("lobby_id", lobby.id);
+
+    const usedQuestionIds = new Set((usedRounds || []).map((round) => round.question_id));
+
+    const { data: questions, error: questionError } = await supabase
+      .from("milo_bluff_questions")
+      .select("id,question")
+      .eq("is_active", true);
+
+    if (questionError || !questions || questions.length === 0) {
+      setMessage("No bluff questions found in Supabase.");
+      setBusy(false);
+      return;
+    }
+
+    const unusedQuestions = questions.filter((question) => !usedQuestionIds.has(question.id));
+    const questionPool = unusedQuestions.length > 0 ? unusedQuestions : questions;
+    const selectedQuestion = questionPool[Math.floor(Math.random() * questionPool.length)];
+
+    const { error: roundError } = await supabase.from("milo_bluff_rounds").insert({
+      lobby_id: lobby.id,
+      round_number: nextRound,
+      question_id: selectedQuestion.id,
+    });
+
+    if (roundError) {
+      setMessage(`Could not start round: ${roundError.message}`);
+      setBusy(false);
+      return;
+    }
+
+    const submitEndsAt = new Date(Date.now() + 20_000).toISOString();
+
+    await supabase
+      .from("milo_bluff_lobbies")
+      .update({
+        status: "submitting",
+        current_round: nextRound,
+        current_question_id: selectedQuestion.id,
+        submit_ends_at: submitEndsAt,
+        vote_ends_at: null,
+        scoring_applied: false,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", lobby.id);
+
+    setFakeAnswer("");
+    setBusy(false);
+  }
+
+  async function submitFakeAnswer(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!lobby || !currentQuestion || !playerId) return;
+
+    const cleanAnswer = fakeAnswer.trim().slice(0, 80);
+
+    if (!cleanAnswer) {
+      setMessage("Enter a fake answer first.");
+      return;
+    }
+
+    const { error } = await supabase.from("milo_bluff_answers").upsert(
+      {
+        lobby_id: lobby.id,
+        question_id: currentQuestion.id,
+        round_number: lobby.current_round,
+        player_id: playerId,
+        answer_text: cleanAnswer,
+      },
+      {
+        onConflict: "lobby_id,round_number,player_id",
+      }
+    );
+
+    if (error) {
+      setMessage(`Could not submit answer: ${error.message}`);
+      return;
+    }
+
+    setFakeAnswer("");
+    setMessage("Answer submitted. Wait for voting.");
+  }
+
+  async function moveToVoting() {
+    if (!lobby || transitionLockRef.current) return;
+    if (lobby.status !== "submitting") return;
+
+    transitionLockRef.current = true;
+
+    await supabase
+      .from("milo_bluff_lobbies")
+      .update({
+        status: "voting",
+        vote_ends_at: new Date(Date.now() + 20_000).toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", lobby.id)
+      .eq("status", "submitting");
+
+    window.setTimeout(() => {
+      transitionLockRef.current = false;
+    }, 900);
+  }
+
+  async function submitVote(option: VoteOption) {
+    if (!lobby || !currentQuestion || !playerId) return;
+
+    if (option.kind === "fake" && option.ownerPlayerId === playerId) {
+      setMessage("You cannot vote for your own fake answer.");
+      return;
+    }
+
+    const { error } = await supabase.from("milo_bluff_votes").upsert(
+      {
+        lobby_id: lobby.id,
+        question_id: currentQuestion.id,
+        round_number: lobby.current_round,
+        voter_player_id: playerId,
+        selected_kind: option.kind,
+        selected_answer_id: option.kind === "fake" ? option.answerId : null,
+      },
+      {
+        onConflict: "lobby_id,round_number,voter_player_id",
+      }
+    );
+
+    if (error) {
+      setMessage(`Could not submit vote: ${error.message}`);
+      return;
+    }
+
+    setMessage("Vote locked in.");
+  }
+
+  async function finishVotingAndScore() {
+    if (!lobby || !currentQuestion) return;
+    if (lobby.status !== "voting") return;
+
+    const { data: lockedLobby } = await supabase
+      .from("milo_bluff_lobbies")
+      .update({
+        status: "results",
+        scoring_applied: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", lobby.id)
+      .eq("status", "voting")
+      .eq("scoring_applied", false)
+      .select("*")
+      .maybeSingle();
+
+    if (!lockedLobby) return;
+
+    const { data: latestAnswers } = await supabase
+      .from("milo_bluff_answers")
+      .select("*")
+      .eq("lobby_id", lobby.id)
+      .eq("round_number", lobby.current_round);
+
+    const { data: latestVotes } = await supabase
+      .from("milo_bluff_votes")
+      .select("*")
+      .eq("lobby_id", lobby.id)
+      .eq("round_number", lobby.current_round);
+
+    const answerOwner: Record<string, string> = {};
+    (latestAnswers || []).forEach((answer) => {
+      answerOwner[answer.id] = answer.player_id;
+    });
+
+    const scoreDelta: Record<string, number> = {};
+
+    (latestVotes || []).forEach((vote) => {
+      if (vote.selected_kind === "correct") {
+        scoreDelta[vote.voter_player_id] = (scoreDelta[vote.voter_player_id] || 0) + 200;
+      }
+
+      if (vote.selected_kind === "fake" && vote.selected_answer_id) {
+        const ownerId = answerOwner[vote.selected_answer_id];
+
+        if (ownerId) {
+          scoreDelta[ownerId] = (scoreDelta[ownerId] || 0) + 100;
+        }
+      }
+    });
+
+    await Promise.all(
+      Object.entries(scoreDelta).map(([nextPlayerId, points]) =>
+        supabase.rpc("add_milo_bluff_score", {
+          p_player_id: nextPlayerId,
+          p_points: points,
+        })
+      )
+    );
+
+    await loadGameState(lobby.id);
+  }
+
+  async function resetToHome() {
+    setLobbyId(null);
+    setPlayerId(null);
+    setLobby(null);
+    setPlayers([]);
+    setCurrentQuestion(null);
+    setAnswers([]);
+    setVotes([]);
+    setFakeAnswer("");
+    setMessage("");
+  }
+
+  const pageStyle: CSSProperties = {
+    minHeight: "100dvh",
+    background:
+      "radial-gradient(circle at 50% 12%, rgba(255,190,120,0.2), transparent 34%), radial-gradient(circle at 16% 82%, rgba(83,215,255,0.14), transparent 32%), #020817",
+    color: "white",
+    fontFamily:
+      'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  };
+
+  const panelStyle: CSSProperties = {
+    width: "min(1080px, calc(100% - 32px))",
+    margin: "0 auto",
+    borderRadius: "30px",
+    border: "1px solid rgba(255,255,255,0.16)",
+    background: "rgba(255,255,255,0.08)",
+    backdropFilter: "blur(18px)",
+    WebkitBackdropFilter: "blur(18px)",
+    boxShadow: "0 34px 100px rgba(0,0,0,0.45)",
+    overflow: "hidden",
+  };
+
+  const inputStyle: CSSProperties = {
+    width: "100%",
+    height: "52px",
+    borderRadius: "14px",
+    border: "1px solid rgba(255,255,255,0.18)",
+    background: "rgba(255,255,255,0.9)",
+    color: "#07111f",
+    padding: "0 16px",
+    fontSize: "16px",
     fontWeight: 800,
-    border: "1px solid rgba(255, 190, 120, 0.28)",
-    background: "rgba(5,13,28,0.62)",
-    backdropFilter: "blur(16px)",
-    WebkitBackdropFilter: "blur(16px)",
-    boxShadow: "0 14px 34px rgba(0,0,0,0.28)",
+    outline: "none",
+    boxSizing: "border-box",
+  };
+
+  const primaryButtonStyle: CSSProperties = {
+    height: "52px",
+    borderRadius: "14px",
+    border: "none",
+    background: "linear-gradient(90deg, #c47a25, #e5b75e)",
+    color: "white",
+    fontWeight: 900,
+    cursor: busy ? "wait" : "pointer",
+    boxShadow: "0 14px 32px rgba(196,122,37,0.24)",
+  };
+
+  const darkButtonStyle: CSSProperties = {
+    height: "52px",
+    borderRadius: "14px",
+    border: "1px solid rgba(255,255,255,0.16)",
+    background: "rgba(5,13,28,0.86)",
+    color: "white",
+    fontWeight: 900,
+    cursor: "pointer",
   };
 
   return (
-    <main
-      style={{
-        position: "relative",
-        minHeight: "100dvh",
-        overflow: "hidden",
-        background:
-          "radial-gradient(circle at 50% 20%, rgba(255,176,83,0.22), transparent 32%), radial-gradient(circle at 20% 80%, rgba(83,215,255,0.14), transparent 30%), #020817",
-        color: "white",
-        fontFamily:
-          'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-      }}
-    >
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          background:
-            "linear-gradient(to bottom, rgba(2,8,23,0.1), rgba(2,8,23,0.72))",
-          pointerEvents: "none",
-        }}
-      />
-
+    <main style={pageStyle}>
       <header
         style={{
           position: "relative",
@@ -56,46 +723,46 @@ export default function WhosBluffingPage() {
           justifyContent: "space-between",
           alignItems: "center",
           gap: "12px",
-          padding: "22px",
+          padding: "20px",
         }}
       >
-        <Link href="/milo-world" style={navButtonStyle}>
+        <Link
+          href="/milo-world"
+          style={{
+            ...darkButtonStyle,
+            height: "42px",
+            padding: "0 18px",
+            textDecoration: "none",
+            display: "inline-flex",
+            alignItems: "center",
+          }}
+        >
           ← Back to Milo’s World
         </Link>
 
-        <Link href="/cart" style={navButtonStyle} aria-label="Open cart">
-          🛒
-        </Link>
+        {lobby && (
+          <button
+            type="button"
+            onClick={resetToHome}
+            style={{
+              ...darkButtonStyle,
+              height: "42px",
+              padding: "0 18px",
+            }}
+          >
+            Leave
+          </button>
+        )}
       </header>
 
-      <section
-        style={{
-          position: "relative",
-          zIndex: 2,
-          minHeight: "calc(100dvh - 86px)",
-          display: "grid",
-          placeItems: "center",
-          padding: "28px",
-        }}
-      >
-        <div
-          style={{
-            width: "min(980px, 100%)",
-            borderRadius: "34px",
-            border: "1px solid rgba(255,255,255,0.18)",
-            background: "rgba(255,255,255,0.08)",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
-            boxShadow: "0 36px 110px rgba(0,0,0,0.46)",
-            overflow: "hidden",
-          }}
-        >
+      <section style={{ padding: "22px 0 56px" }}>
+        <div style={panelStyle}>
           <div
             style={{
-              padding: "42px",
+              padding: "34px",
+              borderBottom: "1px solid rgba(255,255,255,0.12)",
               background:
                 "linear-gradient(145deg, rgba(255,176,83,0.16), rgba(83,215,255,0.08))",
-              borderBottom: "1px solid rgba(255,255,255,0.12)",
             }}
           >
             <p
@@ -113,9 +780,9 @@ export default function WhosBluffingPage() {
 
             <h1
               style={{
-                margin: "16px 0 0",
+                margin: "14px 0 0",
                 fontFamily: 'Georgia, "Times New Roman", serif',
-                fontSize: "clamp(48px, 8vw, 82px)",
+                fontSize: "clamp(44px, 7vw, 78px)",
                 lineHeight: 0.95,
                 fontWeight: 500,
               }}
@@ -125,123 +792,604 @@ export default function WhosBluffingPage() {
 
             <p
               style={{
-                margin: "20px 0 0",
-                maxWidth: "680px",
+                margin: "18px 0 0",
+                maxWidth: "740px",
                 color: "rgba(255,255,255,0.76)",
-                fontSize: "18px",
+                fontSize: "17px",
                 lineHeight: 1.6,
               }}
             >
-              Create fake answers, spot the truth, and try to fool the room.
-              Built for quick multiplayer rounds with 2 to 10 players.
+              Create fake answers, spot the real one, and fool the room. Designed
+              for 2 to 10 players.
             </p>
           </div>
 
-          <div
-            style={{
-              padding: "42px",
-              display: "grid",
-              gap: "18px",
-            }}
-          >
+          {!lobby && (
             <div
               style={{
-                borderRadius: "24px",
-                border: "1px dashed rgba(255,255,255,0.22)",
-                background: "rgba(255,255,255,0.08)",
-                padding: "32px",
-                textAlign: "center",
-              }}
-            >
-              <h2
-                style={{
-                  margin: 0,
-                  fontSize: "28px",
-                  lineHeight: 1.15,
-                }}
-              >
-                Game code area
-              </h2>
-
-              <p
-                style={{
-                  margin: "12px auto 0",
-                  maxWidth: "560px",
-                  color: "rgba(255,255,255,0.62)",
-                  fontSize: "15px",
-                  lineHeight: 1.6,
-                }}
-              >
-                Paste the Who’s Bluffing multiplayer game component here when
-                the game logic is ready.
-              </p>
-
-              <div
-                style={{
-                  marginTop: "24px",
-                  borderRadius: "18px",
-                  background: "rgba(2,8,23,0.62)",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  padding: "22px",
-                  color: "rgba(255,255,255,0.5)",
-                  fontSize: "14px",
-                  lineHeight: 1.6,
-                  textAlign: "left",
-                  fontFamily:
-                    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                }}
-              >
-                {"{/* Paste Who’s Bluffing game code here */}"}
-              </div>
-            </div>
-
-            <div
-              style={{
+                padding: "34px",
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                gap: "14px",
+                gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+                gap: "24px",
               }}
             >
-              {[
-                ["Players", "2–10"],
-                ["Style", "Fast group game"],
-                ["Rounds", "Quick party rounds"],
-                ["Status", "Ready for game code"],
-              ].map(([label, value]) => (
-                <div
-                  key={label}
+              <form
+                onSubmit={createLobby}
+                style={{
+                  borderRadius: "24px",
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  background: "rgba(255,255,255,0.08)",
+                  padding: "24px",
+                  display: "grid",
+                  gap: "14px",
+                }}
+              >
+                <h2 style={{ margin: 0, fontSize: "28px" }}>Create Lobby</h2>
+                <p style={{ margin: 0, color: "rgba(255,255,255,0.62)", lineHeight: 1.5 }}>
+                  Start a new room and share the lobby code with your players.
+                </p>
+
+                <input
+                  value={nickname}
+                  onChange={(event) => setNickname(event.target.value)}
+                  placeholder="Your player name"
+                  maxLength={18}
+                  style={inputStyle}
+                />
+
+                <button type="submit" disabled={busy} style={primaryButtonStyle}>
+                  Create Lobby
+                </button>
+              </form>
+
+              <form
+                onSubmit={joinLobby}
+                style={{
+                  borderRadius: "24px",
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  background: "rgba(255,255,255,0.08)",
+                  padding: "24px",
+                  display: "grid",
+                  gap: "14px",
+                }}
+              >
+                <h2 style={{ margin: 0, fontSize: "28px" }}>Join Lobby</h2>
+                <p style={{ margin: 0, color: "rgba(255,255,255,0.62)", lineHeight: 1.5 }}>
+                  Enter the lobby code from the host.
+                </p>
+
+                <input
+                  value={nickname}
+                  onChange={(event) => setNickname(event.target.value)}
+                  placeholder="Your player name"
+                  maxLength={18}
+                  style={inputStyle}
+                />
+
+                <input
+                  value={joinCode}
+                  onChange={(event) =>
+                    setJoinCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))
+                  }
+                  placeholder="Lobby code"
+                  maxLength={6}
                   style={{
-                    borderRadius: "18px",
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    background: "rgba(255,255,255,0.07)",
-                    padding: "18px",
+                    ...inputStyle,
+                    letterSpacing: "0.16em",
+                    textTransform: "uppercase",
+                  }}
+                />
+
+                <button type="submit" disabled={busy} style={darkButtonStyle}>
+                  Join Lobby
+                </button>
+              </form>
+            </div>
+          )}
+
+          {lobby && (
+            <div
+              style={{
+                padding: "34px",
+                display: "grid",
+                gridTemplateColumns: "minmax(220px, 300px) 1fr",
+                gap: "24px",
+              }}
+            >
+              <aside
+                style={{
+                  borderRadius: "24px",
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  background: "rgba(255,255,255,0.08)",
+                  padding: "20px",
+                  alignSelf: "start",
+                }}
+              >
+                <p
+                  style={{
+                    margin: 0,
+                    color: "#ffd18a",
+                    fontSize: "12px",
+                    letterSpacing: "0.18em",
+                    textTransform: "uppercase",
+                    fontWeight: 900,
                   }}
                 >
+                  Lobby Code
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => navigator.clipboard?.writeText(lobby.room_code)}
+                  style={{
+                    marginTop: "10px",
+                    width: "100%",
+                    minHeight: "64px",
+                    borderRadius: "18px",
+                    border: "1px solid rgba(255,255,255,0.16)",
+                    background: "rgba(5,13,28,0.82)",
+                    color: "white",
+                    fontSize: "30px",
+                    fontWeight: 950,
+                    letterSpacing: "0.12em",
+                    cursor: "pointer",
+                  }}
+                >
+                  {lobby.room_code}
+                </button>
+
+                <p
+                  style={{
+                    margin: "10px 0 0",
+                    color: "rgba(255,255,255,0.48)",
+                    fontSize: "12px",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  Click code to copy.
+                </p>
+
+                <div style={{ marginTop: "22px" }}>
                   <p
                     style={{
-                      margin: 0,
+                      margin: "0 0 10px",
                       color: "#ffd18a",
-                      fontSize: "11px",
-                      letterSpacing: "0.16em",
+                      fontSize: "12px",
+                      letterSpacing: "0.18em",
                       textTransform: "uppercase",
                       fontWeight: 900,
                     }}
                   >
-                    {label}
+                    Players {players.length}/10
                   </p>
-                  <strong
+
+                  <div style={{ display: "grid", gap: "8px" }}>
+                    {sortedPlayers.map((player, index) => (
+                      <div
+                        key={player.id}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: "10px",
+                          alignItems: "center",
+                          borderRadius: "14px",
+                          background:
+                            player.id === playerId
+                              ? "rgba(255,209,138,0.14)"
+                              : "rgba(255,255,255,0.07)",
+                          padding: "10px 12px",
+                        }}
+                      >
+                        <span style={{ fontWeight: 850 }}>
+                          {index + 1}. {player.nickname}
+                          {player.id === lobby.host_player_id ? " ★" : ""}
+                        </span>
+                        <span style={{ color: "#ffd18a", fontWeight: 900 }}>
+                          {player.score}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </aside>
+
+              <section
+                style={{
+                  minHeight: "420px",
+                  borderRadius: "24px",
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  background: "rgba(255,255,255,0.08)",
+                  padding: "24px",
+                }}
+              >
+                {lobby.status === "lobby" && (
+                  <div>
+                    <p
+                      style={{
+                        margin: 0,
+                        color: "#ffd18a",
+                        fontSize: "12px",
+                        letterSpacing: "0.18em",
+                        textTransform: "uppercase",
+                        fontWeight: 900,
+                      }}
+                    >
+                      Waiting Room
+                    </p>
+
+                    <h2 style={{ margin: "12px 0 0", fontSize: "34px" }}>
+                      Waiting for players.
+                    </h2>
+
+                    <p
+                      style={{
+                        margin: "12px 0 0",
+                        color: "rgba(255,255,255,0.62)",
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      Share the lobby code. The host can start once there are at
+                      least 2 players.
+                    </p>
+
+                    {isHost ? (
+                      <button
+                        type="button"
+                        onClick={startNextRound}
+                        disabled={busy || players.length < 2}
+                        style={{
+                          ...primaryButtonStyle,
+                          marginTop: "22px",
+                          width: "100%",
+                          opacity: players.length < 2 ? 0.48 : 1,
+                          cursor: players.length < 2 ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        Start Game
+                      </button>
+                    ) : (
+                      <p
+                        style={{
+                          margin: "22px 0 0",
+                          color: "rgba(255,255,255,0.62)",
+                        }}
+                      >
+                        Waiting for the host to start.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {lobby.status === "submitting" && currentQuestion && (
+                  <div>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: "12px",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <span style={{ color: "#ffd18a", fontWeight: 900 }}>
+                        Round {lobby.current_round}/{lobby.max_rounds}
+                      </span>
+                      <span style={{ color: "#ffd18a", fontWeight: 900 }}>
+                        {submitSecondsLeft}s
+                      </span>
+                    </div>
+
+                    <h2 style={{ margin: "18px 0 0", fontSize: "32px", lineHeight: 1.2 }}>
+                      {currentQuestion.question}
+                    </h2>
+
+                    <p
+                      style={{
+                        margin: "12px 0 0",
+                        color: "rgba(255,255,255,0.62)",
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      Type a fake answer that sounds believable. Other players
+                      will try to spot the real one.
+                    </p>
+
+                    {myAnswer ? (
+                      <div
+                        style={{
+                          marginTop: "22px",
+                          borderRadius: "18px",
+                          background: "rgba(255,209,138,0.12)",
+                          border: "1px solid rgba(255,209,138,0.24)",
+                          padding: "18px",
+                        }}
+                      >
+                        <strong>Your fake answer:</strong>
+                        <p style={{ margin: "8px 0 0", color: "rgba(255,255,255,0.76)" }}>
+                          {myAnswer.answer_text}
+                        </p>
+                      </div>
+                    ) : (
+                      <form onSubmit={submitFakeAnswer} style={{ marginTop: "22px" }}>
+                        <input
+                          value={fakeAnswer}
+                          onChange={(event) => setFakeAnswer(event.target.value)}
+                          placeholder="Enter fake answer"
+                          maxLength={80}
+                          style={inputStyle}
+                        />
+
+                        <button
+                          type="submit"
+                          style={{
+                            ...primaryButtonStyle,
+                            marginTop: "14px",
+                            width: "100%",
+                          }}
+                        >
+                          Submit Fake Answer
+                        </button>
+                      </form>
+                    )}
+
+                    <p
+                      style={{
+                        margin: "18px 0 0",
+                        color: "rgba(255,255,255,0.54)",
+                      }}
+                    >
+                      {answers.length}/{players.length} players submitted
+                    </p>
+                  </div>
+                )}
+
+                {lobby.status === "voting" && currentQuestion && (
+                  <div>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: "12px",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <span style={{ color: "#ffd18a", fontWeight: 900 }}>
+                        Choose the real answer
+                      </span>
+                      <span style={{ color: "#ffd18a", fontWeight: 900 }}>
+                        {voteSecondsLeft}s
+                      </span>
+                    </div>
+
+                    <h2 style={{ margin: "18px 0 0", fontSize: "30px", lineHeight: 1.2 }}>
+                      {currentQuestion.question}
+                    </h2>
+
+                    <div style={{ marginTop: "22px", display: "grid", gap: "12px" }}>
+                      {voteOptions.map((option) => {
+                        const isOwnFake =
+                          option.kind === "fake" && option.ownerPlayerId === playerId;
+                        const selected =
+                          myVote?.selected_kind === option.kind &&
+                          (option.kind === "correct" ||
+                            myVote?.selected_answer_id === option.answerId);
+
+                        return (
+                          <button
+                            key={option.id}
+                            type="button"
+                            disabled={Boolean(myVote) || isOwnFake}
+                            onClick={() => submitVote(option)}
+                            style={{
+                              minHeight: "58px",
+                              borderRadius: "16px",
+                              border: selected
+                                ? "1px solid rgba(255,209,138,0.74)"
+                                : "1px solid rgba(255,255,255,0.14)",
+                              background: selected
+                                ? "rgba(255,209,138,0.18)"
+                                : isOwnFake
+                                ? "rgba(255,255,255,0.04)"
+                                : "rgba(255,255,255,0.1)",
+                              color: isOwnFake ? "rgba(255,255,255,0.34)" : "white",
+                              padding: "14px 16px",
+                              textAlign: "left",
+                              fontSize: "16px",
+                              fontWeight: 850,
+                              cursor: Boolean(myVote) || isOwnFake ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            {option.text}
+                            {isOwnFake && (
+                              <span style={{ display: "block", marginTop: "4px", fontSize: "12px" }}>
+                                Your fake answer
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <p
+                      style={{
+                        margin: "18px 0 0",
+                        color: "rgba(255,255,255,0.54)",
+                      }}
+                    >
+                      {votes.length}/{players.length} players voted
+                    </p>
+                  </div>
+                )}
+
+                {lobby.status === "results" && currentQuestion && (
+                  <div>
+                    <p
+                      style={{
+                        margin: 0,
+                        color: "#ffd18a",
+                        fontSize: "12px",
+                        letterSpacing: "0.18em",
+                        textTransform: "uppercase",
+                        fontWeight: 900,
+                      }}
+                    >
+                      Round Results
+                    </p>
+
+                    <h2 style={{ margin: "12px 0 0", fontSize: "32px" }}>
+                      Correct answer: {currentQuestion.correct_answer}
+                    </h2>
+
+                    {currentQuestion.explanation && (
+                      <p
+                        style={{
+                          margin: "12px 0 0",
+                          color: "rgba(255,255,255,0.66)",
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        {currentQuestion.explanation}
+                      </p>
+                    )}
+
+                    <div style={{ marginTop: "22px", display: "grid", gap: "12px" }}>
+                      {voteOptions.map((option) => {
+                        const voteCount = votes.filter((vote) =>
+                          option.kind === "correct"
+                            ? vote.selected_kind === "correct"
+                            : vote.selected_answer_id === option.answerId
+                        ).length;
+
+                        return (
+                          <div
+                            key={option.id}
+                            style={{
+                              borderRadius: "18px",
+                              border:
+                                option.kind === "correct"
+                                  ? "1px solid rgba(34,197,94,0.46)"
+                                  : "1px solid rgba(255,255,255,0.14)",
+                              background:
+                                option.kind === "correct"
+                                  ? "rgba(34,197,94,0.12)"
+                                  : "rgba(255,255,255,0.08)",
+                              padding: "16px",
+                            }}
+                          >
+                            <strong>{option.text}</strong>
+                            <p
+                              style={{
+                                margin: "6px 0 0",
+                                color: "rgba(255,255,255,0.62)",
+                              }}
+                            >
+                              {option.kind === "correct"
+                                ? "Real answer"
+                                : `Submitted by ${getPlayerName(players, option.ownerPlayerId)}`}{" "}
+                              · {voteCount} vote{voteCount === 1 ? "" : "s"}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {isHost ? (
+                      <button
+                        type="button"
+                        onClick={startNextRound}
+                        style={{
+                          ...primaryButtonStyle,
+                          marginTop: "22px",
+                          width: "100%",
+                        }}
+                      >
+                        {lobby.current_round >= lobby.max_rounds
+                          ? "Finish Game"
+                          : "Start Next Round"}
+                      </button>
+                    ) : (
+                      <p style={{ margin: "22px 0 0", color: "rgba(255,255,255,0.62)" }}>
+                        Waiting for host.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {lobby.status === "finished" && (
+                  <div>
+                    <p
+                      style={{
+                        margin: 0,
+                        color: "#ffd18a",
+                        fontSize: "12px",
+                        letterSpacing: "0.18em",
+                        textTransform: "uppercase",
+                        fontWeight: 900,
+                      }}
+                    >
+                      Final Results
+                    </p>
+
+                    <h2 style={{ margin: "12px 0 0", fontSize: "38px" }}>
+                      Winner: {sortedPlayers[0]?.nickname || "No winner"}
+                    </h2>
+
+                    <div style={{ marginTop: "22px", display: "grid", gap: "10px" }}>
+                      {sortedPlayers.map((player, index) => (
+                        <div
+                          key={player.id}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            gap: "12px",
+                            borderRadius: "16px",
+                            background:
+                              index === 0
+                                ? "rgba(255,209,138,0.18)"
+                                : "rgba(255,255,255,0.08)",
+                            border:
+                              index === 0
+                                ? "1px solid rgba(255,209,138,0.32)"
+                                : "1px solid rgba(255,255,255,0.12)",
+                            padding: "14px 16px",
+                          }}
+                        >
+                          <strong>
+                            {index + 1}. {player.nickname}
+                          </strong>
+                          <strong style={{ color: "#ffd18a" }}>{player.score}</strong>
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={resetToHome}
+                      style={{
+                        ...darkButtonStyle,
+                        marginTop: "22px",
+                        width: "100%",
+                      }}
+                    >
+                      Back to Create / Join
+                    </button>
+                  </div>
+                )}
+
+                {message && (
+                  <p
                     style={{
-                      display: "block",
-                      marginTop: "8px",
-                      fontSize: "20px",
+                      margin: "18px 0 0",
+                      color: "#ffd18a",
+                      fontWeight: 800,
+                      lineHeight: 1.5,
                     }}
                   >
-                    {value}
-                  </strong>
-                </div>
-              ))}
+                    {message}
+                  </p>
+                )}
+              </section>
             </div>
-          </div>
+          )}
         </div>
       </section>
     </main>
