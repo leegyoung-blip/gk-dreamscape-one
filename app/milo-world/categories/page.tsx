@@ -1150,12 +1150,34 @@ export default function MiloCategoriesPage() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#020813] px-5 py-8 text-white sm:px-8 sm:py-10">
-      <div className="pointer-events-none fixed inset-0 z-0">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(126,232,255,0.18),transparent_34%),linear-gradient(180deg,#041124_0%,#020813_100%)]" />
-        <div className="absolute left-[-120px] top-[-120px] h-[360px] w-[360px] rounded-full bg-cyan-400/10 blur-3xl" />
-        <div className="absolute bottom-[-140px] right-[-120px] h-[380px] w-[380px] rounded-full bg-orange-500/10 blur-3xl" />
-      </div>
+  <main className="relative min-h-screen overflow-x-hidden bg-[#020813] px-5 py-8 text-white sm:px-8 sm:py-10">
+    <div className="pointer-events-none fixed inset-0 z-0">
+      <div
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        style={{
+          backgroundImage: "url('/milo-world/activities/categories-bg.png')",
+        }}
+      />
+
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(2,8,19,0.66) 0%, rgba(2,8,19,0.82) 44%, rgba(2,8,19,0.96) 100%)",
+        }}
+      />
+
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(circle at top, rgba(126,232,255,0.18), transparent 34%)",
+        }}
+      />
+
+      <div className="absolute left-[-120px] top-[-120px] h-[360px] w-[360px] rounded-full bg-cyan-400/10 blur-3xl" />
+      <div className="absolute bottom-[-140px] right-[-120px] h-[380px] w-[380px] rounded-full bg-orange-500/10 blur-3xl" />
+    </div>
 
       <div className="relative z-10 mx-auto max-w-5xl">
         <Link
@@ -1211,7 +1233,7 @@ export default function MiloCategoriesPage() {
           </div>
         </section>
 
-        <section className="mx-auto mt-12 max-w-3xl rounded-[32px] border border-cyan-200/18 bg-white/[0.045] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.26)] backdrop-blur-xl sm:p-8">
+        <section className="mx-auto mt-12 max-w-3xl rounded-[32px] border border-cyan-200/18 bg-slate-950/70 p-6 shadow-[0_28px_90px_rgba(0,0,0,0.42)] backdrop-blur-xl sm:p-8">
           {categoriesStage === "mode" && (
             <>
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#7ee8ff]">
