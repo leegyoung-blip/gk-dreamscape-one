@@ -347,6 +347,16 @@ const popupContent: Record<PopupKind, PopupContent> = {
         buttonLabel: "Enter Categories",
         href: "/milo-world/categories",
       },
+      {
+        name: "Who’s Bluffing",
+        subtitle: "A fast group game where players create fake answers and spot the truth.",
+        description: "",
+        priceFrom: "Multiplayer 2–10",
+        imageSrc: "/milo-world/activities/whos-bluffing.png",
+        imageFit: "cover",
+        buttonLabel: "Enter Who’s Bluffing",
+        href: "/milo-world/whos-bluffing",
+      },
     ],
   },
 };
