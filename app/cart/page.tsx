@@ -21,6 +21,32 @@ type CartItem = {
   type?: string;
 };
 
+const SHOPIFY_STORE_URL = "https://gurukidspro.com";
+
+/*
+  Replace these placeholder IDs with your real Shopify variant IDs.
+
+  Important:
+  Shopify needs VARIANT IDs, not product IDs.
+  Even if a product has only one option, Shopify still uses a variant ID.
+*/
+const SHOPIFY_VARIANT_MAP: Record<string, string> = {
+  // HAP products
+  "hap-foundation-single": "10307705962779",
+  "hap-foundation-pack-3": "10249079062811",
+  "hap-challenge-single": "10249079128347",
+  "hap-challenge-pack-3": "10249079423259",
+
+  // Blind boxes
+  "nova-blind-box": "10314104078619",
+  "milo-blind-box": "10314106241307",
+  "spark-local-legends": "10314106241307",
+
+  // Memberships
+  "nova-student-access": "10309092114715",
+  "milo-club": "10309117182235",
+};
+
 function getCartImage(item: CartItem) {
   const itemName = item.name?.toLowerCase() || "";
 
@@ -45,8 +71,134 @@ function getCartImage(item: CartItem) {
   return item.image;
 }
 
+function getShopifyKey(item: CartItem) {
+  const itemName = item.name?.toLowerCase() || "";
+  const itemId = item.id?.toLowerCase() || "";
+  const productType = item.productType?.toLowerCase() || "";
+  const type = item.type?.toLowerCase() || "";
+
+  if (
+    itemId.includes("hap-foundation-single") ||
+    itemName.includes("foundation single")
+  ) {
+    return "hap-foundation-single";
+  }
+
+  if (
+    itemId.includes("hap-foundation-pack-3") ||
+    itemName.includes("foundation pack of 3") ||
+    itemName.includes("foundation pack 3")
+  ) {
+    return "hap-foundation-pack-3";
+  }
+
+  if (
+    itemId.includes("hap-challenge-single") ||
+    itemName.includes("challenge single")
+  ) {
+    return "hap-challenge-single";
+  }
+
+  if (
+    itemId.includes("hap-challenge-pack-3") ||
+    itemName.includes("challenge pack of 3") ||
+    itemName.includes("challenge pack 3")
+  ) {
+    return "hap-challenge-pack-3";
+  }
+
+  if (
+    productType === "milo-blind-box" ||
+    itemName.includes("spark local legends") ||
+    itemName.includes("spark blind box")
+  ) {
+    return "milo-blind-box";
+  }
+
+  if (
+    productType === "nova-blind-box" ||
+    itemName.includes("nova's blind box") ||
+    itemName.includes("nova blind box")
+  ) {
+    return "nova-blind-box";
+  }
+
+  if (productType === "inventor-tag" || itemId.includes("inventor-tag")) {
+    return "inventor-tag";
+  }
+
+  if (productType === "gadget-crate" || itemId.includes("gadget-crate")) {
+    return "gadget-crate";
+  }
+
+  if (
+    productType === "bolt" ||
+    type === "bolt" ||
+    item.antenna ||
+    item.eye ||
+    item.leg
+  ) {
+    return "bolt";
+  }
+
+  if (
+    itemId.includes("nova-student-access") ||
+    itemName.includes("nova student access")
+  ) {
+    return "nova-student-access";
+  }
+
+  if (itemId.includes("milo-club") || itemName.includes("milo's club")) {
+    return "milo-club";
+  }
+
+  return itemId || productType || itemName;
+}
+
+function getShopifyVariantId(item: CartItem) {
+  const key = getShopifyKey(item);
+  const variantId = SHOPIFY_VARIANT_MAP[key];
+
+  if (!variantId || variantId.includes("REPLACE_WITH")) {
+    return null;
+  }
+
+  return variantId;
+}
+
+function hasCustomOptions(item: CartItem) {
+  return Boolean(
+    item.antenna ||
+      item.eye ||
+      item.leg ||
+      item.colour ||
+      item.customName
+  );
+}
+
+function hasMembershipItem(item: CartItem) {
+  const key = getShopifyKey(item);
+
+  return key === "nova-student-access" || key === "milo-club";
+}
+
+function buildShopifyCartUrl(cart: CartItem[]) {
+  const cartParts = cart
+    .map((item) => {
+      const variantId = getShopifyVariantId(item);
+
+      if (!variantId) return null;
+
+      return `${variantId}:${item.quantity}`;
+    })
+    .filter(Boolean);
+
+  return `${SHOPIFY_STORE_URL}/cart/${cartParts.join(",")}`;
+}
+
 export default function CartPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [checkoutError, setCheckoutError] = useState("");
 
   useEffect(() => {
     const savedCart = JSON.parse(
@@ -64,11 +216,57 @@ export default function CartPage() {
   function clearCart() {
     localStorage.removeItem("dreamscape-cart");
     setCart([]);
+    setCheckoutError("");
   }
 
   function removeItem(indexToRemove: number) {
     const updatedCart = cart.filter((_, index) => index !== indexToRemove);
     saveCart(updatedCart);
+    setCheckoutError("");
+  }
+
+  function goToShopifyCheckout() {
+    setCheckoutError("");
+
+    if (cart.length === 0) {
+      setCheckoutError("Your cart is empty.");
+      return;
+    }
+
+    const unmappedItems = cart.filter((item) => !getShopifyVariantId(item));
+
+    if (unmappedItems.length > 0) {
+      const itemNames = unmappedItems
+        .map((item) => item.name || "Unnamed item")
+        .join(", ");
+
+      setCheckoutError(
+        `Some products are not connected to Shopify yet: ${itemNames}. Add their Shopify variant IDs first.`
+      );
+
+      return;
+    }
+
+    const customItems = cart.filter((item) => hasCustomOptions(item));
+
+    if (customItems.length > 0) {
+      console.warn(
+        "This cart contains custom options. Shopify cart permalinks add the product variant, but custom details may need to be collected again on Shopify or handled through variants/product options.",
+        customItems
+      );
+    }
+
+    const membershipItems = cart.filter((item) => hasMembershipItem(item));
+
+    if (membershipItems.length > 0) {
+      console.warn(
+        "This cart contains membership products. If these are subscription products, confirm that your Shopify setup supports this cart permalink flow."
+      );
+    }
+
+    const shopifyCartUrl = buildShopifyCartUrl(cart);
+
+    window.location.href = shopifyCartUrl;
   }
 
   const total = cart.reduce((sum, item) => {
@@ -101,7 +299,8 @@ export default function CartPage() {
           </h1>
 
           <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-white/62">
-            Review your Dreamscape items before checkout.
+            Review your Dreamscape items before checkout. Checkout is completed
+            securely on GuruKidsPro.
           </p>
         </section>
 
@@ -131,6 +330,8 @@ export default function CartPage() {
                 item.productType === "gadget-crate";
 
               const displayImage = getCartImage(item);
+              const shopifyVariantId = getShopifyVariantId(item);
+              const isConnectedToShopify = Boolean(shopifyVariantId);
 
               return (
                 <div
@@ -150,9 +351,23 @@ export default function CartPage() {
                     )}
 
                     <div className="flex-1">
-                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7ee8ff]">
-                        Cart Item
-                      </p>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7ee8ff]">
+                          Cart Item
+                        </p>
+
+                        <div
+                          className={`rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${
+                            isConnectedToShopify
+                              ? "border-green-300/20 bg-green-400/10 text-green-200"
+                              : "border-yellow-300/20 bg-yellow-400/10 text-yellow-100"
+                          }`}
+                        >
+                          {isConnectedToShopify
+                            ? "Shopify Connected"
+                            : "Needs Variant ID"}
+                        </div>
+                      </div>
 
                       <h2 className="mt-3 text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
                         {item.name ||
@@ -171,8 +386,8 @@ export default function CartPage() {
 
                       {isCustomNovaPick && (
                         <div className="mt-5 grid gap-2 rounded-2xl border border-cyan-200/12 bg-[#061632]/75 p-4 text-sm text-white/72">
-                          <p>Colour: {item.colour}</p>
-                          <p>Name: {item.customName}</p>
+                          <p>Colour: {item.colour || "Not selected"}</p>
+                          <p>Name: {item.customName || "Not entered"}</p>
                         </div>
                       )}
 
@@ -217,7 +432,18 @@ export default function CartPage() {
                   ${total.toFixed(2)}
                 </p>
               </div>
+
+              <p className="mt-4 text-sm leading-6 text-white/58">
+                Final checkout, shipping, discounts and payment will be handled
+                on GuruKidsPro Shopify.
+              </p>
             </section>
+
+            {checkoutError && (
+              <div className="rounded-[24px] border border-yellow-300/25 bg-yellow-300/10 p-5 text-sm leading-6 text-yellow-100">
+                {checkoutError}
+              </div>
+            )}
 
             <div className="grid gap-3 sm:grid-cols-2">
               <button
@@ -227,8 +453,11 @@ export default function CartPage() {
                 Clear Cart
               </button>
 
-              <button className="h-13 rounded-full bg-white px-5 py-4 text-sm font-bold uppercase tracking-[0.12em] text-[#061632] shadow-[0_0_30px_rgba(126,232,255,0.14)] transition hover:scale-[1.01]">
-                Checkout Coming Soon
+              <button
+                onClick={goToShopifyCheckout}
+                className="h-13 rounded-full bg-white px-5 py-4 text-sm font-bold uppercase tracking-[0.12em] text-[#061632] shadow-[0_0_30px_rgba(126,232,255,0.14)] transition hover:scale-[1.01]"
+              >
+                Checkout on GuruKidsPro
               </button>
             </div>
           </div>
