@@ -653,7 +653,7 @@ function CoreMissionsActivity({
             rgba(2,8,19,0.58),
             rgba(2,8,19,0.88)
           ),
-          url("/skyforge/skyforge-hangar-bg.png")
+          url("/activities/learning-missions/core/skyforge-hangar-bg.png")
         `,
         backgroundSize: "cover",
         backgroundPosition: "center",

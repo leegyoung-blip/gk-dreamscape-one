@@ -126,6 +126,15 @@ type CompletedThinkAttempt = {
   mode: ThinkMode;
 };
 
+type ThinkInventoryUpgrade = {
+  missionsRequired: number;
+  name: string;
+  description: string;
+  image: string;
+  icon: string;
+  accent: string;
+};
+
 const allowedThinkMissionTiers = [
   "admin",
   "gkp_student",
@@ -134,54 +143,78 @@ const allowedThinkMissionTiers = [
   "pro",
 ];
 
-const thinkInventoryTrack = [
+const thinkInventoryTrack: ThinkInventoryUpgrade[] = [
   {
     missionsRequired: 0,
     name: "Empty Gear Wall",
     description:
       "Nova’s inventory station is ready, but her mission tools are still locked.",
+    image: "/learning-missions/think/items/empty-gear-wall.png",
+    icon: "□",
+    accent: "#7ee8ff",
   },
   {
     missionsRequired: 1,
     name: "Logic Lens",
     description:
       "Nova can scan hidden clues and identify important patterns in Dreamscape.",
+    image: "/learning-missions/think/items/logic-lens.png",
+    icon: "◉",
+    accent: "#60f0d0",
   },
   {
     missionsRequired: 3,
     name: "Pattern Scanner",
     description:
       "Nova can detect repeating sequences, visual rules and puzzle structures.",
+    image: "/learning-missions/think/items/pattern-scanner.png",
+    icon: "⌁",
+    accent: "#7ee8ff",
   },
   {
     missionsRequired: 5,
     name: "Clue Compass",
     description:
       "Nova can track missing information and find the next step in harder missions.",
+    image: "/learning-missions/think/items/clue-compass.png",
+    icon: "◇",
+    accent: "#ffd76a",
   },
   {
     missionsRequired: 8,
     name: "Puzzle Shield",
     description:
       "Nova gains protection against confusing traps, false clues and tricky choices.",
+    image: "/learning-missions/think/items/puzzle-shield.png",
+    icon: "⬡",
+    accent: "#b58cff",
   },
   {
     missionsRequired: 12,
     name: "Energy Wrench",
     description:
       "Nova can repair broken logic gates and restore puzzle systems across Dreamscape.",
+    image: "/learning-missions/think/items/energy-wrench.png",
+    icon: "⚙",
+    accent: "#ffcc66",
   },
   {
     missionsRequired: 16,
     name: "Spark Staff",
     description:
       "Nova unlocks an advanced reasoning tool that powers complex mission routes.",
+    image: "/learning-missions/think/items/spark-staff.png",
+    icon: "✦",
+    accent: "#ff9df0",
   },
   {
     missionsRequired: 20,
     name: "Advanced Gear Inventory",
     description:
       "Nova’s full Think Mission inventory is ready for major Dreamscape expeditions.",
+    image: "/learning-missions/think/items/advanced-gear-inventory.png",
+    icon: "✧",
+    accent: "#60f0d0",
   },
 ];
 
@@ -256,6 +289,18 @@ function getNextInventoryUpgrade(completedCount: number) {
   );
 }
 
+function getUnlockedInventoryItems(completedCount: number) {
+  return thinkInventoryTrack.filter(
+    (upgrade) => completedCount >= upgrade.missionsRequired
+  );
+}
+
+function getPreviewInventoryItems(completedCount: number) {
+  return thinkInventoryTrack.filter(
+    (upgrade) => upgrade.missionsRequired <= Math.max(5, completedCount + 5)
+  );
+}
+
 function ThinkMissionsActivity({
   onExit,
   tokenBalance,
@@ -324,6 +369,12 @@ function ThinkMissionsActivity({
     getCurrentInventoryUpgrade(completedMissionCount);
   const nextInventoryUpgrade =
     getNextInventoryUpgrade(completedMissionCount);
+
+  const unlockedInventoryItems = getUnlockedInventoryItems(
+    completedMissionCount
+  );
+
+  const previewInventoryItems = getPreviewInventoryItems(completedMissionCount);
 
   const progressTarget =
     nextInventoryUpgrade?.missionsRequired ??
@@ -726,15 +777,13 @@ function ThinkMissionsActivity({
       style={{
         minHeight: "100dvh",
         width: "100%",
-        padding: isMobile ? "86px 14px 28px" : "96px 26px 42px",
         backgroundImage: `
           linear-gradient(
             180deg,
-            rgba(2,8,19,0.76),
-            rgba(2,8,19,0.88)
+            rgba(2,8,19,0.58),
+            rgba(2,8,19,0.9)
           ),
-          radial-gradient(circle at 50% 0%, rgba(96,240,208,0.2), transparent 35%),
-          url("activities/learning-missions/think/think-inventory-bg.png")
+          url("/learning-missions/think/think-inventory-bg.png")
         `,
         backgroundSize: "cover",
         backgroundPosition: "center",
@@ -743,90 +792,106 @@ function ThinkMissionsActivity({
         fontFamily: "Arial, Helvetica, sans-serif",
       }}
     >
-      <div
+      <button
+        type="button"
+        onClick={onExit}
         style={{
-          width: "min(1180px, 94vw)",
-          margin: "0 auto",
-          borderRadius: isMobile ? "22px" : "30px",
-          border: "1px solid rgba(126, 221, 255, 0.62)",
-          background:
-            "linear-gradient(145deg, rgba(30, 32, 90, 0.94), rgba(10, 22, 56, 0.96))",
-          boxShadow:
-            "0 0 45px rgba(126, 232, 255, 0.28), 0 30px 90px rgba(0, 0, 0, 0.55)",
-          padding: isMobile ? "28px 18px 24px" : "34px 46px 38px",
+          position: "fixed",
+          top: isMobile ? "14px" : "22px",
+          left: isMobile ? "14px" : "22px",
+          zIndex: 40,
+          height: isMobile ? "40px" : "46px",
+          padding: isMobile ? "0 14px" : "0 22px",
+          borderRadius: "999px",
+          border: "1px solid rgba(150, 231, 255, 0.7)",
+          background: "rgba(2,8,19,0.72)",
           color: "white",
+          fontSize: isMobile ? "12px" : "14px",
+          letterSpacing: "0.1em",
+          textTransform: "uppercase",
+          cursor: "pointer",
+          backdropFilter: "blur(14px)",
+          boxShadow: "0 0 18px rgba(83, 215, 255, 0.22)",
         }}
       >
-        <button
-          type="button"
-          onClick={onExit}
+        ← Missions
+      </button>
+
+      <section
+        style={{
+          minHeight: "100dvh",
+          width: "100%",
+          padding: isMobile
+            ? "82px 18px 32px"
+            : isCompact
+            ? "92px 32px 42px"
+            : "92px 5vw 54px",
+          display: "grid",
+          gridTemplateRows: "auto auto 1fr",
+          gap: isMobile ? "24px" : "30px",
+        }}
+      >
+        <header
           style={{
-            position: "fixed",
-            top: isMobile ? "14px" : "22px",
-            left: isMobile ? "14px" : "22px",
-            zIndex: 40,
-            height: isMobile ? "40px" : "46px",
-            padding: isMobile ? "0 14px" : "0 22px",
-            borderRadius: "999px",
-            border: "1px solid rgba(150, 231, 255, 0.7)",
-            background: "rgba(2,8,19,0.7)",
-            color: "white",
-            fontSize: isMobile ? "12px" : "14px",
-            letterSpacing: "0.1em",
-            textTransform: "uppercase",
-            cursor: "pointer",
-            backdropFilter: "blur(14px)",
-            boxShadow: "0 0 18px rgba(83, 215, 255, 0.22)",
+            width: "min(1240px, 100%)",
+            margin: "0 auto",
+            display: "grid",
+            gridTemplateColumns: isCompact ? "1fr" : "1.05fr 0.95fr",
+            gap: isMobile ? "22px" : "34px",
+            alignItems: "end",
           }}
         >
-          ← Missions
-        </button>
+          <div>
+            <p
+              style={{
+                margin: 0,
+                color: "#60f0d0",
+                fontSize: "13px",
+                letterSpacing: "0.22em",
+                textTransform: "uppercase",
+                fontWeight: 800,
+              }}
+            >
+              Think Missions
+            </p>
 
-        <div
-          style={{
-            textAlign: "center",
-            padding: isMobile ? "0 16px" : "0 70px",
-          }}
-        >
-          <p
-            style={{
-              margin: 0,
-              color: "#60f0d0",
-              fontSize: "13px",
-              letterSpacing: "0.22em",
-              textTransform: "uppercase",
-            }}
-          >
-            Learning Missions
-          </p>
+            <h1
+              style={{
+                margin: "12px 0 0",
+                fontSize: isMobile ? "38px" : isCompact ? "54px" : "72px",
+                lineHeight: 0.95,
+                fontWeight: 600,
+                letterSpacing: "-0.055em",
+                textShadow: "0 0 30px rgba(96, 240, 208, 0.28)",
+              }}
+            >
+              Unlock Nova’s
+              <br />
+              Gear Inventory
+            </h1>
 
-          <h2
-            style={{
-              margin: "10px 0 0",
-              fontSize: isMobile ? "34px" : "52px",
-              fontWeight: 500,
-              letterSpacing: "-0.03em",
-              textShadow: "0 0 24px rgba(96, 240, 208, 0.35)",
-            }}
-          >
-            Unlock Nova’s Gear Inventory
-          </h2>
+            <p
+              style={{
+                margin: "20px 0 0",
+                maxWidth: "720px",
+                fontSize: isMobile ? "16px" : "20px",
+                color: "#c8fff3",
+                lineHeight: 1.6,
+                fontWeight: 300,
+              }}
+            >
+              Dreamscape is filled with hidden clues, puzzle gates and strange
+              patterns. Complete Think Missions to unlock Nova’s scanners,
+              shields and advanced reasoning tools.
+            </p>
+          </div>
 
-          <p
-            style={{
-              margin: "12px auto 0",
-              maxWidth: "780px",
-              fontSize: isMobile ? "16px" : "20px",
-              color: "#c8fff3",
-              lineHeight: 1.55,
-              fontWeight: 300,
-            }}
-          >
-            Dreamscape is filled with locked puzzles, strange patterns and hidden
-            logic gates. Complete Think Missions to unlock Nova’s scanners,
-            shields and advanced mission tools.
-          </p>
-        </div>
+          <ThinkGearShowcase
+            isMobile={isMobile}
+            completedMissionCount={completedMissionCount}
+            previewInventoryItems={previewInventoryItems}
+          />
+        </header>
 
         <ThinkInventoryPanel
           isMobile={isMobile}
@@ -836,619 +901,745 @@ function ThinkMissionsActivity({
           progressPercentage={progressPercentage}
         />
 
-        {screen === "checking" && (
-          <ThinkMessageCard message="Checking your Think Missions access..." />
-        )}
+        <section
+          style={{
+            width: "min(1240px, 100%)",
+            margin: "0 auto",
+            borderRadius: isMobile ? "24px" : "32px",
+            border: "1px solid rgba(96,240,208,0.22)",
+            background:
+              "linear-gradient(145deg, rgba(5,18,42,0.74), rgba(8,34,58,0.82))",
+            boxShadow:
+              "0 0 34px rgba(96,240,208,0.12), 0 28px 80px rgba(0,0,0,0.34)",
+            padding: isMobile ? "20px" : "30px",
+          }}
+        >
+          {screen === "checking" && (
+            <ThinkMessageCard message="Checking your Think Missions access..." />
+          )}
 
-        {screen === "locked" && (
-          <div
-            style={{
-              margin: "42px auto 0",
-              maxWidth: "680px",
-              borderRadius: "26px",
-              border: "1px solid rgba(255,215,106,0.5)",
-              background:
-                "linear-gradient(180deg, rgba(90, 62, 16, 0.55), rgba(30, 20, 8, 0.72))",
-              padding: "34px",
-              textAlign: "center",
-            }}
-          >
-            <h3 style={{ margin: 0, fontSize: "30px" }}>
-              Think Missions Locked
-            </h3>
-
-            <p
-              style={{
-                margin: "14px 0 0",
-                fontSize: "16px",
-                lineHeight: 1.6,
-                color: "rgba(255,255,255,0.78)",
-              }}
-            >
-              Think Missions are available for GKP students, paid Student
-              Access members, Pro users and admins.
-            </p>
-
+          {screen === "locked" && (
             <div
               style={{
-                marginTop: "26px",
-                display: "flex",
-                flexDirection: isMobile ? "column" : "row",
-                justifyContent: "center",
-                gap: "12px",
+                margin: "18px auto",
+                maxWidth: "680px",
+                borderRadius: "26px",
+                border: "1px solid rgba(255,215,106,0.5)",
+                background:
+                  "linear-gradient(180deg, rgba(90, 62, 16, 0.55), rgba(30, 20, 8, 0.72))",
+                padding: "34px",
+                textAlign: "center",
               }}
             >
-              <a href="/login" style={thinkPrimaryLinkStyle}>
-                Log In
-              </a>
+              <h3 style={{ margin: 0, fontSize: "30px" }}>
+                Think Missions Locked
+              </h3>
 
-              <button type="button" onClick={onExit} style={thinkGhostButton}>
-                Exit
-              </button>
-            </div>
-          </div>
-        )}
-
-        {screen === "level" && (
-          <div
-            style={{
-              marginTop: "42px",
-              display: "grid",
-              gridTemplateColumns: isMobile
-                ? "1fr"
-                : isCompact
-                ? "repeat(2, minmax(0, 1fr))"
-                : "repeat(3, minmax(0, 1fr))",
-              gap: "22px",
-            }}
-          >
-            {thinkLevelBands.map((level) => (
-              <button
-                key={level.id}
-                type="button"
-                onClick={() => chooseLevel(level.id)}
-                style={thinkLargeCardStyle(level.accent)}
+              <p
+                style={{
+                  margin: "14px 0 0",
+                  fontSize: "16px",
+                  lineHeight: 1.6,
+                  color: "rgba(255,255,255,0.78)",
+                }}
               >
-                <p
-                  style={{
-                    margin: 0,
-                    color: level.accent,
-                    fontSize: "14px",
-                    letterSpacing: "0.16em",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {level.label}
-                </p>
+                Think Missions are available for GKP students, paid Student
+                Access members, Pro users and admins.
+              </p>
 
-                <h3 style={thinkCardTitleStyle}>{level.title}</h3>
+              <div
+                style={{
+                  marginTop: "26px",
+                  display: "flex",
+                  flexDirection: isMobile ? "column" : "row",
+                  justifyContent: "center",
+                  gap: "12px",
+                }}
+              >
+                <a href="/login" style={thinkPrimaryLinkStyle}>
+                  Log In
+                </a>
 
-                <p style={thinkCardTextStyle}>{level.subtitle}</p>
+                <button type="button" onClick={onExit} style={thinkGhostButton}>
+                  Exit
+                </button>
+              </div>
+            </div>
+          )}
 
-                <div style={thinkCardButtonLook}>Enter Missions ›</div>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {screen === "loading" && (
-          <ThinkMessageCard message="Loading Think Mission..." />
-        )}
-
-        {screen === "quiz-list" && selectedLevelInfo && (
-          <div style={{ marginTop: "38px" }}>
-            <ThinkTopRow
-              leftButton="← Back to Levels"
-              onLeftClick={resetToLevels}
-              rightText={`${selectedLevelInfo.title} · ${selectedLevelInfo.label}`}
-            />
-
-            {loadError && <ThinkErrorMessage message={loadError} />}
-
+          {screen === "level" && (
             <div
               style={{
-                marginTop: "22px",
                 display: "grid",
                 gridTemplateColumns: isMobile
                   ? "1fr"
                   : isCompact
                   ? "repeat(2, minmax(0, 1fr))"
                   : "repeat(3, minmax(0, 1fr))",
-                gap: "20px",
+                gap: "22px",
               }}
             >
-              {quizzes.map((quiz) => {
-                const completed = isQuizCompleted(quiz.id);
-                const completedAttempt = completedAttempts.find(
-                  (attempt) => attempt.quiz_id === quiz.id
-                );
-
-                return (
-                  <button
-                    key={quiz.id}
-                    type="button"
-                    onClick={() => chooseQuiz(quiz)}
-                    style={{
-                      minHeight: isMobile ? "auto" : "290px",
-                      borderRadius: "24px",
-                      padding: "26px",
-                      border: completed
-                        ? "1px solid rgba(74,222,128,0.5)"
-                        : "1px solid rgba(126,232,255,0.36)",
-                      background: completed
-                        ? "linear-gradient(180deg, rgba(20, 92, 60, 0.72), rgba(8, 35, 36, 0.9))"
-                        : "linear-gradient(180deg, rgba(35, 60, 120, 0.78), rgba(8, 25, 56, 0.92))",
-                      color: "white",
-                      textAlign: "left",
-                      cursor: "pointer",
-                      display: "flex",
-                      flexDirection: "column",
-                      opacity: completed ? 0.9 : 1,
-                    }}
-                  >
-                    <p
-                      style={{
-                        margin: 0,
-                        color: completed ? "#86efac" : "#7ee8ff",
-                        fontSize: "12px",
-                        letterSpacing: "0.14em",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      {completed
-                        ? "Completed Once"
-                        : `Think Quiz ${quiz.quiz_order}`}
-                    </p>
-
-                    <h3
-                      style={{
-                        margin: "16px 0 0",
-                        fontSize: "28px",
-                        lineHeight: 1.15,
-                      }}
-                    >
-                      {quiz.title}
-                    </h3>
-
-                    <p
-                      style={{
-                        margin: "12px 0 0",
-                        fontSize: "15px",
-                        lineHeight: 1.5,
-                        color: "rgba(255,255,255,0.72)",
-                      }}
-                    >
-                      {quiz.description}
-                    </p>
-
-                    {completed && completedAttempt && (
-                      <p
-                        style={{
-                          margin: "14px 0 0",
-                          color: "rgba(255,255,255,0.76)",
-                          fontSize: "13px",
-                          lineHeight: 1.45,
-                        }}
-                      >
-                        Counted score: {completedAttempt.score}/100 · Correct:{" "}
-                        {completedAttempt.correct_count}/20 · Tokens: +
-                        {completedAttempt.tokens_earned}
-                      </p>
-                    )}
-
-                    <div
-                      style={{
-                        ...thinkSmallButtonLook,
-                        background: completed
-                          ? "linear-gradient(135deg, #86efac, #22c55e)"
-                          : thinkSmallButtonLook.background,
-                        color: completed ? "#052e16" : "white",
-                      }}
-                    >
-                      {completed ? "Replay Mission" : "Choose Mode ›"}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {screen === "mode" && selectedQuiz && (
-          <div style={{ marginTop: "38px" }}>
-            <ThinkTopRow
-              leftButton="← Back to Quizzes"
-              onLeftClick={resetToQuizList}
-              rightText={selectedQuiz.title}
-            />
-
-            <div
-              style={{
-                marginTop: "28px",
-                display: "grid",
-                gridTemplateColumns: isMobile
-                  ? "1fr"
-                  : "repeat(2, minmax(0, 1fr))",
-                gap: "24px",
-              }}
-            >
-              {thinkModes.map((mode) => (
+              {thinkLevelBands.map((level) => (
                 <button
-                  key={mode.id}
+                  key={level.id}
                   type="button"
-                  onClick={() => startQuiz(mode.id)}
-                  style={thinkLargeCardStyle(mode.accent)}
+                  onClick={() => chooseLevel(level.id)}
+                  style={thinkLargeCardStyle(level.accent)}
                 >
                   <p
                     style={{
                       margin: 0,
-                      color: mode.accent,
+                      color: level.accent,
                       fontSize: "14px",
                       letterSpacing: "0.16em",
                       textTransform: "uppercase",
                     }}
                   >
-                    {mode.badge}
+                    {level.label}
                   </p>
 
-                  <h3 style={thinkCardTitleStyle}>{mode.title}</h3>
+                  <h3 style={thinkCardTitleStyle}>{level.title}</h3>
 
-                  <p style={thinkCardTextStyle}>{mode.subtitle}</p>
+                  <p style={thinkCardTextStyle}>{level.subtitle}</p>
 
-                  <div style={thinkCardButtonLook}>Start {mode.title} ›</div>
+                  <div style={thinkCardButtonLook}>Enter Missions ›</div>
                 </button>
               ))}
             </div>
-          </div>
-        )}
+          )}
 
-        {screen === "quiz" && currentQuestion && selectedQuiz && (
-          <div style={{ marginTop: "34px" }}>
-            <ThinkTopRow
-              leftButton="← Back to Mode"
-              onLeftClick={resetToMode}
-              rightText={
-                selectedMode === "challenge"
-                  ? `Challenge Mode · ${formatTime(timeLeft)}`
-                  : `Normal Mode · Question ${questionIndex + 1}/20`
-              }
-            />
+          {screen === "loading" && (
+            <ThinkMessageCard message="Loading Think Mission..." />
+          )}
 
-            <div
-              style={{
-                marginTop: "22px",
-                display: "grid",
-                gridTemplateColumns: isCompact
-                  ? "1fr"
-                  : "minmax(0, 1.1fr) 360px",
-                gap: "24px",
-              }}
-            >
+          {screen === "quiz-list" && selectedLevelInfo && (
+            <div>
+              <ThinkTopRow
+                leftButton="← Back to Levels"
+                onLeftClick={resetToLevels}
+                rightText={`${selectedLevelInfo.title} · ${selectedLevelInfo.label}`}
+              />
+
+              {loadError && <ThinkErrorMessage message={loadError} />}
+
               <div
                 style={{
-                  borderRadius: "24px",
-                  border: "1px solid rgba(150, 220, 255, 0.42)",
-                  background:
-                    "linear-gradient(180deg, rgba(20, 58, 100, 0.74), rgba(8, 25, 56, 0.9))",
-                  padding: "26px",
-                  minHeight: isMobile ? "auto" : "470px",
+                  marginTop: "22px",
+                  display: "grid",
+                  gridTemplateColumns: isMobile
+                    ? "1fr"
+                    : isCompact
+                    ? "repeat(2, minmax(0, 1fr))"
+                    : "repeat(3, minmax(0, 1fr))",
+                  gap: "20px",
                 }}
               >
-                <p
-                  style={{
-                    margin: 0,
-                    color: "#7ee8ff",
-                    fontSize: "13px",
-                    letterSpacing: "0.14em",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {selectedQuiz.title}
-                </p>
+                {quizzes.map((quiz) => {
+                  const completed = isQuizCompleted(quiz.id);
+                  const completedAttempt = completedAttempts.find(
+                    (attempt) => attempt.quiz_id === quiz.id
+                  );
 
-                <h3
-                  style={{
-                    margin: "8px 0 0",
-                    fontSize: isMobile ? "25px" : "30px",
-                    fontWeight: 600,
-                  }}
-                >
-                  Question {questionIndex + 1}
-                </h3>
-
-                {currentQuestion.question_image && (
-                  <div
-                    style={{
-                      marginTop: "24px",
-                      borderRadius: "20px",
-                      border: "1px solid rgba(126,232,255,0.28)",
-                      background: "rgba(255,255,255,0.95)",
-                      minHeight: "220px",
-                      overflow: "hidden",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <img
-                      src={currentQuestion.question_image}
-                      alt={`Question ${questionIndex + 1}`}
+                  return (
+                    <button
+                      key={quiz.id}
+                      type="button"
+                      onClick={() => chooseQuiz(quiz)}
                       style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "contain",
-                      }}
-                      draggable={false}
-                    />
-                  </div>
-                )}
-
-                <p
-                  style={{
-                    margin: "26px 0 0",
-                    fontSize: isMobile ? "21px" : "28px",
-                    lineHeight: 1.35,
-                    fontWeight: 500,
-                    color: "white",
-                  }}
-                >
-                  {currentQuestion.question_text}
-                </p>
-
-                <p
-                  style={{
-                    margin: "14px 0 0",
-                    color: "rgba(255,255,255,0.62)",
-                    fontSize: "14px",
-                  }}
-                >
-                  Skill: {currentQuestion.skill}
-                </p>
-
-                {feedback && (
-                  <div
-                    style={{
-                      marginTop: "24px",
-                      borderRadius: "18px",
-                      border:
-                        selectedAnswer === currentQuestion.correct_answer
-                          ? "1px solid rgba(74, 222, 128, 0.6)"
-                          : "1px solid rgba(248, 113, 113, 0.6)",
-                      background:
-                        selectedAnswer === currentQuestion.correct_answer
-                          ? "rgba(34, 197, 94, 0.14)"
-                          : "rgba(239, 68, 68, 0.14)",
-                      padding: "18px 20px",
-                      fontSize: "16px",
-                      lineHeight: 1.5,
-                      color: "rgba(255,255,255,0.92)",
-                    }}
-                  >
-                    <strong
-                      style={{
-                        display: "block",
-                        marginBottom: "6px",
-                        color:
-                          selectedAnswer === currentQuestion.correct_answer
-                            ? "#86efac"
-                            : "#fca5a5",
-                        fontSize: "18px",
+                        minHeight: isMobile ? "auto" : "290px",
+                        borderRadius: "24px",
+                        padding: "26px",
+                        border: completed
+                          ? "1px solid rgba(74,222,128,0.5)"
+                          : "1px solid rgba(126,232,255,0.36)",
+                        background: completed
+                          ? "linear-gradient(180deg, rgba(20, 92, 60, 0.72), rgba(8, 35, 36, 0.9))"
+                          : "linear-gradient(180deg, rgba(35, 60, 120, 0.78), rgba(8, 25, 56, 0.92))",
+                        color: "white",
+                        textAlign: "left",
+                        cursor: "pointer",
+                        display: "flex",
+                        flexDirection: "column",
+                        opacity: completed ? 0.9 : 1,
                       }}
                     >
-                      {selectedAnswer === currentQuestion.correct_answer
-                        ? "Correct!"
-                        : "Not quite."}
-                    </strong>
+                      <p
+                        style={{
+                          margin: 0,
+                          color: completed ? "#86efac" : "#7ee8ff",
+                          fontSize: "12px",
+                          letterSpacing: "0.14em",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {completed
+                          ? "Completed Once"
+                          : `Think Quiz ${quiz.quiz_order}`}
+                      </p>
 
-                    {feedback}
-                  </div>
-                )}
+                      <h3
+                        style={{
+                          margin: "16px 0 0",
+                          fontSize: "28px",
+                          lineHeight: 1.15,
+                        }}
+                      >
+                        {quiz.title}
+                      </h3>
+
+                      <p
+                        style={{
+                          margin: "12px 0 0",
+                          fontSize: "15px",
+                          lineHeight: 1.5,
+                          color: "rgba(255,255,255,0.72)",
+                        }}
+                      >
+                        {quiz.description}
+                      </p>
+
+                      {completed && completedAttempt && (
+                        <p
+                          style={{
+                            margin: "14px 0 0",
+                            color: "rgba(255,255,255,0.76)",
+                            fontSize: "13px",
+                            lineHeight: 1.45,
+                          }}
+                        >
+                          Counted score: {completedAttempt.score}/100 ·
+                          Correct: {completedAttempt.correct_count}/20 ·
+                          Tokens: +{completedAttempt.tokens_earned}
+                        </p>
+                      )}
+
+                      <div
+                        style={{
+                          ...thinkSmallButtonLook,
+                          background: completed
+                            ? "linear-gradient(135deg, #86efac, #22c55e)"
+                            : thinkSmallButtonLook.background,
+                          color: completed ? "#052e16" : "white",
+                        }}
+                      >
+                        {completed ? "Replay Mission" : "Choose Mode ›"}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
+            </div>
+          )}
+
+          {screen === "mode" && selectedQuiz && (
+            <div>
+              <ThinkTopRow
+                leftButton="← Back to Quizzes"
+                onLeftClick={resetToQuizList}
+                rightText={selectedQuiz.title}
+              />
 
               <div
                 style={{
-                  borderRadius: "24px",
-                  border: "1px solid rgba(150, 220, 255, 0.42)",
-                  background:
-                    "linear-gradient(180deg, rgba(17, 82, 136, 0.86), rgba(7, 27, 68, 0.98))",
-                  padding: "24px",
+                  marginTop: "28px",
+                  display: "grid",
+                  gridTemplateColumns: isMobile
+                    ? "1fr"
+                    : "repeat(2, minmax(0, 1fr))",
+                  gap: "24px",
+                }}
+              >
+                {thinkModes.map((mode) => (
+                  <button
+                    key={mode.id}
+                    type="button"
+                    onClick={() => startQuiz(mode.id)}
+                    style={thinkLargeCardStyle(mode.accent)}
+                  >
+                    <p
+                      style={{
+                        margin: 0,
+                        color: mode.accent,
+                        fontSize: "14px",
+                        letterSpacing: "0.16em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {mode.badge}
+                    </p>
+
+                    <h3 style={thinkCardTitleStyle}>{mode.title}</h3>
+
+                    <p style={thinkCardTextStyle}>{mode.subtitle}</p>
+
+                    <div style={thinkCardButtonLook}>
+                      Start {mode.title} ›
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {screen === "quiz" && currentQuestion && selectedQuiz && (
+            <div>
+              <ThinkTopRow
+                leftButton="← Back to Mode"
+                onLeftClick={resetToMode}
+                rightText={
+                  selectedMode === "challenge"
+                    ? `Challenge Mode · ${formatTime(timeLeft)}`
+                    : `Normal Mode · Question ${questionIndex + 1}/20`
+                }
+              />
+
+              <div
+                style={{
+                  marginTop: "22px",
+                  display: "grid",
+                  gridTemplateColumns: isCompact
+                    ? "1fr"
+                    : "minmax(0, 1.1fr) 360px",
+                  gap: "24px",
                 }}
               >
                 <div
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "12px",
+                    borderRadius: "24px",
+                    border: "1px solid rgba(150, 220, 255, 0.42)",
+                    background:
+                      "linear-gradient(180deg, rgba(20, 58, 100, 0.74), rgba(8, 25, 56, 0.9))",
+                    padding: "26px",
+                    minHeight: isMobile ? "auto" : "470px",
                   }}
                 >
-                  <h3
+                  <p
                     style={{
                       margin: 0,
-                      fontSize: "22px",
+                      color: "#7ee8ff",
+                      fontSize: "13px",
+                      letterSpacing: "0.14em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {selectedQuiz.title}
+                  </p>
+
+                  <h3
+                    style={{
+                      margin: "8px 0 0",
+                      fontSize: isMobile ? "25px" : "30px",
                       fontWeight: 600,
                     }}
                   >
-                    Choose your answer
+                    Question {questionIndex + 1}
                   </h3>
 
-                  {selectedMode === "challenge" && (
+                  {currentQuestion.question_image && (
                     <div
                       style={{
-                        borderRadius: "999px",
-                        border: "1px solid rgba(255,215,106,0.5)",
-                        background: "rgba(255,215,106,0.12)",
-                        padding: "8px 10px",
-                        color: "#ffe6a8",
-                        fontSize: "13px",
-                        fontWeight: 800,
+                        marginTop: "24px",
+                        borderRadius: "20px",
+                        border: "1px solid rgba(126,232,255,0.28)",
+                        background: "rgba(255,255,255,0.95)",
+                        minHeight: "220px",
+                        overflow: "hidden",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
                       }}
                     >
-                      {formatTime(timeLeft)}
+                      <img
+                        src={currentQuestion.question_image}
+                        alt={`Question ${questionIndex + 1}`}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "contain",
+                        }}
+                        draggable={false}
+                      />
+                    </div>
+                  )}
+
+                  <p
+                    style={{
+                      margin: "26px 0 0",
+                      fontSize: isMobile ? "21px" : "28px",
+                      lineHeight: 1.35,
+                      fontWeight: 500,
+                      color: "white",
+                    }}
+                  >
+                    {currentQuestion.question_text}
+                  </p>
+
+                  <p
+                    style={{
+                      margin: "14px 0 0",
+                      color: "rgba(255,255,255,0.62)",
+                      fontSize: "14px",
+                    }}
+                  >
+                    Skill: {currentQuestion.skill}
+                  </p>
+
+                  {feedback && (
+                    <div
+                      style={{
+                        marginTop: "24px",
+                        borderRadius: "18px",
+                        border:
+                          selectedAnswer === currentQuestion.correct_answer
+                            ? "1px solid rgba(74, 222, 128, 0.6)"
+                            : "1px solid rgba(248, 113, 113, 0.6)",
+                        background:
+                          selectedAnswer === currentQuestion.correct_answer
+                            ? "rgba(34, 197, 94, 0.14)"
+                            : "rgba(239, 68, 68, 0.14)",
+                        padding: "18px 20px",
+                        fontSize: "16px",
+                        lineHeight: 1.5,
+                        color: "rgba(255,255,255,0.92)",
+                      }}
+                    >
+                      <strong
+                        style={{
+                          display: "block",
+                          marginBottom: "6px",
+                          color:
+                            selectedAnswer === currentQuestion.correct_answer
+                              ? "#86efac"
+                              : "#fca5a5",
+                          fontSize: "18px",
+                        }}
+                      >
+                        {selectedAnswer === currentQuestion.correct_answer
+                          ? "Correct!"
+                          : "Not quite."}
+                      </strong>
+
+                      {feedback}
                     </div>
                   )}
                 </div>
 
                 <div
                   style={{
-                    marginTop: "20px",
-                    display: "grid",
-                    gap: "12px",
+                    borderRadius: "24px",
+                    border: "1px solid rgba(150, 220, 255, 0.42)",
+                    background:
+                      "linear-gradient(180deg, rgba(17, 82, 136, 0.86), rgba(7, 27, 68, 0.98))",
+                    padding: "24px",
                   }}
                 >
-                  <ThinkAnswerButton
-                    label="A"
-                    text={currentQuestion.option_a}
-                    selected={selectedAnswer === "A"}
-                    disabled={answerLocked || isFinishing}
-                    correctAnswer={currentQuestion.correct_answer}
-                    answerLocked={answerLocked}
-                    onClick={() => chooseAnswer("A")}
-                  />
-
-                  <ThinkAnswerButton
-                    label="B"
-                    text={currentQuestion.option_b}
-                    selected={selectedAnswer === "B"}
-                    disabled={answerLocked || isFinishing}
-                    correctAnswer={currentQuestion.correct_answer}
-                    answerLocked={answerLocked}
-                    onClick={() => chooseAnswer("B")}
-                  />
-
-                  <ThinkAnswerButton
-                    label="C"
-                    text={currentQuestion.option_c}
-                    selected={selectedAnswer === "C"}
-                    disabled={answerLocked || isFinishing}
-                    correctAnswer={currentQuestion.correct_answer}
-                    answerLocked={answerLocked}
-                    onClick={() => chooseAnswer("C")}
-                  />
-
-                  <ThinkAnswerButton
-                    label="D"
-                    text={currentQuestion.option_d}
-                    selected={selectedAnswer === "D"}
-                    disabled={answerLocked || isFinishing}
-                    correctAnswer={currentQuestion.correct_answer}
-                    answerLocked={answerLocked}
-                    onClick={() => chooseAnswer("D")}
-                  />
-                </div>
-
-                {answerLocked && (
-                  <button
-                    type="button"
-                    onClick={nextQuestion}
-                    style={thinkNextButtonStyle}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "12px",
+                    }}
                   >
-                    {questionIndex >= 19 ? "Finish Mission" : "Next Question"}
-                  </button>
-                )}
+                    <h3
+                      style={{
+                        margin: 0,
+                        fontSize: "22px",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Choose your answer
+                    </h3>
+
+                    {selectedMode === "challenge" && (
+                      <div
+                        style={{
+                          borderRadius: "999px",
+                          border: "1px solid rgba(255,215,106,0.5)",
+                          background: "rgba(255,215,106,0.12)",
+                          padding: "8px 10px",
+                          color: "#ffe6a8",
+                          fontSize: "13px",
+                          fontWeight: 800,
+                        }}
+                      >
+                        {formatTime(timeLeft)}
+                      </div>
+                    )}
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: "20px",
+                      display: "grid",
+                      gap: "12px",
+                    }}
+                  >
+                    <ThinkAnswerButton
+                      label="A"
+                      text={currentQuestion.option_a}
+                      selected={selectedAnswer === "A"}
+                      disabled={answerLocked || isFinishing}
+                      correctAnswer={currentQuestion.correct_answer}
+                      answerLocked={answerLocked}
+                      onClick={() => chooseAnswer("A")}
+                    />
+
+                    <ThinkAnswerButton
+                      label="B"
+                      text={currentQuestion.option_b}
+                      selected={selectedAnswer === "B"}
+                      disabled={answerLocked || isFinishing}
+                      correctAnswer={currentQuestion.correct_answer}
+                      answerLocked={answerLocked}
+                      onClick={() => chooseAnswer("B")}
+                    />
+
+                    <ThinkAnswerButton
+                      label="C"
+                      text={currentQuestion.option_c}
+                      selected={selectedAnswer === "C"}
+                      disabled={answerLocked || isFinishing}
+                      correctAnswer={currentQuestion.correct_answer}
+                      answerLocked={answerLocked}
+                      onClick={() => chooseAnswer("C")}
+                    />
+
+                    <ThinkAnswerButton
+                      label="D"
+                      text={currentQuestion.option_d}
+                      selected={selectedAnswer === "D"}
+                      disabled={answerLocked || isFinishing}
+                      correctAnswer={currentQuestion.correct_answer}
+                      answerLocked={answerLocked}
+                      onClick={() => chooseAnswer("D")}
+                    />
+                  </div>
+
+                  {answerLocked && (
+                    <button
+                      type="button"
+                      onClick={nextQuestion}
+                      style={thinkNextButtonStyle}
+                    >
+                      {questionIndex >= 19
+                        ? "Finish Mission"
+                        : "Next Question"}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {screen === "results" && selectedQuiz && (
-          <div
-            style={{
-              margin: "42px auto 0",
-              maxWidth: "760px",
-              borderRadius: "26px",
-              border: "1px solid rgba(126,232,255,0.5)",
-              background:
-                "linear-gradient(180deg, rgba(17, 82, 136, 0.86), rgba(7, 27, 68, 0.98))",
-              padding: isMobile ? "24px" : "36px",
-              textAlign: "center",
-              boxShadow: "0 0 34px rgba(83, 215, 255, 0.28)",
-            }}
-          >
-            <p
-              style={{
-                margin: 0,
-                color: "#7ee8ff",
-                fontSize: "13px",
-                letterSpacing: "0.18em",
-                textTransform: "uppercase",
-              }}
-            >
-              Think Mission Complete
-            </p>
-
-            <h3
-              style={{
-                margin: "12px 0 0",
-                fontSize: isMobile ? "30px" : "38px",
-                fontWeight: 600,
-              }}
-            >
-              {selectedQuiz.title}
-            </h3>
-
+          {screen === "results" && selectedQuiz && (
             <div
               style={{
-                marginTop: "28px",
-                display: "grid",
-                gridTemplateColumns: isMobile
-                  ? "1fr"
-                  : isCompact
-                  ? "repeat(2, minmax(0, 1fr))"
-                  : "repeat(5, minmax(0, 1fr))",
-                gap: "12px",
+                margin: "10px auto",
+                maxWidth: "760px",
+                borderRadius: "26px",
+                border: "1px solid rgba(126,232,255,0.5)",
+                background:
+                  "linear-gradient(180deg, rgba(17, 82, 136, 0.86), rgba(7, 27, 68, 0.98))",
+                padding: isMobile ? "24px" : "36px",
+                textAlign: "center",
+                boxShadow: "0 0 34px rgba(83, 215, 255, 0.28)",
               }}
             >
-              <ThinkResultStat label="Correct" value={`${correctCount}/20`} />
-              <ThinkResultStat label="Score" value={`${score}/100`} />
-              <ThinkResultStat
-                label="Mode"
-                value={selectedMode === "challenge" ? "Timed" : "Normal"}
-              />
-              <ThinkResultStat label="Tokens" value={`+${tokensEarned}`} />
-              <ThinkResultStat label="Balance" value={String(tokenBalance)} />
-            </div>
-
-            <p
-              style={{
-                margin: "26px 0 0",
-                fontSize: "15px",
-                lineHeight: 1.5,
-                color: "rgba(255,255,255,0.78)",
-              }}
-            >
-              {rewardSaved && tokensEarned > 0
-                ? "Your Think Mission attempt, Nova gear progress, and Dreamscape Token reward have been saved."
-                : rewardSaved
-                ? "Practice attempt saved. This quiz was already completed before, so no extra gear progress or tokens were awarded."
-                : "Your mission is complete, but the reward may not have been saved."}
-            </p>
-
-            <div
-              style={{
-                marginTop: "28px",
-                display: "flex",
-                flexDirection: isMobile ? "column" : "row",
-                justifyContent: "center",
-                gap: "12px",
-              }}
-            >
-              <button
-                type="button"
-                onClick={resetToQuizList}
-                style={thinkGhostButton}
+              <p
+                style={{
+                  margin: 0,
+                  color: "#7ee8ff",
+                  fontSize: "13px",
+                  letterSpacing: "0.18em",
+                  textTransform: "uppercase",
+                }}
               >
-                Choose Another Quiz
-              </button>
+                Think Mission Complete
+              </p>
 
-              <button type="button" onClick={onExit} style={thinkPrimaryButton}>
-                Exit Think Missions
-              </button>
+              <h3
+                style={{
+                  margin: "12px 0 0",
+                  fontSize: isMobile ? "30px" : "38px",
+                  fontWeight: 600,
+                }}
+              >
+                {selectedQuiz.title}
+              </h3>
+
+              <div
+                style={{
+                  marginTop: "28px",
+                  display: "grid",
+                  gridTemplateColumns: isMobile
+                    ? "1fr"
+                    : isCompact
+                    ? "repeat(2, minmax(0, 1fr))"
+                    : "repeat(5, minmax(0, 1fr))",
+                  gap: "12px",
+                }}
+              >
+                <ThinkResultStat label="Correct" value={`${correctCount}/20`} />
+                <ThinkResultStat label="Score" value={`${score}/100`} />
+                <ThinkResultStat
+                  label="Mode"
+                  value={selectedMode === "challenge" ? "Timed" : "Normal"}
+                />
+                <ThinkResultStat label="Tokens" value={`+${tokensEarned}`} />
+                <ThinkResultStat label="Balance" value={String(tokenBalance)} />
+              </div>
+
+              <p
+                style={{
+                  margin: "26px 0 0",
+                  fontSize: "15px",
+                  lineHeight: 1.5,
+                  color: "rgba(255,255,255,0.78)",
+                }}
+              >
+                {rewardSaved && tokensEarned > 0
+                  ? "Your Think Mission attempt, Nova gear progress, and Dreamscape Token reward have been saved."
+                  : rewardSaved
+                  ? "Practice attempt saved. This quiz was already completed before, so no extra gear progress or tokens were awarded."
+                  : "Your mission is complete, but the reward may not have been saved."}
+              </p>
+
+              <div
+                style={{
+                  marginTop: "28px",
+                  display: "flex",
+                  flexDirection: isMobile ? "column" : "row",
+                  justifyContent: "center",
+                  gap: "12px",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={resetToQuizList}
+                  style={thinkGhostButton}
+                >
+                  Choose Another Quiz
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onExit}
+                  style={thinkPrimaryButton}
+                >
+                  Exit Think Missions
+                </button>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </section>
+      </section>
     </main>
+  );
+}
+
+function ThinkGearShowcase({
+  isMobile,
+  completedMissionCount,
+  previewInventoryItems,
+}: {
+  isMobile: boolean;
+  completedMissionCount: number;
+  previewInventoryItems: ThinkInventoryUpgrade[];
+}) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(3, minmax(0, 1fr))",
+        gap: "14px",
+      }}
+    >
+      {previewInventoryItems.slice(0, isMobile ? 4 : 6).map((item) => {
+        const unlocked = completedMissionCount >= item.missionsRequired;
+
+        return (
+          <GearItemCard
+            key={item.name}
+            item={item}
+            unlocked={unlocked}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function GearItemCard({
+  item,
+  unlocked,
+}: {
+  item: ThinkInventoryUpgrade;
+  unlocked: boolean;
+}) {
+  return (
+    <div
+      style={{
+        minHeight: "178px",
+        borderRadius: "24px",
+        border: `1px solid ${
+          unlocked ? `${item.accent}aa` : "rgba(255,255,255,0.15)"
+        }`,
+        background: unlocked
+          ? "linear-gradient(145deg, rgba(8,34,64,0.82), rgba(4,14,34,0.88))"
+          : "linear-gradient(145deg, rgba(30,30,42,0.62), rgba(8,12,28,0.86))",
+        padding: "16px",
+        boxShadow: unlocked ? `0 0 24px ${item.accent}28` : "none",
+        opacity: unlocked ? 1 : 0.78,
+      }}
+    >
+      <div
+        style={{
+          height: "72px",
+          borderRadius: "18px",
+          border: `1px solid ${
+            unlocked ? `${item.accent}66` : "rgba(255,255,255,0.12)"
+          }`,
+          backgroundImage: `
+            linear-gradient(145deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)),
+            url("${item.image}")
+          `,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: item.accent,
+          fontSize: "30px",
+          fontWeight: 900,
+        }}
+      >
+        {item.icon}
+      </div>
+
+      <p
+        style={{
+          margin: "12px 0 0",
+          color: unlocked ? item.accent : "rgba(255,255,255,0.45)",
+          fontSize: "10px",
+          letterSpacing: "0.16em",
+          textTransform: "uppercase",
+          fontWeight: 900,
+        }}
+      >
+        {unlocked ? "Unlocked" : `${item.missionsRequired} missions`}
+      </p>
+
+      <h3
+        style={{
+          margin: "7px 0 0",
+          fontSize: "18px",
+          lineHeight: 1.15,
+        }}
+      >
+        {item.name}
+      </h3>
+    </div>
   );
 }
 
@@ -1461,18 +1652,8 @@ function ThinkInventoryPanel({
 }: {
   isMobile: boolean;
   completedMissionCount: number;
-  currentUpgrade: {
-    missionsRequired: number;
-    name: string;
-    description: string;
-  };
-  nextUpgrade:
-    | {
-        missionsRequired: number;
-        name: string;
-        description: string;
-      }
-    | undefined;
+  currentUpgrade: ThinkInventoryUpgrade;
+  nextUpgrade: ThinkInventoryUpgrade | undefined;
   progressPercentage: number;
 }) {
   const missionsToNext = nextUpgrade
@@ -1482,7 +1663,8 @@ function ThinkInventoryPanel({
   return (
     <section
       style={{
-        marginTop: "32px",
+        width: "min(1240px, 100%)",
+        margin: "0 auto",
         display: "grid",
         gridTemplateColumns: isMobile ? "1fr" : "1.1fr 0.9fr",
         gap: "20px",
@@ -1490,12 +1672,12 @@ function ThinkInventoryPanel({
     >
       <div
         style={{
-          borderRadius: "24px",
+          borderRadius: "26px",
           border: "1px solid rgba(96,240,208,0.35)",
           background:
-            "linear-gradient(145deg, rgba(5,22,48,0.76), rgba(16,62,74,0.62))",
-          padding: "24px",
-          boxShadow: "0 0 24px rgba(96,240,208,0.16)",
+            "linear-gradient(145deg, rgba(5,22,48,0.72), rgba(16,62,74,0.58))",
+          padding: isMobile ? "20px" : "24px",
+          boxShadow: "0 0 24px rgba(96,240,208,0.14)",
         }}
       >
         <p
@@ -1505,7 +1687,7 @@ function ThinkInventoryPanel({
             fontSize: "12px",
             letterSpacing: "0.18em",
             textTransform: "uppercase",
-            fontWeight: 700,
+            fontWeight: 800,
           }}
         >
           Gear Inventory Progress
@@ -1561,17 +1743,19 @@ function ThinkInventoryPanel({
           }}
         >
           Counted Think Missions:{" "}
-          <strong style={{ color: "#60f0d0" }}>{completedMissionCount}</strong>
+          <strong style={{ color: "#60f0d0" }}>
+            {completedMissionCount}
+          </strong>
         </p>
       </div>
 
       <div
         style={{
-          borderRadius: "24px",
+          borderRadius: "26px",
           border: "1px solid rgba(255,215,106,0.35)",
           background:
-            "linear-gradient(145deg, rgba(74,47,12,0.62), rgba(18,22,45,0.82))",
-          padding: "24px",
+            "linear-gradient(145deg, rgba(74,47,12,0.58), rgba(18,22,45,0.76))",
+          padding: isMobile ? "20px" : "24px",
         }}
       >
         <p
@@ -1581,7 +1765,7 @@ function ThinkInventoryPanel({
             fontSize: "12px",
             letterSpacing: "0.18em",
             textTransform: "uppercase",
-            fontWeight: 700,
+            fontWeight: 800,
           }}
         >
           Next Unlock
@@ -1766,7 +1950,7 @@ function ThinkMessageCard({ message }: { message: string }) {
   return (
     <div
       style={{
-        margin: "52px auto 20px",
+        margin: "20px auto",
         maxWidth: "560px",
         borderRadius: "24px",
         border: "1px solid rgba(126,232,255,0.36)",
@@ -1836,7 +2020,7 @@ function ThinkResultStat({ label, value }: { label: string; value: string }) {
 
 function thinkLargeCardStyle(accent: string): CSSProperties {
   return {
-    minHeight: "320px",
+    minHeight: "300px",
     borderRadius: "24px",
     padding: "30px",
     border: `1px solid ${accent}88`,
