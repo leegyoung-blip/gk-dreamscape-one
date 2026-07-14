@@ -134,13 +134,17 @@ function WorldPanel({ world, isMobile }: { world: World; isMobile: boolean }) {
         : "none",
   };
 
+  const contentInset = isMobile ? "28px" : "clamp(48px, 6.5vw, 122px)";
+
   const contentStyle: CSSProperties = {
     position: "absolute",
     zIndex: 10,
-    left: isMobile ? "28px" : world.key === "nova" ? "122px" : "auto",
-    right: isMobile ? "28px" : world.key === "milo" ? "122px" : "auto",
+    left: contentInset,
+    right: isMobile ? "28px" : "40px",
     bottom: isMobile ? "54px" : "104px",
-    width: isMobile ? "auto" : world.key === "milo" ? "520px" : "auto",
+    width: "auto",
+    maxWidth: "520px",
+    textAlign: "left",
   };
 
   return (
@@ -191,7 +195,7 @@ function WorldPanel({ world, isMobile }: { world: World; isMobile: boolean }) {
           style={{
             margin: 0,
             fontFamily: 'Georgia, "Times New Roman", serif',
-            fontSize: isMobile ? "42px" : "56px",
+            fontSize: isMobile ? "42px" : "clamp(44px, 4vw, 56px)",
             fontWeight: 400,
             lineHeight: 1.05,
             letterSpacing: "0.01em",
