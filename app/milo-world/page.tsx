@@ -1189,6 +1189,7 @@ function OptionCard({
     <article
       style={{
         flex: isMobile ? "0 0 86vw" : "0 0 360px",
+        width: "100%",
         scrollSnapAlign: "start",
         minHeight: isMobile ? "auto" : "430px",
         borderRadius: "26px",
@@ -1262,7 +1263,15 @@ function OptionCard({
         </div>
       )}
 
-      <div style={{ padding: "24px", color: "#07111f" }}>
+      <div
+        style={{
+          padding: "24px",
+          color: "#07111f",
+          display: "flex",
+          flexDirection: "column",
+          height: "100%",
+        }}
+      >
         {option.priceFrom && (
           <p
             style={{
@@ -1338,7 +1347,7 @@ function OptionCard({
           }}
 
           style={{
-            marginTop: "18px",
+            marginTop: "auto",
             width: "100%",
             height: "44px",
             border: "none",
@@ -4321,9 +4330,11 @@ function WorldPopup({
 
   const useCompactPopup = isActivityLabOptions || isCategoriesActivity;
 
-  const popupWidth = isMobile
+const popupWidth = isMobile
   ? "calc(100vw - 20px)"
-  : useCompactPopup
+  : isActivityLabOptions
+  ? "min(1380px, 96vw)"
+  : isCategoriesActivity
   ? "min(980px, 92vw)"
   : "min(1680px, 96vw)";
 
@@ -4496,12 +4507,15 @@ const popupHeight = isMobile
   <>
     <div
       style={{
-        display: "flex",
+        display: isActivityLabOptions ? "grid" : "flex",
+        gridTemplateColumns: isActivityLabOptions
+          ? "repeat(3, minmax(0, 1fr))"
+          : undefined,
         gap: "24px",
-        overflowX: "auto",
+        overflowX: isActivityLabOptions ? "visible" : "auto",
         overflowY: "hidden",
         padding: "8px 4px 28px",
-        scrollSnapType: "x mandatory",
+        scrollSnapType: isActivityLabOptions ? "none" : "x mandatory",
       }}
     >
       {content.options.map((option) => (
@@ -4517,19 +4531,21 @@ const popupHeight = isMobile
       ))}
     </div>
 
-    <div
-      style={{
-        marginTop: "4px",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        color: "rgba(7,17,31,0.46)",
-        fontSize: "13px",
-      }}
-    >
-      <span>Scroll sideways to view more options.</span>
-      <span>{content.options.length} options</span>
-    </div>
+    {!isActivityLabOptions && (
+      <div
+        style={{
+          marginTop: "4px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          color: "rgba(7,17,31,0.46)",
+          fontSize: "13px",
+        }}
+      >
+        <span>Scroll sideways to view more options.</span>
+        <span>{content.options.length} options</span>
+      </div>
+    )}
   </>
 )}
 </div>
