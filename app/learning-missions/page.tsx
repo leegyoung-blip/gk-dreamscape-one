@@ -121,8 +121,8 @@ const missionZones: MissionZone[] = [
     accent: "#60f0d0",
     accessKey: "think",
     position: {
-      left: "5%",
-      top: "21%",
+      left: "0%",
+      top: "40%",
       width: "28%",
       height: "30%",
     },
