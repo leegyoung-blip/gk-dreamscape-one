@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 
 type DreamShopProduct = {
   id: string;
@@ -22,7 +21,7 @@ const sparkProducts: DreamShopProduct[] = [
       "One box contains one random Spark collectible from the first local legends launch series.",
     image: "/milo-world/blind-box/delivery-spark.png",
     price: 19.9,
-    status: "available",
+    status: "coming-soon",
   },
 ];
 
@@ -45,33 +44,6 @@ const possiblePulls = [
 ];
 
 export default function DreamShopPage() {
-  const [message, setMessage] = useState("");
-
-  function addBlindBoxToCart() {
-    const cartItem = {
-      id: `spark-blind-box-${Date.now()}`,
-      productType: "milo-blind-box",
-      name: "Spark Local Legends Blind Box",
-      description: "One mystery Spark collectible from Series 01.",
-      series: "Spark Local Legends: Series 01",
-      possiblePulls: ["Delivery Spark", "Hawker Spark", "Barista Spark"],
-      image: "/milo-world/blind-box/delivery-spark.png",
-      price: 19.9,
-      quantity: 1,
-    };
-
-    const savedCart = JSON.parse(
-      localStorage.getItem("dreamscape-cart") || "[]"
-    );
-
-    localStorage.setItem(
-      "dreamscape-cart",
-      JSON.stringify([...savedCart, cartItem])
-    );
-
-    setMessage("Added Spark Local Legends Blind Box to cart.");
-  }
-
   return (
     <main
       style={{
@@ -249,7 +221,7 @@ export default function DreamShopPage() {
                     textTransform: "uppercase",
                   }}
                 >
-                  Available Now
+                  Coming Soon
                 </p>
 
                 <h2
@@ -296,7 +268,7 @@ export default function DreamShopPage() {
                       textTransform: "uppercase",
                     }}
                   >
-                    Price
+                    Preview Price
                   </p>
 
                   <p
@@ -314,37 +286,36 @@ export default function DreamShopPage() {
 
                 <button
                   type="button"
-                  onClick={addBlindBoxToCart}
+                  disabled
                   style={{
                     marginTop: "20px",
                     width: "100%",
                     height: "54px",
                     borderRadius: "16px",
-                    border: "none",
-                    background: "white",
-                    color: "#061632",
+                    border: "1px solid rgba(255,255,255,0.14)",
+                    background: "rgba(255,255,255,0.12)",
+                    color: "rgba(255,255,255,0.5)",
                     fontSize: "15px",
                     fontWeight: 900,
-                    cursor: "pointer",
+                    cursor: "not-allowed",
                     textTransform: "uppercase",
                     letterSpacing: "0.12em",
                   }}
                 >
-                  Add to Cart
+                  Coming Soon
                 </button>
 
-                {message && (
-                  <p
-                    style={{
-                      margin: "14px 0 0",
-                      color: "#7ee8ff",
-                      fontSize: "14px",
-                      fontWeight: 800,
-                    }}
-                  >
-                    {message}
-                  </p>
-                )}
+                <p
+                  style={{
+                    margin: "14px 0 0",
+                    color: "rgba(255,255,255,0.48)",
+                    fontSize: "13px",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  This item is a digital preview and is not available for
+                  purchase yet.
+                </p>
               </div>
             </article>
           ))}

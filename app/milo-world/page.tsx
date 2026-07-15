@@ -680,11 +680,6 @@ function MembershipPlans({ onClose }: { onClose: () => void }) {
   const isMobile = screenMode === "mobile";
   const [clubHovered, setClubHovered] = useState(false);
 
-  function openMilosClubShopifyPage() {
-    onClose();
-    window.open(MILOS_CLUB_URL, "_blank", "noopener,noreferrer");
-  }
-
   return (
     <div
       style={{
@@ -866,7 +861,6 @@ function MembershipPlans({ onClose }: { onClose: () => void }) {
           onMouseEnter={() => setClubHovered(true)}
           onMouseLeave={() => setClubHovered(false)}
           onTouchStart={() => setClubHovered((current) => !current)}
-          onClick={openMilosClubShopifyPage}
           style={{
             position: "relative",
             minHeight: isDesktop ? "520px" : isMobile ? "430px" : "520px",
@@ -877,7 +871,7 @@ function MembershipPlans({ onClose }: { onClose: () => void }) {
               "linear-gradient(180deg, rgba(255,239,199,0.98), rgba(241,196,111,0.92))",
             boxShadow:
               "0 0 42px rgba(219,150,56,0.26), 0 26px 60px rgba(90,55,20,0.14)",
-            cursor: "pointer",
+            cursor: "not-allowed",
           }}
         >
           <img
@@ -891,6 +885,7 @@ function MembershipPlans({ onClose }: { onClose: () => void }) {
               display: "block",
               transform: clubHovered ? "scale(1.035)" : "scale(1)",
               transition: "transform 320ms ease",
+              filter: "saturate(0.92)",
             }}
           />
 
@@ -899,8 +894,8 @@ function MembershipPlans({ onClose }: { onClose: () => void }) {
               position: "absolute",
               inset: 0,
               background: clubHovered
-                ? "linear-gradient(180deg, rgba(25,12,4,0.34), rgba(25,12,4,0.82))"
-                : "linear-gradient(180deg, rgba(25,12,4,0.02), rgba(25,12,4,0.18))",
+                ? "linear-gradient(180deg, rgba(25,12,4,0.42), rgba(25,12,4,0.88))"
+                : "linear-gradient(180deg, rgba(25,12,4,0.18), rgba(25,12,4,0.44))",
               transition: "background 260ms ease",
             }}
           />
@@ -936,7 +931,7 @@ function MembershipPlans({ onClose }: { onClose: () => void }) {
                 WebkitBackdropFilter: "blur(8px)",
               }}
             >
-              ✦ Recommended
+              ✦ Coming Soon
             </div>
 
             <div
@@ -976,7 +971,7 @@ function MembershipPlans({ onClose }: { onClose: () => void }) {
               style={{
                 borderRadius: "22px",
                 border: "1px solid rgba(255,255,255,0.22)",
-                background: "rgba(24,12,4,0.74)",
+                background: "rgba(24,12,4,0.78)",
                 backdropFilter: "blur(14px)",
                 WebkitBackdropFilter: "blur(14px)",
                 padding: isMobile ? "20px" : "24px",
@@ -994,7 +989,7 @@ function MembershipPlans({ onClose }: { onClose: () => void }) {
                   fontWeight: 900,
                 }}
               >
-                Milo’s Club Includes
+                Milo’s Club Preview
               </p>
 
               <h4
@@ -1042,24 +1037,38 @@ function MembershipPlans({ onClose }: { onClose: () => void }) {
                 ))}
               </ul>
 
-              <div
+              <button
+                type="button"
+                disabled
                 style={{
                   marginTop: "20px",
+                  width: "100%",
                   height: "52px",
                   borderRadius: "14px",
-                  border: "1px solid rgba(255,255,255,0.32)",
-                  background: "linear-gradient(90deg, #c47a25, #e5b75e)",
-                  color: "white",
+                  border: "1px solid rgba(255,255,255,0.26)",
+                  background: "rgba(255,255,255,0.12)",
+                  color: "rgba(255,255,255,0.58)",
                   fontSize: "16px",
                   fontWeight: 900,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  boxShadow: "0 14px 28px rgba(154,89,22,0.2)",
+                  cursor: "not-allowed",
                 }}
               >
-                Join Milo’s Club ›
-              </div>
+                Coming Soon
+              </button>
+
+              <p
+                style={{
+                  margin: "12px 0 0",
+                  color: "rgba(255,255,255,0.54)",
+                  fontSize: "12px",
+                  lineHeight: 1.5,
+                }}
+              >
+                Shopify link is kept in the code but disabled until launch.
+              </p>
             </div>
           </div>
 
@@ -1112,7 +1121,7 @@ function MembershipPlans({ onClose }: { onClose: () => void }) {
                   lineHeight: 1.45,
                 }}
               >
-                Hover to view benefits. Click to join.
+                Coming soon. Membership checkout is not open yet.
               </p>
             </div>
           )}
