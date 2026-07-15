@@ -10,7 +10,6 @@ const MILOS_CLUB_URL =
 
 type PopupKind =
   | "membership"
-  | "printStudio"
   | "masteryLab";
 
 type ServiceFormKind =
@@ -211,10 +210,10 @@ const zones: Zone[] = [
   },
   {
     number: "2",
-    icon: "◆",
-    title: "Milo’s Print Studio",
-    description: "Corporate, event, design, and 3D printing services.",
-    action: "printStudio",
+    icon: "◈",
+    title: "Milo’s Stock Exchange",
+    description: "Use earned Dreamscape Tokens to trade fictional Dreamscape stocks.",
+    href: "/milo-world/stock-exchange",
     style: {
       top: "300px",
       right: "180px",
@@ -225,7 +224,7 @@ const zones: Zone[] = [
     number: "3",
     icon: "▣",
     title: "Activity Lab",
-    description: "Tougher quizzes, logic missions, and creator challenges.",
+    description: "Play daily challenges, quiz battles, and party games to earn tokens.",
     action: "masteryLab",
     style: {
       top: "480px",
@@ -234,22 +233,22 @@ const zones: Zone[] = [
     },
   },
   {
-  number: "4",
-  icon: "◈",
-  title: "Dream Shop",
-  description: "Collectibles, limited drops, and Dreamscape items.",
-  href: "/milo-world/dream-shop",
-  style: {
-    top: "570px",
-    left: "365px",
-    width: "455px",
+    number: "4",
+    icon: "◆",
+    title: "Dream Shop",
+    description: "Collectibles, limited drops, and Dreamscape items.",
+    href: "/milo-world/dream-shop",
+    style: {
+      top: "570px",
+      left: "365px",
+      width: "455px",
+    },
   },
-},
-    {
+  {
     number: "5",
     icon: "★",
     title: "Milo’s Club",
-    description: "Exclusive member space for rewards, drops, and club-only perks.",
+    description: "Coming soon: bonus challenges, rewards, and club-only perks.",
     href: "/milo-world/club",
     style: {
       top: "370px",
@@ -263,69 +262,15 @@ const popupContent: Record<PopupKind, PopupContent> = {
   membership: {
     eyebrow: "Dreamscape One Membership",
     title: "Membership Portal",
-    description:
-      "",
+    description: "",
     options: [],
   },
 
-  printStudio: {
-    eyebrow: "Corporate Studio & 3D Printing Services",
-    title: "Milo’s Print Studio",
-    description:
-      "Request corporate gifts, event items, custom 3D prints, prototypes, and design support. Choose the service path that fits your order.",
-    options: [
-      {
-        name: "Corporate & Bulk Orders",
-        subtitle: "For company gifts, school items, staff appreciation, and branded merchandise.",
-        description:
-          "Best for organisations that need multiple personalised pieces with names, logos, colours, or a consistent event theme.",
-        priceFrom: "Bulk quote",
-        imageSrc: "/milo-world/corporate/bulk-corporate.png",
-        imageFit: "cover",
-        buttonLabel: "Start Corporate Order",
-        formKind: "corporateBulk",
-      },
-      {
-        name: "Event & Workshop Orders",
-        subtitle: "For launches, retreats, celebrations, workshops, and school events.",
-        description:
-          "Best for event souvenirs, awards, table gifts, appreciation pieces, activity prizes, or themed one-time production runs.",
-        priceFrom: "Event quote",
-        imageSrc: "/milo-world/corporate/event-purchases.png",
-        imageFit: "cover",
-        buttonLabel: "Plan Event Order",
-        formKind: "eventPurchase",
-      },
-      {
-        name: "Print With Provided File",
-        subtitle: "For users who already have an STL, OBJ, 3MF, or printable file.",
-        description:
-          "Send your file for checking. We review printability, size, material, colour, estimated time, and cost before printing.",
-        priceFrom: "Quote first",
-        imageSrc: "/milo-world/design-print/provided-file.png",
-        imageFit: "cover",
-        buttonLabel: "Request File Quote",
-        formKind: "fileQuote",
-      },
-      {
-        name: "Design Service + Print",
-        subtitle: "For users with an idea, sketch, reference image, or product concept.",
-        description:
-          "We help turn your concept into a printable model, then print the final approved design.",
-        priceFrom: "Design quote",
-        imageSrc: "/milo-world/design-print/design-service-print.png",
-        imageFit: "cover",
-        buttonLabel: "Start Design Request",
-        formKind: "designQuote",
-      },
-    ],
-  },
-
   masteryLab: {
-    eyebrow: "Advanced Quiz & Challenge Centre",
+    eyebrow: "Milo’s Token-Earning Games",
     title: "Activity Lab",
     description:
-      "Choose a timed challenge. Built for older learners and advanced users.",
+      "Play Milo’s challenge modes to earn Dreamscape Tokens. Tokens can be used inside Milo’s World, including Milo’s Stock Exchange for eligible 16+ users.",
     options: [
       {
         name: "Mastery Code",
@@ -362,9 +307,9 @@ const popupContent: Record<PopupKind, PopupContent> = {
 };
 
 const introText =
-  "Hi, I’m Milo. Welcome to my Design District. This is where Dreamscape members manage their access, businesses request 3D printing services, advanced users take on tougher mastery challenges, and collectors visit the Dream Shop for limited drops. Choose any zone to begin.";
+  "Hi, I’m Milo. Welcome to my economy world. This is where Dreamscape users play challenges, earn Dreamscape Tokens, visit the Dream Shop, and use tokens in Milo’s Stock Exchange if they are 16 or above. Choose any zone to begin.";
 
-function createInitialChoices(option: PopupOption): CustomChoices {
+  function createInitialChoices(option: PopupOption): CustomChoices {
   return {
     baseColour: baseColourOptions[0],
     design: option.customisation?.designOptions[0] || "",
@@ -851,9 +796,9 @@ function MembershipPlans({ onClose }: { onClose: () => void }) {
           >
             {[
               "Explore selected Milo zones",
-              "View selected product previews",
-              "Play limited activities",
-              "Access basic Dreamscape Token features",
+              "Play selected Activity Lab games",
+              "Earn Dreamscape Tokens through activities",
+              "View Dream Shop previews",
             ].map((feature) => (
               <li
                 key={feature}
@@ -1068,8 +1013,8 @@ function MembershipPlans({ onClose }: { onClose: () => void }) {
               >
                 {[
                   "Dreamscape Token rewards",
-                  "Discounts off 3D printing services",
-                  "Access to more games in the Activity Lab",
+                  "Bonus Activity Lab challenges",
+                  "Future Milo Market events",
                   "Access to Milo’s Club",
                 ].map((feature) => (
                   <li
@@ -4841,7 +4786,7 @@ export default function MiloWorldPage() {
             textShadow: "0 8px 30px rgba(0,0,0,0.45)",
           }}
         >
-          Create, print, and bring ideas to life.
+          Play, earn, and trade inside Dreamscape.
         </p>
 
         <div
