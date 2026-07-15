@@ -7,16 +7,11 @@ import { supabase } from "@/lib/supabase";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 
-type ZoneAccessKey = "core" | "think" | "express";
-
-type ZoneUnlocks = Record<ZoneAccessKey, boolean>;
-
 type UserMissionAccess = {
   userId: string | null;
   email: string | null;
   role: string | null;
   hasFullAccess: boolean;
-  zoneUnlocks: ZoneUnlocks;
 };
 
 function useResponsiveMode() {
@@ -52,13 +47,7 @@ type MissionZone = {
   description: string;
   position: CSSProperties;
   accent: string;
-  accessKey?: ZoneAccessKey;
-};
-
-const emptyZoneUnlocks: ZoneUnlocks = {
-  core: false,
-  think: false,
-  express: false,
+  requiresRoleAccess?: boolean;
 };
 
 function normaliseRole(role: string | null) {
@@ -72,7 +61,11 @@ function normaliseRole(role: string | null) {
 function roleHasFullLearningAccess(role: string | null) {
   const cleanRole = normaliseRole(role);
 
-  return cleanRole === "admin" || cleanRole === "student";
+  return (
+    cleanRole === "admin" ||
+    cleanRole === "student" ||
+    cleanRole === "teacher"
+  );
 }
 
 function getZoneHref(zoneId: string) {
@@ -92,6 +85,7 @@ const missionZones: MissionZone[] = [
     description:
       "Play 10-question topic challenges, answer quickly, earn points, and collect Dreamscape Tokens.",
     accent: "#53d7ff",
+    requiresRoleAccess: true,
     position: {
       left: "37%",
       top: "39%",
@@ -105,7 +99,7 @@ const missionZones: MissionZone[] = [
     description:
       "Complete English and Math missions to upgrade Nova’s Skyforge Rover.",
     accent: "#7ecbff",
-    accessKey: "core",
+    requiresRoleAccess: true,
     position: {
       left: "4%",
       top: "54%",
@@ -119,7 +113,7 @@ const missionZones: MissionZone[] = [
     description:
       "Train reasoning, logic, pattern spotting and HAP-style thinking to unlock Nova’s gear inventory.",
     accent: "#60f0d0",
-    accessKey: "think",
+    requiresRoleAccess: true,
     position: {
       left: "5%",
       top: "21%",
@@ -133,7 +127,7 @@ const missionZones: MissionZone[] = [
     description:
       "Complete writing missions to power Nova’s story system, word tools and Dreamscribe archive.",
     accent: "#ff9df0",
-    accessKey: "express",
+    requiresRoleAccess: true,
     position: {
       right: "5%",
       top: "53%",
@@ -147,6 +141,7 @@ const missionZones: MissionZone[] = [
     description:
       "Attempt advanced challenge tasks, HAP extensions, boss questions and harder problem-solving missions.",
     accent: "#ffd76a",
+    requiresRoleAccess: true,
     position: {
       right: "4%",
       top: "19%",
@@ -160,6 +155,7 @@ const missionZones: MissionZone[] = [
     description:
       "Track completed missions, score records, unlocked upgrades and Dreamscape Token rewards.",
     accent: "#8dfcff",
+    requiresRoleAccess: true,
     position: {
       left: "38%",
       top: "17%",
@@ -184,7 +180,6 @@ export default function LearningMissionsPage() {
       email: null,
       role: null,
       hasFullAccess: false,
-      zoneUnlocks: emptyZoneUnlocks,
     });
 
   useEffect(() => {
@@ -199,7 +194,6 @@ export default function LearningMissionsPage() {
           email: null,
           role: null,
           hasFullAccess: false,
-          zoneUnlocks: emptyZoneUnlocks,
         });
 
         setTokenBalance(0);
@@ -219,50 +213,11 @@ export default function LearningMissionsPage() {
       const role = profile?.role || null;
       const hasFullAccess = roleHasFullLearningAccess(role);
 
-      let nextZoneUnlocks: ZoneUnlocks = {
-        core: false,
-        think: false,
-        express: false,
-      };
-
-      if (hasFullAccess) {
-        nextZoneUnlocks = {
-          core: true,
-          think: true,
-          express: true,
-        };
-      } else {
-        const { data: accessRows, error: accessError } = await supabase
-          .from("learning_mission_zone_access")
-          .select("zone_key,is_unlocked")
-          .eq("user_id", user.id);
-
-        if (accessError) {
-          console.warn(
-            "Could not load learning mission access:",
-            accessError.message
-          );
-        }
-
-        (accessRows || []).forEach((row) => {
-          const zoneKey = row.zone_key as ZoneAccessKey;
-
-          if (
-            zoneKey === "core" ||
-            zoneKey === "think" ||
-            zoneKey === "express"
-          ) {
-            nextZoneUnlocks[zoneKey] = Boolean(row.is_unlocked);
-          }
-        });
-      }
-
       setUserMissionAccess({
         userId: user.id,
         email: user.email ?? null,
         role,
         hasFullAccess,
-        zoneUnlocks: nextZoneUnlocks,
       });
 
       const { data, error } = await supabase
@@ -304,15 +259,13 @@ export default function LearningMissionsPage() {
   }, []);
 
   function isZoneUnlocked(zone: MissionZone) {
-    if (!zone.accessKey) return true;
+    if (!zone.requiresRoleAccess) return true;
 
-    if (userMissionAccess.hasFullAccess) return true;
-
-    return userMissionAccess.zoneUnlocks[zone.accessKey];
+    return userMissionAccess.hasFullAccess;
   }
 
   function isZoneLocked(zone: MissionZone) {
-    return Boolean(zone.accessKey && !isZoneUnlocked(zone));
+    return Boolean(zone.requiresRoleAccess && !isZoneUnlocked(zone));
   }
 
   function getLockedMessage(zone: MissionZone) {
@@ -320,7 +273,7 @@ export default function LearningMissionsPage() {
       return "Please log in to access this mission zone.";
     }
 
-    return `${zone.title} is not unlocked for this account yet. Ask your teacher or admin to unlock it based on your current course.`;
+    return `${zone.title} is only available to student, teacher, or admin accounts.`;
   }
 
   function getZoneClick(zone: MissionZone) {
@@ -840,7 +793,11 @@ function MissionCard({
       <div
         style={{
           marginTop: "18px",
-          color: isLocked ? "#ffd76a" : onClick ? zone.accent : "rgba(255,255,255,0.45)",
+          color: isLocked
+            ? "#ffd76a"
+            : onClick
+            ? zone.accent
+            : "rgba(255,255,255,0.45)",
           fontSize: "14px",
           fontWeight: 700,
         }}
@@ -925,7 +882,7 @@ function ZoneHoverPopup({
             fontWeight: 700,
           }}
         >
-          This zone is not unlocked for your account yet.
+          This zone is only available to student, teacher, or admin accounts.
         </p>
       )}
 
