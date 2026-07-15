@@ -131,13 +131,23 @@ type ExpressStoryUpgrade = {
   accent: string;
 };
 
-const allowedExpressMissionTiers = [
-  "admin",
-  "gkp_student",
-  "paid_student",
-  "student",
-  "pro",
-];
+function normaliseRole(role: string | null) {
+  return String(role || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/_/g, "-");
+}
+
+function roleHasMissionAccess(role: string | null) {
+  const cleanRole = normaliseRole(role);
+
+  return (
+    cleanRole === "admin" ||
+    cleanRole === "student" ||
+    cleanRole === "teacher"
+  );
+}
 
 const expressStoryTrack: ExpressStoryUpgrade[] = [
   {
@@ -417,9 +427,9 @@ function ExpressMissionsActivity({
 
     const { data, error } = await supabase
       .from("profiles")
-      .select("tier")
+      .select("role")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
     if (error || !data) {
       console.warn("Could not check Express Missions access:", error);
@@ -427,7 +437,7 @@ function ExpressMissionsActivity({
       return;
     }
 
-    if (!allowedExpressMissionTiers.includes(data.tier)) {
+    if (!roleHasMissionAccess(data.role || null)) {
       setScreen("locked");
       return;
     }
@@ -924,8 +934,8 @@ function ExpressMissionsActivity({
                   color: "rgba(255,255,255,0.78)",
                 }}
               >
-                Express Missions are available for GKP students, paid Student
-                Access members, Pro users and admins.
+                Express Missions are available for student, teacher, and admin
+                accounts.
               </p>
 
               <div

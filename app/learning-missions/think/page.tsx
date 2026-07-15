@@ -135,13 +135,23 @@ type ThinkInventoryUpgrade = {
   accent: string;
 };
 
-const allowedThinkMissionTiers = [
-  "admin",
-  "gkp_student",
-  "paid_student",
-  "student",
-  "pro",
-];
+function normaliseRole(role: string | null) {
+  return String(role || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/_/g, "-");
+}
+
+function roleHasMissionAccess(role: string | null) {
+  const cleanRole = normaliseRole(role);
+
+  return (
+    cleanRole === "admin" ||
+    cleanRole === "student" ||
+    cleanRole === "teacher"
+  );
+}
 
 const thinkInventoryTrack: ThinkInventoryUpgrade[] = [
   {
@@ -428,9 +438,9 @@ function ThinkMissionsActivity({
 
     const { data, error } = await supabase
       .from("profiles")
-      .select("tier")
+      .select("role")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
     if (error || !data) {
       console.warn("Could not check Think Missions access:", error);
@@ -438,7 +448,7 @@ function ThinkMissionsActivity({
       return;
     }
 
-    if (!allowedThinkMissionTiers.includes(data.tier)) {
+    if (!roleHasMissionAccess(data.role || null)) {
       setScreen("locked");
       return;
     }
@@ -943,8 +953,8 @@ function ThinkMissionsActivity({
                   color: "rgba(255,255,255,0.78)",
                 }}
               >
-                Think Missions are available for GKP students, paid Student
-                Access members, Pro users and admins.
+                Think Missions are available for student, teacher, and admin
+                accounts.
               </p>
 
               <div
