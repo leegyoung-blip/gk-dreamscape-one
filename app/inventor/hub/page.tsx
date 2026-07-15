@@ -324,36 +324,18 @@ const NOVA_BLIND_BOX_PREVIEWS: BlindBoxPreview[] = [
 const HUB_AREAS: HubArea[] = [
   {
     id: "parts-supplies",
-    title: "Nova Build Sets",
-    label: "Prefab sets for building areas inside Nova's World.",
+    title: "Nova Rover Build Set",
+    label: "Build Nova’s Skyforge Rover from modular parts.",
     status: "open",
     positionClass: "hotspotParts",
     items: [
       {
-        id: "nova-room-set",
-        name: "Nova Room Set",
-        type: "Prefab Build Set",
-        image: "/store/nova-build-sets/nova-room-set-placeholder.png",
+        id: "nova-rover-build-set",
+        name: "Nova Rover Build Set",
+        type: "Buildable Rover Kit",
+        image: "/store/nova-build-sets/nova-build-sets-preview.png",
         description:
-          "A starter prefab set for building Nova-style rooms, learning spaces, and display areas inside Nova's World.",
-        status: "coming soon",
-      },
-      {
-        id: "mission-zone-set",
-        name: "Mission Zone Set",
-        type: "Prefab Build Set",
-        image: "/store/nova-build-sets/mission-zone-set-placeholder.png",
-        description:
-          "A modular area-building set for creating quiz stations, mission corners, and activity zones.",
-        status: "coming soon",
-      },
-      {
-        id: "inventor-lab-set",
-        name: "Inventor Lab Set",
-        type: "Prefab Build Set",
-        image: "/store/nova-build-sets/inventor-lab-set-placeholder.png",
-        description:
-          "A themed prefab set for building a mini inventor lab with machines, platforms, and tech details.",
+          "A future buildable set where young inventors can assemble Nova’s Skyforge Rover from modular parts.",
         status: "coming soon",
       },
     ],
@@ -773,59 +755,112 @@ export default function InventorHubPage() {
                 {selectedArea.label}
               </p>
 
-              {selectedArea.id === "parts-supplies" && (
-                <p className="mt-4 inline-flex rounded-full border border-cyan-200/25 bg-cyan-300/10 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-cyan-100">
-                  Coming Soon
-                </p>
-              )}
+              {selectedArea.id === "parts-supplies" ? (
+                <div className="mt-8 grid grid-cols-1 gap-7 lg:grid-cols-[1fr_0.9fr]">
+                  <div className="rounded-[28px] border border-white/10 bg-white/10 p-5">
+                    <p className="mb-4 text-sm font-black uppercase tracking-wider text-cyan-300">
+                      Digital Preview
+                    </p>
 
-              <div className="mt-7 grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3">
-                {selectedArea.items.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => openProduct(item)}
-                    disabled={item.status !== "available"}
-                    className={`rounded-[24px] border p-5 text-left shadow-[0_18px_35px_rgba(0,0,0,0.18)] transition ${
-                      item.status === "available"
-                        ? "cursor-pointer border-white bg-white hover:-translate-y-1 hover:shadow-[0_26px_50px_rgba(0,0,0,0.28)]"
-                        : "cursor-not-allowed border-white/80 bg-white opacity-95"
-                    }`}
-                  >
-                    <div className="relative flex h-44 w-full items-center justify-center overflow-hidden rounded-[18px] bg-[#ffffff]">
-                      {item.image ? (
-                        <img
-                          src={item.image}
-                          alt={item.name}
-                          className="h-full w-full object-contain p-3"
-                          draggable={false}
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center rounded-[18px] bg-[#ffffff] text-4xl text-slate-500">
-                          ⚡
-                        </div>
-                      )}
+                    <div className="flex min-h-[430px] items-center justify-center rounded-[24px] bg-white p-5">
+                      <img
+                        src={
+                          selectedArea.items[0]?.image ||
+                          "/store/nova-build-sets/nova-build-sets-preview.png"
+                        }
+                        alt="Nova Rover Build Set preview"
+                        className="max-h-[390px] w-full object-contain"
+                        draggable={false}
+                      />
+                    </div>
+                  </div>
 
-                      {item.status === "coming soon" && (
-                        <span className="absolute right-3 top-3 rounded-full border border-slate-200 bg-white/95 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-700 shadow-sm">
-                          Coming Soon
-                        </span>
-                      )}
+                  <div className="rounded-[28px] border border-white/10 bg-white/10 p-6">
+                    <p className="inline-flex rounded-full border border-cyan-200/25 bg-cyan-300/10 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-cyan-100">
+                      Coming Soon
+                    </p>
+
+                    <h2 className="mt-5 text-3xl font-black leading-tight md:text-4xl">
+                      Build Nova’s Skyforge Rover
+                    </h2>
+
+                    <p className="mt-4 text-base leading-relaxed text-cyan-50/82">
+                      The Nova Rover Build Set is planned as a future modular
+                      build kit where young inventors can assemble Nova’s
+                      Skyforge Rover from parts, wheels, panels, tools, and
+                      mission upgrades.
+                    </p>
+
+                    <div className="mt-6 rounded-[22px] border border-cyan-200/20 bg-slate-950/45 p-5">
+                      <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-300">
+                        Concept Details
+                      </p>
+
+                      <ul className="mt-4 list-disc space-y-2 pl-5 text-sm leading-relaxed text-slate-200/78">
+                        <li>Buildable rover-style kit concept.</li>
+                        <li>Designed for a 6–12 year old maker audience.</li>
+                        <li>Modular parts inspired by Nova’s Core Missions.</li>
+                        <li>Potential future physical product or build set.</li>
+                      </ul>
                     </div>
 
-                    <p className="mt-4 text-xs font-black uppercase tracking-[0.16em] text-cyan-700">
-                      {item.type}
+                    <p className="mt-6 rounded-[22px] border border-amber-300/30 bg-amber-300/10 p-4 text-sm leading-relaxed text-amber-100/90">
+                      This is a digital concept preview only. The actual product
+                      will differ from this preview and may use simpler parts,
+                      fewer details, different colours, and adjusted materials
+                      depending on the final production method.
                     </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-7 grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3">
+                  {selectedArea.items.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => openProduct(item)}
+                      disabled={item.status !== "available"}
+                      className={`rounded-[24px] border p-5 text-left shadow-[0_18px_35px_rgba(0,0,0,0.18)] transition ${
+                        item.status === "available"
+                          ? "cursor-pointer border-white bg-white hover:-translate-y-1 hover:shadow-[0_26px_50px_rgba(0,0,0,0.28)]"
+                          : "cursor-not-allowed border-white/80 bg-white opacity-95"
+                      }`}
+                    >
+                      <div className="relative flex h-44 w-full items-center justify-center overflow-hidden rounded-[18px] bg-[#ffffff]">
+                        {item.image ? (
+                          <img
+                            src={item.image}
+                            alt={item.name}
+                            className="h-full w-full object-contain p-3"
+                            draggable={false}
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center rounded-[18px] bg-[#ffffff] text-4xl text-slate-500">
+                            ⚡
+                          </div>
+                        )}
 
-                    <h3 className="mt-2 text-xl font-black leading-snug text-slate-950">
-                      {item.name}
-                    </h3>
+                        {item.status === "coming soon" && (
+                          <span className="absolute right-3 top-3 rounded-full border border-slate-200 bg-white/95 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-700 shadow-sm">
+                            Coming Soon
+                          </span>
+                        )}
+                      </div>
 
-                    <p className="mt-3 text-sm leading-6 text-slate-700">
-                      {item.description}
-                    </p>
-                  </button>
-                ))}
-              </div>
+                      <p className="mt-4 text-xs font-black uppercase tracking-[0.16em] text-cyan-700">
+                        {item.type}
+                      </p>
+
+                      <h3 className="mt-2 text-xl font-black leading-snug text-slate-950">
+                        {item.name}
+                      </h3>
+
+                      <p className="mt-3 text-sm leading-6 text-slate-700">
+                        {item.description}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
             </section>
           </div>
         )}
@@ -1432,13 +1467,6 @@ export default function InventorHubPage() {
         .hubHotspot:hover .hotspotLabel small,
         .hubHotspot:focus-visible .hotspotLabel small {
           color: rgba(255, 255, 255, 0.95);
-        }
-
-        .hotspotPrototype {
-          left: 35%;
-          top: 0%;
-          width: 30%;
-          height: 17%;
         }
 
         .hotspotParts {
