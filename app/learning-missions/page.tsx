@@ -121,8 +121,8 @@ const missionZones: MissionZone[] = [
     accent: "#60f0d0",
     accessKey: "think",
     position: {
-      left: "0%",
-      top: "40%",
+      left: "5%",
+      top: "21%",
       width: "28%",
       height: "30%",
     },
@@ -960,7 +960,7 @@ function getPopupPosition(zoneId: string): CSSProperties {
     case "think-missions":
       return {
         left: "18%",
-        top: "8%",
+        top: "20%",
       };
 
     case "express-missions":
