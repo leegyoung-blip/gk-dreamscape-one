@@ -656,16 +656,18 @@ function CoreMissionsActivity({
             ? "82px 16px 32px"
             : isCompact
             ? "92px 28px 42px"
-            : "92px 5vw 54px",
+            : "92px 4vw 54px",
         }}
       >
         <div
           style={{
-            width: "min(1320px, 100%)",
+            width: "min(1440px, 100%)",
             margin: "0 auto",
             display: "grid",
-            gridTemplateColumns: isCompact ? "1fr" : "minmax(360px, 0.85fr) minmax(0, 1.15fr)",
-            gap: isMobile ? "20px" : "28px",
+            gridTemplateColumns: isCompact
+              ? "1fr"
+              : "minmax(360px, 0.9fr) minmax(720px, 1.35fr)",
+            gap: isMobile ? "20px" : "34px",
             alignItems: "start",
           }}
         >
@@ -709,7 +711,7 @@ function CoreMissionsActivity({
               <p
                 style={{
                   margin: "20px 0 0",
-                  maxWidth: "620px",
+                  maxWidth: "640px",
                   fontSize: isMobile ? "16px" : "18px",
                   color: "#c9f9ff",
                   lineHeight: 1.6,
@@ -717,7 +719,8 @@ function CoreMissionsActivity({
                 }}
               >
                 Complete English and Math missions to unlock each rover upgrade.
-                Replays are saved, but only first completions add upgrade progress.
+                Replays are saved, but only first completions add upgrade
+                progress.
               </p>
             </div>
 
@@ -735,13 +738,15 @@ function CoreMissionsActivity({
           <section
             style={{
               borderRadius: isMobile ? "24px" : "32px",
-              border: "1px solid rgba(126,232,255,0.22)",
+              border: "1px solid rgba(126,232,255,0.24)",
               background:
-                "linear-gradient(145deg, rgba(5,18,42,0.8), rgba(8,26,58,0.9))",
+                "linear-gradient(145deg, rgba(5,18,42,0.82), rgba(8,26,58,0.92))",
               boxShadow:
-                "0 0 34px rgba(83,215,255,0.12), 0 28px 80px rgba(0,0,0,0.34)",
+                "0 0 34px rgba(83,215,255,0.14), 0 28px 80px rgba(0,0,0,0.36)",
               padding: isMobile ? "20px" : "30px",
-              minHeight: isDesktop ? "760px" : "auto",
+              minHeight: isDesktop ? "720px" : "auto",
+              display: "flex",
+              flexDirection: "column",
             }}
           >
             {screen === "checking" && (
@@ -799,7 +804,7 @@ function CoreMissionsActivity({
             )}
 
             {screen === "subject" && (
-              <div>
+              <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
                 <QuizPanelHeader
                   eyebrow="Choose Subject"
                   title="Start a Core Mission"
@@ -814,6 +819,7 @@ function CoreMissionsActivity({
                       ? "1fr"
                       : "repeat(2, minmax(0, 1fr))",
                     gap: "22px",
+                    flex: 1,
                   }}
                 >
                   {coreSubjects.map((subject) => (
@@ -841,7 +847,7 @@ function CoreMissionsActivity({
             )}
 
             {screen === "level" && selectedSubjectInfo && (
-              <div>
+              <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
                 <CoreTopRow
                   leftButton="← Back to Subjects"
                   onLeftClick={resetToSubjects}
@@ -864,6 +870,7 @@ function CoreMissionsActivity({
                       ? "repeat(2, minmax(0, 1fr))"
                       : "repeat(3, minmax(0, 1fr))",
                     gap: "20px",
+                    flex: 1,
                   }}
                 >
                   {coreLevelBands.map((level) => (
@@ -903,7 +910,7 @@ function CoreMissionsActivity({
             {screen === "quiz-list" &&
               selectedSubjectInfo &&
               selectedLevelInfo && (
-                <div>
+                <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
                   <CoreTopRow
                     leftButton="← Back to Levels"
                     onLeftClick={resetToLevels}
@@ -942,7 +949,7 @@ function CoreMissionsActivity({
                           type="button"
                           onClick={() => startQuiz(quiz)}
                           style={{
-                            minHeight: isMobile ? "auto" : "230px",
+                            minHeight: isMobile ? "auto" : "250px",
                             borderRadius: "22px",
                             padding: "20px",
                             border: completed
@@ -1030,7 +1037,14 @@ function CoreMissionsActivity({
               )}
 
             {screen === "quiz" && currentQuestion && selectedQuiz && (
-              <div>
+              <div
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  minHeight: isDesktop ? "660px" : "auto",
+                }}
+              >
                 <CoreTopRow
                   leftButton="← Back to Quiz List"
                   onLeftClick={resetToQuizList}
@@ -1042,19 +1056,23 @@ function CoreMissionsActivity({
                     marginTop: "22px",
                     display: "grid",
                     gridTemplateColumns: isDesktop
-                      ? "minmax(0, 1fr) 340px"
+                      ? "minmax(0, 1.05fr) minmax(320px, 0.95fr)"
                       : "1fr",
                     gap: "24px",
+                    flex: 1,
+                    alignItems: "stretch",
                   }}
                 >
                   <div
                     style={{
-                      borderRadius: "24px",
+                      borderRadius: "26px",
                       border: "1px solid rgba(150, 220, 255, 0.42)",
                       background:
-                        "linear-gradient(180deg, rgba(20, 58, 100, 0.74), rgba(8, 25, 56, 0.9))",
-                      padding: isMobile ? "20px" : "26px",
-                      minHeight: isMobile ? "auto" : "470px",
+                        "linear-gradient(180deg, rgba(20, 58, 100, 0.8), rgba(8, 25, 56, 0.94))",
+                      padding: isMobile ? "20px" : "30px",
+                      minHeight: isDesktop ? "590px" : "auto",
+                      display: "flex",
+                      flexDirection: "column",
                     }}
                   >
                     <p
@@ -1066,14 +1084,14 @@ function CoreMissionsActivity({
                         textTransform: "uppercase",
                       }}
                     >
-                      {selectedQuiz.title}
+                      {currentQuestion.skill || selectedQuiz.title}
                     </p>
 
                     <h3
                       style={{
-                        margin: "8px 0 0",
-                        fontSize: isMobile ? "25px" : "30px",
-                        fontWeight: 600,
+                        margin: "12px 0 0",
+                        fontSize: isMobile ? "28px" : "36px",
+                        fontWeight: 700,
                       }}
                     >
                       Question {questionIndex + 1}
@@ -1086,7 +1104,7 @@ function CoreMissionsActivity({
                           borderRadius: "20px",
                           border: "1px solid rgba(126,232,255,0.28)",
                           background: "rgba(255,255,255,0.95)",
-                          minHeight: "220px",
+                          minHeight: "260px",
                           overflow: "hidden",
                           display: "flex",
                           alignItems: "center",
@@ -1108,8 +1126,10 @@ function CoreMissionsActivity({
 
                     <p
                       style={{
-                        margin: "26px 0 0",
-                        fontSize: isMobile ? "21px" : "28px",
+                        margin: currentQuestion.question_image
+                          ? "26px 0 0"
+                          : "34px 0 0",
+                        fontSize: isMobile ? "23px" : "32px",
                         lineHeight: 1.35,
                         fontWeight: 500,
                         color: "white",
@@ -1120,9 +1140,9 @@ function CoreMissionsActivity({
 
                     <p
                       style={{
-                        margin: "14px 0 0",
+                        margin: "18px 0 0",
                         color: "rgba(255,255,255,0.62)",
-                        fontSize: "14px",
+                        fontSize: "15px",
                       }}
                     >
                       Skill: {currentQuestion.skill}
@@ -1131,7 +1151,7 @@ function CoreMissionsActivity({
                     {feedback && (
                       <div
                         style={{
-                          marginTop: "24px",
+                          marginTop: "auto",
                           borderRadius: "18px",
                           border:
                             selectedAnswer === currentQuestion.correct_answer
@@ -1170,18 +1190,21 @@ function CoreMissionsActivity({
 
                   <div
                     style={{
-                      borderRadius: "24px",
+                      borderRadius: "26px",
                       border: "1px solid rgba(150, 220, 255, 0.42)",
                       background:
-                        "linear-gradient(180deg, rgba(17, 82, 136, 0.86), rgba(7, 27, 68, 0.98))",
-                      padding: isMobile ? "20px" : "24px",
+                        "linear-gradient(180deg, rgba(17, 82, 136, 0.9), rgba(7, 27, 68, 0.98))",
+                      padding: isMobile ? "20px" : "30px",
+                      minHeight: isDesktop ? "590px" : "auto",
+                      display: "flex",
+                      flexDirection: "column",
                     }}
                   >
                     <h3
                       style={{
                         margin: 0,
-                        fontSize: "22px",
-                        fontWeight: 600,
+                        fontSize: isMobile ? "24px" : "30px",
+                        fontWeight: 700,
                       }}
                     >
                       Choose your answer
@@ -1189,9 +1212,9 @@ function CoreMissionsActivity({
 
                     <div
                       style={{
-                        marginTop: "20px",
+                        marginTop: "26px",
                         display: "grid",
-                        gap: "12px",
+                        gap: "14px",
                       }}
                     >
                       <CoreAnswerButton
@@ -1255,12 +1278,12 @@ function CoreMissionsActivity({
               <div
                 style={{
                   margin: "10px auto",
-                  maxWidth: "760px",
+                  maxWidth: "800px",
                   borderRadius: "26px",
                   border: "1px solid rgba(126,232,255,0.5)",
                   background:
                     "linear-gradient(180deg, rgba(17, 82, 136, 0.86), rgba(7, 27, 68, 0.98))",
-                  padding: isMobile ? "24px" : "36px",
+                  padding: isMobile ? "24px" : "40px",
                   textAlign: "center",
                   boxShadow: "0 0 34px rgba(83, 215, 255, 0.28)",
                 }}
@@ -1280,7 +1303,7 @@ function CoreMissionsActivity({
                 <h3
                   style={{
                     margin: "12px 0 0",
-                    fontSize: isMobile ? "30px" : "38px",
+                    fontSize: isMobile ? "30px" : "42px",
                     fontWeight: 600,
                   }}
                 >
@@ -1672,11 +1695,11 @@ function CoreAnswerButton({
         border,
         background,
         color,
-        minHeight: "62px",
-        padding: "12px 14px",
+        minHeight: "72px",
+        padding: "14px 16px",
         display: "grid",
-        gridTemplateColumns: "34px 1fr",
-        gap: "12px",
+        gridTemplateColumns: "38px 1fr",
+        gap: "14px",
         alignItems: "center",
         textAlign: "left",
         cursor: disabled ? "default" : "pointer",
@@ -1685,14 +1708,14 @@ function CoreAnswerButton({
     >
       <strong
         style={{
-          width: "34px",
-          height: "34px",
+          width: "38px",
+          height: "38px",
           borderRadius: "999px",
           background: "rgba(255,255,255,0.16)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          fontSize: "16px",
+          fontSize: "17px",
         }}
       >
         {label}
@@ -1700,8 +1723,9 @@ function CoreAnswerButton({
 
       <span
         style={{
-          fontSize: "15px",
+          fontSize: "16px",
           lineHeight: 1.35,
+          fontWeight: 700,
         }}
       >
         {text}
@@ -1820,7 +1844,7 @@ function CoreResultStat({ label, value }: { label: string; value: string }) {
 
 function coreLargeCardStyle(accent: string): CSSProperties {
   return {
-    minHeight: "260px",
+    minHeight: "280px",
     borderRadius: "24px",
     padding: "28px",
     border: `1px solid ${accent}88`,
@@ -1882,9 +1906,9 @@ const coreBackButtonStyle: CSSProperties = {
 };
 
 const coreNextButtonStyle: CSSProperties = {
-  marginTop: "20px",
+  marginTop: "auto",
   width: "100%",
-  height: "52px",
+  height: "56px",
   borderRadius: "14px",
   border: "1px solid rgba(255,255,255,0.45)",
   background: "linear-gradient(135deg, #7ee8ff, #35c5ff)",
