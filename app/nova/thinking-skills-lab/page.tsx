@@ -376,7 +376,7 @@ export default function ThinkingSkillsLabPage() {
         backgroundImage: `
           linear-gradient(180deg, rgba(2,8,19,0.62), rgba(2,8,19,0.92)),
           radial-gradient(circle at 50% 0%, rgba(126,232,255,0.18), transparent 38%),
-          url("/nova/thinking-skills-lab/thinking-skills-lab-bg.png")
+          url("/nova/thinking-skills/thinking-skills-lab-bg.png")
         `,
         backgroundColor: "#020813",
         backgroundSize: "cover",
