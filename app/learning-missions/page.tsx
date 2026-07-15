@@ -959,8 +959,8 @@ function getPopupPosition(zoneId: string): CSSProperties {
 
     case "think-missions":
       return {
-        left: "18%",
-        top: "20%",
+        left: "25%",
+        top: "18%",
       };
 
     case "express-missions":
