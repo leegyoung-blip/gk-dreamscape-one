@@ -145,6 +145,13 @@ type KeyboardLetterState = "correct" | "present" | "absent";
 
 const keyboardRows = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
 
+const DAILY_CODE_MAX_ATTEMPTS = 6;
+const DAILY_CODE_REWARDS = [60, 50, 40, 30, 20, 10] as const;
+
+function getDailyCodeReward(attemptNumber: number) {
+  return DAILY_CODE_REWARDS[attemptNumber - 1] ?? 10;
+}
+
 function getKeyboardLetterStates(attempts: DailyPuzzleAttempt[]) {
   const states: Record<string, KeyboardLetterState> = {};
 
@@ -2379,7 +2386,7 @@ function ActivityDetail({
   const isDesignChallenge = option.activityKind === "designChallenge";
   const isDailyPuzzle = option.activityKind === "dailyPuzzle";
   const isCategoriesQuiz = option.activityKind === "categoriesQuiz";
-  const remainingAttempts = Math.max(0, 5 - attempts.length);
+  const remainingAttempts = Math.max(0, DAILY_CODE_MAX_ATTEMPTS - attempts.length);
 
   const [categoriesStage, setCategoriesStage] =
     useState<CategoriesStage>("mode");
@@ -2713,92 +2720,87 @@ function ActivityDetail({
   }
 
   async function submitPuzzle(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  event.preventDefault();
 
-    if (!puzzle) {
-      setPuzzleMessage("No puzzle is available yet.");
-      return;
-    }
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setPuzzleMessage("Please log in to play Milo Daily Code.");
-      return;
-    }
-
-    const guess = puzzleAnswer.trim().toUpperCase();
-
-    if (solvedToday) {
-      setPuzzleMessage("You already solved today’s puzzle.");
-      return;
-    }
-
-    if (attempts.length >= 5) {
-      setPuzzleMessage("You have used all 5 attempts for today.");
-      return;
-    }
-
-    if (!/^[A-Z]{5}$/.test(guess)) {
-      setPuzzleMessage("Enter a 5-letter word.");
-      return;
-    }
-
-    const feedback = buildPuzzleFeedback(guess, puzzle.answer);
-    const nextAttempts = [...attempts, { guess, feedback }];
-    const solved = guess === puzzle.answer.toUpperCase();
-
-    const saved = await savePuzzleProgress({
-      nextAttempts,
-      solved,
-    });
-
-    if (!saved) return;
-
-    setAttempts(nextAttempts);
-    setPuzzleAnswer("");
-
-    if (!solved) {
-      setPuzzleMessage(nextAttempts.length >= 5 ? "No more attempts today. Try again tomorrow." : "Attempt saved. Try again.");
-      return;
-    }
-
-    setSolvedToday(true);
-
-    const nextCompleted = completed + 1;
-    setCompleted(nextCompleted);
-
-    let rewardMessage = "Puzzle solved. Progress saved.";
-
-    if (nextCompleted % 10 === 0) {
-      const awarded = await addTokenTransaction(
-        user.id,
-        10,
-        `Completed ${nextCompleted} Milo Daily Code puzzles`
-      );
-
-      if (awarded) {
-        rewardMessage += " You earned 10 Dreamscape Tokens.";
-      }
-    }
-
-    if (nextCompleted % 25 === 0) {
-      const { error } = await supabase.from("milo_spin_chances").insert({
-        user_id: user.id,
-        source: "milo-daily-code",
-        milestone_count: nextCompleted,
-        status: "unused",
-      });
-
-      if (!error) {
-        rewardMessage += " You also unlocked 1 Spin & Win chance.";
-      }
-    }
-
-    setPuzzleMessage(rewardMessage);
+  if (!puzzle) {
+    setPuzzleMessage("No puzzle is available yet.");
+    return;
   }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    setPuzzleMessage("Please log in to play Milo Daily Code.");
+    return;
+  }
+
+  const guess = puzzleAnswer.trim().toUpperCase();
+
+  if (solvedToday) {
+    setPuzzleMessage("You already solved today’s puzzle.");
+    return;
+  }
+
+  if (attempts.length >= DAILY_CODE_MAX_ATTEMPTS) {
+    setPuzzleMessage(`You have used all ${DAILY_CODE_MAX_ATTEMPTS} attempts for today.`);
+    return;
+  }
+
+  if (!/^[A-Z]{5}$/.test(guess)) {
+    setPuzzleMessage("Enter a 5-letter word.");
+    return;
+  }
+
+  const feedback = buildPuzzleFeedback(guess, puzzle.answer);
+  const nextAttempts = [...attempts, { guess, feedback }];
+  const solved = guess === puzzle.answer.toUpperCase();
+
+  const saved = await savePuzzleProgress({
+    nextAttempts,
+    solved,
+  });
+
+  if (!saved) return;
+
+  setAttempts(nextAttempts);
+  setPuzzleAnswer("");
+
+  if (!solved) {
+    setPuzzleMessage(
+      nextAttempts.length >= DAILY_CODE_MAX_ATTEMPTS
+        ? "No more attempts today. Try again tomorrow."
+        : "Attempt saved. Try again."
+    );
+    return;
+  }
+
+  setSolvedToday(true);
+
+  const nextCompleted = completed + 1;
+  setCompleted(nextCompleted);
+
+  const reward = getDailyCodeReward(nextAttempts.length);
+
+  const awarded = await addTokenTransaction(
+    user.id,
+    reward,
+    `Solved Milo Daily Code ${puzzle.date_sg} in ${nextAttempts.length} guess${
+      nextAttempts.length === 1 ? "" : "es"
+    }`
+  );
+
+  if (awarded) {
+    setPuzzleMessage(
+      `Solved in ${nextAttempts.length} guess${
+        nextAttempts.length === 1 ? "" : "es"
+      }. You earned ${reward} Dreamscape Tokens.`
+    );
+  } else {
+    setPuzzleMessage("Puzzle solved, but the token reward could not be saved.");
+  }
+}
 
   function chooseCategoriesMode(mode: "single" | "multiplayer") {
     setCategoryMode(mode);
@@ -3301,68 +3303,95 @@ function ActivityDetail({
         {isDailyPuzzle && (
   <div
     style={{
-      maxWidth: "820px",
+      maxWidth: "900px",
       width: "100%",
       boxSizing: "border-box",
       margin: "0 auto",
       borderRadius: "26px",
       border: "1px solid rgba(7,17,31,0.1)",
       background: "rgba(255,255,255,0.78)",
-      padding: isMobile ? "22px 18px" : "32px",
+      padding: isMobile ? "22px 12px" : "34px",
       boxShadow: "0 22px 55px rgba(0,0,0,0.12)",
       textAlign: "center",
     }}
   >
-    <h3 style={{ margin: 0, fontSize: "30px", letterSpacing: "0.02em" }}>
+    <h3
+      style={{
+        margin: 0,
+        fontSize: isMobile ? "30px" : "42px",
+        letterSpacing: "0.02em",
+      }}
+    >
       Milo Daily Code
     </h3>
 
     <p
       style={{
         margin: "12px auto 24px",
-        maxWidth: "680px",
+        maxWidth: "720px",
         color: "rgba(7,17,31,0.58)",
-        lineHeight: 1.6,
+        lineHeight: 1.7,
+        fontSize: isMobile ? "15px" : "17px",
       }}
     >
-      Guess the 5-letter design word in 5 attempts. Use 1 Dreamscape Token to
-      unlock a clue or one letter.
+      Guess the 5-letter design word in 6 attempts. Earn more Dreamscape Tokens
+      when you solve it faster. Buy a clue or letter if you need help.
     </p>
 
     <div
       style={{
-        borderRadius: "20px",
-        border: "1px dashed rgba(40,117,160,0.28)",
-        background: "rgba(40,117,160,0.06)",
-        padding: isMobile ? "16px 14px" : "20px 24px",
-        textAlign: "left",
+        margin: "0 auto 24px",
+        maxWidth: "620px",
+        display: "grid",
+        gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
+        gap: "10px",
       }}
     >
-      <p
-        style={{
-          margin: 0,
-          color: "#2875a0",
-          fontWeight: 900,
-          letterSpacing: "0.16em",
-          textTransform: "uppercase",
-          fontSize: "12px",
-        }}
-      >
-        Today’s Hidden Word
-      </p>
+      {[
+        ["1st guess", "60 DT"],
+        ["2nd guess", "50 DT"],
+        ["3rd guess", "40 DT"],
+        ["4th guess", "30 DT"],
+        ["5th guess", "20 DT"],
+        ["6th guess", "10 DT"],
+      ].map(([label, reward]) => (
+        <div
+          key={label}
+          style={{
+            borderRadius: "16px",
+            border: "1px solid rgba(40,117,160,0.16)",
+            background: "rgba(255,255,255,0.54)",
+            padding: "12px",
+          }}
+        >
+          <span
+            style={{
+              display: "block",
+              color: "rgba(7,17,31,0.48)",
+              fontSize: "11px",
+              fontWeight: 900,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+            }}
+          >
+            {label}
+          </span>
 
-      <p
-        style={{
-          margin: "10px 0 0",
-          color: "rgba(7,17,31,0.62)",
-          lineHeight: 1.5,
-        }}
-      >
-        Type a 5-letter guess below. Buy a clue or letter if you need help.
-      </p>
+          <strong
+            style={{
+              display: "block",
+              marginTop: "5px",
+              color: "#2875a0",
+              fontSize: "18px",
+            }}
+          >
+            {reward}
+          </strong>
+        </div>
+      ))}
     </div>
 
-    <form onSubmit={submitPuzzle} style={{ marginTop: "28px" }}>
+    <form onSubmit={submitPuzzle} style={{ marginTop: "24px" }}>
       <input
         ref={guessInputRef}
         value={puzzleAnswer}
@@ -3406,24 +3435,28 @@ function ActivityDetail({
           background: "transparent",
           padding: 0,
           display: "grid",
-          gridTemplateRows: `repeat(5, ${isMobile ? "46px" : "54px"})`,
+          gridTemplateRows: `repeat(${DAILY_CODE_MAX_ATTEMPTS}, ${
+            isMobile ? "46px" : "56px"
+          })`,
           gap: isMobile ? "6px" : "8px",
           cursor: "text",
           justifyContent: "center",
           margin: "0 auto",
         }}
       >
-        {Array.from({ length: 5 }).map((_, rowIndex) => {
+        {Array.from({ length: DAILY_CODE_MAX_ATTEMPTS }).map((_, rowIndex) => {
           const attempt = attempts[rowIndex];
           const isCurrentRow =
-            rowIndex === attempts.length && !solvedToday && attempts.length < 5;
+            rowIndex === attempts.length &&
+            !solvedToday &&
+            attempts.length < DAILY_CODE_MAX_ATTEMPTS;
 
           return (
             <span
               key={rowIndex}
               style={{
                 display: "grid",
-                gridTemplateColumns: `repeat(5, ${isMobile ? "46px" : "54px"})`,
+                gridTemplateColumns: `repeat(5, ${isMobile ? "46px" : "56px"})`,
                 gap: isMobile ? "6px" : "8px",
                 justifyContent: "center",
               }}
@@ -3450,8 +3483,8 @@ function ActivityDetail({
                   <span
                     key={letterIndex}
                     style={{
-                      width: isMobile ? "46px" : "54px",
-                      height: isMobile ? "46px" : "54px",
+                      width: isMobile ? "46px" : "56px",
+                      height: isMobile ? "46px" : "56px",
                       borderRadius: "12px",
                       border: letter
                         ? "2px solid rgba(7,17,31,0.7)"
@@ -3462,7 +3495,7 @@ function ActivityDetail({
                       alignItems: "center",
                       justifyContent: "center",
                       fontWeight: 900,
-                      fontSize: isMobile ? "19px" : "22px",
+                      fontSize: isMobile ? "19px" : "23px",
                       boxShadow: feedback
                         ? "inset 0 -3px 0 rgba(0,0,0,0.12)"
                         : "none",
@@ -3498,7 +3531,7 @@ function ActivityDetail({
       {(clueBought || letterBought) && (
         <div
           style={{
-            maxWidth: "560px",
+            maxWidth: "620px",
             margin: "18px auto 0",
             borderRadius: "16px",
             border: "1px solid rgba(40,117,160,0.18)",
@@ -3517,7 +3550,7 @@ function ActivityDetail({
 
       <div
         style={{
-          maxWidth: "560px",
+          maxWidth: "620px",
           margin: "22px auto 0",
           display: "grid",
           gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
@@ -3529,8 +3562,8 @@ function ActivityDetail({
           onClick={buyClue}
           disabled={!puzzle || clueBought || solvedToday}
           style={{
-            height: "48px",
-            borderRadius: "12px",
+            height: "50px",
+            borderRadius: "14px",
             border: "1px solid rgba(40,117,160,0.22)",
             background:
               !puzzle || clueBought || solvedToday
@@ -3549,8 +3582,8 @@ function ActivityDetail({
           onClick={buyLetter}
           disabled={!puzzle || letterBought || solvedToday}
           style={{
-            height: "48px",
-            borderRadius: "12px",
+            height: "50px",
+            borderRadius: "14px",
             border: "1px solid rgba(40,117,160,0.22)",
             background:
               !puzzle || letterBought || solvedToday
@@ -3568,22 +3601,22 @@ function ActivityDetail({
 
       <button
         type="submit"
-        disabled={!puzzle || solvedToday || attempts.length >= 5}
+        disabled={!puzzle || solvedToday || attempts.length >= DAILY_CODE_MAX_ATTEMPTS}
         style={{
           margin: "18px auto 0",
           width: "100%",
-          maxWidth: "560px",
-          height: "52px",
+          maxWidth: "620px",
+          height: "54px",
           borderRadius: "14px",
           border: "none",
           background:
-            !puzzle || solvedToday || attempts.length >= 5
+            !puzzle || solvedToday || attempts.length >= DAILY_CODE_MAX_ATTEMPTS
               ? "rgba(7,17,31,0.28)"
               : "#07111f",
           color: "white",
           fontWeight: 850,
           cursor:
-            !puzzle || solvedToday || attempts.length >= 5
+            !puzzle || solvedToday || attempts.length >= DAILY_CODE_MAX_ATTEMPTS
               ? "not-allowed"
               : "pointer",
         }}
@@ -3595,7 +3628,7 @@ function ActivityDetail({
     {puzzleMessage && (
       <p
         style={{
-          maxWidth: "560px",
+          maxWidth: "620px",
           margin: "16px auto 0",
           color: "#2875a0",
           fontWeight: 800,
@@ -3607,25 +3640,17 @@ function ActivityDetail({
       </p>
     )}
 
-    <div
+    <p
       style={{
-        margin: "26px auto 0",
-        maxWidth: "560px",
-        display: "grid",
-        gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
-        gap: "14px",
+        maxWidth: "620px",
+        margin: "20px auto 0",
+        color: "rgba(7,17,31,0.48)",
+        fontSize: "13px",
+        lineHeight: 1.5,
       }}
     >
-      <MilestoneCard
-        title="Next 10 DT Reward"
-        text={`${completed % 10}/10 completed`}
-      />
-
-      <MilestoneCard
-        title="Next Spin Chance"
-        text={`${completed % 25}/25 completed`}
-      />
-    </div>
+      Attempts left today: {remainingAttempts} / {DAILY_CODE_MAX_ATTEMPTS}
+    </p>
   </div>
 )}
 
@@ -4103,27 +4128,27 @@ function DailyCodeKeyboard({
     };
   }
 
-  const keyWidth = isMobile ? "30px" : "38px";
-  const keyHeight = isMobile ? "38px" : "42px";
-  const keyGap = isMobile ? "4px" : "7px";
+  const keyWidth = isMobile ? "calc((100vw - 76px) / 10)" : "48px";
+  const keyHeight = isMobile ? "48px" : "54px";
+  const keyGap = isMobile ? "4px" : "8px";
 
   return (
     <div
       style={{
-        margin: "22px auto 0",
-        width: "100%",
-        maxWidth: isMobile ? "100%" : "560px",
-        borderRadius: "20px",
+        margin: "24px auto 0",
+        width: isMobile ? "calc(100vw - 34px)" : "100%",
+        maxWidth: isMobile ? "calc(100vw - 34px)" : "700px",
+        borderRadius: "22px",
         border: "1px solid rgba(7,17,31,0.1)",
         background: "rgba(255,255,255,0.58)",
-        padding: isMobile ? "14px 8px" : "18px",
+        padding: isMobile ? "14px 8px" : "20px",
         boxSizing: "border-box",
         overflow: "hidden",
       }}
     >
       <p
         style={{
-          margin: "0 0 14px",
+          margin: "0 0 16px",
           color: "rgba(7,17,31,0.58)",
           fontSize: "12px",
           letterSpacing: "0.14em",
@@ -4135,7 +4160,7 @@ function DailyCodeKeyboard({
         Letter Board
       </p>
 
-      <div style={{ display: "grid", gap: isMobile ? "6px" : "8px" }}>
+      <div style={{ display: "grid", gap: isMobile ? "7px" : "10px" }}>
         {keyboardRows.map((row, rowIndex) => (
           <div
             key={row}
@@ -4144,26 +4169,18 @@ function DailyCodeKeyboard({
               justifyContent: "center",
               gap: keyGap,
               paddingLeft: isMobile
-                ? rowIndex === 1
-                  ? "8px"
-                  : rowIndex === 2
-                  ? "14px"
-                  : 0
+                ? 0
                 : rowIndex === 1
-                ? "18px"
+                ? "22px"
                 : rowIndex === 2
-                ? "34px"
+                ? "42px"
                 : 0,
               paddingRight: isMobile
-                ? rowIndex === 1
-                  ? "8px"
-                  : rowIndex === 2
-                  ? "14px"
-                  : 0
+                ? 0
                 : rowIndex === 1
-                ? "18px"
+                ? "22px"
                 : rowIndex === 2
-                ? "34px"
+                ? "42px"
                 : 0,
             }}
           >
@@ -4175,8 +4192,8 @@ function DailyCodeKeyboard({
                 style={{
                   width: keyWidth,
                   height: keyHeight,
-                  borderRadius: isMobile ? "8px" : "10px",
-                  fontSize: isMobile ? "12px" : "14px",
+                  borderRadius: isMobile ? "9px" : "12px",
+                  fontSize: isMobile ? "13px" : "16px",
                   fontWeight: 900,
                   cursor: "pointer",
                   boxShadow: "inset 0 -2px 0 rgba(0,0,0,0.1)",
@@ -4193,13 +4210,13 @@ function DailyCodeKeyboard({
                 type="button"
                 onClick={onDelete}
                 style={{
-                  width: isMobile ? "46px" : "64px",
+                  width: isMobile ? "52px" : "76px",
                   height: keyHeight,
-                  borderRadius: isMobile ? "8px" : "10px",
+                  borderRadius: isMobile ? "9px" : "12px",
                   border: "1px solid rgba(7,17,31,0.14)",
                   background: "rgba(255,255,255,0.78)",
                   color: "#07111f",
-                  fontSize: isMobile ? "10px" : "12px",
+                  fontSize: isMobile ? "11px" : "13px",
                   fontWeight: 900,
                   cursor: "pointer",
                   flexShrink: 0,
