@@ -807,16 +807,28 @@ export default function KnowledgeArenaPage() {
     <main
       style={{
         minHeight: "100dvh",
-        background:
-          "radial-gradient(circle at top, rgba(126,232,255,0.18), transparent 34%), linear-gradient(180deg,#041124 0%,#020813 100%)",
+        width: "100%",
+        backgroundImage: `
+          linear-gradient(
+            180deg,
+            rgba(2, 8, 19, 0.72),
+            rgba(2, 8, 19, 0.9)
+          ),
+          radial-gradient(circle at 50% 0%, rgba(126,232,255,0.18), transparent 36%),
+          url("/activities/learning-missions/knowledge-arena/knowledge-arena-bg.png")
+        `,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundAttachment: isMobile ? "scroll" : "fixed",
         color: "white",
         fontFamily: "Arial, Helvetica, sans-serif",
         padding: isMobile ? "18px" : "28px",
+        overflowX: "hidden",
       }}
     >
       <header
         style={{
-          maxWidth: "1180px",
+          maxWidth: "1220px",
           margin: "0 auto",
           display: "flex",
           justifyContent: "space-between",
@@ -840,8 +852,8 @@ export default function KnowledgeArenaPage() {
 
       <section
         style={{
-          maxWidth: "1180px",
-          margin: "62px auto 0",
+          maxWidth: "1220px",
+          margin: isMobile ? "44px auto 0" : "54px auto 0",
           textAlign: "center",
         }}
       >
@@ -849,7 +861,7 @@ export default function KnowledgeArenaPage() {
 
         <h1
           style={{
-            margin: "12px 0 28px",
+            margin: "12px 0 22px",
             fontSize: isMobile ? "46px" : "74px",
             lineHeight: 0.94,
             fontWeight: 400,
@@ -862,7 +874,7 @@ export default function KnowledgeArenaPage() {
         <p
           style={{
             maxWidth: "720px",
-            margin: "20px auto 0",
+            margin: "18px auto 0",
             color: "rgba(255,255,255,0.68)",
             fontSize: "18px",
             lineHeight: 1.6,
@@ -988,7 +1000,7 @@ export default function KnowledgeArenaPage() {
         )}
 
         {stage === "join-lobby" && (
-          <div style={{ maxWidth: "620px", margin: "0 auto" }}>
+          <div style={formCardStyle}>
             <button
               type="button"
               onClick={() => setStage("multiplayer-menu")}
@@ -997,27 +1009,44 @@ export default function KnowledgeArenaPage() {
               ← Back to multiplayer
             </button>
 
-            <NameInput
-              displayName={displayName}
-              setDisplayName={setDisplayName}
-            />
+            <div style={{ marginTop: "28px", display: "grid", gap: "22px" }}>
+              <NameInput
+                displayName={displayName}
+                setDisplayName={setDisplayName}
+              />
 
-            <input
-              value={joinCode}
-              onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
-              placeholder="LOBBY CODE"
-              maxLength={6}
-              style={inputStyle}
-            />
+              <label style={fieldLabelStyle}>
+                <span style={fieldCaptionStyle}>Lobby Code</span>
 
-            <button
-              type="button"
-              onClick={joinLobby}
-              disabled={isJoiningLobby}
-              style={mainButtonStyle}
-            >
-              {isJoiningLobby ? "Joining..." : "Join Lobby"}
-            </button>
+                <input
+                  value={joinCode}
+                  onChange={(event) =>
+                    setJoinCode(
+                      event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "")
+                    )
+                  }
+                  placeholder="ABC123"
+                  maxLength={6}
+                  style={{
+                    ...inputStyle,
+                    textAlign: "center",
+                    letterSpacing: "0.18em",
+                    textTransform: "uppercase",
+                    fontSize: "22px",
+                    fontWeight: 900,
+                  }}
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={joinLobby}
+                disabled={isJoiningLobby}
+                style={{ ...mainButtonStyle, width: "100%" }}
+              >
+                {isJoiningLobby ? "Joining..." : "Join Lobby"}
+              </button>
+            </div>
 
             {multiplayerMessage && <p style={errorStyle}>{multiplayerMessage}</p>}
           </div>
@@ -1183,8 +1212,10 @@ function TopicPicker({
 
       <p
         style={{
-          margin: onBack ? "22px 0" : "22px 0",
+          margin: onBack ? "26px 0 24px" : "0 0 24px",
           color: "rgba(255,255,255,0.74)",
+          fontSize: "16px",
+          lineHeight: 1.55,
         }}
       >
         {title}
@@ -1200,7 +1231,7 @@ function TopicPicker({
             : isCompact
             ? "repeat(2, minmax(0, 1fr))"
             : "repeat(4, minmax(0, 1fr))",
-          gap: "18px",
+          gap: "22px",
         }}
       >
         {topics.map((topic) => (
@@ -1234,12 +1265,16 @@ function NameInput({
   setDisplayName: (value: string) => void;
 }) {
   return (
-    <input
-      value={displayName}
-      onChange={(event) => setDisplayName(event.target.value)}
-      placeholder="Enter your player name"
-      style={{ ...inputStyle, marginTop: "22px" }}
-    />
+    <label style={fieldLabelStyle}>
+      <span style={fieldCaptionStyle}>Player Name</span>
+
+      <input
+        value={displayName}
+        onChange={(event) => setDisplayName(event.target.value)}
+        placeholder="Enter your player name"
+        style={inputStyle}
+      />
+    </label>
   );
 }
 
@@ -1311,7 +1346,7 @@ function QuizView({
           gridTemplateColumns: isCompact
             ? "1fr"
             : "minmax(0, 1.1fr) 360px",
-          gap: "24px",
+          gap: "28px",
         }}
       >
         <div style={quizPanelStyle}>
@@ -1662,16 +1697,17 @@ const eyebrowStyle: CSSProperties = {
 };
 
 const panelStyle = (isMobile: boolean): CSSProperties => ({
-  maxWidth: "1180px",
-  margin: "42px auto 0",
+  maxWidth: "1220px",
+  margin: isMobile ? "34px auto 0" : "40px auto 0",
   borderRadius: isMobile ? "22px" : "30px",
   border: "1px solid rgba(126,221,255,0.42)",
   background:
-    "linear-gradient(145deg, rgba(15,48,88,0.72), rgba(9,24,56,0.88))",
+    "linear-gradient(145deg, rgba(8,28,60,0.82), rgba(6,18,44,0.94))",
   boxShadow:
     "0 0 45px rgba(85,215,255,0.18), 0 30px 90px rgba(0,0,0,0.35)",
-  padding: isMobile ? "22px" : "34px",
+  padding: isMobile ? "24px" : "38px",
   color: "white",
+  backdropFilter: "blur(18px)",
 });
 
 const twoColumnGrid = (isMobile: boolean): CSSProperties => ({
@@ -1681,12 +1717,12 @@ const twoColumnGrid = (isMobile: boolean): CSSProperties => ({
 });
 
 const bigCardStyle = (accent: string): CSSProperties => ({
-  minHeight: "350px",
+  minHeight: "330px",
   borderRadius: "24px",
   padding: "30px",
   border: `1px solid ${accent}88`,
   background:
-    "linear-gradient(180deg, rgba(20,58,100,0.74), rgba(8,25,56,0.9))",
+    "linear-gradient(180deg, rgba(20,58,100,0.78), rgba(8,25,56,0.92))",
   boxShadow: `0 0 22px ${accent}22, inset 0 0 24px rgba(255,255,255,0.03)`,
   color: "white",
   textAlign: "left",
@@ -1702,14 +1738,14 @@ const cardTitleStyle: CSSProperties = {
 };
 
 const cardTextStyle: CSSProperties = {
-  margin: "12px 0 30px",
+  margin: "14px 0 28px",
   fontSize: "16px",
   lineHeight: 1.5,
   color: "rgba(255,255,255,0.76)",
 };
 
 const primaryButtonLook: CSSProperties = {
-  marginTop: "22px",
+  marginTop: "auto",
   height: "52px",
   borderRadius: "14px",
   background: "linear-gradient(135deg,#35c5ff,#4c6dff)",
@@ -1730,28 +1766,50 @@ const backButtonStyle: CSSProperties = {
 };
 
 const mainButtonStyle: CSSProperties = {
-  minHeight: "52px",
+  minHeight: "56px",
   borderRadius: "14px",
   border: "1px solid rgba(255,255,255,0.45)",
   background: "linear-gradient(135deg,#35c5ff,#4c6dff)",
   color: "white",
   padding: "0 22px",
-  fontWeight: 700,
+  fontWeight: 800,
   cursor: "pointer",
+  letterSpacing: "0.04em",
 };
 
 const inputStyle: CSSProperties = {
   width: "100%",
-  height: "54px",
+  height: "56px",
   borderRadius: "16px",
   border: "1px solid rgba(126,232,255,0.36)",
   background: "rgba(255,255,255,0.08)",
   color: "white",
   padding: "0 18px",
-  marginTop: "16px",
   fontSize: "16px",
   outline: "none",
   boxSizing: "border-box",
+};
+
+const formCardStyle: CSSProperties = {
+  maxWidth: "620px",
+  margin: "0 auto",
+  borderRadius: "26px",
+  border: "1px solid rgba(126,232,255,0.24)",
+  background: "rgba(255,255,255,0.055)",
+  padding: "26px",
+};
+
+const fieldLabelStyle: CSSProperties = {
+  display: "grid",
+  gap: "10px",
+};
+
+const fieldCaptionStyle: CSSProperties = {
+  color: "rgba(255,255,255,0.52)",
+  fontSize: "12px",
+  letterSpacing: "0.16em",
+  textTransform: "uppercase",
+  fontWeight: 900,
 };
 
 const errorStyle: CSSProperties = {
