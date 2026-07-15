@@ -143,7 +143,9 @@ export default function ProfilePage() {
           console.error("Google referral error:", referralError.message);
           setReferralMessage("Referral code could not be applied.");
         } else if (referralData?.success) {
-          setReferralMessage("Referral bonus applied. You received 10 Dream Tokens.");
+          setReferralMessage(
+            "Referral bonus applied. You received 10 Dream Tokens."
+          );
         } else if (referralData?.message) {
           setReferralMessage(referralData.message);
         }
@@ -235,7 +237,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#020813] px-5 py-8 text-white sm:px-8 sm:py-10">
+    <main className="relative min-h-screen overflow-hidden bg-[#020813] px-5 py-8 text-white sm:px-8 sm:py-8">
       <div className="pointer-events-none fixed inset-0 z-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(126,232,255,0.18),transparent_34%),linear-gradient(180deg,#041124_0%,#020813_100%)]" />
         <div className="absolute left-[-120px] top-[-120px] h-[360px] w-[360px] rounded-full bg-cyan-400/10 blur-3xl" />
@@ -243,8 +245,9 @@ export default function ProfilePage() {
       </div>
 
       <button
+        type="button"
         onClick={() => router.push("/")}
-        className="absolute left-5 top-5 z-30 rounded-full border border-cyan-200/25 bg-white/6 px-5 py-2 text-sm tracking-wide text-white shadow-[0_16px_36px_rgba(0,0,0,0.28)] backdrop-blur-xl transition hover:scale-[1.03] hover:border-cyan-200/45 sm:left-8 sm:top-8"
+        className="absolute left-5 top-5 z-30 rounded-full border border-cyan-200/25 bg-white/[0.06] px-5 py-2 text-sm tracking-wide text-white shadow-[0_16px_36px_rgba(0,0,0,0.28)] backdrop-blur-xl transition hover:scale-[1.03] hover:border-cyan-200/45 sm:left-8 sm:top-8"
       >
         ← Back to World
       </button>
@@ -263,7 +266,7 @@ export default function ProfilePage() {
         <button
           type="button"
           onClick={logout}
-          className="h-[46px] rounded-full border border-cyan-200/25 bg-white/8 px-5 text-xs font-bold uppercase tracking-[0.12em] text-white shadow-[0_12px_28px_rgba(0,0,0,0.22)] backdrop-blur-xl transition hover:scale-[1.03]"
+          className="h-[46px] rounded-full border border-cyan-200/25 bg-white/[0.08] px-5 text-xs font-bold uppercase tracking-[0.12em] text-white shadow-[0_12px_28px_rgba(0,0,0,0.22)] backdrop-blur-xl transition hover:scale-[1.03]"
         >
           Log Out
         </button>
@@ -272,13 +275,13 @@ export default function ProfilePage() {
           type="button"
           onClick={() => router.push("/cart")}
           aria-label="Cart"
-          className="flex h-[46px] w-[46px] items-center justify-center rounded-full border border-cyan-200/25 bg-white/8 shadow-[0_12px_28px_rgba(0,0,0,0.22)] backdrop-blur-xl transition hover:scale-[1.03]"
+          className="flex h-[46px] w-[46px] items-center justify-center rounded-full border border-cyan-200/25 bg-white/[0.08] shadow-[0_12px_28px_rgba(0,0,0,0.22)] backdrop-blur-xl transition hover:scale-[1.03]"
         >
           <CartIcon />
         </button>
       </div>
 
-      <div className="relative z-10 mx-auto max-w-6xl pt-24 sm:pt-20">
+      <div className="relative z-10 mx-auto max-w-6xl pt-24 sm:pt-0">
         <section className="text-center">
           <p className="m-0 text-xs font-bold uppercase tracking-[0.24em] text-[#7ee8ff]">
             Dreamscape One
@@ -299,7 +302,7 @@ export default function ProfilePage() {
           )}
         </section>
 
-        <section className="mt-12 grid gap-6 md:grid-cols-[1.05fr_0.95fr]">
+        <section className="mt-9 grid gap-6 md:grid-cols-[1.05fr_0.95fr]">
           <div className="rounded-[32px] border border-cyan-200/18 bg-white/[0.045] p-7 shadow-[0_24px_70px_rgba(0,0,0,0.26)] backdrop-blur-xl sm:p-8">
             <p className="m-0 text-xs font-bold uppercase tracking-[0.2em] text-[#7ee8ff]">
               Account
@@ -325,28 +328,25 @@ export default function ProfilePage() {
                   Username
                 </p>
 
-                <p className="mt-2 break-all text-2xl font-extrabold tracking-[0.04em] text-white">
+                <p className="mt-2 break-all text-2xl font-extrabold tracking-[0.08em] text-white">
                   {username || "Loading..."}
                 </p>
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row">
                   <input
-                    type="text"
                     value={usernameDraft}
-                    onChange={(event) => {
-                      setUsernameDraft(event.target.value);
-                      setUsernameMessage("");
-                      setUsernameMessageType("");
-                    }}
-                    placeholder="Choose a username"
-                    className="min-h-[44px] rounded-full border border-cyan-200/18 bg-white/8 px-4 text-sm text-white outline-none transition placeholder:text-white/32 focus:border-cyan-200/42"
+                    onChange={(event) =>
+                      setUsernameDraft(event.target.value.toLowerCase())
+                    }
+                    placeholder="Choose username"
+                    className="min-h-[50px] flex-1 rounded-full border border-cyan-200/14 bg-white/[0.07] px-5 text-sm font-bold text-white outline-none transition placeholder:text-white/32 focus:border-cyan-200/45"
                   />
 
                   <button
                     type="button"
                     onClick={saveUsername}
                     disabled={isSavingUsername}
-                    className="min-h-[44px] rounded-full border border-cyan-200/25 bg-cyan-300/14 px-5 text-xs font-bold uppercase tracking-[0.12em] text-white transition hover:scale-[1.03] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="min-h-[50px] rounded-full border border-cyan-200/22 bg-cyan-300/14 px-6 text-xs font-extrabold uppercase tracking-[0.14em] text-white transition hover:scale-[1.02] hover:bg-cyan-300/20 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isSavingUsername ? "Saving..." : "Save"}
                   </button>
@@ -359,10 +359,10 @@ export default function ProfilePage() {
 
                 {usernameMessage && (
                   <p
-                    className={`mt-3 text-sm font-semibold ${
+                    className={`mt-3 rounded-2xl border px-4 py-3 text-sm ${
                       usernameMessageType === "success"
-                        ? "text-green-300"
-                        : "text-red-300"
+                        ? "border-green-200/20 bg-green-400/10 text-green-200"
+                        : "border-red-200/20 bg-red-400/10 text-red-200"
                     }`}
                   >
                     {usernameMessage}
@@ -419,59 +419,96 @@ export default function ProfilePage() {
             )}
           </div>
 
-          <button
-            onClick={() => setShowTokenHistory(true)}
-            className="group rounded-[32px] border border-yellow-300/28 bg-[linear-gradient(180deg,rgba(112,57,18,0.42),rgba(4,20,48,0.82))] p-7 text-left shadow-[0_0_42px_rgba(250,204,21,0.08),0_24px_70px_rgba(0,0,0,0.26)] backdrop-blur-xl transition hover:scale-[1.01] hover:border-yellow-200/44 hover:shadow-[0_0_52px_rgba(250,204,21,0.14)] sm:p-8"
-          >
-            <div className="flex items-start justify-between gap-5">
-              <div>
-                <p className="m-0 text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
-                  Dream Token Wallet
-                </p>
+          <div className="grid gap-6">
+            <button
+              type="button"
+              onClick={() => setShowTokenHistory(true)}
+              className="group rounded-[32px] border border-yellow-300/28 bg-[linear-gradient(180deg,rgba(112,57,18,0.42),rgba(4,20,48,0.82))] p-7 text-left shadow-[0_0_42px_rgba(250,204,21,0.08),0_24px_70px_rgba(0,0,0,0.26)] backdrop-blur-xl transition hover:scale-[1.01] hover:border-yellow-200/44 hover:shadow-[0_0_52px_rgba(250,204,21,0.14)] sm:p-8"
+            >
+              <div className="flex items-start justify-between gap-5">
+                <div>
+                  <p className="m-0 text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
+                    Dream Token Wallet
+                  </p>
 
-                <h2 className="mt-4 text-3xl font-bold tracking-[-0.04em] text-white sm:text-4xl">
-                  View balance and history
-                </h2>
+                  <h2 className="mt-4 text-3xl font-bold tracking-[-0.04em] text-white sm:text-4xl">
+                    View balance and history
+                  </h2>
 
-                <p className="mt-4 max-w-md text-sm leading-6 text-white/62">
-                  Track Dreamscape Tokens earned from classes, activities, and
-                  future unlocks.
-                </p>
+                  <p className="mt-4 max-w-md text-sm leading-6 text-white/62">
+                    Track Dreamscape Tokens earned from classes, activities, and
+                    future unlocks.
+                  </p>
+                </div>
+
+                <img
+                  src="/dreamscape/dream-token.png"
+                  alt="Dream Token"
+                  className="h-16 w-16 shrink-0 object-contain drop-shadow-[0_0_22px_rgba(250,204,21,0.28)]"
+                />
               </div>
 
-              <img
-                src="/dreamscape/dream-token.png"
-                alt="Dream Token"
-                className="h-16 w-16 shrink-0 object-contain drop-shadow-[0_0_22px_rgba(250,204,21,0.28)]"
-              />
-            </div>
+              <div className="mt-9 flex items-end justify-between gap-5 rounded-3xl border border-yellow-200/16 bg-black/24 p-5">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.18em] text-white/42">
+                    Current Balance
+                  </p>
 
-            <div className="mt-9 flex items-end justify-between gap-5 rounded-3xl border border-yellow-200/16 bg-black/24 p-5">
-              <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-white/42">
-                  Current Balance
-                </p>
+                  {isLoadingTokens ? (
+                    <p className="mt-2 text-lg text-white/52">Loading...</p>
+                  ) : (
+                    <div className="mt-2 flex items-end gap-3">
+                      <span className="text-5xl font-extrabold leading-none text-white">
+                        {dreamTokenBalance.toLocaleString()}
+                      </span>
 
-                {isLoadingTokens ? (
-                  <p className="mt-2 text-lg text-white/52">Loading...</p>
-                ) : (
-                  <div className="mt-2 flex items-end gap-3">
-                    <span className="text-5xl font-extrabold leading-none text-white">
-                      {dreamTokenBalance.toLocaleString()}
-                    </span>
+                      <span className="pb-2 text-sm font-bold tracking-[0.16em] text-[#ffd18a]">
+                        DT
+                      </span>
+                    </div>
+                  )}
+                </div>
 
-                    <span className="pb-2 text-sm font-bold tracking-[0.16em] text-[#ffd18a]">
-                      DT
-                    </span>
-                  </div>
-                )}
+                <span className="rounded-full border border-yellow-200/20 bg-yellow-200/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-[#ffd18a]">
+                  Open Wallet
+                </span>
+              </div>
+            </button>
+
+            <section className="rounded-[32px] border border-cyan-200/18 bg-[linear-gradient(180deg,rgba(12,48,83,0.52),rgba(4,20,48,0.82))] p-7 shadow-[0_0_42px_rgba(126,232,255,0.08),0_24px_70px_rgba(0,0,0,0.24)] backdrop-blur-xl sm:p-8">
+              <div className="flex items-start justify-between gap-5">
+                <div>
+                  <p className="m-0 text-xs font-bold uppercase tracking-[0.2em] text-[#7ee8ff]">
+                    Tech Support
+                  </p>
+
+                  <h2 className="mt-4 text-3xl font-bold tracking-[-0.04em] text-white sm:text-4xl">
+                    Need help?
+                  </h2>
+
+                  <p className="mt-4 max-w-md text-sm leading-6 text-white/62">
+                    For technical difficulties, login issues, account problems,
+                    or general enquiries, contact the Dreamscape team directly.
+                  </p>
+                </div>
+
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-cyan-200/20 bg-cyan-300/10 text-3xl shadow-[0_0_22px_rgba(126,232,255,0.16)]">
+                  ✉
+                </div>
               </div>
 
-              <span className="rounded-full border border-yellow-200/20 bg-yellow-200/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-[#ffd18a]">
-                Open Wallet
-              </span>
-            </div>
-          </button>
+              <a
+                href="mailto:admin@gurukidspro.com?subject=Dreamscape%20One%20Support%20Request&body=Hi%20Dreamscape%20team%2C%0A%0AI%20need%20help%20with%3A%0A%0AMy%20account%20email%3A%0ADevice%2Fbrowser%3A%0AWhat%20happened%3A%0A%0AThank%20you."
+                className="mt-7 flex min-h-[56px] w-full items-center justify-center rounded-full border border-cyan-200/24 bg-cyan-300/14 px-5 text-sm font-extrabold uppercase tracking-[0.14em] text-white transition hover:scale-[1.01] hover:bg-cyan-300/22"
+              >
+                Email Support
+              </a>
+
+              <p className="mt-4 text-center text-sm text-white/46">
+                admin@gurukidspro.com
+              </p>
+            </section>
+          </div>
         </section>
       </div>
 
@@ -479,8 +516,9 @@ export default function ProfilePage() {
         <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-[#020813]/78 px-4 py-10 backdrop-blur-md">
           <div className="relative h-[74vh] w-full max-w-4xl overflow-hidden rounded-[30px] border border-yellow-300/30 bg-[#041124] shadow-[0_0_55px_rgba(250,204,21,0.12),0_30px_90px_rgba(0,0,0,0.55)]">
             <button
+              type="button"
               onClick={() => setShowTokenHistory(false)}
-              className="absolute right-5 top-5 z-20 rounded-full border border-white/14 bg-white/8 px-3 py-1 text-white transition hover:bg-white/14"
+              className="absolute right-5 top-5 z-20 rounded-full border border-white/14 bg-white/[0.08] px-3 py-1 text-white transition hover:bg-white/[0.14]"
             >
               ✕
             </button>
@@ -568,6 +606,7 @@ export default function ProfilePage() {
 
               <div className="border-t border-white/10 bg-white/[0.03] px-6 py-4">
                 <button
+                  type="button"
                   onClick={() => setShowTokenHistory(false)}
                   className="w-full rounded-full bg-white px-5 py-3 text-sm font-bold uppercase tracking-[0.12em] text-[#061632] transition hover:scale-[1.01]"
                 >
