@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
@@ -50,6 +50,27 @@ type Trade = {
   quantity: number;
   price: number;
   total: number;
+  created_at: string;
+};
+
+type PricePoint = {
+  id: string;
+  symbol: string;
+  price_date: string;
+  price: number;
+  created_at: string;
+};
+
+type NewsEvent = {
+  id: string;
+  symbol: string;
+  event_date: string;
+  visible_from: string;
+  status: "published" | "teaser";
+  headline: string;
+  description: string;
+  impact_label: "positive" | "negative" | "neutral" | "unknown";
+  display_order: number;
   created_at: string;
 };
 
@@ -129,6 +150,18 @@ function formatDateTime(value: string) {
   }
 }
 
+function formatShortDate(value: string) {
+  try {
+    return new Intl.DateTimeFormat("en-SG", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }).format(new Date(`${value}T00:00:00`));
+  } catch {
+    return value;
+  }
+}
+
 function ResponsiveScrollStyles() {
   return (
     <style>{`
@@ -150,6 +183,203 @@ function ResponsiveScrollStyles() {
   );
 }
 
+function PriceHistoryChart({
+  points,
+  isMobile,
+}: {
+  points: PricePoint[];
+  isMobile: boolean;
+}) {
+  if (points.length === 0) {
+    return (
+      <div
+        style={{
+          minHeight: "260px",
+          borderRadius: "22px",
+          border: "1px dashed rgba(132,218,255,0.24)",
+          background: "rgba(5,13,28,0.42)",
+          display: "grid",
+          placeItems: "center",
+          color: "rgba(255,255,255,0.58)",
+          textAlign: "center",
+          padding: "24px",
+        }}
+      >
+        Price history has not been added for this stock yet.
+      </div>
+    );
+  }
+
+  const width = 900;
+  const height = isMobile ? 280 : 340;
+  const paddingLeft = 52;
+  const paddingRight = 24;
+  const paddingTop = 24;
+  const paddingBottom = 44;
+
+  const chartWidth = width - paddingLeft - paddingRight;
+  const chartHeight = height - paddingTop - paddingBottom;
+
+  const prices = points.map((point) => point.price);
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  const priceRange = Math.max(1, maxPrice - minPrice);
+  const paddedMin = Math.max(0, minPrice - Math.ceil(priceRange * 0.12));
+  const paddedMax = maxPrice + Math.ceil(priceRange * 0.12);
+  const paddedRange = Math.max(1, paddedMax - paddedMin);
+
+  function getX(index: number) {
+    if (points.length === 1) return paddingLeft;
+    return paddingLeft + (index / (points.length - 1)) * chartWidth;
+  }
+
+  function getY(price: number) {
+    return paddingTop + ((paddedMax - price) / paddedRange) * chartHeight;
+  }
+
+  const path = points
+    .map((point, index) => {
+      const x = getX(index);
+      const y = getY(point.price);
+      return `${index === 0 ? "M" : "L"} ${x} ${y}`;
+    })
+    .join(" ");
+
+  const firstPoint = points[0];
+  const middlePoint = points[Math.floor(points.length / 2)];
+  const lastPoint = points[points.length - 1];
+
+  const yLabels = [
+    paddedMax,
+    Math.round((paddedMax + paddedMin) / 2),
+    paddedMin,
+  ];
+
+  return (
+    <div
+      style={{
+        width: "100%",
+        overflowX: "auto",
+        borderRadius: "22px",
+        border: "1px solid rgba(132,218,255,0.18)",
+        background:
+          "linear-gradient(180deg, rgba(5,13,28,0.56), rgba(5,13,28,0.34))",
+        padding: isMobile ? "12px" : "18px",
+      }}
+    >
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        width="100%"
+        height={height}
+        role="img"
+        aria-label="Five-year fictional stock price history"
+        style={{ display: "block", minWidth: isMobile ? "720px" : "100%" }}
+      >
+        <defs>
+          <linearGradient id="miloChartGlow" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="rgba(142,232,255,0.26)" />
+            <stop offset="100%" stopColor="rgba(142,232,255,0.02)" />
+          </linearGradient>
+        </defs>
+
+        {yLabels.map((label) => {
+          const y = getY(label);
+
+          return (
+            <g key={label}>
+              <line
+                x1={paddingLeft}
+                x2={width - paddingRight}
+                y1={y}
+                y2={y}
+                stroke="rgba(255,255,255,0.1)"
+              />
+              <text
+                x={14}
+                y={y + 4}
+                fill="rgba(255,255,255,0.54)"
+                fontSize="13"
+                fontWeight="700"
+              >
+                {label} DT
+              </text>
+            </g>
+          );
+        })}
+
+        <path
+          d={`${path} L ${getX(points.length - 1)} ${
+            height - paddingBottom
+          } L ${paddingLeft} ${height - paddingBottom} Z`}
+          fill="url(#miloChartGlow)"
+        />
+
+        <path
+          d={path}
+          fill="none"
+          stroke="#8ee8ff"
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+
+        {points.map((point, index) => {
+          const showPoint =
+            index === 0 || index === points.length - 1 || index % 4 === 0;
+
+          if (!showPoint) return null;
+
+          return (
+            <g key={`${point.symbol}-${point.price_date}`}>
+              <circle
+                cx={getX(index)}
+                cy={getY(point.price)}
+                r="6"
+                fill="#8ee8ff"
+                stroke="rgba(5,13,28,0.88)"
+                strokeWidth="3"
+              />
+
+              <text
+                x={getX(index)}
+                y={getY(point.price) - 14}
+                fill="rgba(255,255,255,0.72)"
+                fontSize="12"
+                fontWeight="800"
+                textAnchor="middle"
+              >
+                {point.price}
+              </text>
+            </g>
+          );
+        })}
+
+        {[firstPoint, middlePoint, lastPoint].map((point, index) => {
+          const pointIndex = points.findIndex(
+            (item) => item.price_date === point.price_date
+          );
+
+          return (
+            <text
+              key={`${point.price_date}-${index}`}
+              x={getX(pointIndex)}
+              y={height - 14}
+              fill="rgba(255,255,255,0.54)"
+              fontSize="13"
+              fontWeight="700"
+              textAnchor={
+                index === 0 ? "start" : index === 2 ? "end" : "middle"
+              }
+            >
+              {formatShortDate(point.price_date)}
+            </text>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
 export default function MiloStockExchangePage() {
   const screenMode = useResponsiveMode();
   const isDesktop = screenMode === "desktop";
@@ -166,6 +396,8 @@ export default function MiloStockExchangePage() {
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
+  const [priceHistory, setPriceHistory] = useState<PricePoint[]>([]);
+  const [newsEvents, setNewsEvents] = useState<NewsEvent[]>([]);
 
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [quantity, setQuantity] = useState(1);
@@ -190,6 +422,26 @@ export default function MiloStockExchangePage() {
   }, [holdings, stocks]);
 
   const totalEstimatedValue = dreamTokens + portfolioValue;
+
+  const selectedPriceHistory = useMemo(() => {
+    if (!selectedStock) return [];
+
+    return priceHistory.filter((point) => point.symbol === selectedStock.symbol);
+  }, [priceHistory, selectedStock]);
+
+  const selectedNewsEvents = useMemo(() => {
+    if (!selectedStock) return [];
+
+    return newsEvents.filter((event) => event.symbol === selectedStock.symbol);
+  }, [newsEvents, selectedStock]);
+
+  const selectedPastNews = useMemo(() => {
+    return selectedNewsEvents.filter((event) => event.status === "published");
+  }, [selectedNewsEvents]);
+
+  const selectedUpcomingNews = useMemo(() => {
+    return selectedNewsEvents.filter((event) => event.status === "teaser");
+  }, [selectedNewsEvents]);
 
   const isLockedUnder16 = useMemo(() => {
     if (!profile?.milo_exchange_locked_until) return false;
@@ -230,6 +482,8 @@ export default function MiloStockExchangePage() {
       loadStocks(),
       loadHoldings(user.id),
       loadTrades(user.id),
+      loadPriceHistory(),
+      loadNewsEvents(),
     ]);
 
     setLoading(false);
@@ -331,6 +585,35 @@ export default function MiloStockExchangePage() {
     }
 
     setTrades((data || []) as Trade[]);
+  }
+
+  async function loadPriceHistory() {
+    const { data, error } = await supabase
+      .from("milo_exchange_price_history")
+      .select("*")
+      .order("price_date", { ascending: true });
+
+    if (error) {
+      console.warn("Could not load price history:", error.message);
+      return;
+    }
+
+    setPriceHistory((data || []) as PricePoint[]);
+  }
+
+  async function loadNewsEvents() {
+    const { data, error } = await supabase
+      .from("milo_exchange_news_events")
+      .select("*")
+      .order("event_date", { ascending: true })
+      .order("display_order", { ascending: true });
+
+    if (error) {
+      console.warn("Could not load news events:", error.message);
+      return;
+    }
+
+    setNewsEvents((data || []) as NewsEvent[]);
   }
 
   function getHolding(symbol: string) {
@@ -463,6 +746,9 @@ export default function MiloStockExchangePage() {
       loadDreamTokens(userId),
       loadHoldings(userId),
       loadTrades(userId),
+      loadStocks(),
+      loadPriceHistory(),
+      loadNewsEvents(),
     ]);
   }
 
@@ -552,7 +838,9 @@ export default function MiloStockExchangePage() {
     });
 
     setTradeMessage(
-      `Bought ${qty} share${qty === 1 ? "" : "s"} of ${selectedStock.symbol}.`
+      `Bought ${qty} share${qty === 1 ? "" : "s"} of ${
+        selectedStock.symbol
+      }.`
     );
 
     await refreshUserData();
@@ -631,7 +919,9 @@ export default function MiloStockExchangePage() {
     });
 
     setTradeMessage(
-      `Sold ${qty} share${qty === 1 ? "" : "s"} of ${selectedStock.symbol}.`
+      `Sold ${qty} share${qty === 1 ? "" : "s"} of ${
+        selectedStock.symbol
+      }.`
     );
 
     await refreshUserData();
@@ -701,6 +991,7 @@ export default function MiloStockExchangePage() {
     alignItems: "center",
     justifyContent: "center",
     boxShadow: "0 0 24px rgba(83,215,255,0.12)",
+    fontFamily: "inherit",
   };
 
   const secondaryButton: CSSProperties = {
@@ -777,7 +1068,7 @@ export default function MiloStockExchangePage() {
   }: {
     eyebrow: string;
     title: string;
-    children: React.ReactNode;
+    children: ReactNode;
   }) {
     return (
       <main style={pageShell}>
@@ -1117,7 +1408,8 @@ export default function MiloStockExchangePage() {
               }}
             >
               Buy and sell fictional Dreamscape stocks using earned Dreamscape
-              Tokens. No real money. No cash-out. No real financial advice.
+              Tokens. Study market history, follow fictional news events, and
+              grow your portfolio.
             </p>
 
             {pageMessage && (
@@ -1507,6 +1799,7 @@ export default function MiloStockExchangePage() {
                       fontWeight: 900,
                       cursor: actionLoading ? "not-allowed" : "pointer",
                       opacity: actionLoading ? 0.6 : 1,
+                      fontFamily: "inherit",
                     }}
                   >
                     Buy
@@ -1525,6 +1818,7 @@ export default function MiloStockExchangePage() {
                       fontWeight: 900,
                       cursor: actionLoading ? "not-allowed" : "pointer",
                       opacity: actionLoading ? 0.6 : 1,
+                      fontFamily: "inherit",
                     }}
                   >
                     Sell
@@ -1549,6 +1843,277 @@ export default function MiloStockExchangePage() {
             )}
           </aside>
         </section>
+
+        {selectedStock && (
+          <section
+            style={{
+              ...glassPanel,
+              marginTop: "18px",
+              padding: isMobile ? "22px" : "28px",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                flexDirection: isMobile ? "column" : "row",
+                justifyContent: "space-between",
+                gap: "16px",
+                alignItems: isMobile ? "flex-start" : "flex-end",
+                marginBottom: "22px",
+              }}
+            >
+              <div>
+                <p
+                  style={{
+                    margin: 0,
+                    color: "#8ee8ff",
+                    fontSize: "13px",
+                    letterSpacing: "0.24em",
+                    textTransform: "uppercase",
+                    fontWeight: 900,
+                  }}
+                >
+                  5-Year Market History
+                </p>
+
+                <h2
+                  style={{
+                    margin: "12px 0 0",
+                    fontFamily: 'Georgia, "Times New Roman", serif',
+                    fontSize: isMobile ? "34px" : "42px",
+                    fontWeight: 500,
+                    lineHeight: 1,
+                  }}
+                >
+                  {selectedStock.symbol} Price Timeline
+                </h2>
+              </div>
+
+              <div
+                style={{
+                  borderRadius: "999px",
+                  padding: "9px 14px",
+                  color: "#ffd18a",
+                  background: "rgba(255,209,138,0.1)",
+                  border: "1px solid rgba(255,209,138,0.18)",
+                  fontWeight: 900,
+                  fontSize: "13px",
+                }}
+              >
+                Current: {selectedStock.current_price} DT
+              </div>
+            </div>
+
+            <PriceHistoryChart
+              points={selectedPriceHistory}
+              isMobile={isMobile}
+            />
+
+            <div
+              style={{
+                marginTop: "24px",
+                display: "grid",
+                gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+                gap: "18px",
+              }}
+            >
+              <div
+                style={{
+                  borderRadius: "22px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "rgba(255,255,255,0.06)",
+                  padding: "20px",
+                }}
+              >
+                <h3
+                  style={{
+                    margin: 0,
+                    color: "white",
+                    fontSize: "22px",
+                  }}
+                >
+                  Past Market News
+                </h3>
+
+                {selectedPastNews.length === 0 ? (
+                  <p style={{ color: "rgba(255,255,255,0.6)" }}>
+                    No published market news yet.
+                  </p>
+                ) : (
+                  <div
+                    style={{
+                      marginTop: "16px",
+                      display: "grid",
+                      gap: "12px",
+                    }}
+                  >
+                    {selectedPastNews.map((event) => (
+                      <article
+                        key={event.id}
+                        style={{
+                          borderRadius: "16px",
+                          background: "rgba(5,13,28,0.42)",
+                          border: "1px solid rgba(255,255,255,0.08)",
+                          padding: "14px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            gap: "10px",
+                            alignItems: "flex-start",
+                          }}
+                        >
+                          <span
+                            style={{
+                              color: "#8ee8ff",
+                              fontSize: "12px",
+                              fontWeight: 900,
+                              letterSpacing: "0.08em",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            {formatShortDate(event.event_date)}
+                          </span>
+
+                          <span
+                            style={{
+                              color:
+                                event.impact_label === "positive"
+                                  ? "#8ee8ff"
+                                  : event.impact_label === "negative"
+                                  ? "#ffb0b0"
+                                  : "rgba(255,255,255,0.58)",
+                              fontSize: "12px",
+                              fontWeight: 900,
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            {event.impact_label}
+                          </span>
+                        </div>
+
+                        <strong
+                          style={{
+                            display: "block",
+                            marginTop: "10px",
+                            color: "white",
+                            lineHeight: 1.35,
+                          }}
+                        >
+                          {event.headline}
+                        </strong>
+
+                        <p
+                          style={{
+                            margin: "8px 0 0",
+                            color: "rgba(255,255,255,0.62)",
+                            fontSize: "14px",
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          {event.description}
+                        </p>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div
+                style={{
+                  borderRadius: "22px",
+                  border: "1px solid rgba(255,209,138,0.16)",
+                  background: "rgba(255,209,138,0.06)",
+                  padding: "20px",
+                }}
+              >
+                <h3
+                  style={{
+                    margin: 0,
+                    color: "white",
+                    fontSize: "22px",
+                  }}
+                >
+                  Upcoming Market Events
+                </h3>
+
+                <p
+                  style={{
+                    margin: "8px 0 0",
+                    color: "rgba(255,255,255,0.58)",
+                    fontSize: "14px",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  These are teaser events only. Future price effects are hidden
+                  until release.
+                </p>
+
+                {selectedUpcomingNews.length === 0 ? (
+                  <p style={{ color: "rgba(255,255,255,0.6)" }}>
+                    No upcoming market events yet.
+                  </p>
+                ) : (
+                  <div
+                    style={{
+                      marginTop: "16px",
+                      display: "grid",
+                      gap: "12px",
+                    }}
+                  >
+                    {selectedUpcomingNews.map((event) => (
+                      <article
+                        key={event.id}
+                        style={{
+                          borderRadius: "16px",
+                          background: "rgba(5,13,28,0.42)",
+                          border: "1px solid rgba(255,209,138,0.12)",
+                          padding: "14px",
+                        }}
+                      >
+                        <span
+                          style={{
+                            color: "#ffd18a",
+                            fontSize: "12px",
+                            fontWeight: 900,
+                            letterSpacing: "0.08em",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          {formatShortDate(event.event_date)}
+                        </span>
+
+                        <strong
+                          style={{
+                            display: "block",
+                            marginTop: "10px",
+                            color: "white",
+                            lineHeight: 1.35,
+                          }}
+                        >
+                          {event.headline}
+                        </strong>
+
+                        <p
+                          style={{
+                            margin: "8px 0 0",
+                            color: "rgba(255,255,255,0.62)",
+                            fontSize: "14px",
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          {event.description}
+                        </p>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
 
         <section
           style={{
@@ -1611,7 +2176,9 @@ export default function MiloStockExchangePage() {
               )}
 
               {holdings.map((holding) => {
-                const stock = stocks.find((item) => item.symbol === holding.symbol);
+                const stock = stocks.find(
+                  (item) => item.symbol === holding.symbol
+                );
                 if (!stock) return null;
 
                 return (
