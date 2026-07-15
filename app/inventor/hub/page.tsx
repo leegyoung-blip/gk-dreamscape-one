@@ -962,11 +962,16 @@ export default function InventorHubPage() {
                 </p>
 
                 <button
-                  onClick={addNovaBlindBoxToCart}
-                  className="mt-6 w-full rounded-full bg-cyan-300 px-6 py-4 text-lg font-black text-slate-950 hover:bg-cyan-200"
+                  type="button"
+                  disabled
+                  className="mt-6 w-full cursor-not-allowed rounded-full border border-cyan-200/20 bg-white/10 px-6 py-4 text-lg font-black text-white/45"
                 >
-                  Add Blind Box to Cart
+                  Coming Soon
                 </button>
+
+                <p className="mt-3 text-center text-xs leading-relaxed text-cyan-50/45">
+                  This blind box is a digital preview and is not available for purchase yet.
+                </p>
               </div>
             </div>
           </section>
