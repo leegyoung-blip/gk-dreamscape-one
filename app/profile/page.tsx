@@ -59,6 +59,14 @@ export default function ProfilePage() {
   const [copiedReferralCode, setCopiedReferralCode] = useState(false);
   const [referralMessage, setReferralMessage] = useState("");
 
+  const [username, setUsername] = useState<string | null>(null);
+  const [usernameDraft, setUsernameDraft] = useState("");
+  const [usernameMessage, setUsernameMessage] = useState("");
+  const [usernameMessageType, setUsernameMessageType] = useState<
+    "success" | "error" | ""
+  >("");
+  const [isSavingUsername, setIsSavingUsername] = useState(false);
+
   const [isAdmin, setIsAdmin] = useState(false);
   const [tokenTransactions, setTokenTransactions] = useState<
     DreamTokenTransaction[]
@@ -87,6 +95,8 @@ export default function ProfilePage() {
       if (!data.user) {
         setEmail(null);
         setReferralCode(null);
+        setUsername(null);
+        setUsernameDraft("");
         setIsAdmin(false);
         setTokenTransactions([]);
         setIsLoadingTokens(false);
@@ -97,7 +107,7 @@ export default function ProfilePage() {
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("role, referral_code")
+        .select("role, referral_code, username")
         .eq("id", data.user.id)
         .maybeSingle();
 
@@ -105,8 +115,12 @@ export default function ProfilePage() {
         console.error("Profile error:", profileError.message);
       }
 
+      const loadedUsername = profile?.username ?? null;
+
       setIsAdmin(profile?.role?.trim().toLowerCase() === "admin");
       setReferralCode(profile?.referral_code ?? null);
+      setUsername(loadedUsername);
+      setUsernameDraft(loadedUsername ?? "");
 
       const pendingReferralCode =
         typeof window !== "undefined"
@@ -154,6 +168,50 @@ export default function ProfilePage() {
 
     loadProfile();
   }, []);
+
+  async function saveUsername() {
+    const cleanedUsername = usernameDraft.trim().toLowerCase();
+
+    setUsernameMessage("");
+    setUsernameMessageType("");
+
+    if (!cleanedUsername) {
+      setUsernameMessage("Please enter a username.");
+      setUsernameMessageType("error");
+      return;
+    }
+
+    if (!/^[a-z0-9_]{3,20}$/.test(cleanedUsername)) {
+      setUsernameMessage(
+        "Username must be 3 to 20 characters and use only letters, numbers, or underscores."
+      );
+      setUsernameMessageType("error");
+      return;
+    }
+
+    setIsSavingUsername(true);
+
+    const { data, error } = await supabase.rpc("update_my_username", {
+      p_username: cleanedUsername,
+    });
+
+    setIsSavingUsername(false);
+
+    if (error) {
+      console.error("Username update error:", error.message);
+      setUsernameMessage(error.message || "Username could not be saved.");
+      setUsernameMessageType("error");
+      return;
+    }
+
+    const result = data as { username?: string }[] | null;
+    const savedUsername = result?.[0]?.username ?? cleanedUsername;
+
+    setUsername(savedUsername);
+    setUsernameDraft(savedUsername);
+    setUsernameMessage("Username saved.");
+    setUsernameMessageType("success");
+  }
 
   async function copyReferralCode() {
     if (!referralCode) return;
@@ -260,6 +318,56 @@ export default function ProfilePage() {
                 <p className="mt-2 break-all text-lg text-white/86">
                   {email || "No active login"}
                 </p>
+              </div>
+
+              <div className="rounded-2xl border border-cyan-200/14 bg-[#061632]/75 p-5">
+                <p className="text-xs uppercase tracking-[0.18em] text-white/42">
+                  Username
+                </p>
+
+                <p className="mt-2 break-all text-2xl font-extrabold tracking-[0.04em] text-white">
+                  {username || "Loading..."}
+                </p>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+                  <input
+                    type="text"
+                    value={usernameDraft}
+                    onChange={(event) => {
+                      setUsernameDraft(event.target.value);
+                      setUsernameMessage("");
+                      setUsernameMessageType("");
+                    }}
+                    placeholder="Choose a username"
+                    className="min-h-[44px] rounded-full border border-cyan-200/18 bg-white/8 px-4 text-sm text-white outline-none transition placeholder:text-white/32 focus:border-cyan-200/42"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={saveUsername}
+                    disabled={isSavingUsername}
+                    className="min-h-[44px] rounded-full border border-cyan-200/25 bg-cyan-300/14 px-5 text-xs font-bold uppercase tracking-[0.12em] text-white transition hover:scale-[1.03] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isSavingUsername ? "Saving..." : "Save"}
+                  </button>
+                </div>
+
+                <p className="mt-3 text-sm leading-6 text-white/54">
+                  This username appears on Milo’s Stock Exchange leaderboard.
+                  Use 3–20 characters: letters, numbers, or underscores.
+                </p>
+
+                {usernameMessage && (
+                  <p
+                    className={`mt-3 text-sm font-semibold ${
+                      usernameMessageType === "success"
+                        ? "text-green-300"
+                        : "text-red-300"
+                    }`}
+                  >
+                    {usernameMessage}
+                  </p>
+                )}
               </div>
 
               <div className="rounded-2xl border border-cyan-200/14 bg-[#061632]/75 p-5">
