@@ -244,74 +244,53 @@ export default function LoginPage() {
   }
 
   async function loginWithGoogle() {
-    if (loading) return;
+  if (loading) return;
 
-    setMessage("");
-    setMessageType("");
-    setActiveAction("google");
+  setMessage("");
+  setMessageType("");
+  setActiveAction("google");
 
-    const cleanReferralCode = referralCode.trim().toUpperCase();
+  const cleanReferralCode = referralCode.trim().toUpperCase();
 
-    try {
-      if (cleanReferralCode) {
-        localStorage.setItem("pending-referral-code", cleanReferralCode);
-      } else {
-        localStorage.removeItem("pending-referral-code");
-      }
-
-      const callbackUrl = `${window.location.origin}/auth/callback`;
-
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: callbackUrl,
-          scopes:
-            "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile",
-          queryParams: {
-            prompt: "select_account",
-          },
-        },
-      });
-
-      if (error) {
-        console.error("Google login error:", error);
-
-        showMessage(`Google login failed: ${error.message}`, "error");
-        return;
-      }
-
-      if (!data?.url) {
-        showMessage(
-          "Google login could not be started. Please check the Google provider configuration.",
-          "error"
-        );
-        return;
-      }
-
-      /*
-       * signInWithOAuth normally redirects automatically in the browser.
-       * This fallback ensures that navigation still begins.
-       */
-      window.location.assign(data.url);
-    } catch (error) {
-      console.error("Unexpected Google login error:", error);
-
-      showMessage(
-        error instanceof Error
-          ? `Google login failed: ${error.message}`
-          : "Google login failed unexpectedly.",
-        "error"
-      );
-    } finally {
-      /*
-       * If the browser redirects normally, this page unloads.
-       * If it does not, the button becomes available again.
-       */
-      window.setTimeout(() => {
-        setActiveAction(null);
-      }, 2000);
+  try {
+    if (cleanReferralCode) {
+      localStorage.setItem("pending-referral-code", cleanReferralCode);
+    } else {
+      localStorage.removeItem("pending-referral-code");
     }
+
+    const callbackUrl = `${window.location.origin}/auth/callback`;
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: callbackUrl,
+        scopes:
+          "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile",
+        queryParams: {
+          prompt: "select_account",
+        },
+      },
+    });
+
+    if (error) {
+      console.error("Google login error:", error);
+      showMessage(`Google login failed: ${error.message}`, "error");
+      setActiveAction(null);
+    }
+  } catch (error) {
+    console.error("Unexpected Google login error:", error);
+
+    showMessage(
+      error instanceof Error
+        ? `Google login failed: ${error.message}`
+        : "Google login failed unexpectedly.",
+      "error"
+    );
+
+    setActiveAction(null);
   }
+}
 
   function goBack() {
     if (window.history.length > 1) {

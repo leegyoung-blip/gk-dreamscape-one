@@ -1,11 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 export default function AuthCallbackPage() {
-  const router = useRouter();
   const hasStarted = useRef(false);
 
   const [message, setMessage] = useState("Completing your login...");
@@ -13,73 +11,93 @@ export default function AuthCallbackPage() {
 
   useEffect(() => {
     if (hasStarted.current) return;
-
     hasStarted.current = true;
 
     async function completeAuthentication() {
       try {
-        const url = new URL(window.location.href);
+        const currentUrl = new URL(window.location.href);
 
         const oauthError =
-          url.searchParams.get("error_description") ||
-          url.searchParams.get("error");
+          currentUrl.searchParams.get("error_description") ||
+          currentUrl.searchParams.get("error");
 
         if (oauthError) {
+          console.error("OAuth callback error:", oauthError);
           setHasError(true);
           setMessage(decodeURIComponent(oauthError));
           return;
         }
 
-        const code = url.searchParams.get("code");
-
-        if (code) {
-          const { error: exchangeError } =
-            await supabase.auth.exchangeCodeForSession(code);
-
-          if (exchangeError) {
-            console.error("Session exchange error:", exchangeError);
-
-            setHasError(true);
-            setMessage(`Login failed: ${exchangeError.message}`);
-            return;
-          }
-        }
+        const code = currentUrl.searchParams.get("code");
 
         /*
-         * Give Supabase a short moment to persist the browser session.
+         * If the page is revisited after the session was already created,
+         * send the user directly to the profile.
          */
-        await new Promise((resolve) => window.setTimeout(resolve, 250));
+        if (!code) {
+          const {
+            data: { user },
+            error: userError,
+          } = await supabase.auth.getUser();
 
-        const {
-          data: { session },
-          error: sessionError,
-        } = await supabase.auth.getSession();
+          if (userError) {
+            console.error("Existing session check failed:", userError);
+          }
 
-        if (sessionError) {
-          console.error("Session retrieval error:", sessionError);
+          if (user) {
+            window.location.replace("/profile");
+            return;
+          }
 
-          setHasError(true);
-          setMessage(`Login failed: ${sessionError.message}`);
-          return;
-        }
-
-        if (!session?.user) {
           setHasError(true);
           setMessage(
-            "Authentication completed without creating a session. Please return to login and try again."
+            "The login callback did not include an authentication code. Please return to login and try again."
           );
           return;
         }
 
-        /*
-         * Remove the temporary OAuth code from the address bar.
-         */
-        window.history.replaceState({}, document.title, "/auth/callback");
+        setMessage("Creating your Dreamscape session...");
+
+        const { data, error: exchangeError } =
+          await supabase.auth.exchangeCodeForSession(code);
+
+        if (exchangeError) {
+          console.error("Session exchange failed:", exchangeError);
+
+          /*
+           * Sometimes the code was already exchanged before the page
+           * was refreshed or revisited. Check whether a session exists.
+           */
+          const {
+            data: { user: existingUser },
+          } = await supabase.auth.getUser();
+
+          if (existingUser) {
+            window.location.replace("/profile");
+            return;
+          }
+
+          setHasError(true);
+          setMessage(`Login failed: ${exchangeError.message}`);
+          return;
+        }
+
+        if (!data.session?.user) {
+          setHasError(true);
+          setMessage(
+            "Google login completed, but no session was created. Please return to login and try again."
+          );
+          return;
+        }
 
         setMessage("Login successful. Opening your profile...");
 
-        router.replace("/profile");
-        router.refresh();
+        /*
+         * Use a full browser navigation instead of router.replace().
+         * This ensures the new Supabase session is loaded cleanly
+         * by the profile page.
+         */
+        window.location.replace("/profile");
       } catch (error) {
         console.error("Authentication callback error:", error);
 
@@ -93,12 +111,16 @@ export default function AuthCallbackPage() {
     }
 
     completeAuthentication();
-  }, [router]);
+  }, []);
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#020813] px-5 text-white">
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(126,232,255,0.18),transparent_34%),linear-gradient(180deg,#041124_0%,#020813_100%)]" />
+
+        <div className="absolute left-[-120px] top-[-120px] h-[360px] w-[360px] rounded-full bg-cyan-400/10 blur-3xl" />
+
+        <div className="absolute bottom-[-140px] right-[-120px] h-[380px] w-[380px] rounded-full bg-violet-500/10 blur-3xl" />
       </div>
 
       <section className="relative z-10 w-full max-w-lg rounded-[32px] border border-cyan-200/20 bg-white/[0.05] p-8 text-center shadow-[0_24px_70px_rgba(0,0,0,0.35)] backdrop-blur-xl">
@@ -120,14 +142,14 @@ export default function AuthCallbackPage() {
           <div className="mt-7 grid gap-3">
             <button
               type="button"
-              onClick={() => router.replace("/login")}
+              onClick={() => window.location.replace("/login")}
               className="w-full rounded-full bg-white px-5 py-3 text-sm font-bold uppercase tracking-[0.12em] text-[#061632]"
             >
               Return to Login
             </button>
 
             <a
-              href="mailto:admin@gurukidspro.com?subject=Dreamscape%20One%20Login%20Problem"
+              href="mailto:admin@gurukidspro.com?subject=Dreamscape%20One%20Google%20Login%20Problem"
               className="flex min-h-[48px] items-center justify-center rounded-full border border-cyan-200/20 bg-cyan-300/10 px-5 text-sm font-bold uppercase tracking-[0.12em] text-white"
             >
               Email Support
