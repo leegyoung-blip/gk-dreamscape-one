@@ -1,73 +1,98 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
-  const [message, setMessage] = useState("Completing Google login...");
+  const hasStarted = useRef(false);
+
+  const [message, setMessage] = useState("Completing your login...");
+  const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
-    async function finishGoogleLogin() {
-      const currentUrl = new URL(window.location.href);
+    if (hasStarted.current) return;
 
-      const code = currentUrl.searchParams.get("code");
-      const queryError =
-        currentUrl.searchParams.get("error_description") ||
-        currentUrl.searchParams.get("error");
+    hasStarted.current = true;
 
-      const hashParams = new URLSearchParams(
-        window.location.hash.startsWith("#")
-          ? window.location.hash.slice(1)
-          : window.location.hash
-      );
+    async function completeAuthentication() {
+      try {
+        const url = new URL(window.location.href);
 
-      const hashError =
-        hashParams.get("error_description") || hashParams.get("error");
+        const oauthError =
+          url.searchParams.get("error_description") ||
+          url.searchParams.get("error");
 
-      const oauthError = queryError || hashError;
-
-      if (oauthError) {
-        console.error("Google OAuth callback error:", oauthError);
-        setMessage(`Google login failed: ${oauthError}`);
-        return;
-      }
-
-      if (code) {
-        const { error: exchangeError } =
-          await supabase.auth.exchangeCodeForSession(code);
-
-        if (exchangeError) {
-          console.error("Code exchange error:", exchangeError);
-          setMessage(`Google login failed: ${exchangeError.message}`);
+        if (oauthError) {
+          setHasError(true);
+          setMessage(decodeURIComponent(oauthError));
           return;
         }
-      }
 
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
+        const code = url.searchParams.get("code");
 
-      if (sessionError) {
-        console.error("Session error:", sessionError);
-        setMessage(`Google login failed: ${sessionError.message}`);
-        return;
-      }
+        if (code) {
+          const { error: exchangeError } =
+            await supabase.auth.exchangeCodeForSession(code);
 
-      if (!session?.user) {
+          if (exchangeError) {
+            console.error("Session exchange error:", exchangeError);
+
+            setHasError(true);
+            setMessage(`Login failed: ${exchangeError.message}`);
+            return;
+          }
+        }
+
+        /*
+         * Give Supabase a short moment to persist the browser session.
+         */
+        await new Promise((resolve) => window.setTimeout(resolve, 250));
+
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+
+        if (sessionError) {
+          console.error("Session retrieval error:", sessionError);
+
+          setHasError(true);
+          setMessage(`Login failed: ${sessionError.message}`);
+          return;
+        }
+
+        if (!session?.user) {
+          setHasError(true);
+          setMessage(
+            "Authentication completed without creating a session. Please return to login and try again."
+          );
+          return;
+        }
+
+        /*
+         * Remove the temporary OAuth code from the address bar.
+         */
+        window.history.replaceState({}, document.title, "/auth/callback");
+
+        setMessage("Login successful. Opening your profile...");
+
+        router.replace("/profile");
+        router.refresh();
+      } catch (error) {
+        console.error("Authentication callback error:", error);
+
+        setHasError(true);
         setMessage(
-          "Google login did not create a session. Please return to the login page and try again."
+          error instanceof Error
+            ? `Login failed: ${error.message}`
+            : "Login failed unexpectedly."
         );
-        return;
       }
-
-      router.replace("/profile");
-      router.refresh();
     }
 
-    finishGoogleLogin();
+    completeAuthentication();
   }, [router]);
 
   return (
@@ -82,19 +107,32 @@ export default function AuthCallbackPage() {
         </p>
 
         <h1 className="mt-4 text-4xl font-light text-white">
-          Google Login
+          {hasError ? "Login Problem" : "Signing You In"}
         </h1>
 
-        <p className="mt-5 text-sm leading-7 text-white/65">{message}</p>
+        {!hasError && (
+          <div className="mx-auto mt-7 h-10 w-10 animate-spin rounded-full border-2 border-white/15 border-t-cyan-300" />
+        )}
 
-        {message !== "Completing Google login..." && (
-          <button
-            type="button"
-            onClick={() => router.replace("/login")}
-            className="mt-6 w-full rounded-full bg-white px-5 py-3 text-sm font-bold uppercase tracking-[0.12em] text-[#061632]"
-          >
-            Return to Login
-          </button>
+        <p className="mt-6 text-sm leading-7 text-white/65">{message}</p>
+
+        {hasError && (
+          <div className="mt-7 grid gap-3">
+            <button
+              type="button"
+              onClick={() => router.replace("/login")}
+              className="w-full rounded-full bg-white px-5 py-3 text-sm font-bold uppercase tracking-[0.12em] text-[#061632]"
+            >
+              Return to Login
+            </button>
+
+            <a
+              href="mailto:admin@gurukidspro.com?subject=Dreamscape%20One%20Login%20Problem"
+              className="flex min-h-[48px] items-center justify-center rounded-full border border-cyan-200/20 bg-cyan-300/10 px-5 text-sm font-bold uppercase tracking-[0.12em] text-white"
+            >
+              Email Support
+            </a>
+          </div>
         )}
       </section>
     </main>
