@@ -97,32 +97,47 @@ export default function LoginPage() {
   }
 
   async function loginWithGoogle() {
-    setMessage("");
-    setLoading(true);
+  setMessage("");
+  setLoading(true);
 
-    const cleanReferralCode = referralCode.trim().toUpperCase();
+  const cleanReferralCode = referralCode.trim().toUpperCase();
 
-    if (cleanReferralCode && typeof window !== "undefined") {
-      localStorage.setItem("pending-referral-code", cleanReferralCode);
-    }
-
-    const redirectTo =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/profile`
-        : undefined;
-
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo,
-      },
-    });
-
-    if (error) {
-      setLoading(false);
-      setMessage(error.message);
-    }
+  if (cleanReferralCode && typeof window !== "undefined") {
+    localStorage.setItem("pending-referral-code", cleanReferralCode);
   }
+
+  if (typeof window === "undefined") {
+    setLoading(false);
+    setMessage("Google login is not available right now.");
+    return;
+  }
+
+  const redirectTo = `${window.location.origin}/auth/callback`;
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo,
+      scopes:
+        "openid email profile https://www.googleapis.com/auth/userinfo.email",
+      queryParams: {
+        prompt: "select_account",
+      },
+    },
+  });
+
+  if (error) {
+    console.error("Google login error:", error);
+    setLoading(false);
+    setMessage(`Google login failed: ${error.message}`);
+    return;
+  }
+
+  if (!data.url) {
+    setLoading(false);
+    setMessage("Google login could not be started. Please try again.");
+  }
+}
 
   function goBack() {
     if (window.history.length > 1) {
