@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 // Change this import only if your Supabase client is stored elsewhere.
-import { createClient } from "@/utils/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 
 type ConsentActor = "self_13_plus" | "parent_guardian";
 
