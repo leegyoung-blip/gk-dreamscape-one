@@ -115,8 +115,8 @@ const missionZones: MissionZone[] = [
     accent: "#60f0d0",
     requiresRoleAccess: true,
     position: {
-      left: "5%",
-      top: "21%",
+      left: "4%",
+      top: "30%",
       width: "28%",
       height: "30%",
     },
