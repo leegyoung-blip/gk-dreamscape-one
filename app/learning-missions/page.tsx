@@ -85,7 +85,7 @@ const missionZones: MissionZone[] = [
     description:
       "Play 10-question topic challenges, answer quickly, earn points, and collect Dreamscape Tokens.",
     accent: "#53d7ff",
-    requiresRoleAccess: true,
+    requiresRoleAccess: false,
     position: {
       left: "37%",
       top: "39%",
