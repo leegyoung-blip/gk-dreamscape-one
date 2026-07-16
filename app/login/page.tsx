@@ -115,16 +115,16 @@ export default function LoginPage() {
   const redirectTo = `${window.location.origin}/auth/callback`;
 
   const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: {
-      redirectTo,
-      scopes:
-        "openid email profile https://www.googleapis.com/auth/userinfo.email",
-      queryParams: {
-        prompt: "select_account",
-      },
+  provider: "google",
+  options: {
+    redirectTo: `${window.location.origin}/auth/callback`,
+    scopes:
+      "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile",
+    queryParams: {
+      prompt: "select_account",
     },
-  });
+  },
+});
 
   if (error) {
     console.error("Google login error:", error);
