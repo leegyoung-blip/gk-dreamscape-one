@@ -3,25 +3,28 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 
-const PhaserGame = dynamic(() => import("./PhaserGame"), {
-  ssr: false,
-  loading: () => (
-    <div className="flex min-h-[500px] w-full items-center justify-center">
-      <div className="flex flex-col items-center gap-4">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-white/20 border-t-cyan-300" />
+const PhaserGame = dynamic(
+  () => import("./PhaserGame"),
+  {
+    ssr: false,
 
-        <p className="text-sm font-medium tracking-[0.18em] text-white/60">
-          PREPARING ROVER CHALLENGE
-        </p>
+    loading: () => (
+      <div className="flex min-h-[500px] w-full items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-10 w-10 animate-spin rounded-full border-2 border-white/20 border-t-cyan-300" />
+
+          <p className="text-sm font-medium tracking-[0.18em] text-white/60">
+            PREPARING ROVER CHALLENGE
+          </p>
+        </div>
       </div>
-    </div>
-  ),
-});
+    ),
+  },
+);
 
 export default function RoverChallengeClient() {
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#050713] text-white">
-      {/* Background glow */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
@@ -31,7 +34,6 @@ export default function RoverChallengeClient() {
         }}
       />
 
-      {/* Top navigation */}
       <header className="relative z-20 flex items-center justify-between px-5 py-4 sm:px-8">
         <Link
           href="/learning-missions"
@@ -52,7 +54,6 @@ export default function RoverChallengeClient() {
       </header>
 
       <section className="relative z-10 mx-auto flex w-full max-w-[1600px] flex-col px-4 pb-8 sm:px-8">
-        {/* Page heading */}
         <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="mb-2 text-xs font-semibold tracking-[0.28em] text-cyan-300">
@@ -64,8 +65,10 @@ export default function RoverChallengeClient() {
             </h1>
 
             <p className="mt-2 max-w-2xl text-sm leading-6 text-white/55 sm:text-base">
-              Your rover has entered the Skyforge terrain simulator. Controls,
-              scoring and course obstacles will be added in the next stage.
+              Test the rover movement system and drive
+              through the Skyforge calibration course.
+              Reach the finish gate at the end of the
+              track.
             </p>
           </div>
 
@@ -80,18 +83,56 @@ export default function RoverChallengeClient() {
           </div>
         </div>
 
-        {/* Game frame */}
         <div className="relative overflow-hidden rounded-[24px] border border-white/10 bg-black/30 shadow-[0_30px_100px_rgba(0,0,0,0.45)]">
           <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-px bg-gradient-to-r from-transparent via-cyan-300/70 to-transparent" />
 
           <PhaserGame />
         </div>
 
-        {/* Temporary information bar */}
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <InfoCard label="Course" value="Skyforge Test Track" />
-          <InfoCard label="Rover" value="Temporary Prototype" />
-          <InfoCard label="Current Objective" value="System Calibration" />
+          <InfoCard
+            label="Course"
+            value="Skyforge Test Track"
+          />
+
+          <InfoCard
+            label="Rover"
+            value="Temporary Prototype"
+          />
+
+          <InfoCard
+            label="Current Objective"
+            value="Reach the Finish Gate"
+          />
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 backdrop-blur-xl">
+          <p className="text-[10px] font-semibold tracking-[0.22em] text-cyan-300/70">
+            CONTROLS
+          </p>
+
+          <div className="mt-3 flex flex-wrap gap-x-8 gap-y-3 text-sm text-white/70">
+            <span>
+              <strong className="text-white">
+                A / D or ← / →
+              </strong>{" "}
+              Drive
+            </span>
+
+            <span>
+              <strong className="text-white">
+                Space
+              </strong>{" "}
+              Boost
+            </span>
+
+            <span>
+              <strong className="text-white">
+                R
+              </strong>{" "}
+              Restart
+            </span>
+          </div>
         </div>
       </section>
     </main>
@@ -103,14 +144,19 @@ type InfoCardProps = {
   value: string;
 };
 
-function InfoCard({ label, value }: InfoCardProps) {
+function InfoCard({
+  label,
+  value,
+}: InfoCardProps) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 backdrop-blur-xl">
       <p className="text-[10px] font-semibold tracking-[0.22em] text-white/35">
         {label.toUpperCase()}
       </p>
 
-      <p className="mt-1 text-sm font-medium text-white/80">{value}</p>
+      <p className="mt-1 text-sm font-medium text-white/80">
+        {value}
+      </p>
     </div>
   );
 }
