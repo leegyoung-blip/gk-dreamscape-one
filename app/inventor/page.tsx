@@ -9,6 +9,85 @@ const STUDENT_COVER_IMAGE = "/nova/membership/student-access-cover.png";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 
+type ObjectiveKey =
+  | "create-account"
+  | "invite-friend"
+  | "knowledge-arena-solo"
+  | "milo-mastery-code"
+  | "multiplayer-game"
+  | "thinking-skills-lab"
+  | "learning-mission";
+
+type ObjectiveDefinition = {
+  key: ObjectiveKey;
+  title: string;
+  description: string;
+  reward: number;
+  href: string;
+};
+
+type ObjectiveProgressRow = {
+  objective_key: ObjectiveKey;
+  stage: number;
+  reward_amount: number;
+  completed_at: string;
+};
+
+const STAGE_ONE_OBJECTIVES: ObjectiveDefinition[] = [
+  {
+    key: "create-account",
+    title: "Create your Dreamscape account",
+    description: "Claim your one-time account objective bonus.",
+    reward: 100,
+    href: "/login",
+  },
+  {
+    key: "invite-friend",
+    title: "Invite a friend",
+    description: "Ask a new user to join with your referral code.",
+    reward: 50,
+    href: "/profile",
+  },
+  {
+    key: "knowledge-arena-solo",
+    title: "Complete a solo Knowledge Arena quiz",
+    description: "Finish one 10-question single-player challenge.",
+    reward: 10,
+    href: "/learning-missions/knowledge-arena",
+  },
+  {
+    key: "milo-mastery-code",
+    title: "Solve Milo’s Mastery Code",
+    description: "Complete one daily Mastery Code puzzle.",
+    reward: 10,
+    href: "/milo-world",
+  },
+];
+
+const STAGE_TWO_OBJECTIVES: ObjectiveDefinition[] = [
+  {
+    key: "multiplayer-game",
+    title: "Complete a multiplayer game",
+    description: "Finish one multiplayer game with other players.",
+    reward: 20,
+    href: "/learning-missions/knowledge-arena",
+  },
+  {
+    key: "thinking-skills-lab",
+    title: "Complete a Thinking Skills Lab session",
+    description: "Finish one full logic, pattern, or reasoning session.",
+    reward: 10,
+    href: "/nova/thinking-skills-lab",
+  },
+  {
+    key: "learning-mission",
+    title: "Complete a Learning Mission",
+    description: "Student Access is required for this objective.",
+    reward: 100,
+    href: "/learning-missions",
+  },
+];
+
 function useResponsiveMode() {
   const [screenMode, setScreenMode] = useState<ScreenMode>("desktop");
 
@@ -105,9 +184,15 @@ export default function NovaWorldPage() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [tokenBalance, setTokenBalance] = useState(0);
   const [showMembershipPortal, setShowMembershipPortal] = useState(false);
+  const [completedObjectiveKeys, setCompletedObjectiveKeys] = useState<
+    ObjectiveKey[]
+  >([]);
+  const [objectivesLoading, setObjectivesLoading] = useState(true);
 
   useEffect(() => {
     async function loadUserAndTokens() {
+      setObjectivesLoading(true);
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -115,10 +200,40 @@ export default function NovaWorldPage() {
       if (!user) {
         setUserEmail(null);
         setTokenBalance(0);
+        setCompletedObjectiveKeys([]);
+        setObjectivesLoading(false);
         return;
       }
 
       setUserEmail(user.email ?? null);
+
+      const { data: objectiveRows, error: objectiveError } = await supabase.rpc(
+        "sync_dream_objectives"
+      );
+
+      if (objectiveError) {
+        console.warn(
+          "Could not sync Dream Token objectives:",
+          objectiveError.message
+        );
+
+        const { data: savedObjectiveRows } = await supabase
+          .from("dream_objective_progress")
+          .select("objective_key,stage,reward_amount,completed_at")
+          .eq("user_id", user.id);
+
+        setCompletedObjectiveKeys(
+          ((savedObjectiveRows || []) as ObjectiveProgressRow[]).map(
+            (row) => row.objective_key
+          )
+        );
+      } else {
+        setCompletedObjectiveKeys(
+          ((objectiveRows || []) as ObjectiveProgressRow[]).map(
+            (row) => row.objective_key
+          )
+        );
+      }
 
       const { data, error } = await supabase
         .from("dream_token_transactions")
@@ -129,6 +244,7 @@ export default function NovaWorldPage() {
       if (error) {
         console.warn("Could not load Dreamscape Tokens:", error);
         setTokenBalance(0);
+        setObjectivesLoading(false);
         return;
       }
 
@@ -136,6 +252,7 @@ export default function NovaWorldPage() {
         data?.reduce((sum, row) => sum + (row.amount || 0), 0) || 0;
 
       setTokenBalance(total);
+      setObjectivesLoading(false);
     }
 
     loadUserAndTokens();
@@ -146,8 +263,20 @@ export default function NovaWorldPage() {
       loadUserAndTokens();
     });
 
+    function handleProgressUpdate() {
+      loadUserAndTokens();
+    }
+
+    window.addEventListener("dream-tokens-updated", handleProgressUpdate);
+    window.addEventListener("dream-objectives-updated", handleProgressUpdate);
+
     return () => {
       subscription.unsubscribe();
+      window.removeEventListener("dream-tokens-updated", handleProgressUpdate);
+      window.removeEventListener(
+        "dream-objectives-updated",
+        handleProgressUpdate
+      );
     };
   }, []);
 
@@ -235,6 +364,8 @@ export default function NovaWorldPage() {
         userEmail={userEmail}
         tokenBalance={tokenBalance}
         screenMode={screenMode}
+        completedObjectiveKeys={completedObjectiveKeys}
+        objectivesLoading={objectivesLoading}
       />
 
       <section
@@ -246,7 +377,7 @@ export default function NovaWorldPage() {
           width: isDesktop
             ? "min(420px, 42vw)"
             : "min(640px, calc(100% - 36px))",
-          margin: isDesktop ? 0 : isMobile ? "128px auto 26px" : "108px auto 28px",
+          margin: isDesktop ? 0 : isMobile ? "190px auto 26px" : "108px auto 28px",
           padding: isDesktop ? 0 : "0 2px",
         }}
       >
@@ -373,10 +504,14 @@ function FloatingControls({
   userEmail,
   tokenBalance,
   screenMode,
+  completedObjectiveKeys,
+  objectivesLoading,
 }: {
   userEmail: string | null;
   tokenBalance: number;
   screenMode: ScreenMode;
+  completedObjectiveKeys: ObjectiveKey[];
+  objectivesLoading: boolean;
 }) {
   const isDesktop = screenMode === "desktop";
   const isMobile = screenMode === "mobile";
@@ -502,7 +637,335 @@ function FloatingControls({
           </strong>
         </div>
       </div>
+
+      <ObjectiveBar
+        userEmail={userEmail}
+        completedObjectiveKeys={completedObjectiveKeys}
+        objectivesLoading={objectivesLoading}
+        screenMode={screenMode}
+      />
     </>
+  );
+}
+
+
+function ObjectiveBar({
+  userEmail,
+  completedObjectiveKeys,
+  objectivesLoading,
+  screenMode,
+}: {
+  userEmail: string | null;
+  completedObjectiveKeys: ObjectiveKey[];
+  objectivesLoading: boolean;
+  screenMode: ScreenMode;
+}) {
+  const isMobile = screenMode === "mobile";
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const completedSet = new Set(completedObjectiveKeys);
+  const stageOneComplete = STAGE_ONE_OBJECTIVES.every((objective) =>
+    completedSet.has(objective.key)
+  );
+
+  const currentStage = stageOneComplete ? 2 : 1;
+  const currentObjectives = stageOneComplete
+    ? STAGE_TWO_OBJECTIVES
+    : STAGE_ONE_OBJECTIVES;
+
+  const completedCount = currentObjectives.filter((objective) =>
+    completedSet.has(objective.key)
+  ).length;
+
+  const progressPercent = Math.round(
+    (completedCount / currentObjectives.length) * 100
+  );
+
+  const firstIncompleteObjective = currentObjectives.find(
+    (objective) => !completedSet.has(objective.key)
+  );
+
+  return (
+    <aside
+      style={{
+        position: "fixed",
+        top: isMobile ? "110px" : "78px",
+        right: isMobile ? "12px" : "18px",
+        left: isMobile ? "12px" : "auto",
+        zIndex: 69,
+        width: isMobile ? "auto" : "min(390px, calc(100vw - 36px))",
+        borderRadius: isExpanded ? "20px" : "999px",
+        border: "1px solid rgba(83,215,255,0.44)",
+        background:
+          "linear-gradient(145deg, rgba(2,14,28,0.88), rgba(2,8,19,0.92))",
+        backdropFilter: "blur(18px)",
+        boxShadow:
+          "0 18px 44px rgba(0,0,0,0.34), 0 0 24px rgba(83,215,255,0.14)",
+        overflow: "hidden",
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setIsExpanded((current) => !current)}
+        aria-expanded={isExpanded}
+        style={{
+          width: "100%",
+          minHeight: isMobile ? "52px" : "58px",
+          border: "none",
+          background: "transparent",
+          color: "white",
+          display: "grid",
+          gridTemplateColumns: "auto 1fr auto",
+          alignItems: "center",
+          gap: "12px",
+          padding: isMobile ? "10px 14px" : "11px 16px",
+          cursor: "pointer",
+          textAlign: "left",
+        }}
+      >
+        <span
+          style={{
+            width: isMobile ? "32px" : "36px",
+            height: isMobile ? "32px" : "36px",
+            borderRadius: "999px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            border: "1px solid rgba(83,215,255,0.62)",
+            background: "rgba(83,215,255,0.12)",
+            color: "#8dfcff",
+            fontSize: "15px",
+            flexShrink: 0,
+          }}
+        >
+          ◎
+        </span>
+
+        <span style={{ minWidth: 0 }}>
+          <span
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              color: "#8dfcff",
+              fontSize: isMobile ? "10px" : "11px",
+              fontWeight: 800,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+            }}
+          >
+            Dream Token Objectives
+            <span
+              style={{
+                borderRadius: "999px",
+                background: "rgba(83,215,255,0.13)",
+                padding: "3px 7px",
+                color: "#bdf6ff",
+                letterSpacing: "0.08em",
+              }}
+            >
+              Stage {currentStage}
+            </span>
+          </span>
+
+          <span
+            style={{
+              display: "block",
+              marginTop: "4px",
+              color: "rgba(255,255,255,0.78)",
+              fontSize: isMobile ? "11px" : "12px",
+              lineHeight: 1.35,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {objectivesLoading
+              ? "Checking your objectives..."
+              : !userEmail
+              ? "Create an account to begin earning bonus DT."
+              : firstIncompleteObjective
+              ? `Next: ${firstIncompleteObjective.title}`
+              : "All current objectives completed."}
+          </span>
+        </span>
+
+        <span
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            flexShrink: 0,
+          }}
+        >
+          <strong
+            style={{
+              color: "white",
+              fontSize: isMobile ? "12px" : "13px",
+              letterSpacing: "0.04em",
+            }}
+          >
+            {completedCount}/{currentObjectives.length}
+          </strong>
+
+          <span
+            aria-hidden="true"
+            style={{
+              display: "inline-block",
+              color: "#8dfcff",
+              fontSize: "16px",
+              transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+              transition: "transform 180ms ease",
+            }}
+          >
+            ⌄
+          </span>
+        </span>
+      </button>
+
+      <div
+        style={{
+          height: "4px",
+          background: "rgba(255,255,255,0.08)",
+        }}
+      >
+        <div
+          style={{
+            width: `${progressPercent}%`,
+            height: "100%",
+            background: "linear-gradient(90deg, #53d7ff, #8dfcff)",
+            boxShadow: "0 0 14px rgba(83,215,255,0.7)",
+            transition: "width 280ms ease",
+          }}
+        />
+      </div>
+
+      {isExpanded && (
+        <div style={{ padding: isMobile ? "12px" : "14px" }}>
+          {stageOneComplete && currentStage === 2 && (
+            <div
+              style={{
+                marginBottom: "10px",
+                borderRadius: "12px",
+                border: "1px solid rgba(96,240,208,0.28)",
+                background: "rgba(96,240,208,0.08)",
+                padding: "10px 12px",
+                color: "#9fffe6",
+                fontSize: "12px",
+                lineHeight: 1.45,
+              }}
+            >
+              Stage 1 complete. Stage 2 is now unlocked.
+            </div>
+          )}
+
+          <div style={{ display: "grid", gap: "8px" }}>
+            {currentObjectives.map((objective) => {
+              const isCompleted = completedSet.has(objective.key);
+              const targetHref = userEmail ? objective.href : "/login";
+
+              return (
+                <Link
+                  key={objective.key}
+                  href={isCompleted ? "#" : targetHref}
+                  onClick={(event) => {
+                    if (isCompleted) event.preventDefault();
+                  }}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "34px 1fr auto",
+                    alignItems: "center",
+                    gap: "10px",
+                    minHeight: "64px",
+                    padding: "10px 11px",
+                    borderRadius: "14px",
+                    border: isCompleted
+                      ? "1px solid rgba(96,240,208,0.25)"
+                      : "1px solid rgba(255,255,255,0.1)",
+                    background: isCompleted
+                      ? "rgba(96,240,208,0.08)"
+                      : "rgba(255,255,255,0.04)",
+                    color: "white",
+                    textDecoration: "none",
+                    opacity: objectivesLoading ? 0.65 : 1,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: "30px",
+                      height: "30px",
+                      borderRadius: "999px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      border: isCompleted
+                        ? "1px solid rgba(96,240,208,0.58)"
+                        : "1px solid rgba(83,215,255,0.36)",
+                      background: isCompleted
+                        ? "rgba(96,240,208,0.14)"
+                        : "rgba(83,215,255,0.08)",
+                      color: isCompleted ? "#9fffe6" : "#8dfcff",
+                      fontWeight: 900,
+                    }}
+                  >
+                    {isCompleted ? "✓" : "○"}
+                  </span>
+
+                  <span style={{ minWidth: 0 }}>
+                    <strong
+                      style={{
+                        display: "block",
+                        color: isCompleted
+                          ? "rgba(255,255,255,0.72)"
+                          : "white",
+                        fontSize: "13px",
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      {objective.title}
+                    </strong>
+
+                    <span
+                      style={{
+                        display: "block",
+                        marginTop: "3px",
+                        color: "rgba(255,255,255,0.5)",
+                        fontSize: "11px",
+                        lineHeight: 1.35,
+                      }}
+                    >
+                      {objective.description}
+                    </span>
+                  </span>
+
+                  <strong
+                    style={{
+                      color: isCompleted ? "#9fffe6" : "#ffd76a",
+                      fontSize: "12px",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {isCompleted ? "Claimed" : `+${objective.reward} DT`}
+                  </strong>
+                </Link>
+              );
+            })}
+          </div>
+
+          <p
+            style={{
+              margin: "11px 4px 0",
+              color: "rgba(255,255,255,0.42)",
+              fontSize: "10px",
+              lineHeight: 1.45,
+            }}
+          >
+            Each objective bonus can be earned once and is added on top of the
+            activity’s normal token reward.
+          </p>
+        </div>
+      )}
+    </aside>
   );
 }
 
