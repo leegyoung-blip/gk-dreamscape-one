@@ -1,48 +1,44 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
-type AuthAction = "login" | "signup" | "google" | null;
-type MessageType = "success" | "error" | "info" | "";
+type MessageType = "success" | "error" | "info";
 
-function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+function normaliseEmail(value: string) {
+  return value.trim().toLowerCase();
 }
 
-function getSafeAuthMessage(errorMessage: string) {
-  const message = errorMessage.toLowerCase();
+function getAuthErrorMessage(error: unknown) {
+  const authError = error as {
+    code?: string;
+    message?: string;
+  };
 
-  if (message.includes("email address not authorized")) {
-    return "Confirmation emails are not configured for external users yet. Please contact support.";
+  switch (authError.code) {
+    case "invalid_credentials":
+      return "The email or password is incorrect. Use “Forgot password?” if you cannot remember your password.";
+
+    case "email_not_confirmed":
+      return "Please confirm your email address before logging in.";
+
+    case "user_banned":
+      return "This account is currently unavailable. Please contact support.";
+
+    case "over_request_rate_limit":
+    case "over_email_send_rate_limit":
+      return "Too many attempts were made. Please wait a few minutes and try again.";
+
+    case "weak_password":
+      return authError.message || "Please choose a stronger password.";
+
+    case "signup_disabled":
+      return "New account registration is currently unavailable.";
+
+    default:
+      return authError.message || "Something went wrong. Please try again.";
   }
-
-  if (message.includes("user already registered")) {
-    return "An account already exists for this email. Try logging in instead.";
-  }
-
-  if (message.includes("invalid login credentials")) {
-    return "The email or password is incorrect.";
-  }
-
-  if (message.includes("email not confirmed")) {
-    return "Please confirm your email before logging in.";
-  }
-
-  if (message.includes("signup is disabled")) {
-    return "New account registration is currently disabled.";
-  }
-
-  if (message.includes("password")) {
-    return errorMessage;
-  }
-
-  if (message.includes("rate limit")) {
-    return "Too many attempts were made. Please wait a few minutes and try again.";
-  }
-
-  return errorMessage;
 }
 
 export default function LoginPage() {
@@ -52,439 +48,509 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [referralCode, setReferralCode] = useState("");
 
-  const [activeAction, setActiveAction] = useState<AuthAction>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showResetForm, setShowResetForm] = useState(false);
+
   const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState<MessageType>("");
+  const [messageType, setMessageType] =
+    useState<MessageType>("info");
 
-  const loading = activeAction !== null;
+  const [loadingAction, setLoadingAction] = useState<
+    "login" | "signup" | "google" | "reset" | null
+  >(null);
 
-  useEffect(() => {
-    async function checkExistingSession() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (session?.user) {
-        router.replace("/profile");
-      }
-    }
-
-    checkExistingSession();
-  }, [router]);
-
-  function showMessage(text: string, type: MessageType) {
+  function displayMessage(
+    text: string,
+    type: MessageType = "info"
+  ) {
     setMessage(text);
     setMessageType(type);
   }
 
-  function validateCredentials() {
-    const cleanEmail = email.trim().toLowerCase();
-
-    if (!cleanEmail) {
-      showMessage("Please enter your email address.", "error");
-      return null;
-    }
-
-    if (!isValidEmail(cleanEmail)) {
-      showMessage("Please enter a valid email address.", "error");
-      return null;
-    }
-
-    if (!password) {
-      showMessage("Please enter your password.", "error");
-      return null;
-    }
-
-    if (password.length < 6) {
-      showMessage("Your password must contain at least 6 characters.", "error");
-      return null;
-    }
-
-    return {
-      cleanEmail,
-      cleanReferralCode: referralCode.trim().toUpperCase(),
-    };
-  }
-
-  async function signUp() {
-    if (loading) return;
-
+  function clearMessage() {
     setMessage("");
-    setMessageType("");
-
-    const validated = validateCredentials();
-
-    if (!validated) return;
-
-    const { cleanEmail, cleanReferralCode } = validated;
-
-    setActiveAction("signup");
-
-    try {
-      /*
-       * Save the referral code now.
-       * It will be applied after the user has a confirmed Supabase session
-       * and reaches the profile page.
-       */
-      if (cleanReferralCode) {
-        localStorage.setItem("pending-referral-code", cleanReferralCode);
-      } else {
-        localStorage.removeItem("pending-referral-code");
-      }
-
-      const callbackUrl = `${window.location.origin}/auth/callback`;
-
-      const { data, error } = await supabase.auth.signUp({
-        email: cleanEmail,
-        password,
-        options: {
-          emailRedirectTo: callbackUrl,
-        },
-      });
-
-      if (error) {
-        console.error("Supabase signup error:", error);
-
-        showMessage(getSafeAuthMessage(error.message), "error");
-        return;
-      }
-
-      if (!data.user) {
-        showMessage(
-          "Supabase did not create the account. Please check the authentication settings.",
-          "error"
-        );
-        return;
-      }
-
-      /*
-       * If Confirm Email is disabled, Supabase may return a session
-       * immediately.
-       */
-      if (data.session?.user) {
-        showMessage("Account created successfully. Opening your profile…", "success");
-
-        router.replace("/profile");
-        router.refresh();
-        return;
-      }
-
-      /*
-       * If Confirm Email is enabled, there will normally be no session yet.
-       */
-      showMessage(
-        "Account created. Please check your email and click the confirmation link before logging in.",
-        "success"
-      );
-
-      setPassword("");
-    } catch (error) {
-      console.error("Unexpected signup error:", error);
-
-      showMessage(
-        error instanceof Error
-          ? `Registration failed: ${error.message}`
-          : "Registration failed unexpectedly. Please try again.",
-        "error"
-      );
-    } finally {
-      setActiveAction(null);
-    }
   }
-
-  async function login() {
-    if (loading) return;
-
-    setMessage("");
-    setMessageType("");
-
-    const validated = validateCredentials();
-
-    if (!validated) return;
-
-    setActiveAction("login");
-
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: validated.cleanEmail,
-        password,
-      });
-
-      if (error) {
-        console.error("Supabase login error:", error);
-
-        showMessage(getSafeAuthMessage(error.message), "error");
-        return;
-      }
-
-      if (!data.session?.user) {
-        showMessage(
-          "Login did not create a session. Please try again or contact support.",
-          "error"
-        );
-        return;
-      }
-
-      showMessage("Login successful. Opening your profile…", "success");
-
-      router.replace("/profile");
-      router.refresh();
-    } catch (error) {
-      console.error("Unexpected login error:", error);
-
-      showMessage(
-        error instanceof Error
-          ? `Login failed: ${error.message}`
-          : "Login failed unexpectedly. Please try again.",
-        "error"
-      );
-    } finally {
-      setActiveAction(null);
-    }
-  }
-
-  async function loginWithGoogle() {
-  if (loading) return;
-
-  setMessage("");
-  setMessageType("");
-  setActiveAction("google");
-
-  const cleanReferralCode = referralCode.trim().toUpperCase();
-
-  try {
-    if (cleanReferralCode) {
-      localStorage.setItem("pending-referral-code", cleanReferralCode);
-    } else {
-      localStorage.removeItem("pending-referral-code");
-    }
-
-    const callbackUrl = `${window.location.origin}/auth/callback`;
-
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: callbackUrl,
-        scopes:
-          "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile",
-        queryParams: {
-          prompt: "select_account",
-        },
-      },
-    });
-
-    if (error) {
-      console.error("Google login error:", error);
-      showMessage(`Google login failed: ${error.message}`, "error");
-      setActiveAction(null);
-    }
-  } catch (error) {
-    console.error("Unexpected Google login error:", error);
-
-    showMessage(
-      error instanceof Error
-        ? `Google login failed: ${error.message}`
-        : "Google login failed unexpectedly.",
-      "error"
-    );
-
-    setActiveAction(null);
-  }
-}
 
   function goBack() {
     if (window.history.length > 1) {
       router.back();
-    } else {
-      router.push("/");
+      return;
+    }
+
+    router.push("/");
+  }
+
+  async function login(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+
+    clearMessage();
+
+    const cleanEmail = normaliseEmail(email);
+
+    if (!cleanEmail || !password) {
+      displayMessage(
+        "Please enter your email and password.",
+        "error"
+      );
+      return;
+    }
+
+    setLoadingAction("login");
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+
+        // Do not trim passwords. Spaces may be part of a password.
+        password,
+      });
+
+      if (error) {
+        displayMessage(getAuthErrorMessage(error), "error");
+        return;
+      }
+
+      displayMessage("Login successful. Opening your profile.", "success");
+
+      router.replace("/profile");
+      router.refresh();
+    } catch (error) {
+      console.error("Login error:", error);
+
+      displayMessage(
+        "Something went wrong while logging in. Please try again.",
+        "error"
+      );
+    } finally {
+      setLoadingAction(null);
     }
   }
 
+  async function signUp() {
+    clearMessage();
+
+    const cleanEmail = normaliseEmail(email);
+    const cleanReferralCode = referralCode.trim().toUpperCase();
+
+    if (!cleanEmail || !password) {
+      displayMessage(
+        "Please enter an email and password before creating an account.",
+        "error"
+      );
+      return;
+    }
+
+    if (password.length < 6) {
+      displayMessage(
+        "Your password must contain at least 6 characters.",
+        "error"
+      );
+      return;
+    }
+
+    setLoadingAction("signup");
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: cleanEmail,
+
+        // Do not trim passwords.
+        password,
+
+        options: {
+          emailRedirectTo: `${window.location.origin}/profile`,
+        },
+      });
+
+      if (error) {
+        displayMessage(getAuthErrorMessage(error), "error");
+        return;
+      }
+
+      if (data.user && cleanReferralCode) {
+        const { data: referralResult, error: referralError } =
+          await supabase.rpc("apply_referral_bonus", {
+            new_user_id: data.user.id,
+            input_referral_code: cleanReferralCode,
+          });
+
+        if (referralError) {
+          console.error(
+            "Referral error:",
+            referralError.message
+          );
+        } else {
+          console.log("Referral result:", referralResult);
+        }
+      }
+
+      setPassword("");
+
+      displayMessage(
+        "Account created. Please check your email and click the confirmation link before logging in.",
+        "success"
+      );
+    } catch (error) {
+      console.error("Sign-up error:", error);
+
+      displayMessage(
+        "Something went wrong while creating the account. Please try again.",
+        "error"
+      );
+    } finally {
+      setLoadingAction(null);
+    }
+  }
+
+  async function loginWithGoogle() {
+    clearMessage();
+
+    const cleanReferralCode = referralCode.trim().toUpperCase();
+
+    if (cleanReferralCode) {
+      localStorage.setItem(
+        "pending-referral-code",
+        cleanReferralCode
+      );
+    } else {
+      localStorage.removeItem("pending-referral-code");
+    }
+
+    setLoadingAction("google");
+
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/profile`,
+        },
+      });
+
+      if (error) {
+        displayMessage(getAuthErrorMessage(error), "error");
+        setLoadingAction(null);
+      }
+
+      // When successful, Supabase redirects the browser to Google.
+    } catch (error) {
+      console.error("Google login error:", error);
+
+      displayMessage(
+        "Google login could not be started. Please try again.",
+        "error"
+      );
+
+      setLoadingAction(null);
+    }
+  }
+
+  async function sendPasswordReset(
+    event?: FormEvent<HTMLFormElement>
+  ) {
+    event?.preventDefault();
+
+    clearMessage();
+
+    const cleanEmail = normaliseEmail(email);
+
+    if (!cleanEmail) {
+      displayMessage(
+        "Enter the email address used for your Dreamscape account.",
+        "error"
+      );
+      return;
+    }
+
+    setLoadingAction("reset");
+
+    try {
+      const { error } =
+        await supabase.auth.resetPasswordForEmail(cleanEmail, {
+          redirectTo: `${window.location.origin}/login/reset-password`,
+        });
+
+      if (error) {
+        displayMessage(getAuthErrorMessage(error), "error");
+        return;
+      }
+
+      /*
+       * Use a general response so the page does not reveal
+       * whether a particular email address has an account.
+       */
+      displayMessage(
+        "If an account exists for this email, a password-reset link has been sent. Please also check the spam or junk folder.",
+        "success"
+      );
+    } catch (error) {
+      console.error("Password reset error:", error);
+
+      displayMessage(
+        "The password-reset email could not be requested. Please try again.",
+        "error"
+      );
+    } finally {
+      setLoadingAction(null);
+    }
+  }
+
+  const isLoading = loadingAction !== null;
+
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#020813] px-5 py-10 text-white">
-      <div className="pointer-events-none fixed inset-0 z-0">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(126,232,255,0.18),transparent_34%),linear-gradient(180deg,#041124_0%,#020813_100%)]" />
+    <main className="relative min-h-screen overflow-x-hidden bg-[#020813] px-4 py-8 text-white sm:px-6 sm:py-12">
+      <div className="pointer-events-none fixed inset-0">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(51,198,255,0.18),transparent_36%),radial-gradient(circle_at_bottom_right,rgba(126,87,255,0.18),transparent_38%),linear-gradient(180deg,#07172d_0%,#03091a_48%,#020813_100%)]" />
 
-        <div className="absolute left-[-120px] top-[-120px] h-[360px] w-[360px] rounded-full bg-cyan-400/10 blur-3xl" />
+        <div className="absolute left-[-140px] top-[15%] h-[340px] w-[340px] rounded-full bg-cyan-400/10 blur-3xl" />
 
-        <div className="absolute bottom-[-140px] right-[-120px] h-[380px] w-[380px] rounded-full bg-violet-500/10 blur-3xl" />
-
-        <div className="absolute left-[50%] top-[46%] h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-500/5 blur-3xl" />
+        <div className="absolute bottom-[-130px] right-[-100px] h-[380px] w-[380px] rounded-full bg-violet-500/10 blur-3xl" />
       </div>
 
       <button
         type="button"
         onClick={goBack}
-        className="absolute left-5 top-5 z-30 rounded-full border border-cyan-200/25 bg-white/[0.06] px-5 py-2 text-sm tracking-wide text-white shadow-[0_16px_36px_rgba(0,0,0,0.28)] backdrop-blur-xl transition hover:scale-[1.03] hover:border-cyan-200/45 sm:left-8 sm:top-8"
+        className="fixed left-4 top-4 z-40 flex h-11 items-center gap-2 rounded-full border border-cyan-200/25 bg-[#061124]/70 px-4 text-sm text-white shadow-[0_14px_34px_rgba(0,0,0,0.32)] backdrop-blur-xl transition hover:scale-[1.02] hover:border-cyan-200/45 sm:left-7 sm:top-7"
       >
-        ← Back to World
+        <span aria-hidden="true">←</span>
+        Back
       </button>
 
-      <section className="relative z-10 w-full max-w-[460px]">
-        <div className="text-center">
-          <p className="m-0 text-xs font-bold uppercase tracking-[0.24em] text-[#7ee8ff]">
-            Dreamscape One
-          </p>
-
-          <h1 className="mt-4 text-5xl font-extralight tracking-[-0.05em] text-white drop-shadow-[0_0_28px_rgba(126,232,255,0.18)] sm:text-6xl">
-            Login
-          </h1>
-
-          <p className="mx-auto mt-4 max-w-sm text-sm leading-6 text-white/55">
-            Continue your journey, collect Dream Tokens, and access your
-            Dreamscape profile.
-          </p>
-        </div>
-
-        <div className="mt-10 rounded-[32px] border border-cyan-200/18 bg-white/[0.045] p-7 shadow-[0_24px_70px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:p-8">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#7ee8ff]">
-              Account Access
+      <div className="relative z-10 mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-xl items-center justify-center pt-14 sm:pt-8">
+        <section className="w-full rounded-[34px] border border-cyan-200/20 bg-[#071329]/80 p-5 shadow-[0_28px_90px_rgba(0,0,0,0.5),0_0_45px_rgba(74,199,255,0.08)] backdrop-blur-2xl sm:p-9">
+          <header className="text-center">
+            <p className="m-0 text-xs font-bold uppercase tracking-[0.28em] text-[#7ee8ff]">
+              Dreamscape One
             </p>
 
-            <h2 className="mt-3 text-3xl font-bold tracking-[-0.04em] text-white">
-              Enter Dreamscape
-            </h2>
+            <h1 className="mt-4 text-4xl font-light tracking-[-0.05em] text-white sm:text-5xl">
+              {showResetForm
+                ? "Reset Password"
+                : "Enter Dreamscape"}
+            </h1>
 
-            <p className="mt-3 text-sm leading-6 text-white/52">
-              Log in to an existing account or create a new one.
+            <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-white/58 sm:text-base">
+              {showResetForm
+                ? "Enter your account email and we will send you a secure password-reset link."
+                : "Log in, create an account, or continue with Google."}
             </p>
-          </div>
+          </header>
 
-          <div className="mt-7 grid gap-3">
-            <label className="grid gap-2">
-              <span className="text-xs font-bold uppercase tracking-[0.14em] text-white/48">
-                Email
-              </span>
+          {showResetForm ? (
+            <form
+              onSubmit={sendPasswordReset}
+              className="mt-8"
+            >
+              <label className="block">
+                <span className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-white/58">
+                  Account email
+                </span>
 
-              <input
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !loading) {
-                    login();
-                  }
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(event) => {
+                    setEmail(event.target.value);
+                    clearMessage();
+                  }}
+                  autoComplete="email"
+                  inputMode="email"
+                  placeholder="name@example.com"
+                  className="h-14 w-full rounded-2xl border border-cyan-200/18 bg-[#020a1b]/75 px-5 text-base text-white outline-none transition placeholder:text-white/28 focus:border-cyan-200/55 focus:ring-2 focus:ring-cyan-300/10"
+                />
+              </label>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="mt-6 h-14 w-full rounded-full bg-white px-5 text-sm font-extrabold uppercase tracking-[0.2em] text-[#071329] transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {loadingAction === "reset"
+                  ? "Sending reset email..."
+                  : "Send reset email"}
+              </button>
+
+              <button
+                type="button"
+                disabled={isLoading}
+                onClick={() => {
+                  setShowResetForm(false);
+                  clearMessage();
                 }}
-                placeholder="you@example.com"
-                type="email"
-                autoComplete="email"
-                disabled={loading}
-                className="w-full rounded-2xl border border-cyan-200/14 bg-[#061632]/75 px-4 py-3 text-sm text-white outline-none placeholder:text-white/32 focus:border-cyan-200/42 disabled:opacity-60"
-              />
-            </label>
+                className="mt-3 h-12 w-full rounded-full border border-cyan-200/24 bg-cyan-300/6 px-5 text-xs font-bold uppercase tracking-[0.16em] text-white transition hover:bg-cyan-200/10 disabled:opacity-50"
+              >
+                Back to login
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={login} className="mt-8">
+              <div className="grid gap-5">
+                <label className="block">
+                  <span className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-white/58">
+                    Email
+                  </span>
 
-            <label className="grid gap-2">
-              <span className="text-xs font-bold uppercase tracking-[0.14em] text-white/48">
-                Password
-              </span>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(event) => {
+                      setEmail(event.target.value);
+                      clearMessage();
+                    }}
+                    autoComplete="email"
+                    inputMode="email"
+                    placeholder="name@example.com"
+                    className="h-14 w-full rounded-2xl border border-cyan-200/18 bg-[#020a1b]/75 px-5 text-base text-white outline-none transition placeholder:text-white/28 focus:border-cyan-200/55 focus:ring-2 focus:ring-cyan-300/10"
+                  />
+                </label>
 
-              <input
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !loading) {
-                    login();
-                  }
-                }}
-                placeholder="At least 6 characters"
-                type="password"
-                autoComplete="current-password"
-                disabled={loading}
-                className="w-full rounded-2xl border border-cyan-200/14 bg-[#061632]/75 px-4 py-3 text-sm text-white outline-none placeholder:text-white/32 focus:border-cyan-200/42 disabled:opacity-60"
-              />
-            </label>
-          </div>
+                <label className="block">
+                  <span className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-white/58">
+                    Password
+                  </span>
 
-          <div className="mt-4 rounded-2xl border border-violet-200/18 bg-[#120b2e]/75 p-5">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-200/80">
-              New account bonus
-            </p>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(event) => {
+                        setPassword(event.target.value);
+                        clearMessage();
+                      }}
+                      autoComplete="current-password"
+                      placeholder="Enter your password"
+                      className="h-14 w-full rounded-2xl border border-cyan-200/18 bg-[#020a1b]/75 px-5 pr-16 text-base text-white outline-none transition placeholder:text-white/28 focus:border-cyan-200/55 focus:ring-2 focus:ring-cyan-300/10"
+                    />
 
-            <input
-              value={referralCode}
-              onChange={(event) =>
-                setReferralCode(event.target.value.toUpperCase())
-              }
-              placeholder="Referral code optional"
-              type="text"
-              autoComplete="off"
-              disabled={loading}
-              className="mt-3 w-full rounded-2xl border border-violet-200/18 bg-[#070d22] px-4 py-3 text-sm uppercase tracking-[0.08em] text-white outline-none placeholder:text-white/32 focus:border-violet-200/42 disabled:opacity-60"
-            />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowPassword((current) => !current)
+                      }
+                      aria-label={
+                        showPassword
+                          ? "Hide password"
+                          : "Show password"
+                      }
+                      className="absolute right-2 top-1/2 flex h-10 min-w-12 -translate-y-1/2 items-center justify-center rounded-xl px-3 text-xs font-bold uppercase tracking-[0.08em] text-cyan-100/75 transition hover:bg-white/8 hover:text-white"
+                    >
+                      {showPassword ? "Hide" : "Show"}
+                    </button>
+                  </div>
+                </label>
+              </div>
 
-            <p className="mt-3 text-xs leading-5 text-white/48">
-              Enter a referral code before creating an account or continuing
-              with Google to receive the referral reward.
-            </p>
-          </div>
+              <div className="mt-3 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowResetForm(true);
+                    setPassword("");
+                    clearMessage();
+                  }}
+                  className="text-sm text-cyan-100/65 underline decoration-cyan-200/25 underline-offset-4 transition hover:text-cyan-100"
+                >
+                  Forgot password?
+                </button>
+              </div>
 
-          <button
-            type="button"
-            onClick={login}
-            disabled={loading}
-            className="mt-5 w-full rounded-full bg-white px-5 py-3 text-sm font-bold uppercase tracking-[0.12em] text-[#061632] shadow-[0_14px_34px_rgba(255,255,255,0.08)] transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {activeAction === "login" ? "Logging In..." : "Log In"}
-          </button>
+              <div className="mt-6 rounded-3xl border border-violet-200/18 bg-violet-500/8 p-5">
+                <label className="block">
+                  <span className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-violet-100/72">
+                    Referral code
+                  </span>
 
-          <button
-            type="button"
-            onClick={signUp}
-            disabled={loading}
-            className="mt-3 w-full rounded-full border border-cyan-200/25 bg-cyan-300/12 px-5 py-3 text-sm font-bold uppercase tracking-[0.12em] text-white transition hover:scale-[1.01] hover:border-cyan-200/45 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {activeAction === "signup"
-              ? "Creating Account..."
-              : "Create Account"}
-          </button>
+                  <input
+                    type="text"
+                    value={referralCode}
+                    onChange={(event) => {
+                      setReferralCode(
+                        event.target.value.toUpperCase()
+                      );
+                      clearMessage();
+                    }}
+                    autoCapitalize="characters"
+                    autoComplete="off"
+                    placeholder="Optional"
+                    className="h-14 w-full rounded-2xl border border-violet-200/18 bg-[#080c22]/75 px-5 text-base uppercase tracking-[0.12em] text-white outline-none transition placeholder:normal-case placeholder:tracking-normal placeholder:text-white/28 focus:border-violet-200/55 focus:ring-2 focus:ring-violet-300/10"
+                  />
+                </label>
 
-          <div className="my-5 flex items-center gap-4">
-            <div className="h-px flex-1 bg-white/10" />
+                <p className="mt-3 text-sm leading-6 text-white/48">
+                  Enter a referral code before creating an account
+                  or continuing with Google to receive the referral
+                  reward.
+                </p>
+              </div>
 
-            <span className="text-xs font-bold uppercase tracking-[0.14em] text-white/34">
-              Or
-            </span>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="mt-7 h-14 w-full rounded-full bg-white px-5 text-sm font-extrabold uppercase tracking-[0.22em] text-[#071329] transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {loadingAction === "login"
+                  ? "Logging in..."
+                  : "Log in"}
+              </button>
 
-            <div className="h-px flex-1 bg-white/10" />
-          </div>
+              <button
+                type="button"
+                disabled={isLoading}
+                onClick={signUp}
+                className="mt-3 h-14 w-full rounded-full border border-cyan-200/38 bg-cyan-300/8 px-5 text-sm font-extrabold uppercase tracking-[0.18em] text-white transition hover:scale-[1.01] hover:bg-cyan-200/12 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {loadingAction === "signup"
+                  ? "Creating account..."
+                  : "Create account"}
+              </button>
 
-          <button
-            type="button"
-            onClick={loginWithGoogle}
-            disabled={loading}
-            className="w-full rounded-full border border-violet-200/25 bg-violet-400/16 px-5 py-3 text-sm font-bold uppercase tracking-[0.12em] text-white transition hover:scale-[1.01] hover:border-violet-200/45 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {activeAction === "google"
-              ? "Opening Google..."
-              : "Continue with Google"}
-          </button>
+              <div className="my-7 flex items-center gap-4">
+                <div className="h-px flex-1 bg-white/12" />
+
+                <span className="text-xs font-bold uppercase tracking-[0.18em] text-white/34">
+                  Or
+                </span>
+
+                <div className="h-px flex-1 bg-white/12" />
+              </div>
+
+              <button
+                type="button"
+                disabled={isLoading}
+                onClick={loginWithGoogle}
+                className="h-14 w-full rounded-full border border-violet-200/32 bg-violet-500/15 px-5 text-sm font-extrabold uppercase tracking-[0.17em] text-white transition hover:scale-[1.01] hover:bg-violet-500/22 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {loadingAction === "google"
+                  ? "Opening Google..."
+                  : "Continue with Google"}
+              </button>
+            </form>
+          )}
 
           {message && (
             <div
-              className={`mt-5 rounded-2xl border px-4 py-3 text-sm leading-6 ${
+              role="status"
+              className={`mt-6 rounded-2xl border px-5 py-4 text-sm leading-6 ${
                 messageType === "success"
-                  ? "border-green-200/20 bg-green-400/10 text-green-100"
+                  ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100"
                   : messageType === "error"
-                    ? "border-red-200/20 bg-red-400/10 text-red-100"
-                    : "border-cyan-200/14 bg-[#061632]/75 text-white/68"
+                    ? "border-rose-300/25 bg-rose-400/10 text-rose-100"
+                    : "border-cyan-300/25 bg-cyan-400/10 text-cyan-100"
               }`}
             >
               {message}
             </div>
           )}
 
-          <a
-            href="mailto:admin@gurukidspro.com?subject=Dreamscape%20One%20Login%20Support"
-            className="mt-5 block text-center text-xs text-cyan-100/48 underline decoration-cyan-200/20 underline-offset-4 transition hover:text-cyan-100/80"
-          >
-            Having trouble? Contact support
-          </a>
-        </div>
-
-        <p className="mt-6 text-center text-xs leading-5 text-white/36">
-          Dream Tokens and referral rewards will appear in your profile wallet.
-        </p>
-      </section>
+          <div className="mt-7 text-center">
+            <a
+              href="mailto:admin@gurukidspro.com"
+              className="text-sm text-white/45 underline decoration-white/15 underline-offset-4 transition hover:text-white/75"
+            >
+              Having trouble? Contact support
+            </a>
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
