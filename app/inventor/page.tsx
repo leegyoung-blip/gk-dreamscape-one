@@ -267,8 +267,16 @@ export default function NovaWorldPage() {
       loadUserAndTokens();
     }
 
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        loadUserAndTokens();
+      }
+    }
+
     window.addEventListener("dream-tokens-updated", handleProgressUpdate);
     window.addEventListener("dream-objectives-updated", handleProgressUpdate);
+    window.addEventListener("focus", handleProgressUpdate);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       subscription.unsubscribe();
@@ -277,6 +285,8 @@ export default function NovaWorldPage() {
         "dream-objectives-updated",
         handleProgressUpdate
       );
+      window.removeEventListener("focus", handleProgressUpdate);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 
@@ -685,6 +695,82 @@ function ObjectiveBar({
     (objective) => !completedSet.has(objective.key)
   );
 
+  function renderObjectiveContent(
+    objective: ObjectiveDefinition,
+    isCompleted: boolean
+  ) {
+    return (
+      <>
+        <span
+          style={{
+            width: "32px",
+            height: "32px",
+            borderRadius: "999px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            border: isCompleted
+              ? "1px solid rgba(74,222,128,0.85)"
+              : "1px solid rgba(83,215,255,0.4)",
+            background: isCompleted
+              ? "rgba(34,197,94,0.24)"
+              : "rgba(83,215,255,0.08)",
+            color: isCompleted ? "#bbf7d0" : "#8dfcff",
+            boxShadow: isCompleted
+              ? "0 0 16px rgba(34,197,94,0.28)"
+              : "none",
+            fontWeight: 900,
+            flexShrink: 0,
+          }}
+        >
+          {isCompleted ? "✓" : "○"}
+        </span>
+
+        <span style={{ minWidth: 0 }}>
+          <strong
+            style={{
+              display: "block",
+              color: isCompleted ? "#dcfce7" : "white",
+              fontSize: "13px",
+              lineHeight: 1.3,
+            }}
+          >
+            {objective.title}
+          </strong>
+
+          <span
+            style={{
+              display: "block",
+              marginTop: "4px",
+              color: isCompleted
+                ? "rgba(187,247,208,0.84)"
+                : "rgba(255,255,255,0.5)",
+              fontSize: "11px",
+              lineHeight: 1.35,
+              fontWeight: isCompleted ? 700 : 400,
+            }}
+          >
+            {isCompleted ? "Completed" : objective.description}
+          </span>
+        </span>
+
+        <strong
+          style={{
+            color: isCompleted ? "#86efac" : "#ffd76a",
+            fontSize: "11px",
+            lineHeight: 1.35,
+            textAlign: "right",
+            whiteSpace: isMobile ? "normal" : "nowrap",
+          }}
+        >
+          {isCompleted
+            ? `+${objective.reward} DT awarded`
+            : `+${objective.reward} DT`}
+        </strong>
+      </>
+    );
+  }
+
   return (
     <aside
       style={{
@@ -693,11 +779,11 @@ function ObjectiveBar({
         right: isMobile ? "12px" : "18px",
         left: isMobile ? "12px" : "auto",
         zIndex: 69,
-        width: isMobile ? "auto" : "min(390px, calc(100vw - 36px))",
+        width: isMobile ? "auto" : "min(410px, calc(100vw - 36px))",
         borderRadius: isExpanded ? "20px" : "999px",
         border: "1px solid rgba(83,215,255,0.44)",
         background:
-          "linear-gradient(145deg, rgba(2,14,28,0.88), rgba(2,8,19,0.92))",
+          "linear-gradient(145deg, rgba(2,14,28,0.9), rgba(2,8,19,0.94))",
         backdropFilter: "blur(18px)",
         boxShadow:
           "0 18px 44px rgba(0,0,0,0.34), 0 0 24px rgba(83,215,255,0.14)",
@@ -731,14 +817,18 @@ function ObjectiveBar({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            border: "1px solid rgba(83,215,255,0.62)",
-            background: "rgba(83,215,255,0.12)",
-            color: "#8dfcff",
+            border: stageOneComplete
+              ? "1px solid rgba(74,222,128,0.7)"
+              : "1px solid rgba(83,215,255,0.62)",
+            background: stageOneComplete
+              ? "rgba(34,197,94,0.16)"
+              : "rgba(83,215,255,0.12)",
+            color: stageOneComplete ? "#bbf7d0" : "#8dfcff",
             fontSize: "15px",
             flexShrink: 0,
           }}
         >
-          ◎
+          {stageOneComplete ? "✓" : "◎"}
         </span>
 
         <span style={{ minWidth: 0 }}>
@@ -747,7 +837,7 @@ function ObjectiveBar({
               display: "flex",
               alignItems: "center",
               gap: "8px",
-              color: "#8dfcff",
+              color: stageOneComplete ? "#bbf7d0" : "#8dfcff",
               fontSize: isMobile ? "10px" : "11px",
               fontWeight: 800,
               letterSpacing: "0.14em",
@@ -758,9 +848,11 @@ function ObjectiveBar({
             <span
               style={{
                 borderRadius: "999px",
-                background: "rgba(83,215,255,0.13)",
+                background: stageOneComplete
+                  ? "rgba(34,197,94,0.14)"
+                  : "rgba(83,215,255,0.13)",
                 padding: "3px 7px",
-                color: "#bdf6ff",
+                color: stageOneComplete ? "#dcfce7" : "#bdf6ff",
                 letterSpacing: "0.08em",
               }}
             >
@@ -800,7 +892,9 @@ function ObjectiveBar({
         >
           <strong
             style={{
-              color: "white",
+              color: completedCount === currentObjectives.length
+                ? "#86efac"
+                : "white",
               fontSize: isMobile ? "12px" : "13px",
               letterSpacing: "0.04em",
             }}
@@ -812,7 +906,7 @@ function ObjectiveBar({
             aria-hidden="true"
             style={{
               display: "inline-block",
-              color: "#8dfcff",
+              color: stageOneComplete ? "#86efac" : "#8dfcff",
               fontSize: "16px",
               transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
               transition: "transform 180ms ease",
@@ -833,8 +927,14 @@ function ObjectiveBar({
           style={{
             width: `${progressPercent}%`,
             height: "100%",
-            background: "linear-gradient(90deg, #53d7ff, #8dfcff)",
-            boxShadow: "0 0 14px rgba(83,215,255,0.7)",
+            background:
+              completedCount === currentObjectives.length
+                ? "linear-gradient(90deg, #22c55e, #86efac)"
+                : "linear-gradient(90deg, #53d7ff, #8dfcff)",
+            boxShadow:
+              completedCount === currentObjectives.length
+                ? "0 0 14px rgba(34,197,94,0.72)"
+                : "0 0 14px rgba(83,215,255,0.7)",
             transition: "width 280ms ease",
           }}
         />
@@ -842,20 +942,41 @@ function ObjectiveBar({
 
       {isExpanded && (
         <div style={{ padding: isMobile ? "12px" : "14px" }}>
-          {stageOneComplete && currentStage === 2 && (
+          {!userEmail && (
             <div
               style={{
                 marginBottom: "10px",
                 borderRadius: "12px",
-                border: "1px solid rgba(96,240,208,0.28)",
-                background: "rgba(96,240,208,0.08)",
+                border: "1px solid rgba(255,215,106,0.28)",
+                background: "rgba(255,215,106,0.08)",
                 padding: "10px 12px",
-                color: "#9fffe6",
+                color: "#ffe8a5",
                 fontSize: "12px",
                 lineHeight: 1.45,
               }}
             >
-              Stage 1 complete. Stage 2 is now unlocked.
+              Log in or create an account to save progress and receive the
+              one-time objective bonuses.
+            </div>
+          )}
+
+          {stageOneComplete && (
+            <div
+              style={{
+                marginBottom: "10px",
+                borderRadius: "12px",
+                border: "1px solid rgba(74,222,128,0.42)",
+                background:
+                  "linear-gradient(135deg, rgba(34,197,94,0.18), rgba(22,163,74,0.1))",
+                padding: "11px 12px",
+                color: "#dcfce7",
+                fontSize: "12px",
+                lineHeight: 1.45,
+                boxShadow: "0 0 18px rgba(34,197,94,0.12)",
+              }}
+            >
+              <strong>✓ Stage 1 complete.</strong> All four Stage 1 bonuses
+              were awarded. Stage 2 is now unlocked.
             </div>
           )}
 
@@ -864,89 +985,59 @@ function ObjectiveBar({
               const isCompleted = completedSet.has(objective.key);
               const targetHref = userEmail ? objective.href : "/login";
 
+              const rowStyle: CSSProperties = {
+                display: "grid",
+                gridTemplateColumns: isMobile
+                  ? "34px minmax(0, 1fr) 82px"
+                  : "34px minmax(0, 1fr) auto",
+                alignItems: "center",
+                gap: "10px",
+                minHeight: "68px",
+                padding: "11px 12px",
+                borderRadius: "14px",
+                border: isCompleted
+                  ? "1px solid rgba(74,222,128,0.52)"
+                  : "1px solid rgba(255,255,255,0.1)",
+                background: isCompleted
+                  ? "linear-gradient(135deg, rgba(34,197,94,0.22), rgba(22,163,74,0.11))"
+                  : "rgba(255,255,255,0.04)",
+                color: "white",
+                textDecoration: "none",
+                opacity: objectivesLoading ? 0.65 : 1,
+                boxShadow: isCompleted
+                  ? "0 0 20px rgba(34,197,94,0.12)"
+                  : "none",
+                transition:
+                  "border 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 180ms ease",
+              };
+
+              if (isCompleted) {
+                return (
+                  <div
+                    key={objective.key}
+                    aria-disabled="true"
+                    style={{
+                      ...rowStyle,
+                      cursor: "default",
+                      pointerEvents: "none",
+                      userSelect: "none",
+                    }}
+                  >
+                    {renderObjectiveContent(objective, true)}
+                  </div>
+                );
+              }
+
               return (
                 <Link
                   key={objective.key}
-                  href={isCompleted ? "#" : targetHref}
-                  onClick={(event) => {
-                    if (isCompleted) event.preventDefault();
-                  }}
+                  href={targetHref}
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "34px 1fr auto",
-                    alignItems: "center",
-                    gap: "10px",
-                    minHeight: "64px",
-                    padding: "10px 11px",
-                    borderRadius: "14px",
-                    border: isCompleted
-                      ? "1px solid rgba(96,240,208,0.25)"
-                      : "1px solid rgba(255,255,255,0.1)",
-                    background: isCompleted
-                      ? "rgba(96,240,208,0.08)"
-                      : "rgba(255,255,255,0.04)",
-                    color: "white",
-                    textDecoration: "none",
-                    opacity: objectivesLoading ? 0.65 : 1,
+                    ...rowStyle,
+                    cursor: "pointer",
                   }}
                 >
-                  <span
-                    style={{
-                      width: "30px",
-                      height: "30px",
-                      borderRadius: "999px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      border: isCompleted
-                        ? "1px solid rgba(96,240,208,0.58)"
-                        : "1px solid rgba(83,215,255,0.36)",
-                      background: isCompleted
-                        ? "rgba(96,240,208,0.14)"
-                        : "rgba(83,215,255,0.08)",
-                      color: isCompleted ? "#9fffe6" : "#8dfcff",
-                      fontWeight: 900,
-                    }}
-                  >
-                    {isCompleted ? "✓" : "○"}
-                  </span>
-
-                  <span style={{ minWidth: 0 }}>
-                    <strong
-                      style={{
-                        display: "block",
-                        color: isCompleted
-                          ? "rgba(255,255,255,0.72)"
-                          : "white",
-                        fontSize: "13px",
-                        lineHeight: 1.3,
-                      }}
-                    >
-                      {objective.title}
-                    </strong>
-
-                    <span
-                      style={{
-                        display: "block",
-                        marginTop: "3px",
-                        color: "rgba(255,255,255,0.5)",
-                        fontSize: "11px",
-                        lineHeight: 1.35,
-                      }}
-                    >
-                      {objective.description}
-                    </span>
-                  </span>
-
-                  <strong
-                    style={{
-                      color: isCompleted ? "#9fffe6" : "#ffd76a",
-                      fontSize: "12px",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {isCompleted ? "Claimed" : `+${objective.reward} DT`}
-                  </strong>
+                  {renderObjectiveContent(objective, false)}
                 </Link>
               );
             })}
@@ -961,7 +1052,8 @@ function ObjectiveBar({
             }}
           >
             Each objective bonus can be earned once and is added on top of the
-            activity’s normal token reward.
+            activity’s normal token reward. Completed objectives are green and
+            cannot be clicked again.
           </p>
         </div>
       )}
