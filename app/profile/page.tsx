@@ -401,9 +401,9 @@ export default function ProfilePage() {
                 </div>
 
                 <p className="mt-3 text-sm leading-6 text-white/54">
-                  Share your code with a friend. They get 10 Dream Tokens when
-                  they join, and you get 20 Dream Tokens when they use your
-                  code.
+                  Share your code with a friend. When they successfully join using
+                  your code, both of you receive 10 Dream Tokens. You can also earn
+                  additional bonuses by reaching the referral objectives.
                 </p>
               </div>
             </div>

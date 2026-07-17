@@ -9,82 +9,34 @@ const STUDENT_COVER_IMAGE = "/nova/membership/student-access-cover.png";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 
-type ObjectiveKey =
-  | "create-account"
-  | "invite-friend"
-  | "knowledge-arena-solo"
-  | "milo-mastery-code"
-  | "multiplayer-game"
-  | "thinking-skills-lab"
-  | "learning-mission";
+type ReferralMilestone = 1 | 5 | 15;
 
-type ObjectiveDefinition = {
-  key: ObjectiveKey;
+type ReferralObjectiveDefinition = {
+  milestone: ReferralMilestone;
   title: string;
-  description: string;
   reward: number;
-  href: string;
 };
 
-type ObjectiveProgressRow = {
-  objective_key: ObjectiveKey;
-  stage: number;
-  reward_amount: number;
-  completed_at: string;
+type ReferralObjectiveStatus = {
+  referral_count?: number;
+  claimed_milestones?: number[];
 };
 
-const STAGE_ONE_OBJECTIVES: ObjectiveDefinition[] = [
+const REFERRAL_OBJECTIVES: ReferralObjectiveDefinition[] = [
   {
-    key: "create-account",
-    title: "Create your Dreamscape account",
-    description: "Claim your one-time account objective bonus.",
+    milestone: 1,
+    title: "Complete your first successful referral",
+    reward: 25,
+  },
+  {
+    milestone: 5,
+    title: "Reach 5 successful referrals",
     reward: 100,
-    href: "/login",
   },
   {
-    key: "invite-friend",
-    title: "Invite a friend",
-    description: "Ask a new user to join with your referral code.",
-    reward: 50,
-    href: "/profile",
-  },
-  {
-    key: "knowledge-arena-solo",
-    title: "Complete a solo Knowledge Arena quiz",
-    description: "Finish one 10-question single-player challenge.",
-    reward: 10,
-    href: "/learning-missions/knowledge-arena",
-  },
-  {
-    key: "milo-mastery-code",
-    title: "Solve Milo’s Mastery Code",
-    description: "Complete one daily Mastery Code puzzle.",
-    reward: 10,
-    href: "/milo-world",
-  },
-];
-
-const STAGE_TWO_OBJECTIVES: ObjectiveDefinition[] = [
-  {
-    key: "multiplayer-game",
-    title: "Complete a multiplayer game",
-    description: "Finish one multiplayer game with other players.",
-    reward: 20,
-    href: "/learning-missions/knowledge-arena",
-  },
-  {
-    key: "thinking-skills-lab",
-    title: "Complete a Thinking Skills Lab session",
-    description: "Finish one full logic, pattern, or reasoning session.",
-    reward: 10,
-    href: "/nova/thinking-skills-lab",
-  },
-  {
-    key: "learning-mission",
-    title: "Complete a Learning Mission",
-    description: "Student Access is required for this objective.",
-    reward: 100,
-    href: "/learning-missions",
+    milestone: 15,
+    title: "Reach 15 successful referrals",
+    reward: 500,
   },
 ];
 
@@ -183,110 +135,130 @@ export default function NovaWorldPage() {
   const [typedText, setTypedText] = useState("");
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [tokenBalance, setTokenBalance] = useState(0);
-  const [showMembershipPortal, setShowMembershipPortal] = useState(false);
-  const [completedObjectiveKeys, setCompletedObjectiveKeys] = useState<
-    ObjectiveKey[]
+  const [referralCount, setReferralCount] = useState(0);
+  const [claimedMilestones, setClaimedMilestones] = useState<
+    ReferralMilestone[]
   >([]);
   const [objectivesLoading, setObjectivesLoading] = useState(true);
+  const [showMembershipPortal, setShowMembershipPortal] = useState(false);
 
   useEffect(() => {
-    async function loadUserAndTokens() {
-      setObjectivesLoading(true);
+    let isMounted = true;
+
+    async function loadUserTokensAndObjectives() {
+      if (isMounted) {
+        setObjectivesLoading(true);
+      }
 
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
+      if (!isMounted) return;
+
       if (!user) {
         setUserEmail(null);
         setTokenBalance(0);
-        setCompletedObjectiveKeys([]);
+        setReferralCount(0);
+        setClaimedMilestones([]);
         setObjectivesLoading(false);
         return;
       }
 
       setUserEmail(user.email ?? null);
 
-      const { data: objectiveRows, error: objectiveError } = await supabase.rpc(
-        "sync_dream_objectives"
-      );
+      // This RPC returns the referral count and awards any newly reached
+      // one-time referral objective bonus before the balance is loaded.
+      const { data: objectiveData, error: objectiveError } =
+        await supabase.rpc("get_referral_objective_status");
+
+      if (!isMounted) return;
 
       if (objectiveError) {
         console.warn(
-          "Could not sync Dream Token objectives:",
+          "Could not load referral objectives:",
           objectiveError.message
         );
-
-        const { data: savedObjectiveRows } = await supabase
-          .from("dream_objective_progress")
-          .select("objective_key,stage,reward_amount,completed_at")
-          .eq("user_id", user.id);
-
-        setCompletedObjectiveKeys(
-          ((savedObjectiveRows || []) as ObjectiveProgressRow[]).map(
-            (row) => row.objective_key
-          )
-        );
+        setReferralCount(0);
+        setClaimedMilestones([]);
       } else {
-        setCompletedObjectiveKeys(
-          ((objectiveRows || []) as ObjectiveProgressRow[]).map(
-            (row) => row.objective_key
-          )
+        const status = objectiveData as ReferralObjectiveStatus | null;
+        const safeReferralCount = Math.max(
+          0,
+          Number(status?.referral_count ?? 0)
         );
+
+        const safeMilestones = Array.isArray(status?.claimed_milestones)
+          ? status.claimed_milestones
+              .map((value) => Number(value))
+              .filter(
+                (value): value is ReferralMilestone =>
+                  value === 1 || value === 5 || value === 15
+              )
+          : [];
+
+        setReferralCount(safeReferralCount);
+        setClaimedMilestones(safeMilestones);
       }
 
-      const { data, error } = await supabase
+      const { data: tokenRows, error: tokenError } = await supabase
         .from("dream_token_transactions")
         .select("amount")
         .eq("user_id", user.id)
         .eq("token_kind", "virtual");
 
-      if (error) {
-        console.warn("Could not load Dreamscape Tokens:", error);
+      if (!isMounted) return;
+
+      if (tokenError) {
+        console.warn(
+          "Could not load Dreamscape Tokens:",
+          tokenError.message
+        );
         setTokenBalance(0);
-        setObjectivesLoading(false);
-        return;
+      } else {
+        const total =
+          tokenRows?.reduce(
+            (sum, row) => sum + Number(row.amount || 0),
+            0
+          ) || 0;
+
+        setTokenBalance(total);
       }
 
-      const total =
-        data?.reduce((sum, row) => sum + (row.amount || 0), 0) || 0;
-
-      setTokenBalance(total);
       setObjectivesLoading(false);
     }
 
-    loadUserAndTokens();
+    loadUserTokensAndObjectives();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(() => {
-      loadUserAndTokens();
+      loadUserTokensAndObjectives();
     });
 
-    function handleProgressUpdate() {
-      loadUserAndTokens();
+    function refreshReferralPanel() {
+      loadUserTokensAndObjectives();
     }
 
-    function handleVisibilityChange() {
-      if (document.visibilityState === "visible") {
-        loadUserAndTokens();
-      }
-    }
-
-    window.addEventListener("dream-tokens-updated", handleProgressUpdate);
-    window.addEventListener("dream-objectives-updated", handleProgressUpdate);
-    window.addEventListener("focus", handleProgressUpdate);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", refreshReferralPanel);
+    window.addEventListener("dream-tokens-updated", refreshReferralPanel);
+    window.addEventListener(
+      "dream-referral-objectives-updated",
+      refreshReferralPanel
+    );
 
     return () => {
+      isMounted = false;
       subscription.unsubscribe();
-      window.removeEventListener("dream-tokens-updated", handleProgressUpdate);
+      window.removeEventListener("focus", refreshReferralPanel);
       window.removeEventListener(
-        "dream-objectives-updated",
-        handleProgressUpdate
+        "dream-tokens-updated",
+        refreshReferralPanel
       );
-      window.removeEventListener("focus", handleProgressUpdate);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener(
+        "dream-referral-objectives-updated",
+        refreshReferralPanel
+      );
     };
   }, []);
 
@@ -373,9 +345,10 @@ export default function NovaWorldPage() {
       <FloatingControls
         userEmail={userEmail}
         tokenBalance={tokenBalance}
-        screenMode={screenMode}
-        completedObjectiveKeys={completedObjectiveKeys}
+        referralCount={referralCount}
+        claimedMilestones={claimedMilestones}
         objectivesLoading={objectivesLoading}
+        screenMode={screenMode}
       />
 
       <section
@@ -387,7 +360,7 @@ export default function NovaWorldPage() {
           width: isDesktop
             ? "min(420px, 42vw)"
             : "min(640px, calc(100% - 36px))",
-          margin: isDesktop ? 0 : isMobile ? "190px auto 26px" : "108px auto 28px",
+          margin: isDesktop ? 0 : isMobile ? "178px auto 26px" : "148px auto 28px",
           padding: isDesktop ? 0 : "0 2px",
         }}
       >
@@ -513,15 +486,17 @@ export default function NovaWorldPage() {
 function FloatingControls({
   userEmail,
   tokenBalance,
-  screenMode,
-  completedObjectiveKeys,
+  referralCount,
+  claimedMilestones,
   objectivesLoading,
+  screenMode,
 }: {
   userEmail: string | null;
   tokenBalance: number;
-  screenMode: ScreenMode;
-  completedObjectiveKeys: ObjectiveKey[];
+  referralCount: number;
+  claimedMilestones: ReferralMilestone[];
   objectivesLoading: boolean;
+  screenMode: ScreenMode;
 }) {
   const isDesktop = screenMode === "desktop";
   const isMobile = screenMode === "mobile";
@@ -648,413 +623,377 @@ function FloatingControls({
         </div>
       </div>
 
-      <ObjectiveBar
-        userEmail={userEmail}
-        completedObjectiveKeys={completedObjectiveKeys}
-        objectivesLoading={objectivesLoading}
+      <ReferralObjectivesPanel
+        isLoggedIn={Boolean(userEmail)}
+        referralCount={referralCount}
+        claimedMilestones={claimedMilestones}
+        isLoading={objectivesLoading}
         screenMode={screenMode}
       />
     </>
   );
 }
 
-
-function ObjectiveBar({
-  userEmail,
-  completedObjectiveKeys,
-  objectivesLoading,
+function ReferralObjectivesPanel({
+  isLoggedIn,
+  referralCount,
+  claimedMilestones,
+  isLoading,
   screenMode,
 }: {
-  userEmail: string | null;
-  completedObjectiveKeys: ObjectiveKey[];
-  objectivesLoading: boolean;
+  isLoggedIn: boolean;
+  referralCount: number;
+  claimedMilestones: ReferralMilestone[];
+  isLoading: boolean;
   screenMode: ScreenMode;
 }) {
   const isMobile = screenMode === "mobile";
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
 
-  const completedSet = new Set(completedObjectiveKeys);
-  const stageOneComplete = STAGE_ONE_OBJECTIVES.every((objective) =>
-    completedSet.has(objective.key)
-  );
-
-  const currentStage = stageOneComplete ? 2 : 1;
-  const currentObjectives = stageOneComplete
-    ? STAGE_TWO_OBJECTIVES
-    : STAGE_ONE_OBJECTIVES;
-
-  const completedCount = currentObjectives.filter((objective) =>
-    completedSet.has(objective.key)
+  const completedCount = REFERRAL_OBJECTIVES.filter((objective) =>
+    claimedMilestones.includes(objective.milestone)
   ).length;
 
-  const progressPercent = Math.round(
-    (completedCount / currentObjectives.length) * 100
+  const nextMilestone =
+    REFERRAL_OBJECTIVES.find(
+      (objective) => !claimedMilestones.includes(objective.milestone)
+    )?.milestone ?? 15;
+
+  const overallProgress = Math.min(
+    100,
+    Math.max(0, (referralCount / nextMilestone) * 100)
   );
-
-  const firstIncompleteObjective = currentObjectives.find(
-    (objective) => !completedSet.has(objective.key)
-  );
-
-  function renderObjectiveContent(
-    objective: ObjectiveDefinition,
-    isCompleted: boolean
-  ) {
-    return (
-      <>
-        <span
-          style={{
-            width: "32px",
-            height: "32px",
-            borderRadius: "999px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            border: isCompleted
-              ? "1px solid rgba(74,222,128,0.85)"
-              : "1px solid rgba(83,215,255,0.4)",
-            background: isCompleted
-              ? "rgba(34,197,94,0.24)"
-              : "rgba(83,215,255,0.08)",
-            color: isCompleted ? "#bbf7d0" : "#8dfcff",
-            boxShadow: isCompleted
-              ? "0 0 16px rgba(34,197,94,0.28)"
-              : "none",
-            fontWeight: 900,
-            flexShrink: 0,
-          }}
-        >
-          {isCompleted ? "✓" : "○"}
-        </span>
-
-        <span style={{ minWidth: 0 }}>
-          <strong
-            style={{
-              display: "block",
-              color: isCompleted ? "#dcfce7" : "white",
-              fontSize: "13px",
-              lineHeight: 1.3,
-            }}
-          >
-            {objective.title}
-          </strong>
-
-          <span
-            style={{
-              display: "block",
-              marginTop: "4px",
-              color: isCompleted
-                ? "rgba(187,247,208,0.84)"
-                : "rgba(255,255,255,0.5)",
-              fontSize: "11px",
-              lineHeight: 1.35,
-              fontWeight: isCompleted ? 700 : 400,
-            }}
-          >
-            {isCompleted ? "Completed" : objective.description}
-          </span>
-        </span>
-
-        <strong
-          style={{
-            color: isCompleted ? "#86efac" : "#ffd76a",
-            fontSize: "11px",
-            lineHeight: 1.35,
-            textAlign: "right",
-            whiteSpace: isMobile ? "normal" : "nowrap",
-          }}
-        >
-          {isCompleted
-            ? `+${objective.reward} DT awarded`
-            : `+${objective.reward} DT`}
-        </strong>
-      </>
-    );
-  }
 
   return (
     <aside
       style={{
         position: "fixed",
-        top: isMobile ? "110px" : "78px",
+        top: isMobile ? "108px" : "76px",
         right: isMobile ? "12px" : "18px",
         left: isMobile ? "12px" : "auto",
         zIndex: 69,
-        width: isMobile ? "auto" : "min(410px, calc(100vw - 36px))",
-        borderRadius: isExpanded ? "20px" : "999px",
-        border: "1px solid rgba(83,215,255,0.44)",
+        width: isMobile ? "auto" : "min(380px, calc(100vw - 36px))",
+        borderRadius: isOpen ? "20px" : "999px",
+        border: "1px solid rgba(126,232,255,0.38)",
         background:
-          "linear-gradient(145deg, rgba(2,14,28,0.9), rgba(2,8,19,0.94))",
-        backdropFilter: "blur(18px)",
+          "linear-gradient(145deg, rgba(3,20,39,0.94), rgba(3,10,25,0.96))",
         boxShadow:
-          "0 18px 44px rgba(0,0,0,0.34), 0 0 24px rgba(83,215,255,0.14)",
+          "0 20px 48px rgba(0,0,0,0.38), 0 0 24px rgba(83,215,255,0.12)",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
         overflow: "hidden",
+        color: "white",
       }}
     >
       <button
         type="button"
-        onClick={() => setIsExpanded((current) => !current)}
-        aria-expanded={isExpanded}
+        onClick={() => setIsOpen((current) => !current)}
+        aria-expanded={isOpen}
         style={{
           width: "100%",
-          minHeight: isMobile ? "52px" : "58px",
+          minHeight: isMobile ? "50px" : "54px",
+          padding: isMobile ? "10px 14px" : "10px 16px",
           border: "none",
           background: "transparent",
           color: "white",
           display: "grid",
-          gridTemplateColumns: "auto 1fr auto",
+          gridTemplateColumns: "36px minmax(0, 1fr) auto",
           alignItems: "center",
-          gap: "12px",
-          padding: isMobile ? "10px 14px" : "11px 16px",
+          gap: "10px",
           cursor: "pointer",
           textAlign: "left",
+          fontFamily: "inherit",
         }}
       >
         <span
           style={{
-            width: isMobile ? "32px" : "36px",
-            height: isMobile ? "32px" : "36px",
-            borderRadius: "999px",
+            width: "34px",
+            height: "34px",
+            borderRadius: "12px",
+            border: "1px solid rgba(126,232,255,0.42)",
+            background: "rgba(83,215,255,0.12)",
+            color: "#8dfcff",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            border: stageOneComplete
-              ? "1px solid rgba(74,222,128,0.7)"
-              : "1px solid rgba(83,215,255,0.62)",
-            background: stageOneComplete
-              ? "rgba(34,197,94,0.16)"
-              : "rgba(83,215,255,0.12)",
-            color: stageOneComplete ? "#bbf7d0" : "#8dfcff",
-            fontSize: "15px",
-            flexShrink: 0,
+            fontSize: "16px",
+            boxShadow: "0 0 16px rgba(83,215,255,0.14)",
           }}
         >
-          {stageOneComplete ? "✓" : "◎"}
+          ↗
         </span>
 
         <span style={{ minWidth: 0 }}>
-          <span
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              color: stageOneComplete ? "#bbf7d0" : "#8dfcff",
-              fontSize: isMobile ? "10px" : "11px",
-              fontWeight: 800,
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-            }}
-          >
-            Dream Token Objectives
-            <span
-              style={{
-                borderRadius: "999px",
-                background: stageOneComplete
-                  ? "rgba(34,197,94,0.14)"
-                  : "rgba(83,215,255,0.13)",
-                padding: "3px 7px",
-                color: stageOneComplete ? "#dcfce7" : "#bdf6ff",
-                letterSpacing: "0.08em",
-              }}
-            >
-              Stage {currentStage}
-            </span>
-          </span>
-
-          <span
+          <strong
             style={{
               display: "block",
-              marginTop: "4px",
-              color: "rgba(255,255,255,0.78)",
-              fontSize: isMobile ? "11px" : "12px",
-              lineHeight: 1.35,
+              fontSize: isMobile ? "12px" : "13px",
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
             }}
           >
-            {objectivesLoading
-              ? "Checking your objectives..."
-              : !userEmail
-              ? "Create an account to begin earning bonus DT."
-              : firstIncompleteObjective
-              ? `Next: ${firstIncompleteObjective.title}`
-              : "All current objectives completed."}
+            Referral Objectives
+          </strong>
+
+          <span
+            style={{
+              display: "block",
+              marginTop: "3px",
+              color: "rgba(255,255,255,0.56)",
+              fontSize: isMobile ? "10px" : "11px",
+            }}
+          >
+            {isLoading
+              ? "Loading progress..."
+              : isLoggedIn
+                ? `${completedCount}/3 complete · ${referralCount} successful referral${
+                    referralCount === 1 ? "" : "s"
+                  }`
+                : "Log in to start earning bonuses"}
           </span>
         </span>
 
         <span
+          aria-hidden="true"
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            flexShrink: 0,
+            color: "#8dfcff",
+            fontSize: "18px",
+            transform: isOpen ? "rotate(90deg)" : "rotate(0deg)",
+            transition: "transform 180ms ease",
           }}
         >
-          <strong
-            style={{
-              color: completedCount === currentObjectives.length
-                ? "#86efac"
-                : "white",
-              fontSize: isMobile ? "12px" : "13px",
-              letterSpacing: "0.04em",
-            }}
-          >
-            {completedCount}/{currentObjectives.length}
-          </strong>
-
-          <span
-            aria-hidden="true"
-            style={{
-              display: "inline-block",
-              color: stageOneComplete ? "#86efac" : "#8dfcff",
-              fontSize: "16px",
-              transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
-              transition: "transform 180ms ease",
-            }}
-          >
-            ⌄
-          </span>
+          ›
         </span>
       </button>
 
-      <div
-        style={{
-          height: "4px",
-          background: "rgba(255,255,255,0.08)",
-        }}
-      >
+      {!isLoading && isLoggedIn && !isOpen && (
         <div
           style={{
-            width: `${progressPercent}%`,
-            height: "100%",
-            background:
-              completedCount === currentObjectives.length
-                ? "linear-gradient(90deg, #22c55e, #86efac)"
-                : "linear-gradient(90deg, #53d7ff, #8dfcff)",
-            boxShadow:
-              completedCount === currentObjectives.length
-                ? "0 0 14px rgba(34,197,94,0.72)"
-                : "0 0 14px rgba(83,215,255,0.7)",
-            transition: "width 280ms ease",
+            height: "3px",
+            background: "rgba(255,255,255,0.07)",
           }}
-        />
-      </div>
+        >
+          <div
+            style={{
+              width: `${overallProgress}%`,
+              height: "100%",
+              background: "linear-gradient(90deg, #53d7ff, #60f0d0)",
+              boxShadow: "0 0 12px rgba(96,240,208,0.4)",
+              transition: "width 300ms ease",
+            }}
+          />
+        </div>
+      )}
 
-      {isExpanded && (
-        <div style={{ padding: isMobile ? "12px" : "14px" }}>
-          {!userEmail && (
-            <div
+      {isOpen && (
+        <div
+          style={{
+            borderTop: "1px solid rgba(126,232,255,0.14)",
+            padding: isMobile ? "12px" : "14px",
+          }}
+        >
+          {!isLoggedIn ? (
+            <Link
+              href="/login"
               style={{
-                marginBottom: "10px",
-                borderRadius: "12px",
-                border: "1px solid rgba(255,215,106,0.28)",
-                background: "rgba(255,215,106,0.08)",
-                padding: "10px 12px",
-                color: "#ffe8a5",
-                fontSize: "12px",
-                lineHeight: 1.45,
-              }}
-            >
-              Log in or create an account to save progress and receive the
-              one-time objective bonuses.
-            </div>
-          )}
-
-          {stageOneComplete && (
-            <div
-              style={{
-                marginBottom: "10px",
-                borderRadius: "12px",
-                border: "1px solid rgba(74,222,128,0.42)",
-                background:
-                  "linear-gradient(135deg, rgba(34,197,94,0.18), rgba(22,163,74,0.1))",
-                padding: "11px 12px",
-                color: "#dcfce7",
-                fontSize: "12px",
-                lineHeight: 1.45,
-                boxShadow: "0 0 18px rgba(34,197,94,0.12)",
-              }}
-            >
-              <strong>✓ Stage 1 complete.</strong> All four Stage 1 bonuses
-              were awarded. Stage 2 is now unlocked.
-            </div>
-          )}
-
-          <div style={{ display: "grid", gap: "8px" }}>
-            {currentObjectives.map((objective) => {
-              const isCompleted = completedSet.has(objective.key);
-              const targetHref = userEmail ? objective.href : "/login";
-
-              const rowStyle: CSSProperties = {
-                display: "grid",
-                gridTemplateColumns: isMobile
-                  ? "34px minmax(0, 1fr) 82px"
-                  : "34px minmax(0, 1fr) auto",
-                alignItems: "center",
-                gap: "10px",
-                minHeight: "68px",
-                padding: "11px 12px",
-                borderRadius: "14px",
-                border: isCompleted
-                  ? "1px solid rgba(74,222,128,0.52)"
-                  : "1px solid rgba(255,255,255,0.1)",
-                background: isCompleted
-                  ? "linear-gradient(135deg, rgba(34,197,94,0.22), rgba(22,163,74,0.11))"
-                  : "rgba(255,255,255,0.04)",
+                minHeight: "54px",
+                borderRadius: "15px",
+                border: "1px solid rgba(126,232,255,0.28)",
+                background: "rgba(83,215,255,0.09)",
                 color: "white",
                 textDecoration: "none",
-                opacity: objectivesLoading ? 0.65 : 1,
-                boxShadow: isCompleted
-                  ? "0 0 20px rgba(34,197,94,0.12)"
-                  : "none",
-                transition:
-                  "border 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 180ms ease",
-              };
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "12px 16px",
+                fontSize: "12px",
+                fontWeight: 800,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+              }}
+            >
+              Log in to view objectives
+            </Link>
+          ) : isLoading ? (
+            <div
+              style={{
+                padding: "18px",
+                color: "rgba(255,255,255,0.58)",
+                fontSize: "12px",
+                textAlign: "center",
+              }}
+            >
+              Loading referral progress...
+            </div>
+          ) : (
+            <>
+              <p
+                style={{
+                  margin: "0 2px 12px",
+                  color: "rgba(255,255,255,0.55)",
+                  fontSize: "11px",
+                  lineHeight: 1.5,
+                }}
+              >
+                You receive the normal +10 DT for every successful referral.
+                These milestone rewards are additional one-time bonuses.
+              </p>
 
-              if (isCompleted) {
-                return (
-                  <div
-                    key={objective.key}
-                    aria-disabled="true"
-                    style={{
-                      ...rowStyle,
-                      cursor: "default",
-                      pointerEvents: "none",
-                      userSelect: "none",
-                    }}
-                  >
-                    {renderObjectiveContent(objective, true)}
-                  </div>
-                );
-              }
+              <div style={{ display: "grid", gap: "9px" }}>
+                {REFERRAL_OBJECTIVES.map((objective) => {
+                  const isCompleted = claimedMilestones.includes(
+                    objective.milestone
+                  );
+                  const progress = Math.min(
+                    referralCount,
+                    objective.milestone
+                  );
 
-              return (
-                <Link
-                  key={objective.key}
-                  href={targetHref}
-                  style={{
-                    ...rowStyle,
-                    cursor: "pointer",
-                  }}
-                >
-                  {renderObjectiveContent(objective, false)}
-                </Link>
-              );
-            })}
-          </div>
+                  const rowStyle: CSSProperties = {
+                    minHeight: "66px",
+                    borderRadius: "16px",
+                    border: isCompleted
+                      ? "1px solid rgba(93,255,181,0.5)"
+                      : "1px solid rgba(126,232,255,0.18)",
+                    background: isCompleted
+                      ? "linear-gradient(145deg, rgba(18,116,76,0.52), rgba(8,56,45,0.66))"
+                      : "rgba(255,255,255,0.035)",
+                    color: "white",
+                    textDecoration: "none",
+                    display: "grid",
+                    gridTemplateColumns: "34px minmax(0, 1fr) auto",
+                    alignItems: "center",
+                    gap: "10px",
+                    padding: "11px 12px",
+                    boxShadow: isCompleted
+                      ? "0 0 18px rgba(93,255,181,0.1)"
+                      : "none",
+                    cursor: isCompleted ? "default" : "pointer",
+                    fontFamily: "inherit",
+                  };
 
-          <p
-            style={{
-              margin: "11px 4px 0",
-              color: "rgba(255,255,255,0.42)",
-              fontSize: "10px",
-              lineHeight: 1.45,
-            }}
-          >
-            Each objective bonus can be earned once and is added on top of the
-            activity’s normal token reward. Completed objectives are green and
-            cannot be clicked again.
-          </p>
+                  const rowContent = (
+                    <>
+                      <span
+                        style={{
+                          width: "30px",
+                          height: "30px",
+                          borderRadius: "999px",
+                          border: isCompleted
+                            ? "1px solid rgba(137,255,204,0.7)"
+                            : "1px solid rgba(126,232,255,0.32)",
+                          background: isCompleted
+                            ? "rgba(93,255,181,0.18)"
+                            : "rgba(83,215,255,0.08)",
+                          color: isCompleted ? "#9fffd2" : "#8dfcff",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "14px",
+                          fontWeight: 900,
+                        }}
+                      >
+                        {isCompleted ? "✓" : progress}
+                      </span>
+
+                      <span style={{ minWidth: 0 }}>
+                        <strong
+                          style={{
+                            display: "block",
+                            color: isCompleted ? "#d9ffed" : "white",
+                            fontSize: "12px",
+                            lineHeight: 1.35,
+                          }}
+                        >
+                          {objective.title}
+                        </strong>
+
+                        <span
+                          style={{
+                            display: "block",
+                            marginTop: "4px",
+                            color: isCompleted
+                              ? "#9fffd2"
+                              : "rgba(255,255,255,0.48)",
+                            fontSize: "10px",
+                            lineHeight: 1.35,
+                          }}
+                        >
+                          {isCompleted
+                            ? "Completed · reward awarded"
+                            : `${progress}/${objective.milestone} referrals`}
+                        </span>
+                      </span>
+
+                      <strong
+                        style={{
+                          color: isCompleted ? "#9fffd2" : "#8dfcff",
+                          fontSize: "11px",
+                          whiteSpace: "nowrap",
+                          textAlign: "right",
+                        }}
+                      >
+                        {isCompleted
+                          ? `+${objective.reward} DT ✓`
+                          : `+${objective.reward} DT`}
+                      </strong>
+                    </>
+                  );
+
+                  if (isCompleted) {
+                    return (
+                      <div
+                        key={objective.milestone}
+                        aria-disabled="true"
+                        style={{
+                          ...rowStyle,
+                          pointerEvents: "none",
+                          userSelect: "none",
+                        }}
+                      >
+                        {rowContent}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <Link
+                      key={objective.milestone}
+                      href="/profile"
+                      style={rowStyle}
+                    >
+                      {rowContent}
+                    </Link>
+                  );
+                })}
+              </div>
+
+              <Link
+                href="/profile"
+                style={{
+                  marginTop: "11px",
+                  minHeight: "42px",
+                  borderRadius: "13px",
+                  border: "1px solid rgba(126,232,255,0.2)",
+                  background: "rgba(83,215,255,0.07)",
+                  color: "#bdf6ff",
+                  textDecoration: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "10px",
+                  fontWeight: 800,
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                }}
+              >
+                View and copy referral code
+              </Link>
+            </>
+          )}
         </div>
       )}
     </aside>
