@@ -2449,7 +2449,7 @@ function ActivityDetail({
       } = await supabase.auth.getUser();
 
       if (!user) {
-        setPuzzleMessage("Please log in to play Milo Daily Code and earn rewards.");
+        setPuzzleMessage("Please log in to play Mastery Code and earn rewards.");
         return;
       }
 
@@ -2695,7 +2695,7 @@ function ActivityDetail({
       return;
     }
 
-    const spent = await addTokenTransaction(user.id, -1, `Bought clue for Milo Daily Code ${puzzle.date_sg}`);
+    const spent = await addTokenTransaction(user.id, -1, `Bought clue for Mastery Code ${puzzle.date_sg}`);
     if (!spent) return;
 
     const saved = await savePuzzleProgress({
@@ -2730,7 +2730,7 @@ function ActivityDetail({
     }
 
     const letterHint = `${puzzle.answer[0].toUpperCase()} is in position 1`;
-    const spent = await addTokenTransaction(user.id, -1, `Bought letter for Milo Daily Code ${puzzle.date_sg}`);
+    const spent = await addTokenTransaction(user.id, -1, `Bought letter for Mastery Code ${puzzle.date_sg}`);
     if (!spent) return;
 
     const saved = await savePuzzleProgress({
@@ -2760,7 +2760,7 @@ function ActivityDetail({
   } = await supabase.auth.getUser();
 
   if (!user) {
-    setPuzzleMessage("Please log in to play Milo Daily Code.");
+    setPuzzleMessage("Please log in to play Mastery Code.");
     return;
   }
 
@@ -2814,7 +2814,7 @@ function ActivityDetail({
   const awarded = await addTokenTransaction(
     user.id,
     reward,
-    `Solved Milo Daily Code ${puzzle.date_sg} in ${nextAttempts.length} guess${
+    `Solved Mastery Code ${puzzle.date_sg} in ${nextAttempts.length} guess${
       nextAttempts.length === 1 ? "" : "es"
     }`
   );
@@ -3329,358 +3329,348 @@ function ActivityDetail({
         )}
 
         {isDailyPuzzle && (
-  <div
-    style={{
-      maxWidth: "900px",
-      width: "100%",
-      boxSizing: "border-box",
-      margin: "0 auto",
-      borderRadius: "26px",
-      border: "1px solid rgba(7,17,31,0.1)",
-      background: "rgba(255,255,255,0.78)",
-      padding: isMobile ? "22px 12px" : "34px",
-      boxShadow: "0 22px 55px rgba(0,0,0,0.12)",
-      textAlign: "center",
-    }}
-  >
-    <h3
-      style={{
-        margin: 0,
-        fontSize: isMobile ? "30px" : "42px",
-        letterSpacing: "0.02em",
-      }}
-    >
-      Milo Daily Code
-    </h3>
-
-    <p
-      style={{
-        margin: "12px auto 24px",
-        maxWidth: "720px",
-        color: "rgba(7,17,31,0.58)",
-        lineHeight: 1.7,
-        fontSize: isMobile ? "15px" : "17px",
-      }}
-    >
-      Guess the 5-letter design word in 6 attempts. Earn more Dreamscape Tokens
-      when you solve it faster. Buy a clue or letter if you need help.
-    </p>
-
-    <div
-      style={{
-        margin: "0 auto 24px",
-        maxWidth: "620px",
-        display: "grid",
-        gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
-        gap: "10px",
-      }}
-    >
-      {[
-        ["1st guess", "60 DT"],
-        ["2nd guess", "50 DT"],
-        ["3rd guess", "40 DT"],
-        ["4th guess", "30 DT"],
-        ["5th guess", "20 DT"],
-        ["6th guess", "10 DT"],
-      ].map(([label, reward]) => (
-        <div
-          key={label}
-          style={{
-            borderRadius: "16px",
-            border: "1px solid rgba(40,117,160,0.16)",
-            background: "rgba(255,255,255,0.54)",
-            padding: "12px",
-          }}
-        >
-          <span
+          <div
             style={{
-              display: "block",
-              color: "rgba(7,17,31,0.48)",
-              fontSize: "11px",
-              fontWeight: 900,
-              letterSpacing: "0.12em",
-              textTransform: "uppercase",
+              maxWidth: "760px",
+              width: "100%",
+              boxSizing: "border-box",
+              margin: "0 auto",
+              borderRadius: "26px",
+              border: "1px solid rgba(7,17,31,0.1)",
+              background: "rgba(255,255,255,0.78)",
+              padding: isMobile ? "22px 8px 28px" : "34px",
+              boxShadow: "0 22px 55px rgba(0,0,0,0.12)",
+              textAlign: "center",
+              overflow: "hidden",
             }}
           >
-            {label}
-          </span>
-
-          <strong
-            style={{
-              display: "block",
-              marginTop: "5px",
-              color: "#2875a0",
-              fontSize: "18px",
-            }}
-          >
-            {reward}
-          </strong>
-        </div>
-      ))}
-    </div>
-
-    <form onSubmit={submitPuzzle} style={{ marginTop: "24px" }}>
-      <input
-        ref={guessInputRef}
-        value={puzzleAnswer}
-        onChange={(event) =>
-          setPuzzleAnswer(
-            event.target.value
-              .toUpperCase()
-              .replace(/[^A-Z]/g, "")
-              .slice(0, 5)
-          )
-        }
-        maxLength={5}
-        autoComplete="off"
-        style={{
-          position: "absolute",
-          opacity: 0,
-          pointerEvents: "none",
-          width: 1,
-          height: 1,
-        }}
-      />
-
-      <p
-        style={{
-          margin: "0 0 12px",
-          color: "rgba(7,17,31,0.58)",
-          fontSize: "12px",
-          letterSpacing: "0.14em",
-          textTransform: "uppercase",
-          fontWeight: 850,
-        }}
-      >
-        Your Guesses
-      </p>
-
-      <button
-        type="button"
-        onClick={() => guessInputRef.current?.focus()}
-        style={{
-          border: "none",
-          background: "transparent",
-          padding: 0,
-          display: "grid",
-          gridTemplateRows: `repeat(${DAILY_CODE_MAX_ATTEMPTS}, ${
-            isMobile ? "46px" : "56px"
-          })`,
-          gap: isMobile ? "6px" : "8px",
-          cursor: "text",
-          justifyContent: "center",
-          margin: "0 auto",
-        }}
-      >
-        {Array.from({ length: DAILY_CODE_MAX_ATTEMPTS }).map((_, rowIndex) => {
-          const attempt = attempts[rowIndex];
-          const isCurrentRow =
-            rowIndex === attempts.length &&
-            !solvedToday &&
-            attempts.length < DAILY_CODE_MAX_ATTEMPTS;
-
-          return (
-            <span
-              key={rowIndex}
+            <h3
               style={{
-                display: "grid",
-                gridTemplateColumns: `repeat(5, ${isMobile ? "46px" : "56px"})`,
-                gap: isMobile ? "6px" : "8px",
-                justifyContent: "center",
+                margin: 0,
+                fontSize: isMobile ? "30px" : "42px",
+                letterSpacing: "0.02em",
               }}
             >
-              {Array.from({ length: 5 }).map((_, letterIndex) => {
-                const attemptedLetter = attempt?.guess[letterIndex] || "";
-                const currentLetter =
-                  isCurrentRow ? puzzleAnswer[letterIndex] || "" : "";
-                const letter = attemptedLetter || currentLetter;
-                const feedback = attempt?.feedback[letterIndex];
+              Mastery Code
+            </h3>
 
-                const background =
-                  feedback === "correct"
-                    ? "#4f9f64"
-                    : feedback === "present"
-                    ? "#d2a742"
-                    : feedback === "absent"
-                    ? "#8b919a"
-                    : "rgba(255,255,255,0.78)";
+            <p
+              style={{
+                margin: "12px auto 18px",
+                maxWidth: "620px",
+                padding: isMobile ? "0 8px" : 0,
+                color: "rgba(7,17,31,0.58)",
+                lineHeight: 1.7,
+                fontSize: isMobile ? "15px" : "17px",
+              }}
+            >
+              Guess the 5-letter design word in 6 attempts. Earn more Dreamscape
+              Tokens when you solve it faster. Buy a clue or letter if you need help.
+            </p>
 
-                const color = feedback ? "white" : "#07111f";
+            <form
+              onSubmit={submitPuzzle}
+              style={{
+                width: "100%",
+                maxWidth: "620px",
+                margin: "18px auto 0",
+                boxSizing: "border-box",
+              }}
+            >
+              <input
+                ref={guessInputRef}
+                value={puzzleAnswer}
+                onChange={(event) =>
+                  setPuzzleAnswer(
+                    event.target.value
+                      .toUpperCase()
+                      .replace(/[^A-Z]/g, "")
+                      .slice(0, 5)
+                  )
+                }
+                maxLength={5}
+                autoComplete="off"
+                style={{
+                  position: "absolute",
+                  opacity: 0,
+                  pointerEvents: "none",
+                  width: 1,
+                  height: 1,
+                }}
+              />
 
-                return (
-                  <span
-                    key={letterIndex}
-                    style={{
-                      width: isMobile ? "46px" : "56px",
-                      height: isMobile ? "46px" : "56px",
-                      borderRadius: "12px",
-                      border: letter
-                        ? "2px solid rgba(7,17,31,0.7)"
-                        : "2px solid rgba(7,17,31,0.16)",
-                      background,
-                      color,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontWeight: 900,
-                      fontSize: isMobile ? "19px" : "23px",
-                      boxShadow: feedback
-                        ? "inset 0 -3px 0 rgba(0,0,0,0.12)"
-                        : "none",
-                    }}
-                  >
-                    {letter}
-                  </span>
-                );
-              })}
-            </span>
-          );
-        })}
-      </button>
+              <p
+                style={{
+                  margin: "0 0 12px",
+                  color: "rgba(7,17,31,0.58)",
+                  fontSize: "12px",
+                  letterSpacing: "0.14em",
+                  textTransform: "uppercase",
+                  fontWeight: 850,
+                }}
+              >
+                Your Guesses
+              </p>
 
-      <DailyCodeKeyboard
-        attempts={attempts}
-        onLetterClick={(letter) => {
-          setPuzzleAnswer((current) =>
-            `${current}${letter}`
-              .toUpperCase()
-              .replace(/[^A-Z]/g, "")
-              .slice(0, 5)
-          );
+              <button
+                type="button"
+                onClick={() => guessInputRef.current?.focus()}
+                style={{
+                  width: "100%",
+                  border: "none",
+                  background: "transparent",
+                  padding: 0,
+                  display: "grid",
+                  gridTemplateRows: `repeat(${DAILY_CODE_MAX_ATTEMPTS}, ${
+                    isMobile ? "46px" : "56px"
+                  })`,
+                  gap: isMobile ? "6px" : "8px",
+                  cursor: "text",
+                  justifyContent: "center",
+                  margin: "0 auto",
+                }}
+              >
+                {Array.from({ length: DAILY_CODE_MAX_ATTEMPTS }).map(
+                  (_, rowIndex) => {
+                    const attempt = attempts[rowIndex];
+                    const isCurrentRow =
+                      rowIndex === attempts.length &&
+                      !solvedToday &&
+                      attempts.length < DAILY_CODE_MAX_ATTEMPTS;
 
-          guessInputRef.current?.focus();
-        }}
-        onDelete={() => {
-          setPuzzleAnswer((current) => current.slice(0, -1));
-          guessInputRef.current?.focus();
-        }}
-      />
+                    return (
+                      <span
+                        key={rowIndex}
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: `repeat(5, ${
+                            isMobile
+                              ? "clamp(40px, 12vw, 46px)"
+                              : "56px"
+                          })`,
+                          gap: isMobile ? "6px" : "8px",
+                          justifyContent: "center",
+                        }}
+                      >
+                        {Array.from({ length: 5 }).map((_, letterIndex) => {
+                          const attemptedLetter =
+                            attempt?.guess[letterIndex] || "";
+                          const currentLetter = isCurrentRow
+                            ? puzzleAnswer[letterIndex] || ""
+                            : "";
+                          const letter = attemptedLetter || currentLetter;
+                          const feedback = attempt?.feedback[letterIndex];
 
-      {(clueBought || letterBought) && (
-        <div
-          style={{
-            maxWidth: "620px",
-            margin: "18px auto 0",
-            borderRadius: "16px",
-            border: "1px solid rgba(40,117,160,0.18)",
-            background: "rgba(40,117,160,0.07)",
-            padding: "14px 16px",
-            color: "#2875a0",
-            fontWeight: 800,
-            lineHeight: 1.5,
-            textAlign: "left",
-          }}
-        >
-          {clueBought && puzzle?.clue_text && <div>Clue: {puzzle.clue_text}</div>}
-          {letterBought && revealedLetter && <div>Letter: {revealedLetter}</div>}
-        </div>
-      )}
+                          const background =
+                            feedback === "correct"
+                              ? "#4f9f64"
+                              : feedback === "present"
+                              ? "#d2a742"
+                              : feedback === "absent"
+                              ? "#8b919a"
+                              : "rgba(255,255,255,0.78)";
 
-      <div
-        style={{
-          maxWidth: "620px",
-          margin: "22px auto 0",
-          display: "grid",
-          gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
-          gap: "12px",
-        }}
-      >
-        <button
-          type="button"
-          onClick={buyClue}
-          disabled={!puzzle || clueBought || solvedToday}
-          style={{
-            height: "50px",
-            borderRadius: "14px",
-            border: "1px solid rgba(40,117,160,0.22)",
-            background:
-              !puzzle || clueBought || solvedToday
-                ? "rgba(7,17,31,0.08)"
-                : "rgba(40,117,160,0.12)",
-            color: "#07111f",
-            fontWeight: 850,
-            cursor: !puzzle || clueBought || solvedToday ? "not-allowed" : "pointer",
-          }}
-        >
-          Buy Clue — 1 DT
-        </button>
+                          const color = feedback ? "white" : "#07111f";
 
-        <button
-          type="button"
-          onClick={buyLetter}
-          disabled={!puzzle || letterBought || solvedToday}
-          style={{
-            height: "50px",
-            borderRadius: "14px",
-            border: "1px solid rgba(40,117,160,0.22)",
-            background:
-              !puzzle || letterBought || solvedToday
-                ? "rgba(7,17,31,0.08)"
-                : "rgba(40,117,160,0.12)",
-            color: "#07111f",
-            fontWeight: 850,
-            cursor:
-              !puzzle || letterBought || solvedToday ? "not-allowed" : "pointer",
-          }}
-        >
-          Buy Letter — 1 DT
-        </button>
-      </div>
+                          return (
+                            <span
+                              key={letterIndex}
+                              style={{
+                                width: isMobile
+                                  ? "clamp(40px, 12vw, 46px)"
+                                  : "56px",
+                                height: isMobile
+                                  ? "clamp(40px, 12vw, 46px)"
+                                  : "56px",
+                                borderRadius: "12px",
+                                border: letter
+                                  ? "2px solid rgba(7,17,31,0.7)"
+                                  : "2px solid rgba(7,17,31,0.16)",
+                                background,
+                                color,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontWeight: 900,
+                                fontSize: isMobile ? "19px" : "23px",
+                                boxShadow: feedback
+                                  ? "inset 0 -3px 0 rgba(0,0,0,0.12)"
+                                  : "none",
+                                boxSizing: "border-box",
+                              }}
+                            >
+                              {letter}
+                            </span>
+                          );
+                        })}
+                      </span>
+                    );
+                  }
+                )}
+              </button>
 
-      <button
-        type="submit"
-        disabled={!puzzle || solvedToday || attempts.length >= DAILY_CODE_MAX_ATTEMPTS}
-        style={{
-          margin: "18px auto 0",
-          width: "100%",
-          maxWidth: "620px",
-          height: "54px",
-          borderRadius: "14px",
-          border: "none",
-          background:
-            !puzzle || solvedToday || attempts.length >= DAILY_CODE_MAX_ATTEMPTS
-              ? "rgba(7,17,31,0.28)"
-              : "#07111f",
-          color: "white",
-          fontWeight: 850,
-          cursor:
-            !puzzle || solvedToday || attempts.length >= DAILY_CODE_MAX_ATTEMPTS
-              ? "not-allowed"
-              : "pointer",
-        }}
-      >
-        Submit Guess
-      </button>
-    </form>
+              <DailyCodeKeyboard
+                attempts={attempts}
+                onLetterClick={(letter) => {
+                  setPuzzleAnswer((current) =>
+                    `${current}${letter}`
+                      .toUpperCase()
+                      .replace(/[^A-Z]/g, "")
+                      .slice(0, 5)
+                  );
 
-    {puzzleMessage && (
-      <p
-        style={{
-          maxWidth: "620px",
-          margin: "16px auto 0",
-          color: "#2875a0",
-          fontWeight: 800,
-          lineHeight: 1.5,
-          textAlign: "center",
-        }}
-      >
-        {puzzleMessage}
-      </p>
-    )}
+                  guessInputRef.current?.focus();
+                }}
+                onDelete={() => {
+                  setPuzzleAnswer((current) => current.slice(0, -1));
+                  guessInputRef.current?.focus();
+                }}
+              />
 
-    <p
-      style={{
-        maxWidth: "620px",
-        margin: "20px auto 0",
-        color: "rgba(7,17,31,0.48)",
-        fontSize: "13px",
-        lineHeight: 1.5,
-      }}
-    >
-      Attempts left today: {remainingAttempts} / {DAILY_CODE_MAX_ATTEMPTS}
-    </p>
-  </div>
-)}
+              {(clueBought || letterBought) && (
+                <div
+                  style={{
+                    width: "100%",
+                    margin: "18px auto 0",
+                    borderRadius: "16px",
+                    border: "1px solid rgba(40,117,160,0.18)",
+                    background: "rgba(40,117,160,0.07)",
+                    padding: "14px 16px",
+                    color: "#2875a0",
+                    fontWeight: 800,
+                    lineHeight: 1.5,
+                    textAlign: "left",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  {clueBought && puzzle?.clue_text && (
+                    <div>Clue: {puzzle.clue_text}</div>
+                  )}
+                  {letterBought && revealedLetter && (
+                    <div>Letter: {revealedLetter}</div>
+                  )}
+                </div>
+              )}
+
+              <div
+                style={{
+                  width: "100%",
+                  margin: "22px auto 0",
+                  display: "grid",
+                  gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+                  gap: "12px",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={buyClue}
+                  disabled={!puzzle || clueBought || solvedToday}
+                  style={{
+                    height: "50px",
+                    borderRadius: "14px",
+                    border: "1px solid rgba(40,117,160,0.22)",
+                    background:
+                      !puzzle || clueBought || solvedToday
+                        ? "rgba(7,17,31,0.08)"
+                        : "rgba(40,117,160,0.12)",
+                    color: "#07111f",
+                    fontWeight: 850,
+                    cursor:
+                      !puzzle || clueBought || solvedToday
+                        ? "not-allowed"
+                        : "pointer",
+                  }}
+                >
+                  Buy Clue — 1 DT
+                </button>
+
+                <button
+                  type="button"
+                  onClick={buyLetter}
+                  disabled={!puzzle || letterBought || solvedToday}
+                  style={{
+                    height: "50px",
+                    borderRadius: "14px",
+                    border: "1px solid rgba(40,117,160,0.22)",
+                    background:
+                      !puzzle || letterBought || solvedToday
+                        ? "rgba(7,17,31,0.08)"
+                        : "rgba(40,117,160,0.12)",
+                    color: "#07111f",
+                    fontWeight: 850,
+                    cursor:
+                      !puzzle || letterBought || solvedToday
+                        ? "not-allowed"
+                        : "pointer",
+                  }}
+                >
+                  Buy Letter — 1 DT
+                </button>
+              </div>
+
+              <button
+                type="submit"
+                disabled={
+                  !puzzle ||
+                  solvedToday ||
+                  attempts.length >= DAILY_CODE_MAX_ATTEMPTS
+                }
+                style={{
+                  margin: "18px auto 0",
+                  width: "100%",
+                  height: "54px",
+                  borderRadius: "14px",
+                  border: "none",
+                  background:
+                    !puzzle ||
+                    solvedToday ||
+                    attempts.length >= DAILY_CODE_MAX_ATTEMPTS
+                      ? "rgba(7,17,31,0.28)"
+                      : "#07111f",
+                  color: "white",
+                  fontWeight: 850,
+                  cursor:
+                    !puzzle ||
+                    solvedToday ||
+                    attempts.length >= DAILY_CODE_MAX_ATTEMPTS
+                      ? "not-allowed"
+                      : "pointer",
+                }}
+              >
+                Submit Guess
+              </button>
+            </form>
+
+            {puzzleMessage && (
+              <p
+                style={{
+                  maxWidth: "620px",
+                  margin: "16px auto 0",
+                  padding: isMobile ? "0 8px" : 0,
+                  color: "#2875a0",
+                  fontWeight: 800,
+                  lineHeight: 1.5,
+                  textAlign: "center",
+                }}
+              >
+                {puzzleMessage}
+              </p>
+            )}
+
+            <p
+              style={{
+                maxWidth: "620px",
+                margin: "20px auto 0",
+                color: "rgba(7,17,31,0.48)",
+                fontSize: "13px",
+                lineHeight: 1.5,
+              }}
+            >
+              Attempts left today: {remainingAttempts} /{" "}
+              {DAILY_CODE_MAX_ATTEMPTS}
+            </p>
+          </div>
+        )}
 
         {isCategoriesQuiz && (
           <div
@@ -4156,20 +4146,19 @@ function DailyCodeKeyboard({
     };
   }
 
-  const keyWidth = isMobile ? "calc((100vw - 76px) / 10)" : "48px";
-  const keyHeight = isMobile ? "48px" : "54px";
+  const keyHeight = isMobile ? "46px" : "54px";
   const keyGap = isMobile ? "4px" : "8px";
 
   return (
     <div
       style={{
         margin: "24px auto 0",
-        width: isMobile ? "calc(100vw - 34px)" : "100%",
-        maxWidth: isMobile ? "calc(100vw - 34px)" : "700px",
+        width: "100%",
+        maxWidth: "620px",
         borderRadius: "22px",
         border: "1px solid rgba(7,17,31,0.1)",
         background: "rgba(255,255,255,0.58)",
-        padding: isMobile ? "14px 8px" : "20px",
+        padding: isMobile ? "14px 6px" : "20px",
         boxSizing: "border-box",
         overflow: "hidden",
       }}
@@ -4188,73 +4177,76 @@ function DailyCodeKeyboard({
         Letter Board
       </p>
 
-      <div style={{ display: "grid", gap: isMobile ? "7px" : "10px" }}>
-        {keyboardRows.map((row, rowIndex) => (
-          <div
-            key={row}
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              gap: keyGap,
-              paddingLeft: isMobile
-                ? 0
-                : rowIndex === 1
-                ? "22px"
-                : rowIndex === 2
-                ? "42px"
-                : 0,
-              paddingRight: isMobile
-                ? 0
-                : rowIndex === 1
-                ? "22px"
-                : rowIndex === 2
-                ? "42px"
-                : 0,
-            }}
-          >
-            {row.split("").map((letter) => (
-              <button
-                key={letter}
-                type="button"
-                onClick={() => onLetterClick(letter)}
-                style={{
-                  width: keyWidth,
-                  height: keyHeight,
-                  borderRadius: isMobile ? "9px" : "12px",
-                  fontSize: isMobile ? "13px" : "16px",
-                  fontWeight: 900,
-                  cursor: "pointer",
-                  boxShadow: "inset 0 -2px 0 rgba(0,0,0,0.1)",
-                  flexShrink: 0,
-                  ...getKeyStyle(letter),
-                }}
-              >
-                {letter}
-              </button>
-            ))}
+      <div
+        style={{
+          width: "100%",
+          display: "grid",
+          justifyItems: "center",
+          gap: isMobile ? "7px" : "10px",
+        }}
+      >
+        {keyboardRows.map((row, rowIndex) => {
+          const mobileRowWidth =
+            rowIndex === 0 ? "100%" : rowIndex === 1 ? "92%" : "96%";
 
-            {rowIndex === 2 && (
-              <button
-                type="button"
-                onClick={onDelete}
-                style={{
-                  width: isMobile ? "52px" : "76px",
-                  height: keyHeight,
-                  borderRadius: isMobile ? "9px" : "12px",
-                  border: "1px solid rgba(7,17,31,0.14)",
-                  background: "rgba(255,255,255,0.78)",
-                  color: "#07111f",
-                  fontSize: isMobile ? "11px" : "13px",
-                  fontWeight: 900,
-                  cursor: "pointer",
-                  flexShrink: 0,
-                }}
-              >
-                DEL
-              </button>
-            )}
-          </div>
-        ))}
+          return (
+            <div
+              key={row}
+              style={{
+                width: isMobile ? mobileRowWidth : "auto",
+                maxWidth: "100%",
+                display: "flex",
+                justifyContent: "center",
+                gap: keyGap,
+                boxSizing: "border-box",
+              }}
+            >
+              {row.split("").map((letter) => (
+                <button
+                  key={letter}
+                  type="button"
+                  onClick={() => onLetterClick(letter)}
+                  style={{
+                    width: isMobile ? "auto" : "48px",
+                    minWidth: 0,
+                    height: keyHeight,
+                    borderRadius: isMobile ? "9px" : "12px",
+                    fontSize: isMobile ? "12px" : "16px",
+                    fontWeight: 900,
+                    cursor: "pointer",
+                    boxShadow: "inset 0 -2px 0 rgba(0,0,0,0.1)",
+                    flex: isMobile ? "1 1 0" : "0 0 48px",
+                    ...getKeyStyle(letter),
+                  }}
+                >
+                  {letter}
+                </button>
+              ))}
+
+              {rowIndex === 2 && (
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  style={{
+                    width: isMobile ? "auto" : "76px",
+                    minWidth: 0,
+                    height: keyHeight,
+                    borderRadius: isMobile ? "9px" : "12px",
+                    border: "1px solid rgba(7,17,31,0.14)",
+                    background: "rgba(255,255,255,0.78)",
+                    color: "#07111f",
+                    fontSize: isMobile ? "10px" : "13px",
+                    fontWeight: 900,
+                    cursor: "pointer",
+                    flex: isMobile ? "1.45 1 0" : "0 0 76px",
+                  }}
+                >
+                  DEL
+                </button>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
