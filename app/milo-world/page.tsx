@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
 import { supabase } from "@/lib/supabase";
 
@@ -2399,7 +2399,6 @@ function ActivityDetail({
   const [letterBought, setLetterBought] = useState(false);
   const [revealedLetter, setRevealedLetter] = useState("");
   const [puzzleAnswer, setPuzzleAnswer] = useState("");
-  const guessInputRef = useRef<HTMLInputElement | null>(null);
   const [puzzleMessage, setPuzzleMessage] = useState("");
   const [uploadedSketchNames, setUploadedSketchNames] = useState<string[]>([]);
   const [challengeForm, setChallengeForm] = useState({
@@ -3377,28 +3376,6 @@ function ActivityDetail({
                 boxSizing: "border-box",
               }}
             >
-              <input
-                ref={guessInputRef}
-                value={puzzleAnswer}
-                onChange={(event) =>
-                  setPuzzleAnswer(
-                    event.target.value
-                      .toUpperCase()
-                      .replace(/[^A-Z]/g, "")
-                      .slice(0, 5)
-                  )
-                }
-                maxLength={5}
-                autoComplete="off"
-                style={{
-                  position: "absolute",
-                  opacity: 0,
-                  pointerEvents: "none",
-                  width: 1,
-                  height: 1,
-                }}
-              />
-
               <p
                 style={{
                   margin: "0 0 12px",
@@ -3414,7 +3391,7 @@ function ActivityDetail({
 
               <button
                 type="button"
-                onClick={() => guessInputRef.current?.focus()}
+                aria-label="Mastery Code guess grid"
                 style={{
                   width: "100%",
                   border: "none",
@@ -3425,7 +3402,7 @@ function ActivityDetail({
                     isMobile ? "46px" : "56px"
                   })`,
                   gap: isMobile ? "6px" : "8px",
-                  cursor: "text",
+                  cursor: "default",
                   justifyContent: "center",
                   margin: "0 auto",
                 }}
@@ -3518,12 +3495,9 @@ function ActivityDetail({
                       .replace(/[^A-Z]/g, "")
                       .slice(0, 5)
                   );
-
-                  guessInputRef.current?.focus();
                 }}
                 onDelete={() => {
                   setPuzzleAnswer((current) => current.slice(0, -1));
-                  guessInputRef.current?.focus();
                 }}
               />
 

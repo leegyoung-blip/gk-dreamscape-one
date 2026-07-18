@@ -65,10 +65,9 @@ export default function RoverChallengeClient() {
             </h1>
 
             <p className="mt-2 max-w-2xl text-sm leading-6 text-white/55 sm:text-base">
-              Test the rover movement system and drive
-              through the Skyforge calibration course.
-              Reach the finish gate at the end of the
-              track.
+              Drive, jump and boost through the Skyforge
+              calibration course. Reach the finish gate and
+              collect as many energy orbs as possible.
             </p>
           </div>
 
@@ -97,7 +96,7 @@ export default function RoverChallengeClient() {
 
           <InfoCard
             label="Rover"
-            value="Temporary Prototype"
+            value="Detailed Rover Prototype"
           />
 
           <InfoCard
@@ -117,6 +116,13 @@ export default function RoverChallengeClient() {
                 A / D or ← / →
               </strong>{" "}
               Drive
+            </span>
+
+            <span>
+              <strong className="text-white">
+                W or ↑
+              </strong>{" "}
+              Jump
             </span>
 
             <span>
