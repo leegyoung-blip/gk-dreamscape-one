@@ -115,13 +115,13 @@ class RoverMatterScene extends Phaser.Scene {
   private lastJumpAt = -1000;
 
   /*
-   * These values are intentionally moderate.
-   * Lower them further if you want a slower game.
+   * Balanced driving values: faster than the previous build,
+   * but still gradual and controllable.
    */
-  private readonly normalMaximumSpeed = 3.6;
-  private readonly boostedMaximumSpeed = 5.4;
-  private readonly accelerationResponse = 0.035;
-  private readonly brakingResponse = 0.055;
+  private readonly normalMaximumSpeed = 5.2;
+  private readonly boostedMaximumSpeed = 7.8;
+  private readonly accelerationResponse = 0.055;
+  private readonly brakingResponse = 0.065;
   private readonly jumpVelocity = -8.6;
   private readonly jumpCooldownMs = 420;
   private readonly airborneTiltDelayMs = 150;
@@ -144,12 +144,12 @@ class RoverMatterScene extends Phaser.Scene {
     );
 
     this.load.on(
-    Phaser.Loader.Events.FILE_LOAD_ERROR,
-    (file: Phaser.Loader.File) => {
+      Phaser.Loader.Events.FILE_LOAD_ERROR,
+      (file: Phaser.Loader.File) => {
         console.error(
-        `[Rover Challenge] Could not load asset: ${file.src}`,
+          `[Rover Challenge] Could not load asset: ${file.src}`,
         );
-    },
+      },
     );
   }
 
@@ -505,197 +505,332 @@ class RoverMatterScene extends Phaser.Scene {
   }
 
   private createTerrain() {
-    this.createTerrainSegment(
-      350,
-      735,
-      700,
-      180,
-      0,
-    );
+    /*
+     * Each section is a Catmull-Rom curve sampled into many small,
+     * overlapping Matter bodies. This creates smooth hills and valleys
+     * instead of long straight ramps with sharp joins.
+     */
+    this.createSmoothTerrainSection([
+      { x: 0, y: 645 },
+      { x: 360, y: 645 },
+      { x: 700, y: 635 },
+      { x: 1050, y: 585 },
+      { x: 1350, y: 560 },
+      { x: 1650, y: 610 },
+      { x: 1950, y: 650 },
+      { x: 2200, y: 635 },
+      { x: 2300, y: 610 },
+    ]);
 
-    this.createTerrainSegment(
-      900,
-      690,
-      500,
-      180,
-      -10,
-    );
+    // First jump gap: x 2300–2520.
+    this.createSmoothTerrainSection([
+      { x: 2520, y: 650 },
+      { x: 2750, y: 645 },
+      { x: 3050, y: 585 },
+      { x: 3350, y: 535 },
+      { x: 3650, y: 550 },
+      { x: 3950, y: 610 },
+      { x: 4250, y: 650 },
+      { x: 4400, y: 625 },
+    ]);
 
-    this.createTerrainSegment(
-      1335,
-      645,
-      380,
-      180,
-      0,
-    );
-
-    this.createTerrainSegment(
-      1700,
-      690,
-      400,
-      180,
-      13,
-    );
-
-    this.createTerrainSegment(
-      2110,
-      735,
-      450,
-      180,
-      0,
-    );
-
-    // First gap.
-    this.createTerrainSegment(
-      2730,
-      735,
-      360,
-      180,
-      0,
-    );
-
-    this.createTerrainSegment(
-      3110,
-      675,
-      450,
-      180,
-      -14,
-    );
-
-    this.createTerrainSegment(
-      3500,
-      615,
-      360,
-      180,
-      0,
-    );
-
-    this.createTerrainSegment(
-      3870,
-      675,
-      420,
-      180,
-      16,
-    );
-
-    this.createTerrainSegment(
-      4260,
-      735,
-      360,
-      180,
-      0,
-    );
-
-    // Second gap.
-    this.createTerrainSegment(
-      4900,
-      715,
-      440,
-      180,
-      -5,
-    );
-
-    this.createTerrainSegment(
-      5310,
-      680,
-      390,
-      180,
-      -6,
-    );
-
-    this.createTerrainSegment(
-      5700,
-      650,
-      400,
-      180,
-      0,
-    );
-
-    this.createTerrainSegment(
-      6180,
-      690,
-      560,
-      180,
-      8,
-    );
+    // Second jump gap: x 4400–4650.
+    this.createSmoothTerrainSection([
+      { x: 4650, y: 655 },
+      { x: 4900, y: 640 },
+      { x: 5200, y: 590 },
+      { x: 5500, y: 560 },
+      { x: 5800, y: 570 },
+      { x: 6100, y: 600 },
+      { x: 6350, y: 630 },
+      { x: 6500, y: 640 },
+    ]);
 
     this.createStartingPlatform();
-    this.createGapWarning(2440, 565);
-    this.createGapWarning(4550, 565);
+    this.createGapWarning(2410, 535);
+    this.createGapWarning(4525, 545);
   }
 
-  private createTerrainSegment(
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    angleDegrees: number,
+  private createSmoothTerrainSection(
+    controlPoints: Array<{ x: number; y: number }>,
   ) {
-    const angleRadians =
-      Phaser.Math.DegToRad(angleDegrees);
-
-    const terrainVisual =
-      this.add.rectangle(
-        x,
-        y,
-        width,
-        height,
-        0x101629,
-        1,
-      );
-
-    terrainVisual.setStrokeStyle(
-      2,
-      0x5ae8ff,
-      0.18,
+    const sampledPoints = this.sampleCatmullRom(
+      controlPoints,
+      12,
     );
 
-    terrainVisual.setRotation(
-      angleRadians,
+    if (sampledPoints.length < 2) {
+      return;
+    }
+
+    /*
+     * Filled terrain artwork.
+     */
+    const fill = this.add.graphics();
+    fill.setDepth(10);
+    fill.fillStyle(0x101629, 1);
+    fill.beginPath();
+    fill.moveTo(
+      sampledPoints[0].x,
+      sampledPoints[0].y,
     );
 
-    terrainVisual.setDepth(10);
+    for (let index = 1; index < sampledPoints.length; index += 1) {
+      fill.lineTo(
+        sampledPoints[index].x,
+        sampledPoints[index].y,
+      );
+    }
 
-    this.matter.add.rectangle(
-      x,
-      y,
-      width,
-      height,
-      {
-        isStatic: true,
-        angle: angleRadians,
-        friction: 1,
-        frictionStatic: 1,
-        restitution: 0,
-        label: "terrain",
-      },
+    const finalPoint =
+      sampledPoints[sampledPoints.length - 1];
+
+    fill.lineTo(
+      finalPoint.x,
+      WORLD_HEIGHT,
     );
 
-    const surface =
-      this.add.rectangle(
-        x,
-        y - height / 2 + 2,
-        width,
-        8,
-        0x62eaff,
-        0.38,
+    fill.lineTo(
+      sampledPoints[0].x,
+      WORLD_HEIGHT,
+    );
+
+    fill.closePath();
+    fill.fillPath();
+
+    /*
+     * Glowing upper surface.
+     */
+    const surfaceGlow = this.add.graphics();
+    surfaceGlow.setDepth(11);
+    surfaceGlow.lineStyle(
+      20,
+      0x2b7898,
+      0.1,
+    );
+
+    surfaceGlow.beginPath();
+    surfaceGlow.moveTo(
+      sampledPoints[0].x,
+      sampledPoints[0].y + 7,
+    );
+
+    for (let index = 1; index < sampledPoints.length; index += 1) {
+      surfaceGlow.lineTo(
+        sampledPoints[index].x,
+        sampledPoints[index].y + 7,
+      );
+    }
+
+    surfaceGlow.strokePath();
+
+    const surface = this.add.graphics();
+    surface.setDepth(12);
+    surface.lineStyle(
+      8,
+      0x62eaff,
+      0.38,
+    );
+
+    surface.beginPath();
+    surface.moveTo(
+      sampledPoints[0].x,
+      sampledPoints[0].y,
+    );
+
+    for (let index = 1; index < sampledPoints.length; index += 1) {
+      surface.lineTo(
+        sampledPoints[index].x,
+        sampledPoints[index].y,
+      );
+    }
+
+    surface.strokePath();
+
+    /*
+     * Collision surface. Short overlapping rectangles closely follow
+     * the sampled curve, avoiding sharp corners that trap the rover.
+     */
+    const terrainThickness = 220;
+    const collisionOverlap = 14;
+
+    for (let index = 0; index < sampledPoints.length - 1; index += 1) {
+      const current = sampledPoints[index];
+      const next = sampledPoints[index + 1];
+
+      const deltaX = next.x - current.x;
+      const deltaY = next.y - current.y;
+      const length = Math.hypot(
+        deltaX,
+        deltaY,
       );
 
-    surface.setRotation(angleRadians);
-    surface.setDepth(11);
+      if (length <= 0.01) {
+        continue;
+      }
 
-    const glow =
-      this.add.rectangle(
-        x,
-        y - height / 2 + 10,
-        width,
-        16,
-        0x2b7898,
-        0.12,
+      const angle = Math.atan2(
+        deltaY,
+        deltaX,
       );
 
-    glow.setRotation(angleRadians);
-    glow.setDepth(11);
+      /*
+       * This is the segment's downward-facing normal in screen space.
+       * Moving the body's centre down by half its thickness puts the
+       * collision body's top edge directly on the visible curve.
+       */
+      const normalX =
+        -deltaY / length;
+
+      const normalY =
+        deltaX / length;
+
+      const midpointX =
+        (current.x + next.x) / 2;
+
+      const midpointY =
+        (current.y + next.y) / 2;
+
+      const bodyX =
+        midpointX +
+        normalX *
+          (terrainThickness / 2);
+
+      const bodyY =
+        midpointY +
+        normalY *
+          (terrainThickness / 2);
+
+      this.matter.add.rectangle(
+        bodyX,
+        bodyY,
+        length + collisionOverlap,
+        terrainThickness,
+        {
+          isStatic: true,
+          angle,
+          friction: 1,
+          frictionStatic: 1,
+          restitution: 0,
+          label: "terrain",
+        },
+      );
+    }
+  }
+
+  private sampleCatmullRom(
+    controlPoints: Array<{ x: number; y: number }>,
+    samplesPerSpan: number,
+  ) {
+    const samples: Array<{
+      x: number;
+      y: number;
+    }> = [];
+
+    if (controlPoints.length < 2) {
+      return samples;
+    }
+
+    for (
+      let span = 0;
+      span < controlPoints.length - 1;
+      span += 1
+    ) {
+      const point0 =
+        controlPoints[
+          Math.max(
+            0,
+            span - 1,
+          )
+        ];
+
+      const point1 =
+        controlPoints[span];
+
+      const point2 =
+        controlPoints[span + 1];
+
+      const point3 =
+        controlPoints[
+          Math.min(
+            controlPoints.length - 1,
+            span + 2,
+          )
+        ];
+
+      for (
+        let step = 0;
+        step < samplesPerSpan;
+        step += 1
+      ) {
+        const time =
+          step / samplesPerSpan;
+
+        const timeSquared =
+          time * time;
+
+        const timeCubed =
+          timeSquared * time;
+
+        samples.push({
+          x:
+            0.5 *
+            (
+              2 * point1.x +
+              (-point0.x + point2.x) *
+                time +
+              (
+                2 * point0.x -
+                5 * point1.x +
+                4 * point2.x -
+                point3.x
+              ) *
+                timeSquared +
+              (
+                -point0.x +
+                3 * point1.x -
+                3 * point2.x +
+                point3.x
+              ) *
+                timeCubed
+            ),
+
+          y:
+            0.5 *
+            (
+              2 * point1.y +
+              (-point0.y + point2.y) *
+                time +
+              (
+                2 * point0.y -
+                5 * point1.y +
+                4 * point2.y -
+                point3.y
+              ) *
+                timeSquared +
+              (
+                -point0.y +
+                3 * point1.y -
+                3 * point2.y +
+                point3.y
+              ) *
+                timeCubed
+            ),
+        });
+      }
+    }
+
+    const lastPoint =
+      controlPoints[
+        controlPoints.length - 1
+      ];
+
+    samples.push({
+      x: lastPoint.x,
+      y: lastPoint.y,
+    });
+
+    return samples;
   }
 
   private createStartingPlatform() {
@@ -821,7 +956,7 @@ class RoverMatterScene extends Phaser.Scene {
   }
 
   private createFinishGate() {
-    const groundY = 575;
+    const groundY = 610;
 
     this.add.rectangle(
       FINISH_X - 110,
@@ -1052,6 +1187,12 @@ class RoverMatterScene extends Phaser.Scene {
       ROVER_BODY_WIDTH,
       ROVER_BODY_HEIGHT,
     );
+
+    /*
+     * The source body PNG faces left. Flip only the artwork so the
+     * rover faces the direction of forward travel.
+     */
+    roverBody.setFlipX(true);
 
     roverBody.setRectangle(
       ROVER_COLLISION_WIDTH,
