@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
 
 const GAME_WIDTH = 1600;
@@ -21,7 +21,9 @@ const ROVER_COLLISION_HEIGHT = 82;
 const WHEEL_SIZE = 78;
 const LEFT_WHEEL_OFFSET_X = -88;
 const RIGHT_WHEEL_OFFSET_X = 88;
-const WHEEL_OFFSET_Y = 52;
+const WHEEL_OFFSET_Y = 18;
+
+const COURSE_ID = "skyforge-test-track-01";
 
 const FINISH_X = 6120;
 const COURSE_TIME_LIMIT_SECONDS = 90;
@@ -113,6 +115,7 @@ class RoverMatterScene extends Phaser.Scene {
   private airborneTime = 0;
   private overturnedTime = 0;
   private lastJumpAt = -1000;
+  private restartRequested = false;
 
   /*
    * Balanced driving values: faster than the previous build,
@@ -253,6 +256,7 @@ class RoverMatterScene extends Phaser.Scene {
     this.airborneTime = 0;
     this.overturnedTime = 0;
     this.lastJumpAt = -1000;
+    this.restartRequested = false;
     this.wheelSpin = 0;
   }
 
@@ -1558,6 +1562,22 @@ class RoverMatterScene extends Phaser.Scene {
     return panel;
   }
 
+  private requestRestart() {
+    if (this.restartRequested) {
+      return;
+    }
+
+    this.restartRequested = true;
+
+    if (this.input.keyboard) {
+      this.input.keyboard.enabled = false;
+    }
+
+    window.dispatchEvent(
+      new Event("rover-restart-requested"),
+    );
+  }
+
   private createTouchControls() {
     this.input.addPointer(3);
 
@@ -1617,7 +1637,7 @@ class RoverMatterScene extends Phaser.Scene {
       66,
       "R",
       () => {
-        this.scene.restart();
+        this.requestRestart();
       },
       () => undefined,
     );
@@ -1788,7 +1808,7 @@ class RoverMatterScene extends Phaser.Scene {
         keyR,
       )
     ) {
-      this.scene.restart();
+      this.requestRestart();
       return;
     }
 
@@ -2652,6 +2672,31 @@ class RoverMatterScene extends Phaser.Scene {
     );
 
     this.showFinishResults();
+    this.emitCourseCompleted();
+  }
+
+  private emitCourseCompleted() {
+    window.dispatchEvent(
+      new CustomEvent(
+        "rover-course-complete",
+        {
+          detail: {
+            courseId: COURSE_ID,
+            score: this.score,
+            completionTimeMs: Math.max(
+              1,
+              Math.round(
+                this.elapsedSeconds * 1000,
+              ),
+            ),
+            orbsCollected: this.collectedCount,
+            checkpointsReached:
+              this.reachedCheckpointCount,
+            crashPenalty: this.crashPenalty,
+          },
+        },
+      ),
+    );
   }
 
   private showFinishResults() {
@@ -2882,13 +2927,36 @@ export default function PhaserGame() {
       null,
     );
 
+  const [gameVersion, setGameVersion] =
+    useState(0);
+
   useEffect(() => {
-    if (
-      !gameContainerRef.current ||
-      gameRef.current
-    ) {
+    const handleRestartRequest = () => {
+      setGameVersion(
+        (current) => current + 1,
+      );
+    };
+
+    window.addEventListener(
+      "rover-restart-requested",
+      handleRestartRequest,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "rover-restart-requested",
+        handleRestartRequest,
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!gameContainerRef.current) {
       return;
     }
+
+    gameRef.current?.destroy(true);
+    gameRef.current = null;
 
     const config: Phaser.Types.Core.GameConfig =
       {
@@ -2947,13 +3015,10 @@ export default function PhaserGame() {
       new Phaser.Game(config);
 
     return () => {
-      gameRef.current?.destroy(
-        true,
-      );
-
+      gameRef.current?.destroy(true);
       gameRef.current = null;
     };
-  }, []);
+  }, [gameVersion]);
 
   return (
     <div

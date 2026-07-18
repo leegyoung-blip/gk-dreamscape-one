@@ -2,6 +2,42 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { supabase } from "@/lib/supabase";
+
+const COURSE_ID =
+  "skyforge-test-track-01";
+
+type RoverCourseCompleteDetail = {
+  courseId: string;
+  score: number;
+  completionTimeMs: number;
+  orbsCollected: number;
+  checkpointsReached: number;
+  crashPenalty: number;
+};
+
+type LeaderboardRow = {
+  rank: number | string;
+  user_id: string;
+  username: string;
+  best_score: number;
+  best_time_ms: number;
+  orbs_collected: number;
+  completed_at: string;
+};
+
+type SubmitScoreRow = {
+  saved: boolean;
+  improved: boolean;
+  best_score: number;
+  best_time_ms: number;
+};
 
 const PhaserGame = dynamic(
   () => import("./PhaserGame"),
@@ -23,6 +59,227 @@ const PhaserGame = dynamic(
 );
 
 export default function RoverChallengeClient() {
+  const [userId, setUserId] =
+    useState<string | null>(null);
+
+  const [
+    leaderboardRows,
+    setLeaderboardRows,
+  ] = useState<LeaderboardRow[]>([]);
+
+  const [
+    leaderboardLoading,
+    setLeaderboardLoading,
+  ] = useState(true);
+
+  const [
+    leaderboardMessage,
+    setLeaderboardMessage,
+  ] = useState("");
+
+  const [
+    scoreSaveMessage,
+    setScoreSaveMessage,
+  ] = useState("");
+
+  const submittedRunRef =
+    useRef<string | null>(null);
+
+  const loadLeaderboard =
+    useCallback(async () => {
+      setLeaderboardLoading(true);
+      setLeaderboardMessage("");
+
+      const { data, error } =
+        await supabase.rpc(
+          "get_rover_challenge_leaderboard",
+          {
+            p_course_id: COURSE_ID,
+            p_limit: 10,
+          },
+        );
+
+      if (error) {
+        console.warn(
+          "Rover leaderboard load failed:",
+          error.message,
+        );
+
+        setLeaderboardRows([]);
+        setLeaderboardMessage(
+          "Could not load the leaderboard. Run the rover leaderboard SQL in Supabase first.",
+        );
+
+        setLeaderboardLoading(false);
+        return;
+      }
+
+      const rows =
+        (data ?? []) as LeaderboardRow[];
+
+      setLeaderboardRows(rows);
+
+      if (rows.length === 0) {
+        setLeaderboardMessage(
+          "No completed runs yet. Be the first player on the leaderboard.",
+        );
+      }
+
+      setLeaderboardLoading(false);
+    }, []);
+
+  const saveCompletedRun =
+    useCallback(
+      async (
+        result:
+          RoverCourseCompleteDetail,
+      ) => {
+        const runKey = [
+          result.courseId,
+          result.score,
+          result.completionTimeMs,
+          result.orbsCollected,
+          result.crashPenalty,
+        ].join(":");
+
+        if (
+          submittedRunRef.current ===
+          runKey
+        ) {
+          return;
+        }
+
+        submittedRunRef.current =
+          runKey;
+
+        if (!userId) {
+          setScoreSaveMessage(
+            "Course complete. Log in before playing to save your score to the leaderboard.",
+          );
+          return;
+        }
+
+        setScoreSaveMessage(
+          "Saving your completed run...",
+        );
+
+        const { data, error } =
+          await supabase.rpc(
+            "submit_rover_challenge_score",
+            {
+              p_course_id:
+                result.courseId,
+              p_score: result.score,
+              p_completion_time_ms:
+                result.completionTimeMs,
+              p_orbs_collected:
+                result.orbsCollected,
+              p_checkpoints_reached:
+                result.checkpointsReached,
+              p_crash_penalty:
+                result.crashPenalty,
+            },
+          );
+
+        if (error) {
+          console.warn(
+            "Rover score save failed:",
+            error.message,
+          );
+
+          setScoreSaveMessage(
+            "The run was completed, but the score could not be saved. Check the Supabase leaderboard SQL and policies.",
+          );
+          return;
+        }
+
+        const resultRow = (
+          (data ?? []) as SubmitScoreRow[]
+        )[0];
+
+        if (resultRow?.improved) {
+          setScoreSaveMessage(
+            `New personal best saved: ${resultRow.best_score.toLocaleString()} points.`,
+          );
+        } else {
+          setScoreSaveMessage(
+            `Run saved. Your best remains ${(
+              resultRow?.best_score ??
+              result.score
+            ).toLocaleString()} points.`,
+          );
+        }
+
+        await loadLeaderboard();
+      },
+      [loadLeaderboard, userId],
+    );
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadUser() {
+      const {
+        data: { user },
+      } =
+        await supabase.auth.getUser();
+
+      if (!active) {
+        return;
+      }
+
+      setUserId(user?.id ?? null);
+    }
+
+    void loadUser();
+    void loadLeaderboard();
+
+    const {
+      data: { subscription },
+    } =
+      supabase.auth.onAuthStateChange(
+        (_event, session) => {
+          if (!active) {
+            return;
+          }
+
+          setUserId(
+            session?.user.id ?? null,
+          );
+        },
+      );
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [loadLeaderboard]);
+
+  useEffect(() => {
+    const handleCourseComplete = (
+      event: Event,
+    ) => {
+      const customEvent =
+        event as CustomEvent<RoverCourseCompleteDetail>;
+
+      void saveCompletedRun(
+        customEvent.detail,
+      );
+    };
+
+    window.addEventListener(
+      "rover-course-complete",
+      handleCourseComplete,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "rover-course-complete",
+        handleCourseComplete,
+      );
+    };
+  }, [saveCompletedRun]);
+
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#050713] text-white">
       <div
@@ -65,9 +322,11 @@ export default function RoverChallengeClient() {
             </h1>
 
             <p className="mt-2 max-w-2xl text-sm leading-6 text-white/55 sm:text-base">
-              Drive, jump and boost through the Skyforge
-              calibration course. Reach the finish gate and
-              collect as many energy orbs as possible.
+              Drive, jump and boost through
+              the Skyforge calibration
+              course. Reach the finish gate
+              and collect as many energy
+              orbs as possible.
             </p>
           </div>
 
@@ -140,6 +399,151 @@ export default function RoverChallengeClient() {
             </span>
           </div>
         </div>
+
+        <section className="mt-4 overflow-hidden rounded-[24px] border border-cyan-200/15 bg-[#070b19]/85 backdrop-blur-xl">
+          <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+            <div>
+              <p className="text-[10px] font-bold tracking-[0.24em] text-cyan-300/70">
+                COMPLETED RUNS
+              </p>
+
+              <h2 className="mt-2 text-2xl font-bold">
+                Rover Leaderboard
+              </h2>
+
+              <p className="mt-2 text-sm leading-6 text-white/50">
+                Ranked by highest score.
+                Completion time breaks tied
+                scores.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                void loadLeaderboard();
+              }}
+              disabled={
+                leaderboardLoading
+              }
+              className="rounded-full border border-cyan-200/20 bg-cyan-300/10 px-5 py-2.5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/15 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {leaderboardLoading
+                ? "Refreshing..."
+                : "Refresh"}
+            </button>
+          </div>
+
+          {scoreSaveMessage && (
+            <div className="border-b border-white/10 bg-cyan-300/[0.06] px-5 py-3 text-sm text-cyan-100 sm:px-7">
+              {scoreSaveMessage}
+            </div>
+          )}
+
+          <div className="p-4 sm:p-6">
+            {leaderboardLoading ? (
+              <div className="grid min-h-40 place-items-center rounded-2xl border border-white/8 bg-white/[0.035] text-sm text-white/55">
+                Loading leaderboard...
+              </div>
+            ) : leaderboardRows.length ===
+              0 ? (
+              <div className="grid min-h-40 place-items-center rounded-2xl border border-white/8 bg-white/[0.035] px-6 text-center text-sm leading-6 text-white/55">
+                {leaderboardMessage ||
+                  "No completed runs yet."}
+              </div>
+            ) : (
+              <div className="grid gap-2">
+                <div className="hidden grid-cols-[70px_minmax(0,1fr)_130px_130px_100px] gap-3 px-4 pb-2 text-[10px] font-bold tracking-[0.16em] text-white/35 sm:grid">
+                  <span>RANK</span>
+                  <span>PLAYER</span>
+                  <span>SCORE</span>
+                  <span>TIME</span>
+                  <span>ORBS</span>
+                </div>
+
+                {leaderboardRows.map(
+                  (row) => {
+                    const isCurrentUser =
+                      Boolean(
+                        userId &&
+                          row.user_id ===
+                            userId,
+                      );
+
+                    return (
+                      <div
+                        key={row.user_id}
+                        className={`grid gap-2 rounded-2xl border px-4 py-4 sm:grid-cols-[70px_minmax(0,1fr)_130px_130px_100px] sm:items-center sm:gap-3 ${
+                          isCurrentUser
+                            ? "border-cyan-200/30 bg-cyan-300/10"
+                            : "border-white/8 bg-white/[0.035]"
+                        }`}
+                      >
+                        <span className="text-lg font-black text-cyan-200">
+                          #{row.rank}
+                        </span>
+
+                        <div>
+                          <p className="font-semibold text-white">
+                            {row.username ||
+                              "Player"}
+                          </p>
+
+                          {isCurrentUser && (
+                            <p className="mt-1 text-[10px] font-bold tracking-[0.14em] text-cyan-300/70">
+                              YOUR BEST
+                            </p>
+                          )}
+                        </div>
+
+                        <div>
+                          <p className="text-[10px] font-bold tracking-[0.14em] text-white/35 sm:hidden">
+                            SCORE
+                          </p>
+
+                          <p className="font-bold text-white">
+                            {row.best_score.toLocaleString()}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-[10px] font-bold tracking-[0.14em] text-white/35 sm:hidden">
+                            TIME
+                          </p>
+
+                          <p className="text-white/75">
+                            {formatMilliseconds(
+                              row.best_time_ms,
+                            )}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-[10px] font-bold tracking-[0.14em] text-white/35 sm:hidden">
+                            ORBS
+                          </p>
+
+                          <p className="text-white/75">
+                            {row.orbs_collected}/8
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  },
+                )}
+              </div>
+            )}
+
+            {!userId && (
+              <p className="mt-4 text-center text-xs leading-5 text-white/40">
+                You can view the
+                leaderboard without logging
+                in, but only logged-in users
+                can save completed runs.
+              </p>
+            )}
+          </div>
+        </section>
       </section>
     </main>
   );
@@ -165,4 +569,25 @@ function InfoCard({
       </p>
     </div>
   );
+}
+
+function formatMilliseconds(
+  milliseconds: number,
+) {
+  const totalSeconds =
+    Math.max(0, milliseconds) /
+    1000;
+
+  const minutes = Math.floor(
+    totalSeconds / 60,
+  );
+
+  const seconds =
+    totalSeconds % 60;
+
+  return `${minutes
+    .toString()
+    .padStart(2, "0")}:${seconds
+    .toFixed(1)
+    .padStart(4, "0")}`;
 }

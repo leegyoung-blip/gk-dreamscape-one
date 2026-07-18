@@ -253,7 +253,7 @@ const zones: Zone[] = [
     description: "Play daily challenges, quiz battles, and party games to earn tokens.",
     action: "masteryLab",
     style: {
-      top: "480px",
+      top: "600px",
       right: "275px",
       width: "455px",
     },
