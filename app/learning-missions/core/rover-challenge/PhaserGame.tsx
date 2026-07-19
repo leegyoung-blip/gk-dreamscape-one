@@ -1935,9 +1935,7 @@ class RoverMatterScene extends Phaser.Scene {
      * and descending feel much smoother.
      */
     const targetVelocityX =
-      direction *
-      maximumSpeed *
-      Math.cos(terrainAngle);
+    direction * maximumSpeed;
 
     const targetVelocityY =
       direction *
