@@ -48,6 +48,7 @@ type PropertyHolding = {
   id: string;
   user_id: string;
   property_id: string;
+  quantity: number;
   purchase_price: number;
   created_at: string;
 };
@@ -262,9 +263,20 @@ export default function MiloExchangeMainPage() {
         (item) => item.id === holding.property_id
       );
 
-      return total + Number(property?.current_value || holding.purchase_price || 0);
+      const unitValue = Number(
+        property?.current_value || holding.purchase_price || 0
+      );
+
+      return total + Number(holding.quantity || 0) * unitValue;
     }, 0);
   }, [propertyHoldings, properties]);
+
+  const propertyUnitCount = useMemo(() => {
+    return propertyHoldings.reduce(
+      (total, holding) => total + Number(holding.quantity || 0),
+      0
+    );
+  }, [propertyHoldings]);
 
   const totalNetWorth = dreamTokens + stockPortfolioValue + propertyPortfolioValue;
 
@@ -428,7 +440,7 @@ export default function MiloExchangeMainPage() {
 
     const holdingsResult = await supabase
       .from("milo_exchange_property_holdings")
-      .select("id,user_id,property_id,purchase_price,created_at")
+      .select("id,user_id,property_id,quantity,purchase_price,created_at")
       .eq("user_id", id);
 
     if (holdingsResult.error) {
@@ -1204,7 +1216,7 @@ export default function MiloExchangeMainPage() {
           {[
             ["Cash Holdings", `${formatNumber(dreamTokens)} DT`, "Available Dreamscape Tokens"],
             ["Stock Portfolio", `${formatNumber(stockPortfolioValue)} DT`, `${stockHoldings.length} stock holding${stockHoldings.length === 1 ? "" : "s"}`],
-            ["Property Portfolio", `${formatNumber(propertyPortfolioValue)} DT`, propertyMarketReady ? `${propertyHoldings.length} propert${propertyHoldings.length === 1 ? "y" : "ies"}` : "Property market preparing"],
+            ["Property Portfolio", `${formatNumber(propertyPortfolioValue)} DT`, propertyMarketReady ? `${propertyUnitCount} unit${propertyUnitCount === 1 ? "" : "s"} owned` : "Property market preparing"],
             ["Total Net Worth", `${formatNumber(totalNetWorth)} DT`, "Cash + stocks + property"],
           ].map(([label, value, detail]) => (
             <article key={label} style={{ ...glassPanel, borderRadius: "21px", padding: isMobile ? "16px" : "20px" }}>
