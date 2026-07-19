@@ -74,13 +74,7 @@ type NewsEvent = {
   created_at: string;
 };
 
-type LeaderboardRow = {
-  rank_position: number;
-  username: string;
-  portfolio_value: number;
-  total_shares: number;
-  is_current_user: boolean;
-};
+
 
 function useResponsiveMode() {
   const [screenMode, setScreenMode] = useState<ScreenMode>("desktop");
@@ -418,10 +412,6 @@ const [pageMessage, setPageMessage] = useState("");
 const [gateError, setGateError] = useState("");
 const [tradeMessage, setTradeMessage] = useState("");
 
-const [leaderboardOpen, setLeaderboardOpen] = useState(false);
-const [leaderboardLoading, setLeaderboardLoading] = useState(false);
-const [leaderboardRows, setLeaderboardRows] = useState<LeaderboardRow[]>([]);
-const [leaderboardMessage, setLeaderboardMessage] = useState("");
 
   const selectedStock =
     stocks.find((stock) => stock.symbol === selectedSymbol) || stocks[0];
@@ -751,43 +741,6 @@ const [leaderboardMessage, setLeaderboardMessage] = useState("");
     return true;
   }
 
-async function loadLeaderboard() {
-  setLeaderboardLoading(true);
-  setLeaderboardMessage("");
-
-  const { data, error } = await supabase.rpc(
-    "get_milo_exchange_leaderboard",
-    {
-      p_limit: 20,
-    }
-  );
-
-  if (error) {
-    console.warn("Could not load leaderboard:", error.message);
-    setLeaderboardRows([]);
-    setLeaderboardMessage(
-      "Could not load the leaderboard. Check that the leaderboard SQL function was added."
-    );
-    setLeaderboardLoading(false);
-    return;
-  }
-
-  const rows = (data || []) as LeaderboardRow[];
-  setLeaderboardRows(rows);
-
-  if (rows.length === 0) {
-    setLeaderboardMessage(
-      "No ranked portfolios yet. Buy fictional stocks to appear on the leaderboard."
-    );
-  }
-
-  setLeaderboardLoading(false);
-}
-
-async function openLeaderboard() {
-  setLeaderboardOpen(true);
-  await loadLeaderboard();
-}
 
   async function refreshUserData() {
     if (!userId) return;
@@ -1216,8 +1169,8 @@ async function openLeaderboard() {
             Log In
           </Link>
 
-          <Link href="/milo-world" style={secondaryButton}>
-            Back to Milo’s World
+          <Link href="/milo-world/exchange" style={secondaryButton}>
+            Back to Milo’s Exchange
           </Link>
         </div>
       </CenterPanel>
@@ -1244,8 +1197,8 @@ async function openLeaderboard() {
         )}
 
         <div style={{ marginTop: "24px" }}>
-          <Link href="/milo-world" style={primaryButton}>
-            Back to Milo’s World
+          <Link href="/milo-world/exchange" style={primaryButton}>
+            Back to Milo’s Exchange
           </Link>
         </div>
       </CenterPanel>
@@ -1345,8 +1298,8 @@ async function openLeaderboard() {
               {actionLoading ? "Checking..." : "Continue"}
             </button>
 
-            <Link href="/milo-world" style={secondaryButton}>
-              Back to Milo’s World
+            <Link href="/milo-world/exchange" style={secondaryButton}>
+              Back to Milo’s Exchange
             </Link>
           </div>
         </div>
@@ -1359,272 +1312,6 @@ async function openLeaderboard() {
       <ResponsiveScrollStyles />
 <Background />
 
-{leaderboardOpen && (
-  <div
-    onClick={() => setLeaderboardOpen(false)}
-    style={{
-      position: "fixed",
-      inset: 0,
-      zIndex: 80,
-      display: "grid",
-      placeItems: "center",
-      padding: isMobile ? "16px" : "28px",
-      background: "rgba(0,0,0,0.62)",
-      backdropFilter: "blur(10px)",
-      WebkitBackdropFilter: "blur(10px)",
-    }}
-  >
-    <section
-      onClick={(event) => event.stopPropagation()}
-      style={{
-        ...glassPanel,
-        width: "min(760px, 100%)",
-        maxHeight: "min(760px, 88vh)",
-        overflowY: "auto",
-        padding: isMobile ? "22px" : "30px",
-      }}
-      className="milo-scrollbar"
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: "16px",
-          alignItems: "flex-start",
-          marginBottom: "22px",
-        }}
-      >
-        <div>
-          <p
-            style={{
-              margin: 0,
-              color: "#ffd18a",
-              fontSize: "13px",
-              letterSpacing: "0.24em",
-              textTransform: "uppercase",
-              fontWeight: 900,
-            }}
-          >
-            Milo’s Stock Exchange
-          </p>
-
-          <h2
-            style={{
-              margin: "10px 0 0",
-              fontFamily: 'Georgia, "Times New Roman", serif',
-              fontSize: isMobile ? "34px" : "44px",
-              fontWeight: 500,
-              lineHeight: 1,
-              color: "white",
-            }}
-          >
-            Portfolio Leaderboard
-          </h2>
-
-          <p
-            style={{
-              margin: "10px 0 0",
-              color: "rgba(255,255,255,0.62)",
-              lineHeight: 1.55,
-            }}
-          >
-            Ranked by current fictional portfolio value. Unused Dreamscape
-            Tokens are not counted.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setLeaderboardOpen(false)}
-          style={{
-            width: "38px",
-            height: "38px",
-            borderRadius: "999px",
-            border: "1px solid rgba(255,255,255,0.18)",
-            background: "rgba(255,255,255,0.08)",
-            color: "white",
-            cursor: "pointer",
-            fontWeight: 900,
-            fontSize: "18px",
-            fontFamily: "inherit",
-            flex: "0 0 auto",
-          }}
-          aria-label="Close leaderboard"
-        >
-          ×
-        </button>
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: "12px",
-          flexWrap: "wrap",
-          marginBottom: "16px",
-        }}
-      >
-        <button
-          type="button"
-          onClick={loadLeaderboard}
-          disabled={leaderboardLoading}
-          style={{
-            minHeight: "40px",
-            padding: "0 16px",
-            borderRadius: "999px",
-            border: "1px solid rgba(132,218,255,0.26)",
-            background: "rgba(83,215,255,0.12)",
-            color: "white",
-            cursor: leaderboardLoading ? "not-allowed" : "pointer",
-            opacity: leaderboardLoading ? 0.6 : 1,
-            fontWeight: 900,
-            fontFamily: "inherit",
-          }}
-        >
-          {leaderboardLoading ? "Refreshing..." : "Refresh"}
-        </button>
-
-        <span
-          style={{
-            color: "rgba(255,255,255,0.52)",
-            fontSize: "13px",
-            lineHeight: "40px",
-          }}
-        >
-          Top 20 portfolios
-        </span>
-      </div>
-
-      {leaderboardLoading ? (
-        <div
-          style={{
-            minHeight: "180px",
-            display: "grid",
-            placeItems: "center",
-            borderRadius: "18px",
-            background: "rgba(255,255,255,0.06)",
-            color: "rgba(255,255,255,0.68)",
-          }}
-        >
-          Loading leaderboard...
-        </div>
-      ) : leaderboardRows.length === 0 ? (
-        <div
-          style={{
-            minHeight: "180px",
-            display: "grid",
-            placeItems: "center",
-            borderRadius: "18px",
-            background: "rgba(255,255,255,0.06)",
-            color: "rgba(255,255,255,0.68)",
-            textAlign: "center",
-            padding: "22px",
-            lineHeight: 1.55,
-          }}
-        >
-          {leaderboardMessage || "No leaderboard entries yet."}
-        </div>
-      ) : (
-        <div style={{ display: "grid", gap: "10px" }}>
-          {!isMobile && (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "70px 1fr 150px 110px",
-                gap: "12px",
-                padding: "0 14px 6px",
-                color: "rgba(255,255,255,0.52)",
-                fontSize: "12px",
-                fontWeight: 900,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-              }}
-            >
-              <span>Rank</span>
-              <span>User</span>
-              <span>Portfolio</span>
-              <span>Shares</span>
-            </div>
-          )}
-
-          {leaderboardRows.map((row) => (
-            <div
-              key={`${row.rank_position}-${row.username}`}
-              style={{
-                display: "grid",
-                gridTemplateColumns: isMobile
-                  ? "1fr"
-                  : "70px 1fr 150px 110px",
-                gap: isMobile ? "8px" : "12px",
-                alignItems: "center",
-                padding: "14px",
-                borderRadius: "18px",
-                background: row.is_current_user
-                  ? "rgba(83,215,255,0.16)"
-                  : "rgba(255,255,255,0.07)",
-                border: row.is_current_user
-                  ? "1px solid rgba(132,218,255,0.38)"
-                  : "1px solid rgba(255,255,255,0.1)",
-                boxShadow: row.is_current_user
-                  ? "0 0 28px rgba(83,215,255,0.12)"
-                  : "none",
-              }}
-            >
-              <span
-                style={{
-                  color: row.rank_position <= 3 ? "#ffd18a" : "#8ee8ff",
-                  fontWeight: 950,
-                  fontSize: "18px",
-                }}
-              >
-                #{row.rank_position}
-              </span>
-
-              <span
-                style={{
-                  color: "white",
-                  fontWeight: 900,
-                  wordBreak: "break-word",
-                }}
-              >
-                {row.username}
-                {row.is_current_user && (
-                  <small
-                    style={{
-                      marginLeft: "8px",
-                      color: "#8ee8ff",
-                      fontWeight: 900,
-                    }}
-                  >
-                    You
-                  </small>
-                )}
-              </span>
-
-              <span
-                style={{
-                  color: "#ffd18a",
-                  fontWeight: 950,
-                }}
-              >
-                {formatNumber(row.portfolio_value)} DT
-              </span>
-
-              <span
-                style={{
-                  color: "rgba(255,255,255,0.68)",
-                  fontWeight: 800,
-                }}
-              >
-                {formatNumber(row.total_shares)}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
-  </div>
-)}
 
 <div style={contentWrap}>
         <header
@@ -1637,8 +1324,8 @@ async function openLeaderboard() {
             marginBottom: isMobile ? "24px" : "30px",
           }}
         >
-          <Link href="/milo-world" style={navButtonStyle}>
-            ← Milo’s World
+          <Link href="/milo-world/exchange" style={navButtonStyle}>
+            ← Exchange Home
           </Link>
 
           <div
@@ -1649,44 +1336,32 @@ async function openLeaderboard() {
               justifyContent: isMobile ? "flex-start" : "flex-end",
             }}
           >
-            <button
-              type="button"
-              onClick={openLeaderboard}
+            <span
               style={{
                 ...navButtonStyle,
-                cursor: "pointer",
-                fontFamily: "inherit",
+                color: "#8ee8ff",
+                border: "1px solid rgba(132,218,255,0.34)",
+                background: "rgba(83,215,255,0.12)",
+              }}
+            >
+              Stock Exchange
+            </span>
+
+            <Link
+              href="/milo-world/exchange/property"
+              style={{
+                ...navButtonStyle,
                 color: "#ffd18a",
                 border: "1px solid rgba(255,209,138,0.26)",
                 background: "rgba(255,209,138,0.1)",
               }}
             >
-              🏆 Leaderboard
-            </button>
+              Property Exchange
+            </Link>
 
-            {["16+ Fictional Market", "No token purchasing"].map((label) => (
-              <span
-                key={label}
-                style={{
-                  minHeight: "38px",
-                  padding: "0 14px",
-                  borderRadius: "999px",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  color: "#8ee8ff",
-                  fontSize: "12px",
-                  fontWeight: 900,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                  border: "1px solid rgba(132,218,255,0.2)",
-                  background: "rgba(5,13,28,0.62)",
-                  backdropFilter: "blur(16px)",
-                  WebkitBackdropFilter: "blur(16px)",
-                }}
-              >
-                {label}
-              </span>
-            ))}
+            <Link href="/profile" style={navButtonStyle}>
+              My Account
+            </Link>
           </div>
         </header>
 
@@ -2738,9 +2413,9 @@ async function openLeaderboard() {
               }}
             >
               Choose a fictional stock on the left, study its price graph and
-              market news in the middle, then trade and track your holdings on
-              the right. Dreamscape Tokens have no cash value and this simulator
-              is not financial advice.
+              market news in the middle, then trade and track your stock holdings
+              on the right. Return to Exchange Home for your overall portfolio,
+              leaderboard, friends and complete transaction history.
             </p>
 
             {!isMobile && (

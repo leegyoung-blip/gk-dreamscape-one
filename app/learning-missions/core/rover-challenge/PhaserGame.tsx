@@ -26,13 +26,13 @@ const RIGHT_WHEEL_OFFSET_X = 88;
  * Wheel centres now sit on the same local vertical line as the
  * collision chassis. This keeps the wheel bottoms above the terrain.
  */
-const WHEEL_OFFSET_Y = 0;
+const WHEEL_OFFSET_Y = 15;
 
 /*
  * The detailed body artwork is a separate visual layer positioned
  * above the invisible Matter chassis.
  */
-const ROVER_BODY_VISUAL_OFFSET_Y = -58;
+const ROVER_BODY_VISUAL_OFFSET_Y = -30;
 
 const COURSE_ID = "skyforge-test-track-01";
 
@@ -137,8 +137,8 @@ class RoverMatterScene extends Phaser.Scene {
    * Balanced driving values: faster than the previous build,
    * but still gradual and controllable.
    */
-  private readonly normalMaximumSpeed = 5.2;
-  private readonly boostedMaximumSpeed = 7.8;
+  private readonly normalMaximumSpeed = 12.0;
+  private readonly boostedMaximumSpeed = 18.0;
 
   /*
    * These are response rates per second rather than fixed per-frame
