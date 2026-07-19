@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
+import type {
+  CoreRoverGameStats,
+} from "@/lib/coreRoverProgress";
 
 const GAME_WIDTH = 1600;
 const GAME_HEIGHT = 900;
@@ -41,6 +44,12 @@ const COURSE_TIME_LIMIT_SECONDS = 90;
 
 const TOTAL_COLLECTIBLES = 8;
 const TOTAL_CHECKPOINTS = 3;
+
+export type PhaserGameProps = {
+  roverStage: number;
+  roverName: string;
+  gameStats: CoreRoverGameStats;
+};
 
 type CollectibleItem = {
   id: number;
@@ -99,14 +108,17 @@ class RoverMatterScene extends Phaser.Scene {
   private collectibleText?: Phaser.GameObjects.Text;
   private checkpointText?: Phaser.GameObjects.Text;
   private objectiveText?: Phaser.GameObjects.Text;
+  private roverStageText?: Phaser.GameObjects.Text;
   private boostText?: Phaser.GameObjects.Text;
   private boostBarFill?: Phaser.GameObjects.Rectangle;
 
   private collectibles: CollectibleItem[] = [];
   private checkpoints: CheckpointItem[] = [];
 
-  private boostEnergy = 100;
-  private readonly maximumBoostEnergy = 100;
+  private boostEnergy = 60;
+  private maximumBoostEnergy = 60;
+  private boostDrainRate = 15;
+  private boostRechargeRate = 14;
 
   private score = 0;
   private distanceScore = 0;
@@ -133,29 +145,61 @@ class RoverMatterScene extends Phaser.Scene {
   private lastJumpAt = -1000;
   private restartRequested = false;
 
-  /*
-   * Balanced driving values: faster than the previous build,
-   * but still gradual and controllable.
-   */
-  private readonly normalMaximumSpeed = 12.0;
-  private readonly boostedMaximumSpeed = 18.0;
+  private roverStage = 0;
+  private roverName = "Basic Rover Frame";
 
-  /*
-   * These are response rates per second rather than fixed per-frame
-   * percentages, so movement remains smooth at different frame rates.
-   */
-  private readonly accelerationRate = 4.6;
-  private readonly brakingRate = 6.5;
-  private readonly slopeVelocityRate = 5.5;
-  private readonly groundAlignmentRate = 8.5;
-  private readonly jumpVelocity = -8.6;
+  private normalMaximumSpeed = 5.5;
+  private boostedMaximumSpeed = 7.0;
+  private accelerationRate = 4.2;
+  private brakingRate = 6.2;
+  private groundAlignmentRate = 8.5;
+  private jumpVelocity = 0;
+  private airTiltStrength = 0.006;
+
   private readonly jumpCooldownMs = 420;
   private readonly airborneTiltDelayMs = 150;
 
-  constructor() {
+  constructor({
+    roverStage,
+    roverName,
+    gameStats,
+  }: PhaserGameProps) {
     super({
       key: "RoverMatterScene",
     });
+
+    this.roverStage = roverStage;
+    this.roverName = roverName;
+
+    this.normalMaximumSpeed =
+      gameStats.normalSpeed;
+
+    this.boostedMaximumSpeed =
+      gameStats.boostSpeed;
+
+    this.accelerationRate =
+      gameStats.accelerationRate;
+
+    this.brakingRate =
+      gameStats.brakingRate;
+
+    this.jumpVelocity =
+      gameStats.jumpVelocity;
+
+    this.maximumBoostEnergy =
+      gameStats.boostCapacity;
+
+    this.boostDrainRate =
+      gameStats.boostDrainRate;
+
+    this.boostRechargeRate =
+      gameStats.boostRechargeRate;
+
+    this.airTiltStrength =
+      gameStats.airTiltStrength;
+
+    this.boostEnergy =
+      gameStats.boostCapacity;
   }
 
   preload() {
@@ -1340,7 +1384,7 @@ class RoverMatterScene extends Phaser.Scene {
         42,
         42,
         390,
-        215,
+        245,
       );
 
     statusPanel.setOrigin(0, 0);
@@ -1446,6 +1490,23 @@ class RoverMatterScene extends Phaser.Scene {
             fontSize: "11px",
             fontStyle: "bold",
             color: "#8defff",
+            letterSpacing: 1,
+          },
+        )
+        .setScrollFactor(0)
+        .setDepth(101);
+
+    this.roverStageText =
+      this.add
+        .text(
+          70,
+          252,
+          `STAGE ${this.roverStage}  ${this.roverName.toUpperCase()}`,
+          {
+            fontFamily: "Arial, sans-serif",
+            fontSize: "11px",
+            fontStyle: "bold",
+            color: "#ffd76a",
             letterSpacing: 1,
           },
         )
@@ -1570,7 +1631,9 @@ class RoverMatterScene extends Phaser.Scene {
       .text(
         GAME_WIDTH / 2,
         GAME_HEIGHT - 62,
-        "A / D OR ← / →  DRIVE     W OR ↑  JUMP     SPACE  BOOST     R  RESTART",
+        this.jumpVelocity < 0
+          ? "A / D OR ← / →  DRIVE     W OR ↑  JUMP     SPACE  BOOST     R  RESTART"
+          : "A / D OR ← / →  DRIVE     JUMP MODULE LOCKED     SPACE  BOOST     R  RESTART",
         {
           fontFamily: "Arial, sans-serif",
           fontSize: "14px",
@@ -1661,7 +1724,9 @@ class RoverMatterScene extends Phaser.Scene {
       GAME_WIDTH - 330,
       GAME_HEIGHT - 125,
       88,
-      "JUMP",
+      this.jumpVelocity < 0
+        ? "JUMP"
+        : "LOCKED",
       () => {
         this.tryJump();
       },
@@ -1733,7 +1798,8 @@ class RoverMatterScene extends Phaser.Scene {
             fontFamily: "Arial, sans-serif",
             fontSize:
               label === "BOOST" ||
-              label === "JUMP"
+              label === "JUMP" ||
+              label === "LOCKED"
                 ? "12px"
                 : "28px",
             fontStyle: "bold",
@@ -1918,29 +1984,8 @@ class RoverMatterScene extends Phaser.Scene {
         ? this.boostedMaximumSpeed
         : this.normalMaximumSpeed;
 
-    const grounded =
-      this.activeTerrainContacts.size >
-      0;
-
-    const terrainAngle =
-      grounded
-        ? this.getTerrainAngleAtX(
-            roverBody.x,
-          ) ?? roverBody.rotation
-        : 0;
-
-    /*
-     * Move along the local terrain tangent. This prevents the chassis
-     * from pushing horizontally into a rising hill and makes climbing
-     * and descending feel much smoother.
-     */
     const targetVelocityX =
-    direction * maximumSpeed;
-
-    const targetVelocityY =
-      direction *
-      maximumSpeed *
-      Math.sin(terrainAngle);
+      direction * maximumSpeed;
 
     const responseRate =
       direction === 0
@@ -1961,29 +2006,14 @@ class RoverMatterScene extends Phaser.Scene {
         horizontalSmoothing,
       );
 
+    /*
+     * Matter gravity controls vertical movement. We only smooth the
+     * horizontal drive speed, preventing slopes from draining power or
+     * forcing the rover to hover above the course.
+     */
     roverBody.setVelocityX(
       nextVelocityX,
     );
-
-    if (
-      grounded &&
-      direction !== 0
-    ) {
-      const verticalSmoothing =
-        1 -
-        Math.exp(
-          -this.slopeVelocityRate *
-            (delta / 1000),
-        );
-
-      roverBody.setVelocityY(
-        Phaser.Math.Linear(
-          body.velocity.y,
-          targetVelocityY,
-          verticalSmoothing,
-        ),
-      );
-    }
 
     /*
      * Only provide gentle air tilt after the rover has
@@ -1994,7 +2024,8 @@ class RoverMatterScene extends Phaser.Scene {
       direction !== 0
     ) {
       const targetAngularVelocity =
-        direction * 0.018;
+        direction *
+        this.airTiltStrength;
 
       const nextAngularVelocity =
         Phaser.Math.Linear(
@@ -2016,10 +2047,12 @@ class RoverMatterScene extends Phaser.Scene {
 
     if (usingBoost) {
       this.boostEnergy -=
-        22 * seconds;
+        this.boostDrainRate *
+        seconds;
     } else {
       this.boostEnergy +=
-        15 * seconds;
+        this.boostRechargeRate *
+        seconds;
     }
 
     this.boostEnergy =
@@ -2041,6 +2074,15 @@ class RoverMatterScene extends Phaser.Scene {
         | null;
 
     if (!body) {
+      return;
+    }
+
+    if (this.jumpVelocity >= 0) {
+      this.showStatusMessage(
+        "JUMP MODULE LOCKED",
+        "#ffd76a",
+      );
+
       return;
     }
 
@@ -2897,6 +2939,7 @@ class RoverMatterScene extends Phaser.Scene {
         {
           detail: {
             courseId: COURSE_ID,
+            roverStage: this.roverStage,
             score: this.score,
             completionTimeMs: Math.max(
               1,
@@ -3131,7 +3174,11 @@ class RoverMatterScene extends Phaser.Scene {
   }
 }
 
-export default function PhaserGame() {
+export default function PhaserGame({
+  roverStage,
+  roverName,
+  gameStats,
+}: PhaserGameProps) {
   const gameContainerRef =
     useRef<HTMLDivElement | null>(
       null,
@@ -3172,6 +3219,13 @@ export default function PhaserGame() {
 
     gameRef.current?.destroy(true);
     gameRef.current = null;
+
+    const scene =
+      new RoverMatterScene({
+        roverStage,
+        roverName,
+        gameStats,
+      });
 
     const config: Phaser.Types.Core.GameConfig =
       {
@@ -3222,7 +3276,7 @@ export default function PhaserGame() {
         },
 
         scene: [
-          RoverMatterScene,
+          scene,
         ],
       };
 
@@ -3233,7 +3287,12 @@ export default function PhaserGame() {
       gameRef.current?.destroy(true);
       gameRef.current = null;
     };
-  }, [gameVersion]);
+  }, [
+    gameVersion,
+    roverStage,
+    roverName,
+    gameStats,
+  ]);
 
   return (
     <div

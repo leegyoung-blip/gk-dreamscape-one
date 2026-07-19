@@ -1,14 +1,29 @@
+export type CoreRoverGameStats = {
+  normalSpeed: number;
+  boostSpeed: number;
+  accelerationRate: number;
+  brakingRate: number;
+  jumpVelocity: number;
+  boostCapacity: number;
+  boostDrainRate: number;
+  boostRechargeRate: number;
+  airTiltStrength: number;
+};
+
 export type CoreRoverUpgrade = {
+  stage: number;
   missionsRequired: number;
   name: string;
   shortName: string;
   description: string;
   imageSrc: string;
   accent: string;
+  gameStats: CoreRoverGameStats;
 };
 
 export const coreUpgradeTrack: CoreRoverUpgrade[] = [
   {
+    stage: 0,
     missionsRequired: 0,
     name: "Basic Rover Frame",
     shortName: "Frame",
@@ -16,8 +31,20 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
     imageSrc:
       "/activities/learning-missions/core/rover/rover-stage-0-frame.png",
     accent: "#7ee8ff",
+    gameStats: {
+      normalSpeed: 7.0,
+      boostSpeed: 9.0,
+      accelerationRate: 5.5,
+      brakingRate: 6.5,
+      jumpVelocity: -5.2,
+      boostCapacity: 70,
+      boostDrainRate: 15,
+      boostRechargeRate: 14,
+      airTiltStrength: 0.006,
+    },
   },
   {
+    stage: 1,
     missionsRequired: 1,
     name: "Energy Engine",
     shortName: "Engine",
@@ -25,8 +52,20 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
     imageSrc:
       "/activities/learning-missions/core/rover/rover-stage-1-engine.png",
     accent: "#ffd76a",
+    gameStats: {
+      normalSpeed: 8.0,
+      boostSpeed: 10.5,
+      accelerationRate: 6.0,
+      brakingRate: 6.9,
+      jumpVelocity: -6.0,
+      boostCapacity: 80,
+      boostDrainRate: 14,
+      boostRechargeRate: 16,
+      airTiltStrength: 0.008,
+    },
   },
   {
+    stage: 2,
     missionsRequired: 3,
     name: "Navigation Console",
     shortName: "Navigation",
@@ -34,8 +73,20 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
     imageSrc:
       "/activities/learning-missions/core/rover/rover-stage-3-navigation.png",
     accent: "#60f0d0",
+    gameStats: {
+      normalSpeed: 9.0,
+      boostSpeed: 12.0,
+      accelerationRate: 6.6,
+      brakingRate: 7.3,
+      jumpVelocity: -6.8,
+      boostCapacity: 85,
+      boostDrainRate: 12,
+      boostRechargeRate: 18,
+      airTiltStrength: 0.012,
+    },
   },
   {
+    stage: 3,
     missionsRequired: 5,
     name: "Turbo Wheels",
     shortName: "Turbo Wheels",
@@ -43,8 +94,20 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
     imageSrc:
       "/activities/learning-missions/core/rover/rover-stage-5-turbo-wheels.png",
     accent: "#8da2ff",
+    gameStats: {
+      normalSpeed: 10.0,
+      boostSpeed: 14.0,
+      accelerationRate: 7.2,
+      brakingRate: 7.8,
+      jumpVelocity: -7.7,
+      boostCapacity: 100,
+      boostDrainRate: 10,
+      boostRechargeRate: 20,
+      airTiltStrength: 0.016,
+    },
   },
   {
+    stage: 4,
     missionsRequired: 8,
     name: "Shield Plating",
     shortName: "Shield",
@@ -52,8 +115,20 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
     imageSrc:
       "/activities/learning-missions/core/rover/rover-stage-8-shield.png",
     accent: "#ff9df0",
+    gameStats: {
+      normalSpeed: 11.0,
+      boostSpeed: 16.0,
+      accelerationRate: 7.8,
+      brakingRate: 8.2,
+      jumpVelocity: -8.7,
+      boostCapacity: 110,
+      boostDrainRate: 9,
+      boostRechargeRate: 22,
+      airTiltStrength: 0.019,
+    },
   },
   {
+    stage: 5,
     missionsRequired: 12,
     name: "Hover Boosters",
     shortName: "Hover Rover",
@@ -62,6 +137,17 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
     imageSrc:
       "/activities/learning-missions/core/rover/rover-stage-12-hover.png",
     accent: "#53d7ff",
+    gameStats: {
+      normalSpeed: 12.0,
+      boostSpeed: 18.0,
+      accelerationRate: 8.6,
+      brakingRate: 8.8,
+      jumpVelocity: -10.2,
+      boostCapacity: 125,
+      boostDrainRate: 8,
+      boostRechargeRate: 24,
+      airTiltStrength: 0.023,
+    },
   },
 ];
 

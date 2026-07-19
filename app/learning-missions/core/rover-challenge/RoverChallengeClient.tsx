@@ -9,12 +9,19 @@ import {
   useState,
 } from "react";
 import { supabase } from "@/lib/supabase";
+import {
+  coreUpgradeTrack,
+  type CoreRoverGameStats,
+  type CoreRoverUpgrade,
+  getCoreRoverProgress,
+} from "@/lib/coreRoverProgress";
 
 const COURSE_ID =
   "skyforge-test-track-01";
 
 type RoverCourseCompleteDetail = {
   courseId: string;
+  roverStage: number;
   score: number;
   completionTimeMs: number;
   orbsCollected: number;
@@ -29,6 +36,7 @@ type LeaderboardRow = {
   best_score: number;
   best_time_ms: number;
   orbs_collected: number;
+  rover_stage: number;
   completed_at: string;
 };
 
@@ -39,7 +47,13 @@ type SubmitScoreRow = {
   best_time_ms: number;
 };
 
-const PhaserGame = dynamic(
+type PhaserGameProps = {
+  roverStage: number;
+  roverName: string;
+  gameStats: CoreRoverGameStats;
+};
+
+const PhaserGame = dynamic<PhaserGameProps>(
   () => import("./PhaserGame"),
   {
     ssr: false,
@@ -63,6 +77,18 @@ export default function RoverChallengeClient() {
     useState<string | null>(null);
 
   const [
+    currentUpgrade,
+    setCurrentUpgrade,
+  ] = useState<CoreRoverUpgrade>(
+    coreUpgradeTrack[0],
+  );
+
+  const [
+    roverProgressLoading,
+    setRoverProgressLoading,
+  ] = useState(true);
+
+  const [
     leaderboardRows,
     setLeaderboardRows,
   ] = useState<LeaderboardRow[]>([]);
@@ -84,6 +110,70 @@ export default function RoverChallengeClient() {
 
   const submittedRunRef =
     useRef<string | null>(null);
+
+  const loadRoverProgress =
+    useCallback(
+      async (
+        activeUserId: string | null,
+      ) => {
+        setRoverProgressLoading(true);
+
+        if (!activeUserId) {
+          setCurrentUpgrade(
+            coreUpgradeTrack[0],
+          );
+          setRoverProgressLoading(false);
+          return;
+        }
+
+        const { data, error } =
+          await supabase
+            .from(
+              "core_mission_attempts",
+            )
+            .select(
+              "quiz_id, tokens_earned",
+            )
+            .eq(
+              "user_id",
+              activeUserId,
+            )
+            .gt("tokens_earned", 0);
+
+        if (error) {
+          console.warn(
+            "Could not load rover progress:",
+            error.message,
+          );
+
+          setCurrentUpgrade(
+            coreUpgradeTrack[0],
+          );
+          setRoverProgressLoading(false);
+          return;
+        }
+
+        const completedQuizIds =
+          new Set(
+            (data ?? []).map(
+              (attempt) =>
+                attempt.quiz_id,
+            ),
+          );
+
+        const progress =
+          getCoreRoverProgress(
+            completedQuizIds.size,
+          );
+
+        setCurrentUpgrade(
+          progress.currentUpgrade,
+        );
+
+        setRoverProgressLoading(false);
+      },
+      [],
+    );
 
   const loadLeaderboard =
     useCallback(async () => {
@@ -136,6 +226,7 @@ export default function RoverChallengeClient() {
       ) => {
         const runKey = [
           result.courseId,
+          result.roverStage,
           result.score,
           result.completionTimeMs,
           result.orbsCollected,
@@ -228,7 +319,14 @@ export default function RoverChallengeClient() {
         return;
       }
 
-      setUserId(user?.id ?? null);
+      const activeUserId =
+        user?.id ?? null;
+
+      setUserId(activeUserId);
+
+      await loadRoverProgress(
+        activeUserId,
+      );
     }
 
     void loadUser();
@@ -243,8 +341,13 @@ export default function RoverChallengeClient() {
             return;
           }
 
-          setUserId(
-            session?.user.id ?? null,
+          const activeUserId =
+            session?.user.id ?? null;
+
+          setUserId(activeUserId);
+
+          void loadRoverProgress(
+            activeUserId,
           );
         },
       );
@@ -253,7 +356,10 @@ export default function RoverChallengeClient() {
       active = false;
       subscription.unsubscribe();
     };
-  }, [loadLeaderboard]);
+  }, [
+    loadLeaderboard,
+    loadRoverProgress,
+  ]);
 
   useEffect(() => {
     const handleCourseComplete = (
@@ -344,7 +450,29 @@ export default function RoverChallengeClient() {
         <div className="relative overflow-hidden rounded-[24px] border border-white/10 bg-black/30 shadow-[0_30px_100px_rgba(0,0,0,0.45)]">
           <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-px bg-gradient-to-r from-transparent via-cyan-300/70 to-transparent" />
 
-          <PhaserGame />
+          {roverProgressLoading ? (
+            <div className="flex min-h-[500px] w-full items-center justify-center">
+              <div className="flex flex-col items-center gap-4">
+                <div className="h-10 w-10 animate-spin rounded-full border-2 border-white/20 border-t-cyan-300" />
+
+                <p className="text-sm font-medium tracking-[0.18em] text-white/60">
+                  LOADING ROVER STAGE
+                </p>
+              </div>
+            </div>
+          ) : (
+            <PhaserGame
+              roverStage={
+                currentUpgrade.stage
+              }
+              roverName={
+                currentUpgrade.name
+              }
+              gameStats={
+                currentUpgrade.gameStats
+              }
+            />
+          )}
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -355,7 +483,7 @@ export default function RoverChallengeClient() {
 
           <InfoCard
             label="Rover"
-            value="Detailed Rover Prototype"
+            value={`Stage ${currentUpgrade.stage} · ${currentUpgrade.shortName}`}
           />
 
           <InfoCard
@@ -379,9 +507,15 @@ export default function RoverChallengeClient() {
 
             <span>
               <strong className="text-white">
-                W or ↑
+                {currentUpgrade.gameStats
+                  .jumpVelocity < 0
+                  ? "W or ↑"
+                  : "Locked"}
               </strong>{" "}
-              Jump
+              {currentUpgrade.gameStats
+                .jumpVelocity < 0
+                ? "Jump"
+                : "Jump Module"}
             </span>
 
             <span>
@@ -456,6 +590,7 @@ export default function RoverChallengeClient() {
                 <div className="hidden grid-cols-[70px_minmax(0,1fr)_130px_130px_100px] gap-3 px-4 pb-2 text-[10px] font-bold tracking-[0.16em] text-white/35 sm:grid">
                   <span>RANK</span>
                   <span>PLAYER</span>
+                  <span>STAGE</span>
                   <span>SCORE</span>
                   <span>TIME</span>
                   <span>ORBS</span>
@@ -473,7 +608,7 @@ export default function RoverChallengeClient() {
                     return (
                       <div
                         key={row.user_id}
-                        className={`grid gap-2 rounded-2xl border px-4 py-4 sm:grid-cols-[70px_minmax(0,1fr)_130px_130px_100px] sm:items-center sm:gap-3 ${
+                        className={`grid gap-2 rounded-2xl border px-4 py-4 sm:grid-cols-[70px_minmax(0,1fr)_100px_130px_130px_100px] sm:items-center sm:gap-3 ${
                           isCurrentUser
                             ? "border-cyan-200/30 bg-cyan-300/10"
                             : "border-white/8 bg-white/[0.035]"
@@ -494,6 +629,16 @@ export default function RoverChallengeClient() {
                               YOUR BEST
                             </p>
                           )}
+                        </div>
+
+                        <div>
+                          <p className="text-[10px] font-bold tracking-[0.14em] text-white/35 sm:hidden">
+                            STAGE
+                          </p>
+
+                          <p className="font-semibold text-cyan-100">
+                            {row.rover_stage}
+                          </p>
                         </div>
 
                         <div>
