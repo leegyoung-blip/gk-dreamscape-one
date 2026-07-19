@@ -21,7 +21,18 @@ const ROVER_COLLISION_HEIGHT = 82;
 const WHEEL_SIZE = 78;
 const LEFT_WHEEL_OFFSET_X = -88;
 const RIGHT_WHEEL_OFFSET_X = 88;
-const WHEEL_OFFSET_Y = 18;
+
+/*
+ * Wheel centres now sit on the same local vertical line as the
+ * collision chassis. This keeps the wheel bottoms above the terrain.
+ */
+const WHEEL_OFFSET_Y = 0;
+
+/*
+ * The detailed body artwork is a separate visual layer positioned
+ * above the invisible Matter chassis.
+ */
+const ROVER_BODY_VISUAL_OFFSET_Y = -58;
 
 const COURSE_ID = "skyforge-test-track-01";
 
@@ -60,8 +71,13 @@ type TouchButton = {
 
 class RoverMatterScene extends Phaser.Scene {
   private roverBody?: Phaser.Physics.Matter.Image;
+  private roverBodyVisual?: Phaser.GameObjects.Image;
   private leftWheelVisual?: Phaser.GameObjects.Image;
   private rightWheelVisual?: Phaser.GameObjects.Image;
+
+  private terrainSections: Array<
+    Array<{ x: number; y: number }>
+  > = [];
 
   private wheelSpin = 0;
 
@@ -123,8 +139,15 @@ class RoverMatterScene extends Phaser.Scene {
    */
   private readonly normalMaximumSpeed = 5.2;
   private readonly boostedMaximumSpeed = 7.8;
-  private readonly accelerationResponse = 0.055;
-  private readonly brakingResponse = 0.065;
+
+  /*
+   * These are response rates per second rather than fixed per-frame
+   * percentages, so movement remains smooth at different frame rates.
+   */
+  private readonly accelerationRate = 4.6;
+  private readonly brakingRate = 6.5;
+  private readonly slopeVelocityRate = 5.5;
+  private readonly groundAlignmentRate = 8.5;
   private readonly jumpVelocity = -8.6;
   private readonly jumpCooldownMs = 420;
   private readonly airborneTiltDelayMs = 150;
@@ -210,7 +233,7 @@ class RoverMatterScene extends Phaser.Scene {
 
     this.updateGroundState(delta);
     this.handleMovement(delta);
-    this.stabilizeRover();
+    this.stabilizeRover(delta);
     this.updateRoverVisuals(delta);
     this.updateTimer(delta);
     this.updateAirborneVelocity();
@@ -226,6 +249,7 @@ class RoverMatterScene extends Phaser.Scene {
   private resetGameValues() {
     this.collectibles = [];
     this.checkpoints = [];
+    this.terrainSections = [];
 
     this.touchLeft = false;
     this.touchRight = false;
@@ -566,6 +590,14 @@ class RoverMatterScene extends Phaser.Scene {
     if (sampledPoints.length < 2) {
       return;
     }
+
+    /*
+     * Keep the sampled surface so the rover can align itself to the
+     * exact local hill angle while it is touching the terrain.
+     */
+    this.terrainSections.push(
+      sampledPoints,
+    );
 
     /*
      * Filled terrain artwork.
@@ -1176,9 +1208,9 @@ class RoverMatterScene extends Phaser.Scene {
 
   private createRover() {
     /*
-     * The detailed body PNG is the visible Matter object.
-     * There are no generated placeholder textures and no old
-     * cabin, antenna or headlight graphics.
+     * The Matter image provides the collision and movement body, but
+     * its artwork is hidden. A separate normal image is used for the
+     * detailed body PNG so it can be shifted upward independently.
      */
     const roverBody =
       this.matter.add.image(
@@ -1192,12 +1224,6 @@ class RoverMatterScene extends Phaser.Scene {
       ROVER_BODY_HEIGHT,
     );
 
-    /*
-     * The source body PNG faces left. Flip only the artwork so the
-     * rover faces the direction of forward travel.
-     */
-    roverBody.setFlipX(true);
-
     roverBody.setRectangle(
       ROVER_COLLISION_WIDTH,
       ROVER_COLLISION_HEIGHT,
@@ -1209,20 +1235,38 @@ class RoverMatterScene extends Phaser.Scene {
     roverBody.setMass(12);
     roverBody.setFriction(0.88);
     roverBody.setFrictionStatic(1);
-    roverBody.setFrictionAir(0.04);
+    roverBody.setFrictionAir(0.035);
     roverBody.setBounce(0.01);
-    roverBody.setDepth(20);
+    roverBody.setAlpha(0);
+    roverBody.setDepth(18);
 
     this.roverBody = roverBody;
 
+    this.roverBodyVisual =
+      this.add.image(
+        ROVER_START_X,
+        ROVER_START_Y +
+          ROVER_BODY_VISUAL_OFFSET_Y,
+        "rover-body",
+      );
+
+    this.roverBodyVisual.setDisplaySize(
+      ROVER_BODY_WIDTH,
+      ROVER_BODY_HEIGHT,
+    );
+
     /*
-     * The wheel PNGs are visual-only layers. Their positions and
-     * rotation follow the stable single Matter body.
+     * The source body PNG faces left. Flip only the visible artwork.
      */
+    this.roverBodyVisual.setFlipX(true);
+    this.roverBodyVisual.setDepth(20);
+
     this.leftWheelVisual =
       this.add.image(
-        ROVER_START_X + LEFT_WHEEL_OFFSET_X,
-        ROVER_START_Y + WHEEL_OFFSET_Y,
+        ROVER_START_X +
+          LEFT_WHEEL_OFFSET_X,
+        ROVER_START_Y +
+          WHEEL_OFFSET_Y,
         "rover-wheel",
       );
 
@@ -1231,12 +1275,18 @@ class RoverMatterScene extends Phaser.Scene {
       WHEEL_SIZE,
     );
 
-    this.leftWheelVisual.setDepth(19);
+    /*
+     * Wheels are placed in front of the body artwork so the lower
+     * armour cannot hide most of each wheel.
+     */
+    this.leftWheelVisual.setDepth(21);
 
     this.rightWheelVisual =
       this.add.image(
-        ROVER_START_X + RIGHT_WHEEL_OFFSET_X,
-        ROVER_START_Y + WHEEL_OFFSET_Y,
+        ROVER_START_X +
+          RIGHT_WHEEL_OFFSET_X,
+        ROVER_START_Y +
+          WHEEL_OFFSET_Y,
         "rover-wheel",
       );
 
@@ -1245,7 +1295,7 @@ class RoverMatterScene extends Phaser.Scene {
       WHEEL_SIZE,
     );
 
-    this.rightWheelVisual.setDepth(19);
+    this.rightWheelVisual.setDepth(21);
 
     this.updateRoverVisuals(0);
   }
@@ -1868,24 +1918,74 @@ class RoverMatterScene extends Phaser.Scene {
         ? this.boostedMaximumSpeed
         : this.normalMaximumSpeed;
 
-    const targetVelocityX =
-      direction * maximumSpeed;
+    const grounded =
+      this.activeTerrainContacts.size >
+      0;
 
-    const response =
+    const terrainAngle =
+      grounded
+        ? this.getTerrainAngleAtX(
+            roverBody.x,
+          ) ?? roverBody.rotation
+        : 0;
+
+    /*
+     * Move along the local terrain tangent. This prevents the chassis
+     * from pushing horizontally into a rising hill and makes climbing
+     * and descending feel much smoother.
+     */
+    const targetVelocityX =
+      direction *
+      maximumSpeed *
+      Math.cos(terrainAngle);
+
+    const targetVelocityY =
+      direction *
+      maximumSpeed *
+      Math.sin(terrainAngle);
+
+    const responseRate =
       direction === 0
-        ? this.brakingResponse
-        : this.accelerationResponse;
+        ? this.brakingRate
+        : this.accelerationRate;
+
+    const horizontalSmoothing =
+      1 -
+      Math.exp(
+        -responseRate *
+          (delta / 1000),
+      );
 
     const nextVelocityX =
       Phaser.Math.Linear(
         body.velocity.x,
         targetVelocityX,
-        response,
+        horizontalSmoothing,
       );
 
     roverBody.setVelocityX(
       nextVelocityX,
     );
+
+    if (
+      grounded &&
+      direction !== 0
+    ) {
+      const verticalSmoothing =
+        1 -
+        Math.exp(
+          -this.slopeVelocityRate *
+            (delta / 1000),
+        );
+
+      roverBody.setVelocityY(
+        Phaser.Math.Linear(
+          body.velocity.y,
+          targetVelocityY,
+          verticalSmoothing,
+        ),
+      );
+    }
 
     /*
      * Only provide gentle air tilt after the rover has
@@ -1998,7 +2098,9 @@ class RoverMatterScene extends Phaser.Scene {
     );
   }
 
-  private stabilizeRover() {
+  private stabilizeRover(
+    delta: number,
+  ) {
     if (!this.roverBody) {
       return;
     }
@@ -2012,42 +2114,71 @@ class RoverMatterScene extends Phaser.Scene {
       return;
     }
 
-    const airborne =
-      this.isProbablyAirborne();
+    const grounded =
+      this.activeTerrainContacts.size >
+      0;
 
-    const maximumRotation =
-      Phaser.Math.DegToRad(
-        airborne ? 52 : 24,
-      );
-
-    const rotation =
+    const currentRotation =
       Phaser.Math.Angle.Wrap(
         this.roverBody.rotation,
       );
 
-    if (!airborne) {
-      const uprightCorrection =
-        -rotation * 0.016;
+    if (grounded) {
+      const terrainAngle =
+        this.getTerrainAngleAtX(
+          this.roverBody.x,
+        ) ?? currentRotation;
+
+      const angleError =
+        Phaser.Math.Angle.Wrap(
+          terrainAngle -
+            currentRotation,
+        );
+
+      const alignmentSmoothing =
+        1 -
+        Math.exp(
+          -this.groundAlignmentRate *
+            (delta / 1000),
+        );
+
+      /*
+       * Rotate the complete collision chassis toward the local slope.
+       * The visible body and both wheels use this same rotation.
+       */
+      this.roverBody.setRotation(
+        currentRotation +
+          angleError *
+            alignmentSmoothing,
+      );
 
       this.roverBody.setAngularVelocity(
-        Phaser.Math.Clamp(
-          body.angularVelocity +
-            uprightCorrection,
-          -0.025,
-          0.025,
+        Phaser.Math.Linear(
+          body.angularVelocity,
+          0,
+          alignmentSmoothing,
         ),
       );
+
+      return;
     }
 
+    /*
+     * While airborne, retain gentle air tilt but prevent unrealistic
+     * full rotations.
+     */
+    const maximumAirRotation =
+      Phaser.Math.DegToRad(52);
+
     if (
-      Math.abs(rotation) >
-      maximumRotation
+      Math.abs(currentRotation) >
+      maximumAirRotation
     ) {
       this.roverBody.setRotation(
         Phaser.Math.Clamp(
-          rotation,
-          -maximumRotation,
-          maximumRotation,
+          currentRotation,
+          -maximumAirRotation,
+          maximumAirRotation,
         ),
       );
 
@@ -2057,11 +2188,75 @@ class RoverMatterScene extends Phaser.Scene {
     }
   }
 
+  private getTerrainAngleAtX(
+    x: number,
+  ) {
+    for (
+      const section of
+      this.terrainSections
+    ) {
+      if (section.length < 2) {
+        continue;
+      }
+
+      const first =
+        section[0];
+
+      const last =
+        section[
+          section.length - 1
+        ];
+
+      if (
+        x < first.x ||
+        x > last.x
+      ) {
+        continue;
+      }
+
+      let low = 0;
+      let high =
+        section.length - 2;
+
+      while (low <= high) {
+        const middle =
+          Math.floor(
+            (low + high) / 2,
+          );
+
+        const current =
+          section[middle];
+
+        const next =
+          section[middle + 1];
+
+        if (
+          x >= current.x &&
+          x <= next.x
+        ) {
+          return Math.atan2(
+            next.y - current.y,
+            next.x - current.x,
+          );
+        }
+
+        if (x < current.x) {
+          high = middle - 1;
+        } else {
+          low = middle + 1;
+        }
+      }
+    }
+
+    return null;
+  }
+
   private updateRoverVisuals(
     delta: number,
   ) {
     if (
       !this.roverBody ||
+      !this.roverBodyVisual ||
       !this.leftWheelVisual ||
       !this.rightWheelVisual
     ) {
@@ -2079,6 +2274,24 @@ class RoverMatterScene extends Phaser.Scene {
 
     const rotation =
       this.roverBody.rotation;
+
+    const bodyOffset =
+      this.rotateOffset(
+        0,
+        ROVER_BODY_VISUAL_OFFSET_Y,
+        rotation,
+      );
+
+    this.roverBodyVisual.setPosition(
+      this.roverBody.x +
+        bodyOffset.x,
+      this.roverBody.y +
+        bodyOffset.y,
+    );
+
+    this.roverBodyVisual.setRotation(
+      rotation,
+    );
 
     const leftOffset =
       this.rotateOffset(
@@ -2113,6 +2326,10 @@ class RoverMatterScene extends Phaser.Scene {
       0.012 *
       (delta / 16.667);
 
+    /*
+     * The wheel artwork spins around the same base slope angle as the
+     * body, so all rover components visually follow hills together.
+     */
     this.leftWheelVisual.setRotation(
       rotation + this.wheelSpin,
     );
