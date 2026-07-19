@@ -89,6 +89,9 @@ export default function CoreMissionsPage() {
       tokenBalance={tokenBalance}
       onTokenBalanceChange={setTokenBalance}
       onExit={() => router.push("/learning-missions")}
+      onOpenRover={() =>
+        router.push("/learning-missions/core/rover-challenge")
+      }
     />
   );
 }
@@ -129,6 +132,18 @@ type CompletedCoreAttempt = {
   correct_count: number;
   tokens_earned: number;
 };
+
+type RoverLeaderboardRow = {
+  rank: number | string;
+  user_id: string;
+  username: string;
+  best_score: number;
+  best_time_ms: number;
+  orbs_collected: number;
+  completed_at: string;
+};
+
+const ROVER_COURSE_ID = "skyforge-test-track-01";
 
 const coreSubjects: {
   id: CoreSubject;
@@ -200,10 +215,12 @@ function roleHasFullCoreAccess(role: string | null | undefined) {
 
 function CoreMissionsActivity({
   onExit,
+  onOpenRover,
   tokenBalance,
   onTokenBalanceChange,
 }: {
   onExit: () => void;
+  onOpenRover: () => void;
   tokenBalance: number;
   onTokenBalanceChange: (newBalance: number) => void;
 }) {
@@ -224,6 +241,12 @@ function CoreMissionsActivity({
   >("checking");
 
   const [userId, setUserId] = useState<string | null>(null);
+
+  const [roverRank, setRoverRank] = useState<number | null>(null);
+  const [roverBestScore, setRoverBestScore] = useState<number | null>(null);
+  const [roverBestTimeMs, setRoverBestTimeMs] = useState<number | null>(null);
+  const [roverRankLoading, setRoverRankLoading] = useState(false);
+
   const [selectedSubject, setSelectedSubject] = useState<CoreSubject | null>(
     null
   );
@@ -300,7 +323,10 @@ function CoreMissionsActivity({
     const userRole = profile.role || profile.tier || null;
 
     if (roleHasFullCoreAccess(userRole)) {
-      await loadCompletedAttempts(user.id);
+      await Promise.all([
+        loadCompletedAttempts(user.id),
+        loadRoverRank(user.id),
+      ]);
       setScreen("subject");
       return;
     }
@@ -323,8 +349,50 @@ function CoreMissionsActivity({
       return;
     }
 
-    await loadCompletedAttempts(user.id);
+    await Promise.all([
+      loadCompletedAttempts(user.id),
+      loadRoverRank(user.id),
+    ]);
     setScreen("subject");
+  }
+
+  async function loadRoverRank(activeUserId: string) {
+    setRoverRankLoading(true);
+
+    const { data, error } = await supabase.rpc(
+      "get_rover_challenge_leaderboard",
+      {
+        p_course_id: ROVER_COURSE_ID,
+        p_limit: 100,
+      }
+    );
+
+    if (error) {
+      console.warn("Could not load Rover Challenge rank:", error.message);
+      setRoverRank(null);
+      setRoverBestScore(null);
+      setRoverBestTimeMs(null);
+      setRoverRankLoading(false);
+      return;
+    }
+
+    const rows = (data ?? []) as RoverLeaderboardRow[];
+    const playerRow = rows.find((row) => row.user_id === activeUserId);
+
+    if (!playerRow) {
+      setRoverRank(null);
+      setRoverBestScore(null);
+      setRoverBestTimeMs(null);
+      setRoverRankLoading(false);
+      return;
+    }
+
+    const parsedRank = Number(playerRow.rank);
+
+    setRoverRank(Number.isFinite(parsedRank) ? parsedRank : null);
+    setRoverBestScore(playerRow.best_score);
+    setRoverBestTimeMs(playerRow.best_time_ms);
+    setRoverRankLoading(false);
   }
 
   async function loadCompletedAttempts(activeUserId: string) {
@@ -732,6 +800,11 @@ function CoreMissionsActivity({
               progressPercentage={progressPercentage}
               missionsToNext={missionsToNext}
               isComplete={isComplete}
+              roverRank={roverRank}
+              roverBestScore={roverBestScore}
+              roverBestTimeMs={roverBestTimeMs}
+              roverRankLoading={roverRankLoading}
+              onOpenRover={onOpenRover}
             />
           </aside>
 
@@ -1385,6 +1458,11 @@ function RoverProgressCard({
   progressPercentage,
   missionsToNext,
   isComplete,
+  roverRank,
+  roverBestScore,
+  roverBestTimeMs,
+  roverRankLoading,
+  onOpenRover,
 }: {
   isMobile: boolean;
   completedMissionCount: number;
@@ -1393,6 +1471,11 @@ function RoverProgressCard({
   progressPercentage: number;
   missionsToNext: number;
   isComplete: boolean;
+  roverRank: number | null;
+  roverBestScore: number | null;
+  roverBestTimeMs: number | null;
+  roverRankLoading: boolean;
+  onOpenRover: () => void;
 }) {
   return (
     <div
@@ -1574,6 +1657,140 @@ function RoverProgressCard({
           </p>
         </div>
 
+        <div
+          style={{
+            marginTop: "16px",
+            borderRadius: "20px",
+            border: "1px solid rgba(126,232,255,0.4)",
+            background:
+              "linear-gradient(145deg, rgba(14,66,108,0.62), rgba(5,25,57,0.92))",
+            padding: isMobile ? "16px" : "18px",
+            boxShadow:
+              "inset 0 0 24px rgba(126,232,255,0.05), 0 12px 30px rgba(0,0,0,0.18)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: "14px",
+            }}
+          >
+            <div>
+              <p
+                style={{
+                  margin: 0,
+                  color: "#7ee8ff",
+                  fontSize: "11px",
+                  letterSpacing: "0.16em",
+                  textTransform: "uppercase",
+                  fontWeight: 900,
+                }}
+              >
+                Rover Challenge
+              </p>
+
+              <h3
+                style={{
+                  margin: "8px 0 0",
+                  fontSize: isMobile ? "21px" : "23px",
+                  lineHeight: 1.15,
+                }}
+              >
+                Skyforge Test Track
+              </h3>
+            </div>
+
+            <div
+              style={{
+                flexShrink: 0,
+                minWidth: "90px",
+                borderRadius: "999px",
+                border:
+                  roverRank === 1
+                    ? "1px solid rgba(255,215,106,0.7)"
+                    : "1px solid rgba(126,232,255,0.4)",
+                background:
+                  roverRank === 1
+                    ? "rgba(255,215,106,0.14)"
+                    : "rgba(126,232,255,0.1)",
+                padding: "9px 12px",
+                color: roverRank === 1 ? "#ffd76a" : "#c9f9ff",
+                fontSize: "12px",
+                fontWeight: 900,
+                textAlign: "center",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {roverRankLoading
+                ? "Loading..."
+                : roverRank
+                ? `Rank #${roverRank}`
+                : "Unranked"}
+            </div>
+          </div>
+
+          <p
+            style={{
+              margin: "12px 0 0",
+              color: "rgba(255,255,255,0.72)",
+              fontSize: "14px",
+              lineHeight: 1.5,
+            }}
+          >
+            Take your current rover onto the course, collect energy orbs and
+            compete for the highest score.
+          </p>
+
+          <div
+            style={{
+              marginTop: "14px",
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: "10px",
+            }}
+          >
+            <RoverChallengeStat
+              label="Best Score"
+              value={
+                roverBestScore === null
+                  ? "—"
+                  : roverBestScore.toLocaleString()
+              }
+            />
+
+            <RoverChallengeStat
+              label="Best Time"
+              value={
+                roverBestTimeMs === null
+                  ? "—"
+                  : formatRoverTime(roverBestTimeMs)
+              }
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={onOpenRover}
+            style={{
+              marginTop: "14px",
+              width: "100%",
+              minHeight: "50px",
+              borderRadius: "14px",
+              border: "1px solid rgba(255,255,255,0.35)",
+              background: "linear-gradient(135deg, #31d3ff, #4c6dff)",
+              color: "white",
+              fontSize: "15px",
+              fontWeight: 800,
+              cursor: "pointer",
+              boxShadow: "0 10px 26px rgba(53,197,255,0.2)",
+            }}
+          >
+            Enter Rover Challenge ›
+          </button>
+        </div>
+
         <p
           style={{
             margin: "14px 0 0",
@@ -1590,6 +1807,59 @@ function RoverProgressCard({
       </div>
     </div>
   );
+}
+
+function RoverChallengeStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div
+      style={{
+        borderRadius: "14px",
+        border: "1px solid rgba(126,232,255,0.18)",
+        background: "rgba(255,255,255,0.055)",
+        padding: "12px",
+      }}
+    >
+      <p
+        style={{
+          margin: 0,
+          color: "rgba(255,255,255,0.48)",
+          fontSize: "10px",
+          letterSpacing: "0.12em",
+          textTransform: "uppercase",
+          fontWeight: 800,
+        }}
+      >
+        {label}
+      </p>
+
+      <p
+        style={{
+          margin: "6px 0 0",
+          color: "white",
+          fontSize: "17px",
+          fontWeight: 800,
+        }}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function formatRoverTime(milliseconds: number) {
+  const totalSeconds = Math.max(0, milliseconds) / 1000;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${minutes.toString().padStart(2, "0")}:${seconds
+    .toFixed(1)
+    .padStart(4, "0")}`;
 }
 
 function QuizPanelHeader({
