@@ -171,25 +171,11 @@ function formatDateTime(value: string) {
 function getTransactionCategory(title: string | null) {
   const cleanTitle = String(title || "").toLowerCase();
 
-  if (cleanTitle.includes("stock exchange") || cleanTitle.includes("stock")) {
-    return "Stock";
-  }
-
-  if (cleanTitle.includes("property") || cleanTitle.includes("district")) {
+  if (cleanTitle.includes("property exchange")) {
     return "Property";
   }
 
-  if (
-    cleanTitle.includes("daily code") ||
-    cleanTitle.includes("mastery code") ||
-    cleanTitle.includes("categories") ||
-    cleanTitle.includes("reward") ||
-    cleanTitle.includes("referral")
-  ) {
-    return "Reward";
-  }
-
-  return "Tokens";
+  return "Stock";
 }
 
 function ScrollStyles() {
@@ -461,11 +447,12 @@ export default function MiloExchangeMainPage() {
       .select("id,amount,type,title,created_at")
       .eq("user_id", id)
       .eq("token_kind", "virtual")
+      .or("title.ilike.%stock exchange%,title.ilike.%property exchange%")
       .order("created_at", { ascending: false })
       .limit(40);
 
     if (error) {
-      console.warn("Could not load transaction history:", error.message);
+      console.warn("Could not load exchange transaction history:", error.message);
       setTransactions([]);
       return;
     }
@@ -477,63 +464,40 @@ export default function MiloExchangeMainPage() {
     setLeaderboardLoading(true);
     setLeaderboardMessage("");
 
-    const overallResult = await supabase.rpc(
+    const { data, error } = await supabase.rpc(
       "get_milo_exchange_overall_leaderboard",
       { p_limit: 20 }
     );
 
-    if (!overallResult.error) {
-      const rows = (overallResult.data || []).map((row: Record<string, unknown>) => ({
-        rank_position: Number(row.rank_position || 0),
-        username: String(row.username || "Dreamscape User"),
-        cash_value: Number(row.cash_value || 0),
-        stock_value: Number(row.stock_value || 0),
-        property_value: Number(row.property_value || 0),
-        total_value: Number(row.total_value || 0),
-        total_shares: Number(row.total_shares || 0),
-        is_current_user: Boolean(row.is_current_user),
-      }));
-
-      setLeaderboardRows(rows);
-      setLeaderboardLoading(false);
-      return;
-    }
-
-    const fallbackResult = await supabase.rpc(
-      "get_milo_exchange_leaderboard",
-      { p_limit: 20 }
-    );
-
-    if (fallbackResult.error) {
-      console.warn(
-        "Could not load exchange leaderboard:",
-        fallbackResult.error.message
-      );
+    if (error) {
+      console.warn("Could not load exchange leaderboard:", error.message);
       setLeaderboardRows([]);
       setLeaderboardMessage(
-        "The leaderboard could not be loaded. The existing stock leaderboard RPC or the new overall leaderboard RPC is required."
+        "Could not load the leaderboard. Run the updated Milo Exchange leaderboard SQL in Supabase."
       );
       setLeaderboardLoading(false);
       return;
     }
 
-    const fallbackRows = (fallbackResult.data || []).map(
-      (row: Record<string, unknown>) => ({
-        rank_position: Number(row.rank_position || 0),
-        username: String(row.username || "Dreamscape User"),
-        cash_value: 0,
-        stock_value: Number(row.portfolio_value || 0),
-        property_value: 0,
-        total_value: Number(row.portfolio_value || 0),
-        total_shares: Number(row.total_shares || 0),
-        is_current_user: Boolean(row.is_current_user),
-      })
-    );
+    const rows = (data || []).map((row: Record<string, unknown>) => ({
+      rank_position: Number(row.rank_position || 0),
+      username: String(row.username || "Dreamscape User"),
+      cash_value: Number(row.cash_value || 0),
+      stock_value: Number(row.stock_value || 0),
+      property_value: Number(row.property_value || 0),
+      total_value: Number(row.total_value || 0),
+      total_shares: Number(row.total_shares || 0),
+      is_current_user: Boolean(row.is_current_user),
+    }));
 
-    setLeaderboardRows(fallbackRows);
-    setLeaderboardMessage(
-      "Showing the current stock portfolio leaderboard. Property and cash values can be added to the overall leaderboard RPC later."
-    );
+    setLeaderboardRows(rows);
+
+    if (rows.length === 0) {
+      setLeaderboardMessage(
+        "No ranked exchange portfolios yet."
+      );
+    }
+
     setLeaderboardLoading(false);
   }
 
@@ -1320,7 +1284,7 @@ export default function MiloExchangeMainPage() {
             <div style={{ display: "flex", justifyContent: "space-between", gap: "14px", alignItems: "flex-end", marginBottom: "18px" }}>
               <div>
                 <p style={{ margin: 0, color: "#8ee8ff", fontSize: "12px", fontWeight: 900, letterSpacing: "0.19em", textTransform: "uppercase" }}>
-                  Account Activity
+                  Exchange Activity
                 </p>
                 <h2 style={{ margin: "10px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "31px" : "38px", fontWeight: 500 }}>
                   Transaction History
@@ -1333,7 +1297,7 @@ export default function MiloExchangeMainPage() {
 
             {transactions.length === 0 ? (
               <div style={{ minHeight: "220px", display: "grid", placeItems: "center", borderRadius: "18px", border: "1px dashed rgba(132,218,255,0.18)", color: "rgba(255,255,255,0.5)", textAlign: "center", padding: "20px" }}>
-                No Dreamscape Token transactions yet.
+                No Stock Exchange or Property Exchange transactions yet.
               </div>
             ) : (
               <div className="milo-scrollbar" style={{ display: "grid", gap: "9px", maxHeight: isDesktop ? "650px" : "none", overflowY: isDesktop ? "auto" : "visible", paddingRight: isDesktop ? "5px" : 0 }}>
@@ -1356,7 +1320,7 @@ export default function MiloExchangeMainPage() {
                           </span>
                         )}
                         <strong style={{ display: "block", color: "white", fontSize: "13px", lineHeight: 1.4, wordBreak: "break-word" }}>
-                          {transaction.title || "Dreamscape Token transaction"}
+                          {transaction.title || "Milo Exchange transaction"}
                         </strong>
                         <span style={{ display: "block", marginTop: "5px", color: "rgba(255,255,255,0.42)", fontSize: "11px" }}>
                           {formatDateTime(transaction.created_at)}
@@ -1590,7 +1554,7 @@ export default function MiloExchangeMainPage() {
               Milo says
             </p>
             <p style={{ margin: "9px 0 0", color: "rgba(255,255,255,0.78)", fontSize: isMobile ? "14px" : "15px", lineHeight: 1.6 }}>
-              This is your economy home. Check your cash and investments, review every token transaction, compare your portfolio on the leaderboard and connect with friends before entering the stock or property markets.
+              This is your economy home. Check your cash and investments, review your stock and property transactions, compare your portfolio on the leaderboard and connect with friends before entering the stock or property markets.
             </p>
           </div>
 
