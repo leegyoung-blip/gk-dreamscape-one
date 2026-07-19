@@ -237,7 +237,7 @@ const zones: Zone[] = [
   {
     number: "2",
     icon: "◈",
-    title: "Milo’s Stock Exchange",
+    title: "Milo’s Exchange",
     description: "Use earned Dreamscape Tokens to trade fictional Dreamscape stocks.",
     href: "/milo-world/exchange",
     style: {
