@@ -9,49 +9,13 @@ import { supabase } from "@/lib/supabase";
 type Section = "home" | "about";
 type AgeGroup = "5-8" | "9-12" | "13-17" | "18+";
 
-type Recommendation = {
-  eyebrow: string;
-  title: string;
-  description: string;
-  href: string;
-  buttonLabel: string;
-};
-
 const FIRST_VISIT_KEY = "dreamscape-first-visit-complete";
 
-const recommendations: Record<AgeGroup, Recommendation> = {
-  "5-8": {
-    eyebrow: "Recommended starting point",
-    title: "Begin with Nova’s World",
-    description:
-      "Explore beginner-friendly learning missions, discoveries, and creative challenges designed for younger adventurers.",
-    href: "/inventor",
-    buttonLabel: "Enter Nova’s World",
-  },
-  "9-12": {
-    eyebrow: "Recommended starting point",
-    title: "Explore Nova’s World",
-    description:
-      "Take on learning missions, thinking challenges, inventions, and discoveries built for curious students.",
-    href: "/inventor",
-    buttonLabel: "Enter Nova’s World",
-  },
-  "13-17": {
-    eyebrow: "Recommended starting point",
-    title: "Start in Nova’s World",
-    description:
-      "Discover advanced challenges, invention experiences, progress systems, and exclusive student creations.",
-    href: "/inventor",
-    buttonLabel: "Enter Nova’s World",
-  },
-  "18+": {
-    eyebrow: "Recommended starting point",
-    title: "Discover Milo’s World",
-    description:
-      "Explore custom products, 3D printing, prototypes, gifts, and creative production for older creators.",
-    href: "/milo-world",
-    buttonLabel: "Enter Milo’s World",
-  },
+const ageDestinations: Record<AgeGroup, string> = {
+  "5-8": "/inventor",
+  "9-12": "/inventor",
+  "13-17": "/inventor",
+  "18+": "/milo-world",
 };
 
 type World = {
@@ -248,20 +212,11 @@ function WorldPanel({ world, isMobile }: { world: World; isMobile: boolean }) {
 
 function FirstVisitPopup({
   isMobile,
-  selectedAge,
   onSelectAge,
-  onContinue,
-  onIntro,
-  onDismiss,
 }: {
   isMobile: boolean;
-  selectedAge: AgeGroup | null;
-  onSelectAge: (age: AgeGroup | null) => void;
-  onContinue: () => void;
-  onIntro: () => void;
-  onDismiss: () => void;
+  onSelectAge: (age: AgeGroup) => void;
 }) {
-  const recommendation = selectedAge ? recommendations[selectedAge] : null;
   const ageOptions: AgeGroup[] = ["5-8", "9-12", "13-17", "18+"];
 
   return (
@@ -283,13 +238,12 @@ function FirstVisitPopup({
     >
       <div
         style={{
-          position: "relative",
           width: "100%",
           maxWidth: "720px",
           maxHeight: "calc(100vh - 36px)",
           overflowY: "auto",
           borderRadius: isMobile ? "24px" : "32px",
-          padding: isMobile ? "30px 22px 24px" : "44px 46px 38px",
+          padding: isMobile ? "34px 22px 28px" : "46px 46px 40px",
           border: "1px solid rgba(116,200,255,0.35)",
           background:
             "radial-gradient(circle at 12% 0%, rgba(83,215,255,0.18), transparent 36%), radial-gradient(circle at 100% 100%, rgba(197,140,255,0.18), transparent 38%), rgba(3,10,23,0.97)",
@@ -299,30 +253,9 @@ function FirstVisitPopup({
           textAlign: "center",
         }}
       >
-        <button
-          type="button"
-          onClick={onDismiss}
-          aria-label="Close welcome guide"
-          style={{
-            position: "absolute",
-            top: isMobile ? "16px" : "20px",
-            right: isMobile ? "16px" : "20px",
-            width: "38px",
-            height: "38px",
-            borderRadius: "999px",
-            border: "1px solid rgba(255,255,255,0.16)",
-            background: "rgba(255,255,255,0.06)",
-            color: "rgba(255,255,255,0.8)",
-            fontSize: "20px",
-            cursor: "pointer",
-          }}
-        >
-          ×
-        </button>
-
         <img
           src="/home/dreamscape-logo.png"
-          alt=""
+          alt="Dreamscape One logo"
           style={{
             width: isMobile ? "62px" : "74px",
             height: isMobile ? "62px" : "74px",
@@ -343,7 +276,7 @@ function FirstVisitPopup({
             textTransform: "uppercase",
           }}
         >
-          Your Dreamscape Guide
+          Welcome to Dreamscape One
         </p>
 
         <h2
@@ -356,181 +289,64 @@ function FirstVisitPopup({
             lineHeight: 1.08,
           }}
         >
-          Welcome to Dreamscape One
+          How old are you?
         </h2>
 
-        {!recommendation ? (
-          <>
-            <p
-              style={{
-                margin: "18px auto 0",
-                maxWidth: "560px",
-                color: "rgba(255,255,255,0.7)",
-                fontSize: isMobile ? "16px" : "18px",
-                lineHeight: 1.6,
-                fontWeight: 300,
-              }}
-            >
-              Tell us your age and we’ll recommend the best place to begin.
-            </p>
-
-            <p
-              style={{
-                margin: "30px 0 14px",
-                fontSize: "14px",
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-              }}
-            >
-              How old are you?
-            </p>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)",
-                gap: "12px",
-              }}
-            >
-              {ageOptions.map((age) => (
-                <button
-                  key={age}
-                  type="button"
-                  onClick={() => onSelectAge(age)}
-                  style={{
-                    minHeight: "58px",
-                    borderRadius: "16px",
-                    border: "1px solid rgba(116,200,255,0.3)",
-                    background: "rgba(255,255,255,0.055)",
-                    color: "white",
-                    fontSize: "16px",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                  }}
-                >
-                  {age}
-                </button>
-              ))}
-            </div>
-          </>
-        ) : (
-          <div
-            style={{
-              marginTop: "28px",
-              padding: isMobile ? "24px 18px" : "28px 30px",
-              borderRadius: "22px",
-              border: "1px solid rgba(116,200,255,0.24)",
-              background: "rgba(255,255,255,0.045)",
-            }}
-          >
-            <p
-              style={{
-                margin: 0,
-                color: "#8ee8ff",
-                fontSize: "11px",
-                fontWeight: 700,
-                letterSpacing: "0.2em",
-                textTransform: "uppercase",
-              }}
-            >
-              {recommendation.eyebrow}
-            </p>
-
-            <h3
-              style={{
-                margin: "12px 0 0",
-                fontSize: isMobile ? "27px" : "32px",
-                fontWeight: 600,
-              }}
-            >
-              {recommendation.title}
-            </h3>
-
-            <p
-              style={{
-                margin: "14px auto 0",
-                maxWidth: "520px",
-                color: "rgba(255,255,255,0.68)",
-                fontSize: "16px",
-                lineHeight: 1.6,
-              }}
-            >
-              {recommendation.description}
-            </p>
-          </div>
-        )}
+        <p
+          style={{
+            margin: "18px auto 0",
+            maxWidth: "560px",
+            color: "rgba(255,255,255,0.7)",
+            fontSize: isMobile ? "16px" : "18px",
+            lineHeight: 1.6,
+            fontWeight: 300,
+          }}
+        >
+          Choose your age group and we’ll take you directly to the right world.
+        </p>
 
         <div
           style={{
-            marginTop: "26px",
-            display: "flex",
-            flexDirection: isMobile ? "column" : "row",
-            justifyContent: "center",
+            marginTop: "30px",
+            display: "grid",
+            gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)",
             gap: "12px",
           }}
         >
-          {recommendation && (
+          {ageOptions.map((age) => (
             <button
+              key={age}
               type="button"
-              onClick={onContinue}
+              onClick={() => onSelectAge(age)}
               style={{
-                minHeight: "52px",
-                padding: "0 24px",
-                borderRadius: "999px",
-                border: "1px solid rgba(255,255,255,0.32)",
-                background: "linear-gradient(135deg, #53d7ff, #a68cff)",
-                color: "#07101e",
-                fontSize: "13px",
-                fontWeight: 900,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
+                minHeight: "62px",
+                borderRadius: "16px",
+                border: "1px solid rgba(116,200,255,0.3)",
+                background: "rgba(255,255,255,0.055)",
+                color: "white",
+                fontSize: "16px",
+                fontWeight: 700,
                 cursor: "pointer",
+                transition:
+                  "transform 200ms ease, border-color 200ms ease, background 200ms ease",
+              }}
+              onMouseEnter={(event) => {
+                event.currentTarget.style.transform = "translateY(-3px)";
+                event.currentTarget.style.borderColor = "rgba(116,200,255,0.7)";
+                event.currentTarget.style.background =
+                  "linear-gradient(135deg, rgba(83,215,255,0.2), rgba(197,140,255,0.18))";
+              }}
+              onMouseLeave={(event) => {
+                event.currentTarget.style.transform = "translateY(0)";
+                event.currentTarget.style.borderColor = "rgba(116,200,255,0.3)";
+                event.currentTarget.style.background =
+                  "rgba(255,255,255,0.055)";
               }}
             >
-              {recommendation.buttonLabel}
+              {age}
             </button>
-          )}
-
-          <button
-            type="button"
-            onClick={onIntro}
-            style={{
-              minHeight: "52px",
-              padding: "0 24px",
-              borderRadius: "999px",
-              border: "1px solid rgba(116,200,255,0.38)",
-              background: "rgba(255,255,255,0.055)",
-              color: "white",
-              fontSize: "13px",
-              fontWeight: 800,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              cursor: "pointer",
-            }}
-          >
-            Meet Dreamscape
-          </button>
+          ))}
         </div>
-
-        {recommendation && (
-          <button
-            type="button"
-            onClick={() => onSelectAge(null)}
-            style={{
-              marginTop: "18px",
-              border: "none",
-              background: "transparent",
-              color: "rgba(255,255,255,0.54)",
-              fontSize: "13px",
-              cursor: "pointer",
-              textDecoration: "underline",
-              textUnderlineOffset: "4px",
-            }}
-          >
-            Choose a different age
-          </button>
-        )}
       </div>
     </div>
   );
@@ -545,7 +361,6 @@ export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isCheckingAccount, setIsCheckingAccount] = useState(true);
   const [showFirstVisitPopup, setShowFirstVisitPopup] = useState(false);
-  const [selectedAge, setSelectedAge] = useState<AgeGroup | null>(null);
 
   useEffect(() => {
     function checkScreenSize() {
@@ -643,22 +458,10 @@ export default function Home() {
     };
   }, [showFirstVisitPopup]);
 
-  function completeFirstVisit() {
+  function handleAgeSelection(age: AgeGroup) {
     window.localStorage.setItem(FIRST_VISIT_KEY, "true");
     setShowFirstVisitPopup(false);
-  }
-
-  function goToRecommendation() {
-    if (!selectedAge) return;
-
-    const destination = recommendations[selectedAge].href;
-    completeFirstVisit();
-    router.push(destination);
-  }
-
-  function goToIntro() {
-    completeFirstVisit();
-    router.push("/intro");
+    router.push(ageDestinations[age]);
   }
 
   function scrollToSection(section: Section) {
@@ -741,14 +544,7 @@ export default function Home() {
       }}
     >
       {showFirstVisitPopup && !isCheckingAccount && !isLoggedIn && (
-        <FirstVisitPopup
-          isMobile={isMobile}
-          selectedAge={selectedAge}
-          onSelectAge={setSelectedAge}
-          onContinue={goToRecommendation}
-          onIntro={goToIntro}
-          onDismiss={completeFirstVisit}
-        />
+        <FirstVisitPopup isMobile={isMobile} onSelectAge={handleAgeSelection} />
       )}
 
       <header
