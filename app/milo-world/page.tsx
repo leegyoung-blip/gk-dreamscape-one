@@ -253,7 +253,7 @@ const zones: Zone[] = [
     description: "Play daily challenges, quiz battles, and party games to earn tokens.",
     action: "masteryLab",
     style: {
-      top: "600px",
+      top: "800px",
       right: "275px",
       width: "455px",
     },
@@ -265,7 +265,7 @@ const zones: Zone[] = [
     description: "Collectibles, limited drops, and Dreamscape items.",
     href: "/milo-world/dream-shop",
     style: {
-      top: "570px",
+      top: "800px",
       left: "365px",
       width: "455px",
     },
