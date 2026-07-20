@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
@@ -108,6 +108,62 @@ const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
   retail: "Retail Units",
 };
 
+
+const PROPERTY_ASSET_BASE = "/milo-world/property-exchange";
+
+const PROPERTY_MAP_IMAGES: Record<"full" | DistrictId, string> = {
+  full: `${PROPERTY_ASSET_BASE}/full-map.png`,
+  "residential-hub": `${PROPERTY_ASSET_BASE}/residential-hub.png`,
+  "commercial-hub": `${PROPERTY_ASSET_BASE}/commercial-hub.png`,
+};
+
+const PROPERTY_PREVIEW_IMAGES = {
+  parkview: `${PROPERTY_ASSET_BASE}/parkview-apartment.png`,
+  skyline: `${PROPERTY_ASSET_BASE}/skyline-apartment.png`,
+  gardenTerrace: `${PROPERTY_ASSET_BASE}/garden-terrace-house.png`,
+  lakeview: `${PROPERTY_ASSET_BASE}/lakeview-detached-villa.png`,
+  commerceTower: `${PROPERTY_ASSET_BASE}/commerce-tower-office.png`,
+  enterpriseExecutive: `${PROPERTY_ASSET_BASE}/enterprise-executive-office.png`,
+  standardRetail: `${PROPERTY_ASSET_BASE}/standard-retail.png`,
+  cornerRetail: `${PROPERTY_ASSET_BASE}/corner-retail.png`,
+};
+
+function getDistrictImage(districtId: DistrictId) {
+  return PROPERTY_MAP_IMAGES[districtId];
+}
+
+function getPropertyPreviewImage(property: PropertyOffering) {
+  const searchValue = [
+    property.code,
+    property.name,
+    property.building_name,
+    property.unit_type,
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  if (searchValue.includes("parkview")) return PROPERTY_PREVIEW_IMAGES.parkview;
+  if (searchValue.includes("skyline")) return PROPERTY_PREVIEW_IMAGES.skyline;
+  if (searchValue.includes("garden terrace")) {
+    return PROPERTY_PREVIEW_IMAGES.gardenTerrace;
+  }
+  if (searchValue.includes("lakeview")) return PROPERTY_PREVIEW_IMAGES.lakeview;
+  if (searchValue.includes("commerce tower")) {
+    return PROPERTY_PREVIEW_IMAGES.commerceTower;
+  }
+  if (searchValue.includes("enterprise") && searchValue.includes("office")) {
+    return PROPERTY_PREVIEW_IMAGES.enterpriseExecutive;
+  }
+  if (searchValue.includes("standard") && searchValue.includes("retail")) {
+    return PROPERTY_PREVIEW_IMAGES.standardRetail;
+  }
+  if (searchValue.includes("corner") && searchValue.includes("retail")) {
+    return PROPERTY_PREVIEW_IMAGES.cornerRetail;
+  }
+
+  return property.preview_image_url;
+}
+
 function useResponsiveMode() {
   const [screenMode, setScreenMode] = useState<ScreenMode>("desktop");
 
@@ -208,9 +264,25 @@ function ExchangeStyles() {
         border-radius: 999px;
       }
 
-      .district-map-control:focus-visible {
+      .district-map-control:focus-visible,
+      .district-zone-button:focus-visible {
         outline: 3px solid rgba(142,232,255,0.9);
-        outline-offset: 6px;
+        outline-offset: -6px;
+      }
+
+      .district-map-control,
+      .district-zone-button {
+        transition: box-shadow 180ms ease, background 180ms ease,
+          border-color 180ms ease, transform 180ms ease;
+      }
+
+      .district-map-control:hover {
+        transform: translateY(-2px);
+      }
+
+      .district-zone-button:hover {
+        box-shadow: inset 0 0 0 4px rgba(255,255,255,0.72),
+          inset 0 0 52px rgba(126,232,255,0.2);
       }
 
       @keyframes districtPulse {
@@ -291,231 +363,130 @@ function WorldDistrictMap({
     return selectedDistrict === id || hoveredDistrict === id;
   }
 
-  function handleKeyDown(
-    event: KeyboardEvent<SVGGElement>,
-    id: DistrictId
-  ) {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      onSelect(id);
-    }
-  }
-
-  const forestTrees = Array.from({ length: 48 }, (_, index) => ({
-    x: 48 + ((index * 137) % 900),
-    y: 48 + ((index * 89) % 500),
-    scale: 0.75 + ((index * 17) % 35) / 100,
-  }));
+  const zones: Array<{
+    id: DistrictId;
+    label: string;
+    hint: string;
+    sideStyle: CSSProperties;
+    accent: string;
+  }> = [
+    {
+      id: "residential-hub",
+      label: "Residential Hub",
+      hint: "Apartments and landed homes",
+      sideStyle: { left: "1.5%" },
+      accent: "#79f2ce",
+    },
+    {
+      id: "commercial-hub",
+      label: "Commercial Hub",
+      hint: "Offices and retail units",
+      sideStyle: { right: "1.5%" },
+      accent: "#ffd18a",
+    },
+  ];
 
   return (
     <div
       style={{
-        borderRadius: isMobile ? "24px" : "30px",
+        position: "relative",
+        borderRadius: isMobile ? "22px" : "28px",
         overflow: "hidden",
-        border: "1px solid rgba(126,232,255,0.2)",
-        background:
-          "linear-gradient(145deg, rgba(3,18,24,0.96), rgba(2,9,18,0.98))",
-        boxShadow: "inset 0 0 70px rgba(0,0,0,0.4)",
+        border: "1px solid rgba(126,232,255,0.22)",
+        background: "#06111a",
+        boxShadow: "0 22px 54px rgba(0,0,0,0.34)",
       }}
     >
-      <svg
-        viewBox="0 0 1000 600"
-        width="100%"
-        role="img"
-        aria-label="Map of Milo's world showing the Residential Hub and Commercial Hub surrounded by undeveloped forest"
-        style={{ display: "block", minHeight: isMobile ? "330px" : "520px" }}
-      >
-        <defs>
-          <linearGradient id="worldGround" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#0c2a25" />
-            <stop offset="45%" stopColor="#081e1e" />
-            <stop offset="100%" stopColor="#07131b" />
-          </linearGradient>
-          <linearGradient id="riverGlow" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#173b4c" />
-            <stop offset="100%" stopColor="#0d2739" />
-          </linearGradient>
-          <filter id="residentialGlow" x="-60%" y="-60%" width="220%" height="220%">
-            <feDropShadow dx="0" dy="0" stdDeviation="16" floodColor="#79f2ce" floodOpacity="0.7" />
-          </filter>
-          <filter id="commercialGlow" x="-60%" y="-60%" width="220%" height="220%">
-            <feDropShadow dx="0" dy="0" stdDeviation="16" floodColor="#ffd18a" floodOpacity="0.7" />
-          </filter>
-          <filter id="softShadow" x="-40%" y="-40%" width="180%" height="180%">
-            <feDropShadow dx="0" dy="12" stdDeviation="12" floodColor="#000000" floodOpacity="0.55" />
-          </filter>
-        </defs>
+      <img
+        src={PROPERTY_MAP_IMAGES.full}
+        alt="World map with the Residential Hub and Commercial Hub divided by a river and surrounded by undeveloped forest"
+        style={{
+          display: "block",
+          width: "100%",
+          height: "auto",
+          aspectRatio: "3 / 2",
+          objectFit: "cover",
+        }}
+      />
 
-        <rect width="1000" height="600" fill="url(#worldGround)" />
+      {zones.map((zone) => {
+        const isActive = districtIsActive(zone.id);
 
-        <path
-          d="M0 430 C160 350 235 520 390 448 C535 382 600 302 730 342 C850 380 908 320 1000 262 L1000 600 L0 600 Z"
-          fill="#06151c"
-          opacity="0.76"
-        />
-
-        <path
-          d="M28 44 C170 10 260 74 366 52 C485 26 560 78 660 46 C778 10 870 64 980 34 L1000 0 L0 0 Z"
-          fill="#102f28"
-          opacity="0.72"
-        />
-
-        <path
-          d="M482 -20 C445 88 520 132 492 230 C470 308 410 358 440 438 C466 506 538 548 516 630"
-          fill="none"
-          stroke="url(#riverGlow)"
-          strokeWidth="70"
-          strokeLinecap="round"
-          opacity="0.92"
-        />
-        <path
-          d="M482 -20 C445 88 520 132 492 230 C470 308 410 358 440 438 C466 506 538 548 516 630"
-          fill="none"
-          stroke="rgba(126,232,255,0.13)"
-          strokeWidth="2"
-          strokeLinecap="round"
-        />
-
-        {forestTrees.map((tree, index) => (
-          <g
-            key={index}
-            transform={`translate(${tree.x} ${tree.y}) scale(${tree.scale})`}
-            opacity={
-              (tree.x > 150 && tree.x < 425 && tree.y > 150 && tree.y < 425) ||
-              (tree.x > 575 && tree.x < 860 && tree.y > 145 && tree.y < 425)
-                ? 0.12
-                : 0.56
-            }
+        return (
+          <button
+            key={zone.id}
+            type="button"
+            className="district-map-control"
+            aria-label={`Open ${zone.label}`}
+            onMouseEnter={() => onHover(zone.id)}
+            onMouseLeave={() => onHover(null)}
+            onFocus={() => onHover(zone.id)}
+            onBlur={() => onHover(null)}
+            onClick={() => onSelect(zone.id)}
+            style={{
+              position: "absolute",
+              top: "4%",
+              bottom: "4%",
+              width: "45.5%",
+              ...zone.sideStyle,
+              padding: 0,
+              borderRadius: isMobile ? "16px" : "24px",
+              border: isActive
+                ? `3px solid ${zone.accent}`
+                : "2px solid transparent",
+              background: isActive
+                ? `linear-gradient(180deg, transparent 52%, ${zone.accent}25 100%)`
+                : "transparent",
+              boxShadow: isActive
+                ? `inset 0 0 62px ${zone.accent}24, 0 0 34px ${zone.accent}2b`
+                : "none",
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
           >
-            <rect x="-2" y="10" width="4" height="10" rx="2" fill="#17352c" />
-            <path d="M0 -16 L-12 8 L12 8 Z" fill="#1a4638" />
-            <path d="M0 -6 L-15 14 L15 14 Z" fill="#12382f" />
-          </g>
-        ))}
-
-        <path
-          d="M132 174 L196 118 L350 128 L420 205 L388 370 L286 435 L160 393 L102 292 Z"
-          fill={districtIsActive("residential-hub") ? "#1f9a81" : "#187c69"}
-          stroke={districtIsActive("residential-hub") ? "#9affdf" : "rgba(121,242,206,0.56)"}
-          strokeWidth={districtIsActive("residential-hub") ? 7 : 4}
-          filter={districtIsActive("residential-hub") ? "url(#residentialGlow)" : "url(#softShadow)"}
-          opacity={districtIsActive("residential-hub") ? 1 : 0.84}
-        />
-
-        <path
-          d="M600 158 L744 112 L878 180 L900 310 L836 414 L674 430 L580 342 L566 242 Z"
-          fill={districtIsActive("commercial-hub") ? "#cf7e2f" : "#a95f21"}
-          stroke={districtIsActive("commercial-hub") ? "#ffe0aa" : "rgba(255,209,138,0.58)"}
-          strokeWidth={districtIsActive("commercial-hub") ? 7 : 4}
-          filter={districtIsActive("commercial-hub") ? "url(#commercialGlow)" : "url(#softShadow)"}
-          opacity={districtIsActive("commercial-hub") ? 1 : 0.84}
-        />
-
-        <path
-          d="M380 283 C438 266 520 270 594 282"
-          fill="none"
-          stroke="#9a8e78"
-          strokeWidth="18"
-          strokeLinecap="round"
-          opacity="0.72"
-        />
-        <path
-          d="M380 283 C438 266 520 270 594 282"
-          fill="none"
-          stroke="rgba(255,255,255,0.34)"
-          strokeWidth="2"
-          strokeDasharray="12 12"
-        />
-
-        <g opacity="0.96" pointerEvents="none">
-          <rect x="158" y="190" width="48" height="88" rx="7" fill="#d9f1e8" />
-          <rect x="217" y="174" width="58" height="104" rx="7" fill="#c6e8dc" />
-          <rect x="290" y="196" width="48" height="82" rx="7" fill="#d9f1e8" />
-          <path d="M145 330 L170 307 L195 330 V360 H145 Z" fill="#f2e8d1" />
-          <path d="M215 348 L240 325 L265 348 V378 H215 Z" fill="#e8ddc4" />
-          <path d="M292 330 L317 307 L342 330 V360 H292 Z" fill="#f2e8d1" />
-          <circle cx="250" cy="306" r="22" fill="#7fca95" opacity="0.8" />
-        </g>
-
-        <g opacity="0.96" pointerEvents="none">
-          <rect x="628" y="184" width="66" height="152" rx="8" fill="#d8e7ee" />
-          <rect x="708" y="152" width="72" height="184" rx="8" fill="#c6dce7" />
-          <rect x="798" y="208" width="58" height="128" rx="8" fill="#d8e7ee" />
-          <path d="M642 360 H842 L820 402 H664 Z" fill="#f3d7a8" />
-          <rect x="676" y="370" width="44" height="20" rx="4" fill="#a8642b" />
-          <rect x="734" y="370" width="44" height="20" rx="4" fill="#a8642b" />
-          <rect x="792" y="370" width="30" height="20" rx="4" fill="#a8642b" />
-        </g>
-
-        <g
-          className="district-map-control"
-          role="button"
-          tabIndex={0}
-          aria-label="Open Residential Hub"
-          onMouseEnter={() => onHover("residential-hub")}
-          onMouseLeave={() => onHover(null)}
-          onFocus={() => onHover("residential-hub")}
-          onBlur={() => onHover(null)}
-          onClick={() => onSelect("residential-hub")}
-          onKeyDown={(event) => handleKeyDown(event, "residential-hub")}
-          style={{ cursor: "pointer" }}
-        >
-          <rect x="102" y="112" width="320" height="326" rx="34" fill="transparent" />
-          <rect
-            x="162"
-            y="244"
-            width="198"
-            height="68"
-            rx="18"
-            fill="rgba(2,12,18,0.82)"
-            stroke="rgba(154,255,223,0.6)"
-          />
-          <text x="261" y="270" fill="#dffff4" fontSize="21" fontWeight="900" textAnchor="middle">
-            RESIDENTIAL HUB
-          </text>
-          <text x="261" y="293" fill="rgba(223,255,244,0.66)" fontSize="12" fontWeight="700" textAnchor="middle">
-            APARTMENTS + LANDED HOMES
-          </text>
-        </g>
-
-        <g
-          className="district-map-control"
-          role="button"
-          tabIndex={0}
-          aria-label="Open Commercial Hub"
-          onMouseEnter={() => onHover("commercial-hub")}
-          onMouseLeave={() => onHover(null)}
-          onFocus={() => onHover("commercial-hub")}
-          onBlur={() => onHover(null)}
-          onClick={() => onSelect("commercial-hub")}
-          onKeyDown={(event) => handleKeyDown(event, "commercial-hub")}
-          style={{ cursor: "pointer" }}
-        >
-          <rect x="564" y="108" width="338" height="326" rx="34" fill="transparent" />
-          <rect
-            x="638"
-            y="244"
-            width="198"
-            height="68"
-            rx="18"
-            fill="rgba(2,12,18,0.82)"
-            stroke="rgba(255,224,170,0.6)"
-          />
-          <text x="737" y="270" fill="#fff1d8" fontSize="21" fontWeight="900" textAnchor="middle">
-            COMMERCIAL HUB
-          </text>
-          <text x="737" y="293" fill="rgba(255,241,216,0.66)" fontSize="12" fontWeight="700" textAnchor="middle">
-            OFFICES + RETAIL UNITS
-          </text>
-        </g>
-
-        <text x="78" y="540" fill="rgba(180,221,205,0.38)" fontSize="15" fontWeight="800" letterSpacing="3">
-          UNDEVELOPED FOREST
-        </text>
-        <text x="712" y="548" fill="rgba(180,221,205,0.38)" fontSize="15" fontWeight="800" letterSpacing="3">
-          FUTURE EXPANSION
-        </text>
-      </svg>
+            <span
+              style={{
+                position: "absolute",
+                left: "50%",
+                bottom: isMobile ? "10px" : "18px",
+                transform: "translateX(-50%)",
+                width: isMobile ? "88%" : "min(330px, 82%)",
+                borderRadius: "15px",
+                padding: isMobile ? "9px 10px" : "12px 16px",
+                color: "white",
+                background: "rgba(3,12,21,0.86)",
+                border: `1px solid ${zone.accent}72`,
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)",
+                boxShadow: "0 12px 28px rgba(0,0,0,0.34)",
+                textAlign: "center",
+              }}
+            >
+              <strong
+                style={{
+                  display: "block",
+                  color: zone.accent,
+                  fontSize: isMobile ? "13px" : "18px",
+                }}
+              >
+                {zone.label}
+              </strong>
+              {!isMobile && (
+                <small
+                  style={{
+                    display: "block",
+                    marginTop: "4px",
+                    color: "rgba(255,255,255,0.62)",
+                    fontSize: "12px",
+                  }}
+                >
+                  {zone.hint}
+                </small>
+              )}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -532,191 +503,111 @@ function DistrictDetailMap({
   isMobile: boolean;
 }) {
   const isResidential = districtId === "residential-hub";
+  const topType: PropertyType = isResidential ? "apartment" : "office";
+  const bottomType: PropertyType = isResidential ? "landed" : "retail";
+  const district = DISTRICTS.find((item) => item.id === districtId)!;
 
-  function isActive(type: PropertyType) {
-    return activeType === "all" || activeType === type;
+  function zoneIsActive(type: PropertyType) {
+    return activeType === type;
   }
 
   return (
     <div
       style={{
+        position: "relative",
         borderRadius: "24px",
-        border: "1px solid rgba(255,255,255,0.1)",
+        border: "1px solid rgba(255,255,255,0.12)",
         overflow: "hidden",
         background: "rgba(3,15,25,0.82)",
+        boxShadow: "0 18px 44px rgba(0,0,0,0.28)",
       }}
     >
-      <svg
-        viewBox="0 0 900 430"
-        width="100%"
-        role="img"
-        aria-label={`${isResidential ? "Residential" : "Commercial"} district detail map`}
-        style={{ display: "block", minHeight: isMobile ? "270px" : "380px" }}
-      >
-        <defs>
-          <linearGradient id="detailGround" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor={isResidential ? "#173b35" : "#3d2b1d"} />
-            <stop offset="100%" stopColor="#08131c" />
-          </linearGradient>
-          <filter id="detailGlow" x="-40%" y="-40%" width="180%" height="180%">
-            <feDropShadow
-              dx="0"
-              dy="0"
-              stdDeviation="10"
-              floodColor={isResidential ? "#79f2ce" : "#ffd18a"}
-              floodOpacity="0.54"
-            />
-          </filter>
-        </defs>
+      <img
+        src={getDistrictImage(districtId)}
+        alt={`${district.name} detailed map`}
+        style={{
+          display: "block",
+          width: "100%",
+          height: "auto",
+          aspectRatio: "4 / 3",
+          objectFit: "cover",
+        }}
+      />
 
-        <rect width="900" height="430" fill="url(#detailGround)" />
-        <path d="M0 202 H900" stroke="#787c73" strokeWidth="34" opacity="0.72" />
-        <path d="M448 0 V430" stroke="#787c73" strokeWidth="30" opacity="0.72" />
-        <path d="M0 202 H900" stroke="rgba(255,255,255,0.3)" strokeWidth="2" strokeDasharray="14 14" />
-        <path d="M448 0 V430" stroke="rgba(255,255,255,0.3)" strokeWidth="2" strokeDasharray="14 14" />
+      {[
+        { type: topType, top: "0%", height: "50%" },
+        { type: bottomType, top: "50%", height: "50%" },
+      ].map((zone) => (
+        <button
+          key={zone.type}
+          type="button"
+          className="district-zone-button"
+          aria-label={`Show ${PROPERTY_TYPE_LABELS[zone.type]}`}
+          onClick={() => onChooseType(zone.type)}
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: zone.top,
+            height: zone.height,
+            padding: 0,
+            border: zoneIsActive(zone.type)
+              ? `4px solid ${district.accent}`
+              : "4px solid transparent",
+            background: zoneIsActive(zone.type)
+              ? `linear-gradient(180deg, transparent 55%, ${district.accent}1f)`
+              : "transparent",
+            boxShadow: zoneIsActive(zone.type)
+              ? `inset 0 0 46px ${district.accent}20`
+              : "none",
+            cursor: "pointer",
+          }}
+        />
+      ))}
 
-        {isResidential ? (
-          <>
-            <g
-              role="button"
-              tabIndex={0}
-              onClick={() => onChooseType("apartment")}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") onChooseType("apartment");
-              }}
-              style={{ cursor: "pointer" }}
-              opacity={isActive("apartment") ? 1 : 0.34}
-              filter={activeType === "apartment" ? "url(#detailGlow)" : undefined}
-            >
-              <rect x="70" y="48" width="126" height="118" rx="12" fill="#d5ece4" />
-              <rect x="216" y="28" width="142" height="138" rx="12" fill="#c5e2d8" />
-              <rect x="510" y="38" width="132" height="128" rx="12" fill="#d5ece4" />
-              <rect x="664" y="58" width="146" height="108" rx="12" fill="#c5e2d8" />
-              {[92, 122, 152].map((y) => (
-                <g key={y}>
-                  <rect x="90" y={y} width="18" height="12" rx="2" fill="#4d7880" />
-                  <rect x="124" y={y} width="18" height="12" rx="2" fill="#4d7880" />
-                  <rect x="158" y={y} width="18" height="12" rx="2" fill="#4d7880" />
-                </g>
-              ))}
-              <rect x="97" y="174" width="234" height="38" rx="14" fill="rgba(3,13,20,0.88)" stroke="rgba(121,242,206,0.5)" />
-              <text x="214" y="198" fill="#dffff4" fontSize="18" fontWeight="900" textAnchor="middle">
-                APARTMENT DEVELOPMENTS
-              </text>
-            </g>
-
-            <g
-              role="button"
-              tabIndex={0}
-              onClick={() => onChooseType("landed")}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") onChooseType("landed");
-              }}
-              style={{ cursor: "pointer" }}
-              opacity={isActive("landed") ? 1 : 0.34}
-              filter={activeType === "landed" ? "url(#detailGlow)" : undefined}
-            >
-              {[
-                [72, 270],
-                [178, 282],
-                [290, 264],
-                [538, 276],
-                [650, 262],
-                [758, 284],
-              ].map(([x, y], index) => (
-                <g key={index} transform={`translate(${x} ${y})`}>
-                  <path d="M0 36 L34 4 L68 36 V82 H0 Z" fill={index % 2 === 0 ? "#f0dfbf" : "#e3cfad"} />
-                  <path d="M-5 37 L34 -1 L73 37" fill="none" stroke="#a86748" strokeWidth="10" strokeLinejoin="round" />
-                  <rect x="26" y="50" width="16" height="32" fill="#8b6b50" />
-                </g>
-              ))}
-              <rect x="286" y="354" width="328" height="40" rx="14" fill="rgba(3,13,20,0.88)" stroke="rgba(121,242,206,0.5)" />
-              <text x="450" y="379" fill="#dffff4" fontSize="18" fontWeight="900" textAnchor="middle">
-                LANDED HOME ESTATES
-              </text>
-            </g>
-
-            <circle cx="450" cy="204" r="60" fill="#4e9b70" opacity="0.68" />
-            <circle cx="450" cy="204" r="34" fill="#71bd85" opacity="0.72" />
-            <text x="450" y="209" fill="white" fontSize="14" fontWeight="900" textAnchor="middle">
-              CENTRAL PARK
-            </text>
-          </>
-        ) : (
-          <>
-            <g
-              role="button"
-              tabIndex={0}
-              onClick={() => onChooseType("office")}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") onChooseType("office");
-              }}
-              style={{ cursor: "pointer" }}
-              opacity={isActive("office") ? 1 : 0.34}
-              filter={activeType === "office" ? "url(#detailGlow)" : undefined}
-            >
-              <rect x="70" y="38" width="120" height="140" rx="10" fill="#d7e7ee" />
-              <rect x="218" y="20" width="136" height="158" rx="10" fill="#bdd7e3" />
-              <rect x="548" y="26" width="128" height="152" rx="10" fill="#d7e7ee" />
-              <rect x="704" y="54" width="118" height="124" rx="10" fill="#bdd7e3" />
-              {[72, 104, 136].map((y) => (
-                <g key={y} fill="#4e7889">
-                  <rect x="92" y={y} width="22" height="14" rx="2" />
-                  <rect x="128" y={y} width="22" height="14" rx="2" />
-                  <rect x="242" y={y - 18} width="24" height="14" rx="2" />
-                  <rect x="282" y={y - 18} width="24" height="14" rx="2" />
-                </g>
-              ))}
-              <rect x="102" y="174" width="238" height="40" rx="14" fill="rgba(3,13,20,0.88)" stroke="rgba(255,209,138,0.52)" />
-              <text x="221" y="199" fill="#fff1d8" fontSize="18" fontWeight="900" textAnchor="middle">
-                OFFICE TOWERS
-              </text>
-            </g>
-
-            <g
-              role="button"
-              tabIndex={0}
-              onClick={() => onChooseType("retail")}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") onChooseType("retail");
-              }}
-              style={{ cursor: "pointer" }}
-              opacity={isActive("retail") ? 1 : 0.34}
-              filter={activeType === "retail" ? "url(#detailGlow)" : undefined}
-            >
-              <path d="M106 270 H794 L752 376 H148 Z" fill="#e7c691" />
-              <rect x="164" y="292" width="104" height="52" rx="7" fill="#a7612a" />
-              <rect x="290" y="292" width="104" height="52" rx="7" fill="#9f5828" />
-              <rect x="416" y="292" width="104" height="52" rx="7" fill="#a7612a" />
-              <rect x="542" y="292" width="104" height="52" rx="7" fill="#9f5828" />
-              <rect x="668" y="292" width="70" height="52" rx="7" fill="#a7612a" />
-              <rect x="284" y="368" width="332" height="40" rx="14" fill="rgba(3,13,20,0.88)" stroke="rgba(255,209,138,0.52)" />
-              <text x="450" y="393" fill="#fff1d8" fontSize="18" fontWeight="900" textAnchor="middle">
-                CENTRAL MALL RETAIL UNITS
-              </text>
-            </g>
-
-            <circle cx="450" cy="202" r="52" fill="#c1873d" opacity="0.74" />
-            <text x="450" y="207" fill="white" fontSize="14" fontWeight="900" textAnchor="middle">
-              BUSINESS PLAZA
-            </text>
-          </>
-        )}
-      </svg>
+      {activeType !== "all" && (
+        <button
+          type="button"
+          onClick={() => onChooseType(activeType as PropertyType)}
+          aria-label={`Selected category: ${PROPERTY_TYPE_LABELS[activeType as PropertyType]}`}
+          style={{
+            position: "absolute",
+            right: isMobile ? "10px" : "16px",
+            bottom: isMobile ? "10px" : "16px",
+            minHeight: "34px",
+            padding: "0 12px",
+            borderRadius: "999px",
+            border: `1px solid ${district.accent}80`,
+            background: "rgba(3,12,21,0.84)",
+            color: district.accent,
+            fontSize: "11px",
+            fontWeight: 900,
+            fontFamily: "inherit",
+            pointerEvents: "none",
+          }}
+        >
+          {PROPERTY_TYPE_LABELS[activeType as PropertyType]}
+        </button>
+      )}
     </div>
   );
 }
 
 function UnitPreviewIllustration({ property }: { property: PropertyOffering }) {
-  const isResidential = property.district_slug === "residential-hub";
-  const isTower = property.property_type === "apartment" || property.property_type === "office";
+  const imageUrl = getPropertyPreviewImage(property);
 
-  if (property.preview_image_url) {
+  if (imageUrl) {
     return (
       <img
-        src={property.preview_image_url}
-        alt={`${property.name} preview`}
-        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+        src={imageUrl}
+        alt={`${property.name} interior preview`}
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          objectPosition: "center",
+          display: "block",
+        }}
       />
     );
   }
@@ -725,177 +616,23 @@ function UnitPreviewIllustration({ property }: { property: PropertyOffering }) {
     <div
       style={{
         width: "100%",
-        minHeight: "300px",
         height: "100%",
-        position: "relative",
-        overflow: "hidden",
-        background: isResidential
-          ? "linear-gradient(180deg, #bfe8ef 0%, #dff1dc 48%, #7db88c 49%, #4f7e60 100%)"
-          : "linear-gradient(180deg, #aecfe2 0%, #d7e1e5 48%, #a98b67 49%, #66584b 100%)",
+        minHeight: "220px",
+        display: "grid",
+        placeItems: "center",
+        padding: "24px",
+        textAlign: "center",
+        background:
+          "linear-gradient(145deg, rgba(15,35,48,0.96), rgba(4,13,23,0.98))",
+        color: "rgba(255,255,255,0.62)",
       }}
     >
-      <div
-        style={{
-          position: "absolute",
-          top: "26px",
-          right: "34px",
-          width: "58px",
-          height: "58px",
-          borderRadius: "999px",
-          background: "rgba(255,244,177,0.82)",
-          boxShadow: "0 0 36px rgba(255,244,177,0.52)",
-        }}
-      />
-
-      {isTower ? (
-        <div
-          style={{
-            position: "absolute",
-            left: "50%",
-            bottom: "52px",
-            transform: "translateX(-50%)",
-            width: property.property_type === "office" ? "210px" : "240px",
-            height: property.property_type === "office" ? "230px" : "210px",
-            borderRadius: "16px 16px 4px 4px",
-            background: property.property_type === "office" ? "#d8e7ee" : "#f0eee7",
-            border: "1px solid rgba(14,39,54,0.2)",
-            boxShadow: "0 28px 52px rgba(0,0,0,0.25)",
-          }}
-        >
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
-              gap: "12px",
-              padding: "22px",
-            }}
-          >
-            {Array.from({ length: 20 }).map((_, index) => (
-              <span
-                key={index}
-                style={{
-                  height: "18px",
-                  borderRadius: "3px",
-                  background: index % 3 === 0 ? "#ffd18a" : "#5e8999",
-                  boxShadow: index % 3 === 0 ? "0 0 12px rgba(255,209,138,0.35)" : "none",
-                }}
-              />
-            ))}
-          </div>
-        </div>
-      ) : property.property_type === "landed" ? (
-        <div
-          style={{
-            position: "absolute",
-            left: "50%",
-            bottom: "52px",
-            transform: "translateX(-50%)",
-            width: "330px",
-            height: "180px",
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              inset: "48px 18px 0",
-              borderRadius: "8px 8px 2px 2px",
-              background: "#f3e5ce",
-              boxShadow: "0 26px 48px rgba(0,0,0,0.24)",
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              left: "0",
-              right: "0",
-              top: "12px",
-              height: "74px",
-              background: "#9d5e42",
-              clipPath: "polygon(50% 0, 100% 100%, 0 100%)",
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              left: "142px",
-              bottom: 0,
-              width: "46px",
-              height: "74px",
-              background: "#765945",
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              left: "64px",
-              bottom: "66px",
-              width: "48px",
-              height: "34px",
-              background: "#6ca1b4",
-              border: "6px solid #fff4e2",
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              right: "64px",
-              bottom: "66px",
-              width: "48px",
-              height: "34px",
-              background: "#6ca1b4",
-              border: "6px solid #fff4e2",
-            }}
-          />
-        </div>
-      ) : (
-        <div
-          style={{
-            position: "absolute",
-            left: "50%",
-            bottom: "52px",
-            transform: "translateX(-50%)",
-            width: "370px",
-            height: "170px",
-            borderRadius: "18px 18px 4px 4px",
-            background: "#e8c995",
-            boxShadow: "0 26px 48px rgba(0,0,0,0.24)",
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: "12px",
-            padding: "42px 22px 20px",
-          }}
-        >
-          {Array.from({ length: 6 }).map((_, index) => (
-            <span
-              key={index}
-              style={{
-                borderRadius: "7px",
-                background: index % 2 === 0 ? "#a65f2e" : "#86573a",
-                border: "4px solid rgba(255,255,255,0.36)",
-              }}
-            />
-          ))}
-        </div>
-      )}
-
-      <div
-        style={{
-          position: "absolute",
-          left: "24px",
-          bottom: "20px",
-          right: "24px",
-          padding: "12px 16px",
-          borderRadius: "14px",
-          background: "rgba(2,10,18,0.74)",
-          border: "1px solid rgba(255,255,255,0.18)",
-          backdropFilter: "blur(10px)",
-          WebkitBackdropFilter: "blur(10px)",
-          color: "white",
-        }}
-      >
-        <strong>{property.building_name}</strong>
-        <span style={{ display: "block", marginTop: "4px", color: "rgba(255,255,255,0.62)", fontSize: "12px" }}>
-          Digital preview — final unit appearance may vary
+      <div>
+        <strong style={{ display: "block", color: "white", fontSize: "18px" }}>
+          {property.name}
+        </strong>
+        <span style={{ display: "block", marginTop: "8px", fontSize: "13px" }}>
+          Preview image not found
         </span>
       </div>
     </div>
@@ -1604,11 +1341,11 @@ export default function MiloPropertyExchangePage() {
               maxHeight: "92dvh",
               overflowY: "auto",
               display: "grid",
-              gridTemplateColumns: isCompact ? "1fr" : "1.05fr 0.95fr",
+              gridTemplateColumns: "1fr",
               overflowX: "hidden",
             }}
           >
-            <div style={{ minHeight: isMobile ? "280px" : "560px" }}>
+            <div style={{ width: "100%", aspectRatio: "2 / 1", minHeight: isMobile ? "220px" : "420px" }}>
               <UnitPreviewIllustration property={previewProperty} />
             </div>
 
@@ -1834,19 +1571,23 @@ export default function MiloPropertyExchangePage() {
                       border: isSelected
                         ? `1px solid ${district.accent}`
                         : "1px solid rgba(255,255,255,0.12)",
-                      background: isSelected
-                        ? `${district.fill}55`
-                        : "rgba(255,255,255,0.045)",
-                      boxShadow: isSelected ? `0 0 30px ${district.accent}24` : "none",
+                      position: "relative",
+                      overflow: "hidden",
+                      backgroundImage: `linear-gradient(180deg, rgba(2,9,18,0.12) 15%, rgba(2,9,18,0.92) 88%), url(${getDistrictImage(district.id)})`,
+                      backgroundSize: "cover",
+                      backgroundPosition: "center",
+                      boxShadow: isSelected
+                        ? `0 0 30px ${district.accent}2e, inset 0 0 44px ${district.accent}1a`
+                        : "inset 0 0 24px rgba(0,0,0,0.22)",
                     }}
                   >
-                    <span style={{ color: district.accent, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.14em", fontWeight: 900 }}>
+                    <span style={{ color: district.accent, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.14em", fontWeight: 900, textShadow: "0 2px 10px rgba(0,0,0,0.9)" }}>
                       Built District
                     </span>
-                    <strong style={{ display: "block", marginTop: "10px", fontSize: "23px" }}>
+                    <strong style={{ display: "block", marginTop: "10px", fontSize: "23px", textShadow: "0 3px 14px rgba(0,0,0,0.9)" }}>
                       {district.name}
                     </strong>
-                    <span style={{ display: "block", marginTop: "8px", color: "rgba(255,255,255,0.58)", fontSize: "13px", lineHeight: 1.5 }}>
+                    <span style={{ display: "block", marginTop: "8px", color: "rgba(255,255,255,0.78)", fontSize: "13px", lineHeight: 1.5, textShadow: "0 2px 10px rgba(0,0,0,0.9)" }}>
                       {district.subtitle}
                     </span>
                     <span style={{ display: "block", marginTop: "14px", color: district.accent, fontWeight: 900, fontSize: "13px" }}>
@@ -1945,7 +1686,7 @@ export default function MiloPropertyExchangePage() {
 
                   return (
                     <article key={property.id} style={{ borderRadius: "22px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.11)", background: "rgba(255,255,255,0.055)", display: "flex", flexDirection: "column" }}>
-                      <div style={{ height: "164px", overflow: "hidden" }}>
+                      <div style={{ aspectRatio: "2 / 1", overflow: "hidden" }}>
                         <UnitPreviewIllustration property={property} />
                       </div>
 
