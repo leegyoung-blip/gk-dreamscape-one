@@ -127,9 +127,7 @@ function normaliseRole(role: string | null | undefined) {
 function roleHasFullCoreAccess(role: string | null | undefined) {
   const cleanRole = normaliseRole(role);
   return (
-    cleanRole === "admin" ||
-    cleanRole === "student" ||
-    cleanRole === "teacher"
+    cleanRole === "admin" || cleanRole === "student" || cleanRole === "teacher"
   );
 }
 
@@ -143,20 +141,21 @@ export default function CoreMissionsPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [tokenBalance, setTokenBalance] = useState(0);
 
-  const [selectedSubject, setSelectedSubject] =
-    useState<CoreSubject | null>(null);
+  const [selectedSubject, setSelectedSubject] = useState<CoreSubject | null>(
+    null,
+  );
   const [selectedLevelBand, setSelectedLevelBand] =
     useState<CoreLevelBand | null>(null);
-  const [selectedQuiz, setSelectedQuiz] =
-    useState<CoreMissionQuiz | null>(null);
+  const [selectedQuiz, setSelectedQuiz] = useState<CoreMissionQuiz | null>(
+    null,
+  );
 
   const [quizzes, setQuizzes] = useState<CoreMissionQuiz[]>([]);
   const [questions, setQuestions] = useState<CoreMissionQuestion[]>([]);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [quizPage, setQuizPage] = useState(0);
 
-  const [selectedAnswer, setSelectedAnswer] =
-    useState<CoreAnswer | null>(null);
+  const [selectedAnswer, setSelectedAnswer] = useState<CoreAnswer | null>(null);
   const [answerLocked, setAnswerLocked] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -173,21 +172,21 @@ export default function CoreMissionsPage() {
 
   const completedQuizIds = useMemo(
     () => new Set(completedAttempts.map((attempt) => attempt.quiz_id)),
-    [completedAttempts]
+    [completedAttempts],
   );
 
   const quizzesPerPage = isMobile ? 3 : isCompact ? 4 : 6;
   const pageCount = Math.max(1, Math.ceil(quizzes.length / quizzesPerPage));
   const visibleQuizzes = quizzes.slice(
     quizPage * quizzesPerPage,
-    quizPage * quizzesPerPage + quizzesPerPage
+    quizPage * quizzesPerPage + quizzesPerPage,
   );
 
   const selectedSubjectInfo = coreSubjects.find(
-    (subject) => subject.id === selectedSubject
+    (subject) => subject.id === selectedSubject,
   );
   const selectedLevelInfo = coreLevelBands.find(
-    (level) => level.id === selectedLevelBand
+    (level) => level.id === selectedLevelBand,
   );
 
   useEffect(() => {
@@ -256,10 +255,7 @@ export default function CoreMissionsPage() {
 
   async function loadTokens(activeUserId?: string) {
     const resolvedUserId =
-      activeUserId ??
-      (
-        await supabase.auth.getUser()
-      ).data.user?.id;
+      activeUserId ?? (await supabase.auth.getUser()).data.user?.id;
 
     if (!resolvedUserId) {
       setTokenBalance(0);
@@ -278,7 +274,7 @@ export default function CoreMissionsPage() {
     }
 
     setTokenBalance(
-      data?.reduce((sum, row) => sum + Number(row.amount || 0), 0) || 0
+      data?.reduce((sum, row) => sum + Number(row.amount || 0), 0) || 0,
     );
   }
 
@@ -331,7 +327,7 @@ export default function CoreMissionsPage() {
     const { data, error } = await supabase
       .from("core_mission_quizzes")
       .select(
-        "id, subject, level_band, level_label, title, description, quiz_order"
+        "id, subject, level_band, level_label, title, description, quiz_order",
       )
       .eq("subject", selectedSubject)
       .eq("level_band", levelBand)
@@ -357,7 +353,7 @@ export default function CoreMissionsPage() {
     const { data, error } = await supabase
       .from("core_mission_questions")
       .select(
-        "id, quiz_id, question_order, question_text, question_image, option_a, option_b, option_c, option_d, correct_answer, explanation, skill, difficulty"
+        "id, quiz_id, question_order, question_text, question_image, option_a, option_b, option_c, option_d, correct_answer, explanation, skill, difficulty",
       )
       .eq("quiz_id", quiz.id)
       .eq("is_active", true)
@@ -401,7 +397,7 @@ export default function CoreMissionsPage() {
       setFeedback(`+5 points. ${currentQuestion.explanation}`);
     } else {
       setFeedback(
-        `The correct answer is ${currentQuestion.correct_answer}. ${currentQuestion.explanation}`
+        `The correct answer is ${currentQuestion.correct_answer}. ${currentQuestion.explanation}`,
       );
     }
 
@@ -538,7 +534,7 @@ export default function CoreMissionsPage() {
         inset: 0,
         overflow: "hidden",
         backgroundImage: `
-          linear-gradient(180deg, rgba(2,8,19,0.7), rgba(2,8,19,0.92)),
+          linear-gradient(180deg, rgba(2,8,19,0.28), rgba(2,8,19,0.62)),
           url("/activities/learning-missions/core/skyforge-hangar-bg.png")
         `,
         backgroundSize: "cover",
@@ -555,9 +551,10 @@ export default function CoreMissionsPage() {
           gridTemplateColumns: "1fr auto 1fr",
           alignItems: "center",
           gap: "10px",
-          borderBottom: "1px solid rgba(126,232,255,0.16)",
-          background: "rgba(2,8,19,0.74)",
-          backdropFilter: "blur(18px)",
+          borderBottom: "none",
+          background: "transparent",
+          backdropFilter: "none",
+          textShadow: "0 2px 12px rgba(0,0,0,0.72)",
         }}
       >
         <button
@@ -613,22 +610,33 @@ export default function CoreMissionsPage() {
       <section
         style={{
           height: `calc(100dvh - ${isMobile ? 58 : 68}px)`,
-          padding: isMobile ? "8px" : "12px",
+          padding: isMobile ? "8px" : isCompact ? "12px" : "20px 28px 28px",
           overflow: "hidden",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
         <div
           style={{
-            width: "100%",
-            height: "100%",
+            width:
+              isMobile || isCompact
+                ? "100%"
+                : "min(1420px, calc(100vw - 72px))",
+            height:
+              isMobile || isCompact
+                ? "100%"
+                : "min(760px, calc(100dvh - 118px))",
             overflow: "hidden",
             borderRadius: isMobile ? "18px" : "26px",
-            border: "1px solid rgba(126,232,255,0.28)",
+            border: "1px solid rgba(126,232,255,0.32)",
             background:
-              "linear-gradient(145deg, rgba(5,18,42,0.91), rgba(8,26,58,0.96))",
+              "linear-gradient(145deg, rgba(5,18,42,0.56), rgba(8,26,58,0.72))",
+            backdropFilter: "blur(10px)",
+            WebkitBackdropFilter: "blur(10px)",
             boxShadow:
-              "0 0 34px rgba(83,215,255,0.14), 0 24px 70px rgba(0,0,0,0.38)",
-            padding: isMobile ? "12px" : "20px",
+              "0 0 34px rgba(83,215,255,0.12), 0 22px 58px rgba(0,0,0,0.28)",
+            padding: isMobile ? "12px" : isCompact ? "18px" : "22px 24px 24px",
             display: "flex",
             flexDirection: "column",
             minHeight: 0,
@@ -726,7 +734,7 @@ export default function CoreMissionsPage() {
                         disabled={quizPage >= pageCount - 1}
                         onClick={() =>
                           setQuizPage((current) =>
-                            Math.min(pageCount - 1, current + 1)
+                            Math.min(pageCount - 1, current + 1),
                           )
                         }
                         style={smallPageButton}
@@ -742,7 +750,7 @@ export default function CoreMissionsPage() {
                   {visibleQuizzes.map((quiz) => {
                     const completed = completedQuizIds.has(quiz.id);
                     const attempt = completedAttempts.find(
-                      (item) => item.quiz_id === quiz.id
+                      (item) => item.quiz_id === quiz.id,
                     );
 
                     return (
@@ -756,14 +764,12 @@ export default function CoreMissionsPage() {
                           style={{
                             margin: 0,
                             color: completed ? "#86efac" : "#7ee8ff",
-                            fontSize: "10px",
+                            fontSize: isMobile ? "10px" : "12px",
                             letterSpacing: "0.14em",
                             fontWeight: 900,
                           }}
                         >
-                          {completed
-                            ? "COMPLETED"
-                            : `QUIZ ${quiz.quiz_order}`}
+                          {completed ? "COMPLETED" : `QUIZ ${quiz.quiz_order}`}
                         </p>
                         <h3 style={quizTitle}>{quiz.title}</h3>
                         <p style={clampedDescription}>{quiz.description}</p>
@@ -811,9 +817,7 @@ export default function CoreMissionsPage() {
                 </button>
                 <div style={{ textAlign: "center", minWidth: 0 }}>
                   <p style={quizTopTitle}>{selectedQuiz.title}</p>
-                  <p style={quizTopMeta}>
-                    Question {questionIndex + 1}/20
-                  </p>
+                  <p style={quizTopMeta}>Question {questionIndex + 1}/20</p>
                 </div>
                 <div style={scorePill}>Score {score}</div>
               </div>
@@ -826,7 +830,9 @@ export default function CoreMissionsPage() {
                   gridTemplateColumns: isCompact
                     ? "1fr"
                     : "minmax(0,1.08fr) minmax(340px,0.92fr)",
-                  gridTemplateRows: isCompact ? "minmax(0,0.9fr) minmax(0,1.1fr)" : "1fr",
+                  gridTemplateRows: isCompact
+                    ? "minmax(0,0.9fr) minmax(0,1.1fr)"
+                    : "1fr",
                   gap: isMobile ? "8px" : "12px",
                 }}
               >
@@ -835,7 +841,9 @@ export default function CoreMissionsPage() {
                     <p style={skillLabel}>
                       {currentQuestion.skill || "Core Mission"}
                     </p>
-                    <h2 style={questionHeading}>Question {questionIndex + 1}</h2>
+                    <h2 style={questionHeading}>
+                      Question {questionIndex + 1}
+                    </h2>
                     {currentQuestion.question_image && (
                       <div style={questionImageBox(isMobile, isCompact)}>
                         <img
@@ -858,7 +866,7 @@ export default function CoreMissionsPage() {
                   {feedback && (
                     <div
                       style={feedbackBox(
-                        selectedAnswer === currentQuestion.correct_answer
+                        selectedAnswer === currentQuestion.correct_answer,
                       )}
                     >
                       <strong>
@@ -930,8 +938,8 @@ export default function CoreMissionsPage() {
                     {questionIndex >= 19
                       ? "Finish Mission"
                       : answerLocked
-                      ? "Next Question"
-                      : "Choose an answer"}
+                        ? "Next Question"
+                        : "Choose an answer"}
                   </button>
                 </div>
               </div>
@@ -948,9 +956,7 @@ export default function CoreMissionsPage() {
               tokenBalance={tokenBalance}
               rewardSaved={rewardSaved}
               onAnotherQuiz={resetToQuizList}
-              onMyRover={() =>
-                router.push("/learning-missions/core/rover")
-              }
+              onMyRover={() => router.push("/learning-missions/core/rover")}
             />
           )}
         </div>
@@ -1003,7 +1009,7 @@ function ScreenFrame({
         <h1
           style={{
             margin: "5px 0 0",
-            fontSize: isMobile ? "24px" : "clamp(28px,3vw,42px)",
+            fontSize: isMobile ? "24px" : "clamp(38px,3vw,52px)",
             lineHeight: 1.05,
           }}
         >
@@ -1013,7 +1019,7 @@ function ScreenFrame({
           style={{
             margin: "7px auto 0",
             maxWidth: "700px",
-            fontSize: isMobile ? "12px" : "14px",
+            fontSize: isMobile ? "12px" : "16px",
             color: "rgba(255,255,255,0.62)",
           }}
         >
@@ -1190,8 +1196,8 @@ function ResultsScreen({
         {rewardSaved && tokensEarned > 0
           ? "Attempt, rover progress and tokens saved."
           : rewardSaved
-          ? "Practice attempt saved. Replays do not add extra rover progress."
-          : "The mission is complete, but the reward may not have been saved."}
+            ? "Practice attempt saved. Replays do not add extra rover progress."
+            : "The mission is complete, but the reward may not have been saved."}
       </p>
 
       <div
@@ -1285,7 +1291,8 @@ const pillButton: CSSProperties = {
 const myRoverButton: CSSProperties = {
   ...pillButton,
   border: "1px solid rgba(255,215,106,0.45)",
-  background: "linear-gradient(135deg, rgba(255,215,106,0.2), rgba(83,215,255,0.17))",
+  background:
+    "linear-gradient(135deg, rgba(255,215,106,0.2), rgba(83,215,255,0.17))",
   color: "#fff3c4",
 };
 
@@ -1314,7 +1321,7 @@ const sectionTopRow: CSSProperties = {
 const sectionEyebrow: CSSProperties = {
   margin: 0,
   color: "#7ee8ff",
-  fontSize: "10px",
+  fontSize: "12px",
   letterSpacing: "0.2em",
   fontWeight: 900,
 };
@@ -1333,30 +1340,33 @@ const backButton: CSSProperties = {
 
 function twoCardGrid(isMobile: boolean): CSSProperties {
   return {
-    height: "100%",
+    width: "100%",
+    height: isMobile ? "100%" : "min(470px, 100%)",
+    maxWidth: isMobile ? "none" : "1160px",
     minHeight: 0,
+    margin: "auto",
     display: "grid",
     gridTemplateColumns: isMobile ? "1fr" : "repeat(2,minmax(0,1fr))",
     gridTemplateRows: isMobile ? "repeat(2,minmax(0,1fr))" : "1fr",
-    gap: "12px",
+    gap: isMobile ? "12px" : "18px",
   };
 }
 
-function threeCardGrid(
-  isMobile: boolean,
-  isCompact: boolean
-): CSSProperties {
+function threeCardGrid(isMobile: boolean, isCompact: boolean): CSSProperties {
   return {
-    height: "100%",
+    width: "100%",
+    height: isMobile ? "100%" : "min(450px, 100%)",
+    maxWidth: isMobile ? "none" : "1200px",
     minHeight: 0,
+    margin: "auto",
     display: "grid",
     gridTemplateColumns: isMobile
       ? "1fr"
       : isCompact
-      ? "repeat(2,minmax(0,1fr))"
-      : "repeat(3,minmax(0,1fr))",
+        ? "repeat(2,minmax(0,1fr))"
+        : "repeat(3,minmax(0,1fr))",
     gridTemplateRows: isMobile ? "repeat(3,minmax(0,1fr))" : "1fr",
-    gap: "12px",
+    gap: isMobile ? "12px" : "16px",
   };
 }
 
@@ -1367,7 +1377,7 @@ function choiceCard(accent: string): CSSProperties {
     borderRadius: "20px",
     border: `1px solid ${accent}77`,
     background:
-      "linear-gradient(180deg, rgba(20,58,100,0.8), rgba(8,25,56,0.95))",
+      "linear-gradient(180deg, rgba(20,58,100,0.66), rgba(8,25,56,0.78))",
     color: "white",
     padding: "clamp(12px,2.2vh,24px)",
     display: "flex",
@@ -1402,13 +1412,13 @@ function quizGrid(isMobile: boolean, isCompact: boolean): CSSProperties {
     gridTemplateColumns: isMobile
       ? "1fr"
       : isCompact
-      ? "repeat(2,minmax(0,1fr))"
-      : "repeat(3,minmax(0,1fr))",
+        ? "repeat(2,minmax(0,1fr))"
+        : "repeat(3,minmax(0,1fr))",
     gridTemplateRows: isMobile
       ? "repeat(3,minmax(0,1fr))"
       : isCompact
-      ? "repeat(2,minmax(0,1fr))"
-      : "repeat(2,minmax(0,1fr))",
+        ? "repeat(2,minmax(0,1fr))"
+        : "repeat(2,minmax(0,1fr))",
     gap: "10px",
   };
 }
@@ -1422,10 +1432,10 @@ function quizCard(completed: boolean): CSSProperties {
       ? "1px solid rgba(74,222,128,0.48)"
       : "1px solid rgba(126,232,255,0.3)",
     background: completed
-      ? "linear-gradient(180deg, rgba(20,92,60,0.74), rgba(8,35,36,0.92))"
-      : "linear-gradient(180deg, rgba(20,58,100,0.78), rgba(8,25,56,0.94))",
+      ? "linear-gradient(180deg, rgba(20,92,60,0.66), rgba(8,35,36,0.8))"
+      : "linear-gradient(180deg, rgba(20,58,100,0.66), rgba(8,25,56,0.8))",
     color: "white",
-    padding: "12px",
+    padding: "18px",
     display: "flex",
     flexDirection: "column",
     textAlign: "left",
@@ -1435,15 +1445,15 @@ function quizCard(completed: boolean): CSSProperties {
 }
 
 const quizTitle: CSSProperties = {
-  margin: "7px 0 0",
-  fontSize: "clamp(15px,2.1vh,21px)",
+  margin: "10px 0 0",
+  fontSize: "clamp(21px,2.5vh,29px)",
   lineHeight: 1.15,
 };
 
 const clampedDescription: CSSProperties = {
-  margin: "7px 0 0",
-  color: "rgba(255,255,255,0.64)",
-  fontSize: "11px",
+  margin: "9px 0 0",
+  color: "rgba(255,255,255,0.76)",
+  fontSize: "clamp(13px,1.45vh,16px)",
   lineHeight: 1.35,
   display: "-webkit-box",
   WebkitLineClamp: 2,
@@ -1452,20 +1462,20 @@ const clampedDescription: CSSProperties = {
 };
 
 const attemptText: CSSProperties = {
-  margin: "7px 0 0",
-  color: "rgba(255,255,255,0.72)",
-  fontSize: "10px",
+  margin: "9px 0 0",
+  color: "rgba(255,255,255,0.8)",
+  fontSize: "12px",
 };
 
 const smallAction: CSSProperties = {
   marginTop: "auto",
-  minHeight: "31px",
+  minHeight: "40px",
   borderRadius: "10px",
   background: "linear-gradient(135deg, #35c5ff, #4c6dff)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  fontSize: "12px",
+  fontSize: "14px",
   fontWeight: 800,
 };
 
@@ -1555,7 +1565,7 @@ const questionHeading: CSSProperties = {
 
 function questionImageBox(
   isMobile: boolean,
-  isCompact: boolean
+  isCompact: boolean,
 ): CSSProperties {
   return {
     marginTop: "7px",
@@ -1566,17 +1576,14 @@ function questionImageBox(
   };
 }
 
-function questionText(
-  isMobile: boolean,
-  isCompact: boolean
-): CSSProperties {
+function questionText(isMobile: boolean, isCompact: boolean): CSSProperties {
   return {
     margin: "8px 0 0",
     fontSize: isMobile
       ? "clamp(14px,2.2vh,18px)"
       : isCompact
-      ? "clamp(17px,2.5vh,23px)"
-      : "clamp(21px,3vh,31px)",
+        ? "clamp(17px,2.5vh,23px)"
+        : "clamp(21px,3vh,31px)",
     lineHeight: 1.3,
     fontWeight: 600,
   };
@@ -1589,9 +1596,7 @@ function feedbackBox(correct: boolean): CSSProperties {
     border: correct
       ? "1px solid rgba(74,222,128,0.5)"
       : "1px solid rgba(248,113,113,0.5)",
-    background: correct
-      ? "rgba(34,197,94,0.13)"
-      : "rgba(239,68,68,0.13)",
+    background: correct ? "rgba(34,197,94,0.13)" : "rgba(239,68,68,0.13)",
     padding: "8px 10px",
     fontSize: "clamp(10px,1.45vh,13px)",
     lineHeight: 1.35,
@@ -1716,8 +1721,7 @@ const lockedCard: CSSProperties = {
   width: "min(620px,100%)",
   borderRadius: "22px",
   border: "1px solid rgba(255,215,106,0.4)",
-  background:
-    "linear-gradient(180deg, rgba(90,62,16,0.55), rgba(30,20,8,0.8))",
+  background: "linear-gradient(180deg, rgba(90,62,16,0.55), rgba(30,20,8,0.8))",
   padding: "28px",
   textAlign: "center",
 };

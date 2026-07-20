@@ -1,18 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { CSSProperties } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import {
-  getThinkGearProgress,
-  type ThinkGearUpgrade,
-} from "@/lib/thinkGearProgress";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
-
 type ThinkLevelBand = "foundation" | "growth" | "mastery";
 type ThinkAnswer = "A" | "B" | "C" | "D";
+type ThinkScreen =
+  | "checking"
+  | "locked"
+  | "level"
+  | "quiz-list"
+  | "loading"
+  | "quiz"
+  | "results";
 
 type ThinkMissionQuiz = {
   id: string;
@@ -46,73 +49,52 @@ type CompletedThinkAttempt = {
   tokens_earned: number;
 };
 
-type ThinkMazePlayerRow = {
-  rank: number | string;
-  user_id: string;
-  username: string;
-  best_score: number;
-  best_time_ms: number;
-  gear_stage: number;
-  completed_at: string;
-};
-
-const THINK_MAZE_COURSE_ID = "logic-maze-01";
-
-const thinkLevelBands: {
-  id: ThinkLevelBand;
-  title: string;
-  label: string;
-  subtitle: string;
-  accent: string;
-}[] = [
+const thinkLevelBands = [
   {
-    id: "foundation",
+    id: "foundation" as const,
     title: "Foundation",
     label: "P1–P2",
     subtitle: "Simple patterns, visual thinking and beginner logic puzzles.",
     accent: "#7ee8ff",
+    icon: "◇",
   },
   {
-    id: "growth",
+    id: "growth" as const,
     title: "Growth",
     label: "P3–P4",
-    subtitle: "Stronger reasoning, rule-based patterns and deduction skills.",
+    subtitle: "Rule-based patterns, deduction and stronger reasoning skills.",
     accent: "#60f0d0",
+    icon: "⌁",
   },
   {
-    id: "mastery",
+    id: "mastery" as const,
     title: "Mastery",
     label: "P5–P6",
     subtitle: "Advanced logic, non-routine problems and higher-level thinking.",
     accent: "#ffd76a",
+    icon: "✦",
   },
 ];
 
 function useResponsiveMode() {
-  const [screenMode, setScreenMode] = useState<ScreenMode>("desktop");
+  const [mode, setMode] = useState<ScreenMode>("desktop");
 
   useEffect(() => {
-    function checkScreenSize() {
+    const update = () => {
       const width = window.innerWidth;
       const height = window.innerHeight;
-      const isPortrait = height > width;
 
-      if (width <= 720) {
-        setScreenMode("mobile");
-      } else if (width <= 1180 || isPortrait) {
-        setScreenMode("tablet");
-      } else {
-        setScreenMode("desktop");
-      }
-    }
+      if (width <= 720) setMode("mobile");
+      else if (width <= 1180 || height > width) setMode("tablet");
+      else setMode("desktop");
+    };
 
-    checkScreenSize();
-    window.addEventListener("resize", checkScreenSize);
-
-    return () => window.removeEventListener("resize", checkScreenSize);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
   }, []);
 
-  return screenMode;
+  return mode;
 }
 
 function normaliseRole(role: string | null | undefined) {
@@ -123,119 +105,22 @@ function normaliseRole(role: string | null | undefined) {
     .replace(/_/g, "-");
 }
 
-function roleHasMissionAccess(role: string | null | undefined) {
+function roleHasThinkAccess(role: string | null | undefined) {
   const cleanRole = normaliseRole(role);
-
   return (
-    cleanRole === "admin" ||
-    cleanRole === "student" ||
-    cleanRole === "teacher"
+    cleanRole === "admin" || cleanRole === "student" || cleanRole === "teacher"
   );
-}
-
-function formatChallengeTime(milliseconds: number | null) {
-  if (milliseconds === null) return "—";
-
-  const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(
-    2,
-    "0",
-  )}`;
 }
 
 export default function ThinkMissionsPage() {
   const router = useRouter();
-  const [tokenBalance, setTokenBalance] = useState(0);
-
-  useEffect(() => {
-    async function loadTokens() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        setTokenBalance(0);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("dream_token_transactions")
-        .select("amount")
-        .eq("user_id", user.id)
-        .eq("token_kind", "virtual");
-
-      if (error) {
-        console.warn("Could not load Dreamscape Tokens:", error);
-        setTokenBalance(0);
-        return;
-      }
-
-      const total =
-        data?.reduce((sum, row) => sum + (row.amount || 0), 0) || 0;
-
-      setTokenBalance(total);
-    }
-
-    void loadTokens();
-
-    function handleTokenUpdate() {
-      void loadTokens();
-    }
-
-    window.addEventListener("dream-tokens-updated", handleTokenUpdate);
-
-    return () => {
-      window.removeEventListener("dream-tokens-updated", handleTokenUpdate);
-    };
-  }, []);
-
-  return (
-    <ThinkMissionsActivity
-      tokenBalance={tokenBalance}
-      onTokenBalanceChange={setTokenBalance}
-      onExit={() => router.push("/learning-missions")}
-      onOpenMaze={() =>
-        router.push("/learning-missions/think/maze-challenge")
-      }
-    />
-  );
-}
-
-function ThinkMissionsActivity({
-  onExit,
-  onOpenMaze,
-  tokenBalance,
-  onTokenBalanceChange,
-}: {
-  onExit: () => void;
-  onOpenMaze: () => void;
-  tokenBalance: number;
-  onTokenBalanceChange: (newBalance: number) => void;
-}) {
   const screenMode = useResponsiveMode();
-  const isDesktop = screenMode === "desktop";
   const isMobile = screenMode === "mobile";
-  const isCompact = !isDesktop;
+  const isCompact = screenMode !== "desktop";
 
-  const [screen, setScreen] = useState<
-    | "checking"
-    | "locked"
-    | "level"
-    | "quiz-list"
-    | "loading"
-    | "quiz"
-    | "results"
-  >("checking");
-
+  const [screen, setScreen] = useState<ThinkScreen>("checking");
   const [userId, setUserId] = useState<string | null>(null);
-
-  const [mazeRank, setMazeRank] = useState<number | null>(null);
-  const [mazeBestScore, setMazeBestScore] = useState<number | null>(null);
-  const [mazeBestTimeMs, setMazeBestTimeMs] = useState<number | null>(null);
-  const [mazeRankLoading, setMazeRankLoading] = useState(false);
+  const [tokenBalance, setTokenBalance] = useState(0);
 
   const [selectedLevelBand, setSelectedLevelBand] =
     useState<ThinkLevelBand | null>(null);
@@ -246,10 +131,9 @@ function ThinkMissionsActivity({
   const [quizzes, setQuizzes] = useState<ThinkMissionQuiz[]>([]);
   const [questions, setQuestions] = useState<ThinkMissionQuestion[]>([]);
   const [questionIndex, setQuestionIndex] = useState(0);
+  const [quizPage, setQuizPage] = useState(0);
 
-  const [selectedAnswer, setSelectedAnswer] = useState<ThinkAnswer | null>(
-    null,
-  );
+  const [selectedAnswer, setSelectedAnswer] = useState<ThinkAnswer | null>(null);
   const [answerLocked, setAnswerLocked] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -259,32 +143,43 @@ function ThinkMissionsActivity({
   const [rewardSaved, setRewardSaved] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isFinishing, setIsFinishing] = useState(false);
-
   const [completedAttempts, setCompletedAttempts] = useState<
     CompletedThinkAttempt[]
   >([]);
 
   const currentQuestion = questions[questionIndex];
 
-  const completedQuizIds = new Set(
-    completedAttempts.map((attempt) => attempt.quiz_id),
+  const completedQuizIds = useMemo(
+    () => new Set(completedAttempts.map((attempt) => attempt.quiz_id)),
+    [completedAttempts],
   );
 
-  const completedMissionCount = completedAttempts.length;
+  const quizzesPerPage = isMobile ? 3 : isCompact ? 4 : 6;
+  const pageCount = Math.max(1, Math.ceil(quizzes.length / quizzesPerPage));
+  const visibleQuizzes = quizzes.slice(
+    quizPage * quizzesPerPage,
+    quizPage * quizzesPerPage + quizzesPerPage,
+  );
 
-  const {
-    currentUpgrade,
-    nextUpgrade,
-    progressPercentage,
-    missionsToNext,
-    isComplete,
-  } = getThinkGearProgress(completedMissionCount);
+  const selectedLevelInfo = thinkLevelBands.find(
+    (level) => level.id === selectedLevelBand,
+  );
 
   useEffect(() => {
-    void checkAccess();
+    void initialise();
   }, []);
 
-  async function checkAccess() {
+  useEffect(() => {
+    function handleTokenUpdate() {
+      void loadTokens();
+    }
+
+    window.addEventListener("dream-tokens-updated", handleTokenUpdate);
+    return () =>
+      window.removeEventListener("dream-tokens-updated", handleTokenUpdate);
+  }, []);
+
+  async function initialise() {
     setScreen("checking");
 
     const {
@@ -297,10 +192,11 @@ function ThinkMissionsActivity({
     }
 
     setUserId(user.id);
+    await loadTokens(user.id);
 
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("*")
+      .select("role, tier")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -310,57 +206,40 @@ function ThinkMissionsActivity({
       return;
     }
 
-    const userRole = profile.role || profile.tier || null;
+    const role = profile.role || profile.tier || null;
 
-    if (!roleHasMissionAccess(userRole)) {
+    if (!roleHasThinkAccess(role)) {
       setScreen("locked");
       return;
     }
 
-    await Promise.all([
-      loadCompletedAttempts(user.id),
-      loadMazeRank(user.id),
-    ]);
-
+    await loadCompletedAttempts(user.id);
     setScreen("level");
   }
 
-  async function loadMazeRank(activeUserId: string) {
-    setMazeRankLoading(true);
+  async function loadTokens(activeUserId?: string) {
+    const resolvedUserId =
+      activeUserId ?? (await supabase.auth.getUser()).data.user?.id;
 
-    const { data, error } = await supabase.rpc(
-      "get_think_maze_player_result",
-      {
-        p_course_id: THINK_MAZE_COURSE_ID,
-      },
-    );
+    if (!resolvedUserId) {
+      setTokenBalance(0);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("dream_token_transactions")
+      .select("amount")
+      .eq("user_id", resolvedUserId)
+      .eq("token_kind", "virtual");
 
     if (error) {
-      console.warn("Could not load Logic Maze rank:", error.message);
-      setMazeRank(null);
-      setMazeBestScore(null);
-      setMazeBestTimeMs(null);
-      setMazeRankLoading(false);
+      console.warn("Could not load Dreamscape Tokens:", error);
       return;
     }
 
-    const rows = (data ?? []) as ThinkMazePlayerRow[];
-    const playerRow = rows.find((row) => row.user_id === activeUserId);
-
-    if (!playerRow) {
-      setMazeRank(null);
-      setMazeBestScore(null);
-      setMazeBestTimeMs(null);
-      setMazeRankLoading(false);
-      return;
-    }
-
-    const parsedRank = Number(playerRow.rank);
-
-    setMazeRank(Number.isFinite(parsedRank) ? parsedRank : null);
-    setMazeBestScore(playerRow.best_score);
-    setMazeBestTimeMs(playerRow.best_time_ms);
-    setMazeRankLoading(false);
+    setTokenBalance(
+      data?.reduce((sum, row) => sum + Number(row.amount || 0), 0) || 0,
+    );
   }
 
   async function loadCompletedAttempts(activeUserId: string) {
@@ -370,7 +249,7 @@ function ThinkMissionsActivity({
       .eq("user_id", activeUserId);
 
     if (error) {
-      console.warn("Could not load completed Think Mission attempts:", error);
+      console.warn("Could not load Think Mission attempts:", error);
       setCompletedAttempts([]);
       return;
     }
@@ -391,15 +270,12 @@ function ThinkMissionsActivity({
     setCompletedAttempts(Array.from(uniqueAttempts.values()));
   }
 
-  function isQuizCompleted(quizId: string) {
-    return completedQuizIds.has(quizId);
-  }
-
   async function chooseLevel(levelBand: ThinkLevelBand) {
     setSelectedLevelBand(levelBand);
     setSelectedQuiz(null);
     setQuizzes([]);
     setQuestions([]);
+    setQuizPage(0);
     setLoadError(null);
     setScreen("loading");
 
@@ -473,8 +349,8 @@ function ThinkMissionsActivity({
     const points = isCorrect ? 5 : 0;
 
     if (isCorrect) {
-      setScore((previous) => previous + points);
-      setCorrectCount((previous) => previous + 1);
+      setScore((current) => current + points);
+      setCorrectCount((current) => current + 1);
       setFeedback(`+${points} points. ${currentQuestion.explanation}`);
     } else {
       setFeedback(
@@ -491,16 +367,13 @@ function ThinkMissionsActivity({
       return;
     }
 
-    setQuestionIndex((previous) => previous + 1);
+    setQuestionIndex((current) => current + 1);
     setSelectedAnswer(null);
     setAnswerLocked(false);
     setFeedback(null);
   }
 
-  function calculateTokenReward(
-    finalScore: number,
-    finalCorrectCount: number,
-  ) {
+  function calculateTokenReward(finalScore: number, finalCorrectCount: number) {
     let reward = 2;
 
     if (finalCorrectCount >= 14) reward += 1;
@@ -512,7 +385,6 @@ function ThinkMissionsActivity({
 
   async function finishQuiz() {
     if (isFinishing) return;
-
     setIsFinishing(true);
 
     if (!userId || !selectedQuiz) {
@@ -522,9 +394,8 @@ function ThinkMissionsActivity({
 
     const finalScore = score;
     const finalCorrectCount = correctCount;
-    const hasCompletedThisQuizBefore = isQuizCompleted(selectedQuiz.id);
-
-    const reward = hasCompletedThisQuizBefore
+    const hasCompletedBefore = completedQuizIds.has(selectedQuiz.id);
+    const reward = hasCompletedBefore
       ? 0
       : calculateTokenReward(finalScore, finalCorrectCount);
 
@@ -550,15 +421,16 @@ function ThinkMissionsActivity({
       return;
     }
 
-    if (!hasCompletedThisQuizBefore) {
-      const newAttempt: CompletedThinkAttempt = {
-        quiz_id: selectedQuiz.id,
-        score: finalScore,
-        correct_count: finalCorrectCount,
-        tokens_earned: reward,
-      };
-
-      setCompletedAttempts((previous) => [...previous, newAttempt]);
+    if (!hasCompletedBefore) {
+      setCompletedAttempts((current) => [
+        ...current,
+        {
+          quiz_id: selectedQuiz.id,
+          score: finalScore,
+          correct_count: finalCorrectCount,
+          tokens_earned: reward,
+        },
+      ]);
     }
 
     if (reward <= 0) {
@@ -583,14 +455,12 @@ function ThinkMissionsActivity({
     }
 
     setRewardSaved(true);
-    onTokenBalanceChange(tokenBalance + reward);
+    setTokenBalance((current) => current + reward);
     window.dispatchEvent(new Event("dream-tokens-updated"));
   }
 
-  function resetToLevels() {
-    setSelectedLevelBand(null);
+  function resetQuizState() {
     setSelectedQuiz(null);
-    setQuizzes([]);
     setQuestions([]);
     setQuestionIndex(0);
     setSelectedAnswer(null);
@@ -602,1422 +472,1190 @@ function ThinkMissionsActivity({
     setRewardSaved(false);
     setIsFinishing(false);
     setLoadError(null);
+  }
+
+  function resetToLevels() {
+    resetQuizState();
+    setSelectedLevelBand(null);
+    setQuizzes([]);
+    setQuizPage(0);
     setScreen("level");
   }
 
   function resetToQuizList() {
-    setSelectedQuiz(null);
-    setQuestions([]);
-    setQuestionIndex(0);
-    setSelectedAnswer(null);
-    setAnswerLocked(false);
-    setFeedback(null);
-    setScore(0);
-    setCorrectCount(0);
-    setTokensEarned(0);
-    setRewardSaved(false);
-    setIsFinishing(false);
-    setLoadError(null);
+    resetQuizState();
     setScreen("quiz-list");
   }
-
-  const selectedLevelInfo = thinkLevelBands.find(
-    (level) => level.id === selectedLevelBand,
-  );
 
   return (
     <main
       style={{
-        minHeight: "100dvh",
-        width: "100%",
+        position: "fixed",
+        inset: 0,
+        overflow: "hidden",
         backgroundImage: `
-          linear-gradient(
-            180deg,
-            rgba(2,8,19,0.58),
-            rgba(2,8,19,0.9)
-          ),
+          linear-gradient(180deg, rgba(2,8,19,0.24), rgba(2,8,19,0.58)),
           url("/activities/learning-missions/think/think-inventory-bg.png")
         `,
         backgroundSize: "cover",
         backgroundPosition: "center",
-        backgroundAttachment: isMobile ? "scroll" : "fixed",
         color: "white",
         fontFamily: "Arial, Helvetica, sans-serif",
-        overflowX: "hidden",
       }}
     >
-      <button
-        type="button"
-        onClick={onExit}
+      <header
         style={{
-          position: "fixed",
-          top: isMobile ? "14px" : "22px",
-          left: isMobile ? "14px" : "22px",
-          zIndex: 40,
-          height: isMobile ? "40px" : "46px",
-          padding: isMobile ? "0 14px" : "0 22px",
-          borderRadius: "999px",
-          border: "1px solid rgba(150, 231, 255, 0.7)",
-          background: "rgba(2,8,19,0.72)",
-          color: "white",
-          fontSize: isMobile ? "12px" : "14px",
-          letterSpacing: "0.1em",
-          textTransform: "uppercase",
-          cursor: "pointer",
-          backdropFilter: "blur(14px)",
-          boxShadow: "0 0 18px rgba(83, 215, 255, 0.22)",
+          height: isMobile ? "58px" : "68px",
+          padding: isMobile ? "8px 10px" : "10px 18px",
+          display: "grid",
+          gridTemplateColumns: "1fr auto 1fr",
+          alignItems: "center",
+          gap: "10px",
+          background: "transparent",
+          textShadow: "0 2px 12px rgba(0,0,0,0.72)",
         }}
       >
-        ← Missions
-      </button>
+        <button
+          type="button"
+          onClick={() => router.push("/learning-missions")}
+          style={{ ...pillButton, justifySelf: "start" }}
+        >
+          ← Missions
+        </button>
+
+        <div style={{ textAlign: "center", minWidth: 0 }}>
+          <p
+            style={{
+              margin: 0,
+              color: "#60f0d0",
+              fontSize: isMobile ? "9px" : "11px",
+              letterSpacing: "0.2em",
+              fontWeight: 900,
+            }}
+          >
+            THINK MISSIONS
+          </p>
+          {!isMobile && (
+            <p style={{ margin: "3px 0 0", fontSize: "13px", opacity: 0.72 }}>
+              Logic & Reasoning
+            </p>
+          )}
+        </div>
+
+        <div
+          style={{
+            justifySelf: "end",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          {!isMobile && (
+            <div style={tokenPill}>
+              <span style={{ color: "#ffd76a" }}>DT</span> {tokenBalance}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => router.push("/learning-missions/think/gear")}
+            style={myGearButton}
+          >
+            My Gear ›
+          </button>
+        </div>
+      </header>
 
       <section
         style={{
-          minHeight: "100dvh",
-          width: "100%",
-          padding: isMobile
-            ? "82px 16px 32px"
-            : isCompact
-              ? "92px 28px 42px"
-              : "92px 4vw 54px",
+          height: `calc(100dvh - ${isMobile ? 58 : 68}px)`,
+          padding: isMobile ? "8px" : isCompact ? "12px" : "20px 28px 28px",
+          overflow: "hidden",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
         <div
           style={{
-            width: "min(1440px, 100%)",
-            margin: "0 auto",
-            display: "grid",
-            gridTemplateColumns: isCompact
-              ? "1fr"
-              : "minmax(360px, 0.9fr) minmax(720px, 1.35fr)",
-            gap: isMobile ? "20px" : "34px",
-            alignItems: "start",
+            width:
+              isMobile || isCompact
+                ? "100%"
+                : "min(1420px, calc(100vw - 72px))",
+            height:
+              isMobile || isCompact
+                ? "100%"
+                : "min(760px, calc(100dvh - 118px))",
+            overflow: "hidden",
+            borderRadius: isMobile ? "18px" : "26px",
+            border: "1px solid rgba(96,240,208,0.32)",
+            background:
+              "linear-gradient(145deg, rgba(5,18,42,0.54), rgba(8,34,58,0.68))",
+            backdropFilter: "blur(10px)",
+            WebkitBackdropFilter: "blur(10px)",
+            boxShadow:
+              "0 0 34px rgba(96,240,208,0.12), 0 22px 58px rgba(0,0,0,0.28)",
+            padding: isMobile ? "12px" : isCompact ? "18px" : "22px 24px 24px",
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
           }}
         >
-          <aside
-            style={{
-              position: isDesktop ? "sticky" : "relative",
-              top: isDesktop ? "92px" : "auto",
-              display: "grid",
-              gap: isMobile ? "18px" : "22px",
-            }}
-          >
-            <div>
-              <p
-                style={{
-                  margin: 0,
-                  color: "#60f0d0",
-                  fontSize: "13px",
-                  letterSpacing: "0.22em",
-                  textTransform: "uppercase",
-                  fontWeight: 800,
-                }}
-              >
-                Think Missions
-              </p>
+          {screen === "checking" && (
+            <CenteredMessage message="Checking Think Missions access..." />
+          )}
 
-              <h1
-                style={{
-                  margin: "12px 0 0",
-                  fontSize: isMobile ? "38px" : isCompact ? "54px" : "68px",
-                  lineHeight: 0.95,
-                  fontWeight: 600,
-                  letterSpacing: "-0.055em",
-                  textShadow: "0 0 30px rgba(96, 240, 208, 0.28)",
-                }}
-              >
-                Unlock Nova’s
-                <br />
-                Gear Inventory
-              </h1>
-
-              <p
-                style={{
-                  margin: "20px 0 0",
-                  maxWidth: "640px",
-                  fontSize: isMobile ? "16px" : "18px",
-                  color: "#c8fff3",
-                  lineHeight: 1.6,
-                  fontWeight: 300,
-                }}
-              >
-                Complete new Think Missions to unlock maze tools. Replays are
-                saved, but only first completions add gear progress.
-              </p>
-            </div>
-
-            <GearProgressCard
+          {screen === "locked" && (
+            <LockedScreen
               isMobile={isMobile}
-              completedMissionCount={completedMissionCount}
-              currentUpgrade={currentUpgrade}
-              nextUpgrade={nextUpgrade}
-              progressPercentage={progressPercentage}
-              missionsToNext={missionsToNext}
-              isComplete={isComplete}
-              mazeRank={mazeRank}
-              mazeBestScore={mazeBestScore}
-              mazeBestTimeMs={mazeBestTimeMs}
-              mazeRankLoading={mazeRankLoading}
-              onOpenMaze={onOpenMaze}
+              onExit={() => router.push("/learning-missions")}
             />
-          </aside>
+          )}
 
-          <section
-            style={{
-              borderRadius: isMobile ? "24px" : "32px",
-              border: "1px solid rgba(96,240,208,0.24)",
-              background:
-                "linear-gradient(145deg, rgba(5,18,42,0.82), rgba(8,34,58,0.92))",
-              boxShadow:
-                "0 0 34px rgba(96,240,208,0.14), 0 28px 80px rgba(0,0,0,0.36)",
-              padding: isMobile ? "20px" : "30px",
-              minHeight: isDesktop ? "720px" : "auto",
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            {screen === "checking" && (
-              <ThinkMessageCard message="Checking your Think Missions access..." />
-            )}
+          {screen === "loading" && (
+            <CenteredMessage message="Loading Think Mission..." />
+          )}
 
-            {screen === "locked" && (
-              <div
-                style={{
-                  margin: "18px auto",
-                  maxWidth: "680px",
-                  borderRadius: "26px",
-                  border: "1px solid rgba(255,215,106,0.5)",
-                  background:
-                    "linear-gradient(180deg, rgba(90, 62, 16, 0.55), rgba(30, 20, 8, 0.72))",
-                  padding: "34px",
-                  textAlign: "center",
-                }}
-              >
-                <h3 style={{ margin: 0, fontSize: "30px" }}>
-                  Think Missions Locked
-                </h3>
-
-                <p
-                  style={{
-                    margin: "14px 0 0",
-                    fontSize: "16px",
-                    lineHeight: 1.6,
-                    color: "rgba(255,255,255,0.78)",
-                  }}
-                >
-                  Think Missions are available for student, teacher and admin
-                  accounts.
-                </p>
-
-                <div
-                  style={{
-                    marginTop: "26px",
-                    display: "flex",
-                    flexDirection: isMobile ? "column" : "row",
-                    justifyContent: "center",
-                    gap: "12px",
-                  }}
-                >
-                  <a href="/login" style={thinkPrimaryLinkStyle}>
-                    Log In
-                  </a>
-
-                  <button type="button" onClick={onExit} style={thinkGhostButton}>
-                    Exit
-                  </button>
-                </div>
+          {screen === "level" && (
+            <ScreenFrame
+              isMobile={isMobile}
+              eyebrow="Choose Level"
+              title="Start a Think Mission"
+              description="Select the level band for your logic and reasoning mission."
+            >
+              <div style={threeCardGrid(isMobile, isCompact)}>
+                {thinkLevelBands.map((level) => (
+                  <ChoiceCard
+                    key={level.id}
+                    accent={level.accent}
+                    title={level.title}
+                    subtitle={level.subtitle}
+                    label={`${level.icon}  ${level.label}`}
+                    onClick={() => void chooseLevel(level.id)}
+                  />
+                ))}
               </div>
-            )}
+            </ScreenFrame>
+          )}
 
-            {screen === "level" && (
-              <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-                <QuizPanelHeader
-                  eyebrow="Choose Level"
-                  title="Start a Think Mission"
-                  description="Select a level band, then complete a new quiz to unlock Nova’s next maze tool."
-                />
-
-                <div
-                  style={{
-                    marginTop: "22px",
-                    display: "grid",
-                    gridTemplateColumns: isMobile
-                      ? "1fr"
-                      : isCompact
-                        ? "repeat(2, minmax(0, 1fr))"
-                        : "repeat(3, minmax(0, 1fr))",
-                    gap: "20px",
-                    flex: 1,
-                  }}
-                >
-                  {thinkLevelBands.map((level) => (
+          {screen === "quiz-list" && selectedLevelInfo && (
+            <ScreenFrame
+              isMobile={isMobile}
+              eyebrow={`Think Missions · ${selectedLevelInfo.label}`}
+              title={`${selectedLevelInfo.title} Mission Set`}
+              description="Complete a new quiz to earn tokens and unlock gear progress."
+              backLabel="← Levels"
+              onBack={resetToLevels}
+              rightSlot={
+                pageCount > 1 ? (
+                  <div style={{ display: "flex", gap: "8px" }}>
                     <button
-                      key={level.id}
                       type="button"
-                      onClick={() => void chooseLevel(level.id)}
-                      style={thinkLargeCardStyle(level.accent)}
+                      disabled={quizPage <= 0}
+                      onClick={() =>
+                        setQuizPage((current) => Math.max(0, current - 1))
+                      }
+                      style={{
+                        ...smallPageButton,
+                        opacity: quizPage <= 0 ? 0.35 : 1,
+                      }}
+                    >
+                      ‹
+                    </button>
+                    <div style={pageCounter}>
+                      {quizPage + 1}/{pageCount}
+                    </div>
+                    <button
+                      type="button"
+                      disabled={quizPage >= pageCount - 1}
+                      onClick={() =>
+                        setQuizPage((current) =>
+                          Math.min(pageCount - 1, current + 1),
+                        )
+                      }
+                      style={{
+                        ...smallPageButton,
+                        opacity: quizPage >= pageCount - 1 ? 0.35 : 1,
+                      }}
+                    >
+                      ›
+                    </button>
+                  </div>
+                ) : null
+              }
+            >
+              {loadError && <ErrorBanner message={loadError} />}
+              <div style={quizGrid(isMobile, isCompact)}>
+                {visibleQuizzes.map((quiz) => {
+                  const completed = completedQuizIds.has(quiz.id);
+                  const attempt = completedAttempts.find(
+                    (item) => item.quiz_id === quiz.id,
+                  );
+
+                  return (
+                    <button
+                      key={quiz.id}
+                      type="button"
+                      onClick={() => void startQuiz(quiz)}
+                      style={quizCard(completed)}
                     >
                       <p
                         style={{
                           margin: 0,
-                          color: level.accent,
-                          fontSize: "14px",
-                          letterSpacing: "0.16em",
-                          textTransform: "uppercase",
+                          color: completed ? "#86efac" : "#60f0d0",
+                          fontSize: isMobile ? "10px" : "12px",
+                          letterSpacing: "0.14em",
+                          fontWeight: 900,
                         }}
                       >
-                        {level.label}
+                        {completed ? "COMPLETED" : `QUIZ ${quiz.quiz_order}`}
                       </p>
-
-                      <h3 style={thinkCardTitleStyle}>{level.title}</h3>
-                      <p style={thinkCardTextStyle}>{level.subtitle}</p>
-                      <div style={thinkCardButtonLook}>View Quizzes ›</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {screen === "loading" && (
-              <ThinkMessageCard message="Loading Think Mission..." />
-            )}
-
-            {screen === "quiz-list" && selectedLevelInfo && (
-              <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-                <ThinkTopRow
-                  leftButton="← Back to Levels"
-                  onLeftClick={resetToLevels}
-                  rightText={`${selectedLevelInfo.title} · ${selectedLevelInfo.label}`}
-                />
-
-                <QuizPanelHeader
-                  eyebrow="Choose Quiz"
-                  title={`${selectedLevelInfo.title} Mission Set`}
-                  description="Complete a new quiz to earn Dreamscape Tokens and unlock the next gear upgrade."
-                />
-
-                {loadError && <ThinkErrorMessage message={loadError} />}
-
-                <div
-                  style={{
-                    marginTop: "22px",
-                    display: "grid",
-                    gridTemplateColumns: isMobile
-                      ? "1fr"
-                      : isCompact
-                        ? "repeat(2, minmax(0, 1fr))"
-                        : "repeat(3, minmax(0, 1fr))",
-                    gap: "16px",
-                  }}
-                >
-                  {quizzes.map((quiz) => {
-                    const completed = isQuizCompleted(quiz.id);
-                    const completedAttempt = completedAttempts.find(
-                      (attempt) => attempt.quiz_id === quiz.id,
-                    );
-
-                    return (
-                      <button
-                        key={quiz.id}
-                        type="button"
-                        onClick={() => void startQuiz(quiz)}
+                      <h3 style={quizTitle}>{quiz.title}</h3>
+                      <p style={clampedDescription}>{quiz.description}</p>
+                      {completed && attempt && (
+                        <p style={attemptText}>
+                          {attempt.correct_count}/20 · {attempt.score}/100 · +
+                          {attempt.tokens_earned} DT
+                        </p>
+                      )}
+                      <div
                         style={{
-                          minHeight: isMobile ? "auto" : "250px",
-                          borderRadius: "22px",
-                          padding: "20px",
-                          border: completed
-                            ? "1px solid rgba(74,222,128,0.5)"
-                            : "1px solid rgba(126,232,255,0.36)",
+                          ...smallAction,
                           background: completed
-                            ? "linear-gradient(180deg, rgba(20, 92, 60, 0.72), rgba(8, 35, 36, 0.9))"
-                            : "linear-gradient(180deg, rgba(20, 58, 100, 0.74), rgba(8, 25, 56, 0.9))",
-                          color: "white",
-                          textAlign: "left",
-                          cursor: "pointer",
-                          display: "flex",
-                          flexDirection: "column",
-                          opacity: completed ? 0.9 : 1,
+                            ? "linear-gradient(135deg, #86efac, #22c55e)"
+                            : smallAction.background,
+                          color: completed ? "#052e16" : "white",
                         }}
                       >
-                        <p
-                          style={{
-                            margin: 0,
-                            color: completed ? "#86efac" : "#7ee8ff",
-                            fontSize: "12px",
-                            letterSpacing: "0.14em",
-                            textTransform: "uppercase",
-                          }}
-                        >
-                          {completed
-                            ? "Completed Once"
-                            : `Think Quiz ${quiz.quiz_order}`}
-                        </p>
-
-                        <h3
-                          style={{
-                            margin: "12px 0 0",
-                            fontSize: "21px",
-                            lineHeight: 1.2,
-                          }}
-                        >
-                          {quiz.title}
-                        </h3>
-
-                        <p
-                          style={{
-                            margin: "10px 0 0",
-                            fontSize: "13px",
-                            lineHeight: 1.45,
-                            color: "rgba(255,255,255,0.72)",
-                          }}
-                        >
-                          {quiz.description}
-                        </p>
-
-                        {completed && completedAttempt && (
-                          <p
-                            style={{
-                              margin: "14px 0 0",
-                              color: "rgba(255,255,255,0.76)",
-                              fontSize: "13px",
-                              lineHeight: 1.45,
-                            }}
-                          >
-                            Counted score: {completedAttempt.score}/100 ·
-                            Correct: {completedAttempt.correct_count}/20 ·
-                            Tokens: +{completedAttempt.tokens_earned}
-                          </p>
-                        )}
-
-                        <div
-                          style={{
-                            ...thinkSmallButtonLook,
-                            background: completed
-                              ? "linear-gradient(135deg, #86efac, #22c55e)"
-                              : thinkSmallButtonLook.background,
-                            color: completed ? "#052e16" : "white",
-                          }}
-                        >
-                          {completed ? "Replay Mission" : "Start 20 Questions ›"}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                        {completed ? "Replay" : "Start"}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-            )}
+            </ScreenFrame>
+          )}
 
-            {screen === "quiz" && currentQuestion && selectedQuiz && (
+          {screen === "quiz" && currentQuestion && selectedQuiz && (
+            <div
+              style={{
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+                minHeight: 0,
+                gap: isMobile ? "8px" : "12px",
+              }}
+            >
+              <div style={quizTopBar}>
+                <button
+                  type="button"
+                  onClick={resetToQuizList}
+                  style={backButton}
+                >
+                  ← Quiz List
+                </button>
+                <div style={{ textAlign: "center", minWidth: 0 }}>
+                  <p style={quizTopTitle}>{selectedQuiz.title}</p>
+                  <p style={quizTopMeta}>Question {questionIndex + 1}/20</p>
+                </div>
+                <div style={scorePill}>Score {score}</div>
+              </div>
+
               <div
                 style={{
                   flex: 1,
-                  display: "flex",
-                  flexDirection: "column",
-                  minHeight: isDesktop ? "660px" : "auto",
+                  minHeight: 0,
+                  display: "grid",
+                  gridTemplateColumns: isCompact
+                    ? "1fr"
+                    : "minmax(0,1.08fr) minmax(340px,0.92fr)",
+                  gridTemplateRows: isCompact
+                    ? "minmax(0,0.9fr) minmax(0,1.1fr)"
+                    : "1fr",
+                  gap: isMobile ? "8px" : "12px",
                 }}
               >
-                <ThinkTopRow
-                  leftButton="← Back to Quiz List"
-                  onLeftClick={resetToQuizList}
-                  rightText={`Score: ${score} · Question ${questionIndex + 1}/20`}
-                />
-
-                <div
-                  style={{
-                    marginTop: "22px",
-                    display: "grid",
-                    gridTemplateColumns: isDesktop
-                      ? "minmax(0, 1.05fr) minmax(320px, 0.95fr)"
-                      : "1fr",
-                    gap: "24px",
-                    flex: 1,
-                    alignItems: "stretch",
-                  }}
-                >
-                  <div
-                    style={{
-                      borderRadius: "26px",
-                      border: "1px solid rgba(150, 220, 255, 0.42)",
-                      background:
-                        "linear-gradient(180deg, rgba(20, 58, 100, 0.8), rgba(8, 25, 56, 0.94))",
-                      padding: isMobile ? "20px" : "30px",
-                      minHeight: isDesktop ? "590px" : "auto",
-                      display: "flex",
-                      flexDirection: "column",
-                    }}
-                  >
-                    <p
-                      style={{
-                        margin: 0,
-                        color: "#60f0d0",
-                        fontSize: "13px",
-                        letterSpacing: "0.14em",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      {currentQuestion.skill || selectedQuiz.title}
+                <div style={questionPanel}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <p style={skillLabel}>
+                      {currentQuestion.skill || "Think Mission"}
                     </p>
-
-                    <h3
-                      style={{
-                        margin: "12px 0 0",
-                        fontSize: isMobile ? "28px" : "36px",
-                        fontWeight: 700,
-                      }}
-                    >
+                    <h2 style={questionHeading}>
                       Question {questionIndex + 1}
-                    </h3>
-
+                    </h2>
                     {currentQuestion.question_image && (
-                      <div
-                        style={{
-                          marginTop: "24px",
-                          borderRadius: "20px",
-                          border: "1px solid rgba(126,232,255,0.28)",
-                          background: "rgba(255,255,255,0.95)",
-                          minHeight: "260px",
-                          overflow: "hidden",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
+                      <div style={questionImageBox(isMobile, isCompact)}>
                         <img
                           src={currentQuestion.question_image}
                           alt={`Question ${questionIndex + 1}`}
+                          draggable={false}
                           style={{
                             width: "100%",
                             height: "100%",
                             objectFit: "contain",
                           }}
-                          draggable={false}
                         />
                       </div>
                     )}
-
-                    <p
-                      style={{
-                        margin: currentQuestion.question_image
-                          ? "26px 0 0"
-                          : "34px 0 0",
-                        fontSize: isMobile ? "23px" : "32px",
-                        lineHeight: 1.35,
-                        fontWeight: 500,
-                        color: "white",
-                      }}
-                    >
+                    <p style={questionText(isMobile, isCompact)}>
                       {currentQuestion.question_text}
                     </p>
-
-                    <p
-                      style={{
-                        margin: "18px 0 0",
-                        color: "rgba(255,255,255,0.62)",
-                        fontSize: "15px",
-                      }}
-                    >
-                      Skill: {currentQuestion.skill}
-                    </p>
-
-                    {feedback && (
-                      <div
-                        style={{
-                          marginTop: "auto",
-                          borderRadius: "18px",
-                          border:
-                            selectedAnswer === currentQuestion.correct_answer
-                              ? "1px solid rgba(74, 222, 128, 0.6)"
-                              : "1px solid rgba(248, 113, 113, 0.6)",
-                          background:
-                            selectedAnswer === currentQuestion.correct_answer
-                              ? "rgba(34, 197, 94, 0.14)"
-                              : "rgba(239, 68, 68, 0.14)",
-                          padding: "18px 20px",
-                          fontSize: "16px",
-                          lineHeight: 1.5,
-                          color: "rgba(255,255,255,0.92)",
-                        }}
-                      >
-                        <strong
-                          style={{
-                            display: "block",
-                            marginBottom: "6px",
-                            color:
-                              selectedAnswer === currentQuestion.correct_answer
-                                ? "#86efac"
-                                : "#fca5a5",
-                            fontSize: "18px",
-                          }}
-                        >
-                          {selectedAnswer === currentQuestion.correct_answer
-                            ? "Correct!"
-                            : "Not quite."}
-                        </strong>
-                        {feedback}
-                      </div>
-                    )}
                   </div>
 
+                  {feedback && (
+                    <div
+                      style={feedbackBox(
+                        selectedAnswer === currentQuestion.correct_answer,
+                      )}
+                    >
+                      <strong>
+                        {selectedAnswer === currentQuestion.correct_answer
+                          ? "Correct! "
+                          : "Not quite. "}
+                      </strong>
+                      {feedback}
+                    </div>
+                  )}
+                </div>
+
+                <div style={answerPanel}>
                   <div
                     style={{
-                      borderRadius: "26px",
-                      border: "1px solid rgba(150, 220, 255, 0.42)",
-                      background:
-                        "linear-gradient(180deg, rgba(17, 82, 136, 0.86), rgba(7, 27, 68, 0.98))",
-                      padding: isMobile ? "20px" : "26px",
-                      display: "flex",
-                      flexDirection: "column",
+                      display: "grid",
+                      gridTemplateColumns:
+                        isMobile || !isCompact
+                          ? "1fr"
+                          : "repeat(2,minmax(0,1fr))",
+                      gap: isMobile ? "6px" : "9px",
+                      minHeight: 0,
                     }}
                   >
-                    <h3 style={{ margin: 0, fontSize: "22px", fontWeight: 600 }}>
-                      Choose your answer
-                    </h3>
-
-                    <div
-                      style={{
-                        marginTop: "20px",
-                        display: "grid",
-                        gap: "12px",
-                      }}
-                    >
-                      <ThinkAnswerButton
-                        label="A"
-                        text={currentQuestion.option_a}
-                        selected={selectedAnswer === "A"}
-                        disabled={answerLocked || isFinishing}
-                        correctAnswer={currentQuestion.correct_answer}
-                        answerLocked={answerLocked}
-                        onClick={() => chooseAnswer("A")}
-                      />
-                      <ThinkAnswerButton
-                        label="B"
-                        text={currentQuestion.option_b}
-                        selected={selectedAnswer === "B"}
-                        disabled={answerLocked || isFinishing}
-                        correctAnswer={currentQuestion.correct_answer}
-                        answerLocked={answerLocked}
-                        onClick={() => chooseAnswer("B")}
-                      />
-                      <ThinkAnswerButton
-                        label="C"
-                        text={currentQuestion.option_c}
-                        selected={selectedAnswer === "C"}
-                        disabled={answerLocked || isFinishing}
-                        correctAnswer={currentQuestion.correct_answer}
-                        answerLocked={answerLocked}
-                        onClick={() => chooseAnswer("C")}
-                      />
-                      <ThinkAnswerButton
-                        label="D"
-                        text={currentQuestion.option_d}
-                        selected={selectedAnswer === "D"}
-                        disabled={answerLocked || isFinishing}
-                        correctAnswer={currentQuestion.correct_answer}
-                        answerLocked={answerLocked}
-                        onClick={() => chooseAnswer("D")}
-                      />
-                    </div>
-
-                    {answerLocked && (
-                      <button
-                        type="button"
-                        onClick={() => void nextQuestion()}
-                        style={thinkNextButtonStyle}
-                      >
-                        {questionIndex >= 19
-                          ? "Finish Mission"
-                          : "Next Question"}
-                      </button>
-                    )}
+                    <AnswerButton
+                      label="A"
+                      text={currentQuestion.option_a}
+                      selected={selectedAnswer === "A"}
+                      answerLocked={answerLocked || isFinishing}
+                      correctAnswer={currentQuestion.correct_answer}
+                      onClick={() => chooseAnswer("A")}
+                    />
+                    <AnswerButton
+                      label="B"
+                      text={currentQuestion.option_b}
+                      selected={selectedAnswer === "B"}
+                      answerLocked={answerLocked || isFinishing}
+                      correctAnswer={currentQuestion.correct_answer}
+                      onClick={() => chooseAnswer("B")}
+                    />
+                    <AnswerButton
+                      label="C"
+                      text={currentQuestion.option_c}
+                      selected={selectedAnswer === "C"}
+                      answerLocked={answerLocked || isFinishing}
+                      correctAnswer={currentQuestion.correct_answer}
+                      onClick={() => chooseAnswer("C")}
+                    />
+                    <AnswerButton
+                      label="D"
+                      text={currentQuestion.option_d}
+                      selected={selectedAnswer === "D"}
+                      answerLocked={answerLocked || isFinishing}
+                      correctAnswer={currentQuestion.correct_answer}
+                      onClick={() => chooseAnswer("D")}
+                    />
                   </div>
-                </div>
-              </div>
-            )}
-
-            {screen === "results" && selectedQuiz && (
-              <div
-                style={{
-                  margin: "10px auto",
-                  width: "min(760px, 100%)",
-                  borderRadius: "26px",
-                  border: "1px solid rgba(126,232,255,0.5)",
-                  background:
-                    "linear-gradient(180deg, rgba(17, 82, 136, 0.86), rgba(7, 27, 68, 0.98))",
-                  padding: isMobile ? "24px" : "36px",
-                  textAlign: "center",
-                  boxShadow: "0 0 34px rgba(83, 215, 255, 0.28)",
-                }}
-              >
-                <p
-                  style={{
-                    margin: 0,
-                    color: "#60f0d0",
-                    fontSize: "13px",
-                    letterSpacing: "0.18em",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Think Mission Complete
-                </p>
-
-                <h3
-                  style={{
-                    margin: "12px 0 0",
-                    fontSize: isMobile ? "30px" : "38px",
-                    fontWeight: 600,
-                  }}
-                >
-                  {selectedQuiz.title}
-                </h3>
-
-                <div
-                  style={{
-                    marginTop: "28px",
-                    display: "grid",
-                    gridTemplateColumns: isMobile
-                      ? "1fr"
-                      : "repeat(4, minmax(0, 1fr))",
-                    gap: "12px",
-                  }}
-                >
-                  <ThinkResultStat label="Correct" value={`${correctCount}/20`} />
-                  <ThinkResultStat label="Score" value={`${score}/100`} />
-                  <ThinkResultStat label="Tokens" value={`+${tokensEarned}`} />
-                  <ThinkResultStat label="Balance" value={String(tokenBalance)} />
-                </div>
-
-                <p
-                  style={{
-                    margin: "26px 0 0",
-                    fontSize: "15px",
-                    lineHeight: 1.5,
-                    color: "rgba(255,255,255,0.78)",
-                  }}
-                >
-                  {rewardSaved && tokensEarned > 0
-                    ? "Your attempt, gear progress and Dreamscape Token reward have been saved."
-                    : rewardSaved
-                      ? "Practice attempt saved. This quiz was already completed before, so no extra gear progress or tokens were awarded."
-                      : "Your mission is complete, but the reward may not have been saved."}
-                </p>
-
-                <div
-                  style={{
-                    marginTop: "28px",
-                    display: "flex",
-                    flexDirection: isMobile ? "column" : "row",
-                    justifyContent: "center",
-                    gap: "12px",
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={resetToQuizList}
-                    style={thinkGhostButton}
-                  >
-                    Choose Another Quiz
-                  </button>
 
                   <button
                     type="button"
-                    onClick={onOpenMaze}
-                    style={thinkPrimaryButton}
+                    disabled={!answerLocked || isFinishing}
+                    onClick={() => void nextQuestion()}
+                    style={{
+                      ...nextButton,
+                      opacity: answerLocked && !isFinishing ? 1 : 0.35,
+                      cursor:
+                        answerLocked && !isFinishing ? "pointer" : "default",
+                    }}
                   >
-                    Enter Logic Maze
+                    {questionIndex >= 19
+                      ? "Finish Mission"
+                      : answerLocked
+                        ? "Next Question"
+                        : "Choose an answer"}
                   </button>
                 </div>
               </div>
-            )}
-          </section>
+            </div>
+          )}
+
+          {screen === "results" && selectedQuiz && (
+            <ResultsScreen
+              isMobile={isMobile}
+              quizTitle={selectedQuiz.title}
+              correctCount={correctCount}
+              score={score}
+              tokensEarned={tokensEarned}
+              tokenBalance={tokenBalance}
+              rewardSaved={rewardSaved}
+              onAnotherQuiz={resetToQuizList}
+              onMyGear={() => router.push("/learning-missions/think/gear")}
+            />
+          )}
         </div>
       </section>
     </main>
   );
 }
 
-function GearProgressCard({
+function ScreenFrame({
   isMobile,
-  completedMissionCount,
-  currentUpgrade,
-  nextUpgrade,
-  progressPercentage,
-  missionsToNext,
-  isComplete,
-  mazeRank,
-  mazeBestScore,
-  mazeBestTimeMs,
-  mazeRankLoading,
-  onOpenMaze,
+  eyebrow,
+  title,
+  description,
+  backLabel,
+  onBack,
+  rightSlot,
+  children,
 }: {
   isMobile: boolean;
-  completedMissionCount: number;
-  currentUpgrade: ThinkGearUpgrade;
-  nextUpgrade: ThinkGearUpgrade | undefined;
-  progressPercentage: number;
-  missionsToNext: number;
-  isComplete: boolean;
-  mazeRank: number | null;
-  mazeBestScore: number | null;
-  mazeBestTimeMs: number | null;
-  mazeRankLoading: boolean;
-  onOpenMaze: () => void;
+  eyebrow: string;
+  title: string;
+  description: string;
+  backLabel?: string;
+  onBack?: () => void;
+  rightSlot?: ReactNode;
+  children: ReactNode;
 }) {
-  const [imageFailed, setImageFailed] = useState(false);
-
-  useEffect(() => {
-    setImageFailed(false);
-  }, [currentUpgrade.imageSrc]);
-
   return (
-    <section
+    <div
       style={{
-        overflow: "hidden",
-        borderRadius: isMobile ? "24px" : "30px",
-        border: `1px solid ${currentUpgrade.accent}66`,
-        background:
-          "linear-gradient(155deg, rgba(5,22,48,0.94), rgba(8,42,58,0.92))",
-        boxShadow: `0 0 30px ${currentUpgrade.accent}25, 0 24px 70px rgba(0,0,0,0.32)`,
+        height: "100%",
+        minHeight: 0,
+        display: "flex",
+        flexDirection: "column",
       }}
     >
-      <div style={{ padding: isMobile ? "20px" : "24px" }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            gap: "16px",
-          }}
-        >
-          <div>
-            <p
-              style={{
-                margin: 0,
-                color: currentUpgrade.accent,
-                fontSize: "11px",
-                letterSpacing: "0.18em",
-                textTransform: "uppercase",
-                fontWeight: 900,
-              }}
-            >
-              Current Gear Loadout
-            </p>
-
-            <h2
-              style={{
-                margin: "10px 0 0",
-                fontSize: isMobile ? "26px" : "32px",
-                lineHeight: 1.08,
-              }}
-            >
-              {currentUpgrade.name}
-            </h2>
-
-            <p
-              style={{
-                margin: "8px 0 0",
-                color: "rgba(255,255,255,0.62)",
-                fontSize: "13px",
-              }}
-            >
-              {completedMissionCount} counted Think Mission
-              {completedMissionCount === 1 ? "" : "s"}
-            </p>
-          </div>
-
-          <div
-            style={{
-              minWidth: "48px",
-              height: "48px",
-              borderRadius: "16px",
-              border: `1px solid ${currentUpgrade.accent}66`,
-              background: `${currentUpgrade.accent}18`,
-              color: currentUpgrade.accent,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "24px",
-              fontWeight: 900,
-            }}
-          >
-            {currentUpgrade.icon}
-          </div>
-        </div>
-
-        <div
-          style={{
-            position: "relative",
-            marginTop: "20px",
-            minHeight: isMobile ? "220px" : "270px",
-            overflow: "hidden",
-            borderRadius: "24px",
-            border: `1px solid ${currentUpgrade.accent}4d`,
-            background: `
-              radial-gradient(circle at 50% 34%, ${currentUpgrade.accent}2f, transparent 42%),
-              linear-gradient(145deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))
-            `,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              opacity: 0.24,
-              backgroundImage:
-                "linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)",
-              backgroundSize: "34px 34px",
-            }}
-          />
-
-          {!imageFailed && (
-            <img
-              src={currentUpgrade.imageSrc}
-              alt={currentUpgrade.name}
-              onError={() => setImageFailed(true)}
-              style={{
-                position: "relative",
-                zIndex: 1,
-                width: "100%",
-                height: isMobile ? "220px" : "270px",
-                objectFit: "contain",
-                filter: `drop-shadow(0 0 22px ${currentUpgrade.accent}55)`,
-              }}
-              draggable={false}
-            />
-          )}
-
-          {imageFailed && (
-            <div
-              style={{
-                position: "relative",
-                zIndex: 1,
-                width: "150px",
-                height: "150px",
-                borderRadius: "40px",
-                border: `1px solid ${currentUpgrade.accent}88`,
-                background: `${currentUpgrade.accent}16`,
-                boxShadow: `0 0 36px ${currentUpgrade.accent}35`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: currentUpgrade.accent,
-                fontSize: "72px",
-              }}
-            >
-              {currentUpgrade.icon}
-            </div>
+      <div style={sectionTopRow}>
+        <div>
+          {backLabel && onBack && (
+            <button type="button" onClick={onBack} style={backButton}>
+              {backLabel}
+            </button>
           )}
         </div>
+        {rightSlot}
+      </div>
 
+      <div style={{ textAlign: "center", flexShrink: 0 }}>
+        <p style={sectionEyebrow}>{eyebrow}</p>
+        <h1
+          style={{
+            margin: "5px 0 0",
+            fontSize: isMobile ? "24px" : "clamp(38px,3vw,52px)",
+            lineHeight: 1.05,
+          }}
+        >
+          {title}
+        </h1>
         <p
           style={{
-            margin: "18px 0 0",
-            color: "rgba(255,255,255,0.78)",
-            fontSize: "14px",
-            lineHeight: 1.55,
+            margin: "7px auto 0",
+            maxWidth: "700px",
+            fontSize: isMobile ? "12px" : "16px",
+            color: "rgba(255,255,255,0.68)",
           }}
         >
-          {currentUpgrade.description}
+          {description}
         </p>
-
-        <div style={{ marginTop: "20px" }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: "12px",
-              color: "rgba(255,255,255,0.66)",
-              fontSize: "12px",
-            }}
-          >
-            <span>
-              {isComplete
-                ? "All current gear unlocked"
-                : `Progress to ${nextUpgrade?.shortName}`}
-            </span>
-            <strong style={{ color: currentUpgrade.accent }}>
-              {progressPercentage}%
-            </strong>
-          </div>
-
-          <div
-            style={{
-              marginTop: "9px",
-              height: "12px",
-              overflow: "hidden",
-              borderRadius: "999px",
-              border: `1px solid ${currentUpgrade.accent}3d`,
-              background: "rgba(255,255,255,0.08)",
-            }}
-          >
-            <div
-              style={{
-                width: `${progressPercentage}%`,
-                height: "100%",
-                borderRadius: "999px",
-                background: `linear-gradient(90deg, ${currentUpgrade.accent}, #35c5ff)`,
-                boxShadow: `0 0 18px ${currentUpgrade.accent}66`,
-              }}
-            />
-          </div>
-
-          <p
-            style={{
-              margin: "10px 0 0",
-              color: "rgba(255,255,255,0.58)",
-              fontSize: "12px",
-              lineHeight: 1.45,
-            }}
-          >
-            {isComplete
-              ? "Nova’s full Think Mission inventory is ready."
-              : `${missionsToNext} more new Think Mission${
-                  missionsToNext === 1 ? "" : "s"
-                } required.`}
-          </p>
-        </div>
       </div>
 
       <div
         style={{
-          borderTop: "1px solid rgba(255,255,255,0.1)",
-          background: "rgba(2,10,24,0.44)",
-          padding: isMobile ? "18px 20px 20px" : "20px 24px 24px",
+          flex: 1,
+          minHeight: 0,
+          marginTop: isMobile ? "10px" : "16px",
         }}
       >
-        <p
-          style={{
-            margin: 0,
-            color: "#ffd76a",
-            fontSize: "11px",
-            letterSpacing: "0.18em",
-            textTransform: "uppercase",
-            fontWeight: 900,
-          }}
-        >
-          Logic Maze Challenge
-        </p>
-
-        <div
-          style={{
-            marginTop: "14px",
-            display: "grid",
-            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-            gap: "10px",
-          }}
-        >
-          <ChallengeStat
-            label="Current Rank"
-            value={mazeRankLoading ? "..." : mazeRank ? `#${mazeRank}` : "Unranked"}
-          />
-          <ChallengeStat
-            label="Best Score"
-            value={
-              mazeRankLoading
-                ? "..."
-                : mazeBestScore === null
-                  ? "—"
-                  : mazeBestScore.toLocaleString()
-            }
-          />
-          <ChallengeStat
-            label="Best Time"
-            value={mazeRankLoading ? "..." : formatChallengeTime(mazeBestTimeMs)}
-          />
-        </div>
-
-        <button
-          type="button"
-          onClick={onOpenMaze}
-          style={{
-            marginTop: "16px",
-            width: "100%",
-            minHeight: "52px",
-            borderRadius: "15px",
-            border: "1px solid rgba(255,255,255,0.45)",
-            background: "linear-gradient(135deg, #60f0d0, #35c5ff)",
-            color: "#041522",
-            fontSize: "15px",
-            fontWeight: 900,
-            cursor: "pointer",
-            boxShadow: "0 0 22px rgba(96,240,208,0.24)",
-          }}
-        >
-          Enter Logic Maze ›
-        </button>
+        {children}
       </div>
-    </section>
-  );
-}
-
-function ChallengeStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div
-      style={{
-        minWidth: 0,
-        borderRadius: "14px",
-        border: "1px solid rgba(255,255,255,0.1)",
-        background: "rgba(255,255,255,0.05)",
-        padding: "12px 8px",
-        textAlign: "center",
-      }}
-    >
-      <p
-        style={{
-          margin: 0,
-          color: "rgba(255,255,255,0.5)",
-          fontSize: "9px",
-          letterSpacing: "0.1em",
-          textTransform: "uppercase",
-        }}
-      >
-        {label}
-      </p>
-      <p
-        style={{
-          margin: "7px 0 0",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          fontSize: "15px",
-          fontWeight: 800,
-          whiteSpace: "nowrap",
-        }}
-      >
-        {value}
-      </p>
     </div>
   );
 }
 
-function QuizPanelHeader({
-  eyebrow,
+function ChoiceCard({
+  accent,
   title,
-  description,
+  subtitle,
+  label,
+  onClick,
 }: {
-  eyebrow: string;
+  accent: string;
   title: string;
-  description: string;
+  subtitle: string;
+  label: string;
+  onClick: () => void;
 }) {
   return (
-    <div style={{ marginTop: "18px" }}>
-      <p
+    <button type="button" onClick={onClick} style={choiceCard(accent)}>
+      <div style={{ color: accent, fontSize: "clamp(22px,3.5vh,40px)" }}>
+        {label}
+      </div>
+      <h2
         style={{
-          margin: 0,
-          color: "#60f0d0",
-          fontSize: "11px",
-          fontWeight: 900,
-          letterSpacing: "0.18em",
-          textTransform: "uppercase",
+          margin: "10px 0 0",
+          fontSize: "clamp(22px,3vh,34px)",
         }}
       >
-        {eyebrow}
-      </p>
-      <h2 style={{ margin: "8px 0 0", fontSize: "30px", lineHeight: 1.15 }}>
         {title}
       </h2>
       <p
         style={{
-          margin: "10px 0 0",
-          color: "rgba(255,255,255,0.66)",
-          fontSize: "14px",
-          lineHeight: 1.5,
+          margin: "8px auto 0",
+          maxWidth: "420px",
+          color: "rgba(255,255,255,0.72)",
+          lineHeight: 1.45,
+          fontSize: "clamp(12px,1.7vh,16px)",
         }}
       >
-        {description}
+        {subtitle}
       </p>
-    </div>
+      <div style={choiceAction}>Choose ›</div>
+    </button>
   );
 }
 
-function ThinkAnswerButton({
+function AnswerButton({
   label,
   text,
   selected,
-  disabled,
-  correctAnswer,
   answerLocked,
+  correctAnswer,
   onClick,
 }: {
   label: ThinkAnswer;
   text: string;
   selected: boolean;
-  disabled: boolean;
-  correctAnswer: ThinkAnswer;
   answerLocked: boolean;
+  correctAnswer: ThinkAnswer;
   onClick: () => void;
 }) {
-  const isCorrectChoice = label === correctAnswer;
-  const isWrongSelected = selected && answerLocked && !isCorrectChoice;
-  const isCorrectSelected = selected && answerLocked && isCorrectChoice;
+  const correctSelected = selected && answerLocked && label === correctAnswer;
+  const wrongSelected = selected && answerLocked && label !== correctAnswer;
 
-  let border = "1px solid rgba(126,232,255,0.32)";
-  let background = "rgba(255,255,255,0.08)";
-  let color = disabled ? "rgba(255,255,255,0.5)" : "white";
+  let background = "rgba(255,255,255,0.075)";
+  let border = "1px solid rgba(96,240,208,0.26)";
 
-  if (selected && !answerLocked) {
-    border = "1px solid rgba(126,232,255,0.95)";
-    background = "linear-gradient(135deg, #35c5ff, #4c6dff)";
-    color = "white";
-  }
-
-  if (isCorrectSelected) {
-    border = "1px solid rgba(74, 222, 128, 0.9)";
-    background =
-      "linear-gradient(135deg, rgba(34,197,94,0.95), rgba(22,163,74,0.95))";
-    color = "white";
-  }
-
-  if (isWrongSelected) {
-    border = "1px solid rgba(248, 113, 113, 0.9)";
-    background =
-      "linear-gradient(135deg, rgba(239,68,68,0.95), rgba(185,28,28,0.95))";
-    color = "white";
+  if (correctSelected) {
+    background = "rgba(34,197,94,0.78)";
+    border = "1px solid rgba(134,239,172,0.9)";
+  } else if (wrongSelected) {
+    background = "rgba(220,38,38,0.78)";
+    border = "1px solid rgba(252,165,165,0.9)";
   }
 
   return (
     <button
       type="button"
-      disabled={disabled}
+      disabled={answerLocked}
       onClick={onClick}
       style={{
-        borderRadius: "16px",
+        minHeight: 0,
+        height: "100%",
+        borderRadius: "14px",
         border,
         background,
-        color,
-        minHeight: "62px",
-        padding: "12px 14px",
+        color: "white",
         display: "grid",
-        gridTemplateColumns: "34px 1fr",
-        gap: "12px",
+        gridTemplateColumns: "32px 1fr",
         alignItems: "center",
+        gap: "10px",
+        padding: "8px 11px",
         textAlign: "left",
-        cursor: disabled ? "default" : "pointer",
-        transition: "background 180ms ease, border 180ms ease",
+        cursor: answerLocked ? "default" : "pointer",
       }}
     >
-      <strong
+      <strong style={answerLetter}>{label}</strong>
+      <span
         style={{
-          width: "34px",
-          height: "34px",
-          borderRadius: "999px",
-          background: "rgba(255,255,255,0.16)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: "16px",
+          fontSize: "clamp(12px,1.6vh,16px)",
+          lineHeight: 1.3,
+          fontWeight: 700,
         }}
       >
-        {label}
-      </strong>
-      <span style={{ fontSize: "15px", lineHeight: 1.35 }}>{text}</span>
+        {text}
+      </span>
     </button>
   );
 }
 
-function ThinkTopRow({
-  leftButton,
-  onLeftClick,
-  rightText,
+function ResultsScreen({
+  isMobile,
+  quizTitle,
+  correctCount,
+  score,
+  tokensEarned,
+  tokenBalance,
+  rewardSaved,
+  onAnotherQuiz,
+  onMyGear,
 }: {
-  leftButton: string;
-  onLeftClick: () => void;
-  rightText: string;
+  isMobile: boolean;
+  quizTitle: string;
+  correctCount: number;
+  score: number;
+  tokensEarned: number;
+  tokenBalance: number;
+  rewardSaved: boolean;
+  onAnotherQuiz: () => void;
+  onMyGear: () => void;
 }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        justifyContent: "space-between",
-        alignItems: "center",
-        gap: "18px",
-      }}
-    >
-      <button type="button" onClick={onLeftClick} style={thinkBackButtonStyle}>
-        {leftButton}
-      </button>
-      <p
+    <div style={resultsWrap}>
+      <p style={sectionEyebrow}>THINK MISSION COMPLETE</p>
+      <h1
         style={{
-          margin: 0,
-          color: "rgba(255,255,255,0.74)",
-          fontSize: "14px",
+          margin: "8px 0 0",
+          fontSize: isMobile ? "27px" : "clamp(34px,5vh,54px)",
         }}
       >
-        {rightText}
-      </p>
-    </div>
-  );
-}
+        {quizTitle}
+      </h1>
 
-function ThinkMessageCard({ message }: { message: string }) {
-  return (
-    <div
-      style={{
-        margin: "20px auto",
-        maxWidth: "560px",
-        borderRadius: "24px",
-        border: "1px solid rgba(126,232,255,0.36)",
-        background: "rgba(255,255,255,0.08)",
-        padding: "30px",
-        textAlign: "center",
-        color: "rgba(255,255,255,0.82)",
-      }}
-    >
-      {message}
-    </div>
-  );
-}
+      <div style={resultsGrid(isMobile)}>
+        <ResultStat label="Correct" value={`${correctCount}/20`} />
+        <ResultStat label="Score" value={`${score}/100`} />
+        <ResultStat label="Tokens" value={`+${tokensEarned}`} />
+        <ResultStat label="Balance" value={`${tokenBalance} DT`} />
+      </div>
 
-function ThinkErrorMessage({ message }: { message: string }) {
-  return (
-    <div
-      style={{
-        marginTop: "22px",
-        borderRadius: "16px",
-        border: "1px solid rgba(255,215,106,0.45)",
-        background: "rgba(255,215,106,0.1)",
-        padding: "14px 16px",
-        color: "#ffe6a8",
-        fontSize: "14px",
-      }}
-    >
-      {message}
-    </div>
-  );
-}
-
-function ThinkResultStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div
-      style={{
-        borderRadius: "16px",
-        border: "1px solid rgba(126,232,255,0.28)",
-        background: "rgba(255,255,255,0.08)",
-        padding: "16px 10px",
-      }}
-    >
       <p
         style={{
-          margin: 0,
-          color: "#7ee8ff",
-          fontSize: "12px",
-          letterSpacing: "0.12em",
-          textTransform: "uppercase",
+          margin: "14px 0 0",
+          color: rewardSaved ? "#b8ffdb" : "#ffe6a8",
+          fontSize: "13px",
         }}
       >
-        {label}
+        {rewardSaved && tokensEarned > 0
+          ? "Attempt, gear progress and tokens saved."
+          : rewardSaved
+            ? "Practice attempt saved. Replays do not add extra gear progress."
+            : "The mission is complete, but the reward may not have been saved."}
       </p>
-      <p style={{ margin: "8px 0 0", fontSize: "22px", fontWeight: 700 }}>
-        {value}
-      </p>
+
+      <div
+        style={{
+          marginTop: "16px",
+          display: "flex",
+          flexDirection: isMobile ? "column" : "row",
+          justifyContent: "center",
+          gap: "10px",
+        }}
+      >
+        <button type="button" onClick={onAnotherQuiz} style={ghostAction}>
+          Choose Another Quiz
+        </button>
+        <button type="button" onClick={onMyGear} style={primaryAction}>
+          View My Gear
+        </button>
+      </div>
     </div>
   );
 }
 
-function thinkLargeCardStyle(accent: string): CSSProperties {
-  return {
-    minHeight: "280px",
-    borderRadius: "24px",
-    padding: "26px",
-    border: `1px solid ${accent}88`,
-    background:
-      "linear-gradient(180deg, rgba(35, 60, 120, 0.76), rgba(8, 25, 56, 0.92))",
-    boxShadow: `0 0 22px ${accent}22, inset 0 0 24px rgba(255,255,255,0.03)`,
-    color: "white",
-    textAlign: "left",
-    cursor: "pointer",
-    display: "flex",
-    flexDirection: "column",
-  };
+function ResultStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={resultStat}>
+      <p style={resultLabel}>{label}</p>
+      <p style={resultValue}>{value}</p>
+    </div>
+  );
 }
 
-const thinkCardTitleStyle: CSSProperties = {
-  margin: "24px 0 0",
-  fontSize: "28px",
+function CenteredMessage({ message }: { message: string }) {
+  return (
+    <div style={centeredFill}>
+      <div style={messageCard}>{message}</div>
+    </div>
+  );
+}
+
+function LockedScreen({
+  isMobile,
+  onExit,
+}: {
+  isMobile: boolean;
+  onExit: () => void;
+}) {
+  return (
+    <div style={centeredFill}>
+      <div style={lockedCard}>
+        <h2 style={{ margin: 0, fontSize: isMobile ? "26px" : "34px" }}>
+          Think Missions Locked
+        </h2>
+        <p style={{ margin: "12px 0 0", lineHeight: 1.55, opacity: 0.72 }}>
+          Sign in with a student, teacher or admin account to enter Think
+          Missions.
+        </p>
+        <div
+          style={{
+            marginTop: "20px",
+            display: "flex",
+            justifyContent: "center",
+            gap: "10px",
+          }}
+        >
+          <a href="/login" style={{ ...primaryAction, textDecoration: "none" }}>
+            Log In
+          </a>
+          <button type="button" onClick={onExit} style={ghostAction}>
+            Exit
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ErrorBanner({ message }: { message: string }) {
+  return <div style={errorBanner}>{message}</div>;
+}
+
+const pillButton: CSSProperties = {
+  minHeight: "38px",
+  borderRadius: "999px",
+  border: "1px solid rgba(96,240,208,0.32)",
+  background: "rgba(255,255,255,0.06)",
+  color: "white",
+  padding: "0 14px",
+  cursor: "pointer",
   fontWeight: 700,
 };
 
-const thinkCardTextStyle: CSSProperties = {
-  margin: "12px 0 0",
-  fontSize: "15px",
-  lineHeight: 1.5,
-  color: "rgba(255,255,255,0.76)",
+const myGearButton: CSSProperties = {
+  ...pillButton,
+  border: "1px solid rgba(255,215,106,0.45)",
+  background:
+    "linear-gradient(135deg, rgba(255,215,106,0.2), rgba(96,240,208,0.17))",
+  color: "#fff3c4",
 };
 
-const thinkCardButtonLook: CSSProperties = {
-  marginTop: "auto",
-  minHeight: "52px",
-  borderRadius: "14px",
-  background: "linear-gradient(135deg, #60f0d0, #35c5ff)",
-  color: "#041522",
+const tokenPill: CSSProperties = {
+  minHeight: "38px",
+  borderRadius: "999px",
+  border: "1px solid rgba(255,215,106,0.24)",
+  background: "rgba(255,215,106,0.08)",
+  padding: "0 13px",
   display: "flex",
   alignItems: "center",
-  justifyContent: "center",
-  fontSize: "16px",
+  gap: "6px",
+  fontSize: "13px",
   fontWeight: 800,
 };
 
-const thinkSmallButtonLook: CSSProperties = {
+const sectionTopRow: CSSProperties = {
+  minHeight: "38px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "10px",
+  flexShrink: 0,
+};
+
+const sectionEyebrow: CSSProperties = {
+  margin: 0,
+  color: "#60f0d0",
+  fontSize: "12px",
+  letterSpacing: "0.2em",
+  fontWeight: 900,
+};
+
+const backButton: CSSProperties = {
+  minHeight: "34px",
+  borderRadius: "999px",
+  border: "1px solid rgba(96,240,208,0.28)",
+  background: "rgba(255,255,255,0.055)",
+  color: "white",
+  padding: "0 12px",
+  cursor: "pointer",
+  fontSize: "12px",
+  fontWeight: 700,
+};
+
+function threeCardGrid(isMobile: boolean, isCompact: boolean): CSSProperties {
+  return {
+    width: "100%",
+    height: isMobile ? "100%" : "min(450px, 100%)",
+    maxWidth: isMobile ? "none" : "1200px",
+    minHeight: 0,
+    margin: "auto",
+    display: "grid",
+    gridTemplateColumns: isMobile
+      ? "1fr"
+      : isCompact
+        ? "repeat(2,minmax(0,1fr))"
+        : "repeat(3,minmax(0,1fr))",
+    gridTemplateRows: isMobile ? "repeat(3,minmax(0,1fr))" : "1fr",
+    gap: isMobile ? "12px" : "16px",
+  };
+}
+
+function choiceCard(accent: string): CSSProperties {
+  return {
+    minHeight: 0,
+    height: "100%",
+    borderRadius: "20px",
+    border: `1px solid ${accent}77`,
+    background:
+      "linear-gradient(180deg, rgba(20,70,92,0.62), rgba(8,30,52,0.76))",
+    color: "white",
+    padding: "clamp(12px,2.2vh,24px)",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    textAlign: "center",
+    cursor: "pointer",
+    boxShadow: `0 0 24px ${accent}18`,
+    overflow: "hidden",
+  };
+}
+
+const choiceAction: CSSProperties = {
+  marginTop: "clamp(10px,2vh,22px)",
+  minHeight: "38px",
+  minWidth: "140px",
+  borderRadius: "12px",
+  background: "linear-gradient(135deg, #35c5ff, #4c6dff)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "13px",
+  fontWeight: 800,
+};
+
+function quizGrid(isMobile: boolean, isCompact: boolean): CSSProperties {
+  return {
+    height: "100%",
+    minHeight: 0,
+    display: "grid",
+    gridTemplateColumns: isMobile
+      ? "1fr"
+      : isCompact
+        ? "repeat(2,minmax(0,1fr))"
+        : "repeat(3,minmax(0,1fr))",
+    gridTemplateRows: isMobile
+      ? "repeat(3,minmax(0,1fr))"
+      : "repeat(2,minmax(0,1fr))",
+    gap: "10px",
+  };
+}
+
+function quizCard(completed: boolean): CSSProperties {
+  return {
+    minHeight: 0,
+    height: "100%",
+    borderRadius: "17px",
+    border: completed
+      ? "1px solid rgba(74,222,128,0.48)"
+      : "1px solid rgba(96,240,208,0.3)",
+    background: completed
+      ? "linear-gradient(180deg, rgba(20,92,60,0.66), rgba(8,35,36,0.8))"
+      : "linear-gradient(180deg, rgba(20,70,92,0.62), rgba(8,30,52,0.78))",
+    color: "white",
+    padding: "18px",
+    display: "flex",
+    flexDirection: "column",
+    textAlign: "left",
+    cursor: "pointer",
+    overflow: "hidden",
+  };
+}
+
+const quizTitle: CSSProperties = {
+  margin: "10px 0 0",
+  fontSize: "clamp(21px,2.5vh,29px)",
+  lineHeight: 1.15,
+};
+
+const clampedDescription: CSSProperties = {
+  margin: "9px 0 0",
+  color: "rgba(255,255,255,0.78)",
+  fontSize: "clamp(13px,1.45vh,16px)",
+  lineHeight: 1.35,
+  display: "-webkit-box",
+  WebkitLineClamp: 2,
+  WebkitBoxOrient: "vertical",
+  overflow: "hidden",
+};
+
+const attemptText: CSSProperties = {
+  margin: "9px 0 0",
+  color: "rgba(255,255,255,0.82)",
+  fontSize: "12px",
+};
+
+const smallAction: CSSProperties = {
   marginTop: "auto",
-  minHeight: "44px",
-  borderRadius: "13px",
+  minHeight: "40px",
+  borderRadius: "10px",
   background: "linear-gradient(135deg, #35c5ff, #4c6dff)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   fontSize: "14px",
-  fontWeight: 700,
+  fontWeight: 800,
 };
 
-const thinkBackButtonStyle: CSSProperties = {
-  border: "1px solid rgba(126,232,255,0.36)",
+const smallPageButton: CSSProperties = {
+  width: "34px",
+  height: "34px",
+  borderRadius: "999px",
+  border: "1px solid rgba(96,240,208,0.25)",
   background: "rgba(255,255,255,0.06)",
   color: "white",
+  cursor: "pointer",
+};
+
+const pageCounter: CSSProperties = {
+  minWidth: "52px",
+  height: "34px",
   borderRadius: "999px",
-  padding: "10px 16px",
-  cursor: "pointer",
-};
-
-const thinkNextButtonStyle: CSSProperties = {
-  marginTop: "20px",
-  width: "100%",
-  minHeight: "52px",
-  borderRadius: "14px",
-  border: "1px solid rgba(255,255,255,0.45)",
-  background: "linear-gradient(135deg, #7ee8ff, #35c5ff)",
-  color: "#06142d",
-  fontSize: "16px",
-  fontWeight: 800,
-  cursor: "pointer",
-};
-
-const thinkPrimaryButton: CSSProperties = {
-  minHeight: "52px",
-  borderRadius: "14px",
-  border: "1px solid rgba(255,255,255,0.45)",
-  background: "linear-gradient(135deg, #60f0d0, #35c5ff)",
-  color: "#041522",
-  padding: "0 22px",
-  fontWeight: 800,
-  cursor: "pointer",
-};
-
-const thinkPrimaryLinkStyle: CSSProperties = {
-  ...thinkPrimaryButton,
+  background: "rgba(255,255,255,0.06)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  textDecoration: "none",
+  fontSize: "12px",
 };
 
-const thinkGhostButton: CSSProperties = {
-  minHeight: "52px",
-  borderRadius: "14px",
-  border: "1px solid rgba(126,232,255,0.36)",
-  background: "rgba(255,255,255,0.08)",
+const quizTopBar: CSSProperties = {
+  minHeight: "38px",
+  display: "grid",
+  gridTemplateColumns: "1fr minmax(0,1fr) 1fr",
+  alignItems: "center",
+  gap: "8px",
+  flexShrink: 0,
+};
+
+const quizTopTitle: CSSProperties = {
+  margin: 0,
+  fontWeight: 800,
+  fontSize: "12px",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const quizTopMeta: CSSProperties = {
+  margin: "2px 0 0",
+  color: "rgba(255,255,255,0.58)",
+  fontSize: "10px",
+};
+
+const scorePill: CSSProperties = {
+  justifySelf: "end",
+  minHeight: "34px",
+  borderRadius: "999px",
+  border: "1px solid rgba(255,215,106,0.3)",
+  background: "rgba(255,215,106,0.08)",
+  color: "#ffe6a8",
+  padding: "0 12px",
+  display: "flex",
+  alignItems: "center",
+  fontSize: "12px",
+  fontWeight: 900,
+};
+
+const questionPanel: CSSProperties = {
+  minHeight: 0,
+  borderRadius: "18px",
+  border: "1px solid rgba(96,240,208,0.28)",
+  background:
+    "linear-gradient(180deg, rgba(20,70,92,0.76), rgba(8,30,52,0.9))",
+  padding: "clamp(10px,1.8vh,20px)",
+  display: "flex",
+  flexDirection: "column",
+  overflow: "hidden",
+};
+
+const skillLabel: CSSProperties = {
+  margin: 0,
+  color: "#60f0d0",
+  fontSize: "9px",
+  letterSpacing: "0.16em",
+  fontWeight: 900,
+};
+
+const questionHeading: CSSProperties = {
+  margin: "4px 0 0",
+  fontSize: "clamp(17px,2.4vh,27px)",
+};
+
+function questionImageBox(
+  isMobile: boolean,
+  isCompact: boolean,
+): CSSProperties {
+  return {
+    marginTop: "7px",
+    height: isMobile ? "70px" : isCompact ? "95px" : "clamp(120px,26vh,250px)",
+    borderRadius: "12px",
+    background: "rgba(255,255,255,0.95)",
+    overflow: "hidden",
+  };
+}
+
+function questionText(isMobile: boolean, isCompact: boolean): CSSProperties {
+  return {
+    margin: "8px 0 0",
+    fontSize: isMobile
+      ? "clamp(14px,2.2vh,18px)"
+      : isCompact
+        ? "clamp(17px,2.5vh,23px)"
+        : "clamp(21px,3vh,31px)",
+    lineHeight: 1.3,
+    fontWeight: 600,
+  };
+}
+
+function feedbackBox(correct: boolean): CSSProperties {
+  return {
+    marginTop: "8px",
+    borderRadius: "12px",
+    border: correct
+      ? "1px solid rgba(74,222,128,0.5)"
+      : "1px solid rgba(248,113,113,0.5)",
+    background: correct ? "rgba(34,197,94,0.13)" : "rgba(239,68,68,0.13)",
+    padding: "8px 10px",
+    fontSize: "clamp(10px,1.45vh,13px)",
+    lineHeight: 1.35,
+    overflow: "hidden",
+    flexShrink: 0,
+  };
+}
+
+const answerPanel: CSSProperties = {
+  minHeight: 0,
+  borderRadius: "18px",
+  border: "1px solid rgba(96,240,208,0.28)",
+  background:
+    "linear-gradient(180deg, rgba(14,82,104,0.84), rgba(6,36,52,0.95))",
+  padding: "clamp(8px,1.5vh,16px)",
+  display: "grid",
+  gridTemplateRows: "minmax(0,1fr) auto",
+  gap: "8px",
+  overflow: "hidden",
+};
+
+const answerLetter: CSSProperties = {
+  width: "30px",
+  height: "30px",
+  borderRadius: "999px",
+  background: "rgba(255,255,255,0.13)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const nextButton: CSSProperties = {
+  minHeight: "40px",
+  borderRadius: "12px",
+  border: "1px solid rgba(255,255,255,0.35)",
+  background: "linear-gradient(135deg, #60f0d0, #35c5ff)",
+  color: "#06142d",
+  fontWeight: 900,
+};
+
+const resultsWrap: CSSProperties = {
+  margin: "auto",
+  width: "min(820px,100%)",
+  maxHeight: "100%",
+  borderRadius: "24px",
+  border: "1px solid rgba(96,240,208,0.44)",
+  background:
+    "linear-gradient(180deg, rgba(14,82,104,0.84), rgba(6,36,52,0.96))",
+  padding: "clamp(18px,3vh,34px)",
+  textAlign: "center",
+};
+
+function resultsGrid(isMobile: boolean): CSSProperties {
+  return {
+    marginTop: "18px",
+    display: "grid",
+    gridTemplateColumns: isMobile
+      ? "repeat(2,minmax(0,1fr))"
+      : "repeat(4,minmax(0,1fr))",
+    gap: "8px",
+  };
+}
+
+const resultStat: CSSProperties = {
+  borderRadius: "13px",
+  border: "1px solid rgba(96,240,208,0.22)",
+  background: "rgba(255,255,255,0.06)",
+  padding: "12px 8px",
+};
+
+const resultLabel: CSSProperties = {
+  margin: 0,
+  color: "#60f0d0",
+  fontSize: "9px",
+  letterSpacing: "0.13em",
+  fontWeight: 900,
+};
+
+const resultValue: CSSProperties = {
+  margin: "6px 0 0",
+  fontSize: "clamp(18px,2.6vh,27px)",
+  fontWeight: 900,
+};
+
+const primaryAction: CSSProperties = {
+  minHeight: "44px",
+  borderRadius: "12px",
+  border: "1px solid rgba(255,255,255,0.3)",
+  background: "linear-gradient(135deg, #35c5ff, #4c6dff)",
   color: "white",
-  padding: "0 22px",
+  padding: "0 18px",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
   cursor: "pointer",
+  fontWeight: 800,
+};
+
+const ghostAction: CSSProperties = {
+  ...primaryAction,
+  border: "1px solid rgba(96,240,208,0.28)",
+  background: "rgba(255,255,255,0.06)",
+};
+
+const centeredFill: CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const messageCard: CSSProperties = {
+  borderRadius: "18px",
+  border: "1px solid rgba(96,240,208,0.3)",
+  background: "rgba(255,255,255,0.06)",
+  padding: "24px",
+  color: "rgba(255,255,255,0.8)",
+};
+
+const lockedCard: CSSProperties = {
+  width: "min(620px,100%)",
+  borderRadius: "22px",
+  border: "1px solid rgba(255,215,106,0.4)",
+  background: "linear-gradient(180deg, rgba(90,62,16,0.55), rgba(30,20,8,0.8))",
+  padding: "28px",
+  textAlign: "center",
+};
+
+const errorBanner: CSSProperties = {
+  marginBottom: "8px",
+  borderRadius: "10px",
+  border: "1px solid rgba(255,215,106,0.4)",
+  background: "rgba(255,215,106,0.08)",
+  color: "#ffe6a8",
+  padding: "8px 10px",
+  fontSize: "11px",
 };
