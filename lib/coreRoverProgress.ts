@@ -32,8 +32,8 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
       "/activities/learning-missions/core/rover/rover-stage-0-frame.png",
     accent: "#7ee8ff",
     gameStats: {
-      normalSpeed: 7.0,
-      boostSpeed: 9.0,
+      normalSpeed: 7,
+      boostSpeed: 9,
       accelerationRate: 5.5,
       brakingRate: 6.5,
       jumpVelocity: -5.2,
@@ -53,11 +53,11 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
       "/activities/learning-missions/core/rover/rover-stage-1-engine.png",
     accent: "#ffd76a",
     gameStats: {
-      normalSpeed: 8.0,
+      normalSpeed: 8,
       boostSpeed: 10.5,
-      accelerationRate: 6.0,
+      accelerationRate: 6,
       brakingRate: 6.9,
-      jumpVelocity: -6.0,
+      jumpVelocity: -6,
       boostCapacity: 80,
       boostDrainRate: 14,
       boostRechargeRate: 16,
@@ -74,8 +74,8 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
       "/activities/learning-missions/core/rover/rover-stage-3-navigation.png",
     accent: "#60f0d0",
     gameStats: {
-      normalSpeed: 9.0,
-      boostSpeed: 12.0,
+      normalSpeed: 9,
+      boostSpeed: 12,
       accelerationRate: 6.6,
       brakingRate: 7.3,
       jumpVelocity: -6.8,
@@ -95,8 +95,8 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
       "/activities/learning-missions/core/rover/rover-stage-5-turbo-wheels.png",
     accent: "#8da2ff",
     gameStats: {
-      normalSpeed: 10.0,
-      boostSpeed: 14.0,
+      normalSpeed: 10,
+      boostSpeed: 14,
       accelerationRate: 7.2,
       brakingRate: 7.8,
       jumpVelocity: -7.7,
@@ -116,8 +116,8 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
       "/activities/learning-missions/core/rover/rover-stage-8-shield.png",
     accent: "#ff9df0",
     gameStats: {
-      normalSpeed: 11.0,
-      boostSpeed: 16.0,
+      normalSpeed: 11,
+      boostSpeed: 16,
       accelerationRate: 7.8,
       brakingRate: 8.2,
       jumpVelocity: -8.7,
@@ -138,8 +138,8 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
       "/activities/learning-missions/core/rover/rover-stage-12-hover.png",
     accent: "#53d7ff",
     gameStats: {
-      normalSpeed: 12.0,
-      boostSpeed: 18.0,
+      normalSpeed: 12,
+      boostSpeed: 18,
       accelerationRate: 8.6,
       brakingRate: 8.8,
       jumpVelocity: -10.2,
@@ -172,24 +172,20 @@ export function getNextCoreRoverUpgrade(completedCount: number) {
 export function getCoreRoverProgress(completedCount: number) {
   const currentUpgrade = getCurrentCoreRoverUpgrade(completedCount);
   const nextUpgrade = getNextCoreRoverUpgrade(completedCount);
-
   const finalUpgrade = coreUpgradeTrack[coreUpgradeTrack.length - 1];
 
   const progressTarget =
     nextUpgrade?.missionsRequired ?? finalUpgrade.missionsRequired;
-
   const previousTarget = currentUpgrade.missionsRequired;
   const progressRange = Math.max(1, progressTarget - previousTarget);
   const progressWithinRange = Math.max(0, completedCount - previousTarget);
 
-  const progressPercentage = nextUpgrade
-    ? Math.min(100, Math.round((progressWithinRange / progressRange) * 100))
-    : 100;
-
   return {
     currentUpgrade,
     nextUpgrade,
-    progressPercentage,
+    progressPercentage: nextUpgrade
+      ? Math.min(100, Math.round((progressWithinRange / progressRange) * 100))
+      : 100,
     isComplete: !nextUpgrade,
     finalUpgrade,
     missionsToNext: nextUpgrade
