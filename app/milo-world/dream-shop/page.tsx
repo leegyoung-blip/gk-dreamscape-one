@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
+import { supabase } from "@/lib/supabase";
 
 type ShopPopupKind = "tokens" | "blindBox" | "merchandise";
 type ScreenMode = "desktop" | "compact" | "mobile";
@@ -27,7 +28,7 @@ type TokenPackage = {
   badge?: string;
   description: string;
   image: string;
-  checkoutUrl: string;
+  variantId: string;
 };
 
 type ComingSoonProduct = {
@@ -40,11 +41,46 @@ type ComingSoonProduct = {
 };
 
 /*
-  Replace these two empty strings with the final Shopify product URLs.
-  The purchase buttons automatically activate once a URL is added.
+  Shopify setup:
+  1. Create one Shopify product for each token pack.
+  2. Paste the numeric DEFAULT VARIANT ID for each product below.
+  3. Keep the store URL without a trailing slash.
+
+  Even products with no visible options still have one default variant ID.
 */
-const DREAM_TOKEN_1000_URL = "";
-const DREAM_TOKEN_5000_URL = "";
+const SHOPIFY_STORE_URL = "https://gurukidspro.com";
+const DREAM_TOKEN_1000_VARIANT_ID = "52635551629595";
+const DREAM_TOKEN_5000_VARIANT_ID = "52635551858971";
+
+function buildShopifyTokenUrl({
+  variantId,
+  tokens,
+  userId,
+  userEmail,
+}: {
+  variantId: string;
+  tokens: number;
+  userId: string;
+  userEmail: string;
+}) {
+  if (!variantId) return "";
+
+  const params = new URLSearchParams();
+
+  // Keep enough order metadata for your Shopify webhook to credit the
+  // correct Dreamscape account after Shopify confirms payment.
+  params.set("attributes[dreamscape_user_id]", userId);
+  params.set("attributes[dreamscape_token_pack]", String(tokens));
+  params.set("attributes[source]", "dreamscape-one");
+  params.set("ref", "dreamscape-one");
+
+  if (userEmail) {
+    params.set("checkout[email]", userEmail);
+  }
+
+  // Shopify cart permalink: adds the selected pack and opens checkout.
+  return `${SHOPIFY_STORE_URL}/cart/${variantId}:1?${params.toString()}`;
+}
 
 function placeholderImage(
   title: string,
@@ -92,7 +128,7 @@ const tokenPackages: TokenPackage[] = [
       "#145a76",
       "#081a34"
     ),
-    checkoutUrl: DREAM_TOKEN_1000_URL,
+    variantId: DREAM_TOKEN_1000_VARIANT_ID,
   },
   {
     name: "Mega Token Pack",
@@ -107,7 +143,7 @@ const tokenPackages: TokenPackage[] = [
       "#6f3dc1",
       "#18112f"
     ),
-    checkoutUrl: DREAM_TOKEN_5000_URL,
+    variantId: DREAM_TOKEN_5000_VARIANT_ID,
   },
 ];
 
@@ -503,12 +539,27 @@ function StatusPill({ children }: { children: ReactNode }) {
 function TokenPackCard({
   tokenPackage,
   isMobile,
+  userId,
+  userEmail,
 }: {
   tokenPackage: TokenPackage;
   isMobile: boolean;
+  userId: string;
+  userEmail: string;
 }) {
   const [hovered, setHovered] = useState(false);
-  const purchaseEnabled = Boolean(tokenPackage.checkoutUrl);
+  const variantConfigured = Boolean(tokenPackage.variantId.trim());
+  const accountReady = Boolean(userId);
+  const purchaseEnabled = variantConfigured && accountReady;
+
+  const shopifyCheckoutUrl = purchaseEnabled
+    ? buildShopifyTokenUrl({
+        variantId: tokenPackage.variantId,
+        tokens: tokenPackage.tokens,
+        userId,
+        userEmail,
+      })
+    : "";
 
   return (
     <article
@@ -532,7 +583,7 @@ function TokenPackCard({
       <div
         style={{
           position: "relative",
-          height: isMobile ? "190px" : "205px",
+          height: isMobile ? "168px" : "178px",
           overflow: "hidden",
         }}
       >
@@ -549,7 +600,7 @@ function TokenPackCard({
         />
 
         {tokenPackage.badge && (
-          <div style={{ position: "absolute", top: "18px", left: "18px" }}>
+          <div style={{ position: "absolute", top: "14px", left: "14px" }}>
             <StatusPill>{tokenPackage.badge}</StatusPill>
           </div>
         )}
@@ -557,17 +608,17 @@ function TokenPackCard({
 
       <div
         style={{
-          padding: isMobile ? "20px" : "21px",
+          padding: isMobile ? "18px" : "19px",
           display: "flex",
           flexDirection: "column",
-          minHeight: isMobile ? "auto" : "242px",
+          minHeight: isMobile ? "auto" : "268px",
         }}
       >
         <p
           style={{
             margin: 0,
             color: "#8ee8ff",
-            fontSize: "11px",
+            fontSize: "10px",
             fontWeight: 900,
             letterSpacing: "0.16em",
             textTransform: "uppercase",
@@ -576,22 +627,43 @@ function TokenPackCard({
           Dreamscape Token Pack
         </p>
 
-        <h3
+        <div
           style={{
-            margin: "10px 0 0",
-            fontSize: isMobile ? "27px" : "30px",
-            letterSpacing: "-0.04em",
-            lineHeight: 1,
+            marginTop: "9px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "end",
+            gap: "12px",
           }}
         >
-          {tokenPackage.tokens.toLocaleString()} DT
-        </h3>
+          <h3
+            style={{
+              margin: 0,
+              fontSize: isMobile ? "26px" : "29px",
+              letterSpacing: "-0.04em",
+              lineHeight: 1,
+            }}
+          >
+            {tokenPackage.tokens.toLocaleString()} DT
+          </h3>
+
+          <strong
+            style={{
+              color: "white",
+              fontSize: isMobile ? "25px" : "28px",
+              lineHeight: 1,
+              whiteSpace: "nowrap",
+            }}
+          >
+            ${tokenPackage.price.toFixed(2)}
+          </strong>
+        </div>
 
         <p
           style={{
             margin: "10px 0 0",
             color: "rgba(255,255,255,0.62)",
-            fontSize: "13px",
+            fontSize: "12px",
             lineHeight: 1.45,
           }}
         >
@@ -602,97 +674,92 @@ function TokenPackCard({
           style={{
             marginTop: "auto",
             paddingTop: "16px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "end",
-            gap: "16px",
           }}
         >
-          <div>
-            <span
+          {purchaseEnabled ? (
+            <a
+              href={shopifyCheckoutUrl}
+              aria-label={`Buy ${tokenPackage.tokens.toLocaleString()} Dreamscape Tokens on Shopify`}
               style={{
-                display: "block",
-                color: "rgba(255,255,255,0.44)",
-                fontSize: "11px",
-                fontWeight: 900,
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-              }}
-            >
-              Price
-            </span>
-            <strong
-              style={{
-                display: "block",
-                marginTop: "5px",
+                width: "100%",
+                height: "50px",
+                borderRadius: "14px",
+                border: "1px solid rgba(126,232,255,0.42)",
+                background:
+                  "linear-gradient(135deg, rgba(83,215,255,0.24), rgba(120,99,255,0.24))",
                 color: "white",
-                fontSize: "32px",
-                lineHeight: 1,
+                textDecoration: "none",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "9px",
+                padding: "0 16px",
+                fontWeight: 900,
+                fontSize: isMobile ? "11px" : "12px",
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                textAlign: "center",
+                boxShadow: "0 12px 28px rgba(0,0,0,0.18)",
               }}
             >
-              ${tokenPackage.price.toFixed(2)}
-            </strong>
-          </div>
-
-          <span
-            style={{
-              color: "rgba(255,255,255,0.46)",
-              fontSize: "12px",
-              textAlign: "right",
-              lineHeight: 1.4,
-            }}
-          >
-            For use inside
-            <br />
-            Dreamscape One
-          </span>
+              Buy Now on Shopify
+              <span aria-hidden="true" style={{ fontSize: "17px" }}>
+                →
+              </span>
+            </a>
+          ) : (
+            <button
+              type="button"
+              disabled
+              style={{
+                width: "100%",
+                height: "50px",
+                borderRadius: "14px",
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(255,255,255,0.07)",
+                color: "rgba(255,255,255,0.42)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "0 16px",
+                fontWeight: 900,
+                fontSize: isMobile ? "10px" : "11px",
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                cursor: "not-allowed",
+              }}
+            >
+              {variantConfigured ? "Log in first" : "Add variant ID"}
+            </button>
+          )}
         </div>
 
-        {purchaseEnabled ? (
-          <a
-            href={tokenPackage.checkoutUrl}
+        {!variantConfigured && (
+          <p
             style={{
-              marginTop: "16px",
-              width: "100%",
-              height: "48px",
-              borderRadius: "15px",
-              border: "1px solid rgba(126,232,255,0.4)",
-              background:
-                "linear-gradient(135deg, rgba(25,137,180,0.94), rgba(89,66,184,0.94))",
-              color: "white",
-              textDecoration: "none",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontWeight: 900,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              fontSize: "13px",
+              margin: "10px 0 0",
+              color: "rgba(255,209,138,0.66)",
+              fontSize: "10px",
+              lineHeight: 1.4,
+              textAlign: "center",
             }}
           >
-            Buy {tokenPackage.tokens.toLocaleString()} DT
-          </a>
-        ) : (
-          <button
-            type="button"
-            disabled
+            Add this product’s Shopify variant ID at the top of the file.
+          </p>
+        )}
+
+        {variantConfigured && !accountReady && (
+          <p
             style={{
-              marginTop: "16px",
-              width: "100%",
-              height: "48px",
-              borderRadius: "15px",
-              border: "1px solid rgba(255,255,255,0.12)",
-              background: "rgba(255,255,255,0.08)",
-              color: "rgba(255,255,255,0.46)",
-              fontWeight: 900,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              fontSize: "13px",
-              cursor: "not-allowed",
+              margin: "10px 0 0",
+              color: "rgba(142,232,255,0.7)",
+              fontSize: "10px",
+              lineHeight: 1.4,
+              textAlign: "center",
             }}
           >
-            Purchase Link Coming Soon
-          </button>
+            Log in first so the purchased tokens can be credited to your account.
+          </p>
         )}
       </div>
     </article>
@@ -825,6 +892,37 @@ function ShopPopup({
   const screenMode = useScreenMode();
   const isMobile = screenMode === "mobile";
   const isCompact = screenMode !== "desktop";
+  const [shopperUserId, setShopperUserId] = useState("");
+  const [shopperEmail, setShopperEmail] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadShopper() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!mounted) return;
+      setShopperUserId(user?.id ?? "");
+      setShopperEmail(user?.email ?? "");
+    }
+
+    loadShopper();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+      setShopperUserId(session?.user?.id ?? "");
+      setShopperEmail(session?.user?.email ?? "");
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     if (!activePopup) return;
@@ -998,6 +1096,8 @@ function ShopPopup({
                     key={tokenPackage.tokens}
                     tokenPackage={tokenPackage}
                     isMobile={isMobile}
+                    userId={shopperUserId}
+                    userEmail={shopperEmail}
                   />
                 ))}
               </div>
@@ -1017,7 +1117,8 @@ function ShopPopup({
               >
                 Dreamscape Tokens are digital in-platform credits. They are not
                 cash, cannot be withdrawn, and are intended for use within
-                Dreamscape One features.
+                Dreamscape One features. The purchase button opens Shopify
+                checkout directly with the selected token pack added.
               </div>
             </>
           )}

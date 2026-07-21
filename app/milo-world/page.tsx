@@ -283,7 +283,7 @@ const zones: Zone[] = [
     title: "Activity Lab",
     description:
       "Play daily challenges, quiz battles, and party games to earn tokens.",
-    action: "masteryLab",
+    href: "/milo-world/activity-lab",
     style: {
       top: "800px",
       right: "275px",
