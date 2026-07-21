@@ -110,31 +110,6 @@ function getWeekStartIso() {
   return new Date(`${weekKey}T00:00:00+08:00`).toISOString();
 }
 
-function normaliseRole(role: string | null) {
-  return String(role || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/_/g, "-");
-}
-
-function canRoleEarnTokens(role: string | null) {
-  const cleanRole = normaliseRole(role);
-
-  return [
-    "admin",
-    "student",
-    "gkp-student",
-    "gkp-students",
-    "student-access",
-    "club",
-    "milo-club",
-    "milos-club",
-    "milo-club-member",
-    "pro",
-  ].includes(cleanRole);
-}
-
 function getTokenReward(score: number) {
   if (score >= 9) return 10;
   if (score >= 7) return 7;
@@ -279,7 +254,7 @@ export default function MiloCategoriesPage() {
         userId: user.id,
         email,
         role,
-        canEarnTokens: canRoleEarnTokens(role),
+        canEarnTokens: true,
       });
     }
 
@@ -606,14 +581,7 @@ export default function MiloCategoriesPage() {
 
     if (!userAccess.isLoggedIn || !userAccess.userId) {
       setRewardMessage(
-        "Log in with a Student Access or Milo’s Club account to earn Dreamscape Tokens."
-      );
-      return;
-    }
-
-    if (!userAccess.canEarnTokens) {
-      setRewardMessage(
-        "Dreamscape Token rewards are available for Student Access and Milo’s Club members."
+        "Log in to earn Dreamscape Tokens from Categories."
       );
       return;
     }
