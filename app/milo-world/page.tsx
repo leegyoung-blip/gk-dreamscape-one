@@ -49,10 +49,19 @@ function useResponsiveMode() {
       const width = window.innerWidth;
       const height = window.innerHeight;
       const isPortrait = height > width;
+      const aspectRatio = width / Math.max(height, 1);
+
+      /*
+       * The floating map layout needs a genuinely wide desktop viewport.
+       * Half-screen and narrower landscape windows use the compact grid early
+       * so the zone cards cannot overlap.
+       */
+      const shouldUseCompactLayout =
+        width < 1720 || isPortrait || aspectRatio < 1.55;
 
       if (width <= 720) {
         setScreenMode("mobile");
-      } else if (width <= 1180 || isPortrait) {
+      } else if (shouldUseCompactLayout) {
         setScreenMode("tablet");
       } else {
         setScreenMode("desktop");
@@ -4258,6 +4267,8 @@ function ReferralObjectivesPanel({
   screenMode: ScreenMode;
 }) {
   const isMobile = screenMode === "mobile";
+  const isTablet = screenMode === "tablet";
+  const isDesktop = screenMode === "desktop";
   const [isOpen, setIsOpen] = useState(false);
 
   const completedCount = REFERRAL_OBJECTIVES.filter((objective) =>
@@ -4277,12 +4288,21 @@ function ReferralObjectivesPanel({
   return (
     <aside
       style={{
-        position: "fixed",
-        top: isMobile ? "112px" : "72px",
-        right: isMobile ? "12px" : "28px",
-        left: isMobile ? "12px" : "auto",
+        position: isDesktop ? "fixed" : "relative",
+        top: isDesktop ? "72px" : "auto",
+        right: isDesktop ? "28px" : "auto",
+        left: "auto",
         zIndex: 29,
-        width: isMobile ? "auto" : "min(380px, calc(100vw - 56px))",
+        width: isMobile
+          ? "calc(100% - 24px)"
+          : "min(380px, calc(100% - 44px))",
+        margin: isDesktop
+          ? 0
+          : isMobile
+          ? "10px auto 0"
+          : isTablet
+          ? "18px 22px 0 auto"
+          : 0,
         borderRadius: isOpen ? "20px" : "999px",
         border: "1px solid rgba(126,232,255,0.38)",
         background:
