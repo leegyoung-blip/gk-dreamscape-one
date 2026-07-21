@@ -6,10 +6,16 @@ import { useState } from "react";
 const STUDENT_CHECKOUT_URL =
   "https://gurukidspro.com/products/dreamscape-one-student-access";
 
+// TEMPORARY: Keep this false to stop users from opening Shopify.
+// Change it back to true when General Student Access sales are ready.
+const SHOPIFY_CHECKOUT_ENABLED = false;
+
 const STUDENT_COVER_IMAGE = "/nova/membership/student-access-cover.png";
 
 export default function NovaMembershipPortalPage() {
   const [studentHovered, setStudentHovered] = useState(false);
+  const [showCheckoutPausedNotice, setShowCheckoutPausedNotice] =
+    useState(false);
   const [showActivationForm, setShowActivationForm] = useState(false);
   const [activationName, setActivationName] = useState("");
   const [activationEmail, setActivationEmail] = useState("");
@@ -19,6 +25,11 @@ export default function NovaMembershipPortalPage() {
   const [activationError, setActivationError] = useState("");
 
   function openStudentShopifyPage() {
+    if (!SHOPIFY_CHECKOUT_ENABLED) {
+      setShowCheckoutPausedNotice(true);
+      return;
+    }
+
     window.open(STUDENT_CHECKOUT_URL, "_blank", "noopener,noreferrer");
   }
 
@@ -321,7 +332,7 @@ export default function NovaMembershipPortalPage() {
                 "linear-gradient(180deg, rgba(22,89,145,0.96), rgba(6,32,80,0.98))",
               boxShadow:
                 "0 0 38px rgba(83,215,255,0.22), 0 26px 74px rgba(0,0,0,0.42)",
-              cursor: "pointer",
+              cursor: SHOPIFY_CHECKOUT_ENABLED ? "pointer" : "not-allowed",
             }}
           >
             <img
@@ -401,7 +412,7 @@ export default function NovaMembershipPortalPage() {
                   WebkitBackdropFilter: "blur(8px)",
                 }}
               >
-                $1 first month
+                {SHOPIFY_CHECKOUT_ENABLED ? "$1 first month" : "Coming soon"}
               </div>
             </div>
 
@@ -505,7 +516,9 @@ export default function NovaMembershipPortalPage() {
                     boxShadow: "0 14px 28px rgba(83,215,255,0.2)",
                   }}
                 >
-                  Start General Student Access ›
+                  {SHOPIFY_CHECKOUT_ENABLED
+                    ? "Start General Student Access ›"
+                    : "General Access Coming Soon"}
                 </div>
               </div>
             </div>
@@ -548,7 +561,7 @@ export default function NovaMembershipPortalPage() {
                     letterSpacing: "-0.03em",
                   }}
                 >
-                  $1 first month
+                  {SHOPIFY_CHECKOUT_ENABLED ? "$1 first month" : "Coming soon"}
                 </h3>
 
                 <p
@@ -559,7 +572,9 @@ export default function NovaMembershipPortalPage() {
                     lineHeight: 1.45,
                   }}
                 >
-                  Then $19.90/month. Use code DREAM1 at checkout.
+                  {SHOPIFY_CHECKOUT_ENABLED
+                    ? "Then $19.90/month. Use code DREAM1 at checkout."
+                    : "Online registration is temporarily unavailable."}
                 </p>
               </div>
             )}
@@ -579,12 +594,136 @@ export default function NovaMembershipPortalPage() {
           }}
         >
           <strong style={{ color: "white" }}>Note:</strong> Active Guru Kids Pro
-          students can activate included access for verification. General Student
-          Access users can apply code{" "}
-          <strong style={{ color: "#7ee8ff" }}>DREAM1</strong> at checkout to
-          receive the first month at $1.
+          students can still activate included access for verification.{" "}
+          {SHOPIFY_CHECKOUT_ENABLED ? (
+            <>
+              General Student Access users can apply code{" "}
+              <strong style={{ color: "#7ee8ff" }}>DREAM1</strong> at checkout
+              to receive the first month at $1.
+            </>
+          ) : (
+            "General Student Access registration is temporarily unavailable."
+          )}
         </section>
       </div>
+
+      {showCheckoutPausedNotice && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="checkout-paused-title"
+          onClick={() => setShowCheckoutPausedNotice(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 10000,
+            background: "rgba(2,8,19,0.76)",
+            backdropFilter: "blur(14px)",
+            WebkitBackdropFilter: "blur(14px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: "min(480px, 100%)",
+              borderRadius: "28px",
+              border: "1px solid rgba(126,232,255,0.4)",
+              background:
+                "linear-gradient(180deg, rgba(11,55,103,0.98), rgba(4,22,56,0.98))",
+              boxShadow:
+                "0 0 42px rgba(83,215,255,0.18), 0 28px 80px rgba(0,0,0,0.5)",
+              padding: "30px",
+              color: "white",
+              position: "relative",
+              textAlign: "center",
+            }}
+          >
+            <button
+              type="button"
+              aria-label="Close notice"
+              onClick={() => setShowCheckoutPausedNotice(false)}
+              style={{
+                position: "absolute",
+                top: "18px",
+                right: "18px",
+                width: "38px",
+                height: "38px",
+                borderRadius: "999px",
+                border: "1px solid rgba(126,232,255,0.3)",
+                background: "rgba(255,255,255,0.08)",
+                color: "white",
+                fontSize: "22px",
+                cursor: "pointer",
+              }}
+            >
+              ×
+            </button>
+
+            <p
+              style={{
+                margin: 0,
+                color: "#7ee8ff",
+                fontSize: "13px",
+                letterSpacing: "0.18em",
+                textTransform: "uppercase",
+                fontWeight: 800,
+              }}
+            >
+              General Student Access
+            </p>
+
+            <h2
+              id="checkout-paused-title"
+              style={{
+                margin: "14px 0 0",
+                fontSize: "34px",
+                lineHeight: 1.1,
+                fontWeight: 800,
+                letterSpacing: "-0.04em",
+              }}
+            >
+              Registration is coming soon
+            </h2>
+
+            <p
+              style={{
+                margin: "18px auto 0",
+                maxWidth: "380px",
+                color: "rgba(255,255,255,0.76)",
+                fontSize: "15px",
+                lineHeight: 1.6,
+              }}
+            >
+              Online checkout is temporarily unavailable while we prepare the
+              General Student Access launch.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setShowCheckoutPausedNotice(false)}
+              style={{
+                marginTop: "24px",
+                width: "100%",
+                height: "54px",
+                borderRadius: "16px",
+                border: "1px solid rgba(255,255,255,0.28)",
+                background: "linear-gradient(135deg, #35c5ff, #4c6dff)",
+                color: "white",
+                fontSize: "16px",
+                fontWeight: 800,
+                cursor: "pointer",
+                boxShadow: "0 14px 28px rgba(83,215,255,0.18)",
+              }}
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
 
       {showActivationForm && (
         <div
