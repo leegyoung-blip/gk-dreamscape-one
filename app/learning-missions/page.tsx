@@ -22,13 +22,19 @@ function useResponsiveMode() {
       const width = window.innerWidth;
       const height = window.innerHeight;
       const isPortrait = height > width;
+      const aspectRatio = width / Math.max(height, 1);
+
+      // Only use the floating mission-map layout on genuinely wide screens.
+      // Half-screen windows and ordinary laptop layouts use the vertical stack.
+      const shouldUseFloatingLayout =
+        width >= 1760 && !isPortrait && aspectRatio >= 1.65;
 
       if (width <= 720) {
         setScreenMode("mobile");
-      } else if (width <= 1180 || isPortrait) {
-        setScreenMode("tablet");
-      } else {
+      } else if (shouldUseFloatingLayout) {
         setScreenMode("desktop");
+      } else {
+        setScreenMode("tablet");
       }
     }
 
@@ -48,6 +54,7 @@ type MissionZone = {
   position: CSSProperties;
   accent: string;
   requiresRoleAccess?: boolean;
+  comingSoon?: boolean;
 };
 
 function normaliseRole(role: string | null) {
@@ -83,84 +90,70 @@ const missionZones: MissionZone[] = [
     id: "knowledge-arena",
     title: "Knowledge Arena",
     description:
-      "Play 10-question topic challenges, answer quickly, earn points, and collect Dreamscape Tokens.",
+      "Enter fast topic challenges through the central launch hatch, earn points, and collect Dreamscape Tokens.",
     accent: "#53d7ff",
     requiresRoleAccess: false,
     position: {
-      left: "37%",
+      left: "31%",
       top: "39%",
-      width: "29%",
-      height: "31%",
+      width: "42%",
+      height: "40%",
     },
   },
   {
     id: "core-missions",
     title: "Core Missions",
     description:
-      "Complete English and Math missions to upgrade Nova’s Skyforge Rover.",
+      "Complete English and Math missions to prepare and upgrade Nova’s Skyforge Rover.",
     accent: "#7ecbff",
     requiresRoleAccess: true,
     position: {
-      left: "4%",
-      top: "54%",
-      width: "25%",
-      height: "34%",
+      left: "35%",
+      top: "5%",
+      width: "35%",
+      height: "32%",
     },
   },
   {
     id: "think-missions",
     title: "Think Missions",
     description:
-      "Train reasoning, logic, pattern spotting and HAP-style thinking to unlock Nova’s gear inventory.",
+      "Train reasoning, logic, pattern spotting and HAP-style thinking in Nova’s strategy and gear area.",
     accent: "#60f0d0",
     requiresRoleAccess: true,
     position: {
-      left: "4%",
-      top: "30%",
+      right: "1%",
+      top: "5%",
       width: "28%",
-      height: "30%",
+      height: "43%",
     },
   },
   {
     id: "express-missions",
     title: "Express Missions",
-    description:
-      "Complete writing missions to power Nova’s story system, word tools and Dreamscribe archive.",
+    description: "LOCKED — Coming soon.",
     accent: "#ff9df0",
     requiresRoleAccess: true,
+    comingSoon: true,
     position: {
-      right: "5%",
-      top: "53%",
-      width: "27%",
-      height: "34%",
-    },
-  },
-  {
-    id: "stretch-missions",
-    title: "Stretch Missions",
-    description:
-      "Attempt advanced challenge tasks, HAP extensions, boss questions and harder problem-solving missions.",
-    accent: "#ffd76a",
-    requiresRoleAccess: true,
-    position: {
-      right: "4%",
-      top: "19%",
-      width: "28%",
-      height: "31%",
+      right: "1%",
+      top: "50%",
+      width: "32%",
+      height: "47%",
     },
   },
   {
     id: "progress-rewards",
     title: "Progress & Rewards",
     description:
-      "Track completed missions, score records, unlocked upgrades and Dreamscape Token rewards.",
+      "Review completed missions, score records, unlocked upgrades and Dreamscape Token rewards.",
     accent: "#8dfcff",
     requiresRoleAccess: true,
     position: {
-      left: "38%",
-      top: "17%",
-      width: "25%",
-      height: "18%",
+      left: "1%",
+      top: "50%",
+      width: "29%",
+      height: "47%",
     },
   },
 ];
@@ -259,6 +252,7 @@ export default function LearningMissionsPage() {
   }, []);
 
   function isZoneUnlocked(zone: MissionZone) {
+    if (zone.comingSoon) return false;
     if (!zone.requiresRoleAccess) return true;
 
     return userMissionAccess.hasFullAccess;
@@ -269,6 +263,10 @@ export default function LearningMissionsPage() {
   }
 
   function getLockedMessage(zone: MissionZone) {
+    if (zone.comingSoon) {
+      return `${zone.title} is LOCKED and coming soon.`;
+    }
+
     if (!userMissionAccess.userId) {
       return "Please log in to access this mission zone.";
     }
@@ -278,6 +276,12 @@ export default function LearningMissionsPage() {
 
   function getZoneClick(zone: MissionZone) {
     const href = getZoneHref(zone.id);
+
+    if (zone.comingSoon) {
+      return () => {
+        setLockedZoneMessage(getLockedMessage(zone));
+      };
+    }
 
     if (!href) return undefined;
 
@@ -303,6 +307,43 @@ export default function LearningMissionsPage() {
         overflowX: "hidden",
       }}
     >
+      <video
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="auto"
+        aria-hidden="true"
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          objectPosition: "center",
+          pointerEvents: "none",
+        }}
+      >
+        <source
+          src="/nova/learning-missions/learning-missions-bg-loop.mp4"
+          type="video/mp4"
+        />
+      </video>
+
+      <div
+        aria-hidden="true"
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 1,
+          background: isDesktop
+            ? "linear-gradient(180deg, rgba(2,8,19,0.12), rgba(2,8,19,0.34))"
+            : "linear-gradient(180deg, rgba(2,8,19,0.34), rgba(2,8,19,0.88))",
+          pointerEvents: "none",
+        }}
+      />
+
       <FloatingMissionControls
         userEmail={userMissionAccess.email}
         tokenBalance={tokenBalance}
@@ -313,27 +354,18 @@ export default function LearningMissionsPage() {
         <section
           style={{
             position: "relative",
+            zIndex: 2,
             minHeight: "100dvh",
             width: "100%",
-            backgroundImage: `
-              linear-gradient(
-                180deg,
-                rgba(2,8,19,0.12),
-                rgba(2,8,19,0.34)
-              ),
-              url("/nova/learning-missions/learning-missions-bg.png")
-            `,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
           }}
         >
           <div
             style={{
               position: "absolute",
-              left: "5vw",
-              top: "13%",
+              left: "4vw",
+              top: "12%",
               zIndex: 20,
-              width: "min(620px, 42vw)",
+              width: "min(500px, 27vw)",
               textAlign: "left",
               pointerEvents: "none",
             }}
@@ -368,14 +400,14 @@ export default function LearningMissionsPage() {
             <p
               style={{
                 margin: "18px 0 0",
-                maxWidth: "560px",
+                maxWidth: "470px",
                 color: "rgba(229,250,255,0.82)",
                 fontSize: "18px",
                 lineHeight: 1.55,
                 fontWeight: 300,
               }}
             >
-              Choose a mission zone to train skills, unlock Nova upgrades and
+              Choose one of five mission zones to train skills, prepare Nova’s gear and
               earn Dreamscape Tokens.
             </p>
 
@@ -442,19 +474,11 @@ export default function LearningMissionsPage() {
       ) : (
         <section
           style={{
+            position: "relative",
+            zIndex: 2,
             minHeight: "100dvh",
             width: "100%",
             padding: isMobile ? "126px 16px 34px" : "128px 32px 46px",
-            backgroundImage: `
-              linear-gradient(
-                180deg,
-                rgba(2,8,19,0.34),
-                rgba(2,8,19,0.88)
-              ),
-              url("/nova/learning-missions/learning-missions-bg.png")
-            `,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
           }}
         >
           <div
@@ -499,7 +523,7 @@ export default function LearningMissionsPage() {
                 fontWeight: 300,
               }}
             >
-              Choose a mission zone to train skills, unlock Nova upgrades and
+              Choose one of five mission zones to train skills, prepare Nova’s gear and
               earn Dreamscape Tokens.
             </p>
 
@@ -525,9 +549,7 @@ export default function LearningMissionsPage() {
               style={{
                 marginTop: "28px",
                 display: "grid",
-                gridTemplateColumns: isMobile
-                  ? "1fr"
-                  : "repeat(2, minmax(0, 1fr))",
+                gridTemplateColumns: "1fr",
                 gap: "18px",
               }}
             >
@@ -744,9 +766,10 @@ function MissionCard({
         borderRadius: "22px",
         border: `1px solid ${zone.accent}88`,
         background:
-          "linear-gradient(145deg, rgba(8,35,70,0.84), rgba(3,13,34,0.92))",
-        backdropFilter: "blur(18px)",
-        boxShadow: `0 0 24px ${zone.accent}33, 0 18px 42px rgba(0,0,0,0.35)`,
+          "linear-gradient(145deg, rgba(8,35,70,0.58), rgba(3,13,34,0.68))",
+        backdropFilter: "blur(14px)",
+        WebkitBackdropFilter: "blur(14px)",
+        boxShadow: `0 0 24px ${zone.accent}2b, 0 18px 42px rgba(0,0,0,0.28)`,
         padding: "22px",
         color: "white",
         textAlign: "left",
@@ -765,7 +788,11 @@ function MissionCard({
           fontWeight: 700,
         }}
       >
-        {isLocked ? "Locked Zone" : "Learning Zone"}
+        {zone.comingSoon
+          ? "Locked · Coming Soon"
+          : isLocked
+          ? "Locked Zone"
+          : "Learning Zone"}
       </p>
 
       <h2
@@ -802,7 +829,13 @@ function MissionCard({
           fontWeight: 700,
         }}
       >
-        {isLocked ? "Locked" : onClick ? "Enter Mission ›" : "Coming Soon"}
+        {zone.comingSoon
+          ? "LOCKED · Coming Soon"
+          : isLocked
+          ? "Locked"
+          : onClick
+          ? "Enter Mission ›"
+          : "Coming Soon"}
       </div>
     </button>
   );
@@ -847,7 +880,11 @@ function ZoneHoverPopup({
           fontWeight: 700,
         }}
       >
-        {isLocked ? "Locked Zone" : "Learning Zone"}
+        {zone.comingSoon
+          ? "Locked · Coming Soon"
+          : isLocked
+          ? "Locked Zone"
+          : "Learning Zone"}
       </p>
 
       <h2
@@ -882,7 +919,9 @@ function ZoneHoverPopup({
             fontWeight: 700,
           }}
         >
-          This zone is only available to student, teacher, or admin accounts.
+          {zone.comingSoon
+            ? "This mission zone is LOCKED and will be released in a future update."
+            : "This zone is only available to student, teacher, or admin accounts."}
         </p>
       )}
 
@@ -904,39 +943,33 @@ function getPopupPosition(zoneId: string): CSSProperties {
     case "knowledge-arena":
       return {
         left: "50%",
-        top: "45%",
+        bottom: "7%",
         transform: "translateX(-50%)",
       };
 
     case "core-missions":
       return {
-        left: "6%",
-        bottom: "10%",
+        left: "50%",
+        top: "7%",
+        transform: "translateX(-50%)",
       };
 
     case "think-missions":
       return {
-        left: "25%",
-        top: "18%",
+        right: "3%",
+        top: "13%",
       };
 
     case "express-missions":
       return {
-        right: "7%",
-        bottom: "10%",
-      };
-
-    case "stretch-missions":
-      return {
-        right: "7%",
-        top: "16%",
+        right: "3%",
+        bottom: "9%",
       };
 
     case "progress-rewards":
       return {
-        left: "50%",
-        top: "9%",
-        transform: "translateX(-50%)",
+        left: "3%",
+        bottom: "9%",
       };
 
     default:
