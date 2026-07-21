@@ -5,22 +5,24 @@ import { useEffect, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
 import { supabase } from "@/lib/supabase";
 
-const MILOS_CLUB_URL =
-  "https://gurukidspro.com/products/milos-club-membership";
+const MILOS_CLUB_URL = "https://gurukidspro.com/products/milos-club-membership";
 
-type PopupKind =
-  | "membership"
-  | "masteryLab";
+type PopupKind = "membership" | "masteryLab";
 
 type ServiceFormKind =
-  | "corporateBulk"
-  | "eventPurchase"
-  | "fileQuote"
-  | "designQuote";
+  "corporateBulk" | "eventPurchase" | "fileQuote" | "designQuote";
 
 type ActivityKind = "designChallenge" | "dailyPuzzle" | "categoriesQuiz";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
+
+type DreamTokenTransaction = {
+  id: string;
+  amount: number;
+  type: string | null;
+  title: string | null;
+  created_at: string | null;
+};
 
 type ReferralMilestone = 1 | 5 | 15;
 
@@ -36,7 +38,11 @@ type ReferralObjectiveStatus = {
 };
 
 const REFERRAL_OBJECTIVES: ReferralObjectiveDefinition[] = [
-  { milestone: 1, title: "Complete your first successful referral", reward: 25 },
+  {
+    milestone: 1,
+    title: "Complete your first successful referral",
+    reward: 25,
+  },
   { milestone: 5, title: "Reach 5 successful referrals", reward: 100 },
   { milestone: 15, title: "Reach 15 successful referrals", reward: 500 },
 ];
@@ -57,7 +63,7 @@ function useResponsiveMode() {
        * so the zone cards cannot overlap.
        */
       const shouldUseCompactLayout =
-        width < 1720 || isPortrait || aspectRatio < 1.55;
+        width < 1760 || isPortrait || aspectRatio < 1.65;
 
       if (width <= 720) {
         setScreenMode("mobile");
@@ -75,6 +81,22 @@ function useResponsiveMode() {
   }, []);
 
   return screenMode;
+}
+
+function formatDreamTokenTransactionDate(value: string | null) {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  return new Intl.DateTimeFormat("en-SG", {
+    timeZone: "Asia/Singapore",
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
 }
 
 function ResponsiveMiloStyles() {
@@ -110,7 +132,6 @@ function ResponsiveMiloStyles() {
     `}</style>
   );
 }
-
 
 type Zone = {
   number: string;
@@ -247,7 +268,8 @@ const zones: Zone[] = [
     number: "2",
     icon: "◈",
     title: "Milo’s Exchange",
-    description: "Use earned Dreamscape Tokens to trade fictional Dreamscape stocks.",
+    description:
+      "Use earned Dreamscape Tokens to trade fictional Dreamscape stocks.",
     href: "/milo-world/exchange",
     style: {
       top: "300px",
@@ -259,7 +281,8 @@ const zones: Zone[] = [
     number: "3",
     icon: "▣",
     title: "Activity Lab",
-    description: "Play daily challenges, quiz battles, and party games to earn tokens.",
+    description:
+      "Play daily challenges, quiz battles, and party games to earn tokens.",
     action: "masteryLab",
     style: {
       top: "800px",
@@ -329,7 +352,8 @@ const popupContent: Record<PopupKind, PopupContent> = {
       },
       {
         name: "Who’s Bluffing",
-        subtitle: "A fast group game where players create fake answers and spot the truth.",
+        subtitle:
+          "A fast group game where players create fake answers and spot the truth.",
         description: "",
         priceFrom: "Multiplayer 2–10",
         imageSrc: "/milo-world/activities/whos-bluffing.png",
@@ -344,7 +368,7 @@ const popupContent: Record<PopupKind, PopupContent> = {
 const introText =
   "Hi, I’m Milo. Welcome to my economy world. This is where Dreamscape users play challenges, earn Dreamscape Tokens, visit the Dream Shop, and use tokens in Milo’s Stock Exchange if they are 16 or above. Choose any zone to begin.";
 
-  function createInitialChoices(option: PopupOption): CustomChoices {
+function createInitialChoices(option: PopupOption): CustomChoices {
   return {
     baseColour: baseColourOptions[0],
     design: option.customisation?.designOptions[0] || "",
@@ -405,8 +429,8 @@ function ZoneCard({
     transform: isDesktop
       ? `${baseTransform} ${hovered ? "translateY(-6px) scale(1.015)" : ""}`.trim()
       : hovered
-      ? "translateY(-4px)"
-      : "none",
+        ? "translateY(-4px)"
+        : "none",
     cursor: "pointer",
     textAlign: "left",
     fontFamily: "inherit",
@@ -811,8 +835,8 @@ function MembershipPlans({ onClose }: { onClose: () => void }) {
               lineHeight: 1.6,
             }}
           >
-            Basic access lets users explore selected parts of Milo’s World before
-            joining the full club experience.
+            Basic access lets users explore selected parts of Milo’s World
+            before joining the full club experience.
           </p>
 
           <ul
@@ -1187,7 +1211,11 @@ function OptionCard({
         boxShadow: "0 22px 55px rgba(0,0,0,0.14)",
         overflow: "hidden",
         display: "grid",
-        gridTemplateRows: option.imageSrc ? (isMobile ? "190px 1fr" : "230px 1fr") : "1fr",
+        gridTemplateRows: option.imageSrc
+          ? isMobile
+            ? "190px 1fr"
+            : "230px 1fr"
+          : "1fr",
       }}
     >
       {option.imageSrc && (
@@ -1374,7 +1402,9 @@ function ChoiceButton({
         border: selected
           ? "1px solid rgba(40,117,160,0.7)"
           : "1px solid rgba(7,17,31,0.12)",
-        background: selected ? "rgba(40,117,160,0.12)" : "rgba(255,255,255,0.7)",
+        background: selected
+          ? "rgba(40,117,160,0.12)"
+          : "rgba(255,255,255,0.7)",
         color: "#07111f",
         fontSize: "14px",
         fontWeight: 750,
@@ -1432,7 +1462,12 @@ function CustomisationWizard({
   }
 
   return (
-    <div style={{ padding: isMobile ? "28px 18px 32px" : "40px 58px 58px", color: "#07111f" }}>
+    <div
+      style={{
+        padding: isMobile ? "28px 18px 32px" : "40px 58px 58px",
+        color: "#07111f",
+      }}
+    >
       <button
         type="button"
         onClick={onBackToGallery}
@@ -1606,7 +1641,9 @@ function CustomisationWizard({
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
+                  gridTemplateColumns: isMobile
+                    ? "1fr"
+                    : "repeat(2, minmax(0, 1fr))",
                   gap: "12px",
                 }}
               >
@@ -1644,7 +1681,9 @@ function CustomisationWizard({
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
+                  gridTemplateColumns: isMobile
+                    ? "1fr"
+                    : "repeat(2, minmax(0, 1fr))",
                   gap: "12px",
                 }}
               >
@@ -1663,7 +1702,9 @@ function CustomisationWizard({
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
+                  gridTemplateColumns: isMobile
+                    ? "1fr"
+                    : "repeat(2, minmax(0, 1fr))",
                   gap: "12px",
                 }}
               >
@@ -1696,7 +1737,9 @@ function CustomisationWizard({
 
                 <input
                   value={choices.customName}
-                  onChange={(event) => updateChoice("customName", event.target.value)}
+                  onChange={(event) =>
+                    updateChoice("customName", event.target.value)
+                  }
                   placeholder="YOUR NAME"
                   style={{
                     width: "100%",
@@ -1733,7 +1776,8 @@ function CustomisationWizard({
                 padding: "0 22px",
                 borderRadius: "12px",
                 border: "1px solid rgba(7,17,31,0.12)",
-                background: step === 0 ? "rgba(7,17,31,0.04)" : "rgba(255,255,255,0.74)",
+                background:
+                  step === 0 ? "rgba(7,17,31,0.04)" : "rgba(255,255,255,0.74)",
                 color: step === 0 ? "rgba(7,17,31,0.28)" : "#07111f",
                 fontWeight: 850,
                 cursor: step === 0 ? "not-allowed" : "pointer",
@@ -1764,7 +1808,6 @@ function CustomisationWizard({
     </div>
   );
 }
-
 
 function FormField({
   label,
@@ -1840,11 +1883,27 @@ function PricingGuidelinesTable() {
   const isMobile = screenMode === "mobile";
 
   const rows = [
-    ["Simple design support", "$15 – $30", "Minor edits, text, simple layout changes"],
-    ["Small custom design", "$35 – $80", "Simple object, gift, display piece, or accessory"],
-    ["Detailed custom model", "Quote first", "Complex shapes, multiple parts, or technical fitting"],
+    [
+      "Simple design support",
+      "$15 – $30",
+      "Minor edits, text, simple layout changes",
+    ],
+    [
+      "Small custom design",
+      "$35 – $80",
+      "Simple object, gift, display piece, or accessory",
+    ],
+    [
+      "Detailed custom model",
+      "Quote first",
+      "Complex shapes, multiple parts, or technical fitting",
+    ],
     ["Basic print", "From $6", "Small PLA/PVA-style prints, simple colours"],
-    ["Large / multi-colour print", "Quote first", "Bigger items, longer print time, or multiple colours"],
+    [
+      "Large / multi-colour print",
+      "Quote first",
+      "Bigger items, longer print time, or multiple colours",
+    ],
   ];
 
   return (
@@ -1938,11 +1997,11 @@ function ServiceRequestForm({
     };
 
     const savedRequests = JSON.parse(
-      localStorage.getItem("milo-service-requests") || "[]"
+      localStorage.getItem("milo-service-requests") || "[]",
     );
     localStorage.setItem(
       "milo-service-requests",
-      JSON.stringify([...savedRequests, request])
+      JSON.stringify([...savedRequests, request]),
     );
     setSubmitted(true);
   }
@@ -1953,7 +2012,12 @@ function ServiceRequestForm({
   const isDesignQuote = option.formKind === "designQuote";
 
   return (
-    <div style={{ padding: isMobile ? "28px 18px 32px" : "40px 58px 58px", color: "#07111f" }}>
+    <div
+      style={{
+        padding: isMobile ? "28px 18px 32px" : "40px 58px 58px",
+        color: "#07111f",
+      }}
+    >
       <button
         type="button"
         onClick={onBackToOptions}
@@ -2014,7 +2078,9 @@ function ServiceRequestForm({
           style={{
             marginTop: "34px",
             display: "grid",
-            gridTemplateColumns: isCompact ? "1fr" : "repeat(2, minmax(0, 1fr))",
+            gridTemplateColumns: isCompact
+              ? "1fr"
+              : "repeat(2, minmax(0, 1fr))",
             gap: "18px",
             maxWidth: "980px",
           }}
@@ -2146,7 +2212,9 @@ function ServiceRequestForm({
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: isCompact ? "1fr" : "repeat(2, minmax(0, 1fr))",
+              gridTemplateColumns: isCompact
+                ? "1fr"
+                : "repeat(2, minmax(0, 1fr))",
               gap: "18px",
             }}
           >
@@ -2224,7 +2292,9 @@ function ServiceRequestForm({
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: isCompact ? "1fr" : "repeat(2, minmax(0, 1fr))",
+              gridTemplateColumns: isCompact
+                ? "1fr"
+                : "repeat(2, minmax(0, 1fr))",
               gap: "18px",
             }}
           >
@@ -2315,9 +2385,6 @@ function ServiceRequestForm({
   );
 }
 
-
-
-
 function getSingaporeDateString() {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Singapore",
@@ -2333,10 +2400,19 @@ function getSingaporeDateString() {
   return `${year}-${month}-${day}`;
 }
 
-function buildPuzzleFeedback(guess: string, answer: string): DailyPuzzleAttempt["feedback"] {
+function buildPuzzleFeedback(
+  guess: string,
+  answer: string,
+): DailyPuzzleAttempt["feedback"] {
   const guessLetters = guess.toUpperCase().split("");
   const answerLetters = answer.toUpperCase().split("");
-  const feedback: DailyPuzzleAttempt["feedback"] = ["absent", "absent", "absent", "absent", "absent"];
+  const feedback: DailyPuzzleAttempt["feedback"] = [
+    "absent",
+    "absent",
+    "absent",
+    "absent",
+    "absent",
+  ];
   const used = [false, false, false, false, false];
 
   guessLetters.forEach((letter, index) => {
@@ -2350,7 +2426,8 @@ function buildPuzzleFeedback(guess: string, answer: string): DailyPuzzleAttempt[
     if (feedback[index] === "correct") return;
 
     const foundIndex = answerLetters.findIndex(
-      (answerLetter, answerIndex) => answerLetter === letter && !used[answerIndex]
+      (answerLetter, answerIndex) =>
+        answerLetter === letter && !used[answerIndex],
     );
 
     if (foundIndex >= 0) {
@@ -2375,11 +2452,7 @@ type CategoryQuizQuestion = {
 };
 
 type CategoriesStage =
-  | "mode"
-  | "category"
-  | "playing"
-  | "answered"
-  | "finished";
+  "mode" | "category" | "playing" | "answered" | "finished";
 
 const fallbackCategoryNames = [
   "World Capitals",
@@ -2422,24 +2495,29 @@ function ActivityDetail({
   const isDesignChallenge = option.activityKind === "designChallenge";
   const isDailyPuzzle = option.activityKind === "dailyPuzzle";
   const isCategoriesQuiz = option.activityKind === "categoriesQuiz";
-  const remainingAttempts = Math.max(0, DAILY_CODE_MAX_ATTEMPTS - attempts.length);
+  const remainingAttempts = Math.max(
+    0,
+    DAILY_CODE_MAX_ATTEMPTS - attempts.length,
+  );
 
   const [categoriesStage, setCategoriesStage] =
     useState<CategoriesStage>("mode");
   const [categoryMode, setCategoryMode] = useState<"single" | "multiplayer">(
-    "single"
+    "single",
   );
-  const [availableCategories, setAvailableCategories] =
-    useState<string[]>(fallbackCategoryNames);
+  const [availableCategories, setAvailableCategories] = useState<string[]>(
+    fallbackCategoryNames,
+  );
   const [selectedCategory, setSelectedCategory] = useState(
-    fallbackCategoryNames[0]
+    fallbackCategoryNames[0],
   );
   const [categoryQuestions, setCategoryQuestions] = useState<
     CategoryQuizQuestion[]
   >([]);
   const [categoryQuestionIndex, setCategoryQuestionIndex] = useState(0);
-  const [selectedCategoryAnswer, setSelectedCategoryAnswer] =
-    useState<"A" | "B" | "C" | "D" | null>(null);
+  const [selectedCategoryAnswer, setSelectedCategoryAnswer] = useState<
+    "A" | "B" | "C" | "D" | null
+  >(null);
   const [categoryScore, setCategoryScore] = useState(0);
   const [questionCountdown, setQuestionCountdown] = useState(10);
   const [nextQuestionCountdown, setNextQuestionCountdown] = useState(3);
@@ -2457,7 +2535,9 @@ function ActivityDetail({
       } = await supabase.auth.getUser();
 
       if (!user) {
-        setPuzzleMessage("Please log in to play Mastery Code and earn rewards.");
+        setPuzzleMessage(
+          "Please log in to play Mastery Code and earn rewards.",
+        );
         return;
       }
 
@@ -2519,7 +2599,7 @@ function ActivityDetail({
       }
 
       const uniqueCategories = Array.from(
-        new Set((data || []).map((item) => item.category).filter(Boolean))
+        new Set((data || []).map((item) => item.category).filter(Boolean)),
       );
 
       if (uniqueCategories.length > 0) {
@@ -2569,7 +2649,10 @@ function ActivityDetail({
     return () => window.clearTimeout(timer);
   }, [isCategoriesQuiz, categoriesStage, nextQuestionCountdown]);
 
-  function updateChallengeField(key: keyof typeof challengeForm, value: string) {
+  function updateChallengeField(
+    key: keyof typeof challengeForm,
+    value: string,
+  ) {
     setChallengeForm({ ...challengeForm, [key]: value });
   }
 
@@ -2585,7 +2668,11 @@ function ActivityDetail({
     return data?.reduce((sum, row) => sum + (row.amount || 0), 0) || 0;
   }
 
-  async function addTokenTransaction(userId: string, amount: number, description: string) {
+  async function addTokenTransaction(
+    userId: string,
+    amount: number,
+    description: string,
+  ) {
     const { error } = await supabase.from("dream_token_transactions").insert({
       user_id: userId,
       amount,
@@ -2645,7 +2732,9 @@ function ActivityDetail({
 
     if (existingError) {
       console.warn("Could not check existing puzzle progress:", existingError);
-      setPuzzleMessage("Could not save puzzle progress. Please check Supabase policies.");
+      setPuzzleMessage(
+        "Could not save puzzle progress. Please check Supabase policies.",
+      );
       return false;
     }
 
@@ -2658,7 +2747,9 @@ function ActivityDetail({
 
     if (result.error) {
       console.warn("Could not save puzzle progress:", result.error);
-      setPuzzleMessage("Could not save puzzle progress. Please check Supabase policies.");
+      setPuzzleMessage(
+        "Could not save puzzle progress. Please check Supabase policies.",
+      );
       return false;
     }
 
@@ -2676,10 +2767,12 @@ function ActivityDetail({
       createdAt: new Date().toISOString(),
     };
 
-    const saved = JSON.parse(localStorage.getItem("milo-design-challenge-submissions") || "[]");
+    const saved = JSON.parse(
+      localStorage.getItem("milo-design-challenge-submissions") || "[]",
+    );
     localStorage.setItem(
       "milo-design-challenge-submissions",
-      JSON.stringify([...saved, submission])
+      JSON.stringify([...saved, submission]),
     );
     setSubmitted(true);
   }
@@ -2703,7 +2796,11 @@ function ActivityDetail({
       return;
     }
 
-    const spent = await addTokenTransaction(user.id, -1, `Bought clue for Mastery Code ${puzzle.date_sg}`);
+    const spent = await addTokenTransaction(
+      user.id,
+      -1,
+      `Bought clue for Mastery Code ${puzzle.date_sg}`,
+    );
     if (!spent) return;
 
     const saved = await savePuzzleProgress({
@@ -2738,7 +2835,11 @@ function ActivityDetail({
     }
 
     const letterHint = `${puzzle.answer[0].toUpperCase()} is in position 1`;
-    const spent = await addTokenTransaction(user.id, -1, `Bought letter for Mastery Code ${puzzle.date_sg}`);
+    const spent = await addTokenTransaction(
+      user.id,
+      -1,
+      `Bought letter for Mastery Code ${puzzle.date_sg}`,
+    );
     if (!spent) return;
 
     const saved = await savePuzzleProgress({
@@ -2756,94 +2857,98 @@ function ActivityDetail({
   }
 
   async function submitPuzzle(event: FormEvent<HTMLFormElement>) {
-  event.preventDefault();
+    event.preventDefault();
 
-  if (!puzzle) {
-    setPuzzleMessage("No puzzle is available yet.");
-    return;
-  }
+    if (!puzzle) {
+      setPuzzleMessage("No puzzle is available yet.");
+      return;
+    }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) {
-    setPuzzleMessage("Please log in to play Mastery Code.");
-    return;
-  }
+    if (!user) {
+      setPuzzleMessage("Please log in to play Mastery Code.");
+      return;
+    }
 
-  const guess = puzzleAnswer.trim().toUpperCase();
+    const guess = puzzleAnswer.trim().toUpperCase();
 
-  if (solvedToday) {
-    setPuzzleMessage("You already solved today’s puzzle.");
-    return;
-  }
+    if (solvedToday) {
+      setPuzzleMessage("You already solved today’s puzzle.");
+      return;
+    }
 
-  if (attempts.length >= DAILY_CODE_MAX_ATTEMPTS) {
-    setPuzzleMessage(`You have used all ${DAILY_CODE_MAX_ATTEMPTS} attempts for today.`);
-    return;
-  }
+    if (attempts.length >= DAILY_CODE_MAX_ATTEMPTS) {
+      setPuzzleMessage(
+        `You have used all ${DAILY_CODE_MAX_ATTEMPTS} attempts for today.`,
+      );
+      return;
+    }
 
-  if (!/^[A-Z]{5}$/.test(guess)) {
-    setPuzzleMessage("Enter a 5-letter word.");
-    return;
-  }
+    if (!/^[A-Z]{5}$/.test(guess)) {
+      setPuzzleMessage("Enter a 5-letter word.");
+      return;
+    }
 
-  const feedback = buildPuzzleFeedback(guess, puzzle.answer);
-  const nextAttempts = [...attempts, { guess, feedback }];
-  const solved = guess === puzzle.answer.toUpperCase();
+    const feedback = buildPuzzleFeedback(guess, puzzle.answer);
+    const nextAttempts = [...attempts, { guess, feedback }];
+    const solved = guess === puzzle.answer.toUpperCase();
 
-  const saved = await savePuzzleProgress({
-    nextAttempts,
-    solved,
-  });
+    const saved = await savePuzzleProgress({
+      nextAttempts,
+      solved,
+    });
 
-  if (!saved) return;
+    if (!saved) return;
 
-  setAttempts(nextAttempts);
-  setPuzzleAnswer("");
+    setAttempts(nextAttempts);
+    setPuzzleAnswer("");
 
-  if (!solved) {
-    setPuzzleMessage(
-      nextAttempts.length >= DAILY_CODE_MAX_ATTEMPTS
-        ? "No more attempts today. Try again tomorrow."
-        : "Attempt saved. Try again."
-    );
-    return;
-  }
+    if (!solved) {
+      setPuzzleMessage(
+        nextAttempts.length >= DAILY_CODE_MAX_ATTEMPTS
+          ? "No more attempts today. Try again tomorrow."
+          : "Attempt saved. Try again.",
+      );
+      return;
+    }
 
-  setSolvedToday(true);
+    setSolvedToday(true);
 
-  const nextCompleted = completed + 1;
-  setCompleted(nextCompleted);
+    const nextCompleted = completed + 1;
+    setCompleted(nextCompleted);
 
-  const reward = getDailyCodeReward(nextAttempts.length);
+    const reward = getDailyCodeReward(nextAttempts.length);
 
-  const awarded = await addTokenTransaction(
-    user.id,
-    reward,
-    `Solved Mastery Code ${puzzle.date_sg} in ${nextAttempts.length} guess${
-      nextAttempts.length === 1 ? "" : "es"
-    }`
-  );
-
-  if (awarded) {
-    setPuzzleMessage(
-      `Solved in ${nextAttempts.length} guess${
+    const awarded = await addTokenTransaction(
+      user.id,
+      reward,
+      `Solved Mastery Code ${puzzle.date_sg} in ${nextAttempts.length} guess${
         nextAttempts.length === 1 ? "" : "es"
-      }. You earned ${reward} Dreamscape Tokens.`
+      }`,
     );
-  } else {
-    setPuzzleMessage("Puzzle solved, but the token reward could not be saved.");
+
+    if (awarded) {
+      setPuzzleMessage(
+        `Solved in ${nextAttempts.length} guess${
+          nextAttempts.length === 1 ? "" : "es"
+        }. You earned ${reward} Dreamscape Tokens.`,
+      );
+    } else {
+      setPuzzleMessage(
+        "Puzzle solved, but the token reward could not be saved.",
+      );
+    }
   }
-}
 
   function chooseCategoriesMode(mode: "single" | "multiplayer") {
     setCategoryMode(mode);
 
     if (mode === "multiplayer") {
       setCategoryMessage(
-        "Multiplayer mode will be connected after single-player mode is complete."
+        "Multiplayer mode will be connected after single-player mode is complete.",
       );
       return;
     }
@@ -2871,7 +2976,7 @@ function ActivityDetail({
 
     if (questions.length < 10) {
       setCategoryMessage(
-        `This category needs at least 10 active questions. It currently has ${questions.length}.`
+        `This category needs at least 10 active questions. It currently has ${questions.length}.`,
       );
       setIsLoadingCategoryQuiz(false);
       return;
@@ -2911,11 +3016,7 @@ function ActivityDetail({
 
     setSelectedCategoryAnswer(finalAnswer);
     setCategoryMessage(
-      finalAnswer
-        ? isCorrect
-          ? "Correct."
-          : "Not quite."
-        : "Time is up."
+      finalAnswer ? (isCorrect ? "Correct." : "Not quite.") : "Time is up.",
     );
 
     setNextQuestionCountdown(3);
@@ -3016,194 +3117,214 @@ function ActivityDetail({
             isDailyPuzzle || isCategoriesQuiz
               ? "1fr"
               : isCompact
-              ? "1fr"
-              : isDesignChallenge
-              ? "0.9fr 1.1fr"
-              : "1fr 1fr",
+                ? "1fr"
+                : isDesignChallenge
+                  ? "0.9fr 1.1fr"
+                  : "1fr 1fr",
           gap: "28px",
           alignItems: "start",
         }}
       >
         {!isCategoriesQuiz && !isDailyPuzzle && (
-        <div
-          style={{
-            borderRadius: "26px",
-            border: "1px solid rgba(7,17,31,0.1)",
-            background: "rgba(255,255,255,0.74)",
-            padding: "28px",
-            boxShadow: "0 22px 55px rgba(0,0,0,0.12)",
-          }}
-        >
-          <p
+          <div
             style={{
-              margin: 0,
-              color: "#2875a0",
-              fontSize: "12px",
-              letterSpacing: "0.18em",
-              textTransform: "uppercase",
-              fontWeight: 900,
+              borderRadius: "26px",
+              border: "1px solid rgba(7,17,31,0.1)",
+              background: "rgba(255,255,255,0.74)",
+              padding: "28px",
+              boxShadow: "0 22px 55px rgba(0,0,0,0.12)",
             }}
           >
-            {isDesignChallenge ? "Monthly Activity" : isCategoriesQuiz ? "Quiz Activity" : "Daily Activity"}
-          </p>
+            <p
+              style={{
+                margin: 0,
+                color: "#2875a0",
+                fontSize: "12px",
+                letterSpacing: "0.18em",
+                textTransform: "uppercase",
+                fontWeight: 900,
+              }}
+            >
+              {isDesignChallenge
+                ? "Monthly Activity"
+                : isCategoriesQuiz
+                  ? "Quiz Activity"
+                  : "Daily Activity"}
+            </p>
 
-          <h3 style={{ margin: "12px 0 0", fontSize: "34px", lineHeight: 1.05 }}>
-            {option.name}
-          </h3>
+            <h3
+              style={{ margin: "12px 0 0", fontSize: "34px", lineHeight: 1.05 }}
+            >
+              {option.name}
+            </h3>
 
-          <p
-            style={{
-              margin: "16px 0 0",
-              color: "rgba(7,17,31,0.64)",
-              fontSize: "16px",
-              lineHeight: 1.65,
-            }}
-          >
-            {option.description}
-          </p>
+            <p
+              style={{
+                margin: "16px 0 0",
+                color: "rgba(7,17,31,0.64)",
+                fontSize: "16px",
+                lineHeight: 1.65,
+              }}
+            >
+              {option.description}
+            </p>
 
-          {isDesignChallenge && (
-            <div style={{ marginTop: "24px", display: "grid", gap: "14px" }}>
-              <MilestoneCard
-                title="Monthly Winner"
-                text="The selected sketch is converted into a 3D printable model and printed as a real item."
-              />
-              <MilestoneCard
-                title="Winner Reward"
-                text="1 physical print, 50 Dreamscape Tokens, and feature placement on Milo’s Design Wall."
-              />
-              <MilestoneCard
-                title="Shortlist Reward"
-                text="Shortlisted ideas can receive 10 Dreamscape Tokens and a monthly gallery mention."
-              />
-
-              <div
-                style={{
-                  marginTop: "10px",
-                  borderRadius: "22px",
-                  border: "1px solid rgba(7,17,31,0.1)",
-                  background: "rgba(255,255,255,0.62)",
-                  padding: "18px",
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: "12px",
-                    marginBottom: "14px",
-                  }}
-                >
-                  <div>
-                    <p
-                      style={{
-                        margin: 0,
-                        color: "#2875a0",
-                        fontSize: "11px",
-                        letterSpacing: "0.18em",
-                        textTransform: "uppercase",
-                        fontWeight: 900,
-                      }}
-                    >
-                      Past Shortlisted Submissions
-                    </p>
-                    <p
-                      style={{
-                        margin: "6px 0 0",
-                        color: "rgba(7,17,31,0.52)",
-                        fontSize: "12px",
-                        lineHeight: 1.35,
-                      }}
-                    >
-                      Monthly highlights will appear here.
-                    </p>
-                  </div>
-                  <span style={{ color: "rgba(7,17,31,0.4)", fontSize: "12px" }}>
-                    Scroll →
-                  </span>
-                </div>
+            {isDesignChallenge && (
+              <div style={{ marginTop: "24px", display: "grid", gap: "14px" }}>
+                <MilestoneCard
+                  title="Monthly Winner"
+                  text="The selected sketch is converted into a 3D printable model and printed as a real item."
+                />
+                <MilestoneCard
+                  title="Winner Reward"
+                  text="1 physical print, 50 Dreamscape Tokens, and feature placement on Milo’s Design Wall."
+                />
+                <MilestoneCard
+                  title="Shortlist Reward"
+                  text="Shortlisted ideas can receive 10 Dreamscape Tokens and a monthly gallery mention."
+                />
 
                 <div
                   style={{
-                    display: "flex",
-                    gap: "12px",
-                    overflowX: "auto",
-                    overflowY: "hidden",
-                    paddingBottom: "8px",
-                    scrollSnapType: "x mandatory",
+                    marginTop: "10px",
+                    borderRadius: "22px",
+                    border: "1px solid rgba(7,17,31,0.1)",
+                    background: "rgba(255,255,255,0.62)",
+                    padding: "18px",
+                    overflow: "hidden",
                   }}
                 >
-                  {Array.from({ length: 5 }).map((_, index) => (
-                    <div
-                      key={index}
-                      style={{
-                        flex: "0 0 150px",
-                        scrollSnapAlign: "start",
-                        borderRadius: "18px",
-                        border: "1px dashed rgba(40,117,160,0.22)",
-                        background:
-                          "linear-gradient(145deg, rgba(255,255,255,0.82), rgba(239,244,248,0.72))",
-                        padding: "12px",
-                      }}
-                    >
-                      <div
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "12px",
+                      marginBottom: "14px",
+                    }}
+                  >
+                    <div>
+                      <p
                         style={{
-                          height: "88px",
-                          borderRadius: "14px",
-                          border: "1px dashed rgba(7,17,31,0.14)",
-                          background:
-                            "radial-gradient(circle at 50% 42%, rgba(40,117,160,0.08), rgba(255,255,255,0.72))",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: "rgba(7,17,31,0.3)",
-                          fontSize: "24px",
-                        }}
-                      >
-                        ✦
-                      </div>
-
-                      <strong
-                        style={{
-                          display: "block",
-                          marginTop: "10px",
-                          color: "#07111f",
-                          fontSize: "13px",
-                          lineHeight: 1.25,
-                        }}
-                      >
-                        Submission {index + 1}
-                      </strong>
-
-                      <span
-                        style={{
-                          display: "block",
-                          marginTop: "5px",
-                          color: "rgba(7,17,31,0.52)",
+                          margin: 0,
+                          color: "#2875a0",
                           fontSize: "11px",
+                          letterSpacing: "0.18em",
+                          textTransform: "uppercase",
+                          fontWeight: 900,
+                        }}
+                      >
+                        Past Shortlisted Submissions
+                      </p>
+                      <p
+                        style={{
+                          margin: "6px 0 0",
+                          color: "rgba(7,17,31,0.52)",
+                          fontSize: "12px",
                           lineHeight: 1.35,
                         }}
                       >
-                        Placeholder showcase
-                      </span>
+                        Monthly highlights will appear here.
+                      </p>
                     </div>
-                  ))}
+                    <span
+                      style={{ color: "rgba(7,17,31,0.4)", fontSize: "12px" }}
+                    >
+                      Scroll →
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "12px",
+                      overflowX: "auto",
+                      overflowY: "hidden",
+                      paddingBottom: "8px",
+                      scrollSnapType: "x mandatory",
+                    }}
+                  >
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <div
+                        key={index}
+                        style={{
+                          flex: "0 0 150px",
+                          scrollSnapAlign: "start",
+                          borderRadius: "18px",
+                          border: "1px dashed rgba(40,117,160,0.22)",
+                          background:
+                            "linear-gradient(145deg, rgba(255,255,255,0.82), rgba(239,244,248,0.72))",
+                          padding: "12px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            height: "88px",
+                            borderRadius: "14px",
+                            border: "1px dashed rgba(7,17,31,0.14)",
+                            background:
+                              "radial-gradient(circle at 50% 42%, rgba(40,117,160,0.08), rgba(255,255,255,0.72))",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "rgba(7,17,31,0.3)",
+                            fontSize: "24px",
+                          }}
+                        >
+                          ✦
+                        </div>
+
+                        <strong
+                          style={{
+                            display: "block",
+                            marginTop: "10px",
+                            color: "#07111f",
+                            fontSize: "13px",
+                            lineHeight: 1.25,
+                          }}
+                        >
+                          Submission {index + 1}
+                        </strong>
+
+                        <span
+                          style={{
+                            display: "block",
+                            marginTop: "5px",
+                            color: "rgba(7,17,31,0.52)",
+                            fontSize: "11px",
+                            lineHeight: 1.35,
+                          }}
+                        >
+                          Placeholder showcase
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {isDailyPuzzle && (
-            <div style={{ marginTop: "24px", display: "grid", gap: "14px" }}>
-              <MilestoneCard title="Current Progress" text={`${completed} completed puzzles`} />
-              <MilestoneCard title="10 Completed" text="Redeem 10 Dreamscape Tokens." />
-              <MilestoneCard title="25 Completed" text="Unlock 1 Spin & Win chance for a small item." />
-              <MilestoneCard title="Attempts Today" text={`${remainingAttempts}/5 attempts left`} />
-            </div>
-          )}
-        </div>
+            {isDailyPuzzle && (
+              <div style={{ marginTop: "24px", display: "grid", gap: "14px" }}>
+                <MilestoneCard
+                  title="Current Progress"
+                  text={`${completed} completed puzzles`}
+                />
+                <MilestoneCard
+                  title="10 Completed"
+                  text="Redeem 10 Dreamscape Tokens."
+                />
+                <MilestoneCard
+                  title="25 Completed"
+                  text="Unlock 1 Spin & Win chance for a small item."
+                />
+                <MilestoneCard
+                  title="Attempts Today"
+                  text={`${remainingAttempts}/5 attempts left`}
+                />
+              </div>
+            )}
+          </div>
         )}
 
         {isDesignChallenge && (
@@ -3218,11 +3339,24 @@ function ActivityDetail({
             }}
           >
             <h3 style={{ margin: 0, fontSize: "26px" }}>Submit Your Sketch</h3>
-            <p style={{ margin: "10px 0 22px", color: "rgba(7,17,31,0.58)", lineHeight: 1.5 }}>
-              Upload your sketch and tell us what you want Milo’s team to create.
+            <p
+              style={{
+                margin: "10px 0 22px",
+                color: "rgba(7,17,31,0.58)",
+                lineHeight: 1.5,
+              }}
+            >
+              Upload your sketch and tell us what you want Milo’s team to
+              create.
             </p>
 
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "14px" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+                gap: "14px",
+              }}
+            >
               <FormField
                 label="Your Name"
                 value={challengeForm.name}
@@ -3247,12 +3381,22 @@ function ActivityDetail({
             </div>
 
             <label style={{ display: "grid", gap: "8px", marginTop: "14px" }}>
-              <span style={{ fontSize: "12px", fontWeight: 850, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(7,17,31,0.58)" }}>
+              <span
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 850,
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  color: "rgba(7,17,31,0.58)",
+                }}
+              >
                 Product Category
               </span>
               <select
                 value={challengeForm.category}
-                onChange={(event) => updateChallengeField("category", event.target.value)}
+                onChange={(event) =>
+                  updateChallengeField("category", event.target.value)
+                }
                 style={{
                   height: "48px",
                   borderRadius: "14px",
@@ -3273,7 +3417,15 @@ function ActivityDetail({
             </label>
 
             <label style={{ display: "grid", gap: "8px", marginTop: "14px" }}>
-              <span style={{ fontSize: "12px", fontWeight: 850, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(7,17,31,0.58)" }}>
+              <span
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 850,
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  color: "rgba(7,17,31,0.58)",
+                }}
+              >
                 Upload Sketch
               </span>
               <div style={uploadBoxStyle}>
@@ -3282,7 +3434,9 @@ function ActivityDetail({
                   multiple
                   accept="image/*,.pdf"
                   onChange={(event) => {
-                    const names = Array.from(event.target.files || []).map((file) => file.name);
+                    const names = Array.from(event.target.files || []).map(
+                      (file) => file.name,
+                    );
                     setUploadedSketchNames(names);
                   }}
                 />
@@ -3314,22 +3468,31 @@ function ActivityDetail({
               />
             </div>
 
-            <button type="submit" style={{
-              marginTop: "20px",
-              width: "100%",
-              height: "48px",
-              borderRadius: "12px",
-              border: "none",
-              background: "#07111f",
-              color: "white",
-              fontWeight: 850,
-              cursor: "pointer",
-            }}>
+            <button
+              type="submit"
+              style={{
+                marginTop: "20px",
+                width: "100%",
+                height: "48px",
+                borderRadius: "12px",
+                border: "none",
+                background: "#07111f",
+                color: "white",
+                fontWeight: 850,
+                cursor: "pointer",
+              }}
+            >
               Submit Design Challenge Entry
             </button>
 
             {submitted && (
-              <p style={{ margin: "14px 0 0", color: "#2875a0", fontWeight: 800 }}>
+              <p
+                style={{
+                  margin: "14px 0 0",
+                  color: "#2875a0",
+                  fontWeight: 800,
+                }}
+              >
                 Entry saved. Backend submission can be connected later.
               </p>
             )}
@@ -3373,7 +3536,8 @@ function ActivityDetail({
               }}
             >
               Guess the 5-letter design word in 6 attempts. Earn more Dreamscape
-              Tokens when you solve it faster. Buy a clue or letter if you need help.
+              Tokens when you solve it faster. Buy a clue or letter if you need
+              help.
             </p>
 
             <form
@@ -3430,9 +3594,7 @@ function ActivityDetail({
                         style={{
                           display: "grid",
                           gridTemplateColumns: `repeat(5, ${
-                            isMobile
-                              ? "clamp(40px, 12vw, 46px)"
-                              : "56px"
+                            isMobile ? "clamp(40px, 12vw, 46px)" : "56px"
                           })`,
                           gap: isMobile ? "6px" : "8px",
                           justifyContent: "center",
@@ -3451,10 +3613,10 @@ function ActivityDetail({
                             feedback === "correct"
                               ? "#4f9f64"
                               : feedback === "present"
-                              ? "#d2a742"
-                              : feedback === "absent"
-                              ? "#8b919a"
-                              : "rgba(255,255,255,0.78)";
+                                ? "#d2a742"
+                                : feedback === "absent"
+                                  ? "#8b919a"
+                                  : "rgba(255,255,255,0.78)";
 
                           const color = feedback ? "white" : "#07111f";
 
@@ -3491,7 +3653,7 @@ function ActivityDetail({
                         })}
                       </span>
                     );
-                  }
+                  },
                 )}
               </button>
 
@@ -3502,7 +3664,7 @@ function ActivityDetail({
                     `${current}${letter}`
                       .toUpperCase()
                       .replace(/[^A-Z]/g, "")
-                      .slice(0, 5)
+                      .slice(0, 5),
                   );
                 }}
                 onDelete={() => {
@@ -3828,7 +3990,9 @@ function ActivityDetail({
 
                   <select
                     value={selectedCategory}
-                    onChange={(event) => setSelectedCategory(event.target.value)}
+                    onChange={(event) =>
+                      setSelectedCategory(event.target.value)
+                    }
                     style={{
                       height: "48px",
                       borderRadius: "14px",
@@ -3864,12 +4028,15 @@ function ActivityDetail({
                     cursor: isLoadingCategoryQuiz ? "wait" : "pointer",
                   }}
                 >
-                  {isLoadingCategoryQuiz ? "Loading Quiz..." : "Start 10-Question Quiz"}
+                  {isLoadingCategoryQuiz
+                    ? "Loading Quiz..."
+                    : "Start 10-Question Quiz"}
                 </button>
               </div>
             )}
 
-            {(categoriesStage === "playing" || categoriesStage === "answered") &&
+            {(categoriesStage === "playing" ||
+              categoriesStage === "answered") &&
               currentCategoryQuestion && (
                 <div style={{ marginTop: "18px" }}>
                   <div
@@ -3917,7 +4084,9 @@ function ActivityDetail({
                             ? "rgba(196,122,37,0.12)"
                             : "rgba(239,68,68,0.1)",
                         color:
-                          categoriesStage === "answered" ? "#8a4f13" : "#991b1b",
+                          categoriesStage === "answered"
+                            ? "#8a4f13"
+                            : "#991b1b",
                         padding: "8px 12px",
                         fontSize: "12px",
                         fontWeight: 900,
@@ -3940,7 +4109,9 @@ function ActivityDetail({
                     {currentCategoryQuestion.question}
                   </h4>
 
-                  <div style={{ marginTop: "22px", display: "grid", gap: "12px" }}>
+                  <div
+                    style={{ marginTop: "22px", display: "grid", gap: "12px" }}
+                  >
                     {[
                       ["A", currentCategoryQuestion.option_a],
                       ["B", currentCategoryQuestion.option_b],
@@ -3948,7 +4119,7 @@ function ActivityDetail({
                       ["D", currentCategoryQuestion.option_d],
                     ].map(([letter, answer]) => {
                       const optionStyle = getCategoryOptionStyle(
-                        letter as "A" | "B" | "C" | "D"
+                        letter as "A" | "B" | "C" | "D",
                       );
 
                       return (
@@ -3957,7 +4128,9 @@ function ActivityDetail({
                           type="button"
                           disabled={categoriesStage === "answered"}
                           onClick={() =>
-                            submitCategoryAnswer(letter as "A" | "B" | "C" | "D")
+                            submitCategoryAnswer(
+                              letter as "A" | "B" | "C" | "D",
+                            )
                           }
                           style={{
                             minHeight: "54px",
@@ -3966,7 +4139,9 @@ function ActivityDetail({
                             padding: "14px 16px",
                             fontWeight: 850,
                             cursor:
-                              categoriesStage === "answered" ? "default" : "pointer",
+                              categoriesStage === "answered"
+                                ? "default"
+                                : "pointer",
                             ...optionStyle,
                           }}
                         >
@@ -4037,8 +4212,8 @@ function ActivityDetail({
                   {categoryScore >= 8
                     ? "Excellent. That was a strong mastery score."
                     : categoryScore >= 6
-                    ? "Good pass. Try another category to improve your score."
-                    : "Keep practising. These questions are designed to be tougher."}
+                      ? "Good pass. Try another category to improve your score."
+                      : "Keep practising. These questions are designed to be tougher."}
                 </p>
 
                 <button
@@ -4245,8 +4420,18 @@ function MilestoneCard({ title, text }: { title: string; text: string }) {
         padding: "16px",
       }}
     >
-      <strong style={{ display: "block", fontSize: "14px", color: "#07111f" }}>{title}</strong>
-      <span style={{ display: "block", marginTop: "6px", color: "rgba(7,17,31,0.6)", fontSize: "13px", lineHeight: 1.45 }}>
+      <strong style={{ display: "block", fontSize: "14px", color: "#07111f" }}>
+        {title}
+      </strong>
+      <span
+        style={{
+          display: "block",
+          marginTop: "6px",
+          color: "rgba(7,17,31,0.6)",
+          fontSize: "13px",
+          lineHeight: 1.45,
+        }}
+      >
         {text}
       </span>
     </div>
@@ -4272,17 +4457,17 @@ function ReferralObjectivesPanel({
   const [isOpen, setIsOpen] = useState(false);
 
   const completedCount = REFERRAL_OBJECTIVES.filter((objective) =>
-    claimedMilestones.includes(objective.milestone)
+    claimedMilestones.includes(objective.milestone),
   ).length;
 
   const nextMilestone =
     REFERRAL_OBJECTIVES.find(
-      (objective) => !claimedMilestones.includes(objective.milestone)
+      (objective) => !claimedMilestones.includes(objective.milestone),
     )?.milestone ?? 15;
 
   const overallProgress = Math.min(
     100,
-    Math.max(0, (referralCount / nextMilestone) * 100)
+    Math.max(0, (referralCount / nextMilestone) * 100),
   );
 
   return (
@@ -4293,16 +4478,14 @@ function ReferralObjectivesPanel({
         right: isDesktop ? "28px" : "auto",
         left: "auto",
         zIndex: 29,
-        width: isMobile
-          ? "calc(100% - 24px)"
-          : "min(380px, calc(100% - 44px))",
+        width: isMobile ? "calc(100% - 24px)" : "min(380px, calc(100% - 44px))",
         margin: isDesktop
           ? 0
           : isMobile
-          ? "10px auto 0"
-          : isTablet
-          ? "18px 22px 0 auto"
-          : 0,
+            ? "10px auto 0"
+            : isTablet
+              ? "18px 22px 0 auto"
+              : 0,
         borderRadius: isOpen ? "20px" : "999px",
         border: "1px solid rgba(126,232,255,0.38)",
         background:
@@ -4378,10 +4561,10 @@ function ReferralObjectivesPanel({
             {isLoading
               ? "Loading progress..."
               : isLoggedIn
-              ? `${completedCount}/3 complete · ${referralCount} successful referral${
-                  referralCount === 1 ? "" : "s"
-                }`
-              : "Log in to start earning bonuses"}
+                ? `${completedCount}/3 complete · ${referralCount} successful referral${
+                    referralCount === 1 ? "" : "s"
+                  }`
+                : "Log in to start earning bonuses"}
           </span>
         </span>
 
@@ -4469,7 +4652,7 @@ function ReferralObjectivesPanel({
               <div style={{ display: "grid", gap: "9px" }}>
                 {REFERRAL_OBJECTIVES.map((objective) => {
                   const isCompleted = claimedMilestones.includes(
-                    objective.milestone
+                    objective.milestone,
                   );
                   const progress = Math.min(referralCount, objective.milestone);
 
@@ -4633,9 +4816,13 @@ function WorldPopup({
   const isMobile = screenMode === "mobile";
   const isCompact = screenMode !== "desktop";
 
-  const [selectedOption, setSelectedOption] = useState<PopupOption | null>(null);
-  const [selectedServiceOption, setSelectedServiceOption] = useState<PopupOption | null>(null);
-  const [selectedActivityOption, setSelectedActivityOption] = useState<PopupOption | null>(null);
+  const [selectedOption, setSelectedOption] = useState<PopupOption | null>(
+    null,
+  );
+  const [selectedServiceOption, setSelectedServiceOption] =
+    useState<PopupOption | null>(null);
+  const [selectedActivityOption, setSelectedActivityOption] =
+    useState<PopupOption | null>(null);
   const [customStep, setCustomStep] = useState(0);
   const [choices, setChoices] = useState<CustomChoices | null>(null);
 
@@ -4663,19 +4850,19 @@ function WorldPopup({
 
   const useCompactPopup = isActivityLabOptions || isCategoriesActivity;
 
-const popupWidth = isMobile
-  ? "calc(100vw - 20px)"
-  : isActivityLabOptions
-  ? "min(1380px, 96vw)"
-  : isCategoriesActivity
-  ? "min(980px, 92vw)"
-  : "min(1680px, 96vw)";
+  const popupWidth = isMobile
+    ? "calc(100vw - 20px)"
+    : isActivityLabOptions
+      ? "min(1380px, 96vw)"
+      : isCategoriesActivity
+        ? "min(980px, 92vw)"
+        : "min(1680px, 96vw)";
 
-const popupHeight = isMobile
-  ? "calc(100dvh - 20px)"
-  : useCompactPopup
-  ? "min(720px, 86vh)"
-  : "min(900px, 90vh)";
+  const popupHeight = isMobile
+    ? "calc(100dvh - 20px)"
+    : useCompactPopup
+      ? "min(720px, 86vh)"
+      : "min(900px, 90vh)";
 
   function startCustomisation(option: PopupOption) {
     if (!option.customisation) return;
@@ -4710,8 +4897,13 @@ const popupHeight = isMobile
       quantity: 1,
     };
 
-    const savedCart = JSON.parse(localStorage.getItem("dreamscape-cart") || "[]");
-    localStorage.setItem("dreamscape-cart", JSON.stringify([...savedCart, cartItem]));
+    const savedCart = JSON.parse(
+      localStorage.getItem("dreamscape-cart") || "[]",
+    );
+    localStorage.setItem(
+      "dreamscape-cart",
+      JSON.stringify([...savedCart, cartItem]),
+    );
 
     setSelectedOption(null);
     setChoices(null);
@@ -4784,110 +4976,122 @@ const popupHeight = isMobile
           }}
         />
 
-        {!selectedOption && !selectedServiceOption && !selectedActivityOption && (
-          <>
-            <div style={{ position: "relative", zIndex: 2, padding: isMobile ? "8px 18px 0" : "10px 58px 0" }}>
-              <p
+        {!selectedOption &&
+          !selectedServiceOption &&
+          !selectedActivityOption && (
+            <>
+              <div
                 style={{
-                  margin: 0,
-                  color: "#2875a0",
-                  fontSize: "13px",
-                  letterSpacing: "0.24em",
-                  textTransform: "uppercase",
-                  fontWeight: 900,
+                  position: "relative",
+                  zIndex: 2,
+                  padding: isMobile ? "8px 18px 0" : "10px 58px 0",
                 }}
               >
-                {content.eyebrow}
-              </p>
+                <p
+                  style={{
+                    margin: 0,
+                    color: "#2875a0",
+                    fontSize: "13px",
+                    letterSpacing: "0.24em",
+                    textTransform: "uppercase",
+                    fontWeight: 900,
+                  }}
+                >
+                  {content.eyebrow}
+                </p>
 
-              <h2
+                <h2
+                  style={{
+                    margin: "14px 0 0",
+                    fontFamily: 'Georgia, "Times New Roman", serif',
+                    fontSize: isMobile ? "38px" : "58px",
+                    fontWeight: 500,
+                    lineHeight: 1,
+                    color: "#07111f",
+                  }}
+                >
+                  {content.title}
+                </h2>
+
+                <p
+                  style={{
+                    margin: "18px 0 0",
+                    maxWidth: "900px",
+                    color: "rgba(7,17,31,0.62)",
+                    fontSize: "18px",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {content.description}
+                </p>
+              </div>
+
+              <div
                 style={{
-                  margin: "14px 0 0",
-                  fontFamily: 'Georgia, "Times New Roman", serif',
-                  fontSize: isMobile ? "38px" : "58px",
-                  fontWeight: 500,
-                  lineHeight: 1,
-                  color: "#07111f",
+                  position: "relative",
+                  zIndex: 2,
+                  marginTop: "30px",
+                  padding: isMobile ? "0 18px 32px" : "0 58px 58px",
                 }}
               >
-                {content.title}
-              </h2>
+                {activePopup === "membership" ? (
+                  <MembershipPlans onClose={onClose} />
+                ) : (
+                  <>
+                    <div
+                      style={{
+                        display: isActivityLabOptions ? "grid" : "flex",
+                        gridTemplateColumns: isActivityLabOptions
+                          ? isMobile
+                            ? "1fr"
+                            : isCompact
+                              ? "repeat(2, minmax(0, 1fr))"
+                              : "repeat(3, minmax(0, 1fr))"
+                          : undefined,
+                        gap: isMobile ? "18px" : "24px",
+                        overflowX: isActivityLabOptions ? "visible" : "auto",
+                        overflowY: "visible",
+                        padding: isMobile ? "8px 0 28px" : "8px 4px 28px",
+                        scrollSnapType: isActivityLabOptions
+                          ? "none"
+                          : "x mandatory",
+                      }}
+                    >
+                      {content.options.map((option) => (
+                        <OptionCard
+                          key={option.name}
+                          option={option}
+                          onStartCustomisation={
+                            supportsCustomisation
+                              ? startCustomisation
+                              : undefined
+                          }
+                          onOpenServiceForm={openServiceForm}
+                          onOpenActivity={openActivity}
+                        />
+                      ))}
+                    </div>
 
-              <p
-                style={{
-                  margin: "18px 0 0",
-                  maxWidth: "900px",
-                  color: "rgba(7,17,31,0.62)",
-                  fontSize: "18px",
-                  lineHeight: 1.6,
-                }}
-              >
-                {content.description}
-              </p>
-            </div>
-
-            <div
-              style={{
-                position: "relative",
-                zIndex: 2,
-                marginTop: "30px",
-                padding: isMobile ? "0 18px 32px" : "0 58px 58px",
-              }}
-            >
-              {activePopup === "membership" ? (
-  <MembershipPlans onClose={onClose} />
-) : (
-  <>
-    <div
-      style={{
-        display: isActivityLabOptions ? "grid" : "flex",
-        gridTemplateColumns: isActivityLabOptions
-          ? isMobile
-            ? "1fr"
-            : isCompact
-            ? "repeat(2, minmax(0, 1fr))"
-            : "repeat(3, minmax(0, 1fr))"
-          : undefined,
-        gap: isMobile ? "18px" : "24px",
-        overflowX: isActivityLabOptions ? "visible" : "auto",
-        overflowY: "visible",
-        padding: isMobile ? "8px 0 28px" : "8px 4px 28px",
-        scrollSnapType: isActivityLabOptions ? "none" : "x mandatory",
-      }}
-    >
-      {content.options.map((option) => (
-        <OptionCard
-          key={option.name}
-          option={option}
-          onStartCustomisation={
-            supportsCustomisation ? startCustomisation : undefined
-          }
-          onOpenServiceForm={openServiceForm}
-          onOpenActivity={openActivity}
-        />
-      ))}
-    </div>
-
-    {!isActivityLabOptions && (
-      <div
-        style={{
-          marginTop: "4px",
-          display: isMobile ? "none" : "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          color: "rgba(7,17,31,0.46)",
-          fontSize: "13px",
-        }}
-      >
-        <span>Scroll sideways to view more options.</span>
-        <span>{content.options.length} options</span>
-      </div>
-    )}
-  </>
-)}
-</div>
-</>
-)}
+                    {!isActivityLabOptions && (
+                      <div
+                        style={{
+                          marginTop: "4px",
+                          display: isMobile ? "none" : "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          color: "rgba(7,17,31,0.46)",
+                          fontSize: "13px",
+                        }}
+                      >
+                        <span>Scroll sideways to view more options.</span>
+                        <span>{content.options.length} options</span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </>
+          )}
 
         {selectedServiceOption && (
           <ServiceRequestForm
@@ -4932,9 +5136,17 @@ export default function MiloWorldPage() {
   const [introOpen, setIntroOpen] = useState(false);
   const [activePopup, setActivePopup] = useState<PopupKind | null>(null);
   const [dreamTokens, setDreamTokens] = useState(0);
+  const [tokenTransactions, setTokenTransactions] = useState<
+    DreamTokenTransaction[]
+  >([]);
+  const [tokenTransactionsOpen, setTokenTransactionsOpen] = useState(false);
+  const [tokenTransactionsLoading, setTokenTransactionsLoading] =
+    useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [referralCount, setReferralCount] = useState(0);
-  const [claimedMilestones, setClaimedMilestones] = useState<ReferralMilestone[]>([]);
+  const [claimedMilestones, setClaimedMilestones] = useState<
+    ReferralMilestone[]
+  >([]);
   const [objectivesLoading, setObjectivesLoading] = useState(true);
 
   useEffect(() => {
@@ -4952,6 +5164,9 @@ export default function MiloWorldPage() {
       if (!user) {
         setUserEmail(null);
         setDreamTokens(0);
+        setTokenTransactions([]);
+        setTokenTransactionsLoading(false);
+        setTokenTransactionsOpen(false);
         setReferralCount(0);
         setClaimedMilestones([]);
         setObjectivesLoading(false);
@@ -4960,13 +5175,17 @@ export default function MiloWorldPage() {
 
       setUserEmail(user.email ?? null);
 
-      const { data: objectiveData, error: objectiveError } =
-        await supabase.rpc("get_referral_objective_status");
+      const { data: objectiveData, error: objectiveError } = await supabase.rpc(
+        "get_referral_objective_status",
+      );
 
       if (!isMounted) return;
 
       if (objectiveError) {
-        console.warn("Could not load referral objectives:", objectiveError.message);
+        console.warn(
+          "Could not load referral objectives:",
+          objectiveError.message,
+        );
         setReferralCount(0);
         setClaimedMilestones([]);
       } else {
@@ -4978,29 +5197,65 @@ export default function MiloWorldPage() {
               .map((value) => Number(value))
               .filter(
                 (value): value is ReferralMilestone =>
-                  value === 1 || value === 5 || value === 15
+                  value === 1 || value === 5 || value === 15,
               )
           : [];
 
         setClaimedMilestones(milestones);
       }
 
-      const { data, error } = await supabase
-        .from("dream_token_transactions")
-        .select("amount")
-        .eq("user_id", user.id)
-        .eq("token_kind", "virtual");
+      setTokenTransactionsLoading(true);
+
+      const [balanceResult, recentTransactionsResult] = await Promise.all([
+        supabase
+          .from("dream_token_transactions")
+          .select("amount")
+          .eq("user_id", user.id)
+          .eq("token_kind", "virtual"),
+        supabase
+          .from("dream_token_transactions")
+          .select("id,amount,type,title,created_at")
+          .eq("user_id", user.id)
+          .eq("token_kind", "virtual")
+          .order("created_at", { ascending: false })
+          .limit(8),
+      ]);
 
       if (!isMounted) return;
 
-      if (error) {
-        console.warn("Could not load Dreamscape Tokens:", error);
+      if (balanceResult.error) {
+        console.warn("Could not load Dreamscape Tokens:", balanceResult.error);
         setDreamTokens(0);
       } else {
-        const total = data?.reduce((sum, row) => sum + Number(row.amount || 0), 0) || 0;
+        const total =
+          balanceResult.data?.reduce(
+            (sum, row) => sum + Number(row.amount || 0),
+            0,
+          ) || 0;
         setDreamTokens(total);
       }
 
+      if (recentTransactionsResult.error) {
+        console.warn(
+          "Could not load recent Dreamscape Token transactions:",
+          recentTransactionsResult.error,
+        );
+        setTokenTransactions([]);
+      } else {
+        setTokenTransactions(
+          (recentTransactionsResult.data || []).map((transaction) => ({
+            id: String(transaction.id),
+            amount: Number(transaction.amount || 0),
+            type: transaction.type ? String(transaction.type) : null,
+            title: transaction.title ? String(transaction.title) : null,
+            created_at: transaction.created_at
+              ? String(transaction.created_at)
+              : null,
+          })),
+        );
+      }
+
+      setTokenTransactionsLoading(false);
       setObjectivesLoading(false);
     }
 
@@ -5013,23 +5268,43 @@ export default function MiloWorldPage() {
     });
 
     window.addEventListener("focus", loadDreamTokensAndObjectives);
-    window.addEventListener("dream-tokens-updated", loadDreamTokensAndObjectives);
+    window.addEventListener(
+      "dream-tokens-updated",
+      loadDreamTokensAndObjectives,
+    );
     window.addEventListener(
       "dream-referral-objectives-updated",
-      loadDreamTokensAndObjectives
+      loadDreamTokensAndObjectives,
     );
 
     return () => {
       isMounted = false;
       subscription.unsubscribe();
       window.removeEventListener("focus", loadDreamTokensAndObjectives);
-      window.removeEventListener("dream-tokens-updated", loadDreamTokensAndObjectives);
+      window.removeEventListener(
+        "dream-tokens-updated",
+        loadDreamTokensAndObjectives,
+      );
       window.removeEventListener(
         "dream-referral-objectives-updated",
-        loadDreamTokensAndObjectives
+        loadDreamTokensAndObjectives,
       );
     };
   }, []);
+
+  useEffect(() => {
+    if (!tokenTransactionsOpen) return;
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setTokenTransactionsOpen(false);
+      }
+    }
+
+    document.addEventListener("keydown", closeOnEscape);
+
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [tokenTransactionsOpen]);
 
   const navButtonStyle: CSSProperties = {
     height: isMobile ? "38px" : "42px",
@@ -5114,6 +5389,22 @@ export default function MiloWorldPage() {
         }}
       />
 
+      {tokenTransactionsOpen && (
+        <button
+          type="button"
+          aria-label="Close token transactions"
+          onClick={() => setTokenTransactionsOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 29,
+            border: "none",
+            background: "transparent",
+            cursor: "default",
+          }}
+        />
+      )}
+
       <header
         style={{
           position: isDesktop ? "absolute" : "relative",
@@ -5147,33 +5438,293 @@ export default function MiloWorldPage() {
             {isMobile ? "Account" : "My Account"}
           </Link>
 
-          <Link
-            href="/profile"
+          <div
             style={{
-              ...navButtonStyle,
-              padding: isMobile ? "0 12px" : "0 24px 0 16px",
-              border: "1px solid rgba(83,215,255,0.34)",
-              boxShadow: "0 0 22px rgba(83,215,255,0.12)",
+              position: "relative",
+              zIndex: 42,
             }}
           >
-            <span
+            <button
+              type="button"
+              onClick={() => setTokenTransactionsOpen((current) => !current)}
+              aria-expanded={tokenTransactionsOpen}
+              aria-haspopup="menu"
               style={{
-                width: isMobile ? "19px" : "22px",
-                height: isMobile ? "19px" : "22px",
-                borderRadius: "999px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#8ee8ff",
-                background: "rgba(83,215,255,0.15)",
-                border: "1px solid rgba(83,215,255,0.35)",
-                flexShrink: 0,
+                ...navButtonStyle,
+                padding: isMobile ? "0 12px" : "0 18px 0 16px",
+                border: "1px solid rgba(83,215,255,0.34)",
+                boxShadow: tokenTransactionsOpen
+                  ? "0 0 30px rgba(83,215,255,0.24)"
+                  : "0 0 22px rgba(83,215,255,0.12)",
+                cursor: "pointer",
+                fontFamily: "inherit",
               }}
             >
-              ✦
-            </span>
-            {isMobile ? `DT ${dreamTokens}` : `Dreamscape Tokens ${dreamTokens}`}
-          </Link>
+              <span
+                style={{
+                  width: isMobile ? "19px" : "22px",
+                  height: isMobile ? "19px" : "22px",
+                  borderRadius: "999px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#8ee8ff",
+                  background: "rgba(83,215,255,0.15)",
+                  border: "1px solid rgba(83,215,255,0.35)",
+                  flexShrink: 0,
+                }}
+              >
+                ✦
+              </span>
+
+              {isMobile
+                ? `DT ${dreamTokens}`
+                : `Dreamscape Tokens ${dreamTokens}`}
+
+              <span
+                aria-hidden="true"
+                style={{
+                  marginLeft: isMobile ? "2px" : "4px",
+                  color: "#8ee8ff",
+                  fontSize: "15px",
+                  transform: tokenTransactionsOpen
+                    ? "rotate(180deg)"
+                    : "rotate(0deg)",
+                  transition: "transform 180ms ease",
+                }}
+              >
+                ▾
+              </span>
+            </button>
+
+            {tokenTransactionsOpen && (
+              <div
+                role="menu"
+                className="milo-scrollbar"
+                style={{
+                  position: isMobile ? "fixed" : "absolute",
+                  top: isMobile ? "108px" : "calc(100% + 10px)",
+                  right: isMobile ? "12px" : 0,
+                  width: isMobile ? "min(360px, calc(100vw - 24px))" : "380px",
+                  maxHeight: "min(520px, calc(100dvh - 92px))",
+                  overflowY: "auto",
+                  borderRadius: "20px",
+                  border: "1px solid rgba(126,232,255,0.3)",
+                  background:
+                    "linear-gradient(145deg, rgba(3,20,39,0.98), rgba(3,10,25,0.99))",
+                  boxShadow:
+                    "0 28px 72px rgba(0,0,0,0.56), 0 0 28px rgba(83,215,255,0.12)",
+                  backdropFilter: "blur(22px)",
+                  WebkitBackdropFilter: "blur(22px)",
+                  overflowX: "hidden",
+                  color: "white",
+                }}
+              >
+                <div
+                  style={{
+                    padding: "18px 18px 14px",
+                    borderBottom: "1px solid rgba(126,232,255,0.13)",
+                  }}
+                >
+                  <p
+                    style={{
+                      margin: 0,
+                      color: "#8ee8ff",
+                      fontSize: "11px",
+                      letterSpacing: "0.16em",
+                      textTransform: "uppercase",
+                      fontWeight: 900,
+                    }}
+                  >
+                    Dreamscape Tokens
+                  </p>
+
+                  <div
+                    style={{
+                      marginTop: "8px",
+                      display: "flex",
+                      alignItems: "end",
+                      justifyContent: "space-between",
+                      gap: "14px",
+                    }}
+                  >
+                    <strong
+                      style={{
+                        fontSize: "32px",
+                        lineHeight: 1,
+                        letterSpacing: "-0.04em",
+                      }}
+                    >
+                      {dreamTokens} DT
+                    </strong>
+
+                    <Link
+                      href="/profile"
+                      onClick={() => setTokenTransactionsOpen(false)}
+                      style={{
+                        color: "#bdf6ff",
+                        fontSize: "11px",
+                        fontWeight: 800,
+                        textDecoration: "none",
+                      }}
+                    >
+                      View account →
+                    </Link>
+                  </div>
+                </div>
+
+                <div style={{ padding: "12px" }}>
+                  <p
+                    style={{
+                      margin: "0 4px 10px",
+                      color: "rgba(255,255,255,0.48)",
+                      fontSize: "10px",
+                      letterSpacing: "0.13em",
+                      textTransform: "uppercase",
+                      fontWeight: 800,
+                    }}
+                  >
+                    Latest transactions
+                  </p>
+
+                  {tokenTransactionsLoading ? (
+                    <div
+                      style={{
+                        padding: "24px 14px",
+                        color: "rgba(255,255,255,0.58)",
+                        fontSize: "13px",
+                        textAlign: "center",
+                      }}
+                    >
+                      Loading transactions...
+                    </div>
+                  ) : !userEmail ? (
+                    <Link
+                      href="/login"
+                      onClick={() => setTokenTransactionsOpen(false)}
+                      style={{
+                        minHeight: "50px",
+                        borderRadius: "14px",
+                        border: "1px solid rgba(126,232,255,0.24)",
+                        background: "rgba(83,215,255,0.08)",
+                        color: "white",
+                        textDecoration: "none",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "12px",
+                        fontWeight: 850,
+                      }}
+                    >
+                      Log in to view transactions
+                    </Link>
+                  ) : tokenTransactions.length === 0 ? (
+                    <div
+                      style={{
+                        padding: "24px 14px",
+                        borderRadius: "14px",
+                        background: "rgba(255,255,255,0.035)",
+                        color: "rgba(255,255,255,0.58)",
+                        fontSize: "13px",
+                        lineHeight: 1.5,
+                        textAlign: "center",
+                      }}
+                    >
+                      No token transactions yet.
+                    </div>
+                  ) : (
+                    <div style={{ display: "grid", gap: "8px" }}>
+                      {tokenTransactions.map((transaction) => {
+                        const isPositive = transaction.amount >= 0;
+
+                        return (
+                          <div
+                            key={transaction.id}
+                            role="menuitem"
+                            style={{
+                              minHeight: "58px",
+                              borderRadius: "14px",
+                              border: "1px solid rgba(126,232,255,0.12)",
+                              background: "rgba(255,255,255,0.035)",
+                              display: "grid",
+                              gridTemplateColumns: "34px minmax(0, 1fr) auto",
+                              alignItems: "center",
+                              gap: "10px",
+                              padding: "10px 12px",
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: "32px",
+                                height: "32px",
+                                borderRadius: "11px",
+                                border: isPositive
+                                  ? "1px solid rgba(93,255,181,0.34)"
+                                  : "1px solid rgba(255,167,120,0.34)",
+                                background: isPositive
+                                  ? "rgba(93,255,181,0.1)"
+                                  : "rgba(255,138,92,0.1)",
+                                color: isPositive ? "#9fffd2" : "#ffc0a0",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontWeight: 900,
+                              }}
+                            >
+                              {isPositive ? "+" : "−"}
+                            </span>
+
+                            <span style={{ minWidth: 0 }}>
+                              <strong
+                                style={{
+                                  display: "block",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                  color: "white",
+                                  fontSize: "12px",
+                                  lineHeight: 1.35,
+                                }}
+                              >
+                                {transaction.title ||
+                                  (isPositive
+                                    ? "Dreamscape Token reward"
+                                    : "Dreamscape Token spend")}
+                              </strong>
+
+                              <span
+                                style={{
+                                  display: "block",
+                                  marginTop: "4px",
+                                  color: "rgba(255,255,255,0.43)",
+                                  fontSize: "10px",
+                                }}
+                              >
+                                {formatDreamTokenTransactionDate(
+                                  transaction.created_at,
+                                )}
+                              </span>
+                            </span>
+
+                            <strong
+                              style={{
+                                color: isPositive ? "#9fffd2" : "#ffc0a0",
+                                fontSize: "12px",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {isPositive ? "+" : ""}
+                              {transaction.amount} DT
+                            </strong>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           <Link
             href="/cart"
@@ -5204,8 +5755,16 @@ export default function MiloWorldPage() {
           top: isDesktop ? "88px" : "auto",
           left: isDesktop ? "56px" : "auto",
           zIndex: 12,
-          width: isDesktop ? "auto" : "min(920px, calc(100% - 36px))",
-          margin: isDesktop ? 0 : isMobile ? "38px auto 24px" : "58px auto 28px",
+          width: isDesktop
+            ? "auto"
+            : isTablet
+              ? "min(720px, calc(100% - 36px))"
+              : "min(720px, calc(100% - 28px))",
+          margin: isDesktop
+            ? 0
+            : isMobile
+              ? "38px auto 24px"
+              : "58px auto 28px",
         }}
       >
         <h1
@@ -5215,8 +5774,8 @@ export default function MiloWorldPage() {
             fontSize: isMobile
               ? "clamp(44px, 14vw, 62px)"
               : isTablet
-              ? "clamp(62px, 9vw, 74px)"
-              : "74px",
+                ? "clamp(62px, 9vw, 74px)"
+                : "74px",
             fontWeight: 400,
             lineHeight: 0.95,
             color: "white",
@@ -5276,12 +5835,16 @@ export default function MiloWorldPage() {
           position: isDesktop ? "absolute" : "relative",
           inset: isDesktop ? 0 : "auto",
           zIndex: 10,
-          width: isDesktop ? "100%" : "min(920px, calc(100% - 36px))",
+          width: isDesktop
+            ? "100%"
+            : isTablet
+              ? "min(720px, calc(100% - 36px))"
+              : "min(720px, calc(100% - 28px))",
           height: isDesktop ? "100%" : "auto",
           margin: isDesktop ? 0 : "0 auto",
           display: isDesktop ? "block" : "grid",
-          gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
-          gap: isMobile ? "14px" : "18px",
+          gridTemplateColumns: "1fr",
+          gap: isMobile ? "14px" : "16px",
         }}
       >
         {zones.map((zone) => (
@@ -5357,7 +5920,13 @@ export default function MiloWorldPage() {
         </span>
 
         <span>
-          <strong style={{ display: "block", fontSize: isMobile ? "14px" : "16px", marginBottom: "6px" }}>
+          <strong
+            style={{
+              display: "block",
+              fontSize: isMobile ? "14px" : "16px",
+              marginBottom: "6px",
+            }}
+          >
             Hi, I’m Milo!
           </strong>
           <span

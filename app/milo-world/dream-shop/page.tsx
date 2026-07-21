@@ -15,6 +15,8 @@ type ShopZone = {
   description: string;
   popup: ShopPopupKind;
   image: string;
+  imageFit?: "cover" | "contain";
+  imagePosition?: string;
   desktopStyle: CSSProperties;
 };
 
@@ -33,6 +35,7 @@ type ComingSoonProduct = {
   subtitle: string;
   description: string;
   image: string;
+  imageFit?: "cover" | "contain";
   badge?: string;
 };
 
@@ -110,40 +113,25 @@ const tokenPackages: TokenPackage[] = [
 
 const blindBoxProducts: ComingSoonProduct[] = [
   {
-    name: "Delivery Legend",
+    name: "Delivery Spark",
     subtitle: "Local Legends Series 01",
-    description:
-      "A fast-moving city courier character carrying a Dreamscape parcel pack.",
-    image: placeholderImage(
-      "Delivery Legend",
-      "Blind Box Preview",
-      "#c46b36",
-      "#382015"
-    ),
+    description: "A courier-inspired Spark with a parcel pack.",
+    image: "/milo-world/blind-box/delivery-spark.png",
+    imageFit: "contain",
   },
   {
-    name: "Hawker Legend",
+    name: "Hawker Spark",
     subtitle: "Local Legends Series 01",
-    description:
-      "A playful food-culture character inspired by Singapore’s lively hawker centres.",
-    image: placeholderImage(
-      "Hawker Legend",
-      "Blind Box Preview",
-      "#b33d4b",
-      "#30121a"
-    ),
+    description: "A hawker-helper Spark with a simple food tray theme.",
+    image: "/milo-world/blind-box/hawker-spark.png",
+    imageFit: "contain",
   },
   {
-    name: "Barista Legend",
+    name: "Barista Spark",
     subtitle: "Local Legends Series 01",
-    description:
-      "A café-inspired character designed around cosy neighbourhood coffee culture.",
-    image: placeholderImage(
-      "Barista Legend",
-      "Blind Box Preview",
-      "#8b5e3c",
-      "#22170f"
-    ),
+    description: "A café-inspired Spark with an apron and coffee cup.",
+    image: "/milo-world/blind-box/barista-spark.png",
+    imageFit: "contain",
   },
 ];
 
@@ -215,12 +203,9 @@ const shopZones: ShopZone[] = [
     description:
       "Meet a playful collection of characters inspired by familiar local personalities.",
     popup: "blindBox",
-    image: placeholderImage(
-      "Local Legends",
-      "Blind Box Series 01",
-      "#b5543c",
-      "#2f1420"
-    ),
+    image: "/milo-world/blind-box/delivery-spark.png",
+    imageFit: "contain",
+    imagePosition: "center 38%",
     desktopStyle: {
       top: "215px",
       left: "50%",
@@ -257,9 +242,13 @@ function useScreenMode() {
     function updateMode() {
       const width = window.innerWidth;
 
+      const height = window.innerHeight;
+      const isNarrowLandscape = width / Math.max(height, 1) < 1.55;
+
       if (width <= 720) {
         setScreenMode("mobile");
-      } else if (width <= 1320) {
+      } else if (width <= 1500 || isNarrowLandscape) {
+        // Only use the floating map layout on a genuinely wide screen.
         setScreenMode("compact");
       } else {
         setScreenMode("desktop");
@@ -325,14 +314,15 @@ function ShopZoneCard({
       style={{
         position: isDesktop ? "absolute" : "relative",
         width: isDesktop ? undefined : "100%",
-        minHeight: isMobile ? "220px" : "250px",
+        minHeight: isMobile ? "220px" : isDesktop ? "250px" : "228px",
         padding: 0,
         overflow: "hidden",
         borderRadius: isMobile ? "24px" : "30px",
         border: hovered
           ? "1px solid rgba(152,240,255,0.72)"
           : "1px solid rgba(126,232,255,0.24)",
-        background: "rgba(3,12,29,0.68)",
+        background:
+          "linear-gradient(145deg, rgba(13,34,59,0.52), rgba(3,10,25,0.34))",
         boxShadow: hovered
           ? "0 30px 80px rgba(0,0,0,0.46), 0 0 40px rgba(83,215,255,0.18)"
           : "0 24px 64px rgba(0,0,0,0.36)",
@@ -342,7 +332,7 @@ function ShopZoneCard({
         fontFamily: "inherit",
         backdropFilter: "blur(18px)",
         WebkitBackdropFilter: "blur(18px)",
-        ...zone.desktopStyle,
+        ...(isDesktop ? zone.desktopStyle : {}),
         transform: isDesktop
           ? `${zone.desktopStyle.transform || ""} ${
               hovered ? "translateY(-8px) scale(1.015)" : ""
@@ -362,8 +352,9 @@ function ShopZoneCard({
           inset: 0,
           width: "100%",
           height: "100%",
-          objectFit: "cover",
-          opacity: hovered ? 0.64 : 0.46,
+          objectFit: zone.imageFit ?? "cover",
+          objectPosition: zone.imagePosition ?? "center",
+          opacity: hovered ? 0.48 : 0.3,
           transform: hovered ? "scale(1.055)" : "scale(1)",
           transition: "opacity 240ms ease, transform 320ms ease",
         }}
@@ -374,7 +365,7 @@ function ShopZoneCard({
           position: "absolute",
           inset: 0,
           background:
-            "linear-gradient(180deg, rgba(3,10,25,0.08), rgba(3,10,25,0.92) 78%)",
+            "linear-gradient(180deg, rgba(3,10,25,0.03), rgba(3,10,25,0.68) 76%, rgba(3,10,25,0.8))",
         }}
       />
 
@@ -382,7 +373,7 @@ function ShopZoneCard({
         style={{
           position: "relative",
           zIndex: 2,
-          minHeight: isMobile ? "220px" : "250px",
+          minHeight: isMobile ? "220px" : isDesktop ? "250px" : "228px",
           padding: isMobile ? "22px" : "26px",
           display: "flex",
           flexDirection: "column",
@@ -403,7 +394,7 @@ function ShopZoneCard({
               height: "48px",
               borderRadius: "16px",
               border: "1px solid rgba(126,232,255,0.38)",
-              background: "rgba(3,12,29,0.68)",
+              background: "rgba(3,12,29,0.44)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -526,7 +517,7 @@ function TokenPackCard({
       style={{
         position: "relative",
         overflow: "hidden",
-        borderRadius: "26px",
+        borderRadius: "24px",
         border: tokenPackage.badge
           ? "1px solid rgba(174,130,255,0.5)"
           : "1px solid rgba(126,232,255,0.22)",
@@ -541,7 +532,7 @@ function TokenPackCard({
       <div
         style={{
           position: "relative",
-          height: isMobile ? "210px" : "260px",
+          height: isMobile ? "190px" : "205px",
           overflow: "hidden",
         }}
       >
@@ -564,7 +555,14 @@ function TokenPackCard({
         )}
       </div>
 
-      <div style={{ padding: isMobile ? "22px" : "26px" }}>
+      <div
+        style={{
+          padding: isMobile ? "20px" : "21px",
+          display: "flex",
+          flexDirection: "column",
+          minHeight: isMobile ? "auto" : "242px",
+        }}
+      >
         <p
           style={{
             margin: 0,
@@ -581,7 +579,7 @@ function TokenPackCard({
         <h3
           style={{
             margin: "10px 0 0",
-            fontSize: isMobile ? "29px" : "34px",
+            fontSize: isMobile ? "27px" : "30px",
             letterSpacing: "-0.04em",
             lineHeight: 1,
           }}
@@ -591,10 +589,10 @@ function TokenPackCard({
 
         <p
           style={{
-            margin: "12px 0 0",
+            margin: "10px 0 0",
             color: "rgba(255,255,255,0.62)",
-            fontSize: "14px",
-            lineHeight: 1.55,
+            fontSize: "13px",
+            lineHeight: 1.45,
           }}
         >
           {tokenPackage.description}
@@ -602,7 +600,8 @@ function TokenPackCard({
 
         <div
           style={{
-            marginTop: "22px",
+            marginTop: "auto",
+            paddingTop: "16px",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "end",
@@ -627,7 +626,7 @@ function TokenPackCard({
                 display: "block",
                 marginTop: "5px",
                 color: "white",
-                fontSize: "38px",
+                fontSize: "32px",
                 lineHeight: 1,
               }}
             >
@@ -653,9 +652,9 @@ function TokenPackCard({
           <a
             href={tokenPackage.checkoutUrl}
             style={{
-              marginTop: "22px",
+              marginTop: "16px",
               width: "100%",
-              height: "52px",
+              height: "48px",
               borderRadius: "15px",
               border: "1px solid rgba(126,232,255,0.4)",
               background:
@@ -678,9 +677,9 @@ function TokenPackCard({
             type="button"
             disabled
             style={{
-              marginTop: "22px",
+              marginTop: "16px",
               width: "100%",
-              height: "52px",
+              height: "48px",
               borderRadius: "15px",
               border: "1px solid rgba(255,255,255,0.12)",
               background: "rgba(255,255,255,0.08)",
@@ -738,7 +737,13 @@ function ComingSoonCard({
           style={{
             width: "100%",
             height: "100%",
-            objectFit: "cover",
+            objectFit: product.imageFit ?? "cover",
+            objectPosition: "center",
+            padding: product.imageFit === "contain" ? (isMobile ? "16px" : "20px") : 0,
+            background:
+              product.imageFit === "contain"
+                ? "radial-gradient(circle at 50% 42%, rgba(126,232,255,0.13), rgba(255,255,255,0.035) 50%, rgba(4,12,28,0.34))"
+                : "transparent",
             transform: hovered ? "scale(1.045)" : "scale(1)",
             transition: "transform 280ms ease",
           }}
@@ -911,9 +916,9 @@ function ShopPopup({
           onClick={onClose}
           aria-label="Close popup"
           style={{
-            position: "sticky",
-            top: isMobile ? "10px" : "18px",
-            left: "calc(100% - 60px)",
+            position: "absolute",
+            top: isMobile ? "12px" : "18px",
+            right: isMobile ? "12px" : "18px",
             zIndex: 20,
             width: isMobile ? "40px" : "44px",
             height: isMobile ? "40px" : "44px",
@@ -934,7 +939,7 @@ function ShopPopup({
           style={{
             position: "relative",
             zIndex: 2,
-            padding: isMobile ? "6px 18px 30px" : "4px 54px 54px",
+            padding: isMobile ? "58px 18px 30px" : "38px 44px 38px",
           }}
         >
           <p
@@ -954,7 +959,7 @@ function ShopPopup({
             style={{
               margin: "14px 0 0",
               fontFamily: 'Georgia, "Times New Roman", serif',
-              fontSize: isMobile ? "40px" : "clamp(54px, 6vw, 78px)",
+              fontSize: isMobile ? "40px" : "clamp(50px, 5vw, 68px)",
               lineHeight: 0.96,
               fontWeight: 400,
               letterSpacing: "-0.04em",
@@ -966,7 +971,7 @@ function ShopPopup({
           <p
             style={{
               maxWidth: "820px",
-              margin: "20px 0 0",
+              margin: "16px 0 0",
               color: "rgba(255,255,255,0.62)",
               fontSize: isMobile ? "15px" : "17px",
               lineHeight: 1.7,
@@ -979,12 +984,13 @@ function ShopPopup({
             <>
               <div
                 style={{
-                  marginTop: "34px",
+                  width: "min(820px, 100%)",
+                  margin: "26px auto 0",
                   display: "grid",
-                  gridTemplateColumns: isCompact
+                  gridTemplateColumns: isMobile
                     ? "1fr"
                     : "repeat(2, minmax(0, 1fr))",
-                  gap: "22px",
+                  gap: "18px",
                 }}
               >
                 {tokenPackages.map((tokenPackage) => (
@@ -998,7 +1004,8 @@ function ShopPopup({
 
               <div
                 style={{
-                  marginTop: "24px",
+                  width: "min(820px, 100%)",
+                  margin: "18px auto 0",
                   borderRadius: "18px",
                   border: "1px solid rgba(126,232,255,0.14)",
                   background: "rgba(83,215,255,0.055)",
@@ -1036,29 +1043,66 @@ function ShopPopup({
                     position: "relative",
                   }}
                 >
-                  <img
-                    src={placeholderImage(
-                      "Local Legends",
-                      "Blind Box Series 01",
-                      "#b8573d",
-                      "#241125"
-                    )}
-                    alt="Local Legends blind box placeholder"
+                  <div
                     style={{
                       position: "absolute",
                       inset: 0,
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
+                      background:
+                        "radial-gradient(circle at 50% 30%, rgba(255,209,138,0.18), transparent 38%), linear-gradient(145deg, rgba(77,31,42,0.9), rgba(4,14,34,0.98))",
                     }}
                   />
 
                   <div
                     style={{
                       position: "absolute",
+                      top: isMobile ? "28px" : "24px",
+                      left: isMobile ? "14px" : "24px",
+                      right: isMobile ? "14px" : "24px",
+                      height: isMobile ? "205px" : "325px",
+                      display: "flex",
+                      alignItems: "flex-end",
+                      justifyContent: "center",
+                      gap: isMobile ? "2px" : "12px",
+                    }}
+                  >
+                    {blindBoxProducts.map((product, index) => (
+                      <div
+                        key={product.name}
+                        style={{
+                          flex: "1 1 0",
+                          height: index === 1 ? "92%" : "82%",
+                          display: "flex",
+                          alignItems: "flex-end",
+                          justifyContent: "center",
+                          transform:
+                            index === 0
+                              ? "rotate(-4deg)"
+                              : index === 2
+                              ? "rotate(4deg)"
+                              : "none",
+                        }}
+                      >
+                        <img
+                          src={product.image}
+                          alt={product.name}
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "contain",
+                            filter:
+                              "drop-shadow(0 22px 26px rgba(0,0,0,0.38))",
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <div
+                    style={{
+                      position: "absolute",
                       inset: 0,
                       background:
-                        "linear-gradient(180deg, rgba(3,10,25,0.1), rgba(3,10,25,0.9) 82%)",
+                        "linear-gradient(180deg, rgba(3,10,25,0.02) 36%, rgba(3,10,25,0.94) 82%)",
                     }}
                   />
 
@@ -1405,12 +1449,12 @@ export default function DreamShopPage() {
             position: isDesktop ? "absolute" : "relative",
             inset: isDesktop ? 0 : "auto",
             marginTop: isDesktop ? 0 : isMobile ? "34px" : "46px",
-            width: isDesktop ? "100%" : "min(980px, 100%)",
+            width: isDesktop ? "100%" : "min(620px, 100%)",
             marginLeft: isDesktop ? 0 : "auto",
             marginRight: isDesktop ? 0 : "auto",
             display: isDesktop ? "block" : "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
-            gap: isMobile ? "16px" : "20px",
+            gridTemplateColumns: "1fr",
+            gap: isMobile ? "16px" : "18px",
           }}
         >
           {shopZones.map((zone) => (

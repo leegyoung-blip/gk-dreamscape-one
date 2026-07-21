@@ -9,6 +9,14 @@ const STUDENT_COVER_IMAGE = "/nova/membership/student-access-cover.png";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 
+type DreamTokenTransaction = {
+  id: string;
+  amount: number;
+  type: string | null;
+  title: string | null;
+  created_at: string | null;
+};
+
 type ReferralMilestone = 1 | 5 | 15;
 
 type ReferralObjectiveDefinition = {
@@ -46,10 +54,18 @@ function useResponsiveMode() {
   useEffect(() => {
     function checkScreenSize() {
       const width = window.innerWidth;
+      const height = window.innerHeight;
+      const isPortrait = height > width;
+      const aspectRatio = width / Math.max(height, 1);
+
+      // Keep the floating map positions only for genuinely wide screens.
+      // Half-screen windows and normal laptop layouts use the compact stack.
+      const shouldUseCompactLayout =
+        width < 1760 || isPortrait || aspectRatio < 1.65;
 
       if (width <= 720) {
         setScreenMode("mobile");
-      } else if (width <= 1180) {
+      } else if (shouldUseCompactLayout) {
         setScreenMode("tablet");
       } else {
         setScreenMode("desktop");
@@ -63,6 +79,22 @@ function useResponsiveMode() {
   }, []);
 
   return screenMode;
+}
+
+function formatDreamTokenTransactionDate(value: string | null) {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  return new Intl.DateTimeFormat("en-SG", {
+    timeZone: "Asia/Singapore",
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
 }
 
 type Zone = {
@@ -135,6 +167,11 @@ export default function NovaWorldPage() {
   const [typedText, setTypedText] = useState("");
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [tokenBalance, setTokenBalance] = useState(0);
+  const [tokenTransactions, setTokenTransactions] = useState<
+    DreamTokenTransaction[]
+  >([]);
+  const [tokenTransactionsLoading, setTokenTransactionsLoading] =
+    useState(true);
   const [referralCount, setReferralCount] = useState(0);
   const [claimedMilestones, setClaimedMilestones] = useState<
     ReferralMilestone[]
@@ -159,6 +196,8 @@ export default function NovaWorldPage() {
       if (!user) {
         setUserEmail(null);
         setTokenBalance(0);
+        setTokenTransactions([]);
+        setTokenTransactionsLoading(false);
         setReferralCount(0);
         setClaimedMilestones([]);
         setObjectivesLoading(false);
@@ -201,23 +240,34 @@ export default function NovaWorldPage() {
         setClaimedMilestones(safeMilestones);
       }
 
-      const { data: tokenRows, error: tokenError } = await supabase
-        .from("dream_token_transactions")
-        .select("amount")
-        .eq("user_id", user.id)
-        .eq("token_kind", "virtual");
+      setTokenTransactionsLoading(true);
+
+      const [balanceResult, recentTransactionsResult] = await Promise.all([
+        supabase
+          .from("dream_token_transactions")
+          .select("amount")
+          .eq("user_id", user.id)
+          .eq("token_kind", "virtual"),
+        supabase
+          .from("dream_token_transactions")
+          .select("id,amount,type,title,created_at")
+          .eq("user_id", user.id)
+          .eq("token_kind", "virtual")
+          .order("created_at", { ascending: false })
+          .limit(8),
+      ]);
 
       if (!isMounted) return;
 
-      if (tokenError) {
+      if (balanceResult.error) {
         console.warn(
           "Could not load Dreamscape Tokens:",
-          tokenError.message
+          balanceResult.error.message
         );
         setTokenBalance(0);
       } else {
         const total =
-          tokenRows?.reduce(
+          balanceResult.data?.reduce(
             (sum, row) => sum + Number(row.amount || 0),
             0
           ) || 0;
@@ -225,6 +275,27 @@ export default function NovaWorldPage() {
         setTokenBalance(total);
       }
 
+      if (recentTransactionsResult.error) {
+        console.warn(
+          "Could not load recent Dreamscape Token transactions:",
+          recentTransactionsResult.error.message
+        );
+        setTokenTransactions([]);
+      } else {
+        setTokenTransactions(
+          (recentTransactionsResult.data || []).map((transaction) => ({
+            id: String(transaction.id),
+            amount: Number(transaction.amount || 0),
+            type: transaction.type ? String(transaction.type) : null,
+            title: transaction.title ? String(transaction.title) : null,
+            created_at: transaction.created_at
+              ? String(transaction.created_at)
+              : null,
+          }))
+        );
+      }
+
+      setTokenTransactionsLoading(false);
       setObjectivesLoading(false);
     }
 
@@ -345,6 +416,8 @@ export default function NovaWorldPage() {
       <FloatingControls
         userEmail={userEmail}
         tokenBalance={tokenBalance}
+        tokenTransactions={tokenTransactions}
+        tokenTransactionsLoading={tokenTransactionsLoading}
         referralCount={referralCount}
         claimedMilestones={claimedMilestones}
         objectivesLoading={objectivesLoading}
@@ -447,9 +520,13 @@ export default function NovaWorldPage() {
           inset: isDesktop ? 0 : "auto",
           zIndex: 20,
           display: isDesktop ? "block" : "grid",
-          gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
-          gap: isMobile ? "14px" : "18px",
-          width: isDesktop ? "100%" : "min(920px, calc(100% - 36px))",
+          gridTemplateColumns: "1fr",
+          gap: isMobile ? "14px" : "16px",
+          width: isDesktop
+            ? "100%"
+            : isTablet
+            ? "min(680px, calc(100% - 36px))"
+            : "min(680px, calc(100% - 28px))",
           margin: isDesktop ? 0 : "0 auto",
           padding: isDesktop ? 0 : "0 0 24px",
         }}
@@ -486,6 +563,8 @@ export default function NovaWorldPage() {
 function FloatingControls({
   userEmail,
   tokenBalance,
+  tokenTransactions,
+  tokenTransactionsLoading,
   referralCount,
   claimedMilestones,
   objectivesLoading,
@@ -493,6 +572,8 @@ function FloatingControls({
 }: {
   userEmail: string | null;
   tokenBalance: number;
+  tokenTransactions: DreamTokenTransaction[];
+  tokenTransactionsLoading: boolean;
   referralCount: number;
   claimedMilestones: ReferralMilestone[];
   objectivesLoading: boolean;
@@ -500,9 +581,40 @@ function FloatingControls({
 }) {
   const isDesktop = screenMode === "desktop";
   const isMobile = screenMode === "mobile";
+  const [tokenTransactionsOpen, setTokenTransactionsOpen] = useState(false);
+
+  useEffect(() => {
+    if (!tokenTransactionsOpen) return;
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setTokenTransactionsOpen(false);
+      }
+    }
+
+    document.addEventListener("keydown", closeOnEscape);
+
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [tokenTransactionsOpen]);
 
   return (
     <>
+      {tokenTransactionsOpen && (
+        <button
+          type="button"
+          aria-label="Close token transactions"
+          onClick={() => setTokenTransactionsOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 78,
+            border: "none",
+            background: "transparent",
+            cursor: "default",
+          }}
+        />
+      )}
+
       <Link
         href="/"
         style={{
@@ -570,56 +682,314 @@ function FloatingControls({
 
         <div
           style={{
-            height: isMobile ? "40px" : "46px",
-            padding: isMobile ? "0 12px" : "0 20px",
-            borderRadius: "999px",
-            border: "1px solid rgba(83,215,255,0.55)",
-            background:
-              "linear-gradient(145deg, rgba(2,14,28,0.62), rgba(2,8,19,0.7))",
-            backdropFilter: "blur(16px)",
-            color: "white",
-            display: "flex",
-            alignItems: "center",
-            gap: isMobile ? "8px" : "12px",
-            fontSize: isMobile ? "11px" : "14px",
-            letterSpacing: isMobile ? "0.05em" : "0.08em",
-            textTransform: "uppercase",
-            boxShadow:
-              "0 16px 36px rgba(0,0,0,0.28), 0 0 22px rgba(83,215,255,0.16)",
-            whiteSpace: "nowrap",
+            position: "relative",
+            zIndex: 82,
           }}
         >
-          <span
+          <button
+            type="button"
+            onClick={() => setTokenTransactionsOpen((current) => !current)}
+            aria-expanded={tokenTransactionsOpen}
+            aria-haspopup="menu"
             style={{
-              width: isMobile ? "22px" : "25px",
-              height: isMobile ? "22px" : "25px",
+              height: isMobile ? "40px" : "46px",
+              padding: isMobile ? "0 12px" : "0 18px",
               borderRadius: "999px",
+              border: "1px solid rgba(83,215,255,0.55)",
+              background:
+                "linear-gradient(145deg, rgba(2,14,28,0.72), rgba(2,8,19,0.8))",
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
+              color: "white",
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
-              background:
-                "radial-gradient(circle, rgba(83,215,255,0.38), rgba(2,8,19,0.8))",
-              border: "1px solid rgba(83,215,255,0.6)",
-              color: "#bdf6ff",
-              fontSize: "13px",
-              boxShadow: "0 0 14px rgba(83,215,255,0.32)",
-              flexShrink: 0,
+              gap: isMobile ? "8px" : "10px",
+              fontSize: isMobile ? "11px" : "14px",
+              letterSpacing: isMobile ? "0.05em" : "0.08em",
+              textTransform: "uppercase",
+              boxShadow: tokenTransactionsOpen
+                ? "0 16px 38px rgba(0,0,0,0.34), 0 0 30px rgba(83,215,255,0.28)"
+                : "0 16px 36px rgba(0,0,0,0.28), 0 0 22px rgba(83,215,255,0.16)",
+              whiteSpace: "nowrap",
+              cursor: "pointer",
+              fontFamily: "inherit",
             }}
           >
-            ✦
-          </span>
+            <span
+              style={{
+                width: isMobile ? "22px" : "25px",
+                height: isMobile ? "22px" : "25px",
+                borderRadius: "999px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background:
+                  "radial-gradient(circle, rgba(83,215,255,0.38), rgba(2,8,19,0.8))",
+                border: "1px solid rgba(83,215,255,0.6)",
+                color: "#bdf6ff",
+                fontSize: "13px",
+                boxShadow: "0 0 14px rgba(83,215,255,0.32)",
+                flexShrink: 0,
+              }}
+            >
+              ✦
+            </span>
 
-          <span>{isDesktop ? "Dreamscape Tokens" : "Tokens"}</span>
+            <span>{isDesktop ? "Dreamscape Tokens" : "Tokens"}</span>
 
-          <strong
-            style={{
-              color: "#53d7ff",
-              fontSize: isMobile ? "13px" : "15px",
-              letterSpacing: "0.08em",
-            }}
-          >
-            {tokenBalance}
-          </strong>
+            <strong
+              style={{
+                color: "#53d7ff",
+                fontSize: isMobile ? "13px" : "15px",
+                letterSpacing: "0.08em",
+              }}
+            >
+              {tokenBalance}
+            </strong>
+
+            <span
+              aria-hidden="true"
+              style={{
+                color: "#8ee8ff",
+                fontSize: "13px",
+                transform: tokenTransactionsOpen
+                  ? "rotate(180deg)"
+                  : "rotate(0deg)",
+                transition: "transform 180ms ease",
+              }}
+            >
+              ▾
+            </span>
+          </button>
+
+          {tokenTransactionsOpen && (
+            <div
+              role="menu"
+              style={{
+                position: isMobile ? "fixed" : "absolute",
+                top: isMobile ? "108px" : "calc(100% + 10px)",
+                right: isMobile ? "12px" : 0,
+                width: isMobile
+                  ? "min(360px, calc(100vw - 24px))"
+                  : "380px",
+                maxHeight: "min(520px, calc(100dvh - 92px))",
+                overflowY: "auto",
+                overflowX: "hidden",
+                borderRadius: "20px",
+                border: "1px solid rgba(126,232,255,0.3)",
+                background:
+                  "linear-gradient(145deg, rgba(3,20,39,0.98), rgba(3,10,25,0.99))",
+                boxShadow:
+                  "0 28px 72px rgba(0,0,0,0.56), 0 0 28px rgba(83,215,255,0.12)",
+                backdropFilter: "blur(22px)",
+                WebkitBackdropFilter: "blur(22px)",
+                color: "white",
+              }}
+            >
+              <div
+                style={{
+                  padding: "18px 18px 14px",
+                  borderBottom: "1px solid rgba(126,232,255,0.13)",
+                }}
+              >
+                <p
+                  style={{
+                    margin: 0,
+                    color: "#8ee8ff",
+                    fontSize: "11px",
+                    letterSpacing: "0.16em",
+                    textTransform: "uppercase",
+                    fontWeight: 900,
+                  }}
+                >
+                  Dreamscape Tokens
+                </p>
+
+                <div
+                  style={{
+                    marginTop: "8px",
+                    display: "flex",
+                    alignItems: "end",
+                    justifyContent: "space-between",
+                    gap: "14px",
+                  }}
+                >
+                  <strong
+                    style={{
+                      fontSize: "32px",
+                      lineHeight: 1,
+                      letterSpacing: "-0.04em",
+                    }}
+                  >
+                    {tokenBalance} DT
+                  </strong>
+
+                  <Link
+                    href={userEmail ? "/profile" : "/login"}
+                    onClick={() => setTokenTransactionsOpen(false)}
+                    style={{
+                      color: "#bdf6ff",
+                      fontSize: "11px",
+                      fontWeight: 800,
+                      textDecoration: "none",
+                    }}
+                  >
+                    {userEmail ? "View account →" : "Log in →"}
+                  </Link>
+                </div>
+              </div>
+
+              <div style={{ padding: "12px" }}>
+                <p
+                  style={{
+                    margin: "0 4px 10px",
+                    color: "rgba(255,255,255,0.48)",
+                    fontSize: "10px",
+                    letterSpacing: "0.13em",
+                    textTransform: "uppercase",
+                    fontWeight: 800,
+                  }}
+                >
+                  Latest transactions
+                </p>
+
+                {tokenTransactionsLoading ? (
+                  <div
+                    style={{
+                      padding: "24px 14px",
+                      color: "rgba(255,255,255,0.58)",
+                      fontSize: "13px",
+                      textAlign: "center",
+                    }}
+                  >
+                    Loading transactions...
+                  </div>
+                ) : !userEmail ? (
+                  <Link
+                    href="/login"
+                    onClick={() => setTokenTransactionsOpen(false)}
+                    style={{
+                      minHeight: "50px",
+                      borderRadius: "14px",
+                      border: "1px solid rgba(126,232,255,0.24)",
+                      background: "rgba(83,215,255,0.08)",
+                      color: "white",
+                      textDecoration: "none",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "12px",
+                      fontWeight: 800,
+                    }}
+                  >
+                    Log in to view transactions
+                  </Link>
+                ) : tokenTransactions.length === 0 ? (
+                  <div
+                    style={{
+                      padding: "24px 14px",
+                      borderRadius: "14px",
+                      background: "rgba(255,255,255,0.035)",
+                      color: "rgba(255,255,255,0.58)",
+                      fontSize: "13px",
+                      lineHeight: 1.5,
+                      textAlign: "center",
+                    }}
+                  >
+                    No token transactions yet.
+                  </div>
+                ) : (
+                  <div style={{ display: "grid", gap: "8px" }}>
+                    {tokenTransactions.map((transaction) => {
+                      const isPositive = transaction.amount >= 0;
+
+                      return (
+                        <div
+                          key={transaction.id}
+                          role="menuitem"
+                          style={{
+                            minHeight: "58px",
+                            borderRadius: "14px",
+                            border: "1px solid rgba(126,232,255,0.12)",
+                            background: "rgba(255,255,255,0.035)",
+                            display: "grid",
+                            gridTemplateColumns: "34px minmax(0, 1fr) auto",
+                            alignItems: "center",
+                            gap: "10px",
+                            padding: "10px 12px",
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: "32px",
+                              height: "32px",
+                              borderRadius: "11px",
+                              border: isPositive
+                                ? "1px solid rgba(93,255,181,0.34)"
+                                : "1px solid rgba(255,167,120,0.34)",
+                              background: isPositive
+                                ? "rgba(93,255,181,0.1)"
+                                : "rgba(255,138,92,0.1)",
+                              color: isPositive ? "#9fffd2" : "#ffc0a0",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontWeight: 900,
+                            }}
+                          >
+                            {isPositive ? "+" : "−"}
+                          </span>
+
+                          <span style={{ minWidth: 0 }}>
+                            <strong
+                              style={{
+                                display: "block",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                color: "white",
+                                fontSize: "12px",
+                                lineHeight: 1.35,
+                              }}
+                            >
+                              {transaction.title ||
+                                (isPositive
+                                  ? "Dreamscape Token reward"
+                                  : "Dreamscape Token spend")}
+                            </strong>
+
+                            <span
+                              style={{
+                                display: "block",
+                                marginTop: "4px",
+                                color: "rgba(255,255,255,0.43)",
+                                fontSize: "10px",
+                              }}
+                            >
+                              {formatDreamTokenTransactionDate(
+                                transaction.created_at
+                              )}
+                            </span>
+                          </span>
+
+                          <strong
+                            style={{
+                              color: isPositive ? "#9fffd2" : "#ffc0a0",
+                              fontSize: "12px",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {isPositive ? "+" : ""}
+                            {transaction.amount} DT
+                          </strong>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
