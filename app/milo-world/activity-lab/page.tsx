@@ -33,6 +33,7 @@ type ActivityCardData = {
 const DAILY_CODE_MAX_ATTEMPTS = 6;
 const DAILY_CODE_REWARDS = [60, 50, 40, 30, 20, 10] as const;
 const KEYBOARD_ROWS = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
+const WORD_LIST_URL = "/milo-world/activities/five-letter-words.json";
 
 const activities: ActivityCardData[] = [
   {
@@ -62,17 +63,11 @@ const activities: ActivityCardData[] = [
 ];
 
 function useViewport() {
-  const [viewport, setViewport] = useState({
-    width: 1440,
-    height: 900,
-  });
+  const [viewport, setViewport] = useState({ width: 1440, height: 900 });
 
   useEffect(() => {
     function updateViewport() {
-      setViewport({
-        width: window.innerWidth,
-        height: window.innerHeight,
-      });
+      setViewport({ width: window.innerWidth, height: window.innerHeight });
     }
 
     updateViewport();
@@ -144,7 +139,6 @@ function buildPuzzleFeedback(
 
 function getKeyboardLetterStates(attempts: DailyPuzzleAttempt[]) {
   const states: Record<string, KeyboardLetterState> = {};
-
   const priority: Record<KeyboardLetterState, number> = {
     absent: 1,
     present: 2,
@@ -165,41 +159,42 @@ function getKeyboardLetterStates(attempts: DailyPuzzleAttempt[]) {
   return states;
 }
 
-function ActivityCard({
+function ActivityMenuCard({
   activity,
-  mobile,
+  drawer,
   dense,
+  onNavigate,
 }: {
   activity: ActivityCardData;
-  mobile: boolean;
+  drawer: boolean;
   dense: boolean;
+  onNavigate?: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
 
   const cardStyle: CSSProperties = {
     position: "relative",
     minWidth: 0,
-    minHeight: mobile ? (dense ? "62px" : "72px") : "0",
-    height: mobile ? "100%" : "auto",
+    minHeight: drawer ? "92px" : dense ? "0" : "0",
+    height: drawer ? "92px" : "100%",
     overflow: "hidden",
-    borderRadius: mobile ? "14px" : "20px",
+    borderRadius: drawer ? "16px" : "20px",
     border: activity.active
-      ? "1px solid rgba(126,232,255,0.66)"
+      ? "1px solid rgba(126,232,255,0.7)"
       : hovered
-        ? "1px solid rgba(126,232,255,0.54)"
+        ? "1px solid rgba(126,232,255,0.5)"
         : "1px solid rgba(126,232,255,0.18)",
     background: activity.active
-      ? "linear-gradient(145deg, rgba(18,70,99,0.82), rgba(4,15,32,0.9))"
-      : "linear-gradient(145deg, rgba(8,26,48,0.76), rgba(3,10,24,0.88))",
+      ? "linear-gradient(145deg, rgba(17,65,93,0.88), rgba(3,13,29,0.94))"
+      : "linear-gradient(145deg, rgba(8,26,48,0.78), rgba(3,10,24,0.9))",
     color: "white",
     textDecoration: "none",
-    textAlign: "left",
     fontFamily: "inherit",
     cursor: activity.active ? "default" : "pointer",
     boxShadow: activity.active
       ? "0 0 28px rgba(83,215,255,0.13)"
       : hovered
-        ? "0 18px 38px rgba(0,0,0,0.32)"
+        ? "0 18px 38px rgba(0,0,0,0.34)"
         : "0 12px 28px rgba(0,0,0,0.2)",
     transform: !activity.active && hovered ? "translateY(-3px)" : "none",
     transition:
@@ -218,7 +213,7 @@ function ActivityCard({
           height: "100%",
           objectFit: "cover",
           objectPosition: "center",
-          opacity: mobile ? 0.2 : hovered || activity.active ? 0.32 : 0.2,
+          opacity: hovered || activity.active ? 0.34 : 0.22,
           transform: hovered ? "scale(1.04)" : "scale(1)",
           transition: "opacity 180ms ease, transform 240ms ease",
         }}
@@ -228,9 +223,9 @@ function ActivityCard({
         style={{
           position: "absolute",
           inset: 0,
-          background: mobile
-            ? "linear-gradient(90deg, rgba(2,10,24,0.9), rgba(2,10,24,0.55))"
-            : "linear-gradient(180deg, rgba(2,10,24,0.14), rgba(2,10,24,0.94) 72%)",
+          background: drawer
+            ? "linear-gradient(90deg, rgba(2,10,24,0.94), rgba(2,10,24,0.6))"
+            : "linear-gradient(180deg, rgba(2,10,24,0.1), rgba(2,10,24,0.96) 70%)",
         }}
       />
 
@@ -240,19 +235,19 @@ function ActivityCard({
           zIndex: 2,
           height: "100%",
           minHeight: 0,
-          padding: mobile ? "10px" : dense ? "14px" : "17px",
+          padding: drawer ? "14px" : dense ? "14px" : "17px",
           display: "flex",
-          flexDirection: mobile ? "row" : "column",
-          alignItems: mobile ? "center" : "stretch",
-          justifyContent: mobile ? "flex-start" : "flex-end",
-          gap: mobile ? "8px" : 0,
+          flexDirection: drawer ? "row" : "column",
+          alignItems: drawer ? "center" : "stretch",
+          justifyContent: drawer ? "flex-start" : "flex-end",
+          gap: drawer ? "12px" : 0,
         }}
       >
         <span
           style={{
-            width: mobile ? "30px" : "38px",
-            height: mobile ? "30px" : "38px",
-            borderRadius: mobile ? "9px" : "12px",
+            width: drawer ? "42px" : "38px",
+            height: drawer ? "42px" : "38px",
+            borderRadius: "12px",
             border: "1px solid rgba(126,232,255,0.32)",
             background: "rgba(83,215,255,0.1)",
             color: "#9bf5ff",
@@ -260,44 +255,39 @@ function ActivityCard({
             alignItems: "center",
             justifyContent: "center",
             flexShrink: 0,
-            fontSize: mobile ? "14px" : "17px",
-            marginBottom: mobile ? 0 : "auto",
+            fontSize: "17px",
+            marginBottom: drawer ? 0 : "auto",
           }}
         >
           {activity.icon}
         </span>
 
         <span style={{ minWidth: 0 }}>
-          {!mobile && (
-            <span
-              style={{
-                display: "block",
-                color: "#8ee8ff",
-                fontSize: "9px",
-                fontWeight: 900,
-                letterSpacing: "0.16em",
-                textTransform: "uppercase",
-              }}
-            >
-              {activity.eyebrow}
-            </span>
-          )}
+          <span
+            style={{
+              display: "block",
+              color: "#8ee8ff",
+              fontSize: drawer ? "8px" : "9px",
+              fontWeight: 900,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+            }}
+          >
+            {activity.eyebrow}
+          </span>
 
           <strong
             style={{
               display: "block",
-              marginTop: mobile ? 0 : "7px",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: mobile ? "nowrap" : "normal",
-              fontSize: mobile ? (dense ? "10px" : "11px") : dense ? "18px" : "21px",
+              marginTop: drawer ? "4px" : "7px",
+              fontSize: drawer ? "16px" : dense ? "18px" : "21px",
               lineHeight: 1.05,
             }}
           >
             {activity.title}
           </strong>
 
-          {!mobile && !dense && (
+          {!drawer && !dense && (
             <span
               style={{
                 display: "block",
@@ -315,10 +305,10 @@ function ActivityCard({
         {!activity.active && (
           <span
             style={{
-              marginLeft: mobile ? "auto" : 0,
-              marginTop: mobile ? 0 : "12px",
+              marginLeft: drawer ? "auto" : 0,
+              marginTop: drawer ? 0 : "12px",
               color: "#8ee8ff",
-              fontSize: mobile ? "14px" : "13px",
+              fontSize: "16px",
               flexShrink: 0,
             }}
           >
@@ -333,6 +323,7 @@ function ActivityCard({
     return (
       <Link
         href={activity.href}
+        onClick={onNavigate}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         style={cardStyle}
@@ -349,18 +340,55 @@ function ActivityCard({
   );
 }
 
+function ActivityMenu({
+  drawer,
+  dense,
+  onNavigate,
+}: {
+  drawer: boolean;
+  dense: boolean;
+  onNavigate?: () => void;
+}) {
+  return (
+    <div
+      style={{
+        minWidth: 0,
+        minHeight: 0,
+        height: "100%",
+        display: "grid",
+        gridTemplateRows: drawer
+          ? "repeat(3, 92px)"
+          : "repeat(3, minmax(0, 1fr))",
+        gap: drawer ? "12px" : dense ? "8px" : "11px",
+      }}
+    >
+      {activities.map((activity) => (
+        <ActivityMenuCard
+          key={activity.title}
+          activity={activity}
+          drawer={drawer}
+          dense={dense}
+          onNavigate={onNavigate}
+        />
+      ))}
+    </div>
+  );
+}
+
 function Keyboard({
   attempts,
   onLetter,
   onDelete,
   mobile,
   dense,
+  wide,
 }: {
   attempts: DailyPuzzleAttempt[];
   onLetter: (letter: string) => void;
   onDelete: () => void;
   mobile: boolean;
   dense: boolean;
+  wide: boolean;
 }) {
   const letterStates = useMemo(
     () => getKeyboardLetterStates(attempts),
@@ -373,7 +401,9 @@ function Keyboard({
       : 36
     : dense
       ? 38
-      : 44;
+      : wide
+        ? 52
+        : 46;
 
   function getKeyColours(letter: string): CSSProperties {
     const state = letterStates[letter];
@@ -412,21 +442,22 @@ function Keyboard({
   return (
     <div
       style={{
-        display: "grid",
-        gap: mobile ? "5px" : "7px",
         width: "100%",
+        maxWidth: wide ? "820px" : "690px",
+        margin: "0 auto",
+        display: "grid",
+        gap: mobile ? "5px" : "8px",
       }}
     >
       {KEYBOARD_ROWS.map((row, rowIndex) => (
         <div
           key={row}
           style={{
-            width:
-              rowIndex === 0 ? "100%" : rowIndex === 1 ? "92%" : "96%",
+            width: rowIndex === 0 ? "100%" : rowIndex === 1 ? "92%" : "96%",
             margin: "0 auto",
             display: "flex",
             justifyContent: "center",
-            gap: mobile ? "3px" : "5px",
+            gap: mobile ? "3px" : wide ? "7px" : "5px",
           }}
         >
           {row.split("").map((letter) => (
@@ -438,11 +469,12 @@ function Keyboard({
                 minWidth: 0,
                 height: `${keyHeight}px`,
                 flex: "1 1 0",
-                borderRadius: mobile ? "7px" : "9px",
+                borderRadius: mobile ? "7px" : "10px",
                 fontFamily: "inherit",
-                fontSize: mobile ? "10px" : dense ? "12px" : "14px",
+                fontSize: mobile ? "10px" : wide ? "16px" : "14px",
                 fontWeight: 900,
                 cursor: "pointer",
+                boxShadow: "inset 0 -2px 0 rgba(0,0,0,0.12)",
                 ...getKeyColours(letter),
               }}
             >
@@ -457,13 +489,13 @@ function Keyboard({
               style={{
                 minWidth: 0,
                 height: `${keyHeight}px`,
-                flex: "1.5 1 0",
-                borderRadius: mobile ? "7px" : "9px",
+                flex: "1.55 1 0",
+                borderRadius: mobile ? "7px" : "10px",
                 border: "1px solid rgba(126,232,255,0.14)",
                 background: "rgba(255,255,255,0.09)",
                 color: "white",
                 fontFamily: "inherit",
-                fontSize: mobile ? "8px" : "10px",
+                fontSize: mobile ? "8px" : wide ? "12px" : "10px",
                 fontWeight: 900,
                 cursor: "pointer",
               }}
@@ -477,12 +509,54 @@ function Keyboard({
   );
 }
 
+function StatBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div
+      style={{
+        minWidth: 0,
+        borderRadius: "12px",
+        border: "1px solid rgba(126,232,255,0.1)",
+        background: "rgba(255,255,255,0.025)",
+        padding: "8px",
+        textAlign: "center",
+      }}
+    >
+      <span
+        style={{
+          display: "block",
+          color: "rgba(255,255,255,0.4)",
+          fontSize: "8px",
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+        }}
+      >
+        {label}
+      </span>
+      <strong
+        style={{
+          display: "block",
+          marginTop: "3px",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          color: value === "Solved" ? "#9fffd2" : "white",
+          fontSize: "11px",
+        }}
+      >
+        {value}
+      </strong>
+    </div>
+  );
+}
+
 export default function ActivityLabPage() {
   const { width, height } = useViewport();
-  const mobile = width <= 720;
-  const compact = width <= 1180;
+  const mobile = width <= 760;
+  const wide = width >= 1320;
+  const compact = width < 1180;
   const dense = height < 790;
 
+  const [menuOpen, setMenuOpen] = useState(false);
   const [userId, setUserId] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [dreamTokens, setDreamTokens] = useState(0);
@@ -496,6 +570,8 @@ export default function ActivityLabPage() {
   const [puzzleAnswer, setPuzzleAnswer] = useState("");
   const [puzzleMessage, setPuzzleMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [validWords, setValidWords] = useState<Set<string> | null>(null);
+  const [wordListLoading, setWordListLoading] = useState(true);
 
   const remainingAttempts = Math.max(
     0,
@@ -510,12 +586,70 @@ export default function ActivityLabPage() {
   const cellSize = mobile
     ? dense
       ? 32
-      : 37
+      : 38
     : dense
-      ? 39
-      : compact
-        ? 44
-        : 48;
+      ? 48
+      : wide
+        ? 66
+        : compact
+          ? 52
+          : 58;
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadWordList() {
+      try {
+        setWordListLoading(true);
+        const response = await fetch(WORD_LIST_URL, { cache: "force-cache" });
+
+        if (!response.ok) {
+          throw new Error(`Word list request failed: ${response.status}`);
+        }
+
+        const words = (await response.json()) as unknown;
+
+        if (!Array.isArray(words)) {
+          throw new Error("Word list is not an array.");
+        }
+
+        const cleanWords = words
+          .filter((word): word is string => typeof word === "string")
+          .map((word) => word.trim().toLowerCase())
+          .filter((word) => /^[a-z]{5}$/.test(word));
+
+        if (!cancelled) {
+          setValidWords(new Set(cleanWords));
+        }
+      } catch (error) {
+        console.warn("Could not load Mastery Code word list:", error);
+
+        if (!cancelled) {
+          setValidWords(null);
+          setPuzzleMessage(
+            "The valid-word list could not be loaded. Check the five-letter-words.json file.",
+          );
+        }
+      } finally {
+        if (!cancelled) setWordListLoading(false);
+      }
+    }
+
+    loadWordList();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function refreshTokenBalance(activeUserId: string) {
     const { data, error } = await supabase
@@ -559,7 +693,6 @@ export default function ActivityLabPage() {
 
       setUserId(user.id);
       setUserEmail(user.email ?? "");
-
       await refreshTokenBalance(user.id);
 
       const today = getSingaporeDateString();
@@ -632,10 +765,7 @@ export default function ActivityLabPage() {
     };
   }, []);
 
-  async function addTokenTransaction(
-    amount: number,
-    description: string,
-  ) {
+  async function addTokenTransaction(amount: number, description: string) {
     if (!userId) return false;
 
     const { error } = await supabase.from("dream_token_transactions").insert({
@@ -804,14 +934,26 @@ export default function ActivityLabPage() {
       return;
     }
 
+    if (wordListLoading) {
+      setPuzzleMessage("The valid-word list is still loading.");
+      return;
+    }
+
+    const isPuzzleAnswer = guess === puzzle.answer.toUpperCase();
+    const isRecognisedWord = validWords?.has(guess.toLowerCase()) ?? false;
+
+    if (!isPuzzleAnswer && !isRecognisedWord) {
+      setPuzzleMessage(
+        `“${guess}” is not recognised as an English word. This attempt was not used.`,
+      );
+      return;
+    }
+
     const feedback = buildPuzzleFeedback(guess, puzzle.answer);
     const nextAttempts = [...attempts, { guess, feedback }];
-    const solved = guess === puzzle.answer.toUpperCase();
+    const solved = isPuzzleAnswer;
 
-    const saved = await savePuzzleProgress({
-      nextAttempts,
-      solved,
-    });
+    const saved = await savePuzzleProgress({ nextAttempts, solved });
 
     if (!saved) return;
 
@@ -822,7 +964,7 @@ export default function ActivityLabPage() {
       setPuzzleMessage(
         nextAttempts.length >= DAILY_CODE_MAX_ATTEMPTS
           ? "No attempts remain today. A new code arrives tomorrow."
-          : "Attempt saved. Study the colours and try again.",
+          : "Valid word accepted. Study the colours and try again.",
       );
       return;
     }
@@ -864,7 +1006,7 @@ export default function ActivityLabPage() {
 
   useEffect(() => {
     function handleKeyboard(event: KeyboardEvent) {
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.metaKey || event.ctrlKey || event.altKey || menuOpen) return;
 
       if (/^[a-zA-Z]$/.test(event.key)) {
         addLetter(event.key.toUpperCase());
@@ -884,13 +1026,23 @@ export default function ActivityLabPage() {
     }
 
     window.addEventListener("keydown", handleKeyboard);
-
     return () => window.removeEventListener("keydown", handleKeyboard);
   });
 
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setMenuOpen(false);
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [menuOpen]);
+
   const navButtonStyle: CSSProperties = {
     minHeight: mobile ? "36px" : "40px",
-    padding: mobile ? "0 12px" : "0 17px",
+    padding: mobile ? "0 11px" : "0 17px",
     borderRadius: "999px",
     border: "1px solid rgba(126,232,255,0.2)",
     background: "rgba(4,14,31,0.72)",
@@ -909,10 +1061,38 @@ export default function ActivityLabPage() {
 
   const gameDisabled =
     loading ||
+    wordListLoading ||
     !puzzle ||
     !userId ||
     solvedToday ||
     attempts.length >= DAILY_CODE_MAX_ATTEMPTS;
+
+  const utilityButtonStyle = (
+    disabled: boolean,
+    highlighted = false,
+  ): CSSProperties => ({
+    width: "100%",
+    minHeight: mobile ? "35px" : dense ? "42px" : "48px",
+    borderRadius: "12px",
+    border: highlighted
+      ? "1px solid rgba(126,232,255,0.42)"
+      : "1px solid rgba(126,232,255,0.2)",
+    background: disabled
+      ? "rgba(255,255,255,0.035)"
+      : highlighted
+        ? "linear-gradient(90deg, rgba(32,126,166,0.92), rgba(57,82,177,0.92))"
+        : "rgba(83,215,255,0.08)",
+    color: disabled ? "rgba(255,255,255,0.3)" : "white",
+    fontFamily: "inherit",
+    fontSize: mobile ? "9px" : "11px",
+    fontWeight: 900,
+    letterSpacing: highlighted ? "0.08em" : "normal",
+    textTransform: highlighted ? "uppercase" : "none",
+    cursor: disabled ? "not-allowed" : "pointer",
+    boxShadow: highlighted && !disabled
+      ? "0 0 24px rgba(83,215,255,0.13)"
+      : "none",
+  });
 
   return (
     <main
@@ -938,15 +1118,8 @@ export default function ActivityLabPage() {
       }}
     >
       <style>{`
-        * {
-          box-sizing: border-box;
-        }
-
-        button,
-        a {
-          -webkit-tap-highlight-color: transparent;
-        }
-
+        * { box-sizing: border-box; }
+        button, a { -webkit-tap-highlight-color: transparent; }
         @keyframes labGlow {
           0%, 100% { opacity: 0.34; transform: translate3d(0, 0, 0); }
           50% { opacity: 0.52; transform: translate3d(0, -8px, 0); }
@@ -985,10 +1158,10 @@ export default function ActivityLabPage() {
       <header
         style={{
           position: "relative",
-          zIndex: 10,
+          zIndex: 30,
           minWidth: 0,
           borderBottom: "1px solid rgba(126,232,255,0.11)",
-          background: "rgba(2,8,21,0.62)",
+          background: "rgba(2,8,21,0.68)",
           backdropFilter: "blur(20px)",
           WebkitBackdropFilter: "blur(20px)",
           padding: mobile ? "8px 9px" : "10px 16px",
@@ -998,10 +1171,29 @@ export default function ActivityLabPage() {
           gap: mobile ? "7px" : "12px",
         }}
       >
-        <Link href="/milo-world" style={navButtonStyle}>
-          <span>←</span>
-          {mobile ? "Milo" : "Milo’s World"}
-        </Link>
+        <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+          {mobile && (
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              aria-label="Open Activity Lab game menu"
+              style={{
+                ...navButtonStyle,
+                width: "38px",
+                padding: 0,
+                fontSize: "17px",
+                cursor: "pointer",
+              }}
+            >
+              ☰
+            </button>
+          )}
+
+          <Link href="/milo-world" style={navButtonStyle}>
+            <span>←</span>
+            {mobile ? "Milo" : "Milo’s World"}
+          </Link>
+        </div>
 
         {!mobile && (
           <div style={{ minWidth: 0, textAlign: "center" }}>
@@ -1031,13 +1223,7 @@ export default function ActivityLabPage() {
           </div>
         )}
 
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: mobile ? "6px" : "8px",
-          }}
-        >
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
           <Link
             href="/profile"
             style={{
@@ -1061,49 +1247,22 @@ export default function ActivityLabPage() {
           zIndex: 4,
           minWidth: 0,
           minHeight: 0,
-          padding: mobile
-            ? dense
-              ? "6px"
-              : "8px"
-            : dense
-              ? "10px"
-              : "14px",
+          padding: mobile ? (dense ? "6px" : "8px") : dense ? "10px" : "14px",
           display: "grid",
           gridTemplateColumns: mobile
             ? "1fr"
-            : compact
-              ? "210px minmax(0, 1fr)"
-              : "260px minmax(0, 1fr)",
-          gridTemplateRows: mobile
-            ? `${dense ? "62px" : "72px"} minmax(0, 1fr)`
-            : "minmax(0, 1fr)",
-          gap: mobile ? "7px" : dense ? "10px" : "14px",
+            : wide
+              ? "260px minmax(0, 1fr)"
+              : "220px minmax(0, 1fr)",
+          gap: dense ? "10px" : "14px",
           overflow: "hidden",
         }}
       >
-        <aside
-          style={{
-            minWidth: 0,
-            minHeight: 0,
-            display: "grid",
-            gridTemplateColumns: mobile
-              ? "repeat(3, minmax(0, 1fr))"
-              : "1fr",
-            gridTemplateRows: mobile
-              ? "1fr"
-              : "repeat(3, minmax(0, 1fr))",
-            gap: mobile ? "6px" : dense ? "8px" : "11px",
-          }}
-        >
-          {activities.map((activity) => (
-            <ActivityCard
-              key={activity.title}
-              activity={activity}
-              mobile={mobile}
-              dense={dense}
-            />
-          ))}
-        </aside>
+        {!mobile && (
+          <aside style={{ minWidth: 0, minHeight: 0 }}>
+            <ActivityMenu drawer={false} dense={dense} />
+          </aside>
+        )}
 
         <article
           style={{
@@ -1114,23 +1273,17 @@ export default function ActivityLabPage() {
             borderRadius: mobile ? "17px" : "24px",
             border: "1px solid rgba(126,232,255,0.17)",
             background:
-              "linear-gradient(145deg, rgba(5,22,43,0.88), rgba(3,9,24,0.94))",
+              "linear-gradient(145deg, rgba(5,22,43,0.88), rgba(3,9,24,0.95))",
             boxShadow:
               "0 30px 90px rgba(0,0,0,0.35), inset 0 0 50px rgba(83,215,255,0.025)",
-            padding: mobile
-              ? dense
-                ? "8px"
-                : "10px"
-              : dense
-                ? "14px"
-                : "18px",
+            padding: mobile ? (dense ? "8px" : "10px") : dense ? "14px" : "18px",
             display: "grid",
             gridTemplateColumns: mobile
               ? "1fr"
-              : compact
-                ? "minmax(290px, 0.92fr) minmax(330px, 1.08fr)"
-                : "minmax(340px, 0.9fr) minmax(430px, 1.1fr)",
-            gridTemplateRows: mobile ? "minmax(0, 1fr)" : "1fr",
+              : wide
+                ? "minmax(0, 1fr) 275px"
+                : "minmax(0, 1fr) 235px",
+            gridTemplateRows: mobile ? "minmax(0, 1fr) auto" : "1fr",
             gap: mobile ? "7px" : dense ? "14px" : "20px",
           }}
         >
@@ -1138,15 +1291,14 @@ export default function ActivityLabPage() {
             style={{
               minWidth: 0,
               minHeight: 0,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: mobile ? "flex-start" : "center",
               borderRadius: mobile ? "13px" : "19px",
               border: "1px solid rgba(126,232,255,0.1)",
               background: "rgba(255,255,255,0.025)",
               padding: mobile ? (dense ? "7px" : "9px") : dense ? "12px" : "16px",
               overflow: "hidden",
+              display: "grid",
+              gridTemplateRows: "auto minmax(0, 1fr) auto",
+              gap: mobile ? "6px" : dense ? "9px" : "13px",
             }}
           >
             <div
@@ -1156,7 +1308,6 @@ export default function ActivityLabPage() {
                 alignItems: "flex-start",
                 justifyContent: "space-between",
                 gap: "10px",
-                marginBottom: mobile ? (dense ? "5px" : "8px") : dense ? "8px" : "12px",
               }}
             >
               <div style={{ minWidth: 0 }}>
@@ -1183,13 +1334,28 @@ export default function ActivityLabPage() {
                         : "27px"
                       : dense
                         ? "31px"
-                        : "38px",
+                        : wide
+                          ? "43px"
+                          : "37px",
                     lineHeight: 0.95,
                     fontWeight: 400,
                   }}
                 >
                   Mastery Code
                 </h2>
+
+                {!mobile && (
+                  <p
+                    style={{
+                      margin: "8px 0 0",
+                      color: "rgba(255,255,255,0.48)",
+                      fontSize: dense ? "9px" : "11px",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    Green means correct position. Gold means the letter belongs elsewhere.
+                  </p>
+                )}
               </div>
 
               <div
@@ -1227,212 +1393,116 @@ export default function ActivityLabPage() {
               </div>
             </div>
 
-            {!mobile && !dense && (
-              <p
-                style={{
-                  width: "100%",
-                  margin: "0 0 13px",
-                  color: "rgba(255,255,255,0.52)",
-                  fontSize: "11px",
-                  lineHeight: 1.45,
-                }}
-              >
-                Correct position is green. Correct letter in the wrong position
-                is gold. Grey letters are not in the code.
-              </p>
-            )}
-
             <div
-              aria-label="Mastery Code guess grid"
               style={{
-                display: "grid",
-                gridTemplateRows: `repeat(${DAILY_CODE_MAX_ATTEMPTS}, ${cellSize}px)`,
-                gap: mobile ? "4px" : "6px",
+                minHeight: 0,
+                display: "flex",
+                alignItems: "center",
                 justifyContent: "center",
-                margin: "auto 0",
-              }}
-            >
-              {Array.from({ length: DAILY_CODE_MAX_ATTEMPTS }).map(
-                (_, rowIndex) => {
-                  const attempt = attempts[rowIndex];
-                  const isCurrentRow =
-                    rowIndex === attempts.length &&
-                    !solvedToday &&
-                    attempts.length < DAILY_CODE_MAX_ATTEMPTS;
-
-                  return (
-                    <div
-                      key={rowIndex}
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: `repeat(5, ${cellSize}px)`,
-                        gap: mobile ? "4px" : "6px",
-                      }}
-                    >
-                      {Array.from({ length: 5 }).map((_, letterIndex) => {
-                        const attemptedLetter =
-                          attempt?.guess[letterIndex] || "";
-                        const currentLetter = isCurrentRow
-                          ? puzzleAnswer[letterIndex] || ""
-                          : "";
-                        const letter = attemptedLetter || currentLetter;
-                        const feedback = attempt?.feedback[letterIndex];
-
-                        const background =
-                          feedback === "correct"
-                            ? "#3f9860"
-                            : feedback === "present"
-                              ? "#b68c2d"
-                              : feedback === "absent"
-                                ? "#394353"
-                                : letter
-                                  ? "rgba(126,232,255,0.11)"
-                                  : "rgba(255,255,255,0.035)";
-
-                        const border =
-                          feedback === "correct"
-                            ? "1px solid rgba(106,255,155,0.54)"
-                            : feedback === "present"
-                              ? "1px solid rgba(255,214,95,0.5)"
-                              : feedback === "absent"
-                                ? "1px solid rgba(255,255,255,0.08)"
-                                : letter
-                                  ? "1px solid rgba(126,232,255,0.58)"
-                                  : "1px solid rgba(126,232,255,0.13)";
-
-                        return (
-                          <span
-                            key={letterIndex}
-                            style={{
-                              width: `${cellSize}px`,
-                              height: `${cellSize}px`,
-                              borderRadius: mobile ? "8px" : "10px",
-                              border,
-                              background,
-                              color: "white",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              fontSize: mobile ? "15px" : dense ? "17px" : "20px",
-                              fontWeight: 900,
-                              boxShadow: feedback
-                                ? "inset 0 -3px 0 rgba(0,0,0,0.14)"
-                                : "none",
-                            }}
-                          >
-                            {letter}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  );
-                },
-              )}
-            </div>
-
-            <div
-              style={{
-                width: "100%",
-                marginTop: mobile ? "5px" : "10px",
-                display: "grid",
-                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                gap: mobile ? "4px" : "7px",
+                overflow: "hidden",
               }}
             >
               <div
+                aria-label="Mastery Code guess grid"
                 style={{
-                  borderRadius: mobile ? "9px" : "12px",
-                  border: "1px solid rgba(126,232,255,0.1)",
-                  background: "rgba(255,255,255,0.025)",
-                  padding: mobile ? "5px" : "8px",
-                  textAlign: "center",
+                  display: "grid",
+                  gridTemplateRows: `repeat(${DAILY_CODE_MAX_ATTEMPTS}, ${cellSize}px)`,
+                  gap: mobile ? "4px" : wide ? "9px" : "7px",
+                  justifyContent: "center",
                 }}
               >
-                <span
-                  style={{
-                    display: "block",
-                    color: "rgba(255,255,255,0.4)",
-                    fontSize: mobile ? "7px" : "8px",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Attempts
-                </span>
-                <strong
-                  style={{
-                    display: "block",
-                    marginTop: "2px",
-                    fontSize: mobile ? "9px" : "11px",
-                  }}
-                >
-                  {remainingAttempts}/{DAILY_CODE_MAX_ATTEMPTS}
-                </strong>
-              </div>
+                {Array.from({ length: DAILY_CODE_MAX_ATTEMPTS }).map(
+                  (_, rowIndex) => {
+                    const attempt = attempts[rowIndex];
+                    const isCurrentRow =
+                      rowIndex === attempts.length &&
+                      !solvedToday &&
+                      attempts.length < DAILY_CODE_MAX_ATTEMPTS;
 
-              <div
-                style={{
-                  borderRadius: mobile ? "9px" : "12px",
-                  border: "1px solid rgba(126,232,255,0.1)",
-                  background: "rgba(255,255,255,0.025)",
-                  padding: mobile ? "5px" : "8px",
-                  textAlign: "center",
-                }}
-              >
-                <span
-                  style={{
-                    display: "block",
-                    color: "rgba(255,255,255,0.4)",
-                    fontSize: mobile ? "7px" : "8px",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Completed
-                </span>
-                <strong
-                  style={{
-                    display: "block",
-                    marginTop: "2px",
-                    fontSize: mobile ? "9px" : "11px",
-                  }}
-                >
-                  {completed}
-                </strong>
-              </div>
+                    return (
+                      <div
+                        key={rowIndex}
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: `repeat(5, ${cellSize}px)`,
+                          gap: mobile ? "4px" : wide ? "9px" : "7px",
+                        }}
+                      >
+                        {Array.from({ length: 5 }).map((_, letterIndex) => {
+                          const attemptedLetter = attempt?.guess[letterIndex] || "";
+                          const currentLetter = isCurrentRow
+                            ? puzzleAnswer[letterIndex] || ""
+                            : "";
+                          const letter = attemptedLetter || currentLetter;
+                          const feedback = attempt?.feedback[letterIndex];
 
-              <div
-                style={{
-                  borderRadius: mobile ? "9px" : "12px",
-                  border: "1px solid rgba(126,232,255,0.1)",
-                  background: "rgba(255,255,255,0.025)",
-                  padding: mobile ? "5px" : "8px",
-                  textAlign: "center",
-                }}
-              >
-                <span
-                  style={{
-                    display: "block",
-                    color: "rgba(255,255,255,0.4)",
-                    fontSize: mobile ? "7px" : "8px",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Status
-                </span>
-                <strong
-                  style={{
-                    display: "block",
-                    marginTop: "2px",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    color: solvedToday ? "#9fffd2" : "#8ee8ff",
-                    fontSize: mobile ? "9px" : "11px",
-                  }}
-                >
-                  {solvedToday ? "Solved" : "Active"}
-                </strong>
+                          const background =
+                            feedback === "correct"
+                              ? "#3f9860"
+                              : feedback === "present"
+                                ? "#b68c2d"
+                                : feedback === "absent"
+                                  ? "#394353"
+                                  : letter
+                                    ? "rgba(126,232,255,0.11)"
+                                    : "rgba(255,255,255,0.035)";
+
+                          const border =
+                            feedback === "correct"
+                              ? "1px solid rgba(106,255,155,0.54)"
+                              : feedback === "present"
+                                ? "1px solid rgba(255,214,95,0.5)"
+                                : feedback === "absent"
+                                  ? "1px solid rgba(255,255,255,0.08)"
+                                  : letter
+                                    ? "1px solid rgba(126,232,255,0.58)"
+                                    : "1px solid rgba(126,232,255,0.13)";
+
+                          return (
+                            <span
+                              key={letterIndex}
+                              style={{
+                                width: `${cellSize}px`,
+                                height: `${cellSize}px`,
+                                borderRadius: mobile ? "8px" : wide ? "14px" : "11px",
+                                border,
+                                background,
+                                color: "white",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: mobile
+                                  ? "15px"
+                                  : dense
+                                    ? "19px"
+                                    : wide
+                                      ? "28px"
+                                      : "23px",
+                                fontWeight: 900,
+                                boxShadow: feedback
+                                  ? "inset 0 -3px 0 rgba(0,0,0,0.14)"
+                                  : "none",
+                              }}
+                            >
+                              {letter}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    );
+                  },
+                )}
               </div>
             </div>
+
+            <Keyboard
+              attempts={attempts}
+              onLetter={addLetter}
+              onDelete={deleteLetter}
+              mobile={mobile}
+              dense={dense}
+              wide={wide}
+            />
           </section>
 
           <form
@@ -1440,20 +1510,24 @@ export default function ActivityLabPage() {
             style={{
               minWidth: 0,
               minHeight: 0,
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "center",
-              gap: mobile ? (dense ? "5px" : "7px") : dense ? "8px" : "11px",
-              padding: mobile ? "0" : dense ? "4px 0" : "8px 2px",
+              borderRadius: mobile ? "13px" : "19px",
+              border: "1px solid rgba(126,232,255,0.1)",
+              background: "rgba(255,255,255,0.02)",
+              padding: mobile ? "7px" : dense ? "11px" : "14px",
+              display: "grid",
+              gridTemplateColumns: mobile ? "repeat(2, minmax(0, 1fr))" : "1fr",
+              alignContent: mobile ? "start" : "center",
+              gap: mobile ? "5px" : dense ? "8px" : "11px",
+              overflow: "hidden",
             }}
           >
             <div
               style={{
-                borderRadius: mobile ? "10px" : "14px",
+                gridColumn: mobile ? "1 / -1" : "auto",
+                borderRadius: "14px",
                 border: "1px solid rgba(126,232,255,0.12)",
                 background: "rgba(83,215,255,0.045)",
-                padding: mobile ? "7px 9px" : "10px 12px",
-                minHeight: mobile ? "0" : "48px",
+                padding: mobile ? "7px 9px" : "11px 12px",
               }}
             >
               <span
@@ -1469,22 +1543,23 @@ export default function ActivityLabPage() {
               </span>
               <p
                 style={{
-                  margin: mobile ? "2px 0 0" : "4px 0 0",
+                  margin: mobile ? "2px 0 0" : "5px 0 0",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: mobile ? "nowrap" : "normal",
                   color: "rgba(255,255,255,0.72)",
                   fontSize: mobile ? "9px" : dense ? "11px" : "12px",
-                  lineHeight: 1.35,
+                  lineHeight: 1.4,
                 }}
               >
-                {puzzle?.base_clue || (loading ? "Loading today’s code..." : "No clue available.")}
+                {puzzle?.base_clue ||
+                  (loading ? "Loading today’s code..." : "No clue available.")}
               </p>
 
               {(clueBought || letterBought) && (
                 <p
                   style={{
-                    margin: "4px 0 0",
+                    margin: "5px 0 0",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: mobile ? "nowrap" : "normal",
@@ -1504,121 +1579,72 @@ export default function ActivityLabPage() {
               )}
             </div>
 
-            <Keyboard
-              attempts={attempts}
-              onLetter={addLetter}
-              onDelete={deleteLetter}
-              mobile={mobile}
-              dense={dense}
-            />
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                gap: mobile ? "5px" : "8px",
-              }}
+            <button
+              type="button"
+              onClick={buyClue}
+              disabled={!puzzle || clueBought || solvedToday || !userId}
+              style={utilityButtonStyle(
+                !puzzle || clueBought || solvedToday || !userId,
+              )}
             >
-              <button
-                type="button"
-                onClick={buyClue}
-                disabled={!puzzle || clueBought || solvedToday || !userId}
-                style={{
-                  height: mobile ? (dense ? "30px" : "35px") : dense ? "38px" : "43px",
-                  borderRadius: mobile ? "8px" : "11px",
-                  border: "1px solid rgba(126,232,255,0.2)",
-                  background:
-                    !puzzle || clueBought || solvedToday || !userId
-                      ? "rgba(255,255,255,0.035)"
-                      : "rgba(83,215,255,0.08)",
-                  color:
-                    !puzzle || clueBought || solvedToday || !userId
-                      ? "rgba(255,255,255,0.28)"
-                      : "white",
-                  fontFamily: "inherit",
-                  fontSize: mobile ? "8px" : "10px",
-                  fontWeight: 850,
-                  cursor:
-                    !puzzle || clueBought || solvedToday || !userId
-                      ? "not-allowed"
-                      : "pointer",
-                }}
-              >
-                {clueBought ? "Clue Unlocked" : "Buy Clue · 1 DT"}
-              </button>
+              {clueBought ? "Clue Unlocked" : "Buy Clue · 1 DT"}
+            </button>
 
-              <button
-                type="button"
-                onClick={buyLetter}
-                disabled={!puzzle || letterBought || solvedToday || !userId}
-                style={{
-                  height: mobile ? (dense ? "30px" : "35px") : dense ? "38px" : "43px",
-                  borderRadius: mobile ? "8px" : "11px",
-                  border: "1px solid rgba(126,232,255,0.2)",
-                  background:
-                    !puzzle || letterBought || solvedToday || !userId
-                      ? "rgba(255,255,255,0.035)"
-                      : "rgba(83,215,255,0.08)",
-                  color:
-                    !puzzle || letterBought || solvedToday || !userId
-                      ? "rgba(255,255,255,0.28)"
-                      : "white",
-                  fontFamily: "inherit",
-                  fontSize: mobile ? "8px" : "10px",
-                  fontWeight: 850,
-                  cursor:
-                    !puzzle || letterBought || solvedToday || !userId
-                      ? "not-allowed"
-                      : "pointer",
-                }}
-              >
-                {letterBought ? "Letter Revealed" : "Buy Letter · 1 DT"}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={buyLetter}
+              disabled={!puzzle || letterBought || solvedToday || !userId}
+              style={utilityButtonStyle(
+                !puzzle || letterBought || solvedToday || !userId,
+              )}
+            >
+              {letterBought ? "Letter Revealed" : "Buy Letter · 1 DT"}
+            </button>
 
             <button
               type="submit"
               disabled={gameDisabled}
               style={{
-                height: mobile ? (dense ? "34px" : "40px") : dense ? "43px" : "49px",
-                borderRadius: mobile ? "9px" : "12px",
-                border: gameDisabled
-                  ? "1px solid rgba(255,255,255,0.08)"
-                  : "1px solid rgba(126,232,255,0.44)",
-                background: gameDisabled
-                  ? "rgba(255,255,255,0.045)"
-                  : "linear-gradient(90deg, rgba(32,126,166,0.92), rgba(57,82,177,0.92))",
-                color: gameDisabled
-                  ? "rgba(255,255,255,0.32)"
-                  : "white",
-                fontFamily: "inherit",
-                fontSize: mobile ? "9px" : "11px",
-                fontWeight: 900,
-                letterSpacing: "0.1em",
-                textTransform: "uppercase",
-                cursor: gameDisabled ? "not-allowed" : "pointer",
-                boxShadow: gameDisabled
-                  ? "none"
-                  : "0 0 24px rgba(83,215,255,0.13)",
+                ...utilityButtonStyle(gameDisabled, true),
+                gridColumn: mobile ? "1 / -1" : "auto",
               }}
             >
               {loading
                 ? "Loading Code"
-                : solvedToday
-                  ? "Code Completed"
-                  : !userId
-                    ? "Log In to Play"
-                    : "Submit Guess"}
+                : wordListLoading
+                  ? "Loading Word List"
+                  : solvedToday
+                    ? "Code Completed"
+                    : !userId
+                      ? "Log In to Play"
+                      : "Submit Guess"}
             </button>
+
+            <div
+              style={{
+                gridColumn: mobile ? "1 / -1" : "auto",
+                display: "grid",
+                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                gap: "6px",
+              }}
+            >
+              <StatBox
+                label="Attempts"
+                value={`${remainingAttempts}/${DAILY_CODE_MAX_ATTEMPTS}`}
+              />
+              <StatBox label="Completed" value={String(completed)} />
+              <StatBox label="Status" value={solvedToday ? "Solved" : "Active"} />
+            </div>
 
             <div
               role="status"
               style={{
-                minHeight: mobile ? (dense ? "24px" : "30px") : dense ? "34px" : "42px",
-                borderRadius: mobile ? "8px" : "11px",
+                gridColumn: mobile ? "1 / -1" : "auto",
+                minHeight: mobile ? "28px" : dense ? "42px" : "54px",
+                borderRadius: "11px",
                 border: "1px solid rgba(126,232,255,0.09)",
                 background: "rgba(255,255,255,0.025)",
-                padding: mobile ? "5px 7px" : "8px 10px",
+                padding: mobile ? "5px 7px" : "9px 10px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -1626,7 +1652,7 @@ export default function ActivityLabPage() {
                 color: solvedToday ? "#9fffd2" : "#8ee8ff",
                 fontSize: mobile ? "8px" : dense ? "10px" : "11px",
                 fontWeight: 750,
-                lineHeight: 1.3,
+                lineHeight: 1.35,
                 textAlign: "center",
               }}
             >
@@ -1638,12 +1664,122 @@ export default function ActivityLabPage() {
                 }}
               >
                 {puzzleMessage ||
-                  "Use the on-screen keyboard or your physical keyboard."}
+                  "Only recognised five-letter English words are accepted."}
               </span>
             </div>
           </form>
         </article>
       </section>
+
+      {mobile && menuOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 100,
+            background: "rgba(0,0,0,0.58)",
+            backdropFilter: "blur(5px)",
+            WebkitBackdropFilter: "blur(5px)",
+          }}
+          onClick={() => setMenuOpen(false)}
+        >
+          <aside
+            style={{
+              width: "min(340px, calc(100vw - 38px))",
+              height: "100dvh",
+              borderRight: "1px solid rgba(126,232,255,0.22)",
+              background:
+                "linear-gradient(160deg, rgba(4,18,38,0.99), rgba(2,8,21,0.99))",
+              boxShadow: "28px 0 80px rgba(0,0,0,0.54)",
+              padding: "16px",
+              display: "grid",
+              gridTemplateRows: "auto minmax(0, 1fr) auto",
+              gap: "18px",
+            }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: "12px",
+              }}
+            >
+              <div>
+                <p
+                  style={{
+                    margin: 0,
+                    color: "#8ee8ff",
+                    fontSize: "9px",
+                    fontWeight: 900,
+                    letterSpacing: "0.18em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Choose a game
+                </p>
+                <h2
+                  style={{
+                    margin: "5px 0 0",
+                    fontFamily: 'Georgia, "Times New Roman", serif',
+                    fontSize: "30px",
+                    fontWeight: 400,
+                  }}
+                >
+                  Activity Lab
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setMenuOpen(false)}
+                aria-label="Close Activity Lab menu"
+                style={{
+                  width: "42px",
+                  height: "42px",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(126,232,255,0.2)",
+                  background: "rgba(255,255,255,0.06)",
+                  color: "white",
+                  fontSize: "23px",
+                  cursor: "pointer",
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ minHeight: 0 }}>
+              <ActivityMenu
+                drawer
+                dense={false}
+                onNavigate={() => setMenuOpen(false)}
+              />
+            </div>
+
+            <Link
+              href="/milo-world"
+              onClick={() => setMenuOpen(false)}
+              style={{
+                minHeight: "48px",
+                borderRadius: "14px",
+                border: "1px solid rgba(126,232,255,0.18)",
+                background: "rgba(83,215,255,0.06)",
+                color: "white",
+                textDecoration: "none",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "12px",
+                fontWeight: 850,
+              }}
+            >
+              ← Return to Milo’s World
+            </Link>
+          </aside>
+        </div>
+      )}
     </main>
   );
 }

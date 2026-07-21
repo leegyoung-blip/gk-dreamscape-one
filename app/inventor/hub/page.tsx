@@ -655,7 +655,7 @@ export default function InventorHubPage() {
   }
 
   return (
-    <main className="relative h-screen w-screen overflow-hidden bg-[#050816]">
+    <main className="inventorHubPage relative min-h-screen w-full overflow-x-hidden bg-[#050816]">
       <video
         autoPlay
         muted
@@ -663,7 +663,7 @@ export default function InventorHubPage() {
         playsInline
         preload="auto"
         poster="/activities/inventor hub/inventor-hub-bg.png"
-        className="absolute inset-0 h-full w-full object-cover"
+        className="fixed inset-0 h-full w-full object-cover"
       >
         <source
           src="/activities/inventor hub/inventor-hub-bg-loop.mp4"
@@ -671,7 +671,7 @@ export default function InventorHubPage() {
         />
       </video>
 
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/20 via-black/5 to-black/45" />
+      <div className="pointer-events-none fixed inset-0 bg-gradient-to-b from-black/20 via-black/5 to-black/45" />
 
       <button
         onClick={() => router.push("/inventor")}
@@ -680,7 +680,7 @@ export default function InventorHubPage() {
         ← Exit Inventor Hub
       </button>
 
-      <div className="absolute left-5 right-5 top-20 z-20 rounded-[22px] border border-cyan-300/35 bg-slate-950/55 px-5 py-4 text-cyan-50 shadow-[0_0_28px_rgba(0,220,255,0.22)] backdrop-blur-md sm:left-6 sm:right-auto sm:top-24 sm:max-w-[320px]">
+      <div className="hubIntroPanel z-20 rounded-[22px] border border-cyan-300/35 bg-slate-950/55 px-5 py-4 text-cyan-50 shadow-[0_0_28px_rgba(0,220,255,0.22)] backdrop-blur-md">
         <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-300">
           Inventor Hub
         </p>
@@ -710,20 +710,22 @@ export default function InventorHubPage() {
         Cart
       </button>
 
-      {HUB_AREAS.map((area) => (
-        <button
-          key={area.id}
-          onClick={() => openArea(area)}
-          className={`hubHotspot ${area.positionClass}`}
-          aria-label={area.title}
-        >
-          <span className="hotspotGlow" />
-          <span className="hotspotLabel">
-            <strong>{area.title}</strong>
-            <small>{area.label}</small>
-          </span>
-        </button>
-      ))}
+      <div className="hubZones" aria-label="Inventor Hub zones">
+        {HUB_AREAS.map((area) => (
+          <button
+            key={area.id}
+            onClick={() => openArea(area)}
+            className={`hubHotspot ${area.positionClass}`}
+            aria-label={area.title}
+          >
+            <span className="hotspotGlow" />
+            <span className="hotspotLabel">
+              <strong>{area.title}</strong>
+              <small>{area.label}</small>
+            </span>
+          </button>
+        ))}
+      </div>
 
       {selectedArea &&
         selectedArea.id !== "machine-zone" &&
@@ -1411,12 +1413,39 @@ export default function InventorHubPage() {
       )}
 
       <style jsx>{`
-        .hubHotspot {
-          position: absolute;
+        .inventorHubPage {
+          min-height: 100dvh;
+          overflow-x: hidden;
+          overflow-y: auto;
+          padding: 0 18px 54px;
+        }
+
+        .hubIntroPanel {
+          position: relative;
+          width: min(680px, 100%);
+          margin: 82px auto 0;
+        }
+
+        .hubZones {
+          position: relative;
           z-index: 10;
+          width: min(680px, 100%);
+          margin: 18px auto 0;
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 14px;
+          padding-bottom: 42px;
+        }
+
+        .hubHotspot {
+          position: relative;
+          width: 100%;
+          min-height: 82px;
           border: 0;
+          padding: 0;
           background: transparent;
           cursor: pointer;
+          text-align: left;
         }
 
         .hotspotGlow {
@@ -1424,26 +1453,36 @@ export default function InventorHubPage() {
         }
 
         .hotspotLabel {
-          position: absolute;
-          left: 50%;
-          top: 50%;
-          min-width: 230px;
-          transform: translate(-50%, -50%);
-          border-radius: 16px;
-          border: 1px solid rgba(125, 247, 255, 0.38);
-          background: rgba(4, 12, 32, 0.58);
-          padding: 12px 14px;
+          position: relative;
+          width: 100%;
+          min-width: 0;
+          min-height: 82px;
+          box-sizing: border-box;
+          border-radius: 18px;
+          border: 1px solid rgba(125, 247, 255, 0.48);
+          background:
+            linear-gradient(
+              145deg,
+              rgba(4, 18, 40, 0.56),
+              rgba(4, 12, 32, 0.66)
+            );
+          padding: 15px 18px;
           color: white;
-          opacity: 0.38;
+          opacity: 1;
           pointer-events: none;
-          box-shadow: 0 0 18px rgba(0, 225, 255, 0.16);
-          backdrop-filter: blur(10px);
+          box-shadow:
+            0 0 20px rgba(0, 225, 255, 0.14),
+            0 18px 38px rgba(0, 0, 0, 0.24);
+          backdrop-filter: blur(14px);
+          -webkit-backdrop-filter: blur(14px);
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
           transition:
-            opacity 260ms ease,
-            transform 260ms ease,
-            border-color 260ms ease,
-            background 260ms ease,
-            box-shadow 260ms ease;
+            transform 220ms ease,
+            border-color 220ms ease,
+            background 220ms ease,
+            box-shadow 220ms ease;
         }
 
         .hotspotLabel strong {
@@ -1455,106 +1494,155 @@ export default function InventorHubPage() {
 
         .hotspotLabel small {
           display: block;
-          margin-top: 4px;
+          margin-top: 5px;
           color: rgba(255, 255, 255, 0.78);
           font-size: 12px;
+          line-height: 1.4;
         }
 
         .hubHotspot:hover .hotspotLabel,
         .hubHotspot:focus-visible .hotspotLabel {
-          opacity: 1;
-          transform: translate(-50%, -50%) scale(1.03);
-          border-color: rgba(125, 247, 255, 0.85);
-          background: rgba(4, 12, 32, 0.92);
-          box-shadow: 0 0 28px rgba(0, 225, 255, 0.38);
+          transform: translateY(-3px);
+          border-color: rgba(125, 247, 255, 0.82);
+          background:
+            linear-gradient(
+              145deg,
+              rgba(4, 24, 52, 0.68),
+              rgba(4, 12, 32, 0.76)
+            );
+          box-shadow:
+            0 0 28px rgba(0, 225, 255, 0.28),
+            0 24px 48px rgba(0, 0, 0, 0.3);
         }
 
-        .hubHotspot:hover .hotspotLabel small,
-        .hubHotspot:focus-visible .hotspotLabel small {
-          color: rgba(255, 255, 255, 0.95);
+        .hubHotspot:focus-visible {
+          outline: none;
         }
 
-        .hotspotParts {
-          left: 3%;
-          top: 24%;
-          width: 20%;
-          height: 52%;
-        }
-
-        .hotspotPicks {
-          left: 22%;
-          top: 27%;
-          width: 17%;
-          height: 36%;
-        }
-
-        .hotspotExclusive {
-          left: 60%;
-          top: 27%;
-          width: 17%;
-          height: 36%;
-        }
-
-        .hotspotMachine {
-          right: 0%;
-          top: 24%;
-          width: 24%;
-          height: 52%;
-        }
-
-        @media (hover: none) {
-          .hotspotLabel {
-            opacity: 0.92;
-            background: rgba(4, 12, 32, 0.82);
-            border-color: rgba(125, 247, 255, 0.58);
-          }
-        }
-
-        @media (max-width: 768px) {
-          .hubHotspot {
-            left: 18px !important;
-            right: 18px !important;
-            width: auto !important;
-            height: 76px !important;
+        /*
+         * Only a genuinely wide landscape viewport uses invisible map
+         * hotspots. Every other screen gets the stacked tab layout above.
+         */
+        @media
+          (min-width: 1760px)
+          and (min-aspect-ratio: 33 / 20)
+          and (orientation: landscape) {
+          .inventorHubPage {
+            height: 100vh;
+            min-height: 850px;
+            overflow: hidden;
+            padding: 0;
           }
 
-          .hotspotParts {
-            top: 238px !important;
+          .hubIntroPanel {
+            position: absolute;
+            left: 24px;
+            top: 96px;
+            width: 320px;
+            margin: 0;
           }
 
-          .hotspotPicks {
-            top: 326px !important;
-          }
-
-          .hotspotExclusive {
-            top: 414px !important;
-          }
-
-          .hotspotMachine {
-            top: 502px !important;
-          }
-
-          .hotspotLabel {
-            left: 0;
-            top: 0;
+          .hubZones {
+            position: absolute;
+            inset: 0;
             width: 100%;
-            min-width: 0;
-            height: 76px;
-            transform: none;
-            opacity: 0.94;
-            border-radius: 18px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            background: rgba(4, 12, 32, 0.82);
-            border-color: rgba(125, 247, 255, 0.5);
-            box-shadow: 0 0 18px rgba(0, 225, 255, 0.18);
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            display: block;
+            pointer-events: none;
+          }
+
+          .hubHotspot {
+            position: absolute;
+            min-height: 0;
+            width: auto;
+            pointer-events: auto;
+          }
+
+          .hotspotLabel {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: auto;
+            min-width: 230px;
+            min-height: 0;
+            transform: translate(-50%, -50%);
+            border-radius: 16px;
+            background: rgba(4, 12, 32, 0.76);
+            padding: 12px 14px;
+            opacity: 0;
+            box-shadow: 0 0 18px rgba(0, 225, 255, 0.16);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
           }
 
           .hubHotspot:hover .hotspotLabel,
           .hubHotspot:focus-visible .hotspotLabel {
-            transform: none;
             opacity: 1;
+            transform: translate(-50%, -50%) scale(1.03);
+            border-color: rgba(125, 247, 255, 0.88);
+            background: rgba(4, 12, 32, 0.94);
+            box-shadow: 0 0 30px rgba(0, 225, 255, 0.4);
+          }
+
+          .hotspotParts {
+            left: 3%;
+            top: 24%;
+            width: 20%;
+            height: 52%;
+          }
+
+          .hotspotPicks {
+            left: 22%;
+            top: 27%;
+            width: 17%;
+            height: 36%;
+          }
+
+          .hotspotExclusive {
+            left: 60%;
+            top: 27%;
+            width: 17%;
+            height: 36%;
+          }
+
+          .hotspotMachine {
+            right: 0%;
+            top: 24%;
+            width: 24%;
+            height: 52%;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .inventorHubPage {
+            padding-left: 14px;
+            padding-right: 14px;
+          }
+
+          .hubIntroPanel {
+            margin-top: 74px;
+          }
+
+          .hubZones {
+            margin-top: 14px;
+            gap: 12px;
+          }
+
+          .hubHotspot,
+          .hotspotLabel {
+            min-height: 76px;
+          }
+
+          .hotspotLabel {
+            padding: 13px 15px;
+            background:
+              linear-gradient(
+                145deg,
+                rgba(4, 18, 40, 0.52),
+                rgba(4, 12, 32, 0.62)
+              );
           }
 
           .hotspotLabel strong {
@@ -1563,7 +1651,6 @@ export default function InventorHubPage() {
 
           .hotspotLabel small {
             font-size: 11px;
-            line-height: 1.35;
           }
         }
       `}</style>
