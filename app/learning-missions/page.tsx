@@ -766,9 +766,9 @@ function MissionCard({
         borderRadius: "22px",
         border: `1px solid ${zone.accent}88`,
         background:
-          "linear-gradient(145deg, rgba(8,35,70,0.58), rgba(3,13,34,0.68))",
-        backdropFilter: "blur(14px)",
-        WebkitBackdropFilter: "blur(14px)",
+          "linear-gradient(145deg, rgba(8,35,70,0.10), rgba(3,13,34,0.10))",
+        backdropFilter: "blur(15px)",
+        WebkitBackdropFilter: "blur(15px)",
         boxShadow: `0 0 24px ${zone.accent}2b, 0 18px 42px rgba(0,0,0,0.28)`,
         padding: "22px",
         color: "white",
@@ -942,8 +942,8 @@ function getPopupPosition(zoneId: string): CSSProperties {
   switch (zoneId) {
     case "knowledge-arena":
       return {
-        left: "50%",
-        bottom: "7%",
+        left: "53%",
+        bottom: "20%",
         transform: "translateX(-50%)",
       };
 

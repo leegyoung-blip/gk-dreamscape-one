@@ -784,7 +784,7 @@ export default function WhosBluffingPage() {
         }}
       >
         <Link
-          href="/milo-world/activities-lab"
+          href="/milo-world/activity-lab"
           style={{
             ...darkButtonStyle,
             height: "42px",

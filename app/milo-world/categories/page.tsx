@@ -1181,7 +1181,7 @@ export default function MiloCategoriesPage() {
 
       <div className="relative z-10 mx-auto max-w-5xl">
         <Link
-          href="/milo-world/activities-lab"
+          href="/milo-world/activity-lab"
           className="inline-flex h-11 items-center rounded-full border border-cyan-200/25 bg-white/6 px-5 text-sm tracking-wide text-white shadow-[0_16px_36px_rgba(0,0,0,0.28)] backdrop-blur-xl transition hover:scale-[1.03] hover:border-cyan-200/45"
         >
           ← Back to Activity Lab
