@@ -8,33 +8,11 @@ import {
   coreUpgradeTrack,
   getCoreRoverProgress,
 } from "@/lib/coreRoverProgress";
-import {
-  DEFAULT_ROVER_LOADOUT,
-  getRoverCustomisationItem,
-  getRoverCustomisationItems,
-  roverCustomisationItems,
-  type RoverCustomisationCategory,
-  type RoverCustomisationItem,
-  type RoverLoadout,
-} from "@/lib/roverCustomisation";
 
 const COURSE_ID = "skyforge-test-track-01";
 
 type GarageTab = "upgrades" | "custom";
 type ScreenMode = "desktop" | "tablet" | "mobile";
-
-type PurchaseRow = {
-  success: boolean;
-  result_message: string;
-  new_balance: number;
-  equipped_key: string | null;
-};
-
-type EquipRow = {
-  success: boolean;
-  result_message: string;
-  equipped_key: string | null;
-};
 
 type SummaryRow = {
   rank: number | string;
@@ -44,6 +22,175 @@ type SummaryRow = {
   rover_stage: number;
   completed_at: string;
 };
+
+type GarageCustomCategory =
+  | "color"
+  | "trail"
+  | "decal";
+
+type GarageCustomOption = {
+  key: string;
+  category: GarageCustomCategory;
+  name: string;
+  description: string;
+  previewColor: string;
+  secondaryColor?: string;
+  icon?: string;
+  isDefault?: boolean;
+};
+
+const garageCustomisationGroups: {
+  id: GarageCustomCategory;
+  title: string;
+  description: string;
+  options: GarageCustomOption[];
+}[] = [
+  {
+    id: "color",
+    title: "Rover Colour",
+    description:
+      "The standard rover artwork is used with no colour overlay.",
+    options: [
+      {
+        key: "color-none",
+        category: "color",
+        name: "No Tint",
+        description:
+          "Use the original rover colours with no added tint.",
+        previewColor: "transparent",
+        isDefault: true,
+      },
+      {
+        key: "color-sky",
+        category: "color",
+        name: "Sky Blue",
+        description:
+          "A blue Skyforge finish.",
+        previewColor: "#8ee8ff",
+      },
+      {
+        key: "color-crimson",
+        category: "color",
+        name: "Crimson",
+        description:
+          "A bold red expedition finish.",
+        previewColor: "#ff7184",
+      },
+      {
+        key: "color-emerald",
+        category: "color",
+        name: "Emerald",
+        description:
+          "A bright green exploration finish.",
+        previewColor: "#73efb6",
+      },
+      {
+        key: "color-violet",
+        category: "color",
+        name: "Violet",
+        description:
+          "A futuristic purple energy finish.",
+        previewColor: "#b28cff",
+      },
+      {
+        key: "color-gold",
+        category: "color",
+        name: "Solar Gold",
+        description:
+          "A premium gold Skyforge finish.",
+        previewColor: "#ffd76a",
+      },
+    ],
+  },
+  {
+    id: "trail",
+    title: "Energy Trail",
+    description:
+      "The rover currently runs without a cosmetic energy trail.",
+    options: [
+      {
+        key: "trail-none",
+        category: "trail",
+        name: "No Energy Trail",
+        description:
+          "No cosmetic trail is shown behind the rover.",
+        previewColor: "transparent",
+        isDefault: true,
+      },
+      {
+        key: "trail-plasma",
+        category: "trail",
+        name: "Plasma Trail",
+        description:
+          "A bright cyan trail behind the rover.",
+        previewColor: "#6ef4ff",
+      },
+      {
+        key: "trail-spark",
+        category: "trail",
+        name: "Spark Trail",
+        description:
+          "A charged yellow energy trail.",
+        previewColor: "#ffe57c",
+        secondaryColor: "#ff8fcf",
+      },
+      {
+        key: "trail-starlight",
+        category: "trail",
+        name: "Starlight Trail",
+        description:
+          "A violet and blue light trail.",
+        previewColor: "#a978ff",
+        secondaryColor: "#6edaff",
+      },
+    ],
+  },
+  {
+    id: "decal",
+    title: "Body Decal",
+    description:
+      "The standard rover body is shown without an emblem.",
+    options: [
+      {
+        key: "decal-none",
+        category: "decal",
+        name: "No Decal",
+        description:
+          "Keep the rover body clean and unmarked.",
+        previewColor: "transparent",
+        icon: "—",
+        isDefault: true,
+      },
+      {
+        key: "decal-star",
+        category: "decal",
+        name: "Sky Star",
+        description:
+          "A bright explorer star emblem.",
+        previewColor: "#ffd76a",
+        icon: "★",
+      },
+      {
+        key: "decal-bolt",
+        category: "decal",
+        name: "Energy Bolt",
+        description:
+          "A lightning emblem for the rover body.",
+        previewColor: "#6ef4ff",
+        icon: "ϟ",
+      },
+      {
+        key: "decal-crest",
+        category: "decal",
+        name: "Explorer Crest",
+        description:
+          "Nova's expedition crest.",
+        previewColor: "#66f0d0",
+        icon: "◇",
+      },
+    ],
+  },
+];
 
 function useResponsiveMode() {
   const [mode, setMode] = useState<ScreenMode>("desktop");
@@ -72,39 +219,78 @@ export default function RoverGarageClient() {
   const isMobile = screenMode === "mobile";
   const isCompact = screenMode !== "desktop";
 
-  const [tab, setTab] = useState<GarageTab>("upgrades");
-  const [loading, setLoading] = useState(true);
-  const [actionKey, setActionKey] = useState<string | null>(null);
-  const [message, setMessage] = useState("");
+  const [tab, setTab] =
+    useState<GarageTab>("upgrades");
 
-  const [userId, setUserId] = useState<string | null>(null);
-  const [tokenBalance, setTokenBalance] = useState(0);
-  const [completedMissionCount, setCompletedMissionCount] = useState(0);
-  const [ownedKeys, setOwnedKeys] = useState<Set<string>>(new Set());
-  const [loadout, setLoadout] =
-    useState<RoverLoadout>(DEFAULT_ROVER_LOADOUT);
+  const [loading, setLoading] =
+    useState(true);
 
-  const [rank, setRank] = useState<number | null>(null);
-  const [bestScore, setBestScore] = useState<number | null>(null);
-  const [bestTimeMs, setBestTimeMs] = useState<number | null>(null);
-  const [orbsCollected, setOrbsCollected] = useState<number | null>(null);
+  const [userId, setUserId] =
+    useState<string | null>(null);
+
+  const [tokenBalance, setTokenBalance] =
+    useState(0);
+
+  const [
+    completedMissionCount,
+    setCompletedMissionCount,
+  ] = useState(0);
+
+  const [
+    selectedUpgradeStage,
+    setSelectedUpgradeStage,
+  ] = useState<number | null>(null);
+
+  const [rank, setRank] =
+    useState<number | null>(null);
+
+  const [bestScore, setBestScore] =
+    useState<number | null>(null);
+
+  const [bestTimeMs, setBestTimeMs] =
+    useState<number | null>(null);
+
+  const [orbsCollected, setOrbsCollected] =
+    useState<number | null>(null);
 
   const progress = useMemo(
-    () => getCoreRoverProgress(completedMissionCount),
-    [completedMissionCount]
+    () =>
+      getCoreRoverProgress(
+        completedMissionCount,
+      ),
+    [completedMissionCount],
   );
 
-  const currentColor =
-    getRoverCustomisationItem(loadout.colorKey) ??
-    getRoverCustomisationItem(DEFAULT_ROVER_LOADOUT.colorKey)!;
+  const displayedUpgrade = useMemo(() => {
+    const requestedStage =
+      selectedUpgradeStage ??
+      progress.currentUpgrade.stage;
 
-  const currentTrail =
-    getRoverCustomisationItem(loadout.trailKey) ??
-    getRoverCustomisationItem(DEFAULT_ROVER_LOADOUT.trailKey)!;
+    const requestedUpgrade =
+      coreUpgradeTrack.find(
+        (upgrade) =>
+          upgrade.stage ===
+          requestedStage,
+      );
 
-  const currentDecal =
-    getRoverCustomisationItem(loadout.decalKey) ??
-    getRoverCustomisationItem(DEFAULT_ROVER_LOADOUT.decalKey)!;
+    if (
+      requestedUpgrade &&
+      completedMissionCount >=
+        requestedUpgrade.missionsRequired
+    ) {
+      return requestedUpgrade;
+    }
+
+    return progress.currentUpgrade;
+  }, [
+    completedMissionCount,
+    progress.currentUpgrade,
+    selectedUpgradeStage,
+  ]);
+
+  const viewingCurrentBuild =
+    displayedUpgrade.stage ===
+    progress.currentUpgrade.stage;
 
   const loadGarage = useCallback(async () => {
     setLoading(true);
@@ -124,36 +310,35 @@ export default function RoverGarageClient() {
     const [
       tokensResult,
       attemptsResult,
-      ownedResult,
-      loadoutResult,
       summaryResult,
     ] = await Promise.all([
       supabase
-        .from("dream_token_transactions")
+        .from(
+          "dream_token_transactions",
+        )
         .select("amount")
         .eq("user_id", user.id)
-        .eq("token_kind", "virtual"),
+        .eq(
+          "token_kind",
+          "virtual",
+        ),
 
       supabase
-        .from("core_mission_attempts")
-        .select("quiz_id, tokens_earned")
+        .from(
+          "core_mission_attempts",
+        )
+        .select(
+          "quiz_id, tokens_earned",
+        )
         .eq("user_id", user.id)
         .gt("tokens_earned", 0),
 
-      supabase
-        .from("user_rover_customisations")
-        .select("item_key")
-        .eq("user_id", user.id),
-
-      supabase
-        .from("user_rover_loadouts")
-        .select("color_key, trail_key, decal_key")
-        .eq("user_id", user.id)
-        .maybeSingle(),
-
-      supabase.rpc("get_my_rover_challenge_summary", {
-        p_course_id: COURSE_ID,
-      }),
+      supabase.rpc(
+        "get_my_rover_challenge_summary",
+        {
+          p_course_id: COURSE_ID,
+        },
+      ),
     ]);
 
     if (tokensResult.error) {
@@ -177,39 +362,6 @@ export default function RoverGarageClient() {
         (attemptsResult.data ?? []).map((row) => row.quiz_id)
       );
       setCompletedMissionCount(completed.size);
-    }
-
-    if (ownedResult.error) {
-      console.warn(
-        "Could not load rover purchases:",
-        ownedResult.error.message
-      );
-    } else {
-      const keys = new Set(
-        (ownedResult.data ?? []).map((row) => row.item_key)
-      );
-      for (const item of roverCustomisationItems) {
-        if (item.price === 0) keys.add(item.key);
-      }
-      setOwnedKeys(keys);
-    }
-
-    if (loadoutResult.error) {
-      console.warn(
-        "Could not load rover loadout:",
-        loadoutResult.error.message
-      );
-    } else if (loadoutResult.data) {
-      setLoadout({
-        colorKey:
-          loadoutResult.data.color_key ?? DEFAULT_ROVER_LOADOUT.colorKey,
-        trailKey:
-          loadoutResult.data.trail_key ?? DEFAULT_ROVER_LOADOUT.trailKey,
-        decalKey:
-          loadoutResult.data.decal_key ?? DEFAULT_ROVER_LOADOUT.decalKey,
-      });
-    } else {
-      setLoadout(DEFAULT_ROVER_LOADOUT);
     }
 
     if (summaryResult.error) {
@@ -254,66 +406,6 @@ export default function RoverGarageClient() {
       window.removeEventListener("dream-tokens-updated", handleTokenUpdate);
     };
   }, [loadGarage]);
-
-  async function purchaseOrEquip(item: RoverCustomisationItem) {
-    if (!userId || actionKey) return;
-
-    setActionKey(item.key);
-    setMessage("");
-
-    const owned = ownedKeys.has(item.key) || item.price === 0;
-
-    if (owned) {
-      const { data, error } = await supabase.rpc(
-        "equip_rover_customisation",
-        {
-          p_item_key: item.key,
-        }
-      );
-
-      if (error) {
-        setMessage(`Could not equip this item: ${error.message}`);
-        setActionKey(null);
-        return;
-      }
-
-      const row = ((data ?? []) as EquipRow[])[0];
-      setMessage(row?.result_message || "Customisation equipped.");
-    } else {
-      const { data, error } = await supabase.rpc(
-        "purchase_rover_customisation",
-        {
-          p_item_key: item.key,
-        }
-      );
-
-      if (error) {
-        setMessage(`Could not complete purchase: ${error.message}`);
-        setActionKey(null);
-        return;
-      }
-
-      const row = ((data ?? []) as PurchaseRow[])[0];
-
-      if (!row?.success) {
-        setMessage(row?.result_message || "Purchase was not completed.");
-        setActionKey(null);
-        return;
-      }
-
-      setMessage(row.result_message);
-      setTokenBalance(Number(row.new_balance));
-    }
-
-    await loadGarage();
-    setActionKey(null);
-  }
-
-  function equipped(item: RoverCustomisationItem) {
-    if (item.category === "color") return loadout.colorKey === item.key;
-    if (item.category === "trail") return loadout.trailKey === item.key;
-    return loadout.decalKey === item.key;
-  }
 
   if (loading) {
     return (
@@ -385,13 +477,17 @@ export default function RoverGarageClient() {
 
       <section style={garageShell(isMobile)}>
         <div style={previewColumn(isCompact)}>
-          <div style={previewCard(progress.currentUpgrade.accent)}>
+          <div style={previewCard(displayedUpgrade.accent)}>
             <div style={previewTopRow}>
               <div>
-                <p style={smallEyebrow}>CURRENT BUILD</p>
+                <p style={smallEyebrow}>
+                  {viewingCurrentBuild
+                    ? "CURRENT BUILD"
+                    : "VIEWING UNLOCKED BUILD"}
+                </p>
                 <h2 style={currentBuildTitle}>
-                  Stage {progress.currentUpgrade.stage} ·{" "}
-                  {progress.currentUpgrade.name}
+                  Stage {displayedUpgrade.stage} ·{" "}
+                  {displayedUpgrade.name}
                 </h2>
               </div>
               <div style={rankPill(rank)}>
@@ -400,16 +496,29 @@ export default function RoverGarageClient() {
             </div>
 
             <RoverPreview
-              imageSrc={progress.currentUpgrade.imageSrc}
-              color={currentColor}
-              trail={currentTrail}
-              decal={currentDecal}
+              imageSrc={
+                displayedUpgrade.imageSrc
+              }
               isMobile={isMobile}
             />
 
             <p style={upgradeDescription}>
-              {progress.currentUpgrade.description}
+              {displayedUpgrade.description}
             </p>
+
+            {!viewingCurrentBuild && (
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedUpgradeStage(
+                    progress.currentUpgrade.stage,
+                  )
+                }
+                style={returnCurrentButton}
+              >
+                Return to Current Build
+              </button>
+            )}
 
             <div style={progressTrack}>
               <div
@@ -483,17 +592,21 @@ export default function RoverGarageClient() {
             </button>
           </div>
 
-          {message && <div style={messageBanner}>{message}</div>}
-
           {tab === "upgrades" ? (
-            <UpgradeTrack completedMissionCount={completedMissionCount} />
+            <UpgradeTrack
+              completedMissionCount={
+                completedMissionCount
+              }
+              selectedStage={
+                displayedUpgrade.stage
+              }
+              onSelectStage={
+                setSelectedUpgradeStage
+              }
+            />
           ) : (
             <CustomBuildPanel
               tokenBalance={tokenBalance}
-              ownedKeys={ownedKeys}
-              equipped={equipped}
-              actionKey={actionKey}
-              onChoose={(item) => void purchaseOrEquip(item)}
               isMobile={isMobile}
             />
           )}
@@ -505,78 +618,24 @@ export default function RoverGarageClient() {
 
 function RoverPreview({
   imageSrc,
-  color,
-  trail,
-  decal,
   isMobile,
 }: {
   imageSrc: string;
-  color: RoverCustomisationItem;
-  trail: RoverCustomisationItem;
-  decal: RoverCustomisationItem;
   isMobile: boolean;
 }) {
-  const hasTrail = trail.key !== "trail-none";
-
   return (
     <div style={previewStage(isMobile)}>
-      {hasTrail && (
-        <>
-          <div
-            style={{
-              ...trailGlow,
-              background: `linear-gradient(90deg, transparent, ${trail.previewColor}, ${
-                trail.secondaryColor || trail.previewColor
-              })`,
-              boxShadow: `0 0 28px ${trail.previewColor}`,
-            }}
-          />
-          <div
-            style={{
-              ...trailCore,
-              background: `linear-gradient(90deg, transparent, ${
-                trail.secondaryColor || trail.previewColor
-              })`,
-            }}
-          />
-        </>
-      )}
-
       <img
         src={imageSrc}
-        alt="Current Skyforge Rover"
+        alt="Selected Skyforge Rover"
         draggable={false}
         style={roverImage}
       />
 
-      <div
-        aria-hidden="true"
-        style={{
-          ...roverTintMask,
-          background: `linear-gradient(135deg, ${color.previewColor}, ${
-            color.secondaryColor || color.previewColor
-          })`,
-          WebkitMaskImage: `url("${imageSrc}")`,
-          maskImage: `url("${imageSrc}")`,
-        }}
-      />
-
-      {decal.icon && (
-        <div
-          style={{
-            ...decalBadge,
-            color: decal.previewColor,
-            textShadow: `0 0 16px ${decal.previewColor}`,
-          }}
-        >
-          {decal.icon}
-        </div>
-      )}
-
       <div style={loadoutLabels}>
-        <span>{color.name}</span>
-        <span>{trail.name}</span>
-        <span>{decal.name}</span>
+        <span>No Tint</span>
+        <span>No Energy Trail</span>
+        <span>No Decal</span>
       </div>
     </div>
   );
@@ -584,66 +643,144 @@ function RoverPreview({
 
 function UpgradeTrack({
   completedMissionCount,
+  selectedStage,
+  onSelectStage,
 }: {
   completedMissionCount: number;
+  selectedStage: number;
+  onSelectStage: (
+    stage: number,
+  ) => void;
 }) {
   return (
     <div style={scrollPanel}>
       <div style={panelHeading}>
-        <p style={smallEyebrow}>MISSION UNLOCKS</p>
-        <h2 style={{ margin: "7px 0 0" }}>Rover Upgrade Track</h2>
+        <p style={smallEyebrow}>
+          MISSION UNLOCKS
+        </p>
+
+        <h2 style={{ margin: "7px 0 0" }}>
+          Rover Upgrade Track
+        </h2>
+
         <p style={panelDescription}>
-          Complete new Core Mission quizzes to unlock performance upgrades.
-          Replays do not add progress.
+          Complete new Core Mission quizzes
+          to unlock performance upgrades.
+          Select any previously unlocked
+          build to view it. Replays do not
+          add progress.
         </p>
       </div>
 
       <div style={upgradeList}>
-        {coreUpgradeTrack.map((upgrade, index) => {
-          const unlocked = completedMissionCount >= upgrade.missionsRequired;
-          const current =
-            unlocked &&
-            (index === coreUpgradeTrack.length - 1 ||
-              completedMissionCount <
-                coreUpgradeTrack[index + 1].missionsRequired);
+        {coreUpgradeTrack.map(
+          (upgrade, index) => {
+            const unlocked =
+              completedMissionCount >=
+              upgrade.missionsRequired;
 
-          return (
-            <div
-              key={upgrade.stage}
-              style={upgradeRow(unlocked, current, upgrade.accent)}
-            >
-              <div style={stageNumber(unlocked, upgrade.accent)}>
-                {upgrade.stage}
-              </div>
+            const current =
+              unlocked &&
+              (index ===
+                coreUpgradeTrack.length -
+                  1 ||
+                completedMissionCount <
+                  coreUpgradeTrack[
+                    index + 1
+                  ].missionsRequired);
 
-              <img
-                src={upgrade.imageSrc}
-                alt={upgrade.name}
-                draggable={false}
-                style={{
-                  width: "110px",
-                  height: "76px",
-                  objectFit: "contain",
-                  opacity: unlocked ? 1 : 0.35,
+            const selected =
+              selectedStage ===
+              upgrade.stage;
+
+            return (
+              <button
+                key={upgrade.stage}
+                type="button"
+                disabled={!unlocked}
+                onClick={() => {
+                  if (unlocked) {
+                    onSelectStage(
+                      upgrade.stage,
+                    );
+                  }
                 }}
-              />
+                aria-pressed={selected}
+                style={upgradeRow(
+                  unlocked,
+                  current,
+                  selected,
+                  upgrade.accent,
+                )}
+              >
+                <div
+                  style={stageNumber(
+                    unlocked,
+                    upgrade.accent,
+                  )}
+                >
+                  {upgrade.stage}
+                </div>
 
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <p style={upgradeStatus(unlocked, current, upgrade.accent)}>
-                  {current
-                    ? "CURRENT BUILD"
-                    : unlocked
-                    ? "UNLOCKED"
-                    : `${upgrade.missionsRequired} MISSIONS`}
-                </p>
-                <h3 style={{ margin: "5px 0 0", fontSize: "18px" }}>
-                  {upgrade.name}
-                </h3>
-                <p style={upgradeRowDescription}>{upgrade.description}</p>
-              </div>
-            </div>
-          );
-        })}
+                <img
+                  src={upgrade.imageSrc}
+                  alt={upgrade.name}
+                  draggable={false}
+                  style={{
+                    width: "110px",
+                    height: "76px",
+                    objectFit: "contain",
+                    opacity: unlocked
+                      ? 1
+                      : 0.35,
+                  }}
+                />
+
+                <div
+                  style={{
+                    minWidth: 0,
+                    flex: 1,
+                    textAlign: "left",
+                  }}
+                >
+                  <p
+                    style={upgradeStatus(
+                      unlocked,
+                      current,
+                      selected,
+                      upgrade.accent,
+                    )}
+                  >
+                    {current
+                      ? "CURRENT BUILD"
+                      : selected
+                        ? "VIEWING"
+                        : unlocked
+                          ? "UNLOCKED · SELECT"
+                          : `${upgrade.missionsRequired} MISSIONS`}
+                  </p>
+
+                  <h3
+                    style={{
+                      margin: "5px 0 0",
+                      fontSize: "18px",
+                    }}
+                  >
+                    {upgrade.name}
+                  </h3>
+
+                  <p
+                    style={
+                      upgradeRowDescription
+                    }
+                  >
+                    {upgrade.description}
+                  </p>
+                </div>
+              </button>
+            );
+          },
+        )}
       </div>
     </div>
   );
@@ -651,123 +788,145 @@ function UpgradeTrack({
 
 function CustomBuildPanel({
   tokenBalance,
-  ownedKeys,
-  equipped,
-  actionKey,
-  onChoose,
   isMobile,
 }: {
   tokenBalance: number;
-  ownedKeys: Set<string>;
-  equipped: (item: RoverCustomisationItem) => boolean;
-  actionKey: string | null;
-  onChoose: (item: RoverCustomisationItem) => void;
   isMobile: boolean;
 }) {
-  const categories: {
-    id: RoverCustomisationCategory;
-    title: string;
-    description: string;
-  }[] = [
-    {
-      id: "color",
-      title: "Rover Colour",
-      description: "Change the main Skyforge finish.",
-    },
-    {
-      id: "trail",
-      title: "Energy Trail",
-      description: "Choose the light trail behind your rover.",
-    },
-    {
-      id: "decal",
-      title: "Body Decal",
-      description: "Add an emblem to your build.",
-    },
-  ];
-
   return (
     <div style={scrollPanel}>
       <div style={panelHeading}>
-        <p style={smallEyebrow}>COSMETIC CUSTOMISATION</p>
-        <h2 style={{ margin: "7px 0 0" }}>Custom Build</h2>
+        <p style={smallEyebrow}>
+          COSMETIC CUSTOMISATION
+        </p>
+
+        <h2 style={{ margin: "7px 0 0" }}>
+          Custom Build
+        </h2>
+
         <p style={panelDescription}>
-          Cosmetic options use Dreamscape Tokens but do not improve rover
-          performance. Balance: <strong>{tokenBalance} DT</strong>
+          The standard build currently uses
+          no tint, no energy trail and no
+          decal. Additional cosmetic options
+          are locked for now. Balance:{" "}
+          <strong>{tokenBalance} DT</strong>
         </p>
       </div>
 
-      <div style={{ display: "grid", gap: "18px" }}>
-        {categories.map((category) => (
-          <section key={category.id}>
-            <h3 style={{ margin: 0, fontSize: "19px" }}>{category.title}</h3>
-            <p style={{ margin: "5px 0 10px", opacity: 0.58, fontSize: "13px" }}>
-              {category.description}
-            </p>
+      <div
+        style={{
+          display: "grid",
+          gap: "18px",
+        }}
+      >
+        {garageCustomisationGroups.map(
+          (group) => (
+            <section key={group.id}>
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: "19px",
+                }}
+              >
+                {group.title}
+              </h3>
 
-            <div style={customGrid(isMobile)}>
-              {getRoverCustomisationItems(category.id).map((item) => {
-                const isOwned = ownedKeys.has(item.key) || item.price === 0;
-                const isEquipped = equipped(item);
-                const isWorking = actionKey === item.key;
-                const canAfford = tokenBalance >= item.price;
+              <p
+                style={{
+                  margin: "5px 0 10px",
+                  opacity: 0.58,
+                  fontSize: "13px",
+                }}
+              >
+                {group.description}
+              </p>
 
-                return (
-                  <div
-                    key={item.key}
-                    style={customCard(isEquipped, item.previewColor)}
-                  >
-                    <CustomSwatch item={item} />
-
-                    <div style={{ minWidth: 0 }}>
-                      <p style={customName}>{item.name}</p>
-                      <p style={customDescription}>{item.description}</p>
-                    </div>
-
-                    <button
-                      type="button"
-                      disabled={
-                        isEquipped ||
-                        Boolean(actionKey) ||
-                        (!isOwned && !canAfford)
-                      }
-                      onClick={() => onChoose(item)}
-                      style={customActionButton(
-                        isEquipped,
-                        isOwned,
-                        !isOwned && !canAfford
+              <div
+                style={customGrid(
+                  isMobile,
+                )}
+              >
+                {group.options.map(
+                  (item) => (
+                    <div
+                      key={item.key}
+                      style={customCard(
+                        Boolean(
+                          item.isDefault,
+                        ),
+                        item.previewColor,
                       )}
                     >
-                      {isWorking
-                        ? "Saving..."
-                        : isEquipped
-                        ? "Equipped"
-                        : isOwned
-                        ? "Equip"
-                        : canAfford
-                        ? `${item.price} DT`
-                        : `Need ${item.price} DT`}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        ))}
+                      <CustomSwatch
+                        item={item}
+                      />
+
+                      <div
+                        style={{
+                          minWidth: 0,
+                        }}
+                      >
+                        <p
+                          style={customName}
+                        >
+                          {item.name}
+                        </p>
+
+                        <p
+                          style={
+                            customDescription
+                          }
+                        >
+                          {item.description}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled
+                        style={customActionButton(
+                          Boolean(
+                            item.isDefault,
+                          ),
+                        )}
+                      >
+                        {item.isDefault
+                          ? "Default"
+                          : "Locked"}
+                      </button>
+                    </div>
+                  ),
+                )}
+              </div>
+            </section>
+          ),
+        )}
       </div>
     </div>
   );
 }
 
-function CustomSwatch({ item }: { item: RoverCustomisationItem }) {
+function CustomSwatch({
+  item,
+}: {
+  item: GarageCustomOption;
+}) {
   if (item.category === "decal") {
     return (
       <div
         style={{
           ...swatch,
-          color: item.previewColor,
+          color:
+            item.previewColor ===
+            "transparent"
+              ? "rgba(255,255,255,0.55)"
+              : item.previewColor,
           fontSize: "28px",
-          textShadow: `0 0 14px ${item.previewColor}`,
+          textShadow:
+            item.previewColor ===
+            "transparent"
+              ? "none"
+              : `0 0 14px ${item.previewColor}`,
         }}
       >
         {item.icon || "—"}
@@ -775,7 +934,10 @@ function CustomSwatch({ item }: { item: RoverCustomisationItem }) {
     );
   }
 
-  if (item.category === "trail" && item.key !== "trail-none") {
+  if (
+    item.category === "trail" &&
+    !item.isDefault
+  ) {
     return (
       <div style={swatch}>
         <div
@@ -785,7 +947,10 @@ function CustomSwatch({ item }: { item: RoverCustomisationItem }) {
             borderRadius: "999px",
             background: `linear-gradient(90deg, transparent, ${
               item.previewColor
-            }, ${item.secondaryColor || item.previewColor})`,
+            }, ${
+              item.secondaryColor ||
+              item.previewColor
+            })`,
             boxShadow: `0 0 16px ${item.previewColor}`,
           }}
         />
@@ -801,12 +966,20 @@ function CustomSwatch({ item }: { item: RoverCustomisationItem }) {
           height: "30px",
           borderRadius: "999px",
           background:
-            item.previewColor === "transparent"
-              ? "rgba(255,255,255,0.08)"
-              : `linear-gradient(135deg, ${item.previewColor}, ${
-                  item.secondaryColor || item.previewColor
+            item.previewColor ===
+            "transparent"
+              ? "rgba(255,255,255,0.025)"
+              : `linear-gradient(135deg, ${
+                  item.previewColor
+                }, ${
+                  item.secondaryColor ||
+                  item.previewColor
                 })`,
-          border: "1px solid rgba(255,255,255,0.25)",
+          border:
+            item.previewColor ===
+            "transparent"
+              ? "1px dashed rgba(255,255,255,0.32)"
+              : "1px solid rgba(255,255,255,0.25)",
         }}
       />
     </div>
@@ -1003,58 +1176,7 @@ const roverImage: CSSProperties = {
   width: "88%",
   height: "80%",
   objectFit: "contain",
-  filter: "drop-shadow(0 24px 34px rgba(0,0,0,0.55)) saturate(0.85)",
-};
-
-const roverTintMask: CSSProperties = {
-  position: "absolute",
-  zIndex: 5,
-  width: "88%",
-  height: "80%",
-  WebkitMaskSize: "contain",
-  maskSize: "contain",
-  WebkitMaskRepeat: "no-repeat",
-  maskRepeat: "no-repeat",
-  WebkitMaskPosition: "center",
-  maskPosition: "center",
-  mixBlendMode: "color",
-  opacity: 0.65,
-  pointerEvents: "none",
-};
-
-const trailGlow: CSSProperties = {
-  position: "absolute",
-  zIndex: 1,
-  left: "7%",
-  top: "51%",
-  width: "44%",
-  height: "28px",
-  borderRadius: "999px",
-  filter: "blur(8px)",
-  opacity: 0.85,
-  transform: "skewX(-20deg)",
-};
-
-const trailCore: CSSProperties = {
-  position: "absolute",
-  zIndex: 2,
-  left: "10%",
-  top: "54%",
-  width: "38%",
-  height: "7px",
-  borderRadius: "999px",
-  opacity: 0.9,
-  transform: "skewX(-20deg)",
-};
-
-const decalBadge: CSSProperties = {
-  position: "absolute",
-  zIndex: 8,
-  left: "53%",
-  top: "47%",
-  transform: "translate(-50%,-50%)",
-  fontSize: "clamp(32px,5vw,54px)",
-  fontWeight: 900,
+  filter: "drop-shadow(0 24px 34px rgba(0,0,0,0.55))",
 };
 
 const loadoutLabels: CSSProperties = {
@@ -1077,6 +1199,22 @@ const upgradeDescription: CSSProperties = {
   fontSize: "14px",
   lineHeight: 1.5,
 };
+
+const returnCurrentButton: CSSProperties = {
+  marginTop: "11px",
+  minHeight: "38px",
+  borderRadius: "11px",
+  border:
+    "1px solid rgba(126,232,255,0.28)",
+  background:
+    "rgba(126,232,255,0.08)",
+  color: "#c9f9ff",
+  padding: "0 14px",
+  fontSize: "12px",
+  fontWeight: 800,
+  cursor: "pointer",
+};
+
 
 const progressTrack: CSSProperties = {
   marginTop: "15px",
@@ -1183,16 +1321,6 @@ function tabButton(active: boolean): CSSProperties {
   };
 }
 
-const messageBanner: CSSProperties = {
-  margin: "12px 14px 0",
-  borderRadius: "12px",
-  border: "1px solid rgba(126,232,255,0.22)",
-  background: "rgba(126,232,255,0.07)",
-  color: "#c9f9ff",
-  padding: "10px 12px",
-  fontSize: "12px",
-};
-
 const scrollPanel: CSSProperties = {
   padding: "18px",
 };
@@ -1216,23 +1344,39 @@ const upgradeList: CSSProperties = {
 function upgradeRow(
   unlocked: boolean,
   current: boolean,
-  accent: string
+  selected: boolean,
+  accent: string,
 ): CSSProperties {
   return {
+    width: "100%",
     borderRadius: "16px",
-    border: current
-      ? `1px solid ${accent}88`
-      : unlocked
-      ? "1px solid rgba(134,239,172,0.22)"
-      : "1px solid rgba(255,255,255,0.08)",
-    background: current
-      ? `linear-gradient(135deg, ${accent}18, rgba(255,255,255,0.04))`
-      : "rgba(255,255,255,0.035)",
+    border: selected
+      ? `1px solid ${accent}`
+      : current
+        ? `1px solid ${accent}88`
+        : unlocked
+          ? "1px solid rgba(134,239,172,0.22)"
+          : "1px solid rgba(255,255,255,0.08)",
+    background: selected
+      ? `linear-gradient(135deg, ${accent}26, rgba(255,255,255,0.06))`
+      : current
+        ? `linear-gradient(135deg, ${accent}18, rgba(255,255,255,0.04))`
+        : "rgba(255,255,255,0.035)",
     padding: "11px",
     display: "flex",
     alignItems: "center",
     gap: "12px",
     opacity: unlocked ? 1 : 0.58,
+    color: "white",
+    fontFamily: "inherit",
+    cursor: unlocked
+      ? "pointer"
+      : "not-allowed",
+    boxShadow: selected
+      ? `0 0 22px ${accent}22`
+      : "none",
+    transition:
+      "border 160ms ease, background 160ms ease, box-shadow 160ms ease",
   };
 }
 
@@ -1255,11 +1399,18 @@ function stageNumber(unlocked: boolean, accent: string): CSSProperties {
 function upgradeStatus(
   unlocked: boolean,
   current: boolean,
-  accent: string
+  selected: boolean,
+  accent: string,
 ): CSSProperties {
   return {
     margin: 0,
-    color: current ? accent : unlocked ? "#86efac" : "rgba(255,255,255,0.4)",
+    color: current
+      ? accent
+      : selected
+        ? "#7ee8ff"
+        : unlocked
+          ? "#86efac"
+          : "rgba(255,255,255,0.4)",
     fontSize: "9px",
     letterSpacing: "0.14em",
     fontWeight: 900,
@@ -1283,20 +1434,30 @@ function customGrid(isMobile: boolean): CSSProperties {
   };
 }
 
-function customCard(equipped: boolean, accent: string): CSSProperties {
+function customCard(
+  isDefault: boolean,
+  accent: string,
+): CSSProperties {
+  const effectiveAccent =
+    accent === "transparent"
+      ? "#7ee8ff"
+      : accent;
+
   return {
     borderRadius: "15px",
-    border: equipped
-      ? `1px solid ${accent === "transparent" ? "#7ee8ff" : accent}88`
-      : "1px solid rgba(255,255,255,0.09)",
-    background: equipped
+    border: isDefault
+      ? `1px solid ${effectiveAccent}88`
+      : "1px solid rgba(255,255,255,0.07)",
+    background: isDefault
       ? "rgba(126,232,255,0.08)"
-      : "rgba(255,255,255,0.035)",
+      : "rgba(255,255,255,0.025)",
     padding: "10px",
     display: "grid",
-    gridTemplateColumns: "50px minmax(0,1fr) auto",
+    gridTemplateColumns:
+      "50px minmax(0,1fr) auto",
     gap: "10px",
     alignItems: "center",
+    opacity: isDefault ? 1 : 0.48,
   };
 }
 
@@ -1325,32 +1486,25 @@ const customDescription: CSSProperties = {
 };
 
 function customActionButton(
-  equipped: boolean,
-  owned: boolean,
-  unaffordable: boolean
+  isDefault: boolean,
 ): CSSProperties {
   return {
     minWidth: "78px",
     minHeight: "36px",
     borderRadius: "10px",
-    border: equipped
+    border: isDefault
       ? "1px solid rgba(134,239,172,0.36)"
-      : "1px solid rgba(126,232,255,0.24)",
-    background: equipped
+      : "1px solid rgba(255,255,255,0.1)",
+    background: isDefault
       ? "rgba(34,197,94,0.15)"
-      : owned
-      ? "rgba(126,232,255,0.1)"
-      : "linear-gradient(135deg, #35c5ff, #4c6dff)",
-    color: equipped
+      : "rgba(255,255,255,0.04)",
+    color: isDefault
       ? "#86efac"
-      : unaffordable
-      ? "rgba(255,255,255,0.34)"
-      : "white",
+      : "rgba(255,255,255,0.42)",
     padding: "0 10px",
     fontSize: "11px",
     fontWeight: 900,
-    cursor: equipped || unaffordable ? "default" : "pointer",
-    opacity: unaffordable ? 0.6 : 1,
+    cursor: "default",
   };
 }
 

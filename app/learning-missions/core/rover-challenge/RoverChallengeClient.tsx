@@ -62,10 +62,6 @@ type FullscreenGameElement = HTMLDivElement & {
   webkitRequestFullscreen?: () => Promise<void> | void;
 };
 
-type LockableScreenOrientation = ScreenOrientation & {
-  lock?: (orientation: "landscape") => Promise<void>;
-  unlock?: () => void;
-};
 
 const PhaserGame = dynamic<PhaserGameProps>(
   () => import("./PhaserGame"),
@@ -138,15 +134,6 @@ export default function RoverChallengeClient() {
     setIsFallbackFullscreen,
   ] = useState(false);
 
-  const [
-    isMobileDevice,
-    setIsMobileDevice,
-  ] = useState(false);
-
-  const [
-    isPortrait,
-    setIsPortrait,
-  ] = useState(false);
 
   const isGameFullscreen =
     isNativeFullscreen ||
@@ -476,18 +463,6 @@ export default function RoverChallengeClient() {
         setIsFallbackFullscreen(true);
       }
 
-      try {
-        const orientation =
-          window.screen
-            .orientation as
-            LockableScreenOrientation;
-
-        await orientation.lock?.(
-          "landscape",
-        );
-      } catch {
-        // Some mobile browsers do not support orientation locking.
-      }
 
       refreshGameSize();
     }, [refreshGameSize]);
@@ -518,16 +493,6 @@ export default function RoverChallengeClient() {
 
       setIsFallbackFullscreen(false);
 
-      try {
-        const orientation =
-          window.screen
-            .orientation as
-            LockableScreenOrientation;
-
-        orientation.unlock?.();
-      } catch {
-        // Orientation unlock is optional.
-      }
 
       refreshGameSize();
     }, [refreshGameSize]);
@@ -545,54 +510,6 @@ export default function RoverChallengeClient() {
       requestGameFullscreen,
     ]);
 
-  useEffect(() => {
-    function updateViewportState() {
-      const width =
-        window.innerWidth;
-
-      const height =
-        window.innerHeight;
-
-      const usesCoarsePointer =
-        window.matchMedia(
-          "(pointer: coarse)",
-        ).matches;
-
-      setIsMobileDevice(
-        usesCoarsePointer &&
-          Math.min(width, height) <=
-            1024,
-      );
-
-      setIsPortrait(
-        height > width,
-      );
-    }
-
-    updateViewportState();
-
-    window.addEventListener(
-      "resize",
-      updateViewportState,
-    );
-
-    window.addEventListener(
-      "orientationchange",
-      updateViewportState,
-    );
-
-    return () => {
-      window.removeEventListener(
-        "resize",
-        updateViewportState,
-      );
-
-      window.removeEventListener(
-        "orientationchange",
-        updateViewportState,
-      );
-    };
-  }, []);
 
   useEffect(() => {
     const fullscreenDocument =
@@ -632,24 +549,6 @@ export default function RoverChallengeClient() {
     };
   }, [refreshGameSize]);
 
-  useEffect(() => {
-    if (
-      isMobileDevice &&
-      !isPortrait &&
-      !isNativeFullscreen
-    ) {
-      /*
-       * Mobile browsers normally require a tap for native fullscreen.
-       * This viewport fallback still makes the game fill the complete
-       * landscape screen immediately after rotation.
-       */
-      setIsFallbackFullscreen(true);
-    }
-  }, [
-    isMobileDevice,
-    isNativeFullscreen,
-    isPortrait,
-  ]);
 
   useEffect(() => {
     if (!isFallbackFullscreen) {
@@ -703,8 +602,8 @@ export default function RoverChallengeClient() {
         </div>
       </header>
 
-      <section className="relative z-10">
-        <div className="mx-auto mb-5 flex w-full max-w-[1600px] flex-col gap-2 px-4 sm:flex-row sm:items-end sm:justify-between sm:px-8">
+      <section className="relative z-10 px-3 sm:px-5">
+        <div className="mx-auto mb-5 flex w-full max-w-[1600px] flex-col gap-2 px-1 sm:flex-row sm:items-end sm:justify-between sm:px-3">
           <div>
             <p className="mb-2 text-xs font-semibold tracking-[0.28em] text-cyan-300">
               TEST COURSE 01
@@ -743,7 +642,16 @@ export default function RoverChallengeClient() {
                     ? "relative"
                     : "fixed inset-0 z-[1000]"
                 } h-[100dvh] w-screen overflow-hidden bg-[#050713]`
-              : "relative aspect-video w-screen overflow-hidden border-y border-white/10 bg-black shadow-[0_30px_100px_rgba(0,0,0,0.45)]"
+              : "relative mx-auto overflow-hidden rounded-[24px] border border-white/10 bg-black shadow-[0_30px_100px_rgba(0,0,0,0.45)]"
+          }
+          style={
+            isGameFullscreen
+              ? undefined
+              : {
+                  width:
+                    "min(100%, calc((100dvh - 170px) * 16 / 9))",
+                  aspectRatio: "16 / 9",
+                }
           }
         >
           <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-px bg-gradient-to-r from-transparent via-cyan-300/70 to-transparent" />
@@ -791,47 +699,9 @@ export default function RoverChallengeClient() {
               ? "↙"
               : "⛶"}
           </button>
-
-          {isMobileDevice &&
-            isPortrait && (
-              <div className="absolute inset-0 z-[70] flex items-center justify-center bg-[#030713]/95 px-7 text-center backdrop-blur-md">
-                <div className="max-w-sm">
-                  <div className="mx-auto flex h-20 w-12 rotate-90 items-center justify-center rounded-xl border-2 border-cyan-200/65 bg-cyan-300/10 shadow-[0_0_30px_rgba(83,215,255,0.24)]">
-                    <div className="h-1.5 w-1.5 rounded-full bg-cyan-100" />
-                  </div>
-
-                  <p className="mt-7 text-[11px] font-bold tracking-[0.26em] text-cyan-300">
-                    LANDSCAPE REQUIRED
-                  </p>
-
-                  <h2 className="mt-3 text-2xl font-bold">
-                    Rotate your phone horizontally
-                  </h2>
-
-                  <p className="mt-3 text-sm leading-6 text-white/60">
-                    The Rover Challenge uses
-                    landscape controls. Rotate
-                    your phone for the full
-                    game view.
-                  </p>
-
-                  {!isGameFullscreen && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void requestGameFullscreen();
-                      }}
-                      className="mt-6 rounded-full border border-cyan-200/30 bg-cyan-300/15 px-6 py-3 text-sm font-bold text-cyan-50 shadow-[0_0_24px_rgba(83,215,255,0.2)]"
-                    >
-                      Enter Landscape Game
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
         </div>
 
-        <div className="mx-auto w-full max-w-[1600px] px-4 pb-10 pt-4 sm:px-8">
+        <div className="mx-auto w-full max-w-[1600px] px-1 pb-10 pt-4 sm:px-3">
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <InfoCard
             label="Course"

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
 
@@ -12,12 +12,13 @@ type ViewName =
   | "setup"
   | "analytics"
   | "market"
-  | "sell";
+  | "sell"
+  | "talk";
 
 type SlotStatus = "empty" | "setup" | "running";
 type TierId = "budget" | "balanced" | "premium";
 type SimulationSpeed = 0 | 1 | 24 | 168 | 1440;
-type FundingStep = "milo" | "personal";
+type FundingStep = "personal" | "milo";
 type CycleStatus = "running" | "awaiting-allocation" | "settled";
 type SetupCategoryId =
   | "location"
@@ -27,6 +28,30 @@ type SetupCategoryId =
   | "marketing";
 
 type SetupSelections = Record<SetupCategoryId, TierId>;
+
+type OperatingControls = {
+  stockUnits: number;
+  staffCount: number;
+  averageMonthlySalary: number;
+  onlineMarketingBudget: number;
+  offlineMarketingBudget: number;
+};
+
+type SimulationEventRecord = {
+  id: string;
+  day: number;
+  title: string;
+  description: string;
+  impact: string;
+  tone: "positive" | "negative" | "neutral";
+  createdAt: string;
+};
+
+type ScheduledBusinessEvent = {
+  id: string;
+  day: number;
+  kind: "market" | "supply" | "staff-review" | "marketing-review";
+};
 
 type CycleHistoryRecord = {
   cycleNumber: number;
@@ -156,6 +181,14 @@ type BusinessSlot = {
   miloOwnership: number;
   userOwnership: number;
   selections: SetupSelections;
+  stockUnits: number;
+  staffCount: number;
+  averageMonthlySalary: number;
+  onlineMarketingBudget: number;
+  offlineMarketingBudget: number;
+  demandMomentum: number;
+  eventLog: SimulationEventRecord[];
+  appliedEventIds: string[];
   setupSpend: number;
   cash: number;
   launchedAt: string | null;
@@ -201,8 +234,9 @@ const STORAGE_VERSION = "milo-business-builder-v2";
 const BUSINESS_PROGRESS_TABLE = "milo_business_builder_progress";
 const CYCLE_DAYS = 30;
 const CYCLE_MINUTES = CYCLE_DAYS * 1440;
-const MIN_MILO_OWNERSHIP = 0.2;
-const MAX_MILO_OWNERSHIP = 0.5;
+const OFFLINE_SIMULATION_SPEED: SimulationSpeed = 168;
+const ANALYST_FEE = 100;
+const EVENT_TIMELINE_DAYS = 3650;
 
 const DEFAULT_SELECTIONS: SetupSelections = {
   location: "balanced",
@@ -671,9 +705,17 @@ function createEmptySlot(id: 1 | 2 | 3): BusinessSlot {
     approvedBudget: 0,
     miloInvestment: 0,
     personalContribution: 0,
-    miloOwnership: MIN_MILO_OWNERSHIP,
-    userOwnership: 1 - MIN_MILO_OWNERSHIP,
+    miloOwnership: 0,
+    userOwnership: 0,
     selections: { ...DEFAULT_SELECTIONS },
+    stockUnits: 0,
+    staffCount: 0,
+    averageMonthlySalary: 0,
+    onlineMarketingBudget: 0,
+    offlineMarketingBudget: 0,
+    demandMomentum: 0,
+    eventLog: [],
+    appliedEventIds: [],
     setupSpend: 0,
     cash: 0,
     launchedAt: null,
@@ -757,22 +799,109 @@ function getSingaporeDateString() {
   return `${year}-${month}-${day}`;
 }
 
-function getOwnershipForInvestment(
-  business: BusinessOption,
-  investment: number,
+function getNextSingaporeDayStartIso(dateString: string) {
+  const [year, month, day] = dateString.split("-").map(Number);
+  if (!year || !month || !day) return new Date().toISOString();
+
+  const nextSingaporeMidnightUtc =
+    Date.UTC(year, month - 1, day + 1, 0, 0, 0) - 8 * 60 * 60 * 1000;
+  return new Date(nextSingaporeMidnightUtc).toISOString();
+}
+
+function getOwnershipForContributions(
+  personalContribution: number,
+  miloInvestment: number,
 ) {
-  const range = Math.max(1, business.maxCapital - business.minCapital);
-  const progress = Math.max(
-    0,
-    Math.min(1, (investment - business.minCapital) / range),
-  );
-  const miloOwnership =
-    MIN_MILO_OWNERSHIP +
-    (MAX_MILO_OWNERSHIP - MIN_MILO_OWNERSHIP) * progress;
+  const personal = Math.max(0, personalContribution);
+  const milo = Math.max(0, miloInvestment);
+  const total = personal + milo;
+
+  if (total <= 0) {
+    return { miloOwnership: 0, userOwnership: 0 };
+  }
 
   return {
-    miloOwnership,
-    userOwnership: 1 - miloOwnership,
+    miloOwnership: milo / total,
+    userOwnership: personal / total,
+  };
+}
+
+function getSetupCostBasis(slot: Pick<BusinessSlot, "businessTypeId" | "approvedBudget">) {
+  const business = getBusiness(slot.businessTypeId);
+  if (!business) return Math.max(0, slot.approvedBudget);
+  return clamp(slot.approvedBudget, business.minCapital, business.maxCapital);
+}
+
+function getRecommendedSalary(slot: Pick<BusinessSlot, "businessTypeId">) {
+  const business = getBusiness(slot.businessTypeId);
+  return 1800 + (business?.difficulty || 1) * 260;
+}
+
+function getRecommendedMarketingBudget(
+  slot: Pick<BusinessSlot, "businessTypeId" | "approvedBudget">,
+) {
+  const business = getBusiness(slot.businessTypeId);
+  const basis = business
+    ? clamp(slot.approvedBudget, business.minCapital, business.maxCapital)
+    : slot.approvedBudget;
+  return Math.max(150, basis * (0.012 + (business?.difficulty || 1) * 0.002));
+}
+
+function getStockPrices(slot: Pick<BusinessSlot, "businessTypeId" | "cycleNumber">) {
+  const business = getBusiness(slot.businessTypeId);
+  const base = Math.max(2, (business?.averageOrderValue || 20) * 0.36);
+  const marketNoise = seededNoise(
+    `${business?.industryId || "retail"}-${Math.max(1, slot.cycleNumber)}-stock-price`,
+  );
+  const buyPrice = Math.max(1, Math.round(base * (1 + marketNoise * 0.08)));
+  const sellPrice = Math.max(1, Math.round(buyPrice * 0.7));
+  return { buyPrice, sellPrice };
+}
+
+function getInitialOperatingControls(
+  slot: Pick<
+    BusinessSlot,
+    "businessTypeId" | "approvedBudget" | "selections" | "cycleNumber"
+  >,
+): OperatingControls {
+  const business = getBusiness(slot.businessTypeId);
+  const basis = getSetupCostBasis(slot);
+
+  if (!business || basis <= 0) {
+    return {
+      stockUnits: 0,
+      staffCount: 0,
+      averageMonthlySalary: 0,
+      onlineMarketingBudget: 0,
+      offlineMarketingBudget: 0,
+    };
+  }
+
+  const stockOption = getTierOption(
+    SETUP_CATEGORIES.find((category) => category.id === "stock")!,
+    slot.selections.stock,
+  );
+  const staffOption = getTierOption(
+    SETUP_CATEGORIES.find((category) => category.id === "staff")!,
+    slot.selections.staff,
+  );
+  const marketingOption = getTierOption(
+    SETUP_CATEGORIES.find((category) => category.id === "marketing")!,
+    slot.selections.marketing,
+  );
+  const { buyPrice } = getStockPrices(slot);
+  const stockBudget = basis * stockOption.setupFraction;
+  const totalMarketing = Math.max(0, basis * marketingOption.monthlyFraction);
+  const staffCount = Math.max(1, Math.round((business?.difficulty || 1) * 0.6 + staffOption.qualityScore));
+
+  return {
+    stockUnits: Math.max(12, Math.floor(stockBudget / Math.max(1, buyPrice))),
+    staffCount,
+    averageMonthlySalary: Math.round(
+      getRecommendedSalary(slot) * (0.75 + staffOption.qualityScore * 0.13),
+    ),
+    onlineMarketingBudget: Math.round(totalMarketing * 0.62),
+    offlineMarketingBudget: Math.round(totalMarketing * 0.38),
   };
 }
 
@@ -787,13 +916,20 @@ function normalizeSlot(
   const miloInvestment = Number(
     savedSlot.miloInvestment || approvedBudget || 0,
   );
-  const business = getBusiness(savedSlot.businessTypeId || null);
-  const calculatedOwnership = business
-    ? getOwnershipForInvestment(business, miloInvestment)
-    : {
-        miloOwnership: MIN_MILO_OWNERSHIP,
-        userOwnership: 1 - MIN_MILO_OWNERSHIP,
-      };
+  const personalContribution = Number(savedSlot.personalContribution || 0);
+  const calculatedOwnership = getOwnershipForContributions(
+    personalContribution,
+    miloInvestment,
+  );
+  const operatingDefaults = getInitialOperatingControls({
+    businessTypeId: savedSlot.businessTypeId || null,
+    approvedBudget,
+    selections: {
+      ...DEFAULT_SELECTIONS,
+      ...(savedSlot.selections || {}),
+    },
+    cycleNumber: Math.max(1, Number(savedSlot.cycleNumber || 1)),
+  });
 
   return {
     ...base,
@@ -801,17 +937,21 @@ function normalizeSlot(
     id,
     approvedBudget,
     miloInvestment,
-    personalContribution: Number(savedSlot.personalContribution || 0),
-    miloOwnership: Number(
-      savedSlot.miloOwnership ?? calculatedOwnership.miloOwnership,
-    ),
-    userOwnership: Number(
-      savedSlot.userOwnership ?? calculatedOwnership.userOwnership,
-    ),
+    personalContribution,
+    miloOwnership: calculatedOwnership.miloOwnership,
+    userOwnership: calculatedOwnership.userOwnership,
     selections: {
       ...DEFAULT_SELECTIONS,
       ...(savedSlot.selections || {}),
     },
+    stockUnits: Math.max(0, Number(savedSlot.stockUnits ?? operatingDefaults.stockUnits)),
+    staffCount: Math.max(0, Math.round(Number(savedSlot.staffCount ?? operatingDefaults.staffCount))),
+    averageMonthlySalary: Math.max(0, Number(savedSlot.averageMonthlySalary ?? operatingDefaults.averageMonthlySalary)),
+    onlineMarketingBudget: Math.max(0, Number(savedSlot.onlineMarketingBudget ?? operatingDefaults.onlineMarketingBudget)),
+    offlineMarketingBudget: Math.max(0, Number(savedSlot.offlineMarketingBudget ?? operatingDefaults.offlineMarketingBudget)),
+    demandMomentum: clamp(Number(savedSlot.demandMomentum || 0), -0.45, 0.45),
+    eventLog: Array.isArray(savedSlot.eventLog) ? savedSlot.eventLog : [],
+    appliedEventIds: Array.isArray(savedSlot.appliedEventIds) ? savedSlot.appliedEventIds : [],
     cycleNumber: Math.max(1, Number(savedSlot.cycleNumber || 1)),
     cycleSimulatedMinutes: Math.min(
       CYCLE_MINUTES,
@@ -876,7 +1016,7 @@ function getSetupSummary(
 
 function getPerformanceForecast(slot: BusinessSlot) {
   const business = getBusiness(slot.businessTypeId);
-  const costBasis = slot.miloInvestment || slot.approvedBudget;
+  const costBasis = getSetupCostBasis(slot);
   const summary = getSetupSummary(
     costBasis,
     slot.selections,
@@ -889,45 +1029,90 @@ function getPerformanceForecast(slot: BusinessSlot) {
       dailyExpenses: 0,
       dailyProfit: 0,
       dailyOrders: 0,
+      dailyStockUnitsUsed: 0,
+      dailyCashOperatingCosts: 0,
+      dailyVariableCosts: 0,
       satisfactionTarget: 50,
       monthlyFixedCosts: 0,
+      recommendedSalary: 0,
+      recommendedMarketingBudget: 0,
     };
   }
 
   const q = summary.qualityScores;
-  const demandMultiplier =
-    0.48 +
-    q.location * 0.13 +
-    q.marketing * 0.1 +
-    q.stock * 0.05 +
-    q.staff * 0.035;
-  const capacityMultiplier =
-    0.56 + q.equipment * 0.12 + q.staff * 0.09 + q.stock * 0.035;
-  const operationalMultiplier = Math.min(demandMultiplier, capacityMultiplier);
-
-  const dailyRevenue =
-    costBasis * business.dailyRevenueRate * operationalMultiplier;
-  const costOfSalesRate = Math.max(0.31, 0.47 - q.stock * 0.035);
-  const dailyVariableCosts = dailyRevenue * costOfSalesRate;
-  const dailyFixedCosts = summary.monthlyFixedCosts / 30;
-  const equipmentRiskCost =
-    q.equipment === 1 ? costBasis * 0.0007 : 0;
-  const dailyExpenses =
-    dailyVariableCosts + dailyFixedCosts + equipmentRiskCost;
+  const defaults = getInitialOperatingControls(slot);
+  const stockUnits = slot.status === "running" ? slot.stockUnits : defaults.stockUnits;
+  const staffCount = slot.status === "running" ? slot.staffCount : defaults.staffCount;
+  const averageMonthlySalary =
+    slot.status === "running"
+      ? slot.averageMonthlySalary
+      : defaults.averageMonthlySalary;
+  const onlineMarketingBudget =
+    slot.status === "running"
+      ? slot.onlineMarketingBudget
+      : defaults.onlineMarketingBudget;
+  const offlineMarketingBudget =
+    slot.status === "running"
+      ? slot.offlineMarketingBudget
+      : defaults.offlineMarketingBudget;
+  const recommendedSalary = getRecommendedSalary(slot);
+  const recommendedMarketingBudget = getRecommendedMarketingBudget(slot);
+  const totalMarketing = onlineMarketingBudget + offlineMarketingBudget;
+  const salaryEffect = clamp(averageMonthlySalary / Math.max(1, recommendedSalary), 0.45, 1.35);
+  const staffingTarget = Math.max(1, business.difficulty + 1);
+  const staffingCapacity = clamp(staffCount / staffingTarget, 0.2, 1.45);
+  const onlineEffect = clamp(onlineMarketingBudget / Math.max(1, recommendedMarketingBudget * 0.6), 0, 1.8);
+  const offlineEffect = clamp(offlineMarketingBudget / Math.max(1, recommendedMarketingBudget * 0.4), 0, 1.8);
+  const marketingEffect = 0.58 + onlineEffect * 0.2 + offlineEffect * 0.14;
+  const demandMultiplier = clamp(
+    0.46 +
+      q.location * 0.13 +
+      marketingEffect * 0.22 +
+      slot.demandMomentum +
+      Math.min(0.08, totalMarketing / Math.max(1, costBasis) * 1.6),
+    0.22,
+    1.85,
+  );
+  const capacityMultiplier = clamp(
+    0.48 + q.equipment * 0.11 + staffingCapacity * 0.3 + salaryEffect * 0.1,
+    0.25,
+    1.65,
+  );
+  const baseDailyRevenue = costBasis * business.dailyRevenueRate;
+  const unconstrainedRevenue =
+    baseDailyRevenue * Math.min(demandMultiplier, capacityMultiplier);
+  const unconstrainedOrders =
+    unconstrainedRevenue / Math.max(1, business.averageOrderValue);
+  const inventoryCoverage = clamp(
+    stockUnits / Math.max(1, unconstrainedOrders * 3),
+    0,
+    1,
+  );
+  const dailyOrders = unconstrainedOrders * inventoryCoverage;
+  const dailyRevenue = dailyOrders * business.averageOrderValue;
+  const { buyPrice } = getStockPrices(slot);
+  const dailyVariableCosts = dailyOrders * buyPrice;
+  const locationCategory = SETUP_CATEGORIES.find((category) => category.id === "location")!;
+  const equipmentCategory = SETUP_CATEGORIES.find((category) => category.id === "equipment")!;
+  const locationOption = getTierOption(locationCategory, slot.selections.location);
+  const equipmentOption = getTierOption(equipmentCategory, slot.selections.equipment);
+  const dailyRentUtilities = (costBasis * locationOption.monthlyFraction) / 30;
+  const dailyEquipmentCosts = (costBasis * equipmentOption.monthlyFraction) / 30;
+  const dailyWages = (staffCount * averageMonthlySalary) / 30;
+  const dailyMarketing = totalMarketing / 30;
+  const dailyCashOperatingCosts =
+    dailyRentUtilities + dailyEquipmentCosts + dailyWages + dailyMarketing;
+  const dailyExpenses = dailyVariableCosts + dailyCashOperatingCosts;
   const dailyProfit = dailyRevenue - dailyExpenses;
-  const dailyOrders = dailyRevenue / Math.max(1, business.averageOrderValue);
-  const budgetPressure = summary.setupSpend / slot.approvedBudget;
-  const satisfactionTarget = Math.max(
-    40,
-    Math.min(
-      96,
-      42 +
-        q.staff * 9 +
-        q.equipment * 7 +
-        q.stock * 5 +
-        q.location * 3 -
-        (budgetPressure > 0.94 ? 6 : 0),
-    ),
+  const satisfactionTarget = clamp(
+    42 +
+      q.equipment * 7 +
+      q.location * 3 +
+      staffingCapacity * 14 +
+      salaryEffect * 9 +
+      inventoryCoverage * 12,
+    35,
+    96,
   );
 
   return {
@@ -935,8 +1120,13 @@ function getPerformanceForecast(slot: BusinessSlot) {
     dailyExpenses,
     dailyProfit,
     dailyOrders,
+    dailyStockUnitsUsed: dailyOrders,
+    dailyCashOperatingCosts,
+    dailyVariableCosts,
     satisfactionTarget,
-    monthlyFixedCosts: summary.monthlyFixedCosts,
+    monthlyFixedCosts: dailyCashOperatingCosts * 30,
+    recommendedSalary,
+    recommendedMarketingBudget,
   };
 }
 
@@ -967,6 +1157,215 @@ function getMonthLabel(offset: number) {
   }).format(date);
 }
 
+function getUniformEventSchedule(industryId: IndustryId): ScheduledBusinessEvent[] {
+  const events: ScheduledBusinessEvent[] = [];
+
+  for (let day = 30; day <= EVENT_TIMELINE_DAYS; day += 90) {
+    events.push({
+      id: `${industryId}-marketing-${day}`,
+      day,
+      kind: "marketing-review",
+    });
+  }
+
+  for (let day = 60; day <= EVENT_TIMELINE_DAYS; day += 120) {
+    events.push({
+      id: `${industryId}-staff-${day}`,
+      day,
+      kind: "staff-review",
+    });
+  }
+
+  for (let day = 90; day <= EVENT_TIMELINE_DAYS; day += 180) {
+    events.push({
+      id: `${industryId}-supply-${day}`,
+      day,
+      kind: "supply",
+    });
+  }
+
+  for (let day = 120; day <= EVENT_TIMELINE_DAYS; day += 150) {
+    events.push({
+      id: `${industryId}-market-${day}`,
+      day,
+      kind: "market",
+    });
+  }
+
+  return events.sort((a, b) => a.day - b.day || a.id.localeCompare(b.id));
+}
+
+function applyScheduledEvents(
+  sourceSlot: BusinessSlot,
+  startDay: number,
+  endDay: number,
+): BusinessSlot {
+  const business = getBusiness(sourceSlot.businessTypeId);
+  if (!business || endDay <= startDay) return sourceSlot;
+
+  let slot = { ...sourceSlot };
+  const applied = new Set(slot.appliedEventIds);
+  const eventLog = [...slot.eventLog];
+  const schedule = getUniformEventSchedule(business.industryId).filter(
+    (event) => event.day > startDay && event.day <= endDay && !applied.has(event.id),
+  );
+
+  schedule.forEach((event) => {
+    let title = "Business review";
+    let description = "Milo reviewed the latest operating conditions.";
+    let impact = "No material change";
+    let tone: SimulationEventRecord["tone"] = "neutral";
+
+    if (event.kind === "marketing-review") {
+      const totalMarketing =
+        slot.onlineMarketingBudget + slot.offlineMarketingBudget;
+      const recommended = getRecommendedMarketingBudget(slot);
+
+      if (totalMarketing < recommended * 0.6) {
+        slot.demandMomentum = clamp(slot.demandMomentum - 0.045, -0.45, 0.45);
+        title = "Marketing visibility declined";
+        description =
+          "Customers are seeing the business less often because the monthly marketing budget has stayed below the industry benchmark.";
+        impact = "Long-term demand reduced";
+        tone = "negative";
+      } else if (totalMarketing > recommended * 1.2) {
+        slot.demandMomentum = clamp(slot.demandMomentum + 0.025, -0.45, 0.45);
+        title = "Campaign reach improved";
+        description =
+          "Consistent online and offline promotion strengthened awareness in the local market.";
+        impact = "Long-term demand improved";
+        tone = "positive";
+      } else {
+        title = "Marketing review completed";
+        description =
+          "The current channel mix is maintaining awareness without creating an unusual change in demand.";
+        impact = "Demand remains stable";
+      }
+    }
+
+    if (event.kind === "staff-review") {
+      const recommendedSalary = getRecommendedSalary(slot);
+
+      if (
+        slot.staffCount > 0 &&
+        slot.averageMonthlySalary < recommendedSalary * 0.82
+      ) {
+        slot.staffCount = Math.max(0, slot.staffCount - 1);
+        slot.customerSatisfaction = clamp(
+          slot.customerSatisfaction - 5,
+          0,
+          100,
+        );
+        title = "A staff member resigned";
+        description =
+          "Average pay remained well below the market benchmark, so one employee left the business.";
+        impact = "Staff count reduced by 1";
+        tone = "negative";
+      } else if (slot.averageMonthlySalary > recommendedSalary * 1.12) {
+        slot.customerSatisfaction = clamp(
+          slot.customerSatisfaction + 2,
+          0,
+          100,
+        );
+        title = "Staff retention improved";
+        description =
+          "Competitive pay helped the team remain stable and improved service consistency.";
+        impact = "Customer satisfaction improved";
+        tone = "positive";
+      } else {
+        title = "Staff review completed";
+        description =
+          "Pay and staffing levels are close to the current industry benchmark.";
+        impact = "No staffing change";
+      }
+    }
+
+    if (event.kind === "supply") {
+      const noise = seededNoise(`${business.industryId}-supply-${event.day}`);
+      const { buyPrice } = getStockPrices(slot);
+
+      if (noise < 0.2) {
+        const lostUnits = Math.min(
+          slot.stockUnits,
+          Math.max(3, Math.round(slot.stockUnits * (0.08 + Math.abs(noise) * 0.08))),
+        );
+        const lossValue = lostUnits * buyPrice;
+        slot.stockUnits = Math.max(0, slot.stockUnits - lostUnits);
+        slot.expenses += lossValue;
+        slot.cycleExpenses += lossValue;
+        slot.cycleProfit = slot.cycleRevenue - slot.cycleExpenses;
+        title = "Inventory loss reported";
+        description =
+          "A supply and handling problem caused part of the available inventory to become unusable.";
+        impact = `${Math.round(lostUnits)} units lost`;
+        tone = "negative";
+      } else if (noise < 0.55) {
+        slot.demandMomentum = clamp(slot.demandMomentum - 0.025, -0.45, 0.45);
+        title = "Shipment delay";
+        description =
+          "A delayed supplier shipment reduced product availability and weakened short-term customer demand.";
+        impact = "Demand momentum reduced";
+        tone = "negative";
+      } else {
+        const bonusUnits = Math.max(2, Math.round(slot.stockUnits * 0.04));
+        slot.stockUnits += bonusUnits;
+        title = "Supplier bonus allocation";
+        description =
+          "The supplier included extra units after meeting a fulfilment target.";
+        impact = `${bonusUnits} bonus stock units`;
+        tone = "positive";
+      }
+    }
+
+    if (event.kind === "market") {
+      const noise = seededNoise(`${business.industryId}-market-${event.day}`);
+      const movement = 0.035 + Math.abs(noise) * 0.045;
+
+      if (noise >= 0) {
+        slot.demandMomentum = clamp(
+          slot.demandMomentum + movement,
+          -0.45,
+          0.45,
+        );
+        title = "Local demand strengthened";
+        description =
+          "A favourable industry trend increased interest in businesses in this category.";
+        impact = "Demand forecast improved";
+        tone = "positive";
+      } else {
+        slot.demandMomentum = clamp(
+          slot.demandMomentum - movement,
+          -0.45,
+          0.45,
+        );
+        title = "Local demand softened";
+        description =
+          "A weaker industry trend reduced customer interest across this business category.";
+        impact = "Demand forecast weakened";
+        tone = "negative";
+      }
+    }
+
+    applied.add(event.id);
+    eventLog.push({
+      id: event.id,
+      day: event.day,
+      title,
+      description,
+      impact,
+      tone,
+      createdAt: new Date().toISOString(),
+    });
+  });
+
+  return {
+    ...slot,
+    demandMomentum: clamp(slot.demandMomentum, -0.45, 0.45),
+    eventLog: eventLog.slice(-80),
+    appliedEventIds: Array.from(applied),
+  };
+}
+
 function getMarketSnapshot(slot: BusinessSlot): MarketSnapshot {
   const business = getBusiness(slot.businessTypeId);
   const industryId = business?.industryId || "retail";
@@ -975,8 +1374,8 @@ function getMarketSnapshot(slot: BusinessSlot): MarketSnapshot {
   const points: MarketPoint[] = Array.from({ length: 12 }).map((_, index) => {
     const trend = (definition.annualGrowth / 12) * index;
     const seasonality = Math.sin((index / 12) * Math.PI * 2 + cycleSeed * 0.47);
-    const demandNoise = seededNoise(`${slot.id}-${industryId}-${cycleSeed}-${index}-demand`);
-    const supplyNoise = seededNoise(`${slot.id}-${industryId}-${cycleSeed}-${index}-supply`);
+    const demandNoise = seededNoise(`${industryId}-${cycleSeed}-${index}-demand`);
+    const supplyNoise = seededNoise(`${industryId}-${cycleSeed}-${index}-supply`);
     const demand = clamp(
       definition.baseDemand + trend + seasonality * definition.volatility + demandNoise * definition.volatility * 0.75,
       25,
@@ -1038,8 +1437,8 @@ function getMarketSnapshot(slot: BusinessSlot): MarketSnapshot {
   };
 }
 
-function getAnalystFee(slot: BusinessSlot) {
-  return clamp(Math.round((slot.approvedBudget * 0.005) / 10) * 10, 100, 1000);
+function getAnalystFee() {
+  return ANALYST_FEE;
 }
 
 function calculateBusinessValuation(slot: BusinessSlot): AnalystReport {
@@ -1058,7 +1457,7 @@ function calculateBusinessValuation(slot: BusinessSlot): AnalystReport {
   const annualizedRevenue = Math.max(0, monthlyRevenue * 12);
   const annualizedProfit = monthlyProfit * 12;
   const summary = getSetupSummary(
-    slot.miloInvestment || slot.approvedBudget,
+    getSetupCostBasis(slot),
     slot.selections,
     slot.approvedBudget,
   );
@@ -1101,7 +1500,7 @@ function calculateBusinessValuation(slot: BusinessSlot): AnalystReport {
     id: `report-${slot.id}-${slot.cycleNumber}-${Date.now()}`,
     createdAt: new Date().toISOString(),
     cycleNumber: slot.cycleNumber,
-    analystFee: getAnalystFee(slot),
+    analystFee: getAnalystFee(),
     valuation,
     assetValue,
     earningsValue,
@@ -1177,6 +1576,10 @@ function prepareNextCycleIfAvailable(slot: BusinessSlot): BusinessSlot {
     return slot;
   }
 
+  const unlockedAt = getNextSingaporeDayStartIso(
+    slot.lastCycleCompletedDateSg,
+  );
+
   return {
     ...slot,
     cycleNumber: slot.cycleNumber + 1,
@@ -1186,7 +1589,7 @@ function prepareNextCycleIfAvailable(slot: BusinessSlot): BusinessSlot {
     cycleProfit: 0,
     cycleStatus: "running",
     simulationSpeed: 1,
-    lastUpdatedAt: new Date().toISOString(),
+    lastUpdatedAt: unlockedAt,
   };
 }
 
@@ -1212,21 +1615,37 @@ function simulateSlot(
     CYCLE_MINUTES - slot.cycleSimulatedMinutes,
   );
   const simulatedMinutes = Math.min(requestedMinutes, remainingCycleMinutes);
+  if (simulatedMinutes <= 0) {
+    return { ...slot, lastUpdatedAt: new Date().toISOString() };
+  }
+
   const simulatedDays = simulatedMinutes / 1440;
   const forecast = getPerformanceForecast(slot);
-  const revenueAdded = forecast.dailyRevenue * simulatedDays;
-  const expensesAdded = forecast.dailyExpenses * simulatedDays;
+  const requestedStockUnits = forecast.dailyStockUnitsUsed * simulatedDays;
+  const usedStockUnits = Math.min(slot.stockUnits, requestedStockUnits);
+  const fulfilmentRatio =
+    requestedStockUnits > 0 ? usedStockUnits / requestedStockUnits : 1;
+  const revenueAdded = forecast.dailyRevenue * simulatedDays * fulfilmentRatio;
+  const { buyPrice } = getStockPrices(slot);
+  const variableCostsAdded = usedStockUnits * buyPrice;
+  const cashOperatingCostsAdded =
+    forecast.dailyCashOperatingCosts * simulatedDays;
+  const expensesAdded = variableCostsAdded + cashOperatingCostsAdded;
   const satisfactionMovement = Math.min(1, simulatedDays / 4);
+  const stockoutPenalty = fulfilmentRatio < 0.95 ? (1 - fulfilmentRatio) * 12 : 0;
   const nextSatisfaction =
     slot.customerSatisfaction +
     (forecast.satisfactionTarget - slot.customerSatisfaction) *
-      satisfactionMovement;
+      satisfactionMovement -
+    stockoutPenalty;
   const nextCycleMinutes = slot.cycleSimulatedMinutes + simulatedMinutes;
   const nextCycleRevenue = slot.cycleRevenue + revenueAdded;
   const nextCycleExpenses = slot.cycleExpenses + expensesAdded;
   const cycleComplete = nextCycleMinutes >= CYCLE_MINUTES - 0.0001;
+  const startDay = Math.floor(slot.simulatedMinutes / 1440);
+  const endDay = Math.floor((slot.simulatedMinutes + simulatedMinutes + 0.0001) / 1440);
 
-  const updatedSlot: BusinessSlot = {
+  let updatedSlot: BusinessSlot = {
     ...slot,
     simulatedMinutes: slot.simulatedMinutes + simulatedMinutes,
     cycleSimulatedMinutes: nextCycleMinutes,
@@ -1235,15 +1654,22 @@ function simulateSlot(
     cycleRevenue: nextCycleRevenue,
     cycleExpenses: nextCycleExpenses,
     cycleProfit: nextCycleRevenue - nextCycleExpenses,
-    cash: slot.cash + revenueAdded - expensesAdded,
-    sales: slot.sales + forecast.dailyOrders * simulatedDays,
-    customerSatisfaction: nextSatisfaction,
+    cash: slot.cash + revenueAdded - cashOperatingCostsAdded,
+    stockUnits: Math.max(0, slot.stockUnits - usedStockUnits),
+    sales: slot.sales + usedStockUnits,
+    customerSatisfaction: clamp(nextSatisfaction, 0, 100),
     cycleStatus: cycleComplete ? "awaiting-allocation" : "running",
     simulationSpeed: cycleComplete ? 0 : slot.simulationSpeed,
     lastCycleCompletedDateSg: cycleComplete
       ? getSingaporeDateString()
       : slot.lastCycleCompletedDateSg,
     lastUpdatedAt: new Date().toISOString(),
+  };
+
+  updatedSlot = applyScheduledEvents(updatedSlot, startDay, endDay);
+  updatedSlot = {
+    ...updatedSlot,
+    cycleProfit: updatedSlot.cycleRevenue - updatedSlot.cycleExpenses,
   };
 
   if (
@@ -1264,16 +1690,17 @@ function simulateSlot(
   return updatedSlot;
 }
 
-function catchUpSlot(slot: BusinessSlot): BusinessSlot {
+function catchUpSlot(
+  slot: BusinessSlot,
+  offlineSpeed: SimulationSpeed = OFFLINE_SIMULATION_SPEED,
+): BusinessSlot {
   const prepared = prepareNextCycleIfAvailable(slot);
+  const selectedOnlineSpeed = prepared.simulationSpeed;
 
   if (prepared.status !== "running" || !prepared.lastUpdatedAt) {
     return {
       ...prepared,
-      simulationSpeed:
-        prepared.status === "running" && prepared.cycleStatus === "running"
-          ? 1
-          : 0,
+      lastUpdatedAt: new Date().toISOString(),
     };
   }
 
@@ -1281,12 +1708,12 @@ function catchUpSlot(slot: BusinessSlot): BusinessSlot {
     0,
     (Date.now() - new Date(prepared.lastUpdatedAt).getTime()) / 1000,
   );
-
-  const caughtUp = simulateSlot(prepared, elapsedSeconds, 1);
+  const caughtUp = simulateSlot(prepared, elapsedSeconds, offlineSpeed);
 
   return {
     ...caughtUp,
-    simulationSpeed: caughtUp.cycleStatus === "running" ? 1 : 0,
+    simulationSpeed:
+      caughtUp.cycleStatus === "running" ? selectedOnlineSpeed : 0,
     lastUpdatedAt: new Date().toISOString(),
   };
 }
@@ -1945,7 +2372,7 @@ export default function MiloBusinessBuilderPage() {
     null,
   );
   const [requestedBudget, setRequestedBudget] = useState(0);
-  const [fundingStep, setFundingStep] = useState<FundingStep>("milo");
+  const [fundingStep, setFundingStep] = useState<FundingStep>("personal");
   const [personalContribution, setPersonalContribution] = useState(0);
   const [fundingSubmitting, setFundingSubmitting] = useState(false);
   const [introOpen, setIntroOpen] = useState(false);
@@ -1955,6 +2382,14 @@ export default function MiloBusinessBuilderPage() {
   const [draftSelections, setDraftSelections] =
     useState<SetupSelections>(DEFAULT_SELECTIONS);
   const [businessNameDraft, setBusinessNameDraft] = useState("");
+  const [operatingDraft, setOperatingDraft] = useState<OperatingControls>({
+    stockUnits: 0,
+    staffCount: 0,
+    averageMonthlySalary: 0,
+    onlineMarketingBudget: 0,
+    offlineMarketingBudget: 0,
+  });
+  const [stockTradeUnits, setStockTradeUnits] = useState(10);
   const [reinvestmentPercent, setReinvestmentPercent] = useState(50);
   const [cycleSubmitting, setCycleSubmitting] = useState(false);
   const [listingPriceDraft, setListingPriceDraft] = useState(0);
@@ -1966,6 +2401,7 @@ export default function MiloBusinessBuilderPage() {
   >("idle");
   const [lastCloudSavedAt, setLastCloudSavedAt] = useState<string | null>(null);
   const [pageMessage, setPageMessage] = useState("");
+  const slotsRef = useRef<BusinessSlot[]>(slots);
 
   const activeSlot = useMemo(
     () => slots.find((slot) => slot.id === activeSlotId) || null,
@@ -1984,6 +2420,10 @@ export default function MiloBusinessBuilderPage() {
 
   const storageKey = `${STORAGE_VERSION}:${userId || "guest"}`;
   const legacyStorageKey = `milo-business-builder-v1:${userId || "guest"}`;
+
+  useEffect(() => {
+    slotsRef.current = slots;
+  }, [slots]);
 
   useEffect(() => {
     let mounted = true;
@@ -2189,7 +2629,13 @@ export default function MiloBusinessBuilderPage() {
             ? new Date(slot.lastUpdatedAt).getTime()
             : now - 1000;
           const elapsedSeconds = Math.max(0, (now - previousTime) / 1000);
-          return simulateSlot(slot, elapsedSeconds);
+          const shouldUseOfflineSpeed =
+            document.visibilityState !== "visible" || !navigator.onLine;
+          return simulateSlot(
+            slot,
+            elapsedSeconds,
+            shouldUseOfflineSpeed ? OFFLINE_SIMULATION_SPEED : undefined,
+          );
         });
       });
     }, 1000);
@@ -2198,9 +2644,46 @@ export default function MiloBusinessBuilderPage() {
   }, [storageReady]);
 
   useEffect(() => {
+    if (!storageReady) return;
+
+    async function catchUpAndSync() {
+      if (document.visibilityState !== "visible" || !navigator.onLine) return;
+
+      const nextSlots = slotsRef.current.map((slot) =>
+        slot.status === "running"
+          ? catchUpSlot(slot, OFFLINE_SIMULATION_SPEED)
+          : slot,
+      );
+      slotsRef.current = nextSlots;
+      setSlots(nextSlots);
+
+      if (userId) {
+        await saveProgressToAccount(nextSlots, activeSlotId);
+      }
+    }
+
+    document.addEventListener("visibilitychange", catchUpAndSync);
+    window.addEventListener("online", catchUpAndSync);
+    window.addEventListener("focus", catchUpAndSync);
+
+    return () => {
+      document.removeEventListener("visibilitychange", catchUpAndSync);
+      window.removeEventListener("online", catchUpAndSync);
+      window.removeEventListener("focus", catchUpAndSync);
+    };
+  }, [activeSlotId, storageReady, userId]);
+
+  useEffect(() => {
     if (!activeSlot) return;
     setDraftSelections({ ...activeSlot.selections });
     setBusinessNameDraft(activeSlot.businessName);
+    setOperatingDraft({
+      stockUnits: activeSlot.stockUnits,
+      staffCount: activeSlot.staffCount,
+      averageMonthlySalary: activeSlot.averageMonthlySalary,
+      onlineMarketingBudget: activeSlot.onlineMarketingBudget,
+      offlineMarketingBudget: activeSlot.offlineMarketingBudget,
+    });
     const fallbackValuation =
       activeSlot.status === "running"
         ? calculateBusinessValuation(activeSlot).valuation
@@ -2214,6 +2697,10 @@ export default function MiloBusinessBuilderPage() {
     activeSlot?.id,
     activeSlot?.businessName,
     activeSlot?.status,
+    activeSlot?.staffCount,
+    activeSlot?.averageMonthlySalary,
+    activeSlot?.onlineMarketingBudget,
+    activeSlot?.offlineMarketingBudget,
     activeSlot?.saleListing.listedPrice,
     activeSlot?.saleListing.analystReport?.valuation,
   ]);
@@ -2244,7 +2731,7 @@ export default function MiloBusinessBuilderPage() {
   function chooseBusiness(business: BusinessOption) {
     setSelectedBusinessId(business.id);
     setRequestedBudget(business.minCapital);
-    setFundingStep("milo");
+    setFundingStep("personal");
     setPersonalContribution(0);
     setPageMessage("");
     setView("funding");
@@ -2253,18 +2740,33 @@ export default function MiloBusinessBuilderPage() {
   function approveFunding() {
     if (!activeSlotId || !selectedBusiness) return;
 
-    const requiresAssets = requestedBudget > 50000;
-    const requiredAssets = requestedBudget * 0.1;
+    const cleanContribution = Math.max(0, Math.floor(personalContribution));
+    const requiresAssets = selectedBusiness.minCapital > 50000;
+    const requiredAssets = selectedBusiness.minCapital * 0.1;
 
-    if (requiresAssets && profileNetWorth < requiredAssets) {
+    if (cleanContribution > dreamTokenBalance) {
       setPageMessage(
-        `You need at least ${formatMoney(requiredAssets)} in profile assets for this investment tier.`,
+        `You only have ${formatMoney(dreamTokenBalance)} available in your Dream Token balance.`,
       );
       return;
     }
 
-    setPersonalContribution(0);
-    setFundingStep("personal");
+    if (requiresAssets && profileNetWorth < requiredAssets) {
+      setPageMessage(
+        `This business tier requires at least ${formatMoney(requiredAssets)} in profile assets.`,
+      );
+      return;
+    }
+
+    setPersonalContribution(cleanContribution);
+    setRequestedBudget(
+      clamp(
+        selectedBusiness.minCapital - cleanContribution,
+        0,
+        selectedBusiness.maxCapital,
+      ),
+    );
+    setFundingStep("milo");
     setPageMessage("");
   }
 
@@ -2276,6 +2778,15 @@ export default function MiloBusinessBuilderPage() {
     if (cleanContribution > dreamTokenBalance) {
       setPageMessage(
         `You only have ${formatMoney(dreamTokenBalance)} available in your Dream Token balance.`,
+      );
+      return;
+    }
+
+    const totalBudget = requestedBudget + cleanContribution;
+
+    if (totalBudget < selectedBusiness.minCapital) {
+      setPageMessage(
+        `This business needs at least ${formatMoney(selectedBusiness.minCapital)} in total start-up capital.`,
       );
       return;
     }
@@ -2300,14 +2811,18 @@ export default function MiloBusinessBuilderPage() {
       }
     }
 
-    const ownership = getOwnershipForInvestment(
-      selectedBusiness,
+    const ownership = getOwnershipForContributions(
+      cleanContribution,
       requestedBudget,
     );
-    const totalBudget = requestedBudget + cleanContribution;
     const defaultName = `My ${selectedBusiness.title}`;
+    const setupCostBasis = clamp(
+      totalBudget,
+      selectedBusiness.minCapital,
+      selectedBusiness.maxCapital,
+    );
     const summary = getSetupSummary(
-      requestedBudget,
+      setupCostBasis,
       DEFAULT_SELECTIONS,
       totalBudget,
     );
@@ -2325,6 +2840,14 @@ export default function MiloBusinessBuilderPage() {
             miloOwnership: ownership.miloOwnership,
             userOwnership: ownership.userOwnership,
             selections: { ...DEFAULT_SELECTIONS },
+            stockUnits: 0,
+            staffCount: 0,
+            averageMonthlySalary: 0,
+            onlineMarketingBudget: 0,
+            offlineMarketingBudget: 0,
+            demandMomentum: 0,
+            eventLog: [],
+            appliedEventIds: [],
             setupSpend: summary.setupSpend,
             cash: summary.remainingCash,
             launchedAt: null,
@@ -2379,7 +2902,7 @@ export default function MiloBusinessBuilderPage() {
 
     const cleanName = businessNameDraft.trim();
     const summary = getSetupSummary(
-      activeSlot.miloInvestment || activeSlot.approvedBudget,
+      getSetupCostBasis(activeSlot),
       draftSelections,
       activeSlot.approvedBudget,
     );
@@ -2391,12 +2914,16 @@ export default function MiloBusinessBuilderPage() {
 
     if (summary.setupSpend > activeSlot.approvedBudget) {
       setPageMessage(
-        "This setup is over Milo’s approved budget. Choose a less expensive option in at least one category.",
+        "This setup is over the approved business budget. Choose a less expensive option in at least one category.",
       );
       return;
     }
 
     const now = new Date().toISOString();
+    const initialControls = getInitialOperatingControls({
+      ...activeSlot,
+      selections: draftSelections,
+    });
 
     setSlots((current) =>
       current.map((slot) =>
@@ -2406,6 +2933,14 @@ export default function MiloBusinessBuilderPage() {
               status: "running",
               businessName: cleanName,
               selections: { ...draftSelections },
+              stockUnits: initialControls.stockUnits,
+              staffCount: initialControls.staffCount,
+              averageMonthlySalary: initialControls.averageMonthlySalary,
+              onlineMarketingBudget: initialControls.onlineMarketingBudget,
+              offlineMarketingBudget: initialControls.offlineMarketingBudget,
+              demandMomentum: 0,
+              eventLog: [],
+              appliedEventIds: [],
               setupSpend: summary.setupSpend,
               cash: summary.remainingCash,
               launchedAt: now,
@@ -2445,55 +2980,108 @@ export default function MiloBusinessBuilderPage() {
   function saveOperatingChanges() {
     if (!activeSlot || activeSlot.status !== "running") return;
 
-    const cleanName = businessNameDraft.trim();
-    const newSummary = getSetupSummary(
-      activeSlot.miloInvestment || activeSlot.approvedBudget,
-      draftSelections,
-      activeSlot.approvedBudget,
+    const nextStaffCount = Math.max(0, Math.round(operatingDraft.staffCount));
+    const nextSalary = Math.max(0, Math.round(operatingDraft.averageMonthlySalary));
+    const nextOnlineBudget = Math.max(
+      0,
+      Math.round(operatingDraft.onlineMarketingBudget),
     );
-    const difference = newSummary.setupSpend - activeSlot.setupSpend;
-    const requiredCash = Math.max(0, difference);
-
-    if (!cleanName) {
-      setPageMessage("Give your business a name before saving changes.");
-      return;
-    }
-
-    if (newSummary.setupSpend > activeSlot.approvedBudget) {
-      setPageMessage("The revised setup exceeds the approved investment.");
-      return;
-    }
-
-    if (requiredCash > activeSlot.cash) {
-      setPageMessage(
-        `The upgrade needs ${formatMoney(requiredCash)}, but the business only has ${formatMoney(activeSlot.cash)} available.`,
-      );
-      return;
-    }
-
-    const cashAdjustment =
-      difference >= 0 ? -difference : Math.abs(difference) * 0.5;
+    const nextOfflineBudget = Math.max(
+      0,
+      Math.round(operatingDraft.offlineMarketingBudget),
+    );
 
     setSlots((current) =>
       current.map((slot) =>
         slot.id === activeSlot.id
           ? {
               ...slot,
-              businessName: cleanName,
-              selections: { ...draftSelections },
-              setupSpend: newSummary.setupSpend,
-              cash: slot.cash + cashAdjustment,
+              staffCount: nextStaffCount,
+              averageMonthlySalary: nextSalary,
+              onlineMarketingBudget: nextOnlineBudget,
+              offlineMarketingBudget: nextOfflineBudget,
               lastUpdatedAt: new Date().toISOString(),
             }
           : slot,
       ),
     );
 
+    setOperatingDraft((current) => ({
+      ...current,
+      staffCount: nextStaffCount,
+      averageMonthlySalary: nextSalary,
+      onlineMarketingBudget: nextOnlineBudget,
+      offlineMarketingBudget: nextOfflineBudget,
+    }));
     setPageMessage(
-      difference < 0
-        ? "Changes saved. The business recovered 50% of the value removed from its setup."
-        : "Changes saved and paid from the business’s available cash.",
+      "Staffing and marketing controls were updated. The daily profit forecast now reflects the new running costs.",
     );
+  }
+
+  function buyStockUnits() {
+    if (!activeSlot || activeSlot.status !== "running") return;
+    const units = Math.max(1, Math.floor(stockTradeUnits));
+    const { buyPrice } = getStockPrices(activeSlot);
+    const totalCost = units * buyPrice;
+
+    if (activeSlot.cash < totalCost) {
+      setPageMessage(
+        `Buying ${units} units costs ${formatMoney(totalCost)}, but the business only has ${formatMoney(activeSlot.cash)} available.`,
+      );
+      return;
+    }
+
+    setSlots((current) =>
+      current.map((slot) =>
+        slot.id === activeSlot.id
+          ? {
+              ...slot,
+              stockUnits: slot.stockUnits + units,
+              cash: slot.cash - totalCost,
+              lastUpdatedAt: new Date().toISOString(),
+            }
+          : slot,
+      ),
+    );
+    setPageMessage(
+      `${units} stock units were purchased for ${formatMoney(totalCost)}.`,
+    );
+  }
+
+  function sellStockUnits() {
+    if (!activeSlot || activeSlot.status !== "running") return;
+    const units = Math.min(
+      Math.max(1, Math.floor(stockTradeUnits)),
+      Math.floor(activeSlot.stockUnits),
+    );
+
+    if (units <= 0) {
+      setPageMessage("There is no stock available to sell off.");
+      return;
+    }
+
+    const { sellPrice } = getStockPrices(activeSlot);
+    const proceeds = units * sellPrice;
+    setSlots((current) =>
+      current.map((slot) =>
+        slot.id === activeSlot.id
+          ? {
+              ...slot,
+              stockUnits: Math.max(0, slot.stockUnits - units),
+              cash: slot.cash + proceeds,
+              lastUpdatedAt: new Date().toISOString(),
+            }
+          : slot,
+      ),
+    );
+    setPageMessage(
+      `${units} stock units were sold off for ${formatMoney(proceeds)}.`,
+    );
+  }
+
+  function openNegotiation(topic: "stock-buy" | "stock-sell" | "milo") {
+    if (!activeSlot) return;
+    window.location.href = `/milo-world/club/negotiation?slot=${activeSlot.id}&topic=${topic}`;
   }
 
   async function saveProgressToAccount(
@@ -2543,7 +3131,7 @@ export default function MiloBusinessBuilderPage() {
       return;
     }
 
-    const fee = getAnalystFee(activeSlot);
+    const fee = getAnalystFee();
     if (activeSlot.cash < fee) {
       setPageMessage(
         `The analyst fee is ${formatMoney(fee)}, but the business only has ${formatMoney(activeSlot.cash)} available.`,
@@ -2862,6 +3450,12 @@ export default function MiloBusinessBuilderPage() {
     if (nextView === "market" || nextView === "sell") {
       if (!activeSlot || activeSlot.status !== "running") return;
       setView(nextView);
+      return;
+    }
+
+    if (nextView === "talk") {
+      if (!activeSlot || activeSlot.status !== "running") return;
+      openNegotiation("milo");
     }
   }
 
@@ -2924,6 +3518,12 @@ export default function MiloBusinessBuilderPage() {
       id: "sell",
       label: "Sell Business",
       icon: "◈",
+      enabled: Boolean(activeSlot && activeSlot.status === "running"),
+    },
+    {
+      id: "talk",
+      label: "Talk to Milo",
+      icon: "✦",
       enabled: Boolean(activeSlot && activeSlot.status === "running"),
     },
   ];
@@ -3220,7 +3820,7 @@ export default function MiloBusinessBuilderPage() {
 
   const setupSummary = activeSlot
     ? getSetupSummary(
-        activeSlot.miloInvestment || activeSlot.approvedBudget,
+        getSetupCostBasis(activeSlot),
         draftSelections,
         activeSlot.approvedBudget,
       )
@@ -3228,15 +3828,37 @@ export default function MiloBusinessBuilderPage() {
   const operatingForecast = activeSlot
     ? getPerformanceForecast({
         ...activeSlot,
-        selections: draftSelections,
+        selections:
+          activeSlot.status === "setup" ? draftSelections : activeSlot.selections,
+        staffCount:
+          activeSlot.status === "running"
+            ? operatingDraft.staffCount
+            : activeSlot.staffCount,
+        averageMonthlySalary:
+          activeSlot.status === "running"
+            ? operatingDraft.averageMonthlySalary
+            : activeSlot.averageMonthlySalary,
+        onlineMarketingBudget:
+          activeSlot.status === "running"
+            ? operatingDraft.onlineMarketingBudget
+            : activeSlot.onlineMarketingBudget,
+        offlineMarketingBudget:
+          activeSlot.status === "running"
+            ? operatingDraft.offlineMarketingBudget
+            : activeSlot.offlineMarketingBudget,
       })
     : {
         dailyRevenue: 0,
         dailyExpenses: 0,
         dailyProfit: 0,
         dailyOrders: 0,
+        dailyStockUnitsUsed: 0,
+        dailyCashOperatingCosts: 0,
+        dailyVariableCosts: 0,
         satisfactionTarget: 50,
         monthlyFixedCosts: 0,
+        recommendedSalary: 0,
+        recommendedMarketingBudget: 0,
       };
   const profit = activeSlot ? activeSlot.revenue - activeSlot.expenses : 0;
   const simulatedDays = activeSlot ? activeSlot.simulatedMinutes / 1440 : 0;
@@ -3244,12 +3866,11 @@ export default function MiloBusinessBuilderPage() {
     ? Math.min(CYCLE_DAYS, activeSlot.cycleSimulatedMinutes / 1440)
     : 0;
   const cycleProgress = Math.min(100, (cycleDays / CYCLE_DAYS) * 100);
-  const fundingOwnership = selectedBusiness
-    ? getOwnershipForInvestment(selectedBusiness, requestedBudget)
-    : {
-        miloOwnership: MIN_MILO_OWNERSHIP,
-        userOwnership: 1 - MIN_MILO_OWNERSHIP,
-      };
+  const fundingOwnership = getOwnershipForContributions(
+    personalContribution,
+    requestedBudget,
+  );
+  const totalFunding = personalContribution + requestedBudget;
   const cycleDividendPool =
     activeSlot && activeSlot.cycleProfit > 0
       ? activeSlot.cycleProfit * (1 - reinvestmentPercent / 100)
@@ -3267,6 +3888,19 @@ export default function MiloBusinessBuilderPage() {
   const projectedSaleUserShare = activeSlot
     ? Math.round(listingPriceDraft * activeSlot.userOwnership)
     : 0;
+  const activeStockPrices = activeSlot
+    ? getStockPrices(activeSlot)
+    : { buyPrice: 0, sellPrice: 0 };
+  const upcomingEvents =
+    activeSlot && activeBusiness
+      ? getUniformEventSchedule(activeBusiness.industryId)
+          .filter(
+            (event) =>
+              event.day > Math.floor(activeSlot.simulatedMinutes / 1440) &&
+              !activeSlot.appliedEventIds.includes(event.id),
+          )
+          .slice(0, 4)
+      : [];
 
   return (
     <main
@@ -3721,357 +4355,12 @@ export default function MiloBusinessBuilderPage() {
 
           {view === "funding" && selectedBusiness && (
             <div style={{ width: "min(1120px, 100%)", margin: "0 auto" }}>
-              {fundingStep === "milo" ? (
+              {fundingStep === "personal" ? (
                 <>
                   <MiloPanel
-                    eyebrow="Investment review"
-                    title={
-                      requestedBudget <= 50000
-                        ? "I’m happy to invest."
-                        : profileNetWorth >= requestedBudget * 0.1
-                          ? "Your profile supports this investment."
-                          : "This tier needs stronger assets first."
-                    }
-                    text={
-                      requestedBudget <= 50000
-                        ? "Choose how much funding you want from me. The more I invest, the larger my ownership share and the higher my expectations. Even at the maximum investment, we remain equal 50/50 partners."
-                        : profileNetWorth >= requestedBudget * 0.1
-                          ? "This is a higher-risk business. Your profile meets the 10% asset requirement, so choose the amount you want me to invest."
-                          : `Before I can approve this amount, you need profile assets equal to at least 10% of the investment. You currently have ${formatMoney(profileNetWorth)} in eligible assets.`
-                    }
-                    compact={compact}
-                  />
-
-                  <div
-                    style={{
-                      marginTop: "24px",
-                      display: "grid",
-                      gridTemplateColumns: compact ? "1fr" : "0.88fr 1.12fr",
-                      gap: "18px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        borderRadius: "24px",
-                        border: "1px solid rgba(218,151,74,0.24)",
-                        background:
-                          "linear-gradient(145deg, rgba(55,31,17,0.88), rgba(6,10,19,0.92))",
-                        padding: "24px",
-                      }}
-                    >
-                      <p
-                        style={{
-                          margin: 0,
-                          color: "#eab36b",
-                          fontSize: "15px",
-                          fontWeight: 900,
-                          letterSpacing: "0.16em",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        Selected business
-                      </p>
-                      <h2
-                        style={{
-                          margin: "12px 0 0",
-                          fontSize: "36px",
-                          lineHeight: 1.05,
-                        }}
-                      >
-                        {selectedBusiness.title}
-                      </h2>
-                      <p
-                        style={{
-                          margin: "16px 0 0",
-                          color: "rgba(255,255,255,0.62)",
-                          fontSize: "19px",
-                          lineHeight: 1.65,
-                        }}
-                      >
-                        {selectedBusiness.description}
-                      </p>
-
-                      <div
-                        style={{
-                          marginTop: "22px",
-                          display: "grid",
-                          gridTemplateColumns: "1fr 1fr",
-                          gap: "12px",
-                        }}
-                      >
-                        <MetricCard
-                          label="Difficulty"
-                          value={`${selectedBusiness.difficulty}/5`}
-                          note="More categories and operating pressure"
-                        />
-                        <MetricCard
-                          label="Main risk"
-                          value={selectedBusiness.mainRisk}
-                          note="Watch this area after launch"
-                        />
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        borderRadius: "24px",
-                        border: "1px solid rgba(218,151,74,0.24)",
-                        background: "rgba(6,10,18,0.88)",
-                        padding: "24px",
-                      }}
-                    >
-                      <label
-                        style={{
-                          display: "block",
-                          color: "rgba(255,255,255,0.54)",
-                          fontSize: "16px",
-                          fontWeight: 900,
-                          letterSpacing: "0.14em",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        Milo’s proposed investment
-                      </label>
-                      <strong
-                        style={{
-                          display: "block",
-                          marginTop: "12px",
-                          color: "#f4c782",
-                          fontSize: mobile ? "44px" : "56px",
-                          letterSpacing: "-0.05em",
-                        }}
-                      >
-                        {formatMoney(requestedBudget)}
-                      </strong>
-
-                      <input
-                        type="range"
-                        min={selectedBusiness.minCapital}
-                        max={selectedBusiness.maxCapital}
-                        step={1000}
-                        value={requestedBudget}
-                        onChange={(event) => {
-                          setRequestedBudget(Number(event.target.value));
-                          setPageMessage("");
-                        }}
-                        style={{ width: "100%", marginTop: "24px" }}
-                      />
-
-                      <div
-                        style={{
-                          marginTop: "9px",
-                          display: "flex",
-                          justifyContent: "space-between",
-                          color: "rgba(255,255,255,0.46)",
-                          fontSize: "16px",
-                        }}
-                      >
-                        <span>{formatMoney(selectedBusiness.minCapital)}</span>
-                        <span>{formatMoney(selectedBusiness.maxCapital)}</span>
-                      </div>
-
-                      <div
-                        style={{
-                          marginTop: "24px",
-                          borderRadius: "18px",
-                          border: "1px solid rgba(235,179,103,0.22)",
-                          background: "rgba(255,255,255,0.035)",
-                          padding: "18px",
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            gap: "14px",
-                            alignItems: "center",
-                          }}
-                        >
-                          <div>
-                            <span
-                              style={{
-                                display: "block",
-                                color: "#efbc73",
-                                fontSize: "16px",
-                                fontWeight: 900,
-                              }}
-                            >
-                              Milo {Math.round(fundingOwnership.miloOwnership * 100)}%
-                            </span>
-                            <span
-                              style={{
-                                display: "block",
-                                marginTop: "4px",
-                                color: "rgba(255,255,255,0.48)",
-                                fontSize: "15px",
-                              }}
-                            >
-                              Investor ownership
-                            </span>
-                          </div>
-                          <div style={{ textAlign: "right" }}>
-                            <span
-                              style={{
-                                display: "block",
-                                color: "#9ff0bd",
-                                fontSize: "16px",
-                                fontWeight: 900,
-                              }}
-                            >
-                              You {Math.round(fundingOwnership.userOwnership * 100)}%
-                            </span>
-                            <span
-                              style={{
-                                display: "block",
-                                marginTop: "4px",
-                                color: "rgba(255,255,255,0.48)",
-                                fontSize: "15px",
-                              }}
-                            >
-                              Founder ownership
-                            </span>
-                          </div>
-                        </div>
-
-                        <div
-                          style={{
-                            height: "12px",
-                            marginTop: "15px",
-                            borderRadius: "999px",
-                            overflow: "hidden",
-                            background: "rgba(255,255,255,0.08)",
-                            display: "flex",
-                          }}
-                        >
-                          <span
-                            style={{
-                              width: `${fundingOwnership.miloOwnership * 100}%`,
-                              background:
-                                "linear-gradient(90deg, #8d4b21, #e0a257)",
-                            }}
-                          />
-                          <span
-                            style={{
-                              flex: 1,
-                              background:
-                                "linear-gradient(90deg, #4c8768, #8dd5a9)",
-                            }}
-                          />
-                        </div>
-                      </div>
-
-                      <div
-                        style={{
-                          marginTop: "22px",
-                          display: "grid",
-                          gridTemplateColumns: mobile
-                            ? "1fr"
-                            : "repeat(3, 1fr)",
-                          gap: "10px",
-                        }}
-                      >
-                        <MetricCard
-                          label="Milo’s objective"
-                          value={`${formatMoney(requestedBudget * 0.04)}/cycle`}
-                          note="Indicative 30-day profit expectation"
-                        />
-                        <MetricCard
-                          label="Suggested reserve"
-                          value={formatMoney(requestedBudget * 0.15)}
-                          note="Cash to protect the launch"
-                        />
-                        <MetricCard
-                          label="Assets required"
-                          value={
-                            requestedBudget > 50000
-                              ? formatMoney(requestedBudget * 0.1)
-                              : "None"
-                          }
-                          note="Only applies above 50,000 DT"
-                        />
-                      </div>
-
-                      <p
-                        style={{
-                          margin: "21px 0 0",
-                          color: "rgba(255,255,255,0.58)",
-                          fontSize: "18px",
-                          lineHeight: 1.65,
-                        }}
-                      >
-                        A more expensive business does not automatically earn
-                        more. Strong cost control can make a smaller business
-                        outperform a larger one.
-                      </p>
-
-                      <div
-                        style={{
-                          marginTop: "24px",
-                          display: "flex",
-                          flexDirection: mobile ? "column" : "row",
-                          gap: "10px",
-                        }}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => setView("businesses")}
-                          style={{
-                            minHeight: "54px",
-                            flex: 1,
-                            borderRadius: "14px",
-                            border: "1px solid rgba(218,151,74,0.2)",
-                            background: "rgba(255,255,255,0.04)",
-                            color: "white",
-                            fontSize: "18px",
-                            fontWeight: 850,
-                            cursor: "pointer",
-                          }}
-                        >
-                          Choose Another Business
-                        </button>
-                        <button
-                          type="button"
-                          onClick={approveFunding}
-                          disabled={
-                            requestedBudget > 50000 &&
-                            profileNetWorth < requestedBudget * 0.1
-                          }
-                          style={{
-                            minHeight: "54px",
-                            flex: 1.2,
-                            borderRadius: "14px",
-                            border: "none",
-                            background:
-                              requestedBudget > 50000 &&
-                              profileNetWorth < requestedBudget * 0.1
-                                ? "rgba(255,255,255,0.12)"
-                                : "linear-gradient(135deg, #d99548, #8d4b21)",
-                            color:
-                              requestedBudget > 50000 &&
-                              profileNetWorth < requestedBudget * 0.1
-                                ? "rgba(255,255,255,0.38)"
-                                : "white",
-                            fontSize: "18px",
-                            fontWeight: 900,
-                            cursor:
-                              requestedBudget > 50000 &&
-                              profileNetWorth < requestedBudget * 0.1
-                                ? "not-allowed"
-                                : "pointer",
-                          }}
-                        >
-                          Approve Milo’s Investment
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <MiloPanel
-                    eyebrow="Optional founder funding"
-                    title="Would you like to add your own DT?"
-                    text="There is no minimum and no product limit. You can add any amount up to your available Dream Token balance, or continue using only my investment. Your personal funds increase the business’s available cash but do not change the ownership agreement we just made."
+                    eyebrow="Founder contribution"
+                    title="How much would you like to invest first?"
+                    text="Your contribution comes from your Dream Token balance and directly determines your ownership. After this, choose how much funding you want from me. If you invest 1,000 DT and I invest 9,000 DT, you own 10% and I own 90%."
                     compact={compact}
                   />
 
@@ -4092,90 +4381,26 @@ export default function MiloBusinessBuilderPage() {
                         padding: "24px",
                       }}
                     >
-                      <p
-                        style={{
-                          margin: 0,
-                          color: "#eab36b",
-                          fontSize: "15px",
-                          fontWeight: 900,
-                          letterSpacing: "0.16em",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        Agreed ownership
+                      <p style={{ margin: 0, color: "#eab36b", fontSize: "15px", fontWeight: 900, letterSpacing: "0.16em", textTransform: "uppercase" }}>
+                        Selected business
                       </p>
-                      <h2
-                        style={{
-                          margin: "12px 0 0",
-                          fontSize: "35px",
-                          lineHeight: 1.05,
-                        }}
-                      >
-                        Milo {Math.round(fundingOwnership.miloOwnership * 100)}%
-                        <br />
-                        You {Math.round(fundingOwnership.userOwnership * 100)}%
+                      <h2 style={{ margin: "12px 0 0", fontSize: "38px", lineHeight: 1.05 }}>
+                        {selectedBusiness.title}
                       </h2>
-                      <p
-                        style={{
-                          margin: "16px 0 0",
-                          color: "rgba(255,255,255,0.58)",
-                          fontSize: "18px",
-                          lineHeight: 1.65,
-                        }}
-                      >
-                        At the end of each 30-day cycle, any dividend payout is
-                        divided using these ownership percentages.
+                      <p style={{ margin: "16px 0 0", color: "rgba(255,255,255,0.62)", fontSize: "19px", lineHeight: 1.65 }}>
+                        {selectedBusiness.description}
                       </p>
-
-                      <div
-                        style={{
-                          marginTop: "22px",
-                          display: "grid",
-                          gap: "10px",
-                        }}
-                      >
-                        <MetricCard
-                          label="Milo’s investment"
-                          value={formatMoney(requestedBudget)}
-                          note="Approved investor funding"
-                        />
-                        <MetricCard
-                          label="Your available balance"
-                          value={formatMoney(dreamTokenBalance)}
-                          note="Maximum currently available from your account"
-                        />
+                      <div style={{ marginTop: "22px", display: "grid", gridTemplateColumns: mobile ? "1fr" : "1fr 1fr", gap: "12px" }}>
+                        <MetricCard label="Typical start-up range" value={`${formatMoney(selectedBusiness.minCapital)} – ${formatMoney(selectedBusiness.maxCapital)}`} note="Your total capital must meet the minimum" />
+                        <MetricCard label="Your DT balance" value={formatMoney(dreamTokenBalance)} note="Maximum available personal contribution" />
                       </div>
                     </div>
 
-                    <div
-                      style={{
-                        borderRadius: "24px",
-                        border: "1px solid rgba(218,151,74,0.24)",
-                        background: "rgba(6,10,18,0.88)",
-                        padding: "24px",
-                      }}
-                    >
-                      <label
-                        style={{
-                          display: "block",
-                          color: "rgba(255,255,255,0.54)",
-                          fontSize: "16px",
-                          fontWeight: 900,
-                          letterSpacing: "0.14em",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        Your personal contribution
+                    <div style={{ borderRadius: "24px", border: "1px solid rgba(218,151,74,0.24)", background: "rgba(6,10,18,0.88)", padding: "24px" }}>
+                      <label style={{ display: "block", color: "rgba(255,255,255,0.54)", fontSize: "16px", fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase" }}>
+                        Your personal investment
                       </label>
-
-                      <div
-                        style={{
-                          marginTop: "13px",
-                          display: "grid",
-                          gridTemplateColumns: "1fr auto",
-                          gap: "10px",
-                        }}
-                      >
+                      <div style={{ marginTop: "13px", display: "grid", gridTemplateColumns: "1fr auto", gap: "10px" }}>
                         <input
                           type="number"
                           min={0}
@@ -4183,163 +4408,76 @@ export default function MiloBusinessBuilderPage() {
                           step={100}
                           value={personalContribution}
                           onChange={(event) => {
-                            const value = Math.max(
-                              0,
-                              Math.min(
-                                dreamTokenBalance,
-                                Number(event.target.value || 0),
-                              ),
+                            setPersonalContribution(
+                              clamp(Number(event.target.value || 0), 0, dreamTokenBalance),
                             );
-                            setPersonalContribution(value);
                             setPageMessage("");
                           }}
-                          style={{
-                            minWidth: 0,
-                            height: "58px",
-                            borderRadius: "15px",
-                            border: "1px solid rgba(235,179,103,0.28)",
-                            background: "rgba(255,255,255,0.055)",
-                            color: "white",
-                            padding: "0 17px",
-                            fontSize: "23px",
-                            fontWeight: 900,
-                            outline: "none",
-                          }}
+                          style={{ minWidth: 0, height: "60px", borderRadius: "15px", border: "1px solid rgba(235,179,103,0.28)", background: "rgba(255,255,255,0.055)", color: "white", padding: "0 17px", fontSize: "24px", fontWeight: 900, outline: "none" }}
                         />
-                        <div
-                          style={{
-                            minWidth: "70px",
-                            borderRadius: "15px",
-                            border: "1px solid rgba(235,179,103,0.2)",
-                            background: "rgba(95,52,24,0.7)",
-                            display: "grid",
-                            placeItems: "center",
-                            color: "#f4c782",
-                            fontSize: "19px",
-                            fontWeight: 900,
-                          }}
-                        >
-                          DT
-                        </div>
+                        <div style={{ minWidth: "72px", borderRadius: "15px", border: "1px solid rgba(235,179,103,0.2)", background: "rgba(95,52,24,0.7)", display: "grid", placeItems: "center", color: "#f4c782", fontSize: "19px", fontWeight: 900 }}>DT</div>
                       </div>
-
-                      <div
-                        style={{
-                          marginTop: "12px",
-                          display: "grid",
-                          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-                          gap: "8px",
-                        }}
-                      >
+                      <div style={{ marginTop: "12px", display: "grid", gridTemplateColumns: mobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))", gap: "8px" }}>
                         {[
                           [0, "None"],
                           [Math.floor(dreamTokenBalance * 0.25), "25%"],
                           [Math.floor(dreamTokenBalance * 0.5), "50%"],
                           [dreamTokenBalance, "All"],
                         ].map(([amount, label]) => (
-                          <button
-                            key={String(label)}
-                            type="button"
-                            onClick={() =>
-                              setPersonalContribution(Number(amount))
-                            }
-                            style={{
-                              minHeight: "44px",
-                              borderRadius: "12px",
-                              border:
-                                personalContribution === Number(amount)
-                                  ? "1px solid rgba(241,195,122,0.72)"
-                                  : "1px solid rgba(218,151,74,0.16)",
-                              background:
-                                personalContribution === Number(amount)
-                                  ? "rgba(157,86,35,0.7)"
-                                  : "rgba(255,255,255,0.035)",
-                              color: "white",
-                              fontSize: "17px",
-                              fontWeight: 900,
-                              cursor: "pointer",
-                            }}
-                          >
+                          <button key={String(label)} type="button" onClick={() => setPersonalContribution(Number(amount))} style={{ minHeight: "46px", borderRadius: "12px", border: personalContribution === Number(amount) ? "1px solid rgba(241,195,122,0.72)" : "1px solid rgba(218,151,74,0.16)", background: personalContribution === Number(amount) ? "rgba(157,86,35,0.7)" : "rgba(255,255,255,0.035)", color: "white", fontSize: "17px", fontWeight: 900, cursor: "pointer" }}>
                             {label}
                           </button>
                         ))}
                       </div>
-
-                      <div
-                        style={{
-                          marginTop: "22px",
-                          display: "grid",
-                          gridTemplateColumns: mobile ? "1fr" : "1fr 1fr",
-                          gap: "10px",
-                        }}
-                      >
-                        <MetricCard
-                          label="Total business budget"
-                          value={formatMoney(
-                            requestedBudget + personalContribution,
-                          )}
-                          note="Milo’s investment plus your contribution"
-                        />
-                        <MetricCard
-                          label="Balance after transfer"
-                          value={formatMoney(
-                            dreamTokenBalance - personalContribution,
-                          )}
-                          note="Dream Tokens remaining in your account"
-                        />
+                      {selectedBusiness.minCapital > 50000 && (
+                        <p style={{ margin: "18px 0 0", color: profileNetWorth >= selectedBusiness.minCapital * 0.1 ? "#9ff0bd" : "#ffb497", fontSize: "17px", lineHeight: 1.55 }}>
+                          Higher-tier requirement: {formatMoney(selectedBusiness.minCapital * 0.1)} in profile assets. You currently have {formatMoney(profileNetWorth)}.
+                        </p>
+                      )}
+                      <div style={{ marginTop: "24px", display: "flex", flexDirection: mobile ? "column" : "row", gap: "10px" }}>
+                        <button type="button" onClick={() => setView("businesses")} style={{ minHeight: "54px", flex: 1, borderRadius: "14px", border: "1px solid rgba(218,151,74,0.2)", background: "rgba(255,255,255,0.04)", color: "white", fontSize: "18px", fontWeight: 850, cursor: "pointer" }}>Choose Another Business</button>
+                        <button type="button" onClick={approveFunding} style={{ minHeight: "54px", flex: 1.2, borderRadius: "14px", border: "none", background: "linear-gradient(135deg, #d99548, #8d4b21)", color: "white", fontSize: "18px", fontWeight: 900, cursor: "pointer" }}>Continue to Milo’s Investment</button>
                       </div>
-
-                      <div
-                        style={{
-                          marginTop: "24px",
-                          display: "flex",
-                          flexDirection: mobile ? "column" : "row",
-                          gap: "10px",
-                        }}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => setFundingStep("milo")}
-                          disabled={fundingSubmitting}
-                          style={{
-                            minHeight: "54px",
-                            flex: 1,
-                            borderRadius: "14px",
-                            border: "1px solid rgba(218,151,74,0.2)",
-                            background: "rgba(255,255,255,0.04)",
-                            color: "white",
-                            fontSize: "18px",
-                            fontWeight: 850,
-                            cursor: "pointer",
-                          }}
-                        >
-                          Back to Investment
-                        </button>
-                        <button
-                          type="button"
-                          onClick={confirmFunding}
-                          disabled={fundingSubmitting}
-                          style={{
-                            minHeight: "54px",
-                            flex: 1.25,
-                            borderRadius: "14px",
-                            border: "none",
-                            background: fundingSubmitting
-                              ? "rgba(255,255,255,0.12)"
-                              : "linear-gradient(135deg, #d99548, #8d4b21)",
-                            color: fundingSubmitting
-                              ? "rgba(255,255,255,0.45)"
-                              : "white",
-                            fontSize: "18px",
-                            fontWeight: 900,
-                            cursor: fundingSubmitting ? "wait" : "pointer",
-                          }}
-                        >
-                          {fundingSubmitting
-                            ? "Confirming..."
-                            : personalContribution > 0
-                              ? "Transfer DT & Continue"
-                              : "Continue Without Personal Funds"}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <MiloPanel
+                    eyebrow="Milo’s investment"
+                    title="Choose how much you want me to fund."
+                    text="Ownership now follows the actual capital contributed by each of us. More funding gives the business more room to operate, but it also gives the investor who contributes it a larger share of dividends and any future sale."
+                    compact={compact}
+                  />
+                  <div style={{ marginTop: "24px", display: "grid", gridTemplateColumns: compact ? "1fr" : "0.82fr 1.18fr", gap: "18px" }}>
+                    <div style={{ borderRadius: "24px", border: "1px solid rgba(218,151,74,0.24)", background: "linear-gradient(145deg, rgba(55,31,17,0.88), rgba(6,10,19,0.92))", padding: "24px" }}>
+                      <p style={{ margin: 0, color: "#eab36b", fontSize: "15px", fontWeight: 900, letterSpacing: "0.16em", textTransform: "uppercase" }}>Funding agreement</p>
+                      <div style={{ marginTop: "18px", display: "grid", gap: "11px" }}>
+                        <MetricCard label="Your investment" value={formatMoney(personalContribution)} note={`${Math.round(fundingOwnership.userOwnership * 100)}% founder ownership`} positive />
+                        <MetricCard label="Milo’s investment" value={formatMoney(requestedBudget)} note={`${Math.round(fundingOwnership.miloOwnership * 100)}% investor ownership`} />
+                        <MetricCard label="Total start-up capital" value={formatMoney(totalFunding)} note={`Minimum required: ${formatMoney(selectedBusiness.minCapital)}`} positive={totalFunding >= selectedBusiness.minCapital} />
+                      </div>
+                      <div style={{ height: "14px", marginTop: "18px", borderRadius: "999px", overflow: "hidden", background: "rgba(255,255,255,0.08)", display: "flex" }}>
+                        <span style={{ width: `${fundingOwnership.userOwnership * 100}%`, background: "linear-gradient(90deg, #4c8768, #8dd5a9)" }} />
+                        <span style={{ flex: 1, background: "linear-gradient(90deg, #8d4b21, #e0a257)" }} />
+                      </div>
+                    </div>
+                    <div style={{ borderRadius: "24px", border: "1px solid rgba(218,151,74,0.24)", background: "rgba(6,10,18,0.88)", padding: "24px" }}>
+                      <label style={{ display: "block", color: "rgba(255,255,255,0.54)", fontSize: "16px", fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase" }}>Milo’s investment</label>
+                      <strong style={{ display: "block", marginTop: "12px", color: "#f4c782", fontSize: mobile ? "46px" : "58px", letterSpacing: "-0.05em" }}>{formatMoney(requestedBudget)}</strong>
+                      <input type="range" min={0} max={selectedBusiness.maxCapital} step={1000} value={requestedBudget} onChange={(event) => { setRequestedBudget(Number(event.target.value)); setPageMessage(""); }} style={{ width: "100%", marginTop: "24px" }} />
+                      <div style={{ marginTop: "9px", display: "flex", justifyContent: "space-between", color: "rgba(255,255,255,0.46)", fontSize: "16px" }}>
+                        <span>0 DT</span><span>{formatMoney(selectedBusiness.maxCapital)}</span>
+                      </div>
+                      <p style={{ margin: "20px 0 0", color: totalFunding >= selectedBusiness.minCapital ? "rgba(255,255,255,0.58)" : "#ffb497", fontSize: "18px", lineHeight: 1.65 }}>
+                        {totalFunding >= selectedBusiness.minCapital
+                          ? "The ownership split above will apply to dividends, Milo share buyouts and the eventual sale of the business."
+                          : `Add at least ${formatMoney(selectedBusiness.minCapital - totalFunding)} more capital before launch.`}
+                      </p>
+                      <div style={{ marginTop: "24px", display: "flex", flexDirection: mobile ? "column" : "row", gap: "10px" }}>
+                        <button type="button" onClick={() => setFundingStep("personal")} disabled={fundingSubmitting} style={{ minHeight: "54px", flex: 1, borderRadius: "14px", border: "1px solid rgba(218,151,74,0.2)", background: "rgba(255,255,255,0.04)", color: "white", fontSize: "18px", fontWeight: 850, cursor: "pointer" }}>Back to Your Investment</button>
+                        <button type="button" onClick={confirmFunding} disabled={fundingSubmitting || totalFunding < selectedBusiness.minCapital} style={{ minHeight: "54px", flex: 1.25, borderRadius: "14px", border: "none", background: fundingSubmitting || totalFunding < selectedBusiness.minCapital ? "rgba(255,255,255,0.12)" : "linear-gradient(135deg, #d99548, #8d4b21)", color: fundingSubmitting || totalFunding < selectedBusiness.minCapital ? "rgba(255,255,255,0.4)" : "white", fontSize: "18px", fontWeight: 900, cursor: fundingSubmitting ? "wait" : totalFunding < selectedBusiness.minCapital ? "not-allowed" : "pointer" }}>
+                          {fundingSubmitting ? "Confirming..." : "Confirm Funding Agreement"}
                         </button>
                       </div>
                     </div>
@@ -4386,7 +4524,7 @@ export default function MiloBusinessBuilderPage() {
                       letterSpacing: "-0.04em",
                     }}
                   >
-                    Build within Milo’s budget.
+                    Build within the approved budget.
                   </h2>
                   <p
                     style={{
@@ -4606,10 +4744,10 @@ export default function MiloBusinessBuilderPage() {
                     {category.options.map((option) => {
                       const selected = draftSelections[category.id] === option.id;
                       const setupCost =
-                        (activeSlot.miloInvestment || activeSlot.approvedBudget) *
+                        getSetupCostBasis(activeSlot) *
                         option.setupFraction;
                       const monthlyCost =
-                        (activeSlot.miloInvestment || activeSlot.approvedBudget) *
+                        getSetupCostBasis(activeSlot) *
                         option.monthlyFraction;
 
                       return (
@@ -4975,7 +5113,8 @@ export default function MiloBusinessBuilderPage() {
                       Speed changes how quickly this cycle finishes, but it never
                       allows more than one complete 30-day cycle on the same
                       Singapore calendar day. At 1,440×, one simulated day passes
-                      every real minute.
+                      every real minute. While you are away or offline, the
+                      current cycle continues at 168× until day 30 and catches up when you return.
                     </p>
 
                     <div
@@ -5552,7 +5691,7 @@ export default function MiloBusinessBuilderPage() {
                     border: "1px solid rgba(218,151,74,0.22)",
                     background:
                       "linear-gradient(145deg, rgba(39,23,14,0.9), rgba(5,9,17,0.94))",
-                    padding: mobile ? "20px" : "24px",
+                    padding: mobile ? "18px" : "24px",
                   }}
                 >
                   <div
@@ -5564,268 +5703,114 @@ export default function MiloBusinessBuilderPage() {
                     }}
                   >
                     <div>
-                      <p
-                        style={{
-                          margin: 0,
-                          color: "#efbc73",
-                          fontSize: "15px",
-                          fontWeight: 900,
-                          letterSpacing: "0.17em",
-                          textTransform: "uppercase",
-                        }}
-                      >
+                      <p style={{ margin: 0, color: "#efbc73", fontSize: "15px", fontWeight: 900, letterSpacing: "0.17em", textTransform: "uppercase" }}>
                         Running-cost controls
                       </p>
-                      <h3
-                        style={{
-                          margin: "10px 0 0",
-                          fontFamily: 'Georgia, "Times New Roman", serif',
-                          fontSize: mobile ? "36px" : "46px",
-                          lineHeight: 1,
-                          fontWeight: 500,
-                        }}
-                      >
-                        Adjust the operating business
+                      <h3 style={{ margin: "10px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? "36px" : "46px", lineHeight: 1, fontWeight: 500 }}>
+                        Manage the operating business
                       </h3>
-                      <p
-                        style={{
-                          margin: "13px 0 0",
-                          color: "rgba(255,255,255,0.58)",
-                          fontSize: "18px",
-                          lineHeight: 1.65,
-                        }}
-                      >
-                        Location and major equipment are fixed after launch. You
-                        can still change stock levels, staffing and marketing.
-                        Upgrades use business cash; downgrades recover 50% of the
-                        removed setup value.
+                      <p style={{ margin: "13px 0 0", color: "rgba(255,255,255,0.58)", fontSize: "18px", lineHeight: 1.65 }}>
+                        Stock falls as customers buy products. Staffing and marketing are recurring monthly costs. Every change directly updates the profit forecast and may affect future simulation events.
                       </p>
                     </div>
                     <div style={{ textAlign: compact ? "left" : "right" }}>
-                      <span
-                        style={{
-                          display: "block",
-                          color: "rgba(255,255,255,0.45)",
-                          fontSize: "15px",
-                          textTransform: "uppercase",
-                          letterSpacing: "0.12em",
-                        }}
-                      >
-                        Forecast daily profit
-                      </span>
-                      <strong
-                        style={{
-                          display: "block",
-                          marginTop: "6px",
-                          color:
-                            operatingForecast.dailyProfit >= 0
-                              ? "#9ff0bd"
-                              : "#ffb497",
-                          fontSize: "35px",
-                        }}
-                      >
+                      <span style={{ display: "block", color: "rgba(255,255,255,0.45)", fontSize: "15px", textTransform: "uppercase", letterSpacing: "0.12em" }}>Forecast daily profit</span>
+                      <strong style={{ display: "block", marginTop: "6px", color: operatingForecast.dailyProfit >= 0 ? "#9ff0bd" : "#ffb497", fontSize: "35px" }}>
                         {formatMoney(operatingForecast.dailyProfit)}
                       </strong>
                     </div>
                   </div>
 
-                  <div
-                    style={{
-                      marginTop: "22px",
-                      display: "grid",
-                      gridTemplateColumns: compact
-                        ? "1fr"
-                        : "repeat(3, minmax(0, 1fr))",
-                      gap: "16px",
-                    }}
-                  >
-                    {SETUP_CATEGORIES.filter((category) =>
-                      ["stock", "staff", "marketing"].includes(category.id),
-                    ).map((category) => (
-                      <div
-                        key={category.id}
-                        style={{
-                          borderRadius: "21px",
-                          border: "1px solid rgba(218,151,74,0.18)",
-                          background: "rgba(255,255,255,0.025)",
-                          padding: "18px",
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "11px",
-                          }}
-                        >
-                          <span
-                            style={{
-                              width: "40px",
-                              height: "40px",
-                              borderRadius: "13px",
-                              border: "1px solid rgba(239,187,112,0.28)",
-                              background: "rgba(218,151,74,0.09)",
-                              color: "#f3c47c",
-                              display: "grid",
-                              placeItems: "center",
-                              fontSize: "21px",
-                            }}
-                          >
-                            {category.icon}
-                          </span>
-                          <div>
-                            <strong
-                              style={{ display: "block", fontSize: "22px" }}
-                            >
-                              {category.shortLabel}
-                            </strong>
-                            <span
-                              style={{
-                                display: "block",
-                                marginTop: "3px",
-                                color: "rgba(255,255,255,0.45)",
-                                fontSize: "15px",
-                              }}
-                            >
-                              Current: {getTierOption(category, draftSelections[category.id]).label}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div
-                          style={{
-                            marginTop: "16px",
-                            display: "grid",
-                            gap: "9px",
-                          }}
-                        >
-                          {category.options.map((option) => {
-                            const selected =
-                              draftSelections[category.id] === option.id;
-                            const setupCost =
-                              (activeSlot.miloInvestment ||
-                                activeSlot.approvedBudget) *
-                              option.setupFraction;
-                            const monthlyCost =
-                              (activeSlot.miloInvestment ||
-                                activeSlot.approvedBudget) *
-                              option.monthlyFraction;
-
-                            return (
-                              <button
-                                key={option.id}
-                                type="button"
-                                onClick={() =>
-                                  setDraftSelections((current) => ({
-                                    ...current,
-                                    [category.id]: option.id,
-                                  }))
-                                }
-                                style={{
-                                  minHeight: "92px",
-                                  borderRadius: "15px",
-                                  border: selected
-                                    ? "1px solid rgba(241,195,122,0.7)"
-                                    : "1px solid rgba(218,151,74,0.13)",
-                                  background: selected
-                                    ? "rgba(111,60,27,0.62)"
-                                    : "rgba(255,255,255,0.025)",
-                                  color: "white",
-                                  padding: "13px 14px",
-                                  textAlign: "left",
-                                  cursor: "pointer",
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    gap: "10px",
-                                    alignItems: "start",
-                                  }}
-                                >
-                                  <strong style={{ fontSize: "18px" }}>
-                                    {option.label}
-                                  </strong>
-                                  {selected && (
-                                    <span
-                                      style={{
-                                        color: "#f4c782",
-                                        fontSize: "18px",
-                                        fontWeight: 900,
-                                      }}
-                                    >
-                                      ✓
-                                    </span>
-                                  )}
-                                </span>
-                                <span
-                                  style={{
-                                    display: "block",
-                                    marginTop: "7px",
-                                    color: "rgba(255,255,255,0.5)",
-                                    fontSize: "15px",
-                                    lineHeight: 1.45,
-                                  }}
-                                >
-                                  Setup value {formatMoney(setupCost)} · Monthly {monthlyCost > 0 ? formatMoney(monthlyCost) : "Variable"}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
+                  <div style={{ marginTop: "22px", display: "grid", gridTemplateColumns: compact ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: "16px" }}>
+                    <section style={{ borderRadius: "21px", border: "1px solid rgba(218,151,74,0.18)", background: "rgba(255,255,255,0.025)", padding: "18px" }}>
+                      <p style={{ margin: 0, color: "#efbc73", fontSize: "14px", fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase" }}>Stock inventory</p>
+                      <strong style={{ display: "block", marginTop: "10px", fontSize: "40px", color: activeSlot.stockUnits < operatingForecast.dailyStockUnitsUsed * 3 ? "#ffb497" : "white" }}>
+                        {Math.floor(activeSlot.stockUnits)} units
+                      </strong>
+                      <span style={{ display: "block", marginTop: "6px", color: "rgba(255,255,255,0.48)", fontSize: "16px", lineHeight: 1.5 }}>
+                        Forecast usage: {operatingForecast.dailyStockUnitsUsed.toFixed(1)} units per simulated day
+                      </span>
+                      <div style={{ marginTop: "15px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "9px" }}>
+                        <MetricCard label="Buy price" value={`${formatMoney(activeStockPrices.buyPrice)}/unit`} note="Paid from business cash" />
+                        <MetricCard label="Sell-off price" value={`${formatMoney(activeStockPrices.sellPrice)}/unit`} note="Lower liquidation price" />
                       </div>
-                    ))}
+                      <label style={{ display: "block", marginTop: "15px", color: "rgba(255,255,255,0.5)", fontSize: "14px", fontWeight: 800 }}>Units to trade</label>
+                      <input type="number" min={1} step={1} value={stockTradeUnits} onChange={(event) => setStockTradeUnits(Math.max(1, Number(event.target.value || 1)))} style={{ width: "100%", height: "50px", marginTop: "7px", borderRadius: "13px", border: "1px solid rgba(218,151,74,0.2)", background: "rgba(255,255,255,0.04)", color: "white", padding: "0 14px", fontSize: "18px", fontWeight: 850 }} />
+                      <div style={{ marginTop: "11px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                        <button type="button" onClick={buyStockUnits} style={{ minHeight: "48px", borderRadius: "12px", border: "none", background: "linear-gradient(135deg, #d99548, #8d4b21)", color: "white", fontSize: "16px", fontWeight: 900, cursor: "pointer" }}>Add Stock</button>
+                        <button type="button" onClick={sellStockUnits} style={{ minHeight: "48px", borderRadius: "12px", border: "1px solid rgba(218,151,74,0.22)", background: "rgba(255,255,255,0.04)", color: "white", fontSize: "16px", fontWeight: 900, cursor: "pointer" }}>Sell Off Stock</button>
+                      </div>
+                      <div style={{ marginTop: "8px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                        <button type="button" onClick={() => openNegotiation("stock-buy")} style={{ minHeight: "44px", borderRadius: "12px", border: "1px solid rgba(127,184,232,0.25)", background: "rgba(76,126,174,0.1)", color: "#cfe9ff", fontSize: "14px", fontWeight: 850, cursor: "pointer" }}>Negotiate Purchase</button>
+                        <button type="button" onClick={() => openNegotiation("stock-sell")} style={{ minHeight: "44px", borderRadius: "12px", border: "1px solid rgba(127,184,232,0.25)", background: "rgba(76,126,174,0.1)", color: "#cfe9ff", fontSize: "14px", fontWeight: 850, cursor: "pointer" }}>Negotiate Sale</button>
+                      </div>
+                    </section>
+
+                    <section style={{ borderRadius: "21px", border: "1px solid rgba(218,151,74,0.18)", background: "rgba(255,255,255,0.025)", padding: "18px" }}>
+                      <p style={{ margin: 0, color: "#efbc73", fontSize: "14px", fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase" }}>Staff controls</p>
+                      <label style={{ display: "block", marginTop: "16px", color: "rgba(255,255,255,0.5)", fontSize: "14px", fontWeight: 800 }}>Number of staff</label>
+                      <input type="number" min={0} step={1} value={operatingDraft.staffCount} onChange={(event) => setOperatingDraft((current) => ({ ...current, staffCount: Math.max(0, Number(event.target.value || 0)) }))} style={{ width: "100%", height: "52px", marginTop: "7px", borderRadius: "13px", border: "1px solid rgba(218,151,74,0.2)", background: "rgba(255,255,255,0.04)", color: "white", padding: "0 14px", fontSize: "19px", fontWeight: 850 }} />
+                      <label style={{ display: "block", marginTop: "15px", color: "rgba(255,255,255,0.5)", fontSize: "14px", fontWeight: 800 }}>Average monthly salary per staff</label>
+                      <input type="number" min={0} step={50} value={operatingDraft.averageMonthlySalary} onChange={(event) => setOperatingDraft((current) => ({ ...current, averageMonthlySalary: Math.max(0, Number(event.target.value || 0)) }))} style={{ width: "100%", height: "52px", marginTop: "7px", borderRadius: "13px", border: "1px solid rgba(218,151,74,0.2)", background: "rgba(255,255,255,0.04)", color: "white", padding: "0 14px", fontSize: "19px", fontWeight: 850 }} />
+                      <div style={{ marginTop: "15px" }}>
+                        <MetricCard label="Monthly payroll" value={formatMoney(operatingDraft.staffCount * operatingDraft.averageMonthlySalary)} note={`Market salary benchmark: ${formatMoney(operatingForecast.recommendedSalary)} per staff`} positive={operatingDraft.averageMonthlySalary >= operatingForecast.recommendedSalary * 0.82} />
+                      </div>
+                      <p style={{ margin: "13px 0 0", color: "rgba(255,255,255,0.5)", fontSize: "15px", lineHeight: 1.5 }}>Low pay may cause staff to leave during a scheduled staff review.</p>
+                    </section>
+
+                    <section style={{ borderRadius: "21px", border: "1px solid rgba(218,151,74,0.18)", background: "rgba(255,255,255,0.025)", padding: "18px" }}>
+                      <p style={{ margin: 0, color: "#efbc73", fontSize: "14px", fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase" }}>Monthly marketing</p>
+                      <label style={{ display: "block", marginTop: "16px", color: "rgba(255,255,255,0.5)", fontSize: "14px", fontWeight: 800 }}>Online channels</label>
+                      <input type="number" min={0} step={50} value={operatingDraft.onlineMarketingBudget} onChange={(event) => setOperatingDraft((current) => ({ ...current, onlineMarketingBudget: Math.max(0, Number(event.target.value || 0)) }))} style={{ width: "100%", height: "52px", marginTop: "7px", borderRadius: "13px", border: "1px solid rgba(218,151,74,0.2)", background: "rgba(255,255,255,0.04)", color: "white", padding: "0 14px", fontSize: "19px", fontWeight: 850 }} />
+                      <label style={{ display: "block", marginTop: "15px", color: "rgba(255,255,255,0.5)", fontSize: "14px", fontWeight: 800 }}>Offline channels</label>
+                      <input type="number" min={0} step={50} value={operatingDraft.offlineMarketingBudget} onChange={(event) => setOperatingDraft((current) => ({ ...current, offlineMarketingBudget: Math.max(0, Number(event.target.value || 0)) }))} style={{ width: "100%", height: "52px", marginTop: "7px", borderRadius: "13px", border: "1px solid rgba(218,151,74,0.2)", background: "rgba(255,255,255,0.04)", color: "white", padding: "0 14px", fontSize: "19px", fontWeight: 850 }} />
+                      <div style={{ marginTop: "15px" }}>
+                        <MetricCard label="Total monthly marketing" value={formatMoney(operatingDraft.onlineMarketingBudget + operatingDraft.offlineMarketingBudget)} note={`Industry benchmark: ${formatMoney(operatingForecast.recommendedMarketingBudget)}`} positive={operatingDraft.onlineMarketingBudget + operatingDraft.offlineMarketingBudget >= operatingForecast.recommendedMarketingBudget * 0.6} />
+                      </div>
+                      <p style={{ margin: "13px 0 0", color: "rgba(255,255,255,0.5)", fontSize: "15px", lineHeight: 1.5 }}>Low marketing budgets can reduce long-term demand during scheduled market reviews.</p>
+                    </section>
                   </div>
 
-                  <div
-                    style={{
-                      marginTop: "20px",
-                      display: "grid",
-                      gridTemplateColumns: compact ? "1fr" : "1fr auto",
-                      gap: "14px",
-                      alignItems: "center",
-                    }}
-                  >
-                    <div
-                      style={{
-                        borderRadius: "17px",
-                        border: "1px solid rgba(218,151,74,0.14)",
-                        background: "rgba(255,255,255,0.025)",
-                        padding: "15px 17px",
-                      }}
-                    >
-                      <strong style={{ display: "block", fontSize: "19px" }}>
-                        Estimated monthly fixed costs: {formatMoney(operatingForecast.monthlyFixedCosts)}
-                      </strong>
-                      <span
-                        style={{
-                          display: "block",
-                          marginTop: "6px",
-                          color: "rgba(255,255,255,0.48)",
-                          fontSize: "16px",
-                        }}
-                      >
-                        Available business cash: {formatMoney(activeSlot.cash)}
-                      </span>
+                  <div style={{ marginTop: "20px", display: "grid", gridTemplateColumns: compact ? "1fr" : "1fr auto", gap: "14px", alignItems: "center" }}>
+                    <div style={{ borderRadius: "17px", border: "1px solid rgba(218,151,74,0.14)", background: "rgba(255,255,255,0.025)", padding: "15px 17px" }}>
+                      <strong style={{ display: "block", fontSize: "19px" }}>Forecast monthly operating costs: {formatMoney(operatingForecast.monthlyFixedCosts)}</strong>
+                      <span style={{ display: "block", marginTop: "6px", color: "rgba(255,255,255,0.48)", fontSize: "16px" }}>Available business cash: {formatMoney(activeSlot.cash)}</span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={saveOperatingChanges}
-                      style={{
-                        minHeight: "54px",
-                        borderRadius: "14px",
-                        border: "none",
-                        background: "linear-gradient(135deg, #d99548, #8d4b21)",
-                        color: "white",
-                        padding: "0 24px",
-                        fontSize: "19px",
-                        fontWeight: 900,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Save Running-Cost Changes
-                    </button>
+                    <button type="button" onClick={saveOperatingChanges} style={{ minHeight: "54px", borderRadius: "14px", border: "none", background: "linear-gradient(135deg, #d99548, #8d4b21)", color: "white", padding: "0 24px", fontSize: "19px", fontWeight: 900, cursor: "pointer" }}>Save Staff & Marketing Changes</button>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: "18px", borderRadius: "26px", border: "1px solid rgba(218,151,74,0.22)", background: "rgba(6,10,18,0.9)", padding: mobile ? "18px" : "24px" }}>
+                  <p style={{ margin: 0, color: "#efbc73", fontSize: "15px", fontWeight: 900, letterSpacing: "0.17em", textTransform: "uppercase" }}>Uniform 10-year event timeline</p>
+                  <h3 style={{ margin: "10px 0 0", fontFamily: 'Georgia, "Times New Roman", serif', fontSize: mobile ? "34px" : "43px", fontWeight: 500 }}>Industry events and operating consequences</h3>
+                  <p style={{ margin: "12px 0 0", color: "rgba(255,255,255,0.58)", fontSize: "18px", lineHeight: 1.6 }}>Every user running a {activeMarket?.industryName || activeBusiness.category} business encounters the same scheduled event checkpoints across the 10-year simulation. Your staffing, salary, stock and marketing choices determine how some events affect you.</p>
+                  <div style={{ marginTop: "18px", display: "grid", gridTemplateColumns: compact ? "1fr" : "1fr 1fr", gap: "16px" }}>
+                    <section style={{ borderRadius: "19px", border: "1px solid rgba(218,151,74,0.16)", background: "rgba(255,255,255,0.025)", padding: "17px" }}>
+                      <strong style={{ display: "block", fontSize: "21px" }}>Recent events</strong>
+                      <div style={{ marginTop: "13px", display: "grid", gap: "10px" }}>
+                        {activeSlot.eventLog.length === 0 ? (
+                          <span style={{ color: "rgba(255,255,255,0.48)", fontSize: "16px" }}>No event checkpoint has been reached yet.</span>
+                        ) : activeSlot.eventLog.slice(-5).reverse().map((event) => (
+                          <div key={event.id} style={{ borderRadius: "15px", border: `1px solid ${event.tone === "positive" ? "rgba(96,218,143,0.24)" : event.tone === "negative" ? "rgba(255,142,108,0.24)" : "rgba(218,151,74,0.16)"}`, background: "rgba(255,255,255,0.025)", padding: "13px" }}>
+                            <span style={{ color: event.tone === "positive" ? "#9ff0bd" : event.tone === "negative" ? "#ffb497" : "#efbc73", fontSize: "13px", fontWeight: 900 }}>DAY {event.day}</span>
+                            <strong style={{ display: "block", marginTop: "5px", fontSize: "18px" }}>{event.title}</strong>
+                            <span style={{ display: "block", marginTop: "5px", color: "rgba(255,255,255,0.5)", fontSize: "15px", lineHeight: 1.45 }}>{event.description}</span>
+                            <span style={{ display: "block", marginTop: "6px", color: "rgba(255,255,255,0.72)", fontSize: "14px", fontWeight: 800 }}>{event.impact}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                    <section style={{ borderRadius: "19px", border: "1px solid rgba(218,151,74,0.16)", background: "rgba(255,255,255,0.025)", padding: "17px" }}>
+                      <strong style={{ display: "block", fontSize: "21px" }}>Upcoming checkpoints</strong>
+                      <div style={{ marginTop: "13px", display: "grid", gap: "10px" }}>
+                        {upcomingEvents.map((event) => (
+                          <div key={event.id} style={{ borderRadius: "15px", border: "1px solid rgba(218,151,74,0.14)", background: "rgba(255,255,255,0.02)", padding: "13px", display: "grid", gridTemplateColumns: "auto 1fr", gap: "11px", alignItems: "center" }}>
+                            <span style={{ minWidth: "72px", color: "#efbc73", fontSize: "14px", fontWeight: 900 }}>DAY {event.day}</span>
+                            <span style={{ color: "rgba(255,255,255,0.68)", fontSize: "16px" }}>{event.kind === "staff-review" ? "Staff and salary review" : event.kind === "marketing-review" ? "Marketing demand review" : event.kind === "supply" ? "Supplier and inventory event" : "Industry demand event"}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
                   </div>
                 </div>
 
@@ -6355,7 +6340,7 @@ export default function MiloBusinessBuilderPage() {
                           }}
                         >
                           <strong style={{ display: "block", fontSize: "18px" }}>
-                            Analyst fee: {formatMoney(getAnalystFee(activeSlot))}
+                            Analyst fee: {formatMoney(getAnalystFee())}
                           </strong>
                           <span style={{ display: "block", marginTop: "6px", color: "rgba(255,255,255,0.48)", fontSize: "15px", lineHeight: 1.5 }}>
                             Paid once from business cash. Available cash: {formatMoney(activeSlot.cash)}.
@@ -6366,7 +6351,7 @@ export default function MiloBusinessBuilderPage() {
                       <button
                         type="button"
                         onClick={hireBusinessAnalyst}
-                        disabled={saleActionState !== "idle" || activeSlot.cash < getAnalystFee(activeSlot)}
+                        disabled={saleActionState !== "idle" || activeSlot.cash < getAnalystFee()}
                         style={{
                           width: "100%",
                           minHeight: "52px",
@@ -6374,11 +6359,11 @@ export default function MiloBusinessBuilderPage() {
                           borderRadius: "14px",
                           border: "none",
                           background:
-                            saleActionState !== "idle" || activeSlot.cash < getAnalystFee(activeSlot)
+                            saleActionState !== "idle" || activeSlot.cash < getAnalystFee()
                               ? "rgba(255,255,255,0.12)"
                               : "linear-gradient(135deg, #d99548, #8d4b21)",
                           color:
-                            saleActionState !== "idle" || activeSlot.cash < getAnalystFee(activeSlot)
+                            saleActionState !== "idle" || activeSlot.cash < getAnalystFee()
                               ? "rgba(255,255,255,0.38)"
                               : "white",
                           fontSize: "18px",
