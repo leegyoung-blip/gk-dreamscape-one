@@ -180,6 +180,7 @@ type BusinessSlot = {
   personalContribution: number;
   miloOwnership: number;
   userOwnership: number;
+  ownershipTransferred: boolean;
   selections: SetupSelections;
   stockUnits: number;
   staffCount: number;
@@ -707,6 +708,7 @@ function createEmptySlot(id: 1 | 2 | 3): BusinessSlot {
     personalContribution: 0,
     miloOwnership: 0,
     userOwnership: 0,
+    ownershipTransferred: false,
     selections: { ...DEFAULT_SELECTIONS },
     stockUnits: 0,
     staffCount: 0,
@@ -921,6 +923,21 @@ function normalizeSlot(
     personalContribution,
     miloInvestment,
   );
+  const savedUserOwnership = Number(savedSlot.userOwnership);
+  const savedMiloOwnership = Number(savedSlot.miloOwnership);
+  const savedOwnershipTotal = savedUserOwnership + savedMiloOwnership;
+  const shouldKeepTransferredOwnership =
+    Boolean(savedSlot.ownershipTransferred) &&
+    Number.isFinite(savedUserOwnership) &&
+    Number.isFinite(savedMiloOwnership) &&
+    savedOwnershipTotal > 0;
+  const normalizedSavedUserOwnership = shouldKeepTransferredOwnership
+    ? clamp(savedUserOwnership / savedOwnershipTotal, 0, 1)
+    : calculatedOwnership.userOwnership;
+  const normalizedSavedMiloOwnership = shouldKeepTransferredOwnership
+    ? clamp(savedMiloOwnership / savedOwnershipTotal, 0, 1)
+    : calculatedOwnership.miloOwnership;
+
   const operatingDefaults = getInitialOperatingControls({
     businessTypeId: savedSlot.businessTypeId || null,
     approvedBudget,
@@ -938,8 +955,9 @@ function normalizeSlot(
     approvedBudget,
     miloInvestment,
     personalContribution,
-    miloOwnership: calculatedOwnership.miloOwnership,
-    userOwnership: calculatedOwnership.userOwnership,
+    miloOwnership: normalizedSavedMiloOwnership,
+    userOwnership: normalizedSavedUserOwnership,
+    ownershipTransferred: Boolean(savedSlot.ownershipTransferred),
     selections: {
       ...DEFAULT_SELECTIONS,
       ...(savedSlot.selections || {}),
@@ -3079,9 +3097,12 @@ export default function MiloBusinessBuilderPage() {
     );
   }
 
-  function openNegotiation(topic: "stock-buy" | "stock-sell" | "milo") {
+  function openNegotiation(
+    topic: "stock-buy" | "stock-sell" | "staff" | "milo",
+  ) {
     if (!activeSlot) return;
-    window.location.href = `/milo-world/club/negotiation?slot=${activeSlot.id}&topic=${topic}`;
+    const units = Math.max(1, Math.floor(stockTradeUnits));
+    window.location.href = `/milo-world/club/negotiation?slot=${activeSlot.id}&topic=${topic}&units=${units}`;
   }
 
   async function saveProgressToAccount(
@@ -5756,6 +5777,7 @@ export default function MiloBusinessBuilderPage() {
                         <MetricCard label="Monthly payroll" value={formatMoney(operatingDraft.staffCount * operatingDraft.averageMonthlySalary)} note={`Market salary benchmark: ${formatMoney(operatingForecast.recommendedSalary)} per staff`} positive={operatingDraft.averageMonthlySalary >= operatingForecast.recommendedSalary * 0.82} />
                       </div>
                       <p style={{ margin: "13px 0 0", color: "rgba(255,255,255,0.5)", fontSize: "15px", lineHeight: 1.5 }}>Low pay may cause staff to leave during a scheduled staff review.</p>
+                      <button type="button" onClick={() => openNegotiation("staff")} style={{ width: "100%", minHeight: "44px", marginTop: "12px", borderRadius: "12px", border: "1px solid rgba(127,184,232,0.25)", background: "rgba(76,126,174,0.1)", color: "#cfe9ff", fontSize: "14px", fontWeight: 850, cursor: "pointer" }}>Negotiate with Dennis</button>
                     </section>
 
                     <section style={{ borderRadius: "21px", border: "1px solid rgba(218,151,74,0.18)", background: "rgba(255,255,255,0.025)", padding: "18px" }}>
