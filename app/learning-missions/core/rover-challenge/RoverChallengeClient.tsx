@@ -53,13 +53,27 @@ type PhaserGameProps = {
   gameStats: CoreRoverGameStats;
 };
 
+type FullscreenDocument = Document & {
+  webkitFullscreenElement?: Element | null;
+  webkitExitFullscreen?: () => Promise<void> | void;
+};
+
+type FullscreenGameElement = HTMLDivElement & {
+  webkitRequestFullscreen?: () => Promise<void> | void;
+};
+
+type LockableScreenOrientation = ScreenOrientation & {
+  lock?: (orientation: "landscape") => Promise<void>;
+  unlock?: () => void;
+};
+
 const PhaserGame = dynamic<PhaserGameProps>(
   () => import("./PhaserGame"),
   {
     ssr: false,
 
     loading: () => (
-      <div className="flex min-h-[500px] w-full items-center justify-center">
+      <div className="flex h-full min-h-[240px] w-full items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="h-10 w-10 animate-spin rounded-full border-2 border-white/20 border-t-cyan-300" />
 
@@ -110,6 +124,33 @@ export default function RoverChallengeClient() {
 
   const submittedRunRef =
     useRef<string | null>(null);
+
+  const gameAreaRef =
+    useRef<HTMLDivElement | null>(null);
+
+  const [
+    isNativeFullscreen,
+    setIsNativeFullscreen,
+  ] = useState(false);
+
+  const [
+    isFallbackFullscreen,
+    setIsFallbackFullscreen,
+  ] = useState(false);
+
+  const [
+    isMobileDevice,
+    setIsMobileDevice,
+  ] = useState(false);
+
+  const [
+    isPortrait,
+    setIsPortrait,
+  ] = useState(false);
+
+  const isGameFullscreen =
+    isNativeFullscreen ||
+    isFallbackFullscreen;
 
   const loadRoverProgress =
     useCallback(
@@ -386,18 +427,264 @@ export default function RoverChallengeClient() {
     };
   }, [saveCompletedRun]);
 
+  const refreshGameSize =
+    useCallback(() => {
+      window.setTimeout(() => {
+        window.dispatchEvent(
+          new Event("resize"),
+        );
+      }, 60);
+
+      window.setTimeout(() => {
+        window.dispatchEvent(
+          new Event("resize"),
+        );
+      }, 320);
+    }, []);
+
+  const requestGameFullscreen =
+    useCallback(async () => {
+      const gameElement =
+        gameAreaRef.current as
+          | FullscreenGameElement
+          | null;
+
+      if (!gameElement) {
+        return;
+      }
+
+      try {
+        if (
+          gameElement.requestFullscreen
+        ) {
+          await gameElement.requestFullscreen({
+            navigationUI: "hide",
+          });
+        } else if (
+          gameElement.webkitRequestFullscreen
+        ) {
+          await gameElement.webkitRequestFullscreen();
+        } else {
+          setIsFallbackFullscreen(true);
+        }
+      } catch (error) {
+        console.warn(
+          "Native fullscreen was unavailable. Using viewport fullscreen instead.",
+          error,
+        );
+
+        setIsFallbackFullscreen(true);
+      }
+
+      try {
+        const orientation =
+          window.screen
+            .orientation as
+            LockableScreenOrientation;
+
+        await orientation.lock?.(
+          "landscape",
+        );
+      } catch {
+        // Some mobile browsers do not support orientation locking.
+      }
+
+      refreshGameSize();
+    }, [refreshGameSize]);
+
+  const exitGameFullscreen =
+    useCallback(async () => {
+      const fullscreenDocument =
+        document as FullscreenDocument;
+
+      try {
+        if (
+          fullscreenDocument.fullscreenElement &&
+          fullscreenDocument.exitFullscreen
+        ) {
+          await fullscreenDocument.exitFullscreen();
+        } else if (
+          fullscreenDocument.webkitFullscreenElement &&
+          fullscreenDocument.webkitExitFullscreen
+        ) {
+          await fullscreenDocument.webkitExitFullscreen();
+        }
+      } catch (error) {
+        console.warn(
+          "Could not exit native fullscreen:",
+          error,
+        );
+      }
+
+      setIsFallbackFullscreen(false);
+
+      try {
+        const orientation =
+          window.screen
+            .orientation as
+            LockableScreenOrientation;
+
+        orientation.unlock?.();
+      } catch {
+        // Orientation unlock is optional.
+      }
+
+      refreshGameSize();
+    }, [refreshGameSize]);
+
+  const toggleGameFullscreen =
+    useCallback(() => {
+      if (isGameFullscreen) {
+        void exitGameFullscreen();
+      } else {
+        void requestGameFullscreen();
+      }
+    }, [
+      exitGameFullscreen,
+      isGameFullscreen,
+      requestGameFullscreen,
+    ]);
+
+  useEffect(() => {
+    function updateViewportState() {
+      const width =
+        window.innerWidth;
+
+      const height =
+        window.innerHeight;
+
+      const usesCoarsePointer =
+        window.matchMedia(
+          "(pointer: coarse)",
+        ).matches;
+
+      setIsMobileDevice(
+        usesCoarsePointer &&
+          Math.min(width, height) <=
+            1024,
+      );
+
+      setIsPortrait(
+        height > width,
+      );
+    }
+
+    updateViewportState();
+
+    window.addEventListener(
+      "resize",
+      updateViewportState,
+    );
+
+    window.addEventListener(
+      "orientationchange",
+      updateViewportState,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "resize",
+        updateViewportState,
+      );
+
+      window.removeEventListener(
+        "orientationchange",
+        updateViewportState,
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    const fullscreenDocument =
+      document as FullscreenDocument;
+
+    function syncFullscreenState() {
+      setIsNativeFullscreen(
+        Boolean(
+          fullscreenDocument.fullscreenElement ||
+            fullscreenDocument.webkitFullscreenElement,
+        ),
+      );
+
+      refreshGameSize();
+    }
+
+    document.addEventListener(
+      "fullscreenchange",
+      syncFullscreenState,
+    );
+
+    document.addEventListener(
+      "webkitfullscreenchange",
+      syncFullscreenState,
+    );
+
+    return () => {
+      document.removeEventListener(
+        "fullscreenchange",
+        syncFullscreenState,
+      );
+
+      document.removeEventListener(
+        "webkitfullscreenchange",
+        syncFullscreenState,
+      );
+    };
+  }, [refreshGameSize]);
+
+  useEffect(() => {
+    if (
+      isMobileDevice &&
+      !isPortrait &&
+      !isNativeFullscreen
+    ) {
+      /*
+       * Mobile browsers normally require a tap for native fullscreen.
+       * This viewport fallback still makes the game fill the complete
+       * landscape screen immediately after rotation.
+       */
+      setIsFallbackFullscreen(true);
+    }
+  }, [
+    isMobileDevice,
+    isNativeFullscreen,
+    isPortrait,
+  ]);
+
+  useEffect(() => {
+    if (!isFallbackFullscreen) {
+      return;
+    }
+
+    const previousOverflow =
+      document.body.style.overflow;
+
+    document.body.style.overflow =
+      "hidden";
+
+    refreshGameSize();
+
+    return () => {
+      document.body.style.overflow =
+        previousOverflow;
+    };
+  }, [
+    isFallbackFullscreen,
+    refreshGameSize,
+  ]);
+
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#050713] text-white">
+    <main className="relative min-h-screen overflow-x-hidden bg-[#050713] text-white">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
+        className="pointer-events-none fixed inset-0"
         style={{
           background:
             "radial-gradient(circle at 50% 10%, rgba(85, 73, 255, 0.18), transparent 35%), radial-gradient(circle at 85% 70%, rgba(0, 213, 255, 0.1), transparent 30%)",
         }}
       />
 
-      <header className="relative z-20 flex items-center justify-between px-5 py-4 sm:px-8">
+      <header className="relative z-20 mx-auto flex w-full max-w-[1600px] items-center justify-between px-4 py-4 sm:px-8">
         <Link
           href="/learning-missions"
           className="rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-sm text-white/75 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/10 hover:text-white"
@@ -416,8 +703,8 @@ export default function RoverChallengeClient() {
         </div>
       </header>
 
-      <section className="relative z-10 mx-auto flex w-full max-w-[1600px] flex-col px-4 pb-8 sm:px-8">
-        <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <section className="relative z-10">
+        <div className="mx-auto mb-5 flex w-full max-w-[1600px] flex-col gap-2 px-4 sm:flex-row sm:items-end sm:justify-between sm:px-8">
           <div>
             <p className="mb-2 text-xs font-semibold tracking-[0.28em] text-cyan-300">
               TEST COURSE 01
@@ -447,11 +734,22 @@ export default function RoverChallengeClient() {
           </div>
         </div>
 
-        <div className="relative overflow-hidden rounded-[24px] border border-white/10 bg-black/30 shadow-[0_30px_100px_rgba(0,0,0,0.45)]">
+        <div
+          ref={gameAreaRef}
+          className={
+            isGameFullscreen
+              ? `${
+                  isNativeFullscreen
+                    ? "relative"
+                    : "fixed inset-0 z-[1000]"
+                } h-[100dvh] w-screen overflow-hidden bg-[#050713]`
+              : "relative aspect-video w-screen overflow-hidden border-y border-white/10 bg-black shadow-[0_30px_100px_rgba(0,0,0,0.45)]"
+          }
+        >
           <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-px bg-gradient-to-r from-transparent via-cyan-300/70 to-transparent" />
 
           {roverProgressLoading ? (
-            <div className="flex min-h-[500px] w-full items-center justify-center">
+            <div className="flex h-full min-h-[240px] w-full items-center justify-center">
               <div className="flex flex-col items-center gap-4">
                 <div className="h-10 w-10 animate-spin rounded-full border-2 border-white/20 border-t-cyan-300" />
 
@@ -473,8 +771,67 @@ export default function RoverChallengeClient() {
               }
             />
           )}
+
+          <button
+            type="button"
+            onClick={toggleGameFullscreen}
+            aria-label={
+              isGameFullscreen
+                ? "Exit full screen"
+                : "Enter full screen"
+            }
+            title={
+              isGameFullscreen
+                ? "Exit full screen"
+                : "Enter full screen"
+            }
+            className="absolute bottom-3 left-3 z-[80] grid h-11 w-11 place-items-center rounded-xl border border-cyan-200/35 bg-[#050816]/80 text-xl text-cyan-100 shadow-[0_0_22px_rgba(83,215,255,0.22)] backdrop-blur-md transition hover:border-cyan-100/60 hover:bg-[#0a1730]/90"
+          >
+            {isGameFullscreen
+              ? "↙"
+              : "⛶"}
+          </button>
+
+          {isMobileDevice &&
+            isPortrait && (
+              <div className="absolute inset-0 z-[70] flex items-center justify-center bg-[#030713]/95 px-7 text-center backdrop-blur-md">
+                <div className="max-w-sm">
+                  <div className="mx-auto flex h-20 w-12 rotate-90 items-center justify-center rounded-xl border-2 border-cyan-200/65 bg-cyan-300/10 shadow-[0_0_30px_rgba(83,215,255,0.24)]">
+                    <div className="h-1.5 w-1.5 rounded-full bg-cyan-100" />
+                  </div>
+
+                  <p className="mt-7 text-[11px] font-bold tracking-[0.26em] text-cyan-300">
+                    LANDSCAPE REQUIRED
+                  </p>
+
+                  <h2 className="mt-3 text-2xl font-bold">
+                    Rotate your phone horizontally
+                  </h2>
+
+                  <p className="mt-3 text-sm leading-6 text-white/60">
+                    The Rover Challenge uses
+                    landscape controls. Rotate
+                    your phone for the full
+                    game view.
+                  </p>
+
+                  {!isGameFullscreen && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void requestGameFullscreen();
+                      }}
+                      className="mt-6 rounded-full border border-cyan-200/30 bg-cyan-300/15 px-6 py-3 text-sm font-bold text-cyan-50 shadow-[0_0_24px_rgba(83,215,255,0.2)]"
+                    >
+                      Enter Landscape Game
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
         </div>
 
+        <div className="mx-auto w-full max-w-[1600px] px-4 pb-10 pt-4 sm:px-8">
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <InfoCard
             label="Course"
@@ -587,7 +944,7 @@ export default function RoverChallengeClient() {
               </div>
             ) : (
               <div className="grid gap-2">
-                <div className="hidden grid-cols-[70px_minmax(0,1fr)_130px_130px_100px] gap-3 px-4 pb-2 text-[10px] font-bold tracking-[0.16em] text-white/35 sm:grid">
+                <div className="hidden grid-cols-[70px_minmax(0,1fr)_100px_130px_130px_100px] gap-3 px-4 pb-2 text-[10px] font-bold tracking-[0.16em] text-white/35 sm:grid">
                   <span>RANK</span>
                   <span>PLAYER</span>
                   <span>STAGE</span>
@@ -689,6 +1046,7 @@ export default function RoverChallengeClient() {
             )}
           </div>
         </section>
+        </div>
       </section>
     </main>
   );

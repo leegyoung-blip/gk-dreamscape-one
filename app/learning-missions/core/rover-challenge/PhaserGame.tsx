@@ -3297,8 +3297,9 @@ export default function PhaserGame({
   return (
     <div
       ref={gameContainerRef}
-      className="aspect-video min-h-[280px] w-full overflow-hidden bg-[#070a18]"
+      className="h-full w-full overflow-hidden bg-[#070a18]"
       aria-label="Rover Challenge game"
+      style={{ touchAction: "none" }}
     />
   );
 }
