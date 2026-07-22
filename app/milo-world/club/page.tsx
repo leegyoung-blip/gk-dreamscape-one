@@ -15,6 +15,8 @@ type ViewName =
 type SlotStatus = "empty" | "setup" | "running";
 type TierId = "budget" | "balanced" | "premium";
 type SimulationSpeed = 0 | 1 | 24 | 168 | 1440;
+type FundingStep = "milo" | "personal";
+type CycleStatus = "running" | "awaiting-allocation" | "settled";
 type SetupCategoryId =
   | "location"
   | "equipment"
@@ -23,6 +25,18 @@ type SetupCategoryId =
   | "marketing";
 
 type SetupSelections = Record<SetupCategoryId, TierId>;
+
+type CycleHistoryRecord = {
+  cycleNumber: number;
+  completedDateSg: string;
+  revenue: number;
+  expenses: number;
+  profit: number;
+  reinvested: number;
+  dividendPool: number;
+  userDividend: number;
+  miloDividend: number;
+};
 
 type BusinessOption = {
   id: string;
@@ -65,6 +79,10 @@ type BusinessSlot = {
   businessTypeId: string | null;
   businessName: string;
   approvedBudget: number;
+  miloInvestment: number;
+  personalContribution: number;
+  miloOwnership: number;
+  userOwnership: number;
   selections: SetupSelections;
   setupSpend: number;
   cash: number;
@@ -75,6 +93,14 @@ type BusinessSlot = {
   expenses: number;
   sales: number;
   customerSatisfaction: number;
+  cycleNumber: number;
+  cycleSimulatedMinutes: number;
+  cycleRevenue: number;
+  cycleExpenses: number;
+  cycleProfit: number;
+  cycleStatus: CycleStatus;
+  lastCycleCompletedDateSg: string | null;
+  cycleHistory: CycleHistoryRecord[];
   lastUpdatedAt: string | null;
 };
 
@@ -98,7 +124,12 @@ type PropertyHoldingRow = {
   quantity: number;
 };
 
-const STORAGE_VERSION = "milo-business-builder-v1";
+const STORAGE_VERSION = "milo-business-builder-v2";
+const BUSINESS_PROGRESS_TABLE = "milo_business_builder_progress";
+const CYCLE_DAYS = 30;
+const CYCLE_MINUTES = CYCLE_DAYS * 1440;
+const MIN_MILO_OWNERSHIP = 0.2;
+const MAX_MILO_OWNERSHIP = 0.5;
 
 const DEFAULT_SELECTIONS: SetupSelections = {
   location: "balanced",
@@ -462,6 +493,10 @@ function createEmptySlot(id: 1 | 2 | 3): BusinessSlot {
     businessTypeId: null,
     businessName: "",
     approvedBudget: 0,
+    miloInvestment: 0,
+    personalContribution: 0,
+    miloOwnership: MIN_MILO_OWNERSHIP,
+    userOwnership: 1 - MIN_MILO_OWNERSHIP,
     selections: { ...DEFAULT_SELECTIONS },
     setupSpend: 0,
     cash: 0,
@@ -472,6 +507,14 @@ function createEmptySlot(id: 1 | 2 | 3): BusinessSlot {
     expenses: 0,
     sales: 0,
     customerSatisfaction: 68,
+    cycleNumber: 1,
+    cycleSimulatedMinutes: 0,
+    cycleRevenue: 0,
+    cycleExpenses: 0,
+    cycleProfit: 0,
+    cycleStatus: "running",
+    lastCycleCompletedDateSg: null,
+    cycleHistory: [],
     lastUpdatedAt: null,
   };
 }
@@ -489,11 +532,11 @@ function getTierOption(category: SetupCategory, tierId: TierId) {
 }
 
 function formatMoney(value: number) {
-  return new Intl.NumberFormat("en-SG", {
-    style: "currency",
-    currency: "SGD",
+  const formatted = new Intl.NumberFormat("en-SG", {
     maximumFractionDigits: 0,
   }).format(Math.round(value));
+
+  return `${formatted} DT`;
 }
 
 function formatCompactMoney(value: number) {
@@ -514,9 +557,105 @@ function formatDate(value: string | null) {
   }).format(new Date(value));
 }
 
+function getSingaporeDateString() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Singapore",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const year = parts.find((part) => part.type === "year")?.value || "";
+  const month = parts.find((part) => part.type === "month")?.value || "";
+  const day = parts.find((part) => part.type === "day")?.value || "";
+
+  return `${year}-${month}-${day}`;
+}
+
+function getOwnershipForInvestment(
+  business: BusinessOption,
+  investment: number,
+) {
+  const range = Math.max(1, business.maxCapital - business.minCapital);
+  const progress = Math.max(
+    0,
+    Math.min(1, (investment - business.minCapital) / range),
+  );
+  const miloOwnership =
+    MIN_MILO_OWNERSHIP +
+    (MAX_MILO_OWNERSHIP - MIN_MILO_OWNERSHIP) * progress;
+
+  return {
+    miloOwnership,
+    userOwnership: 1 - miloOwnership,
+  };
+}
+
+function normalizeSlot(
+  savedSlot: Partial<BusinessSlot> | undefined,
+  id: 1 | 2 | 3,
+): BusinessSlot {
+  const base = createEmptySlot(id);
+  if (!savedSlot) return base;
+
+  const approvedBudget = Number(savedSlot.approvedBudget || 0);
+  const miloInvestment = Number(
+    savedSlot.miloInvestment || approvedBudget || 0,
+  );
+  const business = getBusiness(savedSlot.businessTypeId || null);
+  const calculatedOwnership = business
+    ? getOwnershipForInvestment(business, miloInvestment)
+    : {
+        miloOwnership: MIN_MILO_OWNERSHIP,
+        userOwnership: 1 - MIN_MILO_OWNERSHIP,
+      };
+
+  return {
+    ...base,
+    ...savedSlot,
+    id,
+    approvedBudget,
+    miloInvestment,
+    personalContribution: Number(savedSlot.personalContribution || 0),
+    miloOwnership: Number(
+      savedSlot.miloOwnership ?? calculatedOwnership.miloOwnership,
+    ),
+    userOwnership: Number(
+      savedSlot.userOwnership ?? calculatedOwnership.userOwnership,
+    ),
+    selections: {
+      ...DEFAULT_SELECTIONS,
+      ...(savedSlot.selections || {}),
+    },
+    cycleNumber: Math.max(1, Number(savedSlot.cycleNumber || 1)),
+    cycleSimulatedMinutes: Math.min(
+      CYCLE_MINUTES,
+      Math.max(
+        0,
+        Number(
+          savedSlot.cycleSimulatedMinutes ??
+            Math.min(Number(savedSlot.simulatedMinutes || 0), CYCLE_MINUTES),
+        ),
+      ),
+    ),
+    cycleRevenue: Number(savedSlot.cycleRevenue ?? savedSlot.revenue ?? 0),
+    cycleExpenses: Number(savedSlot.cycleExpenses ?? savedSlot.expenses ?? 0),
+    cycleProfit: Number(
+      savedSlot.cycleProfit ??
+        Number(savedSlot.cycleRevenue ?? savedSlot.revenue ?? 0) -
+          Number(savedSlot.cycleExpenses ?? savedSlot.expenses ?? 0),
+    ),
+    cycleStatus: savedSlot.cycleStatus || "running",
+    cycleHistory: Array.isArray(savedSlot.cycleHistory)
+      ? savedSlot.cycleHistory
+      : [],
+  };
+}
+
 function getSetupSummary(
-  budget: number,
+  costBasis: number,
   selections: SetupSelections,
+  availableBudget = costBasis,
 ): {
   setupSpend: number;
   monthlyFixedCosts: number;
@@ -529,22 +668,27 @@ function getSetupSummary(
 
   SETUP_CATEGORIES.forEach((category) => {
     const option = getTierOption(category, selections[category.id]);
-    setupSpend += budget * option.setupFraction;
-    monthlyFixedCosts += budget * option.monthlyFraction;
+    setupSpend += costBasis * option.setupFraction;
+    monthlyFixedCosts += costBasis * option.monthlyFraction;
     qualityScores[category.id] = option.qualityScore;
   });
 
   return {
     setupSpend,
     monthlyFixedCosts,
-    remainingCash: budget - setupSpend,
+    remainingCash: availableBudget - setupSpend,
     qualityScores,
   };
 }
 
 function getPerformanceForecast(slot: BusinessSlot) {
   const business = getBusiness(slot.businessTypeId);
-  const summary = getSetupSummary(slot.approvedBudget, slot.selections);
+  const costBasis = slot.miloInvestment || slot.approvedBudget;
+  const summary = getSetupSummary(
+    costBasis,
+    slot.selections,
+    slot.approvedBudget,
+  );
 
   if (!business || slot.approvedBudget <= 0) {
     return {
@@ -569,12 +713,12 @@ function getPerformanceForecast(slot: BusinessSlot) {
   const operationalMultiplier = Math.min(demandMultiplier, capacityMultiplier);
 
   const dailyRevenue =
-    slot.approvedBudget * business.dailyRevenueRate * operationalMultiplier;
+    costBasis * business.dailyRevenueRate * operationalMultiplier;
   const costOfSalesRate = Math.max(0.31, 0.47 - q.stock * 0.035);
   const dailyVariableCosts = dailyRevenue * costOfSalesRate;
   const dailyFixedCosts = summary.monthlyFixedCosts / 30;
   const equipmentRiskCost =
-    q.equipment === 1 ? slot.approvedBudget * 0.0007 : 0;
+    q.equipment === 1 ? costBasis * 0.0007 : 0;
   const dailyExpenses =
     dailyVariableCosts + dailyFixedCosts + equipmentRiskCost;
   const dailyProfit = dailyRevenue - dailyExpenses;
@@ -603,15 +747,51 @@ function getPerformanceForecast(slot: BusinessSlot) {
   };
 }
 
+function prepareNextCycleIfAvailable(slot: BusinessSlot): BusinessSlot {
+  if (
+    slot.status !== "running" ||
+    slot.cycleStatus !== "settled" ||
+    !slot.lastCycleCompletedDateSg ||
+    slot.lastCycleCompletedDateSg === getSingaporeDateString()
+  ) {
+    return slot;
+  }
+
+  return {
+    ...slot,
+    cycleNumber: slot.cycleNumber + 1,
+    cycleSimulatedMinutes: 0,
+    cycleRevenue: 0,
+    cycleExpenses: 0,
+    cycleProfit: 0,
+    cycleStatus: "running",
+    simulationSpeed: 1,
+    lastUpdatedAt: new Date().toISOString(),
+  };
+}
+
 function simulateSlot(
-  slot: BusinessSlot,
+  originalSlot: BusinessSlot,
   realSeconds: number,
   speedOverride?: SimulationSpeed,
 ): BusinessSlot {
-  if (slot.status !== "running") return slot;
+  const slot = prepareNextCycleIfAvailable(originalSlot);
+
+  if (slot.status !== "running" || slot.cycleStatus !== "running") {
+    return slot;
+  }
 
   const speed = speedOverride ?? slot.simulationSpeed;
-  const simulatedMinutes = (realSeconds * speed) / 60;
+  if (speed <= 0) {
+    return { ...slot, lastUpdatedAt: new Date().toISOString() };
+  }
+
+  const requestedMinutes = Math.max(0, (realSeconds * speed) / 60);
+  const remainingCycleMinutes = Math.max(
+    0,
+    CYCLE_MINUTES - slot.cycleSimulatedMinutes,
+  );
+  const simulatedMinutes = Math.min(requestedMinutes, remainingCycleMinutes);
   const simulatedDays = simulatedMinutes / 1440;
   const forecast = getPerformanceForecast(slot);
   const revenueAdded = forecast.dailyRevenue * simulatedDays;
@@ -621,32 +801,55 @@ function simulateSlot(
     slot.customerSatisfaction +
     (forecast.satisfactionTarget - slot.customerSatisfaction) *
       satisfactionMovement;
+  const nextCycleMinutes = slot.cycleSimulatedMinutes + simulatedMinutes;
+  const nextCycleRevenue = slot.cycleRevenue + revenueAdded;
+  const nextCycleExpenses = slot.cycleExpenses + expensesAdded;
+  const cycleComplete = nextCycleMinutes >= CYCLE_MINUTES - 0.0001;
 
   return {
     ...slot,
     simulatedMinutes: slot.simulatedMinutes + simulatedMinutes,
+    cycleSimulatedMinutes: nextCycleMinutes,
     revenue: slot.revenue + revenueAdded,
     expenses: slot.expenses + expensesAdded,
+    cycleRevenue: nextCycleRevenue,
+    cycleExpenses: nextCycleExpenses,
+    cycleProfit: nextCycleRevenue - nextCycleExpenses,
     cash: slot.cash + revenueAdded - expensesAdded,
     sales: slot.sales + forecast.dailyOrders * simulatedDays,
     customerSatisfaction: nextSatisfaction,
+    cycleStatus: cycleComplete ? "awaiting-allocation" : "running",
+    simulationSpeed: cycleComplete ? 0 : slot.simulationSpeed,
+    lastCycleCompletedDateSg: cycleComplete
+      ? getSingaporeDateString()
+      : slot.lastCycleCompletedDateSg,
     lastUpdatedAt: new Date().toISOString(),
   };
 }
 
 function catchUpSlot(slot: BusinessSlot): BusinessSlot {
-  if (slot.status !== "running" || !slot.lastUpdatedAt) {
-    return { ...slot, simulationSpeed: slot.status === "running" ? 1 : 1 };
+  const prepared = prepareNextCycleIfAvailable(slot);
+
+  if (prepared.status !== "running" || !prepared.lastUpdatedAt) {
+    return {
+      ...prepared,
+      simulationSpeed:
+        prepared.status === "running" && prepared.cycleStatus === "running"
+          ? 1
+          : 0,
+    };
   }
 
   const elapsedSeconds = Math.max(
     0,
-    (Date.now() - new Date(slot.lastUpdatedAt).getTime()) / 1000,
+    (Date.now() - new Date(prepared.lastUpdatedAt).getTime()) / 1000,
   );
 
+  const caughtUp = simulateSlot(prepared, elapsedSeconds, 1);
+
   return {
-    ...simulateSlot(slot, elapsedSeconds, 1),
-    simulationSpeed: 1,
+    ...caughtUp,
+    simulationSpeed: caughtUp.cycleStatus === "running" ? 1 : 0,
     lastUpdatedAt: new Date().toISOString(),
   };
 }
@@ -723,7 +926,7 @@ function MiloPanel({
           style={{
             margin: 0,
             color: "#f0bd70",
-            fontSize: "10px",
+            fontSize: "13px",
             fontWeight: 900,
             letterSpacing: "0.2em",
             textTransform: "uppercase",
@@ -921,7 +1124,7 @@ function StorefrontCard({
                 style={{
                   display: "block",
                   color: "rgba(255,255,255,0.8)",
-                  fontSize: "12px",
+                  fontSize: "15px",
                   lineHeight: 1.4,
                 }}
               >
@@ -1020,7 +1223,7 @@ function StorefrontCard({
             style={{
               display: "block",
               color: "white",
-              fontSize: "13px",
+              fontSize: "16px",
               lineHeight: 1.25,
             }}
           >
@@ -1031,7 +1234,7 @@ function StorefrontCard({
               display: "block",
               marginTop: "4px",
               color: "rgba(255,255,255,0.52)",
-              fontSize: "10px",
+              fontSize: "13px",
               lineHeight: 1.35,
             }}
           >
@@ -1040,7 +1243,7 @@ function StorefrontCard({
               : `${formatMoney(slot.cash)} available cash`}
           </span>
         </span>
-        <span style={{ color: "#efbd75", fontSize: "21px" }}>→</span>
+        <span style={{ color: "#efbd75", fontSize: "24px" }}>→</span>
       </div>
     </button>
   );
@@ -1073,7 +1276,7 @@ function MetricCard({
         style={{
           display: "block",
           color: "rgba(255,255,255,0.43)",
-          fontSize: "10px",
+          fontSize: "13px",
           fontWeight: 800,
           letterSpacing: "0.14em",
           textTransform: "uppercase",
@@ -1089,7 +1292,7 @@ function MetricCard({
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
           color: positive === undefined ? "white" : positive ? "#9ff0bd" : "#ffb497",
-          fontSize: "27px",
+          fontSize: "32px",
           letterSpacing: "-0.04em",
         }}
       >
@@ -1100,7 +1303,7 @@ function MetricCard({
           display: "block",
           marginTop: "7px",
           color: "rgba(255,255,255,0.48)",
-          fontSize: "11px",
+          fontSize: "14px",
           lineHeight: 1.45,
         }}
       >
@@ -1119,6 +1322,7 @@ export default function MiloBusinessBuilderPage() {
   const [userId, setUserId] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [profileNetWorth, setProfileNetWorth] = useState(0);
+  const [dreamTokenBalance, setDreamTokenBalance] = useState(0);
   const [netWorthLoading, setNetWorthLoading] = useState(true);
   const [slots, setSlots] = useState<BusinessSlot[]>(createDefaultSlots);
   const [storageReady, setStorageReady] = useState(false);
@@ -1129,6 +1333,9 @@ export default function MiloBusinessBuilderPage() {
     null,
   );
   const [requestedBudget, setRequestedBudget] = useState(0);
+  const [fundingStep, setFundingStep] = useState<FundingStep>("milo");
+  const [personalContribution, setPersonalContribution] = useState(0);
+  const [fundingSubmitting, setFundingSubmitting] = useState(false);
   const [introOpen, setIntroOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeSetupCategory, setActiveSetupCategory] =
@@ -1136,6 +1343,12 @@ export default function MiloBusinessBuilderPage() {
   const [draftSelections, setDraftSelections] =
     useState<SetupSelections>(DEFAULT_SELECTIONS);
   const [businessNameDraft, setBusinessNameDraft] = useState("");
+  const [reinvestmentPercent, setReinvestmentPercent] = useState(50);
+  const [cycleSubmitting, setCycleSubmitting] = useState(false);
+  const [saveState, setSaveState] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const [lastCloudSavedAt, setLastCloudSavedAt] = useState<string | null>(null);
   const [pageMessage, setPageMessage] = useState("");
 
   const activeSlot = useMemo(
@@ -1154,6 +1367,7 @@ export default function MiloBusinessBuilderPage() {
   );
 
   const storageKey = `${STORAGE_VERSION}:${userId || "guest"}`;
+  const legacyStorageKey = `milo-business-builder-v1:${userId || "guest"}`;
 
   useEffect(() => {
     let mounted = true;
@@ -1171,6 +1385,7 @@ export default function MiloBusinessBuilderPage() {
         setUserId("");
         setUserEmail("");
         setProfileNetWorth(0);
+        setDreamTokenBalance(0);
         setAuthLoading(false);
         setNetWorthLoading(false);
         return;
@@ -1214,6 +1429,8 @@ export default function MiloBusinessBuilderPage() {
       const tokenBalance = (tokensResult.data || [])
         .filter((row) => row.token_kind === "virtual")
         .reduce((total, row) => total + Number(row.amount || 0), 0);
+
+      setDreamTokenBalance(tokenBalance);
 
       const stockPrices = new Map(
         ((stocksResult.data || []) as StockRow[]).map((stock) => [
@@ -1268,38 +1485,74 @@ export default function MiloBusinessBuilderPage() {
   useEffect(() => {
     if (authLoading || !userId) return;
 
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (!saved) {
-        setSlots(createDefaultSlots());
-        setStorageReady(true);
-        return;
+    let cancelled = false;
+
+    async function loadProgress() {
+      setStorageReady(false);
+
+      let savedSlots: Partial<BusinessSlot>[] | null = null;
+      let savedActiveSlotId: 1 | 2 | 3 | null = null;
+
+      const { data, error } = await supabase
+        .from(BUSINESS_PROGRESS_TABLE)
+        .select("slots,active_slot_id,updated_at")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (!cancelled && !error && data && Array.isArray(data.slots)) {
+        savedSlots = data.slots as Partial<BusinessSlot>[];
+        const candidateId = Number(data.active_slot_id);
+        savedActiveSlotId =
+          candidateId === 1 || candidateId === 2 || candidateId === 3
+            ? candidateId
+            : null;
+        setLastCloudSavedAt(data.updated_at ? String(data.updated_at) : null);
       }
 
-      const parsed = JSON.parse(saved) as BusinessSlot[];
-      const normalized = [1, 2, 3].map((id) => {
-        const savedSlot = parsed.find((slot) => slot.id === id);
-        return savedSlot
-          ? catchUpSlot({
-              ...createEmptySlot(id as 1 | 2 | 3),
-              ...savedSlot,
-              id: id as 1 | 2 | 3,
-              selections: {
-                ...DEFAULT_SELECTIONS,
-                ...(savedSlot.selections || {}),
-              },
-            })
-          : createEmptySlot(id as 1 | 2 | 3);
+      if (!savedSlots) {
+        try {
+          const localSaved =
+            localStorage.getItem(storageKey) ||
+            localStorage.getItem(legacyStorageKey);
+          if (localSaved) {
+            const parsed = JSON.parse(localSaved);
+            if (Array.isArray(parsed)) {
+              savedSlots = parsed as Partial<BusinessSlot>[];
+            }
+          }
+        } catch (localError) {
+          console.warn(
+            "Could not load local Business Builder progress:",
+            localError,
+          );
+        }
+      }
+
+      if (cancelled) return;
+
+      const normalized = ([1, 2, 3] as const).map((id) => {
+        const savedSlot = savedSlots?.find((slot) => slot.id === id);
+        return catchUpSlot(normalizeSlot(savedSlot, id));
       });
 
       setSlots(normalized);
-    } catch (error) {
-      console.warn("Could not load Business Builder progress:", error);
-      setSlots(createDefaultSlots());
+      if (savedActiveSlotId) setActiveSlotId(savedActiveSlotId);
+      setStorageReady(true);
+
+      if (error) {
+        console.warn(
+          "Cloud progress could not be loaded. Local progress is still available:",
+          error.message,
+        );
+      }
     }
 
-    setStorageReady(true);
-  }, [authLoading, storageKey, userId]);
+    loadProgress();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, legacyStorageKey, storageKey, userId]);
 
   useEffect(() => {
     if (!storageReady || !userId) return;
@@ -1360,6 +1613,8 @@ export default function MiloBusinessBuilderPage() {
   function chooseBusiness(business: BusinessOption) {
     setSelectedBusinessId(business.id);
     setRequestedBudget(business.minCapital);
+    setFundingStep("milo");
+    setPersonalContribution(0);
     setPageMessage("");
     setView("funding");
   }
@@ -1377,38 +1632,114 @@ export default function MiloBusinessBuilderPage() {
       return;
     }
 
-    const defaultName = `My ${selectedBusiness.title}`;
-    const summary = getSetupSummary(requestedBudget, DEFAULT_SELECTIONS);
+    setPersonalContribution(0);
+    setFundingStep("personal");
+    setPageMessage("");
+  }
 
-    setSlots((current) =>
-      current.map((slot) =>
-        slot.id === activeSlotId
-          ? {
-              ...slot,
-              status: "setup",
-              businessTypeId: selectedBusiness.id,
-              businessName: defaultName,
-              approvedBudget: requestedBudget,
-              selections: { ...DEFAULT_SELECTIONS },
-              setupSpend: summary.setupSpend,
-              cash: summary.remainingCash,
-              launchedAt: null,
-              simulatedMinutes: 0,
-              simulationSpeed: 1,
-              revenue: 0,
-              expenses: 0,
-              sales: 0,
-              customerSatisfaction: 68,
-              lastUpdatedAt: null,
-            }
-          : slot,
-      ),
+  async function confirmFunding() {
+    if (!activeSlotId || !selectedBusiness || fundingSubmitting) return;
+
+    const cleanContribution = Math.max(0, Math.floor(personalContribution));
+
+    if (cleanContribution > dreamTokenBalance) {
+      setPageMessage(
+        `You only have ${formatMoney(dreamTokenBalance)} available in your Dream Token balance.`,
+      );
+      return;
+    }
+
+    setFundingSubmitting(true);
+
+    if (cleanContribution > 0) {
+      const { error } = await supabase.from("dream_token_transactions").insert({
+        user_id: userId,
+        amount: -cleanContribution,
+        token_kind: "virtual",
+        type: "spend",
+        title: `Personal funding for ${selectedBusiness.title}`,
+      });
+
+      if (error) {
+        setFundingSubmitting(false);
+        setPageMessage(
+          `Your personal funding could not be transferred: ${error.message}`,
+        );
+        return;
+      }
+    }
+
+    const ownership = getOwnershipForInvestment(
+      selectedBusiness,
+      requestedBudget,
     );
+    const totalBudget = requestedBudget + cleanContribution;
+    const defaultName = `My ${selectedBusiness.title}`;
+    const summary = getSetupSummary(
+      requestedBudget,
+      DEFAULT_SELECTIONS,
+      totalBudget,
+    );
+
+    const nextSlots = slots.map((slot) =>
+      slot.id === activeSlotId
+        ? {
+            ...slot,
+            status: "setup" as const,
+            businessTypeId: selectedBusiness.id,
+            businessName: defaultName,
+            approvedBudget: totalBudget,
+            miloInvestment: requestedBudget,
+            personalContribution: cleanContribution,
+            miloOwnership: ownership.miloOwnership,
+            userOwnership: ownership.userOwnership,
+            selections: { ...DEFAULT_SELECTIONS },
+            setupSpend: summary.setupSpend,
+            cash: summary.remainingCash,
+            launchedAt: null,
+            simulatedMinutes: 0,
+            simulationSpeed: 1 as SimulationSpeed,
+            revenue: 0,
+            expenses: 0,
+            sales: 0,
+            customerSatisfaction: 68,
+            cycleNumber: 1,
+            cycleSimulatedMinutes: 0,
+            cycleRevenue: 0,
+            cycleExpenses: 0,
+            cycleProfit: 0,
+            cycleStatus: "running" as CycleStatus,
+            lastCycleCompletedDateSg: null,
+            cycleHistory: [],
+            lastUpdatedAt: null,
+          }
+        : slot,
+    );
+
+    setSlots(nextSlots);
+    if (cleanContribution > 0) {
+      setDreamTokenBalance((balance) => balance - cleanContribution);
+      setProfileNetWorth((value) => Math.max(0, value - cleanContribution));
+      window.dispatchEvent(new Event("dream-tokens-updated"));
+    }
+
+    const cloudSaved = await saveProgressToAccount(nextSlots, activeSlotId);
 
     setDraftSelections({ ...DEFAULT_SELECTIONS });
     setBusinessNameDraft(defaultName);
     setActiveSetupCategory("location");
-    setPageMessage("");
+    setPageMessage(
+      `${
+        cleanContribution > 0
+          ? `${formatMoney(cleanContribution)} of your personal DT has been added to the business budget.`
+          : "Milo’s investment has been approved."
+      } ${
+        cloudSaved
+          ? "The funding agreement is saved to your account."
+          : "Your browser copy is saved locally, but cloud save still needs the supplied Supabase table."
+      }`,
+    );
+    setFundingSubmitting(false);
     setView("setup");
   }
 
@@ -1416,7 +1747,11 @@ export default function MiloBusinessBuilderPage() {
     if (!activeSlot || !activeBusiness) return;
 
     const cleanName = businessNameDraft.trim();
-    const summary = getSetupSummary(activeSlot.approvedBudget, draftSelections);
+    const summary = getSetupSummary(
+      activeSlot.miloInvestment || activeSlot.approvedBudget,
+      draftSelections,
+      activeSlot.approvedBudget,
+    );
 
     if (!cleanName) {
       setPageMessage("Give your business a name before continuing.");
@@ -1449,6 +1784,14 @@ export default function MiloBusinessBuilderPage() {
               expenses: 0,
               sales: 0,
               customerSatisfaction: 68,
+              cycleNumber: 1,
+              cycleSimulatedMinutes: 0,
+              cycleRevenue: 0,
+              cycleExpenses: 0,
+              cycleProfit: 0,
+              cycleStatus: "running",
+              lastCycleCompletedDateSg: null,
+              cycleHistory: [],
               lastUpdatedAt: now,
             }
           : slot,
@@ -1464,8 +1807,9 @@ export default function MiloBusinessBuilderPage() {
 
     const cleanName = businessNameDraft.trim();
     const newSummary = getSetupSummary(
-      activeSlot.approvedBudget,
+      activeSlot.miloInvestment || activeSlot.approvedBudget,
       draftSelections,
+      activeSlot.approvedBudget,
     );
     const difference = newSummary.setupSpend - activeSlot.setupSpend;
     const requiredCash = Math.max(0, difference);
@@ -1512,8 +1856,138 @@ export default function MiloBusinessBuilderPage() {
     );
   }
 
+  async function saveProgressToAccount(
+    progressSlots: BusinessSlot[] = slots,
+    progressActiveSlotId: 1 | 2 | 3 | null = activeSlotId,
+  ) {
+    if (!userId) {
+      setPageMessage("Log in before saving your progress.");
+      return false;
+    }
+
+    setSaveState("saving");
+
+    const updatedAt = new Date().toISOString();
+    const { error } = await supabase.from(BUSINESS_PROGRESS_TABLE).upsert(
+      {
+        user_id: userId,
+        slots: progressSlots,
+        active_slot_id: progressActiveSlotId,
+        updated_at: updatedAt,
+      },
+      { onConflict: "user_id" },
+    );
+
+    if (error) {
+      console.warn("Could not save Business Builder progress:", error);
+      setSaveState("error");
+      setPageMessage(
+        `Cloud save failed: ${error.message}. Your browser copy is still saved locally.`,
+      );
+      return false;
+    }
+
+    setSaveState("saved");
+    setLastCloudSavedAt(updatedAt);
+    window.setTimeout(() => setSaveState("idle"), 2400);
+    return true;
+  }
+
+  async function settleThirtyDayCycle() {
+    if (
+      !activeSlot ||
+      activeSlot.status !== "running" ||
+      activeSlot.cycleStatus !== "awaiting-allocation" ||
+      cycleSubmitting
+    ) {
+      return;
+    }
+
+    setCycleSubmitting(true);
+
+    const cycleProfit = activeSlot.cycleProfit;
+    const reinvested =
+      cycleProfit > 0 ? cycleProfit * (reinvestmentPercent / 100) : 0;
+    const dividendPool = cycleProfit > 0 ? cycleProfit - reinvested : 0;
+    const userDividend = Math.max(
+      0,
+      Math.round(dividendPool * activeSlot.userOwnership),
+    );
+    const miloDividend = Math.max(0, dividendPool - userDividend);
+
+    if (userDividend > 0) {
+      const { error } = await supabase.from("dream_token_transactions").insert({
+        user_id: userId,
+        amount: userDividend,
+        token_kind: "virtual",
+        type: "earn",
+        title: `${activeSlot.businessName} cycle ${activeSlot.cycleNumber} dividend`,
+      });
+
+      if (error) {
+        setCycleSubmitting(false);
+        setPageMessage(
+          `The dividend could not be paid to your account: ${error.message}`,
+        );
+        return;
+      }
+    }
+
+    const completedDateSg =
+      activeSlot.lastCycleCompletedDateSg || getSingaporeDateString();
+    const record: CycleHistoryRecord = {
+      cycleNumber: activeSlot.cycleNumber,
+      completedDateSg,
+      revenue: activeSlot.cycleRevenue,
+      expenses: activeSlot.cycleExpenses,
+      profit: cycleProfit,
+      reinvested,
+      dividendPool,
+      userDividend,
+      miloDividend,
+    };
+
+    const nextSlots = slots.map((slot) =>
+      slot.id === activeSlot.id
+        ? {
+            ...slot,
+            cash: slot.cash - dividendPool,
+            cycleStatus: "settled" as CycleStatus,
+            simulationSpeed: 0 as SimulationSpeed,
+            lastCycleCompletedDateSg: completedDateSg,
+            cycleHistory: [...slot.cycleHistory, record],
+            lastUpdatedAt: new Date().toISOString(),
+          }
+        : slot,
+    );
+
+    setSlots(nextSlots);
+    if (userDividend > 0) {
+      setDreamTokenBalance((balance) => balance + userDividend);
+      setProfileNetWorth((value) => value + userDividend);
+      window.dispatchEvent(new Event("dream-tokens-updated"));
+    }
+
+    setPageMessage(
+      cycleProfit > 0
+        ? `Cycle ${activeSlot.cycleNumber} settled. ${formatMoney(reinvested)} remains in the business and ${formatMoney(userDividend)} was paid to your Dream Token balance.`
+        : `Cycle ${activeSlot.cycleNumber} ended with a loss of ${formatMoney(Math.abs(cycleProfit))}. No dividend was available.`,
+    );
+    setCycleSubmitting(false);
+    await saveProgressToAccount(nextSlots, activeSlot.id);
+  }
+
   function changeSimulationSpeed(speed: SimulationSpeed) {
-    if (!activeSlot) return;
+    if (!activeSlot || activeSlot.status !== "running") return;
+
+    if (activeSlot.cycleStatus !== "running") {
+      setPageMessage(
+        activeSlot.cycleStatus === "awaiting-allocation"
+          ? "Allocate the completed 30-day cycle before continuing."
+          : "Your next 30-day cycle unlocks on the next Singapore calendar day.",
+      );
+      return;
+    }
 
     setSlots((current) =>
       current.map((slot) =>
@@ -1548,7 +2022,7 @@ export default function MiloBusinessBuilderPage() {
     }
 
     if (nextView === "setup") {
-      if (!activeSlot || activeSlot.status === "empty") return;
+      if (!activeSlot || activeSlot.status !== "setup") return;
       setDraftSelections({ ...activeSlot.selections });
       setBusinessNameDraft(activeSlot.businessName);
       setView("setup");
@@ -1573,7 +2047,7 @@ export default function MiloBusinessBuilderPage() {
     justifyContent: "center",
     gap: "9px",
     padding: "0 17px",
-    fontSize: "12px",
+    fontSize: "15px",
     fontWeight: 800,
     backdropFilter: "blur(16px)",
     WebkitBackdropFilter: "blur(16px)",
@@ -1596,13 +2070,13 @@ export default function MiloBusinessBuilderPage() {
       id: "businesses",
       label: "Business Types",
       icon: "◇",
-      enabled: Boolean(activeSlotId),
+      enabled: Boolean(activeSlotId && activeSlot?.status !== "running"),
     },
     {
       id: "setup",
       label: "Business Setup",
       icon: "⚙",
-      enabled: Boolean(activeSlot && activeSlot.status !== "empty"),
+      enabled: Boolean(activeSlot && activeSlot.status === "setup"),
     },
     {
       id: "analytics",
@@ -1631,7 +2105,7 @@ export default function MiloBusinessBuilderPage() {
           style={{
             margin: 0,
             color: "#efbb70",
-            fontSize: "9px",
+            fontSize: "12px",
             fontWeight: 900,
             letterSpacing: "0.2em",
             textTransform: "uppercase",
@@ -1644,7 +2118,7 @@ export default function MiloBusinessBuilderPage() {
             margin: "7px 0 0",
             color: "white",
             fontFamily: 'Georgia, "Times New Roman", serif',
-            fontSize: "27px",
+            fontSize: "32px",
             fontWeight: 500,
             lineHeight: 1.05,
           }}
@@ -1655,7 +2129,7 @@ export default function MiloBusinessBuilderPage() {
           style={{
             margin: "9px 0 0",
             color: "rgba(255,255,255,0.48)",
-            fontSize: "11px",
+            fontSize: "14px",
             lineHeight: 1.5,
           }}
         >
@@ -1704,15 +2178,15 @@ export default function MiloBusinessBuilderPage() {
                   color: active ? "#f3c47c" : "rgba(255,255,255,0.54)",
                   display: "grid",
                   placeItems: "center",
-                  fontSize: "15px",
+                  fontSize: "18px",
                 }}
               >
                 {item.icon}
               </span>
-              <strong style={{ fontSize: "12px", lineHeight: 1.3 }}>
+              <strong style={{ fontSize: "15px", lineHeight: 1.3 }}>
                 {item.label}
               </strong>
-              <span style={{ color: "#eab46a", fontSize: "17px" }}>›</span>
+              <span style={{ color: "#eab46a", fontSize: "20px" }}>›</span>
             </button>
           );
         })}
@@ -1730,7 +2204,7 @@ export default function MiloBusinessBuilderPage() {
           style={{
             display: "block",
             color: "rgba(255,255,255,0.42)",
-            fontSize: "9px",
+            fontSize: "12px",
             letterSpacing: "0.14em",
             textTransform: "uppercase",
           }}
@@ -1742,7 +2216,7 @@ export default function MiloBusinessBuilderPage() {
             display: "block",
             marginTop: "7px",
             color: "#f2c37d",
-            fontSize: "21px",
+            fontSize: "24px",
           }}
         >
           {netWorthLoading ? "Loading..." : formatMoney(profileNetWorth)}
@@ -1752,12 +2226,51 @@ export default function MiloBusinessBuilderPage() {
             display: "block",
             marginTop: "6px",
             color: "rgba(255,255,255,0.38)",
-            fontSize: "10px",
+            fontSize: "13px",
             lineHeight: 1.4,
           }}
         >
           Used to assess higher-tier investments.
         </span>
+
+        <div
+          style={{
+            marginTop: "13px",
+            paddingTop: "13px",
+            borderTop: "1px solid rgba(218,151,74,0.12)",
+            display: "grid",
+            gap: "7px",
+          }}
+        >
+          <span
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "10px",
+              color: "rgba(255,255,255,0.48)",
+              fontSize: "13px",
+            }}
+          >
+            <span>DT balance</span>
+            <strong style={{ color: "#f2c37d" }}>
+              {formatMoney(dreamTokenBalance)}
+            </strong>
+          </span>
+          <span
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "10px",
+              color: "rgba(255,255,255,0.42)",
+              fontSize: "12px",
+            }}
+          >
+            <span>Cloud progress</span>
+            <strong style={{ color: lastCloudSavedAt ? "#9ff0bd" : "rgba(255,255,255,0.48)" }}>
+              {lastCloudSavedAt ? "Saved" : "Not saved yet"}
+            </strong>
+          </span>
+        </div>
       </div>
     </aside>
   );
@@ -1810,7 +2323,7 @@ export default function MiloBusinessBuilderPage() {
             style={{
               margin: 0,
               color: "#edb970",
-              fontSize: "10px",
+              fontSize: "13px",
               fontWeight: 900,
               letterSpacing: "0.2em",
               textTransform: "uppercase",
@@ -1864,7 +2377,11 @@ export default function MiloBusinessBuilderPage() {
   }
 
   const setupSummary = activeSlot
-    ? getSetupSummary(activeSlot.approvedBudget, draftSelections)
+    ? getSetupSummary(
+        activeSlot.miloInvestment || activeSlot.approvedBudget,
+        draftSelections,
+        activeSlot.approvedBudget,
+      )
     : null;
   const operatingForecast = activeSlot
     ? getPerformanceForecast({
@@ -1881,6 +2398,27 @@ export default function MiloBusinessBuilderPage() {
       };
   const profit = activeSlot ? activeSlot.revenue - activeSlot.expenses : 0;
   const simulatedDays = activeSlot ? activeSlot.simulatedMinutes / 1440 : 0;
+  const cycleDays = activeSlot
+    ? Math.min(CYCLE_DAYS, activeSlot.cycleSimulatedMinutes / 1440)
+    : 0;
+  const cycleProgress = Math.min(100, (cycleDays / CYCLE_DAYS) * 100);
+  const fundingOwnership = selectedBusiness
+    ? getOwnershipForInvestment(selectedBusiness, requestedBudget)
+    : {
+        miloOwnership: MIN_MILO_OWNERSHIP,
+        userOwnership: 1 - MIN_MILO_OWNERSHIP,
+      };
+  const cycleDividendPool =
+    activeSlot && activeSlot.cycleProfit > 0
+      ? activeSlot.cycleProfit * (1 - reinvestmentPercent / 100)
+      : 0;
+  const projectedUserDividend = activeSlot
+    ? Math.round(cycleDividendPool * activeSlot.userOwnership)
+    : 0;
+  const projectedMiloDividend = Math.max(
+    0,
+    cycleDividendPool - projectedUserDividend,
+  );
 
   return (
     <main
@@ -1970,7 +2508,7 @@ export default function MiloBusinessBuilderPage() {
               style={{
                 margin: 0,
                 color: "#efba6f",
-                fontSize: "9px",
+                fontSize: "12px",
                 fontWeight: 900,
                 letterSpacing: "0.22em",
                 textTransform: "uppercase",
@@ -1982,7 +2520,7 @@ export default function MiloBusinessBuilderPage() {
               style={{
                 margin: "4px 0 0",
                 fontFamily: 'Georgia, "Times New Roman", serif',
-                fontSize: "26px",
+                fontSize: "30px",
                 lineHeight: 1,
                 fontWeight: 500,
               }}
@@ -2015,7 +2553,7 @@ export default function MiloBusinessBuilderPage() {
                 style={{
                   display: "block",
                   color: "rgba(255,255,255,0.4)",
-                  fontSize: "8px",
+                  fontSize: "11px",
                   textTransform: "uppercase",
                   letterSpacing: "0.12em",
                 }}
@@ -2027,13 +2565,38 @@ export default function MiloBusinessBuilderPage() {
                   display: "block",
                   marginTop: "3px",
                   color: "#f1c17b",
-                  fontSize: "12px",
+                  fontSize: "15px",
                 }}
               >
                 {netWorthLoading ? "Loading" : formatMoney(profileNetWorth)}
               </strong>
             </div>
           )}
+          <button
+            type="button"
+            onClick={() => saveProgressToAccount()}
+            disabled={saveState === "saving"}
+            style={{
+              ...navButtonStyle,
+              padding: mobile ? "0 13px" : "0 17px",
+              cursor: saveState === "saving" ? "wait" : "pointer",
+              background:
+                saveState === "saved"
+                  ? "rgba(38,113,76,0.78)"
+                  : saveState === "error"
+                    ? "rgba(125,48,32,0.78)"
+                    : "rgba(69,38,18,0.78)",
+            }}
+          >
+            {saveState === "saving"
+              ? "Saving..."
+              : saveState === "saved"
+                ? "Saved ✓"
+                : mobile
+                  ? "Save"
+                  : "Save Progress"}
+          </button>
+
           <Link href="/profile" style={{ ...navButtonStyle, padding: mobile ? "0 13px" : "0 17px" }}>
             {mobile ? "Account" : userEmail || "My Account"}
           </Link>
@@ -2069,7 +2632,7 @@ export default function MiloBusinessBuilderPage() {
                 background: "rgba(91,51,22,0.72)",
                 color: "#ffe1b4",
                 padding: "13px 16px",
-                fontSize: "12px",
+                fontSize: "15px",
                 lineHeight: 1.5,
               }}
             >
@@ -2084,7 +2647,7 @@ export default function MiloBusinessBuilderPage() {
                   style={{
                     margin: 0,
                     color: "#efbc73",
-                    fontSize: "10px",
+                    fontSize: "13px",
                     fontWeight: 900,
                     letterSpacing: "0.22em",
                     textTransform: "uppercase",
@@ -2215,7 +2778,7 @@ export default function MiloBusinessBuilderPage() {
                             color: "#efbd74",
                             display: "grid",
                             placeItems: "center",
-                            fontSize: "21px",
+                            fontSize: "24px",
                           }}
                         >
                           {business.icon}
@@ -2230,7 +2793,7 @@ export default function MiloBusinessBuilderPage() {
                             display: "inline-flex",
                             alignItems: "center",
                             padding: "0 10px",
-                            fontSize: "9px",
+                            fontSize: "12px",
                             fontWeight: 900,
                             letterSpacing: "0.1em",
                             textTransform: "uppercase",
@@ -2244,7 +2807,7 @@ export default function MiloBusinessBuilderPage() {
                         style={{
                           margin: "18px 0 0",
                           color: "#eab36a",
-                          fontSize: "9px",
+                          fontSize: "12px",
                           fontWeight: 900,
                           letterSpacing: "0.16em",
                           textTransform: "uppercase",
@@ -2255,7 +2818,7 @@ export default function MiloBusinessBuilderPage() {
                       <h3
                         style={{
                           margin: "8px 0 0",
-                          fontSize: "24px",
+                          fontSize: "28px",
                           lineHeight: 1.05,
                           letterSpacing: "-0.03em",
                         }}
@@ -2266,7 +2829,7 @@ export default function MiloBusinessBuilderPage() {
                         style={{
                           margin: "12px 0 0",
                           color: "rgba(255,255,255,0.54)",
-                          fontSize: "12px",
+                          fontSize: "15px",
                           lineHeight: 1.55,
                         }}
                       >
@@ -2278,7 +2841,7 @@ export default function MiloBusinessBuilderPage() {
                           style={{
                             display: "block",
                             color: "white",
-                            fontSize: "17px",
+                            fontSize: "20px",
                           }}
                         >
                           {formatMoney(business.minCapital)} – {formatMoney(business.maxCapital)}
@@ -2290,7 +2853,7 @@ export default function MiloBusinessBuilderPage() {
                             color: highTier && !profileEligible
                               ? "#ffb38f"
                               : "rgba(255,255,255,0.44)",
-                            fontSize: "10px",
+                            fontSize: "13px",
                             lineHeight: 1.4,
                           }}
                         >
@@ -2307,253 +2870,640 @@ export default function MiloBusinessBuilderPage() {
           )}
 
           {view === "funding" && selectedBusiness && (
-            <div style={{ width: "min(1050px, 100%)", margin: "0 auto" }}>
-              <MiloPanel
-                eyebrow="Investment review"
-                title={
-                  requestedBudget <= 50000
-                    ? "I’m happy to invest."
-                    : profileNetWorth >= requestedBudget * 0.1
-                      ? "Your profile supports this investment."
-                      : "This tier needs stronger assets first."
-                }
-                text={
-                  requestedBudget <= 50000
-                    ? "Choose how much you want to begin with. A larger investment gives you more options, but it also raises my expectations and objectives."
-                    : profileNetWorth >= requestedBudget * 0.1
-                      ? "This is a higher-risk business. Your current profile net worth meets the 10% asset requirement, so we can discuss the starting amount."
-                      : `Before I can approve this amount, you need assets equal to at least 10% of the investment. You currently have ${formatMoney(profileNetWorth)} in eligible profile assets.`
-                }
-                compact={compact}
-              />
-
-              <div
-                style={{
-                  marginTop: "24px",
-                  display: "grid",
-                  gridTemplateColumns: compact ? "1fr" : "0.9fr 1.1fr",
-                  gap: "18px",
-                }}
-              >
-                <div
-                  style={{
-                    borderRadius: "24px",
-                    border: "1px solid rgba(218,151,74,0.24)",
-                    background:
-                      "linear-gradient(145deg, rgba(55,31,17,0.88), rgba(6,10,19,0.92))",
-                    padding: "22px",
-                  }}
-                >
-                  <p
-                    style={{
-                      margin: 0,
-                      color: "#eab36b",
-                      fontSize: "9px",
-                      fontWeight: 900,
-                      letterSpacing: "0.16em",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Selected business
-                  </p>
-                  <h2 style={{ margin: "11px 0 0", fontSize: "31px", lineHeight: 1.05 }}>
-                    {selectedBusiness.title}
-                  </h2>
-                  <p
-                    style={{
-                      margin: "14px 0 0",
-                      color: "rgba(255,255,255,0.55)",
-                      fontSize: "13px",
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    {selectedBusiness.description}
-                  </p>
-
-                  <div
-                    style={{
-                      marginTop: "20px",
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: "10px",
-                    }}
-                  >
-                    <MetricCard
-                      label="Difficulty"
-                      value={`${selectedBusiness.difficulty}/5`}
-                      note="More categories and operating pressure"
-                    />
-                    <MetricCard
-                      label="Main risk"
-                      value={selectedBusiness.mainRisk}
-                      note="Watch this area after launch"
-                    />
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    borderRadius: "24px",
-                    border: "1px solid rgba(218,151,74,0.24)",
-                    background: "rgba(6,10,18,0.88)",
-                    padding: "22px",
-                  }}
-                >
-                  <label
-                    style={{
-                      display: "block",
-                      color: "rgba(255,255,255,0.48)",
-                      fontSize: "10px",
-                      fontWeight: 900,
-                      letterSpacing: "0.14em",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Requested starting investment
-                  </label>
-                  <strong
-                    style={{
-                      display: "block",
-                      marginTop: "11px",
-                      color: "#f4c782",
-                      fontSize: mobile ? "38px" : "50px",
-                      letterSpacing: "-0.05em",
-                    }}
-                  >
-                    {formatMoney(requestedBudget)}
-                  </strong>
-
-                  <input
-                    type="range"
-                    min={selectedBusiness.minCapital}
-                    max={selectedBusiness.maxCapital}
-                    step={1000}
-                    value={requestedBudget}
-                    onChange={(event) => {
-                      setRequestedBudget(Number(event.target.value));
-                      setPageMessage("");
-                    }}
-                    style={{ width: "100%", marginTop: "22px" }}
+            <div style={{ width: "min(1120px, 100%)", margin: "0 auto" }}>
+              {fundingStep === "milo" ? (
+                <>
+                  <MiloPanel
+                    eyebrow="Investment review"
+                    title={
+                      requestedBudget <= 50000
+                        ? "I’m happy to invest."
+                        : profileNetWorth >= requestedBudget * 0.1
+                          ? "Your profile supports this investment."
+                          : "This tier needs stronger assets first."
+                    }
+                    text={
+                      requestedBudget <= 50000
+                        ? "Choose how much funding you want from me. The more I invest, the larger my ownership share and the higher my expectations. Even at the maximum investment, we remain equal 50/50 partners."
+                        : profileNetWorth >= requestedBudget * 0.1
+                          ? "This is a higher-risk business. Your profile meets the 10% asset requirement, so choose the amount you want me to invest."
+                          : `Before I can approve this amount, you need profile assets equal to at least 10% of the investment. You currently have ${formatMoney(profileNetWorth)} in eligible assets.`
+                    }
+                    compact={compact}
                   />
 
                   <div
                     style={{
-                      marginTop: "8px",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      color: "rgba(255,255,255,0.38)",
-                      fontSize: "10px",
-                    }}
-                  >
-                    <span>{formatMoney(selectedBusiness.minCapital)}</span>
-                    <span>{formatMoney(selectedBusiness.maxCapital)}</span>
-                  </div>
-
-                  <div
-                    style={{
-                      marginTop: "22px",
+                      marginTop: "24px",
                       display: "grid",
-                      gridTemplateColumns: mobile ? "1fr" : "repeat(3, 1fr)",
-                      gap: "10px",
+                      gridTemplateColumns: compact ? "1fr" : "0.88fr 1.12fr",
+                      gap: "18px",
                     }}
                   >
-                    <MetricCard
-                      label="Milo’s objective"
-                      value={`${formatMoney(requestedBudget * 0.04)}/mo`}
-                      note="Indicative profit expectation"
-                    />
-                    <MetricCard
-                      label="Suggested reserve"
-                      value={formatMoney(requestedBudget * 0.15)}
-                      note="Cash to protect the launch"
-                    />
-                    <MetricCard
-                      label="Assets required"
-                      value={
-                        requestedBudget > 50000
-                          ? formatMoney(requestedBudget * 0.1)
-                          : "None"
-                      }
-                      note="Only applies above SGD 50,000"
-                    />
-                  </div>
+                    <div
+                      style={{
+                        borderRadius: "24px",
+                        border: "1px solid rgba(218,151,74,0.24)",
+                        background:
+                          "linear-gradient(145deg, rgba(55,31,17,0.88), rgba(6,10,19,0.92))",
+                        padding: "24px",
+                      }}
+                    >
+                      <p
+                        style={{
+                          margin: 0,
+                          color: "#eab36b",
+                          fontSize: "15px",
+                          fontWeight: 900,
+                          letterSpacing: "0.16em",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        Selected business
+                      </p>
+                      <h2
+                        style={{
+                          margin: "12px 0 0",
+                          fontSize: "36px",
+                          lineHeight: 1.05,
+                        }}
+                      >
+                        {selectedBusiness.title}
+                      </h2>
+                      <p
+                        style={{
+                          margin: "16px 0 0",
+                          color: "rgba(255,255,255,0.62)",
+                          fontSize: "19px",
+                          lineHeight: 1.65,
+                        }}
+                      >
+                        {selectedBusiness.description}
+                      </p>
 
-                  <p
-                    style={{
-                      margin: "20px 0 0",
-                      color: "rgba(255,255,255,0.52)",
-                      fontSize: "12px",
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    Spending more does not guarantee higher profit. The setup
-                    must remain within this approved amount, and a larger
-                    investment creates higher expectations.
-                  </p>
+                      <div
+                        style={{
+                          marginTop: "22px",
+                          display: "grid",
+                          gridTemplateColumns: "1fr 1fr",
+                          gap: "12px",
+                        }}
+                      >
+                        <MetricCard
+                          label="Difficulty"
+                          value={`${selectedBusiness.difficulty}/5`}
+                          note="More categories and operating pressure"
+                        />
+                        <MetricCard
+                          label="Main risk"
+                          value={selectedBusiness.mainRisk}
+                          note="Watch this area after launch"
+                        />
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        borderRadius: "24px",
+                        border: "1px solid rgba(218,151,74,0.24)",
+                        background: "rgba(6,10,18,0.88)",
+                        padding: "24px",
+                      }}
+                    >
+                      <label
+                        style={{
+                          display: "block",
+                          color: "rgba(255,255,255,0.54)",
+                          fontSize: "16px",
+                          fontWeight: 900,
+                          letterSpacing: "0.14em",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        Milo’s proposed investment
+                      </label>
+                      <strong
+                        style={{
+                          display: "block",
+                          marginTop: "12px",
+                          color: "#f4c782",
+                          fontSize: mobile ? "44px" : "56px",
+                          letterSpacing: "-0.05em",
+                        }}
+                      >
+                        {formatMoney(requestedBudget)}
+                      </strong>
+
+                      <input
+                        type="range"
+                        min={selectedBusiness.minCapital}
+                        max={selectedBusiness.maxCapital}
+                        step={1000}
+                        value={requestedBudget}
+                        onChange={(event) => {
+                          setRequestedBudget(Number(event.target.value));
+                          setPageMessage("");
+                        }}
+                        style={{ width: "100%", marginTop: "24px" }}
+                      />
+
+                      <div
+                        style={{
+                          marginTop: "9px",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          color: "rgba(255,255,255,0.46)",
+                          fontSize: "16px",
+                        }}
+                      >
+                        <span>{formatMoney(selectedBusiness.minCapital)}</span>
+                        <span>{formatMoney(selectedBusiness.maxCapital)}</span>
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: "24px",
+                          borderRadius: "18px",
+                          border: "1px solid rgba(235,179,103,0.22)",
+                          background: "rgba(255,255,255,0.035)",
+                          padding: "18px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            gap: "14px",
+                            alignItems: "center",
+                          }}
+                        >
+                          <div>
+                            <span
+                              style={{
+                                display: "block",
+                                color: "#efbc73",
+                                fontSize: "16px",
+                                fontWeight: 900,
+                              }}
+                            >
+                              Milo {Math.round(fundingOwnership.miloOwnership * 100)}%
+                            </span>
+                            <span
+                              style={{
+                                display: "block",
+                                marginTop: "4px",
+                                color: "rgba(255,255,255,0.48)",
+                                fontSize: "15px",
+                              }}
+                            >
+                              Investor ownership
+                            </span>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <span
+                              style={{
+                                display: "block",
+                                color: "#9ff0bd",
+                                fontSize: "16px",
+                                fontWeight: 900,
+                              }}
+                            >
+                              You {Math.round(fundingOwnership.userOwnership * 100)}%
+                            </span>
+                            <span
+                              style={{
+                                display: "block",
+                                marginTop: "4px",
+                                color: "rgba(255,255,255,0.48)",
+                                fontSize: "15px",
+                              }}
+                            >
+                              Founder ownership
+                            </span>
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            height: "12px",
+                            marginTop: "15px",
+                            borderRadius: "999px",
+                            overflow: "hidden",
+                            background: "rgba(255,255,255,0.08)",
+                            display: "flex",
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: `${fundingOwnership.miloOwnership * 100}%`,
+                              background:
+                                "linear-gradient(90deg, #8d4b21, #e0a257)",
+                            }}
+                          />
+                          <span
+                            style={{
+                              flex: 1,
+                              background:
+                                "linear-gradient(90deg, #4c8768, #8dd5a9)",
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: "22px",
+                          display: "grid",
+                          gridTemplateColumns: mobile
+                            ? "1fr"
+                            : "repeat(3, 1fr)",
+                          gap: "10px",
+                        }}
+                      >
+                        <MetricCard
+                          label="Milo’s objective"
+                          value={`${formatMoney(requestedBudget * 0.04)}/cycle`}
+                          note="Indicative 30-day profit expectation"
+                        />
+                        <MetricCard
+                          label="Suggested reserve"
+                          value={formatMoney(requestedBudget * 0.15)}
+                          note="Cash to protect the launch"
+                        />
+                        <MetricCard
+                          label="Assets required"
+                          value={
+                            requestedBudget > 50000
+                              ? formatMoney(requestedBudget * 0.1)
+                              : "None"
+                          }
+                          note="Only applies above 50,000 DT"
+                        />
+                      </div>
+
+                      <p
+                        style={{
+                          margin: "21px 0 0",
+                          color: "rgba(255,255,255,0.58)",
+                          fontSize: "18px",
+                          lineHeight: 1.65,
+                        }}
+                      >
+                        A more expensive business does not automatically earn
+                        more. Strong cost control can make a smaller business
+                        outperform a larger one.
+                      </p>
+
+                      <div
+                        style={{
+                          marginTop: "24px",
+                          display: "flex",
+                          flexDirection: mobile ? "column" : "row",
+                          gap: "10px",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setView("businesses")}
+                          style={{
+                            minHeight: "54px",
+                            flex: 1,
+                            borderRadius: "14px",
+                            border: "1px solid rgba(218,151,74,0.2)",
+                            background: "rgba(255,255,255,0.04)",
+                            color: "white",
+                            fontSize: "18px",
+                            fontWeight: 850,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Choose Another Business
+                        </button>
+                        <button
+                          type="button"
+                          onClick={approveFunding}
+                          disabled={
+                            requestedBudget > 50000 &&
+                            profileNetWorth < requestedBudget * 0.1
+                          }
+                          style={{
+                            minHeight: "54px",
+                            flex: 1.2,
+                            borderRadius: "14px",
+                            border: "none",
+                            background:
+                              requestedBudget > 50000 &&
+                              profileNetWorth < requestedBudget * 0.1
+                                ? "rgba(255,255,255,0.12)"
+                                : "linear-gradient(135deg, #d99548, #8d4b21)",
+                            color:
+                              requestedBudget > 50000 &&
+                              profileNetWorth < requestedBudget * 0.1
+                                ? "rgba(255,255,255,0.38)"
+                                : "white",
+                            fontSize: "18px",
+                            fontWeight: 900,
+                            cursor:
+                              requestedBudget > 50000 &&
+                              profileNetWorth < requestedBudget * 0.1
+                                ? "not-allowed"
+                                : "pointer",
+                          }}
+                        >
+                          Approve Milo’s Investment
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <MiloPanel
+                    eyebrow="Optional founder funding"
+                    title="Would you like to add your own DT?"
+                    text="There is no minimum and no product limit. You can add any amount up to your available Dream Token balance, or continue using only my investment. Your personal funds increase the business’s available cash but do not change the ownership agreement we just made."
+                    compact={compact}
+                  />
 
                   <div
                     style={{
-                      marginTop: "22px",
-                      display: "flex",
-                      flexDirection: mobile ? "column" : "row",
-                      gap: "10px",
+                      marginTop: "24px",
+                      display: "grid",
+                      gridTemplateColumns: compact ? "1fr" : "0.9fr 1.1fr",
+                      gap: "18px",
                     }}
                   >
-                    <button
-                      type="button"
-                      onClick={() => setView("businesses")}
+                    <div
                       style={{
-                        minHeight: "50px",
-                        flex: 1,
-                        borderRadius: "14px",
-                        border: "1px solid rgba(218,151,74,0.2)",
-                        background: "rgba(255,255,255,0.04)",
-                        color: "white",
-                        fontWeight: 850,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Choose Another Business
-                    </button>
-                    <button
-                      type="button"
-                      onClick={approveFunding}
-                      disabled={
-                        requestedBudget > 50000 &&
-                        profileNetWorth < requestedBudget * 0.1
-                      }
-                      style={{
-                        minHeight: "50px",
-                        flex: 1.2,
-                        borderRadius: "14px",
-                        border: "none",
+                        borderRadius: "24px",
+                        border: "1px solid rgba(218,151,74,0.24)",
                         background:
-                          requestedBudget > 50000 &&
-                          profileNetWorth < requestedBudget * 0.1
-                            ? "rgba(255,255,255,0.12)"
-                            : "linear-gradient(135deg, #d99548, #8d4b21)",
-                        color:
-                          requestedBudget > 50000 &&
-                          profileNetWorth < requestedBudget * 0.1
-                            ? "rgba(255,255,255,0.38)"
-                            : "white",
-                        fontWeight: 900,
-                        cursor:
-                          requestedBudget > 50000 &&
-                          profileNetWorth < requestedBudget * 0.1
-                            ? "not-allowed"
-                            : "pointer",
+                          "linear-gradient(145deg, rgba(55,31,17,0.88), rgba(6,10,19,0.92))",
+                        padding: "24px",
                       }}
                     >
-                      Approve Investment
-                    </button>
+                      <p
+                        style={{
+                          margin: 0,
+                          color: "#eab36b",
+                          fontSize: "15px",
+                          fontWeight: 900,
+                          letterSpacing: "0.16em",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        Agreed ownership
+                      </p>
+                      <h2
+                        style={{
+                          margin: "12px 0 0",
+                          fontSize: "35px",
+                          lineHeight: 1.05,
+                        }}
+                      >
+                        Milo {Math.round(fundingOwnership.miloOwnership * 100)}%
+                        <br />
+                        You {Math.round(fundingOwnership.userOwnership * 100)}%
+                      </h2>
+                      <p
+                        style={{
+                          margin: "16px 0 0",
+                          color: "rgba(255,255,255,0.58)",
+                          fontSize: "18px",
+                          lineHeight: 1.65,
+                        }}
+                      >
+                        At the end of each 30-day cycle, any dividend payout is
+                        divided using these ownership percentages.
+                      </p>
+
+                      <div
+                        style={{
+                          marginTop: "22px",
+                          display: "grid",
+                          gap: "10px",
+                        }}
+                      >
+                        <MetricCard
+                          label="Milo’s investment"
+                          value={formatMoney(requestedBudget)}
+                          note="Approved investor funding"
+                        />
+                        <MetricCard
+                          label="Your available balance"
+                          value={formatMoney(dreamTokenBalance)}
+                          note="Maximum currently available from your account"
+                        />
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        borderRadius: "24px",
+                        border: "1px solid rgba(218,151,74,0.24)",
+                        background: "rgba(6,10,18,0.88)",
+                        padding: "24px",
+                      }}
+                    >
+                      <label
+                        style={{
+                          display: "block",
+                          color: "rgba(255,255,255,0.54)",
+                          fontSize: "16px",
+                          fontWeight: 900,
+                          letterSpacing: "0.14em",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        Your personal contribution
+                      </label>
+
+                      <div
+                        style={{
+                          marginTop: "13px",
+                          display: "grid",
+                          gridTemplateColumns: "1fr auto",
+                          gap: "10px",
+                        }}
+                      >
+                        <input
+                          type="number"
+                          min={0}
+                          max={dreamTokenBalance}
+                          step={100}
+                          value={personalContribution}
+                          onChange={(event) => {
+                            const value = Math.max(
+                              0,
+                              Math.min(
+                                dreamTokenBalance,
+                                Number(event.target.value || 0),
+                              ),
+                            );
+                            setPersonalContribution(value);
+                            setPageMessage("");
+                          }}
+                          style={{
+                            minWidth: 0,
+                            height: "58px",
+                            borderRadius: "15px",
+                            border: "1px solid rgba(235,179,103,0.28)",
+                            background: "rgba(255,255,255,0.055)",
+                            color: "white",
+                            padding: "0 17px",
+                            fontSize: "23px",
+                            fontWeight: 900,
+                            outline: "none",
+                          }}
+                        />
+                        <div
+                          style={{
+                            minWidth: "70px",
+                            borderRadius: "15px",
+                            border: "1px solid rgba(235,179,103,0.2)",
+                            background: "rgba(95,52,24,0.7)",
+                            display: "grid",
+                            placeItems: "center",
+                            color: "#f4c782",
+                            fontSize: "19px",
+                            fontWeight: 900,
+                          }}
+                        >
+                          DT
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: "12px",
+                          display: "grid",
+                          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                          gap: "8px",
+                        }}
+                      >
+                        {[
+                          [0, "None"],
+                          [Math.floor(dreamTokenBalance * 0.25), "25%"],
+                          [Math.floor(dreamTokenBalance * 0.5), "50%"],
+                          [dreamTokenBalance, "All"],
+                        ].map(([amount, label]) => (
+                          <button
+                            key={String(label)}
+                            type="button"
+                            onClick={() =>
+                              setPersonalContribution(Number(amount))
+                            }
+                            style={{
+                              minHeight: "44px",
+                              borderRadius: "12px",
+                              border:
+                                personalContribution === Number(amount)
+                                  ? "1px solid rgba(241,195,122,0.72)"
+                                  : "1px solid rgba(218,151,74,0.16)",
+                              background:
+                                personalContribution === Number(amount)
+                                  ? "rgba(157,86,35,0.7)"
+                                  : "rgba(255,255,255,0.035)",
+                              color: "white",
+                              fontSize: "17px",
+                              fontWeight: 900,
+                              cursor: "pointer",
+                            }}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: "22px",
+                          display: "grid",
+                          gridTemplateColumns: mobile ? "1fr" : "1fr 1fr",
+                          gap: "10px",
+                        }}
+                      >
+                        <MetricCard
+                          label="Total business budget"
+                          value={formatMoney(
+                            requestedBudget + personalContribution,
+                          )}
+                          note="Milo’s investment plus your contribution"
+                        />
+                        <MetricCard
+                          label="Balance after transfer"
+                          value={formatMoney(
+                            dreamTokenBalance - personalContribution,
+                          )}
+                          note="Dream Tokens remaining in your account"
+                        />
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: "24px",
+                          display: "flex",
+                          flexDirection: mobile ? "column" : "row",
+                          gap: "10px",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setFundingStep("milo")}
+                          disabled={fundingSubmitting}
+                          style={{
+                            minHeight: "54px",
+                            flex: 1,
+                            borderRadius: "14px",
+                            border: "1px solid rgba(218,151,74,0.2)",
+                            background: "rgba(255,255,255,0.04)",
+                            color: "white",
+                            fontSize: "18px",
+                            fontWeight: 850,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Back to Investment
+                        </button>
+                        <button
+                          type="button"
+                          onClick={confirmFunding}
+                          disabled={fundingSubmitting}
+                          style={{
+                            minHeight: "54px",
+                            flex: 1.25,
+                            borderRadius: "14px",
+                            border: "none",
+                            background: fundingSubmitting
+                              ? "rgba(255,255,255,0.12)"
+                              : "linear-gradient(135deg, #d99548, #8d4b21)",
+                            color: fundingSubmitting
+                              ? "rgba(255,255,255,0.45)"
+                              : "white",
+                            fontSize: "18px",
+                            fontWeight: 900,
+                            cursor: fundingSubmitting ? "wait" : "pointer",
+                          }}
+                        >
+                          {fundingSubmitting
+                            ? "Confirming..."
+                            : personalContribution > 0
+                              ? "Transfer DT & Continue"
+                              : "Continue Without Personal Funds"}
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                </>
+              )}
             </div>
           )}
 
-          {view === "setup" && activeSlot && activeBusiness && setupSummary && (
+          {view === "setup" &&
+            activeSlot &&
+            activeBusiness &&
+            setupSummary &&
+            activeSlot.status === "setup" && (
             <div style={{ width: "min(1380px, 100%)", margin: "0 auto" }}>
               <div
                 style={{
@@ -2568,13 +3518,13 @@ export default function MiloBusinessBuilderPage() {
                     style={{
                       margin: 0,
                       color: "#efbc73",
-                      fontSize: "10px",
+                      fontSize: "13px",
                       fontWeight: 900,
                       letterSpacing: "0.2em",
                       textTransform: "uppercase",
                     }}
                   >
-                    {activeSlot.status === "running" ? "Operating setup" : "Guided setup"}
+                    Guided setup
                   </p>
                   <h2
                     style={{
@@ -2593,7 +3543,7 @@ export default function MiloBusinessBuilderPage() {
                       margin: "14px 0 0",
                       maxWidth: "760px",
                       color: "rgba(255,255,255,0.55)",
-                      fontSize: "13px",
+                      fontSize: "16px",
                       lineHeight: 1.6,
                     }}
                   >
@@ -2615,19 +3565,19 @@ export default function MiloBusinessBuilderPage() {
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", gap: "10px" }}>
-                    <span style={{ color: "rgba(255,255,255,0.43)", fontSize: "10px" }}>
-                      Approved investment
+                    <span style={{ color: "rgba(255,255,255,0.43)", fontSize: "13px" }}>
+                      Total business budget
                     </span>
                     <strong>{formatMoney(activeSlot.approvedBudget)}</strong>
                   </div>
                   <div style={{ marginTop: "9px", display: "flex", justifyContent: "space-between", gap: "10px" }}>
-                    <span style={{ color: "rgba(255,255,255,0.43)", fontSize: "10px" }}>
+                    <span style={{ color: "rgba(255,255,255,0.43)", fontSize: "13px" }}>
                       Setup allocated
                     </span>
                     <strong>{formatMoney(setupSummary.setupSpend)}</strong>
                   </div>
                   <div style={{ marginTop: "9px", display: "flex", justifyContent: "space-between", gap: "10px" }}>
-                    <span style={{ color: "rgba(255,255,255,0.43)", fontSize: "10px" }}>
+                    <span style={{ color: "rgba(255,255,255,0.43)", fontSize: "13px" }}>
                       Cash remaining
                     </span>
                     <strong style={{ color: setupSummary.remainingCash >= 0 ? "#9ff0bd" : "#ffaf91" }}>
@@ -2697,8 +3647,8 @@ export default function MiloBusinessBuilderPage() {
                         cursor: "pointer",
                       }}
                     >
-                      <span style={{ color: "#edb86e", fontSize: "15px" }}>{category.icon}</span>
-                      <strong style={{ display: "block", marginTop: "7px", fontSize: "11px" }}>
+                      <span style={{ color: "#edb86e", fontSize: "18px" }}>{category.icon}</span>
+                      <strong style={{ display: "block", marginTop: "7px", fontSize: "14px" }}>
                         {category.shortLabel}
                       </strong>
                       <span
@@ -2706,7 +3656,7 @@ export default function MiloBusinessBuilderPage() {
                           display: "block",
                           marginTop: "4px",
                           color: "rgba(255,255,255,0.42)",
-                          fontSize: "9px",
+                          fontSize: "12px",
                         }}
                       >
                         {selectedTier.shortLabel}
@@ -2746,7 +3696,7 @@ export default function MiloBusinessBuilderPage() {
                       <label
                         style={{
                           color: "rgba(255,255,255,0.45)",
-                          fontSize: "9px",
+                          fontSize: "12px",
                           fontWeight: 900,
                           letterSpacing: "0.14em",
                           textTransform: "uppercase",
@@ -2767,7 +3717,7 @@ export default function MiloBusinessBuilderPage() {
                           background: "rgba(255,255,255,0.05)",
                           color: "white",
                           padding: "0 14px",
-                          fontSize: "15px",
+                          fontSize: "18px",
                           fontWeight: 800,
                           outline: "none",
                         }}
@@ -2805,8 +3755,12 @@ export default function MiloBusinessBuilderPage() {
                   >
                     {category.options.map((option) => {
                       const selected = draftSelections[category.id] === option.id;
-                      const setupCost = activeSlot.approvedBudget * option.setupFraction;
-                      const monthlyCost = activeSlot.approvedBudget * option.monthlyFraction;
+                      const setupCost =
+                        (activeSlot.miloInvestment || activeSlot.approvedBudget) *
+                        option.setupFraction;
+                      const monthlyCost =
+                        (activeSlot.miloInvestment || activeSlot.approvedBudget) *
+                        option.monthlyFraction;
 
                       return (
                         <button
@@ -2864,7 +3818,7 @@ export default function MiloBusinessBuilderPage() {
                             style={{
                               margin: "18px 0 0",
                               color: "#eab36a",
-                              fontSize: "9px",
+                              fontSize: "12px",
                               fontWeight: 900,
                               letterSpacing: "0.14em",
                               textTransform: "uppercase",
@@ -2872,14 +3826,14 @@ export default function MiloBusinessBuilderPage() {
                           >
                             {option.shortLabel} choice
                           </p>
-                          <h3 style={{ margin: "8px 0 0", fontSize: "23px", lineHeight: 1.05 }}>
+                          <h3 style={{ margin: "8px 0 0", fontSize: "26px", lineHeight: 1.05 }}>
                             {option.label}
                           </h3>
                           <p
                             style={{
                               margin: "12px 0 0",
                               color: "rgba(255,255,255,0.54)",
-                              fontSize: "12px",
+                              fontSize: "15px",
                               lineHeight: 1.55,
                             }}
                           >
@@ -2888,16 +3842,16 @@ export default function MiloBusinessBuilderPage() {
 
                           <div style={{ marginTop: "18px", display: "grid", gap: "9px" }}>
                             <div style={{ display: "flex", justifyContent: "space-between", gap: "10px" }}>
-                              <span style={{ color: "rgba(255,255,255,0.42)", fontSize: "10px" }}>
+                              <span style={{ color: "rgba(255,255,255,0.42)", fontSize: "13px" }}>
                                 Setup cost
                               </span>
-                              <strong style={{ fontSize: "12px" }}>{formatMoney(setupCost)}</strong>
+                              <strong style={{ fontSize: "15px" }}>{formatMoney(setupCost)}</strong>
                             </div>
                             <div style={{ display: "flex", justifyContent: "space-between", gap: "10px" }}>
-                              <span style={{ color: "rgba(255,255,255,0.42)", fontSize: "10px" }}>
+                              <span style={{ color: "rgba(255,255,255,0.42)", fontSize: "13px" }}>
                                 Monthly cost
                               </span>
-                              <strong style={{ fontSize: "12px" }}>
+                              <strong style={{ fontSize: "15px" }}>
                                 {monthlyCost > 0 ? formatMoney(monthlyCost) : "Variable"}
                               </strong>
                             </div>
@@ -2911,10 +3865,10 @@ export default function MiloBusinessBuilderPage() {
                               gap: "8px",
                             }}
                           >
-                            <span style={{ color: "#9fe3b8", fontSize: "11px", lineHeight: 1.4 }}>
+                            <span style={{ color: "#9fe3b8", fontSize: "14px", lineHeight: 1.4 }}>
                               + {option.benefit}
                             </span>
-                            <span style={{ color: "#ffbd9e", fontSize: "11px", lineHeight: 1.4 }}>
+                            <span style={{ color: "#ffbd9e", fontSize: "14px", lineHeight: 1.4 }}>
                               – {option.tradeOff}
                             </span>
                           </div>
@@ -2940,7 +3894,7 @@ export default function MiloBusinessBuilderPage() {
                 }}
               >
                 <div>
-                  <strong style={{ display: "block", fontSize: "15px" }}>
+                  <strong style={{ display: "block", fontSize: "18px" }}>
                     Milo’s review
                   </strong>
                   <span
@@ -2950,7 +3904,7 @@ export default function MiloBusinessBuilderPage() {
                       color: setupSummary.remainingCash < activeSlot.approvedBudget * 0.08
                         ? "#ffb596"
                         : "rgba(255,255,255,0.5)",
-                      fontSize: "11px",
+                      fontSize: "14px",
                       lineHeight: 1.5,
                     }}
                   >
@@ -2963,31 +3917,9 @@ export default function MiloBusinessBuilderPage() {
                 </div>
 
                 <div style={{ display: "flex", flexDirection: mobile ? "column" : "row", gap: "10px" }}>
-                  {activeSlot.status === "running" && (
-                    <button
-                      type="button"
-                      onClick={() => setView("analytics")}
-                      style={{
-                        minHeight: "50px",
-                        borderRadius: "14px",
-                        border: "1px solid rgba(218,151,74,0.2)",
-                        background: "rgba(255,255,255,0.04)",
-                        color: "white",
-                        padding: "0 20px",
-                        fontWeight: 850,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Back to Analytics
-                    </button>
-                  )}
                   <button
                     type="button"
-                    onClick={
-                      activeSlot.status === "running"
-                        ? saveOperatingChanges
-                        : saveSetupAndLaunch
-                    }
+                    onClick={saveSetupAndLaunch}
                     disabled={setupSummary.remainingCash < 0}
                     style={{
                       minHeight: "50px",
@@ -3007,355 +3939,1123 @@ export default function MiloBusinessBuilderPage() {
                         setupSummary.remainingCash < 0 ? "not-allowed" : "pointer",
                     }}
                   >
-                    {activeSlot.status === "running" ? "Save Business Changes" : "Launch Business"}
+                    Launch Business
                   </button>
                 </div>
               </div>
             </div>
           )}
 
-          {view === "analytics" && activeSlot && activeBusiness && activeSlot.status === "running" && (
-            <div style={{ width: "min(1380px, 100%)", margin: "0 auto" }}>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: compact ? "1fr" : "1fr auto",
-                  gap: "18px",
-                  alignItems: "end",
-                }}
-              >
-                <div>
-                  <p
-                    style={{
-                      margin: 0,
-                      color: "#efbc73",
-                      fontSize: "10px",
-                      fontWeight: 900,
-                      letterSpacing: "0.2em",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Business analytics
-                  </p>
-                  <h2
-                    style={{
-                      margin: "10px 0 0",
-                      fontFamily: 'Georgia, "Times New Roman", serif',
-                      fontSize: mobile ? "40px" : "58px",
-                      lineHeight: 0.98,
-                      fontWeight: 500,
-                      letterSpacing: "-0.04em",
-                    }}
-                  >
-                    {activeSlot.businessName}
-                  </h2>
-                  <p
-                    style={{
-                      margin: "14px 0 0",
-                      color: "rgba(255,255,255,0.54)",
-                      fontSize: "13px",
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    {activeBusiness.title} · Launched {formatDate(activeSlot.launchedAt)} · Simulated day {Math.floor(simulatedDays) + 1}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => navigate("setup")}
-                  style={{
-                    minHeight: "48px",
-                    borderRadius: "14px",
-                    border: "1px solid rgba(218,151,74,0.25)",
-                    background: "rgba(255,255,255,0.04)",
-                    color: "white",
-                    padding: "0 20px",
-                    fontWeight: 850,
-                    cursor: "pointer",
-                  }}
-                >
-                  Edit Business Setup
-                </button>
-              </div>
-
-              <div
-                style={{
-                  marginTop: "22px",
-                  display: "grid",
-                  gridTemplateColumns: mobile
-                    ? "1fr"
-                    : compact
-                      ? "repeat(2, minmax(0, 1fr))"
-                      : "repeat(5, minmax(0, 1fr))",
-                  gap: "12px",
-                }}
-              >
-                <MetricCard
-                  label="Available cash"
-                  value={formatMoney(activeSlot.cash)}
-                  note="Cash available for changes and operations"
-                  positive={activeSlot.cash >= 0}
-                />
-                <MetricCard
-                  label="Sales revenue"
-                  value={formatMoney(activeSlot.revenue)}
-                  note={`${Math.floor(activeSlot.sales)} estimated customer orders`}
-                />
-                <MetricCard
-                  label="Total costs"
-                  value={formatMoney(activeSlot.expenses)}
-                  note="Stock, rent, wages, marketing and maintenance"
-                />
-                <MetricCard
-                  label="Profit / loss"
-                  value={formatMoney(profit)}
-                  note="Revenue minus all operating costs"
-                  positive={profit >= 0}
-                />
-                <MetricCard
-                  label="Customer satisfaction"
-                  value={`${Math.round(activeSlot.customerSatisfaction)}%`}
-                  note="Affected by staff, equipment and availability"
-                  positive={activeSlot.customerSatisfaction >= 65}
-                />
-              </div>
-
-              <div
-                style={{
-                  marginTop: "16px",
-                  display: "grid",
-                  gridTemplateColumns: compact ? "1fr" : "0.8fr 1.2fr",
-                  gap: "16px",
-                }}
-              >
+          {view === "analytics" &&
+            activeSlot &&
+            activeBusiness &&
+            activeSlot.status === "running" && (
+              <div style={{ width: "min(1420px, 100%)", margin: "0 auto" }}>
                 <div
                   style={{
-                    borderRadius: "24px",
-                    border: "1px solid rgba(218,151,74,0.22)",
-                    background:
-                      "linear-gradient(145deg, rgba(54,30,17,0.86), rgba(6,10,18,0.92))",
-                    padding: "20px",
+                    display: "grid",
+                    gridTemplateColumns: compact ? "1fr" : "1fr auto",
+                    gap: "18px",
+                    alignItems: "end",
                   }}
                 >
-                  <p
-                    style={{
-                      margin: 0,
-                      color: "#eab36a",
-                      fontSize: "9px",
-                      fontWeight: 900,
-                      letterSpacing: "0.16em",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Simulation timeline
-                  </p>
-                  <h3 style={{ margin: "9px 0 0", fontSize: "27px" }}>
-                    Choose the operating speed
-                  </h3>
-                  <p
-                    style={{
-                      margin: "11px 0 0",
-                      color: "rgba(255,255,255,0.52)",
-                      fontSize: "12px",
-                      lineHeight: 1.55,
-                    }}
-                  >
-                    At 1,440× speed, one simulated business day passes every
-                    real minute. Returning later always catches the business up
-                    using normal real time rather than accelerated time.
-                  </p>
-
-                  <div
-                    style={{
-                      marginTop: "18px",
-                      display: "grid",
-                      gridTemplateColumns: mobile ? "repeat(2, 1fr)" : "repeat(5, 1fr)",
-                      gap: "9px",
-                    }}
-                  >
-                    {([
-                      [0, "Pause"],
-                      [1, "1×"],
-                      [24, "24×"],
-                      [168, "168×"],
-                      [1440, "1,440×"],
-                    ] as [SimulationSpeed, string][]).map(([speed, label]) => {
-                      const active = activeSlot.simulationSpeed === speed;
-
-                      return (
-                        <button
-                          key={speed}
-                          type="button"
-                          onClick={() => changeSimulationSpeed(speed)}
-                          style={{
-                            minHeight: "48px",
-                            borderRadius: "13px",
-                            border: active
-                              ? "1px solid rgba(241,195,122,0.72)"
-                              : "1px solid rgba(218,151,74,0.16)",
-                            background: active
-                              ? "rgba(157,86,35,0.7)"
-                              : "rgba(255,255,255,0.035)",
-                            color: "white",
-                            fontWeight: 900,
-                            cursor: "pointer",
-                          }}
-                        >
-                          {label}
-                        </button>
-                      );
-                    })}
+                  <div>
+                    <p
+                      style={{
+                        margin: 0,
+                        color: "#efbc73",
+                        fontSize: "16px",
+                        fontWeight: 900,
+                        letterSpacing: "0.2em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Business analytics
+                    </p>
+                    <h2
+                      style={{
+                        margin: "11px 0 0",
+                        fontFamily: 'Georgia, "Times New Roman", serif',
+                        fontSize: mobile ? "46px" : "64px",
+                        lineHeight: 0.98,
+                        fontWeight: 500,
+                        letterSpacing: "-0.04em",
+                      }}
+                    >
+                      {activeSlot.businessName}
+                    </h2>
+                    <p
+                      style={{
+                        margin: "16px 0 0",
+                        color: "rgba(255,255,255,0.62)",
+                        fontSize: "19px",
+                        lineHeight: 1.65,
+                      }}
+                    >
+                      {activeBusiness.title} · Launched {formatDate(activeSlot.launchedAt)} ·
+                      Cycle {activeSlot.cycleNumber}
+                    </p>
                   </div>
 
                   <div
                     style={{
-                      marginTop: "18px",
-                      borderRadius: "16px",
-                      border: "1px solid rgba(218,151,74,0.16)",
-                      background: "rgba(255,255,255,0.025)",
-                      padding: "14px",
+                      minWidth: mobile ? 0 : "290px",
+                      borderRadius: "18px",
+                      border: "1px solid rgba(218,151,74,0.24)",
+                      background: "rgba(45,25,14,0.82)",
+                      padding: "16px 18px",
                     }}
                   >
                     <span
                       style={{
                         display: "block",
-                        color: "rgba(255,255,255,0.4)",
-                        fontSize: "9px",
-                        letterSpacing: "0.14em",
+                        color: "rgba(255,255,255,0.48)",
+                        fontSize: "15px",
+                        letterSpacing: "0.13em",
                         textTransform: "uppercase",
                       }}
                     >
-                      Current simulated time
+                      Business ownership
                     </span>
                     <strong
                       style={{
                         display: "block",
-                        marginTop: "7px",
-                        color: "#f2c37d",
-                        fontSize: "25px",
+                        marginTop: "8px",
+                        color: "#f3c47c",
+                        fontSize: "22px",
                       }}
                     >
-                      Day {Math.floor(simulatedDays) + 1} · {Math.floor((simulatedDays % 1) * 24)
-                        .toString()
-                        .padStart(2, "0")}
-                      :00
+                      You {Math.round(activeSlot.userOwnership * 100)}% · Milo {Math.round(activeSlot.miloOwnership * 100)}%
                     </strong>
+                    <span
+                      style={{
+                        display: "block",
+                        marginTop: "6px",
+                        color: "rgba(255,255,255,0.44)",
+                        fontSize: "16px",
+                      }}
+                    >
+                      Dividends follow this split.
+                    </span>
                   </div>
                 </div>
 
                 <div
                   style={{
-                    borderRadius: "24px",
-                    border: "1px solid rgba(218,151,74,0.22)",
-                    background: "rgba(6,10,18,0.88)",
-                    padding: "20px",
+                    marginTop: "24px",
+                    display: "grid",
+                    gridTemplateColumns: mobile
+                      ? "1fr"
+                      : compact
+                        ? "repeat(2, minmax(0, 1fr))"
+                        : "repeat(5, minmax(0, 1fr))",
+                    gap: "13px",
                   }}
                 >
-                  <p
+                  <MetricCard
+                    label="Available cash"
+                    value={formatMoney(activeSlot.cash)}
+                    note="Cash available for operations and changes"
+                    positive={activeSlot.cash >= 0}
+                  />
+                  <MetricCard
+                    label="Total revenue"
+                    value={formatMoney(activeSlot.revenue)}
+                    note={`${Math.floor(activeSlot.sales)} estimated customer orders`}
+                  />
+                  <MetricCard
+                    label="Total costs"
+                    value={formatMoney(activeSlot.expenses)}
+                    note="Stock, rent, wages, marketing and maintenance"
+                  />
+                  <MetricCard
+                    label="Lifetime profit / loss"
+                    value={formatMoney(profit)}
+                    note="Revenue minus all operating costs"
+                    positive={profit >= 0}
+                  />
+                  <MetricCard
+                    label="Customer satisfaction"
+                    value={`${Math.round(activeSlot.customerSatisfaction)}%`}
+                    note="Affected by staff, equipment and availability"
+                    positive={activeSlot.customerSatisfaction >= 65}
+                  />
+                </div>
+
+                <div
+                  style={{
+                    marginTop: "18px",
+                    display: "grid",
+                    gridTemplateColumns: compact ? "1fr" : "0.85fr 1.15fr",
+                    gap: "18px",
+                  }}
+                >
+                  <div
                     style={{
-                      margin: 0,
-                      color: "#eab36a",
-                      fontSize: "9px",
-                      fontWeight: 900,
-                      letterSpacing: "0.16em",
-                      textTransform: "uppercase",
+                      borderRadius: "24px",
+                      border: "1px solid rgba(218,151,74,0.22)",
+                      background:
+                        "linear-gradient(145deg, rgba(54,30,17,0.86), rgba(6,10,18,0.92))",
+                      padding: "22px",
                     }}
                   >
-                    Milo’s operating review
-                  </p>
-                  <h3 style={{ margin: "9px 0 0", fontSize: "28px", lineHeight: 1.05 }}>
-                    {profit >= 0
-                      ? "The business is moving in the right direction."
-                      : "The business needs an adjustment."}
-                  </h3>
+                    <p
+                      style={{
+                        margin: 0,
+                        color: "#eab36a",
+                        fontSize: "15px",
+                        fontWeight: 900,
+                        letterSpacing: "0.16em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Simulation timeline
+                    </p>
+                    <h3 style={{ margin: "10px 0 0", fontSize: "37px" }}>
+                      Run one 30-day cycle per day
+                    </h3>
+                    <p
+                      style={{
+                        margin: "12px 0 0",
+                        color: "rgba(255,255,255,0.58)",
+                        fontSize: "18px",
+                        lineHeight: 1.62,
+                      }}
+                    >
+                      Speed changes how quickly this cycle finishes, but it never
+                      allows more than one complete 30-day cycle on the same
+                      Singapore calendar day. At 1,440×, one simulated day passes
+                      every real minute.
+                    </p>
+
+                    <div
+                      style={{
+                        marginTop: "20px",
+                        display: "grid",
+                        gridTemplateColumns: mobile
+                          ? "repeat(2, 1fr)"
+                          : "repeat(5, 1fr)",
+                        gap: "9px",
+                      }}
+                    >
+                      {([
+                        [0, "Pause"],
+                        [1, "1×"],
+                        [24, "24×"],
+                        [168, "168×"],
+                        [1440, "1,440×"],
+                      ] as [SimulationSpeed, string][]).map(([speed, label]) => {
+                        const active = activeSlot.simulationSpeed === speed;
+                        const disabled = activeSlot.cycleStatus !== "running";
+
+                        return (
+                          <button
+                            key={speed}
+                            type="button"
+                            disabled={disabled}
+                            onClick={() => changeSimulationSpeed(speed)}
+                            style={{
+                              minHeight: "52px",
+                              borderRadius: "13px",
+                              border: active
+                                ? "1px solid rgba(241,195,122,0.72)"
+                                : "1px solid rgba(218,151,74,0.16)",
+                              background: disabled
+                                ? "rgba(255,255,255,0.025)"
+                                : active
+                                  ? "rgba(157,86,35,0.7)"
+                                  : "rgba(255,255,255,0.035)",
+                              color: disabled
+                                ? "rgba(255,255,255,0.3)"
+                                : "white",
+                              fontSize: "18px",
+                              fontWeight: 900,
+                              cursor: disabled ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: "19px",
+                        borderRadius: "16px",
+                        border: "1px solid rgba(218,151,74,0.16)",
+                        background: "rgba(255,255,255,0.025)",
+                        padding: "16px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: "12px",
+                          alignItems: "end",
+                        }}
+                      >
+                        <span
+                          style={{
+                            color: "rgba(255,255,255,0.46)",
+                            fontSize: "15px",
+                            letterSpacing: "0.14em",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          Cycle progress
+                        </span>
+                        <strong style={{ color: "#f2c37d", fontSize: "21px" }}>
+                          Day {Math.min(CYCLE_DAYS, Math.floor(cycleDays) + 1)} / {CYCLE_DAYS}
+                        </strong>
+                      </div>
+                      <div
+                        style={{
+                          height: "10px",
+                          marginTop: "12px",
+                          borderRadius: "999px",
+                          background: "rgba(255,255,255,0.08)",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: `${cycleProgress}%`,
+                            height: "100%",
+                            borderRadius: "999px",
+                            background:
+                              "linear-gradient(90deg, #8d4b21, #efbc73)",
+                            transition: "width 250ms ease",
+                          }}
+                        />
+                      </div>
+                      <strong
+                        style={{
+                          display: "block",
+                          marginTop: "14px",
+                          color: "white",
+                          fontSize: "30px",
+                        }}
+                      >
+                        {activeSlot.cycleStatus === "running"
+                          ? `${(CYCLE_DAYS - cycleDays).toFixed(1)} simulated days remaining`
+                          : activeSlot.cycleStatus === "awaiting-allocation"
+                            ? "Cycle complete — allocate the result"
+                            : "Cycle settled for today"}
+                      </strong>
+                    </div>
+                  </div>
 
                   <div
                     style={{
-                      marginTop: "18px",
-                      display: "grid",
-                      gridTemplateColumns: mobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
-                      gap: "11px",
+                      borderRadius: "24px",
+                      border: "1px solid rgba(218,151,74,0.22)",
+                      background: "rgba(6,10,18,0.88)",
+                      padding: "22px",
                     }}
                   >
-                    {[
-                      {
-                        title: activeSlot.cash < activeSlot.approvedBudget * 0.05
-                          ? "Cash reserve is low"
-                          : "Cash reserve is stable",
-                        text: activeSlot.cash < activeSlot.approvedBudget * 0.05
-                          ? "Review expensive setup choices before the business runs out of cash."
-                          : "The business still has room to handle short-term costs.",
-                      },
-                      {
-                        title: operatingForecast.dailyProfit >= 0
-                          ? "Current plan forecasts profit"
-                          : "Fixed costs are too heavy",
-                        text: operatingForecast.dailyProfit >= 0
-                          ? `The current setup forecasts about ${formatMoney(operatingForecast.dailyProfit)} per simulated day.`
-                          : "Reduce rent, staff or marketing costs, or improve the business’s ability to generate sales.",
-                      },
-                      {
-                        title: activeSlot.customerSatisfaction >= 70
-                          ? "Customers are responding well"
-                          : "Customer experience can improve",
-                        text: activeSlot.customerSatisfaction >= 70
-                          ? "Service, equipment and availability are supporting repeat demand."
-                          : "Review staff, equipment and stock quality to improve the experience.",
-                      },
-                      {
-                        title: "Your next decision",
-                        text: profit >= activeSlot.approvedBudget * 0.04
-                          ? "Consider building a stronger cash reserve before upgrading."
-                          : "Return to Business Setup and test one change at a time.",
-                      },
-                    ].map((item) => (
-                      <div
-                        key={item.title}
-                        style={{
-                          borderRadius: "17px",
-                          border: "1px solid rgba(218,151,74,0.15)",
-                          background: "rgba(255,255,255,0.025)",
-                          padding: "15px",
-                        }}
-                      >
-                        <strong style={{ display: "block", fontSize: "13px" }}>{item.title}</strong>
-                        <span
+                    <p
+                      style={{
+                        margin: 0,
+                        color: "#eab36a",
+                        fontSize: "15px",
+                        fontWeight: 900,
+                        letterSpacing: "0.16em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Milo’s operating review
+                    </p>
+                    <h3
+                      style={{
+                        margin: "10px 0 0",
+                        fontSize: "38px",
+                        lineHeight: 1.08,
+                      }}
+                    >
+                      {activeSlot.cycleStatus === "awaiting-allocation"
+                        ? "Your 30-day result is ready."
+                        : profit >= 0
+                          ? "The business is moving in the right direction."
+                          : "The business needs a cost adjustment."}
+                    </h3>
+
+                    <div
+                      style={{
+                        marginTop: "19px",
+                        display: "grid",
+                        gridTemplateColumns: mobile
+                          ? "1fr"
+                          : "repeat(2, minmax(0, 1fr))",
+                        gap: "11px",
+                      }}
+                    >
+                      {[
+                        {
+                          title:
+                            activeSlot.cash < activeSlot.approvedBudget * 0.05
+                              ? "Cash reserve is low"
+                              : "Cash reserve is stable",
+                          text:
+                            activeSlot.cash < activeSlot.approvedBudget * 0.05
+                              ? "Reduce running costs before the business runs out of operating cash."
+                              : "The business still has room to handle short-term costs.",
+                        },
+                        {
+                          title:
+                            operatingForecast.dailyProfit >= 0
+                              ? "Current plan forecasts profit"
+                              : "Fixed costs are too heavy",
+                          text:
+                            operatingForecast.dailyProfit >= 0
+                              ? `The current operating choices forecast about ${formatMoney(operatingForecast.dailyProfit)} per simulated day.`
+                              : "Reduce staff or marketing costs, or improve stock availability and sales capacity.",
+                        },
+                        {
+                          title:
+                            activeSlot.customerSatisfaction >= 70
+                              ? "Customers are responding well"
+                              : "Customer experience can improve",
+                          text:
+                            activeSlot.customerSatisfaction >= 70
+                              ? "Service, equipment and stock availability are supporting repeat demand."
+                              : "Review staff and stock levels below to improve the experience.",
+                        },
+                        {
+                          title: "Next management decision",
+                          text:
+                            activeSlot.cycleStatus === "awaiting-allocation"
+                              ? "Choose how much profit stays in the business and how much is paid as dividends."
+                              : "Change one running-cost category at a time, then watch the next results.",
+                        },
+                      ].map((item) => (
+                        <div
+                          key={item.title}
                           style={{
-                            display: "block",
-                            marginTop: "7px",
-                            color: "rgba(255,255,255,0.48)",
-                            fontSize: "11px",
-                            lineHeight: 1.5,
+                            borderRadius: "17px",
+                            border: "1px solid rgba(218,151,74,0.15)",
+                            background: "rgba(255,255,255,0.025)",
+                            padding: "16px",
                           }}
                         >
-                          {item.text}
-                        </span>
+                          <strong
+                            style={{ display: "block", fontSize: "19px" }}
+                          >
+                            {item.title}
+                          </strong>
+                          <span
+                            style={{
+                              display: "block",
+                              marginTop: "8px",
+                              color: "rgba(255,255,255,0.54)",
+                              fontSize: "17px",
+                              lineHeight: 1.55,
+                            }}
+                          >
+                            {item.text}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    marginTop: "18px",
+                    borderRadius: "26px",
+                    border:
+                      activeSlot.cycleStatus === "awaiting-allocation"
+                        ? "1px solid rgba(241,195,122,0.55)"
+                        : "1px solid rgba(218,151,74,0.22)",
+                    background:
+                      activeSlot.cycleStatus === "awaiting-allocation"
+                        ? "linear-gradient(145deg, rgba(76,41,20,0.94), rgba(6,10,18,0.96))"
+                        : "rgba(6,10,18,0.9)",
+                    padding: mobile ? "20px" : "24px",
+                    boxShadow:
+                      activeSlot.cycleStatus === "awaiting-allocation"
+                        ? "0 0 34px rgba(218,151,74,0.12)"
+                        : "none",
+                  }}
+                >
+                  {activeSlot.cycleStatus === "awaiting-allocation" ? (
+                    <>
+                      <p
+                        style={{
+                          margin: 0,
+                          color: "#efbc73",
+                          fontSize: "15px",
+                          fontWeight: 900,
+                          letterSpacing: "0.17em",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        Cycle {activeSlot.cycleNumber} allocation
+                      </p>
+                      <h3
+                        style={{
+                          margin: "10px 0 0",
+                          fontFamily: 'Georgia, "Times New Roman", serif',
+                          fontSize: mobile ? "38px" : "48px",
+                          lineHeight: 1,
+                          fontWeight: 500,
+                        }}
+                      >
+                        {activeSlot.cycleProfit >= 0
+                          ? `${formatMoney(activeSlot.cycleProfit)} profit`
+                          : `${formatMoney(Math.abs(activeSlot.cycleProfit))} loss`}
+                      </h3>
+
+                      <div
+                        style={{
+                          marginTop: "20px",
+                          display: "grid",
+                          gridTemplateColumns: mobile
+                            ? "1fr"
+                            : "repeat(3, minmax(0, 1fr))",
+                          gap: "12px",
+                        }}
+                      >
+                        <MetricCard
+                          label="30-day revenue"
+                          value={formatMoney(activeSlot.cycleRevenue)}
+                          note="Revenue generated during this cycle"
+                        />
+                        <MetricCard
+                          label="30-day costs"
+                          value={formatMoney(activeSlot.cycleExpenses)}
+                          note="All operating costs during this cycle"
+                        />
+                        <MetricCard
+                          label="Cycle result"
+                          value={formatMoney(activeSlot.cycleProfit)}
+                          note="Revenue minus costs"
+                          positive={activeSlot.cycleProfit >= 0}
+                        />
+                      </div>
+
+                      {activeSlot.cycleProfit > 0 ? (
+                        <div
+                          style={{
+                            marginTop: "22px",
+                            display: "grid",
+                            gridTemplateColumns: compact ? "1fr" : "1.1fr 0.9fr",
+                            gap: "18px",
+                          }}
+                        >
+                          <div>
+                            <label
+                              style={{
+                                display: "block",
+                                color: "rgba(255,255,255,0.55)",
+                                fontSize: "16px",
+                                fontWeight: 900,
+                                letterSpacing: "0.13em",
+                                textTransform: "uppercase",
+                              }}
+                            >
+                              Reinvest in the business: {reinvestmentPercent}%
+                            </label>
+                            <input
+                              type="range"
+                              min={0}
+                              max={100}
+                              step={5}
+                              value={reinvestmentPercent}
+                              onChange={(event) =>
+                                setReinvestmentPercent(Number(event.target.value))
+                              }
+                              style={{ width: "100%", marginTop: "18px" }}
+                            />
+                            <div
+                              style={{
+                                marginTop: "13px",
+                                display: "grid",
+                                gridTemplateColumns: "1fr 1fr",
+                                gap: "10px",
+                              }}
+                            >
+                              <MetricCard
+                                label="Reinvestment"
+                                value={formatMoney(
+                                  activeSlot.cycleProfit *
+                                    (reinvestmentPercent / 100),
+                                )}
+                                note="Remains as business cash"
+                              />
+                              <MetricCard
+                                label="Dividend pool"
+                                value={formatMoney(cycleDividendPool)}
+                                note="Removed from the business and distributed"
+                              />
+                            </div>
+                          </div>
+
+                          <div
+                            style={{
+                              borderRadius: "20px",
+                              border: "1px solid rgba(218,151,74,0.18)",
+                              background: "rgba(255,255,255,0.025)",
+                              padding: "18px",
+                            }}
+                          >
+                            <p
+                              style={{
+                                margin: 0,
+                                color: "#eab36a",
+                                fontSize: "15px",
+                                fontWeight: 900,
+                                letterSpacing: "0.14em",
+                                textTransform: "uppercase",
+                              }}
+                            >
+                              Dividend split
+                            </p>
+                            <div
+                              style={{
+                                marginTop: "14px",
+                                display: "grid",
+                                gap: "11px",
+                              }}
+                            >
+                              <MetricCard
+                                label={`Your ${Math.round(activeSlot.userOwnership * 100)}% share`}
+                                value={formatMoney(projectedUserDividend)}
+                                note="Paid to your Dream Token balance"
+                                positive
+                              />
+                              <MetricCard
+                                label={`Milo’s ${Math.round(activeSlot.miloOwnership * 100)}% share`}
+                                value={formatMoney(projectedMiloDividend)}
+                                note="Paid to Milo as the investor"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <p
+                          style={{
+                            margin: "20px 0 0",
+                            color: "rgba(255,255,255,0.62)",
+                            fontSize: "19px",
+                            lineHeight: 1.65,
+                          }}
+                        >
+                          A loss cannot be distributed as dividends. Confirm the
+                          result, then review the running-cost controls before the
+                          next cycle becomes available.
+                        </p>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={settleThirtyDayCycle}
+                        disabled={cycleSubmitting}
+                        style={{
+                          width: "100%",
+                          minHeight: "56px",
+                          marginTop: "22px",
+                          borderRadius: "15px",
+                          border: "none",
+                          background: cycleSubmitting
+                            ? "rgba(255,255,255,0.12)"
+                            : "linear-gradient(135deg, #d99548, #8d4b21)",
+                          color: cycleSubmitting
+                            ? "rgba(255,255,255,0.45)"
+                            : "white",
+                          fontSize: "19px",
+                          fontWeight: 900,
+                          cursor: cycleSubmitting ? "wait" : "pointer",
+                        }}
+                      >
+                        {cycleSubmitting
+                          ? "Settling Cycle..."
+                          : activeSlot.cycleProfit > 0
+                            ? "Confirm Reinvestment & Dividend Payout"
+                            : "Confirm Cycle Loss"}
+                      </button>
+                    </>
+                  ) : activeSlot.cycleStatus === "settled" ? (
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: compact ? "1fr" : "1fr auto",
+                        gap: "18px",
+                        alignItems: "center",
+                      }}
+                    >
+                      <div>
+                        <p
+                          style={{
+                            margin: 0,
+                            color: "#9ff0bd",
+                            fontSize: "15px",
+                            fontWeight: 900,
+                            letterSpacing: "0.16em",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          Cycle settled
+                        </p>
+                        <h3
+                          style={{
+                            margin: "10px 0 0",
+                            fontSize: "37px",
+                            lineHeight: 1.1,
+                          }}
+                        >
+                          Your next 30-day cycle unlocks tomorrow.
+                        </h3>
+                        <p
+                          style={{
+                            margin: "10px 0 0",
+                            color: "rgba(255,255,255,0.56)",
+                            fontSize: "18px",
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          The daily limit follows Singapore calendar time. You can
+                          still review analytics, adjust running costs and save
+                          progress now.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => saveProgressToAccount()}
+                        style={{
+                          minHeight: "52px",
+                          borderRadius: "14px",
+                          border: "1px solid rgba(218,151,74,0.25)",
+                          background: "rgba(255,255,255,0.04)",
+                          color: "white",
+                          padding: "0 22px",
+                          fontSize: "18px",
+                          fontWeight: 900,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Save Progress
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: compact ? "1fr" : "1fr auto",
+                        gap: "18px",
+                        alignItems: "center",
+                      }}
+                    >
+                      <div>
+                        <p
+                          style={{
+                            margin: 0,
+                            color: "#efbc73",
+                            fontSize: "15px",
+                            fontWeight: 900,
+                            letterSpacing: "0.16em",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          Current 30-day cycle
+                        </p>
+                        <h3
+                          style={{
+                            margin: "10px 0 0",
+                            fontSize: "37px",
+                            lineHeight: 1.1,
+                          }}
+                        >
+                          Current cycle profit: {formatMoney(activeSlot.cycleProfit)}
+                        </h3>
+                        <p
+                          style={{
+                            margin: "10px 0 0",
+                            color: "rgba(255,255,255,0.56)",
+                            fontSize: "18px",
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          The allocation panel will open automatically after day
+                          30. The simulation pauses until you settle the result.
+                        </p>
+                      </div>
+                      <strong
+                        style={{
+                          color:
+                            activeSlot.cycleProfit >= 0 ? "#9ff0bd" : "#ffb497",
+                          fontSize: "33px",
+                        }}
+                      >
+                        {cycleProgress.toFixed(0)}%
+                      </strong>
+                    </div>
+                  )}
+                </div>
+
+                <div
+                  style={{
+                    marginTop: "18px",
+                    borderRadius: "26px",
+                    border: "1px solid rgba(218,151,74,0.22)",
+                    background:
+                      "linear-gradient(145deg, rgba(39,23,14,0.9), rgba(5,9,17,0.94))",
+                    padding: mobile ? "20px" : "24px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: compact ? "1fr" : "1fr auto",
+                      gap: "16px",
+                      alignItems: "end",
+                    }}
+                  >
+                    <div>
+                      <p
+                        style={{
+                          margin: 0,
+                          color: "#efbc73",
+                          fontSize: "15px",
+                          fontWeight: 900,
+                          letterSpacing: "0.17em",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        Running-cost controls
+                      </p>
+                      <h3
+                        style={{
+                          margin: "10px 0 0",
+                          fontFamily: 'Georgia, "Times New Roman", serif',
+                          fontSize: mobile ? "36px" : "46px",
+                          lineHeight: 1,
+                          fontWeight: 500,
+                        }}
+                      >
+                        Adjust the operating business
+                      </h3>
+                      <p
+                        style={{
+                          margin: "13px 0 0",
+                          color: "rgba(255,255,255,0.58)",
+                          fontSize: "18px",
+                          lineHeight: 1.65,
+                        }}
+                      >
+                        Location and major equipment are fixed after launch. You
+                        can still change stock levels, staffing and marketing.
+                        Upgrades use business cash; downgrades recover 50% of the
+                        removed setup value.
+                      </p>
+                    </div>
+                    <div style={{ textAlign: compact ? "left" : "right" }}>
+                      <span
+                        style={{
+                          display: "block",
+                          color: "rgba(255,255,255,0.45)",
+                          fontSize: "15px",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.12em",
+                        }}
+                      >
+                        Forecast daily profit
+                      </span>
+                      <strong
+                        style={{
+                          display: "block",
+                          marginTop: "6px",
+                          color:
+                            operatingForecast.dailyProfit >= 0
+                              ? "#9ff0bd"
+                              : "#ffb497",
+                          fontSize: "35px",
+                        }}
+                      >
+                        {formatMoney(operatingForecast.dailyProfit)}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: "22px",
+                      display: "grid",
+                      gridTemplateColumns: compact
+                        ? "1fr"
+                        : "repeat(3, minmax(0, 1fr))",
+                      gap: "16px",
+                    }}
+                  >
+                    {SETUP_CATEGORIES.filter((category) =>
+                      ["stock", "staff", "marketing"].includes(category.id),
+                    ).map((category) => (
+                      <div
+                        key={category.id}
+                        style={{
+                          borderRadius: "21px",
+                          border: "1px solid rgba(218,151,74,0.18)",
+                          background: "rgba(255,255,255,0.025)",
+                          padding: "18px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "11px",
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: "40px",
+                              height: "40px",
+                              borderRadius: "13px",
+                              border: "1px solid rgba(239,187,112,0.28)",
+                              background: "rgba(218,151,74,0.09)",
+                              color: "#f3c47c",
+                              display: "grid",
+                              placeItems: "center",
+                              fontSize: "21px",
+                            }}
+                          >
+                            {category.icon}
+                          </span>
+                          <div>
+                            <strong
+                              style={{ display: "block", fontSize: "22px" }}
+                            >
+                              {category.shortLabel}
+                            </strong>
+                            <span
+                              style={{
+                                display: "block",
+                                marginTop: "3px",
+                                color: "rgba(255,255,255,0.45)",
+                                fontSize: "15px",
+                              }}
+                            >
+                              Current: {getTierOption(category, draftSelections[category.id]).label}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            marginTop: "16px",
+                            display: "grid",
+                            gap: "9px",
+                          }}
+                        >
+                          {category.options.map((option) => {
+                            const selected =
+                              draftSelections[category.id] === option.id;
+                            const setupCost =
+                              (activeSlot.miloInvestment ||
+                                activeSlot.approvedBudget) *
+                              option.setupFraction;
+                            const monthlyCost =
+                              (activeSlot.miloInvestment ||
+                                activeSlot.approvedBudget) *
+                              option.monthlyFraction;
+
+                            return (
+                              <button
+                                key={option.id}
+                                type="button"
+                                onClick={() =>
+                                  setDraftSelections((current) => ({
+                                    ...current,
+                                    [category.id]: option.id,
+                                  }))
+                                }
+                                style={{
+                                  minHeight: "92px",
+                                  borderRadius: "15px",
+                                  border: selected
+                                    ? "1px solid rgba(241,195,122,0.7)"
+                                    : "1px solid rgba(218,151,74,0.13)",
+                                  background: selected
+                                    ? "rgba(111,60,27,0.62)"
+                                    : "rgba(255,255,255,0.025)",
+                                  color: "white",
+                                  padding: "13px 14px",
+                                  textAlign: "left",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    gap: "10px",
+                                    alignItems: "start",
+                                  }}
+                                >
+                                  <strong style={{ fontSize: "18px" }}>
+                                    {option.label}
+                                  </strong>
+                                  {selected && (
+                                    <span
+                                      style={{
+                                        color: "#f4c782",
+                                        fontSize: "18px",
+                                        fontWeight: 900,
+                                      }}
+                                    >
+                                      ✓
+                                    </span>
+                                  )}
+                                </span>
+                                <span
+                                  style={{
+                                    display: "block",
+                                    marginTop: "7px",
+                                    color: "rgba(255,255,255,0.5)",
+                                    fontSize: "15px",
+                                    lineHeight: 1.45,
+                                  }}
+                                >
+                                  Setup value {formatMoney(setupCost)} · Monthly {monthlyCost > 0 ? formatMoney(monthlyCost) : "Variable"}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     ))}
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => navigate("setup")}
+                  <div
                     style={{
-                      width: "100%",
-                      minHeight: "50px",
-                      marginTop: "18px",
-                      borderRadius: "14px",
-                      border: "none",
-                      background: "linear-gradient(135deg, #d99548, #8d4b21)",
-                      color: "white",
-                      fontWeight: 900,
-                      cursor: "pointer",
+                      marginTop: "20px",
+                      display: "grid",
+                      gridTemplateColumns: compact ? "1fr" : "1fr auto",
+                      gap: "14px",
+                      alignItems: "center",
                     }}
                   >
-                    Review and Adjust the Business
-                  </button>
+                    <div
+                      style={{
+                        borderRadius: "17px",
+                        border: "1px solid rgba(218,151,74,0.14)",
+                        background: "rgba(255,255,255,0.025)",
+                        padding: "15px 17px",
+                      }}
+                    >
+                      <strong style={{ display: "block", fontSize: "19px" }}>
+                        Estimated monthly fixed costs: {formatMoney(operatingForecast.monthlyFixedCosts)}
+                      </strong>
+                      <span
+                        style={{
+                          display: "block",
+                          marginTop: "6px",
+                          color: "rgba(255,255,255,0.48)",
+                          fontSize: "16px",
+                        }}
+                      >
+                        Available business cash: {formatMoney(activeSlot.cash)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={saveOperatingChanges}
+                      style={{
+                        minHeight: "54px",
+                        borderRadius: "14px",
+                        border: "none",
+                        background: "linear-gradient(135deg, #d99548, #8d4b21)",
+                        color: "white",
+                        padding: "0 24px",
+                        fontSize: "19px",
+                        fontWeight: 900,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Save Running-Cost Changes
+                    </button>
+                  </div>
                 </div>
+
+                {activeSlot.cycleHistory.length > 0 && (
+                  <div
+                    style={{
+                      marginTop: "18px",
+                      borderRadius: "24px",
+                      border: "1px solid rgba(218,151,74,0.18)",
+                      background: "rgba(6,10,18,0.82)",
+                      padding: "22px",
+                    }}
+                  >
+                    <p
+                      style={{
+                        margin: 0,
+                        color: "#efbc73",
+                        fontSize: "15px",
+                        fontWeight: 900,
+                        letterSpacing: "0.16em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Cycle history
+                    </p>
+                    <div
+                      style={{
+                        marginTop: "15px",
+                        display: "grid",
+                        gap: "9px",
+                      }}
+                    >
+                      {activeSlot.cycleHistory
+                        .slice(-5)
+                        .reverse()
+                        .map((record) => (
+                          <div
+                            key={`${record.cycleNumber}-${record.completedDateSg}`}
+                            style={{
+                              minHeight: "62px",
+                              borderRadius: "15px",
+                              border: "1px solid rgba(218,151,74,0.12)",
+                              background: "rgba(255,255,255,0.025)",
+                              display: "grid",
+                              gridTemplateColumns: mobile
+                                ? "1fr"
+                                : "auto 1fr repeat(3, auto)",
+                              alignItems: "center",
+                              gap: "14px",
+                              padding: "12px 14px",
+                            }}
+                          >
+                            <strong style={{ fontSize: "18px" }}>
+                              Cycle {record.cycleNumber}
+                            </strong>
+                            <span
+                              style={{
+                                color: "rgba(255,255,255,0.45)",
+                                fontSize: "16px",
+                              }}
+                            >
+                              {record.completedDateSg}
+                            </span>
+                            <span style={{ fontSize: "17px" }}>
+                              Profit {formatMoney(record.profit)}
+                            </span>
+                            <span style={{ fontSize: "17px" }}>
+                              Reinvested {formatMoney(record.reinvested)}
+                            </span>
+                            <span style={{ fontSize: "17px", color: "#9ff0bd" }}>
+                              Your dividend {formatMoney(record.userDividend)}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            )}
+
         </section>
       </div>
 
@@ -3417,7 +5117,7 @@ export default function MiloBusinessBuilderPage() {
                 border: "1px solid rgba(255,255,255,0.14)",
                 background: "rgba(255,255,255,0.06)",
                 color: "white",
-                fontSize: "21px",
+                fontSize: "24px",
                 cursor: "pointer",
               }}
             >
@@ -3428,7 +5128,7 @@ export default function MiloBusinessBuilderPage() {
               style={{
                 margin: 0,
                 color: "#f0bc70",
-                fontSize: "10px",
+                fontSize: "13px",
                 fontWeight: 900,
                 letterSpacing: "0.2em",
                 textTransform: "uppercase",
@@ -3451,7 +5151,7 @@ export default function MiloBusinessBuilderPage() {
               style={{
                 margin: "20px 0 0",
                 color: "rgba(255,255,255,0.7)",
-                fontSize: "15px",
+                fontSize: "18px",
                 lineHeight: 1.7,
               }}
             >
