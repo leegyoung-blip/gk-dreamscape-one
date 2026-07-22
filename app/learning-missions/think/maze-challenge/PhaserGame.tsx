@@ -9,6 +9,8 @@ const GAME_HEIGHT = 720;
 const WORLD_WIDTH = 1672;
 const WORLD_HEIGHT = 941;
 
+const COURSE_ID = "uncharted-forest-01";
+
 const NOVA_SPEED = 250;
 const NOVA_MAX_HEALTH = 5;
 const NOVA_ATTACK_DAMAGE = 1;
@@ -25,26 +27,12 @@ const BONE_GUARD_HEALTH = 3;
 
 const TOTAL_CORES = 3;
 
-/*
- * ASSET PATHS
- *
- * Save the PNG files under:
- * public/games/think-forest/
- *
- * Nova's generated 6 x 4 walk sheet is 1536 x 1024, so each frame
- * is 256 x 256.
- *
- * The Bone Guard generated 6 x 4 walk sheet is 1254 x 1254, so each
- * frame is 209 x 313. Phaser ignores the final two pixels at the bottom.
- *
- * The generated 4 x 4 sheets are 1254 x 1254. Phaser reads them as
- * 313 x 313 frames and ignores the final two edge pixels.
- *
- * Transparent PNGs are strongly recommended. A visible checkerboard baked
- * into the image will also appear inside the game.
- */
 const ASSET_PATHS = {
   background: "/games/think-forest/forest-floor-bg.png",
+  largeRocks: "/games/think-forest/large-rocks.png",
+  rootBarrier: "/games/think-forest/root-barrier.png",
+  energyCore: "/games/think-forest/energy-core.png",
+  exitGate: "/games/think-forest/forest-exit-gate.png",
 
   novaWalk: "/games/think-forest/nova-walk.png",
   novaIdle: "/games/think-forest/nova-idle.png",
@@ -73,11 +61,15 @@ type BoneGuardData = {
   facing: FacingDirection;
   spawnX: number;
   spawnY: number;
+  entryTargetX: number;
+  entryTargetY: number;
   patrolAngle: number;
   patrolDirection: number;
   lastAttackAt: number;
   hurtUntil: number;
   defeated: boolean;
+  active: boolean;
+  entering: boolean;
 };
 
 type EnergyCore = {
@@ -86,12 +78,21 @@ type EnergyCore = {
   y: number;
   collected: boolean;
   glow: Phaser.GameObjects.Arc;
-  ring: Phaser.GameObjects.Arc;
-  core: Phaser.GameObjects.Arc;
+  image: Phaser.GameObjects.Image;
+};
+
+type ThinkForestCompletionDetail = {
+  courseId: string;
+  score: number;
+  completionTimeMs: number;
+  coresCollected: number;
+  guardsDefeated: number;
 };
 
 class ThinkForestScene extends Phaser.Scene {
   private nova?: Phaser.Physics.Arcade.Sprite;
+  private obstacleGroup?: Phaser.Physics.Arcade.StaticGroup;
+  private boneGuardGroup?: Phaser.Physics.Arcade.Group;
 
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private keyW?: Phaser.Input.Keyboard.Key;
@@ -110,9 +111,10 @@ class ThinkForestScene extends Phaser.Scene {
 
   private touchAttackRequested = false;
 
-  private facing: FacingDirection = "down";
+  private facing: FacingDirection = "right";
   private health = NOVA_MAX_HEALTH;
   private collectedCores = 0;
+  private defeatedGuards = 0;
   private score = 0;
   private elapsedSeconds = 0;
 
@@ -122,11 +124,12 @@ class ThinkForestScene extends Phaser.Scene {
   private hasStarted = false;
   private hasFinished = false;
   private isGameOver = false;
+  private resultSubmitted = false;
 
   private boneGuards: BoneGuardData[] = [];
   private energyCores: EnergyCore[] = [];
 
-  private exitGate?: Phaser.GameObjects.Container;
+  private exitGateImage?: Phaser.GameObjects.Image;
   private exitGlow?: Phaser.GameObjects.Arc;
   private exitLabel?: Phaser.GameObjects.Text;
 
@@ -142,6 +145,10 @@ class ThinkForestScene extends Phaser.Scene {
 
   preload() {
     this.load.image("forest-background", ASSET_PATHS.background);
+    this.load.image("large-rocks", ASSET_PATHS.largeRocks);
+    this.load.image("root-barrier", ASSET_PATHS.rootBarrier);
+    this.load.image("energy-core", ASSET_PATHS.energyCore);
+    this.load.image("forest-exit-gate", ASSET_PATHS.exitGate);
 
     this.load.spritesheet("nova-walk", ASSET_PATHS.novaWalk, {
       frameWidth: 256,
@@ -163,6 +170,10 @@ class ThinkForestScene extends Phaser.Scene {
       frameHeight: 313,
     });
 
+    /*
+     * The generated Bone Guard walking sheet is 1254 x 1254 and contains
+     * 6 columns by 4 rows. Each frame is therefore 209 x 313 pixels.
+     */
     this.load.spritesheet("bone-walk", ASSET_PATHS.boneWalk, {
       frameWidth: 209,
       frameHeight: 313,
@@ -191,9 +202,7 @@ class ThinkForestScene extends Phaser.Scene {
     this.load.on(
       Phaser.Loader.Events.FILE_LOAD_ERROR,
       (file: Phaser.Loader.File) => {
-        console.error(
-          `[Think Forest] Could not load asset: ${file.src}`,
-        );
+        console.error(`[Think Forest] Could not load asset: ${file.src}`);
       },
     );
   }
@@ -202,10 +211,12 @@ class ThinkForestScene extends Phaser.Scene {
     this.resetValues();
     this.createBackground();
     this.createAnimations();
+    this.createObstacles();
     this.createEnergyCores();
     this.createExitGate();
     this.createNova();
     this.createBoneGuards();
+    this.createCollisions();
     this.createKeyboardControls();
     this.createHud();
     this.createTouchControls();
@@ -254,9 +265,10 @@ class ThinkForestScene extends Phaser.Scene {
     };
 
     this.touchAttackRequested = false;
-    this.facing = "down";
+    this.facing = "right";
     this.health = NOVA_MAX_HEALTH;
     this.collectedCores = 0;
+    this.defeatedGuards = 0;
     this.score = 0;
     this.elapsedSeconds = 0;
     this.lastNovaAttackAt = -1000;
@@ -265,6 +277,7 @@ class ThinkForestScene extends Phaser.Scene {
     this.hasStarted = false;
     this.hasFinished = false;
     this.isGameOver = false;
+    this.resultSubmitted = false;
     this.boneGuards = [];
     this.energyCores = [];
   }
@@ -273,7 +286,7 @@ class ThinkForestScene extends Phaser.Scene {
     const background = this.add.image(0, 0, "forest-background");
     background.setOrigin(0, 0);
     background.setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT);
-    background.setDepth(-20);
+    background.setDepth(-100);
 
     this.physics.world.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
   }
@@ -393,100 +406,206 @@ class ThinkForestScene extends Phaser.Scene {
     });
   }
 
+  private createObstacles() {
+    this.obstacleGroup = this.physics.add.staticGroup();
+
+    const obstacles = [
+      {
+        texture: "large-rocks",
+        x: 430,
+        y: 235,
+        width: 210,
+        height: 180,
+        bodyWidth: 150,
+        bodyHeight: 92,
+      },
+      {
+        texture: "large-rocks",
+        x: 770,
+        y: 660,
+        width: 225,
+        height: 192,
+        bodyWidth: 160,
+        bodyHeight: 98,
+      },
+      {
+        texture: "large-rocks",
+        x: 1110,
+        y: 260,
+        width: 205,
+        height: 176,
+        bodyWidth: 148,
+        bodyHeight: 90,
+      },
+      {
+        texture: "root-barrier",
+        x: 600,
+        y: 450,
+        width: 310,
+        height: 150,
+        bodyWidth: 278,
+        bodyHeight: 88,
+      },
+      {
+        texture: "root-barrier",
+        x: 1000,
+        y: 485,
+        width: 320,
+        height: 154,
+        bodyWidth: 288,
+        bodyHeight: 90,
+      },
+      {
+        texture: "root-barrier",
+        x: 1275,
+        y: 735,
+        width: 290,
+        height: 140,
+        bodyWidth: 260,
+        bodyHeight: 80,
+      },
+    ];
+
+    obstacles.forEach((obstacle) => {
+      const image = this.obstacleGroup!.create(
+        obstacle.x,
+        obstacle.y,
+        obstacle.texture,
+      ) as Phaser.Physics.Arcade.Image;
+
+      image.setDisplaySize(obstacle.width, obstacle.height);
+      image.setDepth(obstacle.y + 45);
+      image.refreshBody();
+
+      const body = image.body as Phaser.Physics.Arcade.StaticBody;
+      body.setSize(obstacle.bodyWidth, obstacle.bodyHeight);
+      body.setOffset(
+        (obstacle.width - obstacle.bodyWidth) / 2,
+        obstacle.height - obstacle.bodyHeight - 8,
+      );
+    });
+  }
+
   private createNova() {
-    const nova = this.physics.add.sprite(215, 805, "nova-idle", 0);
+    const nova = this.physics.add.sprite(
+      145,
+      WORLD_HEIGHT / 2,
+      "nova-idle",
+      8,
+    );
 
     nova.setDisplaySize(118, 118);
     nova.setCollideWorldBounds(true);
-    nova.setDepth(nova.y);
+    nova.setDepth(nova.y + 100);
 
     const body = nova.body as Phaser.Physics.Arcade.Body;
     body.setSize(44, 54);
     body.setOffset(106, 178);
 
-    nova.play("nova-idle-down");
+    nova.play("nova-idle-right");
     this.nova = nova;
   }
 
   private createBoneGuards() {
-    const positions = [
-      { x: 540, y: 710, facing: "left" as const },
-      { x: 780, y: 410, facing: "down" as const },
-      { x: 1050, y: 720, facing: "right" as const },
-      { x: 1270, y: 355, facing: "left" as const },
-      { x: 1450, y: 630, facing: "up" as const },
+    this.boneGuardGroup = this.physics.add.group();
+
+    const guardEntries = [
+      { y: 185, targetX: 1110, delay: 450 },
+      { y: 325, targetX: 1160, delay: 1350 },
+      { y: 470, targetX: 1090, delay: 2250 },
+      { y: 615, targetX: 1175, delay: 3150 },
+      { y: 770, targetX: 1125, delay: 4050 },
     ];
 
-    positions.forEach((position, index) => {
+    guardEntries.forEach((entry, index) => {
+      const spawnX = GAME_WIDTH + 95;
+
       const sprite = this.physics.add.sprite(
-        position.x,
-        position.y,
+        spawnX,
+        entry.y,
         "bone-idle",
-        0,
+        4,
       );
 
       sprite.setDisplaySize(112, 112);
       sprite.setCollideWorldBounds(true);
-      sprite.setDepth(sprite.y);
+      sprite.setDepth(sprite.y + 100);
+      sprite.setVisible(false);
+      sprite.disableBody(true, true);
 
       const body = sprite.body as Phaser.Physics.Arcade.Body;
       body.setSize(46, 52);
       body.setOffset(132, 178);
 
-      sprite.play(`bone-idle-${position.facing}`);
+      this.boneGuardGroup!.add(sprite);
 
-      this.boneGuards.push({
+      const guard: BoneGuardData = {
         sprite,
         health: BONE_GUARD_HEALTH,
-        facing: position.facing,
-        spawnX: position.x,
-        spawnY: position.y,
+        facing: "left",
+        spawnX: entry.targetX,
+        spawnY: entry.y,
+        entryTargetX: entry.targetX,
+        entryTargetY: entry.y,
         patrolAngle: index * 1.27,
         patrolDirection: index % 2 === 0 ? 1 : -1,
         lastAttackAt: -1000,
         hurtUntil: 0,
         defeated: false,
+        active: false,
+        entering: true,
+      };
+
+      this.boneGuards.push(guard);
+
+      this.time.delayedCall(entry.delay, () => {
+        if (this.hasFinished || this.isGameOver || guard.defeated) {
+          return;
+        }
+
+        guard.active = true;
+        guard.entering = true;
+        guard.sprite.enableBody(true, spawnX, entry.y, true, true);
+        guard.sprite.setVelocity(-BONE_GUARD_SPEED, 0);
+        guard.sprite.play("bone-walk-left", true);
       });
     });
   }
 
+  private createCollisions() {
+    if (!this.obstacleGroup || !this.nova) {
+      return;
+    }
+
+    this.physics.add.collider(this.nova, this.obstacleGroup);
+
+    if (this.boneGuardGroup) {
+      this.physics.add.collider(this.boneGuardGroup, this.obstacleGroup);
+    }
+  }
+
   private createEnergyCores() {
     const positions = [
-      { x: 360, y: 330 },
-      { x: 950, y: 175 },
-      { x: 1365, y: 790 },
+      { x: 390, y: 745 },
+      { x: 860, y: 175 },
+      { x: 1270, y: 610 },
     ];
 
     positions.forEach((position, index) => {
       const glow = this.add.circle(
         position.x,
         position.y,
-        34,
+        46,
         0x5defff,
-        0.14,
+        0.16,
       );
 
       glow.setBlendMode(Phaser.BlendModes.ADD);
+      glow.setDepth(position.y + 25);
 
-      const ring = this.add.circle(
-        position.x,
-        position.y,
-        22,
-        0x000000,
-        0,
-      );
-
-      ring.setStrokeStyle(3, 0x7ee8ff, 0.7);
-
-      const core = this.add.circle(
-        position.x,
-        position.y,
-        11,
-        0xbefcff,
-        1,
-      );
-
-      core.setStrokeStyle(2, 0xffffff, 0.9);
+      const image = this.add.image(position.x, position.y, "energy-core");
+      image.setDisplaySize(88, 88);
+      image.setDepth(position.y + 35);
 
       this.energyCores.push({
         id: index + 1,
@@ -494,37 +613,37 @@ class ThinkForestScene extends Phaser.Scene {
         y: position.y,
         collected: false,
         glow,
-        ring,
-        core,
+        image,
       });
     });
   }
 
   private createExitGate() {
-    const x = 1545;
-    const y = 145;
+    const x = WORLD_WIDTH - 132;
+    const y = WORLD_HEIGHT / 2;
 
-    const glow = this.add.circle(x, y, 58, 0x7ee8ff, 0.08);
+    const glow = this.add.circle(x, y, 82, 0x7ee8ff, 0.08);
     glow.setBlendMode(Phaser.BlendModes.ADD);
+    glow.setDepth(y + 10);
 
-    const outer = this.add.circle(x, y, 42, 0x061325, 0.9);
-    outer.setStrokeStyle(4, 0x4f6b86, 0.85);
-
-    const inner = this.add.circle(x, y, 26, 0x07101f, 1);
-    inner.setStrokeStyle(3, 0x526579, 0.8);
+    const gate = this.add.image(x, y, "forest-exit-gate");
+    gate.setDisplaySize(178, 178);
+    gate.setDepth(y + 40);
+    gate.setTint(0x75808f);
+    gate.setAlpha(0.78);
 
     const label = this.add
-      .text(x, y - 68, "FOREST EXIT", {
+      .text(x, y - 112, "FOREST EXIT LOCKED", {
         fontFamily: "Arial, sans-serif",
         fontSize: "14px",
         fontStyle: "bold",
         color: "#9fb4c6",
         letterSpacing: 2,
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setDepth(y + 60);
 
-    this.exitGate = this.add.container(x, y, [outer, inner]);
-    this.exitGate.setPosition(0, 0);
+    this.exitGateImage = gate;
     this.exitGlow = glow;
     this.exitLabel = label;
   }
@@ -894,7 +1013,11 @@ class ThinkForestScene extends Phaser.Scene {
     });
 
     this.boneGuards.forEach((guard) => {
-      if (guard.defeated || this.time.now < guard.hurtUntil) {
+      if (
+        !guard.active ||
+        guard.defeated ||
+        this.time.now < guard.hurtUntil
+      ) {
         return;
       }
 
@@ -938,7 +1061,37 @@ class ThinkForestScene extends Phaser.Scene {
     }
 
     this.boneGuards.forEach((guard) => {
-      if (guard.defeated) {
+      if (!guard.active || guard.defeated) {
+        return;
+      }
+
+      if (guard.entering) {
+        const entranceMovement = new Phaser.Math.Vector2(
+          guard.entryTargetX - guard.sprite.x,
+          guard.entryTargetY - guard.sprite.y,
+        );
+
+        if (entranceMovement.length() <= 12) {
+          guard.sprite.setPosition(
+            guard.entryTargetX,
+            guard.entryTargetY,
+          );
+          guard.sprite.setVelocity(0, 0);
+          guard.entering = false;
+          guard.sprite.play("bone-idle-left", true);
+        } else {
+          entranceMovement.normalize().scale(BONE_GUARD_SPEED);
+          guard.sprite.setVelocity(
+            entranceMovement.x,
+            entranceMovement.y,
+          );
+          guard.facing = this.directionFromVector(
+            entranceMovement.x,
+            entranceMovement.y,
+          );
+          guard.sprite.play(`bone-walk-${guard.facing}`, true);
+        }
+
         return;
       }
 
@@ -985,8 +1138,7 @@ class ThinkForestScene extends Phaser.Scene {
         return;
       }
 
-      guard.patrolAngle +=
-        guard.patrolDirection * (delta / 1000) * 0.75;
+      guard.patrolAngle += guard.patrolDirection * (delta / 1000) * 0.75;
 
       const targetX = guard.spawnX + Math.cos(guard.patrolAngle) * 72;
       const targetY = guard.spawnY + Math.sin(guard.patrolAngle) * 48;
@@ -1018,7 +1170,7 @@ class ThinkForestScene extends Phaser.Scene {
     guard.sprite.play(`bone-attack-${guard.facing}`, true);
 
     this.time.delayedCall(165, () => {
-      if (!this.nova || guard.defeated) {
+      if (!this.nova || guard.defeated || !guard.active) {
         return;
       }
 
@@ -1065,9 +1217,11 @@ class ThinkForestScene extends Phaser.Scene {
 
   private defeatBoneGuard(guard: BoneGuardData) {
     guard.defeated = true;
+    guard.active = false;
     guard.sprite.setVelocity(0, 0);
     guard.sprite.disableBody(false, false);
     guard.sprite.play(`bone-defeated-${guard.facing}`, true);
+    this.defeatedGuards += 1;
     this.score += 300;
 
     guard.sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
@@ -1091,12 +1245,10 @@ class ThinkForestScene extends Phaser.Scene {
         return;
       }
 
-      core.ring.rotation += 0.025 * (delta / 16.667);
-
       const bob = Math.sin(this.time.now / 330 + core.id) * 5;
-      core.core.y = core.y + bob;
-      core.ring.y = core.y + bob;
+      core.image.y = core.y + bob;
       core.glow.y = core.y + bob;
+      core.image.rotation += 0.0025 * (delta / 16.667);
 
       const distance = Phaser.Math.Distance.Between(
         this.nova!.x,
@@ -1105,20 +1257,19 @@ class ThinkForestScene extends Phaser.Scene {
         core.y,
       );
 
-      if (distance <= 62) {
+      if (distance <= 64) {
         core.collected = true;
         this.collectedCores += 1;
         this.score += 500;
 
         this.tweens.add({
-          targets: [core.glow, core.ring, core.core],
-          scale: 1.8,
+          targets: [core.glow, core.image],
+          scale: 1.7,
           alpha: 0,
-          duration: 250,
+          duration: 260,
           onComplete: () => {
             core.glow.destroy();
-            core.ring.destroy();
-            core.core.destroy();
+            core.image.destroy();
           },
         });
 
@@ -1131,7 +1282,8 @@ class ThinkForestScene extends Phaser.Scene {
 
   private unlockExit() {
     this.exitGlow?.setFillStyle(0x6fffc5, 0.23);
-    this.exitGlow?.setRadius(72);
+    this.exitGlow?.setRadius(92);
+    this.exitGateImage?.clearTint().setAlpha(1);
     this.exitLabel?.setText("EXIT OPEN").setColor("#86efac");
     this.objectiveText
       ?.setText("ALL CORES FOUND — REACH THE EXIT")
@@ -1141,7 +1293,7 @@ class ThinkForestScene extends Phaser.Scene {
       this.tweens.add({
         targets: this.exitGlow,
         scale: 1.25,
-        alpha: 0.12,
+        alpha: 0.16,
         duration: 800,
         yoyo: true,
         repeat: -1,
@@ -1157,11 +1309,11 @@ class ThinkForestScene extends Phaser.Scene {
     const distance = Phaser.Math.Distance.Between(
       this.nova.x,
       this.nova.y,
-      1545,
-      145,
+      WORLD_WIDTH - 132,
+      WORLD_HEIGHT / 2,
     );
 
-    if (distance <= 68) {
+    if (distance <= 84) {
       this.finishAsVictory();
     }
   }
@@ -1175,10 +1327,35 @@ class ThinkForestScene extends Phaser.Scene {
     this.score += Math.max(0, Math.round(2500 - this.elapsedSeconds * 18));
     this.objectiveText?.setText("FOREST ESCAPE COMPLETE").setColor("#86efac");
 
+    this.submitCompletionEvent();
+
     this.showResultOverlay(
       "FOREST ESCAPE COMPLETE",
       `Nova recovered all ${TOTAL_CORES} energy cores and escaped the Dreamkeeper's guards.`,
       "#9affce",
+    );
+  }
+
+  private submitCompletionEvent() {
+    if (this.resultSubmitted || typeof window === "undefined") {
+      return;
+    }
+
+    this.resultSubmitted = true;
+
+    const detail: ThinkForestCompletionDetail = {
+      courseId: COURSE_ID,
+      score: this.score,
+      completionTimeMs: Math.max(1000, Math.round(this.elapsedSeconds * 1000)),
+      coresCollected: this.collectedCores,
+      guardsDefeated: this.defeatedGuards,
+    };
+
+    window.dispatchEvent(
+      new CustomEvent<ThinkForestCompletionDetail>(
+        "think-forest-complete",
+        { detail },
+      ),
     );
   }
 
@@ -1220,7 +1397,11 @@ class ThinkForestScene extends Phaser.Scene {
       0.96,
     );
 
-    panel.setStrokeStyle(2, Phaser.Display.Color.HexStringToColor(colour).color, 0.45);
+    panel.setStrokeStyle(
+      2,
+      Phaser.Display.Color.HexStringToColor(colour).color,
+      0.45,
+    );
     panel.setScrollFactor(0);
     panel.setDepth(5001);
 
@@ -1300,7 +1481,7 @@ class ThinkForestScene extends Phaser.Scene {
     this.nova?.setDepth(this.nova.y + 100);
 
     this.boneGuards.forEach((guard) => {
-      if (!guard.defeated && guard.sprite.active) {
+      if (guard.active && !guard.defeated && guard.sprite.active) {
         guard.sprite.setDepth(guard.sprite.y + 100);
       }
     });
