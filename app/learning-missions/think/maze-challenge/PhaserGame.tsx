@@ -31,9 +31,14 @@ const TOTAL_CORES = 3;
  * Save the PNG files under:
  * public/games/think-forest/
  *
- * The generated 6 x 4 sheets are 1536 x 1024, so each frame is 256 x 256.
- * The generated 4 x 4 sheets are about 1254 x 1254. Phaser can read them
- * as 313 x 313 frames and ignore the final two edge pixels.
+ * Nova's generated 6 x 4 walk sheet is 1536 x 1024, so each frame
+ * is 256 x 256.
+ *
+ * The Bone Guard generated 6 x 4 walk sheet is 1254 x 1254, so each
+ * frame is 209 x 313. Phaser ignores the final two pixels at the bottom.
+ *
+ * The generated 4 x 4 sheets are 1254 x 1254. Phaser reads them as
+ * 313 x 313 frames and ignores the final two edge pixels.
  *
  * Transparent PNGs are strongly recommended. A visible checkerboard baked
  * into the image will also appear inside the game.
@@ -159,8 +164,8 @@ class ThinkForestScene extends Phaser.Scene {
     });
 
     this.load.spritesheet("bone-walk", ASSET_PATHS.boneWalk, {
-      frameWidth: 256,
-      frameHeight: 256,
+      frameWidth: 209,
+      frameHeight: 313,
     });
 
     this.load.spritesheet("bone-idle", ASSET_PATHS.boneIdle, {
@@ -215,7 +220,8 @@ class ThinkForestScene extends Phaser.Scene {
     }
 
     if (
-      Phaser.Input.Keyboard.JustDown(this.keyR!)
+      this.keyR &&
+      Phaser.Input.Keyboard.JustDown(this.keyR)
     ) {
       this.scene.restart();
       return;
