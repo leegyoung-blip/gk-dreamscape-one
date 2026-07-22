@@ -231,6 +231,19 @@ type PropertyHoldingRow = {
   quantity: number;
 };
 
+type ProfileAssetBreakdown = {
+  cash: number;
+  property: number;
+  stocks: number;
+};
+
+type MiloClubProfile = {
+  role: string | null;
+  milos_club_member: boolean | null;
+  milos_club_welcome_offer_claimed: boolean | null;
+  milos_club_welcome_offer_seen_at: string | null;
+};
+
 const STORAGE_VERSION = "milo-business-builder-v2";
 const BUSINESS_PROGRESS_TABLE = "milo_business_builder_progress";
 const CYCLE_DAYS = 30;
@@ -238,6 +251,9 @@ const CYCLE_MINUTES = CYCLE_DAYS * 1440;
 const OFFLINE_SIMULATION_SPEED: SimulationSpeed = 168;
 const ANALYST_FEE = 100;
 const EVENT_TIMELINE_DAYS = 3650;
+const DREAM_SHOP_TOKEN_URL = "/milo-world/dream-shop?popup=token-packs";
+const WELCOME_TOKEN_OFFER_URL =
+  "https://gurukidspro.com/products/milos-business-builder-welcome-offer";
 
 const DEFAULT_SELECTIONS: SetupSelections = {
   location: "balanced",
@@ -2370,6 +2386,315 @@ function MarketChart({
   );
 }
 
+
+function ProfileAssetsDropdown({
+  assets,
+  loading,
+  open,
+  onToggle,
+  mobile,
+}: {
+  assets: ProfileAssetBreakdown;
+  loading: boolean;
+  open: boolean;
+  onToggle: () => void;
+  mobile: boolean;
+}) {
+  const total = assets.cash + assets.property + assets.stocks;
+
+  return (
+    <div style={{ position: "relative", zIndex: 70 }}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        style={{
+          minHeight: mobile ? "42px" : "48px",
+          minWidth: mobile ? "96px" : "178px",
+          borderRadius: "999px",
+          border: "1px solid rgba(218,151,74,0.24)",
+          background: "rgba(31,18,11,0.78)",
+          color: "white",
+          padding: mobile ? "6px 11px" : "7px 15px",
+          textAlign: "right",
+          cursor: "pointer",
+          fontFamily: "inherit",
+        }}
+      >
+        <span
+          style={{
+            display: "block",
+            color: "rgba(255,255,255,0.45)",
+            fontSize: mobile ? "9px" : "11px",
+            textTransform: "uppercase",
+            letterSpacing: "0.12em",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {mobile ? "Assets ▾" : "Profile assets ▾"}
+        </span>
+        <strong
+          style={{
+            display: "block",
+            marginTop: "3px",
+            color: "#f1c17b",
+            fontSize: mobile ? "13px" : "16px",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {loading ? "Loading" : formatMoney(total)}
+        </strong>
+      </button>
+
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 9px)",
+            right: 0,
+            width: mobile ? "min(290px, calc(100vw - 24px))" : "290px",
+            borderRadius: "18px",
+            border: "1px solid rgba(218,151,74,0.28)",
+            background:
+              "linear-gradient(145deg, rgba(24,13,8,0.98), rgba(5,8,15,0.99))",
+            boxShadow: "0 24px 65px rgba(0,0,0,0.56)",
+            padding: "13px",
+          }}
+        >
+          {[
+            ["Cash", assets.cash],
+            ["Property", assets.property],
+            ["Stocks", assets.stocks],
+          ].map(([label, value]) => (
+            <div
+              key={String(label)}
+              style={{
+                minHeight: "46px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "16px",
+                borderBottom:
+                  label === "Stocks"
+                    ? "none"
+                    : "1px solid rgba(218,151,74,0.1)",
+                color: "rgba(255,255,255,0.62)",
+                fontSize: "14px",
+              }}
+            >
+              <span>{label}</span>
+              <strong style={{ color: "#f1c17b", fontSize: "16px" }}>
+                {loading ? "—" : formatMoney(Number(value))}
+              </strong>
+            </div>
+          ))}
+          <div
+            style={{
+              marginTop: "8px",
+              paddingTop: "10px",
+              borderTop: "1px solid rgba(218,151,74,0.18)",
+              display: "flex",
+              justifyContent: "space-between",
+              color: "white",
+              fontSize: "14px",
+            }}
+          >
+            <strong>Total assets</strong>
+            <strong style={{ color: "#f5cb8d" }}>
+              {loading ? "—" : formatMoney(total)}
+            </strong>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WelcomeTokenOffer({
+  open,
+  onClose,
+  onPurchase,
+  mobile,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onPurchase: () => void;
+  mobile: boolean;
+}) {
+  if (!open) return null;
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 120,
+        display: "grid",
+        placeItems: "center",
+        padding: mobile ? "14px" : "28px",
+        background: "rgba(0,0,0,0.7)",
+        backdropFilter: "blur(8px)",
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          width: "min(680px, 100%)",
+          borderRadius: mobile ? "24px" : "30px",
+          border: "1px solid rgba(235,179,103,0.42)",
+          background:
+            "radial-gradient(circle at top right, rgba(218,151,74,0.24), transparent 34%), linear-gradient(145deg, rgba(46,25,13,0.98), rgba(5,8,16,0.99))",
+          boxShadow: "0 38px 110px rgba(0,0,0,0.68)",
+          padding: mobile ? "26px 20px" : "38px",
+          color: "white",
+          position: "relative",
+        }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close welcome offer"
+          style={{
+            position: "absolute",
+            top: "16px",
+            right: "16px",
+            width: "38px",
+            height: "38px",
+            borderRadius: "999px",
+            border: "1px solid rgba(255,255,255,0.14)",
+            background: "rgba(255,255,255,0.05)",
+            color: "white",
+            fontSize: "22px",
+            cursor: "pointer",
+          }}
+        >
+          ×
+        </button>
+
+        <p
+          style={{
+            margin: 0,
+            color: "#efbb70",
+            fontSize: "13px",
+            fontWeight: 900,
+            letterSpacing: "0.18em",
+            textTransform: "uppercase",
+          }}
+        >
+          Milo’s one-time welcome offer
+        </p>
+        <h2
+          style={{
+            margin: "14px 0 0",
+            fontFamily: 'Georgia, "Times New Roman", serif',
+            fontSize: mobile ? "38px" : "52px",
+            lineHeight: 1,
+            fontWeight: 500,
+          }}
+        >
+          Start with 5,000 DT for $1.
+        </h2>
+        <p
+          style={{
+            margin: "18px 0 0",
+            color: "rgba(255,255,255,0.66)",
+            fontSize: mobile ? "17px" : "19px",
+            lineHeight: 1.65,
+          }}
+        >
+          I’m offering this once to help you make your first personal investment.
+          The tokens are credited only after the payment is successfully verified.
+        </p>
+
+        <div
+          style={{
+            marginTop: "24px",
+            borderRadius: "20px",
+            border: "1px solid rgba(235,179,103,0.22)",
+            background: "rgba(255,255,255,0.035)",
+            padding: "20px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "18px",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <span
+              style={{
+                display: "block",
+                color: "rgba(255,255,255,0.44)",
+                fontSize: "12px",
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+              }}
+            >
+              One-time pack
+            </span>
+            <strong
+              style={{
+                display: "block",
+                marginTop: "7px",
+                color: "#f5ca88",
+                fontSize: "32px",
+              }}
+            >
+              5,000 DT
+            </strong>
+          </div>
+          <strong style={{ fontSize: "32px" }}>$1</strong>
+        </div>
+
+        <div
+          style={{
+            marginTop: "24px",
+            display: "flex",
+            flexDirection: mobile ? "column" : "row",
+            gap: "10px",
+          }}
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              minHeight: "54px",
+              flex: 1,
+              borderRadius: "14px",
+              border: "1px solid rgba(218,151,74,0.22)",
+              background: "rgba(255,255,255,0.04)",
+              color: "white",
+              fontSize: "17px",
+              fontWeight: 850,
+              cursor: "pointer",
+            }}
+          >
+            Not Now
+          </button>
+          <button
+            type="button"
+            onClick={onPurchase}
+            style={{
+              minHeight: "54px",
+              flex: 1.3,
+              borderRadius: "14px",
+              border: "none",
+              background: "linear-gradient(135deg, #dda252, #8d4b21)",
+              color: "white",
+              fontSize: "18px",
+              fontWeight: 900,
+              cursor: "pointer",
+            }}
+          >
+            Get 5,000 DT for $1
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MiloBusinessBuilderPage() {
   const { width } = useViewport();
   const mobile = width <= 760;
@@ -2379,8 +2704,19 @@ export default function MiloBusinessBuilderPage() {
   const [userId, setUserId] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [profileNetWorth, setProfileNetWorth] = useState(0);
+  const [profileAssets, setProfileAssets] = useState<ProfileAssetBreakdown>({
+    cash: 0,
+    property: 0,
+    stocks: 0,
+  });
   const [dreamTokenBalance, setDreamTokenBalance] = useState(0);
   const [netWorthLoading, setNetWorthLoading] = useState(true);
+  const [clubAccess, setClubAccess] = useState<
+    "checking" | "allowed" | "denied"
+  >("checking");
+  const [welcomeOfferOpen, setWelcomeOfferOpen] = useState(false);
+  const [assetsOpen, setAssetsOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [slots, setSlots] = useState<BusinessSlot[]>(createDefaultSlots);
   const [storageReady, setStorageReady] = useState(false);
   const [activeSlotId, setActiveSlotId] = useState<1 | 2 | 3 | null>(null);
@@ -2460,6 +2796,8 @@ export default function MiloBusinessBuilderPage() {
         setUserEmail("");
         setProfileNetWorth(0);
         setDreamTokenBalance(0);
+        setProfileAssets({ cash: 0, property: 0, stocks: 0 });
+        setClubAccess("denied");
         setAuthLoading(false);
         setNetWorthLoading(false);
         return;
@@ -2467,15 +2805,22 @@ export default function MiloBusinessBuilderPage() {
 
       setUserId(user.id);
       setUserEmail(user.email || "");
-      setAuthLoading(false);
 
       const [
+        profileResult,
         tokensResult,
         stocksResult,
         stockHoldingsResult,
         propertiesResult,
         propertyHoldingsResult,
       ] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select(
+            "role,milos_club_member,milos_club_welcome_offer_claimed,milos_club_welcome_offer_seen_at",
+          )
+          .eq("id", user.id)
+          .maybeSingle(),
         supabase
           .from("dream_token_transactions")
           .select("amount,token_kind")
@@ -2499,6 +2844,34 @@ export default function MiloBusinessBuilderPage() {
       ]);
 
       if (!mounted) return;
+
+      if (profileResult.error || !profileResult.data) {
+        console.warn(
+          "Could not verify Milo’s Club access:",
+          profileResult.error?.message || "Profile not found",
+        );
+        setClubAccess("denied");
+        setAuthLoading(false);
+        window.location.replace("/milo-world?open=membership");
+        return;
+      }
+
+      const clubProfile = profileResult.data as MiloClubProfile;
+      const isAdmin = String(clubProfile.role || "").toLowerCase() === "admin";
+      const hasClubAccess = isAdmin || Boolean(clubProfile.milos_club_member);
+
+      if (!hasClubAccess) {
+        setClubAccess("denied");
+        setAuthLoading(false);
+        window.location.replace("/milo-world?open=membership");
+        return;
+      }
+
+      setClubAccess("allowed");
+      setWelcomeOfferOpen(
+        !Boolean(clubProfile.milos_club_welcome_offer_claimed) &&
+          !clubProfile.milos_club_welcome_offer_seen_at,
+      );
 
       const tokenBalance = (tokensResult.data || [])
         .filter((row) => row.token_kind === "virtual")
@@ -2538,8 +2911,14 @@ export default function MiloBusinessBuilderPage() {
         0,
       );
 
+      setProfileAssets({
+        cash: tokenBalance,
+        property: propertyValue,
+        stocks: stockValue,
+      });
       setProfileNetWorth(tokenBalance + stockValue + propertyValue);
       setNetWorthLoading(false);
+      setAuthLoading(false);
     }
 
     loadUserAndNetWorth();
@@ -2557,7 +2936,7 @@ export default function MiloBusinessBuilderPage() {
   }, []);
 
   useEffect(() => {
-    if (authLoading || !userId) return;
+    if (authLoading || !userId || clubAccess !== "allowed") return;
 
     let cancelled = false;
 
@@ -2626,7 +3005,7 @@ export default function MiloBusinessBuilderPage() {
     return () => {
       cancelled = true;
     };
-  }, [authLoading, legacyStorageKey, storageKey, userId]);
+  }, [authLoading, clubAccess, legacyStorageKey, storageKey, userId]);
 
   useEffect(() => {
     if (!storageReady || !userId) return;
@@ -2722,6 +3101,56 @@ export default function MiloBusinessBuilderPage() {
     activeSlot?.saleListing.listedPrice,
     activeSlot?.saleListing.analystReport?.valuation,
   ]);
+
+
+  async function markWelcomeOfferSeen() {
+    setWelcomeOfferOpen(false);
+    const { error } = await supabase.rpc(
+      "mark_milos_club_welcome_offer_seen",
+    );
+    if (error) {
+      console.warn("Could not save welcome-offer state:", error.message);
+    }
+  }
+
+  async function openWelcomeOfferCheckout() {
+    await markWelcomeOfferSeen();
+    window.location.href = WELCOME_TOKEN_OFFER_URL;
+  }
+
+  async function resetAllBusinesses() {
+    if (!userId || resetting) return;
+
+    const confirmed = window.confirm(
+      "Restart all three businesses? This permanently removes every storefront, negotiation and agreement for this account. Dream Tokens already spent or earned are not reversed.",
+    );
+    if (!confirmed) return;
+
+    setResetting(true);
+    setPageMessage("");
+
+    const { error } = await supabase.rpc("reset_milo_business_builder");
+
+    if (error) {
+      setResetting(false);
+      setPageMessage(`Could not restart the businesses: ${error.message}`);
+      return;
+    }
+
+    localStorage.removeItem(storageKey);
+    localStorage.removeItem(legacyStorageKey);
+    const freshSlots = createDefaultSlots();
+    slotsRef.current = freshSlots;
+    setSlots(freshSlots);
+    setActiveSlotId(null);
+    setSelectedBusinessId(null);
+    setRequestedBudget(0);
+    setPersonalContribution(0);
+    setView("storefronts");
+    setLastCloudSavedAt(null);
+    setResetting(false);
+    setPageMessage("All Business Builder storefronts have been restarted.");
+  }
 
   function selectStorefront(slot: BusinessSlot) {
     setActiveSlotId(slot.id);
@@ -2891,6 +3320,11 @@ export default function MiloBusinessBuilderPage() {
     setSlots(nextSlots);
     if (cleanContribution > 0) {
       setDreamTokenBalance((balance) => balance - cleanContribution);
+      setProfileAssets((current) => ({
+        ...current,
+        cash: Math.max(0, current.cash - cleanContribution),
+      }));
+      setProfileNetWorth((current) => Math.max(0, current - cleanContribution));
       setProfileNetWorth((value) => Math.max(0, value - cleanContribution));
       window.dispatchEvent(new Event("dream-tokens-updated"));
     }
@@ -3109,7 +3543,27 @@ export default function MiloBusinessBuilderPage() {
     progressSlots: BusinessSlot[] = slots,
     progressActiveSlotId: 1 | 2 | 3 | null = activeSlotId,
   ) {
-    if (!userId) {
+    if (clubAccess === "denied" && userId) {
+    return (
+      <main
+        style={{
+          minHeight: "100dvh",
+          background: "#080604",
+          color: "white",
+          display: "grid",
+          placeItems: "center",
+          padding: "24px",
+          textAlign: "center",
+          fontFamily:
+            'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        }}
+      >
+        Returning to Milo’s Club membership…
+      </main>
+    );
+  }
+
+  if (!userId) {
       setPageMessage("Log in before saving your progress.");
       return false;
     }
@@ -3314,6 +3768,11 @@ export default function MiloBusinessBuilderPage() {
     );
     setSlots(nextSlots);
     setDreamTokenBalance((balance) => balance + userProceeds);
+    setProfileAssets((current) => ({
+      ...current,
+      cash: current.cash + userProceeds,
+    }));
+    setProfileNetWorth((current) => current + userProceeds);
     setProfileNetWorth((value) => value + userProceeds);
     setActiveSlotId(null);
     setSelectedBusinessId(null);
@@ -3397,6 +3856,11 @@ export default function MiloBusinessBuilderPage() {
     setSlots(nextSlots);
     if (userDividend > 0) {
       setDreamTokenBalance((balance) => balance + userDividend);
+      setProfileAssets((current) => ({
+        ...current,
+        cash: current.cash + userDividend,
+      }));
+      setProfileNetWorth((current) => current + userDividend);
       setProfileNetWorth((value) => value + userDividend);
       window.dispatchEvent(new Event("dream-tokens-updated"));
     }
@@ -3733,12 +4197,30 @@ export default function MiloBusinessBuilderPage() {
               {lastCloudSavedAt ? "Saved" : "Not saved yet"}
             </strong>
           </span>
+          <button
+            type="button"
+            onClick={resetAllBusinesses}
+            disabled={resetting}
+            style={{
+              marginTop: "7px",
+              minHeight: "42px",
+              borderRadius: "12px",
+              border: "1px solid rgba(255,128,101,0.24)",
+              background: "rgba(121,42,31,0.13)",
+              color: resetting ? "rgba(255,255,255,0.38)" : "#ffc0aa",
+              fontSize: "13px",
+              fontWeight: 850,
+              cursor: resetting ? "wait" : "pointer",
+            }}
+          >
+            {resetting ? "Restarting..." : "Restart All Businesses"}
+          </button>
         </div>
       </div>
     </aside>
   );
 
-  if (authLoading) {
+  if (authLoading || clubAccess === "checking") {
     return (
       <main
         style={{
@@ -4043,40 +4525,13 @@ export default function MiloBusinessBuilderPage() {
             gap: "8px",
           }}
         >
-          {!mobile && (
-            <div
-              style={{
-                minHeight: "44px",
-                borderRadius: "999px",
-                border: "1px solid rgba(218,151,74,0.22)",
-                background: "rgba(31,18,11,0.68)",
-                padding: "7px 15px",
-                textAlign: "right",
-              }}
-            >
-              <span
-                style={{
-                  display: "block",
-                  color: "rgba(255,255,255,0.4)",
-                  fontSize: "11px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.12em",
-                }}
-              >
-                Profile assets
-              </span>
-              <strong
-                style={{
-                  display: "block",
-                  marginTop: "3px",
-                  color: "#f1c17b",
-                  fontSize: "15px",
-                }}
-              >
-                {netWorthLoading ? "Loading" : formatMoney(profileNetWorth)}
-              </strong>
-            </div>
-          )}
+          <ProfileAssetsDropdown
+            assets={profileAssets}
+            loading={netWorthLoading}
+            open={assetsOpen}
+            onToggle={() => setAssetsOpen((current) => !current)}
+            mobile={mobile}
+          />
           <button
             type="button"
             onClick={() => saveProgressToAccount()}
@@ -4102,8 +4557,16 @@ export default function MiloBusinessBuilderPage() {
                   : "Save Progress"}
           </button>
 
-          <Link href="/profile" style={{ ...navButtonStyle, padding: mobile ? "0 13px" : "0 17px" }}>
-            {mobile ? "Account" : userEmail || "My Account"}
+          <Link
+            href="/profile"
+            aria-label="Open profile"
+            style={{
+              ...navButtonStyle,
+              width: mobile ? "40px" : undefined,
+              padding: mobile ? 0 : "0 17px",
+            }}
+          >
+            {mobile ? "◉" : userEmail || "My Account"}
           </Link>
         </div>
       </header>
@@ -4450,6 +4913,25 @@ export default function MiloBusinessBuilderPage() {
                           </button>
                         ))}
                       </div>
+                      <Link
+                        href={DREAM_SHOP_TOKEN_URL}
+                        style={{
+                          marginTop: "12px",
+                          minHeight: "48px",
+                          borderRadius: "13px",
+                          border: "1px solid rgba(127,184,232,0.26)",
+                          background: "rgba(70,121,169,0.1)",
+                          color: "#cfe9ff",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          textDecoration: "none",
+                          fontSize: "17px",
+                          fontWeight: 900,
+                        }}
+                      >
+                        Add More DT in the Dream Shop →
+                      </Link>
                       {selectedBusiness.minCapital > 50000 && (
                         <p style={{ margin: "18px 0 0", color: profileNetWorth >= selectedBusiness.minCapital * 0.1 ? "#9ff0bd" : "#ffb497", fontSize: "17px", lineHeight: 1.55 }}>
                           Higher-tier requirement: {formatMoney(selectedBusiness.minCapital * 0.1)} in profile assets. You currently have {formatMoney(profileNetWorth)}.
@@ -6882,6 +7364,13 @@ export default function MiloBusinessBuilderPage() {
           </div>
         </div>
       )}
+
+      <WelcomeTokenOffer
+        open={welcomeOfferOpen}
+        onClose={markWelcomeOfferSeen}
+        onPurchase={openWelcomeOfferCheckout}
+        mobile={mobile}
+      />
 
       {compact && mobileMenuOpen && (
         <div

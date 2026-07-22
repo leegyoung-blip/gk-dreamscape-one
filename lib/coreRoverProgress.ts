@@ -43,7 +43,7 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
       boostCapacity: 80,
       boostDrainRate: 20,
       boostRechargeRate: 10,
-      airTiltStrength: 0.004,
+      airTiltStrength: 0,
     },
   },
 
@@ -68,7 +68,7 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
       boostCapacity: 80,
       boostDrainRate: 20,
       boostRechargeRate: 10,
-      airTiltStrength: 0.004,
+      airTiltStrength: 0,
     },
   },
 
@@ -93,7 +93,7 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
       boostCapacity: 80,
       boostDrainRate: 20,
       boostRechargeRate: 10,
-      airTiltStrength: 0.004,
+      airTiltStrength: 0,
     },
   },
 
@@ -118,7 +118,7 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
       boostCapacity: 80,
       boostDrainRate: 20,
       boostRechargeRate: 10,
-      airTiltStrength: 0.004,
+      airTiltStrength: 0,
     },
   },
 
@@ -143,7 +143,7 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
       boostCapacity: 80,
       boostDrainRate: 20,
       boostRechargeRate: 10,
-      airTiltStrength: 0.004,
+      airTiltStrength: 0,
     },
   },
 
@@ -168,7 +168,7 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
       boostCapacity: 80,
       boostDrainRate: 20,
       boostRechargeRate: 10,
-      airTiltStrength: 0.004,
+      airTiltStrength: 0,
     },
   },
 ];

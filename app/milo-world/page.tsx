@@ -15,6 +15,37 @@ type DreamTokenTransaction = {
   created_at: string | null;
 };
 
+type StockRow = {
+  symbol: string;
+  current_price: number;
+};
+
+type StockHoldingRow = {
+  symbol: string;
+  quantity: number;
+};
+
+type PropertyRow = {
+  id: string;
+  current_value: number;
+};
+
+type PropertyHoldingRow = {
+  property_id: string;
+  quantity: number;
+};
+
+type ProfileAssetBreakdown = {
+  cash: number;
+  property: number;
+  stocks: number;
+};
+
+type MiloClubProfile = {
+  role: string | null;
+  milos_club_member: boolean | null;
+};
+
 type ReferralMilestone = 1 | 5 | 15;
 
 type ReferralObjectiveDefinition = {
@@ -35,6 +66,7 @@ type Zone = {
   description: string;
   href?: string;
   opensMembership?: boolean;
+  requiresClub?: boolean;
   style: CSSProperties;
 };
 
@@ -118,6 +150,7 @@ const ZONES: Zone[] = [
     description:
       "Build, manage, and grow a Dreamscape business through strategic decisions.",
     href: "/milo-world/club",
+    requiresClub: true,
     style: {
       top: "370px",
       left: "140px",
@@ -154,6 +187,10 @@ function useResponsiveMode() {
   }, []);
 
   return screenMode;
+}
+
+function formatDreamTokenAmount(value: number) {
+  return `${Math.round(Number(value || 0)).toLocaleString("en-SG")} DT`;
 }
 
 function formatDreamTokenTransactionDate(value: string | null) {
@@ -205,10 +242,12 @@ function ResponsiveMiloStyles() {
 function ZoneCard({
   zone,
   screenMode,
+  hasClubAccess,
   onOpenMembership,
 }: {
   zone: Zone;
   screenMode: ScreenMode;
+  hasClubAccess: boolean;
   onOpenMembership: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
@@ -355,6 +394,20 @@ function ZoneCard({
       </div>
     </>
   );
+
+  if (zone.requiresClub && !hasClubAccess) {
+    return (
+      <button
+        type="button"
+        onClick={onOpenMembership}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={cardStyle}
+      >
+        {content}
+      </button>
+    );
+  }
 
   if (zone.href) {
     return (
@@ -1462,14 +1515,19 @@ export default function MiloWorldPage() {
 
   const [introOpen, setIntroOpen] = useState(false);
   const [membershipOpen, setMembershipOpen] = useState(false);
-  const [dreamTokens, setDreamTokens] = useState(0);
+  const [profileAssets, setProfileAssets] = useState<ProfileAssetBreakdown>({
+    cash: 0,
+    property: 0,
+    stocks: 0,
+  });
   const [tokenTransactions, setTokenTransactions] = useState<
     DreamTokenTransaction[]
   >([]);
-  const [tokenTransactionsOpen, setTokenTransactionsOpen] = useState(false);
-  const [tokenTransactionsLoading, setTokenTransactionsLoading] =
-    useState(true);
+  const [profileAssetsOpen, setProfileAssetsOpen] = useState(false);
+  const [profileAssetsLoading, setProfileAssetsLoading] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [hasClubAccess, setHasClubAccess] = useState(false);
+  const [clubAccessLoading, setClubAccessLoading] = useState(true);
   const [referralCount, setReferralCount] = useState(0);
   const [claimedMilestones, setClaimedMilestones] = useState<
     ReferralMilestone[]
@@ -1490,17 +1548,41 @@ export default function MiloWorldPage() {
 
       if (!user) {
         setUserEmail(null);
-        setDreamTokens(0);
+        setProfileAssets({ cash: 0, property: 0, stocks: 0 });
         setTokenTransactions([]);
-        setTokenTransactionsLoading(false);
-        setTokenTransactionsOpen(false);
+        setProfileAssetsLoading(false);
+        setProfileAssetsOpen(false);
         setReferralCount(0);
         setClaimedMilestones([]);
+        setHasClubAccess(false);
+        setClubAccessLoading(false);
         setObjectivesLoading(false);
         return;
       }
 
       setUserEmail(user.email ?? null);
+      setClubAccessLoading(true);
+
+      const { data: clubProfile, error: clubProfileError } = await supabase
+        .from("profiles")
+        .select("role,milos_club_member")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!isMounted) return;
+
+      if (clubProfileError || !clubProfile) {
+        console.warn(
+          "Could not load Milo’s Club access:",
+          clubProfileError?.message || "Profile not found",
+        );
+        setHasClubAccess(false);
+      } else {
+        const profile = clubProfile as MiloClubProfile;
+        const role = String(profile.role || "").toLowerCase();
+        setHasClubAccess(role === "admin" || Boolean(profile.milos_club_member));
+      }
+      setClubAccessLoading(false);
 
       const { data: objectiveData, error: objectiveError } = await supabase.rpc(
         "get_referral_objective_status",
@@ -1531,9 +1613,16 @@ export default function MiloWorldPage() {
         setClaimedMilestones(milestones);
       }
 
-      setTokenTransactionsLoading(true);
+      setProfileAssetsLoading(true);
 
-      const [balanceResult, recentTransactionsResult] = await Promise.all([
+      const [
+        balanceResult,
+        recentTransactionsResult,
+        stocksResult,
+        stockHoldingsResult,
+        propertiesResult,
+        propertyHoldingsResult,
+      ] = await Promise.all([
         supabase
           .from("dream_token_transactions")
           .select("amount")
@@ -1546,21 +1635,88 @@ export default function MiloWorldPage() {
           .eq("token_kind", "virtual")
           .order("created_at", { ascending: false })
           .limit(8),
+        supabase
+          .from("milo_exchange_stocks")
+          .select("symbol,current_price")
+          .eq("is_active", true),
+        supabase
+          .from("milo_exchange_holdings")
+          .select("symbol,quantity")
+          .eq("user_id", user.id),
+        supabase
+          .from("milo_exchange_properties")
+          .select("id,current_value")
+          .eq("is_active", true),
+        supabase
+          .from("milo_exchange_property_holdings")
+          .select("property_id,quantity")
+          .eq("user_id", user.id),
       ]);
 
       if (!isMounted) return;
 
-      if (balanceResult.error) {
-        console.warn("Could not load Dreamscape Tokens:", balanceResult.error);
-        setDreamTokens(0);
-      } else {
-        const total =
-          balanceResult.data?.reduce(
+      const cashValue = balanceResult.error
+        ? 0
+        : balanceResult.data?.reduce(
             (sum, row) => sum + Number(row.amount || 0),
             0,
           ) || 0;
-        setDreamTokens(total);
+
+      if (balanceResult.error) {
+        console.warn("Could not load Dreamscape Tokens:", balanceResult.error);
       }
+
+      const stockPrices = new Map(
+        ((stocksResult.data || []) as StockRow[]).map((stock) => [
+          stock.symbol,
+          Number(stock.current_price || 0),
+        ]),
+      );
+      const stockValue = stockHoldingsResult.error
+        ? 0
+        : ((stockHoldingsResult.data || []) as StockHoldingRow[]).reduce(
+            (total, holding) =>
+              total +
+              Number(holding.quantity || 0) *
+                Number(stockPrices.get(holding.symbol) || 0),
+            0,
+          );
+
+      const propertyPrices = new Map(
+        ((propertiesResult.data || []) as PropertyRow[]).map((property) => [
+          property.id,
+          Number(property.current_value || 0),
+        ]),
+      );
+      const propertyValue = propertyHoldingsResult.error
+        ? 0
+        : ((propertyHoldingsResult.data || []) as PropertyHoldingRow[]).reduce(
+            (total, holding) =>
+              total +
+              Number(holding.quantity || 0) *
+                Number(propertyPrices.get(holding.property_id) || 0),
+            0,
+          );
+
+      if (stocksResult.error || stockHoldingsResult.error) {
+        console.warn(
+          "Could not load stock assets:",
+          stocksResult.error?.message || stockHoldingsResult.error?.message,
+        );
+      }
+
+      if (propertiesResult.error || propertyHoldingsResult.error) {
+        console.warn(
+          "Could not load property assets:",
+          propertiesResult.error?.message || propertyHoldingsResult.error?.message,
+        );
+      }
+
+      setProfileAssets({
+        cash: cashValue,
+        property: propertyValue,
+        stocks: stockValue,
+      });
 
       if (recentTransactionsResult.error) {
         console.warn(
@@ -1582,7 +1738,7 @@ export default function MiloWorldPage() {
         );
       }
 
-      setTokenTransactionsLoading(false);
+      setProfileAssetsLoading(false);
       setObjectivesLoading(false);
     }
 
@@ -1620,18 +1776,30 @@ export default function MiloWorldPage() {
   }, []);
 
   useEffect(() => {
-    if (!tokenTransactionsOpen) return;
+    const params = new URLSearchParams(window.location.search);
+
+    if (params.get("open") === "membership") {
+      setMembershipOpen(true);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!profileAssetsOpen) return;
 
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        setTokenTransactionsOpen(false);
+        setProfileAssetsOpen(false);
       }
     }
 
     document.addEventListener("keydown", closeOnEscape);
 
     return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [tokenTransactionsOpen]);
+  }, [profileAssetsOpen]);
+
+  const profileAssetsTotal =
+    profileAssets.cash + profileAssets.property + profileAssets.stocks;
 
   const navButtonStyle: CSSProperties = {
     height: isMobile ? "38px" : "42px",
@@ -1716,11 +1884,11 @@ export default function MiloWorldPage() {
         }}
       />
 
-      {tokenTransactionsOpen && (
+      {profileAssetsOpen && (
         <button
           type="button"
           aria-label="Close token transactions"
-          onClick={() => setTokenTransactionsOpen(false)}
+          onClick={() => setProfileAssetsOpen(false)}
           style={{
             position: "fixed",
             inset: 0,
@@ -1768,14 +1936,14 @@ export default function MiloWorldPage() {
           <div style={{ position: "relative", zIndex: 42 }}>
             <button
               type="button"
-              onClick={() => setTokenTransactionsOpen((current) => !current)}
-              aria-expanded={tokenTransactionsOpen}
+              onClick={() => setProfileAssetsOpen((current) => !current)}
+              aria-expanded={profileAssetsOpen}
               aria-haspopup="menu"
               style={{
                 ...navButtonStyle,
                 padding: isMobile ? "0 12px" : "0 18px 0 16px",
                 border: "1px solid rgba(83,215,255,0.34)",
-                boxShadow: tokenTransactionsOpen
+                boxShadow: profileAssetsOpen
                   ? "0 0 30px rgba(83,215,255,0.24)"
                   : "0 0 22px rgba(83,215,255,0.12)",
                 cursor: "pointer",
@@ -1796,12 +1964,12 @@ export default function MiloWorldPage() {
                   flexShrink: 0,
                 }}
               >
-                ✦
+                ◈
               </span>
 
               {isMobile
-                ? `DT ${dreamTokens}`
-                : `Dreamscape Tokens ${dreamTokens}`}
+                ? `Assets ${formatDreamTokenAmount(profileAssetsTotal)}`
+                : `Profile Assets ${formatDreamTokenAmount(profileAssetsTotal)}`}
 
               <span
                 aria-hidden="true"
@@ -1809,7 +1977,7 @@ export default function MiloWorldPage() {
                   marginLeft: isMobile ? "2px" : "4px",
                   color: "#8ee8ff",
                   fontSize: "15px",
-                  transform: tokenTransactionsOpen
+                  transform: profileAssetsOpen
                     ? "rotate(180deg)"
                     : "rotate(0deg)",
                   transition: "transform 180ms ease",
@@ -1819,7 +1987,7 @@ export default function MiloWorldPage() {
               </span>
             </button>
 
-            {tokenTransactionsOpen && (
+            {profileAssetsOpen && (
               <div
                 role="menu"
                 className="milo-scrollbar"
@@ -1828,7 +1996,7 @@ export default function MiloWorldPage() {
                   top: isMobile ? "108px" : "calc(100% + 10px)",
                   right: isMobile ? "12px" : 0,
                   width: isMobile ? "min(360px, calc(100vw - 24px))" : "380px",
-                  maxHeight: "min(520px, calc(100dvh - 92px))",
+                  maxHeight: "min(560px, calc(100dvh - 92px))",
                   overflowY: "auto",
                   borderRadius: "20px",
                   border: "1px solid rgba(126,232,255,0.3)",
@@ -1844,7 +2012,7 @@ export default function MiloWorldPage() {
               >
                 <div
                   style={{
-                    padding: "18px 18px 14px",
+                    padding: "18px",
                     borderBottom: "1px solid rgba(126,232,255,0.13)",
                   }}
                 >
@@ -1858,7 +2026,7 @@ export default function MiloWorldPage() {
                       fontWeight: 900,
                     }}
                   >
-                    Dreamscape Tokens
+                    Profile Assets
                   </p>
 
                   <div
@@ -1877,12 +2045,14 @@ export default function MiloWorldPage() {
                         letterSpacing: "-0.04em",
                       }}
                     >
-                      {dreamTokens} DT
+                      {profileAssetsLoading
+                        ? "Loading..."
+                        : formatDreamTokenAmount(profileAssetsTotal)}
                     </strong>
 
                     <Link
                       href="/profile"
-                      onClick={() => setTokenTransactionsOpen(false)}
+                      onClick={() => setProfileAssetsOpen(false)}
                       style={{
                         color: "#bdf6ff",
                         fontSize: "11px",
@@ -1896,9 +2066,72 @@ export default function MiloWorldPage() {
                 </div>
 
                 <div style={{ padding: "12px" }}>
+                  <div style={{ display: "grid", gap: "8px" }}>
+                    {[
+                      ["Cash", profileAssets.cash, "✦"],
+                      ["Property", profileAssets.property, "⌂"],
+                      ["Stocks", profileAssets.stocks, "↗"],
+                    ].map(([label, value, icon]) => (
+                      <div
+                        key={String(label)}
+                        role="menuitem"
+                        style={{
+                          minHeight: "58px",
+                          borderRadius: "14px",
+                          border: "1px solid rgba(126,232,255,0.12)",
+                          background: "rgba(255,255,255,0.035)",
+                          display: "grid",
+                          gridTemplateColumns: "34px minmax(0, 1fr) auto",
+                          alignItems: "center",
+                          gap: "10px",
+                          padding: "10px 12px",
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: "32px",
+                            height: "32px",
+                            borderRadius: "11px",
+                            border: "1px solid rgba(83,215,255,0.26)",
+                            background: "rgba(83,215,255,0.09)",
+                            color: "#8ee8ff",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontWeight: 900,
+                          }}
+                        >
+                          {icon}
+                        </span>
+
+                        <strong
+                          style={{
+                            color: "white",
+                            fontSize: "13px",
+                            lineHeight: 1.35,
+                          }}
+                        >
+                          {label}
+                        </strong>
+
+                        <strong
+                          style={{
+                            color: "#9fffd2",
+                            fontSize: "12px",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {profileAssetsLoading
+                            ? "—"
+                            : formatDreamTokenAmount(Number(value))}
+                        </strong>
+                      </div>
+                    ))}
+                  </div>
+
                   <p
                     style={{
-                      margin: "0 4px 10px",
+                      margin: "16px 4px 10px",
                       color: "rgba(255,255,255,0.48)",
                       fontSize: "10px",
                       letterSpacing: "0.13em",
@@ -1906,24 +2139,24 @@ export default function MiloWorldPage() {
                       fontWeight: 800,
                     }}
                   >
-                    Latest transactions
+                    Latest cash transactions
                   </p>
 
-                  {tokenTransactionsLoading ? (
+                  {profileAssetsLoading ? (
                     <div
                       style={{
-                        padding: "24px 14px",
+                        padding: "20px 14px",
                         color: "rgba(255,255,255,0.58)",
                         fontSize: "13px",
                         textAlign: "center",
                       }}
                     >
-                      Loading transactions...
+                      Loading assets...
                     </div>
                   ) : !userEmail ? (
                     <Link
                       href="/login"
-                      onClick={() => setTokenTransactionsOpen(false)}
+                      onClick={() => setProfileAssetsOpen(false)}
                       style={{
                         minHeight: "50px",
                         borderRadius: "14px",
@@ -1938,12 +2171,12 @@ export default function MiloWorldPage() {
                         fontWeight: 850,
                       }}
                     >
-                      Log in to view transactions
+                      Log in to view assets
                     </Link>
                   ) : tokenTransactions.length === 0 ? (
                     <div
                       style={{
-                        padding: "24px 14px",
+                        padding: "20px 14px",
                         borderRadius: "14px",
                         background: "rgba(255,255,255,0.035)",
                         color: "rgba(255,255,255,0.58)",
@@ -1962,7 +2195,6 @@ export default function MiloWorldPage() {
                         return (
                           <div
                             key={transaction.id}
-                            role="menuitem"
                             style={{
                               minHeight: "58px",
                               borderRadius: "14px",
@@ -2174,6 +2406,7 @@ export default function MiloWorldPage() {
             key={zone.number}
             zone={zone}
             screenMode={screenMode}
+            hasClubAccess={!clubAccessLoading && hasClubAccess}
             onOpenMembership={() => setMembershipOpen(true)}
           />
         ))}

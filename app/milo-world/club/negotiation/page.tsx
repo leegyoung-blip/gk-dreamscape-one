@@ -166,6 +166,37 @@ type Approach = {
   modifier: number;
 };
 
+type ProfileAssetBreakdown = {
+  cash: number;
+  property: number;
+  stocks: number;
+};
+
+type StockRow = {
+  symbol: string;
+  current_price: number;
+};
+
+type StockHoldingRow = {
+  symbol: string;
+  quantity: number;
+};
+
+type PropertyRow = {
+  id: string;
+  current_value: number;
+};
+
+type PropertyHoldingRow = {
+  property_id: string;
+  quantity: number;
+};
+
+type MiloClubProfile = {
+  role: string | null;
+  milos_club_member: boolean | null;
+};
+
 const BUSINESS_PROGRESS_TABLE = "milo_business_builder_progress";
 const NEGOTIATION_SESSIONS_TABLE = "milo_negotiation_sessions";
 const NEGOTIATION_MESSAGES_TABLE = "milo_negotiation_messages";
@@ -1132,10 +1163,63 @@ function isLiveTopic(topic: NegotiationTopic) {
   return ["stock-buy", "stock-sell", "staff", "milo"].includes(topic);
 }
 
+
+function NegotiationAssetsDropdown({
+  assets,
+  open,
+  onToggle,
+}: {
+  assets: ProfileAssetBreakdown;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const total = assets.cash + assets.property + assets.stocks;
+
+  return (
+    <div className="neg-assets-wrap">
+      <button
+        type="button"
+        className="neg-balance-pill neg-assets-button"
+        onClick={onToggle}
+        aria-expanded={open}
+      >
+        <span>Profile assets ▾</span>
+        <strong>{formatDT(total)}</strong>
+      </button>
+
+      {open && (
+        <div className="neg-assets-dropdown">
+          {[
+            ["Cash", assets.cash],
+            ["Property", assets.property],
+            ["Stocks", assets.stocks],
+          ].map(([label, value]) => (
+            <div className="neg-assets-row" key={String(label)}>
+              <span>{label}</span>
+              <strong>{formatDT(Number(value))}</strong>
+            </div>
+          ))}
+          <div className="neg-assets-row neg-assets-total">
+            <span>Total assets</span>
+            <strong>{formatDT(total)}</strong>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MiloNegotiationPage() {
   const [userId, setUserId] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [tokenBalance, setTokenBalance] = useState(0);
+  const [profileAssets, setProfileAssets] = useState<ProfileAssetBreakdown>({
+    cash: 0,
+    property: 0,
+    stocks: 0,
+  });
+  const [assetsOpen, setAssetsOpen] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
   const [slots, setSlots] = useState<BusinessSlot[]>([]);
   const [activeSlotId, setActiveSlotId] = useState<1 | 2 | 3 | null>(null);
   const [contacts, setContacts] = useState<Contact[]>(FALLBACK_CONTACTS);
@@ -1223,7 +1307,21 @@ export default function MiloNegotiationPage() {
       setUserId(user.id);
       setUserEmail(user.email || "");
 
-      const [progressResult, tokenResult, contactsResult] = await Promise.all([
+      const [
+        profileResult,
+        progressResult,
+        tokenResult,
+        stocksResult,
+        stockHoldingsResult,
+        propertiesResult,
+        propertyHoldingsResult,
+        contactsResult,
+      ] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("role,milos_club_member")
+          .eq("id", user.id)
+          .maybeSingle(),
         supabase
           .from(BUSINESS_PROGRESS_TABLE)
           .select("slots,active_slot_id")
@@ -1232,6 +1330,22 @@ export default function MiloNegotiationPage() {
         supabase
           .from("dream_token_transactions")
           .select("amount,token_kind")
+          .eq("user_id", user.id),
+        supabase
+          .from("milo_exchange_stocks")
+          .select("symbol,current_price")
+          .eq("is_active", true),
+        supabase
+          .from("milo_exchange_holdings")
+          .select("symbol,quantity")
+          .eq("user_id", user.id),
+        supabase
+          .from("milo_exchange_properties")
+          .select("id,current_value")
+          .eq("is_active", true),
+        supabase
+          .from("milo_exchange_property_holdings")
+          .select("property_id,quantity")
           .eq("user_id", user.id),
         supabase
           .from(CONTACTS_TABLE)
@@ -1244,10 +1358,66 @@ export default function MiloNegotiationPage() {
 
       if (!mounted) return;
 
+      if (profileResult.error || !profileResult.data) {
+        setAccessDenied(true);
+        setLoading(false);
+        window.location.replace("/milo-world?open=membership");
+        return;
+      }
+
+      const clubProfile = profileResult.data as MiloClubProfile;
+      const isAdmin = String(clubProfile.role || "").toLowerCase() === "admin";
+      const hasAccess = isAdmin || Boolean(clubProfile.milos_club_member);
+
+      if (!hasAccess) {
+        setAccessDenied(true);
+        setLoading(false);
+        window.location.replace("/milo-world?open=membership");
+        return;
+      }
+
       const balance = (tokenResult.data || [])
         .filter((row) => row.token_kind === "virtual")
         .reduce((sum, row) => sum + Number(row.amount || 0), 0);
       setTokenBalance(balance);
+
+      const stockPrices = new Map(
+        ((stocksResult.data || []) as StockRow[]).map((stock) => [
+          stock.symbol,
+          Number(stock.current_price || 0),
+        ]),
+      );
+      const stockValue = (
+        (stockHoldingsResult.data || []) as StockHoldingRow[]
+      ).reduce(
+        (total, holding) =>
+          total +
+          Number(holding.quantity || 0) *
+            Number(stockPrices.get(holding.symbol) || 0),
+        0,
+      );
+
+      const propertyPrices = new Map(
+        ((propertiesResult.data || []) as PropertyRow[]).map((property) => [
+          property.id,
+          Number(property.current_value || 0),
+        ]),
+      );
+      const propertyValue = (
+        (propertyHoldingsResult.data || []) as PropertyHoldingRow[]
+      ).reduce(
+        (total, holding) =>
+          total +
+          Number(holding.quantity || 0) *
+            Number(propertyPrices.get(holding.property_id) || 0),
+        0,
+      );
+
+      setProfileAssets({
+        cash: balance,
+        property: propertyValue,
+        stocks: stockValue,
+      });
 
       if (!contactsResult.error && contactsResult.data?.length) {
         setContacts(
@@ -1602,6 +1772,10 @@ export default function MiloNegotiationPage() {
       });
 
       setTokenBalance((balance) => balance - Math.round(agreedPrice));
+      setProfileAssets((current) => ({
+        ...current,
+        cash: Math.max(0, current.cash - Math.round(agreedPrice)),
+      }));
       window.dispatchEvent(new Event("dream-tokens-updated"));
       totalValue = agreedPrice;
       agreementTerms = {
@@ -1887,6 +2061,17 @@ export default function MiloNegotiationPage() {
       'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   };
 
+  if (accessDenied && userId) {
+    return (
+      <main style={{ ...shellStyle, display: "grid", placeItems: "center" }}>
+        <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "17px" }}>
+          Returning to Milo’s Club membership…
+        </p>
+        <NegotiationStyles />
+      </main>
+    );
+  }
+
   if (loading) {
     return (
       <main style={{ ...shellStyle, display: "grid", placeItems: "center" }}>
@@ -1968,10 +2153,11 @@ export default function MiloNegotiationPage() {
         </div>
 
         <div className="neg-header-right">
-          <div className="neg-balance-pill">
-            <span>Personal DT</span>
-            <strong>{formatDT(tokenBalance)}</strong>
-          </div>
+          <NegotiationAssetsDropdown
+            assets={profileAssets}
+            open={assetsOpen}
+            onToggle={() => setAssetsOpen((current) => !current)}
+          />
           <button
             type="button"
             className="neg-mobile-icon-button"
@@ -2436,6 +2622,31 @@ function NegotiationStyles() {
       }
       .neg-balance-pill span { display: block; color: rgba(255,255,255,0.45); font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; }
       .neg-balance-pill strong { display: block; margin-top: 2px; color: #f2c27e; font-size: 15px; }
+      .neg-assets-wrap { position: relative; z-index: 70; }
+      .neg-assets-button { cursor: pointer; font-family: inherit; color: white; }
+      .neg-assets-dropdown {
+        position: absolute;
+        top: calc(100% + 9px);
+        right: 0;
+        width: 280px;
+        padding: 12px;
+        border-radius: 17px;
+        border: 1px solid rgba(218,151,74,0.28);
+        background: linear-gradient(145deg,rgba(24,13,8,0.99),rgba(5,8,15,0.99));
+        box-shadow: 0 24px 65px rgba(0,0,0,0.58);
+      }
+      .neg-assets-row {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        border-bottom: 1px solid rgba(218,151,74,0.1);
+        color: rgba(255,255,255,0.58);
+        font-size: 13px;
+      }
+      .neg-assets-row strong { color: #f2c27e; font-size: 15px; }
+      .neg-assets-total { margin-top: 7px; padding-top: 7px; border-top: 1px solid rgba(218,151,74,0.18); border-bottom: none; color: white; }
       .neg-mobile-icon-button { display: none; }
 
       .neg-layout {
@@ -2608,9 +2819,13 @@ function NegotiationStyles() {
       @media (max-width: 760px) {
         .neg-header { height: 68px; grid-template-columns: 1fr auto; padding: 0 10px; }
         .neg-title-wrap { display: none; }
-        .neg-header-right .neg-balance-pill { display: none; }
+        .neg-header-right .neg-balance-pill { min-width: 116px; min-height: 40px; padding: 5px 10px; }
+        .neg-header-right .neg-balance-pill span { font-size: 8px; }
+        .neg-header-right .neg-balance-pill strong { font-size: 12px; }
+        .neg-assets-dropdown { position: fixed; top: 62px; right: 10px; width: min(280px, calc(100vw - 20px)); }
         .neg-header-left .neg-mobile-icon-button { display: inline-flex; }
-        .neg-back-button { min-height: 38px; padding: 0 11px; font-size: 10px; }
+        .neg-back-button { min-height: 38px; width: 38px; padding: 0; font-size: 0; }
+        .neg-back-button::before { content: "←"; font-size: 18px; }
         .neg-header-right { gap: 6px; }
         .neg-layout { height: calc(100dvh - 68px); display: block; }
         .neg-contacts-panel { position: fixed; top: 68px; left: 0; bottom: 0; z-index: 45; width: min(340px, 92vw); transform: translateX(-102%); transition: transform 220ms ease; box-shadow: 24px 0 60px rgba(0,0,0,0.5); }
