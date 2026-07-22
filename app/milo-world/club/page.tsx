@@ -10,7 +10,9 @@ type ViewName =
   | "businesses"
   | "funding"
   | "setup"
-  | "analytics";
+  | "analytics"
+  | "market"
+  | "sell";
 
 type SlotStatus = "empty" | "setup" | "running";
 type TierId = "budget" | "balanced" | "premium";
@@ -38,10 +40,80 @@ type CycleHistoryRecord = {
   miloDividend: number;
 };
 
+type IndustryId =
+  | "retail"
+  | "ecommerce"
+  | "food"
+  | "entertainment"
+  | "hospitality"
+  | "auto-services"
+  | "auto-sales";
+
+type MarketPoint = {
+  monthIndex: number;
+  label: string;
+  demand: number;
+  supply: number;
+  outlook: number;
+};
+
+type MarketSnapshot = {
+  industryId: IndustryId;
+  industryName: string;
+  demandIndex: number;
+  supplyIndex: number;
+  marketBalance: number;
+  annualGrowth: number;
+  outlookScore: number;
+  outlookLabel: "Weak" | "Cautious" | "Stable" | "Positive" | "Strong";
+  volatility: "Low" | "Moderate" | "High";
+  driver: string;
+  risk: string;
+  points: MarketPoint[];
+};
+
+type AnalystReport = {
+  id: string;
+  createdAt: string;
+  cycleNumber: number;
+  analystFee: number;
+  valuation: number;
+  assetValue: number;
+  earningsValue: number;
+  brandValue: number;
+  annualizedRevenue: number;
+  annualizedProfit: number;
+  earningsMultiple: number;
+  marketMultiplier: number;
+  marketOutlook: MarketSnapshot["outlookLabel"];
+  summary: string;
+};
+
+type SaleOffer = {
+  id: string;
+  buyerName: string;
+  amount: number;
+  cycleNumber: number;
+  createdAt: string;
+  outlookLabel: MarketSnapshot["outlookLabel"];
+  note: string;
+};
+
+type SaleListing = {
+  status: "unlisted" | "listed";
+  listedPrice: number;
+  listedAt: string | null;
+  listedCycle: number | null;
+  analystReport: AnalystReport | null;
+  offers: SaleOffer[];
+  offersGeneratedCycle: number | null;
+};
+
 type BusinessOption = {
   id: string;
   title: string;
   category: string;
+  industryId: IndustryId;
   icon: string;
   minCapital: number;
   maxCapital: number;
@@ -101,6 +173,7 @@ type BusinessSlot = {
   cycleStatus: CycleStatus;
   lastCycleCompletedDateSg: string | null;
   cycleHistory: CycleHistoryRecord[];
+  saleListing: SaleListing;
   lastUpdatedAt: string | null;
 };
 
@@ -142,6 +215,7 @@ const DEFAULT_SELECTIONS: SetupSelections = {
 const BUSINESS_OPTIONS: BusinessOption[] = [
   {
     id: "popup-retail",
+    industryId: "retail",
     title: "Pop-up Retail Shop",
     category: "Starter Retail",
     icon: "▤",
@@ -156,6 +230,7 @@ const BUSINESS_OPTIONS: BusinessOption[] = [
   },
   {
     id: "specialty-retail",
+    industryId: "retail",
     title: "Specialty Retail Store",
     category: "Retail",
     icon: "◇",
@@ -170,6 +245,7 @@ const BUSINESS_OPTIONS: BusinessOption[] = [
   },
   {
     id: "online-merch",
+    industryId: "ecommerce",
     title: "Online Merchandise Studio",
     category: "E-commerce",
     icon: "⌘",
@@ -184,6 +260,7 @@ const BUSINESS_OPTIONS: BusinessOption[] = [
   },
   {
     id: "snack-bar",
+    industryId: "food",
     title: "Snack Bar",
     category: "Food & Beverage",
     icon: "◒",
@@ -198,6 +275,7 @@ const BUSINESS_OPTIONS: BusinessOption[] = [
   },
   {
     id: "cafe",
+    industryId: "food",
     title: "Neighbourhood Café",
     category: "Food & Beverage",
     icon: "◉",
@@ -212,6 +290,7 @@ const BUSINESS_OPTIONS: BusinessOption[] = [
   },
   {
     id: "gaming-lounge",
+    industryId: "entertainment",
     title: "Gaming Lounge",
     category: "Entertainment",
     icon: "⌁",
@@ -226,6 +305,7 @@ const BUSINESS_OPTIONS: BusinessOption[] = [
   },
   {
     id: "restaurant",
+    industryId: "hospitality",
     title: "Full-service Restaurant",
     category: "Hospitality",
     icon: "✦",
@@ -240,6 +320,7 @@ const BUSINESS_OPTIONS: BusinessOption[] = [
   },
   {
     id: "auto-workshop",
+    industryId: "auto-services",
     title: "Automobile Workshop",
     category: "Automobile Services",
     icon: "⚙",
@@ -254,6 +335,7 @@ const BUSINESS_OPTIONS: BusinessOption[] = [
   },
   {
     id: "car-dealership",
+    industryId: "auto-sales",
     title: "Car Dealership",
     category: "Automobile Sales",
     icon: "◆",
@@ -267,6 +349,100 @@ const BUSINESS_OPTIONS: BusinessOption[] = [
     averageOrderValue: 1800,
   },
 ];
+
+type IndustryMarketDefinition = {
+  name: string;
+  baseDemand: number;
+  baseSupply: number;
+  annualGrowth: number;
+  volatility: number;
+  earningsMultiple: number;
+  driver: string;
+  risk: string;
+};
+
+const INDUSTRY_MARKETS: Record<IndustryId, IndustryMarketDefinition> = {
+  retail: {
+    name: "Local Retail",
+    baseDemand: 63,
+    baseSupply: 58,
+    annualGrowth: 2.4,
+    volatility: 5,
+    earningsMultiple: 1.55,
+    driver: "Footfall, product relevance and repeat customers",
+    risk: "Crowded competition and slow-moving inventory",
+  },
+  ecommerce: {
+    name: "Online Commerce",
+    baseDemand: 70,
+    baseSupply: 66,
+    annualGrowth: 6.8,
+    volatility: 8,
+    earningsMultiple: 1.9,
+    driver: "Digital demand, fulfilment speed and advertising efficiency",
+    risk: "Rising advertising costs and easy market entry",
+  },
+  food: {
+    name: "Food & Beverage",
+    baseDemand: 72,
+    baseSupply: 69,
+    annualGrowth: 3.2,
+    volatility: 7,
+    earningsMultiple: 1.45,
+    driver: "Repeat visits, menu appeal and service consistency",
+    risk: "Food waste, labour costs and intense local competition",
+  },
+  entertainment: {
+    name: "Leisure & Entertainment",
+    baseDemand: 61,
+    baseSupply: 52,
+    annualGrowth: 5.1,
+    volatility: 10,
+    earningsMultiple: 1.75,
+    driver: "Trends, community interest and customer experience",
+    risk: "Fast-changing preferences and expensive equipment",
+  },
+  hospitality: {
+    name: "Hospitality & Dining",
+    baseDemand: 66,
+    baseSupply: 63,
+    annualGrowth: 3.7,
+    volatility: 9,
+    earningsMultiple: 1.5,
+    driver: "Location, service quality and special occasions",
+    risk: "High fixed costs and demand swings",
+  },
+  "auto-services": {
+    name: "Automobile Services",
+    baseDemand: 59,
+    baseSupply: 48,
+    annualGrowth: 2.1,
+    volatility: 5,
+    earningsMultiple: 1.7,
+    driver: "Vehicle servicing needs, trust and technical capability",
+    risk: "Specialist labour and equipment replacement costs",
+  },
+  "auto-sales": {
+    name: "Automobile Sales",
+    baseDemand: 54,
+    baseSupply: 57,
+    annualGrowth: 1.4,
+    volatility: 12,
+    earningsMultiple: 1.25,
+    driver: "Consumer confidence, financing conditions and inventory mix",
+    risk: "Large amounts of capital tied up in vehicles",
+  },
+};
+
+const MARKET_BUYERS: Record<IndustryId, string[]> = {
+  retail: ["Cedar Street Retail", "Northstar Brands", "Harbourfront Holdings"],
+  ecommerce: ["Orbit Commerce Group", "Cloudcart Ventures", "Nova Fulfilment Partners"],
+  food: ["Ember Dining Group", "Golden Spoon Ventures", "Neighbourhood Foods"],
+  entertainment: ["Arcade District Co.", "Pulse Leisure Group", "Level Up Holdings"],
+  hospitality: ["Grand Table Partners", "Hearthstone Hospitality", "Crescent Dining Group"],
+  "auto-services": ["TorqueWorks Group", "RoadReady Partners", "Precision Motor Holdings"],
+  "auto-sales": ["Velocity Auto Group", "Summit Motors", "Apex Mobility Holdings"],
+};
 
 const SETUP_CATEGORIES: SetupCategory[] = [
   {
@@ -515,6 +691,15 @@ function createEmptySlot(id: 1 | 2 | 3): BusinessSlot {
     cycleStatus: "running",
     lastCycleCompletedDateSg: null,
     cycleHistory: [],
+    saleListing: {
+      status: "unlisted",
+      listedPrice: 0,
+      listedAt: null,
+      listedCycle: null,
+      analystReport: null,
+      offers: [],
+      offersGeneratedCycle: null,
+    },
     lastUpdatedAt: null,
   };
 }
@@ -649,6 +834,14 @@ function normalizeSlot(
     cycleHistory: Array.isArray(savedSlot.cycleHistory)
       ? savedSlot.cycleHistory
       : [],
+    saleListing: {
+      ...base.saleListing,
+      ...(savedSlot.saleListing || {}),
+      analystReport: savedSlot.saleListing?.analystReport || null,
+      offers: Array.isArray(savedSlot.saleListing?.offers)
+        ? savedSlot.saleListing?.offers || []
+        : [],
+    },
   };
 }
 
@@ -747,6 +940,233 @@ function getPerformanceForecast(slot: BusinessSlot) {
   };
 }
 
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+function hashString(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return Math.abs(hash >>> 0);
+}
+
+function seededNoise(seed: string) {
+  const x = Math.sin(hashString(seed) * 0.000001) * 43758.5453;
+  return (x - Math.floor(x)) * 2 - 1;
+}
+
+function getMonthLabel(offset: number) {
+  const date = new Date();
+  date.setUTCMonth(date.getUTCMonth() + offset);
+  return new Intl.DateTimeFormat("en-SG", {
+    month: "short",
+    timeZone: "Asia/Singapore",
+  }).format(date);
+}
+
+function getMarketSnapshot(slot: BusinessSlot): MarketSnapshot {
+  const business = getBusiness(slot.businessTypeId);
+  const industryId = business?.industryId || "retail";
+  const definition = INDUSTRY_MARKETS[industryId];
+  const cycleSeed = Math.max(1, slot.cycleNumber);
+  const points: MarketPoint[] = Array.from({ length: 12 }).map((_, index) => {
+    const trend = (definition.annualGrowth / 12) * index;
+    const seasonality = Math.sin((index / 12) * Math.PI * 2 + cycleSeed * 0.47);
+    const demandNoise = seededNoise(`${slot.id}-${industryId}-${cycleSeed}-${index}-demand`);
+    const supplyNoise = seededNoise(`${slot.id}-${industryId}-${cycleSeed}-${index}-supply`);
+    const demand = clamp(
+      definition.baseDemand + trend + seasonality * definition.volatility + demandNoise * definition.volatility * 0.75,
+      25,
+      95,
+    );
+    const supply = clamp(
+      definition.baseSupply + trend * 0.45 - seasonality * definition.volatility * 0.35 + supplyNoise * definition.volatility * 0.62,
+      25,
+      95,
+    );
+    return {
+      monthIndex: index,
+      label: getMonthLabel(index),
+      demand,
+      supply,
+      outlook: clamp((demand - supply) / 28 + definition.annualGrowth / 12, -1, 1),
+    };
+  });
+
+  const current = points[0];
+  const future = points[11];
+  const marketBalance = current.demand - current.supply;
+  const momentum = (future.demand - future.supply - marketBalance) / 30;
+  const outlookScore = clamp(
+    marketBalance / 30 + definition.annualGrowth / 10 + momentum * 0.45,
+    -1,
+    1,
+  );
+  const outlookLabel: MarketSnapshot["outlookLabel"] =
+    outlookScore <= -0.45
+      ? "Weak"
+      : outlookScore <= -0.12
+        ? "Cautious"
+        : outlookScore < 0.2
+          ? "Stable"
+          : outlookScore < 0.55
+            ? "Positive"
+            : "Strong";
+  const volatility: MarketSnapshot["volatility"] =
+    definition.volatility >= 10
+      ? "High"
+      : definition.volatility >= 7
+        ? "Moderate"
+        : "Low";
+
+  return {
+    industryId,
+    industryName: definition.name,
+    demandIndex: current.demand,
+    supplyIndex: current.supply,
+    marketBalance,
+    annualGrowth: definition.annualGrowth,
+    outlookScore,
+    outlookLabel,
+    volatility,
+    driver: definition.driver,
+    risk: definition.risk,
+    points,
+  };
+}
+
+function getAnalystFee(slot: BusinessSlot) {
+  return clamp(Math.round((slot.approvedBudget * 0.005) / 10) * 10, 100, 1000);
+}
+
+function calculateBusinessValuation(slot: BusinessSlot): AnalystReport {
+  const business = getBusiness(slot.businessTypeId);
+  const market = getMarketSnapshot(slot);
+  const forecast = getPerformanceForecast(slot);
+  const recentCycles = slot.cycleHistory.slice(-3);
+  const monthlyRevenue =
+    recentCycles.length > 0
+      ? recentCycles.reduce((total, cycle) => total + cycle.revenue, 0) / recentCycles.length
+      : forecast.dailyRevenue * 30;
+  const monthlyProfit =
+    recentCycles.length > 0
+      ? recentCycles.reduce((total, cycle) => total + cycle.profit, 0) / recentCycles.length
+      : forecast.dailyProfit * 30;
+  const annualizedRevenue = Math.max(0, monthlyRevenue * 12);
+  const annualizedProfit = monthlyProfit * 12;
+  const summary = getSetupSummary(
+    slot.miloInvestment || slot.approvedBudget,
+    slot.selections,
+    slot.approvedBudget,
+  );
+  const equipmentQuality = summary.qualityScores.equipment;
+  const stockQuality = summary.qualityScores.stock;
+  const assetRecoveryRate = 0.28 + equipmentQuality * 0.09 + stockQuality * 0.035;
+  const assetValue = Math.max(0, slot.cash) + slot.setupSpend * assetRecoveryRate;
+  const businessAgeDays = Math.max(0, slot.simulatedMinutes / 1440);
+  const maturityFactor = 0.25 + 0.75 * Math.min(1, businessAgeDays / 360);
+  const marketDefinition = INDUSTRY_MARKETS[business?.industryId || "retail"];
+  const earningsMultiple = clamp(
+    marketDefinition.earningsMultiple + market.outlookScore * 0.65 + (slot.customerSatisfaction - 65) / 100,
+    0.8,
+    3.25,
+  );
+  const earningsValue = Math.max(0, annualizedProfit) * earningsMultiple * maturityFactor;
+  const brandValue =
+    annualizedRevenue * Math.max(0, slot.customerSatisfaction - 55) * 0.0016 * maturityFactor;
+  const marketMultiplier = clamp(
+    0.88 + market.outlookScore * 0.18 + market.marketBalance / 220,
+    0.7,
+    1.28,
+  );
+  const distressMultiplier =
+    slot.cash < 0 ? 0.68 : slot.customerSatisfaction < 50 ? 0.82 : 1;
+  const rawValuation =
+    (assetValue + earningsValue + brandValue) * marketMultiplier * distressMultiplier;
+  const valuationFloor = Math.max(0, slot.approvedBudget * 0.28 + Math.max(0, slot.cash) * 0.5);
+  const valuation = Math.max(0, Math.round(Math.max(rawValuation, valuationFloor) / 50) * 50);
+  const summaryText =
+    annualizedProfit <= 0
+      ? "The valuation is supported mainly by recoverable assets and available cash because recent profit is weak."
+      : market.outlookScore >= 0.25
+        ? "Profitable operations and a favourable market outlook are supporting a stronger valuation."
+        : market.outlookScore <= -0.25
+          ? "The business is profitable, but a weaker industry outlook is reducing what buyers may pay."
+          : "The valuation balances current earnings, recoverable assets, customer strength and a stable market outlook.";
+
+  return {
+    id: `report-${slot.id}-${slot.cycleNumber}-${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    cycleNumber: slot.cycleNumber,
+    analystFee: getAnalystFee(slot),
+    valuation,
+    assetValue,
+    earningsValue,
+    brandValue,
+    annualizedRevenue,
+    annualizedProfit,
+    earningsMultiple,
+    marketMultiplier,
+    marketOutlook: market.outlookLabel,
+    summary: summaryText,
+  };
+}
+
+function generateSaleOffers(slot: BusinessSlot): SaleOffer[] {
+  const listing = slot.saleListing;
+  if (listing.status !== "listed" || listing.listedPrice <= 0) return [];
+
+  const market = getMarketSnapshot(slot);
+  const liveReport = calculateBusinessValuation(slot);
+  const fairValue = Math.max(1, liveReport.valuation);
+  const listRatio = listing.listedPrice / fairValue;
+  const listingAge = Math.max(0, slot.cycleNumber - (listing.listedCycle || slot.cycleNumber));
+  const stalePenalty = market.outlookScore < 0
+    ? Math.max(0.76, 1 - listingAge * 0.045)
+    : Math.max(0.9, 1 - listingAge * 0.012);
+  const competition = clamp(
+    market.outlookScore + (market.demandIndex - market.supplyIndex) / 45,
+    -1,
+    1,
+  );
+  const anchor = fairValue * 0.78 + listing.listedPrice * 0.22;
+  const buyerNames = MARKET_BUYERS[market.industryId];
+  const baseFactors = [0.88, 0.97, 1.06];
+
+  return baseFactors.map((factor, index) => {
+    const noise = seededNoise(`${slot.id}-${slot.cycleNumber}-${listing.listedPrice}-${index}-offer`) * 0.045;
+    const competitiveBoost = competition * (0.055 + index * 0.025);
+    const overpricingPenalty = listRatio > 1.2 ? Math.min(0.18, (listRatio - 1.2) * 0.22) : 0;
+    const amount = Math.max(
+      50,
+      Math.round(
+        (anchor * (factor + noise + competitiveBoost - overpricingPenalty) * stalePenalty) / 50,
+      ) * 50,
+    );
+    const note =
+      amount >= listing.listedPrice * 1.03
+        ? "Competitive bid above your asking price"
+        : amount >= listing.listedPrice * 0.97
+          ? "Bid close to your asking price"
+          : market.outlookScore < -0.2
+            ? "Buyer has discounted the bid for a weaker outlook"
+            : "Buyer is negotiating below your asking price";
+
+    return {
+      id: `offer-${slot.id}-${slot.cycleNumber}-${index}-${Date.now()}`,
+      buyerName: buyerNames[index % buyerNames.length],
+      amount,
+      cycleNumber: slot.cycleNumber,
+      createdAt: new Date().toISOString(),
+      outlookLabel: market.outlookLabel,
+      note,
+    };
+  });
+}
+
 function prepareNextCycleIfAvailable(slot: BusinessSlot): BusinessSlot {
   if (
     slot.status !== "running" ||
@@ -806,7 +1226,7 @@ function simulateSlot(
   const nextCycleExpenses = slot.cycleExpenses + expensesAdded;
   const cycleComplete = nextCycleMinutes >= CYCLE_MINUTES - 0.0001;
 
-  return {
+  const updatedSlot: BusinessSlot = {
     ...slot,
     simulatedMinutes: slot.simulatedMinutes + simulatedMinutes,
     cycleSimulatedMinutes: nextCycleMinutes,
@@ -825,6 +1245,23 @@ function simulateSlot(
       : slot.lastCycleCompletedDateSg,
     lastUpdatedAt: new Date().toISOString(),
   };
+
+  if (
+    cycleComplete &&
+    updatedSlot.saleListing.status === "listed" &&
+    updatedSlot.saleListing.offersGeneratedCycle !== updatedSlot.cycleNumber
+  ) {
+    return {
+      ...updatedSlot,
+      saleListing: {
+        ...updatedSlot.saleListing,
+        offers: generateSaleOffers(updatedSlot),
+        offersGeneratedCycle: updatedSlot.cycleNumber,
+      },
+    };
+  }
+
+  return updatedSlot;
 }
 
 function catchUpSlot(slot: BusinessSlot): BusinessSlot {
@@ -1313,6 +1750,181 @@ function MetricCard({
   );
 }
 
+function RunningBusinessSwitcher({
+  slots,
+  activeSlotId,
+  mobile,
+  onSelect,
+}: {
+  slots: BusinessSlot[];
+  activeSlotId: 1 | 2 | 3 | null;
+  mobile: boolean;
+  onSelect: (slotId: 1 | 2 | 3) => void;
+}) {
+  const runningSlots = slots.filter((slot) => slot.status === "running");
+
+  return (
+    <div
+      style={{
+        marginTop: "20px",
+        borderRadius: "20px",
+        border: "1px solid rgba(218,151,74,0.16)",
+        background: "rgba(255,255,255,0.025)",
+        padding: mobile ? "12px" : "14px",
+      }}
+    >
+      <span
+        style={{
+          display: "block",
+          marginBottom: "10px",
+          color: "rgba(255,255,255,0.46)",
+          fontSize: "13px",
+          fontWeight: 850,
+          letterSpacing: "0.13em",
+          textTransform: "uppercase",
+        }}
+      >
+        Selected operating business
+      </span>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: mobile
+            ? "1fr"
+            : `repeat(${Math.max(1, Math.min(3, runningSlots.length))}, minmax(0, 1fr))`,
+          gap: "9px",
+        }}
+      >
+        {runningSlots.map((slot) => {
+          const active = slot.id === activeSlotId;
+          const business = getBusiness(slot.businessTypeId);
+          return (
+            <button
+              key={slot.id}
+              type="button"
+              onClick={() => onSelect(slot.id)}
+              style={{
+                minHeight: "58px",
+                borderRadius: "14px",
+                border: active
+                  ? "1px solid rgba(239,187,112,0.64)"
+                  : "1px solid rgba(218,151,74,0.13)",
+                background: active
+                  ? "linear-gradient(145deg, rgba(106,57,25,0.68), rgba(8,12,20,0.9))"
+                  : "rgba(255,255,255,0.025)",
+                color: "white",
+                padding: "10px 13px",
+                textAlign: "left",
+                cursor: "pointer",
+              }}
+            >
+              <strong style={{ display: "block", fontSize: "17px" }}>
+                Storefront {slot.id} · {slot.businessName}
+              </strong>
+              <span
+                style={{
+                  display: "block",
+                  marginTop: "5px",
+                  color: "rgba(255,255,255,0.48)",
+                  fontSize: "14px",
+                }}
+              >
+                {business?.title || "Operating business"}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function MarketChart({
+  points,
+  mobile,
+}: {
+  points: MarketPoint[];
+  mobile: boolean;
+}) {
+  const width = 900;
+  const height = 330;
+  const paddingX = 56;
+  const paddingY = 38;
+  const chartWidth = width - paddingX * 2;
+  const chartHeight = height - paddingY * 2;
+  const x = (index: number) => paddingX + (index / Math.max(1, points.length - 1)) * chartWidth;
+  const y = (value: number) => paddingY + ((100 - value) / 100) * chartHeight;
+  const demandPoints = points.map((point, index) => `${x(index)},${y(point.demand)}`).join(" ");
+  const supplyPoints = points.map((point, index) => `${x(index)},${y(point.supply)}`).join(" ");
+
+  return (
+    <div
+      style={{
+        width: "100%",
+        overflowX: "auto",
+        borderRadius: "20px",
+        border: "1px solid rgba(218,151,74,0.16)",
+        background: "rgba(3,8,16,0.72)",
+        padding: mobile ? "10px 6px" : "14px",
+      }}
+    >
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label="Twelve-month industry demand and supply forecast"
+        style={{ display: "block", width: mobile ? "760px" : "100%", minWidth: mobile ? "760px" : 0 }}
+      >
+        {[25, 50, 75, 100].map((value) => (
+          <g key={value}>
+            <line
+              x1={paddingX}
+              y1={y(value)}
+              x2={width - paddingX}
+              y2={y(value)}
+              stroke="rgba(255,255,255,0.09)"
+              strokeWidth="1"
+            />
+            <text x="10" y={y(value) + 5} fill="rgba(255,255,255,0.4)" fontSize="14">
+              {value}
+            </text>
+          </g>
+        ))}
+        <polyline
+          points={demandPoints}
+          fill="none"
+          stroke="#efb96d"
+          strokeWidth="5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <polyline
+          points={supplyPoints}
+          fill="none"
+          stroke="#7db9e8"
+          strokeWidth="5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        {points.map((point, index) => (
+          <g key={`${point.label}-${index}`}>
+            <circle cx={x(index)} cy={y(point.demand)} r="5" fill="#efb96d" />
+            <circle cx={x(index)} cy={y(point.supply)} r="5" fill="#7db9e8" />
+            <text
+              x={x(index)}
+              y={height - 12}
+              textAnchor="middle"
+              fill="rgba(255,255,255,0.48)"
+              fontSize="14"
+            >
+              {point.label}
+            </text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
 export default function MiloBusinessBuilderPage() {
   const { width } = useViewport();
   const mobile = width <= 760;
@@ -1345,6 +1957,10 @@ export default function MiloBusinessBuilderPage() {
   const [businessNameDraft, setBusinessNameDraft] = useState("");
   const [reinvestmentPercent, setReinvestmentPercent] = useState(50);
   const [cycleSubmitting, setCycleSubmitting] = useState(false);
+  const [listingPriceDraft, setListingPriceDraft] = useState(0);
+  const [saleActionState, setSaleActionState] = useState<
+    "idle" | "analysing" | "listing" | "selling"
+  >("idle");
   const [saveState, setSaveState] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
@@ -1585,7 +2201,22 @@ export default function MiloBusinessBuilderPage() {
     if (!activeSlot) return;
     setDraftSelections({ ...activeSlot.selections });
     setBusinessNameDraft(activeSlot.businessName);
-  }, [activeSlot?.id, activeSlot?.businessName, activeSlot?.status]);
+    const fallbackValuation =
+      activeSlot.status === "running"
+        ? calculateBusinessValuation(activeSlot).valuation
+        : 0;
+    setListingPriceDraft(
+      activeSlot.saleListing.listedPrice ||
+        activeSlot.saleListing.analystReport?.valuation ||
+        fallbackValuation,
+    );
+  }, [
+    activeSlot?.id,
+    activeSlot?.businessName,
+    activeSlot?.status,
+    activeSlot?.saleListing.listedPrice,
+    activeSlot?.saleListing.analystReport?.valuation,
+  ]);
 
   function selectStorefront(slot: BusinessSlot) {
     setActiveSlotId(slot.id);
@@ -1792,6 +2423,15 @@ export default function MiloBusinessBuilderPage() {
               cycleStatus: "running",
               lastCycleCompletedDateSg: null,
               cycleHistory: [],
+              saleListing: {
+                status: "unlisted",
+                listedPrice: 0,
+                listedAt: null,
+                listedCycle: null,
+                analystReport: null,
+                offers: [],
+                offersGeneratedCycle: null,
+              },
               lastUpdatedAt: now,
             }
           : slot,
@@ -1891,6 +2531,190 @@ export default function MiloBusinessBuilderPage() {
     setLastCloudSavedAt(updatedAt);
     window.setTimeout(() => setSaveState("idle"), 2400);
     return true;
+  }
+
+  async function hireBusinessAnalyst() {
+    if (!activeSlot || activeSlot.status !== "running" || saleActionState !== "idle") return;
+
+    if (activeSlot.cycleStatus === "awaiting-allocation") {
+      setPageMessage(
+        "Allocate the completed cycle before ordering an analyst report so the valuation uses the final cash position.",
+      );
+      return;
+    }
+
+    const fee = getAnalystFee(activeSlot);
+    if (activeSlot.cash < fee) {
+      setPageMessage(
+        `The analyst fee is ${formatMoney(fee)}, but the business only has ${formatMoney(activeSlot.cash)} available.`,
+      );
+      return;
+    }
+
+    setSaleActionState("analysing");
+    const report = calculateBusinessValuation({
+      ...activeSlot,
+      cash: activeSlot.cash - fee,
+      expenses: activeSlot.expenses + fee,
+      cycleExpenses:
+        activeSlot.cycleStatus === "running"
+          ? activeSlot.cycleExpenses + fee
+          : activeSlot.cycleExpenses,
+      cycleProfit:
+        activeSlot.cycleStatus === "running"
+          ? activeSlot.cycleRevenue - (activeSlot.cycleExpenses + fee)
+          : activeSlot.cycleProfit,
+    });
+    const nextSlots = slots.map((slot) =>
+      slot.id === activeSlot.id
+        ? {
+            ...slot,
+            cash: slot.cash - fee,
+            expenses: slot.expenses + fee,
+            cycleExpenses:
+              slot.cycleStatus === "running"
+                ? slot.cycleExpenses + fee
+                : slot.cycleExpenses,
+            cycleProfit:
+              slot.cycleStatus === "running"
+                ? slot.cycleRevenue - (slot.cycleExpenses + fee)
+                : slot.cycleProfit,
+            saleListing: {
+              ...slot.saleListing,
+              analystReport: report,
+            },
+            lastUpdatedAt: new Date().toISOString(),
+          }
+        : slot,
+    );
+
+    setSlots(nextSlots);
+    setListingPriceDraft(report.valuation);
+    setPageMessage(
+      `The analyst completed a market evaluation of ${formatMoney(report.valuation)}. The ${formatMoney(fee)} fee was paid from business cash.`,
+    );
+    await saveProgressToAccount(nextSlots, activeSlot.id);
+    setSaleActionState("idle");
+  }
+
+  async function placeOrUpdateSaleListing() {
+    if (
+      !activeSlot ||
+      activeSlot.status !== "running" ||
+      !activeSlot.saleListing.analystReport ||
+      saleActionState !== "idle"
+    ) {
+      return;
+    }
+
+    const cleanPrice = Math.max(1, Math.round(listingPriceDraft / 50) * 50);
+    setSaleActionState("listing");
+    const now = new Date().toISOString();
+    const nextSlots = slots.map((slot) =>
+      slot.id === activeSlot.id
+        ? {
+            ...slot,
+            saleListing: {
+              ...slot.saleListing,
+              status: "listed" as const,
+              listedPrice: cleanPrice,
+              listedAt: slot.saleListing.listedAt || now,
+              listedCycle: slot.saleListing.listedCycle || slot.cycleNumber,
+              offers: slot.saleListing.listedPrice === cleanPrice ? slot.saleListing.offers : [],
+              offersGeneratedCycle:
+                slot.saleListing.listedPrice === cleanPrice
+                  ? slot.saleListing.offersGeneratedCycle
+                  : null,
+            },
+            lastUpdatedAt: now,
+          }
+        : slot,
+    );
+
+    setSlots(nextSlots);
+    setListingPriceDraft(cleanPrice);
+    setPageMessage(
+      `${activeSlot.businessName} is listed for ${formatMoney(cleanPrice)}. Complete another 30-day cycle to receive three buyer offers.`,
+    );
+    await saveProgressToAccount(nextSlots, activeSlot.id);
+    setSaleActionState("idle");
+  }
+
+  async function withdrawSaleListing() {
+    if (!activeSlot || activeSlot.status !== "running") return;
+
+    const nextSlots = slots.map((slot) =>
+      slot.id === activeSlot.id
+        ? {
+            ...slot,
+            saleListing: {
+              ...slot.saleListing,
+              status: "unlisted" as const,
+              listedPrice: 0,
+              listedAt: null,
+              listedCycle: null,
+              offers: [],
+              offersGeneratedCycle: null,
+            },
+            lastUpdatedAt: new Date().toISOString(),
+          }
+        : slot,
+    );
+    setSlots(nextSlots);
+    setPageMessage("The business has been removed from the market.");
+    await saveProgressToAccount(nextSlots, activeSlot.id);
+  }
+
+  async function acceptSaleOffer(offer: SaleOffer) {
+    if (
+      !activeSlot ||
+      activeSlot.status !== "running" ||
+      saleActionState !== "idle"
+    ) {
+      return;
+    }
+
+    if (activeSlot.cycleStatus === "awaiting-allocation") {
+      setPageMessage(
+        "Allocate the completed cycle before accepting a sale offer. This keeps the final business cash and valuation accurate.",
+      );
+      return;
+    }
+
+    setSaleActionState("selling");
+    const userProceeds = Math.max(0, Math.round(offer.amount * activeSlot.userOwnership));
+    const miloProceeds = Math.max(0, offer.amount - userProceeds);
+    const { error } = await supabase.from("dream_token_transactions").insert({
+      user_id: userId,
+      amount: userProceeds,
+      token_kind: "virtual",
+      type: "earn",
+      title: `Sale of ${activeSlot.businessName} to ${offer.buyerName}`,
+    });
+
+    if (error) {
+      setSaleActionState("idle");
+      setPageMessage(`The sale could not be completed: ${error.message}`);
+      return;
+    }
+
+    const soldSlotId = activeSlot.id;
+    const soldBusinessName = activeSlot.businessName;
+    const nextSlots = slots.map((slot) =>
+      slot.id === soldSlotId ? createEmptySlot(soldSlotId) : slot,
+    );
+    setSlots(nextSlots);
+    setDreamTokenBalance((balance) => balance + userProceeds);
+    setProfileNetWorth((value) => value + userProceeds);
+    setActiveSlotId(null);
+    setSelectedBusinessId(null);
+    setView("storefronts");
+    setPageMessage(
+      `${soldBusinessName} was sold to ${offer.buyerName} for ${formatMoney(offer.amount)}. Your ${Math.round(activeSlot.userOwnership * 100)}% share of ${formatMoney(userProceeds)} was credited to your Dreamscape Token balance. Milo received ${formatMoney(miloProceeds)}.`,
+    );
+    window.dispatchEvent(new Event("dream-tokens-updated"));
+    await saveProgressToAccount(nextSlots, null);
+    setSaleActionState("idle");
   }
 
   async function settleThirtyDayCycle() {
@@ -2032,6 +2856,12 @@ export default function MiloBusinessBuilderPage() {
     if (nextView === "analytics") {
       if (!activeSlot || activeSlot.status !== "running") return;
       setView("analytics");
+      return;
+    }
+
+    if (nextView === "market" || nextView === "sell") {
+      if (!activeSlot || activeSlot.status !== "running") return;
+      setView(nextView);
     }
   }
 
@@ -2082,6 +2912,18 @@ export default function MiloBusinessBuilderPage() {
       id: "analytics",
       label: "Analytics",
       icon: "↗",
+      enabled: Boolean(activeSlot && activeSlot.status === "running"),
+    },
+    {
+      id: "market",
+      label: "Industry Market",
+      icon: "⌁",
+      enabled: Boolean(activeSlot && activeSlot.status === "running"),
+    },
+    {
+      id: "sell",
+      label: "Sell Business",
+      icon: "◈",
       enabled: Boolean(activeSlot && activeSlot.status === "running"),
     },
   ];
@@ -2419,6 +3261,12 @@ export default function MiloBusinessBuilderPage() {
     0,
     cycleDividendPool - projectedUserDividend,
   );
+  const activeMarket = activeSlot ? getMarketSnapshot(activeSlot) : null;
+  const liveValuation = activeSlot ? calculateBusinessValuation(activeSlot) : null;
+  const saleReport = activeSlot?.saleListing.analystReport || null;
+  const projectedSaleUserShare = activeSlot
+    ? Math.round(listingPriceDraft * activeSlot.userOwnership)
+    : 0;
 
   return (
     <main
@@ -2442,6 +3290,8 @@ export default function MiloBusinessBuilderPage() {
         @media (max-width: 760px) {
           .milo-dialogue-panel { padding: 230px 22px 24px !important; }
           .milo-dialogue-panel img { left: 50% !important; transform: translateX(-50%); height: 250px !important; }
+          .milo-market-scroll { margin-left: -8px; margin-right: -8px; }
+          button, input, select { font-size: 16px; }
         }
       `}</style>
 
@@ -2480,7 +3330,7 @@ export default function MiloBusinessBuilderPage() {
           backdropFilter: "blur(22px)",
           WebkitBackdropFilter: "blur(22px)",
           display: "grid",
-          gridTemplateColumns: mobile ? "auto 1fr auto" : "1fr auto 1fr",
+          gridTemplateColumns: mobile ? "1fr auto" : "1fr auto 1fr",
           alignItems: "center",
           gap: "12px",
           padding: mobile ? "7px 9px" : "10px 18px",
@@ -5053,6 +5903,850 @@ export default function MiloBusinessBuilderPage() {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+          {view === "market" &&
+            activeSlot &&
+            activeBusiness &&
+            activeMarket &&
+            activeSlot.status === "running" && (
+              <div style={{ width: "min(1420px, 100%)", margin: "0 auto" }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: compact ? "1fr" : "1fr auto",
+                    gap: "18px",
+                    alignItems: "end",
+                  }}
+                >
+                  <div>
+                    <p
+                      style={{
+                        margin: 0,
+                        color: "#efbc73",
+                        fontSize: "16px",
+                        fontWeight: 900,
+                        letterSpacing: "0.2em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Industry market
+                    </p>
+                    <h2
+                      style={{
+                        margin: "11px 0 0",
+                        fontFamily: 'Georgia, "Times New Roman", serif',
+                        fontSize: mobile ? "43px" : "64px",
+                        lineHeight: 0.98,
+                        fontWeight: 500,
+                        letterSpacing: "-0.04em",
+                      }}
+                    >
+                      {activeMarket.industryName}
+                    </h2>
+                    <p
+                      style={{
+                        margin: "16px 0 0",
+                        maxWidth: "800px",
+                        color: "rgba(255,255,255,0.62)",
+                        fontSize: mobile ? "17px" : "19px",
+                        lineHeight: 1.65,
+                      }}
+                    >
+                      This market forecast is specific to {activeBusiness.title}. Demand,
+                      supply and the twelve-month outlook affect business valuations and
+                      the offers buyers make.
+                    </p>
+                  </div>
+
+                  <div
+                    style={{
+                      borderRadius: "18px",
+                      border: "1px solid rgba(218,151,74,0.24)",
+                      background: "rgba(45,25,14,0.82)",
+                      padding: "16px 18px",
+                      minWidth: compact ? 0 : "260px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: "block",
+                        color: "rgba(255,255,255,0.48)",
+                        fontSize: "14px",
+                        letterSpacing: "0.13em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      One-year outlook
+                    </span>
+                    <strong
+                      style={{
+                        display: "block",
+                        marginTop: "8px",
+                        color:
+                          activeMarket.outlookScore >= 0.2
+                            ? "#9ff0bd"
+                            : activeMarket.outlookScore <= -0.2
+                              ? "#ffb497"
+                              : "#f3c47c",
+                        fontSize: "28px",
+                      }}
+                    >
+                      {activeMarket.outlookLabel}
+                    </strong>
+                    <span
+                      style={{
+                        display: "block",
+                        marginTop: "5px",
+                        color: "rgba(255,255,255,0.46)",
+                        fontSize: "15px",
+                      }}
+                    >
+                      Forecast growth {activeMarket.annualGrowth.toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+
+                <RunningBusinessSwitcher
+                  slots={slots}
+                  activeSlotId={activeSlotId}
+                  mobile={mobile}
+                  onSelect={(slotId) => {
+                    setActiveSlotId(slotId);
+                    setView("market");
+                  }}
+                />
+
+                <div
+                  style={{
+                    marginTop: "24px",
+                    display: "grid",
+                    gridTemplateColumns: mobile
+                      ? "1fr"
+                      : compact
+                        ? "repeat(2, minmax(0, 1fr))"
+                        : "repeat(4, minmax(0, 1fr))",
+                    gap: "13px",
+                  }}
+                >
+                  <MetricCard
+                    label="Demand index"
+                    value={`${Math.round(activeMarket.demandIndex)} / 100`}
+                    note="Higher demand can strengthen sales and buyer interest"
+                    positive={activeMarket.demandIndex >= activeMarket.supplyIndex}
+                  />
+                  <MetricCard
+                    label="Supply index"
+                    value={`${Math.round(activeMarket.supplyIndex)} / 100`}
+                    note="Higher supply means more competing businesses"
+                    positive={activeMarket.supplyIndex <= activeMarket.demandIndex}
+                  />
+                  <MetricCard
+                    label="Demand minus supply"
+                    value={`${activeMarket.marketBalance >= 0 ? "+" : ""}${activeMarket.marketBalance.toFixed(1)}`}
+                    note="Positive values usually improve seller bargaining power"
+                    positive={activeMarket.marketBalance >= 0}
+                  />
+                  <MetricCard
+                    label="Market volatility"
+                    value={activeMarket.volatility}
+                    note="Higher volatility creates faster changes in valuation"
+                    positive={activeMarket.volatility === "Low"}
+                  />
+                </div>
+
+                <div
+                  style={{
+                    marginTop: "18px",
+                    display: "grid",
+                    gridTemplateColumns: compact ? "1fr" : "1.4fr 0.6fr",
+                    gap: "18px",
+                  }}
+                >
+                  <div
+                    className="milo-market-scroll"
+                    style={{
+                      borderRadius: "24px",
+                      border: "1px solid rgba(218,151,74,0.2)",
+                      background: "rgba(6,10,18,0.86)",
+                      padding: mobile ? "16px 12px" : "22px",
+                      minWidth: 0,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: mobile ? "column" : "row",
+                        justifyContent: "space-between",
+                        gap: "12px",
+                        alignItems: mobile ? "flex-start" : "center",
+                      }}
+                    >
+                      <div>
+                        <p
+                          style={{
+                            margin: 0,
+                            color: "#efbc73",
+                            fontSize: "15px",
+                            fontWeight: 900,
+                            letterSpacing: "0.16em",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          Local demand and supply forecast
+                        </p>
+                        <h3 style={{ margin: "8px 0 0", fontSize: mobile ? "28px" : "34px" }}>
+                          Next twelve months
+                        </h3>
+                      </div>
+                      <div style={{ display: "flex", gap: "14px", fontSize: "15px" }}>
+                        <span style={{ color: "#efb96d" }}>● Demand</span>
+                        <span style={{ color: "#7db9e8" }}>● Supply</span>
+                      </div>
+                    </div>
+                    <div style={{ marginTop: "16px" }}>
+                      <MarketChart points={activeMarket.points} mobile={mobile} />
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      borderRadius: "24px",
+                      border: "1px solid rgba(218,151,74,0.22)",
+                      background:
+                        "linear-gradient(145deg, rgba(73,39,20,0.88), rgba(7,10,18,0.94))",
+                      padding: "22px",
+                    }}
+                  >
+                    <p
+                      style={{
+                        margin: 0,
+                        color: "#efbc73",
+                        fontSize: "15px",
+                        fontWeight: 900,
+                        letterSpacing: "0.16em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Milo’s market guide
+                    </p>
+                    <h3 style={{ margin: "10px 0 0", fontSize: mobile ? "29px" : "34px" }}>
+                      Should you hold or sell?
+                    </h3>
+                    <p
+                      style={{
+                        margin: "13px 0 0",
+                        color: "rgba(255,255,255,0.62)",
+                        fontSize: "17px",
+                        lineHeight: 1.62,
+                      }}
+                    >
+                      {activeMarket.outlookScore >= 0.35
+                        ? "Demand is expected to remain stronger than supply. Holding the business may allow earnings and competitive bids to improve, although forecasts can change."
+                        : activeMarket.outlookScore <= -0.25
+                          ? "The outlook is weakening. Buyers may reduce their offers over future cycles unless the business improves its profit, cash and customer strength."
+                          : "The market is broadly balanced. Your own profit, cash reserves and customer satisfaction may matter more than waiting for a major market change."}
+                    </p>
+                    <div
+                      style={{
+                        marginTop: "17px",
+                        display: "grid",
+                        gap: "11px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          borderRadius: "15px",
+                          border: "1px solid rgba(218,151,74,0.14)",
+                          background: "rgba(255,255,255,0.035)",
+                          padding: "13px 14px",
+                        }}
+                      >
+                        <strong style={{ display: "block", fontSize: "17px" }}>Main demand driver</strong>
+                        <span style={{ display: "block", marginTop: "6px", color: "rgba(255,255,255,0.52)", fontSize: "15px", lineHeight: 1.5 }}>
+                          {activeMarket.driver}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          borderRadius: "15px",
+                          border: "1px solid rgba(218,151,74,0.14)",
+                          background: "rgba(255,255,255,0.035)",
+                          padding: "13px 14px",
+                        }}
+                      >
+                        <strong style={{ display: "block", fontSize: "17px" }}>Main market risk</strong>
+                        <span style={{ display: "block", marginTop: "6px", color: "rgba(255,255,255,0.52)", fontSize: "15px", lineHeight: 1.5 }}>
+                          {activeMarket.risk}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => navigate("sell")}
+                      style={{
+                        width: "100%",
+                        minHeight: "52px",
+                        marginTop: "18px",
+                        borderRadius: "14px",
+                        border: "none",
+                        background: "linear-gradient(135deg, #d99548, #8d4b21)",
+                        color: "white",
+                        fontSize: "18px",
+                        fontWeight: 900,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Review Sale Options
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+          {view === "sell" &&
+            activeSlot &&
+            activeBusiness &&
+            activeMarket &&
+            liveValuation &&
+            activeSlot.status === "running" && (
+              <div style={{ width: "min(1420px, 100%)", margin: "0 auto" }}>
+                <div>
+                  <p
+                    style={{
+                      margin: 0,
+                      color: "#efbc73",
+                      fontSize: "16px",
+                      fontWeight: 900,
+                      letterSpacing: "0.2em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Sell your business
+                  </p>
+                  <h2
+                    style={{
+                      margin: "11px 0 0",
+                      fontFamily: 'Georgia, "Times New Roman", serif',
+                      fontSize: mobile ? "43px" : "64px",
+                      lineHeight: 0.98,
+                      fontWeight: 500,
+                      letterSpacing: "-0.04em",
+                    }}
+                  >
+                    Evaluate. List. Negotiate.
+                  </h2>
+                  <p
+                    style={{
+                      margin: "16px 0 0",
+                      maxWidth: "850px",
+                      color: "rgba(255,255,255,0.62)",
+                      fontSize: mobile ? "17px" : "19px",
+                      lineHeight: 1.65,
+                    }}
+                  >
+                    Hire an analyst to estimate fair market value, choose your asking
+                    price and continue running 30-day cycles. Every completed cycle
+                    while listed produces three new offers based on business
+                    performance and the live {activeMarket.industryName} outlook.
+                  </p>
+                </div>
+
+                <RunningBusinessSwitcher
+                  slots={slots}
+                  activeSlotId={activeSlotId}
+                  mobile={mobile}
+                  onSelect={(slotId) => {
+                    setActiveSlotId(slotId);
+                    setView("sell");
+                  }}
+                />
+
+                <div
+                  style={{
+                    marginTop: "24px",
+                    display: "grid",
+                    gridTemplateColumns: compact ? "1fr" : "0.85fr 1.15fr",
+                    gap: "18px",
+                    alignItems: "start",
+                  }}
+                >
+                  <div style={{ display: "grid", gap: "18px" }}>
+                    <div
+                      style={{
+                        borderRadius: "24px",
+                        border: "1px solid rgba(218,151,74,0.22)",
+                        background:
+                          "linear-gradient(145deg, rgba(65,35,18,0.9), rgba(6,10,18,0.94))",
+                        padding: mobile ? "18px" : "22px",
+                      }}
+                    >
+                      <p
+                        style={{
+                          margin: 0,
+                          color: "#efbc73",
+                          fontSize: "15px",
+                          fontWeight: 900,
+                          letterSpacing: "0.16em",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        Step 1 · Analyst evaluation
+                      </p>
+                      <h3 style={{ margin: "10px 0 0", fontSize: mobile ? "29px" : "36px" }}>
+                        What is the business worth?
+                      </h3>
+                      <p
+                        style={{
+                          margin: "12px 0 0",
+                          color: "rgba(255,255,255,0.58)",
+                          fontSize: "17px",
+                          lineHeight: 1.58,
+                        }}
+                      >
+                        The formula combines recoverable assets and cash, annualised
+                        operating profit, customer-based brand value, business maturity
+                        and the current industry market multiplier.
+                      </p>
+
+                      {saleReport ? (
+                        <div style={{ marginTop: "18px", display: "grid", gap: "10px" }}>
+                          <MetricCard
+                            label="Analyst valuation"
+                            value={formatMoney(saleReport.valuation)}
+                            note={`Completed during cycle ${saleReport.cycleNumber} · ${saleReport.marketOutlook} market`}
+                            positive={saleReport.marketOutlook === "Positive" || saleReport.marketOutlook === "Strong"}
+                          />
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: mobile ? "1fr" : "repeat(3, minmax(0, 1fr))",
+                              gap: "10px",
+                            }}
+                          >
+                            <MetricCard label="Assets & cash" value={formatMoney(saleReport.assetValue)} note="Recoverable setup value plus business cash" />
+                            <MetricCard label="Earnings value" value={formatMoney(saleReport.earningsValue)} note={`${saleReport.earningsMultiple.toFixed(2)}× earnings multiple`} positive={saleReport.earningsValue > 0} />
+                            <MetricCard label="Brand value" value={formatMoney(saleReport.brandValue)} note="Customer strength and revenue contribution" positive={saleReport.brandValue > 0} />
+                          </div>
+                          <p
+                            style={{
+                              margin: 0,
+                              borderRadius: "15px",
+                              border: "1px solid rgba(218,151,74,0.14)",
+                              background: "rgba(255,255,255,0.035)",
+                              padding: "13px 14px",
+                              color: "rgba(255,255,255,0.58)",
+                              fontSize: "15px",
+                              lineHeight: 1.55,
+                            }}
+                          >
+                            {saleReport.summary}
+                          </p>
+                        </div>
+                      ) : (
+                        <div
+                          style={{
+                            marginTop: "18px",
+                            borderRadius: "17px",
+                            border: "1px dashed rgba(239,187,112,0.28)",
+                            background: "rgba(255,255,255,0.025)",
+                            padding: "16px",
+                          }}
+                        >
+                          <strong style={{ display: "block", fontSize: "18px" }}>
+                            Analyst fee: {formatMoney(getAnalystFee(activeSlot))}
+                          </strong>
+                          <span style={{ display: "block", marginTop: "6px", color: "rgba(255,255,255,0.48)", fontSize: "15px", lineHeight: 1.5 }}>
+                            Paid once from business cash. Available cash: {formatMoney(activeSlot.cash)}.
+                          </span>
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={hireBusinessAnalyst}
+                        disabled={saleActionState !== "idle" || activeSlot.cash < getAnalystFee(activeSlot)}
+                        style={{
+                          width: "100%",
+                          minHeight: "52px",
+                          marginTop: "18px",
+                          borderRadius: "14px",
+                          border: "none",
+                          background:
+                            saleActionState !== "idle" || activeSlot.cash < getAnalystFee(activeSlot)
+                              ? "rgba(255,255,255,0.12)"
+                              : "linear-gradient(135deg, #d99548, #8d4b21)",
+                          color:
+                            saleActionState !== "idle" || activeSlot.cash < getAnalystFee(activeSlot)
+                              ? "rgba(255,255,255,0.38)"
+                              : "white",
+                          fontSize: "18px",
+                          fontWeight: 900,
+                          cursor: saleActionState !== "idle" ? "wait" : "pointer",
+                        }}
+                      >
+                        {saleActionState === "analysing"
+                          ? "Analysing..."
+                          : saleReport
+                            ? "Order Updated Evaluation"
+                            : "Hire Market Analyst"}
+                      </button>
+                    </div>
+
+                    <div
+                      style={{
+                        borderRadius: "24px",
+                        border: "1px solid rgba(218,151,74,0.2)",
+                        background: "rgba(6,10,18,0.88)",
+                        padding: mobile ? "18px" : "22px",
+                      }}
+                    >
+                      <p
+                        style={{
+                          margin: 0,
+                          color: "#efbc73",
+                          fontSize: "15px",
+                          fontWeight: 900,
+                          letterSpacing: "0.16em",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        Step 2 · Set asking price
+                      </p>
+                      <h3 style={{ margin: "10px 0 0", fontSize: mobile ? "29px" : "36px" }}>
+                        Place the business for sale
+                      </h3>
+                      <label style={{ display: "grid", gap: "8px", marginTop: "18px" }}>
+                        <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px", fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase" }}>
+                          Asking price in DT
+                        </span>
+                        <input
+                          type="number"
+                          min={1}
+                          step={50}
+                          value={listingPriceDraft}
+                          onChange={(event) => setListingPriceDraft(Math.max(0, Number(event.target.value) || 0))}
+                          disabled={!saleReport}
+                          style={{
+                            width: "100%",
+                            height: "58px",
+                            borderRadius: "14px",
+                            border: "1px solid rgba(218,151,74,0.25)",
+                            background: "rgba(255,255,255,0.05)",
+                            color: "white",
+                            padding: "0 16px",
+                            fontSize: "22px",
+                            fontWeight: 900,
+                            outline: "none",
+                          }}
+                        />
+                      </label>
+
+                      <div
+                        style={{
+                          marginTop: "14px",
+                          display: "grid",
+                          gridTemplateColumns: mobile ? "1fr" : "1fr 1fr",
+                          gap: "10px",
+                        }}
+                      >
+                        <MetricCard
+                          label="Your projected share"
+                          value={formatMoney(projectedSaleUserShare)}
+                          note={`${Math.round(activeSlot.userOwnership * 100)}% ownership`}
+                          positive
+                        />
+                        <MetricCard
+                          label="Milo’s projected share"
+                          value={formatMoney(Math.max(0, listingPriceDraft - projectedSaleUserShare))}
+                          note={`${Math.round(activeSlot.miloOwnership * 100)}% ownership`}
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={placeOrUpdateSaleListing}
+                        disabled={!saleReport || listingPriceDraft <= 0 || saleActionState !== "idle"}
+                        style={{
+                          width: "100%",
+                          minHeight: "52px",
+                          marginTop: "18px",
+                          borderRadius: "14px",
+                          border: "none",
+                          background:
+                            !saleReport || listingPriceDraft <= 0 || saleActionState !== "idle"
+                              ? "rgba(255,255,255,0.12)"
+                              : "linear-gradient(135deg, #d99548, #8d4b21)",
+                          color:
+                            !saleReport || listingPriceDraft <= 0 || saleActionState !== "idle"
+                              ? "rgba(255,255,255,0.38)"
+                              : "white",
+                          fontSize: "18px",
+                          fontWeight: 900,
+                          cursor: saleActionState !== "idle" ? "wait" : "pointer",
+                        }}
+                      >
+                        {saleActionState === "listing"
+                          ? "Saving Listing..."
+                          : activeSlot.saleListing.status === "listed"
+                            ? "Update Asking Price"
+                            : "List Business for Sale"}
+                      </button>
+
+                      {activeSlot.saleListing.status === "listed" && (
+                        <button
+                          type="button"
+                          onClick={withdrawSaleListing}
+                          style={{
+                            width: "100%",
+                            minHeight: "48px",
+                            marginTop: "10px",
+                            borderRadius: "14px",
+                            border: "1px solid rgba(255,180,151,0.3)",
+                            background: "rgba(116,42,27,0.24)",
+                            color: "#ffbea6",
+                            fontSize: "16px",
+                            fontWeight: 850,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Withdraw Listing
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      borderRadius: "24px",
+                      border: "1px solid rgba(218,151,74,0.22)",
+                      background:
+                        "linear-gradient(145deg, rgba(47,25,14,0.88), rgba(4,8,16,0.96))",
+                      padding: mobile ? "18px" : "22px",
+                      minWidth: 0,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: mobile ? "column" : "row",
+                        justifyContent: "space-between",
+                        gap: "12px",
+                        alignItems: mobile ? "flex-start" : "center",
+                      }}
+                    >
+                      <div>
+                        <p
+                          style={{
+                            margin: 0,
+                            color: "#efbc73",
+                            fontSize: "15px",
+                            fontWeight: 900,
+                            letterSpacing: "0.16em",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          Buyer offers
+                        </p>
+                        <h3 style={{ margin: "9px 0 0", fontSize: mobile ? "31px" : "39px" }}>
+                          Three bids per completed cycle
+                        </h3>
+                      </div>
+                      {activeSlot.saleListing.status === "listed" && (
+                        <span
+                          style={{
+                            borderRadius: "999px",
+                            border: "1px solid rgba(159,240,189,0.28)",
+                            background: "rgba(37,112,76,0.2)",
+                            color: "#9ff0bd",
+                            padding: "9px 13px",
+                            fontSize: "14px",
+                            fontWeight: 900,
+                          }}
+                        >
+                          Listed at {formatMoney(activeSlot.saleListing.listedPrice)}
+                        </span>
+                      )}
+                    </div>
+
+                    {activeSlot.saleListing.status !== "listed" ? (
+                      <div
+                        style={{
+                          marginTop: "18px",
+                          minHeight: "230px",
+                          borderRadius: "18px",
+                          border: "1px dashed rgba(218,151,74,0.22)",
+                          background: "rgba(255,255,255,0.02)",
+                          display: "grid",
+                          placeItems: "center",
+                          padding: "24px",
+                          textAlign: "center",
+                        }}
+                      >
+                        <div>
+                          <strong style={{ display: "block", fontSize: "24px" }}>Not listed yet</strong>
+                          <span style={{ display: "block", marginTop: "8px", color: "rgba(255,255,255,0.48)", fontSize: "16px", lineHeight: 1.55 }}>
+                            Complete an analyst evaluation and choose an asking price first.
+                          </span>
+                        </div>
+                      </div>
+                    ) : activeSlot.saleListing.offers.length === 0 ? (
+                      <div
+                        style={{
+                          marginTop: "18px",
+                          minHeight: "230px",
+                          borderRadius: "18px",
+                          border: "1px dashed rgba(218,151,74,0.22)",
+                          background: "rgba(255,255,255,0.02)",
+                          display: "grid",
+                          placeItems: "center",
+                          padding: "24px",
+                          textAlign: "center",
+                        }}
+                      >
+                        <div>
+                          <strong style={{ display: "block", fontSize: "24px" }}>Run the next 30-day cycle</strong>
+                          <span style={{ display: "block", marginTop: "8px", color: "rgba(255,255,255,0.48)", fontSize: "16px", lineHeight: 1.55 }}>
+                            Buyer interest is reviewed only after a complete cycle. Better profit and a positive market forecast can create stronger competition.
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => navigate("analytics")}
+                            style={{
+                              minHeight: "48px",
+                              marginTop: "16px",
+                              borderRadius: "13px",
+                              border: "1px solid rgba(218,151,74,0.25)",
+                              background: "rgba(92,49,23,0.5)",
+                              color: "white",
+                              padding: "0 20px",
+                              fontSize: "17px",
+                              fontWeight: 900,
+                              cursor: "pointer",
+                            }}
+                          >
+                            Continue Simulation
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: "18px", display: "grid", gap: "12px" }}>
+                        {activeSlot.saleListing.offers.map((offer, index) => {
+                          const userShare = Math.round(offer.amount * activeSlot.userOwnership);
+                          const aboveList = offer.amount >= activeSlot.saleListing.listedPrice;
+                          const cannotSell = activeSlot.cycleStatus === "awaiting-allocation";
+
+                          return (
+                            <article
+                              key={offer.id}
+                              style={{
+                                borderRadius: "18px",
+                                border: aboveList
+                                  ? "1px solid rgba(159,240,189,0.35)"
+                                  : "1px solid rgba(218,151,74,0.16)",
+                                background: aboveList
+                                  ? "linear-gradient(145deg, rgba(28,91,61,0.25), rgba(255,255,255,0.025))"
+                                  : "rgba(255,255,255,0.025)",
+                                padding: mobile ? "16px" : "18px",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: "grid",
+                                  gridTemplateColumns: mobile ? "1fr" : "1fr auto",
+                                  gap: "12px",
+                                  alignItems: "start",
+                                }}
+                              >
+                                <div>
+                                  <span style={{ color: "#efbc73", fontSize: "13px", fontWeight: 900, letterSpacing: "0.13em", textTransform: "uppercase" }}>
+                                    Offer {index + 1} · Cycle {offer.cycleNumber}
+                                  </span>
+                                  <h4 style={{ margin: "8px 0 0", fontSize: mobile ? "24px" : "28px" }}>
+                                    {offer.buyerName}
+                                  </h4>
+                                  <p style={{ margin: "8px 0 0", color: "rgba(255,255,255,0.5)", fontSize: "15px", lineHeight: 1.5 }}>
+                                    {offer.note} · {offer.outlookLabel} market outlook
+                                  </p>
+                                </div>
+                                <strong
+                                  style={{
+                                    color: aboveList ? "#9ff0bd" : "#f3c47c",
+                                    fontSize: mobile ? "29px" : "34px",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  {formatMoney(offer.amount)}
+                                </strong>
+                              </div>
+
+                              <div
+                                style={{
+                                  marginTop: "14px",
+                                  display: "grid",
+                                  gridTemplateColumns: mobile ? "1fr" : "1fr auto",
+                                  gap: "12px",
+                                  alignItems: "center",
+                                }}
+                              >
+                                <span style={{ color: "rgba(255,255,255,0.54)", fontSize: "16px" }}>
+                                  Your share: <strong style={{ color: "#9ff0bd" }}>{formatMoney(userShare)}</strong> · Milo: {formatMoney(offer.amount - userShare)}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => acceptSaleOffer(offer)}
+                                  disabled={cannotSell || saleActionState !== "idle"}
+                                  style={{
+                                    minHeight: "48px",
+                                    borderRadius: "13px",
+                                    border: "none",
+                                    background:
+                                      cannotSell || saleActionState !== "idle"
+                                        ? "rgba(255,255,255,0.12)"
+                                        : "linear-gradient(135deg, #d99548, #8d4b21)",
+                                    color:
+                                      cannotSell || saleActionState !== "idle"
+                                        ? "rgba(255,255,255,0.38)"
+                                        : "white",
+                                    padding: "0 20px",
+                                    fontSize: "17px",
+                                    fontWeight: 900,
+                                    cursor: cannotSell ? "not-allowed" : "pointer",
+                                  }}
+                                >
+                                  {saleActionState === "selling" ? "Completing Sale..." : "Accept Offer"}
+                                </button>
+                              </div>
+                              {cannotSell && (
+                                <p style={{ margin: "10px 0 0", color: "#ffbf9f", fontSize: "14px", lineHeight: 1.45 }}>
+                                  Allocate the completed cycle in Analytics before accepting an offer.
+                                </p>
+                              )}
+                            </article>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <div
+                      style={{
+                        marginTop: "18px",
+                        borderRadius: "16px",
+                        border: "1px solid rgba(218,151,74,0.14)",
+                        background: "rgba(255,255,255,0.025)",
+                        padding: "14px 15px",
+                        color: "rgba(255,255,255,0.5)",
+                        fontSize: "15px",
+                        lineHeight: 1.55,
+                      }}
+                    >
+                      New bids replace the previous cycle’s bids. A weak forecast can
+                      push offers lower over time, while improving profit and a sudden
+                      positive outlook can create bids above the listed price.
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
