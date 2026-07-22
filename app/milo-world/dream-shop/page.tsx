@@ -219,12 +219,9 @@ const shopZones: ShopZone[] = [
     description:
       "Top up Dreamscape Tokens for future shop items, games, upgrades, and customisation.",
     popup: "tokens",
-    image: placeholderImage(
-      "Dream Tokens",
-      "1,000 DT and 5,000 DT Packs",
-      "#12627d",
-      "#07172e"
-    ),
+    image: "/milo-world/dream-shop/dream-tokens-bg.png",
+    imageFit: "cover",
+    imagePosition: "center",
     desktopStyle: {
       top: "270px",
       left: "6vw",
@@ -257,12 +254,9 @@ const shopZones: ShopZone[] = [
     description:
       "Fun Dreamscape apparel and accessories designed for everyday use.",
     popup: "merchandise",
-    image: placeholderImage(
-      "Merchandise",
-      "T-Shirts, Totes and Stickers",
-      "#6651a8",
-      "#15132d"
-    ),
+    image: "/milo-world/dream-shop/merchandise-bg.png",
+    imageFit: "cover",
+    imagePosition: "center",
     desktopStyle: {
       top: "315px",
       right: "6vw",
