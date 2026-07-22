@@ -1053,7 +1053,7 @@ function MembershipPlans({ onClose }: { onClose: () => void }) {
                   letterSpacing: "-0.04em",
                 }}
               >
-                More rewards, games, and maker perks.
+                More activities. More ways to earn. More member savings.
               </h4>
 
               <ul
@@ -1066,10 +1066,10 @@ function MembershipPlans({ onClose }: { onClose: () => void }) {
                 }}
               >
                 {[
-                  "Dreamscape Token rewards",
-                  "Bonus Activity Lab challenges",
-                  "Future Milo Market events",
-                  "Access to Milo’s Club",
+                  "Access exclusive Milo’s Club games and activities",
+                  "Unlock additional ways to earn Dreamscape Tokens",
+                  "Enjoy new member activities added regularly",
+                  "Receive discounts on selected merchandise and products",
                 ].map((feature) => (
                   <li
                     key={feature}
@@ -1119,7 +1119,7 @@ function MembershipPlans({ onClose }: { onClose: () => void }) {
                   lineHeight: 1.5,
                 }}
               >
-                Shopify link is kept in the code but disabled until launch.
+                Membership checkout will open when Milo’s Club launches.
               </p>
             </div>
           </div>
@@ -1173,7 +1173,8 @@ function MembershipPlans({ onClose }: { onClose: () => void }) {
                   lineHeight: 1.45,
                 }}
               >
-                Coming soon. Membership checkout is not open yet.
+                Exclusive activities, more ways to earn Dreamscape Tokens,
+                and discounts on selected merchandise and products.
               </p>
             </div>
           )}

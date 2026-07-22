@@ -14,6 +14,26 @@ type DreamTokenTransaction = {
   created_at: string;
 };
 
+type ExchangeStock = {
+  symbol: string;
+  current_price: number;
+};
+
+type ExchangeStockHolding = {
+  symbol: string;
+  quantity: number;
+};
+
+type ExchangeProperty = {
+  id: string;
+  current_value: number;
+};
+
+type ExchangePropertyHolding = {
+  property_id: string;
+  quantity: number;
+};
+
 function formatTransactionAmount(transaction: DreamTokenTransaction) {
   const prefix = transaction.amount > 0 ? "+" : "";
 
@@ -57,7 +77,10 @@ export default function ProfilePage() {
   const [email, setEmail] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [copiedReferralCode, setCopiedReferralCode] = useState(false);
+  const [copiedReferralLink, setCopiedReferralLink] = useState(false);
+  const [isShareDevice, setIsShareDevice] = useState(false);
   const [referralMessage, setReferralMessage] = useState("");
+  const [supportMessage, setSupportMessage] = useState("");
 
   const [username, setUsername] = useState<string | null>(null);
   const [usernameDraft, setUsernameDraft] = useState("");
@@ -73,6 +96,9 @@ export default function ProfilePage() {
   >([]);
   const [showTokenHistory, setShowTokenHistory] = useState(false);
   const [isLoadingTokens, setIsLoadingTokens] = useState(true);
+  const [isLoadingPortfolio, setIsLoadingPortfolio] = useState(true);
+  const [stockPortfolioValue, setStockPortfolioValue] = useState(0);
+  const [propertyPortfolioValue, setPropertyPortfolioValue] = useState(0);
 
   const dreamTokenBalance = tokenTransactions
     .filter((transaction) => transaction.token_kind === "virtual")
@@ -82,9 +108,34 @@ export default function ProfilePage() {
     .filter((transaction) => transaction.token_kind === "physical")
     .reduce((total, transaction) => total + transaction.amount, 0);
 
+  const totalNetWorth =
+    dreamTokenBalance + stockPortfolioValue + propertyPortfolioValue;
+
+  useEffect(() => {
+    function updateShareMode() {
+      const userAgent = navigator.userAgent || "";
+      const isIPad =
+        /iPad/i.test(userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      const isMobileOrTablet =
+        window.innerWidth <= 1180 ||
+        isIPad ||
+        /iPhone|Android/i.test(userAgent) ||
+        window.matchMedia("(pointer: coarse)").matches;
+
+      setIsShareDevice(isMobileOrTablet);
+    }
+
+    updateShareMode();
+    window.addEventListener("resize", updateShareMode);
+
+    return () => window.removeEventListener("resize", updateShareMode);
+  }, []);
+
   useEffect(() => {
     async function loadProfile() {
       setIsLoadingTokens(true);
+      setIsLoadingPortfolio(true);
 
       const { data, error: userError } = await supabase.auth.getUser();
 
@@ -99,7 +150,10 @@ export default function ProfilePage() {
         setUsernameDraft("");
         setIsAdmin(false);
         setTokenTransactions([]);
+        setStockPortfolioValue(0);
+        setPropertyPortfolioValue(0);
         setIsLoadingTokens(false);
+        setIsLoadingPortfolio(false);
         return;
       }
 
@@ -153,19 +207,104 @@ export default function ProfilePage() {
         localStorage.removeItem("pending-referral-code");
       }
 
-      const { data: savedTokenTransactions, error: tokenError } =
-        await supabase
+      const [
+        tokenResult,
+        stocksResult,
+        stockHoldingsResult,
+        propertiesResult,
+        propertyHoldingsResult,
+      ] = await Promise.all([
+        supabase
           .from("dream_token_transactions")
           .select("*")
           .eq("user_id", data.user.id)
-          .order("created_at", { ascending: false });
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("milo_exchange_stocks")
+          .select("symbol,current_price")
+          .eq("is_active", true),
+        supabase
+          .from("milo_exchange_holdings")
+          .select("symbol,quantity")
+          .eq("user_id", data.user.id),
+        supabase
+          .from("milo_exchange_properties")
+          .select("id,current_value")
+          .eq("is_active", true),
+        supabase
+          .from("milo_exchange_property_holdings")
+          .select("property_id,quantity")
+          .eq("user_id", data.user.id),
+      ]);
 
-      if (tokenError) {
-        console.error("Token error:", tokenError.message);
+      if (tokenResult.error) {
+        console.error("Token error:", tokenResult.error.message);
+        setTokenTransactions([]);
+      } else {
+        setTokenTransactions(
+          (tokenResult.data ?? []) as DreamTokenTransaction[]
+        );
       }
 
-      setTokenTransactions(savedTokenTransactions ?? []);
+      if (stocksResult.error || stockHoldingsResult.error) {
+        console.warn(
+          "Could not load stock portfolio:",
+          stocksResult.error?.message || stockHoldingsResult.error?.message
+        );
+        setStockPortfolioValue(0);
+      } else {
+        const prices = new Map(
+          ((stocksResult.data ?? []) as ExchangeStock[]).map((stock) => [
+            stock.symbol,
+            Number(stock.current_price || 0),
+          ])
+        );
+
+        const stockValue = (
+          (stockHoldingsResult.data ?? []) as ExchangeStockHolding[]
+        ).reduce((total, holding) => {
+          return (
+            total +
+            Number(holding.quantity || 0) *
+              Number(prices.get(holding.symbol) || 0)
+          );
+        }, 0);
+
+        setStockPortfolioValue(stockValue);
+      }
+
+      if (propertiesResult.error || propertyHoldingsResult.error) {
+        console.warn(
+          "Could not load property portfolio:",
+          propertiesResult.error?.message ||
+            propertyHoldingsResult.error?.message
+        );
+        setPropertyPortfolioValue(0);
+      } else {
+        const propertyValues = new Map(
+          ((propertiesResult.data ?? []) as ExchangeProperty[]).map(
+            (property) => [
+              property.id,
+              Number(property.current_value || 0),
+            ]
+          )
+        );
+
+        const propertyValue = (
+          (propertyHoldingsResult.data ?? []) as ExchangePropertyHolding[]
+        ).reduce((total, holding) => {
+          return (
+            total +
+            Number(holding.quantity || 0) *
+              Number(propertyValues.get(holding.property_id) || 0)
+          );
+        }, 0);
+
+        setPropertyPortfolioValue(propertyValue);
+      }
+
       setIsLoadingTokens(false);
+      setIsLoadingPortfolio(false);
     }
 
     loadProfile();
@@ -226,6 +365,74 @@ export default function ProfilePage() {
     }, 1800);
   }
 
+  async function shareOrCopyReferralLink() {
+    if (!referralCode || typeof window === "undefined") return;
+
+    const referralLink = `${window.location.origin}/signup?ref=${encodeURIComponent(
+      referralCode
+    )}`;
+
+    if (isShareDevice && typeof navigator.share === "function") {
+      try {
+        await navigator.share({
+          title: "Join Dreamscape One",
+          text: `Join me on Dreamscape One. Use referral code ${referralCode} when signing up.`,
+          url: referralLink,
+        });
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+      }
+    }
+
+    await navigator.clipboard.writeText(referralLink);
+    setCopiedReferralLink(true);
+
+    window.setTimeout(() => {
+      setCopiedReferralLink(false);
+    }, 1800);
+  }
+
+  function openSupportEmail() {
+    const supportEmail = "admin@gurukidspro.com";
+    const subject = "Dreamscape One Support Request";
+    const body = `Hi Dreamscape team,
+
+I need help with:
+
+My account email: ${email || ""}
+Device/browser:
+What happened:
+
+Thank you.`;
+
+    const mailtoUrl = `mailto:${supportEmail}?subject=${encodeURIComponent(
+      subject
+    )}&body=${encodeURIComponent(body)}`;
+
+    if (isShareDevice) {
+      window.location.href = mailtoUrl;
+      setSupportMessage("Opening your email app...");
+      return;
+    }
+
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
+      supportEmail
+    )}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+    const emailWindow = window.open(gmailUrl, "_blank");
+
+    if (emailWindow) {
+      emailWindow.opener = null;
+    } else {
+      window.location.href = mailtoUrl;
+    }
+
+    setSupportMessage("Opening the support email in a new browser tab...");
+  }
+
   async function logout() {
     localStorage.removeItem("seen-prologue");
     localStorage.removeItem("seen-chapter-guide");
@@ -237,7 +444,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#020813] px-5 py-8 text-white sm:px-8 sm:py-8">
+    <main className="relative min-h-screen overflow-x-hidden bg-[#020813] px-5 py-8 pb-16 text-white sm:px-8 sm:py-8 sm:pb-16">
       <div className="pointer-events-none fixed inset-0 z-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(126,232,255,0.18),transparent_34%),linear-gradient(180deg,#041124_0%,#020813_100%)]" />
         <div className="absolute left-[-120px] top-[-120px] h-[360px] w-[360px] rounded-full bg-cyan-400/10 blur-3xl" />
@@ -386,24 +593,43 @@ export default function ProfilePage() {
                 </p>
 
                 <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="break-all text-2xl font-extrabold tracking-[0.16em] text-white">
-                    {referralCode || "Loading..."}
-                  </p>
-
                   <button
                     type="button"
                     onClick={copyReferralCode}
                     disabled={!referralCode}
+                    aria-label="Copy referral code only"
+                    title="Copy referral code only"
+                    className="break-all rounded-2xl border border-transparent px-2 py-1 text-left text-2xl font-extrabold tracking-[0.16em] text-white transition hover:border-violet-200/20 hover:bg-violet-300/8 disabled:cursor-default"
+                  >
+                    {referralCode || "Loading..."}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={shareOrCopyReferralLink}
+                    disabled={!referralCode}
                     className="rounded-full border border-violet-200/25 bg-violet-400/18 px-5 py-2 text-xs font-bold uppercase tracking-[0.12em] text-white transition hover:scale-[1.03] disabled:opacity-50"
                   >
-                    {copiedReferralCode ? "Copied" : "Copy Code"}
+                    {copiedReferralLink
+                      ? "Link Copied"
+                      : isShareDevice
+                      ? "Share Link"
+                      : "Copy Link"}
                   </button>
                 </div>
 
+                <p className="mt-2 text-xs font-bold uppercase tracking-[0.12em] text-violet-100/58">
+                  {copiedReferralCode
+                    ? "Referral code copied"
+                    : "Tap the code to copy the code only"}
+                </p>
+
                 <p className="mt-3 text-sm leading-6 text-white/54">
-                  Share your code with a friend. When they successfully join using
-                  your code, both of you receive 10 Dream Tokens. You can also earn
-                  additional bonuses by reaching the referral objectives.
+                  Share your signup link with a friend. On phones and iPads, Share
+                  Link opens the device share sheet for available messaging apps.
+                  When they successfully join using your code, both of you receive
+                  10 Dream Tokens. You can also earn additional bonuses by reaching
+                  the referral objectives.
                 </p>
               </div>
             </div>
@@ -448,30 +674,74 @@ export default function ProfilePage() {
                 />
               </div>
 
-              <div className="mt-9 flex items-end justify-between gap-5 rounded-3xl border border-yellow-200/16 bg-black/24 p-5">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.18em] text-white/42">
-                    Current Balance
-                  </p>
+              <div className="mt-9 rounded-3xl border border-yellow-200/16 bg-black/24 p-5">
+                <div className="flex items-end justify-between gap-5">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.18em] text-white/42">
+                      Current Balance
+                    </p>
 
-                  {isLoadingTokens ? (
-                    <p className="mt-2 text-lg text-white/52">Loading...</p>
-                  ) : (
-                    <div className="mt-2 flex items-end gap-3">
-                      <span className="text-5xl font-extrabold leading-none text-white">
-                        {dreamTokenBalance.toLocaleString()}
-                      </span>
+                    {isLoadingTokens ? (
+                      <p className="mt-2 text-lg text-white/52">Loading...</p>
+                    ) : (
+                      <div className="mt-2 flex items-end gap-3">
+                        <span className="text-5xl font-extrabold leading-none text-white">
+                          {dreamTokenBalance.toLocaleString()}
+                        </span>
 
-                      <span className="pb-2 text-sm font-bold tracking-[0.16em] text-[#ffd18a]">
-                        DT
-                      </span>
-                    </div>
-                  )}
+                        <span className="pb-2 text-sm font-bold tracking-[0.16em] text-[#ffd18a]">
+                          DT
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <span className="rounded-full border border-yellow-200/20 bg-yellow-200/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-[#ffd18a]">
+                    Open Wallet
+                  </span>
                 </div>
 
-                <span className="rounded-full border border-yellow-200/20 bg-yellow-200/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-[#ffd18a]">
-                  Open Wallet
-                </span>
+                <div className="mt-5 border-t border-yellow-100/12 pt-5">
+                  <div className="flex items-end justify-between gap-4">
+                    <p className="text-xs uppercase tracking-[0.18em] text-white/42">
+                      Total Net Worth
+                    </p>
+
+                    {isLoadingTokens || isLoadingPortfolio ? (
+                      <p className="text-sm text-white/48">Loading...</p>
+                    ) : (
+                      <p className="text-2xl font-extrabold text-white">
+                        {totalNetWorth.toLocaleString()}{" "}
+                        <span className="text-xs tracking-[0.12em] text-[#ffd18a]">
+                          DT
+                        </span>
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
+                    {[
+                      ["Cash", dreamTokenBalance],
+                      ["Property", propertyPortfolioValue],
+                      ["Stocks", stockPortfolioValue],
+                    ].map(([label, value]) => (
+                      <div
+                        key={String(label)}
+                        className="min-w-0 rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-3"
+                      >
+                        <p className="truncate text-[10px] font-bold uppercase tracking-[0.12em] text-white/38">
+                          {label}
+                        </p>
+
+                        <p className="mt-2 truncate text-sm font-extrabold text-white sm:text-base">
+                          {isLoadingTokens || isLoadingPortfolio
+                            ? "—"
+                            : Number(value).toLocaleString()}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </button>
 
@@ -497,16 +767,23 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              <a
-                href="mailto:admin@gurukidspro.com?subject=Dreamscape%20One%20Support%20Request&body=Hi%20Dreamscape%20team%2C%0A%0AI%20need%20help%20with%3A%0A%0AMy%20account%20email%3A%0ADevice%2Fbrowser%3A%0AWhat%20happened%3A%0A%0AThank%20you."
+              <button
+                type="button"
+                onClick={openSupportEmail}
                 className="mt-7 flex min-h-[56px] w-full items-center justify-center rounded-full border border-cyan-200/24 bg-cyan-300/14 px-5 text-sm font-extrabold uppercase tracking-[0.14em] text-white transition hover:scale-[1.01] hover:bg-cyan-300/22"
               >
                 Email Support
-              </a>
+              </button>
 
               <p className="mt-4 text-center text-sm text-white/46">
                 admin@gurukidspro.com
               </p>
+
+              {supportMessage && (
+                <p className="mt-3 text-center text-xs leading-5 text-cyan-100/62">
+                  {supportMessage}
+                </p>
+              )}
             </section>
           </div>
         </section>
