@@ -252,8 +252,6 @@ const OFFLINE_SIMULATION_SPEED: SimulationSpeed = 168;
 const ANALYST_FEE = 100;
 const EVENT_TIMELINE_DAYS = 3650;
 const DREAM_SHOP_TOKEN_URL = "/milo-world/dream-shop?popup=token-packs";
-const WELCOME_TOKEN_OFFER_URL =
-  "https://gurukidspro.com/products/milos-business-builder-welcome-offer";
 
 const DEFAULT_SELECTIONS: SetupSelections = {
   location: "balanced",
@@ -2513,12 +2511,10 @@ function ProfileAssetsDropdown({
 function WelcomeTokenOffer({
   open,
   onClose,
-  onPurchase,
   mobile,
 }: {
   open: boolean;
   onClose: () => void;
-  onPurchase: () => void;
   mobile: boolean;
 }) {
   if (!open) return null;
@@ -2545,7 +2541,7 @@ function WelcomeTokenOffer({
           background:
             "radial-gradient(circle at top right, rgba(218,151,74,0.24), transparent 34%), linear-gradient(145deg, rgba(46,25,13,0.98), rgba(5,8,16,0.99))",
           boxShadow: "0 38px 110px rgba(0,0,0,0.68)",
-          padding: mobile ? "26px 20px" : "38px",
+          padding: mobile ? "28px 20px" : "40px",
           color: "white",
           position: "relative",
         }}
@@ -2554,7 +2550,7 @@ function WelcomeTokenOffer({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close welcome offer"
+          aria-label="Close welcome credit"
           style={{
             position: "absolute",
             top: "16px",
@@ -2582,8 +2578,9 @@ function WelcomeTokenOffer({
             textTransform: "uppercase",
           }}
         >
-          Milo’s one-time welcome offer
+          Milo’s welcome gift
         </p>
+
         <h2
           style={{
             margin: "14px 0 0",
@@ -2593,27 +2590,29 @@ function WelcomeTokenOffer({
             fontWeight: 500,
           }}
         >
-          Start with 5,000 DT for $1.
+          I’ve added 5,000 DT to your account.
         </h2>
+
         <p
           style={{
             margin: "18px 0 0",
-            color: "rgba(255,255,255,0.66)",
+            color: "rgba(255,255,255,0.68)",
             fontSize: mobile ? "17px" : "19px",
             lineHeight: 1.65,
           }}
         >
-          I’m offering this once to help you make your first personal investment.
-          The tokens are credited only after the payment is successfully verified.
+          This is a one-time starting credit for your first visit to Milo’s
+          Business Builder. Use it as personal investment capital, keep it as
+          cash, or combine it with Milo’s investment when you launch a business.
         </p>
 
         <div
           style={{
-            marginTop: "24px",
+            marginTop: "26px",
             borderRadius: "20px",
             border: "1px solid rgba(235,179,103,0.22)",
             background: "rgba(255,255,255,0.035)",
-            padding: "20px",
+            padding: "22px",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -2631,65 +2630,56 @@ function WelcomeTokenOffer({
                 textTransform: "uppercase",
               }}
             >
-              One-time pack
+              One-time credit
             </span>
             <strong
               style={{
                 display: "block",
                 marginTop: "7px",
                 color: "#f5ca88",
-                fontSize: "32px",
+                fontSize: "34px",
               }}
             >
-              5,000 DT
+              +5,000 DT
             </strong>
           </div>
-          <strong style={{ fontSize: "32px" }}>$1</strong>
+
+          <span
+            style={{
+              minHeight: "38px",
+              padding: "0 15px",
+              borderRadius: "999px",
+              border: "1px solid rgba(126,235,185,0.34)",
+              background: "rgba(71,187,129,0.12)",
+              color: "#9ff0bd",
+              display: "inline-flex",
+              alignItems: "center",
+              fontSize: "14px",
+              fontWeight: 900,
+            }}
+          >
+            Credited successfully
+          </span>
         </div>
 
-        <div
+        <button
+          type="button"
+          onClick={onClose}
           style={{
+            width: "100%",
+            minHeight: "56px",
             marginTop: "24px",
-            display: "flex",
-            flexDirection: mobile ? "column" : "row",
-            gap: "10px",
+            borderRadius: "14px",
+            border: "none",
+            background: "linear-gradient(135deg, #dda252, #8d4b21)",
+            color: "white",
+            fontSize: "18px",
+            fontWeight: 900,
+            cursor: "pointer",
           }}
         >
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              minHeight: "54px",
-              flex: 1,
-              borderRadius: "14px",
-              border: "1px solid rgba(218,151,74,0.22)",
-              background: "rgba(255,255,255,0.04)",
-              color: "white",
-              fontSize: "17px",
-              fontWeight: 850,
-              cursor: "pointer",
-            }}
-          >
-            Not Now
-          </button>
-          <button
-            type="button"
-            onClick={onPurchase}
-            style={{
-              minHeight: "54px",
-              flex: 1.3,
-              borderRadius: "14px",
-              border: "none",
-              background: "linear-gradient(135deg, #dda252, #8d4b21)",
-              color: "white",
-              fontSize: "18px",
-              fontWeight: 900,
-              cursor: "pointer",
-            }}
-          >
-            Get 5,000 DT for $1
-          </button>
-        </div>
+          Continue to Business Builder
+        </button>
       </div>
     </div>
   );
@@ -2868,14 +2858,36 @@ export default function MiloBusinessBuilderPage() {
       }
 
       setClubAccess("allowed");
-      setWelcomeOfferOpen(
-        !Boolean(clubProfile.milos_club_welcome_offer_claimed) &&
-          !clubProfile.milos_club_welcome_offer_seen_at,
-      );
 
-      const tokenBalance = (tokensResult.data || [])
-        .filter((row) => row.token_kind === "virtual")
-        .reduce((total, row) => total + Number(row.amount || 0), 0);
+      let welcomeCreditAwarded = 0;
+
+      if (!Boolean(clubProfile.milos_club_welcome_offer_claimed)) {
+        const { data: welcomeCreditData, error: welcomeCreditError } =
+          await supabase.rpc("claim_milos_business_builder_welcome_credit");
+
+        if (welcomeCreditError) {
+          console.warn(
+            "Could not award Milo’s Business Builder welcome credit:",
+            welcomeCreditError.message,
+          );
+        } else {
+          welcomeCreditAwarded = Math.max(
+            0,
+            Number(welcomeCreditData || 0),
+          );
+
+          if (welcomeCreditAwarded > 0) {
+            setWelcomeOfferOpen(true);
+            window.dispatchEvent(new Event("dream-tokens-updated"));
+          }
+        }
+      }
+
+      const tokenBalance =
+        (tokensResult.data || [])
+          .filter((row) => row.token_kind === "virtual")
+          .reduce((total, row) => total + Number(row.amount || 0), 0) +
+        welcomeCreditAwarded;
 
       setDreamTokenBalance(tokenBalance);
 
@@ -3103,19 +3115,8 @@ export default function MiloBusinessBuilderPage() {
   ]);
 
 
-  async function markWelcomeOfferSeen() {
+  function closeWelcomeCredit() {
     setWelcomeOfferOpen(false);
-    const { error } = await supabase.rpc(
-      "mark_milos_club_welcome_offer_seen",
-    );
-    if (error) {
-      console.warn("Could not save welcome-offer state:", error.message);
-    }
-  }
-
-  async function openWelcomeOfferCheckout() {
-    await markWelcomeOfferSeen();
-    window.location.href = WELCOME_TOKEN_OFFER_URL;
   }
 
   async function resetAllBusinesses() {
@@ -7367,8 +7368,7 @@ export default function MiloBusinessBuilderPage() {
 
       <WelcomeTokenOffer
         open={welcomeOfferOpen}
-        onClose={markWelcomeOfferSeen}
-        onPurchase={openWelcomeOfferCheckout}
+        onClose={closeWelcomeCredit}
         mobile={mobile}
       />
 
