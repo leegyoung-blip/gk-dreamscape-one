@@ -42,7 +42,62 @@ type Upgrade = {
   missionsRequired: number;
   name: string;
   description: string;
+  /*
+   * Add a real PNG path here later when each Think or Express item has
+   * finished artwork. Until then, the stage panel creates a matching
+   * illustrated placeholder automatically.
+   */
+  imageSrc?: string;
 };
+
+type MissionUpgradeTab = "core" | "think" | "express";
+
+function createStagePlaceholder(
+  name: string,
+  symbol: string,
+  accent: string,
+  secondaryAccent: string
+) {
+  const safeName = name
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="960" height="640" viewBox="0 0 960 640">
+      <defs>
+        <radialGradient id="stageGlow" cx="50%" cy="44%" r="56%">
+          <stop offset="0%" stop-color="${accent}" stop-opacity="0.44"/>
+          <stop offset="58%" stop-color="${secondaryAccent}" stop-opacity="0.14"/>
+          <stop offset="100%" stop-color="#020813" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="itemFill" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="${accent}"/>
+          <stop offset="100%" stop-color="${secondaryAccent}"/>
+        </linearGradient>
+        <filter id="itemGlow" x="-60%" y="-60%" width="220%" height="220%">
+          <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="${accent}" flood-opacity="0.5"/>
+        </filter>
+      </defs>
+
+      <rect width="960" height="640" rx="48" fill="#031027"/>
+      <rect width="960" height="640" rx="48" fill="url(#stageGlow)"/>
+
+      <circle cx="480" cy="270" r="176" fill="#ffffff" fill-opacity="0.035" stroke="${accent}" stroke-opacity="0.25" stroke-width="3"/>
+      <circle cx="480" cy="270" r="132" fill="#020813" fill-opacity="0.62" stroke="${accent}" stroke-opacity="0.34" stroke-width="2"/>
+
+      <g filter="url(#itemGlow)">
+        <circle cx="480" cy="270" r="92" fill="url(#itemFill)" fill-opacity="0.2" stroke="${accent}" stroke-width="4"/>
+        <text x="480" y="306" text-anchor="middle" fill="${accent}" font-size="112" font-family="Arial, Helvetica, sans-serif" font-weight="800">${symbol}</text>
+      </g>
+
+      <text x="480" y="520" text-anchor="middle" fill="#ffffff" font-size="42" font-family="Arial, Helvetica, sans-serif" font-weight="800">${safeName}</text>
+      <text x="480" y="565" text-anchor="middle" fill="${accent}" fill-opacity="0.82" font-size="20" font-family="Arial, Helvetica, sans-serif" font-weight="700" letter-spacing="4">CURRENT STAGE</text>
+    </svg>
+  `;
+
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
 
 type CoreAttempt = {
   id?: string;
@@ -203,6 +258,33 @@ function getNextUpgrade(track: Upgrade[], completedCount: number) {
   return track.find((upgrade) => completedCount < upgrade.missionsRequired);
 }
 
+function getTrackProgress(
+  current: Upgrade,
+  next: Upgrade | undefined,
+  completedCount: number
+) {
+  if (!next) {
+    return {
+      progressPercentage: 100,
+      missionsToNext: 0,
+      isComplete: true,
+    };
+  }
+
+  const previousTarget = current.missionsRequired;
+  const range = Math.max(1, next.missionsRequired - previousTarget);
+  const completedWithinStage = Math.max(0, completedCount - previousTarget);
+
+  return {
+    progressPercentage: Math.min(
+      100,
+      Math.round((completedWithinStage / range) * 100)
+    ),
+    missionsToNext: Math.max(0, next.missionsRequired - completedCount),
+    isComplete: false,
+  };
+}
+
 function countUniqueRewarded<T extends { tokens_earned?: number }>(
   attempts: T[],
   idGetter: (attempt: T) => string
@@ -262,6 +344,8 @@ export default function ProgressRewardsPage() {
   );
 
   const [message, setMessage] = useState("");
+  const [selectedMissionTab, setSelectedMissionTab] =
+    useState<MissionUpgradeTab>("core");
 
   useEffect(() => {
     async function loadProgress() {
@@ -420,6 +504,71 @@ export default function ProgressRewardsPage() {
     expressCompleted
   );
   const expressNext = getNextUpgrade(expressStoryTrack, expressCompleted);
+
+  const thinkTrackProgress = getTrackProgress(
+    thinkCurrent,
+    thinkNext,
+    thinkCompleted
+  );
+  const expressTrackProgress = getTrackProgress(
+    expressCurrent,
+    expressNext,
+    expressCompleted
+  );
+
+  const selectedStage =
+    selectedMissionTab === "think"
+      ? {
+          title: "Gear Inventory",
+          eyebrow: "Think Mission Stage",
+          completed: thinkCompleted,
+          current: thinkCurrent,
+          next: thinkNext,
+          progressPercentage: thinkTrackProgress.progressPercentage,
+          missionsToNext: thinkTrackProgress.missionsToNext,
+          isComplete: thinkTrackProgress.isComplete,
+          accent: "#60f0d0",
+          imageSrc:
+            thinkCurrent.imageSrc ??
+            createStagePlaceholder(
+              thinkCurrent.name,
+              "⚙",
+              "#60f0d0",
+              "#1e7492"
+            ),
+        }
+      : selectedMissionTab === "express"
+      ? {
+          title: "Story System",
+          eyebrow: "Express Mission Stage",
+          completed: expressCompleted,
+          current: expressCurrent,
+          next: expressNext,
+          progressPercentage: expressTrackProgress.progressPercentage,
+          missionsToNext: expressTrackProgress.missionsToNext,
+          isComplete: expressTrackProgress.isComplete,
+          accent: "#ff9df0",
+          imageSrc:
+            expressCurrent.imageSrc ??
+            createStagePlaceholder(
+              expressCurrent.name,
+              "✎",
+              "#ff9df0",
+              "#7b61ff"
+            ),
+        }
+      : {
+          title: "Skyforge Rover",
+          eyebrow: "Core Mission Stage",
+          completed: coreCompleted,
+          current: coreCurrent,
+          next: coreNext,
+          progressPercentage: coreProgressPercentage,
+          missionsToNext: coreMissionsToNext,
+          isComplete: coreRoverComplete,
+          accent: coreCurrent.accent,
+          imageSrc: coreCurrent.imageSrc,
+        };
 
   const bestCoreScore = getBestScore(coreAttempts, (attempt) => attempt.score);
   const bestThinkScore = getBestScore(thinkAttempts, (attempt) => attempt.score);
@@ -691,14 +840,18 @@ export default function ProgressRewardsPage() {
               />
             </section>
 
-            <ProgressRoverCard
+            <ProgressStageCard
               isMobile={isMobile}
-              completedCoreMissionCount={coreCompleted}
-              currentUpgrade={coreCurrent}
-              nextUpgrade={coreNext}
-              progressPercentage={coreProgressPercentage}
-              missionsToNext={coreMissionsToNext}
-              isComplete={coreRoverComplete}
+              title={selectedStage.title}
+              eyebrow={selectedStage.eyebrow}
+              completedMissionCount={selectedStage.completed}
+              currentUpgrade={selectedStage.current}
+              nextUpgrade={selectedStage.next}
+              progressPercentage={selectedStage.progressPercentage}
+              missionsToNext={selectedStage.missionsToNext}
+              isComplete={selectedStage.isComplete}
+              accent={selectedStage.accent}
+              imageSrc={selectedStage.imageSrc}
             />
 
             <section
@@ -717,6 +870,8 @@ export default function ProgressRewardsPage() {
                 current={coreCurrent}
                 next={coreNext}
                 accent={coreCurrent.accent}
+                active={selectedMissionTab === "core"}
+                onSelect={() => setSelectedMissionTab("core")}
               />
 
               <UpgradePanel
@@ -726,6 +881,8 @@ export default function ProgressRewardsPage() {
                 current={thinkCurrent}
                 next={thinkNext}
                 accent="#60f0d0"
+                active={selectedMissionTab === "think"}
+                onSelect={() => setSelectedMissionTab("think")}
               />
 
               <UpgradePanel
@@ -735,6 +892,8 @@ export default function ProgressRewardsPage() {
                 current={expressCurrent}
                 next={expressNext}
                 accent="#ff9df0"
+                active={selectedMissionTab === "express"}
+                onSelect={() => setSelectedMissionTab("express")}
               />
             </section>
 
@@ -824,47 +983,58 @@ export default function ProgressRewardsPage() {
   );
 }
 
-function ProgressRoverCard({
+function ProgressStageCard({
   isMobile,
-  completedCoreMissionCount,
+  title,
+  eyebrow,
+  completedMissionCount,
   currentUpgrade,
   nextUpgrade,
   progressPercentage,
   missionsToNext,
   isComplete,
+  accent,
+  imageSrc,
 }: {
   isMobile: boolean;
-  completedCoreMissionCount: number;
-  currentUpgrade: CoreRoverUpgrade;
-  nextUpgrade: CoreRoverUpgrade | undefined;
+  title: string;
+  eyebrow: string;
+  completedMissionCount: number;
+  currentUpgrade: Upgrade | CoreRoverUpgrade;
+  nextUpgrade: Upgrade | CoreRoverUpgrade | undefined;
   progressPercentage: number;
   missionsToNext: number;
   isComplete: boolean;
+  accent: string;
+  imageSrc: string;
 }) {
   return (
     <section
+      aria-live="polite"
       style={{
         width: "min(1240px, 100%)",
         margin: "28px auto 0",
         borderRadius: isMobile ? "24px" : "32px",
-        border: `1px solid ${currentUpgrade.accent}66`,
+        border: `1px solid ${accent}66`,
         background:
           "linear-gradient(145deg, rgba(6,24,52,0.78), rgba(3,13,34,0.92))",
-        boxShadow: `0 0 30px ${currentUpgrade.accent}22, 0 28px 80px rgba(0,0,0,0.34)`,
+        boxShadow: `0 0 30px ${accent}22, 0 28px 80px rgba(0,0,0,0.34)`,
         padding: isMobile ? "20px" : "28px",
+        transition:
+          "border-color 220ms ease, box-shadow 220ms ease, background 220ms ease",
       }}
     >
       <p
         style={{
           margin: 0,
-          color: currentUpgrade.accent,
+          color: accent,
           fontSize: "12px",
           letterSpacing: "0.18em",
           textTransform: "uppercase",
           fontWeight: 900,
         }}
       >
-        Skyforge Rover Progress
+        {eyebrow}
       </p>
 
       <div
@@ -879,9 +1049,22 @@ function ProgressRoverCard({
         }}
       >
         <div>
-          <h2
+          <p
             style={{
               margin: 0,
+              color: "rgba(255,255,255,0.58)",
+              fontSize: "12px",
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              fontWeight: 800,
+            }}
+          >
+            {title} · Current Stage
+          </p>
+
+          <h2
+            style={{
+              margin: "9px 0 0",
               fontSize: isMobile ? "30px" : "40px",
               lineHeight: 1.05,
             }}
@@ -915,8 +1098,9 @@ function ProgressRoverCard({
               style={{
                 width: `${progressPercentage}%`,
                 height: "100%",
-                background: `linear-gradient(90deg, ${currentUpgrade.accent}, #35c5ff)`,
-                boxShadow: `0 0 18px ${currentUpgrade.accent}66`,
+                background: `linear-gradient(90deg, ${accent}, #35c5ff)`,
+                boxShadow: `0 0 18px ${accent}66`,
+                transition: "width 260ms ease",
               }}
             />
           </div>
@@ -932,16 +1116,16 @@ function ProgressRoverCard({
             }}
           >
             <span>
-              Counted Core Missions:{" "}
-              <strong style={{ color: currentUpgrade.accent }}>
-                {completedCoreMissionCount}
+              Counted Missions:{" "}
+              <strong style={{ color: accent }}>
+                {completedMissionCount}
               </strong>
             </span>
 
             <span style={{ color: isComplete ? "#86efac" : "#ffd76a" }}>
               {nextUpgrade
                 ? `${missionsToNext} more to unlock ${nextUpgrade.name}.`
-                : "Final rover stage unlocked."}
+                : `Final ${title.toLowerCase()} stage unlocked.`}
             </span>
           </div>
         </div>
@@ -950,9 +1134,8 @@ function ProgressRoverCard({
           style={{
             minHeight: isMobile ? "220px" : "280px",
             borderRadius: "26px",
-            border: "1px solid rgba(255,255,255,0.1)",
-            background:
-              "radial-gradient(circle at 50% 42%, rgba(126,232,255,0.13), rgba(255,255,255,0.03) 48%, rgba(0,0,0,0.12))",
+            border: `1px solid ${accent}33`,
+            background: `radial-gradient(circle at 50% 42%, ${accent}22, rgba(255,255,255,0.03) 48%, rgba(0,0,0,0.12))`,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -960,8 +1143,9 @@ function ProgressRoverCard({
           }}
         >
           <img
-            src={currentUpgrade.imageSrc}
-            alt={currentUpgrade.name}
+            key={`${title}-${currentUpgrade.name}`}
+            src={imageSrc}
+            alt={`${currentUpgrade.name} current stage`}
             draggable={false}
             style={{
               width: "100%",
@@ -1097,6 +1281,8 @@ function UpgradePanel({
   current,
   next,
   accent,
+  active,
+  onSelect,
 }: {
   title: string;
   label: string;
@@ -1104,6 +1290,8 @@ function UpgradePanel({
   current: Upgrade | CoreRoverUpgrade;
   next?: Upgrade | CoreRoverUpgrade;
   accent: string;
+  active: boolean;
+  onSelect: () => void;
 }) {
   const progressTarget = next?.missionsRequired ?? current.missionsRequired;
   const previousTarget = current.missionsRequired;
@@ -1117,20 +1305,60 @@ function UpgradePanel({
     : 0;
 
   return (
-    <div
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={active}
       style={{
+        position: "relative",
         minHeight: "310px",
         borderRadius: "26px",
-        border: `1px solid ${accent}55`,
-        background:
-          "linear-gradient(145deg, rgba(5,22,48,0.74), rgba(8,26,58,0.82))",
+        border: active
+          ? `1px solid ${accent}`
+          : `1px solid ${accent}55`,
+        background: active
+          ? `linear-gradient(145deg, ${accent}20, rgba(8,26,58,0.94))`
+          : "linear-gradient(145deg, rgba(5,22,48,0.74), rgba(8,26,58,0.82))",
         padding: "24px",
-        boxShadow: `0 0 24px ${accent}18`,
+        boxShadow: active
+          ? `0 0 34px ${accent}38, inset 0 0 24px ${accent}0d`
+          : `0 0 24px ${accent}18`,
+        color: "white",
+        textAlign: "left",
+        fontFamily: "inherit",
+        cursor: "pointer",
+        transform: active ? "translateY(-5px)" : "none",
+        transition:
+          "transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease, background 220ms ease",
       }}
     >
+      <span
+        style={{
+          position: "absolute",
+          top: "18px",
+          right: "18px",
+          minHeight: "28px",
+          padding: "0 11px",
+          borderRadius: "999px",
+          border: `1px solid ${accent}55`,
+          background: active ? `${accent}20` : "rgba(255,255,255,0.05)",
+          color: active ? accent : "rgba(255,255,255,0.52)",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: "10px",
+          letterSpacing: "0.1em",
+          textTransform: "uppercase",
+          fontWeight: 900,
+        }}
+      >
+        {active ? "Viewing" : "View Stage"}
+      </span>
+
       <p
         style={{
           margin: 0,
+          paddingRight: "92px",
           color: accent,
           fontSize: "12px",
           letterSpacing: "0.16em",
@@ -1218,7 +1446,7 @@ function UpgradePanel({
             } to unlock it.`
           : "All current upgrades unlocked."}
       </p>
-    </div>
+    </button>
   );
 }
 
