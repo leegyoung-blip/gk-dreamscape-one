@@ -23,6 +23,21 @@ type MazePlayerResult = {
 
 const THINK_MAZE_COURSE_ID = "logic-maze-01";
 
+const THINK_GEAR_IMAGES: Record<number, string> = {
+  0: "/activities/learning-missions/think/items/explorer-gear.png",
+  1: "/activities/learning-missions/think/items/shadow-visor.png",
+  2: "/activities/learning-missions/think/items/mist-tracker.png",
+  3: "/activities/learning-missions/think/items/soul-compass.png",
+  4: "/activities/learning-missions/think/items/electric-shield.png",
+  5: "/activities/learning-missions/think/items/rift-breaker.png",
+  6: "/activities/learning-missions/think/items/storm-staff.png",
+  7: "/activities/learning-missions/think/items/dreamforged-arsenal.png",
+};
+
+function getThinkGearImage(stage: number, fallbackImage: string) {
+  return THINK_GEAR_IMAGES[stage] ?? fallbackImage;
+}
+
 function useResponsiveMode() {
   const [mode, setMode] = useState<ScreenMode>("desktop");
 
@@ -347,7 +362,7 @@ export default function ThinkGearClient() {
 
               <div style={gearImageBox}>
                 <img
-                  src={currentUpgrade.imageSrc}
+                  src={getThinkGearImage(currentUpgrade.stage, currentUpgrade.imageSrc)}
                   alt={currentUpgrade.name}
                   draggable={false}
                   style={{
@@ -565,7 +580,7 @@ export default function ThinkGearClient() {
                   >
                     <div style={upgradeImageBox}>
                       <img
-                        src={upgrade.imageSrc}
+                        src={getThinkGearImage(upgrade.stage, upgrade.imageSrc)}
                         alt={upgrade.name}
                         draggable={false}
                         style={{
