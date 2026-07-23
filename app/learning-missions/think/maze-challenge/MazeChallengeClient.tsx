@@ -217,6 +217,46 @@ export default function MazeChallengeClient() {
     }
   }, [activeLevel, gearProgressLoading, isAdmin, thinkGearStage]);
 
+
+  useEffect(() => {
+    function handleNextLevel(event: Event) {
+      const customEvent = event as CustomEvent<{
+        nextLevel: ThinkForestLevel;
+      }>;
+
+      const nextLevel = customEvent.detail?.nextLevel;
+
+      if (!nextLevel || !LEVEL_META[nextLevel]) {
+        return;
+      }
+
+      const requiredStage = LEVEL_META[nextLevel].requiredGearStage;
+      const unlocked = isAdmin || thinkGearStage >= requiredStage;
+
+      if (!unlocked) {
+        setLevelMessage(
+          `Unlock ${LEVEL_META[nextLevel].requiredGearName} to enter Level ${nextLevel}.`,
+        );
+        return;
+      }
+
+      setLevelMessage("");
+      setScoreMessage("");
+      setShowNovaIntro(false);
+      setActiveLevel(nextLevel);
+
+      window.setTimeout(() => {
+        window.dispatchEvent(new Event("resize"));
+      }, 80);
+    }
+
+    window.addEventListener("think-forest-next-level", handleNextLevel);
+
+    return () => {
+      window.removeEventListener("think-forest-next-level", handleNextLevel);
+    };
+  }, [isAdmin, thinkGearStage]);
+
   const saveCompletedRun = useCallback(
     async (detail: ThinkForestCompletionDetail) => {
       setScoreMessage("Saving completed run...");

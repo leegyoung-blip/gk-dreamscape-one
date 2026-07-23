@@ -361,6 +361,12 @@ const ASSET_PATHS = {
   boneDefeated: "/games/think-forest/bone-guard-defeated.png",
 } as const;
 
+type CharacterHealthBar = {
+  background: Phaser.GameObjects.Rectangle;
+  fill: Phaser.GameObjects.Rectangle;
+  width: number;
+};
+
 type BoneGuardData = {
   sprite: Phaser.Physics.Arcade.Sprite;
   health: number;
@@ -382,6 +388,7 @@ type BoneGuardData = {
   lastX: number;
   lastY: number;
   stuckForMs: number;
+  healthBar: CharacterHealthBar;
 };
 
 type EnergyCore = {
@@ -449,6 +456,7 @@ class ThinkForestScene extends Phaser.Scene {
   private healthLabel?: Phaser.GameObjects.Text;
   private healthBarBackground?: Phaser.GameObjects.Rectangle;
   private healthBarFill?: Phaser.GameObjects.Rectangle;
+  private novaWorldHealthBar?: CharacterHealthBar;
   private scoreText?: Phaser.GameObjects.Text;
   private timerText?: Phaser.GameObjects.Text;
   private energyCoreLabel?: Phaser.GameObjects.Text;
@@ -471,12 +479,17 @@ class ThinkForestScene extends Phaser.Scene {
     setVolume?: (volume: number) => unknown;
     volume?: number;
   };
+  private audioStarted = false;
+  private audioUnlockHandler?: () => void;
   private pauseSliderMoveHandler?: (pointer: Phaser.Input.Pointer) => void;
   private pauseSliderUpHandler?: () => void;
 
-  constructor(level: ThinkForestLevel) {
+  private readonly gearStage: number;
+
+  constructor(level: ThinkForestLevel, gearStage: number) {
     super({ key: `ThinkForestScene-${level}` });
     this.levelConfig = FOREST_LEVELS[level];
+    this.gearStage = gearStage;
   }
 
   preload() {
@@ -618,6 +631,7 @@ class ThinkForestScene extends Phaser.Scene {
 
     this.updateFog(delta);
     this.updateDepths();
+    this.updateWorldHealthBars();
     this.updateHud();
   }
 
@@ -641,6 +655,9 @@ class ThinkForestScene extends Phaser.Scene {
     this.fogAnimationTime = 0;
     this.isPaused = false;
     this.pauseOverlay = undefined;
+    this.novaWorldHealthBar = undefined;
+    this.energyCoreIcons = [];
+    this.audioStarted = false;
     this.boneGuards = [];
     this.energyCores = [];
     this.denseFog = undefined;
@@ -653,32 +670,87 @@ class ThinkForestScene extends Phaser.Scene {
   }
 
   private createAudio() {
-    if (!this.cache.audio.exists("background-music")) {
-      return;
+    if (this.cache.audio.exists("background-music")) {
+      this.backgroundMusic = this.sound.add("background-music", {
+        loop: true,
+        volume: this.musicVolume,
+      });
+    } else {
+      console.warn(
+        "[Think Forest] Background music was not loaded. Check public/games/think-forest/audio/dreamkeeper-ambient.wav",
+      );
     }
 
-    this.backgroundMusic = this.sound.add("background-music", {
-      loop: true,
-      volume: this.musicVolume,
-    });
+    this.audioUnlockHandler = () => {
+      this.ensureAudioUnlocked();
+    };
 
-    const startMusic = () => {
+    this.input.on("pointerdown", this.audioUnlockHandler);
+    this.input.keyboard?.on("keydown", this.audioUnlockHandler);
+
+    /*
+     * Browsers often block audio until the first interaction inside the
+     * Phaser canvas. The first pointer, keyboard, orbit-pad or attack input
+     * will unlock the AudioContext and start the music.
+     */
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      if (this.audioUnlockHandler) {
+        this.input.off("pointerdown", this.audioUnlockHandler);
+        this.input.keyboard?.off("keydown", this.audioUnlockHandler);
+      }
+    });
+  }
+
+  private ensureAudioUnlocked(afterUnlock?: () => void) {
+    const soundManager = this.sound as Phaser.Sound.BaseSoundManager & {
+      locked?: boolean;
+      unlock?: () => void;
+      context?: AudioContext;
+    };
+
+    try {
+      if (soundManager.locked && typeof soundManager.unlock === "function") {
+        soundManager.unlock();
+      }
+    } catch (error) {
+      console.warn("[Think Forest] Audio unlock failed:", error);
+    }
+
+    const finish = () => {
+      this.audioStarted = true;
+
       if (this.backgroundMusic && !this.backgroundMusic.isPlaying) {
         this.backgroundMusic.play();
       }
+
+      afterUnlock?.();
     };
 
-    startMusic();
-    this.input.once("pointerdown", startMusic);
+    if (soundManager.context?.state === "suspended") {
+      void soundManager.context
+        .resume()
+        .then(finish)
+        .catch((error) => {
+          console.warn("[Think Forest] AudioContext could not resume:", error);
+        });
+      return;
+    }
+
+    finish();
   }
 
   private playSfx(key: "nova-attack-sfx" | "nova-hit-sfx") {
     if (!this.cache.audio.exists(key)) {
+      console.warn(
+        `[Think Forest] Missing sound effect "${key}". Check the files in public/games/think-forest/audio/.`,
+      );
       return;
     }
 
-    this.sound.play(key, {
-      volume: this.sfxVolume,
+    this.ensureAudioUnlocked(() => {
+      this.sound.play(key, {
+        volume: this.sfxVolume,
+      });
     });
   }
 
@@ -1069,6 +1141,7 @@ class ThinkForestScene extends Phaser.Scene {
     body.setOffset(106, 178);
 
     this.nova = nova;
+    this.novaWorldHealthBar = this.createWorldHealthBar(64, 0x64e7ff);
 
     nova.on(
       Phaser.Animations.Events.ANIMATION_UPDATE,
@@ -1109,6 +1182,10 @@ class ThinkForestScene extends Phaser.Scene {
 
       this.boneGuardGroup!.add(sprite);
 
+      const healthBar = this.createWorldHealthBar(58, 0xff7187);
+      healthBar.background.setVisible(false);
+      healthBar.fill.setVisible(false);
+
       const guard: BoneGuardData = {
         sprite,
         health: BONE_GUARD_HEALTH,
@@ -1130,6 +1207,7 @@ class ThinkForestScene extends Phaser.Scene {
         lastX: spawnX,
         lastY: entry.y,
         stuckForMs: 0,
+        healthBar,
       };
 
       this.boneGuards.push(guard);
@@ -1142,6 +1220,8 @@ class ThinkForestScene extends Phaser.Scene {
         guard.active = true;
         guard.entering = true;
         guard.sprite.enableBody(true, spawnX, entry.y, true, true);
+        guard.healthBar.background.setVisible(true);
+        guard.healthBar.fill.setVisible(true);
         guard.sprite.setVelocity(-BONE_GUARD_SPEED, 0);
         this.playBoneAnimation(guard.sprite, "walk", "left");
       });
@@ -2375,6 +2455,8 @@ class ThinkForestScene extends Phaser.Scene {
   private defeatBoneGuard(guard: BoneGuardData) {
     guard.defeated = true;
     guard.active = false;
+    guard.healthBar.background.setVisible(false);
+    guard.healthBar.fill.setVisible(false);
     guard.sprite.setVelocity(0, 0);
     guard.sprite.disableBody(false, false);
     this.playBoneAnimation(guard.sprite, "defeated", guard.facing, false);
@@ -2387,7 +2469,11 @@ class ThinkForestScene extends Phaser.Scene {
         alpha: 0,
         duration: 420,
         delay: 250,
-        onComplete: () => guard.sprite.destroy(),
+        onComplete: () => {
+          guard.healthBar.background.destroy();
+          guard.healthBar.fill.destroy();
+          guard.sprite.destroy();
+        },
       });
     });
   }
@@ -2487,9 +2573,12 @@ class ThinkForestScene extends Phaser.Scene {
     this.submitCompletionEvent();
 
     this.showResultOverlay(
-      "FOREST ESCAPE COMPLETE",
+      this.levelConfig.level === 2
+        ? "ECLIPSE RUINS CLEARED"
+        : "FOREST ESCAPE COMPLETE",
       `Nova recovered all ${TOTAL_CORES} energy cores and escaped the Dreamkeeper's guards.`,
       "#9affce",
+      true,
     );
   }
 
@@ -2526,13 +2615,18 @@ class ThinkForestScene extends Phaser.Scene {
     this.objectiveText?.setText("NOVA WAS OVERWHELMED").setColor("#ff9fae");
 
     this.showResultOverlay(
-      "THE FOREST CLAIMED THIS RUN",
+      "GAME OVER",
       "Restart and choose a safer path through the skeleton patrols.",
       "#ff9fae",
     );
   }
 
-  private showResultOverlay(title: string, description: string, colour: string) {
+  private showResultOverlay(
+    title: string,
+    description: string,
+    colour: string,
+    completedLevel = false,
+  ) {
     const shade = this.add.rectangle(
       GAME_WIDTH / 2,
       GAME_HEIGHT / 2,
@@ -2605,8 +2699,20 @@ class ThinkForestScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(5002);
 
+    const hasFutureLevel = this.levelConfig.level < 2;
+    const nextLevel = hasFutureLevel
+      ? ((this.levelConfig.level + 1) as ThinkForestLevel)
+      : null;
+    const nextLevelUnlocked =
+      nextLevel !== null &&
+      this.gearStage >= FOREST_LEVELS[nextLevel].requiredGearStage;
+
+    const restartX = hasFutureLevel
+      ? GAME_WIDTH / 2 - 128
+      : GAME_WIDTH / 2;
+
     const restart = this.add.rectangle(
-      GAME_WIDTH / 2,
+      restartX,
       GAME_HEIGHT / 2 + 135,
       220,
       50,
@@ -2620,7 +2726,7 @@ class ThinkForestScene extends Phaser.Scene {
     restart.setInteractive({ useHandCursor: true });
 
     this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 135, "PLAY AGAIN", {
+      .text(restartX, GAME_HEIGHT / 2 + 135, "PLAY AGAIN", {
         fontFamily: "Arial, sans-serif",
         fontSize: "14px",
         fontStyle: "bold",
@@ -2632,6 +2738,138 @@ class ThinkForestScene extends Phaser.Scene {
       .setDepth(5003);
 
     restart.on("pointerdown", () => this.scene.restart());
+
+    if (completedLevel && nextLevel !== null) {
+      const nextX = GAME_WIDTH / 2 + 128;
+      const nextButton = this.add.rectangle(
+        nextX,
+        GAME_HEIGHT / 2 + 135,
+        220,
+        50,
+        nextLevelUnlocked ? 0x23644f : 0x2d313b,
+        nextLevelUnlocked ? 0.98 : 0.9,
+      );
+
+      nextButton.setStrokeStyle(
+        1,
+        nextLevelUnlocked ? 0x86efac : 0xa8b0bd,
+        nextLevelUnlocked ? 0.72 : 0.3,
+      );
+      nextButton.setScrollFactor(0);
+      nextButton.setDepth(5002);
+
+      const nextLabel = nextLevelUnlocked
+        ? "NEXT LEVEL"
+        : `${FOREST_LEVELS[nextLevel].requiredGearName.toUpperCase()} REQUIRED`;
+
+      this.add
+        .text(nextX, GAME_HEIGHT / 2 + 135, nextLabel, {
+          fontFamily: "Arial, sans-serif",
+          fontSize: nextLevelUnlocked ? "14px" : "10px",
+          fontStyle: "bold",
+          color: nextLevelUnlocked ? "#eafff2" : "#b8c0cc",
+          letterSpacing: nextLevelUnlocked ? 2 : 1,
+          align: "center",
+          wordWrap: { width: 190 },
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(5003);
+
+      if (nextLevelUnlocked) {
+        nextButton.setInteractive({ useHandCursor: true });
+        nextButton.on("pointerdown", () => {
+          if (typeof window === "undefined") {
+            return;
+          }
+
+          window.dispatchEvent(
+            new CustomEvent<{ nextLevel: ThinkForestLevel }>(
+              "think-forest-next-level",
+              {
+                detail: {
+                  nextLevel,
+                },
+              },
+            ),
+          );
+        });
+      }
+    }
+  }
+
+  private createWorldHealthBar(
+    width: number,
+    fillColour: number,
+  ): CharacterHealthBar {
+    const background = this.add
+      .rectangle(0, 0, width, 9, 0x030711, 0.9)
+      .setOrigin(0.5)
+      .setStrokeStyle(1, 0xffffff, 0.28);
+
+    const fill = this.add
+      .rectangle(0, 0, width - 4, 5, fillColour, 1)
+      .setOrigin(0, 0.5);
+
+    return {
+      background,
+      fill,
+      width,
+    };
+  }
+
+  private positionWorldHealthBar(
+    bar: CharacterHealthBar,
+    x: number,
+    y: number,
+    currentHealth: number,
+    maximumHealth: number,
+    depth: number,
+    visible: boolean,
+  ) {
+    const ratio = Phaser.Math.Clamp(currentHealth / maximumHealth, 0, 1);
+    const innerWidth = bar.width - 4;
+
+    bar.background.setPosition(x, y);
+    bar.background.setDepth(depth);
+    bar.background.setVisible(visible);
+
+    bar.fill.setPosition(x - innerWidth / 2, y);
+    bar.fill.displayWidth = innerWidth * ratio;
+    bar.fill.setDepth(depth + 1);
+    bar.fill.setVisible(visible);
+  }
+
+  private updateWorldHealthBars() {
+    if (this.nova && this.novaWorldHealthBar) {
+      this.positionWorldHealthBar(
+        this.novaWorldHealthBar,
+        this.nova.x,
+        this.nova.y - 67,
+        this.health,
+        NOVA_MAX_HEALTH,
+        this.nova.depth + 35,
+        !this.hasFinished && !this.isGameOver,
+      );
+    }
+
+    this.boneGuards.forEach((guard) => {
+      const visible =
+        guard.active &&
+        !guard.defeated &&
+        guard.sprite.active &&
+        guard.sprite.visible;
+
+      this.positionWorldHealthBar(
+        guard.healthBar,
+        guard.sprite.x,
+        guard.sprite.y - 64,
+        guard.health,
+        BONE_GUARD_HEALTH,
+        guard.sprite.depth + 35,
+        visible,
+      );
+    });
   }
 
   private updateDepths() {
@@ -2766,7 +3004,7 @@ export default function PhaserGame({
         height: GAME_HEIGHT,
       },
 
-      scene: [new ThinkForestScene(level)],
+      scene: [new ThinkForestScene(level, gearStage)],
     };
 
     gameRef.current = new Phaser.Game(config);
@@ -2775,7 +3013,7 @@ export default function PhaserGame({
       gameRef.current?.destroy(true);
       gameRef.current = null;
     };
-  }, [gameVersion, isLevelUnlocked, level]);
+  }, [gameVersion, gearStage, isLevelUnlocked, level]);
 
   if (!isLevelUnlocked) {
     return (
