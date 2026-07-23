@@ -5,7 +5,32 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-const COURSE_ID = "uncharted-forest-01";
+type ThinkForestLevel = 1 | 2;
+
+const LEVEL_META: Record<
+  ThinkForestLevel,
+  {
+    courseId: string;
+    title: string;
+    shortTitle: string;
+    description: string;
+  }
+> = {
+  1: {
+    courseId: "uncharted-forest-01",
+    title: "The Uncharted Forest",
+    shortTitle: "Level 1",
+    description:
+      "Recover all three energy cores, survive the Bone Guards and reach the forest exit.",
+  },
+  2: {
+    courseId: "uncharted-forest-02",
+    title: "Deepwood Crossing",
+    shortTitle: "Level 2",
+    description:
+      "Explore a harder route with a new obstacle layout and additional Bone Guards. The Level 2 map image can be inserted later.",
+  },
+};
 
 const PhaserGame = dynamic(() => import("./PhaserGame"), {
   ssr: false,
@@ -63,6 +88,9 @@ export default function MazeChallengeClient() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
   const [scoreMessage, setScoreMessage] = useState("");
+  const [activeLevel, setActiveLevel] = useState<ThinkForestLevel>(1);
+
+  const activeLevelMeta = LEVEL_META[activeLevel];
 
   const loadLeaderboard = useCallback(async () => {
     setLeaderboardLoading(true);
@@ -70,7 +98,7 @@ export default function MazeChallengeClient() {
     const { data, error } = await supabase.rpc(
       "get_think_forest_leaderboard",
       {
-        p_course_id: COURSE_ID,
+        p_course_id: activeLevelMeta.courseId,
         p_limit: 10,
       },
     );
@@ -83,9 +111,11 @@ export default function MazeChallengeClient() {
     }
 
     setLeaderboardLoading(false);
-  }, []);
+  }, [activeLevelMeta.courseId]);
 
   useEffect(() => {
+    setScoreMessage("");
+
     void (async () => {
       const {
         data: { user },
@@ -227,7 +257,7 @@ export default function MazeChallengeClient() {
             UNCHARTED DREAMSCAPE
           </p>
           <p className="mt-1 text-sm font-semibold text-white/85">
-            Forest Maze Expedition
+            {activeLevelMeta.shortTitle} · Forest Maze Expedition
           </p>
         </div>
       </header>
@@ -239,13 +269,32 @@ export default function MazeChallengeClient() {
               THINK MISSION CHALLENGE
             </p>
             <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-5xl">
-              The Uncharted Forest
+              {activeLevelMeta.title}
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-white/58 sm:text-base">
-              The Dreamkeeper has sent Bone Guards into a dark forest Nova has
-              never explored. Recover all three energy cores, survive the
-              skeleton troops and reach the forest exit.
+              {activeLevelMeta.description}
             </p>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {([1, 2] as ThinkForestLevel[]).map((level) => {
+                const selected = activeLevel === level;
+
+                return (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={() => setActiveLevel(level)}
+                    className={`rounded-full border px-4 py-2 text-xs font-black tracking-[0.14em] transition ${
+                      selected
+                        ? "border-cyan-200/55 bg-cyan-300/20 text-cyan-50"
+                        : "border-white/12 bg-white/[0.04] text-white/55 hover:bg-white/[0.08]"
+                    }`}
+                  >
+                    LEVEL {level}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <span className="w-fit rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1.5 text-xs font-bold text-emerald-200">
@@ -261,7 +310,7 @@ export default function MazeChallengeClient() {
               : "relative mx-auto aspect-video w-full max-w-[1500px] overflow-hidden rounded-[24px] border border-cyan-200/15 bg-[#030816] shadow-[0_30px_100px_rgba(0,0,0,0.55)]"
           }
         >
-          <PhaserGame />
+          <PhaserGame key={activeLevel} level={activeLevel} />
 
           <button
             type="button"
@@ -293,7 +342,9 @@ export default function MazeChallengeClient() {
               <p className="text-[10px] font-bold tracking-[0.22em] text-cyan-300/70">
                 FOREST EXPEDITION RANKINGS
               </p>
-              <h2 className="mt-2 text-2xl font-bold">Leaderboard</h2>
+              <h2 className="mt-2 text-2xl font-bold">
+                {activeLevelMeta.shortTitle} Leaderboard
+              </h2>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
@@ -370,11 +421,10 @@ export default function MazeChallengeClient() {
           </p>
           <h2 className="mt-2 text-2xl font-bold">What is included</h2>
           <p className="mt-3 max-w-4xl text-sm leading-6 text-white/58">
-            This build now uses the large-rock and root-barrier PNGs as solid
-            obstacles, the energy-core PNGs as collectibles and the forest
-            exit-gate PNG as the final destination. Nova begins on the left at
-            the vertical centre of the map, while the Bone Guards enter in
-            waves from the right side of the opening screen.
+            Level 1 uses the current forest map and obstacle layout. Level 2
+            already has a separate course ID, obstacle layout, core positions,
+            exit position and guard waves, while temporarily reusing the Level
+            1 background until the new map PNG is added.
           </p>
 
           <button
