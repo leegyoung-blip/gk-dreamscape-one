@@ -6,12 +6,71 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getThinkGearProgress } from "@/lib/thinkGearProgress";
 
-type ThinkForestLevel = 1 | 2;
+type ThinkForestLevel = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
 const MAX_THINK_GEAR_STAGE = 7;
 
 const NOVA_INTRO_MESSAGE =
   "The evil Dreamkeeper has captured vast regions of Dreamscape, filling everyone’s dreams with nightmares. No one knows what the Dreamkeeper looks like, but we have to find and defeat him. The journey will take us through long-uncharted regions of Dreamscape. This forest is the first area we must cross. The Dreamkeeper has filled it with traps and sent Bone Guards to stop us. Stay close, recover the Energy Cores and reach the exit.";
+
+let audioPrimer: HTMLAudioElement | null = null;
+
+function preloadThinkForestAudio() {
+  if (typeof window === "undefined" || audioPrimer) {
+    return;
+  }
+
+  audioPrimer = new Audio(
+    "/games/think-forest/audio/nova-attack.mp3",
+  );
+  audioPrimer.preload = "auto";
+  audioPrimer.volume = 0.01;
+  audioPrimer.load();
+}
+
+async function primeThinkForestAudio() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  preloadThinkForestAudio();
+
+  const AudioContextConstructor =
+    window.AudioContext ||
+    (
+      window as typeof window & {
+        webkitAudioContext?: typeof AudioContext;
+      }
+    ).webkitAudioContext;
+
+  try {
+    if (AudioContextConstructor) {
+      const context = new AudioContextConstructor();
+
+      if (context.state === "suspended") {
+        await context.resume();
+      }
+    }
+  } catch (error) {
+    console.warn("Could not prime the browser AudioContext:", error);
+  }
+
+  if (!audioPrimer) {
+    return;
+  }
+
+  try {
+    audioPrimer.currentTime = 0;
+    await audioPrimer.play();
+    audioPrimer.pause();
+    audioPrimer.currentTime = 0;
+  } catch (error) {
+    console.warn(
+      "The browser still blocked the audio primer. Use any movement or attack control once inside the game.",
+      error,
+    );
+  }
+}
 
 const LEVEL_META: Record<
   ThinkForestLevel,
@@ -41,6 +100,60 @@ const LEVEL_META: Record<
       "Enter a city destroyed beneath a permanent eclipse. The Shadow Visor widens Nova’s vision through the fog while larger Bone Guard patrols defend the ruined courtyards.",
     requiredGearStage: 1,
     requiredGearName: "Shadow Visor",
+  },
+  3: {
+    courseId: "phantom-harbour-03",
+    title: "Phantom Harbour",
+    shortTitle: "Level 3",
+    description:
+      "Placeholder build using the Level 1 map while the Phantom Harbour scene is being created.",
+    requiredGearStage: 2,
+    requiredGearName: "Mist Tracker",
+  },
+  4: {
+    courseId: "shifting-sands-04",
+    title: "Shifting Sands",
+    shortTitle: "Level 4",
+    description:
+      "Placeholder build using the Level 1 map while the Shifting Sands scene is being created.",
+    requiredGearStage: 3,
+    requiredGearName: "Soul Compass",
+  },
+  5: {
+    courseId: "thunderworks-05",
+    title: "Thunderworks",
+    shortTitle: "Level 5",
+    description:
+      "Placeholder build using the Level 1 map while the Thunderworks scene is being created.",
+    requiredGearStage: 4,
+    requiredGearName: "Electric Shield",
+  },
+  6: {
+    courseId: "riftbound-canyon-06",
+    title: "Riftbound Canyon",
+    shortTitle: "Level 6",
+    description:
+      "Placeholder build using the Level 1 map while the Riftbound Canyon scene is being created.",
+    requiredGearStage: 5,
+    requiredGearName: "Rift Breaker",
+  },
+  7: {
+    courseId: "tempest-citadel-07",
+    title: "Tempest Citadel",
+    shortTitle: "Level 7",
+    description:
+      "Placeholder build using the Level 1 map while the Tempest Citadel scene is being created.",
+    requiredGearStage: 6,
+    requiredGearName: "Storm Staff",
+  },
+  8: {
+    courseId: "nightmare-nexus-08",
+    title: "Nightmare Nexus",
+    shortTitle: "Level 8",
+    description:
+      "Placeholder build using the Level 1 map while the Nightmare Nexus scene is being created.",
+    requiredGearStage: 7,
+    requiredGearName: "Dreamforged Arsenal",
   },
 };
 
@@ -93,12 +206,24 @@ type SubmitScoreRow = {
   best_time_ms: number;
 };
 
+type AllTimeLeaderboardRow = {
+  rank: number | string;
+  user_id: string;
+  username: string;
+  total_score: number | string;
+  levels_completed: number | string;
+};
+
 export default function MazeChallengeClient() {
   const gameAreaRef = useRef<HTMLDivElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
+  const [allTimeLeaderboard, setAllTimeLeaderboard] = useState<
+    AllTimeLeaderboardRow[]
+  >([]);
+  const [allTimeLoading, setAllTimeLoading] = useState(true);
   const [scoreMessage, setScoreMessage] = useState("");
   const [activeLevel, setActiveLevel] = useState<ThinkForestLevel>(1);
   const [thinkGearStage, setThinkGearStage] = useState(0);
@@ -130,10 +255,38 @@ export default function MazeChallengeClient() {
     setLeaderboardLoading(false);
   }, [activeLevelMeta.courseId]);
 
+  const loadAllTimeLeaderboard = useCallback(async () => {
+    setAllTimeLoading(true);
+
+    const { data, error } = await supabase.rpc(
+      "get_think_forest_all_time_leaderboard",
+      {
+        p_limit: 20,
+      },
+    );
+
+    if (error) {
+      console.warn(
+        "Could not load Think Forest all-time leaderboard:",
+        error.message,
+      );
+      setAllTimeLeaderboard([]);
+    } else {
+      setAllTimeLeaderboard((data ?? []) as AllTimeLeaderboardRow[]);
+    }
+
+    setAllTimeLoading(false);
+  }, []);
+
   useEffect(() => {
     setScoreMessage("");
     void loadLeaderboard();
   }, [loadLeaderboard]);
+
+  useEffect(() => {
+    preloadThinkForestAudio();
+    void loadAllTimeLeaderboard();
+  }, [loadAllTimeLeaderboard]);
 
   useEffect(() => {
     let mounted = true;
@@ -297,9 +450,12 @@ export default function MazeChallengeClient() {
         setScoreMessage("Run completed. Your existing personal best remains.");
       }
 
-      await loadLeaderboard();
+      await Promise.all([
+        loadLeaderboard(),
+        loadAllTimeLeaderboard(),
+      ]);
     },
-    [loadLeaderboard],
+    [loadAllTimeLeaderboard, loadLeaderboard],
   );
 
   useEffect(() => {
@@ -407,7 +563,7 @@ export default function MazeChallengeClient() {
             </p>
 
             <div className="mt-4 flex flex-wrap gap-2">
-              {([1, 2] as ThinkForestLevel[]).map((level) => {
+              {([1, 2, 3, 4, 5, 6, 7, 8] as ThinkForestLevel[]).map((level) => {
                 const selected = activeLevel === level;
                 const meta = LEVEL_META[level];
                 const locked =
@@ -430,6 +586,7 @@ export default function MazeChallengeClient() {
                       }
 
                       setLevelMessage("");
+                      setShowNovaIntro(level === 1 ? showNovaIntro : false);
                       setActiveLevel(level);
                     }}
                     className={`rounded-full border px-4 py-2 text-xs font-black tracking-[0.14em] transition ${
@@ -467,10 +624,14 @@ export default function MazeChallengeClient() {
               : "relative mx-auto aspect-video w-full max-w-[1500px] overflow-hidden rounded-[24px] border border-cyan-200/15 bg-[#030816] shadow-[0_30px_100px_rgba(0,0,0,0.55)]"
           }
         >
-          {showNovaIntro ? (
+          {showNovaIntro && activeLevel === 1 ? (
             <NovaIntroDialog
               message={NOVA_INTRO_MESSAGE}
-              onBegin={() => setShowNovaIntro(false)}
+              onBegin={() => {
+                void primeThinkForestAudio().finally(() => {
+                  setShowNovaIntro(false);
+                });
+              }}
             />
           ) : (
             <PhaserGame
@@ -584,27 +745,76 @@ export default function MazeChallengeClient() {
           </div>
         </section>
 
-        <section className="mx-auto mt-4 w-full max-w-[1500px] rounded-[22px] border border-white/10 bg-white/[0.035] p-5 backdrop-blur-xl sm:p-7">
-          <p className="text-[10px] font-bold tracking-[0.22em] text-cyan-300/70">
-            CURRENT BUILD
-          </p>
-          <h2 className="mt-2 text-2xl font-bold">What is included</h2>
-          <p className="mt-3 max-w-4xl text-sm leading-6 text-white/58">
-            Level 1 crosses the Uncharted Forest. Level 2 enters Eclipse
-            Ruins using a separate destroyed-city map, invisible ruin collision
-            zones, a wider Shadow Visor fog reveal and ten Bone Guards. Touch
-            devices use a circular Orbit Control, while desktop and laptop users
-            retain WASD and arrow-key movement. The Pause menu separates sound
-            effects and background-music volume.
-          </p>
+        <section className="mx-auto mt-4 w-full max-w-[1500px] overflow-hidden rounded-[22px] border border-violet-200/15 bg-white/[0.035] backdrop-blur-xl">
+          <div className="flex flex-col gap-3 border-b border-white/10 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+            <div>
+              <p className="text-[10px] font-bold tracking-[0.22em] text-violet-300/75">
+                BEST SCORES ACROSS ALL LEVELS
+              </p>
+              <h2 className="mt-2 text-2xl font-bold">
+                All-Time Leaderboard
+              </h2>
+              <p className="mt-2 text-sm text-white/45">
+                Total points are calculated from each player’s best score in every level.
+              </p>
+            </div>
 
-          <button
-            type="button"
-            onClick={() => window.dispatchEvent(new Event("think-forest-restart"))}
-            className="mt-5 rounded-full border border-cyan-200/25 bg-cyan-300/10 px-5 py-2.5 text-sm font-bold text-cyan-100 transition hover:bg-cyan-300/15"
-          >
-            Restart Game
-          </button>
+            <button
+              type="button"
+              onClick={() => void loadAllTimeLeaderboard()}
+              className="w-fit rounded-full border border-violet-200/20 bg-violet-300/10 px-4 py-2 text-xs font-bold text-violet-100 transition hover:bg-violet-300/15"
+            >
+              Refresh
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <div className="min-w-[620px]">
+              <div className="grid grid-cols-[70px_minmax(210px,1fr)_160px_150px] gap-3 border-b border-white/8 px-5 py-3 text-[10px] font-bold tracking-[0.17em] text-white/35 sm:px-7">
+                <span>RANK</span>
+                <span>PLAYER</span>
+                <span>TOTAL POINTS</span>
+                <span>LEVELS SCORED</span>
+              </div>
+
+              {allTimeLoading ? (
+                <div className="px-5 py-8 text-sm text-white/50 sm:px-7">
+                  Loading all-time leaderboard...
+                </div>
+              ) : allTimeLeaderboard.length === 0 ? (
+                <div className="px-5 py-8 text-sm text-white/50 sm:px-7">
+                  No all-time scores are available yet.
+                </div>
+              ) : (
+                allTimeLeaderboard.map((row) => {
+                  const isCurrentUser = row.user_id === userId;
+
+                  return (
+                    <div
+                      key={row.user_id}
+                      className={`grid grid-cols-[70px_minmax(210px,1fr)_160px_150px] gap-3 border-b border-white/[0.06] px-5 py-4 text-sm sm:px-7 ${
+                        isCurrentUser
+                          ? "bg-violet-300/[0.08] text-white"
+                          : "text-white/72"
+                      }`}
+                    >
+                      <span className="font-black text-violet-200">
+                        #{Number(row.rank)}
+                      </span>
+                      <span className="truncate font-semibold">
+                        {row.username}
+                        {isCurrentUser ? " (You)" : ""}
+                      </span>
+                      <span className="font-bold text-white">
+                        {Number(row.total_score).toLocaleString()}
+                      </span>
+                      <span>{Number(row.levels_completed)} / 8</span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
         </section>
       </section>
     </main>
@@ -637,13 +847,10 @@ function NovaIntroDialog({
     return () => window.clearInterval(timer);
   }, [message]);
 
-  function revealOrBegin() {
+  function revealMessage() {
     if (!isComplete) {
       setVisibleText(message);
-      return;
     }
-
-    onBegin();
   }
 
   return (
@@ -674,9 +881,9 @@ function NovaIntroDialog({
 
             <button
               type="button"
-              onClick={revealOrBegin}
+              onClick={revealMessage}
               className="mt-5 block min-h-[190px] w-full rounded-2xl border border-white/10 bg-black/20 p-5 text-left text-base leading-7 text-white/82 transition hover:bg-black/25 sm:text-lg"
-              aria-label={isComplete ? "Begin expedition" : "Show full briefing"}
+              aria-label="Reveal the full briefing"
             >
               {visibleText}
               {!isComplete && (
@@ -687,16 +894,16 @@ function NovaIntroDialog({
             <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
               <p className="text-xs text-white/38">
                 {!isComplete
-                  ? "Tap the message to reveal the full briefing."
+                  ? "Tap the message to reveal it instantly, or skip directly into Level 1."
                   : "Briefing complete. Prepare to enter Level 1."}
               </p>
 
               <button
                 type="button"
-                onClick={revealOrBegin}
+                onClick={onBegin}
                 className="rounded-full border border-cyan-100/35 bg-cyan-300/15 px-5 py-2.5 text-sm font-black text-cyan-50 transition hover:bg-cyan-300/22"
               >
-                {isComplete ? "Begin Expedition →" : "Show Full Message"}
+                {isComplete ? "Begin Expedition →" : "Skip Intro →"}
               </button>
             </div>
           </div>

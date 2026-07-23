@@ -11,10 +11,14 @@ const WORLD_HEIGHT = 941;
 
 type FacingDirection = "down" | "left" | "right" | "up";
 
-type ThinkForestLevel = 1 | 2;
+type ThinkForestLevel = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
 type ForestObstacleConfig = {
-  texture: "large-rocks" | "root-barrier";
+  texture:
+    | "large-rocks"
+    | "root-barrier"
+    | "eclipse-collapsed-wall"
+    | "eclipse-fallen-statue";
   x: number;
   y: number;
   width: number;
@@ -41,7 +45,7 @@ type ForestLevelConfig = {
   fogTransitionBrushSize: number;
 };
 
-const FOREST_LEVELS: Record<ThinkForestLevel, ForestLevelConfig> = {
+const FOREST_LEVELS = {
   1: {
     level: 1,
     courseId: "uncharted-forest-01",
@@ -136,6 +140,65 @@ const FOREST_LEVELS: Record<ThinkForestLevel, ForestLevelConfig> = {
      * This avoids placing forest rocks or roots over the ruined-city art.
      */
     obstacles: [
+      /*
+       * Visible Eclipse Ruins obstacles. These sit on top of the painted map
+       * and use their own collision bodies.
+       */
+      {
+        texture: "eclipse-collapsed-wall",
+        x: 430,
+        y: 655,
+        width: 300,
+        height: 188,
+        bodyWidth: 264,
+        bodyHeight: 76,
+      },
+      {
+        texture: "eclipse-collapsed-wall",
+        x: 1015,
+        y: 385,
+        width: 285,
+        height: 178,
+        bodyWidth: 250,
+        bodyHeight: 72,
+      },
+      {
+        texture: "eclipse-collapsed-wall",
+        x: 1295,
+        y: 655,
+        width: 290,
+        height: 182,
+        bodyWidth: 254,
+        bodyHeight: 74,
+      },
+      {
+        texture: "eclipse-fallen-statue",
+        x: 660,
+        y: 735,
+        width: 238,
+        height: 148,
+        bodyWidth: 204,
+        bodyHeight: 66,
+      },
+      {
+        texture: "eclipse-fallen-statue",
+        x: 1140,
+        y: 230,
+        width: 230,
+        height: 143,
+        bodyWidth: 198,
+        bodyHeight: 64,
+      },
+      {
+        texture: "eclipse-fallen-statue",
+        x: 1390,
+        y: 505,
+        width: 236,
+        height: 147,
+        bodyWidth: 202,
+        bodyHeight: 66,
+      },
+
       {
         texture: "large-rocks",
         x: 420,
@@ -280,7 +343,78 @@ const FOREST_LEVELS: Record<ThinkForestLevel, ForestLevelConfig> = {
     fogClearBrushSize: 370,
     fogTransitionBrushSize: 610,
   },
-};
+} as Record<ThinkForestLevel, ForestLevelConfig>;
+
+/*
+ * Levels 3–8 are temporary playable placeholders. They intentionally reuse
+ * the Level 1 map, obstacles, cores, exit and Bone Guard layout until their
+ * final scenes are produced. Each still has its own course ID and gear gate,
+ * so scores and progression remain separate.
+ */
+const PLACEHOLDER_LEVELS: Array<{
+  level: ThinkForestLevel;
+  courseId: string;
+  title: string;
+  requiredGearStage: number;
+  requiredGearName: string;
+}> = [
+  {
+    level: 3,
+    courseId: "phantom-harbour-03",
+    title: "Phantom Harbour",
+    requiredGearStage: 2,
+    requiredGearName: "Mist Tracker",
+  },
+  {
+    level: 4,
+    courseId: "shifting-sands-04",
+    title: "Shifting Sands",
+    requiredGearStage: 3,
+    requiredGearName: "Soul Compass",
+  },
+  {
+    level: 5,
+    courseId: "thunderworks-05",
+    title: "Thunderworks",
+    requiredGearStage: 4,
+    requiredGearName: "Electric Shield",
+  },
+  {
+    level: 6,
+    courseId: "riftbound-canyon-06",
+    title: "Riftbound Canyon",
+    requiredGearStage: 5,
+    requiredGearName: "Rift Breaker",
+  },
+  {
+    level: 7,
+    courseId: "tempest-citadel-07",
+    title: "Tempest Citadel",
+    requiredGearStage: 6,
+    requiredGearName: "Storm Staff",
+  },
+  {
+    level: 8,
+    courseId: "nightmare-nexus-08",
+    title: "Nightmare Nexus",
+    requiredGearStage: 7,
+    requiredGearName: "Dreamforged Arsenal",
+  },
+];
+
+PLACEHOLDER_LEVELS.forEach((definition) => {
+  const levelOne = FOREST_LEVELS[1];
+
+  FOREST_LEVELS[definition.level] = {
+    ...levelOne,
+    ...definition,
+    novaSpawn: { ...levelOne.novaSpawn },
+    exit: { ...levelOne.exit },
+    obstacles: levelOne.obstacles.map((obstacle) => ({ ...obstacle })),
+    energyCores: levelOne.energyCores.map((core) => ({ ...core })),
+    guardEntries: levelOne.guardEntries.map((guard) => ({ ...guard })),
+  };
+});
 
 type NovaWalkCrop = {
   x: number;
@@ -340,14 +474,27 @@ const ASSET_PATHS = {
   background: "/games/think-forest/forest-floor-bg.png",
   largeRocks: "/games/think-forest/large-rocks.png",
   rootBarrier: "/games/think-forest/root-barrier.png",
+  eclipseCollapsedWall:
+    "/games/think-forest/eclipse-collapsed-wall.png",
+  eclipseFallenStatue:
+    "/games/think-forest/eclipse-fallen-statue.png",
   energyCore: "/games/think-forest/energy-core.png",
   exitGate: "/games/think-forest/forest-exit-gate.png",
   fogMap: "/games/think-forest/fog-map.png",
   fogBrush: "/games/think-forest/fog-reveal-brush.png",
 
-  novaAttackSfx: "/games/think-forest/audio/nova-attack.wav",
-  novaHitSfx: "/games/think-forest/audio/nova-hit.wav",
-  backgroundMusic: "/games/think-forest/audio/dreamkeeper-ambient.wav",
+  novaAttackSfx: [
+    "/games/think-forest/audio/nova-attack.mp3",
+    "/games/think-forest/audio/nova-attack.wav",
+  ] as string[],
+  novaHitSfx: [
+    "/games/think-forest/audio/nova-hit.mp3",
+    "/games/think-forest/audio/nova-hit.wav",
+  ] as string[],
+  backgroundMusic: [
+    "/games/think-forest/audio/dreamkeeper-ambient.mp3",
+    "/games/think-forest/audio/dreamkeeper-ambient.wav",
+  ] as string[],
 
   novaWalk: "/games/think-forest/nova-walk.png",
   novaIdle: "/games/think-forest/nova-idle.png",
@@ -496,6 +643,14 @@ class ThinkForestScene extends Phaser.Scene {
     this.load.image("forest-background", this.levelConfig.background);
     this.load.image("large-rocks", ASSET_PATHS.largeRocks);
     this.load.image("root-barrier", ASSET_PATHS.rootBarrier);
+    this.load.image(
+      "eclipse-collapsed-wall",
+      ASSET_PATHS.eclipseCollapsedWall,
+    );
+    this.load.image(
+      "eclipse-fallen-statue",
+      ASSET_PATHS.eclipseFallenStatue,
+    );
     this.load.image("energy-core", ASSET_PATHS.energyCore);
     this.load.image("forest-exit-gate", ASSET_PATHS.exitGate);
     this.load.image("fog-map", ASSET_PATHS.fogMap);
@@ -687,6 +842,16 @@ class ThinkForestScene extends Phaser.Scene {
 
     this.input.on("pointerdown", this.audioUnlockHandler);
     this.input.keyboard?.on("keydown", this.audioUnlockHandler);
+
+    /*
+     * The React briefing button primes browser audio before Phaser mounts.
+     * If that succeeded, this delayed attempt starts the music immediately.
+     * If autoplay is still blocked, the next key, pointer or Orbit Pad input
+     * invokes the same unlock handler.
+     */
+    this.time.delayedCall(120, () => {
+      this.ensureAudioUnlocked();
+    });
 
     /*
      * Browsers often block audio until the first interaction inside the
@@ -2573,9 +2738,7 @@ class ThinkForestScene extends Phaser.Scene {
     this.submitCompletionEvent();
 
     this.showResultOverlay(
-      this.levelConfig.level === 2
-        ? "ECLIPSE RUINS CLEARED"
-        : "FOREST ESCAPE COMPLETE",
+      `LEVEL ${this.levelConfig.level} COMPLETE`,
       `Nova recovered all ${TOTAL_CORES} energy cores and escaped the Dreamkeeper's guards.`,
       "#9affce",
       true,
@@ -2612,11 +2775,11 @@ class ThinkForestScene extends Phaser.Scene {
 
     this.isGameOver = true;
     this.nova?.setVelocity(0, 0);
-    this.objectiveText?.setText("NOVA WAS OVERWHELMED").setColor("#ff9fae");
+    this.objectiveText?.setText("GAME OVER").setColor("#ff9fae");
 
     this.showResultOverlay(
       "GAME OVER",
-      "Restart and choose a safer path through the skeleton patrols.",
+      "Restart the level and choose a safer route through the Bone Guard patrols.",
       "#ff9fae",
     );
   }
@@ -2699,7 +2862,7 @@ class ThinkForestScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(5002);
 
-    const hasFutureLevel = this.levelConfig.level < 2;
+    const hasFutureLevel = this.levelConfig.level < 8;
     const nextLevel = hasFutureLevel
       ? ((this.levelConfig.level + 1) as ThinkForestLevel)
       : null;
@@ -2988,6 +3151,11 @@ export default function PhaserGame({
       antialias: true,
       pixelArt: false,
       roundPixels: false,
+
+      audio: {
+        disableWebAudio: false,
+        noAudio: false,
+      },
 
       physics: {
         default: "arcade",
