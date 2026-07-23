@@ -21,6 +21,8 @@ type ForestObstacleConfig = {
   height: number;
   bodyWidth: number;
   bodyHeight: number;
+  visible?: boolean;
+  centerBody?: boolean;
 };
 
 type ForestLevelConfig = {
@@ -122,89 +124,161 @@ const FOREST_LEVELS: Record<ThinkForestLevel, ForestLevelConfig> = {
   },
   2: {
     level: 2,
-    courseId: "uncharted-forest-02",
-    title: "Deepwood Crossing",
+    courseId: "eclipse-ruins-02",
+    title: "Eclipse Ruins",
+    background: "/games/think-forest/eclipse-ruins-map.png",
+    novaSpawn: { x: 180, y: 755 },
+    exit: { x: 1460, y: 250 },
 
-    // Replace this with "/games/think-forest/level-2-map.png" later.
-    background: "/games/think-forest/forest-floor-bg.png",
-
-    novaSpawn: { x: 145, y: WORLD_HEIGHT / 2 },
-    exit: { x: WORLD_WIDTH - 132, y: 180 },
+    /*
+     * Eclipse Ruins uses invisible collision zones that follow collapsed
+     * walls, voids and blocked courtyards already painted into the map.
+     * This avoids placing forest rocks or roots over the ruined-city art.
+     */
     obstacles: [
       {
         texture: "large-rocks",
-        x: 350,
-        y: 245,
-        width: 220,
-        height: 188,
-        bodyWidth: 158,
-        bodyHeight: 96,
-      },
-      {
-        texture: "root-barrier",
-        x: 520,
-        y: 610,
-        width: 320,
-        height: 154,
-        bodyWidth: 288,
-        bodyHeight: 90,
-      },
-      {
-        texture: "large-rocks",
-        x: 745,
-        y: 405,
-        width: 215,
-        height: 184,
-        bodyWidth: 154,
-        bodyHeight: 94,
-      },
-      {
-        texture: "root-barrier",
-        x: 960,
-        y: 225,
-        width: 310,
-        height: 150,
-        bodyWidth: 278,
-        bodyHeight: 88,
-      },
-      {
-        texture: "large-rocks",
-        x: 1125,
-        y: 690,
-        width: 225,
-        height: 192,
-        bodyWidth: 160,
-        bodyHeight: 98,
-      },
-      {
-        texture: "root-barrier",
-        x: 1350,
-        y: 455,
-        width: 300,
-        height: 146,
+        x: 420,
+        y: 155,
+        width: 270,
+        height: 180,
         bodyWidth: 270,
-        bodyHeight: 84,
+        bodyHeight: 180,
+        visible: false,
+        centerBody: true,
+      },
+      {
+        texture: "large-rocks",
+        x: 625,
+        y: 275,
+        width: 125,
+        height: 185,
+        bodyWidth: 125,
+        bodyHeight: 185,
+        visible: false,
+        centerBody: true,
+      },
+      {
+        texture: "large-rocks",
+        x: 1360,
+        y: 160,
+        width: 265,
+        height: 180,
+        bodyWidth: 265,
+        bodyHeight: 180,
+        visible: false,
+        centerBody: true,
+      },
+      {
+        texture: "root-barrier",
+        x: 535,
+        y: 485,
+        width: 150,
+        height: 225,
+        bodyWidth: 150,
+        bodyHeight: 225,
+        visible: false,
+        centerBody: true,
+      },
+      {
+        texture: "root-barrier",
+        x: 1070,
+        y: 485,
+        width: 155,
+        height: 225,
+        bodyWidth: 155,
+        bodyHeight: 225,
+        visible: false,
+        centerBody: true,
+      },
+      {
+        texture: "root-barrier",
+        x: 815,
+        y: 730,
+        width: 255,
+        height: 125,
+        bodyWidth: 255,
+        bodyHeight: 125,
+        visible: false,
+        centerBody: true,
+      },
+      {
+        texture: "large-rocks",
+        x: 350,
+        y: 840,
+        width: 180,
+        height: 105,
+        bodyWidth: 180,
+        bodyHeight: 105,
+        visible: false,
+        centerBody: true,
+      },
+      {
+        texture: "large-rocks",
+        x: 1370,
+        y: 750,
+        width: 225,
+        height: 145,
+        bodyWidth: 225,
+        bodyHeight: 145,
+        visible: false,
+        centerBody: true,
+      },
+      {
+        texture: "root-barrier",
+        x: 82,
+        y: 485,
+        width: 95,
+        height: 255,
+        bodyWidth: 95,
+        bodyHeight: 255,
+        visible: false,
+        centerBody: true,
+      },
+      {
+        texture: "root-barrier",
+        x: 1592,
+        y: 485,
+        width: 92,
+        height: 300,
+        bodyWidth: 92,
+        bodyHeight: 300,
+        visible: false,
+        centerBody: true,
+      },
+      {
+        texture: "large-rocks",
+        x: 830,
+        y: 145,
+        width: 270,
+        height: 78,
+        bodyWidth: 270,
+        bodyHeight: 78,
+        visible: false,
+        centerBody: true,
       },
     ],
     energyCores: [
-      { x: 455, y: 770 },
-      { x: 880, y: 565 },
-      { x: 1320, y: 300 },
+      { x: 235, y: 355 },
+      { x: 825, y: 500 },
+      { x: 1375, y: 690 },
     ],
     guardEntries: [
-      { y: 155, targetX: 1210, delay: 350 },
-      { y: 285, targetX: 1165, delay: 1050 },
-      { y: 420, targetX: 1240, delay: 1750 },
-      { y: 555, targetX: 1175, delay: 2450 },
-      { y: 690, targetX: 1230, delay: 3150 },
-      { y: 815, targetX: 1140, delay: 3850 },
-      { y: 350, targetX: 1325, delay: 4550 },
-      { y: 620, targetX: 1285, delay: 5250 },
+      { y: 145, targetX: 1450, delay: 300 },
+      { y: 230, targetX: 1330, delay: 900 },
+      { y: 325, targetX: 1430, delay: 1500 },
+      { y: 415, targetX: 1290, delay: 2100 },
+      { y: 505, targetX: 1400, delay: 2700 },
+      { y: 595, targetX: 1260, delay: 3300 },
+      { y: 685, targetX: 1370, delay: 3900 },
+      { y: 775, targetX: 1240, delay: 4500 },
+      { y: 360, targetX: 1510, delay: 5100 },
+      { y: 650, targetX: 1490, delay: 5700 },
     ],
     requiredGearStage: 1,
     requiredGearName: "Shadow Visor",
-    fogClearBrushSize: 350,
-    fogTransitionBrushSize: 570,
+    fogClearBrushSize: 370,
+    fogTransitionBrushSize: 610,
   },
 };
 
@@ -242,7 +316,9 @@ const NOVA_WALK_CROP: Record<FacingDirection, NovaWalkCrop> = {
 const FOG_DENSE_ALPHA = 0.9;
 const FOG_LIGHT_ALPHA = 0.38;
 const FOG_BREATHING_AMOUNT = 0.025;
-const DEFAULT_GAME_VOLUME = 0.7;
+const DEFAULT_SFX_VOLUME = 0.76;
+const DEFAULT_MUSIC_VOLUME = 0.34;
+const ORBIT_DEAD_ZONE = 0.14;
 
 const NOVA_SPEED = 250;
 const NOVA_MAX_HEALTH = 5;
@@ -269,6 +345,10 @@ const ASSET_PATHS = {
   fogMap: "/games/think-forest/fog-map.png",
   fogBrush: "/games/think-forest/fog-reveal-brush.png",
 
+  novaAttackSfx: "/games/think-forest/audio/nova-attack.wav",
+  novaHitSfx: "/games/think-forest/audio/nova-hit.wav",
+  backgroundMusic: "/games/think-forest/audio/dreamkeeper-ambient.wav",
+
   novaWalk: "/games/think-forest/nova-walk.png",
   novaIdle: "/games/think-forest/nova-idle.png",
   novaAttack: "/games/think-forest/nova-attack.png",
@@ -280,13 +360,6 @@ const ASSET_PATHS = {
   boneHurt: "/games/think-forest/bone-guard-hurt.png",
   boneDefeated: "/games/think-forest/bone-guard-defeated.png",
 } as const;
-
-type TouchState = {
-  left: boolean;
-  right: boolean;
-  up: boolean;
-  down: boolean;
-};
 
 type BoneGuardData = {
   sprite: Phaser.Physics.Arcade.Sprite;
@@ -344,13 +417,11 @@ class ThinkForestScene extends Phaser.Scene {
   private keyR?: Phaser.Input.Keyboard.Key;
   private keyP?: Phaser.Input.Keyboard.Key;
 
-  private touchState: TouchState = {
-    left: false,
-    right: false,
-    up: false,
-    down: false,
-  };
-
+  private isTouchDevice = false;
+  private orbitVector = new Phaser.Math.Vector2(0, 0);
+  private orbitPointerId: number | null = null;
+  private orbitMoveHandler?: (pointer: Phaser.Input.Pointer) => void;
+  private orbitUpHandler?: (pointer: Phaser.Input.Pointer) => void;
   private touchAttackRequested = false;
 
   private facing: FacingDirection = "right";
@@ -375,10 +446,13 @@ class ThinkForestScene extends Phaser.Scene {
   private exitGlow?: Phaser.GameObjects.Arc;
   private exitLabel?: Phaser.GameObjects.Text;
 
-  private healthText?: Phaser.GameObjects.Text;
-  private coreText?: Phaser.GameObjects.Text;
+  private healthLabel?: Phaser.GameObjects.Text;
+  private healthBarBackground?: Phaser.GameObjects.Rectangle;
+  private healthBarFill?: Phaser.GameObjects.Rectangle;
   private scoreText?: Phaser.GameObjects.Text;
   private timerText?: Phaser.GameObjects.Text;
+  private energyCoreLabel?: Phaser.GameObjects.Text;
+  private energyCoreIcons: Phaser.GameObjects.Image[] = [];
   private objectiveText?: Phaser.GameObjects.Text;
 
   private denseFog?: Phaser.GameObjects.Image;
@@ -391,7 +465,12 @@ class ThinkForestScene extends Phaser.Scene {
 
   private isPaused = false;
   private pauseOverlay?: Phaser.GameObjects.Container;
-  private gameVolume = DEFAULT_GAME_VOLUME;
+  private sfxVolume = DEFAULT_SFX_VOLUME;
+  private musicVolume = DEFAULT_MUSIC_VOLUME;
+  private backgroundMusic?: Phaser.Sound.BaseSound & {
+    setVolume?: (volume: number) => unknown;
+    volume?: number;
+  };
   private pauseSliderMoveHandler?: (pointer: Phaser.Input.Pointer) => void;
   private pauseSliderUpHandler?: () => void;
 
@@ -408,6 +487,9 @@ class ThinkForestScene extends Phaser.Scene {
     this.load.image("forest-exit-gate", ASSET_PATHS.exitGate);
     this.load.image("fog-map", ASSET_PATHS.fogMap);
     this.load.image("fog-reveal-brush", ASSET_PATHS.fogBrush);
+    this.load.audio("nova-attack-sfx", ASSET_PATHS.novaAttackSfx);
+    this.load.audio("nova-hit-sfx", ASSET_PATHS.novaHitSfx);
+    this.load.audio("background-music", ASSET_PATHS.backgroundMusic);
 
     this.load.spritesheet("nova-walk", ASSET_PATHS.novaWalk, {
       frameWidth: 256,
@@ -467,6 +549,7 @@ class ThinkForestScene extends Phaser.Scene {
 
   create() {
     this.resetValues();
+    this.isTouchDevice = this.detectTouchDevice();
     this.createBackground();
     this.createAnimations();
     this.createObstacles();
@@ -476,10 +559,23 @@ class ThinkForestScene extends Phaser.Scene {
     this.createBoneGuards();
     this.createCollisions();
     this.createFog();
-    this.createKeyboardControls();
+
+    if (this.isTouchDevice) {
+      this.createOrbitControls();
+    } else {
+      this.createKeyboardControls();
+    }
+
     this.createHud();
-    this.createTouchControls();
+    this.createAudio();
     this.configureCamera();
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.clearOrbitHandlers();
+      this.backgroundMusic?.stop();
+      this.backgroundMusic?.destroy();
+      this.backgroundMusic = undefined;
+    });
 
     this.cameras.main.fadeIn(450, 2, 6, 18);
   }
@@ -526,13 +622,8 @@ class ThinkForestScene extends Phaser.Scene {
   }
 
   private resetValues() {
-    this.touchState = {
-      left: false,
-      right: false,
-      up: false,
-      down: false,
-    };
-
+    this.orbitVector.set(0, 0);
+    this.orbitPointerId = null;
     this.touchAttackRequested = false;
     this.facing = "right";
     this.health = NOVA_MAX_HEALTH;
@@ -558,7 +649,63 @@ class ThinkForestScene extends Phaser.Scene {
     this.lightFogBrush = undefined;
     this.denseFogMask = undefined;
     this.lightFogMask = undefined;
-    this.sound.volume = this.gameVolume;
+    this.sound.volume = 1;
+  }
+
+  private createAudio() {
+    if (!this.cache.audio.exists("background-music")) {
+      return;
+    }
+
+    this.backgroundMusic = this.sound.add("background-music", {
+      loop: true,
+      volume: this.musicVolume,
+    });
+
+    const startMusic = () => {
+      if (this.backgroundMusic && !this.backgroundMusic.isPlaying) {
+        this.backgroundMusic.play();
+      }
+    };
+
+    startMusic();
+    this.input.once("pointerdown", startMusic);
+  }
+
+  private playSfx(key: "nova-attack-sfx" | "nova-hit-sfx") {
+    if (!this.cache.audio.exists(key)) {
+      return;
+    }
+
+    this.sound.play(key, {
+      volume: this.sfxVolume,
+    });
+  }
+
+  private applyBackgroundMusicVolume(nextVolume: number) {
+    if (!this.backgroundMusic) {
+      return;
+    }
+
+    if (typeof this.backgroundMusic.setVolume === "function") {
+      this.backgroundMusic.setVolume(nextVolume);
+      return;
+    }
+
+    if ("volume" in this.backgroundMusic) {
+      this.backgroundMusic.volume = nextVolume;
+    }
+  }
+
+  private detectTouchDevice() {
+    if (typeof navigator === "undefined") {
+      return false;
+    }
+
+    return (
+      navigator.maxTouchPoints > 0 ||
+      window.matchMedia?.("(pointer: coarse)").matches === true
+    );
   }
 
   private createBackground() {
@@ -891,13 +1038,16 @@ class ThinkForestScene extends Phaser.Scene {
 
       image.setDisplaySize(obstacle.width, obstacle.height);
       image.setDepth(obstacle.y + 45);
+      image.setAlpha(obstacle.visible === false ? 0 : 1);
       image.refreshBody();
 
       const body = image.body as Phaser.Physics.Arcade.StaticBody;
       body.setSize(obstacle.bodyWidth, obstacle.bodyHeight);
       body.setOffset(
         (obstacle.width - obstacle.bodyWidth) / 2,
-        obstacle.height - obstacle.bodyHeight - 8,
+        obstacle.centerBody
+          ? (obstacle.height - obstacle.bodyHeight) / 2
+          : obstacle.height - obstacle.bodyHeight - 8,
       );
     });
   }
@@ -1064,7 +1214,13 @@ class ThinkForestScene extends Phaser.Scene {
     gate.setAlpha(0.78);
 
     const label = this.add
-      .text(x, y - 112, "FOREST EXIT LOCKED", {
+      .text(
+        x,
+        y - 112,
+        this.levelConfig.level === 2
+          ? "ECLIPSE GATE LOCKED"
+          : "FOREST EXIT LOCKED",
+        {
         fontFamily: "Arial, sans-serif",
         fontSize: "14px",
         fontStyle: "bold",
@@ -1111,40 +1267,37 @@ class ThinkForestScene extends Phaser.Scene {
   }
 
   private createHud() {
-    const leftPanel = this.add.rectangle(24, 22, 360, 132, 0x030916, 0.82);
+    const leftPanel = this.add.rectangle(24, 22, 320, 104, 0x030916, 0.84);
     leftPanel.setOrigin(0, 0);
     leftPanel.setStrokeStyle(1, 0x7ee8ff, 0.24);
     leftPanel.setScrollFactor(0);
     leftPanel.setDepth(3000);
 
-    this.add
-      .text(
-        46,
-        40,
-        `${this.levelConfig.title.toUpperCase()} · LEVEL ${this.levelConfig.level} · ${this.levelConfig.requiredGearName.toUpperCase()}`,
-        {
+    this.healthLabel = this.add
+      .text(46, 43, "HEALTH", {
         fontFamily: "Arial, sans-serif",
-        fontSize: "12px",
-        fontStyle: "bold",
-        color: "#7ee8ff",
-          letterSpacing: 3,
-        },
-      )
-      .setScrollFactor(0)
-      .setDepth(3001);
-
-    this.healthText = this.add
-      .text(46, 69, "HEALTH  ♥ ♥ ♥ ♥ ♥", {
-        fontFamily: "Arial, sans-serif",
-        fontSize: "17px",
+        fontSize: "16px",
         fontStyle: "bold",
         color: "#ff9fae",
       })
       .setScrollFactor(0)
       .setDepth(3001);
 
-    this.coreText = this.add
-      .text(46, 98, `ENERGY CORES  0 / ${TOTAL_CORES}`, {
+    this.healthBarBackground = this.add
+      .rectangle(136, 56, 148, 16, 0x243044, 0.95)
+      .setOrigin(0, 0.5)
+      .setStrokeStyle(1, 0x91a7c2, 0.35)
+      .setScrollFactor(0)
+      .setDepth(3001);
+
+    this.healthBarFill = this.add
+      .rectangle(136, 56, 148, 12, 0xff8ea1, 0.98)
+      .setOrigin(0, 0.5)
+      .setScrollFactor(0)
+      .setDepth(3002);
+
+    this.energyCoreLabel = this.add
+      .text(46, 78, "ENERGY CORES", {
         fontFamily: "Arial, sans-serif",
         fontSize: "14px",
         fontStyle: "bold",
@@ -1153,16 +1306,16 @@ class ThinkForestScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(3001);
 
-    this.objectiveText = this.add
-      .text(46, 124, "FIND ALL CORES, THEN REACH THE EXIT", {
-        fontFamily: "Arial, sans-serif",
-        fontSize: "11px",
-        fontStyle: "bold",
-        color: "#b8c8dd",
-        letterSpacing: 1,
-      })
-      .setScrollFactor(0)
-      .setDepth(3001);
+    const coreIconStartX = 188;
+    for (let index = 0; index < TOTAL_CORES; index += 1) {
+      const icon = this.add.image(coreIconStartX + index * 36, 86, "energy-core");
+      icon.setDisplaySize(26, 26);
+      icon.setAlpha(0.22);
+      icon.setTint(0x5d7088);
+      icon.setScrollFactor(0);
+      icon.setDepth(3002);
+      this.energyCoreIcons.push(icon);
+    }
 
     const rightPanel = this.add.rectangle(
       GAME_WIDTH - 280,
@@ -1202,7 +1355,9 @@ class ThinkForestScene extends Phaser.Scene {
       .text(
         GAME_WIDTH / 2,
         GAME_HEIGHT - 30,
-        "WASD / ARROWS  MOVE     SPACE  ATTACK     P  PAUSE     R  RESTART",
+        this.isTouchDevice
+          ? "ORBIT PAD  MOVE     ATTACK BUTTON  STRIKE     PAUSE BUTTON  MENU"
+          : "WASD / ARROWS  MOVE     SPACE  ATTACK     P  PAUSE     R  RESTART",
         {
           fontFamily: "Arial, sans-serif",
           fontSize: "12px",
@@ -1268,6 +1423,7 @@ class ThinkForestScene extends Phaser.Scene {
     this.tweens.pauseAll();
     this.sound.pauseAll();
     this.time.paused = true;
+    this.orbitVector.set(0, 0);
 
     const objects: Phaser.GameObjects.GameObject[] = [];
 
@@ -1278,7 +1434,7 @@ class ThinkForestScene extends Phaser.Scene {
         GAME_WIDTH,
         GAME_HEIGHT,
         0x020611,
-        0.78,
+        0.8,
       )
       .setScrollFactor(0)
       .setInteractive();
@@ -1287,8 +1443,8 @@ class ThinkForestScene extends Phaser.Scene {
       .rectangle(
         GAME_WIDTH / 2,
         GAME_HEIGHT / 2,
-        720,
-        500,
+        740,
+        590,
         0x071326,
         0.98,
       )
@@ -1296,7 +1452,7 @@ class ThinkForestScene extends Phaser.Scene {
     panel.setStrokeStyle(2, 0x7ee8ff, 0.44);
 
     const title = this.add
-      .text(GAME_WIDTH / 2, 150, "LEVEL PAUSED", {
+      .text(GAME_WIDTH / 2, 100, "LEVEL PAUSED", {
         fontFamily: "Arial, sans-serif",
         fontSize: "34px",
         fontStyle: "bold",
@@ -1308,107 +1464,137 @@ class ThinkForestScene extends Phaser.Scene {
     const instructions = this.add
       .text(
         GAME_WIDTH / 2,
-        235,
+        155,
         [
           "INSTRUCTIONS",
           "• Recover all three Energy Cores.",
           "• Avoid or defeat the Bone Guards.",
           "• Reach the Exit Gate after all cores are collected.",
-          "• Move with WASD / arrow keys and attack with Space.",
+          this.isTouchDevice
+            ? "• Move with the Orbit Control and tap Attack to strike."
+            : "• Move with WASD / arrow keys and attack with Space.",
         ].join("\n"),
         {
           fontFamily: "Arial, sans-serif",
           fontSize: "16px",
           color: "#d3deed",
-          lineSpacing: 9,
+          lineSpacing: 8,
           align: "left",
-          wordWrap: { width: 560 },
+          wordWrap: { width: 580 },
         },
       )
       .setOrigin(0.5, 0)
       .setScrollFactor(0);
 
-    const volumeLabel = this.add
-      .text(
-        GAME_WIDTH / 2,
-        390,
-        `VOLUME  ${Math.round(this.gameVolume * 100)}%`,
-        {
-          fontFamily: "Arial, sans-serif",
-          fontSize: "14px",
-          fontStyle: "bold",
-          color: "#d9fbff",
-        },
-      )
-      .setOrigin(0.5)
-      .setScrollFactor(0);
+    const sliderX = GAME_WIDTH / 2 - 205;
+    const sliderWidth = 410;
+    let draggingSlider: "sfx" | "music" | null = null;
 
-    const sliderX = GAME_WIDTH / 2 - 190;
-    const sliderY = 430;
-    const sliderWidth = 380;
+    const createVolumeSlider = (
+      kind: "sfx" | "music",
+      y: number,
+      titleText: string,
+      initialVolume: number,
+      colour: number,
+    ) => {
+      const label = this.add
+        .text(
+          GAME_WIDTH / 2,
+          y - 30,
+          `${titleText}  ${Math.round(initialVolume * 100)}%`,
+          {
+            fontFamily: "Arial, sans-serif",
+            fontSize: "14px",
+            fontStyle: "bold",
+            color: "#d9fbff",
+          },
+        )
+        .setOrigin(0.5)
+        .setScrollFactor(0);
 
-    const sliderTrack = this.add
-      .rectangle(sliderX, sliderY, sliderWidth, 10, 0xffffff, 0.13)
-      .setOrigin(0, 0.5)
-      .setScrollFactor(0);
+      const track = this.add
+        .rectangle(sliderX, y, sliderWidth, 10, 0xffffff, 0.13)
+        .setOrigin(0, 0.5)
+        .setScrollFactor(0);
 
-    const sliderFill = this.add
-      .rectangle(
-        sliderX,
-        sliderY,
-        sliderWidth * this.gameVolume,
-        10,
-        0x60f0d0,
-        0.9,
-      )
-      .setOrigin(0, 0.5)
-      .setScrollFactor(0);
+      const fill = this.add
+        .rectangle(
+          sliderX,
+          y,
+          sliderWidth * initialVolume,
+          10,
+          colour,
+          0.92,
+        )
+        .setOrigin(0, 0.5)
+        .setScrollFactor(0);
 
-    const sliderKnob = this.add
-      .circle(
-        sliderX + sliderWidth * this.gameVolume,
-        sliderY,
-        14,
-        0xd9fbff,
-        1,
-      )
-      .setScrollFactor(0);
+      const knob = this.add
+        .circle(
+          sliderX + sliderWidth * initialVolume,
+          y,
+          14,
+          0xd9fbff,
+          1,
+        )
+        .setScrollFactor(0);
 
-    const sliderZone = this.add
-      .zone(sliderX, sliderY, sliderWidth, 42)
-      .setOrigin(0, 0.5)
-      .setScrollFactor(0)
-      .setInteractive({ useHandCursor: true });
+      const zone = this.add
+        .zone(sliderX, y, sliderWidth, 44)
+        .setOrigin(0, 0.5)
+        .setScrollFactor(0)
+        .setInteractive({ useHandCursor: true });
 
-    let draggingVolume = false;
+      const update = (pointer: Phaser.Input.Pointer) => {
+        const nextVolume = Phaser.Math.Clamp(
+          (pointer.x - sliderX) / sliderWidth,
+          0,
+          1,
+        );
 
-    const setVolumeFromPointer = (pointer: Phaser.Input.Pointer) => {
-      const nextVolume = Phaser.Math.Clamp(
-        (pointer.x - sliderX) / sliderWidth,
-        0,
-        1,
-      );
+        if (kind === "sfx") {
+          this.sfxVolume = nextVolume;
+        } else {
+          this.musicVolume = nextVolume;
+          this.applyBackgroundMusicVolume(nextVolume);
+        }
 
-      this.gameVolume = nextVolume;
-      this.sound.volume = nextVolume;
-      sliderFill.displayWidth = sliderWidth * nextVolume;
-      sliderKnob.x = sliderX + sliderWidth * nextVolume;
-      volumeLabel.setText(`VOLUME  ${Math.round(nextVolume * 100)}%`);
+        fill.displayWidth = sliderWidth * nextVolume;
+        knob.x = sliderX + sliderWidth * nextVolume;
+        label.setText(`${titleText}  ${Math.round(nextVolume * 100)}%`);
+      };
+
+      zone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+        draggingSlider = kind;
+        update(pointer);
+      });
+
+      return { objects: [label, track, fill, knob, zone], update };
     };
 
-    sliderZone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-      draggingVolume = true;
-      setVolumeFromPointer(pointer);
-    });
+    const sfxSlider = createVolumeSlider(
+      "sfx",
+      355,
+      "SOUND EFFECTS",
+      this.sfxVolume,
+      0x60f0d0,
+    );
+    const musicSlider = createVolumeSlider(
+      "music",
+      435,
+      "BACKGROUND MUSIC",
+      this.musicVolume,
+      0x8b7cff,
+    );
 
     this.pauseSliderMoveHandler = (pointer: Phaser.Input.Pointer) => {
-      if (draggingVolume && pointer.isDown) {
-        setVolumeFromPointer(pointer);
-      }
+      if (!pointer.isDown) return;
+      if (draggingSlider === "sfx") sfxSlider.update(pointer);
+      if (draggingSlider === "music") musicSlider.update(pointer);
     };
 
     this.pauseSliderUpHandler = () => {
-      draggingVolume = false;
+      draggingSlider = null;
     };
 
     this.input.on("pointermove", this.pauseSliderMoveHandler);
@@ -1416,7 +1602,7 @@ class ThinkForestScene extends Phaser.Scene {
 
     const resumeButton = this.createPauseMenuAction(
       GAME_WIDTH / 2 - 145,
-      535,
+      560,
       "RESUME",
       () => this.resumeGame(),
       0x16445c,
@@ -1424,7 +1610,7 @@ class ThinkForestScene extends Phaser.Scene {
 
     const restartButton = this.createPauseMenuAction(
       GAME_WIDTH / 2 + 145,
-      535,
+      560,
       "RESTART LEVEL",
       () => this.restartLevel(),
       0x5b2634,
@@ -1435,11 +1621,8 @@ class ThinkForestScene extends Phaser.Scene {
       panel,
       title,
       instructions,
-      volumeLabel,
-      sliderTrack,
-      sliderFill,
-      sliderKnob,
-      sliderZone,
+      ...sfxSlider.objects,
+      ...musicSlider.objects,
       ...resumeButton,
       ...restartButton,
     );
@@ -1509,6 +1692,7 @@ class ThinkForestScene extends Phaser.Scene {
 
   private restartLevel() {
     this.clearPauseOverlay();
+    this.orbitVector.set(0, 0);
     this.time.paused = false;
     this.tweens.resumeAll();
     this.anims.resumeAll();
@@ -1518,23 +1702,108 @@ class ThinkForestScene extends Phaser.Scene {
     this.scene.restart();
   }
 
-  private createTouchControls() {
+  private createOrbitControls() {
     this.input.addPointer(4);
 
-    this.createTouchButton(88, GAME_HEIGHT - 120, 64, "←", "left");
-    this.createTouchButton(166, GAME_HEIGHT - 120, 64, "→", "right");
-    this.createTouchButton(127, GAME_HEIGHT - 198, 64, "↑", "up");
-    this.createTouchButton(127, GAME_HEIGHT - 42, 64, "↓", "down");
+    const baseX = 118;
+    const baseY = GAME_HEIGHT - 112;
+    const baseRadius = 66;
+    const travelRadius = 43;
+
+    const base = this.add
+      .circle(baseX, baseY, baseRadius, 0x071326, 0.72)
+      .setScrollFactor(0)
+      .setDepth(3100);
+    base.setStrokeStyle(2, 0x7ee8ff, 0.42);
+
+    this.add
+      .text(baseX, baseY - 88, "ORBIT CONTROL", {
+        fontFamily: "Arial, sans-serif",
+        fontSize: "10px",
+        fontStyle: "bold",
+        color: "rgba(217,251,255,0.72)",
+        letterSpacing: 1,
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(3101);
+
+    const knob = this.add
+      .circle(baseX, baseY, 27, 0x4bbdd9, 0.9)
+      .setScrollFactor(0)
+      .setDepth(3102);
+    knob.setStrokeStyle(2, 0xd9fbff, 0.7);
+
+    const zone = this.add
+      .zone(baseX, baseY, 190, 190)
+      .setScrollFactor(0)
+      .setDepth(3103)
+      .setInteractive({ useHandCursor: true });
+
+    const updateOrbit = (pointer: Phaser.Input.Pointer) => {
+      const offset = new Phaser.Math.Vector2(
+        pointer.x - baseX,
+        pointer.y - baseY,
+      );
+
+      if (offset.length() > travelRadius) {
+        offset.setLength(travelRadius);
+      }
+
+      knob.setPosition(baseX + offset.x, baseY + offset.y);
+
+      const normalized = new Phaser.Math.Vector2(
+        offset.x / travelRadius,
+        offset.y / travelRadius,
+      );
+
+      if (normalized.length() < ORBIT_DEAD_ZONE) {
+        this.orbitVector.set(0, 0);
+      } else {
+        this.orbitVector.copy(normalized);
+      }
+    };
+
+    const releaseOrbit = (pointer: Phaser.Input.Pointer) => {
+      if (
+        this.orbitPointerId !== null &&
+        pointer.id !== this.orbitPointerId
+      ) {
+        return;
+      }
+
+      this.orbitPointerId = null;
+      this.orbitVector.set(0, 0);
+      knob.setPosition(baseX, baseY);
+    };
+
+    zone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      this.orbitPointerId = pointer.id;
+      updateOrbit(pointer);
+    });
+
+    this.orbitMoveHandler = (pointer: Phaser.Input.Pointer) => {
+      if (
+        this.orbitPointerId === pointer.id &&
+        pointer.isDown
+      ) {
+        updateOrbit(pointer);
+      }
+    };
+
+    this.orbitUpHandler = releaseOrbit;
+    this.input.on("pointermove", this.orbitMoveHandler);
+    this.input.on("pointerup", this.orbitUpHandler);
 
     const attack = this.add.circle(
       GAME_WIDTH - 92,
       GAME_HEIGHT - 116,
-      48,
+      50,
       0x071326,
-      0.76,
+      0.78,
     );
 
-    attack.setStrokeStyle(2, 0x7ee8ff, 0.55);
+    attack.setStrokeStyle(2, 0x7ee8ff, 0.58);
     attack.setScrollFactor(0);
     attack.setDepth(3100);
     attack.setInteractive({ useHandCursor: true });
@@ -1556,57 +1825,29 @@ class ThinkForestScene extends Phaser.Scene {
       this.touchAttackRequested = true;
     });
 
-    const release = () => {
-      attack.setFillStyle(0x071326, 0.76);
+    const releaseAttack = () => {
+      attack.setFillStyle(0x071326, 0.78);
       attack.setScale(1);
     };
 
-    attack.on("pointerup", release);
-    attack.on("pointerout", release);
-    attack.on("pointerupoutside", release);
+    attack.on("pointerup", releaseAttack);
+    attack.on("pointerout", releaseAttack);
+    attack.on("pointerupoutside", releaseAttack);
   }
 
-  private createTouchButton(
-    x: number,
-    y: number,
-    size: number,
-    label: string,
-    direction: keyof TouchState,
-  ) {
-    const button = this.add.circle(x, y, size / 2, 0x071326, 0.68);
+  private clearOrbitHandlers() {
+    if (this.orbitMoveHandler) {
+      this.input.off("pointermove", this.orbitMoveHandler);
+      this.orbitMoveHandler = undefined;
+    }
 
-    button.setStrokeStyle(2, 0x7ee8ff, 0.36);
-    button.setScrollFactor(0);
-    button.setDepth(3100);
-    button.setInteractive({ useHandCursor: true });
+    if (this.orbitUpHandler) {
+      this.input.off("pointerup", this.orbitUpHandler);
+      this.orbitUpHandler = undefined;
+    }
 
-    this.add
-      .text(x, y, label, {
-        fontFamily: "Arial, sans-serif",
-        fontSize: "25px",
-        fontStyle: "bold",
-        color: "#d9fbff",
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(3101);
-
-    const press = () => {
-      this.touchState[direction] = true;
-      button.setFillStyle(0x17455b, 0.92);
-      button.setScale(0.94);
-    };
-
-    const release = () => {
-      this.touchState[direction] = false;
-      button.setFillStyle(0x071326, 0.68);
-      button.setScale(1);
-    };
-
-    button.on("pointerdown", press);
-    button.on("pointerup", release);
-    button.on("pointerout", release);
-    button.on("pointerupoutside", release);
+    this.orbitPointerId = null;
+    this.orbitVector.set(0, 0);
   }
 
   private configureCamera() {
@@ -1621,14 +1862,7 @@ class ThinkForestScene extends Phaser.Scene {
   }
 
   private updateNovaMovement() {
-    if (
-      !this.nova ||
-      !this.cursors ||
-      !this.keyW ||
-      !this.keyA ||
-      !this.keyS ||
-      !this.keyD
-    ) {
+    if (!this.nova) {
       return;
     }
 
@@ -1637,36 +1871,26 @@ class ThinkForestScene extends Phaser.Scene {
       return;
     }
 
-    let horizontal = 0;
-    let vertical = 0;
-
-    if (this.cursors.left.isDown || this.keyA.isDown || this.touchState.left) {
-      horizontal -= 1;
-    }
+    let horizontal = this.isTouchDevice ? this.orbitVector.x : 0;
+    let vertical = this.isTouchDevice ? this.orbitVector.y : 0;
 
     if (
-      this.cursors.right.isDown ||
-      this.keyD.isDown ||
-      this.touchState.right
+      !this.isTouchDevice &&
+      this.cursors &&
+      this.keyW &&
+      this.keyA &&
+      this.keyS &&
+      this.keyD
     ) {
-      horizontal += 1;
-    }
-
-    if (this.cursors.up.isDown || this.keyW.isDown || this.touchState.up) {
-      vertical -= 1;
-    }
-
-    if (
-      this.cursors.down.isDown ||
-      this.keyS.isDown ||
-      this.touchState.down
-    ) {
-      vertical += 1;
+      if (this.cursors.left.isDown || this.keyA.isDown) horizontal -= 1;
+      if (this.cursors.right.isDown || this.keyD.isDown) horizontal += 1;
+      if (this.cursors.up.isDown || this.keyW.isDown) vertical -= 1;
+      if (this.cursors.down.isDown || this.keyS.isDown) vertical += 1;
     }
 
     const movement = new Phaser.Math.Vector2(horizontal, vertical);
 
-    if (movement.lengthSq() > 0) {
+    if (movement.lengthSq() > 0.01) {
       movement.normalize().scale(NOVA_SPEED);
       this.nova.setVelocity(movement.x, movement.y);
       this.hasStarted = true;
@@ -1727,13 +1951,15 @@ class ThinkForestScene extends Phaser.Scene {
   }
 
   private updateNovaAttack() {
-    if (!this.nova || !this.keySpace) {
+    if (!this.nova) {
       return;
     }
 
+    const keyboardAttackPressed =
+      Boolean(this.keySpace) &&
+      Phaser.Input.Keyboard.JustDown(this.keySpace!);
     const attackPressed =
-      Phaser.Input.Keyboard.JustDown(this.keySpace) ||
-      this.touchAttackRequested;
+      keyboardAttackPressed || this.touchAttackRequested;
 
     this.touchAttackRequested = false;
 
@@ -1755,6 +1981,7 @@ class ThinkForestScene extends Phaser.Scene {
     this.nova.setVelocity(0, 0);
     this.nova.setCrop();
     this.nova.play(`nova-attack-${this.facing}`, true);
+    this.playSfx("nova-attack-sfx");
 
     this.time.delayedCall(105, () => {
       this.applyNovaAttackDamage();
@@ -2121,6 +2348,7 @@ class ThinkForestScene extends Phaser.Scene {
     }
 
     this.health = Math.max(0, this.health - 1);
+    this.playSfx("nova-hit-sfx");
     this.novaHurtUntil = this.time.now + NOVA_HURT_INVULNERABILITY_MS;
     this.isNovaAttacking = false;
     this.nova.setCrop();
@@ -2417,14 +2645,25 @@ class ThinkForestScene extends Phaser.Scene {
   }
 
   private updateHud() {
-    const hearts = Array.from({ length: NOVA_MAX_HEALTH }, (_, index) =>
-      index < this.health ? "♥" : "♡",
-    ).join(" ");
+    const healthRatio = Phaser.Math.Clamp(this.health / NOVA_MAX_HEALTH, 0, 1);
 
-    this.healthText?.setText(`HEALTH  ${hearts}`);
-    this.coreText?.setText(
-      `ENERGY CORES  ${this.collectedCores} / ${TOTAL_CORES}`,
-    );
+    if (this.healthBarFill) {
+      this.healthBarFill.displayWidth = 148 * healthRatio;
+      this.healthBarFill.setFillStyle(
+        healthRatio > 0.6 ? 0xff8ea1 : healthRatio > 0.3 ? 0xf3c56b : 0xff6a6a,
+        0.98,
+      );
+    }
+
+    this.energyCoreIcons.forEach((icon, index) => {
+      const collected = index < this.collectedCores;
+      icon.setAlpha(collected ? 1 : 0.22);
+      icon.clearTint();
+      if (!collected) {
+        icon.setTint(0x5d7088);
+      }
+    });
+
     this.scoreText?.setText(`SCORE  ${this.score.toLocaleString()}`);
     this.timerText?.setText(`TIME  ${this.formatTime(this.elapsedSeconds)}`);
   }

@@ -34,11 +34,11 @@ const LEVEL_META: Record<
     requiredGearName: "Explorer Gear",
   },
   2: {
-    courseId: "uncharted-forest-02",
-    title: "Deepwood Crossing",
+    courseId: "eclipse-ruins-02",
+    title: "Eclipse Ruins",
     shortTitle: "Level 2",
     description:
-      "Use the Shadow Visor to enter a harder route with a new obstacle layout and additional Bone Guards. The Level 2 map image can be inserted later.",
+      "Enter a city destroyed beneath a permanent eclipse. The Shadow Visor widens Nova’s vision through the fog while larger Bone Guard patrols defend the ruined courtyards.",
     requiredGearStage: 1,
     requiredGearName: "Shadow Visor",
   },
@@ -51,7 +51,7 @@ const PhaserGame = dynamic(() => import("./PhaserGame"), {
       <div className="text-center">
         <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-white/20 border-t-cyan-300" />
         <p className="mt-4 text-xs font-bold tracking-[0.22em] text-cyan-100/60">
-          ENTERING THE FOREST
+          ENTERING DREAMSCAPE
         </p>
       </div>
     </div>
@@ -348,7 +348,7 @@ export default function MazeChallengeClient() {
             UNCHARTED DREAMSCAPE
           </p>
           <p className="mt-1 text-sm font-semibold text-white/85">
-            {activeLevelMeta.shortTitle} · Forest Maze Expedition
+            {activeLevelMeta.shortTitle} · Dreamkeeper Expedition
           </p>
         </div>
       </header>
@@ -449,7 +449,7 @@ export default function MazeChallengeClient() {
                 void requestFullscreen();
               }
             }}
-            className="absolute bottom-3 left-3 z-[90] grid h-11 w-11 place-items-center rounded-xl border border-cyan-200/35 bg-[#030816]/80 text-xl text-cyan-100 backdrop-blur-md transition hover:bg-[#11233b]/90"
+            className="absolute bottom-3 left-1/2 z-[90] grid h-11 w-11 -translate-x-1/2 place-items-center rounded-xl border border-cyan-200/35 bg-[#030816]/80 text-xl text-cyan-100 backdrop-blur-md transition hover:bg-[#11233b]/90"
             aria-label={isFullscreen ? "Exit full screen" : "Enter full screen"}
             title={isFullscreen ? "Exit full screen" : "Enter full screen"}
           >
@@ -459,8 +459,8 @@ export default function MazeChallengeClient() {
 
         <div className="mx-auto mt-4 grid w-full max-w-[1500px] gap-3 sm:grid-cols-5">
           <InfoCard label="Objective" value="Collect 3 cores and reach the exit" />
-          <InfoCard label="Movement" value="WASD or arrow keys" />
-          <InfoCard label="Combat" value="Space to use Nova's energy strike" />
+          <InfoCard label="Movement" value="Orbit pad on touch · WASD/arrows on desktop" />
+          <InfoCard label="Combat" value="Attack button on touch · Space on desktop" />
           <InfoCard label="Pause" value="Use the top Pause button or press P" />
           <InfoCard label="Restart" value="Press R at any time" />
         </div>
@@ -469,7 +469,7 @@ export default function MazeChallengeClient() {
           <div className="flex flex-col gap-3 border-b border-white/10 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
             <div>
               <p className="text-[10px] font-bold tracking-[0.22em] text-cyan-300/70">
-                FOREST EXPEDITION RANKINGS
+                DREAMKEEPER EXPEDITION RANKINGS
               </p>
               <h2 className="mt-2 text-2xl font-bold">
                 {activeLevelMeta.shortTitle} Leaderboard
@@ -550,11 +550,12 @@ export default function MazeChallengeClient() {
           </p>
           <h2 className="mt-2 text-2xl font-bold">What is included</h2>
           <p className="mt-3 max-w-4xl text-sm leading-6 text-white/58">
-            Level 1 uses the current forest map and obstacle layout. Level 2
-            already has a separate course ID and layout while temporarily
-            reusing the Level 1 map. The game now includes dense fog of war
-            centred on Nova, a translucent visibility ring and an in-game Pause
-            menu with instructions, volume, restart and resume controls.
+            Level 1 crosses the Uncharted Forest. Level 2 enters Eclipse
+            Ruins using a separate destroyed-city map, invisible ruin collision
+            zones, a wider Shadow Visor fog reveal and ten Bone Guards. Touch
+            devices use a circular Orbit Control, while desktop and laptop users
+            retain WASD and arrow-key movement. The Pause menu separates sound
+            effects and background-music volume.
           </p>
 
           <button
