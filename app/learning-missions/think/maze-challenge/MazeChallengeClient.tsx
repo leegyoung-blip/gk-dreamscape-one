@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { getThinkGearProgress } from "@/lib/thinkGearProgress";
 
 type ThinkForestLevel = 1 | 2;
 
@@ -14,6 +15,8 @@ const LEVEL_META: Record<
     title: string;
     shortTitle: string;
     description: string;
+    requiredGearStage: number;
+    requiredGearName: string;
   }
 > = {
   1: {
@@ -22,13 +25,17 @@ const LEVEL_META: Record<
     shortTitle: "Level 1",
     description:
       "Recover all three energy cores, survive the Bone Guards and reach the forest exit.",
+    requiredGearStage: 0,
+    requiredGearName: "Explorer Gear",
   },
   2: {
     courseId: "uncharted-forest-02",
     title: "Deepwood Crossing",
     shortTitle: "Level 2",
     description:
-      "Explore a harder route with a new obstacle layout and additional Bone Guards. The Level 2 map image can be inserted later.",
+      "Use the Shadow Visor to enter a harder route with a new obstacle layout and additional Bone Guards. The Level 2 map image can be inserted later.",
+    requiredGearStage: 1,
+    requiredGearName: "Shadow Visor",
   },
 };
 
@@ -89,6 +96,9 @@ export default function MazeChallengeClient() {
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
   const [scoreMessage, setScoreMessage] = useState("");
   const [activeLevel, setActiveLevel] = useState<ThinkForestLevel>(1);
+  const [thinkGearStage, setThinkGearStage] = useState(0);
+  const [gearProgressLoading, setGearProgressLoading] = useState(true);
+  const [levelMessage, setLevelMessage] = useState("");
 
   const activeLevelMeta = LEVEL_META[activeLevel];
 
@@ -115,16 +125,67 @@ export default function MazeChallengeClient() {
 
   useEffect(() => {
     setScoreMessage("");
+    void loadLeaderboard();
+  }, [loadLeaderboard]);
 
-    void (async () => {
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadThinkGearStage() {
+      setGearProgressLoading(true);
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
+      if (!mounted) return;
+
       setUserId(user?.id ?? null);
-      await loadLeaderboard();
-    })();
-  }, [loadLeaderboard]);
+
+      if (!user) {
+        setThinkGearStage(0);
+        setGearProgressLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("think_mission_attempts")
+        .select("quiz_id, tokens_earned")
+        .eq("user_id", user.id)
+        .gt("tokens_earned", 0);
+
+      if (!mounted) return;
+
+      if (error) {
+        console.warn("Could not load Think Gear stage:", error.message);
+        setThinkGearStage(0);
+        setGearProgressLoading(false);
+        return;
+      }
+
+      const completedMissionCount = new Set(
+        (data ?? []).map((attempt) => String(attempt.quiz_id)),
+      ).size;
+
+      const progress = getThinkGearProgress(completedMissionCount);
+      setThinkGearStage(progress.currentUpgrade.stage);
+      setGearProgressLoading(false);
+    }
+
+    void loadThinkGearStage();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const requiredStage = LEVEL_META[activeLevel].requiredGearStage;
+
+    if (!gearProgressLoading && thinkGearStage < requiredStage) {
+      setActiveLevel(1);
+    }
+  }, [activeLevel, gearProgressLoading, thinkGearStage]);
 
   const saveCompletedRun = useCallback(
     async (detail: ThinkForestCompletionDetail) => {
@@ -278,23 +339,49 @@ export default function MazeChallengeClient() {
             <div className="mt-4 flex flex-wrap gap-2">
               {([1, 2] as ThinkForestLevel[]).map((level) => {
                 const selected = activeLevel === level;
+                const meta = LEVEL_META[level];
+                const locked =
+                  gearProgressLoading ||
+                  thinkGearStage < meta.requiredGearStage;
 
                 return (
                   <button
                     key={level}
                     type="button"
-                    onClick={() => setActiveLevel(level)}
+                    aria-disabled={locked}
+                    onClick={() => {
+                      if (locked) {
+                        setLevelMessage(
+                          gearProgressLoading
+                            ? "Checking your Think Gear progress..."
+                            : `Unlock ${meta.requiredGearName} to enter Level ${level}.`,
+                        );
+                        return;
+                      }
+
+                      setLevelMessage("");
+                      setActiveLevel(level);
+                    }}
                     className={`rounded-full border px-4 py-2 text-xs font-black tracking-[0.14em] transition ${
                       selected
                         ? "border-cyan-200/55 bg-cyan-300/20 text-cyan-50"
-                        : "border-white/12 bg-white/[0.04] text-white/55 hover:bg-white/[0.08]"
+                        : locked
+                          ? "cursor-not-allowed border-white/10 bg-black/20 text-white/30"
+                          : "border-white/12 bg-white/[0.04] text-white/55 hover:bg-white/[0.08]"
                     }`}
                   >
+                    {locked ? "🔒 " : ""}
                     LEVEL {level}
                   </button>
                 );
               })}
             </div>
+
+            {levelMessage && (
+              <p className="mt-3 text-sm font-semibold text-amber-200/85">
+                {levelMessage}
+              </p>
+            )}
           </div>
 
           <span className="w-fit rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1.5 text-xs font-bold text-emerald-200">
@@ -310,7 +397,11 @@ export default function MazeChallengeClient() {
               : "relative mx-auto aspect-video w-full max-w-[1500px] overflow-hidden rounded-[24px] border border-cyan-200/15 bg-[#030816] shadow-[0_30px_100px_rgba(0,0,0,0.55)]"
           }
         >
-          <PhaserGame key={activeLevel} level={activeLevel} />
+          <PhaserGame
+            key={`${activeLevel}-${thinkGearStage}`}
+            level={activeLevel}
+            gearStage={thinkGearStage}
+          />
 
           <button
             type="button"

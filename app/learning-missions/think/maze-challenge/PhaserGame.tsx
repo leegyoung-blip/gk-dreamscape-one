@@ -33,6 +33,8 @@ type ForestLevelConfig = {
   obstacles: ForestObstacleConfig[];
   energyCores: Array<{ x: number; y: number }>;
   guardEntries: Array<{ y: number; targetX: number; delay: number }>;
+  requiredGearStage: number;
+  requiredGearName: string;
 };
 
 const FOREST_LEVELS: Record<ThinkForestLevel, ForestLevelConfig> = {
@@ -111,6 +113,8 @@ const FOREST_LEVELS: Record<ThinkForestLevel, ForestLevelConfig> = {
       { y: 615, targetX: 1175, delay: 3150 },
       { y: 770, targetX: 1125, delay: 4050 },
     ],
+    requiredGearStage: 0,
+    requiredGearName: "Explorer Gear",
   },
   2: {
     level: 2,
@@ -191,6 +195,8 @@ const FOREST_LEVELS: Record<ThinkForestLevel, ForestLevelConfig> = {
       { y: 690, targetX: 1230, delay: 3150 },
       { y: 815, targetX: 1140, delay: 3850 },
     ],
+    requiredGearStage: 1,
+    requiredGearName: "Shadow Visor",
   },
 };
 
@@ -1105,7 +1111,7 @@ class ThinkForestScene extends Phaser.Scene {
       .text(
         46,
         40,
-        `${this.levelConfig.title.toUpperCase()} · LEVEL ${this.levelConfig.level}`,
+        `${this.levelConfig.title.toUpperCase()} · LEVEL ${this.levelConfig.level} · ${this.levelConfig.requiredGearName.toUpperCase()}`,
         {
         fontFamily: "Arial, sans-serif",
         fontSize: "12px",
@@ -2454,12 +2460,17 @@ class ThinkForestScene extends Phaser.Scene {
 
 export default function PhaserGame({
   level = 1,
+  gearStage = 0,
 }: {
   level?: ThinkForestLevel;
+  gearStage?: number;
 }) {
   const gameContainerRef = useRef<HTMLDivElement | null>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
   const [gameVersion, setGameVersion] = useState(0);
+
+  const levelConfig = FOREST_LEVELS[level];
+  const isLevelUnlocked = gearStage >= levelConfig.requiredGearStage;
 
   useEffect(() => {
     function restartFromPage() {
@@ -2474,7 +2485,7 @@ export default function PhaserGame({
   }, []);
 
   useEffect(() => {
-    if (!gameContainerRef.current) {
+    if (!isLevelUnlocked || !gameContainerRef.current) {
       return;
     }
 
@@ -2515,7 +2526,26 @@ export default function PhaserGame({
       gameRef.current?.destroy(true);
       gameRef.current = null;
     };
-  }, [gameVersion, level]);
+  }, [gameVersion, isLevelUnlocked, level]);
+
+  if (!isLevelUnlocked) {
+    return (
+      <div className="grid h-full w-full place-items-center bg-[#030816] p-6 text-center text-white">
+        <div className="max-w-md rounded-3xl border border-amber-200/20 bg-black/35 p-7 backdrop-blur-xl">
+          <p className="text-xs font-black tracking-[0.2em] text-amber-200/70">
+            LEVEL {level} LOCKED
+          </p>
+          <h2 className="mt-3 text-3xl font-black">
+            {levelConfig.requiredGearName} required
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-white/60">
+            Complete more Think Missions to unlock this tool before entering
+            the level.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

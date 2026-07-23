@@ -38,6 +38,21 @@ function getThinkGearImage(stage: number, fallbackImage: string) {
   return THINK_GEAR_IMAGES[stage] ?? fallbackImage;
 }
 
+const THINK_GEAR_NAMES: Record<number, string> = {
+  0: "Explorer Gear",
+  1: "Shadow Visor",
+  2: "Mist Tracker",
+  3: "Soul Compass",
+  4: "Electric Shield",
+  5: "Rift Breaker",
+  6: "Storm Staff",
+  7: "Dreamforged Arsenal",
+};
+
+function getThinkGearName(stage: number, fallbackName: string) {
+  return THINK_GEAR_NAMES[stage] ?? fallbackName;
+}
+
 function useResponsiveMode() {
   const [mode, setMode] = useState<ScreenMode>("desktop");
 
@@ -291,7 +306,7 @@ export default function ThinkGearClient() {
             }
             style={mazeButton}
           >
-            Logic Maze ›
+            Challenge
           </button>
         </div>
       </header>
@@ -353,7 +368,10 @@ export default function ThinkGearClient() {
                       lineHeight: 1.05,
                     }}
                   >
-                    {currentUpgrade.name}
+                    {getThinkGearName(
+                      currentUpgrade.stage,
+                      currentUpgrade.name,
+                    )}
                   </h1>
                 </div>
 
@@ -363,7 +381,10 @@ export default function ThinkGearClient() {
               <div style={gearImageBox}>
                 <img
                   src={getThinkGearImage(currentUpgrade.stage, currentUpgrade.imageSrc)}
-                  alt={currentUpgrade.name}
+                  alt={getThinkGearName(
+                    currentUpgrade.stage,
+                    currentUpgrade.name,
+                  )}
                   draggable={false}
                   style={{
                     width: "100%",
@@ -407,7 +428,9 @@ export default function ThinkGearClient() {
                   {nextUpgrade ? "NEXT UNLOCK" : "INVENTORY COMPLETE"}
                 </p>
                 <h2 style={{ margin: "8px 0 0", fontSize: "26px" }}>
-                  {nextUpgrade ? nextUpgrade.name : "All Tools Unlocked"}
+                  {nextUpgrade
+                    ? getThinkGearName(nextUpgrade.stage, nextUpgrade.name)
+                    : "All Tools Unlocked"}
                 </h2>
                 <p
                   style={{
@@ -581,7 +604,7 @@ export default function ThinkGearClient() {
                     <div style={upgradeImageBox}>
                       <img
                         src={getThinkGearImage(upgrade.stage, upgrade.imageSrc)}
-                        alt={upgrade.name}
+                        alt={getThinkGearName(upgrade.stage, upgrade.name)}
                         draggable={false}
                         style={{
                           width: "100%",
@@ -610,7 +633,7 @@ export default function ThinkGearClient() {
                           : `${upgrade.missionsRequired} MISSIONS`}
                     </p>
                     <h3 style={{ margin: "7px 0 0", fontSize: "21px" }}>
-                      {upgrade.name}
+                      {getThinkGearName(upgrade.stage, upgrade.name)}
                     </h3>
                     <p
                       style={{
