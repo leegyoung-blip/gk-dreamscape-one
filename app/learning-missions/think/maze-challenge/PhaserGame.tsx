@@ -35,6 +35,8 @@ type ForestLevelConfig = {
   guardEntries: Array<{ y: number; targetX: number; delay: number }>;
   requiredGearStage: number;
   requiredGearName: string;
+  fogClearBrushSize: number;
+  fogTransitionBrushSize: number;
 };
 
 const FOREST_LEVELS: Record<ThinkForestLevel, ForestLevelConfig> = {
@@ -115,6 +117,8 @@ const FOREST_LEVELS: Record<ThinkForestLevel, ForestLevelConfig> = {
     ],
     requiredGearStage: 0,
     requiredGearName: "Explorer Gear",
+    fogClearBrushSize: 250,
+    fogTransitionBrushSize: 430,
   },
   2: {
     level: 2,
@@ -194,9 +198,13 @@ const FOREST_LEVELS: Record<ThinkForestLevel, ForestLevelConfig> = {
       { y: 555, targetX: 1175, delay: 2450 },
       { y: 690, targetX: 1230, delay: 3150 },
       { y: 815, targetX: 1140, delay: 3850 },
+      { y: 350, targetX: 1325, delay: 4550 },
+      { y: 620, targetX: 1285, delay: 5250 },
     ],
     requiredGearStage: 1,
     requiredGearName: "Shadow Visor",
+    fogClearBrushSize: 350,
+    fogTransitionBrushSize: 570,
   },
 };
 
@@ -230,8 +238,7 @@ const NOVA_WALK_CROP: Record<FacingDirection, NovaWalkCrop> = {
  * This produces a clear centre, a translucent cloudy transition and dense fog
  * across the rest of the map without a rigid circular edge.
  */
-const FOG_CLEAR_BRUSH_SIZE = 250;
-const FOG_TRANSITION_BRUSH_SIZE = 430;
+// Visibility radius is configured per level so newly unlocked gear can alter it.
 const FOG_DENSE_ALPHA = 0.9;
 const FOG_LIGHT_ALPHA = 0.38;
 const FOG_BREATHING_AMOUNT = 0.025;
@@ -600,15 +607,18 @@ class ThinkForestScene extends Phaser.Scene {
     this.denseFogBrush = this.add
       .image(this.nova.x, this.nova.y, "fog-reveal-brush")
       .setDisplaySize(
-        FOG_TRANSITION_BRUSH_SIZE,
-        FOG_TRANSITION_BRUSH_SIZE,
+        this.levelConfig.fogTransitionBrushSize,
+        this.levelConfig.fogTransitionBrushSize,
       )
       .setOrigin(0.5)
       .setDepth(-10000);
 
     this.lightFogBrush = this.add
       .image(this.nova.x, this.nova.y, "fog-reveal-brush")
-      .setDisplaySize(FOG_CLEAR_BRUSH_SIZE, FOG_CLEAR_BRUSH_SIZE)
+      .setDisplaySize(
+        this.levelConfig.fogClearBrushSize,
+        this.levelConfig.fogClearBrushSize,
+      )
       .setOrigin(0.5)
       .setDepth(-9999);
 
@@ -664,12 +674,12 @@ class ThinkForestScene extends Phaser.Scene {
       1 + Math.cos(this.fogAnimationTime * 0.38) * FOG_BREATHING_AMOUNT;
 
     this.denseFogBrush.setDisplaySize(
-      FOG_TRANSITION_BRUSH_SIZE * densePulse,
-      FOG_TRANSITION_BRUSH_SIZE * densePulse,
+      this.levelConfig.fogTransitionBrushSize * densePulse,
+      this.levelConfig.fogTransitionBrushSize * densePulse,
     );
     this.lightFogBrush.setDisplaySize(
-      FOG_CLEAR_BRUSH_SIZE * lightPulse,
-      FOG_CLEAR_BRUSH_SIZE * lightPulse,
+      this.levelConfig.fogClearBrushSize * lightPulse,
+      this.levelConfig.fogClearBrushSize * lightPulse,
     );
 
     /*

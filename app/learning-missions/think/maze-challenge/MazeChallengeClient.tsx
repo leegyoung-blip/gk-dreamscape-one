@@ -8,6 +8,11 @@ import { getThinkGearProgress } from "@/lib/thinkGearProgress";
 
 type ThinkForestLevel = 1 | 2;
 
+const MAX_THINK_GEAR_STAGE = 7;
+
+const NOVA_INTRO_MESSAGE =
+  "The evil Dreamkeeper has captured vast regions of Dreamscape, filling everyone’s dreams with nightmares. No one knows what the Dreamkeeper looks like, but we have to find and defeat him. The journey will take us through long-uncharted regions of Dreamscape. This forest is the first area we must cross. The Dreamkeeper has filled it with traps and sent Bone Guards to stop us. Stay close, recover the Energy Cores and reach the exit.";
+
 const LEVEL_META: Record<
   ThinkForestLevel,
   {
@@ -99,6 +104,8 @@ export default function MazeChallengeClient() {
   const [thinkGearStage, setThinkGearStage] = useState(0);
   const [gearProgressLoading, setGearProgressLoading] = useState(true);
   const [levelMessage, setLevelMessage] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showNovaIntro, setShowNovaIntro] = useState(true);
 
   const activeLevelMeta = LEVEL_META[activeLevel];
 
@@ -148,6 +155,29 @@ export default function MazeChallengeClient() {
         return;
       }
 
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("role, tier")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!mounted) return;
+
+      const resolvedRole = String(profile?.role || profile?.tier || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "-")
+        .replace(/_/g, "-");
+      const adminAccess = !profileError && resolvedRole === "admin";
+
+      setIsAdmin(adminAccess);
+
+      if (adminAccess) {
+        setThinkGearStage(MAX_THINK_GEAR_STAGE);
+        setGearProgressLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("think_mission_attempts")
         .select("quiz_id, tokens_earned")
@@ -182,10 +212,10 @@ export default function MazeChallengeClient() {
   useEffect(() => {
     const requiredStage = LEVEL_META[activeLevel].requiredGearStage;
 
-    if (!gearProgressLoading && thinkGearStage < requiredStage) {
+    if (!gearProgressLoading && !isAdmin && thinkGearStage < requiredStage) {
       setActiveLevel(1);
     }
-  }, [activeLevel, gearProgressLoading, thinkGearStage]);
+  }, [activeLevel, gearProgressLoading, isAdmin, thinkGearStage]);
 
   const saveCompletedRun = useCallback(
     async (detail: ThinkForestCompletionDetail) => {
@@ -342,7 +372,7 @@ export default function MazeChallengeClient() {
                 const meta = LEVEL_META[level];
                 const locked =
                   gearProgressLoading ||
-                  thinkGearStage < meta.requiredGearStage;
+                  (!isAdmin && thinkGearStage < meta.requiredGearStage);
 
                 return (
                   <button
@@ -397,11 +427,18 @@ export default function MazeChallengeClient() {
               : "relative mx-auto aspect-video w-full max-w-[1500px] overflow-hidden rounded-[24px] border border-cyan-200/15 bg-[#030816] shadow-[0_30px_100px_rgba(0,0,0,0.55)]"
           }
         >
-          <PhaserGame
-            key={`${activeLevel}-${thinkGearStage}`}
-            level={activeLevel}
-            gearStage={thinkGearStage}
-          />
+          {showNovaIntro ? (
+            <NovaIntroDialog
+              message={NOVA_INTRO_MESSAGE}
+              onBegin={() => setShowNovaIntro(false)}
+            />
+          ) : (
+            <PhaserGame
+              key={`${activeLevel}-${isAdmin ? "admin" : thinkGearStage}`}
+              level={activeLevel}
+              gearStage={isAdmin ? MAX_THINK_GEAR_STAGE : thinkGearStage}
+            />
+          )}
 
           <button
             type="button"
@@ -530,6 +567,101 @@ export default function MazeChallengeClient() {
         </section>
       </section>
     </main>
+  );
+}
+
+function NovaIntroDialog({
+  message,
+  onBegin,
+}: {
+  message: string;
+  onBegin: () => void;
+}) {
+  const [visibleText, setVisibleText] = useState("");
+  const isComplete = visibleText.length >= message.length;
+
+  useEffect(() => {
+    setVisibleText("");
+    let characterIndex = 0;
+
+    const timer = window.setInterval(() => {
+      characterIndex += 1;
+      setVisibleText(message.slice(0, characterIndex));
+
+      if (characterIndex >= message.length) {
+        window.clearInterval(timer);
+      }
+    }, 24);
+
+    return () => window.clearInterval(timer);
+  }, [message]);
+
+  function revealOrBegin() {
+    if (!isComplete) {
+      setVisibleText(message);
+      return;
+    }
+
+    onBegin();
+  }
+
+  return (
+    <div className="absolute inset-0 z-[80] grid place-items-center bg-[#020611]/88 p-4 backdrop-blur-md sm:p-8">
+      <section className="relative w-full max-w-[920px] overflow-hidden rounded-[28px] border border-cyan-200/25 bg-[linear-gradient(145deg,rgba(5,20,42,0.98),rgba(4,10,27,0.98))] p-5 shadow-[0_32px_100px_rgba(0,0,0,0.65)] sm:p-8">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_24%,rgba(83,215,255,0.16),transparent_30%),radial-gradient(circle_at_88%_80%,rgba(116,79,255,0.12),transparent_32%)]" />
+
+        <div className="relative grid gap-5 sm:grid-cols-[190px_1fr] sm:items-center">
+          <div className="mx-auto grid h-[180px] w-[180px] place-items-center overflow-hidden rounded-[24px] border border-cyan-200/20 bg-cyan-300/[0.06]">
+            <div
+              aria-label="Nova"
+              className="h-[168px] w-[168px] bg-no-repeat"
+              style={{
+                backgroundImage: 'url("/games/think-forest/nova-idle.png")',
+                backgroundSize: "400% 400%",
+                backgroundPosition: "0% 66.666%",
+              }}
+            />
+          </div>
+
+          <div>
+            <p className="text-[11px] font-black tracking-[0.24em] text-cyan-300">
+              NOVA · EXPEDITION BRIEFING
+            </p>
+            <h2 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">
+              The journey begins here.
+            </h2>
+
+            <button
+              type="button"
+              onClick={revealOrBegin}
+              className="mt-5 block min-h-[190px] w-full rounded-2xl border border-white/10 bg-black/20 p-5 text-left text-base leading-7 text-white/82 transition hover:bg-black/25 sm:text-lg"
+              aria-label={isComplete ? "Begin expedition" : "Show full briefing"}
+            >
+              {visibleText}
+              {!isComplete && (
+                <span className="ml-1 inline-block h-5 w-[2px] animate-pulse bg-cyan-200 align-middle" />
+              )}
+            </button>
+
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs text-white/38">
+                {!isComplete
+                  ? "Tap the message to reveal the full briefing."
+                  : "Briefing complete. Prepare to enter Level 1."}
+              </p>
+
+              <button
+                type="button"
+                onClick={revealOrBegin}
+                className="rounded-full border border-cyan-100/35 bg-cyan-300/15 px-5 py-2.5 text-sm font-black text-cyan-50 transition hover:bg-cyan-300/22"
+              >
+                {isComplete ? "Begin Expedition →" : "Show Full Message"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
   );
 }
 

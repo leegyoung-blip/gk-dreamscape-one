@@ -53,6 +53,79 @@ function getThinkGearName(stage: number, fallbackName: string) {
   return THINK_GEAR_NAMES[stage] ?? fallbackName;
 }
 
+
+type ThinkGearAbility = {
+  summary: string;
+  challengeEffect: string;
+  unlockLabel: string;
+};
+
+const THINK_GEAR_ABILITIES: Record<number, ThinkGearAbility> = {
+  0: {
+    summary:
+      "Nova’s standard expedition suit protects her while crossing the first uncharted forest.",
+    challengeEffect:
+      "Provides basic movement, close-range energy attacks and the standard fog-visibility range.",
+    unlockLabel: "Required for Level 1",
+  },
+  1: {
+    summary:
+      "The visor filters Dreamkeeper fog and reveals a wider area around Nova.",
+    challengeEffect:
+      "Expands the clear and translucent fog radius, allowing earlier detection of Bone Guards, traps and routes.",
+    unlockLabel: "Unlocks Level 2",
+  },
+  2: {
+    summary:
+      "The tracker reads disturbances in the mist left by moving enemies and nearby Energy Cores.",
+    challengeEffect:
+      "Briefly highlights the direction of nearby Bone Guards and the closest uncollected Energy Core.",
+    unlockLabel: "Planned for Level 3",
+  },
+  3: {
+    summary:
+      "The compass detects Dreamscape energy and guides Nova through misleading paths.",
+    challengeEffect:
+      "Points towards the current objective, hidden route or exit when the forest becomes difficult to navigate.",
+    unlockLabel: "Planned for Level 4",
+  },
+  4: {
+    summary:
+      "A charged defensive field designed to protect Nova from stronger traps and enemy attacks.",
+    challengeEffect:
+      "Absorbs one damaging hit before breaking, then recharges after collecting enough Dreamscape energy.",
+    unlockLabel: "Planned for Level 5",
+  },
+  5: {
+    summary:
+      "A specialised tool that destabilises barriers created by the Dreamkeeper.",
+    challengeEffect:
+      "Breaks marked roots, cracked rocks and weak rifts to reveal shortcuts or essential routes.",
+    unlockLabel: "Planned for Level 6",
+  },
+  6: {
+    summary:
+      "A ranged weapon that channels storm energy through the forest.",
+    challengeEffect:
+      "Fires a longer-range blast that can stun or damage several Bone Guards in its path.",
+    unlockLabel: "Planned for Level 7",
+  },
+  7: {
+    summary:
+      "Nova’s complete expedition arsenal combines every tool needed to approach the Dreamkeeper’s territory.",
+    challengeEffect:
+      "Combines enhanced vision, tracking, navigation, defence, barrier breaking and ranged combat.",
+    unlockLabel: "Final expedition loadout",
+  },
+};
+
+function getThinkGearAbility(stage: number) {
+  return THINK_GEAR_ABILITIES[stage] ?? THINK_GEAR_ABILITIES[0];
+}
+
+const MAX_THINK_GEAR_MISSIONS =
+  thinkGearTrack[thinkGearTrack.length - 1]?.missionsRequired ?? 20;
+
 function useResponsiveMode() {
   const [mode, setMode] = useState<ScreenMode>("desktop");
 
@@ -115,6 +188,7 @@ export default function ThinkGearClient() {
   const [mazeRank, setMazeRank] = useState<number | null>(null);
   const [mazeBestScore, setMazeBestScore] = useState<number | null>(null);
   const [mazeBestTimeMs, setMazeBestTimeMs] = useState<number | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const {
     currentUpgrade,
@@ -123,6 +197,8 @@ export default function ThinkGearClient() {
     missionsToNext,
     isComplete,
   } = getThinkGearProgress(completedMissionCount);
+
+  const currentAbility = getThinkGearAbility(currentUpgrade.stage);
 
   useEffect(() => {
     void initialise();
@@ -159,16 +235,26 @@ export default function ThinkGearClient() {
       return;
     }
 
-    if (!roleHasThinkAccess(profile.role || profile.tier || null)) {
+    const resolvedRole = profile.role || profile.tier || null;
+
+    if (!roleHasThinkAccess(resolvedRole)) {
       setStatus("locked");
       return;
     }
 
-    await Promise.all([
-      loadTokens(user.id),
-      loadMissionProgress(user.id),
-      loadMazeResult(),
-    ]);
+    const adminAccess = normaliseRole(resolvedRole) === "admin";
+    setIsAdmin(adminAccess);
+
+    if (adminAccess) {
+      setCompletedMissionCount(MAX_THINK_GEAR_MISSIONS);
+      await Promise.all([loadTokens(user.id), loadMazeResult()]);
+    } else {
+      await Promise.all([
+        loadTokens(user.id),
+        loadMissionProgress(user.id),
+        loadMazeResult(),
+      ]);
+    }
 
     setStatus("ready");
   }
@@ -375,7 +461,9 @@ export default function ThinkGearClient() {
                   </h1>
                 </div>
 
-                <div style={missionPill}>{completedMissionCount} done</div>
+                <div style={missionPill}>
+                  {isAdmin ? "Admin · all unlocked" : `${completedMissionCount} done`}
+                </div>
               </div>
 
               <div style={gearImageBox}>
@@ -403,8 +491,32 @@ export default function ThinkGearClient() {
                   lineHeight: 1.55,
                 }}
               >
-                {currentUpgrade.description}
+                {currentAbility.summary}
               </p>
+
+              <div
+                style={{
+                  marginTop: "14px",
+                  borderRadius: "15px",
+                  border: `1px solid ${currentUpgrade.accent}33`,
+                  background: "rgba(0,0,0,0.16)",
+                  padding: "14px 15px",
+                }}
+              >
+                <p style={{ ...panelEyebrow, color: currentUpgrade.accent }}>
+                  CHALLENGE EFFECT
+                </p>
+                <p
+                  style={{
+                    margin: "8px 0 0",
+                    color: "rgba(255,255,255,0.76)",
+                    fontSize: "14px",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {currentAbility.challengeEffect}
+                </p>
+              </div>
 
               <div style={progressTrack}>
                 <div
@@ -487,8 +599,8 @@ export default function ThinkGearClient() {
                     lineHeight: 1.5,
                   }}
                 >
-                  Use the tools unlocked through Think Missions to reveal
-                  clues, avoid traps and reach the maze exit.
+                  Cross the Dreamkeeper’s fog-covered territories. Each new
+                  level requires the gear unlocked through Think Missions.
                 </p>
 
                 <div style={statGrid}>
@@ -513,37 +625,29 @@ export default function ThinkGearClient() {
                   }
                   style={{ ...primaryButton, width: "100%", marginTop: "16px" }}
                 >
-                  Enter Logic Maze ›
+                  Enter Challenge ›
                 </button>
               </section>
 
               <section style={abilityCard}>
-                <p style={panelEyebrow}>CURRENT MAZE ABILITIES</p>
+                <p style={panelEyebrow}>CHALLENGE GEAR ABILITIES</p>
                 <div style={{ marginTop: "14px", display: "grid", gap: "9px" }}>
-                  <AbilityRow
-                    name="Logic Lens"
-                    value={currentUpgrade.mazeAbilities.logicLensCharges}
-                  />
-                  <AbilityRow
-                    name="Pattern Scanner"
-                    value={currentUpgrade.mazeAbilities.scannerCharges}
-                  />
-                  <AbilityRow
-                    name="Clue Compass"
-                    value={currentUpgrade.mazeAbilities.compassCharges}
-                  />
-                  <AbilityRow
-                    name="Puzzle Shield"
-                    value={currentUpgrade.mazeAbilities.shieldCharges}
-                  />
-                  <AbilityRow
-                    name="Energy Wrench"
-                    value={currentUpgrade.mazeAbilities.wrenchCharges}
-                  />
-                  <AbilityRow
-                    name="Spark Staff"
-                    value={currentUpgrade.mazeAbilities.sparkCharges}
-                  />
+                  {thinkGearTrack.map((upgrade) => {
+                    const ability = getThinkGearAbility(upgrade.stage);
+                    const unlocked =
+                      isAdmin || completedMissionCount >= upgrade.missionsRequired;
+
+                    return (
+                      <AbilityRow
+                        key={upgrade.stage}
+                        name={getThinkGearName(upgrade.stage, upgrade.name)}
+                        effect={ability.challengeEffect}
+                        unlockLabel={ability.unlockLabel}
+                        unlocked={unlocked}
+                        active={upgrade.stage === currentUpgrade.stage}
+                      />
+                    );
+                  })}
                 </div>
               </section>
             </aside>
@@ -643,7 +747,7 @@ export default function ThinkGearClient() {
                         lineHeight: 1.42,
                       }}
                     >
-                      {upgrade.description}
+                      {getThinkGearAbility(upgrade.stage).summary}
                     </p>
                   </article>
                 );
@@ -665,13 +769,58 @@ function StatCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function AbilityRow({ name, value }: { name: string; value: number }) {
+function AbilityRow({
+  name,
+  effect,
+  unlockLabel,
+  unlocked,
+  active,
+}: {
+  name: string;
+  effect: string;
+  unlockLabel: string;
+  unlocked: boolean;
+  active: boolean;
+}) {
   return (
-    <div style={abilityRow}>
-      <span>{name}</span>
-      <strong style={{ color: value > 0 ? "#60f0d0" : "rgba(255,255,255,0.38)" }}>
-        {value > 0 ? `${value} charge${value === 1 ? "" : "s"}` : "Locked"}
-      </strong>
+    <div
+      style={{
+        ...abilityRow,
+        minHeight: "auto",
+        alignItems: "flex-start",
+        border: active
+          ? "1px solid rgba(96,240,208,0.42)"
+          : "1px solid rgba(255,255,255,0.07)",
+        opacity: unlocked ? 1 : 0.5,
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <strong style={{ color: unlocked ? "white" : "rgba(255,255,255,0.5)" }}>
+          {name}
+        </strong>
+        <p
+          style={{
+            margin: "5px 0 0",
+            color: "rgba(255,255,255,0.58)",
+            fontSize: "12px",
+            lineHeight: 1.42,
+          }}
+        >
+          {effect}
+        </p>
+      </div>
+
+      <span
+        style={{
+          flexShrink: 0,
+          color: unlocked ? "#60f0d0" : "rgba(255,255,255,0.38)",
+          fontSize: "11px",
+          fontWeight: 900,
+          textAlign: "right",
+        }}
+      >
+        {active ? "ACTIVE" : unlocked ? unlockLabel : "LOCKED"}
+      </span>
     </div>
   );
 }
