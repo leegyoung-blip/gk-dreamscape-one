@@ -201,18 +201,6 @@ type NovaWalkCrop = {
   height: number;
 };
 
-type FogCloudData = {
-  sprite: Phaser.GameObjects.Image;
-  baseX: number;
-  baseY: number;
-  driftX: number;
-  driftY: number;
-  phase: number;
-  phaseSpeed: number;
-  baseAlpha: number;
-  influenceRadius: number;
-};
-
 const NOVA_WALK_CROP: Record<FacingDirection, NovaWalkCrop> = {
   down: { x: 0, y: 0, width: 256, height: 256 },
   left: { x: 0, y: 0, width: 256, height: 256 },
@@ -227,16 +215,20 @@ const NOVA_WALK_CROP: Record<FacingDirection, NovaWalkCrop> = {
 };
 
 /*
- * Smaller visibility area around Nova. The fog is now built from many
- * individual fog PNGs, so the edge is cloud-shaped instead of a perfect
- * geometry-mask circle.
+ * Two fog layers use the same full-map PNG and two differently sized organic
+ * alpha brushes:
+ *
+ * - The smaller brush removes both fog layers around Nova.
+ * - The larger brush removes only the dense layer.
+ *
+ * This produces a clear centre, a translucent cloudy transition and dense fog
+ * across the rest of the map without a rigid circular edge.
  */
-const FOG_CLEAR_RADIUS = 138;
-const FOG_TRANSITION_RADIUS = 225;
-const FOG_COLUMNS = 11;
-const FOG_ROWS = 7;
-const FOG_MIN_WIDTH = 230;
-const FOG_MAX_WIDTH = 340;
+const FOG_CLEAR_BRUSH_SIZE = 250;
+const FOG_TRANSITION_BRUSH_SIZE = 430;
+const FOG_DENSE_ALPHA = 0.9;
+const FOG_LIGHT_ALPHA = 0.38;
+const FOG_BREATHING_AMOUNT = 0.025;
 const DEFAULT_GAME_VOLUME = 0.7;
 
 const NOVA_SPEED = 250;
@@ -261,8 +253,8 @@ const ASSET_PATHS = {
   rootBarrier: "/games/think-forest/root-barrier.png",
   energyCore: "/games/think-forest/energy-core.png",
   exitGate: "/games/think-forest/forest-exit-gate.png",
-  fogOne: "/games/think-forest/fog-1.png",
-  fogTwo: "/games/think-forest/fog-2.png",
+  fogMap: "/games/think-forest/fog-map.png",
+  fogBrush: "/games/think-forest/fog-reveal-brush.png",
 
   novaWalk: "/games/think-forest/nova-walk.png",
   novaIdle: "/games/think-forest/nova-idle.png",
@@ -376,7 +368,13 @@ class ThinkForestScene extends Phaser.Scene {
   private timerText?: Phaser.GameObjects.Text;
   private objectiveText?: Phaser.GameObjects.Text;
 
-  private fogClouds: FogCloudData[] = [];
+  private denseFog?: Phaser.GameObjects.Image;
+  private lightFog?: Phaser.GameObjects.Image;
+  private denseFogBrush?: Phaser.GameObjects.Image;
+  private lightFogBrush?: Phaser.GameObjects.Image;
+  private denseFogMask?: Phaser.Display.Masks.BitmapMask;
+  private lightFogMask?: Phaser.Display.Masks.BitmapMask;
+  private fogAnimationTime = 0;
 
   private isPaused = false;
   private pauseOverlay?: Phaser.GameObjects.Container;
@@ -395,8 +393,8 @@ class ThinkForestScene extends Phaser.Scene {
     this.load.image("root-barrier", ASSET_PATHS.rootBarrier);
     this.load.image("energy-core", ASSET_PATHS.energyCore);
     this.load.image("forest-exit-gate", ASSET_PATHS.exitGate);
-    this.load.image("fog-one", ASSET_PATHS.fogOne);
-    this.load.image("fog-two", ASSET_PATHS.fogTwo);
+    this.load.image("fog-map", ASSET_PATHS.fogMap);
+    this.load.image("fog-reveal-brush", ASSET_PATHS.fogBrush);
 
     this.load.spritesheet("nova-walk", ASSET_PATHS.novaWalk, {
       frameWidth: 256,
@@ -536,11 +534,17 @@ class ThinkForestScene extends Phaser.Scene {
     this.hasFinished = false;
     this.isGameOver = false;
     this.resultSubmitted = false;
+    this.fogAnimationTime = 0;
     this.isPaused = false;
     this.pauseOverlay = undefined;
     this.boneGuards = [];
     this.energyCores = [];
-    this.fogClouds = [];
+    this.denseFog = undefined;
+    this.lightFog = undefined;
+    this.denseFogBrush = undefined;
+    this.lightFogBrush = undefined;
+    this.denseFogMask = undefined;
+    this.lightFogMask = undefined;
     this.sound.volume = this.gameVolume;
   }
 
@@ -559,121 +563,121 @@ class ThinkForestScene extends Phaser.Scene {
     }
 
     /*
-     * Use many smaller transparent PNGs rather than one tiled sheet and a
-     * circular cut-out. Their overlaps make the unexplored map dense while
-     * their irregular transparent edges create a natural cloud boundary.
+     * Draw the complete rectangular fog map twice.
+     *
+     * Dense fog is removed with the larger brush.
+     * Light fog is removed with the smaller brush.
+     *
+     * Because the brush PNG has an uneven, feathered alpha edge, the reveal
+     * boundary follows the cloud shape rather than a mathematical circle.
      */
-    this.fogClouds = [];
+    this.denseFog = this.add
+      .image(0, 0, "fog-map")
+      .setOrigin(0)
+      .setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT)
+      .setAlpha(FOG_DENSE_ALPHA)
+      .setTint(0xe8edf1)
+      .setDepth(2448);
 
-    const cellWidth = WORLD_WIDTH / Math.max(1, FOG_COLUMNS - 1);
-    const cellHeight = WORLD_HEIGHT / Math.max(1, FOG_ROWS - 1);
+    this.lightFog = this.add
+      .image(0, 0, "fog-map")
+      .setOrigin(0)
+      .setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT)
+      .setAlpha(FOG_LIGHT_ALPHA)
+      .setTint(0xf5f7f8)
+      .setDepth(2449);
 
-    for (let row = 0; row < FOG_ROWS; row += 1) {
-      for (let column = 0; column < FOG_COLUMNS; column += 1) {
-        const index = row * FOG_COLUMNS + column;
-        const seedA = this.fogNoise(index * 3 + 1);
-        const seedB = this.fogNoise(index * 3 + 2);
-        const seedC = this.fogNoise(index * 3 + 3);
+    /*
+     * Keep the mask sources behind the map so they never appear as visible
+     * white shapes. BitmapMask still reads their alpha channel.
+     */
+    this.denseFogBrush = this.add
+      .image(this.nova.x, this.nova.y, "fog-reveal-brush")
+      .setDisplaySize(
+        FOG_TRANSITION_BRUSH_SIZE,
+        FOG_TRANSITION_BRUSH_SIZE,
+      )
+      .setOrigin(0.5)
+      .setDepth(-10000);
 
-        const x =
-          column * cellWidth +
-          (seedA - 0.5) * cellWidth * 0.9;
-        const y =
-          row * cellHeight +
-          (seedB - 0.5) * cellHeight * 0.9;
+    this.lightFogBrush = this.add
+      .image(this.nova.x, this.nova.y, "fog-reveal-brush")
+      .setDisplaySize(FOG_CLEAR_BRUSH_SIZE, FOG_CLEAR_BRUSH_SIZE)
+      .setOrigin(0.5)
+      .setDepth(-9999);
 
-        const width = Phaser.Math.Linear(
-          FOG_MIN_WIDTH,
-          FOG_MAX_WIDTH,
-          seedC,
-        );
-        const height = width * Phaser.Math.Linear(0.5, 0.68, seedA);
-        const texture = index % 2 === 0 ? "fog-one" : "fog-two";
-        const baseAlpha = Phaser.Math.Linear(0.72, 0.94, seedB);
+    this.denseFogMask = new Phaser.Display.Masks.BitmapMask(
+      this,
+      this.denseFogBrush,
+    );
+    this.denseFogMask.invertAlpha = true;
 
-        const cloud = this.add.image(x, y, texture);
-        cloud
-          .setDisplaySize(width, height)
-          .setAlpha(baseAlpha)
-          .setRotation((seedC - 0.5) * 0.65)
-          .setTint(index % 3 === 0 ? 0xdce4e9 : 0xcbd7df)
-          .setDepth(2448 + (index % 3));
+    this.lightFogMask = new Phaser.Display.Masks.BitmapMask(
+      this,
+      this.lightFogBrush,
+    );
+    this.lightFogMask.invertAlpha = true;
 
-        this.fogClouds.push({
-          sprite: cloud,
-          baseX: x,
-          baseY: y,
-          driftX: Phaser.Math.Linear(8, 24, seedA),
-          driftY: Phaser.Math.Linear(5, 16, seedB),
-          phase: seedC * Math.PI * 2,
-          phaseSpeed: Phaser.Math.Linear(0.09, 0.2, seedB),
-          baseAlpha,
-          influenceRadius: Math.max(width, height) * 0.34,
-        });
-      }
-    }
+    this.denseFog.setMask(this.denseFogMask);
+    this.lightFog.setMask(this.lightFogMask);
 
     this.updateFog(0);
   }
 
   private updateFog(delta: number) {
-    if (!this.nova || this.fogClouds.length === 0) {
+    if (
+      !this.nova ||
+      !this.denseFog ||
+      !this.lightFog ||
+      !this.denseFogBrush ||
+      !this.lightFogBrush
+    ) {
       return;
     }
 
-    const seconds = delta / 1000;
+    this.fogAnimationTime += delta / 1000;
 
-    this.fogClouds.forEach((cloud, index) => {
-      cloud.phase += cloud.phaseSpeed * seconds;
+    this.denseFogBrush.setPosition(this.nova.x, this.nova.y);
+    this.lightFogBrush.setPosition(this.nova.x, this.nova.y);
 
-      cloud.sprite.x =
-        cloud.baseX + Math.sin(cloud.phase + index * 0.31) * cloud.driftX;
-      cloud.sprite.y =
-        cloud.baseY + Math.cos(cloud.phase * 0.77 + index * 0.23) * cloud.driftY;
+    /*
+     * Very slight independent rotation and scale changes stop the feathered
+     * perimeter from looking frozen while keeping the cleared area centred on
+     * Nova.
+     */
+    this.denseFogBrush.setRotation(
+      Math.sin(this.fogAnimationTime * 0.14) * 0.08,
+    );
+    this.lightFogBrush.setRotation(
+      -Math.sin(this.fogAnimationTime * 0.19) * 0.06,
+    );
 
-      const centreDistance = Phaser.Math.Distance.Between(
-        this.nova!.x,
-        this.nova!.y,
-        cloud.sprite.x,
-        cloud.sprite.y,
-      );
+    const densePulse =
+      1 + Math.sin(this.fogAnimationTime * 0.32) * FOG_BREATHING_AMOUNT;
+    const lightPulse =
+      1 + Math.cos(this.fogAnimationTime * 0.38) * FOG_BREATHING_AMOUNT;
 
-      /*
-       * Account for the cloud's visible footprint, not just its centre. This
-       * prevents a large PNG from hanging over Nova while its centre is still
-       * outside the clear radius.
-       */
-      const edgeDistance = Math.max(
-        0,
-        centreDistance - cloud.influenceRadius,
-      );
+    this.denseFogBrush.setDisplaySize(
+      FOG_TRANSITION_BRUSH_SIZE * densePulse,
+      FOG_TRANSITION_BRUSH_SIZE * densePulse,
+    );
+    this.lightFogBrush.setDisplaySize(
+      FOG_CLEAR_BRUSH_SIZE * lightPulse,
+      FOG_CLEAR_BRUSH_SIZE * lightPulse,
+    );
 
-      let targetAlpha = cloud.baseAlpha;
-
-      if (edgeDistance <= FOG_CLEAR_RADIUS) {
-        targetAlpha = 0;
-      } else if (edgeDistance < FOG_TRANSITION_RADIUS) {
-        const transition = Phaser.Math.Clamp(
-          (edgeDistance - FOG_CLEAR_RADIUS) /
-            (FOG_TRANSITION_RADIUS - FOG_CLEAR_RADIUS),
-          0,
-          1,
-        );
-
-        /* Smoothstep produces a softer, less mechanical fade. */
-        const softened = transition * transition * (3 - 2 * transition);
-        targetAlpha = cloud.baseAlpha * softened * 0.72;
-      }
-
-      cloud.sprite.setAlpha(
-        Phaser.Math.Linear(cloud.sprite.alpha, targetAlpha, 0.16),
-      );
-    });
-  }
-
-  private fogNoise(seed: number) {
-    const value = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
-    return value - Math.floor(value);
+    /*
+     * A subtle opacity drift gives the full rectangular fog map some life
+     * without moving it far enough to expose its outer edges.
+     */
+    this.denseFog.setAlpha(
+      FOG_DENSE_ALPHA +
+        Math.sin(this.fogAnimationTime * 0.17) * 0.025,
+    );
+    this.lightFog.setAlpha(
+      FOG_LIGHT_ALPHA +
+        Math.cos(this.fogAnimationTime * 0.22) * 0.02,
+    );
   }
 
   private createAnimations() {
