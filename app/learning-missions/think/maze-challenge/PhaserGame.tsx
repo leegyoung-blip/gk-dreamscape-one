@@ -194,12 +194,30 @@ const FOREST_LEVELS: Record<ThinkForestLevel, ForestLevelConfig> = {
   },
 };
 
-const NOVA_WALK_CROP_HEIGHT: Record<FacingDirection, number> = {
-  down: 256,
-  left: 256,
-  right: 232,
-  up: 232,
+type NovaWalkCrop = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 };
+
+const NOVA_WALK_CROP: Record<FacingDirection, NovaWalkCrop> = {
+  down: { x: 0, y: 0, width: 256, height: 256 },
+  left: { x: 0, y: 0, width: 256, height: 256 },
+
+  /*
+   * The generated right and up rows contain a detached fragment near the
+   * bottom edge. These tighter source rectangles remove that fragment.
+   * Adjust only these values if the source sheet is regenerated.
+   */
+  right: { x: 8, y: 0, width: 240, height: 208 },
+  up: { x: 8, y: 0, width: 240, height: 208 },
+};
+
+const FOG_CLEAR_RADIUS = 225;
+const FOG_TRANSITION_RADIUS = 340;
+const FOG_TILE_SCALE = 0.42;
+const DEFAULT_GAME_VOLUME = 0.7;
 
 const NOVA_SPEED = 250;
 const NOVA_MAX_HEALTH = 5;
@@ -299,6 +317,7 @@ class ThinkForestScene extends Phaser.Scene {
   private keyD?: Phaser.Input.Keyboard.Key;
   private keySpace?: Phaser.Input.Keyboard.Key;
   private keyR?: Phaser.Input.Keyboard.Key;
+  private keyP?: Phaser.Input.Keyboard.Key;
 
   private touchState: TouchState = {
     left: false,
@@ -339,6 +358,17 @@ class ThinkForestScene extends Phaser.Scene {
 
   private fogOne?: Phaser.GameObjects.TileSprite;
   private fogTwo?: Phaser.GameObjects.TileSprite;
+  private farFogVeil?: Phaser.GameObjects.Rectangle;
+  private outerFogMaskGraphics?: Phaser.GameObjects.Graphics;
+  private innerFogMaskGraphics?: Phaser.GameObjects.Graphics;
+  private outerFogMask?: Phaser.Display.Masks.GeometryMask;
+  private innerFogMask?: Phaser.Display.Masks.GeometryMask;
+
+  private isPaused = false;
+  private pauseOverlay?: Phaser.GameObjects.Container;
+  private gameVolume = DEFAULT_GAME_VOLUME;
+  private pauseSliderMoveHandler?: (pointer: Phaser.Input.Pointer) => void;
+  private pauseSliderUpHandler?: () => void;
 
   constructor(level: ThinkForestLevel) {
     super({ key: `ThinkForestScene-${level}` });
@@ -375,13 +405,12 @@ class ThinkForestScene extends Phaser.Scene {
     });
 
     /*
-     * The generated Bone Guard walking sheet is 1254 x 1254 and contains
-     * 6 columns by 4 rows. Each frame is therefore 209 x 313 pixels.
+     * The generated Bone Guard walking sheet is 1254 × 1254. That height
+     * cannot be divided evenly into four integer rows, so a normal Phaser
+     * spritesheet loader cuts alternating rows slightly off. Load it as one
+     * image and register exact row boundaries in createAnimations instead.
      */
-    this.load.spritesheet("bone-walk", ASSET_PATHS.boneWalk, {
-      frameWidth: 209,
-      frameHeight: 313,
-    });
+    this.load.image("bone-walk-sheet", ASSET_PATHS.boneWalk);
 
     this.load.spritesheet("bone-idle", ASSET_PATHS.boneIdle, {
       frameWidth: 313,
@@ -414,7 +443,6 @@ class ThinkForestScene extends Phaser.Scene {
   create() {
     this.resetValues();
     this.createBackground();
-    this.createFog();
     this.createAnimations();
     this.createObstacles();
     this.createEnergyCores();
@@ -422,6 +450,7 @@ class ThinkForestScene extends Phaser.Scene {
     this.createNova();
     this.createBoneGuards();
     this.createCollisions();
+    this.createFog();
     this.createKeyboardControls();
     this.createHud();
     this.createTouchControls();
@@ -435,11 +464,20 @@ class ThinkForestScene extends Phaser.Scene {
       return;
     }
 
-    if (
-      this.keyR &&
-      Phaser.Input.Keyboard.JustDown(this.keyR)
-    ) {
-      this.scene.restart();
+    if (this.keyP && Phaser.Input.Keyboard.JustDown(this.keyP)) {
+      if (this.isPaused) {
+        this.resumeGame();
+      } else {
+        this.openPauseMenu();
+      }
+    }
+
+    if (this.isPaused) {
+      return;
+    }
+
+    if (this.keyR && Phaser.Input.Keyboard.JustDown(this.keyR)) {
+      this.restartLevel();
       return;
     }
 
@@ -484,8 +522,11 @@ class ThinkForestScene extends Phaser.Scene {
     this.hasFinished = false;
     this.isGameOver = false;
     this.resultSubmitted = false;
+    this.isPaused = false;
+    this.pauseOverlay = undefined;
     this.boneGuards = [];
     this.energyCores = [];
+    this.sound.volume = this.gameVolume;
   }
 
   private createBackground() {
@@ -498,34 +539,106 @@ class ThinkForestScene extends Phaser.Scene {
   }
 
   private createFog() {
-    this.fogOne = this.add
-      .tileSprite(0, 0, GAME_WIDTH, GAME_HEIGHT, "fog-one")
+    if (!this.nova) {
+      return;
+    }
+
+    /*
+     * The PNGs are repeated at a smaller scale to create dense local mist.
+     * Two inverse circular masks form three visibility zones:
+     *   0–4 m   clear
+     *   4–6 m   translucent fog
+     *   6 m+    dense, nearly opaque fog
+     */
+    this.farFogVeil = this.add
+      .rectangle(0, 0, WORLD_WIDTH, WORLD_HEIGHT, 0xb8c4ce, 0.34)
       .setOrigin(0)
-      .setScrollFactor(0)
-      .setAlpha(0.22)
-      .setDepth(-40);
+      .setDepth(2448);
+
+    this.fogOne = this.add
+      .tileSprite(0, 0, WORLD_WIDTH, WORLD_HEIGHT, "fog-one")
+      .setOrigin(0)
+      .setTileScale(FOG_TILE_SCALE)
+      .setAlpha(0.74)
+      .setTint(0xd6dee5)
+      .setDepth(2449);
 
     this.fogTwo = this.add
-      .tileSprite(0, 0, GAME_WIDTH, GAME_HEIGHT, "fog-two")
+      .tileSprite(0, 0, WORLD_WIDTH, WORLD_HEIGHT, "fog-two")
       .setOrigin(0)
-      .setScrollFactor(0)
-      .setAlpha(0.18)
-      .setDepth(2400);
+      .setTileScale(FOG_TILE_SCALE * 0.82)
+      .setAlpha(0.42)
+      .setTint(0xe3e8ec)
+      .setDepth(2450);
 
-    this.fogOne.setBlendMode(Phaser.BlendModes.SCREEN);
-    this.fogTwo.setBlendMode(Phaser.BlendModes.SCREEN);
+    this.outerFogMaskGraphics = this.make.graphics(
+      {
+        x: 0,
+        y: 0,
+      },
+      false,
+    );
+
+    this.innerFogMaskGraphics = this.make.graphics(
+      {
+        x: 0,
+        y: 0,
+      },
+      false,
+    );
+
+    this.outerFogMask = this.outerFogMaskGraphics.createGeometryMask();
+    this.innerFogMask = this.innerFogMaskGraphics.createGeometryMask();
+    this.outerFogMask.setInvertAlpha(true);
+    this.innerFogMask.setInvertAlpha(true);
+
+    this.farFogVeil.setMask(this.outerFogMask);
+    this.fogOne.setMask(this.outerFogMask);
+    this.fogTwo.setMask(this.innerFogMask);
+
+    this.updateFogMasks();
   }
 
   private updateFog(delta: number) {
     if (this.fogOne) {
-      this.fogOne.tilePositionX += delta * 0.006;
-      this.fogOne.tilePositionY += delta * 0.0015;
+      this.fogOne.tilePositionX += delta * 0.014;
+      this.fogOne.tilePositionY += delta * 0.004;
     }
 
     if (this.fogTwo) {
-      this.fogTwo.tilePositionX -= delta * 0.009;
-      this.fogTwo.tilePositionY += delta * 0.002;
+      this.fogTwo.tilePositionX -= delta * 0.019;
+      this.fogTwo.tilePositionY += delta * 0.006;
     }
+
+    this.updateFogMasks();
+  }
+
+  private updateFogMasks() {
+    if (
+      !this.nova ||
+      !this.outerFogMaskGraphics ||
+      !this.innerFogMaskGraphics
+    ) {
+      return;
+    }
+
+    this.outerFogMaskGraphics
+      .clear()
+      .fillStyle(0xffffff, 1)
+      .fillCircle(
+        this.nova.x,
+        this.nova.y,
+        FOG_TRANSITION_RADIUS,
+      );
+
+    this.innerFogMaskGraphics
+      .clear()
+      .fillStyle(0xffffff, 1)
+      .fillCircle(
+        this.nova.x,
+        this.nova.y,
+        FOG_CLEAR_RADIUS,
+      );
   }
 
   private createAnimations() {
@@ -535,6 +648,13 @@ class ThinkForestScene extends Phaser.Scene {
       "right",
       "up",
     ];
+
+    this.registerUnevenGridFrames(
+      "bone-walk-sheet",
+      "bone-walk-frame",
+      6,
+      4,
+    );
 
     directions.forEach((direction, row) => {
       this.createAnimation(
@@ -573,12 +693,14 @@ class ThinkForestScene extends Phaser.Scene {
         0,
       );
 
-      this.createAnimation(
+      this.createNamedFrameAnimation(
         `bone-walk-${direction}`,
-        "bone-walk",
-        row * 6,
-        row * 6 + 5,
-        9,
+        "bone-walk-sheet",
+        Array.from(
+          { length: 6 },
+          (_, column) => `bone-walk-frame-${row}-${column}`,
+        ),
+        8,
         -1,
       );
 
@@ -617,6 +739,63 @@ class ThinkForestScene extends Phaser.Scene {
         8,
         0,
       );
+    });
+  }
+
+  private registerUnevenGridFrames(
+    textureKey: string,
+    framePrefix: string,
+    columns: number,
+    rows: number,
+  ) {
+    const texture = this.textures.get(textureKey);
+    const source = texture.getSourceImage() as {
+      width: number;
+      height: number;
+    };
+
+    for (let row = 0; row < rows; row += 1) {
+      const top = Math.round((row * source.height) / rows);
+      const bottom = Math.round(((row + 1) * source.height) / rows);
+
+      for (let column = 0; column < columns; column += 1) {
+        const left = Math.round((column * source.width) / columns);
+        const right = Math.round(((column + 1) * source.width) / columns);
+        const frameName = `${framePrefix}-${row}-${column}`;
+
+        if (!texture.has(frameName)) {
+          texture.add(
+            frameName,
+            0,
+            left,
+            top,
+            right - left,
+            bottom - top,
+          );
+        }
+      }
+    }
+  }
+
+  private createNamedFrameAnimation(
+    key: string,
+    texture: string,
+    frameNames: string[],
+    frameRate: number,
+    repeat: number,
+  ) {
+    if (this.anims.exists(key)) {
+      return;
+    }
+
+    this.anims.create({
+      key,
+      frames: frameNames.map((frame) => ({
+        key: texture,
+        frame,
+      })),
+      frameRate,
+      repeat,
     });
   }
 
@@ -685,6 +864,16 @@ class ThinkForestScene extends Phaser.Scene {
     body.setOffset(106, 178);
 
     this.nova = nova;
+
+    nova.on(
+      Phaser.Animations.Events.ANIMATION_UPDATE,
+      (animation: Phaser.Animations.Animation) => {
+        if (animation.key.startsWith("nova-walk-")) {
+          this.applyNovaWalkCrop();
+        }
+      },
+    );
+
     this.showStaticNovaIdleFrame();
   }
 
@@ -749,7 +938,7 @@ class ThinkForestScene extends Phaser.Scene {
         guard.entering = true;
         guard.sprite.enableBody(true, spawnX, entry.y, true, true);
         guard.sprite.setVelocity(-BONE_GUARD_SPEED, 0);
-        guard.sprite.play("bone-walk-left", true);
+        this.playBoneAnimation(guard.sprite, "walk", "left");
       });
     });
   }
@@ -849,6 +1038,7 @@ class ThinkForestScene extends Phaser.Scene {
       Phaser.Input.Keyboard.KeyCodes.SPACE,
     );
     this.keyR = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
+    this.keyP = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.P);
 
     this.input.keyboard.addCapture([
       Phaser.Input.Keyboard.KeyCodes.UP,
@@ -861,6 +1051,7 @@ class ThinkForestScene extends Phaser.Scene {
       Phaser.Input.Keyboard.KeyCodes.S,
       Phaser.Input.Keyboard.KeyCodes.D,
       Phaser.Input.Keyboard.KeyCodes.R,
+      Phaser.Input.Keyboard.KeyCodes.P,
     ]);
   }
 
@@ -956,7 +1147,7 @@ class ThinkForestScene extends Phaser.Scene {
       .text(
         GAME_WIDTH / 2,
         GAME_HEIGHT - 30,
-        "WASD / ARROWS  MOVE     SPACE  ATTACK     R  RESTART",
+        "WASD / ARROWS  MOVE     SPACE  ATTACK     P  PAUSE     R  RESTART",
         {
           fontFamily: "Arial, sans-serif",
           fontSize: "12px",
@@ -968,6 +1159,308 @@ class ThinkForestScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(3001);
+
+    this.createPauseButton();
+  }
+
+  private createPauseButton() {
+    const x = GAME_WIDTH / 2;
+    const y = 44;
+
+    const button = this.add.rectangle(x, y, 132, 42, 0x030916, 0.9);
+    button.setStrokeStyle(1, 0x7ee8ff, 0.42);
+    button.setScrollFactor(0);
+    button.setDepth(3200);
+    button.setInteractive({ useHandCursor: true });
+
+    const label = this.add
+      .text(x, y, "Ⅱ  PAUSE", {
+        fontFamily: "Arial, sans-serif",
+        fontSize: "13px",
+        fontStyle: "bold",
+        color: "#d9fbff",
+        letterSpacing: 1,
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(3201);
+
+    button.on("pointerover", () => {
+      button.setFillStyle(0x16445c, 0.96);
+      label.setColor("#ffffff");
+    });
+
+    button.on("pointerout", () => {
+      button.setFillStyle(0x030916, 0.9);
+      label.setColor("#d9fbff");
+    });
+
+    button.on("pointerdown", () => {
+      if (!this.isPaused && !this.hasFinished && !this.isGameOver) {
+        this.openPauseMenu();
+      }
+    });
+  }
+
+  private openPauseMenu() {
+    if (this.isPaused || this.pauseOverlay) {
+      return;
+    }
+
+    this.isPaused = true;
+    this.physics.world.pause();
+    this.anims.pauseAll();
+    this.tweens.pauseAll();
+    this.sound.pauseAll();
+    this.time.paused = true;
+
+    const objects: Phaser.GameObjects.GameObject[] = [];
+
+    const shade = this.add
+      .rectangle(
+        GAME_WIDTH / 2,
+        GAME_HEIGHT / 2,
+        GAME_WIDTH,
+        GAME_HEIGHT,
+        0x020611,
+        0.78,
+      )
+      .setScrollFactor(0)
+      .setInteractive();
+
+    const panel = this.add
+      .rectangle(
+        GAME_WIDTH / 2,
+        GAME_HEIGHT / 2,
+        720,
+        500,
+        0x071326,
+        0.98,
+      )
+      .setScrollFactor(0);
+    panel.setStrokeStyle(2, 0x7ee8ff, 0.44);
+
+    const title = this.add
+      .text(GAME_WIDTH / 2, 150, "LEVEL PAUSED", {
+        fontFamily: "Arial, sans-serif",
+        fontSize: "34px",
+        fontStyle: "bold",
+        color: "#9bf4ff",
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0);
+
+    const instructions = this.add
+      .text(
+        GAME_WIDTH / 2,
+        235,
+        [
+          "INSTRUCTIONS",
+          "• Recover all three Energy Cores.",
+          "• Avoid or defeat the Bone Guards.",
+          "• Reach the Exit Gate after all cores are collected.",
+          "• Move with WASD / arrow keys and attack with Space.",
+        ].join("\n"),
+        {
+          fontFamily: "Arial, sans-serif",
+          fontSize: "16px",
+          color: "#d3deed",
+          lineSpacing: 9,
+          align: "left",
+          wordWrap: { width: 560 },
+        },
+      )
+      .setOrigin(0.5, 0)
+      .setScrollFactor(0);
+
+    const volumeLabel = this.add
+      .text(
+        GAME_WIDTH / 2,
+        390,
+        `VOLUME  ${Math.round(this.gameVolume * 100)}%`,
+        {
+          fontFamily: "Arial, sans-serif",
+          fontSize: "14px",
+          fontStyle: "bold",
+          color: "#d9fbff",
+        },
+      )
+      .setOrigin(0.5)
+      .setScrollFactor(0);
+
+    const sliderX = GAME_WIDTH / 2 - 190;
+    const sliderY = 430;
+    const sliderWidth = 380;
+
+    const sliderTrack = this.add
+      .rectangle(sliderX, sliderY, sliderWidth, 10, 0xffffff, 0.13)
+      .setOrigin(0, 0.5)
+      .setScrollFactor(0);
+
+    const sliderFill = this.add
+      .rectangle(
+        sliderX,
+        sliderY,
+        sliderWidth * this.gameVolume,
+        10,
+        0x60f0d0,
+        0.9,
+      )
+      .setOrigin(0, 0.5)
+      .setScrollFactor(0);
+
+    const sliderKnob = this.add
+      .circle(
+        sliderX + sliderWidth * this.gameVolume,
+        sliderY,
+        14,
+        0xd9fbff,
+        1,
+      )
+      .setScrollFactor(0);
+
+    const sliderZone = this.add
+      .zone(sliderX, sliderY, sliderWidth, 42)
+      .setOrigin(0, 0.5)
+      .setScrollFactor(0)
+      .setInteractive({ useHandCursor: true });
+
+    let draggingVolume = false;
+
+    const setVolumeFromPointer = (pointer: Phaser.Input.Pointer) => {
+      const nextVolume = Phaser.Math.Clamp(
+        (pointer.x - sliderX) / sliderWidth,
+        0,
+        1,
+      );
+
+      this.gameVolume = nextVolume;
+      this.sound.volume = nextVolume;
+      sliderFill.displayWidth = sliderWidth * nextVolume;
+      sliderKnob.x = sliderX + sliderWidth * nextVolume;
+      volumeLabel.setText(`VOLUME  ${Math.round(nextVolume * 100)}%`);
+    };
+
+    sliderZone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      draggingVolume = true;
+      setVolumeFromPointer(pointer);
+    });
+
+    this.pauseSliderMoveHandler = (pointer: Phaser.Input.Pointer) => {
+      if (draggingVolume && pointer.isDown) {
+        setVolumeFromPointer(pointer);
+      }
+    };
+
+    this.pauseSliderUpHandler = () => {
+      draggingVolume = false;
+    };
+
+    this.input.on("pointermove", this.pauseSliderMoveHandler);
+    this.input.on("pointerup", this.pauseSliderUpHandler);
+
+    const resumeButton = this.createPauseMenuAction(
+      GAME_WIDTH / 2 - 145,
+      535,
+      "RESUME",
+      () => this.resumeGame(),
+      0x16445c,
+    );
+
+    const restartButton = this.createPauseMenuAction(
+      GAME_WIDTH / 2 + 145,
+      535,
+      "RESTART LEVEL",
+      () => this.restartLevel(),
+      0x5b2634,
+    );
+
+    objects.push(
+      shade,
+      panel,
+      title,
+      instructions,
+      volumeLabel,
+      sliderTrack,
+      sliderFill,
+      sliderKnob,
+      sliderZone,
+      ...resumeButton,
+      ...restartButton,
+    );
+
+    this.pauseOverlay = this.add.container(0, 0, objects);
+    this.pauseOverlay.setScrollFactor(0);
+    this.pauseOverlay.setDepth(6000);
+  }
+
+  private createPauseMenuAction(
+    x: number,
+    y: number,
+    labelText: string,
+    onPress: () => void,
+    colour: number,
+  ) {
+    const button = this.add
+      .rectangle(x, y, 240, 54, colour, 0.95)
+      .setScrollFactor(0);
+    button.setStrokeStyle(1, 0x7ee8ff, 0.45);
+    button.setInteractive({ useHandCursor: true });
+
+    const label = this.add
+      .text(x, y, labelText, {
+        fontFamily: "Arial, sans-serif",
+        fontSize: "14px",
+        fontStyle: "bold",
+        color: "#ffffff",
+        letterSpacing: 1,
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0);
+
+    button.on("pointerdown", onPress);
+
+    return [button, label];
+  }
+
+  private clearPauseOverlay() {
+    if (this.pauseSliderMoveHandler) {
+      this.input.off("pointermove", this.pauseSliderMoveHandler);
+      this.pauseSliderMoveHandler = undefined;
+    }
+
+    if (this.pauseSliderUpHandler) {
+      this.input.off("pointerup", this.pauseSliderUpHandler);
+      this.pauseSliderUpHandler = undefined;
+    }
+
+    this.pauseOverlay?.destroy(true);
+    this.pauseOverlay = undefined;
+  }
+
+  private resumeGame() {
+    if (!this.isPaused) {
+      return;
+    }
+
+    this.clearPauseOverlay();
+    this.time.paused = false;
+    this.tweens.resumeAll();
+    this.anims.resumeAll();
+    this.sound.resumeAll();
+    this.physics.world.resume();
+    this.isPaused = false;
+  }
+
+  private restartLevel() {
+    this.clearPauseOverlay();
+    this.time.paused = false;
+    this.tweens.resumeAll();
+    this.anims.resumeAll();
+    this.sound.resumeAll();
+    this.physics.world.resume();
+    this.isPaused = false;
+    this.scene.restart();
   }
 
   private createTouchControls() {
@@ -1125,6 +1618,7 @@ class ThinkForestScene extends Phaser.Scene {
 
       this.facing = this.directionFromVector(movement.x, movement.y);
       this.nova.play(`nova-walk-${this.facing}`, true);
+      this.nova.setDisplaySize(118, 118);
       this.applyNovaWalkCrop();
     } else {
       this.nova.setVelocity(0, 0);
@@ -1155,13 +1649,26 @@ class ThinkForestScene extends Phaser.Scene {
       return;
     }
 
-    const cropHeight = NOVA_WALK_CROP_HEIGHT[this.facing];
+    const crop = NOVA_WALK_CROP[this.facing];
 
-    if (cropHeight < 256) {
-      this.nova.setCrop(0, 0, 256, cropHeight);
-    } else {
+    this.nova.setDisplaySize(118, 118);
+
+    if (
+      crop.x === 0 &&
+      crop.y === 0 &&
+      crop.width === 256 &&
+      crop.height === 256
+    ) {
       this.nova.setCrop();
+      return;
     }
+
+    this.nova.setCrop(
+      crop.x,
+      crop.y,
+      crop.width,
+      crop.height,
+    );
   }
 
   private updateNovaAttack() {
@@ -1261,7 +1768,7 @@ class ThinkForestScene extends Phaser.Scene {
       guard.health -= NOVA_ATTACK_DAMAGE;
       guard.hurtUntil = this.time.now + 360;
       guard.sprite.setVelocity(0, 0);
-      guard.sprite.play(`bone-hurt-${guard.facing}`, true);
+      this.playBoneAnimation(guard.sprite, "hurt", guard.facing, false);
 
       const knockback = new Phaser.Math.Vector2(
         guard.sprite.x - this.nova!.x,
@@ -1281,6 +1788,24 @@ class ThinkForestScene extends Phaser.Scene {
     });
   }
 
+  private playBoneAnimation(
+    sprite: Phaser.Physics.Arcade.Sprite,
+    action: "walk" | "idle" | "attack" | "hurt" | "defeated",
+    direction: FacingDirection,
+    ignoreIfPlaying = true,
+  ) {
+    const animationKey = `bone-${action}-${direction}`;
+
+    sprite.play(animationKey, ignoreIfPlaying);
+
+    /*
+     * Walk frames are narrower than the idle/attack sheets. Re-applying the
+     * same display size after every animation switch prevents guards from
+     * shrinking, stretching or flickering between animation types.
+     */
+    sprite.setDisplaySize(112, 112);
+  }
+
   private updateBoneGuards(delta: number) {
     if (!this.nova) {
       return;
@@ -1297,7 +1822,7 @@ class ThinkForestScene extends Phaser.Scene {
           guard.avoidanceX,
           guard.avoidanceY,
         );
-        guard.sprite.play(`bone-walk-${guard.facing}`, true);
+        this.playBoneAnimation(guard.sprite, "walk", guard.facing);
         this.trackGuardMovement(guard, delta);
         return;
       }
@@ -1315,7 +1840,7 @@ class ThinkForestScene extends Phaser.Scene {
           );
           guard.sprite.setVelocity(0, 0);
           guard.entering = false;
-          guard.sprite.play("bone-idle-left", true);
+          this.playBoneAnimation(guard.sprite, "idle", "left");
         } else {
           entranceMovement.normalize().scale(BONE_GUARD_SPEED);
           guard.sprite.setVelocity(
@@ -1326,7 +1851,7 @@ class ThinkForestScene extends Phaser.Scene {
             entranceMovement.x,
             entranceMovement.y,
           );
-          guard.sprite.play(`bone-walk-${guard.facing}`, true);
+          this.playBoneAnimation(guard.sprite, "walk", guard.facing);
         }
 
         return;
@@ -1356,7 +1881,7 @@ class ThinkForestScene extends Phaser.Scene {
         ) {
           this.attackNova(guard);
         } else if (!guard.sprite.anims.isPlaying) {
-          guard.sprite.play(`bone-idle-${guard.facing}`, true);
+          this.playBoneAnimation(guard.sprite, "idle", guard.facing);
         }
 
         return;
@@ -1371,7 +1896,7 @@ class ThinkForestScene extends Phaser.Scene {
         chase.normalize().scale(BONE_GUARD_CHASE_SPEED);
         guard.sprite.setVelocity(chase.x, chase.y);
         guard.facing = this.directionFromVector(chase.x, chase.y);
-        guard.sprite.play(`bone-walk-${guard.facing}`, true);
+        this.playBoneAnimation(guard.sprite, "walk", guard.facing);
         this.trackGuardMovement(guard, delta);
         return;
       }
@@ -1390,11 +1915,11 @@ class ThinkForestScene extends Phaser.Scene {
         patrol.normalize().scale(BONE_GUARD_SPEED);
         guard.sprite.setVelocity(patrol.x, patrol.y);
         guard.facing = this.directionFromVector(patrol.x, patrol.y);
-        guard.sprite.play(`bone-walk-${guard.facing}`, true);
+        this.playBoneAnimation(guard.sprite, "walk", guard.facing);
         this.trackGuardMovement(guard, delta);
       } else {
         guard.sprite.setVelocity(0, 0);
-        guard.sprite.play(`bone-idle-${guard.facing}`, true);
+        this.playBoneAnimation(guard.sprite, "idle", guard.facing);
         guard.stuckForMs = 0;
         guard.lastX = guard.sprite.x;
         guard.lastY = guard.sprite.y;
@@ -1456,7 +1981,7 @@ class ThinkForestScene extends Phaser.Scene {
 
     sprite.setVelocity(preferred.x, preferred.y);
     guard.facing = this.directionFromVector(preferred.x, preferred.y);
-    sprite.play(`bone-walk-${guard.facing}`, true);
+    this.playBoneAnimation(sprite, "walk", guard.facing);
   }
 
   private trackGuardMovement(guard: BoneGuardData, delta: number) {
@@ -1515,7 +2040,7 @@ class ThinkForestScene extends Phaser.Scene {
 
     guard.lastAttackAt = this.time.now;
     guard.sprite.setVelocity(0, 0);
-    guard.sprite.play(`bone-attack-${guard.facing}`, true);
+    this.playBoneAnimation(guard.sprite, "attack", guard.facing, false);
 
     this.time.delayedCall(165, () => {
       if (!this.nova || guard.defeated || !guard.active) {
@@ -1569,7 +2094,7 @@ class ThinkForestScene extends Phaser.Scene {
     guard.active = false;
     guard.sprite.setVelocity(0, 0);
     guard.sprite.disableBody(false, false);
-    guard.sprite.play(`bone-defeated-${guard.facing}`, true);
+    this.playBoneAnimation(guard.sprite, "defeated", guard.facing, false);
     this.defeatedGuards += 1;
     this.score += 300;
 

@@ -329,10 +329,11 @@ export default function MazeChallengeClient() {
           </button>
         </div>
 
-        <div className="mx-auto mt-4 grid w-full max-w-[1500px] gap-3 sm:grid-cols-4">
+        <div className="mx-auto mt-4 grid w-full max-w-[1500px] gap-3 sm:grid-cols-5">
           <InfoCard label="Objective" value="Collect 3 cores and reach the exit" />
           <InfoCard label="Movement" value="WASD or arrow keys" />
           <InfoCard label="Combat" value="Space to use Nova's energy strike" />
+          <InfoCard label="Pause" value="Use the top Pause button or press P" />
           <InfoCard label="Restart" value="Press R at any time" />
         </div>
 
@@ -422,9 +423,10 @@ export default function MazeChallengeClient() {
           <h2 className="mt-2 text-2xl font-bold">What is included</h2>
           <p className="mt-3 max-w-4xl text-sm leading-6 text-white/58">
             Level 1 uses the current forest map and obstacle layout. Level 2
-            already has a separate course ID, obstacle layout, core positions,
-            exit position and guard waves, while temporarily reusing the Level
-            1 background until the new map PNG is added.
+            already has a separate course ID and layout while temporarily
+            reusing the Level 1 map. The game now includes dense fog of war
+            centred on Nova, a translucent visibility ring and an in-game Pause
+            menu with instructions, volume, restart and resume controls.
           </p>
 
           <button
