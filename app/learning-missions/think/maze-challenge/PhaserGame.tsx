@@ -201,6 +201,18 @@ type NovaWalkCrop = {
   height: number;
 };
 
+type FogCloudData = {
+  sprite: Phaser.GameObjects.Image;
+  baseX: number;
+  baseY: number;
+  driftX: number;
+  driftY: number;
+  phase: number;
+  phaseSpeed: number;
+  baseAlpha: number;
+  influenceRadius: number;
+};
+
 const NOVA_WALK_CROP: Record<FacingDirection, NovaWalkCrop> = {
   down: { x: 0, y: 0, width: 256, height: 256 },
   left: { x: 0, y: 0, width: 256, height: 256 },
@@ -214,9 +226,17 @@ const NOVA_WALK_CROP: Record<FacingDirection, NovaWalkCrop> = {
   up: { x: 8, y: 0, width: 240, height: 208 },
 };
 
-const FOG_CLEAR_RADIUS = 225;
-const FOG_TRANSITION_RADIUS = 340;
-const FOG_TILE_SCALE = 0.42;
+/*
+ * Smaller visibility area around Nova. The fog is now built from many
+ * individual fog PNGs, so the edge is cloud-shaped instead of a perfect
+ * geometry-mask circle.
+ */
+const FOG_CLEAR_RADIUS = 138;
+const FOG_TRANSITION_RADIUS = 225;
+const FOG_COLUMNS = 11;
+const FOG_ROWS = 7;
+const FOG_MIN_WIDTH = 230;
+const FOG_MAX_WIDTH = 340;
 const DEFAULT_GAME_VOLUME = 0.7;
 
 const NOVA_SPEED = 250;
@@ -356,13 +376,7 @@ class ThinkForestScene extends Phaser.Scene {
   private timerText?: Phaser.GameObjects.Text;
   private objectiveText?: Phaser.GameObjects.Text;
 
-  private fogOne?: Phaser.GameObjects.TileSprite;
-  private fogTwo?: Phaser.GameObjects.TileSprite;
-  private farFogVeil?: Phaser.GameObjects.Rectangle;
-  private outerFogMaskGraphics?: Phaser.GameObjects.Graphics;
-  private innerFogMaskGraphics?: Phaser.GameObjects.Graphics;
-  private outerFogMask?: Phaser.Display.Masks.GeometryMask;
-  private innerFogMask?: Phaser.Display.Masks.GeometryMask;
+  private fogClouds: FogCloudData[] = [];
 
   private isPaused = false;
   private pauseOverlay?: Phaser.GameObjects.Container;
@@ -526,6 +540,7 @@ class ThinkForestScene extends Phaser.Scene {
     this.pauseOverlay = undefined;
     this.boneGuards = [];
     this.energyCores = [];
+    this.fogClouds = [];
     this.sound.volume = this.gameVolume;
   }
 
@@ -544,101 +559,121 @@ class ThinkForestScene extends Phaser.Scene {
     }
 
     /*
-     * The PNGs are repeated at a smaller scale to create dense local mist.
-     * Two inverse circular masks form three visibility zones:
-     *   0–4 m   clear
-     *   4–6 m   translucent fog
-     *   6 m+    dense, nearly opaque fog
+     * Use many smaller transparent PNGs rather than one tiled sheet and a
+     * circular cut-out. Their overlaps make the unexplored map dense while
+     * their irregular transparent edges create a natural cloud boundary.
      */
-    this.farFogVeil = this.add
-      .rectangle(0, 0, WORLD_WIDTH, WORLD_HEIGHT, 0xb8c4ce, 0.34)
-      .setOrigin(0)
-      .setDepth(2448);
+    this.fogClouds = [];
 
-    this.fogOne = this.add
-      .tileSprite(0, 0, WORLD_WIDTH, WORLD_HEIGHT, "fog-one")
-      .setOrigin(0)
-      .setTileScale(FOG_TILE_SCALE)
-      .setAlpha(0.74)
-      .setTint(0xd6dee5)
-      .setDepth(2449);
+    const cellWidth = WORLD_WIDTH / Math.max(1, FOG_COLUMNS - 1);
+    const cellHeight = WORLD_HEIGHT / Math.max(1, FOG_ROWS - 1);
 
-    this.fogTwo = this.add
-      .tileSprite(0, 0, WORLD_WIDTH, WORLD_HEIGHT, "fog-two")
-      .setOrigin(0)
-      .setTileScale(FOG_TILE_SCALE * 0.82)
-      .setAlpha(0.42)
-      .setTint(0xe3e8ec)
-      .setDepth(2450);
+    for (let row = 0; row < FOG_ROWS; row += 1) {
+      for (let column = 0; column < FOG_COLUMNS; column += 1) {
+        const index = row * FOG_COLUMNS + column;
+        const seedA = this.fogNoise(index * 3 + 1);
+        const seedB = this.fogNoise(index * 3 + 2);
+        const seedC = this.fogNoise(index * 3 + 3);
 
-    this.outerFogMaskGraphics = this.make.graphics(
-      {
-        x: 0,
-        y: 0,
-      },
-      false,
-    );
+        const x =
+          column * cellWidth +
+          (seedA - 0.5) * cellWidth * 0.9;
+        const y =
+          row * cellHeight +
+          (seedB - 0.5) * cellHeight * 0.9;
 
-    this.innerFogMaskGraphics = this.make.graphics(
-      {
-        x: 0,
-        y: 0,
-      },
-      false,
-    );
+        const width = Phaser.Math.Linear(
+          FOG_MIN_WIDTH,
+          FOG_MAX_WIDTH,
+          seedC,
+        );
+        const height = width * Phaser.Math.Linear(0.5, 0.68, seedA);
+        const texture = index % 2 === 0 ? "fog-one" : "fog-two";
+        const baseAlpha = Phaser.Math.Linear(0.72, 0.94, seedB);
 
-    this.outerFogMask = this.outerFogMaskGraphics.createGeometryMask();
-    this.innerFogMask = this.innerFogMaskGraphics.createGeometryMask();
-    this.outerFogMask.setInvertAlpha(true);
-    this.innerFogMask.setInvertAlpha(true);
+        const cloud = this.add.image(x, y, texture);
+        cloud
+          .setDisplaySize(width, height)
+          .setAlpha(baseAlpha)
+          .setRotation((seedC - 0.5) * 0.65)
+          .setTint(index % 3 === 0 ? 0xdce4e9 : 0xcbd7df)
+          .setDepth(2448 + (index % 3));
 
-    this.farFogVeil.setMask(this.outerFogMask);
-    this.fogOne.setMask(this.outerFogMask);
-    this.fogTwo.setMask(this.innerFogMask);
+        this.fogClouds.push({
+          sprite: cloud,
+          baseX: x,
+          baseY: y,
+          driftX: Phaser.Math.Linear(8, 24, seedA),
+          driftY: Phaser.Math.Linear(5, 16, seedB),
+          phase: seedC * Math.PI * 2,
+          phaseSpeed: Phaser.Math.Linear(0.09, 0.2, seedB),
+          baseAlpha,
+          influenceRadius: Math.max(width, height) * 0.34,
+        });
+      }
+    }
 
-    this.updateFogMasks();
+    this.updateFog(0);
   }
 
   private updateFog(delta: number) {
-    if (this.fogOne) {
-      this.fogOne.tilePositionX += delta * 0.014;
-      this.fogOne.tilePositionY += delta * 0.004;
-    }
-
-    if (this.fogTwo) {
-      this.fogTwo.tilePositionX -= delta * 0.019;
-      this.fogTwo.tilePositionY += delta * 0.006;
-    }
-
-    this.updateFogMasks();
-  }
-
-  private updateFogMasks() {
-    if (
-      !this.nova ||
-      !this.outerFogMaskGraphics ||
-      !this.innerFogMaskGraphics
-    ) {
+    if (!this.nova || this.fogClouds.length === 0) {
       return;
     }
 
-    this.outerFogMaskGraphics
-      .clear()
-      .fillStyle(0xffffff, 1)
-      .fillCircle(
-        this.nova.x,
-        this.nova.y,
-        FOG_TRANSITION_RADIUS,
+    const seconds = delta / 1000;
+
+    this.fogClouds.forEach((cloud, index) => {
+      cloud.phase += cloud.phaseSpeed * seconds;
+
+      cloud.sprite.x =
+        cloud.baseX + Math.sin(cloud.phase + index * 0.31) * cloud.driftX;
+      cloud.sprite.y =
+        cloud.baseY + Math.cos(cloud.phase * 0.77 + index * 0.23) * cloud.driftY;
+
+      const centreDistance = Phaser.Math.Distance.Between(
+        this.nova!.x,
+        this.nova!.y,
+        cloud.sprite.x,
+        cloud.sprite.y,
       );
 
-    this.innerFogMaskGraphics
-      .clear()
-      .fillStyle(0xffffff, 1)
-      .fillCircle(
-        this.nova.x,
-        this.nova.y,
-        FOG_CLEAR_RADIUS,
+      /*
+       * Account for the cloud's visible footprint, not just its centre. This
+       * prevents a large PNG from hanging over Nova while its centre is still
+       * outside the clear radius.
+       */
+      const edgeDistance = Math.max(
+        0,
+        centreDistance - cloud.influenceRadius,
       );
+
+      let targetAlpha = cloud.baseAlpha;
+
+      if (edgeDistance <= FOG_CLEAR_RADIUS) {
+        targetAlpha = 0;
+      } else if (edgeDistance < FOG_TRANSITION_RADIUS) {
+        const transition = Phaser.Math.Clamp(
+          (edgeDistance - FOG_CLEAR_RADIUS) /
+            (FOG_TRANSITION_RADIUS - FOG_CLEAR_RADIUS),
+          0,
+          1,
+        );
+
+        /* Smoothstep produces a softer, less mechanical fade. */
+        const softened = transition * transition * (3 - 2 * transition);
+        targetAlpha = cloud.baseAlpha * softened * 0.72;
+      }
+
+      cloud.sprite.setAlpha(
+        Phaser.Math.Linear(cloud.sprite.alpha, targetAlpha, 0.16),
+      );
+    });
+  }
+
+  private fogNoise(seed: number) {
+    const value = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+    return value - Math.floor(value);
   }
 
   private createAnimations() {
