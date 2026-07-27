@@ -67,7 +67,13 @@ type Zone = {
   href?: string;
   opensMembership?: boolean;
   requiresClub?: boolean;
-  style: CSSProperties;
+};
+
+type WalkthroughStep = {
+  eyebrow: string;
+  title: string;
+  text: string;
+  zoneNumber?: string;
 };
 
 const REFERRAL_OBJECTIVES: ReferralObjectiveDefinition[] = [
@@ -88,74 +94,97 @@ const REFERRAL_OBJECTIVES: ReferralObjectiveDefinition[] = [
   },
 ];
 
-const INTRO_TEXT =
-  "Hi, I’m Milo. Welcome to my economy world. This is where Dreamscape users play challenges, earn Dreamscape Tokens, visit the Dream Shop, build businesses, and use tokens in Milo’s Stock Exchange if they are 16 or above. Choose any zone to begin.";
+const WALKTHROUGH_STORAGE_KEY = "milo-world-walkthrough-completed-v1";
 
 const ZONES: Zone[] = [
   {
     number: "1",
-    icon: "✦",
-    title: "Membership Portal",
-    description: "Choose your Dreamscape One access level.",
-    opensMembership: true,
-    style: {
-      top: "185px",
-      left: "50%",
-      transform: "translateX(-50%)",
-      width: "455px",
-    },
+    icon: "▣",
+    title: "Activity Lab",
+    description:
+      "Play challenges, quiz battles, and party games to earn Dreamscape Tokens.",
+    href: "/milo-world/activity-lab",
   },
   {
     number: "2",
     icon: "◈",
     title: "Milo’s Exchange",
     description:
-      "Use earned Dreamscape Tokens to trade fictional Dreamscape stocks.",
+      "Use Dreamscape Tokens to explore fictional stocks and property investing.",
     href: "/milo-world/exchange",
-    style: {
-      top: "300px",
-      right: "180px",
-      width: "455px",
-    },
   },
   {
     number: "3",
-    icon: "▣",
-    title: "Activity Lab",
-    description:
-      "Play daily challenges, quiz battles, and party games to earn tokens.",
-    href: "/milo-world/activity-lab",
-    style: {
-      top: "800px",
-      right: "275px",
-      width: "455px",
-    },
-  },
-  {
-    number: "4",
-    icon: "◆",
-    title: "Dream Shop",
-    description: "Collectibles, limited drops, and Dreamscape items.",
-    href: "/milo-world/dream-shop",
-    style: {
-      top: "800px",
-      left: "365px",
-      width: "455px",
-    },
-  },
-  {
-    number: "5",
     icon: "★",
     title: "Milo’s Business Builder",
     description:
       "Build, manage, and grow a Dreamscape business through strategic decisions.",
     href: "/milo-world/club",
     requiresClub: true,
-    style: {
-      top: "370px",
-      left: "140px",
-      width: "455px",
-    },
+  },
+  {
+    number: "4",
+    icon: "◆",
+    title: "Dream Shop",
+    description: "Use Dreamscape Tokens and discover collectibles and special items.",
+    href: "/milo-world/dream-shop",
+  },
+  {
+    number: "5",
+    icon: "✦",
+    title: "Membership",
+    description: "View your Milo’s World access options and membership benefits.",
+    opensMembership: true,
+  },
+];
+
+const WALKTHROUGH_STEPS: WalkthroughStep[] = [
+  {
+    eyebrow: "Welcome",
+    title: "Let me show you around Milo’s World.",
+    text:
+      "This world is built around earning, using, and growing Dreamscape Tokens. I’ll explain each location so you know where to begin.",
+  },
+  {
+    eyebrow: "Stop 1 of 5",
+    title: "Start in the Activity Lab.",
+    text:
+      "Play challenges, quiz battles, and party games here. This is the easiest place for a new user to earn Dreamscape Tokens.",
+    zoneNumber: "1",
+  },
+  {
+    eyebrow: "Stop 2 of 5",
+    title: "Learn investing in Milo’s Exchange.",
+    text:
+      "Use the tokens you earn to explore fictional stocks and property. The exchange is designed to teach how value, risk, and returns work.",
+    zoneNumber: "2",
+  },
+  {
+    eyebrow: "Stop 3 of 5",
+    title: "Build a business with Milo.",
+    text:
+      "Choose a business, manage costs and staff, make operating decisions, and grow its value inside Milo’s Business Builder.",
+    zoneNumber: "3",
+  },
+  {
+    eyebrow: "Stop 4 of 5",
+    title: "Visit the Dream Shop.",
+    text:
+      "Use the Dream Shop to discover Dreamscape items, token packs, collectibles, and future limited releases.",
+    zoneNumber: "4",
+  },
+  {
+    eyebrow: "Stop 5 of 5",
+    title: "Check your Membership access.",
+    text:
+      "The Membership area explains which Milo’s World features are included in your current access level and what additional benefits are available.",
+    zoneNumber: "5",
+  },
+  {
+    eyebrow: "You’re ready",
+    title: "Begin with the Activity Lab.",
+    text:
+      "Earn a few Dreamscape Tokens first, then explore the Exchange, Business Builder, and Dream Shop. You can restart this walkthrough anytime using the Milo Guide button at the top.",
   },
 ];
 
@@ -244,63 +273,63 @@ function ZoneCard({
   screenMode,
   hasClubAccess,
   onOpenMembership,
+  walkthroughActive,
+  walkthroughHighlighted,
 }: {
   zone: Zone;
   screenMode: ScreenMode;
   hasClubAccess: boolean;
   onOpenMembership: () => void;
+  walkthroughActive: boolean;
+  walkthroughHighlighted: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
-
-  const isDesktop = screenMode === "desktop";
   const isMobile = screenMode === "mobile";
-  const baseTransform =
-    isDesktop && typeof zone.style.transform === "string"
-      ? zone.style.transform
-      : "";
-  const desktopStyle = isDesktop ? zone.style : {};
+  const isEmphasised = hovered || walkthroughHighlighted;
 
   const cardStyle: CSSProperties = {
-    position: isDesktop ? "absolute" : "relative",
+    position: "relative",
     minHeight: isMobile ? "82px" : "94px",
-    width: isDesktop ? undefined : "100%",
+    width: "100%",
     display: "grid",
     gridTemplateColumns: isMobile
       ? "50px 1px minmax(0, 1fr) 24px"
-      : "74px 1px minmax(0, 1fr) 32px",
+      : "64px 1px minmax(0, 1fr) 32px",
     alignItems: "center",
-    gap: isMobile ? "12px" : "20px",
-    padding: isMobile ? "16px" : "22px 26px 22px 24px",
+    gap: isMobile ? "12px" : "18px",
+    padding: isMobile ? "16px" : "20px 24px 20px 20px",
     borderRadius: "16px",
-    border: hovered
-      ? "1px solid rgba(132, 218, 255, 0.52)"
-      : "1px solid rgba(132, 218, 255, 0.24)",
-    background: hovered
-      ? "rgba(5, 13, 28, 0.74)"
-      : "rgba(5, 13, 28, 0.42)",
+    border: isEmphasised
+      ? "1px solid rgba(142, 232, 255, 0.88)"
+      : "1px solid rgba(132, 218, 255, 0.32)",
+    background: isEmphasised
+      ? "rgba(5, 18, 36, 0.94)"
+      : "rgba(5, 13, 28, 0.68)",
     color: "white",
     textDecoration: "none",
     textAlign: "left",
     fontFamily: "inherit",
     backdropFilter: "blur(18px)",
     WebkitBackdropFilter: "blur(18px)",
-    boxShadow: hovered
-      ? "0 0 42px rgba(83,215,255,0.28), 0 26px 70px rgba(0,0,0,0.42)"
-      : "0 14px 34px rgba(0,0,0,0.22)",
-    opacity: isDesktop ? (hovered ? 1 : 0.42) : hovered ? 1 : 0.78,
-    filter: hovered ? "none" : "saturate(0.75) brightness(0.88)",
-    transition:
-      "transform 260ms ease, box-shadow 260ms ease, border-color 260ms ease, opacity 260ms ease, filter 260ms ease",
-    zIndex: hovered ? 20 : 8,
-    cursor: "pointer",
-    ...desktopStyle,
-    transform: isDesktop
-      ? `${baseTransform} ${
-          hovered ? "translateY(-6px) scale(1.015)" : ""
-        }`.trim()
+    boxShadow: walkthroughHighlighted
+      ? "0 0 0 3px rgba(83,215,255,0.18), 0 0 54px rgba(83,215,255,0.48), 0 28px 74px rgba(0,0,0,0.55)"
       : hovered
-        ? "translateY(-4px)"
-        : "none",
+        ? "0 0 42px rgba(83,215,255,0.28), 0 26px 70px rgba(0,0,0,0.42)"
+        : "0 14px 34px rgba(0,0,0,0.3)",
+    opacity:
+      walkthroughActive && !walkthroughHighlighted ? 0.2 : isEmphasised ? 1 : 0.88,
+    filter:
+      walkthroughActive && !walkthroughHighlighted
+        ? "saturate(0.35) brightness(0.5)"
+        : isEmphasised
+          ? "none"
+          : "saturate(0.86) brightness(0.94)",
+    transition:
+      "transform 260ms ease, box-shadow 260ms ease, border-color 260ms ease, opacity 260ms ease, filter 260ms ease, background 260ms ease",
+    zIndex: walkthroughHighlighted ? 4 : hovered ? 3 : 1,
+    cursor: walkthroughActive ? "default" : "pointer",
+    pointerEvents: walkthroughActive ? "none" : "auto",
+    transform: isEmphasised ? "translateY(-4px) scale(1.012)" : "none",
   };
 
   const content = (
@@ -338,13 +367,13 @@ function ZoneCard({
           style={{
             display: "flex",
             alignItems: "flex-start",
-            gap: isMobile ? "10px" : "16px",
+            gap: isMobile ? "10px" : "14px",
           }}
         >
           <span
             style={{
               flexShrink: 0,
-              fontSize: isMobile ? "15px" : "19px",
+              fontSize: isMobile ? "15px" : "18px",
               color: "rgba(255,255,255,0.86)",
               lineHeight: 1.2,
             }}
@@ -357,10 +386,10 @@ function ZoneCard({
               style={{
                 margin: 0,
                 textTransform: "uppercase",
-                letterSpacing: "0.1em",
-                fontSize: isMobile ? "15px" : "18px",
+                letterSpacing: "0.09em",
+                fontSize: isMobile ? "15px" : "17px",
                 lineHeight: 1.35,
-                fontWeight: 700,
+                fontWeight: 750,
                 color: "white",
               }}
             >
@@ -371,7 +400,7 @@ function ZoneCard({
               <p
                 style={{
                   margin: "7px 0 0",
-                  color: "rgba(255,255,255,0.55)",
+                  color: "rgba(255,255,255,0.64)",
                   fontSize: "12px",
                   lineHeight: 1.45,
                 }}
@@ -395,15 +424,16 @@ function ZoneCard({
     </>
   );
 
+  const commonProps = {
+    id: `milo-zone-${zone.number}`,
+    onMouseEnter: () => setHovered(true),
+    onMouseLeave: () => setHovered(false),
+    style: cardStyle,
+  };
+
   if (zone.requiresClub && !hasClubAccess) {
     return (
-      <button
-        type="button"
-        onClick={onOpenMembership}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        style={cardStyle}
-      >
+      <button type="button" onClick={onOpenMembership} {...commonProps}>
         {content}
       </button>
     );
@@ -411,41 +441,37 @@ function ZoneCard({
 
   if (zone.href) {
     return (
-      <Link
-        href={zone.href}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        style={cardStyle}
-      >
+      <Link href={zone.href} {...commonProps}>
         {content}
       </Link>
     );
   }
 
   return (
-    <button
-      type="button"
-      onClick={onOpenMembership}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={cardStyle}
-    >
+    <button type="button" onClick={onOpenMembership} {...commonProps}>
       {content}
     </button>
   );
 }
 
-function IntroDialogue({
+function GuidedWalkthrough({
   open,
+  stepIndex,
+  onStepChange,
   onClose,
 }: {
   open: boolean;
+  stepIndex: number;
+  onStepChange: (nextStep: number) => void;
   onClose: () => void;
 }) {
-  const [typedLength, setTypedLength] = useState(0);
   const screenMode = useResponsiveMode();
+  const isDesktop = screenMode === "desktop";
   const isMobile = screenMode === "mobile";
-  const isCompact = screenMode !== "desktop";
+  const step = WALKTHROUGH_STEPS[stepIndex] ?? WALKTHROUGH_STEPS[0];
+  const isFirstStep = stepIndex === 0;
+  const isLastStep = stepIndex === WALKTHROUGH_STEPS.length - 1;
+  const [typedLength, setTypedLength] = useState(0);
 
   useEffect(() => {
     if (!open) {
@@ -453,76 +479,92 @@ function IntroDialogue({
       return;
     }
 
+    setTypedLength(0);
     const interval = window.setInterval(() => {
       setTypedLength((current) => {
-        if (current >= INTRO_TEXT.length) {
+        if (current >= step.text.length) {
           window.clearInterval(interval);
           return current;
         }
-
         return current + 1;
       });
-    }, 22);
+    }, 14);
 
     return () => window.clearInterval(interval);
-  }, [open]);
+  }, [open, step.text]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [open, onClose]);
 
   if (!open) return null;
 
-  const completed = typedLength >= INTRO_TEXT.length;
-
   return (
-    <div
-      role="presentation"
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 80,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: isMobile ? "16px" : "28px",
-        background:
-          "radial-gradient(circle at 50% 50%, rgba(83,215,255,0.12), rgba(0,0,0,0.46))",
-        backdropFilter: "blur(4px)",
-        WebkitBackdropFilter: "blur(4px)",
-      }}
-    >
+    <>
       <div
-        className="milo-scrollbar"
-        onClick={(event) => event.stopPropagation()}
+        aria-hidden="true"
         style={{
-          position: "relative",
-          width: "min(880px, 92vw)",
-          maxHeight: "88dvh",
+          position: "fixed",
+          inset: 0,
+          zIndex: 60,
+          background: "rgba(0, 3, 12, 0.76)",
+          backdropFilter: "blur(3px)",
+          WebkitBackdropFilter: "blur(3px)",
+        }}
+      />
+
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Milo’s World guided walkthrough"
+        style={{
+          position: "fixed",
+          left: isMobile ? "12px" : isDesktop ? "36px" : "24px",
+          right: isMobile ? "12px" : "auto",
+          bottom: isMobile ? "12px" : "26px",
+          transform: "none",
+          zIndex: 80,
+          width: isMobile
+            ? "auto"
+            : isDesktop
+              ? "min(520px, calc(100vw - 72px))"
+              : "min(390px, calc(100vw - 48px))",
+          maxHeight: isMobile ? "52dvh" : "min(390px, calc(100dvh - 48px))",
           overflowY: "auto",
-          minHeight: isMobile ? "auto" : "330px",
-          borderRadius: isMobile ? "22px" : "26px",
-          padding: isCompact ? "28px 24px" : "36px 38px 36px 260px",
-          border: "1px solid rgba(132,218,255,0.24)",
-          background: "rgba(5, 13, 28, 0.92)",
+          borderRadius: isMobile ? "20px" : "26px",
+          border: "1px solid rgba(142,232,255,0.4)",
+          background:
+            "linear-gradient(145deg, rgba(4,17,34,0.98), rgba(3,9,24,0.98))",
           boxShadow:
-            "0 34px 100px rgba(0,0,0,0.6), inset 0 0 50px rgba(83,215,255,0.04)",
+            "0 32px 90px rgba(0,0,0,0.68), 0 0 40px rgba(83,215,255,0.12)",
+          color: "white",
+          padding: isMobile ? "20px" : "26px 28px 24px 190px",
         }}
       >
         <button
           type="button"
-          aria-label="Close introduction"
+          aria-label="Close walkthrough"
           onClick={onClose}
           style={{
             position: "absolute",
-            top: "18px",
-            right: "20px",
-            width: "38px",
-            height: "38px",
+            top: "14px",
+            right: "14px",
+            width: "36px",
+            height: "36px",
             borderRadius: "999px",
-            border: "1px solid rgba(255,255,255,0.22)",
+            border: "1px solid rgba(255,255,255,0.2)",
             background: "rgba(255,255,255,0.08)",
             color: "white",
             cursor: "pointer",
-            fontSize: "20px",
-            zIndex: 4,
+            fontSize: "19px",
+            zIndex: 3,
           }}
         >
           ×
@@ -532,16 +574,16 @@ function IntroDialogue({
           src="/milo-world/milo-character.png"
           alt="Milo"
           style={{
-            position: isCompact ? "relative" : "absolute",
-            left: isCompact ? "auto" : "28px",
-            bottom: isCompact ? "auto" : "-4px",
-            height: isMobile ? "150px" : isCompact ? "190px" : "310px",
+            position: isMobile ? "relative" : "absolute",
+            left: isMobile ? "auto" : "18px",
+            bottom: isMobile ? "auto" : "-8px",
+            height: isMobile ? "108px" : "245px",
             width: "auto",
             objectFit: "contain",
-            filter: "drop-shadow(0 18px 40px rgba(0,0,0,0.55))",
-            pointerEvents: "none",
             display: "block",
-            margin: isCompact ? "0 auto 18px" : 0,
+            margin: isMobile ? "0 auto 10px" : 0,
+            filter: "drop-shadow(0 18px 36px rgba(0,0,0,0.52))",
+            pointerEvents: "none",
           }}
         />
 
@@ -549,72 +591,125 @@ function IntroDialogue({
           style={{
             margin: 0,
             color: "#8ee8ff",
-            fontSize: "13px",
-            letterSpacing: "0.24em",
+            fontSize: "11px",
+            letterSpacing: "0.2em",
             textTransform: "uppercase",
-            fontWeight: 700,
+            fontWeight: 850,
           }}
         >
-          Milo says
+          {step.eyebrow}
         </p>
 
         <h2
           style={{
-            margin: "12px 0 0",
+            margin: "9px 42px 0 0",
             fontFamily: 'Georgia, "Times New Roman", serif',
-            fontSize: isMobile ? "32px" : "42px",
-            fontWeight: 500,
-            color: "white",
+            fontSize: isMobile ? "26px" : "35px",
             lineHeight: 1.08,
+            fontWeight: 500,
           }}
         >
-          Welcome to Milo’s World.
+          {step.title}
         </h2>
 
         <p
           style={{
-            margin: "24px 0 0",
-            minHeight: isMobile ? "auto" : "118px",
-            color: "rgba(255,255,255,0.82)",
-            fontSize: isMobile ? "16px" : "19px",
-            lineHeight: 1.7,
-            fontWeight: 300,
-            whiteSpace: "pre-wrap",
+            margin: "14px 0 0",
+            minHeight: isMobile ? "72px" : "78px",
+            color: "rgba(255,255,255,0.78)",
+            fontSize: isMobile ? "14px" : "16px",
+            lineHeight: 1.58,
           }}
         >
-          {INTRO_TEXT.slice(0, typedLength)}
-          <span
-            style={{
-              display: "inline-block",
-              width: "8px",
-              height: "20px",
-              marginLeft: "3px",
-              background: "rgba(255,255,255,0.75)",
-              transform: "translateY(3px)",
-              opacity: completed ? 0 : 1,
-            }}
-          />
+          {step.text.slice(0, typedLength)}
+          {typedLength < step.text.length && (
+            <span
+              aria-hidden="true"
+              style={{
+                display: "inline-block",
+                width: "7px",
+                height: "16px",
+                marginLeft: "3px",
+                background: "rgba(255,255,255,0.72)",
+                transform: "translateY(2px)",
+              }}
+            />
+          )}
         </p>
 
-        <button
-          type="button"
-          onClick={onClose}
+        <div
           style={{
-            marginTop: "26px",
-            border: "1px solid rgba(83,215,255,0.32)",
-            background: "rgba(83,215,255,0.14)",
-            color: "white",
-            borderRadius: "12px",
-            padding: "13px 22px",
-            fontSize: "15px",
-            fontWeight: 700,
-            cursor: "pointer",
+            marginTop: "18px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            flexWrap: "wrap",
           }}
         >
-          Start Exploring
-        </button>
+          <div
+            aria-label={`Walkthrough step ${stepIndex + 1} of ${WALKTHROUGH_STEPS.length}`}
+            style={{ display: "flex", gap: "6px", alignItems: "center" }}
+          >
+            {WALKTHROUGH_STEPS.map((_, index) => (
+              <span
+                key={index}
+                style={{
+                  width: index === stepIndex ? "22px" : "7px",
+                  height: "7px",
+                  borderRadius: "999px",
+                  background:
+                    index === stepIndex
+                      ? "#8ee8ff"
+                      : "rgba(255,255,255,0.2)",
+                  transition: "width 180ms ease, background 180ms ease",
+                }}
+              />
+            ))}
+          </div>
+
+          <div style={{ display: "flex", gap: "9px" }}>
+            {!isFirstStep && (
+              <button
+                type="button"
+                onClick={() => onStepChange(stepIndex - 1)}
+                style={{
+                  minHeight: "42px",
+                  padding: "0 16px",
+                  borderRadius: "12px",
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  background: "rgba(255,255,255,0.06)",
+                  color: "white",
+                  cursor: "pointer",
+                  fontWeight: 750,
+                }}
+              >
+                Back
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() =>
+                isLastStep ? onClose() : onStepChange(stepIndex + 1)
+              }
+              style={{
+                minHeight: "42px",
+                padding: "0 18px",
+                borderRadius: "12px",
+                border: "1px solid rgba(83,215,255,0.42)",
+                background: "rgba(83,215,255,0.16)",
+                color: "white",
+                cursor: "pointer",
+                fontWeight: 850,
+              }}
+            >
+              {isLastStep ? "Start Exploring" : isFirstStep ? "Show Me" : "Next"}
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -1513,7 +1608,8 @@ export default function MiloWorldPage() {
   const isTablet = screenMode === "tablet";
   const isMobile = screenMode === "mobile";
 
-  const [introOpen, setIntroOpen] = useState(false);
+  const [walkthroughOpen, setWalkthroughOpen] = useState(false);
+  const [walkthroughStep, setWalkthroughStep] = useState(0);
   const [membershipOpen, setMembershipOpen] = useState(false);
   const [profileAssets, setProfileAssets] = useState<ProfileAssetBreakdown>({
     cash: 0,
@@ -1785,6 +1881,54 @@ export default function MiloWorldPage() {
   }, []);
 
   useEffect(() => {
+    try {
+      const walkthroughCompleted = window.localStorage.getItem(
+        WALKTHROUGH_STORAGE_KEY,
+      );
+
+      if (!walkthroughCompleted) {
+        setWalkthroughStep(0);
+        setWalkthroughOpen(true);
+      }
+    } catch {
+      setWalkthroughStep(0);
+      setWalkthroughOpen(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!walkthroughOpen) return;
+
+    const activeZoneNumber = WALKTHROUGH_STEPS[walkthroughStep]?.zoneNumber;
+    if (!activeZoneNumber) return;
+
+    const timeout = window.setTimeout(() => {
+      document.getElementById(`milo-zone-${activeZoneNumber}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 120);
+
+    return () => window.clearTimeout(timeout);
+  }, [walkthroughOpen, walkthroughStep]);
+
+  function startWalkthrough() {
+    setProfileAssetsOpen(false);
+    setMembershipOpen(false);
+    setWalkthroughStep(0);
+    setWalkthroughOpen(true);
+  }
+
+  function closeWalkthrough() {
+    try {
+      window.localStorage.setItem(WALKTHROUGH_STORAGE_KEY, "true");
+    } catch {
+      // The walkthrough still closes if browser storage is unavailable.
+    }
+    setWalkthroughOpen(false);
+  }
+
+  useEffect(() => {
     if (!profileAssetsOpen) return;
 
     function closeOnEscape(event: KeyboardEvent) {
@@ -1829,11 +1973,11 @@ export default function MiloWorldPage() {
       style={{
         position: "relative",
         width: "100%",
-        minHeight: isDesktop ? "850px" : "100dvh",
+        minHeight: isDesktop ? "880px" : "100dvh",
         height: isDesktop ? "100vh" : "auto",
         overflowX: "hidden",
-        overflowY: isDesktop ? "hidden" : "auto",
-        paddingBottom: isDesktop ? 0 : isMobile ? "210px" : "230px",
+        overflowY: "auto",
+        paddingBottom: isDesktop ? "40px" : isMobile ? "190px" : "210px",
         background: "#020817",
         color: "white",
         fontFamily:
@@ -1929,6 +2073,22 @@ export default function MiloWorldPage() {
             justifyContent: isMobile ? "space-between" : "flex-end",
           }}
         >
+          <button
+            type="button"
+            onClick={startWalkthrough}
+            style={{
+              ...navButtonStyle,
+              border: "1px solid rgba(83,215,255,0.46)",
+              background: "rgba(22,81,105,0.68)",
+              boxShadow: "0 0 24px rgba(83,215,255,0.16)",
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            <span aria-hidden="true">✦</span>
+            {isMobile ? "Guide" : "Milo Guide"}
+          </button>
+
           <Link href="/profile" style={navButtonStyle}>
             {isMobile ? "Account" : "My Account"}
           </Link>
@@ -2317,8 +2477,8 @@ export default function MiloWorldPage() {
           margin: isDesktop
             ? 0
             : isMobile
-              ? "38px auto 24px"
-              : "58px auto 28px",
+              ? "34px auto 22px"
+              : "46px auto 26px",
         }}
       >
         <h1
@@ -2380,25 +2540,32 @@ export default function MiloWorldPage() {
           >
             ›
           </span>
-          Choose a zone to begin
+          Choose a location to begin
         </div>
       </section>
 
       <section
         style={{
           position: isDesktop ? "absolute" : "relative",
-          inset: isDesktop ? 0 : "auto",
-          zIndex: 10,
+          top: isDesktop ? "142px" : "auto",
+          left: isDesktop ? "50%" : "auto",
+          transform: isDesktop ? "translateX(-50%)" : "none",
+          zIndex: walkthroughOpen ? 72 : 10,
           width: isDesktop
-            ? "100%"
+            ? "min(470px, calc(100% - 48px))"
             : isTablet
-              ? "min(720px, calc(100% - 36px))"
+              ? walkthroughOpen
+                ? "min(420px, calc(100% - 48px))"
+                : "min(720px, calc(100% - 36px))"
               : "min(720px, calc(100% - 28px))",
-          height: isDesktop ? "100%" : "auto",
-          margin: isDesktop ? 0 : "0 auto",
-          display: isDesktop ? "block" : "grid",
+          margin: isDesktop
+            ? 0
+            : isTablet && walkthroughOpen
+              ? "0 24px 0 auto"
+              : "0 auto",
+          display: "grid",
           gridTemplateColumns: "1fr",
-          gap: isMobile ? "14px" : "16px",
+          gap: isMobile ? "12px" : "14px",
         }}
       >
         {ZONES.map((zone) => (
@@ -2408,6 +2575,11 @@ export default function MiloWorldPage() {
             screenMode={screenMode}
             hasClubAccess={!clubAccessLoading && hasClubAccess}
             onOpenMembership={() => setMembershipOpen(true)}
+            walkthroughActive={walkthroughOpen}
+            walkthroughHighlighted={
+              walkthroughOpen &&
+              WALKTHROUGH_STEPS[walkthroughStep]?.zoneNumber === zone.number
+            }
           />
         ))}
       </section>
@@ -2417,9 +2589,9 @@ export default function MiloWorldPage() {
         alt="Milo"
         style={{
           position: "fixed",
-          right: isDesktop ? "88px" : isMobile ? "-42px" : "12px",
-          bottom: isDesktop ? "88px" : "0px",
-          height: isDesktop ? "260px" : isMobile ? "180px" : "230px",
+          right: isDesktop ? "58px" : isMobile ? "-42px" : "12px",
+          bottom: isDesktop ? "20px" : "0px",
+          height: isDesktop ? "220px" : isMobile ? "170px" : "210px",
           width: "auto",
           zIndex: 15,
           objectFit: "contain",
@@ -2428,77 +2600,12 @@ export default function MiloWorldPage() {
         }}
       />
 
-      <button
-        type="button"
-        onClick={() => setIntroOpen(true)}
-        style={{
-          position: "fixed",
-          right: isDesktop ? "250px" : isMobile ? "100px" : "210px",
-          left: isMobile ? "14px" : "auto",
-          bottom: isDesktop ? "48px" : "16px",
-          width: isDesktop ? "360px" : isMobile ? "auto" : "330px",
-          minHeight: isMobile ? "74px" : "82px",
-          display: "grid",
-          gridTemplateColumns: isMobile ? "48px 1fr" : "64px 1fr",
-          gap: isMobile ? "10px" : "18px",
-          alignItems: "center",
-          padding: isMobile ? "12px" : "16px 20px",
-          borderRadius: "14px",
-          color: "white",
-          textAlign: "left",
-          cursor: "pointer",
-          border: "1px solid rgba(132,218,255,0.2)",
-          background: "rgba(5,13,28,0.66)",
-          backdropFilter: "blur(18px)",
-          WebkitBackdropFilter: "blur(18px)",
-          boxShadow: "0 22px 54px rgba(0,0,0,0.34)",
-          zIndex: 16,
-        }}
-      >
-        <span
-          style={{
-            width: isMobile ? "44px" : "52px",
-            height: isMobile ? "44px" : "52px",
-            borderRadius: "13px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: isMobile ? "19px" : "22px",
-            color: "#8ee8ff",
-            background:
-              "radial-gradient(circle, rgba(83,215,255,0.2), rgba(2,8,19,0.88))",
-            border: "1px solid rgba(83,215,255,0.45)",
-            flexShrink: 0,
-          }}
-        >
-          ✦
-        </span>
-
-        <span>
-          <strong
-            style={{
-              display: "block",
-              fontSize: isMobile ? "14px" : "16px",
-              marginBottom: "6px",
-            }}
-          >
-            Hi, I’m Milo!
-          </strong>
-
-          <span
-            style={{
-              display: "block",
-              color: "rgba(255,255,255,0.7)",
-              fontSize: isMobile ? "12px" : "13px",
-              lineHeight: 1.45,
-            }}
-          >
-            Click me to learn about Milo’s World.
-          </span>
-        </span>
-      </button>
-
-      <IntroDialogue open={introOpen} onClose={() => setIntroOpen(false)} />
+      <GuidedWalkthrough
+        open={walkthroughOpen}
+        stepIndex={walkthroughStep}
+        onStepChange={setWalkthroughStep}
+        onClose={closeWalkthrough}
+      />
 
       <MembershipPopup
         open={membershipOpen}
