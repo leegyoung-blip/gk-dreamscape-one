@@ -61,6 +61,32 @@ type ClueResult = {
   tokenBalance: number;
 };
 
+type ProfileAssetBreakdown = {
+  cash: number;
+  property: number;
+  stocks: number;
+};
+
+type StockRow = {
+  symbol: string;
+  current_price: number | string | null;
+};
+
+type StockHoldingRow = {
+  symbol: string;
+  quantity: number | string | null;
+};
+
+type PropertyRow = {
+  id: string;
+  current_value: number | string | null;
+};
+
+type PropertyHoldingRow = {
+  property_id: string;
+  quantity: number | string | null;
+};
+
 type RpcStatusPayload = {
   activity_date?: string;
   token_balance?: number;
@@ -131,6 +157,12 @@ const GAME_DEFINITIONS: GameDefinition[] = [
     rewardText: "5 / 10 / 15 DT",
   },
 ];
+
+const EMPTY_PROFILE_ASSETS: ProfileAssetBreakdown = {
+  cash: 0,
+  property: 0,
+  stocks: 0,
+};
 
 const EMPTY_STATUS: LabStatus = {
   activityDate: "",
@@ -283,6 +315,10 @@ function makeSeed(
   return `${userId}:${activityDate}:${gameId}:${questionNumber}:${suffix}`;
 }
 
+function formatDreamTokenAmount(value: number) {
+  return `${Math.max(0, Math.round(value)).toLocaleString("en-US")} DT`;
+}
+
 function formatSupabaseError(error: unknown) {
   if (
     typeof error === "object" &&
@@ -305,6 +341,10 @@ export default function ThinkingSkillsLabPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [status, setStatus] = useState<LabStatus>(EMPTY_STATUS);
+  const [profileAssets, setProfileAssets] =
+    useState<ProfileAssetBreakdown>(EMPTY_PROFILE_ASSETS);
+  const [profileAssetsLoading, setProfileAssetsLoading] = useState(true);
+  const [profileAssetsOpen, setProfileAssetsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
   const [gameVersion, setGameVersion] = useState(0);
@@ -319,9 +359,22 @@ export default function ThinkingSkillsLabPage() {
     activeStatus.completed + 1
   );
   const dailyComplete = activeStatus.completed >= DAILY_LIMIT;
+  const displayedProfileAssets = useMemo(
+    () => ({
+      cash: status.tokenBalance,
+      property: profileAssets.property,
+      stocks: profileAssets.stocks,
+    }),
+    [profileAssets.property, profileAssets.stocks, status.tokenBalance]
+  );
+  const profileAssetsTotal =
+    displayedProfileAssets.cash +
+    displayedProfileAssets.property +
+    displayedProfileAssets.stocks;
 
   const loadStatus = useCallback(async () => {
     setLoading(true);
+    setProfileAssetsLoading(true);
 
     const {
       data: { user },
@@ -331,24 +384,111 @@ export default function ThinkingSkillsLabPage() {
     if (userError || !user) {
       setUserId(null);
       setStatus(EMPTY_STATUS);
+      setProfileAssets(EMPTY_PROFILE_ASSETS);
+      setProfileAssetsLoading(false);
       setLoading(false);
       return;
     }
 
     setUserId(user.id);
 
-    const { data, error } = await supabase.rpc(
-      "thinking_lab_get_status"
-    );
+    const [
+      statusResult,
+      stocksResult,
+      stockHoldingsResult,
+      propertiesResult,
+      propertyHoldingsResult,
+    ] = await Promise.all([
+      supabase.rpc("thinking_lab_get_status"),
+      supabase
+        .from("milo_exchange_stocks")
+        .select("symbol,current_price")
+        .eq("is_active", true),
+      supabase
+        .from("milo_exchange_holdings")
+        .select("symbol,quantity")
+        .eq("user_id", user.id),
+      supabase
+        .from("milo_exchange_properties")
+        .select("id,current_value")
+        .eq("is_active", true),
+      supabase
+        .from("milo_exchange_property_holdings")
+        .select("property_id,quantity")
+        .eq("user_id", user.id),
+    ]);
 
-    if (error) {
-      console.error("Could not load Thinking Skills Lab status:", error);
-      setNotice(formatSupabaseError(error));
+    if (statusResult.error) {
+      console.error(
+        "Could not load Thinking Skills Lab status:",
+        statusResult.error
+      );
+      setNotice(formatSupabaseError(statusResult.error));
+      setProfileAssetsLoading(false);
       setLoading(false);
       return;
     }
 
-    setStatus(normaliseStatus((data ?? null) as RpcStatusPayload | null));
+    const nextStatus = normaliseStatus(
+      (statusResult.data ?? null) as RpcStatusPayload | null
+    );
+
+    const stockPrices = new Map(
+      ((stocksResult.data ?? []) as StockRow[]).map((stock) => [
+        stock.symbol,
+        Number(stock.current_price ?? 0),
+      ])
+    );
+    const stockValue = stockHoldingsResult.error
+      ? 0
+      : ((stockHoldingsResult.data ?? []) as StockHoldingRow[]).reduce(
+          (total, holding) =>
+            total +
+            Number(holding.quantity ?? 0) *
+              Number(stockPrices.get(holding.symbol) ?? 0),
+          0
+        );
+
+    const propertyPrices = new Map(
+      ((propertiesResult.data ?? []) as PropertyRow[]).map((property) => [
+        String(property.id),
+        Number(property.current_value ?? 0),
+      ])
+    );
+    const propertyValue = propertyHoldingsResult.error
+      ? 0
+      : (
+          (propertyHoldingsResult.data ?? []) as PropertyHoldingRow[]
+        ).reduce(
+          (total, holding) =>
+            total +
+            Number(holding.quantity ?? 0) *
+              Number(propertyPrices.get(String(holding.property_id)) ?? 0),
+          0
+        );
+
+    if (stocksResult.error || stockHoldingsResult.error) {
+      console.warn(
+        "Could not load stock assets:",
+        stocksResult.error?.message ?? stockHoldingsResult.error?.message
+      );
+    }
+
+    if (propertiesResult.error || propertyHoldingsResult.error) {
+      console.warn(
+        "Could not load property assets:",
+        propertiesResult.error?.message ??
+          propertyHoldingsResult.error?.message
+      );
+    }
+
+    setStatus(nextStatus);
+    setProfileAssets({
+      cash: nextStatus.tokenBalance,
+      property: propertyValue,
+      stocks: stockValue,
+    });
+    setProfileAssetsLoading(false);
     setLoading(false);
   }, []);
 
@@ -387,6 +527,17 @@ export default function ThinkingSkillsLabPage() {
     setNotice("");
     setGameVersion((current) => current + 1);
   }, [selectedGame]);
+
+  useEffect(() => {
+    if (!profileAssetsOpen) return;
+
+    function closeProfileAssets(event: KeyboardEvent) {
+      if (event.key === "Escape") setProfileAssetsOpen(false);
+    }
+
+    document.addEventListener("keydown", closeProfileAssets);
+    return () => document.removeEventListener("keydown", closeProfileAssets);
+  }, [profileAssetsOpen]);
 
   const buyClue = useCallback(
     async (gameId: GameId, questionNumber: number) => {
@@ -490,6 +641,15 @@ export default function ThinkingSkillsLabPage() {
         <div className="lab-grid" />
       </div>
 
+      {profileAssetsOpen && (
+        <button
+          type="button"
+          className="assets-backdrop"
+          aria-label="Close profile assets"
+          onClick={() => setProfileAssetsOpen(false)}
+        />
+      )}
+
       <header className="topbar">
         <div className="topbar-left">
           <Link href={NOVA_WORLD_HREF} className="round-button">
@@ -512,9 +672,62 @@ export default function ThinkingSkillsLabPage() {
         </div>
 
         <div className="topbar-stats">
-          <div className="stat-pill token-pill">
-            <span className="stat-label">Dream Tokens</span>
-            <strong>{loading ? "—" : `${status.tokenBalance} DT`}</strong>
+          <div className="profile-assets-wrap">
+            <button
+              type="button"
+              className="stat-pill token-pill assets-button"
+              onClick={() => setProfileAssetsOpen((current) => !current)}
+              aria-expanded={profileAssetsOpen}
+              aria-haspopup="menu"
+            >
+              <span className="stat-label">Profile Assets</span>
+              <strong>
+                {loading || profileAssetsLoading
+                  ? "—"
+                  : formatDreamTokenAmount(profileAssetsTotal)}
+                <span
+                  className={`assets-chevron ${
+                    profileAssetsOpen ? "is-open" : ""
+                  }`}
+                  aria-hidden="true"
+                >
+                  ▾
+                </span>
+              </strong>
+            </button>
+
+            {profileAssetsOpen && (
+              <div className="assets-dropdown" role="menu">
+                <div className="assets-dropdown-heading">
+                  <span>Total profile assets</span>
+                  <strong>
+                    {profileAssetsLoading
+                      ? "Loading..."
+                      : formatDreamTokenAmount(profileAssetsTotal)}
+                  </strong>
+                </div>
+
+                <div className="assets-list">
+                  {[
+                    ["Cash", displayedProfileAssets.cash, "✦"],
+                    ["Property", displayedProfileAssets.property, "⌂"],
+                    ["Stocks", displayedProfileAssets.stocks, "↗"],
+                  ].map(([label, value, icon]) => (
+                    <div className="assets-row" role="menuitem" key={String(label)}>
+                      <span className="assets-row-icon" aria-hidden="true">
+                        {icon}
+                      </span>
+                      <span>{label}</span>
+                      <strong>
+                        {profileAssetsLoading
+                          ? "—"
+                          : formatDreamTokenAmount(Number(value))}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="stat-pill">
@@ -850,6 +1063,21 @@ export default function ThinkingSkillsLabPage() {
           gap: 10px;
         }
 
+        .assets-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 78;
+          appearance: none;
+          border: 0;
+          background: transparent;
+          cursor: default;
+        }
+
+        .profile-assets-wrap {
+          position: relative;
+          z-index: 82;
+        }
+
         .round-button,
         .stat-pill {
           min-height: 42px;
@@ -887,7 +1115,117 @@ export default function ThinkingSkillsLabPage() {
         }
 
         .token-pill {
-          min-width: 170px;
+          min-width: 210px;
+        }
+
+        .assets-button {
+          width: 100%;
+          appearance: none;
+          color: white;
+          font: inherit;
+          text-align: left;
+          cursor: pointer;
+        }
+
+        .assets-button strong {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+        }
+
+        .assets-chevron {
+          display: inline-block;
+          color: #8ee8ff;
+          font-size: 13px;
+          transition: transform 180ms ease;
+        }
+
+        .assets-chevron.is-open {
+          transform: rotate(180deg);
+        }
+
+        .assets-dropdown {
+          position: absolute;
+          top: calc(100% + 10px);
+          right: 0;
+          z-index: 90;
+          width: 320px;
+          overflow: hidden;
+          border-radius: 20px;
+          border: 1px solid rgba(126, 232, 255, 0.3);
+          background: linear-gradient(
+            145deg,
+            rgba(3, 20, 39, 0.98),
+            rgba(3, 10, 25, 0.99)
+          );
+          box-shadow:
+            0 28px 72px rgba(0, 0, 0, 0.56),
+            0 0 28px rgba(83, 215, 255, 0.12);
+          color: white;
+          backdrop-filter: blur(22px);
+          -webkit-backdrop-filter: blur(22px);
+        }
+
+        .assets-dropdown-heading {
+          padding: 17px 18px;
+          display: grid;
+          gap: 6px;
+          border-bottom: 1px solid rgba(126, 232, 255, 0.13);
+        }
+
+        .assets-dropdown-heading span {
+          color: #8ee8ff;
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+        }
+
+        .assets-dropdown-heading strong {
+          color: white;
+          font-size: 27px;
+          line-height: 1;
+          letter-spacing: -0.04em;
+        }
+
+        .assets-list {
+          padding: 11px;
+          display: grid;
+          gap: 8px;
+        }
+
+        .assets-row {
+          min-height: 54px;
+          padding: 9px 11px;
+          display: grid;
+          grid-template-columns: 32px minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 10px;
+          border-radius: 14px;
+          border: 1px solid rgba(126, 232, 255, 0.12);
+          background: rgba(255, 255, 255, 0.035);
+          color: white;
+          font-size: 13px;
+          font-weight: 750;
+        }
+
+        .assets-row-icon {
+          width: 32px;
+          height: 32px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 11px;
+          border: 1px solid rgba(83, 215, 255, 0.26);
+          background: rgba(83, 215, 255, 0.09);
+          color: #8ee8ff;
+          font-weight: 900;
+        }
+
+        .assets-row strong {
+          color: #9fffd2;
+          font-size: 12px;
+          white-space: nowrap;
         }
 
         .stat-label {
@@ -1345,8 +1683,21 @@ export default function ThinkingSkillsLabPage() {
             padding: 5px 10px;
           }
 
+          .profile-assets-wrap {
+            width: 50%;
+          }
+
           .token-pill {
+            width: 100%;
             min-width: 0;
+          }
+
+          .assets-dropdown {
+            position: fixed;
+            top: 112px;
+            right: 12px;
+            left: 12px;
+            width: auto;
           }
 
           .round-button {
@@ -2859,23 +3210,17 @@ function findValidSet(cards: SetCard[]) {
 function createSetBoard(seedText: string): SetCard[] {
   const random = seededRandom(seedText);
   type SetMode = "same" | "different";
-
-const modes: SetMode[] = Array.from(
-  { length: 4 },
-  (): SetMode => (random() > 0.45 ? "different" : "same")
-);
-
-const hasDifferentMode = modes.some(
-  (mode) => mode === "different"
-);
-
-if (!hasDifferentMode) {
-  const randomModeIndex = Math.floor(
-    random() * modes.length
+  const modes: SetMode[] = Array.from(
+    { length: 4 },
+    (): SetMode => (random() > 0.45 ? "different" : "same")
   );
 
-  modes[randomModeIndex] = "different";
-}
+  const hasDifferentMode = modes.some((mode) => mode === "different");
+
+  if (!hasDifferentMode) {
+    modes[Math.floor(random() * modes.length)] = "different";
+  }
+
   const attributes = modes.map((mode, attributeIndex) => {
     if (mode === "same") {
       const value = Math.floor(random() * 3);
