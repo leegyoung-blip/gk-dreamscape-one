@@ -67,6 +67,14 @@ type ProfileAssetBreakdown = {
   stocks: number;
 };
 
+type DreamTokenTransaction = {
+  id: string;
+  amount: number;
+  type: string | null;
+  title: string | null;
+  created_at: string | null;
+};
+
 type StockRow = {
   symbol: string;
   current_price: number | string | null;
@@ -319,6 +327,22 @@ function formatDreamTokenAmount(value: number) {
   return `${Math.max(0, Math.round(value)).toLocaleString("en-US")} DT`;
 }
 
+function formatDreamTokenTransactionDate(value: string | null) {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  return new Intl.DateTimeFormat("en-SG", {
+    timeZone: "Asia/Singapore",
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
 function formatSupabaseError(error: unknown) {
   if (
     typeof error === "object" &&
@@ -343,6 +367,9 @@ export default function ThinkingSkillsLabPage() {
   const [status, setStatus] = useState<LabStatus>(EMPTY_STATUS);
   const [profileAssets, setProfileAssets] =
     useState<ProfileAssetBreakdown>(EMPTY_PROFILE_ASSETS);
+  const [tokenTransactions, setTokenTransactions] = useState<
+    DreamTokenTransaction[]
+  >([]);
   const [profileAssetsLoading, setProfileAssetsLoading] = useState(true);
   const [profileAssetsOpen, setProfileAssetsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -361,11 +388,11 @@ export default function ThinkingSkillsLabPage() {
   const dailyComplete = activeStatus.completed >= DAILY_LIMIT;
   const displayedProfileAssets = useMemo(
     () => ({
-      cash: status.tokenBalance,
+      cash: profileAssets.cash,
       property: profileAssets.property,
       stocks: profileAssets.stocks,
     }),
-    [profileAssets.property, profileAssets.stocks, status.tokenBalance]
+    [profileAssets.cash, profileAssets.property, profileAssets.stocks]
   );
   const profileAssetsTotal =
     displayedProfileAssets.cash +
@@ -385,6 +412,7 @@ export default function ThinkingSkillsLabPage() {
       setUserId(null);
       setStatus(EMPTY_STATUS);
       setProfileAssets(EMPTY_PROFILE_ASSETS);
+      setTokenTransactions([]);
       setProfileAssetsLoading(false);
       setLoading(false);
       return;
@@ -394,12 +422,26 @@ export default function ThinkingSkillsLabPage() {
 
     const [
       statusResult,
+      balanceResult,
+      recentTransactionsResult,
       stocksResult,
       stockHoldingsResult,
       propertiesResult,
       propertyHoldingsResult,
     ] = await Promise.all([
       supabase.rpc("thinking_lab_get_status"),
+      supabase
+        .from("dream_token_transactions")
+        .select("amount")
+        .eq("user_id", user.id)
+        .eq("token_kind", "virtual"),
+      supabase
+        .from("dream_token_transactions")
+        .select("id,amount,type,title,created_at")
+        .eq("user_id", user.id)
+        .eq("token_kind", "virtual")
+        .order("created_at", { ascending: false })
+        .limit(8),
       supabase
         .from("milo_exchange_stocks")
         .select("symbol,current_price")
@@ -432,6 +474,40 @@ export default function ThinkingSkillsLabPage() {
     const nextStatus = normaliseStatus(
       (statusResult.data ?? null) as RpcStatusPayload | null
     );
+
+    const cashValue = balanceResult.error
+      ? 0
+      : (balanceResult.data ?? []).reduce(
+          (sum, row) => sum + Number(row.amount ?? 0),
+          0
+        );
+
+    if (balanceResult.error) {
+      console.warn(
+        "Could not load Dreamscape Tokens:",
+        balanceResult.error.message
+      );
+    }
+
+    if (recentTransactionsResult.error) {
+      console.warn(
+        "Could not load recent Dreamscape Token transactions:",
+        recentTransactionsResult.error.message
+      );
+      setTokenTransactions([]);
+    } else {
+      setTokenTransactions(
+        (recentTransactionsResult.data ?? []).map((transaction) => ({
+          id: String(transaction.id),
+          amount: Number(transaction.amount ?? 0),
+          type: transaction.type ? String(transaction.type) : null,
+          title: transaction.title ? String(transaction.title) : null,
+          created_at: transaction.created_at
+            ? String(transaction.created_at)
+            : null,
+        }))
+      );
+    }
 
     const stockPrices = new Map(
       ((stocksResult.data ?? []) as StockRow[]).map((stock) => [
@@ -482,15 +558,79 @@ export default function ThinkingSkillsLabPage() {
       );
     }
 
-    setStatus(nextStatus);
+    setStatus({
+      ...nextStatus,
+      tokenBalance: cashValue,
+    });
     setProfileAssets({
-      cash: nextStatus.tokenBalance,
+      cash: cashValue,
       property: propertyValue,
       stocks: stockValue,
     });
     setProfileAssetsLoading(false);
     setLoading(false);
   }, []);
+
+  const refreshCashAndTransactions = useCallback(
+    async (accountUserId: string) => {
+      const [balanceResult, recentTransactionsResult] = await Promise.all([
+        supabase
+          .from("dream_token_transactions")
+          .select("amount")
+          .eq("user_id", accountUserId)
+          .eq("token_kind", "virtual"),
+        supabase
+          .from("dream_token_transactions")
+          .select("id,amount,type,title,created_at")
+          .eq("user_id", accountUserId)
+          .eq("token_kind", "virtual")
+          .order("created_at", { ascending: false })
+          .limit(8),
+      ]);
+
+      if (balanceResult.error) {
+        console.warn(
+          "Could not refresh Dreamscape Tokens:",
+          balanceResult.error.message
+        );
+      } else {
+        const cashValue = (balanceResult.data ?? []).reduce(
+          (sum, row) => sum + Number(row.amount ?? 0),
+          0
+        );
+
+        setProfileAssets((current) => ({
+          ...current,
+          cash: cashValue,
+        }));
+
+        setStatus((current) => ({
+          ...current,
+          tokenBalance: cashValue,
+        }));
+      }
+
+      if (recentTransactionsResult.error) {
+        console.warn(
+          "Could not refresh recent Dreamscape Token transactions:",
+          recentTransactionsResult.error.message
+        );
+      } else {
+        setTokenTransactions(
+          (recentTransactionsResult.data ?? []).map((transaction) => ({
+            id: String(transaction.id),
+            amount: Number(transaction.amount ?? 0),
+            type: transaction.type ? String(transaction.type) : null,
+            title: transaction.title ? String(transaction.title) : null,
+            created_at: transaction.created_at
+              ? String(transaction.created_at)
+              : null,
+          }))
+        );
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     loadStatus();
@@ -501,8 +641,28 @@ export default function ThinkingSkillsLabPage() {
       loadStatus();
     });
 
-    return () => subscription.unsubscribe();
-  }, [loadStatus]);
+    function refreshAllAssets() {
+      loadStatus();
+    }
+
+    function refreshTokenAssets() {
+      if (userId) {
+        refreshCashAndTransactions(userId);
+      }
+    }
+
+    window.addEventListener("focus", refreshAllAssets);
+    window.addEventListener("dream-tokens-updated", refreshTokenAssets);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener("focus", refreshAllAssets);
+      window.removeEventListener(
+        "dream-tokens-updated",
+        refreshTokenAssets
+      );
+    };
+  }, [loadStatus, refreshCashAndTransactions, userId]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -574,10 +734,18 @@ export default function ThinkingSkillsLabPage() {
         },
       }));
 
+      setProfileAssets((current) => ({
+        ...current,
+        cash: result.tokenBalance,
+      }));
+
+      await refreshCashAndTransactions(userId);
+      window.dispatchEvent(new Event("dream-tokens-updated"));
+
       setNotice(`Clue revealed for ${result.clueCost} DT.`);
       return result;
     },
-    [userId]
+    [refreshCashAndTransactions, userId]
   );
 
   const completeQuestion = useCallback(
@@ -622,10 +790,18 @@ export default function ThinkingSkillsLabPage() {
         },
       }));
 
+      setProfileAssets((current) => ({
+        ...current,
+        cash: result.tokenBalance,
+      }));
+
+      await refreshCashAndTransactions(userId);
+      window.dispatchEvent(new Event("dream-tokens-updated"));
+
       setNotice(`Challenge complete. You earned ${result.reward} DT.`);
       return result;
     },
-    [userId]
+    [refreshCashAndTransactions, userId]
   );
 
   function beginNextQuestion() {
@@ -707,24 +883,90 @@ export default function ThinkingSkillsLabPage() {
                   </strong>
                 </div>
 
-                <div className="assets-list">
-                  {[
-                    ["Cash", displayedProfileAssets.cash, "✦"],
-                    ["Property", displayedProfileAssets.property, "⌂"],
-                    ["Stocks", displayedProfileAssets.stocks, "↗"],
-                  ].map(([label, value, icon]) => (
-                    <div className="assets-row" role="menuitem" key={String(label)}>
-                      <span className="assets-row-icon" aria-hidden="true">
-                        {icon}
-                      </span>
-                      <span>{label}</span>
-                      <strong>
-                        {profileAssetsLoading
-                          ? "—"
-                          : formatDreamTokenAmount(Number(value))}
-                      </strong>
+                <div className="assets-dropdown-scroll">
+                  <div className="assets-list">
+                    {[
+                      ["Cash", displayedProfileAssets.cash, "✦"],
+                      ["Property", displayedProfileAssets.property, "⌂"],
+                      ["Stocks", displayedProfileAssets.stocks, "↗"],
+                    ].map(([label, value, icon]) => (
+                      <div
+                        className="assets-row"
+                        role="menuitem"
+                        key={String(label)}
+                      >
+                        <span className="assets-row-icon" aria-hidden="true">
+                          {icon}
+                        </span>
+                        <span>{label}</span>
+                        <strong>
+                          {profileAssetsLoading
+                            ? "—"
+                            : formatDreamTokenAmount(Number(value))}
+                        </strong>
+                      </div>
+                    ))}
+                  </div>
+
+                  <p className="transactions-heading">
+                    Latest cash transactions
+                  </p>
+
+                  {profileAssetsLoading ? (
+                    <div className="transactions-empty">
+                      Loading assets...
                     </div>
-                  ))}
+                  ) : tokenTransactions.length === 0 ? (
+                    <div className="transactions-empty">
+                      No token transactions yet.
+                    </div>
+                  ) : (
+                    <div className="transactions-list">
+                      {tokenTransactions.map((transaction) => {
+                        const isPositive = transaction.amount >= 0;
+
+                        return (
+                          <div
+                            className="transaction-row"
+                            role="menuitem"
+                            key={transaction.id}
+                          >
+                            <span
+                              className={`transaction-sign ${
+                                isPositive ? "is-positive" : "is-negative"
+                              }`}
+                              aria-hidden="true"
+                            >
+                              {isPositive ? "+" : "−"}
+                            </span>
+
+                            <span className="transaction-copy">
+                              <strong>
+                                {transaction.title ||
+                                  (isPositive
+                                    ? "Dreamscape Token reward"
+                                    : "Dreamscape Token spend")}
+                              </strong>
+                              <small>
+                                {formatDreamTokenTransactionDate(
+                                  transaction.created_at
+                                )}
+                              </small>
+                            </span>
+
+                            <strong
+                              className={`transaction-amount ${
+                                isPositive ? "is-positive" : "is-negative"
+                              }`}
+                            >
+                              {isPositive ? "+" : ""}
+                              {transaction.amount} DT
+                            </strong>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -907,7 +1149,7 @@ export default function ThinkingSkillsLabPage() {
                     activityDate={status.activityDate}
                     questionNumber={currentQuestion}
                     cluesUsed={activeStatus.clues}
-                    tokenBalance={status.tokenBalance}
+                    tokenBalance={profileAssets.cash}
                     onBuyClue={buyClue}
                     onComplete={completeQuestion}
                     onContinue={beginNextQuestion}
@@ -921,7 +1163,7 @@ export default function ThinkingSkillsLabPage() {
                     activityDate={status.activityDate}
                     questionNumber={currentQuestion}
                     cluesUsed={activeStatus.clues}
-                    tokenBalance={status.tokenBalance}
+                    tokenBalance={profileAssets.cash}
                     onBuyClue={buyClue}
                     onComplete={completeQuestion}
                     onContinue={beginNextQuestion}
@@ -1149,7 +1391,8 @@ export default function ThinkingSkillsLabPage() {
           top: calc(100% + 10px);
           right: 0;
           z-index: 90;
-          width: 320px;
+          width: 380px;
+          max-height: min(560px, calc(100dvh - 92px));
           overflow: hidden;
           border-radius: 20px;
           border: 1px solid rgba(126, 232, 255, 0.3);
@@ -1188,8 +1431,14 @@ export default function ThinkingSkillsLabPage() {
           letter-spacing: -0.04em;
         }
 
-        .assets-list {
+        .assets-dropdown-scroll {
+          max-height: min(476px, calc(100dvh - 176px));
           padding: 11px;
+          overflow-y: auto;
+          overflow-x: hidden;
+        }
+
+        .assets-list {
           display: grid;
           gap: 8px;
         }
@@ -1226,6 +1475,97 @@ export default function ThinkingSkillsLabPage() {
           color: #9fffd2;
           font-size: 12px;
           white-space: nowrap;
+        }
+
+        .transactions-heading {
+          margin: 16px 4px 10px;
+          color: rgba(255, 255, 255, 0.48);
+          font-size: 10px;
+          font-weight: 800;
+          letter-spacing: 0.13em;
+          text-transform: uppercase;
+        }
+
+        .transactions-list {
+          display: grid;
+          gap: 8px;
+        }
+
+        .transactions-empty {
+          padding: 20px 14px;
+          border-radius: 14px;
+          background: rgba(255, 255, 255, 0.035);
+          color: rgba(255, 255, 255, 0.58);
+          font-size: 13px;
+          line-height: 1.5;
+          text-align: center;
+        }
+
+        .transaction-row {
+          min-height: 58px;
+          padding: 10px 12px;
+          display: grid;
+          grid-template-columns: 34px minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 10px;
+          border-radius: 14px;
+          border: 1px solid rgba(126, 232, 255, 0.12);
+          background: rgba(255, 255, 255, 0.035);
+        }
+
+        .transaction-sign {
+          width: 32px;
+          height: 32px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 11px;
+          font-weight: 900;
+        }
+
+        .transaction-sign.is-positive {
+          border: 1px solid rgba(93, 255, 181, 0.34);
+          background: rgba(93, 255, 181, 0.1);
+          color: #9fffd2;
+        }
+
+        .transaction-sign.is-negative {
+          border: 1px solid rgba(255, 167, 120, 0.34);
+          background: rgba(255, 138, 92, 0.1);
+          color: #ffc0a0;
+        }
+
+        .transaction-copy {
+          min-width: 0;
+        }
+
+        .transaction-copy strong {
+          display: block;
+          overflow: hidden;
+          color: white;
+          font-size: 12px;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .transaction-copy small {
+          display: block;
+          margin-top: 4px;
+          color: rgba(255, 255, 255, 0.43);
+          font-size: 10px;
+        }
+
+        .transaction-amount {
+          font-size: 12px;
+          white-space: nowrap;
+        }
+
+        .transaction-amount.is-positive {
+          color: #9fffd2;
+        }
+
+        .transaction-amount.is-negative {
+          color: #ffc0a0;
         }
 
         .stat-label {
@@ -1698,6 +2038,11 @@ export default function ThinkingSkillsLabPage() {
             right: 12px;
             left: 12px;
             width: auto;
+            max-height: calc(100dvh - 124px);
+          }
+
+          .assets-dropdown-scroll {
+            max-height: calc(100dvh - 208px);
           }
 
           .round-button {
