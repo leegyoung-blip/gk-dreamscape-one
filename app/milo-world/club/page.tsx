@@ -140,6 +140,7 @@ type BusinessOption = {
   category: string;
   industryId: IndustryId;
   icon: string;
+  image?: string;
   minCapital: number;
   maxCapital: number;
   difficulty: 1 | 2 | 3 | 4 | 5;
@@ -268,6 +269,7 @@ const BUSINESS_OPTIONS: BusinessOption[] = [
     title: "Pop-up Retail Shop",
     category: "Starter Retail",
     icon: "▤",
+    image: "/milo-world/business-builder/business-options/popup-retail.png",
     minCapital: 8000,
     maxCapital: 15000,
     difficulty: 1,
@@ -283,6 +285,7 @@ const BUSINESS_OPTIONS: BusinessOption[] = [
     title: "Specialty Retail Store",
     category: "Retail",
     icon: "◇",
+    image: "/milo-world/business-builder/business-options/specialty-retail.png",
     minCapital: 15000,
     maxCapital: 25000,
     difficulty: 2,
@@ -298,6 +301,7 @@ const BUSINESS_OPTIONS: BusinessOption[] = [
     title: "Online Merchandise Studio",
     category: "E-commerce",
     icon: "⌘",
+    image: "/milo-world/business-builder/business-options/online-merchandise.png",
     minCapital: 20000,
     maxCapital: 35000,
     difficulty: 2,
@@ -313,6 +317,7 @@ const BUSINESS_OPTIONS: BusinessOption[] = [
     title: "Snack Bar",
     category: "Food & Beverage",
     icon: "◒",
+    image: "/milo-world/business-builder/business-options/snack-bar.png",
     minCapital: 25000,
     maxCapital: 40000,
     difficulty: 2,
@@ -328,6 +333,7 @@ const BUSINESS_OPTIONS: BusinessOption[] = [
     title: "Neighbourhood Café",
     category: "Food & Beverage",
     icon: "◉",
+    image: "/milo-world/business-builder/business-options/neighbourhood-cafe.png",
     minCapital: 35000,
     maxCapital: 50000,
     difficulty: 3,
@@ -343,6 +349,7 @@ const BUSINESS_OPTIONS: BusinessOption[] = [
     title: "Gaming Lounge",
     category: "Entertainment",
     icon: "⌁",
+    image: "/milo-world/business-builder/business-options/gaming-lounge.png",
     minCapital: 50000,
     maxCapital: 70000,
     difficulty: 3,
@@ -358,6 +365,7 @@ const BUSINESS_OPTIONS: BusinessOption[] = [
     title: "Full-service Restaurant",
     category: "Hospitality",
     icon: "✦",
+    image: "/milo-world/business-builder/business-options/full-service-restaurant.png",
     minCapital: 70000,
     maxCapital: 120000,
     difficulty: 4,
@@ -373,6 +381,7 @@ const BUSINESS_OPTIONS: BusinessOption[] = [
     title: "Automobile Workshop",
     category: "Automobile Services",
     icon: "⚙",
+    image: "/milo-world/business-builder/business-options/automobile-workshop.png",
     minCapital: 100000,
     maxCapital: 150000,
     difficulty: 4,
@@ -388,6 +397,7 @@ const BUSINESS_OPTIONS: BusinessOption[] = [
     title: "Car Dealership",
     category: "Automobile Sales",
     icon: "◆",
+    image: "/milo-world/business-builder/business-options/car-dealership.png",
     minCapital: 150000,
     maxCapital: 200000,
     difficulty: 5,
@@ -2719,6 +2729,7 @@ export default function MiloBusinessBuilderPage() {
   const [fundingStep, setFundingStep] = useState<FundingStep>("personal");
   const [personalContribution, setPersonalContribution] = useState(0);
   const [fundingSubmitting, setFundingSubmitting] = useState(false);
+  const [fundingHelpOpen, setFundingHelpOpen] = useState(false);
   const [introOpen, setIntroOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeSetupCategory, setActiveSetupCategory] =
@@ -3177,10 +3188,21 @@ export default function MiloBusinessBuilderPage() {
   }
 
   function chooseBusiness(business: BusinessOption) {
+    const requiresAssets = business.minCapital > 50000;
+    const requiredAssets = business.minCapital * 0.1;
+
+    if (requiresAssets && profileNetWorth < requiredAssets) {
+      setPageMessage(
+        `${business.title} is locked. Build at least ${formatMoney(requiredAssets)} in profile assets to open this tier.`,
+      );
+      return;
+    }
+
     setSelectedBusinessId(business.id);
     setRequestedBudget(business.minCapital);
     setFundingStep("personal");
     setPersonalContribution(0);
+    setFundingHelpOpen(false);
     setPageMessage("");
     setView("funding");
   }
@@ -4426,8 +4448,21 @@ export default function MiloBusinessBuilderPage() {
         .milo-business-scrollbar::-webkit-scrollbar-thumb { background: rgba(212,145,65,0.5); border-radius: 999px; }
         input[type="range"] { accent-color: #d99548; }
         @media (max-width: 760px) {
-          .milo-dialogue-panel { padding: 230px 22px 24px !important; }
-          .milo-dialogue-panel img { left: 50% !important; transform: translateX(-50%); height: 250px !important; }
+          .milo-dialogue-panel {
+            min-height: 0 !important;
+            max-height: calc(100dvh - 24px);
+            overflow-y: auto !important;
+            padding: 58px 22px 24px !important;
+          }
+          .milo-dialogue-character {
+            position: relative !important;
+            left: auto !important;
+            bottom: auto !important;
+            display: block;
+            height: 218px !important;
+            margin: 0 auto -4px;
+            transform: none !important;
+          }
           .milo-market-scroll { margin-left: -8px; margin-right: -8px; }
           button, input, select { font-size: 16px; }
         }
@@ -4703,34 +4738,59 @@ export default function MiloBusinessBuilderPage() {
                 {BUSINESS_OPTIONS.map((business, index) => {
                   const highTier = business.minCapital > 50000;
                   const minimumAssets = business.minCapital * 0.1;
-                  const profileEligible = profileNetWorth >= minimumAssets;
+                  const profileEligible = !highTier || profileNetWorth >= minimumAssets;
+                  const locked = !profileEligible;
+                  const fallbackBackground =
+                    "linear-gradient(145deg, rgba(52,29,16,0.96), rgba(5,10,19,0.98))";
+                  const cardBackground = business.image
+                    ? `linear-gradient(180deg, rgba(5,8,14,0.08) 0%, rgba(5,8,14,0.34) 30%, rgba(5,8,14,0.9) 68%, rgba(5,8,14,0.99) 100%), url("${business.image}") center / cover no-repeat, ${fallbackBackground}`
+                    : fallbackBackground;
 
                   return (
                     <button
                       key={business.id}
                       type="button"
+                      disabled={locked}
+                      aria-disabled={locked}
                       onClick={() => chooseBusiness(business)}
                       style={{
+                        position: "relative",
                         minWidth: 0,
-                        minHeight: "280px",
+                        minHeight: business.image ? "380px" : "300px",
+                        overflow: "hidden",
                         borderRadius: "24px",
-                        border: highTier && !profileEligible
-                          ? "1px solid rgba(255,171,126,0.24)"
-                          : "1px solid rgba(218,151,74,0.24)",
-                        background:
-                          "linear-gradient(145deg, rgba(52,29,16,0.9), rgba(5,10,19,0.94))",
+                        border: locked
+                          ? "1px solid rgba(255,171,126,0.34)"
+                          : "1px solid rgba(218,151,74,0.3)",
+                        background: cardBackground,
                         color: "white",
                         padding: "20px",
                         textAlign: "left",
                         fontFamily: "inherit",
-                        cursor: "pointer",
-                        boxShadow: "0 20px 48px rgba(0,0,0,0.24)",
+                        cursor: locked ? "not-allowed" : "pointer",
+                        boxShadow: "0 20px 48px rgba(0,0,0,0.3)",
                         display: "flex",
                         flexDirection: "column",
+                        opacity: locked ? 0.64 : 1,
+                        filter: locked ? "grayscale(0.5)" : "none",
                       }}
                     >
+                      {locked && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            inset: 0,
+                            zIndex: 1,
+                            background: "rgba(7,8,12,0.28)",
+                            pointerEvents: "none",
+                          }}
+                        />
+                      )}
+
                       <div
                         style={{
+                          position: "relative",
+                          zIndex: 2,
                           display: "flex",
                           alignItems: "flex-start",
                           justifyContent: "space-between",
@@ -4742,94 +4802,114 @@ export default function MiloBusinessBuilderPage() {
                             width: "48px",
                             height: "48px",
                             borderRadius: "15px",
-                            border: "1px solid rgba(239,187,112,0.28)",
-                            background: "rgba(218,151,74,0.1)",
+                            border: "1px solid rgba(239,187,112,0.34)",
+                            background: "rgba(20,13,10,0.68)",
                             color: "#efbd74",
                             display: "grid",
                             placeItems: "center",
                             fontSize: "24px",
+                            backdropFilter: "blur(10px)",
+                            WebkitBackdropFilter: "blur(10px)",
                           }}
                         >
                           {business.icon}
                         </span>
                         <span
                           style={{
-                            minHeight: "28px",
+                            minHeight: "30px",
                             borderRadius: "999px",
-                            border: "1px solid rgba(255,255,255,0.1)",
-                            background: "rgba(255,255,255,0.04)",
-                            color: "rgba(255,255,255,0.62)",
+                            border: locked
+                              ? "1px solid rgba(255,180,145,0.35)"
+                              : "1px solid rgba(255,255,255,0.14)",
+                            background: locked
+                              ? "rgba(104,39,25,0.82)"
+                              : "rgba(9,11,16,0.68)",
+                            color: locked ? "#ffc2a7" : "rgba(255,255,255,0.78)",
                             display: "inline-flex",
                             alignItems: "center",
-                            padding: "0 10px",
+                            padding: "0 11px",
                             fontSize: "12px",
                             fontWeight: 900,
                             letterSpacing: "0.1em",
                             textTransform: "uppercase",
+                            backdropFilter: "blur(10px)",
+                            WebkitBackdropFilter: "blur(10px)",
                           }}
                         >
-                          Tier {index + 1}
+                          {locked ? `🔒 Tier ${index + 1}` : `Tier ${index + 1}`}
                         </span>
                       </div>
 
-                      <p
+                      <div
                         style={{
-                          margin: "18px 0 0",
-                          color: "#eab36a",
-                          fontSize: "12px",
-                          fontWeight: 900,
-                          letterSpacing: "0.16em",
-                          textTransform: "uppercase",
+                          position: "relative",
+                          zIndex: 2,
+                          marginTop: business.image ? "auto" : "18px",
+                          paddingTop: business.image ? "118px" : 0,
                         }}
                       >
-                        {business.category}
-                      </p>
-                      <h3
-                        style={{
-                          margin: "8px 0 0",
-                          fontSize: "28px",
-                          lineHeight: 1.05,
-                          letterSpacing: "-0.03em",
-                        }}
-                      >
-                        {business.title}
-                      </h3>
-                      <p
-                        style={{
-                          margin: "12px 0 0",
-                          color: "rgba(255,255,255,0.54)",
-                          fontSize: "15px",
-                          lineHeight: 1.55,
-                        }}
-                      >
-                        {business.description}
-                      </p>
+                        <p
+                          style={{
+                            margin: 0,
+                            color: "#f0bd75",
+                            fontSize: "12px",
+                            fontWeight: 900,
+                            letterSpacing: "0.16em",
+                            textTransform: "uppercase",
+                            textShadow: "0 2px 12px rgba(0,0,0,0.9)",
+                          }}
+                        >
+                          {business.category}
+                        </p>
+                        <h3
+                          style={{
+                            margin: "8px 0 0",
+                            fontSize: "28px",
+                            lineHeight: 1.05,
+                            letterSpacing: "-0.03em",
+                            textShadow: "0 3px 18px rgba(0,0,0,0.9)",
+                          }}
+                        >
+                          {business.title}
+                        </h3>
+                        <p
+                          style={{
+                            margin: "12px 0 0",
+                            color: "rgba(255,255,255,0.7)",
+                            fontSize: "15px",
+                            lineHeight: 1.55,
+                            textShadow: "0 2px 12px rgba(0,0,0,0.9)",
+                          }}
+                        >
+                          {business.description}
+                        </p>
 
-                      <div style={{ marginTop: "auto", paddingTop: "18px" }}>
-                        <strong
-                          style={{
-                            display: "block",
-                            color: "white",
-                            fontSize: "20px",
-                          }}
-                        >
-                          {formatMoney(business.minCapital)} – {formatMoney(business.maxCapital)}
-                        </strong>
-                        <span
-                          style={{
-                            display: "block",
-                            marginTop: "7px",
-                            color: highTier && !profileEligible
-                              ? "#ffb38f"
-                              : "rgba(255,255,255,0.44)",
-                            fontSize: "13px",
-                            lineHeight: 1.4,
-                          }}
-                        >
-                          {highTier
-                            ? `Requires at least ${formatMoney(minimumAssets)} in profile assets`
-                            : `Difficulty ${business.difficulty}/5 · Main risk: ${business.mainRisk}`}
-                        </span>
+                        <div style={{ marginTop: "18px" }}>
+                          <strong
+                            style={{
+                              display: "block",
+                              color: "white",
+                              fontSize: "20px",
+                            }}
+                          >
+                            {formatMoney(business.minCapital)} – {formatMoney(business.maxCapital)}
+                          </strong>
+                          <span
+                            style={{
+                              display: "block",
+                              marginTop: "7px",
+                              color: locked ? "#ffbea0" : "rgba(255,255,255,0.56)",
+                              fontSize: "13px",
+                              lineHeight: 1.4,
+                            }}
+                          >
+                            {locked
+                              ? `Locked · Build at least ${formatMoney(minimumAssets)} in profile assets`
+                              : highTier
+                                ? `Unlocked · Requires ${formatMoney(minimumAssets)} in profile assets`
+                                : `Difficulty ${business.difficulty}/5 · Main risk: ${business.mainRisk}`}
+                          </span>
+                        </div>
                       </div>
                     </button>
                   );
@@ -4966,8 +5046,114 @@ export default function MiloBusinessBuilderPage() {
                         <span style={{ flex: 1, background: "linear-gradient(90deg, #8d4b21, #e0a257)" }} />
                       </div>
                     </div>
-                    <div style={{ borderRadius: "24px", border: "1px solid rgba(218,151,74,0.24)", background: "rgba(6,10,18,0.88)", padding: "24px" }}>
-                      <label style={{ display: "block", color: "rgba(255,255,255,0.54)", fontSize: "16px", fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase" }}>Milo’s investment</label>
+                    <div
+                      style={{
+                        position: "relative",
+                        borderRadius: "24px",
+                        border: "1px solid rgba(218,151,74,0.24)",
+                        background: "rgba(6,10,18,0.88)",
+                        padding: "24px",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        aria-label="Explain dividends, buyouts and business sales"
+                        aria-expanded={fundingHelpOpen}
+                        onMouseEnter={() => setFundingHelpOpen(true)}
+                        onMouseLeave={() => setFundingHelpOpen(false)}
+                        onFocus={() => setFundingHelpOpen(true)}
+                        onBlur={() => setFundingHelpOpen(false)}
+                        onClick={() => setFundingHelpOpen((current) => !current)}
+                        style={{
+                          position: "absolute",
+                          top: "18px",
+                          right: "18px",
+                          zIndex: 4,
+                          width: "38px",
+                          height: "38px",
+                          borderRadius: "999px",
+                          border: "1px solid rgba(239,187,112,0.36)",
+                          background: "rgba(218,151,74,0.11)",
+                          color: "#f4c782",
+                          display: "grid",
+                          placeItems: "center",
+                          fontSize: "20px",
+                          fontWeight: 900,
+                          cursor: "help",
+                        }}
+                      >
+                        ?
+                      </button>
+
+                      {fundingHelpOpen && (
+                        <div
+                          role="tooltip"
+                          style={{
+                            position: "absolute",
+                            top: "64px",
+                            right: mobile ? "12px" : "18px",
+                            left: mobile ? "12px" : "auto",
+                            zIndex: 3,
+                            width: mobile ? "auto" : "min(390px, calc(100% - 36px))",
+                            borderRadius: "17px",
+                            border: "1px solid rgba(239,187,112,0.3)",
+                            background: "rgba(18,12,12,0.98)",
+                            boxShadow: "0 22px 56px rgba(0,0,0,0.58)",
+                            padding: "16px",
+                          }}
+                        >
+                          <strong style={{ display: "block", color: "#f4c782", fontSize: "16px" }}>
+                            How ownership affects future payouts
+                          </strong>
+                          <div style={{ marginTop: "12px", display: "grid", gap: "11px" }}>
+                            {[
+                              [
+                                "Dividends",
+                                "Profit paid out after reinvestment. You and Milo receive it according to the ownership split.",
+                              ],
+                              [
+                                "Milo share buyout",
+                                "You may later negotiate to buy some or all of Milo’s ownership. The agreed DT is paid in exchange for that share.",
+                              ],
+                              [
+                                "Business sale",
+                                "When the entire business is sold, the sale proceeds are divided according to the ownership percentages at that time.",
+                              ],
+                            ].map(([term, explanation]) => (
+                              <div key={term}>
+                                <strong style={{ display: "block", color: "white", fontSize: "14px" }}>
+                                  {term}
+                                </strong>
+                                <span
+                                  style={{
+                                    display: "block",
+                                    marginTop: "3px",
+                                    color: "rgba(255,255,255,0.62)",
+                                    fontSize: "13px",
+                                    lineHeight: 1.45,
+                                  }}
+                                >
+                                  {explanation}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <label
+                        style={{
+                          display: "block",
+                          paddingRight: "50px",
+                          color: "rgba(255,255,255,0.54)",
+                          fontSize: "16px",
+                          fontWeight: 900,
+                          letterSpacing: "0.14em",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        Milo’s investment
+                      </label>
                       <strong style={{ display: "block", marginTop: "12px", color: "#f4c782", fontSize: mobile ? "46px" : "58px", letterSpacing: "-0.05em" }}>{formatMoney(requestedBudget)}</strong>
                       <input type="range" min={0} max={selectedBusiness.maxCapital} step={1000} value={requestedBudget} onChange={(event) => { setRequestedBudget(Number(event.target.value)); setPageMessage(""); }} style={{ width: "100%", marginTop: "24px" }} />
                       <div style={{ marginTop: "9px", display: "flex", justifyContent: "space-between", color: "rgba(255,255,255,0.46)", fontSize: "16px" }}>
@@ -4979,7 +5165,7 @@ export default function MiloBusinessBuilderPage() {
                           : `Add at least ${formatMoney(selectedBusiness.minCapital - totalFunding)} more capital before launch.`}
                       </p>
                       <div style={{ marginTop: "24px", display: "flex", flexDirection: mobile ? "column" : "row", gap: "10px" }}>
-                        <button type="button" onClick={() => setFundingStep("personal")} disabled={fundingSubmitting} style={{ minHeight: "54px", flex: 1, borderRadius: "14px", border: "1px solid rgba(218,151,74,0.2)", background: "rgba(255,255,255,0.04)", color: "white", fontSize: "18px", fontWeight: 850, cursor: "pointer" }}>Back to Your Investment</button>
+                        <button type="button" onClick={() => { setFundingHelpOpen(false); setFundingStep("personal"); }} disabled={fundingSubmitting} style={{ minHeight: "54px", flex: 1, borderRadius: "14px", border: "1px solid rgba(218,151,74,0.2)", background: "rgba(255,255,255,0.04)", color: "white", fontSize: "18px", fontWeight: 850, cursor: "pointer" }}>Back to Your Investment</button>
                         <button type="button" onClick={confirmFunding} disabled={fundingSubmitting || totalFunding < selectedBusiness.minCapital} style={{ minHeight: "54px", flex: 1.25, borderRadius: "14px", border: "none", background: fundingSubmitting || totalFunding < selectedBusiness.minCapital ? "rgba(255,255,255,0.12)" : "linear-gradient(135deg, #d99548, #8d4b21)", color: fundingSubmitting || totalFunding < selectedBusiness.minCapital ? "rgba(255,255,255,0.4)" : "white", fontSize: "18px", fontWeight: 900, cursor: fundingSubmitting ? "wait" : totalFunding < selectedBusiness.minCapital ? "not-allowed" : "pointer" }}>
                           {fundingSubmitting ? "Confirming..." : "Confirm Funding Agreement"}
                         </button>
@@ -7262,26 +7448,30 @@ export default function MiloBusinessBuilderPage() {
             className="milo-dialogue-panel"
             style={{
               position: "relative",
-              overflow: "hidden",
+              overflow: mobile ? "auto" : "hidden",
               width: "min(860px, 100%)",
-              minHeight: "390px",
+              minHeight: mobile ? 0 : "390px",
+              maxHeight: mobile ? "calc(100dvh - 24px)" : "none",
               borderRadius: "30px",
               border: "1px solid rgba(231,169,91,0.4)",
               background:
                 "linear-gradient(145deg, rgba(66,34,16,0.98), rgba(5,10,20,0.99))",
               boxShadow: "0 40px 110px rgba(0,0,0,0.6)",
-              padding: mobile ? "230px 22px 24px" : "42px 42px 36px 330px",
+              padding: mobile ? "58px 22px 24px" : "42px 42px 36px 330px",
             }}
             onClick={(event) => event.stopPropagation()}
           >
             <img
+              className="milo-dialogue-character"
               src="/milo-world/milo-character.png"
               alt="Milo"
               style={{
-                position: "absolute",
-                left: "28px",
-                bottom: "-36px",
-                height: "410px",
+                position: mobile ? "relative" : "absolute",
+                left: mobile ? "auto" : "28px",
+                bottom: mobile ? "auto" : "-36px",
+                display: "block",
+                height: mobile ? "218px" : "410px",
+                margin: mobile ? "0 auto -4px" : 0,
                 width: "auto",
                 objectFit: "contain",
                 filter: "drop-shadow(0 20px 38px rgba(0,0,0,0.56))",

@@ -85,7 +85,7 @@ function useResponsiveMode() {
       const height = window.innerHeight;
       const isPortrait = height > width;
 
-      if (width <= 720) {
+      if (width <= 820) {
         setScreenMode("mobile");
       } else if (width <= 1180 || isPortrait) {
         setScreenMode("tablet");
@@ -167,6 +167,17 @@ function formatShortDate(value: string) {
 function ResponsiveScrollStyles() {
   return (
     <style>{`
+      .milo-stock-page,
+      .milo-stock-page * {
+        box-sizing: border-box;
+      }
+
+      .milo-stock-page button,
+      .milo-stock-page input,
+      .milo-stock-page a {
+        -webkit-tap-highlight-color: transparent;
+      }
+
       .milo-scrollbar {
         scrollbar-width: thin;
         scrollbar-color: rgba(132, 218, 255, 0.45) rgba(255,255,255,0.14);
@@ -180,6 +191,31 @@ function ResponsiveScrollStyles() {
       .milo-scrollbar::-webkit-scrollbar-thumb {
         background: rgba(132, 218, 255, 0.45);
         border-radius: 999px;
+      }
+
+      .milo-market-strip {
+        scroll-snap-type: x proximity;
+        overscroll-behavior-inline: contain;
+      }
+
+      .milo-market-card {
+        scroll-snap-align: start;
+      }
+
+      @media (max-width: 820px) {
+        .milo-stock-page {
+          overflow-x: hidden;
+        }
+
+        .milo-mobile-nav > * {
+          min-width: 0;
+        }
+      }
+
+      @media (max-width: 430px) {
+        .milo-summary-grid {
+          grid-template-columns: 1fr !important;
+        }
       }
     `}</style>
   );
@@ -212,8 +248,8 @@ function PriceHistoryChart({
     );
   }
 
-  const width = 900;
-  const height = isMobile ? 280 : 340;
+  const width = isMobile ? 680 : 900;
+  const height = isMobile ? 270 : 340;
   const paddingLeft = 52;
   const paddingRight = 24;
   const paddingTop = 24;
@@ -275,7 +311,7 @@ function PriceHistoryChart({
         height={height}
         role="img"
         aria-label="Five-year fictional stock price history"
-        style={{ display: "block", minWidth: isMobile ? "720px" : "100%" }}
+        style={{ display: "block", minWidth: isMobile ? "640px" : "100%" }}
       >
         <defs>
           <linearGradient id="miloChartGlow" x1="0" x2="0" y1="0" y2="1">
@@ -408,9 +444,9 @@ export default function MiloStockExchangePage() {
   const [confirmAge, setConfirmAge] = useState(false);
   const [confirmTerms, setConfirmTerms] = useState(false);
 
-const [pageMessage, setPageMessage] = useState("");
-const [gateError, setGateError] = useState("");
-const [tradeMessage, setTradeMessage] = useState("");
+  const [pageMessage, setPageMessage] = useState("");
+  const [gateError, setGateError] = useState("");
+  const [tradeMessage, setTradeMessage] = useState("");
 
 
   const selectedStock =
@@ -423,6 +459,20 @@ const [tradeMessage, setTradeMessage] = useState("");
       return total + holding.quantity * stock.current_price;
     }, 0);
   }, [holdings, stocks]);
+
+  const portfolioCostBasis = useMemo(() => {
+    return holdings.reduce(
+      (total, holding) =>
+        total + holding.quantity * Number(holding.average_price || 0),
+      0
+    );
+  }, [holdings]);
+
+  const portfolioProfitLoss = portfolioValue - portfolioCostBasis;
+  const portfolioProfitLossPercent =
+    portfolioCostBasis > 0
+      ? (portfolioProfitLoss / portfolioCostBasis) * 100
+      : 0;
 
   const totalEstimatedValue = dreamTokens + portfolioValue;
 
@@ -945,9 +995,11 @@ const [tradeMessage, setTradeMessage] = useState("");
   const contentWrap: CSSProperties = {
     position: "relative",
     zIndex: 5,
-    width: "min(1680px, calc(100% - 36px))",
+    width: isMobile
+      ? "min(100%, calc(100% - 20px))"
+      : "min(1680px, calc(100% - 36px))",
     margin: "0 auto",
-    padding: isMobile ? "18px 0 80px" : "28px 0 90px",
+    padding: isMobile ? "12px 0 64px" : "28px 0 90px",
   };
 
   const glassPanel: CSSProperties = {
@@ -961,8 +1013,8 @@ const [tradeMessage, setTradeMessage] = useState("");
   };
 
   const navButtonStyle: CSSProperties = {
-    minHeight: isMobile ? "38px" : "42px",
-    padding: isMobile ? "0 14px" : "0 22px",
+    minHeight: isMobile ? "44px" : "42px",
+    padding: isMobile ? "0 12px" : "0 22px",
     borderRadius: "999px",
     display: "inline-flex",
     alignItems: "center",
@@ -972,8 +1024,9 @@ const [tradeMessage, setTradeMessage] = useState("");
     textDecoration: "none",
     textTransform: "uppercase",
     letterSpacing: isMobile ? "0.08em" : "0.16em",
-    fontSize: isMobile ? "11px" : "13px",
+    fontSize: isMobile ? "10px" : "13px",
     fontWeight: 800,
+    whiteSpace: "nowrap",
     border: "1px solid rgba(132,218,255,0.22)",
     background: "rgba(5,13,28,0.62)",
     backdropFilter: "blur(16px)",
@@ -1006,13 +1059,15 @@ const [tradeMessage, setTradeMessage] = useState("");
   };
 
   const inputStyle: CSSProperties = {
+    width: "100%",
+    minWidth: 0,
     height: "48px",
     borderRadius: "14px",
     border: "1px solid rgba(132,218,255,0.2)",
     background: "rgba(255,255,255,0.1)",
     color: "white",
     padding: "0 16px",
-    fontSize: "15px",
+    fontSize: "16px",
     outline: "none",
     fontFamily: "inherit",
   };
@@ -1308,7 +1363,7 @@ const [tradeMessage, setTradeMessage] = useState("");
   }
 
   return (
-    <main className="milo-scrollbar" style={pageShell}>
+    <main className="milo-stock-page milo-scrollbar" style={pageShell}>
       <ResponsiveScrollStyles />
 <Background />
 
@@ -1324,16 +1379,25 @@ const [tradeMessage, setTradeMessage] = useState("");
             marginBottom: isMobile ? "24px" : "30px",
           }}
         >
-          <Link href="/milo-world/exchange" style={navButtonStyle}>
+          <Link
+            href="/milo-world/exchange"
+            style={{
+              ...navButtonStyle,
+              width: isMobile ? "100%" : "auto",
+            }}
+          >
             ← Exchange Home
           </Link>
 
           <div
+            className="milo-mobile-nav"
             style={{
-              display: "flex",
+              display: isMobile ? "grid" : "flex",
+              gridTemplateColumns: isMobile ? "1fr 1fr" : undefined,
               flexWrap: "wrap",
               gap: "10px",
-              justifyContent: isMobile ? "flex-start" : "flex-end",
+              width: isMobile ? "100%" : "auto",
+              justifyContent: isMobile ? "stretch" : "flex-end",
             }}
           >
             <span
@@ -1342,6 +1406,7 @@ const [tradeMessage, setTradeMessage] = useState("");
                 color: "#8ee8ff",
                 border: "1px solid rgba(132,218,255,0.34)",
                 background: "rgba(83,215,255,0.12)",
+                width: isMobile ? "100%" : "auto",
               }}
             >
               Stock Exchange
@@ -1354,12 +1419,20 @@ const [tradeMessage, setTradeMessage] = useState("");
                 color: "#ffd18a",
                 border: "1px solid rgba(255,209,138,0.26)",
                 background: "rgba(255,209,138,0.1)",
+                width: isMobile ? "100%" : "auto",
               }}
             >
               Property Exchange
             </Link>
 
-            <Link href="/profile" style={navButtonStyle}>
+            <Link
+              href="/profile"
+              style={{
+                ...navButtonStyle,
+                width: isMobile ? "100%" : "auto",
+                gridColumn: isMobile ? "1 / -1" : undefined,
+              }}
+            >
               My Account
             </Link>
           </div>
@@ -1380,7 +1453,7 @@ const [tradeMessage, setTradeMessage] = useState("");
               style={{
                 margin: 0,
                 fontFamily: 'Georgia, "Times New Roman", serif',
-                fontSize: isMobile ? "44px" : isCompact ? "58px" : "68px",
+                fontSize: isMobile ? "38px" : isCompact ? "54px" : "68px",
                 fontWeight: 500,
                 lineHeight: 0.98,
                 color: "white",
@@ -1405,25 +1478,66 @@ const [tradeMessage, setTradeMessage] = useState("");
         </section>
 
         <section
+          className="milo-summary-grid"
           style={{
             marginBottom: "18px",
             display: "grid",
             gridTemplateColumns: isMobile
               ? "1fr 1fr"
-              : "repeat(4, minmax(0, 1fr))",
+              : isCompact
+              ? "repeat(3, minmax(0, 1fr))"
+              : "repeat(5, minmax(0, 1fr))",
             gap: isMobile ? "10px" : "14px",
           }}
         >
           {[
-            ["Available Tokens", `${formatNumber(dreamTokens)} DT`],
-            ["Portfolio Value", `${formatNumber(portfolioValue)} DT`],
-            ["Estimated Total", `${formatNumber(totalEstimatedValue)} DT`],
-            ["Token Purchases", "Disabled"],
-          ].map(([label, value]) => (
+            {
+              label: "Available Tokens",
+              value: `${formatNumber(dreamTokens)} DT`,
+              color: "white",
+              note: "Ready to use",
+            },
+            {
+              label: "Portfolio Value",
+              value: `${formatNumber(portfolioValue)} DT`,
+              color: "white",
+              note: "Current market value",
+            },
+            {
+              label: "Overall Stock P/L",
+              value: `${portfolioProfitLoss >= 0 ? "+" : "−"}${formatNumber(
+                Math.abs(portfolioProfitLoss)
+              )} DT`,
+              color: portfolioProfitLoss >= 0 ? "#8ee8ff" : "#ffb0b0",
+              note:
+                portfolioCostBasis > 0
+                  ? `${portfolioProfitLoss >= 0 ? "+" : ""}${portfolioProfitLossPercent.toFixed(
+                      1
+                    )}% · Cost ${formatNumber(portfolioCostBasis)} DT`
+                  : "No holdings yet",
+            },
+            {
+              label: "Estimated Total",
+              value: `${formatNumber(totalEstimatedValue)} DT`,
+              color: "white",
+              note: "Tokens + stocks",
+            },
+            {
+              label: "Token Purchases",
+              value: "Disabled",
+              color: "#ffd18a",
+              note: "Earned tokens only",
+            },
+          ].map((item) => (
             <article
-              key={label}
+              key={item.label}
               style={{
                 ...glassPanel,
+                minWidth: 0,
+                gridColumn:
+                  item.label === "Token Purchases" && isMobile
+                    ? "1 / -1"
+                    : undefined,
                 borderRadius: "20px",
                 padding: isMobile ? "15px" : "18px",
               }}
@@ -1432,26 +1546,39 @@ const [tradeMessage, setTradeMessage] = useState("");
                 style={{
                   display: "block",
                   color: "rgba(255,255,255,0.52)",
-                  fontSize: isMobile ? "11px" : "12px",
+                  fontSize: isMobile ? "10px" : "12px",
                   fontWeight: 900,
                   letterSpacing: "0.08em",
                   textTransform: "uppercase",
                 }}
               >
-                {label}
+                {item.label}
               </span>
 
               <strong
                 style={{
                   display: "block",
                   marginTop: "8px",
-                  color: value === "Disabled" ? "#ffd18a" : "white",
-                  fontSize: isMobile ? "20px" : "24px",
+                  color: item.color,
+                  fontSize: isMobile ? "19px" : "24px",
                   letterSpacing: "-0.03em",
+                  overflowWrap: "anywhere",
                 }}
               >
-                {value}
+                {item.value}
               </strong>
+
+              <span
+                style={{
+                  display: "block",
+                  marginTop: "6px",
+                  color: "rgba(255,255,255,0.45)",
+                  fontSize: isMobile ? "10px" : "11px",
+                  lineHeight: 1.35,
+                }}
+              >
+                {item.note}
+              </span>
             </article>
           ))}
         </section>
@@ -1462,7 +1589,7 @@ const [tradeMessage, setTradeMessage] = useState("");
             gridTemplateColumns: isCompact
               ? "1fr"
               : "260px minmax(0, 1fr) 350px",
-            gap: "18px",
+            gap: isMobile ? "14px" : "18px",
             alignItems: "start",
           }}
         >
@@ -1505,7 +1632,7 @@ const [tradeMessage, setTradeMessage] = useState("");
               </p>
             ) : (
               <div
-                className="milo-scrollbar"
+                className="milo-market-strip milo-scrollbar"
                 style={{
                   display: isCompact ? "flex" : "grid",
                   gap: "10px",
@@ -1521,12 +1648,21 @@ const [tradeMessage, setTradeMessage] = useState("");
                   return (
                     <button
                       key={stock.symbol}
+                      className="milo-market-card"
                       type="button"
                       aria-pressed={isSelected}
                       onClick={() => setSelectedSymbol(stock.symbol)}
                       style={{
-                        width: isCompact ? "220px" : "100%",
-                        flex: isCompact ? "0 0 220px" : undefined,
+                        width: isCompact
+                          ? isMobile
+                            ? "min(78vw, 240px)"
+                            : "220px"
+                          : "100%",
+                        flex: isCompact
+                          ? isMobile
+                            ? "0 0 min(78vw, 240px)"
+                            : "0 0 220px"
+                          : undefined,
                         minHeight: "112px",
                         padding: "15px",
                         borderRadius: "18px",
@@ -2046,6 +2182,7 @@ const [tradeMessage, setTradeMessage] = useState("");
 
                     <input
                       type="number"
+                      inputMode="numeric"
                       min={1}
                       step={1}
                       value={quantity}
@@ -2167,7 +2304,7 @@ const [tradeMessage, setTradeMessage] = useState("");
 
               <h2
                 style={{
-                  margin: "10px 0 16px",
+                  margin: "10px 0 8px",
                   fontFamily: 'Georgia, "Times New Roman", serif',
                   fontSize: "28px",
                   fontWeight: 500,
@@ -2176,6 +2313,18 @@ const [tradeMessage, setTradeMessage] = useState("");
               >
                 My Holdings
               </h2>
+
+              <p
+                style={{
+                  margin: "0 0 16px",
+                  color: "rgba(255,255,255,0.42)",
+                  fontSize: "11px",
+                  lineHeight: 1.45,
+                }}
+              >
+                P/L compares each current holding value with its average
+                purchase cost.
+              </p>
 
               {holdings.length === 0 ? (
                 <p
@@ -2204,6 +2353,16 @@ const [tradeMessage, setTradeMessage] = useState("");
                       (item) => item.symbol === holding.symbol
                     );
                     if (!stock) return null;
+
+                    const holdingValue =
+                      holding.quantity * stock.current_price;
+                    const holdingCost =
+                      holding.quantity * Number(holding.average_price || 0);
+                    const holdingProfitLoss = holdingValue - holdingCost;
+                    const holdingProfitLossPercent =
+                      holdingCost > 0
+                        ? (holdingProfitLoss / holdingCost) * 100
+                        : 0;
 
                     return (
                       <button
@@ -2236,10 +2395,7 @@ const [tradeMessage, setTradeMessage] = useState("");
                         >
                           <strong>{holding.symbol}</strong>
                           <strong style={{ color: "#ffd18a" }}>
-                            {formatNumber(
-                              holding.quantity * stock.current_price
-                            )}{" "}
-                            DT
+                            {formatNumber(holdingValue)} DT
                           </strong>
                         </div>
 
@@ -2247,14 +2403,44 @@ const [tradeMessage, setTradeMessage] = useState("");
                           style={{
                             marginTop: "6px",
                             display: "flex",
+                            flexWrap: "wrap",
                             justifyContent: "space-between",
-                            gap: "10px",
+                            gap: "6px 10px",
                             color: "rgba(255,255,255,0.48)",
                             fontSize: "12px",
                           }}
                         >
                           <span>{holding.quantity} shares</span>
                           <span>Avg {holding.average_price} DT</span>
+                        </div>
+
+                        <div
+                          style={{
+                            marginTop: "7px",
+                            display: "flex",
+                            flexWrap: "wrap",
+                            justifyContent: "space-between",
+                            gap: "6px 10px",
+                            fontSize: "12px",
+                            fontWeight: 900,
+                          }}
+                        >
+                          <span style={{ color: "rgba(255,255,255,0.42)" }}>
+                            P/L
+                          </span>
+                          <span
+                            style={{
+                              color:
+                                holdingProfitLoss >= 0
+                                  ? "#8ee8ff"
+                                  : "#ffb0b0",
+                            }}
+                          >
+                            {holdingProfitLoss >= 0 ? "+" : "−"}
+                            {formatNumber(Math.abs(holdingProfitLoss))} DT (
+                            {holdingProfitLoss >= 0 ? "+" : ""}
+                            {holdingProfitLossPercent.toFixed(1)}%)
+                          </span>
                         </div>
                       </button>
                     );
