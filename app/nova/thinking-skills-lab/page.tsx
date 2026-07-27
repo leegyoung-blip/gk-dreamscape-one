@@ -11,7 +11,7 @@ import {
 import type { CSSProperties, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 
-const NOVA_WORLD_HREF = "/nova-world";
+const NOVA_WORLD_HREF = "/inventor";
 const DAILY_LIMIT = 3;
 const CLUE_COST = 5;
 const COLOUR_MAX_ATTEMPTS = 15;
