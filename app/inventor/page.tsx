@@ -2232,8 +2232,10 @@ function GuidedWalkthrough({
   onClose: () => void;
 }) {
   const screenMode = useResponsiveMode();
-  const isDesktop = screenMode === "desktop";
   const isMobile = screenMode === "mobile";
+  // The walkthrough should keep its full desktop proportions on tablet and
+  // split-screen layouts. Only true mobile widths use the compact popup.
+  const useFullWalkthroughLayout = !isMobile;
   const step = WALKTHROUGH_STEPS[stepIndex] ?? WALKTHROUGH_STEPS[0];
   const isFirstStep = stepIndex === 0;
   const isLastStep = stepIndex === WALKTHROUGH_STEPS.length - 1;
@@ -2293,17 +2295,15 @@ function GuidedWalkthrough({
         aria-label="Nova’s World guided walkthrough"
         style={{
           position: "fixed",
-          left: isMobile ? "12px" : isDesktop ? "36px" : "24px",
+          left: isMobile ? "12px" : "36px",
           right: isMobile ? "12px" : "auto",
           bottom: isMobile ? "12px" : "26px",
           zIndex: 100,
           width: isMobile
             ? "auto"
-            : isDesktop
-              ? "min(520px, calc(100vw - 72px))"
-              : "min(350px, calc(100vw - 48px))",
-          maxHeight: isMobile ? "52dvh" : "min(390px, calc(100dvh - 48px))",
-          overflowY: "auto",
+            : "min(520px, calc(100vw - 72px))",
+          maxHeight: isMobile ? "52dvh" : "none",
+          overflowY: isMobile ? "auto" : "visible",
           borderRadius: isMobile ? "20px" : "26px",
           border: "1px solid rgba(142,232,255,0.42)",
           background:
@@ -2311,7 +2311,11 @@ function GuidedWalkthrough({
           boxShadow:
             "0 32px 90px rgba(0,0,0,0.68), 0 0 40px rgba(83,215,255,0.14)",
           color: "white",
-          padding: isMobile ? "20px" : "26px 28px 24px 190px",
+          padding: isMobile
+            ? "20px"
+            : useFullWalkthroughLayout
+              ? "26px 28px 24px 190px"
+              : "20px",
         }}
       >
         <button
