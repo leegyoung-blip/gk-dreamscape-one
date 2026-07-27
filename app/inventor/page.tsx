@@ -17,6 +17,32 @@ type DreamTokenTransaction = {
   created_at: string | null;
 };
 
+type StockRow = {
+  symbol: string;
+  current_price: number;
+};
+
+type StockHoldingRow = {
+  symbol: string;
+  quantity: number;
+};
+
+type PropertyRow = {
+  id: string;
+  current_value: number;
+};
+
+type PropertyHoldingRow = {
+  property_id: string;
+  quantity: number;
+};
+
+type ProfileAssetBreakdown = {
+  cash: number;
+  property: number;
+  stocks: number;
+};
+
 type ReferralMilestone = 1 | 5 | 15;
 
 type ReferralObjectiveDefinition = {
@@ -79,6 +105,10 @@ function useResponsiveMode() {
   }, []);
 
   return screenMode;
+}
+
+function formatDreamTokenAmount(value: number) {
+  return `${Math.round(Number(value || 0)).toLocaleString("en-SG")} DT`;
 }
 
 function formatDreamTokenTransactionDate(value: string | null) {
@@ -200,12 +230,15 @@ export default function NovaWorldPage() {
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
   const [walkthroughStep, setWalkthroughStep] = useState(0);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [tokenBalance, setTokenBalance] = useState(0);
+  const [profileAssets, setProfileAssets] = useState<ProfileAssetBreakdown>({
+    cash: 0,
+    property: 0,
+    stocks: 0,
+  });
   const [tokenTransactions, setTokenTransactions] = useState<
     DreamTokenTransaction[]
   >([]);
-  const [tokenTransactionsLoading, setTokenTransactionsLoading] =
-    useState(true);
+  const [profileAssetsLoading, setProfileAssetsLoading] = useState(true);
   const [referralCount, setReferralCount] = useState(0);
   const [claimedMilestones, setClaimedMilestones] = useState<
     ReferralMilestone[]
@@ -229,9 +262,9 @@ export default function NovaWorldPage() {
 
       if (!user) {
         setUserEmail(null);
-        setTokenBalance(0);
+        setProfileAssets({ cash: 0, property: 0, stocks: 0 });
         setTokenTransactions([]);
-        setTokenTransactionsLoading(false);
+        setProfileAssetsLoading(false);
         setReferralCount(0);
         setClaimedMilestones([]);
         setObjectivesLoading(false);
@@ -274,9 +307,16 @@ export default function NovaWorldPage() {
         setClaimedMilestones(safeMilestones);
       }
 
-      setTokenTransactionsLoading(true);
+      setProfileAssetsLoading(true);
 
-      const [balanceResult, recentTransactionsResult] = await Promise.all([
+      const [
+        balanceResult,
+        recentTransactionsResult,
+        stocksResult,
+        stockHoldingsResult,
+        propertiesResult,
+        propertyHoldingsResult,
+      ] = await Promise.all([
         supabase
           .from("dream_token_transactions")
           .select("amount")
@@ -289,30 +329,93 @@ export default function NovaWorldPage() {
           .eq("token_kind", "virtual")
           .order("created_at", { ascending: false })
           .limit(8),
+        supabase
+          .from("milo_exchange_stocks")
+          .select("symbol,current_price")
+          .eq("is_active", true),
+        supabase
+          .from("milo_exchange_holdings")
+          .select("symbol,quantity")
+          .eq("user_id", user.id),
+        supabase
+          .from("milo_exchange_properties")
+          .select("id,current_value")
+          .eq("is_active", true),
+        supabase
+          .from("milo_exchange_property_holdings")
+          .select("property_id,quantity")
+          .eq("user_id", user.id),
       ]);
 
       if (!isMounted) return;
 
-      if (balanceResult.error) {
-        console.warn(
-          "Could not load Dreamscape Tokens:",
-          balanceResult.error.message
-        );
-        setTokenBalance(0);
-      } else {
-        const total =
-          balanceResult.data?.reduce(
+      const cashValue = balanceResult.error
+        ? 0
+        : balanceResult.data?.reduce(
             (sum, row) => sum + Number(row.amount || 0),
-            0
+            0,
           ) || 0;
 
-        setTokenBalance(total);
+      if (balanceResult.error) {
+        console.warn("Could not load Dreamscape Tokens:", balanceResult.error);
       }
+
+      const stockPrices = new Map(
+        ((stocksResult.data || []) as StockRow[]).map((stock) => [
+          stock.symbol,
+          Number(stock.current_price || 0),
+        ]),
+      );
+      const stockValue = stockHoldingsResult.error
+        ? 0
+        : ((stockHoldingsResult.data || []) as StockHoldingRow[]).reduce(
+            (total, holding) =>
+              total +
+              Number(holding.quantity || 0) *
+                Number(stockPrices.get(holding.symbol) || 0),
+            0,
+          );
+
+      const propertyPrices = new Map(
+        ((propertiesResult.data || []) as PropertyRow[]).map((property) => [
+          property.id,
+          Number(property.current_value || 0),
+        ]),
+      );
+      const propertyValue = propertyHoldingsResult.error
+        ? 0
+        : ((propertyHoldingsResult.data || []) as PropertyHoldingRow[]).reduce(
+            (total, holding) =>
+              total +
+              Number(holding.quantity || 0) *
+                Number(propertyPrices.get(holding.property_id) || 0),
+            0,
+          );
+
+      if (stocksResult.error || stockHoldingsResult.error) {
+        console.warn(
+          "Could not load stock assets:",
+          stocksResult.error?.message || stockHoldingsResult.error?.message,
+        );
+      }
+
+      if (propertiesResult.error || propertyHoldingsResult.error) {
+        console.warn(
+          "Could not load property assets:",
+          propertiesResult.error?.message || propertyHoldingsResult.error?.message,
+        );
+      }
+
+      setProfileAssets({
+        cash: cashValue,
+        property: propertyValue,
+        stocks: stockValue,
+      });
 
       if (recentTransactionsResult.error) {
         console.warn(
           "Could not load recent Dreamscape Token transactions:",
-          recentTransactionsResult.error.message
+          recentTransactionsResult.error.message,
         );
         setTokenTransactions([]);
       } else {
@@ -325,11 +428,11 @@ export default function NovaWorldPage() {
             created_at: transaction.created_at
               ? String(transaction.created_at)
               : null,
-          }))
+          })),
         );
       }
 
-      setTokenTransactionsLoading(false);
+      setProfileAssetsLoading(false);
       setObjectivesLoading(false);
     }
 
@@ -474,9 +577,9 @@ export default function NovaWorldPage() {
 
       <FloatingControls
         userEmail={userEmail}
-        tokenBalance={tokenBalance}
+        profileAssets={profileAssets}
         tokenTransactions={tokenTransactions}
-        tokenTransactionsLoading={tokenTransactionsLoading}
+        profileAssetsLoading={profileAssetsLoading}
         referralCount={referralCount}
         claimedMilestones={claimedMilestones}
         objectivesLoading={objectivesLoading}
@@ -649,9 +752,9 @@ export default function NovaWorldPage() {
 
 function FloatingControls({
   userEmail,
-  tokenBalance,
+  profileAssets,
   tokenTransactions,
-  tokenTransactionsLoading,
+  profileAssetsLoading,
   referralCount,
   claimedMilestones,
   objectivesLoading,
@@ -659,9 +762,9 @@ function FloatingControls({
   onStartWalkthrough,
 }: {
   userEmail: string | null;
-  tokenBalance: number;
+  profileAssets: ProfileAssetBreakdown;
   tokenTransactions: DreamTokenTransaction[];
-  tokenTransactionsLoading: boolean;
+  profileAssetsLoading: boolean;
   referralCount: number;
   claimedMilestones: ReferralMilestone[];
   objectivesLoading: boolean;
@@ -670,29 +773,28 @@ function FloatingControls({
 }) {
   const isDesktop = screenMode === "desktop";
   const isMobile = screenMode === "mobile";
-  const [tokenTransactionsOpen, setTokenTransactionsOpen] = useState(false);
+  const [profileAssetsOpen, setProfileAssetsOpen] = useState(false);
+  const profileAssetsTotal =
+    profileAssets.cash + profileAssets.property + profileAssets.stocks;
 
   useEffect(() => {
-    if (!tokenTransactionsOpen) return;
+    if (!profileAssetsOpen) return;
 
     function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setTokenTransactionsOpen(false);
-      }
+      if (event.key === "Escape") setProfileAssetsOpen(false);
     }
 
     document.addEventListener("keydown", closeOnEscape);
-
     return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [tokenTransactionsOpen]);
+  }, [profileAssetsOpen]);
 
   return (
     <>
-      {tokenTransactionsOpen && (
+      {profileAssetsOpen && (
         <button
           type="button"
-          aria-label="Close token transactions"
-          onClick={() => setTokenTransactionsOpen(false)}
+          aria-label="Close profile assets"
+          onClick={() => setProfileAssetsOpen(false)}
           style={{
             position: "fixed",
             inset: 0,
@@ -764,7 +866,8 @@ function FloatingControls({
             fontSize: isMobile ? "11px" : "14px",
             letterSpacing: isMobile ? "0.06em" : "0.1em",
             textTransform: "uppercase",
-            boxShadow: "0 16px 36px rgba(0,0,0,0.28), 0 0 22px rgba(83,215,255,0.16)",
+            boxShadow:
+              "0 16px 36px rgba(0,0,0,0.28), 0 0 22px rgba(83,215,255,0.16)",
             whiteSpace: "nowrap",
             cursor: "pointer",
             fontFamily: "inherit",
@@ -795,23 +898,18 @@ function FloatingControls({
             whiteSpace: "nowrap",
           }}
         >
-          {userEmail ? "My Account" : "Log In"}
+          {userEmail ? (isMobile ? "Account" : "My Account") : "Log In"}
         </Link>
 
-        <div
-          style={{
-            position: "relative",
-            zIndex: 82,
-          }}
-        >
+        <div style={{ position: "relative", zIndex: 82 }}>
           <button
             type="button"
-            onClick={() => setTokenTransactionsOpen((current) => !current)}
-            aria-expanded={tokenTransactionsOpen}
+            onClick={() => setProfileAssetsOpen((current) => !current)}
+            aria-expanded={profileAssetsOpen}
             aria-haspopup="menu"
             style={{
               height: isMobile ? "40px" : "46px",
-              padding: isMobile ? "0 12px" : "0 18px",
+              padding: isMobile ? "0 10px" : "0 18px",
               borderRadius: "999px",
               border: "1px solid rgba(83,215,255,0.55)",
               background:
@@ -821,11 +919,11 @@ function FloatingControls({
               color: "white",
               display: "flex",
               alignItems: "center",
-              gap: isMobile ? "8px" : "10px",
-              fontSize: isMobile ? "11px" : "14px",
-              letterSpacing: isMobile ? "0.05em" : "0.08em",
+              gap: isMobile ? "7px" : "10px",
+              fontSize: isMobile ? "10px" : "14px",
+              letterSpacing: isMobile ? "0.03em" : "0.08em",
               textTransform: "uppercase",
-              boxShadow: tokenTransactionsOpen
+              boxShadow: profileAssetsOpen
                 ? "0 16px 38px rgba(0,0,0,0.34), 0 0 30px rgba(83,215,255,0.28)"
                 : "0 16px 36px rgba(0,0,0,0.28), 0 0 22px rgba(83,215,255,0.16)",
               whiteSpace: "nowrap",
@@ -835,8 +933,8 @@ function FloatingControls({
           >
             <span
               style={{
-                width: isMobile ? "22px" : "25px",
-                height: isMobile ? "22px" : "25px",
+                width: isMobile ? "21px" : "25px",
+                height: isMobile ? "21px" : "25px",
                 borderRadius: "999px",
                 display: "flex",
                 alignItems: "center",
@@ -845,34 +943,30 @@ function FloatingControls({
                   "radial-gradient(circle, rgba(83,215,255,0.38), rgba(2,8,19,0.8))",
                 border: "1px solid rgba(83,215,255,0.6)",
                 color: "#bdf6ff",
-                fontSize: "13px",
+                fontSize: "12px",
                 boxShadow: "0 0 14px rgba(83,215,255,0.32)",
                 flexShrink: 0,
               }}
             >
-              ✦
+              ◈
             </span>
 
-            <span>{isDesktop ? "Dreamscape Tokens" : "Tokens"}</span>
-
+            <span>{isDesktop ? "Profile Assets" : "Assets"}</span>
             <strong
               style={{
                 color: "#53d7ff",
-                fontSize: isMobile ? "13px" : "15px",
-                letterSpacing: "0.08em",
+                fontSize: isMobile ? "11px" : "14px",
+                letterSpacing: "0.04em",
               }}
             >
-              {tokenBalance}
+              {formatDreamTokenAmount(profileAssetsTotal)}
             </strong>
-
             <span
               aria-hidden="true"
               style={{
                 color: "#8ee8ff",
                 fontSize: "13px",
-                transform: tokenTransactionsOpen
-                  ? "rotate(180deg)"
-                  : "rotate(0deg)",
+                transform: profileAssetsOpen ? "rotate(180deg)" : "rotate(0deg)",
                 transition: "transform 180ms ease",
               }}
             >
@@ -880,17 +974,15 @@ function FloatingControls({
             </span>
           </button>
 
-          {tokenTransactionsOpen && (
+          {profileAssetsOpen && (
             <div
               role="menu"
               style={{
                 position: isMobile ? "fixed" : "absolute",
                 top: isMobile ? "108px" : "calc(100% + 10px)",
                 right: isMobile ? "12px" : 0,
-                width: isMobile
-                  ? "min(360px, calc(100vw - 24px))"
-                  : "380px",
-                maxHeight: "min(520px, calc(100dvh - 92px))",
+                width: isMobile ? "min(360px, calc(100vw - 24px))" : "380px",
+                maxHeight: "min(560px, calc(100dvh - 92px))",
                 overflowY: "auto",
                 overflowX: "hidden",
                 borderRadius: "20px",
@@ -906,7 +998,7 @@ function FloatingControls({
             >
               <div
                 style={{
-                  padding: "18px 18px 14px",
+                  padding: "18px",
                   borderBottom: "1px solid rgba(126,232,255,0.13)",
                 }}
               >
@@ -920,9 +1012,8 @@ function FloatingControls({
                     fontWeight: 900,
                   }}
                 >
-                  Dreamscape Tokens
+                  Profile Assets
                 </p>
-
                 <div
                   style={{
                     marginTop: "8px",
@@ -939,12 +1030,13 @@ function FloatingControls({
                       letterSpacing: "-0.04em",
                     }}
                   >
-                    {tokenBalance} DT
+                    {profileAssetsLoading
+                      ? "Loading..."
+                      : formatDreamTokenAmount(profileAssetsTotal)}
                   </strong>
-
                   <Link
                     href={userEmail ? "/profile" : "/login"}
-                    onClick={() => setTokenTransactionsOpen(false)}
+                    onClick={() => setProfileAssetsOpen(false)}
                     style={{
                       color: "#bdf6ff",
                       fontSize: "11px",
@@ -958,9 +1050,64 @@ function FloatingControls({
               </div>
 
               <div style={{ padding: "12px" }}>
+                <div style={{ display: "grid", gap: "8px" }}>
+                  {[
+                    ["Cash", profileAssets.cash, "✦"],
+                    ["Property", profileAssets.property, "⌂"],
+                    ["Stocks", profileAssets.stocks, "↗"],
+                  ].map(([label, value, icon]) => (
+                    <div
+                      key={String(label)}
+                      role="menuitem"
+                      style={{
+                        minHeight: "58px",
+                        borderRadius: "14px",
+                        border: "1px solid rgba(126,232,255,0.12)",
+                        background: "rgba(255,255,255,0.035)",
+                        display: "grid",
+                        gridTemplateColumns: "34px minmax(0, 1fr) auto",
+                        alignItems: "center",
+                        gap: "10px",
+                        padding: "10px 12px",
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: "32px",
+                          height: "32px",
+                          borderRadius: "11px",
+                          border: "1px solid rgba(83,215,255,0.26)",
+                          background: "rgba(83,215,255,0.09)",
+                          color: "#8ee8ff",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontWeight: 900,
+                        }}
+                      >
+                        {icon}
+                      </span>
+                      <strong style={{ color: "white", fontSize: "13px" }}>
+                        {label}
+                      </strong>
+                      <strong
+                        style={{
+                          color: "#9fffd2",
+                          fontSize: "12px",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {profileAssetsLoading
+                          ? "—"
+                          : formatDreamTokenAmount(Number(value))}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+
                 <p
                   style={{
-                    margin: "0 4px 10px",
+                    margin: "16px 4px 10px",
                     color: "rgba(255,255,255,0.48)",
                     fontSize: "10px",
                     letterSpacing: "0.13em",
@@ -968,24 +1115,24 @@ function FloatingControls({
                     fontWeight: 800,
                   }}
                 >
-                  Latest transactions
+                  Latest cash transactions
                 </p>
 
-                {tokenTransactionsLoading ? (
+                {profileAssetsLoading ? (
                   <div
                     style={{
-                      padding: "24px 14px",
+                      padding: "20px 14px",
                       color: "rgba(255,255,255,0.58)",
                       fontSize: "13px",
                       textAlign: "center",
                     }}
                   >
-                    Loading transactions...
+                    Loading assets...
                   </div>
                 ) : !userEmail ? (
                   <Link
                     href="/login"
-                    onClick={() => setTokenTransactionsOpen(false)}
+                    onClick={() => setProfileAssetsOpen(false)}
                     style={{
                       minHeight: "50px",
                       borderRadius: "14px",
@@ -1000,12 +1147,12 @@ function FloatingControls({
                       fontWeight: 800,
                     }}
                   >
-                    Log in to view transactions
+                    Log in to view assets
                   </Link>
                 ) : tokenTransactions.length === 0 ? (
                   <div
                     style={{
-                      padding: "24px 14px",
+                      padding: "20px 14px",
                       borderRadius: "14px",
                       background: "rgba(255,255,255,0.035)",
                       color: "rgba(255,255,255,0.58)",
@@ -1020,7 +1167,6 @@ function FloatingControls({
                   <div style={{ display: "grid", gap: "8px" }}>
                     {tokenTransactions.map((transaction) => {
                       const isPositive = transaction.amount >= 0;
-
                       return (
                         <div
                           key={transaction.id}
@@ -1057,7 +1203,6 @@ function FloatingControls({
                           >
                             {isPositive ? "+" : "−"}
                           </span>
-
                           <span style={{ minWidth: 0 }}>
                             <strong
                               style={{
@@ -1067,7 +1212,6 @@ function FloatingControls({
                                 whiteSpace: "nowrap",
                                 color: "white",
                                 fontSize: "12px",
-                                lineHeight: 1.35,
                               }}
                             >
                               {transaction.title ||
@@ -1075,7 +1219,6 @@ function FloatingControls({
                                   ? "Dreamscape Token reward"
                                   : "Dreamscape Token spend")}
                             </strong>
-
                             <span
                               style={{
                                 display: "block",
@@ -1085,11 +1228,10 @@ function FloatingControls({
                               }}
                             >
                               {formatDreamTokenTransactionDate(
-                                transaction.created_at
+                                transaction.created_at,
                               )}
                             </span>
                           </span>
-
                           <strong
                             style={{
                               color: isPositive ? "#9fffd2" : "#ffc0a0",
