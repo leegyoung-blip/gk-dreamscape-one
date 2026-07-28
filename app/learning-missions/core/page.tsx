@@ -50,6 +50,25 @@ type CompletedCoreAttempt = {
   score: number;
   correct_count: number;
   tokens_earned: number;
+  gems_earned: number;
+  created_at?: string;
+};
+
+type CoreAnswerRecord = {
+  question_id: string;
+  answer: CoreAnswer;
+};
+
+type SaveCoreAttemptResult = {
+  attempt_id: string;
+  score: number;
+  correct_count: number;
+  total_questions: number;
+  tokens_earned: number;
+  gems_earned: number;
+  first_completion: boolean;
+  token_balance: number;
+  gem_balance: number;
 };
 
 const coreSubjects = [
@@ -140,6 +159,7 @@ export default function CoreMissionsPage() {
   const [screen, setScreen] = useState<CoreScreen>("checking");
   const [userId, setUserId] = useState<string | null>(null);
   const [tokenBalance, setTokenBalance] = useState(0);
+  const [dreamGemBalance, setDreamGemBalance] = useState(0);
 
   const [selectedSubject, setSelectedSubject] = useState<CoreSubject | null>(
     null,
@@ -158,11 +178,16 @@ export default function CoreMissionsPage() {
   const [selectedAnswer, setSelectedAnswer] = useState<CoreAnswer | null>(null);
   const [answerLocked, setAnswerLocked] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [answerRecords, setAnswerRecords] = useState<CoreAnswerRecord[]>([]);
 
   const [score, setScore] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [tokensEarned, setTokensEarned] = useState(0);
+  const [gemsEarned, setGemsEarned] = useState(0);
+  const [firstCompletion, setFirstCompletion] = useState(false);
   const [rewardSaved, setRewardSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isFinishing, setIsFinishing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [completedAttempts, setCompletedAttempts] = useState<
     CompletedCoreAttempt[]
@@ -194,13 +219,19 @@ export default function CoreMissionsPage() {
   }, []);
 
   useEffect(() => {
-    function handleTokenUpdate() {
-      void loadTokens();
+    function handleRewardUpdate() {
+      void loadBalances();
     }
 
-    window.addEventListener("dream-tokens-updated", handleTokenUpdate);
-    return () =>
-      window.removeEventListener("dream-tokens-updated", handleTokenUpdate);
+    window.addEventListener("dream-tokens-updated", handleRewardUpdate);
+    window.addEventListener("dream-gems-updated", handleRewardUpdate);
+    window.addEventListener("focus", handleRewardUpdate);
+
+    return () => {
+      window.removeEventListener("dream-tokens-updated", handleRewardUpdate);
+      window.removeEventListener("dream-gems-updated", handleRewardUpdate);
+      window.removeEventListener("focus", handleRewardUpdate);
+    };
   }, []);
 
   async function initialise() {
@@ -216,7 +247,7 @@ export default function CoreMissionsPage() {
     }
 
     setUserId(user.id);
-    await loadTokens(user.id);
+    await loadBalances(user.id);
 
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
@@ -253,36 +284,57 @@ export default function CoreMissionsPage() {
     setScreen("subject");
   }
 
-  async function loadTokens(activeUserId?: string) {
+  async function loadBalances(activeUserId?: string) {
     const resolvedUserId =
       activeUserId ?? (await supabase.auth.getUser()).data.user?.id;
 
     if (!resolvedUserId) {
       setTokenBalance(0);
+      setDreamGemBalance(0);
       return;
     }
 
-    const { data, error } = await supabase
-      .from("dream_token_transactions")
-      .select("amount")
-      .eq("user_id", resolvedUserId)
-      .eq("token_kind", "virtual");
+    const [tokenResult, profileResult] = await Promise.all([
+      supabase
+        .from("dream_token_transactions")
+        .select("amount")
+        .eq("user_id", resolvedUserId)
+        .eq("token_kind", "virtual"),
+      supabase
+        .from("profiles")
+        .select("dream_gem_balance")
+        .eq("id", resolvedUserId)
+        .maybeSingle(),
+    ]);
 
-    if (error) {
-      console.warn("Could not load Dreamscape Tokens:", error);
-      return;
+    if (tokenResult.error) {
+      console.warn("Could not load Dreamscape Tokens:", tokenResult.error);
+    } else {
+      setTokenBalance(
+        tokenResult.data?.reduce(
+          (sum, row) => sum + Number(row.amount || 0),
+          0,
+        ) || 0,
+      );
     }
 
-    setTokenBalance(
-      data?.reduce((sum, row) => sum + Number(row.amount || 0), 0) || 0,
-    );
+    if (profileResult.error) {
+      console.warn("Could not load Dream Gems:", profileResult.error);
+    } else {
+      setDreamGemBalance(
+        Math.max(0, Number(profileResult.data?.dream_gem_balance || 0)),
+      );
+    }
   }
 
   async function loadCompletedAttempts(activeUserId: string) {
     const { data, error } = await supabase
       .from("core_mission_attempts")
-      .select("quiz_id, score, correct_count, tokens_earned")
-      .eq("user_id", activeUserId);
+      .select(
+        "quiz_id, score, correct_count, tokens_earned, gems_earned, created_at",
+      )
+      .eq("user_id", activeUserId)
+      .order("created_at", { ascending: true });
 
     if (error) {
       console.warn("Could not load Core Mission attempts:", error);
@@ -293,12 +345,16 @@ export default function CoreMissionsPage() {
     const unique = new Map<string, CompletedCoreAttempt>();
 
     for (const attempt of data ?? []) {
-      if (!unique.has(attempt.quiz_id) && Number(attempt.tokens_earned) > 0) {
+      if (!unique.has(attempt.quiz_id)) {
         unique.set(attempt.quiz_id, {
           quiz_id: attempt.quiz_id,
           score: Number(attempt.score),
           correct_count: Number(attempt.correct_count),
-          tokens_earned: Number(attempt.tokens_earned),
+          tokens_earned: Number(attempt.tokens_earned || 0),
+          gems_earned: Number(attempt.gems_earned || 0),
+          created_at: attempt.created_at
+            ? String(attempt.created_at)
+            : undefined,
         });
       }
     }
@@ -380,15 +436,30 @@ export default function CoreMissionsPage() {
     setFeedback(null);
     setScore(0);
     setCorrectCount(0);
+    setAnswerRecords([]);
     setTokensEarned(0);
+    setGemsEarned(0);
+    setFirstCompletion(false);
     setRewardSaved(false);
+    setSaveError(null);
+    setIsFinishing(false);
     setScreen("quiz");
   }
 
   function chooseAnswer(answer: CoreAnswer) {
-    if (!currentQuestion || answerLocked) return;
+    if (!currentQuestion || answerLocked || isFinishing) return;
 
     setSelectedAnswer(answer);
+    setAnswerRecords((current) => [
+      ...current.filter(
+        (record) => record.question_id !== currentQuestion.id,
+      ),
+      {
+        question_id: currentQuestion.id,
+        answer,
+      },
+    ]);
+
     const isCorrect = answer === currentQuestion.correct_answer;
 
     if (isCorrect) {
@@ -416,81 +487,87 @@ export default function CoreMissionsPage() {
     setFeedback(null);
   }
 
-  function calculateTokenReward(finalScore: number, finalCorrectCount: number) {
-    let reward = 2;
-    if (finalCorrectCount >= 14) reward += 1;
-    if (finalCorrectCount >= 18) reward += 1;
-    if (finalScore === 100) reward += 1;
-    return reward;
-  }
-
   async function finishQuiz() {
-    if (!userId || !selectedQuiz) {
-      setScreen("results");
-      return;
-    }
+    if (isFinishing) return;
 
-    const alreadyCompleted = completedQuizIds.has(selectedQuiz.id);
-    const reward = alreadyCompleted
-      ? 0
-      : calculateTokenReward(score, correctCount);
-
-    setTokensEarned(reward);
+    setIsFinishing(true);
+    setRewardSaved(false);
+    setSaveError(null);
     setScreen("results");
 
-    const { error: attemptError } = await supabase
-      .from("core_mission_attempts")
-      .insert({
-        user_id: userId,
-        quiz_id: selectedQuiz.id,
-        score,
-        correct_count: correctCount,
-        total_questions: questions.length,
-        tokens_earned: reward,
-      });
-
-    if (attemptError) {
-      console.warn("Could not save Core attempt:", attemptError);
-      setRewardSaved(false);
+    if (!userId || !selectedQuiz) {
+      setSaveError("Log in again before saving this quiz.");
+      setIsFinishing(false);
       return;
     }
 
-    if (!alreadyCompleted) {
-      setCompletedAttempts((current) => [
-        ...current,
-        {
-          quiz_id: selectedQuiz.id,
-          score,
-          correct_count: correctCount,
-          tokens_earned: reward,
-        },
-      ]);
-    }
-
-    if (reward <= 0) {
-      setRewardSaved(true);
+    if (answerRecords.length !== questions.length) {
+      setSaveError(
+        "The quiz could not be saved because one or more answers are missing.",
+      );
+      setIsFinishing(false);
       return;
     }
 
-    const { error: tokenError } = await supabase
-      .from("dream_token_transactions")
-      .insert({
-        user_id: userId,
-        type: "earn",
-        title: "Core Missions Reward",
-        amount: reward,
-        token_kind: "virtual",
-      });
+    const orderedAnswers = questions.map((question) => {
+      const record = answerRecords.find(
+        (answer) => answer.question_id === question.id,
+      );
 
-    if (tokenError) {
-      console.warn("Could not award Core tokens:", tokenError);
-      setRewardSaved(false);
+      return {
+        question_id: question.id,
+        answer: record?.answer ?? null,
+      };
+    });
+
+    const { data, error } = await supabase.rpc(
+      "save_core_mission_attempt",
+      {
+        p_quiz_id: selectedQuiz.id,
+        p_answers: orderedAnswers,
+      },
+    );
+
+    if (error) {
+      console.warn("Could not save Core Mission attempt:", error);
+      setSaveError(error.message);
+      setIsFinishing(false);
       return;
     }
 
-    setTokenBalance((current) => current + reward);
+    const result = data as SaveCoreAttemptResult | null;
+
+    if (!result) {
+      setSaveError("Supabase did not return the saved quiz result.");
+      setIsFinishing(false);
+      return;
+    }
+
+    const officialScore = Number(result.score || 0);
+    const officialCorrectCount = Number(result.correct_count || 0);
+    const officialTokens = Number(result.tokens_earned || 0);
+    const officialGems = Number(result.gems_earned || 0);
+    const wasFirstCompletion = Boolean(result.first_completion);
+
+    setScore(officialScore);
+    setCorrectCount(officialCorrectCount);
+    setTokensEarned(officialTokens);
+    setGemsEarned(officialGems);
+    setFirstCompletion(wasFirstCompletion);
+    setTokenBalance(Number(result.token_balance || 0));
+    setDreamGemBalance(Number(result.gem_balance || 0));
     setRewardSaved(true);
-    window.dispatchEvent(new Event("dream-tokens-updated"));
+    setIsFinishing(false);
+
+    await loadCompletedAttempts(userId);
+
+    if (officialTokens > 0) {
+      window.dispatchEvent(new Event("dream-tokens-updated"));
+    }
+
+    if (officialGems > 0) {
+      window.dispatchEvent(new Event("dream-gems-updated"));
+    }
   }
 
   function resetQuizState() {
@@ -502,8 +579,13 @@ export default function CoreMissionsPage() {
     setFeedback(null);
     setScore(0);
     setCorrectCount(0);
+    setAnswerRecords([]);
     setTokensEarned(0);
+    setGemsEarned(0);
+    setFirstCompletion(false);
     setRewardSaved(false);
+    setSaveError(null);
+    setIsFinishing(false);
     setLoadError(null);
   }
 
@@ -548,7 +630,9 @@ export default function CoreMissionsPage() {
           height: isMobile ? "58px" : "68px",
           padding: isMobile ? "8px 10px" : "10px 18px",
           display: "grid",
-          gridTemplateColumns: "1fr auto 1fr",
+          gridTemplateColumns: isMobile
+            ? "auto minmax(0,1fr)"
+            : "1fr auto 1fr",
           alignItems: "center",
           gap: "10px",
           borderBottom: "none",
@@ -565,24 +649,24 @@ export default function CoreMissionsPage() {
           ← Missions
         </button>
 
-        <div style={{ textAlign: "center", minWidth: 0 }}>
-          <p
-            style={{
-              margin: 0,
-              color: "#7ee8ff",
-              fontSize: isMobile ? "9px" : "11px",
-              letterSpacing: "0.2em",
-              fontWeight: 900,
-            }}
-          >
-            CORE MISSIONS
-          </p>
-          {!isMobile && (
+        {!isMobile && (
+          <div style={{ textAlign: "center", minWidth: 0 }}>
+            <p
+              style={{
+                margin: 0,
+                color: "#7ee8ff",
+                fontSize: "11px",
+                letterSpacing: "0.2em",
+                fontWeight: 900,
+              }}
+            >
+              CORE MISSIONS
+            </p>
             <p style={{ margin: "3px 0 0", fontSize: "13px", opacity: 0.72 }}>
               English & Math
             </p>
-          )}
-        </div>
+          </div>
+        )}
 
         <div
           style={{
@@ -592,17 +676,43 @@ export default function CoreMissionsPage() {
             gap: "8px",
           }}
         >
-          {!isMobile && (
-            <div style={tokenPill}>
-              <span style={{ color: "#ffd76a" }}>DT</span> {tokenBalance}
-            </div>
-          )}
+          <div
+            style={{
+              ...tokenPill,
+              ...(isMobile ? compactBalancePill : {}),
+            }}
+            aria-label={`${tokenBalance} Dream Tokens`}
+          >
+            <span style={{ color: "#ffd76a" }}>✦</span>
+            {tokenBalance} DT
+          </div>
+
+          <div
+            style={{
+              ...gemPill,
+              ...(isMobile ? compactBalancePill : {}),
+            }}
+            aria-label={`${dreamGemBalance} Dream Gems`}
+          >
+            <span style={{ color: "#e7b7ff" }}>◆</span>
+            {dreamGemBalance} DG
+          </div>
+
           <button
             type="button"
             onClick={() => router.push("/learning-missions/core/rover")}
-            style={myRoverButton}
+            style={{
+              ...myRoverButton,
+              ...(isMobile
+                ? {
+                    minHeight: "34px",
+                    padding: "0 8px",
+                    fontSize: "10px",
+                  }
+                : {}),
+            }}
           >
-            My Rover ›
+            {isMobile ? "Rover ›" : "My Rover ›"}
           </button>
         </div>
       </header>
@@ -710,7 +820,7 @@ export default function CoreMissionsPage() {
                 isMobile={isMobile}
                 eyebrow={`${selectedSubjectInfo.title} · ${selectedLevelInfo.label}`}
                 title={`${selectedLevelInfo.title} Mission Set`}
-                description="Complete a new quiz to earn tokens and rover progress."
+                description="Your first completion earns score-based DT, 1 DG, and rover progress. Replays are saved without extra rewards."
                 backLabel="← Levels"
                 onBack={resetToLevels}
                 rightSlot={
@@ -776,7 +886,7 @@ export default function CoreMissionsPage() {
                         {completed && attempt && (
                           <p style={attemptText}>
                             {attempt.correct_count}/20 · {attempt.score}/100 · +
-                            {attempt.tokens_earned} DT
+                            {attempt.tokens_earned} DT · +{attempt.gems_earned} DG
                           </p>
                         )}
                         <div
@@ -927,19 +1037,22 @@ export default function CoreMissionsPage() {
 
                   <button
                     type="button"
-                    disabled={!answerLocked}
+                    disabled={!answerLocked || isFinishing}
                     onClick={() => void nextQuestion()}
                     style={{
                       ...nextButton,
-                      opacity: answerLocked ? 1 : 0.35,
-                      cursor: answerLocked ? "pointer" : "default",
+                      opacity: answerLocked && !isFinishing ? 1 : 0.35,
+                      cursor:
+                        answerLocked && !isFinishing ? "pointer" : "default",
                     }}
                   >
-                    {questionIndex >= 19
-                      ? "Finish Mission"
-                      : answerLocked
-                        ? "Next Question"
-                        : "Choose an answer"}
+                    {isFinishing
+                      ? "Saving Mission..."
+                      : questionIndex >= 19
+                        ? "Finish Mission"
+                        : answerLocked
+                          ? "Next Question"
+                          : "Choose an answer"}
                   </button>
                 </div>
               </div>
@@ -953,8 +1066,13 @@ export default function CoreMissionsPage() {
               correctCount={correctCount}
               score={score}
               tokensEarned={tokensEarned}
+              gemsEarned={gemsEarned}
               tokenBalance={tokenBalance}
+              dreamGemBalance={dreamGemBalance}
+              firstCompletion={firstCompletion}
               rewardSaved={rewardSaved}
+              saveError={saveError}
+              isSaving={isFinishing}
               onAnotherQuiz={resetToQuizList}
               onMyRover={() => router.push("/learning-missions/core/rover")}
             />
@@ -1152,8 +1270,13 @@ function ResultsScreen({
   correctCount,
   score,
   tokensEarned,
+  gemsEarned,
   tokenBalance,
+  dreamGemBalance,
+  firstCompletion,
   rewardSaved,
+  saveError,
+  isSaving,
   onAnotherQuiz,
   onMyRover,
 }: {
@@ -1162,8 +1285,13 @@ function ResultsScreen({
   correctCount: number;
   score: number;
   tokensEarned: number;
+  gemsEarned: number;
   tokenBalance: number;
+  dreamGemBalance: number;
+  firstCompletion: boolean;
   rewardSaved: boolean;
+  saveError: string | null;
+  isSaving: boolean;
   onAnotherQuiz: () => void;
   onMyRover: () => void;
 }) {
@@ -1182,8 +1310,10 @@ function ResultsScreen({
       <div style={resultsGrid(isMobile)}>
         <ResultStat label="Correct" value={`${correctCount}/20`} />
         <ResultStat label="Score" value={`${score}/100`} />
-        <ResultStat label="Tokens" value={`+${tokensEarned}`} />
-        <ResultStat label="Balance" value={`${tokenBalance} DT`} />
+        <ResultStat label="DT Earned" value={`+${tokensEarned}`} />
+        <ResultStat label="DG Earned" value={`+${gemsEarned}`} />
+        <ResultStat label="DT Balance" value={`${tokenBalance} DT`} />
+        <ResultStat label="DG Balance" value={`${dreamGemBalance} DG`} />
       </div>
 
       <p
@@ -1191,13 +1321,20 @@ function ResultsScreen({
           margin: "14px 0 0",
           color: rewardSaved ? "#b8ffdb" : "#ffe6a8",
           fontSize: "13px",
+          lineHeight: 1.5,
         }}
       >
-        {rewardSaved && tokensEarned > 0
-          ? "Attempt, rover progress and tokens saved."
-          : rewardSaved
-            ? "Practice attempt saved. Replays do not add extra rover progress."
-            : "The mission is complete, but the reward may not have been saved."}
+        {isSaving
+          ? "Saving the attempt, individual answers, and rewards..."
+          : saveError
+            ? `The mission is complete, but it could not be saved: ${saveError}`
+            : rewardSaved && firstCompletion
+              ? tokensEarned > 0
+                ? `First completion saved. You received ${tokensEarned} DT and ${gemsEarned} DG.`
+                : `First completion saved. You received ${gemsEarned} DG. DT rewards begin at 60%.`
+              : rewardSaved
+                ? "Replay saved to the Teaching Dashboard. Replays do not award extra DT, DG, or rover progress."
+                : "The mission is complete, but the result has not been saved yet."}
       </p>
 
       <div
@@ -1209,10 +1346,28 @@ function ResultsScreen({
           gap: "10px",
         }}
       >
-        <button type="button" onClick={onAnotherQuiz} style={ghostAction}>
+        <button
+          type="button"
+          onClick={onAnotherQuiz}
+          disabled={isSaving}
+          style={{
+            ...ghostAction,
+            opacity: isSaving ? 0.45 : 1,
+            cursor: isSaving ? "default" : "pointer",
+          }}
+        >
           Choose Another Quiz
         </button>
-        <button type="button" onClick={onMyRover} style={primaryAction}>
+        <button
+          type="button"
+          onClick={onMyRover}
+          disabled={isSaving}
+          style={{
+            ...primaryAction,
+            opacity: isSaving ? 0.45 : 1,
+            cursor: isSaving ? "default" : "pointer",
+          }}
+        >
           View My Rover
         </button>
       </div>
@@ -1307,6 +1462,29 @@ const tokenPill: CSSProperties = {
   gap: "6px",
   fontSize: "13px",
   fontWeight: 800,
+  whiteSpace: "nowrap",
+};
+
+const gemPill: CSSProperties = {
+  minHeight: "38px",
+  borderRadius: "999px",
+  border: "1px solid rgba(231,183,255,0.3)",
+  background: "rgba(168,85,247,0.11)",
+  padding: "0 13px",
+  display: "flex",
+  alignItems: "center",
+  gap: "6px",
+  color: "#f4e8ff",
+  fontSize: "13px",
+  fontWeight: 800,
+  whiteSpace: "nowrap",
+};
+
+const compactBalancePill: CSSProperties = {
+  minHeight: "34px",
+  padding: "0 7px",
+  gap: "4px",
+  fontSize: "10px",
 };
 
 const sectionTopRow: CSSProperties = {
@@ -1353,20 +1531,22 @@ function twoCardGrid(isMobile: boolean): CSSProperties {
 }
 
 function threeCardGrid(isMobile: boolean, isCompact: boolean): CSSProperties {
+  const shouldStack = isMobile || isCompact;
+
   return {
     width: "100%",
-    height: isMobile ? "100%" : "min(450px, 100%)",
-    maxWidth: isMobile ? "none" : "1200px",
+    height: shouldStack ? "100%" : "min(450px, 100%)",
+    maxWidth: shouldStack ? "760px" : "1200px",
     minHeight: 0,
     margin: "auto",
     display: "grid",
-    gridTemplateColumns: isMobile
+    gridTemplateColumns: shouldStack
       ? "1fr"
-      : isCompact
-        ? "repeat(2,minmax(0,1fr))"
-        : "repeat(3,minmax(0,1fr))",
-    gridTemplateRows: isMobile ? "repeat(3,minmax(0,1fr))" : "1fr",
-    gap: isMobile ? "12px" : "16px",
+      : "repeat(3,minmax(0,1fr))",
+    gridTemplateRows: shouldStack
+      ? "repeat(3,minmax(0,1fr))"
+      : "1fr",
+    gap: isMobile ? "10px" : isCompact ? "14px" : "16px",
   };
 }
 
@@ -1639,7 +1819,7 @@ const nextButton: CSSProperties = {
 
 const resultsWrap: CSSProperties = {
   margin: "auto",
-  width: "min(820px,100%)",
+  width: "min(920px,100%)",
   maxHeight: "100%",
   borderRadius: "24px",
   border: "1px solid rgba(126,232,255,0.44)",
@@ -1655,7 +1835,7 @@ function resultsGrid(isMobile: boolean): CSSProperties {
     display: "grid",
     gridTemplateColumns: isMobile
       ? "repeat(2,minmax(0,1fr))"
-      : "repeat(4,minmax(0,1fr))",
+      : "repeat(3,minmax(0,1fr))",
     gap: "8px",
   };
 }
