@@ -253,7 +253,7 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
     eyebrow: "Your Rewards",
     title: "Dream Tokens and Dream Gems work differently.",
     text:
-      "Dream Tokens, or DT, are used only inside Dreamscape for virtual activities, upgrades, and assets. Dream Gems, or DG, are premium learning rewards earned through eligible paid activities such as class attendance, Core Missions, and Think Missions. Selected Dream Gems can later be redeemed for tangible or premium rewards. Your DG balance appears beside Profile Assets at the top.",
+      "Dream Tokens, or DT, are used only inside Dreamscape for virtual activities, upgrades, and assets. Dream Gems, or DG, are premium learning rewards earned through eligible paid activities such as class attendance, Core Missions, and Think Missions. Selected Dream Gems can later be redeemed for tangible or premium rewards. On a full screen, both balances appear at the top. On tablet or mobile, open the Menu beneath the Back button to view them.",
   },
   {
     eyebrow: "Stop 1 of 4",
@@ -287,7 +287,7 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
     eyebrow: "You’re ready",
     title: "Start with the Thinking Skills Lab.",
     text:
-      "Try a thinking challenge first, then continue into Learning Missions and the Inventor Hub. You can restart this walkthrough anytime using the Nova Guide button at the top.",
+      "Try a thinking challenge first, then continue into Learning Missions and the Inventor Hub. You can restart this walkthrough anytime using the Nova Guide button beneath Nova.",
   },
 ];
 export default function NovaWorldPage() {
@@ -743,7 +743,6 @@ export default function NovaWorldPage() {
         claimedMilestones={claimedMilestones}
         objectivesLoading={objectivesLoading}
         screenMode={screenMode}
-        onStartWalkthrough={startWalkthrough}
       />
 
       <section
@@ -755,7 +754,7 @@ export default function NovaWorldPage() {
           width: isDesktop
             ? "min(420px, 42vw)"
             : "min(640px, calc(100% - 36px))",
-          margin: isDesktop ? 0 : isMobile ? "178px auto 26px" : "148px auto 28px",
+          margin: isDesktop ? 0 : isMobile ? "128px auto 26px" : "118px auto 28px",
           padding: isDesktop ? 0 : "0 2px",
         }}
       >
@@ -884,20 +883,64 @@ export default function NovaWorldPage() {
         <MembershipPortalPopup onClose={() => setShowMembershipPortal(false)} />
       )}
 
-      <img
-        src="/nova/nova-character.png"
-        alt="Nova"
+
+      <div
         style={{
           position: "fixed",
-          right: isDesktop ? "12px" : isMobile ? "-44px" : "8px",
-          bottom: "0",
-          zIndex: 32,
-          height: isDesktop ? "320px" : isMobile ? "205px" : "270px",
-          width: "auto",
+          right: isMobile ? "10px" : "18px",
+          bottom: isMobile ? "10px" : "16px",
+          zIndex: 70,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: isMobile ? "4px" : "8px",
           pointerEvents: "none",
-          filter: "drop-shadow(0 28px 38px rgba(0,0,0,0.55))",
         }}
-      />
+      >
+        <img
+          src="/nova/nova-character.png"
+          alt="Nova"
+          style={{
+            height: isDesktop ? "265px" : isMobile ? "150px" : "215px",
+            width: "auto",
+            transform: isMobile ? "translateX(18px)" : "none",
+            pointerEvents: "none",
+            filter: "drop-shadow(0 28px 38px rgba(0,0,0,0.55))",
+          }}
+        />
+
+        <button
+          type="button"
+          onClick={startWalkthrough}
+          style={{
+            minHeight: isMobile ? "40px" : "46px",
+            padding: isMobile ? "0 14px" : "0 19px",
+            borderRadius: "999px",
+            border: "1px solid rgba(83,215,255,0.62)",
+            background: "rgba(20,84,118,0.82)",
+            backdropFilter: "blur(16px)",
+            WebkitBackdropFilter: "blur(16px)",
+            color: "white",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px",
+            fontSize: isMobile ? "11px" : "13px",
+            fontWeight: 850,
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            boxShadow:
+              "0 16px 36px rgba(0,0,0,0.32), 0 0 22px rgba(83,215,255,0.18)",
+            whiteSpace: "nowrap",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            pointerEvents: "auto",
+          }}
+        >
+          <span aria-hidden="true">✦</span>
+          {isMobile ? "Guide" : "Nova Guide"}
+        </button>
+      </div>
 
       <GuidedWalkthrough
         open={walkthroughOpen}
@@ -922,7 +965,6 @@ function FloatingControls({
   claimedMilestones,
   objectivesLoading,
   screenMode,
-  onStartWalkthrough,
 }: {
   userEmail: string | null;
   profileAssets: ProfileAssetBreakdown;
@@ -936,38 +978,41 @@ function FloatingControls({
   claimedMilestones: ReferralMilestone[];
   objectivesLoading: boolean;
   screenMode: ScreenMode;
-  onStartWalkthrough: () => void;
 }) {
   const isDesktop = screenMode === "desktop";
   const isMobile = screenMode === "mobile";
+  const isCompact = !isDesktop;
   const [profileAssetsOpen, setProfileAssetsOpen] = useState(false);
   const [dreamGemsOpen, setDreamGemsOpen] = useState(false);
+  const [compactMenuOpen, setCompactMenuOpen] = useState(false);
   const profileAssetsTotal =
     profileAssets.cash + profileAssets.property + profileAssets.stocks;
 
   useEffect(() => {
-    if (!profileAssetsOpen && !dreamGemsOpen) return;
+    if (!profileAssetsOpen && !dreamGemsOpen && !compactMenuOpen) return;
 
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setProfileAssetsOpen(false);
         setDreamGemsOpen(false);
+        setCompactMenuOpen(false);
       }
     }
 
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [profileAssetsOpen, dreamGemsOpen]);
+  }, [profileAssetsOpen, dreamGemsOpen, compactMenuOpen]);
 
   return (
     <>
-      {(profileAssetsOpen || dreamGemsOpen) && (
+      {(profileAssetsOpen || dreamGemsOpen || compactMenuOpen) && (
         <button
           type="button"
           aria-label="Close account panels"
           onClick={() => {
             setProfileAssetsOpen(false);
             setDreamGemsOpen(false);
+            setCompactMenuOpen(false);
           }}
           style={{
             position: "fixed",
@@ -1008,61 +1053,170 @@ function FloatingControls({
         {isMobile ? "Home" : "Return to Home"}
       </Link>
 
-      <div
-        style={{
-          position: "fixed",
-          top: isMobile ? "60px" : "18px",
-          right: isMobile ? "12px" : "18px",
-          left: isMobile ? "12px" : "auto",
-          zIndex: 70,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: isMobile ? "space-between" : "flex-end",
-          gap: isMobile ? "8px" : "14px",
-        }}
-      >
-        <button
-          type="button"
-          onClick={onStartWalkthrough}
+      {isCompact && (
+        <div
           style={{
-            height: isMobile ? "40px" : "46px",
-            padding: isMobile ? "0 12px" : "0 18px",
-            borderRadius: "999px",
-            border: "1px solid rgba(83,215,255,0.58)",
-            background: "rgba(20,84,118,0.7)",
-            backdropFilter: "blur(16px)",
-            WebkitBackdropFilter: "blur(16px)",
-            color: "white",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "8px",
-            fontSize: isMobile ? "11px" : "14px",
-            letterSpacing: isMobile ? "0.06em" : "0.1em",
-            textTransform: "uppercase",
-            boxShadow:
-              "0 16px 36px rgba(0,0,0,0.28), 0 0 22px rgba(83,215,255,0.16)",
-            whiteSpace: "nowrap",
-            cursor: "pointer",
-            fontFamily: "inherit",
+            position: "fixed",
+            top: isMobile ? "60px" : "76px",
+            left: isMobile ? "12px" : "18px",
+            zIndex: 84,
           }}
         >
-          <span aria-hidden="true">✦</span>
-          {isMobile ? "Guide" : "Nova Guide"}
-        </button>
+          <button
+            type="button"
+            onClick={() => {
+              setProfileAssetsOpen(false);
+              setDreamGemsOpen(false);
+              setCompactMenuOpen((current) => !current);
+            }}
+            aria-expanded={compactMenuOpen}
+            aria-haspopup="menu"
+            style={{
+              height: isMobile ? "40px" : "46px",
+              padding: isMobile ? "0 14px" : "0 18px",
+              borderRadius: "999px",
+              border: "1px solid rgba(126,232,255,0.5)",
+              background: compactMenuOpen
+                ? "rgba(20,84,118,0.92)"
+                : "rgba(2,8,19,0.72)",
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
+              color: "white",
+              alignItems: "center",
+              gap: "9px",
+              fontSize: isMobile ? "11px" : "13px",
+              fontWeight: 800,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              boxShadow: "0 16px 36px rgba(0,0,0,0.3)",
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            <span aria-hidden="true" style={{ fontSize: "16px" }}>☰</span>
+            Menu
+          </button>
 
+          {compactMenuOpen && (
+            <div
+              role="menu"
+              style={{
+                position: "absolute",
+                top: "calc(100% + 9px)",
+                left: 0,
+                width: isMobile
+                  ? "min(330px, calc(100vw - 24px))"
+                  : "350px",
+                borderRadius: "20px",
+                border: "1px solid rgba(126,232,255,0.3)",
+                background:
+                  "linear-gradient(145deg, rgba(3,20,39,0.98), rgba(3,10,25,0.99))",
+                boxShadow:
+                  "0 28px 72px rgba(0,0,0,0.58), 0 0 28px rgba(83,215,255,0.14)",
+                backdropFilter: "blur(22px)",
+                WebkitBackdropFilter: "blur(22px)",
+                padding: "10px",
+                display: "grid",
+                gap: "8px",
+                color: "white",
+              }}
+            >
+              <Link
+                href={userEmail ? "/profile" : "/login"}
+                onClick={() => setCompactMenuOpen(false)}
+                style={compactMenuItemStyle}
+              >
+                <span aria-hidden="true">◎</span>
+                <span>{userEmail ? "My Account" : "Log In"}</span>
+                <span aria-hidden="true">›</span>
+              </Link>
+
+              <Link
+                href="/cart"
+                onClick={() => setCompactMenuOpen(false)}
+                style={compactMenuItemStyle}
+              >
+                <span aria-hidden="true">🛒</span>
+                <span>Cart</span>
+                <span aria-hidden="true">›</span>
+              </Link>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCompactMenuOpen(false);
+                  setDreamGemsOpen(false);
+                  setProfileAssetsOpen(true);
+                }}
+                style={{
+                  ...compactMenuItemStyle,
+                  width: "100%",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                <span aria-hidden="true" style={{ color: "#8ee8ff" }}>◈</span>
+                <span>Profile Assets</span>
+                <strong style={{ color: "#53d7ff", whiteSpace: "nowrap" }}>
+                  {profileAssetsLoading
+                    ? "..."
+                    : formatDreamTokenAmount(profileAssetsTotal)}
+                </strong>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCompactMenuOpen(false);
+                  setProfileAssetsOpen(false);
+                  setDreamGemsOpen(true);
+                }}
+                style={{
+                  ...compactMenuItemStyle,
+                  width: "100%",
+                  border: "1px solid rgba(216,180,254,0.22)",
+                  background: "rgba(192,132,252,0.08)",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                <span aria-hidden="true" style={{ color: "#e9d5ff" }}>◆</span>
+                <span>Dream Gems</span>
+                <strong style={{ color: "#e9d5ff", whiteSpace: "nowrap" }}>
+                  {dreamGemsLoading
+                    ? "..."
+                    : formatDreamGemAmount(dreamGemBalance)}
+                </strong>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div
+        style={{
+          position: isDesktop ? "fixed" : "static",
+          top: "18px",
+          right: "18px",
+          zIndex: 70,
+          display: isDesktop ? "flex" : "contents",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          gap: "14px",
+        }}
+      >
         <Link
           href={userEmail ? "/profile" : "/login"}
           style={{
-            height: isMobile ? "40px" : "46px",
-            padding: isMobile ? "0 14px" : "0 22px",
+            display: isDesktop ? "flex" : "none",
+            height: "46px",
+            padding: "0 22px",
             borderRadius: "999px",
             border: "1px solid rgba(116,200,255,0.45)",
             background: "rgba(2,8,19,0.58)",
             backdropFilter: "blur(16px)",
             color: "white",
             textDecoration: "none",
-            display: "flex",
             alignItems: "center",
             gap: "10px",
             fontSize: isMobile ? "11px" : "14px",
@@ -1072,7 +1226,31 @@ function FloatingControls({
             whiteSpace: "nowrap",
           }}
         >
-          {userEmail ? (isMobile ? "Account" : "My Account") : "Log In"}
+          {userEmail ? "My Account" : "Log In"}
+        </Link>
+
+        <Link
+          href="/cart"
+          aria-label="Cart"
+          style={{
+            width: "46px",
+            height: "46px",
+            padding: 0,
+            borderRadius: "999px",
+            border: "1px solid rgba(116,200,255,0.45)",
+            background: "rgba(2,8,19,0.58)",
+            backdropFilter: "blur(16px)",
+            color: "white",
+            textDecoration: "none",
+            display: isDesktop ? "flex" : "none",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "18px",
+            boxShadow: "0 16px 36px rgba(0,0,0,0.28)",
+            flexShrink: 0,
+          }}
+        >
+          🛒
         </Link>
 
         <div style={{ position: "relative", zIndex: 82 }}>
@@ -1085,8 +1263,9 @@ function FloatingControls({
             aria-expanded={profileAssetsOpen}
             aria-haspopup="menu"
             style={{
-              height: isMobile ? "40px" : "46px",
-              padding: isMobile ? "0 10px" : "0 18px",
+              display: isDesktop ? "flex" : "none",
+              height: "46px",
+              padding: "0 18px",
               borderRadius: "999px",
               border: "1px solid rgba(83,215,255,0.55)",
               background:
@@ -1094,7 +1273,6 @@ function FloatingControls({
               backdropFilter: "blur(16px)",
               WebkitBackdropFilter: "blur(16px)",
               color: "white",
-              display: "flex",
               alignItems: "center",
               gap: isMobile ? "7px" : "10px",
               fontSize: isMobile ? "10px" : "14px",
@@ -1155,10 +1333,11 @@ function FloatingControls({
             <div
               role="menu"
               style={{
-                position: isMobile ? "fixed" : "absolute",
-                top: isMobile ? "108px" : "calc(100% + 10px)",
-                right: isMobile ? "12px" : 0,
-                width: isMobile ? "min(360px, calc(100vw - 24px))" : "380px",
+                position: isCompact ? "fixed" : "absolute",
+                top: isCompact ? (isMobile ? "112px" : "132px") : "calc(100% + 10px)",
+                right: isCompact ? "auto" : 0,
+                left: isCompact ? (isMobile ? "12px" : "18px") : "auto",
+                width: isCompact ? "min(380px, calc(100vw - 24px))" : "380px",
                 maxHeight: "min(560px, calc(100dvh - 92px))",
                 overflowY: "auto",
                 overflowX: "hidden",
@@ -1439,7 +1618,8 @@ function FloatingControls({
             aria-expanded={dreamGemsOpen}
             aria-haspopup="menu"
             style={{
-              height: isMobile ? "40px" : "46px",
+              display: isDesktop ? "flex" : "none",
+              height: "46px",
               padding: isMobile ? "0 9px" : "0 16px",
               borderRadius: "999px",
               border: "1px solid rgba(216,180,254,0.62)",
@@ -1448,7 +1628,6 @@ function FloatingControls({
               backdropFilter: "blur(16px)",
               WebkitBackdropFilter: "blur(16px)",
               color: "white",
-              display: "flex",
               alignItems: "center",
               gap: isMobile ? "6px" : "9px",
               fontSize: isMobile ? "10px" : "14px",
@@ -1511,10 +1690,11 @@ function FloatingControls({
             <div
               role="menu"
               style={{
-                position: isMobile ? "fixed" : "absolute",
-                top: isMobile ? "108px" : "calc(100% + 10px)",
-                right: isMobile ? "12px" : 0,
-                width: isMobile ? "min(360px, calc(100vw - 24px))" : "390px",
+                position: isCompact ? "fixed" : "absolute",
+                top: isCompact ? (isMobile ? "112px" : "132px") : "calc(100% + 10px)",
+                right: isCompact ? "auto" : 0,
+                left: isCompact ? (isMobile ? "12px" : "18px") : "auto",
+                width: isCompact ? "min(390px, calc(100vw - 24px))" : "390px",
                 maxHeight: "min(590px, calc(100dvh - 92px))",
                 overflowY: "auto",
                 overflowX: "hidden",
@@ -1816,6 +1996,24 @@ function FloatingControls({
     </>
   );
 }
+
+
+const compactMenuItemStyle: CSSProperties = {
+  minHeight: "52px",
+  borderRadius: "14px",
+  border: "1px solid rgba(126,232,255,0.14)",
+  background: "rgba(255,255,255,0.04)",
+  color: "white",
+  textDecoration: "none",
+  display: "grid",
+  gridTemplateColumns: "30px minmax(0, 1fr) auto",
+  alignItems: "center",
+  gap: "10px",
+  padding: "10px 13px",
+  textAlign: "left",
+  fontSize: "12px",
+  fontWeight: 800,
+};
 
 function ReferralObjectivesPanel({
   isLoggedIn,

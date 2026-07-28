@@ -2,1622 +2,2197 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import type { CSSProperties } from "react";
+import type { ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
-import {
-  getCoreRoverProgress,
-  type CoreRoverUpgrade,
-} from "@/lib/coreRoverProgress";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
+type AttemptSource = "core" | "think" | "knowledge";
+type SubjectKey = "english" | "math" | "thinking" | "knowledge";
+type DateFilter = "this_week" | "last_week" | "this_month" | "all_time";
+type AccuracyFilter = "all" | "with_mistakes" | "perfect";
+
+type CoreAttemptRow = {
+  id: string;
+  user_id: string;
+  quiz_id: string;
+  score: number | null;
+  correct_count: number | null;
+  total_questions: number | null;
+  tokens_earned: number | null;
+  created_at: string | null;
+};
+
+type ThinkAttemptRow = CoreAttemptRow & {
+  mode: string | null;
+  time_taken_seconds: number | null;
+};
+
+type KnowledgeAttemptRow = {
+  id: string;
+  user_id: string;
+  topic: string | null;
+  mode: string | null;
+  score: number | null;
+  correct_count: number | null;
+  total_questions: number | null;
+  tokens_earned: number | null;
+  created_at: string | null;
+};
+
+type CoreQuizRow = {
+  id: string;
+  title: string | null;
+  subject: string | null;
+  level_label: string | null;
+};
+
+type ThinkQuizRow = {
+  id: string;
+  title: string | null;
+  level_label: string | null;
+};
+
+type DashboardAttempt = {
+  id: string;
+  source: AttemptSource;
+  userId: string;
+  quizId: string | null;
+  title: string;
+  subtitle: string;
+  subject: SubjectKey;
+  mode: string | null;
+  score: number;
+  correctCount: number;
+  totalQuestions: number;
+  tokensEarned: number;
+  durationSeconds: number | null;
+  createdAt: string;
+};
+
+type AttemptAnswerRow = {
+  id: string;
+  attempt_source: AttemptSource;
+  attempt_id: string;
+  question_id: string | null;
+  question_order: number;
+  question_text: string;
+  question_image: string | null;
+  student_answer_label: string | null;
+  student_answer_text: string | null;
+  correct_answer_label: string | null;
+  correct_answer_text: string | null;
+  explanation: string | null;
+  is_correct: boolean;
+  skill: string | null;
+  subject: string | null;
+};
+
+type DashboardStudent = {
+  id: string;
+  label: string;
+  relationship: string;
+};
+
+const SUBJECT_META: Record<
+  SubjectKey,
+  { label: string; shortLabel: string; icon: string; accent: string }
+> = {
+  english: {
+    label: "English",
+    shortLabel: "English",
+    icon: "✎",
+    accent: "#ff9df0",
+  },
+  math: {
+    label: "Mathematics",
+    shortLabel: "Math",
+    icon: "∑",
+    accent: "#53d7ff",
+  },
+  thinking: {
+    label: "Thinking Skills",
+    shortLabel: "Thinking",
+    icon: "◇",
+    accent: "#60f0d0",
+  },
+  knowledge: {
+    label: "Knowledge Arena",
+    shortLabel: "Knowledge",
+    icon: "◎",
+    accent: "#ffd76a",
+  },
+};
+
+const KNOWLEDGE_TOPIC_LABELS: Record<string, string> = {
+  world_explorer: "World Explorer",
+  time_traveller: "Time Traveller",
+  science_sparks: "Science Sparks",
+  mystery_logic: "Mystery Logic",
+};
 
 function useResponsiveMode() {
-  const [screenMode, setScreenMode] = useState<ScreenMode>("desktop");
+  const [mode, setMode] = useState<ScreenMode>("desktop");
 
   useEffect(() => {
-    function checkScreenSize() {
+    function update() {
       const width = window.innerWidth;
       const height = window.innerHeight;
-      const isPortrait = height > width;
 
-      if (width <= 720) {
-        setScreenMode("mobile");
-      } else if (width <= 1180 || isPortrait) {
-        setScreenMode("tablet");
-      } else {
-        setScreenMode("desktop");
-      }
+      if (width <= 720) setMode("mobile");
+      else if (width <= 1180 || height > width) setMode("tablet");
+      else setMode("desktop");
     }
 
-    checkScreenSize();
-    window.addEventListener("resize", checkScreenSize);
-
-    return () => window.removeEventListener("resize", checkScreenSize);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
   }, []);
 
-  return screenMode;
+  return mode;
 }
 
-type Upgrade = {
-  missionsRequired: number;
-  name: string;
-  description: string;
-  /*
-   * Add a real PNG path here later when each Think or Express item has
-   * finished artwork. Until then, the stage panel creates a matching
-   * illustrated placeholder automatically.
-   */
-  imageSrc?: string;
-};
-
-type MissionUpgradeTab = "core" | "think" | "express";
-
-function createStagePlaceholder(
-  name: string,
-  symbol: string,
-  accent: string,
-  secondaryAccent: string
-) {
-  const safeName = name
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="960" height="640" viewBox="0 0 960 640">
-      <defs>
-        <radialGradient id="stageGlow" cx="50%" cy="44%" r="56%">
-          <stop offset="0%" stop-color="${accent}" stop-opacity="0.44"/>
-          <stop offset="58%" stop-color="${secondaryAccent}" stop-opacity="0.14"/>
-          <stop offset="100%" stop-color="#020813" stop-opacity="0"/>
-        </radialGradient>
-        <linearGradient id="itemFill" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="${accent}"/>
-          <stop offset="100%" stop-color="${secondaryAccent}"/>
-        </linearGradient>
-        <filter id="itemGlow" x="-60%" y="-60%" width="220%" height="220%">
-          <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="${accent}" flood-opacity="0.5"/>
-        </filter>
-      </defs>
-
-      <rect width="960" height="640" rx="48" fill="#031027"/>
-      <rect width="960" height="640" rx="48" fill="url(#stageGlow)"/>
-
-      <circle cx="480" cy="270" r="176" fill="#ffffff" fill-opacity="0.035" stroke="${accent}" stroke-opacity="0.25" stroke-width="3"/>
-      <circle cx="480" cy="270" r="132" fill="#020813" fill-opacity="0.62" stroke="${accent}" stroke-opacity="0.34" stroke-width="2"/>
-
-      <g filter="url(#itemGlow)">
-        <circle cx="480" cy="270" r="92" fill="url(#itemFill)" fill-opacity="0.2" stroke="${accent}" stroke-width="4"/>
-        <text x="480" y="306" text-anchor="middle" fill="${accent}" font-size="112" font-family="Arial, Helvetica, sans-serif" font-weight="800">${symbol}</text>
-      </g>
-
-      <text x="480" y="520" text-anchor="middle" fill="#ffffff" font-size="42" font-family="Arial, Helvetica, sans-serif" font-weight="800">${safeName}</text>
-      <text x="480" y="565" text-anchor="middle" fill="${accent}" fill-opacity="0.82" font-size="20" font-family="Arial, Helvetica, sans-serif" font-weight="700" letter-spacing="4">CURRENT STAGE</text>
-    </svg>
-  `;
-
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+function safeNumber(value: unknown) {
+  const number = Number(value ?? 0);
+  return Number.isFinite(number) ? number : 0;
 }
 
-type CoreAttempt = {
-  id?: string;
-  quiz_id: string;
-  score: number;
-  correct_count: number;
-  total_questions: number;
-  tokens_earned: number;
-  created_at?: string;
-};
+function singaporeDateKey(date: Date) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Singapore",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
 
-type ThinkAttempt = {
-  id?: string;
-  quiz_id: string;
-  mode: string;
-  score: number;
-  correct_count: number;
-  total_questions: number;
-  tokens_earned: number;
-  created_at?: string;
-};
+function parseDateKey(key: string) {
+  const [year, month, day] = key.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
 
-type ExpressAttempt = {
-  id?: string;
-  mission_id: string;
-  mode: string;
-  completed_tasks: number;
-  total_tasks: number;
-  tokens_earned: number;
-  created_at?: string;
-};
+function addDaysToKey(key: string, amount: number) {
+  const date = parseDateKey(key);
+  date.setUTCDate(date.getUTCDate() + amount);
+  return date.toISOString().slice(0, 10);
+}
 
-type KnowledgeAttempt = {
-  id?: string;
-  topic?: string;
-  mode?: string;
-  score?: number;
-  correct_count?: number;
-  total_questions?: number;
-  tokens_earned?: number;
-  created_at?: string;
-};
+function mondayKeyFor(date: Date) {
+  const key = singaporeDateKey(date);
+  const calendarDate = parseDateKey(key);
+  const day = calendarDate.getUTCDay();
+  const daysFromMonday = day === 0 ? 6 : day - 1;
+  return addDaysToKey(key, -daysFromMonday);
+}
 
-const thinkInventoryTrack: Upgrade[] = [
-  {
-    missionsRequired: 0,
-    name: "Empty Gear Wall",
-    description:
-      "Nova’s inventory station is ready, but her mission tools are still locked.",
-  },
-  {
-    missionsRequired: 1,
-    name: "Logic Lens",
-    description:
-      "Nova can scan hidden clues and identify important patterns in Dreamscape.",
-  },
-  {
-    missionsRequired: 3,
-    name: "Pattern Scanner",
-    description:
-      "Nova can detect repeating sequences, visual rules and puzzle structures.",
-  },
-  {
-    missionsRequired: 5,
-    name: "Clue Compass",
-    description:
-      "Nova can track missing information and find the next step in harder missions.",
-  },
-  {
-    missionsRequired: 8,
-    name: "Puzzle Shield",
-    description:
-      "Nova gains protection against confusing traps, false clues and tricky choices.",
-  },
-  {
-    missionsRequired: 12,
-    name: "Energy Wrench",
-    description:
-      "Nova can repair broken logic gates and restore puzzle systems across Dreamscape.",
-  },
-  {
-    missionsRequired: 16,
-    name: "Spark Staff",
-    description:
-      "Nova unlocks an advanced reasoning tool that powers complex mission routes.",
-  },
-  {
-    missionsRequired: 20,
-    name: "Advanced Gear Inventory",
-    description:
-      "Nova’s full Think Mission inventory is ready for major Dreamscape expeditions.",
-  },
-];
+function getDateRange(filter: DateFilter) {
+  const now = new Date();
+  const todayKey = singaporeDateKey(now);
+  const thisMonday = mondayKeyFor(now);
 
-const expressStoryTrack: Upgrade[] = [
-  {
-    missionsRequired: 0,
-    name: "Blank Story Log",
-    description: "Nova’s story archive is ready, but the pages are still empty.",
-  },
-  {
-    missionsRequired: 1,
-    name: "Word Beacon",
-    description:
-      "Nova can send simple word signals across Dreamscape pathways.",
-  },
-  {
-    missionsRequired: 3,
-    name: "Sentence Spark",
-    description:
-      "Nova can form clearer sentences that activate hidden story doors.",
-  },
-  {
-    missionsRequired: 5,
-    name: "Description Lens",
-    description:
-      "Nova can make scenes clearer with stronger details and vivid descriptions.",
-  },
-  {
-    missionsRequired: 8,
-    name: "Emotion Crystal",
-    description:
-      "Nova can capture feelings, reactions and inner thoughts more powerfully.",
-  },
-  {
-    missionsRequired: 12,
-    name: "Story Map",
-    description:
-      "Nova can connect openings, problems, climaxes and endings into stronger stories.",
-  },
-  {
-    missionsRequired: 16,
-    name: "Memory Archive",
-    description:
-      "Nova can store important moments, character actions and story discoveries.",
-  },
-  {
-    missionsRequired: 20,
-    name: "Dreamscribe System",
-    description:
-      "Nova’s full writing system is complete and ready to unlock advanced story pathways.",
-  },
-];
-
-function getCurrentUpgrade(track: Upgrade[], completedCount: number) {
-  let current = track[0];
-
-  for (const upgrade of track) {
-    if (completedCount >= upgrade.missionsRequired) {
-      current = upgrade;
-    }
+  if (filter === "this_week") {
+    return { start: thisMonday, end: addDaysToKey(thisMonday, 6) };
   }
 
-  return current;
-}
-
-function getNextUpgrade(track: Upgrade[], completedCount: number) {
-  return track.find((upgrade) => completedCount < upgrade.missionsRequired);
-}
-
-function getTrackProgress(
-  current: Upgrade,
-  next: Upgrade | undefined,
-  completedCount: number
-) {
-  if (!next) {
-    return {
-      progressPercentage: 100,
-      missionsToNext: 0,
-      isComplete: true,
-    };
+  if (filter === "last_week") {
+    const start = addDaysToKey(thisMonday, -7);
+    return { start, end: addDaysToKey(start, 6) };
   }
 
-  const previousTarget = current.missionsRequired;
-  const range = Math.max(1, next.missionsRequired - previousTarget);
-  const completedWithinStage = Math.max(0, completedCount - previousTarget);
-
-  return {
-    progressPercentage: Math.min(
-      100,
-      Math.round((completedWithinStage / range) * 100)
-    ),
-    missionsToNext: Math.max(0, next.missionsRequired - completedCount),
-    isComplete: false,
-  };
-}
-
-function countUniqueRewarded<T extends { tokens_earned?: number }>(
-  attempts: T[],
-  idGetter: (attempt: T) => string
-) {
-  const ids = new Set<string>();
-
-  for (const attempt of attempts) {
-    if ((attempt.tokens_earned ?? 0) > 0) {
-      ids.add(idGetter(attempt));
-    }
+  if (filter === "this_month") {
+    const [year, month] = todayKey.split("-");
+    const first = `${year}-${month}-01`;
+    const nextMonth = parseDateKey(first);
+    nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
+    nextMonth.setUTCDate(0);
+    return { start: first, end: nextMonth.toISOString().slice(0, 10) };
   }
 
-  return ids.size;
+  return { start: null, end: null };
 }
 
-function getBestScore<T>(
-  attempts: T[],
-  scoreGetter: (attempt: T) => number | null | undefined
-) {
-  if (attempts.length === 0) return 0;
-
-  return attempts.reduce((best, attempt) => {
-    const score = scoreGetter(attempt) ?? 0;
-    return Math.max(best, score);
-  }, 0);
+function isDateInsideRange(value: string, range: { start: string | null; end: string | null }) {
+  if (!range.start || !range.end) return true;
+  const key = singaporeDateKey(new Date(value));
+  return key >= range.start && key <= range.end;
 }
 
-function formatDate(value?: string) {
-  if (!value) return "Saved attempt";
-
+function formatDateTime(value: string) {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) return "Saved attempt";
 
-  return date.toLocaleDateString("en-SG", {
+  return new Intl.DateTimeFormat("en-SG", {
+    timeZone: "Asia/Singapore",
     day: "numeric",
     month: "short",
     year: "numeric",
-  });
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
 }
 
-export default function ProgressRewardsPage() {
+function formatDuration(seconds: number | null) {
+  if (seconds === null || seconds <= 0) return "—";
+  const minutes = Math.floor(seconds / 60);
+  const remaining = seconds % 60;
+  return `${minutes}:${String(remaining).padStart(2, "0")}`;
+}
+
+function accuracyOf(attempt: DashboardAttempt) {
+  if (attempt.totalQuestions <= 0) return 0;
+  return Math.round((attempt.correctCount / attempt.totalQuestions) * 100);
+}
+
+function answerDisplay(label: string | null, text: string | null) {
+  if (label && text) return `${label}. ${text}`;
+  return text || label || "No answer";
+}
+
+export default function TeachingDashboardPage() {
   const screenMode = useResponsiveMode();
-  const isDesktop = screenMode === "desktop";
   const isMobile = screenMode === "mobile";
-  const isCompact = !isDesktop;
+  const isCompact = screenMode !== "desktop";
 
   const [isLoading, setIsLoading] = useState(true);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [tokenBalance, setTokenBalance] = useState(0);
+  const [loadMessage, setLoadMessage] = useState("");
+  const [viewerId, setViewerId] = useState<string | null>(null);
+  const [students, setStudents] = useState<DashboardStudent[]>([]);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [attempts, setAttempts] = useState<DashboardAttempt[]>([]);
 
-  const [coreAttempts, setCoreAttempts] = useState<CoreAttempt[]>([]);
-  const [thinkAttempts, setThinkAttempts] = useState<ThinkAttempt[]>([]);
-  const [expressAttempts, setExpressAttempts] = useState<ExpressAttempt[]>([]);
-  const [knowledgeAttempts, setKnowledgeAttempts] = useState<KnowledgeAttempt[]>(
-    []
-  );
+  const [dateFilter, setDateFilter] = useState<DateFilter>("this_week");
+  const [subjectFilter, setSubjectFilter] = useState<SubjectKey | "all">("all");
+  const [accuracyFilter, setAccuracyFilter] = useState<AccuracyFilter>("all");
 
-  const [message, setMessage] = useState("");
-  const [selectedMissionTab, setSelectedMissionTab] =
-    useState<MissionUpgradeTab>("core");
+  const [selectedAttempt, setSelectedAttempt] = useState<DashboardAttempt | null>(null);
+  const [detailAnswers, setDetailAnswers] = useState<AttemptAnswerRow[]>([]);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [detailMessage, setDetailMessage] = useState("");
+  const [wrongOnly, setWrongOnly] = useState(false);
 
   useEffect(() => {
-    async function loadProgress() {
+    let cancelled = false;
+
+    async function initialise() {
       setIsLoading(true);
-      setMessage("");
+      setLoadMessage("");
 
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
+      if (cancelled) return;
+
       if (!user) {
-        setUserEmail(null);
+        setViewerId(null);
+        setSelectedStudentId(null);
+        setStudents([]);
+        setAttempts([]);
+        setLoadMessage("Log in to view the Teaching Dashboard.");
         setIsLoading(false);
-        setMessage("Please log in to view your mission progress.");
         return;
       }
 
-      setUserEmail(user.email ?? null);
+      setViewerId(user.id);
 
-      const { data: tokenData, error: tokenError } = await supabase
-        .from("dream_token_transactions")
-        .select("amount")
-        .eq("user_id", user.id)
-        .eq("token_kind", "virtual");
+      const accessibleStudents: DashboardStudent[] = [
+        { id: user.id, label: "My learning", relationship: "self" },
+      ];
 
-      if (tokenError) {
-        console.warn("Could not load token balance:", tokenError);
-        setTokenBalance(0);
+      const { data: accessRows, error: accessError } = await supabase
+        .from("learning_dashboard_access")
+        .select("student_user_id,student_label,relationship")
+        .eq("viewer_user_id", user.id)
+        .order("student_label", { ascending: true });
+
+      if (!accessError) {
+        for (const row of accessRows ?? []) {
+          const studentId = String(row.student_user_id || "");
+          if (!studentId || accessibleStudents.some((student) => student.id === studentId)) {
+            continue;
+          }
+
+          accessibleStudents.push({
+            id: studentId,
+            label: String(row.student_label || "Student"),
+            relationship: String(row.relationship || "linked"),
+          });
+        }
       } else {
-        const total =
-          tokenData?.reduce((sum, row) => sum + (row.amount || 0), 0) || 0;
-
-        setTokenBalance(total);
-      }
-
-      const { data: coreData, error: coreError } = await supabase
-        .from("core_mission_attempts")
-        .select(
-          "id, quiz_id, score, correct_count, total_questions, tokens_earned, created_at"
-        )
-        .eq("user_id", user.id);
-
-      if (coreError) {
-        console.warn("Could not load Core attempts:", coreError);
-        setCoreAttempts([]);
-      } else {
-        setCoreAttempts((coreData || []) as CoreAttempt[]);
-      }
-
-      const { data: thinkData, error: thinkError } = await supabase
-        .from("think_mission_attempts")
-        .select(
-          "id, quiz_id, mode, score, correct_count, total_questions, tokens_earned, created_at"
-        )
-        .eq("user_id", user.id);
-
-      if (thinkError) {
-        console.warn("Could not load Think attempts:", thinkError);
-        setThinkAttempts([]);
-      } else {
-        setThinkAttempts((thinkData || []) as ThinkAttempt[]);
-      }
-
-      const { data: expressData, error: expressError } = await supabase
-        .from("express_mission_attempts")
-        .select(
-          "id, mission_id, mode, completed_tasks, total_tasks, tokens_earned, created_at"
-        )
-        .eq("user_id", user.id);
-
-      if (expressError) {
-        console.warn("Could not load Express attempts:", expressError);
-        setExpressAttempts([]);
-      } else {
-        setExpressAttempts((expressData || []) as ExpressAttempt[]);
-      }
-
-      const { data: knowledgeData, error: knowledgeError } = await supabase
-        .from("knowledge_arena_attempts")
-        .select(
-          "id, topic, mode, score, correct_count, total_questions, tokens_earned, created_at"
-        )
-        .eq("user_id", user.id);
-
-      if (knowledgeError) {
-        console.warn(
-          "Could not load Knowledge Arena attempts. Check table name if needed:",
-          knowledgeError
+        console.info(
+          "Parent/teacher access table is not installed yet; showing the signed-in user's records only.",
+          accessError.message,
         );
-        setKnowledgeAttempts([]);
-      } else {
-        setKnowledgeAttempts((knowledgeData || []) as KnowledgeAttempt[]);
       }
 
+      if (cancelled) return;
+
+      setStudents(accessibleStudents);
+      setSelectedStudentId((current) => current ?? accessibleStudents[0].id);
       setIsLoading(false);
     }
 
-    loadProgress();
+    void initialise();
 
-    function handleTokenUpdate() {
-      loadProgress();
-    }
-
-    window.addEventListener("dream-tokens-updated", handleTokenUpdate);
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
+      void initialise();
+    });
 
     return () => {
-      window.removeEventListener("dream-tokens-updated", handleTokenUpdate);
+      cancelled = true;
+      subscription.unsubscribe();
     };
   }, []);
 
-  const coreCompleted = useMemo(
-    () => countUniqueRewarded(coreAttempts, (attempt) => attempt.quiz_id),
-    [coreAttempts]
+  useEffect(() => {
+    if (!selectedStudentId) return;
+    void loadAttempts(selectedStudentId);
+  }, [selectedStudentId]);
+
+  async function loadAttempts(studentId: string) {
+    setIsLoading(true);
+    setLoadMessage("");
+
+    const [coreResult, thinkResult, knowledgeResult] = await Promise.all([
+      supabase
+        .from("core_mission_attempts")
+        .select("id,user_id,quiz_id,score,correct_count,total_questions,tokens_earned,created_at")
+        .eq("user_id", studentId)
+        .order("created_at", { ascending: false })
+        .limit(500),
+      supabase
+        .from("think_mission_attempts")
+        .select(
+          "id,user_id,quiz_id,mode,score,correct_count,total_questions,time_taken_seconds,tokens_earned,created_at",
+        )
+        .eq("user_id", studentId)
+        .order("created_at", { ascending: false })
+        .limit(500),
+      supabase
+        .from("knowledge_arena_attempts")
+        .select("id,user_id,topic,mode,score,correct_count,total_questions,tokens_earned,created_at")
+        .eq("user_id", studentId)
+        .order("created_at", { ascending: false })
+        .limit(500),
+    ]);
+
+    const errors = [coreResult.error, thinkResult.error, knowledgeResult.error].filter(Boolean);
+
+    if (errors.length === 3) {
+      setAttempts([]);
+      setLoadMessage("The dashboard could not load the quiz attempt tables.");
+      setIsLoading(false);
+      return;
+    }
+
+    const coreRows = (coreResult.data ?? []) as CoreAttemptRow[];
+    const thinkRows = (thinkResult.data ?? []) as ThinkAttemptRow[];
+    const knowledgeRows = (knowledgeResult.data ?? []) as KnowledgeAttemptRow[];
+
+    const coreQuizIds = [...new Set(coreRows.map((row) => row.quiz_id).filter(Boolean))];
+    const thinkQuizIds = [...new Set(thinkRows.map((row) => row.quiz_id).filter(Boolean))];
+
+    const [coreQuizResult, thinkQuizResult] = await Promise.all([
+      coreQuizIds.length
+        ? supabase
+            .from("core_mission_quizzes")
+            .select("id,title,subject,level_label")
+            .in("id", coreQuizIds)
+        : Promise.resolve({ data: [], error: null }),
+      thinkQuizIds.length
+        ? supabase
+            .from("think_mission_quizzes")
+            .select("id,title,level_label")
+            .in("id", thinkQuizIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    const coreQuizMap = new Map(
+      ((coreQuizResult.data ?? []) as CoreQuizRow[]).map((quiz) => [quiz.id, quiz]),
+    );
+    const thinkQuizMap = new Map(
+      ((thinkQuizResult.data ?? []) as ThinkQuizRow[]).map((quiz) => [quiz.id, quiz]),
+    );
+
+    const nextAttempts: DashboardAttempt[] = [];
+
+    for (const row of coreRows) {
+      const quiz = coreQuizMap.get(row.quiz_id);
+      const subject: SubjectKey = quiz?.subject === "math" ? "math" : "english";
+
+      nextAttempts.push({
+        id: String(row.id),
+        source: "core",
+        userId: String(row.user_id),
+        quizId: row.quiz_id,
+        title: quiz?.title || "Core Mission Quiz",
+        subtitle: [SUBJECT_META[subject].label, quiz?.level_label].filter(Boolean).join(" · "),
+        subject,
+        mode: null,
+        score: safeNumber(row.score),
+        correctCount: safeNumber(row.correct_count),
+        totalQuestions: safeNumber(row.total_questions),
+        tokensEarned: safeNumber(row.tokens_earned),
+        durationSeconds: null,
+        createdAt: row.created_at || new Date(0).toISOString(),
+      });
+    }
+
+    for (const row of thinkRows) {
+      const quiz = thinkQuizMap.get(row.quiz_id);
+
+      nextAttempts.push({
+        id: String(row.id),
+        source: "think",
+        userId: String(row.user_id),
+        quizId: row.quiz_id,
+        title: quiz?.title || "Think Mission Quiz",
+        subtitle: ["Thinking Skills", quiz?.level_label, row.mode].filter(Boolean).join(" · "),
+        subject: "thinking",
+        mode: row.mode,
+        score: safeNumber(row.score),
+        correctCount: safeNumber(row.correct_count),
+        totalQuestions: safeNumber(row.total_questions),
+        tokensEarned: safeNumber(row.tokens_earned),
+        durationSeconds:
+          row.time_taken_seconds === null ? null : safeNumber(row.time_taken_seconds),
+        createdAt: row.created_at || new Date(0).toISOString(),
+      });
+    }
+
+    for (const row of knowledgeRows) {
+      const topic = String(row.topic || "knowledge");
+
+      nextAttempts.push({
+        id: String(row.id),
+        source: "knowledge",
+        userId: String(row.user_id),
+        quizId: null,
+        title: KNOWLEDGE_TOPIC_LABELS[topic] || "Knowledge Arena",
+        subtitle: ["Knowledge Arena", row.mode].filter(Boolean).join(" · "),
+        subject: "knowledge",
+        mode: row.mode,
+        score: safeNumber(row.score),
+        correctCount: safeNumber(row.correct_count),
+        totalQuestions: safeNumber(row.total_questions),
+        tokensEarned: safeNumber(row.tokens_earned),
+        durationSeconds: null,
+        createdAt: row.created_at || new Date(0).toISOString(),
+      });
+    }
+
+    nextAttempts.sort(
+      (first, second) =>
+        new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime(),
+    );
+
+    setAttempts(nextAttempts);
+
+    if (errors.length > 0) {
+      setLoadMessage(
+        "Some mission records could not be loaded. Check the browser console for the table error.",
+      );
+    }
+
+    setIsLoading(false);
+  }
+
+  async function openAttempt(attempt: DashboardAttempt) {
+    setSelectedAttempt(attempt);
+    setWrongOnly(false);
+    setDetailAnswers([]);
+    setDetailMessage("");
+    setDetailsLoading(true);
+
+    const { data, error } = await supabase
+      .from("learning_mission_attempt_answers")
+      .select(
+        "id,attempt_source,attempt_id,question_id,question_order,question_text,question_image,student_answer_label,student_answer_text,correct_answer_label,correct_answer_text,explanation,is_correct,skill,subject",
+      )
+      .eq("attempt_source", attempt.source)
+      .eq("attempt_id", attempt.id)
+      .eq("user_id", attempt.userId)
+      .order("question_order", { ascending: true });
+
+    if (error) {
+      console.info("Detailed answer tracking is not available yet:", error.message);
+      setDetailMessage(
+        "Individual answers were not recorded for this attempt. Install the answer-tracking table and update the quiz pages to save each answer.",
+      );
+      setDetailsLoading(false);
+      return;
+    }
+
+    const rows = (data ?? []) as AttemptAnswerRow[];
+    setDetailAnswers(rows);
+
+    if (rows.length === 0) {
+      setDetailMessage(
+        "This attempt contains a score summary, but no individual answer records. Older attempts cannot be reconstructed because the student's selections were not saved.",
+      );
+    }
+
+    setDetailsLoading(false);
+  }
+
+  const thisWeekRange = useMemo(() => getDateRange("this_week"), []);
+  const previousWeekRange = useMemo(() => getDateRange("last_week"), []);
+
+  const thisWeekAttempts = useMemo(
+    () => attempts.filter((attempt) => isDateInsideRange(attempt.createdAt, thisWeekRange)),
+    [attempts, thisWeekRange],
   );
 
-  const thinkCompleted = useMemo(
-    () => countUniqueRewarded(thinkAttempts, (attempt) => attempt.quiz_id),
-    [thinkAttempts]
+  const previousWeekAttempts = useMemo(
+    () => attempts.filter((attempt) => isDateInsideRange(attempt.createdAt, previousWeekRange)),
+    [attempts, previousWeekRange],
   );
 
-  const expressCompleted = useMemo(
-    () =>
-      countUniqueRewarded(expressAttempts, (attempt) => attempt.mission_id),
-    [expressAttempts]
+  const weeklyQuestionCount = thisWeekAttempts.reduce(
+    (sum, attempt) => sum + attempt.totalQuestions,
+    0,
   );
-
-  const knowledgeCompleted = useMemo(
-    () =>
-      knowledgeAttempts.filter((attempt) => (attempt.tokens_earned ?? 0) > 0)
-        .length,
-    [knowledgeAttempts]
+  const weeklyCorrectCount = thisWeekAttempts.reduce(
+    (sum, attempt) => sum + attempt.correctCount,
+    0,
   );
+  const weeklyWrongCount = Math.max(0, weeklyQuestionCount - weeklyCorrectCount);
+  const weeklyAccuracy =
+    weeklyQuestionCount > 0 ? Math.round((weeklyCorrectCount / weeklyQuestionCount) * 100) : 0;
 
-  const totalAttempts =
-    coreAttempts.length +
-    thinkAttempts.length +
-    expressAttempts.length +
-    knowledgeAttempts.length;
-
-  const totalCountedMissions =
-    coreCompleted + thinkCompleted + expressCompleted + knowledgeCompleted;
-
-  const {
-    currentUpgrade: coreCurrent,
-    nextUpgrade: coreNext,
-    progressPercentage: coreProgressPercentage,
-    missionsToNext: coreMissionsToNext,
-    isComplete: coreRoverComplete,
-  } = getCoreRoverProgress(coreCompleted);
-
-  const thinkCurrent = getCurrentUpgrade(thinkInventoryTrack, thinkCompleted);
-  const thinkNext = getNextUpgrade(thinkInventoryTrack, thinkCompleted);
-
-  const expressCurrent = getCurrentUpgrade(
-    expressStoryTrack,
-    expressCompleted
+  const previousQuestionCount = previousWeekAttempts.reduce(
+    (sum, attempt) => sum + attempt.totalQuestions,
+    0,
   );
-  const expressNext = getNextUpgrade(expressStoryTrack, expressCompleted);
-
-  const thinkTrackProgress = getTrackProgress(
-    thinkCurrent,
-    thinkNext,
-    thinkCompleted
+  const previousCorrectCount = previousWeekAttempts.reduce(
+    (sum, attempt) => sum + attempt.correctCount,
+    0,
   );
-  const expressTrackProgress = getTrackProgress(
-    expressCurrent,
-    expressNext,
-    expressCompleted
-  );
+  const previousAccuracy =
+    previousQuestionCount > 0
+      ? Math.round((previousCorrectCount / previousQuestionCount) * 100)
+      : 0;
 
-  const selectedStage =
-    selectedMissionTab === "think"
-      ? {
-          title: "Gear Inventory",
-          eyebrow: "Think Mission Stage",
-          completed: thinkCompleted,
-          current: thinkCurrent,
-          next: thinkNext,
-          progressPercentage: thinkTrackProgress.progressPercentage,
-          missionsToNext: thinkTrackProgress.missionsToNext,
-          isComplete: thinkTrackProgress.isComplete,
-          accent: "#60f0d0",
-          imageSrc:
-            thinkCurrent.imageSrc ??
-            createStagePlaceholder(
-              thinkCurrent.name,
-              "⚙",
-              "#60f0d0",
-              "#1e7492"
-            ),
-        }
-      : selectedMissionTab === "express"
-      ? {
-          title: "Story System",
-          eyebrow: "Express Mission Stage",
-          completed: expressCompleted,
-          current: expressCurrent,
-          next: expressNext,
-          progressPercentage: expressTrackProgress.progressPercentage,
-          missionsToNext: expressTrackProgress.missionsToNext,
-          isComplete: expressTrackProgress.isComplete,
-          accent: "#ff9df0",
-          imageSrc:
-            expressCurrent.imageSrc ??
-            createStagePlaceholder(
-              expressCurrent.name,
-              "✎",
-              "#ff9df0",
-              "#7b61ff"
-            ),
-        }
-      : {
-          title: "Skyforge Rover",
-          eyebrow: "Core Mission Stage",
-          completed: coreCompleted,
-          current: coreCurrent,
-          next: coreNext,
-          progressPercentage: coreProgressPercentage,
-          missionsToNext: coreMissionsToNext,
-          isComplete: coreRoverComplete,
-          accent: coreCurrent.accent,
-          imageSrc: coreCurrent.imageSrc,
-        };
+  const subjectSummaries = useMemo(() => {
+    return (Object.keys(SUBJECT_META) as SubjectKey[]).map((subject) => {
+      const subjectAttempts = thisWeekAttempts.filter((attempt) => attempt.subject === subject);
+      const questions = subjectAttempts.reduce((sum, attempt) => sum + attempt.totalQuestions, 0);
+      const correct = subjectAttempts.reduce((sum, attempt) => sum + attempt.correctCount, 0);
 
-  const bestCoreScore = getBestScore(coreAttempts, (attempt) => attempt.score);
-  const bestThinkScore = getBestScore(thinkAttempts, (attempt) => attempt.score);
-  const bestKnowledgeScore = getBestScore(
-    knowledgeAttempts,
-    (attempt) => attempt.score
-  );
+      return {
+        subject,
+        attempts: subjectAttempts.length,
+        questions,
+        accuracy: questions > 0 ? Math.round((correct / questions) * 100) : 0,
+      };
+    });
+  }, [thisWeekAttempts]);
 
-  const recentRecords = useMemo(() => {
-    const records = [
-      ...coreAttempts.map((attempt) => ({
-        id: `core-${attempt.id ?? attempt.quiz_id}-${attempt.created_at ?? ""}`,
-        type: "Core",
-        title: "Core Mission Quiz",
-        detail: `${attempt.correct_count}/${attempt.total_questions} correct · Score ${attempt.score}/100`,
-        tokens: attempt.tokens_earned,
-        date: attempt.created_at,
-      })),
-      ...thinkAttempts.map((attempt) => ({
-        id: `think-${attempt.id ?? attempt.quiz_id}-${attempt.created_at ?? ""}`,
-        type: "Think",
-        title: `Think Mission · ${attempt.mode || "normal"}`,
-        detail: `${attempt.correct_count}/${attempt.total_questions} correct · Score ${attempt.score}/100`,
-        tokens: attempt.tokens_earned,
-        date: attempt.created_at,
-      })),
-      ...expressAttempts.map((attempt) => ({
-        id: `express-${attempt.id ?? attempt.mission_id}-${
-          attempt.created_at ?? ""
-        }`,
-        type: "Express",
-        title: `Express Mission · ${attempt.mode || "practice"}`,
-        detail: `${attempt.completed_tasks}/${attempt.total_tasks} writing tasks completed`,
-        tokens: attempt.tokens_earned,
-        date: attempt.created_at,
-      })),
-      ...knowledgeAttempts.map((attempt) => ({
-        id: `knowledge-${attempt.id ?? attempt.topic ?? "arena"}-${
-          attempt.created_at ?? ""
-        }`,
-        type: "Arena",
-        title: attempt.topic
-          ? `Knowledge Arena · ${attempt.topic}`
-          : "Knowledge Arena",
-        detail:
-          typeof attempt.score === "number"
-            ? `${attempt.correct_count ?? 0}/${
-                attempt.total_questions ?? 10
-              } correct · Score ${attempt.score}`
-            : "Arena attempt saved",
-        tokens: attempt.tokens_earned ?? 0,
-        date: attempt.created_at,
-      })),
-    ];
+  const weeklyDays = useMemo(() => {
+    const start = thisWeekRange.start || mondayKeyFor(new Date());
 
-    return records
-      .sort((a, b) => {
-        const timeA = a.date ? new Date(a.date).getTime() : 0;
-        const timeB = b.date ? new Date(b.date).getTime() : 0;
-        return timeB - timeA;
-      })
-      .slice(0, 16);
-  }, [coreAttempts, thinkAttempts, expressAttempts, knowledgeAttempts]);
+    return Array.from({ length: 7 }, (_, index) => {
+      const key = addDaysToKey(start, index);
+      const count = thisWeekAttempts.filter(
+        (attempt) => singaporeDateKey(new Date(attempt.createdAt)) === key,
+      ).length;
+
+      return {
+        key,
+        label: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][index],
+        count,
+      };
+    });
+  }, [thisWeekAttempts, thisWeekRange]);
+
+  const maxDailyCount = Math.max(1, ...weeklyDays.map((day) => day.count));
+
+  const filteredAttempts = useMemo(() => {
+    const range = getDateRange(dateFilter);
+
+    return attempts.filter((attempt) => {
+      if (!isDateInsideRange(attempt.createdAt, range)) return false;
+      if (subjectFilter !== "all" && attempt.subject !== subjectFilter) return false;
+
+      const accuracy = accuracyOf(attempt);
+      if (accuracyFilter === "with_mistakes" && accuracy >= 100) return false;
+      if (accuracyFilter === "perfect" && accuracy < 100) return false;
+
+      return true;
+    });
+  }, [attempts, dateFilter, subjectFilter, accuracyFilter]);
+
+  const visibleAnswers = wrongOnly
+    ? detailAnswers.filter((answer) => !answer.is_correct)
+    : detailAnswers;
+
+  const selectedStudent = students.find((student) => student.id === selectedStudentId);
 
   return (
-    <main
-      style={{
-        minHeight: "100dvh",
-        width: "100%",
-        backgroundImage: `
-          linear-gradient(
-            180deg,
-            rgba(2,8,19,0.56),
-            rgba(2,8,19,0.9)
-          ),
-          radial-gradient(circle at 50% 0%, rgba(126,232,255,0.18), transparent 36%),
-          url("/nova/learning-missions/learning-missions-bg.png")
-        `,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundAttachment: isMobile ? "scroll" : "fixed",
-        color: "white",
-        fontFamily: "Arial, Helvetica, sans-serif",
-      }}
-    >
-      <Link
-        href="/learning-missions"
-        style={{
-          position: "fixed",
-          top: isMobile ? "14px" : "22px",
-          left: isMobile ? "14px" : "22px",
-          zIndex: 40,
-          height: isMobile ? "40px" : "46px",
-          padding: isMobile ? "0 14px" : "0 22px",
-          borderRadius: "999px",
-          border: "1px solid rgba(150, 231, 255, 0.7)",
-          background: "rgba(2,8,19,0.72)",
-          color: "white",
-          fontSize: isMobile ? "12px" : "14px",
-          letterSpacing: "0.1em",
-          textTransform: "uppercase",
-          textDecoration: "none",
-          display: "flex",
-          alignItems: "center",
-          backdropFilter: "blur(14px)",
-          boxShadow: "0 0 18px rgba(83, 215, 255, 0.22)",
-        }}
-      >
-        ← Missions
-      </Link>
+    <main className="dashboard-page">
+      <div className="background-grid" aria-hidden="true" />
 
-      <section
-        style={{
-          minHeight: "100dvh",
-          width: "100%",
-          padding: isMobile
-            ? "86px 18px 34px"
-            : isCompact
-            ? "96px 32px 46px"
-            : "96px 5vw 56px",
-        }}
-      >
-        <header
-          style={{
-            width: "min(1240px, 100%)",
-            margin: "0 auto",
-            display: "grid",
-            gridTemplateColumns: isCompact ? "1fr" : "1.1fr 0.9fr",
-            gap: "28px",
-            alignItems: "end",
-          }}
-        >
+      <header className="topbar">
+        <Link href="/learning-missions" className="back-button">
+          ← Learning Missions
+        </Link>
+
+        <div className="topbar-right">
+          {students.length > 1 && (
+            <label className="student-picker">
+              <span>Student</span>
+              <select
+                value={selectedStudentId ?? ""}
+                onChange={(event) => setSelectedStudentId(event.target.value)}
+              >
+                {students.map((student) => (
+                  <option key={student.id} value={student.id}>
+                    {student.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          <div className="viewer-pill">
+            <span>Viewing</span>
+            <strong>{selectedStudent?.label || "My learning"}</strong>
+          </div>
+        </div>
+      </header>
+
+      <section className="dashboard-shell">
+        <header className="hero">
           <div>
-            <p
-              style={{
-                margin: 0,
-                color: "#8dfcff",
-                fontSize: "13px",
-                letterSpacing: "0.22em",
-                textTransform: "uppercase",
-                fontWeight: 800,
-              }}
-            >
-              Progress & Rewards
-            </p>
-
-            <h1
-              style={{
-                margin: "12px 0 0",
-                fontSize: isMobile ? "38px" : isCompact ? "54px" : "72px",
-                lineHeight: 0.95,
-                fontWeight: 600,
-                letterSpacing: "-0.055em",
-                textShadow: "0 0 30px rgba(126, 232, 255, 0.28)",
-              }}
-            >
-              Mission
-              <br />
-              Progress Log
-            </h1>
-
-            <p
-              style={{
-                margin: "20px 0 0",
-                maxWidth: "720px",
-                fontSize: isMobile ? "16px" : "20px",
-                color: "#d9fbff",
-                lineHeight: 1.6,
-                fontWeight: 300,
-              }}
-            >
-              View your counted completions, replay attempts, best scores,
-              unlocked Nova upgrades, and Dreamscape Token rewards.
+            <p className="eyebrow">Parents & Teachers</p>
+            <h1>Teaching Dashboard</h1>
+            <p className="hero-copy">
+              Review weekly quiz activity, subject performance, and every recorded answer.
             </p>
           </div>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: isMobile
-                ? "1fr 1fr"
-                : "repeat(2, minmax(0, 1fr))",
-              gap: "14px",
-            }}
-          >
-            <SummaryTile label="Tokens" value={String(tokenBalance)} />
-            <SummaryTile
-              label="Counted Missions"
-              value={String(totalCountedMissions)}
-            />
-            <SummaryTile label="All Attempts" value={String(totalAttempts)} />
-            <SummaryTile
-              label="Account"
-              value={userEmail ? "Active" : "Log In"}
-            />
+          <div className="week-comparison">
+            <span>This week</span>
+            <strong>{thisWeekAttempts.length} quizzes</strong>
+            <small>
+              {thisWeekAttempts.length - previousWeekAttempts.length >= 0 ? "+" : ""}
+              {thisWeekAttempts.length - previousWeekAttempts.length} compared with last week
+            </small>
           </div>
         </header>
 
-        {isLoading && (
-          <div style={messageCardStyle}>Loading your mission progress...</div>
-        )}
+        {isLoading && <div className="notice-card">Loading learning records…</div>}
 
-        {!isLoading && message && (
-          <div style={messageCardStyle}>
-            <p style={{ margin: 0 }}>{message}</p>
-
-            <Link
-              href="/login"
-              style={{
-                ...primaryButtonStyle,
-                margin: "22px auto 0",
-                textDecoration: "none",
-              }}
-            >
-              Log In
+        {!isLoading && !viewerId && (
+          <div className="notice-card">
+            <p>{loadMessage || "Log in to view the dashboard."}</p>
+            <Link href="/login" className="primary-link">
+              Log in
             </Link>
           </div>
         )}
 
-        {!isLoading && !message && (
+        {!isLoading && viewerId && (
           <>
-            <section
-              style={{
-                width: "min(1240px, 100%)",
-                margin: "32px auto 0",
-                display: "grid",
-                gridTemplateColumns: isMobile
-                  ? "1fr"
-                  : isCompact
-                  ? "repeat(2, minmax(0, 1fr))"
-                  : "repeat(4, minmax(0, 1fr))",
-                gap: "16px",
-              }}
-            >
-              <MissionSummaryCard
-                title="Core Missions"
-                subtitle="Skyforge Rover"
-                completed={coreCompleted}
-                attempts={coreAttempts.length}
-                bestScore={bestCoreScore}
-                accent="#7ee8ff"
-              />
+            {loadMessage && <div className="warning-card">{loadMessage}</div>}
 
-              <MissionSummaryCard
-                title="Think Missions"
-                subtitle="Gear Inventory"
-                completed={thinkCompleted}
-                attempts={thinkAttempts.length}
-                bestScore={bestThinkScore}
-                accent="#60f0d0"
+            <section className="summary-grid">
+              <SummaryCard
+                label="Quizzes this week"
+                value={String(thisWeekAttempts.length)}
+                supporting={`${previousWeekAttempts.length} last week`}
+                icon="▤"
               />
-
-              <MissionSummaryCard
-                title="Express Missions"
-                subtitle="Story System"
-                completed={expressCompleted}
-                attempts={expressAttempts.length}
-                bestScore={null}
-                accent="#ff9df0"
+              <SummaryCard
+                label="Questions attempted"
+                value={String(weeklyQuestionCount)}
+                supporting={`${weeklyCorrectCount} answered correctly`}
+                icon="?"
               />
-
-              <MissionSummaryCard
-                title="Knowledge Arena"
-                subtitle="Arena Records"
-                completed={knowledgeCompleted}
-                attempts={knowledgeAttempts.length}
-                bestScore={bestKnowledgeScore}
-                accent="#ffd76a"
+              <SummaryCard
+                label="Overall accuracy"
+                value={`${weeklyAccuracy}%`}
+                supporting={`${weeklyAccuracy - previousAccuracy >= 0 ? "+" : ""}${
+                  weeklyAccuracy - previousAccuracy
+                } points vs last week`}
+                icon="◎"
+              />
+              <SummaryCard
+                label="Incorrect answers"
+                value={String(weeklyWrongCount)}
+                supporting="Review these in the answer records"
+                icon="!"
               />
             </section>
 
-            <ProgressStageCard
-              isMobile={isMobile}
-              title={selectedStage.title}
-              eyebrow={selectedStage.eyebrow}
-              completedMissionCount={selectedStage.completed}
-              currentUpgrade={selectedStage.current}
-              nextUpgrade={selectedStage.next}
-              progressPercentage={selectedStage.progressPercentage}
-              missionsToNext={selectedStage.missionsToNext}
-              isComplete={selectedStage.isComplete}
-              accent={selectedStage.accent}
-              imageSrc={selectedStage.imageSrc}
-            />
-
-            <section
-              style={{
-                width: "min(1240px, 100%)",
-                margin: "28px auto 0",
-                display: "grid",
-                gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
-                gap: "18px",
-              }}
-            >
-              <UpgradePanel
-                title="Skyforge Rover"
-                label="Core Upgrade"
-                completed={coreCompleted}
-                current={coreCurrent}
-                next={coreNext}
-                accent={coreCurrent.accent}
-                active={selectedMissionTab === "core"}
-                onSelect={() => setSelectedMissionTab("core")}
-              />
-
-              <UpgradePanel
-                title="Gear Inventory"
-                label="Think Upgrade"
-                completed={thinkCompleted}
-                current={thinkCurrent}
-                next={thinkNext}
-                accent="#60f0d0"
-                active={selectedMissionTab === "think"}
-                onSelect={() => setSelectedMissionTab("think")}
-              />
-
-              <UpgradePanel
-                title="Story System"
-                label="Express Upgrade"
-                completed={expressCompleted}
-                current={expressCurrent}
-                next={expressNext}
-                accent="#ff9df0"
-                active={selectedMissionTab === "express"}
-                onSelect={() => setSelectedMissionTab("express")}
-              />
-            </section>
-
-            <section
-              style={{
-                width: "min(1240px, 100%)",
-                margin: "28px auto 0",
-                borderRadius: isMobile ? "24px" : "32px",
-                border: "1px solid rgba(141,252,255,0.22)",
-                background:
-                  "linear-gradient(145deg, rgba(5,18,42,0.74), rgba(8,30,58,0.82))",
-                boxShadow:
-                  "0 0 34px rgba(126,232,255,0.12), 0 28px 80px rgba(0,0,0,0.34)",
-                padding: isMobile ? "20px" : "30px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: isMobile ? "column" : "row",
-                  justifyContent: "space-between",
-                  gap: "12px",
-                  alignItems: isMobile ? "flex-start" : "center",
-                }}
-              >
-                <div>
-                  <p
-                    style={{
-                      margin: 0,
-                      color: "#8dfcff",
-                      fontSize: "12px",
-                      letterSpacing: "0.18em",
-                      textTransform: "uppercase",
-                      fontWeight: 800,
-                    }}
-                  >
-                    Score Records
-                  </p>
-
-                  <h2
-                    style={{
-                      margin: "8px 0 0",
-                      fontSize: isMobile ? "28px" : "36px",
-                      lineHeight: 1.1,
-                    }}
-                  >
-                    Recent Mission Attempts
-                  </h2>
+            <section className="overview-grid">
+              <article className="panel weekly-chart-panel">
+                <div className="panel-heading">
+                  <div>
+                    <p className="section-label">Weekly activity</p>
+                    <h2>Quizzes completed by day</h2>
+                  </div>
+                  <span className="panel-total">{thisWeekAttempts.length} total</span>
                 </div>
 
-                <p
-                  style={{
-                    margin: 0,
-                    color: "rgba(255,255,255,0.68)",
-                    fontSize: "14px",
-                    lineHeight: 1.5,
-                  }}
-                >
-                  Replays are saved here, but only first completions with token
-                  rewards count toward upgrades.
-                </p>
+                <div className="weekly-chart" aria-label="Weekly quiz completion chart">
+                  {weeklyDays.map((day) => (
+                    <div className="chart-day" key={day.key}>
+                      <div className="chart-value">{day.count}</div>
+                      <div className="bar-track">
+                        <div
+                          className="bar-fill"
+                          style={{ height: `${Math.max(5, (day.count / maxDailyCount) * 100)}%` }}
+                        />
+                      </div>
+                      <span>{day.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </article>
+
+              <article className="panel subject-panel">
+                <div className="panel-heading">
+                  <div>
+                    <p className="section-label">Subject breakdown</p>
+                    <h2>This week by subject</h2>
+                  </div>
+                </div>
+
+                <div className="subject-list">
+                  {subjectSummaries.map((summary) => {
+                    const meta = SUBJECT_META[summary.subject];
+
+                    return (
+                      <button
+                        type="button"
+                        key={summary.subject}
+                        className="subject-row"
+                        onClick={() => {
+                          setDateFilter("this_week");
+                          setSubjectFilter(summary.subject);
+                        }}
+                      >
+                        <span
+                          className="subject-icon"
+                          style={{
+                            color: meta.accent,
+                            borderColor: `${meta.accent}55`,
+                            background: `${meta.accent}12`,
+                          }}
+                        >
+                          {meta.icon}
+                        </span>
+                        <span className="subject-copy">
+                          <strong>{meta.label}</strong>
+                          <small>
+                            {summary.attempts} quizzes · {summary.questions} questions
+                          </small>
+                        </span>
+                        <strong style={{ color: meta.accent }}>{summary.accuracy}%</strong>
+                      </button>
+                    );
+                  })}
+                </div>
+              </article>
+            </section>
+
+            <section className="panel attempt-panel">
+              <div className="attempt-heading">
+                <div>
+                  <p className="section-label">Recorded attempts</p>
+                  <h2>Quiz history</h2>
+                  <p>
+                    Every retake is kept separately. Open a record to review the student's answers.
+                  </p>
+                </div>
+
+                <div className="filter-grid">
+                  <label>
+                    <span>Date</span>
+                    <select
+                      value={dateFilter}
+                      onChange={(event) => setDateFilter(event.target.value as DateFilter)}
+                    >
+                      <option value="this_week">This week</option>
+                      <option value="last_week">Last week</option>
+                      <option value="this_month">This month</option>
+                      <option value="all_time">All time</option>
+                    </select>
+                  </label>
+
+                  <label>
+                    <span>Subject</span>
+                    <select
+                      value={subjectFilter}
+                      onChange={(event) =>
+                        setSubjectFilter(event.target.value as SubjectKey | "all")
+                      }
+                    >
+                      <option value="all">All subjects</option>
+                      {(Object.keys(SUBJECT_META) as SubjectKey[]).map((subject) => (
+                        <option key={subject} value={subject}>
+                          {SUBJECT_META[subject].label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label>
+                    <span>Results</span>
+                    <select
+                      value={accuracyFilter}
+                      onChange={(event) =>
+                        setAccuracyFilter(event.target.value as AccuracyFilter)
+                      }
+                    >
+                      <option value="all">All attempts</option>
+                      <option value="with_mistakes">With wrong answers</option>
+                      <option value="perfect">Perfect attempts</option>
+                    </select>
+                  </label>
+                </div>
               </div>
 
-              {recentRecords.length === 0 ? (
-                <div style={emptyStateStyle}>
-                  No mission attempts yet. Complete a mission to start your
-                  progress log.
-                </div>
+              {filteredAttempts.length === 0 ? (
+                <div className="empty-state">No quiz attempts match these filters.</div>
               ) : (
-                <div
-                  style={{
-                    marginTop: "22px",
-                    display: "grid",
-                    gap: "12px",
-                  }}
-                >
-                  {recentRecords.map((record) => (
-                    <RecentRecordCard key={record.id} record={record} />
-                  ))}
+                <div className="attempt-table-wrap">
+                  {!isMobile && (
+                    <div className="attempt-table-header">
+                      <span>Quiz</span>
+                      <span>Subject</span>
+                      <span>Date</span>
+                      <span>Score</span>
+                      <span>Accuracy</span>
+                      <span>Duration</span>
+                      <span />
+                    </div>
+                  )}
+
+                  <div className="attempt-list">
+                    {filteredAttempts.map((attempt) => {
+                      const meta = SUBJECT_META[attempt.subject];
+                      const accuracy = accuracyOf(attempt);
+
+                      return (
+                        <button
+                          type="button"
+                          className="attempt-row"
+                          key={`${attempt.source}-${attempt.id}`}
+                          onClick={() => void openAttempt(attempt)}
+                        >
+                          <span className="attempt-title-cell">
+                            <span
+                              className="attempt-icon"
+                              style={{
+                                color: meta.accent,
+                                borderColor: `${meta.accent}55`,
+                                background: `${meta.accent}12`,
+                              }}
+                            >
+                              {meta.icon}
+                            </span>
+                            <span>
+                              <strong>{attempt.title}</strong>
+                              <small>{attempt.subtitle}</small>
+                            </span>
+                          </span>
+
+                          <span className="desktop-cell subject-badge">{meta.label}</span>
+                          <span className="desktop-cell">{formatDateTime(attempt.createdAt)}</span>
+                          <span className="desktop-cell">
+                            {attempt.correctCount}/{attempt.totalQuestions}
+                          </span>
+                          <span
+                            className={`desktop-cell accuracy-badge ${
+                              accuracy === 100 ? "perfect" : accuracy < 60 ? "needs-work" : ""
+                            }`}
+                          >
+                            {accuracy}%
+                          </span>
+                          <span className="desktop-cell">{formatDuration(attempt.durationSeconds)}</span>
+                          <span className="view-link">View answers →</span>
+
+                          {isMobile && (
+                            <span className="mobile-attempt-meta">
+                              <span>{meta.label}</span>
+                              <span>{formatDateTime(attempt.createdAt)}</span>
+                              <span>
+                                {attempt.correctCount}/{attempt.totalQuestions} · {accuracy}%
+                              </span>
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </section>
           </>
         )}
       </section>
+
+      {selectedAttempt && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setSelectedAttempt(null)}>
+          <section
+            className="attempt-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Quiz answer record"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header className="modal-header">
+              <div>
+                <p className="section-label">Quiz record</p>
+                <h2>{selectedAttempt.title}</h2>
+                <p>
+                  {SUBJECT_META[selectedAttempt.subject].label} · {formatDateTime(selectedAttempt.createdAt)}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="close-button"
+                onClick={() => setSelectedAttempt(null)}
+                aria-label="Close quiz record"
+              >
+                ×
+              </button>
+            </header>
+
+            <div className="modal-summary">
+              <MiniMetric label="Score" value={`${selectedAttempt.correctCount}/${selectedAttempt.totalQuestions}`} />
+              <MiniMetric label="Accuracy" value={`${accuracyOf(selectedAttempt)}%`} />
+              <MiniMetric label="Duration" value={formatDuration(selectedAttempt.durationSeconds)} />
+              <MiniMetric label="Attempt" value="Recorded" />
+            </div>
+
+            <div className="answer-toolbar">
+              <div>
+                <strong>Question review</strong>
+                <span>{detailAnswers.length} recorded answers</span>
+              </div>
+
+              <label className="toggle-label">
+                <input
+                  type="checkbox"
+                  checked={wrongOnly}
+                  onChange={(event) => setWrongOnly(event.target.checked)}
+                />
+                <span>Wrong answers only</span>
+              </label>
+            </div>
+
+            <div className="answer-area">
+              {detailsLoading ? (
+                <div className="empty-state">Loading individual answers…</div>
+              ) : detailMessage ? (
+                <div className="detail-message">
+                  <strong>Answer detail unavailable</strong>
+                  <p>{detailMessage}</p>
+                </div>
+              ) : visibleAnswers.length === 0 ? (
+                <div className="empty-state">
+                  {wrongOnly ? "There are no wrong answers in this attempt." : "No answer records found."}
+                </div>
+              ) : isMobile ? (
+                <div className="mobile-answer-list">
+                  {visibleAnswers.map((answer) => (
+                    <article
+                      key={answer.id}
+                      className={`mobile-answer-card ${answer.is_correct ? "correct" : "wrong"}`}
+                    >
+                      <div className="mobile-answer-heading">
+                        <strong>Question {answer.question_order}</strong>
+                        <span>{answer.is_correct ? "Correct" : "Incorrect"}</span>
+                      </div>
+
+                      <AnswerSection label="Question">
+                        <p>{answer.question_text}</p>
+                        {answer.question_image && (
+                          <img src={answer.question_image} alt="Question illustration" />
+                        )}
+                      </AnswerSection>
+
+                      <AnswerSection label="Student's answer">
+                        <p>{answerDisplay(answer.student_answer_label, answer.student_answer_text)}</p>
+                      </AnswerSection>
+
+                      <AnswerSection label="Correct answer">
+                        <p>{answerDisplay(answer.correct_answer_label, answer.correct_answer_text)}</p>
+                      </AnswerSection>
+
+                      <AnswerSection label="Explanation">
+                        <p>{answer.explanation || "No explanation was saved."}</p>
+                      </AnswerSection>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="answer-table">
+                  <div className="answer-table-header">
+                    <span>Question</span>
+                    <span>Student's answer</span>
+                    <span>Correct answer</span>
+                    <span>Explanation</span>
+                  </div>
+
+                  {visibleAnswers.map((answer) => (
+                    <div
+                      key={answer.id}
+                      className={`answer-table-row ${answer.is_correct ? "correct" : "wrong"}`}
+                    >
+                      <div>
+                        <span className="question-number">Question {answer.question_order}</span>
+                        <p>{answer.question_text}</p>
+                        {answer.skill && <small>{answer.skill}</small>}
+                        {answer.question_image && (
+                          <img src={answer.question_image} alt="Question illustration" />
+                        )}
+                      </div>
+                      <div>
+                        <span className="cell-label">Student's answer</span>
+                        <p>{answerDisplay(answer.student_answer_label, answer.student_answer_text)}</p>
+                      </div>
+                      <div>
+                        <span className="cell-label">Correct answer</span>
+                        <p>{answerDisplay(answer.correct_answer_label, answer.correct_answer_text)}</p>
+                      </div>
+                      <div>
+                        <span className="cell-label">Explanation</span>
+                        <p>{answer.explanation || "No explanation was saved."}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
+
+      <style jsx>{`
+        :global(*) {
+          box-sizing: border-box;
+        }
+
+        :global(html) {
+          background: #030812;
+        }
+
+        :global(body) {
+          margin: 0;
+          background: #030812;
+        }
+
+        :global(button),
+        :global(select),
+        :global(input) {
+          font: inherit;
+        }
+
+        .dashboard-page {
+          position: relative;
+          min-height: 100dvh;
+          overflow-x: hidden;
+          color: white;
+          background:
+            radial-gradient(circle at 50% 0%, rgba(83, 215, 255, 0.16), transparent 32%),
+            linear-gradient(180deg, #071326 0%, #030812 62%, #02050b 100%);
+          font-family: Arial, Helvetica, sans-serif;
+        }
+
+        .background-grid {
+          position: fixed;
+          inset: 0;
+          pointer-events: none;
+          opacity: 0.1;
+          background-image:
+            linear-gradient(rgba(126, 232, 255, 0.18) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(126, 232, 255, 0.18) 1px, transparent 1px);
+          background-size: 48px 48px;
+          mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), transparent 85%);
+        }
+
+        .topbar {
+          position: sticky;
+          top: 0;
+          z-index: 50;
+          min-height: 70px;
+          padding: 12px 22px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          border-bottom: 1px solid rgba(126, 232, 255, 0.14);
+          background: rgba(3, 8, 18, 0.82);
+          backdrop-filter: blur(20px);
+        }
+
+        .back-button,
+        .viewer-pill,
+        .student-picker {
+          border: 1px solid rgba(126, 232, 255, 0.25);
+          background: rgba(12, 31, 57, 0.72);
+          box-shadow: 0 14px 30px rgba(0, 0, 0, 0.24);
+        }
+
+        .back-button {
+          min-height: 42px;
+          padding: 0 16px;
+          border-radius: 999px;
+          display: inline-flex;
+          align-items: center;
+          color: white;
+          text-decoration: none;
+          font-size: 13px;
+          font-weight: 800;
+        }
+
+        .topbar-right {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .viewer-pill,
+        .student-picker {
+          min-height: 42px;
+          border-radius: 999px;
+        }
+
+        .viewer-pill {
+          padding: 7px 15px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .viewer-pill span,
+        .student-picker span {
+          color: rgba(235, 247, 255, 0.5);
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 0.13em;
+          text-transform: uppercase;
+        }
+
+        .viewer-pill strong {
+          color: #8dfcff;
+          font-size: 13px;
+        }
+
+        .student-picker {
+          padding: 6px 12px 6px 15px;
+          display: flex;
+          align-items: center;
+          gap: 9px;
+        }
+
+        .student-picker select,
+        .filter-grid select {
+          border: 0;
+          outline: none;
+          color: white;
+          background: transparent;
+          cursor: pointer;
+        }
+
+        .student-picker option,
+        .filter-grid option {
+          color: #071326;
+        }
+
+        .dashboard-shell {
+          position: relative;
+          z-index: 2;
+          width: min(1440px, calc(100% - 40px));
+          margin: 0 auto;
+          padding: 48px 0 70px;
+        }
+
+        .hero {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          align-items: end;
+          gap: 28px;
+        }
+
+        .eyebrow,
+        .section-label {
+          margin: 0;
+          color: #8dfcff;
+          font-size: 11px;
+          font-weight: 900;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+        }
+
+        .hero h1 {
+          margin: 10px 0 0;
+          font-family: Georgia, "Times New Roman", serif;
+          font-size: clamp(48px, 7vw, 82px);
+          font-weight: 400;
+          line-height: 0.96;
+          letter-spacing: -0.055em;
+        }
+
+        .hero-copy {
+          max-width: 760px;
+          margin: 17px 0 0;
+          color: rgba(235, 247, 255, 0.72);
+          font-size: clamp(16px, 2vw, 20px);
+          line-height: 1.55;
+        }
+
+        .week-comparison {
+          min-width: 240px;
+          padding: 20px 22px;
+          border-radius: 22px;
+          border: 1px solid rgba(126, 232, 255, 0.2);
+          background: rgba(6, 22, 47, 0.74);
+          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+        }
+
+        .week-comparison span,
+        .week-comparison small {
+          display: block;
+        }
+
+        .week-comparison span {
+          color: #8dfcff;
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+        }
+
+        .week-comparison strong {
+          display: block;
+          margin-top: 8px;
+          font-size: 27px;
+        }
+
+        .week-comparison small {
+          margin-top: 6px;
+          color: rgba(235, 247, 255, 0.55);
+          line-height: 1.4;
+        }
+
+        .summary-grid {
+          margin-top: 30px;
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 14px;
+        }
+
+        .overview-grid {
+          margin-top: 18px;
+          display: grid;
+          grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+          gap: 18px;
+        }
+
+        .panel,
+        .notice-card,
+        .warning-card {
+          border: 1px solid rgba(126, 232, 255, 0.16);
+          background:
+            linear-gradient(145deg, rgba(8, 27, 55, 0.8), rgba(4, 14, 32, 0.9));
+          box-shadow: 0 28px 76px rgba(0, 0, 0, 0.28);
+          backdrop-filter: blur(18px);
+        }
+
+        .panel {
+          border-radius: 26px;
+          padding: 24px;
+        }
+
+        .notice-card,
+        .warning-card {
+          width: min(720px, 100%);
+          margin: 34px auto 0;
+          padding: 26px;
+          border-radius: 22px;
+          text-align: center;
+          color: rgba(240, 249, 255, 0.76);
+        }
+
+        .warning-card {
+          width: 100%;
+          border-color: rgba(255, 211, 110, 0.26);
+          background: rgba(104, 77, 16, 0.22);
+          color: #ffe5a0;
+        }
+
+        .primary-link {
+          width: fit-content;
+          min-height: 46px;
+          margin: 18px auto 0;
+          padding: 0 20px;
+          border-radius: 14px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: linear-gradient(135deg, #35c5ff, #4c6dff);
+          color: white;
+          text-decoration: none;
+          font-weight: 850;
+        }
+
+        .panel-heading,
+        .attempt-heading {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 18px;
+        }
+
+        .panel-heading h2,
+        .attempt-heading h2 {
+          margin: 7px 0 0;
+          font-size: 26px;
+          letter-spacing: -0.035em;
+        }
+
+        .panel-total {
+          padding: 7px 11px;
+          border-radius: 999px;
+          background: rgba(126, 232, 255, 0.08);
+          color: #8dfcff;
+          font-size: 11px;
+          font-weight: 850;
+        }
+
+        .weekly-chart {
+          height: 250px;
+          margin-top: 28px;
+          display: grid;
+          grid-template-columns: repeat(7, 1fr);
+          align-items: end;
+          gap: 12px;
+        }
+
+        .chart-day {
+          height: 100%;
+          display: grid;
+          grid-template-rows: 22px 1fr 20px;
+          align-items: end;
+          text-align: center;
+          color: rgba(235, 247, 255, 0.56);
+          font-size: 11px;
+          font-weight: 750;
+        }
+
+        .chart-value {
+          color: white;
+          font-size: 12px;
+        }
+
+        .bar-track {
+          width: min(44px, 68%);
+          height: 100%;
+          margin: 0 auto;
+          display: flex;
+          align-items: flex-end;
+          overflow: hidden;
+          border-radius: 12px 12px 5px 5px;
+          background: rgba(255, 255, 255, 0.045);
+        }
+
+        .bar-fill {
+          width: 100%;
+          min-height: 5px;
+          border-radius: 12px 12px 5px 5px;
+          background: linear-gradient(180deg, #8dfcff, #4c6dff);
+          box-shadow: 0 0 18px rgba(83, 215, 255, 0.25);
+        }
+
+        .subject-list {
+          margin-top: 20px;
+          display: grid;
+          gap: 9px;
+        }
+
+        .subject-row {
+          width: 100%;
+          min-height: 66px;
+          padding: 10px 12px;
+          display: grid;
+          grid-template-columns: 42px minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 11px;
+          border-radius: 15px;
+          border: 1px solid rgba(126, 232, 255, 0.1);
+          background: rgba(255, 255, 255, 0.03);
+          color: white;
+          text-align: left;
+          cursor: pointer;
+        }
+
+        .subject-row:hover {
+          background: rgba(255, 255, 255, 0.055);
+        }
+
+        .subject-icon,
+        .attempt-icon {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-style: solid;
+          border-width: 1px;
+        }
+
+        .subject-icon {
+          width: 42px;
+          height: 42px;
+          border-radius: 13px;
+          font-size: 19px;
+        }
+
+        .subject-copy {
+          min-width: 0;
+          display: grid;
+          gap: 5px;
+        }
+
+        .subject-copy strong {
+          font-size: 13px;
+        }
+
+        .subject-copy small {
+          color: rgba(235, 247, 255, 0.48);
+          font-size: 11px;
+        }
+
+        .attempt-panel {
+          margin-top: 18px;
+        }
+
+        .attempt-heading > div:first-child > p:last-child {
+          max-width: 600px;
+          margin: 9px 0 0;
+          color: rgba(235, 247, 255, 0.58);
+          font-size: 13px;
+          line-height: 1.5;
+        }
+
+        .filter-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(140px, 1fr));
+          gap: 9px;
+        }
+
+        .filter-grid label {
+          min-height: 58px;
+          padding: 8px 12px;
+          display: grid;
+          gap: 4px;
+          border-radius: 14px;
+          border: 1px solid rgba(126, 232, 255, 0.14);
+          background: rgba(255, 255, 255, 0.035);
+        }
+
+        .filter-grid label > span {
+          color: rgba(235, 247, 255, 0.46);
+          font-size: 9px;
+          font-weight: 850;
+          letter-spacing: 0.13em;
+          text-transform: uppercase;
+        }
+
+        .attempt-table-wrap {
+          margin-top: 22px;
+        }
+
+        .attempt-table-header,
+        .attempt-row {
+          display: grid;
+          grid-template-columns: minmax(260px, 1.8fr) minmax(120px, 0.8fr) minmax(145px, 0.9fr) 78px 82px 74px 108px;
+          gap: 10px;
+          align-items: center;
+        }
+
+        .attempt-table-header {
+          padding: 0 14px 10px;
+          color: rgba(235, 247, 255, 0.42);
+          font-size: 9px;
+          font-weight: 900;
+          letter-spacing: 0.13em;
+          text-transform: uppercase;
+        }
+
+        .attempt-list {
+          display: grid;
+          gap: 8px;
+        }
+
+        .attempt-row {
+          width: 100%;
+          min-height: 76px;
+          padding: 11px 14px;
+          border-radius: 16px;
+          border: 1px solid rgba(126, 232, 255, 0.11);
+          background: rgba(255, 255, 255, 0.027);
+          color: white;
+          text-align: left;
+          cursor: pointer;
+        }
+
+        .attempt-row:hover {
+          border-color: rgba(126, 232, 255, 0.28);
+          background: rgba(126, 232, 255, 0.055);
+        }
+
+        .attempt-title-cell {
+          min-width: 0;
+          display: grid;
+          grid-template-columns: 42px minmax(0, 1fr);
+          align-items: center;
+          gap: 11px;
+        }
+
+        .attempt-icon {
+          width: 42px;
+          height: 42px;
+          border-radius: 13px;
+          font-size: 18px;
+        }
+
+        .attempt-title-cell > span:last-child {
+          min-width: 0;
+          display: grid;
+          gap: 5px;
+        }
+
+        .attempt-title-cell strong {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-size: 13px;
+        }
+
+        .attempt-title-cell small {
+          overflow: hidden;
+          color: rgba(235, 247, 255, 0.46);
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-size: 10px;
+        }
+
+        .desktop-cell,
+        .view-link {
+          font-size: 12px;
+        }
+
+        .subject-badge,
+        .accuracy-badge {
+          width: fit-content;
+          padding: 6px 9px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.05);
+        }
+
+        .accuracy-badge {
+          color: #ffe4a0;
+        }
+
+        .accuracy-badge.perfect {
+          color: #9fffd2;
+          background: rgba(93, 255, 181, 0.08);
+        }
+
+        .accuracy-badge.needs-work {
+          color: #ffc0a0;
+          background: rgba(255, 138, 92, 0.08);
+        }
+
+        .view-link {
+          color: #8dfcff;
+          font-weight: 850;
+          text-align: right;
+        }
+
+        .mobile-attempt-meta {
+          display: none;
+        }
+
+        .empty-state,
+        .detail-message {
+          margin-top: 20px;
+          padding: 25px;
+          border-radius: 17px;
+          border: 1px solid rgba(126, 232, 255, 0.1);
+          background: rgba(255, 255, 255, 0.025);
+          color: rgba(235, 247, 255, 0.58);
+          text-align: center;
+        }
+
+        .modal-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 100;
+          padding: 24px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(0, 4, 12, 0.78);
+          backdrop-filter: blur(9px);
+        }
+
+        .attempt-modal {
+          width: min(1480px, 96vw);
+          max-height: 92dvh;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          border-radius: 28px;
+          border: 1px solid rgba(126, 232, 255, 0.3);
+          background: linear-gradient(145deg, #07182e, #030916);
+          box-shadow: 0 40px 100px rgba(0, 0, 0, 0.62);
+        }
+
+        .modal-header {
+          padding: 23px 26px 19px;
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 20px;
+          border-bottom: 1px solid rgba(126, 232, 255, 0.13);
+        }
+
+        .modal-header h2 {
+          margin: 7px 0 0;
+          font-size: clamp(28px, 4vw, 42px);
+          letter-spacing: -0.045em;
+        }
+
+        .modal-header p:last-child {
+          margin: 9px 0 0;
+          color: rgba(235, 247, 255, 0.58);
+        }
+
+        .close-button {
+          width: 42px;
+          height: 42px;
+          flex: 0 0 auto;
+          border-radius: 999px;
+          border: 1px solid rgba(126, 232, 255, 0.25);
+          background: rgba(255, 255, 255, 0.055);
+          color: white;
+          font-size: 26px;
+          cursor: pointer;
+        }
+
+        .modal-summary {
+          padding: 14px 26px;
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 10px;
+          border-bottom: 1px solid rgba(126, 232, 255, 0.1);
+        }
+
+        .answer-toolbar {
+          padding: 14px 26px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          border-bottom: 1px solid rgba(126, 232, 255, 0.1);
+        }
+
+        .answer-toolbar > div {
+          display: grid;
+          gap: 4px;
+        }
+
+        .answer-toolbar span {
+          color: rgba(235, 247, 255, 0.48);
+          font-size: 11px;
+        }
+
+        .toggle-label {
+          min-height: 42px;
+          padding: 0 14px;
+          display: flex;
+          align-items: center;
+          gap: 9px;
+          border-radius: 999px;
+          border: 1px solid rgba(126, 232, 255, 0.18);
+          background: rgba(255, 255, 255, 0.04);
+          cursor: pointer;
+        }
+
+        .toggle-label input {
+          accent-color: #53d7ff;
+        }
+
+        .toggle-label span {
+          color: white;
+          font-size: 12px;
+          font-weight: 800;
+        }
+
+        .answer-area {
+          min-height: 260px;
+          padding: 0 20px 20px;
+          overflow-y: auto;
+        }
+
+        .detail-message strong {
+          color: white;
+          font-size: 17px;
+        }
+
+        .detail-message p {
+          max-width: 720px;
+          margin: 9px auto 0;
+          line-height: 1.55;
+        }
+
+        .answer-table {
+          min-width: 1040px;
+        }
+
+        .answer-table-header,
+        .answer-table-row {
+          display: grid;
+          grid-template-columns: 1.35fr 0.85fr 0.85fr 1.25fr;
+        }
+
+        .answer-table-header {
+          position: sticky;
+          top: 0;
+          z-index: 2;
+          padding: 13px 14px;
+          background: #061329;
+          color: rgba(235, 247, 255, 0.45);
+          font-size: 9px;
+          font-weight: 900;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+        }
+
+        .answer-table-row {
+          border-top: 1px solid rgba(126, 232, 255, 0.09);
+          background: rgba(255, 255, 255, 0.018);
+        }
+
+        .answer-table-row.wrong {
+          background: rgba(255, 138, 92, 0.035);
+        }
+
+        .answer-table-row.correct {
+          background: rgba(93, 255, 181, 0.02);
+        }
+
+        .answer-table-row > div {
+          min-width: 0;
+          padding: 16px 14px;
+          border-right: 1px solid rgba(126, 232, 255, 0.07);
+        }
+
+        .answer-table-row > div:last-child {
+          border-right: 0;
+        }
+
+        .answer-table-row p {
+          margin: 0;
+          color: rgba(246, 251, 255, 0.84);
+          font-size: 13px;
+          line-height: 1.55;
+        }
+
+        .answer-table-row small,
+        .cell-label,
+        .question-number {
+          display: block;
+          margin-bottom: 7px;
+          color: #8dfcff;
+          font-size: 9px;
+          font-weight: 900;
+          letter-spacing: 0.13em;
+          text-transform: uppercase;
+        }
+
+        .answer-table-row small {
+          margin: 8px 0 0;
+          color: rgba(235, 247, 255, 0.42);
+        }
+
+        .answer-table-row img,
+        .mobile-answer-card img {
+          max-width: 100%;
+          max-height: 220px;
+          margin-top: 12px;
+          border-radius: 12px;
+          object-fit: contain;
+          background: white;
+        }
+
+        .mobile-answer-list {
+          display: grid;
+          gap: 12px;
+          padding-top: 14px;
+        }
+
+        .mobile-answer-card {
+          border-radius: 18px;
+          border: 1px solid rgba(126, 232, 255, 0.12);
+          background: rgba(255, 255, 255, 0.027);
+          overflow: hidden;
+        }
+
+        .mobile-answer-card.wrong {
+          border-color: rgba(255, 138, 92, 0.26);
+        }
+
+        .mobile-answer-card.correct {
+          border-color: rgba(93, 255, 181, 0.2);
+        }
+
+        .mobile-answer-heading {
+          padding: 13px 14px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          border-bottom: 1px solid rgba(126, 232, 255, 0.09);
+        }
+
+        .mobile-answer-heading span {
+          color: rgba(235, 247, 255, 0.5);
+          font-size: 11px;
+        }
+
+        @media (max-width: 1180px) {
+          .summary-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .overview-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .attempt-heading {
+            display: grid;
+          }
+
+          .filter-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+          }
+
+          .attempt-table-wrap {
+            overflow-x: auto;
+          }
+        }
+
+        @media (max-width: 720px) {
+          .topbar {
+            padding: 10px 12px;
+          }
+
+          .back-button {
+            width: 42px;
+            padding: 0;
+            overflow: hidden;
+            white-space: nowrap;
+            color: transparent;
+          }
+
+          .back-button::first-letter {
+            color: white;
+          }
+
+          .student-picker span,
+          .viewer-pill span {
+            display: none;
+          }
+
+          .viewer-pill {
+            padding: 7px 11px;
+          }
+
+          .viewer-pill strong {
+            max-width: 120px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+
+          .dashboard-shell {
+            width: min(100% - 24px, 1440px);
+            padding-top: 30px;
+          }
+
+          .hero {
+            grid-template-columns: 1fr;
+          }
+
+          .hero h1 {
+            font-size: clamp(44px, 14vw, 60px);
+          }
+
+          .week-comparison {
+            min-width: 0;
+          }
+
+          .summary-grid {
+            grid-template-columns: 1fr 1fr;
+            gap: 9px;
+          }
+
+          .panel {
+            padding: 18px 13px;
+            border-radius: 20px;
+          }
+
+          .weekly-chart {
+            height: 200px;
+            gap: 5px;
+          }
+
+          .bar-track {
+            width: 72%;
+          }
+
+          .filter-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .attempt-table-wrap {
+            overflow: visible;
+          }
+
+          .attempt-table-header {
+            display: none;
+          }
+
+          .attempt-row {
+            grid-template-columns: 1fr auto;
+            min-height: 0;
+            padding: 13px;
+          }
+
+          .desktop-cell {
+            display: none;
+          }
+
+          .attempt-title-cell {
+            grid-column: 1 / -1;
+          }
+
+          .view-link {
+            grid-column: 2;
+            grid-row: 2;
+            align-self: end;
+          }
+
+          .mobile-attempt-meta {
+            grid-column: 1;
+            grid-row: 2;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 12px;
+            color: rgba(235, 247, 255, 0.48);
+            font-size: 10px;
+          }
+
+          .modal-backdrop {
+            padding: 0;
+            align-items: stretch;
+          }
+
+          .attempt-modal {
+            width: 100%;
+            max-height: 100dvh;
+            border-radius: 0;
+          }
+
+          .modal-header {
+            padding: 17px 14px 14px;
+          }
+
+          .modal-header h2 {
+            font-size: 28px;
+          }
+
+          .modal-summary {
+            padding: 10px 12px;
+            grid-template-columns: repeat(2, 1fr);
+          }
+
+          .answer-toolbar {
+            padding: 11px 12px;
+            align-items: flex-start;
+            flex-direction: column;
+          }
+
+          .answer-area {
+            padding: 0 12px 16px;
+          }
+        }
+      `}</style>
     </main>
   );
 }
 
-function ProgressStageCard({
-  isMobile,
-  title,
-  eyebrow,
-  completedMissionCount,
-  currentUpgrade,
-  nextUpgrade,
-  progressPercentage,
-  missionsToNext,
-  isComplete,
-  accent,
-  imageSrc,
-}: {
-  isMobile: boolean;
-  title: string;
-  eyebrow: string;
-  completedMissionCount: number;
-  currentUpgrade: Upgrade | CoreRoverUpgrade;
-  nextUpgrade: Upgrade | CoreRoverUpgrade | undefined;
-  progressPercentage: number;
-  missionsToNext: number;
-  isComplete: boolean;
-  accent: string;
-  imageSrc: string;
-}) {
-  return (
-    <section
-      aria-live="polite"
-      style={{
-        width: "min(1240px, 100%)",
-        margin: "28px auto 0",
-        borderRadius: isMobile ? "24px" : "32px",
-        border: `1px solid ${accent}66`,
-        background:
-          "linear-gradient(145deg, rgba(6,24,52,0.78), rgba(3,13,34,0.92))",
-        boxShadow: `0 0 30px ${accent}22, 0 28px 80px rgba(0,0,0,0.34)`,
-        padding: isMobile ? "20px" : "28px",
-        transition:
-          "border-color 220ms ease, box-shadow 220ms ease, background 220ms ease",
-      }}
-    >
-      <p
-        style={{
-          margin: 0,
-          color: accent,
-          fontSize: "12px",
-          letterSpacing: "0.18em",
-          textTransform: "uppercase",
-          fontWeight: 900,
-        }}
-      >
-        {eyebrow}
-      </p>
-
-      <div
-        style={{
-          marginTop: "16px",
-          display: "grid",
-          gridTemplateColumns: isMobile
-            ? "1fr"
-            : "minmax(0, 1fr) minmax(280px, 420px)",
-          gap: isMobile ? "20px" : "28px",
-          alignItems: "center",
-        }}
-      >
-        <div>
-          <p
-            style={{
-              margin: 0,
-              color: "rgba(255,255,255,0.58)",
-              fontSize: "12px",
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              fontWeight: 800,
-            }}
-          >
-            {title} · Current Stage
-          </p>
-
-          <h2
-            style={{
-              margin: "9px 0 0",
-              fontSize: isMobile ? "30px" : "40px",
-              lineHeight: 1.05,
-            }}
-          >
-            {currentUpgrade.name}
-          </h2>
-
-          <p
-            style={{
-              margin: "14px 0 0",
-              maxWidth: "660px",
-              color: "rgba(255,255,255,0.76)",
-              fontSize: "16px",
-              lineHeight: 1.6,
-            }}
-          >
-            {currentUpgrade.description}
-          </p>
-
-          <div
-            style={{
-              marginTop: "22px",
-              height: "14px",
-              borderRadius: "999px",
-              background: "rgba(255,255,255,0.08)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                width: `${progressPercentage}%`,
-                height: "100%",
-                background: `linear-gradient(90deg, ${accent}, #35c5ff)`,
-                boxShadow: `0 0 18px ${accent}66`,
-                transition: "width 260ms ease",
-              }}
-            />
-          </div>
-
-          <div
-            style={{
-              marginTop: "14px",
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "12px",
-              color: "rgba(255,255,255,0.68)",
-              fontSize: "14px",
-            }}
-          >
-            <span>
-              Counted Missions:{" "}
-              <strong style={{ color: accent }}>
-                {completedMissionCount}
-              </strong>
-            </span>
-
-            <span style={{ color: isComplete ? "#86efac" : "#ffd76a" }}>
-              {nextUpgrade
-                ? `${missionsToNext} more to unlock ${nextUpgrade.name}.`
-                : `Final ${title.toLowerCase()} stage unlocked.`}
-            </span>
-          </div>
-        </div>
-
-        <div
-          style={{
-            minHeight: isMobile ? "220px" : "280px",
-            borderRadius: "26px",
-            border: `1px solid ${accent}33`,
-            background: `radial-gradient(circle at 50% 42%, ${accent}22, rgba(255,255,255,0.03) 48%, rgba(0,0,0,0.12))`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            overflow: "hidden",
-          }}
-        >
-          <img
-            key={`${title}-${currentUpgrade.name}`}
-            src={imageSrc}
-            alt={`${currentUpgrade.name} current stage`}
-            draggable={false}
-            style={{
-              width: "100%",
-              maxWidth: isMobile ? "360px" : "420px",
-              maxHeight: isMobile ? "240px" : "300px",
-              objectFit: "contain",
-              display: "block",
-              filter: "drop-shadow(0 24px 34px rgba(0,0,0,0.45))",
-            }}
-          />
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function SummaryTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div
-      style={{
-        borderRadius: "24px",
-        border: "1px solid rgba(141,252,255,0.28)",
-        background:
-          "linear-gradient(145deg, rgba(5,22,48,0.76), rgba(10,48,82,0.58))",
-        padding: "22px",
-        boxShadow: "0 0 24px rgba(83,215,255,0.12)",
-      }}
-    >
-      <p
-        style={{
-          margin: 0,
-          color: "#8dfcff",
-          fontSize: "11px",
-          letterSpacing: "0.16em",
-          textTransform: "uppercase",
-          fontWeight: 900,
-        }}
-      >
-        {label}
-      </p>
-
-      <p
-        style={{
-          margin: "10px 0 0",
-          fontSize: "30px",
-          fontWeight: 800,
-          lineHeight: 1,
-        }}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function MissionSummaryCard({
-  title,
-  subtitle,
-  completed,
-  attempts,
-  bestScore,
-  accent,
-}: {
-  title: string;
-  subtitle: string;
-  completed: number;
-  attempts: number;
-  bestScore: number | null;
-  accent: string;
-}) {
-  return (
-    <div
-      style={{
-        minHeight: "230px",
-        borderRadius: "26px",
-        border: `1px solid ${accent}55`,
-        background:
-          "linear-gradient(180deg, rgba(20, 58, 100, 0.74), rgba(8, 25, 56, 0.9))",
-        boxShadow: `0 0 22px ${accent}22`,
-        padding: "24px",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      <p
-        style={{
-          margin: 0,
-          color: accent,
-          fontSize: "12px",
-          letterSpacing: "0.16em",
-          textTransform: "uppercase",
-          fontWeight: 900,
-        }}
-      >
-        {subtitle}
-      </p>
-
-      <h3
-        style={{
-          margin: "12px 0 0",
-          fontSize: "26px",
-          lineHeight: 1.1,
-        }}
-      >
-        {title}
-      </h3>
-
-      <div
-        style={{
-          marginTop: "auto",
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: "10px",
-        }}
-      >
-        <SmallStat label="Counted" value={String(completed)} accent={accent} />
-        <SmallStat label="Attempts" value={String(attempts)} accent={accent} />
-        <SmallStat
-          label="Best"
-          value={bestScore === null ? "—" : String(bestScore)}
-          accent={accent}
-        />
-        <SmallStat label="Replay" value="Saved" accent={accent} />
-      </div>
-    </div>
-  );
-}
-
-function UpgradePanel({
-  title,
-  label,
-  completed,
-  current,
-  next,
-  accent,
-  active,
-  onSelect,
-}: {
-  title: string;
-  label: string;
-  completed: number;
-  current: Upgrade | CoreRoverUpgrade;
-  next?: Upgrade | CoreRoverUpgrade;
-  accent: string;
-  active: boolean;
-  onSelect: () => void;
-}) {
-  const progressTarget = next?.missionsRequired ?? current.missionsRequired;
-  const previousTarget = current.missionsRequired;
-  const range = Math.max(1, progressTarget - previousTarget);
-  const progress = next
-    ? Math.min(100, Math.round(((completed - previousTarget) / range) * 100))
-    : 100;
-
-  const missionsToNext = next
-    ? Math.max(0, next.missionsRequired - completed)
-    : 0;
-
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={active}
-      style={{
-        position: "relative",
-        minHeight: "310px",
-        borderRadius: "26px",
-        border: active
-          ? `1px solid ${accent}`
-          : `1px solid ${accent}55`,
-        background: active
-          ? `linear-gradient(145deg, ${accent}20, rgba(8,26,58,0.94))`
-          : "linear-gradient(145deg, rgba(5,22,48,0.74), rgba(8,26,58,0.82))",
-        padding: "24px",
-        boxShadow: active
-          ? `0 0 34px ${accent}38, inset 0 0 24px ${accent}0d`
-          : `0 0 24px ${accent}18`,
-        color: "white",
-        textAlign: "left",
-        fontFamily: "inherit",
-        cursor: "pointer",
-        transform: active ? "translateY(-5px)" : "none",
-        transition:
-          "transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease, background 220ms ease",
-      }}
-    >
-      <span
-        style={{
-          position: "absolute",
-          top: "18px",
-          right: "18px",
-          minHeight: "28px",
-          padding: "0 11px",
-          borderRadius: "999px",
-          border: `1px solid ${accent}55`,
-          background: active ? `${accent}20` : "rgba(255,255,255,0.05)",
-          color: active ? accent : "rgba(255,255,255,0.52)",
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: "10px",
-          letterSpacing: "0.1em",
-          textTransform: "uppercase",
-          fontWeight: 900,
-        }}
-      >
-        {active ? "Viewing" : "View Stage"}
-      </span>
-
-      <p
-        style={{
-          margin: 0,
-          paddingRight: "92px",
-          color: accent,
-          fontSize: "12px",
-          letterSpacing: "0.16em",
-          textTransform: "uppercase",
-          fontWeight: 900,
-        }}
-      >
-        {label}
-      </p>
-
-      <h3
-        style={{
-          margin: "10px 0 0",
-          fontSize: "28px",
-          lineHeight: 1.1,
-        }}
-      >
-        {title}
-      </h3>
-
-      <p
-        style={{
-          margin: "18px 0 0",
-          color: "rgba(255,255,255,0.62)",
-          fontSize: "13px",
-          letterSpacing: "0.12em",
-          textTransform: "uppercase",
-        }}
-      >
-        Current Unlock
-      </p>
-
-      <h4
-        style={{
-          margin: "8px 0 0",
-          fontSize: "22px",
-          color: "white",
-        }}
-      >
-        {current.name}
-      </h4>
-
-      <p
-        style={{
-          margin: "10px 0 0",
-          color: "rgba(255,255,255,0.76)",
-          fontSize: "14px",
-          lineHeight: 1.5,
-        }}
-      >
-        {current.description}
-      </p>
-
-      <div
-        style={{
-          marginTop: "18px",
-          height: "12px",
-          borderRadius: "999px",
-          background: "rgba(255,255,255,0.08)",
-          border: `1px solid ${accent}44`,
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            width: `${progress}%`,
-            height: "100%",
-            background: `linear-gradient(90deg, ${accent}, #ffffff)`,
-            boxShadow: `0 0 18px ${accent}66`,
-          }}
-        />
-      </div>
-
-      <p
-        style={{
-          margin: "12px 0 0",
-          color: next ? "#ffe6a8" : "#86efac",
-          fontSize: "14px",
-          lineHeight: 1.45,
-        }}
-      >
-        {next
-          ? `Next: ${next.name}. Complete ${missionsToNext} new mission${
-              missionsToNext === 1 ? "" : "s"
-            } to unlock it.`
-          : "All current upgrades unlocked."}
-      </p>
-    </button>
-  );
-}
-
-function SmallStat({
+function SummaryCard({
   label,
   value,
-  accent,
+  supporting,
+  icon,
 }: {
   label: string;
   value: string;
-  accent: string;
+  supporting: string;
+  icon: string;
 }) {
   return (
-    <div
-      style={{
-        borderRadius: "16px",
-        border: `1px solid ${accent}33`,
-        background: "rgba(255,255,255,0.06)",
-        padding: "12px",
-      }}
-    >
-      <p
-        style={{
-          margin: 0,
-          color: "rgba(255,255,255,0.58)",
-          fontSize: "10px",
-          letterSpacing: "0.12em",
-          textTransform: "uppercase",
-        }}
-      >
-        {label}
-      </p>
+    <article className="summary-card">
+      <div className="summary-icon">{icon}</div>
+      <p>{label}</p>
+      <strong>{value}</strong>
+      <small>{supporting}</small>
 
-      <p
-        style={{
-          margin: "6px 0 0",
-          color: accent,
-          fontSize: "18px",
-          fontWeight: 800,
-        }}
-      >
-        {value}
-      </p>
+      <style jsx>{`
+        .summary-card {
+          min-height: 154px;
+          padding: 18px;
+          border-radius: 22px;
+          border: 1px solid rgba(126, 232, 255, 0.15);
+          background: linear-gradient(145deg, rgba(9, 31, 61, 0.8), rgba(4, 14, 32, 0.9));
+          box-shadow: 0 22px 58px rgba(0, 0, 0, 0.24);
+        }
+
+        .summary-icon {
+          width: 36px;
+          height: 36px;
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid rgba(126, 232, 255, 0.25);
+          background: rgba(126, 232, 255, 0.07);
+          color: #8dfcff;
+          font-weight: 900;
+        }
+
+        p {
+          margin: 15px 0 0;
+          color: rgba(235, 247, 255, 0.48);
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 0.13em;
+          text-transform: uppercase;
+        }
+
+        strong {
+          display: block;
+          margin-top: 7px;
+          font-size: 31px;
+          letter-spacing: -0.04em;
+        }
+
+        small {
+          display: block;
+          margin-top: 7px;
+          color: rgba(235, 247, 255, 0.52);
+          line-height: 1.4;
+        }
+
+        @media (max-width: 720px) {
+          .summary-card {
+            min-height: 142px;
+            padding: 14px;
+          }
+
+          strong {
+            font-size: 27px;
+          }
+        }
+      `}</style>
+    </article>
+  );
+}
+
+function MiniMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="mini-metric">
+      <span>{label}</span>
+      <strong>{value}</strong>
+
+      <style jsx>{`
+        .mini-metric {
+          min-height: 58px;
+          padding: 9px 12px;
+          border-radius: 14px;
+          border: 1px solid rgba(126, 232, 255, 0.11);
+          background: rgba(255, 255, 255, 0.028);
+        }
+
+        span {
+          display: block;
+          color: rgba(235, 247, 255, 0.45);
+          font-size: 9px;
+          font-weight: 900;
+          letter-spacing: 0.13em;
+          text-transform: uppercase;
+        }
+
+        strong {
+          display: block;
+          margin-top: 6px;
+          color: #8dfcff;
+          font-size: 17px;
+        }
+      `}</style>
     </div>
   );
 }
 
-function RecentRecordCard({
-  record,
+function AnswerSection({
+  label,
+  children,
 }: {
-  record: {
-    id: string;
-    type: string;
-    title: string;
-    detail: string;
-    tokens: number;
-    date?: string;
-  };
+  label: string;
+  children: ReactNode;
 }) {
-  const accent =
-    record.type === "Core"
-      ? "#7ee8ff"
-      : record.type === "Think"
-      ? "#60f0d0"
-      : record.type === "Express"
-      ? "#ff9df0"
-      : "#ffd76a";
-
   return (
-    <div
-      style={{
-        borderRadius: "18px",
-        border: `1px solid ${accent}33`,
-        background: "rgba(255,255,255,0.06)",
-        padding: "16px",
-        display: "grid",
-        gridTemplateColumns: "1fr auto",
-        gap: "14px",
-        alignItems: "center",
-      }}
-    >
-      <div>
-        <p
-          style={{
-            margin: 0,
-            color: accent,
-            fontSize: "11px",
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            fontWeight: 900,
-          }}
-        >
-          {record.type} · {formatDate(record.date)}
-        </p>
+    <section className="answer-section">
+      <span>{label}</span>
+      {children}
 
-        <h3
-          style={{
-            margin: "7px 0 0",
-            fontSize: "18px",
-          }}
-        >
-          {record.title}
-        </h3>
+      <style jsx>{`
+        .answer-section {
+          padding: 13px 14px;
+          border-bottom: 1px solid rgba(126, 232, 255, 0.08);
+        }
 
-        <p
-          style={{
-            margin: "6px 0 0",
-            color: "rgba(255,255,255,0.72)",
-            fontSize: "14px",
-            lineHeight: 1.45,
-          }}
-        >
-          {record.detail}
-        </p>
-      </div>
+        .answer-section:last-child {
+          border-bottom: 0;
+        }
 
-      <div
-        style={{
-          minWidth: "82px",
-          borderRadius: "999px",
-          border: `1px solid ${record.tokens > 0 ? "#86efac55" : "#ffffff22"}`,
-          background:
-            record.tokens > 0
-              ? "rgba(34,197,94,0.12)"
-              : "rgba(255,255,255,0.06)",
-          color: record.tokens > 0 ? "#86efac" : "rgba(255,255,255,0.58)",
-          padding: "9px 12px",
-          textAlign: "center",
-          fontSize: "13px",
-          fontWeight: 900,
-        }}
-      >
-        +{record.tokens}
-      </div>
-    </div>
+        span {
+          display: block;
+          margin-bottom: 7px;
+          color: #8dfcff;
+          font-size: 9px;
+          font-weight: 900;
+          letter-spacing: 0.13em;
+          text-transform: uppercase;
+        }
+
+        :global(.answer-section p) {
+          margin: 0;
+          color: rgba(246, 251, 255, 0.84);
+          font-size: 13px;
+          line-height: 1.55;
+        }
+      `}</style>
+    </section>
   );
 }
-
-const messageCardStyle: CSSProperties = {
-  width: "min(680px, 100%)",
-  margin: "44px auto 0",
-  borderRadius: "26px",
-  border: "1px solid rgba(141,252,255,0.28)",
-  background:
-    "linear-gradient(145deg, rgba(5,22,48,0.76), rgba(10,48,82,0.58))",
-  padding: "30px",
-  textAlign: "center",
-  color: "rgba(255,255,255,0.82)",
-};
-
-const emptyStateStyle: CSSProperties = {
-  marginTop: "22px",
-  borderRadius: "20px",
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.06)",
-  padding: "24px",
-  color: "rgba(255,255,255,0.72)",
-  textAlign: "center",
-};
-
-const primaryButtonStyle: CSSProperties = {
-  minHeight: "50px",
-  borderRadius: "14px",
-  border: "1px solid rgba(255,255,255,0.45)",
-  background: "linear-gradient(135deg, #35c5ff, #4c6dff)",
-  color: "white",
-  padding: "0 22px",
-  fontWeight: 800,
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  width: "fit-content",
-};
