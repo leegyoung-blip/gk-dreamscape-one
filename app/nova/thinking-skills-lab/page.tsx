@@ -1570,42 +1570,48 @@ function InstructionsButton({ gameId }: { gameId: GameId }) {
         }
         .instructions-popup {
           position: absolute;
-          top: calc(100% + 8px);
+          top: calc(100% + 10px);
           right: 0;
-          width: min(350px, calc(100vw - 90px));
-          padding: 16px;
-          border-radius: 17px;
-          border: 1px solid rgba(126, 224, 255, 0.28);
-          background: linear-gradient(145deg, rgba(3, 20, 39, 0.99), rgba(3, 10, 25, 0.99));
-          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+          width: min(470px, calc(100vw - 90px));
+          padding: 22px 24px;
+          border-radius: 21px;
+          border: 1px solid rgba(126, 224, 255, 0.34);
+          background: linear-gradient(145deg, rgba(3, 20, 39, 0.995), rgba(3, 10, 25, 0.995));
+          box-shadow: 0 28px 72px rgba(0, 0, 0, 0.62), 0 0 30px rgba(83, 215, 255, 0.1);
           color: white;
         }
         .instructions-popup > p {
           margin: 0;
           color: #8ee8ff;
-          font-size: 9px;
+          font-size: 11px;
           font-weight: 900;
-          letter-spacing: 0.16em;
+          letter-spacing: 0.18em;
           text-transform: uppercase;
         }
-        .instructions-popup h3 { margin: 5px 0 0; font-size: 19px; }
+        .instructions-popup h3 {
+          margin: 8px 0 0;
+          font-family: Georgia, "Times New Roman", serif;
+          font-size: 29px;
+          line-height: 1.12;
+          font-weight: 500;
+        }
         .instructions-popup ol {
-          margin: 12px 0 0;
-          padding-left: 20px;
+          margin: 17px 0 0;
+          padding-left: 24px;
           display: grid;
-          gap: 8px;
-          color: rgba(241, 249, 255, 0.72);
-          font-size: 10px;
-          line-height: 1.45;
+          gap: 12px;
+          color: rgba(241, 249, 255, 0.82);
+          font-size: 16px;
+          line-height: 1.58;
         }
         .instructions-popup > div {
-          margin-top: 12px;
-          padding: 10px 11px;
-          border-radius: 12px;
-          background: rgba(255, 211, 110, 0.08);
+          margin-top: 17px;
+          padding: 13px 15px;
+          border-radius: 14px;
+          background: rgba(255, 211, 110, 0.09);
           color: #ffe39a;
-          font-size: 11px;
-          line-height: 1.4;
+          font-size: 14px;
+          line-height: 1.5;
         }
         @media (max-width: 720px) {
           .instructions-button { width: 34px; height: 34px; font-size: 16px; }
@@ -1613,9 +1619,14 @@ function InstructionsButton({ gameId }: { gameId: GameId }) {
             position: fixed;
             top: 64px;
             right: 7px;
-            width: min(330px, calc(100vw - 76px));
-            padding: 14px;
+            width: min(390px, calc(100vw - 76px));
+            max-height: calc(100dvh - 78px);
+            overflow-y: auto;
+            padding: 18px;
           }
+          .instructions-popup h3 { font-size: 25px; }
+          .instructions-popup ol { font-size: 14px; line-height: 1.52; gap: 10px; }
+          .instructions-popup > div { font-size: 13px; }
         }
       `}</style>
     </div>
@@ -2819,15 +2830,17 @@ function ColourCodeGame({
         }
         .clue-button:disabled { opacity: 0.4; cursor: not-allowed; }
         .colour-message {
-          width: min(430px, 100%);
-          min-height: 30px;
-          margin-top: 7px;
+          width: min(620px, 100%);
+          min-height: 42px;
+          margin-top: 9px;
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 7px;
-          color: rgba(235, 247, 255, 0.64);
-          font-size: 11px;
+          gap: 9px;
+          color: rgba(235, 247, 255, 0.82);
+          font-size: 16px;
+          line-height: 1.4;
+          font-weight: 700;
           text-align: center;
         }
         .colour-message strong { color: #ff9ca8; }
@@ -2835,73 +2848,119 @@ function ColourCodeGame({
         .answer-strip i { width: 18px; height: 18px; border-radius: 999px; }
 
         .attempt-board {
-          padding: 8px;
+          padding: 12px;
           display: flex;
           flex-direction: column;
-          align-items: center;
+          align-items: stretch;
           overflow: hidden;
         }
         .attempt-heading {
           width: 100%;
-          padding: 2px 4px 7px;
+          flex: 0 0 auto;
+          padding: 4px 8px 12px;
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 14px;
-          border-bottom: 1px solid rgba(137, 215, 255, 0.1);
+          gap: 18px;
+          border-bottom: 1px solid rgba(137, 215, 255, 0.12);
           text-align: center;
         }
-        .attempt-heading h3 { margin: 0; font-size: 14px; }
+        .attempt-heading h3 { margin: 0; font-size: 18px; }
         .attempt-heading > span {
           display: flex;
           align-items: center;
-          gap: 5px;
-          color: rgba(235, 247, 255, 0.46);
-          font-size: 8px;
+          gap: 7px;
+          color: rgba(235, 247, 255, 0.62);
+          font-size: 11px;
+          font-weight: 750;
         }
-        .attempt-heading i { width: 7px; height: 7px; border-radius: 999px; }
+        .attempt-heading i { width: 10px; height: 10px; border-radius: 999px; }
         .exact-dot { background: #63e7a3; }
-        .misplaced-dot { margin-left: 3px; background: #ffd465; }
+        .misplaced-dot { margin-left: 5px; background: #ffd465; }
         .attempt-list {
-          width: min(330px, 100%);
+          width: 100%;
           flex: 1 1 auto;
           min-height: 0;
-          padding-top: 5px;
-          display: grid;
-          grid-template-rows: repeat(15, minmax(0, 1fr));
-          gap: 2px;
-          overflow: hidden;
+          padding: 10px 5px 4px 0;
+          display: flex;
+          flex-direction: column;
+          gap: 7px;
+          overflow-y: auto;
+          overflow-x: hidden;
+          overscroll-behavior: contain;
+          scrollbar-width: thin;
+          scrollbar-color: rgba(102, 217, 255, 0.46) rgba(255, 255, 255, 0.04);
+        }
+        .attempt-list::-webkit-scrollbar { width: 8px; }
+        .attempt-list::-webkit-scrollbar-track {
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.035);
+        }
+        .attempt-list::-webkit-scrollbar-thumb {
+          border-radius: 999px;
+          background: rgba(102, 217, 255, 0.42);
         }
         .attempt-row {
-          min-height: 0;
-          padding: 1px 5px;
+          width: 100%;
+          flex: 0 0 48px;
+          min-height: 48px;
+          padding: 6px 14px;
           display: grid;
-          grid-template-columns: 18px 1fr 45px;
+          grid-template-columns: 34px minmax(0, 1fr) 82px;
           align-items: center;
-          gap: 5px;
-          border-radius: 7px;
-          border: 1px solid transparent;
-          background: rgba(255, 255, 255, 0.022);
+          gap: 12px;
+          border-radius: 11px;
+          border: 1px solid rgba(137, 215, 255, 0.055);
+          background: rgba(255, 255, 255, 0.028);
         }
         .attempt-row.is-current {
-          border-color: rgba(102, 217, 255, 0.28);
-          background: rgba(102, 217, 255, 0.065);
+          border-color: rgba(102, 217, 255, 0.4);
+          background: rgba(102, 217, 255, 0.085);
+          box-shadow: inset 0 0 18px rgba(102, 217, 255, 0.035);
         }
-        .attempt-number { color: rgba(235, 247, 255, 0.34); font-size: 8px; font-weight: 850; }
-        .attempt-circles { display: flex; justify-content: center; gap: 5px; }
+        .attempt-number {
+          color: rgba(235, 247, 255, 0.48);
+          font-size: 12px;
+          font-weight: 850;
+        }
+        .attempt-circles {
+          min-width: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: clamp(9px, 1.1vw, 16px);
+        }
         .attempt-circles span {
-          width: clamp(12px, 1.5vw, 18px);
-          height: clamp(12px, 1.5vw, 18px);
+          width: clamp(23px, 2vw, 31px);
+          height: clamp(23px, 2vw, 31px);
+          flex: 0 0 auto;
           border-radius: 999px;
-          border: 1px dashed rgba(131, 219, 255, 0.2);
-          background: rgba(2, 10, 22, 0.56);
+          border: 2px dashed rgba(131, 219, 255, 0.24);
+          background: rgba(2, 10, 22, 0.66);
         }
-        .attempt-circles span.is-filled { border-style: solid; border-color: rgba(255, 255, 255, 0.18); }
-        .attempt-result { display: flex; justify-content: flex-end; gap: 5px; font-size: 8px; font-weight: 900; }
-        .attempt-result span { min-width: 17px; height: 17px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; }
-        .exact-result { background: rgba(99, 231, 163, 0.12); color: #82efb7; }
-        .misplaced-result { background: rgba(255, 212, 101, 0.11); color: #ffdc82; }
-        .empty-result { color: rgba(235, 247, 255, 0.18); }
+        .attempt-circles span.is-filled {
+          border-style: solid;
+          border-color: rgba(255, 255, 255, 0.22);
+          box-shadow: inset 0 3px 7px rgba(255, 255, 255, 0.18);
+        }
+        .attempt-result {
+          display: flex;
+          justify-content: flex-end;
+          gap: 7px;
+          font-size: 11px;
+          font-weight: 900;
+        }
+        .attempt-result span {
+          min-width: 28px;
+          height: 28px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 999px;
+        }
+        .exact-result { background: rgba(99, 231, 163, 0.14); color: #82efb7; }
+        .misplaced-result { background: rgba(255, 212, 101, 0.13); color: #ffdc82; }
+        .empty-result { color: rgba(235, 247, 255, 0.22); }
 
         @media (max-width: 900px) {
           .colour-layout { grid-template-columns: minmax(0, 1fr) minmax(245px, 0.78fr); gap: 6px; }
@@ -2917,16 +2976,25 @@ function ColourCodeGame({
           .colour-palette button { padding: 3px; }
           .colour-actions { margin-top: 5px; gap: 5px; }
           .clue-button { min-height: 34px; font-size: 9px; }
-          .colour-message { min-height: 20px; margin-top: 3px; font-size: 9px; }
-          .attempt-board { padding: 4px; }
-          .attempt-heading { padding-bottom: 3px; }
-          .attempt-heading h3 { font-size: 11px; }
-          .attempt-heading > span { font-size: 7px; }
-          .attempt-list { padding-top: 2px; gap: 1px; }
-          .attempt-row { grid-template-columns: 15px 1fr 38px; padding: 0 3px; }
-          .attempt-circles { gap: 4px; }
-          .attempt-circles span { width: 11px; height: 11px; }
-          .attempt-result span { min-width: 14px; height: 14px; font-size: 7px; }
+          .colour-message { min-height: 32px; margin-top: 4px; font-size: 13px; line-height: 1.32; }
+          .attempt-board { padding: 6px; }
+          .attempt-heading { padding: 2px 3px 6px; gap: 9px; }
+          .attempt-heading h3 { font-size: 14px; }
+          .attempt-heading > span { font-size: 9px; gap: 4px; }
+          .attempt-heading i { width: 8px; height: 8px; }
+          .attempt-list { padding: 5px 3px 2px 0; gap: 5px; }
+          .attempt-row {
+            flex-basis: 39px;
+            min-height: 39px;
+            grid-template-columns: 24px minmax(0, 1fr) 62px;
+            padding: 4px 8px;
+            gap: 6px;
+          }
+          .attempt-number { font-size: 10px; }
+          .attempt-circles { gap: clamp(6px, 2vw, 10px); }
+          .attempt-circles span { width: clamp(18px, 5vw, 24px); height: clamp(18px, 5vw, 24px); }
+          .attempt-result { gap: 4px; font-size: 9px; }
+          .attempt-result span { min-width: 23px; height: 23px; font-size: 9px; }
         }
         @media (max-height: 680px) and (max-width: 720px) {
           .colour-layout { grid-template-rows: 190px minmax(0, 1fr); }
@@ -3367,12 +3435,12 @@ function SetFinderGame({
         }
         .set-message {
           min-width: 0;
-          color: rgba(240, 248, 255, 0.62);
-          font-size: 10px;
+          color: rgba(240, 248, 255, 0.82);
+          font-size: 15px;
+          line-height: 1.35;
+          font-weight: 700;
           text-align: center;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
+          white-space: normal;
         }
         .set-message strong { margin-left: 6px; color: #ff9ca8; }
         .set-clue {
@@ -3461,7 +3529,7 @@ function SetFinderGame({
           .set-toolbar { padding: 3px 4px; gap: 4px; }
           .set-progress { gap: 2px; }
           .set-progress i { width: 12px; height: 5px; }
-          .set-message { font-size: 8px; }
+          .set-message { font-size: 12px; line-height: 1.25; }
           .set-clue { min-height: 28px; padding: 0 6px; font-size: 8px; }
           .set-board {
             grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -4033,9 +4101,10 @@ function TowerMemoryGame({
         .tower-palette button:disabled { opacity: 0.35; cursor: not-allowed; }
         .tower-message {
           min-width: 0;
-          color: rgba(235, 247, 255, 0.62);
-          font-size: 10px;
-          line-height: 1.35;
+          color: rgba(235, 247, 255, 0.84);
+          font-size: 16px;
+          line-height: 1.4;
+          font-weight: 700;
           text-align: center;
         }
         .tower-message strong { display: block; color: #ff9ca8; }
@@ -4072,7 +4141,7 @@ function TowerMemoryGame({
           }
           .tower-palette { width: min(250px, 100%); margin: 0 auto; gap: 4px; }
           .tower-palette button { padding: 2px; }
-          .tower-message { min-height: 18px; font-size: 8px; }
+          .tower-message { min-height: 30px; font-size: 12px; line-height: 1.28; }
           .tower-actions { grid-column: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
           .failed-answer { bottom: 92px; }
         }

@@ -7,11 +7,35 @@ import { supabase } from "@/lib/supabase";
 type DreamTokenTransaction = {
   id: string;
   user_id: string;
-  type: "earn" | "spend" | "physical";
+  type: "earn" | "spend";
   title: string;
   amount: number;
-  token_kind: "virtual" | "physical";
+  token_kind: "virtual";
   created_at: string;
+};
+
+type DreamGemTransaction = {
+  id: string;
+  user_id: string;
+  type: "earn" | "spend" | "adjustment" | "reversal";
+  source:
+    | "class_attendance"
+    | "core_mission"
+    | "think_mission"
+    | "redemption"
+    | "admin_adjustment"
+    | "system"
+    | "reversal";
+  title: string;
+  description: string | null;
+  amount: number;
+  balance_after: number;
+  created_at: string;
+};
+
+type NovaSubscription = {
+  status: string | null;
+  access_until: string | null;
 };
 
 type ExchangeStock = {
@@ -34,14 +58,14 @@ type ExchangePropertyHolding = {
   quantity: number;
 };
 
-function formatTransactionAmount(transaction: DreamTokenTransaction) {
+function formatTokenTransactionAmount(transaction: DreamTokenTransaction) {
   const prefix = transaction.amount > 0 ? "+" : "";
-
-  if (transaction.token_kind === "physical") {
-    return `${prefix}${transaction.amount} Token`;
-  }
-
   return `${prefix}${transaction.amount} DT`;
+}
+
+function formatGemTransactionAmount(transaction: DreamGemTransaction) {
+  const prefix = transaction.amount > 0 ? "+" : "";
+  return `${prefix}${transaction.amount} DG`;
 }
 
 function formatTransactionDate(dateString: string) {
@@ -50,6 +74,20 @@ function formatTransactionDate(dateString: string) {
     month: "short",
     year: "numeric",
   });
+}
+
+function formatGemSource(source: DreamGemTransaction["source"]) {
+  const labels: Record<DreamGemTransaction["source"], string> = {
+    class_attendance: "Class Attendance",
+    core_mission: "Core Mission",
+    think_mission: "Think Mission",
+    redemption: "Reward Redemption",
+    admin_adjustment: "Admin Adjustment",
+    system: "Dreamscape System",
+    reversal: "Transaction Reversal",
+  };
+
+  return labels[source] || "Dream Gem Activity";
 }
 
 function CartIcon() {
@@ -71,10 +109,49 @@ function CartIcon() {
   );
 }
 
+function GemIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 64 64"
+      aria-hidden="true"
+      className={className}
+      fill="none"
+    >
+      <path
+        d="M18 12h28l10 14-24 28L8 26 18 12Z"
+        fill="currentColor"
+        fillOpacity="0.2"
+        stroke="currentColor"
+        strokeWidth="3"
+        strokeLinejoin="round"
+      />
+      <path
+        d="m18 12 14 42 14-42M8 26h48M18 12 8 26l24-14 24 14-10-14"
+        stroke="currentColor"
+        strokeWidth="2.4"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function hasActiveSubscription(subscriptions: NovaSubscription[]) {
+  const now = Date.now();
+
+  return subscriptions.some((subscription) => {
+    if (subscription.status?.trim().toLowerCase() !== "active") return false;
+    if (!subscription.access_until) return true;
+
+    const accessUntil = new Date(subscription.access_until).getTime();
+    return Number.isFinite(accessUntil) && accessUntil >= now;
+  });
+}
+
 export default function ProfilePage() {
   const router = useRouter();
 
   const [email, setEmail] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [copiedReferralCode, setCopiedReferralCode] = useState(false);
   const [copiedReferralLink, setCopiedReferralLink] = useState(false);
@@ -91,25 +168,41 @@ export default function ProfilePage() {
   const [isSavingUsername, setIsSavingUsername] = useState(false);
 
   const [isAdmin, setIsAdmin] = useState(false);
+  const [hasStudentRewardsAccess, setHasStudentRewardsAccess] =
+    useState(false);
+
   const [tokenTransactions, setTokenTransactions] = useState<
     DreamTokenTransaction[]
   >([]);
+  const [gemTransactions, setGemTransactions] = useState<
+    DreamGemTransaction[]
+  >([]);
+  const [dreamGemBalance, setDreamGemBalance] = useState(0);
+
   const [showTokenHistory, setShowTokenHistory] = useState(false);
+  const [showGemHistory, setShowGemHistory] = useState(false);
   const [isLoadingTokens, setIsLoadingTokens] = useState(true);
+  const [isLoadingGems, setIsLoadingGems] = useState(true);
   const [isLoadingPortfolio, setIsLoadingPortfolio] = useState(true);
   const [stockPortfolioValue, setStockPortfolioValue] = useState(0);
   const [propertyPortfolioValue, setPropertyPortfolioValue] = useState(0);
 
-  const dreamTokenBalance = tokenTransactions
-    .filter((transaction) => transaction.token_kind === "virtual")
-    .reduce((total, transaction) => total + transaction.amount, 0);
-
-  const physicalTokenBalance = tokenTransactions
-    .filter((transaction) => transaction.token_kind === "physical")
-    .reduce((total, transaction) => total + transaction.amount, 0);
+  const dreamTokenBalance = tokenTransactions.reduce(
+    (total, transaction) => total + Number(transaction.amount || 0),
+    0
+  );
 
   const totalNetWorth =
     dreamTokenBalance + stockPortfolioValue + propertyPortfolioValue;
+
+  const normalizedRole = role?.trim().toLowerCase() || "regular";
+  const accountAccessLabel = isAdmin
+    ? "Admin"
+    : normalizedRole === "teacher"
+    ? "Teacher Access"
+    : hasStudentRewardsAccess
+    ? "Student Access"
+    : "Basic Access";
 
   useEffect(() => {
     function updateShareMode() {
@@ -133,11 +226,16 @@ export default function ProfilePage() {
   }, []);
 
   useEffect(() => {
+    let isMounted = true;
+
     async function loadProfile() {
       setIsLoadingTokens(true);
+      setIsLoadingGems(true);
       setIsLoadingPortfolio(true);
 
       const { data, error: userError } = await supabase.auth.getUser();
+
+      if (!isMounted) return;
 
       if (userError) {
         console.error("User error:", userError.message);
@@ -145,36 +243,76 @@ export default function ProfilePage() {
 
       if (!data.user) {
         setEmail(null);
+        setRole(null);
         setReferralCode(null);
         setUsername(null);
         setUsernameDraft("");
         setIsAdmin(false);
+        setHasStudentRewardsAccess(false);
         setTokenTransactions([]);
+        setGemTransactions([]);
+        setDreamGemBalance(0);
         setStockPortfolioValue(0);
         setPropertyPortfolioValue(0);
         setIsLoadingTokens(false);
+        setIsLoadingGems(false);
         setIsLoadingPortfolio(false);
         return;
       }
 
+      const userId = data.user.id;
       setEmail(data.user.email ?? null);
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("role, referral_code, username")
-        .eq("id", data.user.id)
+        .select("role, referral_code, username, dream_gem_balance")
+        .eq("id", userId)
         .maybeSingle();
+
+      if (!isMounted) return;
 
       if (profileError) {
         console.error("Profile error:", profileError.message);
       }
 
       const loadedUsername = profile?.username ?? null;
+      const loadedRole = profile?.role?.trim().toLowerCase() || "regular";
+      const roleHasRewardsAccess = ["student", "teacher", "admin"].includes(
+        loadedRole
+      );
 
-      setIsAdmin(profile?.role?.trim().toLowerCase() === "admin");
+      setRole(loadedRole);
+      setIsAdmin(loadedRole === "admin");
       setReferralCode(profile?.referral_code ?? null);
       setUsername(loadedUsername);
       setUsernameDraft(loadedUsername ?? "");
+      setDreamGemBalance(Number(profile?.dream_gem_balance || 0));
+
+      const { data: subscriptionRows, error: subscriptionError } =
+        await supabase
+          .from("nova_subscriptions")
+          .select("status,access_until")
+          .eq("user_id", userId)
+          .order("access_until", { ascending: false });
+
+      if (!isMounted) return;
+
+      if (subscriptionError) {
+        console.warn(
+          "Could not load Nova Student Access:",
+          subscriptionError.message
+        );
+      }
+
+      const subscriptionHasRewardsAccess = subscriptionError
+        ? false
+        : hasActiveSubscription(
+            (subscriptionRows || []) as NovaSubscription[]
+          );
+
+      setHasStudentRewardsAccess(
+        roleHasRewardsAccess || subscriptionHasRewardsAccess
+      );
 
       const pendingReferralCode =
         typeof window !== "undefined"
@@ -184,7 +322,7 @@ export default function ProfilePage() {
       if (pendingReferralCode) {
         const { data: referralResult, error: referralError } =
           await supabase.rpc("apply_referral_bonus", {
-            new_user_id: data.user.id,
+            new_user_id: userId,
             input_referral_code: pendingReferralCode,
           });
 
@@ -209,6 +347,7 @@ export default function ProfilePage() {
 
       const [
         tokenResult,
+        gemResult,
         stocksResult,
         stockHoldingsResult,
         propertiesResult,
@@ -216,8 +355,16 @@ export default function ProfilePage() {
       ] = await Promise.all([
         supabase
           .from("dream_token_transactions")
-          .select("*")
-          .eq("user_id", data.user.id)
+          .select("id,user_id,type,title,amount,token_kind,created_at")
+          .eq("user_id", userId)
+          .eq("token_kind", "virtual")
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("dream_gem_transactions")
+          .select(
+            "id,user_id,type,source,title,description,amount,balance_after,created_at"
+          )
+          .eq("user_id", userId)
           .order("created_at", { ascending: false }),
         supabase
           .from("milo_exchange_stocks")
@@ -226,7 +373,7 @@ export default function ProfilePage() {
         supabase
           .from("milo_exchange_holdings")
           .select("symbol,quantity")
-          .eq("user_id", data.user.id),
+          .eq("user_id", userId),
         supabase
           .from("milo_exchange_properties")
           .select("id,current_value")
@@ -234,8 +381,10 @@ export default function ProfilePage() {
         supabase
           .from("milo_exchange_property_holdings")
           .select("property_id,quantity")
-          .eq("user_id", data.user.id),
+          .eq("user_id", userId),
       ]);
+
+      if (!isMounted) return;
 
       if (tokenResult.error) {
         console.error("Token error:", tokenResult.error.message);
@@ -244,6 +393,13 @@ export default function ProfilePage() {
         setTokenTransactions(
           (tokenResult.data ?? []) as DreamTokenTransaction[]
         );
+      }
+
+      if (gemResult.error) {
+        console.error("Dream Gem error:", gemResult.error.message);
+        setGemTransactions([]);
+      } else {
+        setGemTransactions((gemResult.data ?? []) as DreamGemTransaction[]);
       }
 
       if (stocksResult.error || stockHoldingsResult.error) {
@@ -283,10 +439,7 @@ export default function ProfilePage() {
       } else {
         const propertyValues = new Map(
           ((propertiesResult.data ?? []) as ExchangeProperty[]).map(
-            (property) => [
-              property.id,
-              Number(property.current_value || 0),
-            ]
+            (property) => [property.id, Number(property.current_value || 0)]
           )
         );
 
@@ -304,10 +457,26 @@ export default function ProfilePage() {
       }
 
       setIsLoadingTokens(false);
+      setIsLoadingGems(false);
       setIsLoadingPortfolio(false);
     }
 
     loadProfile();
+
+    function refreshBalances() {
+      loadProfile();
+    }
+
+    window.addEventListener("dream-tokens-updated", refreshBalances);
+    window.addEventListener("dream-gems-updated", refreshBalances);
+    window.addEventListener("focus", refreshBalances);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener("dream-tokens-updated", refreshBalances);
+      window.removeEventListener("dream-gems-updated", refreshBalances);
+      window.removeEventListener("focus", refreshBalances);
+    };
   }, []);
 
   async function saveUsername() {
@@ -439,7 +608,6 @@ Thank you.`;
     localStorage.removeItem("pending-referral-code");
 
     await supabase.auth.signOut();
-
     window.location.href = "/";
   }
 
@@ -524,7 +692,6 @@ Thank you.`;
                 <p className="text-xs uppercase tracking-[0.18em] text-white/42">
                   Email
                 </p>
-
                 <p className="mt-2 break-all text-lg text-white/86">
                   {email || "No active login"}
                 </p>
@@ -534,7 +701,6 @@ Thank you.`;
                 <p className="text-xs uppercase tracking-[0.18em] text-white/42">
                   Username
                 </p>
-
                 <p className="mt-2 break-all text-2xl font-extrabold tracking-[0.08em] text-white">
                   {username || "Loading..."}
                 </p>
@@ -579,12 +745,16 @@ Thank you.`;
 
               <div className="rounded-2xl border border-cyan-200/14 bg-[#061632]/75 p-5">
                 <p className="text-xs uppercase tracking-[0.18em] text-white/42">
-                  Role
+                  Access Level
                 </p>
-
-                <p className="mt-2 text-lg text-white/86">
-                  {isAdmin ? "Admin" : "Student / Member"}
-                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  <p className="text-lg text-white/86">{accountAccessLabel}</p>
+                  {hasStudentRewardsAccess && (
+                    <span className="rounded-full border border-fuchsia-200/22 bg-fuchsia-300/10 px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#e7b7ff]">
+                      Dream Gem Rewards
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="rounded-2xl border border-violet-200/18 bg-[#120b2e]/75 p-5">
@@ -599,7 +769,7 @@ Thank you.`;
                     disabled={!referralCode}
                     aria-label="Copy referral code only"
                     title="Copy referral code only"
-                    className="break-all rounded-2xl border border-transparent px-2 py-1 text-left text-2xl font-extrabold tracking-[0.16em] text-white transition hover:border-violet-200/20 hover:bg-violet-300/8 disabled:cursor-default"
+                    className="break-all rounded-2xl border border-transparent px-2 py-1 text-left text-2xl font-extrabold tracking-[0.16em] text-white transition hover:border-violet-200/20 hover:bg-violet-300/[0.08] disabled:cursor-default"
                   >
                     {referralCode || "Loading..."}
                   </button>
@@ -625,11 +795,11 @@ Thank you.`;
                 </p>
 
                 <p className="mt-3 text-sm leading-6 text-white/54">
-                  Share your signup link with a friend. On phones and iPads, Share
-                  Link opens the device share sheet for available messaging apps.
-                  When they successfully join using your code, both of you receive
-                  10 Dream Tokens. You can also earn additional bonuses by reaching
-                  the referral objectives.
+                  Share your signup link with a friend. On phones and iPads,
+                  Share Link opens the device share sheet for available
+                  messaging apps. When they successfully join using your code,
+                  both of you receive 10 Dream Tokens. You can also earn
+                  additional bonuses by reaching the referral objectives.
                 </p>
               </div>
             </div>
@@ -656,14 +826,13 @@ Thank you.`;
                   <p className="m-0 text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
                     Dream Token Wallet
                   </p>
-
                   <h2 className="mt-4 text-3xl font-bold tracking-[-0.04em] text-white sm:text-4xl">
-                    View balance and history
+                    Platform currency
                   </h2>
-
                   <p className="mt-4 max-w-md text-sm leading-6 text-white/62">
-                    Track Dreamscape Tokens earned from classes, activities, and
-                    future unlocks.
+                    Use DT for digital activities, upgrades, and virtual assets
+                    inside Dreamscape. DT cannot be redeemed for cash or
+                    physical products.
                   </p>
                 </div>
 
@@ -688,7 +857,6 @@ Thank you.`;
                         <span className="text-5xl font-extrabold leading-none text-white">
                           {dreamTokenBalance.toLocaleString()}
                         </span>
-
                         <span className="pb-2 text-sm font-bold tracking-[0.16em] text-[#ffd18a]">
                           DT
                         </span>
@@ -711,7 +879,7 @@ Thank you.`;
                       <p className="text-sm text-white/48">Loading...</p>
                     ) : (
                       <p className="text-2xl font-extrabold text-white">
-                        {totalNetWorth.toLocaleString()}{" "}
+                        {totalNetWorth.toLocaleString()} {" "}
                         <span className="text-xs tracking-[0.12em] text-[#ffd18a]">
                           DT
                         </span>
@@ -727,12 +895,11 @@ Thank you.`;
                     ].map(([label, value]) => (
                       <div
                         key={String(label)}
-                        className="min-w-0 rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-3"
+                        className="min-w-0 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-3 py-3"
                       >
                         <p className="truncate text-[10px] font-bold uppercase tracking-[0.12em] text-white/38">
                           {label}
                         </p>
-
                         <p className="mt-2 truncate text-sm font-extrabold text-white sm:text-base">
                           {isLoadingTokens || isLoadingPortfolio
                             ? "—"
@@ -745,17 +912,89 @@ Thank you.`;
               </div>
             </button>
 
+            <button
+              type="button"
+              onClick={() => setShowGemHistory(true)}
+              className="group rounded-[32px] border border-fuchsia-200/30 bg-[linear-gradient(180deg,rgba(76,24,112,0.48),rgba(4,20,48,0.86))] p-7 text-left shadow-[0_0_46px_rgba(217,70,239,0.11),0_24px_70px_rgba(0,0,0,0.28)] backdrop-blur-xl transition hover:scale-[1.01] hover:border-fuchsia-200/48 hover:shadow-[0_0_58px_rgba(217,70,239,0.17)] sm:p-8"
+            >
+              <div className="flex items-start justify-between gap-5">
+                <div>
+                  <p className="m-0 text-xs font-bold uppercase tracking-[0.2em] text-[#e7b7ff]">
+                    Dream Gem Wallet
+                  </p>
+                  <h2 className="mt-4 text-3xl font-bold tracking-[-0.04em] text-white sm:text-4xl">
+                    Premium learning rewards
+                  </h2>
+                  <p className="mt-4 max-w-md text-sm leading-6 text-white/62">
+                    Earn DG through eligible class attendance and selected Core
+                    and Think Learning Missions. Redeem them for selected
+                    Dreamscape rewards.
+                  </p>
+                </div>
+
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-fuchsia-200/25 bg-fuchsia-300/10 text-[#e7b7ff] shadow-[0_0_24px_rgba(217,70,239,0.17)]">
+                  <GemIcon className="h-11 w-11" />
+                </div>
+              </div>
+
+              <div className="mt-9 rounded-3xl border border-fuchsia-200/16 bg-black/24 p-5">
+                <div className="flex items-end justify-between gap-5">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.18em] text-white/42">
+                      Current Balance
+                    </p>
+
+                    {isLoadingGems ? (
+                      <p className="mt-2 text-lg text-white/52">Loading...</p>
+                    ) : (
+                      <div className="mt-2 flex items-end gap-3">
+                        <span className="text-5xl font-extrabold leading-none text-white">
+                          {dreamGemBalance.toLocaleString()}
+                        </span>
+                        <span className="pb-2 text-sm font-bold tracking-[0.16em] text-[#e7b7ff]">
+                          DG
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <span className="rounded-full border border-fuchsia-200/22 bg-fuchsia-200/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-[#e7b7ff]">
+                    {hasStudentRewardsAccess
+                      ? "Rewards Active"
+                      : "Explore Rewards"}
+                  </span>
+                </div>
+
+                <div className="mt-5 border-t border-fuchsia-100/12 pt-5">
+                  <div className="flex items-center justify-between gap-4">
+                    <p className="text-xs uppercase tracking-[0.18em] text-white/42">
+                      Reward Access
+                    </p>
+                    <p
+                      className={`text-sm font-extrabold ${
+                        hasStudentRewardsAccess
+                          ? "text-green-200"
+                          : "text-[#e7b7ff]"
+                      }`}
+                    >
+                      {hasStudentRewardsAccess
+                        ? "Student rewards enabled"
+                        : "Student Access required to earn DG"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </button>
+
             <section className="rounded-[32px] border border-cyan-200/18 bg-[linear-gradient(180deg,rgba(12,48,83,0.52),rgba(4,20,48,0.82))] p-7 shadow-[0_0_42px_rgba(126,232,255,0.08),0_24px_70px_rgba(0,0,0,0.24)] backdrop-blur-xl sm:p-8">
               <div className="flex items-start justify-between gap-5">
                 <div>
                   <p className="m-0 text-xs font-bold uppercase tracking-[0.2em] text-[#7ee8ff]">
                     Tech Support
                   </p>
-
                   <h2 className="mt-4 text-3xl font-bold tracking-[-0.04em] text-white sm:text-4xl">
                     Need help?
                   </h2>
-
                   <p className="mt-4 max-w-md text-sm leading-6 text-white/62">
                     For technical difficulties, login issues, account problems,
                     or general enquiries, contact the Dreamscape team directly.
@@ -813,33 +1052,29 @@ Thank you.`;
                     <p className="text-xs uppercase tracking-[0.22em] text-[#ffd18a]">
                       Dream Token Wallet
                     </p>
-
                     <div className="mt-2 flex items-end gap-2">
                       <p className="text-4xl font-light leading-none text-white">
                         {dreamTokenBalance.toLocaleString()}
                       </p>
-
                       <p className="pb-1 text-sm font-semibold tracking-[0.16em] text-[#ffd18a]">
                         DT
                       </p>
                     </div>
-
                     <p className="mt-2 text-sm text-white/48">
-                      {physicalTokenBalance} physical Dream Tokens collected
+                      Digital currency for use inside Dreamscape only
                     </p>
                   </div>
                 </div>
               </div>
 
               <div className="min-h-0 overflow-y-auto px-6 py-5">
-                <div className="rounded-2xl border border-cyan-200/12 bg-white/[0.045] p-4">
+                <div className="rounded-2xl border border-yellow-200/12 bg-white/[0.045] p-4">
                   <h3 className="text-lg font-medium text-white">
                     Dream Token History
                   </h3>
-
                   <p className="mt-1 text-sm text-white/48">
-                    Track tokens earned from classes, items unlocked, and
-                    physical tokens collected.
+                    Track DT earned and spent across Dreamscape’s digital
+                    activities, upgrades, and virtual assets.
                   </p>
                 </div>
 
@@ -858,7 +1093,6 @@ Thank you.`;
                           <p className="font-medium text-white">
                             {transaction.title}
                           </p>
-
                           <p className="mt-1 text-sm text-white/42">
                             {formatTransactionDate(transaction.created_at)}
                           </p>
@@ -866,14 +1100,12 @@ Thank you.`;
 
                         <p
                           className={`shrink-0 font-bold ${
-                            transaction.type === "spend"
+                            transaction.amount < 0
                               ? "text-red-300"
-                              : transaction.type === "physical"
-                              ? "text-blue-300"
                               : "text-green-300"
                           }`}
                         >
-                          {formatTransactionAmount(transaction)}
+                          {formatTokenTransactionAmount(transaction)}
                         </p>
                       </div>
                     ))}
@@ -886,6 +1118,155 @@ Thank you.`;
                   type="button"
                   onClick={() => setShowTokenHistory(false)}
                   className="w-full rounded-full bg-white px-5 py-3 text-sm font-bold uppercase tracking-[0.12em] text-[#061632] transition hover:scale-[1.01]"
+                >
+                  Close Wallet
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showGemHistory && (
+        <div className="fixed inset-0 z-[110] flex items-start justify-center overflow-y-auto bg-[#020813]/82 px-4 py-8 backdrop-blur-md sm:py-10">
+          <div className="relative h-[82vh] w-full max-w-4xl overflow-hidden rounded-[30px] border border-fuchsia-200/32 bg-[#071022] shadow-[0_0_60px_rgba(217,70,239,0.14),0_30px_90px_rgba(0,0,0,0.58)]">
+            <button
+              type="button"
+              onClick={() => setShowGemHistory(false)}
+              className="absolute right-5 top-5 z-20 rounded-full border border-white/14 bg-white/[0.08] px-3 py-1 text-white transition hover:bg-white/[0.14]"
+            >
+              ✕
+            </button>
+
+            <div className="grid h-full grid-rows-[auto_1fr_auto]">
+              <div className="border-b border-fuchsia-100/12 bg-fuchsia-300/[0.04] px-6 py-5">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-fuchsia-200/24 bg-fuchsia-300/10 text-[#e7b7ff] shadow-[0_0_24px_rgba(217,70,239,0.16)]">
+                    <GemIcon className="h-11 w-11" />
+                  </div>
+
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.22em] text-[#e7b7ff]">
+                      Dream Gem Wallet
+                    </p>
+                    <div className="mt-2 flex items-end gap-2">
+                      <p className="text-4xl font-light leading-none text-white">
+                        {dreamGemBalance.toLocaleString()}
+                      </p>
+                      <p className="pb-1 text-sm font-semibold tracking-[0.16em] text-[#e7b7ff]">
+                        DG
+                      </p>
+                    </div>
+                    <p className="mt-2 text-sm text-white/48">
+                      Premium achievement rewards · Not exchangeable for cash
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="min-h-0 overflow-y-auto px-6 py-5">
+                <div className="rounded-2xl border border-fuchsia-200/14 bg-white/[0.045] p-4">
+                  <h3 className="text-lg font-medium text-white">
+                    Dream Gem History
+                  </h3>
+                  <p className="mt-1 text-sm leading-6 text-white/48">
+                    Dream Gems are earned from eligible class attendance and
+                    selected Core and Think Learning Missions. They may be
+                    redeemed for selected physical or digital Dreamscape
+                    rewards, subject to availability.
+                  </p>
+                </div>
+
+                {!hasStudentRewardsAccess && (
+                  <div className="mt-5 rounded-3xl border border-fuchsia-200/22 bg-[linear-gradient(145deg,rgba(92,38,130,0.42),rgba(19,22,58,0.72))] p-5 shadow-[0_0_30px_rgba(217,70,239,0.08)]">
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#e7b7ff]">
+                      Unlock Premium Rewards
+                    </p>
+                    <h4 className="mt-2 text-2xl font-bold tracking-[-0.03em] text-white">
+                      Get Student Access for Bigger Rewards
+                    </h4>
+                    <p className="mt-3 text-sm leading-6 text-white/60">
+                      Student Access unlocks eligible Dream Gem earning
+                      opportunities across selected paid learning activities.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        router.push("/nova/membership-portal")
+                      }
+                      className="mt-5 w-full rounded-full border border-fuchsia-100/30 bg-fuchsia-300/18 px-5 py-3 text-xs font-extrabold uppercase tracking-[0.12em] text-white transition hover:scale-[1.01] hover:bg-fuchsia-300/24"
+                    >
+                      Get Student Access for Bigger Rewards
+                    </button>
+                  </div>
+                )}
+
+                {hasStudentRewardsAccess && (
+                  <div className="mt-5 rounded-2xl border border-green-200/18 bg-green-400/[0.08] px-5 py-4">
+                    <p className="text-sm font-bold text-green-200">
+                      Student reward access is active on this account.
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-white/48">
+                      Core and Think reward rules will appear here after those
+                      mission pages are connected to the Dream Gem ledger.
+                    </p>
+                  </div>
+                )}
+
+                {gemTransactions.length === 0 ? (
+                  <p className="mt-6 rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-5 text-sm text-white/48">
+                    No Dream Gem activity yet. Your balance will remain at 0
+                    until an eligible reward or adjustment is recorded.
+                  </p>
+                ) : (
+                  <div className="mt-5 space-y-3">
+                    {gemTransactions.map((transaction) => {
+                      const isPositive = transaction.amount > 0;
+
+                      return (
+                        <div
+                          key={transaction.id}
+                          className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div className="min-w-0">
+                            <p className="font-medium text-white">
+                              {transaction.title}
+                            </p>
+                            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-white/42">
+                              <span>
+                                {formatTransactionDate(transaction.created_at)}
+                              </span>
+                              <span>{formatGemSource(transaction.source)}</span>
+                              <span>
+                                Balance after: {transaction.balance_after} DG
+                              </span>
+                            </div>
+                            {transaction.description && (
+                              <p className="mt-2 text-sm leading-6 text-white/50">
+                                {transaction.description}
+                              </p>
+                            )}
+                          </div>
+
+                          <p
+                            className={`shrink-0 text-lg font-extrabold ${
+                              isPositive ? "text-green-300" : "text-red-300"
+                            }`}
+                          >
+                            {formatGemTransactionAmount(transaction)}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t border-fuchsia-100/12 bg-fuchsia-300/[0.03] px-6 py-4">
+                <button
+                  type="button"
+                  onClick={() => setShowGemHistory(false)}
+                  className="w-full rounded-full bg-white px-5 py-3 text-sm font-bold uppercase tracking-[0.12em] text-[#111028] transition hover:scale-[1.01]"
                 >
                   Close Wallet
                 </button>
