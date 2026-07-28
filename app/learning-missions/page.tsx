@@ -12,6 +12,7 @@ type UserMissionAccess = {
   email: string | null;
   role: string | null;
   hasFullAccess: boolean;
+  hasStudentRewardsAccess: boolean;
 };
 
 type DreamTokenTransaction = {
@@ -20,6 +21,20 @@ type DreamTokenTransaction = {
   type: string | null;
   title: string | null;
   created_at: string | null;
+};
+
+type DreamGemTransaction = {
+  id: string;
+  amount: number;
+  type: string | null;
+  title: string | null;
+  source: string | null;
+  created_at: string | null;
+};
+
+type NovaSubscriptionRow = {
+  status: string | null;
+  access_until: string | null;
 };
 
 type StockRow = {
@@ -107,6 +122,44 @@ function formatDreamTokenTransactionDate(value: string | null) {
   }).format(date);
 }
 
+function formatDreamGemAmount(value: number) {
+  return `${Math.round(Number(value || 0)).toLocaleString("en-SG")} DG`;
+}
+
+function formatDreamGemSource(source: string | null) {
+  switch (source) {
+    case "class_attendance":
+      return "Class attendance";
+    case "core_mission":
+      return "Core Mission";
+    case "think_mission":
+      return "Think Mission";
+    case "redemption":
+      return "Reward redemption";
+    case "admin_adjustment":
+      return "Admin adjustment";
+    case "reversal":
+      return "Reversal";
+    default:
+      return "Dream Gem activity";
+  }
+}
+
+function hasActiveNovaSubscription(rows: NovaSubscriptionRow[]) {
+  const now = Date.now();
+
+  return rows.some((row) => {
+    if (String(row.status || "").trim().toLowerCase() !== "active") {
+      return false;
+    }
+
+    if (!row.access_until) return true;
+
+    const expiry = new Date(row.access_until).getTime();
+    return Number.isNaN(expiry) || expiry > now;
+  });
+}
+
 type MissionZone = {
   id: string;
   title: string;
@@ -164,7 +217,7 @@ const missionZones: MissionZone[] = [
     id: "core-missions",
     title: "Core Missions",
     description:
-      "Complete English and Math missions to prepare and upgrade Nova’s Skyforge Rover.",
+      "Complete English and Math missions to prepare Nova’s Skyforge Rover and earn eligible Dream Gem rewards.",
     accent: "#7ecbff",
     requiresRoleAccess: true,
     position: {
@@ -178,7 +231,7 @@ const missionZones: MissionZone[] = [
     id: "think-missions",
     title: "Think Missions",
     description:
-      "Train reasoning, logic, pattern spotting and HAP-style thinking in Nova’s strategy and gear area.",
+      "Train reasoning, logic, pattern spotting and HAP-style thinking while earning eligible Dream Gem rewards.",
     accent: "#60f0d0",
     requiresRoleAccess: true,
     position: {
@@ -206,7 +259,7 @@ const missionZones: MissionZone[] = [
     id: "progress-rewards",
     title: "Progress & Rewards",
     description:
-      "Review completed missions, score records, unlocked upgrades and Dreamscape Token rewards.",
+      "Review completed missions, score records, unlocked upgrades, Dream Tokens, and Dream Gem rewards.",
     accent: "#8dfcff",
     requiresRoleAccess: true,
     position: {
@@ -218,14 +271,20 @@ const missionZones: MissionZone[] = [
   },
 ];
 
-const WALKTHROUGH_STORAGE_KEY = "learning-missions-walkthrough-completed-v1";
+const WALKTHROUGH_STORAGE_KEY = "learning-missions-walkthrough-completed-v2";
 
 const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   {
     eyebrow: "Welcome",
     title: "Let me show you around the Mission Centre.",
     text:
-      "This is where you choose different challenges, prepare Nova’s equipment, earn Dreamscape Tokens, and review your progress. I’ll show you what each zone is for.",
+      "This is where you choose different challenges, prepare Nova’s equipment, earn rewards, and review your progress. I’ll show you what each zone is for.",
+  },
+  {
+    eyebrow: "Your Rewards",
+    title: "Look for both Dream Tokens and Dream Gems.",
+    text:
+      "Dream Tokens, or DT, are the standard currency used only inside Dreamscape. Dream Gems, or DG, are premium learning rewards earned through eligible paid activities. Core Missions and Think Missions can award DG to eligible Student Access users. Your Gem balance is shown beside Profile Assets at the top, and selected Gems can later be redeemed for tangible or premium rewards.",
   },
   {
     eyebrow: "Stop 1 of 5",
@@ -238,14 +297,14 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
     eyebrow: "Stop 2 of 5",
     title: "Build strong foundations in Core Missions.",
     text:
-      "Complete English and Math missions to prepare and upgrade Nova’s Skyforge Rover. Student, teacher, or admin access is required.",
+      "Complete English and Math missions to prepare and upgrade Nova’s Skyforge Rover. Eligible Student Access users can also earn Dream Gems here.",
     zoneId: "core-missions",
   },
   {
     eyebrow: "Stop 3 of 5",
     title: "Train your reasoning in Think Missions.",
     text:
-      "Practise logic, patterns, strategy, and HAP-style thinking while unlocking gear for Nova’s challenges.",
+      "Practise logic, patterns, strategy, and HAP-style thinking while unlocking gear and earning eligible Dream Gem rewards.",
     zoneId: "think-missions",
   },
   {
@@ -259,7 +318,7 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
     eyebrow: "Stop 5 of 5",
     title: "Track everything in Progress & Rewards.",
     text:
-      "Review completed missions, best scores, unlocked upgrades, and the Dreamscape Tokens you have earned.",
+      "Review completed missions, best scores, unlocked upgrades, Dream Tokens, and Dream Gem rewards.",
     zoneId: "progress-rewards",
   },
   {
@@ -284,6 +343,11 @@ export default function LearningMissionsPage() {
   const [tokenTransactions, setTokenTransactions] = useState<
     DreamTokenTransaction[]
   >([]);
+  const [dreamGemBalance, setDreamGemBalance] = useState(0);
+  const [dreamGemTransactions, setDreamGemTransactions] = useState<
+    DreamGemTransaction[]
+  >([]);
+  const [dreamGemsLoading, setDreamGemsLoading] = useState(true);
   const [profileAssetsLoading, setProfileAssetsLoading] = useState(true);
   const [lockedZoneMessage, setLockedZoneMessage] = useState("");
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
@@ -295,13 +359,17 @@ export default function LearningMissionsPage() {
       email: null,
       role: null,
       hasFullAccess: false,
+      hasStudentRewardsAccess: false,
     });
 
   useEffect(() => {
     let isMounted = true;
 
     async function loadUserAndAssets() {
-      if (isMounted) setProfileAssetsLoading(true);
+      if (isMounted) {
+        setProfileAssetsLoading(true);
+        setDreamGemsLoading(true);
+      }
 
       const {
         data: { user },
@@ -315,34 +383,72 @@ export default function LearningMissionsPage() {
           email: null,
           role: null,
           hasFullAccess: false,
+          hasStudentRewardsAccess: false,
         });
         setProfileAssets({ cash: 0, property: 0, stocks: 0 });
         setTokenTransactions([]);
+        setDreamGemBalance(0);
+        setDreamGemTransactions([]);
+        setDreamGemsLoading(false);
         setProfileAssetsLoading(false);
         return;
       }
 
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
+      const [profileResult, subscriptionResult] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("role,dream_gem_balance")
+          .eq("id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("nova_subscriptions")
+          .select("status,access_until")
+          .eq("user_id", user.id),
+      ]);
 
       if (!isMounted) return;
 
-      if (profileError) {
-        console.warn("Could not load user profile role:", profileError.message);
+      if (profileResult.error) {
+        console.warn(
+          "Could not load user profile and Dream Gem balance:",
+          profileResult.error.message,
+        );
       }
 
-      const role = profile?.role || null;
+      if (subscriptionResult.error) {
+        console.warn(
+          "Could not load Nova Student Access status:",
+          subscriptionResult.error.message,
+        );
+      }
+
+      const role = profileResult.data?.role || null;
+      const subscriptionRows = subscriptionResult.error
+        ? []
+        : ((subscriptionResult.data || []) as NovaSubscriptionRow[]);
+      const hasStudentRewardsAccess =
+        roleHasFullLearningAccess(role) ||
+        hasActiveNovaSubscription(subscriptionRows);
+
+      setDreamGemBalance(
+        profileResult.error
+          ? 0
+          : Math.max(
+              0,
+              Number(profileResult.data?.dream_gem_balance || 0),
+            ),
+      );
+
       setUserMissionAccess({
         userId: user.id,
         email: user.email ?? null,
         role,
-        hasFullAccess: roleHasFullLearningAccess(role),
+        hasFullAccess: hasStudentRewardsAccess,
+        hasStudentRewardsAccess,
       });
 
       const [
+        gemTransactionsResult,
         balanceResult,
         recentTransactionsResult,
         stocksResult,
@@ -350,6 +456,12 @@ export default function LearningMissionsPage() {
         propertiesResult,
         propertyHoldingsResult,
       ] = await Promise.all([
+        supabase
+          .from("dream_gem_transactions")
+          .select("id,amount,type,title,source,created_at")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(8),
         supabase
           .from("dream_token_transactions")
           .select("amount")
@@ -381,6 +493,27 @@ export default function LearningMissionsPage() {
       ]);
 
       if (!isMounted) return;
+
+      if (gemTransactionsResult.error) {
+        console.warn(
+          "Could not load Dream Gem transactions:",
+          gemTransactionsResult.error.message,
+        );
+        setDreamGemTransactions([]);
+      } else {
+        setDreamGemTransactions(
+          (gemTransactionsResult.data || []).map((transaction) => ({
+            id: String(transaction.id),
+            amount: Number(transaction.amount || 0),
+            type: transaction.type ? String(transaction.type) : null,
+            title: transaction.title ? String(transaction.title) : null,
+            source: transaction.source ? String(transaction.source) : null,
+            created_at: transaction.created_at
+              ? String(transaction.created_at)
+              : null,
+          })),
+        );
+      }
 
       const cashValue = balanceResult.error
         ? 0
@@ -464,6 +597,7 @@ export default function LearningMissionsPage() {
       }
 
       setProfileAssetsLoading(false);
+      setDreamGemsLoading(false);
     }
 
     loadUserAndAssets();
@@ -476,12 +610,14 @@ export default function LearningMissionsPage() {
 
     window.addEventListener("focus", loadUserAndAssets);
     window.addEventListener("dream-tokens-updated", loadUserAndAssets);
+    window.addEventListener("dream-gems-updated", loadUserAndAssets);
 
     return () => {
       isMounted = false;
       subscription.unsubscribe();
       window.removeEventListener("focus", loadUserAndAssets);
       window.removeEventListener("dream-tokens-updated", loadUserAndAssets);
+      window.removeEventListener("dream-gems-updated", loadUserAndAssets);
     };
   }, []);
 
@@ -632,6 +768,10 @@ export default function LearningMissionsPage() {
         userEmail={userMissionAccess.email}
         profileAssets={profileAssets}
         tokenTransactions={tokenTransactions}
+        dreamGemBalance={dreamGemBalance}
+        dreamGemTransactions={dreamGemTransactions}
+        dreamGemsLoading={dreamGemsLoading}
+        hasStudentRewardsAccess={userMissionAccess.hasStudentRewardsAccess}
         profileAssetsLoading={profileAssetsLoading}
         screenMode={screenMode}
         onStartWalkthrough={startWalkthrough}
@@ -695,7 +835,7 @@ export default function LearningMissionsPage() {
               }}
             >
               Choose one of five mission zones to train skills, prepare Nova’s gear and
-              earn Dreamscape Tokens.
+              earn Dream Tokens and eligible Dream Gems.
             </p>
 
             {lockedZoneMessage && (
@@ -813,7 +953,7 @@ export default function LearningMissionsPage() {
               }}
             >
               Choose one of five mission zones to train skills, prepare Nova’s gear and
-              earn Dreamscape Tokens.
+              earn Dream Tokens and eligible Dream Gems.
             </p>
 
             {lockedZoneMessage && (
@@ -871,6 +1011,10 @@ function FloatingMissionControls({
   userEmail,
   profileAssets,
   tokenTransactions,
+  dreamGemBalance,
+  dreamGemTransactions,
+  dreamGemsLoading,
+  hasStudentRewardsAccess,
   profileAssetsLoading,
   screenMode,
   onStartWalkthrough,
@@ -878,6 +1022,10 @@ function FloatingMissionControls({
   userEmail: string | null;
   profileAssets: ProfileAssetBreakdown;
   tokenTransactions: DreamTokenTransaction[];
+  dreamGemBalance: number;
+  dreamGemTransactions: DreamGemTransaction[];
+  dreamGemsLoading: boolean;
+  hasStudentRewardsAccess: boolean;
   profileAssetsLoading: boolean;
   screenMode: ScreenMode;
   onStartWalkthrough: () => void;
@@ -885,19 +1033,23 @@ function FloatingMissionControls({
   const isDesktop = screenMode === "desktop";
   const isMobile = screenMode === "mobile";
   const [profileAssetsOpen, setProfileAssetsOpen] = useState(false);
+  const [dreamGemsOpen, setDreamGemsOpen] = useState(false);
   const profileAssetsTotal =
     profileAssets.cash + profileAssets.property + profileAssets.stocks;
 
   useEffect(() => {
-    if (!profileAssetsOpen) return;
+    if (!profileAssetsOpen && !dreamGemsOpen) return;
 
     function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setProfileAssetsOpen(false);
+      if (event.key === "Escape") {
+        setProfileAssetsOpen(false);
+        setDreamGemsOpen(false);
+      }
     }
 
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [profileAssetsOpen]);
+  }, [profileAssetsOpen, dreamGemsOpen]);
 
   const guideButton = (
     <button
@@ -922,11 +1074,14 @@ function FloatingMissionControls({
 
   return (
     <>
-      {profileAssetsOpen && (
+      {(profileAssetsOpen || dreamGemsOpen) && (
         <button
           type="button"
-          aria-label="Close profile assets"
-          onClick={() => setProfileAssetsOpen(false)}
+          aria-label="Close account panels"
+          onClick={() => {
+            setProfileAssetsOpen(false);
+            setDreamGemsOpen(false);
+          }}
           style={{
             position: "fixed",
             inset: 0,
@@ -1028,7 +1183,10 @@ function FloatingMissionControls({
         <div style={{ position: "relative", zIndex: 82 }}>
           <button
             type="button"
-            onClick={() => setProfileAssetsOpen((current) => !current)}
+            onClick={() => {
+              setDreamGemsOpen(false);
+              setProfileAssetsOpen((current) => !current);
+            }}
             aria-expanded={profileAssetsOpen}
             aria-haspopup="menu"
             style={{
@@ -1364,6 +1522,382 @@ function FloatingMissionControls({
                           >
                             {isPositive ? "+" : ""}
                             {transaction.amount} DT
+                          </strong>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div style={{ position: "relative", zIndex: 83 }}>
+          <button
+            type="button"
+            onClick={() => {
+              setProfileAssetsOpen(false);
+              setDreamGemsOpen((current) => !current);
+            }}
+            aria-expanded={dreamGemsOpen}
+            aria-haspopup="menu"
+            style={{
+              height: isMobile ? "40px" : "46px",
+              padding: isMobile ? "0 9px" : "0 16px",
+              borderRadius: "999px",
+              border: "1px solid rgba(216,180,254,0.62)",
+              background:
+                "linear-gradient(145deg, rgba(50,22,88,0.82), rgba(13,8,35,0.88))",
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
+              color: "white",
+              display: "flex",
+              alignItems: "center",
+              gap: isMobile ? "6px" : "9px",
+              fontSize: isMobile ? "10px" : "14px",
+              letterSpacing: isMobile ? "0.02em" : "0.08em",
+              textTransform: "uppercase",
+              boxShadow: dreamGemsOpen
+                ? "0 16px 38px rgba(0,0,0,0.34), 0 0 30px rgba(192,132,252,0.32)"
+                : "0 16px 36px rgba(0,0,0,0.28), 0 0 22px rgba(192,132,252,0.2)",
+              whiteSpace: "nowrap",
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                width: isMobile ? "21px" : "25px",
+                height: isMobile ? "21px" : "25px",
+                borderRadius: "9px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background:
+                  "radial-gradient(circle, rgba(216,180,254,0.42), rgba(30,12,58,0.9))",
+                border: "1px solid rgba(216,180,254,0.72)",
+                color: "#f3e8ff",
+                fontSize: isMobile ? "12px" : "14px",
+                boxShadow: "0 0 14px rgba(192,132,252,0.38)",
+                flexShrink: 0,
+              }}
+            >
+              ◆
+            </span>
+            {!isMobile && <span>Dream Gems</span>}
+            <strong
+              style={{
+                color: "#e9d5ff",
+                fontSize: isMobile ? "11px" : "14px",
+                letterSpacing: "0.04em",
+              }}
+            >
+              {dreamGemsLoading
+                ? "..."
+                : formatDreamGemAmount(dreamGemBalance)}
+            </strong>
+            <span
+              aria-hidden="true"
+              style={{
+                color: "#e9d5ff",
+                fontSize: "13px",
+                transform: dreamGemsOpen ? "rotate(180deg)" : "rotate(0deg)",
+                transition: "transform 180ms ease",
+              }}
+            >
+              ▾
+            </span>
+          </button>
+
+          {dreamGemsOpen && (
+            <div
+              role="menu"
+              style={{
+                position: isMobile ? "fixed" : "absolute",
+                top: isMobile ? "108px" : "calc(100% + 10px)",
+                right: isMobile ? "12px" : 0,
+                width: isMobile ? "min(360px, calc(100vw - 24px))" : "390px",
+                maxHeight: "min(590px, calc(100dvh - 92px))",
+                overflowY: "auto",
+                overflowX: "hidden",
+                borderRadius: "20px",
+                border: "1px solid rgba(216,180,254,0.36)",
+                background:
+                  "linear-gradient(145deg, rgba(35,16,65,0.98), rgba(10,8,29,0.99))",
+                boxShadow:
+                  "0 28px 72px rgba(0,0,0,0.58), 0 0 32px rgba(192,132,252,0.17)",
+                backdropFilter: "blur(22px)",
+                WebkitBackdropFilter: "blur(22px)",
+                color: "white",
+              }}
+            >
+              <div
+                style={{
+                  padding: "18px",
+                  borderBottom: "1px solid rgba(216,180,254,0.16)",
+                }}
+              >
+                <p
+                  style={{
+                    margin: 0,
+                    color: "#e9d5ff",
+                    fontSize: "11px",
+                    letterSpacing: "0.16em",
+                    textTransform: "uppercase",
+                    fontWeight: 900,
+                  }}
+                >
+                  Dream Gem Wallet
+                </p>
+
+                <div
+                  style={{
+                    marginTop: "9px",
+                    display: "flex",
+                    alignItems: "end",
+                    justifyContent: "space-between",
+                    gap: "14px",
+                  }}
+                >
+                  <strong
+                    style={{
+                      fontSize: "34px",
+                      lineHeight: 1,
+                      letterSpacing: "-0.04em",
+                    }}
+                  >
+                    {dreamGemsLoading
+                      ? "Loading..."
+                      : formatDreamGemAmount(dreamGemBalance)}
+                  </strong>
+
+                  <Link
+                    href={userEmail ? "/profile" : "/login"}
+                    onClick={() => setDreamGemsOpen(false)}
+                    style={{
+                      color: "#f3e8ff",
+                      fontSize: "11px",
+                      fontWeight: 800,
+                      textDecoration: "none",
+                    }}
+                  >
+                    {userEmail ? "View wallet →" : "Log in →"}
+                  </Link>
+                </div>
+
+                <p
+                  style={{
+                    margin: "12px 0 0",
+                    color: "rgba(255,255,255,0.62)",
+                    fontSize: "12px",
+                    lineHeight: 1.55,
+                  }}
+                >
+                  Dream Gems are premium learning rewards earned through
+                  verified class attendance and eligible Core or Think
+                  Missions. They may be redeemed for selected tangible or
+                  premium rewards, but never exchanged for cash.
+                </p>
+              </div>
+
+              <div style={{ padding: "12px" }}>
+                {!userEmail ? (
+                  <Link
+                    href="/login"
+                    onClick={() => setDreamGemsOpen(false)}
+                    style={{
+                      minHeight: "52px",
+                      borderRadius: "14px",
+                      border: "1px solid rgba(216,180,254,0.3)",
+                      background: "rgba(192,132,252,0.1)",
+                      color: "white",
+                      textDecoration: "none",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "12px",
+                      fontWeight: 850,
+                    }}
+                  >
+                    Log in to view Dream Gems
+                  </Link>
+                ) : !hasStudentRewardsAccess ? (
+                  <div
+                    style={{
+                      borderRadius: "16px",
+                      border: "1px solid rgba(216,180,254,0.26)",
+                      background: "rgba(192,132,252,0.08)",
+                      padding: "16px",
+                    }}
+                  >
+                    <strong
+                      style={{
+                        display: "block",
+                        color: "white",
+                        fontSize: "14px",
+                      }}
+                    >
+                      Get Student Access for bigger rewards
+                    </strong>
+                    <p
+                      style={{
+                        margin: "7px 0 0",
+                        color: "rgba(255,255,255,0.6)",
+                        fontSize: "12px",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      Your Dream Gem wallet is ready and currently starts at 0.
+                      Student Access unlocks eligible Core and Think Missions
+                      that can award Dream Gems.
+                    </p>
+                    <Link
+                      href="/nova/membership-portal"
+                      onClick={() => setDreamGemsOpen(false)}
+                      style={{
+                        marginTop: "13px",
+                        minHeight: "46px",
+                        borderRadius: "13px",
+                        background:
+                          "linear-gradient(135deg, #c084fc, #7c3aed)",
+                        color: "white",
+                        textDecoration: "none",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: "0 14px",
+                        fontSize: "11px",
+                        fontWeight: 900,
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Get Student Access
+                    </Link>
+                  </div>
+                ) : null}
+
+                <p
+                  style={{
+                    margin: "16px 4px 10px",
+                    color: "rgba(255,255,255,0.48)",
+                    fontSize: "10px",
+                    letterSpacing: "0.13em",
+                    textTransform: "uppercase",
+                    fontWeight: 800,
+                  }}
+                >
+                  Latest Dream Gem activity
+                </p>
+
+                {dreamGemsLoading ? (
+                  <div
+                    style={{
+                      padding: "20px 14px",
+                      color: "rgba(255,255,255,0.58)",
+                      fontSize: "13px",
+                      textAlign: "center",
+                    }}
+                  >
+                    Loading Dream Gems...
+                  </div>
+                ) : dreamGemTransactions.length === 0 ? (
+                  <div
+                    style={{
+                      padding: "20px 14px",
+                      borderRadius: "14px",
+                      background: "rgba(255,255,255,0.035)",
+                      color: "rgba(255,255,255,0.58)",
+                      fontSize: "13px",
+                      lineHeight: 1.5,
+                      textAlign: "center",
+                    }}
+                  >
+                    No Dream Gem transactions yet.
+                  </div>
+                ) : (
+                  <div style={{ display: "grid", gap: "8px" }}>
+                    {dreamGemTransactions.map((transaction) => {
+                      const isPositive = transaction.amount >= 0;
+
+                      return (
+                        <div
+                          key={transaction.id}
+                          role="menuitem"
+                          style={{
+                            minHeight: "62px",
+                            borderRadius: "14px",
+                            border: "1px solid rgba(216,180,254,0.14)",
+                            background: "rgba(255,255,255,0.035)",
+                            display: "grid",
+                            gridTemplateColumns: "34px minmax(0, 1fr) auto",
+                            alignItems: "center",
+                            gap: "10px",
+                            padding: "10px 12px",
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: "32px",
+                              height: "32px",
+                              borderRadius: "11px",
+                              border: isPositive
+                                ? "1px solid rgba(167,139,250,0.5)"
+                                : "1px solid rgba(255,167,120,0.34)",
+                              background: isPositive
+                                ? "rgba(167,139,250,0.14)"
+                                : "rgba(255,138,92,0.1)",
+                              color: isPositive ? "#ddd6fe" : "#ffc0a0",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontWeight: 900,
+                            }}
+                          >
+                            {isPositive ? "◆" : "−"}
+                          </span>
+
+                          <span style={{ minWidth: 0 }}>
+                            <strong
+                              style={{
+                                display: "block",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                color: "white",
+                                fontSize: "12px",
+                              }}
+                            >
+                              {transaction.title || "Dream Gem activity"}
+                            </strong>
+                            <span
+                              style={{
+                                display: "block",
+                                marginTop: "4px",
+                                color: "rgba(255,255,255,0.43)",
+                                fontSize: "10px",
+                              }}
+                            >
+                              {formatDreamGemSource(transaction.source)}
+                              {transaction.created_at
+                                ? ` · ${formatDreamTokenTransactionDate(
+                                    transaction.created_at,
+                                  )}`
+                                : ""}
+                            </span>
+                          </span>
+
+                          <strong
+                            style={{
+                              color: isPositive ? "#ddd6fe" : "#ffc0a0",
+                              fontSize: "12px",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {isPositive ? "+" : ""}
+                            {transaction.amount} DG
                           </strong>
                         </div>
                       );
