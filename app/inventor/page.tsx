@@ -205,7 +205,7 @@ type WalkthroughStep = {
   zoneNumber?: string;
 };
 
-const WALKTHROUGH_STORAGE_KEY = "nova-world-walkthrough-completed-v2";
+const WALKTHROUGH_STORAGE_KEY = "nova-world-walkthrough-completed-v3";
 
 const zones: Zone[] = [
   {
@@ -245,49 +245,43 @@ const zones: Zone[] = [
 const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   {
     eyebrow: "Welcome",
-    title: "Let me show you around Nova’s World.",
-    text:
-      "Nova’s World is where you strengthen your thinking skills, complete learning missions, create new ideas, and unlock more learning experiences. I’ll show you where everything is.",
+    title: "Welcome to Nova’s World.",
+    text: "Choose a zone and start exploring.",
   },
   {
     eyebrow: "Your Rewards",
-    title: "Dream Tokens and Dream Gems work differently.",
+    title: "DT for play. DG for rewards.",
     text:
-      "Dream Tokens, or DT, are used only inside Dreamscape for virtual activities, upgrades, and assets. Dream Gems, or DG, are premium learning rewards earned through eligible paid activities such as class attendance, Core Missions, and Think Missions. Selected Dream Gems can later be redeemed for tangible or premium rewards. On a full screen, both balances appear at the top. On tablet or mobile, open the Menu beneath the Back button to view them.",
+      "Spend Dream Tokens inside Dreamscape. Earn Dream Gems from eligible classes and missions.",
   },
   {
     eyebrow: "Stop 1 of 4",
-    title: "Begin in the Thinking Skills Lab.",
-    text:
-      "Use puzzles and challenges here to train logic, patterns, problem-solving, and reasoning. It is a great first stop when you enter Nova’s World.",
+    title: "Train your thinking.",
+    text: "Play quick logic and reasoning challenges.",
     zoneNumber: "1",
   },
   {
     eyebrow: "Stop 2 of 4",
-    title: "Take on Learning Missions.",
-    text:
-      "Complete learning missions, progress through new challenges, and earn Dream Tokens. Eligible Student Access activities in Core and Think can also award Dream Gems.",
+    title: "Complete learning missions.",
+    text: "Build skills, earn DT, and collect eligible DG rewards.",
     zoneNumber: "2",
   },
   {
     eyebrow: "Stop 3 of 4",
-    title: "Create inside the Inventor Hub.",
-    text:
-      "Visit the Inventor Hub to customise creations, explore reward items, and discover Nova products and invention activities.",
+    title: "Create and redeem.",
+    text: "Explore inventions, products, and Dream Gem rewards.",
     zoneNumber: "3",
   },
   {
     eyebrow: "Stop 4 of 4",
-    title: "Check the Membership Portal.",
-    text:
-      "The Membership Portal explains your Nova’s World access level, available benefits, and how Student Access unlocks more learning activities and bigger Dream Gem rewards.",
+    title: "Manage your access.",
+    text: "View plans and unlock more learning activities.",
     zoneNumber: "4",
   },
   {
     eyebrow: "You’re ready",
-    title: "Start with the Thinking Skills Lab.",
-    text:
-      "Try a thinking challenge first, then continue into Learning Missions and the Inventor Hub. You can restart this walkthrough anytime using the Nova Guide button beneath Nova.",
+    title: "Choose a zone.",
+    text: "Tap Nova Guide whenever you need help.",
   },
 ];
 export default function NovaWorldPage() {
@@ -1057,8 +1051,8 @@ function FloatingControls({
         <div
           style={{
             position: "fixed",
-            top: isMobile ? "60px" : "76px",
-            left: isMobile ? "12px" : "18px",
+            top: isMobile ? "12px" : "18px",
+            right: isMobile ? "12px" : "18px",
             zIndex: 84,
           }}
         >
@@ -1082,6 +1076,7 @@ function FloatingControls({
               backdropFilter: "blur(16px)",
               WebkitBackdropFilter: "blur(16px)",
               color: "white",
+              display: "flex",
               alignItems: "center",
               gap: "9px",
               fontSize: isMobile ? "11px" : "13px",
@@ -1103,7 +1098,7 @@ function FloatingControls({
               style={{
                 position: "absolute",
                 top: "calc(100% + 9px)",
-                left: 0,
+                right: 0,
                 width: isMobile
                   ? "min(330px, calc(100vw - 24px))"
                   : "350px",
@@ -1121,26 +1116,6 @@ function FloatingControls({
                 color: "white",
               }}
             >
-              <Link
-                href={userEmail ? "/profile" : "/login"}
-                onClick={() => setCompactMenuOpen(false)}
-                style={compactMenuItemStyle}
-              >
-                <span aria-hidden="true">◎</span>
-                <span>{userEmail ? "My Account" : "Log In"}</span>
-                <span aria-hidden="true">›</span>
-              </Link>
-
-              <Link
-                href="/cart"
-                onClick={() => setCompactMenuOpen(false)}
-                style={compactMenuItemStyle}
-              >
-                <span aria-hidden="true">🛒</span>
-                <span>Cart</span>
-                <span aria-hidden="true">›</span>
-              </Link>
-
               <button
                 type="button"
                 onClick={() => {
@@ -1188,6 +1163,26 @@ function FloatingControls({
                     : formatDreamGemAmount(dreamGemBalance)}
                 </strong>
               </button>
+
+              <Link
+                href={userEmail ? "/profile" : "/login"}
+                onClick={() => setCompactMenuOpen(false)}
+                style={compactMenuItemStyle}
+              >
+                <span aria-hidden="true">◎</span>
+                <span>{userEmail ? "My Account" : "Log In"}</span>
+                <span aria-hidden="true">›</span>
+              </Link>
+
+              <Link
+                href="/cart"
+                onClick={() => setCompactMenuOpen(false)}
+                style={compactMenuItemStyle}
+              >
+                <span aria-hidden="true">🛒</span>
+                <span>Cart</span>
+                <span aria-hidden="true">›</span>
+              </Link>
             </div>
           )}
         </div>
@@ -1335,8 +1330,8 @@ function FloatingControls({
               style={{
                 position: isCompact ? "fixed" : "absolute",
                 top: isCompact ? (isMobile ? "112px" : "132px") : "calc(100% + 10px)",
-                right: isCompact ? "auto" : 0,
-                left: isCompact ? (isMobile ? "12px" : "18px") : "auto",
+                right: isCompact ? (isMobile ? "12px" : "18px") : 0,
+                left: "auto",
                 width: isCompact ? "min(380px, calc(100vw - 24px))" : "380px",
                 maxHeight: "min(560px, calc(100dvh - 92px))",
                 overflowY: "auto",
@@ -1692,8 +1687,8 @@ function FloatingControls({
               style={{
                 position: isCompact ? "fixed" : "absolute",
                 top: isCompact ? (isMobile ? "112px" : "132px") : "calc(100% + 10px)",
-                right: isCompact ? "auto" : 0,
-                left: isCompact ? (isMobile ? "12px" : "18px") : "auto",
+                right: isCompact ? (isMobile ? "12px" : "18px") : 0,
+                left: "auto",
                 width: isCompact ? "min(390px, calc(100vw - 24px))" : "390px",
                 maxHeight: "min(590px, calc(100dvh - 92px))",
                 overflowY: "auto",
