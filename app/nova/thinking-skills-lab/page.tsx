@@ -15,6 +15,8 @@ const NOVA_WORLD_HREF = "/inventor";
 const DAILY_LIMIT = 3;
 const CLUE_COST = 5;
 const COLOUR_MAX_ATTEMPTS = 15;
+const TOWER_MAX_ATTEMPTS = 5;
+const WALKTHROUGH_STORAGE_KEY = "thinking-skills-lab-walkthrough-v2";
 
 type GameId = "colour-code" | "set-finder" | "tower-memory";
 type ScreenMode = "desktop" | "tablet" | "mobile";
@@ -70,6 +72,19 @@ type ProfileAssetBreakdown = {
 type DreamTokenTransaction = {
   id: string;
   amount: number;
+  type: string | null;
+  title: string | null;
+  created_at: string | null;
+};
+
+
+type TokenAmountRow = {
+  amount: number | string | null;
+};
+
+type DreamTokenTransactionRow = {
+  id: string | number;
+  amount: number | string | null;
   type: string | null;
   title: string | null;
   created_at: string | null;
@@ -165,6 +180,68 @@ const GAME_DEFINITIONS: GameDefinition[] = [
     rewardText: "5 / 10 / 15 DT",
   },
 ];
+
+
+const GAME_INSTRUCTIONS: Record<
+  GameId,
+  { title: string; steps: string[]; note: string }
+> = {
+  "colour-code": {
+    title: "How to play Colour Code",
+    steps: [
+      "Choose four colours. Colours may repeat.",
+      "Green shows a colour in the correct position. Yellow shows a correct colour in the wrong position.",
+      "Use the clue history to narrow the code within 15 attempts.",
+    ],
+    note: "A position clue costs 5 DT. Solving one code rewards 20 DT.",
+  },
+  "set-finder": {
+    title: "How to play SET Finder",
+    steps: [
+      "Select three cards.",
+      "For colour, shape, number, and pattern, each feature must be either all the same or all different.",
+      "Find three correct SETs to complete the level.",
+    ],
+    note: "A one-card clue costs 5 DT. Completing one level rewards 20 DT.",
+  },
+  "tower-memory": {
+    title: "How to play Tower Memory",
+    steps: [
+      "Study the tower before the timer reaches zero.",
+      "Rebuild it from the bottom block upward.",
+      "You have five checking attempts. A paid review shows the tower again without clearing your answer.",
+    ],
+    note: "Showing the tower again costs 5 DT. Rewards are 5 DT, 10 DT, and 15 DT.",
+  },
+};
+
+const WALKTHROUGH_STEPS = [
+  {
+    eyebrow: "Welcome",
+    title: "Welcome to the Thinking Skills Lab.",
+    text: "I’m Nova. I’ll show you how to choose a game, find the rules, and earn Dream Tokens.",
+  },
+  {
+    eyebrow: "Step 1 of 4",
+    title: "Choose a game from the left.",
+    text: "The game tabs stay on the left of the screen. Your daily progress is shown on each tab.",
+  },
+  {
+    eyebrow: "Step 2 of 4",
+    title: "Tap the question mark for the rules.",
+    text: "Every game has a short instruction popup, so the play area stays clear and easy to use.",
+  },
+  {
+    eyebrow: "Step 3 of 4",
+    title: "Clues use Dream Tokens.",
+    text: "Colour Code and SET clues cost 5 DT. Showing a Tower Memory sequence again also costs 5 DT.",
+  },
+  {
+    eyebrow: "You’re ready",
+    title: "Complete three challenges in each game.",
+    text: "Your daily games reset at midnight Singapore time. Start with any game on the left.",
+  },
+] as const;
 
 const EMPTY_PROFILE_ASSETS: ProfileAssetBreakdown = {
   cash: 0,
@@ -358,11 +435,9 @@ function formatSupabaseError(error: unknown) {
 
 export default function ThinkingSkillsLabPage() {
   const screenMode = useResponsiveMode();
-  const isDesktop = screenMode === "desktop";
 
   const [selectedGame, setSelectedGame] =
     useState<GameId>("colour-code");
-  const [menuOpen, setMenuOpen] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [status, setStatus] = useState<LabStatus>(EMPTY_STATUS);
   const [profileAssets, setProfileAssets] =
@@ -375,6 +450,8 @@ export default function ThinkingSkillsLabPage() {
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
   const [gameVersion, setGameVersion] = useState(0);
+  const [walkthroughOpen, setWalkthroughOpen] = useState(false);
+  const [walkthroughStep, setWalkthroughStep] = useState(0);
 
   const countdown = useMidnightCountdown(status.activityDate);
   const activeGame =
@@ -477,7 +554,7 @@ export default function ThinkingSkillsLabPage() {
 
     const cashValue = balanceResult.error
       ? 0
-      : (balanceResult.data ?? []).reduce(
+      : ((balanceResult.data ?? []) as TokenAmountRow[]).reduce(
           (sum, row) => sum + Number(row.amount ?? 0),
           0
         );
@@ -497,7 +574,7 @@ export default function ThinkingSkillsLabPage() {
       setTokenTransactions([]);
     } else {
       setTokenTransactions(
-        (recentTransactionsResult.data ?? []).map((transaction) => ({
+        ((recentTransactionsResult.data ?? []) as DreamTokenTransactionRow[]).map((transaction) => ({
           id: String(transaction.id),
           amount: Number(transaction.amount ?? 0),
           type: transaction.type ? String(transaction.type) : null,
@@ -594,7 +671,7 @@ export default function ThinkingSkillsLabPage() {
           balanceResult.error.message
         );
       } else {
-        const cashValue = (balanceResult.data ?? []).reduce(
+        const cashValue = ((balanceResult.data ?? []) as TokenAmountRow[]).reduce(
           (sum, row) => sum + Number(row.amount ?? 0),
           0
         );
@@ -617,7 +694,7 @@ export default function ThinkingSkillsLabPage() {
         );
       } else {
         setTokenTransactions(
-          (recentTransactionsResult.data ?? []).map((transaction) => ({
+          ((recentTransactionsResult.data ?? []) as DreamTokenTransactionRow[]).map((transaction) => ({
             id: String(transaction.id),
             amount: Number(transaction.amount ?? 0),
             type: transaction.type ? String(transaction.type) : null,
@@ -683,10 +760,35 @@ export default function ThinkingSkillsLabPage() {
   }, [loadStatus, status.activityDate]);
 
   useEffect(() => {
-    setMenuOpen(false);
     setNotice("");
     setGameVersion((current) => current + 1);
   }, [selectedGame]);
+
+  useEffect(() => {
+    try {
+      if (!window.localStorage.getItem(WALKTHROUGH_STORAGE_KEY)) {
+        setWalkthroughStep(0);
+        setWalkthroughOpen(true);
+      }
+    } catch {
+      setWalkthroughStep(0);
+      setWalkthroughOpen(true);
+    }
+  }, []);
+
+  function startWalkthrough() {
+    setWalkthroughStep(0);
+    setWalkthroughOpen(true);
+  }
+
+  function closeWalkthrough() {
+    try {
+      window.localStorage.setItem(WALKTHROUGH_STORAGE_KEY, "true");
+    } catch {
+      // The walkthrough can still close when storage is unavailable.
+    }
+    setWalkthroughOpen(false);
+  }
 
   useEffect(() => {
     if (!profileAssetsOpen) return;
@@ -742,7 +844,11 @@ export default function ThinkingSkillsLabPage() {
       await refreshCashAndTransactions(userId);
       window.dispatchEvent(new Event("dream-tokens-updated"));
 
-      setNotice(`Clue revealed for ${result.clueCost} DT.`);
+      setNotice(
+        gameId === "tower-memory"
+          ? `Tower shown again for ${result.clueCost} DT.`
+          : `Clue revealed for ${result.clueCost} DT.`
+      );
       return result;
     },
     [refreshCashAndTransactions, userId]
@@ -833,18 +939,14 @@ export default function ThinkingSkillsLabPage() {
             <span className="round-button-label">Nova’s World</span>
           </Link>
 
-          {!isDesktop && (
-            <button
-              type="button"
-              className="round-button mobile-menu-button"
-              onClick={() => setMenuOpen((current) => !current)}
-              aria-expanded={menuOpen}
-              aria-controls="thinking-game-menu"
-            >
-              <span aria-hidden="true">☰</span>
-              <span className="round-button-label">Games</span>
-            </button>
-          )}
+          <button
+            type="button"
+            className="round-button guide-button"
+            onClick={startWalkthrough}
+          >
+            <span aria-hidden="true">✦</span>
+            <span className="round-button-label">Nova Guide</span>
+          </button>
         </div>
 
         <div className="topbar-stats">
@@ -986,44 +1088,17 @@ export default function ThinkingSkillsLabPage() {
         </div>
       </header>
 
-      <section className="hero">
-        <div>
-          <p className="eyebrow">Nova’s World</p>
-          <h1>Thinking Skills Lab</h1>
-          <p className="hero-copy">
-            Three quick thinking games, three fresh challenges per game,
-            every day.
-          </p>
-        </div>
-
-        <div className="reset-card">
-          <span>New daily games in</span>
-          <strong>{countdown}</strong>
-          <small>Midnight · Singapore time</small>
-        </div>
-      </section>
-
       <div className="lab-layout">
         <aside
           id="thinking-game-menu"
-          className={`game-sidebar ${menuOpen ? "is-open" : ""}`}
+          className="game-sidebar"
         >
           <div className="sidebar-heading">
             <div>
               <p className="sidebar-eyebrow">Choose a game</p>
               <h2>Daily Games</h2>
+              <span className="sidebar-reset">Reset {countdown}</span>
             </div>
-
-            {!isDesktop && (
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => setMenuOpen(false)}
-                aria-label="Close game menu"
-              >
-                ×
-              </button>
-            )}
           </div>
 
           <div className="game-list">
@@ -1038,6 +1113,7 @@ export default function ThinkingSkillsLabPage() {
                   className={`game-menu-card ${
                     selected ? "is-selected" : ""
                   }`}
+                  title={`${game.shortTitle} · ${gameStatus.completed}/3 complete`}
                   onClick={() => setSelectedGame(game.id)}
                   style={
                     {
@@ -1081,15 +1157,6 @@ export default function ThinkingSkillsLabPage() {
           </div>
         </aside>
 
-        {menuOpen && !isDesktop && (
-          <button
-            type="button"
-            className="menu-backdrop"
-            aria-label="Close game menu"
-            onClick={() => setMenuOpen(false)}
-          />
-        )}
-
         <section
           className="game-stage"
           style={
@@ -1110,11 +1177,10 @@ export default function ThinkingSkillsLabPage() {
               </div>
             </div>
 
-            <div className="stage-summary">
-              <p>{activeGame.description}</p>
+            <div className="stage-tools">
               <div className="stage-progress">
                 <span>
-                  Daily progress <strong>{activeStatus.completed}/3</strong>
+                  <strong>{activeStatus.completed}/3</strong> today
                 </span>
                 <div>
                   <i
@@ -1127,6 +1193,8 @@ export default function ThinkingSkillsLabPage() {
                   />
                 </div>
               </div>
+
+              <InstructionsButton gameId={selectedGame} />
             </div>
           </div>
 
@@ -1176,6 +1244,9 @@ export default function ThinkingSkillsLabPage() {
                     userId={userId}
                     activityDate={status.activityDate}
                     questionNumber={currentQuestion}
+                    cluesUsed={activeStatus.clues}
+                    tokenBalance={profileAssets.cash}
+                    onBuyClue={buyClue}
                     onComplete={completeQuestion}
                     onContinue={beginNextQuestion}
                   />
@@ -1193,932 +1264,535 @@ export default function ThinkingSkillsLabPage() {
         </section>
       </div>
 
+      <NovaWalkthrough
+        open={walkthroughOpen}
+        stepIndex={walkthroughStep}
+        screenMode={screenMode}
+        onStepChange={setWalkthroughStep}
+        onClose={closeWalkthrough}
+      />
+
       <style jsx>{`
-        :global(*) {
-          box-sizing: border-box;
-        }
-
-        :global(html) {
-          background: #040915;
-        }
-
-        :global(body) {
+        :global(*) { box-sizing: border-box; }
+        :global(html), :global(body) {
+          width: 100%;
+          height: 100%;
           margin: 0;
+          overflow: hidden;
           background: #040915;
         }
-
-        :global(button),
-        :global(a) {
-          -webkit-tap-highlight-color: transparent;
-        }
+        :global(button), :global(a) { -webkit-tap-highlight-color: transparent; }
 
         .lab-page {
           position: relative;
-          min-height: 100dvh;
-          overflow-x: hidden;
-          padding: 96px 28px 48px;
+          width: 100%;
+          height: 100dvh;
+          overflow: hidden;
+          padding-top: 66px;
           color: #f7fbff;
           background:
-            radial-gradient(
-              circle at 50% -10%,
-              rgba(57, 153, 255, 0.18),
-              transparent 36%
-            ),
+            radial-gradient(circle at 50% -10%, rgba(57,153,255,.18), transparent 36%),
             linear-gradient(180deg, #071225 0%, #050a15 52%, #03060d 100%);
-          font-family:
-            Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-            "Segoe UI", sans-serif;
+          font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         }
 
-        .lab-background {
-          position: fixed;
-          inset: 0;
-          z-index: 0;
-          overflow: hidden;
-          pointer-events: none;
-        }
-
-        .lab-glow {
-          position: absolute;
-          border-radius: 999px;
-          filter: blur(90px);
-          opacity: 0.26;
-        }
-
-        .lab-glow-one {
-          width: 420px;
-          height: 420px;
-          top: 14%;
-          right: -170px;
-          background: #2a8fff;
-        }
-
-        .lab-glow-two {
-          width: 360px;
-          height: 360px;
-          bottom: -130px;
-          left: 10%;
-          background: #8256ff;
-        }
-
+        .lab-background { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+        .lab-glow { position: absolute; border-radius: 999px; filter: blur(90px); opacity: .26; }
+        .lab-glow-one { width: 420px; height: 420px; top: 14%; right: -170px; background: #2a8fff; }
+        .lab-glow-two { width: 360px; height: 360px; bottom: -130px; left: 10%; background: #8256ff; }
         .lab-grid {
-          position: absolute;
-          inset: 0;
-          opacity: 0.12;
-          background-image:
-            linear-gradient(rgba(116, 202, 255, 0.22) 1px, transparent 1px),
-            linear-gradient(
-              90deg,
-              rgba(116, 202, 255, 0.22) 1px,
-              transparent 1px
-            );
+          position: absolute; inset: 0; opacity: .1;
+          background-image: linear-gradient(rgba(116,202,255,.22) 1px, transparent 1px), linear-gradient(90deg, rgba(116,202,255,.22) 1px, transparent 1px);
           background-size: 46px 46px;
-          mask-image: linear-gradient(
-            to bottom,
-            rgba(0, 0, 0, 0.7),
-            transparent 80%
-          );
+          mask-image: linear-gradient(to bottom, rgba(0,0,0,.7), transparent 80%);
         }
 
         .topbar {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          z-index: 80;
-          min-height: 72px;
-          padding: 14px 22px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 16px;
-          border-bottom: 1px solid rgba(134, 211, 255, 0.12);
-          background: rgba(4, 10, 22, 0.78);
-          backdrop-filter: blur(22px);
-          -webkit-backdrop-filter: blur(22px);
+          position: fixed; inset: 0 0 auto 0; z-index: 80; height: 66px; padding: 10px 16px;
+          display: flex; align-items: center; justify-content: space-between; gap: 12px;
+          border-bottom: 1px solid rgba(134,211,255,.12);
+          background: rgba(4,10,22,.86); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
         }
-
-        .topbar-left,
-        .topbar-stats {
-          display: flex;
-          align-items: center;
-          gap: 10px;
+        .topbar-left, .topbar-stats { display: flex; align-items: center; gap: 8px; min-width: 0; }
+        .assets-backdrop { position: fixed; inset: 0; z-index: 78; border: 0; background: transparent; }
+        .profile-assets-wrap { position: relative; z-index: 82; }
+        .round-button, .stat-pill {
+          min-height: 42px; border-radius: 999px; border: 1px solid rgba(130,210,255,.26);
+          background: rgba(12,31,57,.72); box-shadow: 0 12px 26px rgba(0,0,0,.22);
         }
-
-        .assets-backdrop {
-          position: fixed;
-          inset: 0;
-          z-index: 78;
-          appearance: none;
-          border: 0;
-          background: transparent;
-          cursor: default;
-        }
-
-        .profile-assets-wrap {
-          position: relative;
-          z-index: 82;
-        }
-
-        .round-button,
-        .stat-pill {
-          min-height: 42px;
-          border-radius: 999px;
-          border: 1px solid rgba(130, 210, 255, 0.26);
-          background: rgba(12, 31, 57, 0.72);
-          box-shadow: 0 12px 26px rgba(0, 0, 0, 0.22);
-        }
-
         .round-button {
-          padding: 0 16px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 9px;
-          color: white;
-          text-decoration: none;
-          font: inherit;
-          font-size: 13px;
-          font-weight: 750;
-          cursor: pointer;
+          padding: 0 15px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+          color: white; text-decoration: none; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer;
         }
-
-        .mobile-menu-button {
-          appearance: none;
-        }
-
-        .stat-pill {
-          min-width: 104px;
-          padding: 7px 14px;
-          display: grid;
-          grid-template-columns: 1fr auto;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .token-pill {
-          min-width: 210px;
-        }
-
-        .assets-button {
-          width: 100%;
-          appearance: none;
-          color: white;
-          font: inherit;
-          text-align: left;
-          cursor: pointer;
-        }
-
-        .assets-button strong {
-          display: inline-flex;
-          align-items: center;
-          gap: 7px;
-        }
-
-        .assets-chevron {
-          display: inline-block;
-          color: #8ee8ff;
-          font-size: 13px;
-          transition: transform 180ms ease;
-        }
-
-        .assets-chevron.is-open {
-          transform: rotate(180deg);
-        }
+        .guide-button { appearance: none; color: #d9f8ff; }
+        .stat-pill { min-width: 100px; padding: 6px 13px; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; }
+        .token-pill { min-width: 205px; }
+        .assets-button { width: 100%; appearance: none; color: white; font: inherit; text-align: left; cursor: pointer; }
+        .assets-button strong { display: inline-flex; align-items: center; gap: 6px; }
+        .assets-chevron { color: #8ee8ff; font-size: 12px; transition: transform 180ms ease; }
+        .assets-chevron.is-open { transform: rotate(180deg); }
+        .stat-label { color: rgba(232,245,255,.62); font-size: 9px; font-weight: 850; letter-spacing: .11em; text-transform: uppercase; }
+        .stat-pill strong { color: #8ee8ff; font-size: 14px; white-space: nowrap; }
 
         .assets-dropdown {
-          position: absolute;
-          top: calc(100% + 10px);
-          right: 0;
-          z-index: 90;
-          width: 380px;
-          max-height: min(560px, calc(100dvh - 92px));
-          overflow: hidden;
-          border-radius: 20px;
-          border: 1px solid rgba(126, 232, 255, 0.3);
-          background: linear-gradient(
-            145deg,
-            rgba(3, 20, 39, 0.98),
-            rgba(3, 10, 25, 0.99)
-          );
-          box-shadow:
-            0 28px 72px rgba(0, 0, 0, 0.56),
-            0 0 28px rgba(83, 215, 255, 0.12);
-          color: white;
-          backdrop-filter: blur(22px);
-          -webkit-backdrop-filter: blur(22px);
+          position: absolute; top: calc(100% + 8px); right: 0; z-index: 90; width: 380px;
+          max-height: min(560px, calc(100dvh - 80px)); overflow: hidden; border-radius: 20px;
+          border: 1px solid rgba(126,232,255,.3);
+          background: linear-gradient(145deg, rgba(3,20,39,.98), rgba(3,10,25,.99));
+          box-shadow: 0 28px 72px rgba(0,0,0,.56), 0 0 28px rgba(83,215,255,.12);
+          color: white; backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
         }
-
-        .assets-dropdown-heading {
-          padding: 17px 18px;
-          display: grid;
-          gap: 6px;
-          border-bottom: 1px solid rgba(126, 232, 255, 0.13);
+        .assets-dropdown-heading { padding: 16px 18px; display: grid; gap: 5px; border-bottom: 1px solid rgba(126,232,255,.13); }
+        .assets-dropdown-heading span { color: #8ee8ff; font-size: 10px; font-weight: 900; letter-spacing: .15em; text-transform: uppercase; }
+        .assets-dropdown-heading strong { color: white; font-size: 27px; line-height: 1; letter-spacing: -.04em; }
+        .assets-dropdown-scroll { max-height: min(476px, calc(100dvh - 160px)); padding: 11px; overflow-y: auto; overflow-x: hidden; }
+        .assets-list, .transactions-list { display: grid; gap: 8px; }
+        .assets-row, .transaction-row {
+          min-height: 54px; padding: 9px 11px; display: grid; grid-template-columns: 32px minmax(0,1fr) auto;
+          align-items: center; gap: 10px; border-radius: 14px; border: 1px solid rgba(126,232,255,.12); background: rgba(255,255,255,.035);
         }
-
-        .assets-dropdown-heading span {
-          color: #8ee8ff;
-          font-size: 10px;
-          font-weight: 900;
-          letter-spacing: 0.15em;
-          text-transform: uppercase;
+        .assets-row { color: white; font-size: 13px; font-weight: 750; }
+        .assets-row-icon, .transaction-sign {
+          width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 11px; font-weight: 900;
         }
-
-        .assets-dropdown-heading strong {
-          color: white;
-          font-size: 27px;
-          line-height: 1;
-          letter-spacing: -0.04em;
-        }
-
-        .assets-dropdown-scroll {
-          max-height: min(476px, calc(100dvh - 176px));
-          padding: 11px;
-          overflow-y: auto;
-          overflow-x: hidden;
-        }
-
-        .assets-list {
-          display: grid;
-          gap: 8px;
-        }
-
-        .assets-row {
-          min-height: 54px;
-          padding: 9px 11px;
-          display: grid;
-          grid-template-columns: 32px minmax(0, 1fr) auto;
-          align-items: center;
-          gap: 10px;
-          border-radius: 14px;
-          border: 1px solid rgba(126, 232, 255, 0.12);
-          background: rgba(255, 255, 255, 0.035);
-          color: white;
-          font-size: 13px;
-          font-weight: 750;
-        }
-
-        .assets-row-icon {
-          width: 32px;
-          height: 32px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 11px;
-          border: 1px solid rgba(83, 215, 255, 0.26);
-          background: rgba(83, 215, 255, 0.09);
-          color: #8ee8ff;
-          font-weight: 900;
-        }
-
-        .assets-row strong {
-          color: #9fffd2;
-          font-size: 12px;
-          white-space: nowrap;
-        }
-
-        .transactions-heading {
-          margin: 16px 4px 10px;
-          color: rgba(255, 255, 255, 0.48);
-          font-size: 10px;
-          font-weight: 800;
-          letter-spacing: 0.13em;
-          text-transform: uppercase;
-        }
-
-        .transactions-list {
-          display: grid;
-          gap: 8px;
-        }
-
-        .transactions-empty {
-          padding: 20px 14px;
-          border-radius: 14px;
-          background: rgba(255, 255, 255, 0.035);
-          color: rgba(255, 255, 255, 0.58);
-          font-size: 13px;
-          line-height: 1.5;
-          text-align: center;
-        }
-
-        .transaction-row {
-          min-height: 58px;
-          padding: 10px 12px;
-          display: grid;
-          grid-template-columns: 34px minmax(0, 1fr) auto;
-          align-items: center;
-          gap: 10px;
-          border-radius: 14px;
-          border: 1px solid rgba(126, 232, 255, 0.12);
-          background: rgba(255, 255, 255, 0.035);
-        }
-
-        .transaction-sign {
-          width: 32px;
-          height: 32px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 11px;
-          font-weight: 900;
-        }
-
-        .transaction-sign.is-positive {
-          border: 1px solid rgba(93, 255, 181, 0.34);
-          background: rgba(93, 255, 181, 0.1);
-          color: #9fffd2;
-        }
-
-        .transaction-sign.is-negative {
-          border: 1px solid rgba(255, 167, 120, 0.34);
-          background: rgba(255, 138, 92, 0.1);
-          color: #ffc0a0;
-        }
-
-        .transaction-copy {
-          min-width: 0;
-        }
-
-        .transaction-copy strong {
-          display: block;
-          overflow: hidden;
-          color: white;
-          font-size: 12px;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-        .transaction-copy small {
-          display: block;
-          margin-top: 4px;
-          color: rgba(255, 255, 255, 0.43);
-          font-size: 10px;
-        }
-
-        .transaction-amount {
-          font-size: 12px;
-          white-space: nowrap;
-        }
-
-        .transaction-amount.is-positive {
-          color: #9fffd2;
-        }
-
-        .transaction-amount.is-negative {
-          color: #ffc0a0;
-        }
-
-        .stat-label {
-          color: rgba(232, 245, 255, 0.62);
-          font-size: 10px;
-          font-weight: 800;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-        }
-
-        .stat-pill strong {
-          color: #8ee8ff;
-          font-size: 15px;
-          white-space: nowrap;
-        }
-
-        .hero,
-        .lab-layout {
-          position: relative;
-          z-index: 2;
-          width: min(1380px, 100%);
-          margin-left: auto;
-          margin-right: auto;
-        }
-
-        .hero {
-          padding: 34px 0 30px;
-          display: flex;
-          align-items: flex-end;
-          justify-content: space-between;
-          gap: 30px;
-        }
-
-        .eyebrow,
-        .sidebar-eyebrow,
-        .game-skill {
-          margin: 0;
-          color: #73dcff;
-          font-size: 11px;
-          font-weight: 850;
-          letter-spacing: 0.18em;
-          text-transform: uppercase;
-        }
-
-        .hero h1 {
-          margin: 8px 0 0;
-          font-family: Georgia, "Times New Roman", serif;
-          font-size: clamp(42px, 6vw, 74px);
-          font-weight: 400;
-          line-height: 0.98;
-          letter-spacing: -0.045em;
-        }
-
-        .hero-copy {
-          max-width: 730px;
-          margin: 18px 0 0;
-          color: rgba(235, 246, 255, 0.74);
-          font-size: clamp(16px, 2vw, 20px);
-          line-height: 1.55;
-        }
-
-        .reset-card {
-          min-width: 220px;
-          padding: 16px 18px;
-          display: grid;
-          gap: 4px;
-          border-radius: 19px;
-          border: 1px solid rgba(126, 219, 255, 0.18);
-          background: rgba(8, 25, 47, 0.68);
-          box-shadow: 0 18px 45px rgba(0, 0, 0, 0.24);
-        }
-
-        .reset-card span,
-        .reset-card small {
-          color: rgba(235, 247, 255, 0.52);
-          font-size: 10px;
-          font-weight: 800;
-          letter-spacing: 0.11em;
-          text-transform: uppercase;
-        }
-
-        .reset-card strong {
-          color: #8ee8ff;
-          font-size: 27px;
-          letter-spacing: 0.06em;
-        }
-
-        .reset-card small {
-          font-size: 9px;
-          letter-spacing: 0.05em;
-          text-transform: none;
-        }
+        .assets-row-icon { border: 1px solid rgba(83,215,255,.26); background: rgba(83,215,255,.09); color: #8ee8ff; }
+        .assets-row > strong { color: #9fffd2; font-size: 12px; white-space: nowrap; }
+        .transactions-heading { margin: 15px 4px 9px; color: rgba(255,255,255,.48); font-size: 10px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+        .transactions-empty { padding: 18px 12px; border-radius: 14px; background: rgba(255,255,255,.035); color: rgba(255,255,255,.58); font-size: 12px; text-align: center; }
+        .transaction-row { min-height: 58px; }
+        .transaction-sign.is-positive { border: 1px solid rgba(93,255,181,.34); background: rgba(93,255,181,.1); color: #9fffd2; }
+        .transaction-sign.is-negative { border: 1px solid rgba(255,167,120,.34); background: rgba(255,138,92,.1); color: #ffc0a0; }
+        .transaction-copy { min-width: 0; }
+        .transaction-copy strong { display: block; overflow: hidden; color: white; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+        .transaction-copy small { display: block; margin-top: 3px; color: rgba(255,255,255,.43); font-size: 10px; }
+        .transaction-amount { font-size: 12px; white-space: nowrap; }
+        .transaction-amount.is-positive { color: #9fffd2; }
+        .transaction-amount.is-negative { color: #ffc0a0; }
 
         .lab-layout {
-          display: grid;
-          grid-template-columns: 292px minmax(0, 1fr);
-          gap: 24px;
-          align-items: start;
+          position: relative; z-index: 2; width: 100%; height: calc(100dvh - 66px); padding: 10px;
+          display: grid; grid-template-columns: 250px minmax(0,1fr); gap: 10px; overflow: hidden;
         }
-
-        .game-sidebar,
-        .game-stage {
-          border: 1px solid rgba(126, 208, 255, 0.17);
-          background: rgba(6, 18, 36, 0.76);
-          backdrop-filter: blur(22px);
-          -webkit-backdrop-filter: blur(22px);
-          box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
+        .game-sidebar, .game-stage {
+          min-height: 0; border: 1px solid rgba(126,208,255,.17); background: rgba(6,18,36,.78);
+          backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); box-shadow: 0 22px 60px rgba(0,0,0,.3);
         }
-
-        .game-sidebar {
-          position: sticky;
-          top: 94px;
-          border-radius: 26px;
-          padding: 20px;
-        }
-
-        .sidebar-heading {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 14px;
-          padding: 2px 2px 16px;
-        }
-
-        .sidebar-heading h2 {
-          margin: 5px 0 0;
-          font-size: 23px;
-          letter-spacing: -0.03em;
-        }
-
-        .icon-button {
-          width: 38px;
-          height: 38px;
-          flex: 0 0 auto;
-          border-radius: 999px;
-          border: 1px solid rgba(137, 217, 255, 0.28);
-          background: rgba(255, 255, 255, 0.05);
-          color: white;
-          font-size: 24px;
-          cursor: pointer;
-        }
-
-        .game-list {
-          display: grid;
-          gap: 10px;
-        }
-
+        .game-sidebar { height: 100%; padding: 14px; border-radius: 22px; overflow: hidden; display: flex; flex-direction: column; }
+        .sidebar-heading { padding: 0 2px 12px; }
+        .sidebar-eyebrow, .game-skill { margin: 0; color: #73dcff; font-size: 9px; font-weight: 850; letter-spacing: .16em; text-transform: uppercase; }
+        .sidebar-heading h2 { margin: 4px 0 0; font-size: 20px; letter-spacing: -.03em; }
+        .sidebar-reset { display: block; margin-top: 5px; color: rgba(235,247,255,.45); font-size: 9px; font-weight: 800; }
+        .game-list { display: grid; gap: 8px; }
         .game-menu-card {
-          position: relative;
-          width: 100%;
-          min-height: 82px;
-          padding: 12px;
-          display: grid;
-          grid-template-columns: 44px 1fr auto;
-          align-items: center;
-          gap: 11px;
-          overflow: hidden;
-          appearance: none;
-          border-radius: 18px;
-          border: 1px solid rgba(134, 211, 255, 0.13);
-          background: rgba(255, 255, 255, 0.035);
-          color: white;
-          text-align: left;
-          cursor: pointer;
-          transition:
-            transform 180ms ease,
-            border-color 180ms ease,
-            background 180ms ease;
+          position: relative; width: 100%; min-height: 74px; padding: 10px; display: grid; grid-template-columns: 40px 1fr auto;
+          align-items: center; gap: 9px; appearance: none; border-radius: 16px; border: 1px solid rgba(134,211,255,.13);
+          background: rgba(255,255,255,.035); color: white; text-align: left; cursor: pointer;
+          transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
         }
-
-        .game-menu-card:hover {
-          transform: translateY(-2px);
-          border-color: color-mix(
-            in srgb,
-            var(--game-accent) 48%,
-            transparent
-          );
-          background: rgba(255, 255, 255, 0.06);
-        }
-
+        .game-menu-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--game-accent) 48%, transparent); }
         .game-menu-card.is-selected {
-          border-color: color-mix(
-            in srgb,
-            var(--game-accent) 65%,
-            transparent
-          );
-          background: color-mix(
-            in srgb,
-            var(--game-accent) 13%,
-            rgba(6, 18, 36, 0.9)
-          );
-          box-shadow: inset 3px 0 0 var(--game-accent);
+          border-color: color-mix(in srgb, var(--game-accent) 65%, transparent);
+          background: color-mix(in srgb, var(--game-accent) 13%, rgba(6,18,36,.9)); box-shadow: inset 3px 0 0 var(--game-accent);
         }
-
-        .game-menu-icon,
-        .active-game-icon {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 14px;
-          border: 1px solid
-            color-mix(in srgb, var(--game-accent) 45%, transparent);
-          background: color-mix(
-            in srgb,
-            var(--game-accent) 15%,
-            rgba(8, 20, 40, 0.92)
-          );
-          color: var(--game-accent);
-          box-shadow: 0 0 20px
-            color-mix(in srgb, var(--game-accent) 18%, transparent);
+        .game-menu-icon, .active-game-icon {
+          display: inline-flex; align-items: center; justify-content: center; border-radius: 13px;
+          border: 1px solid color-mix(in srgb, var(--game-accent) 45%, transparent);
+          background: color-mix(in srgb, var(--game-accent) 15%, rgba(8,20,40,.92)); color: var(--game-accent);
         }
+        .game-menu-icon { width: 40px; height: 40px; font-size: 20px; }
+        .game-menu-copy { min-width: 0; display: grid; gap: 3px; }
+        .game-menu-copy strong { font-size: 13px; }
+        .game-menu-copy small { color: rgba(235,246,255,.52); font-size: 9px; }
+        .mini-progress { width: 100%; height: 3px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.07); }
+        .mini-progress i { display: block; height: 100%; border-radius: inherit; background: var(--game-accent); }
+        .game-menu-count { min-width: 32px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: rgba(255,255,255,.055); color: rgba(240,248,255,.68); font-size: 9px; font-weight: 850; }
+        .sidebar-note { margin-top: auto; padding: 11px; display: grid; grid-template-columns: 18px 1fr; gap: 8px; border-radius: 14px; background: rgba(104,209,255,.07); color: rgba(231,246,255,.58); font-size: 10px; line-height: 1.45; }
+        .sidebar-note span { color: #7ce1ff; } .sidebar-note p { margin: 0; }
 
-        .game-menu-icon {
-          width: 44px;
-          height: 44px;
-          font-size: 22px;
-        }
-
-        .game-menu-copy {
-          min-width: 0;
-          display: grid;
-          gap: 4px;
-        }
-
-        .game-menu-copy strong {
-          font-size: 14px;
-        }
-
-        .game-menu-copy small {
-          color: rgba(235, 246, 255, 0.56);
-          font-size: 10px;
-        }
-
-        .mini-progress {
-          width: 100%;
-          height: 4px;
-          overflow: hidden;
-          border-radius: 999px;
-          background: rgba(255, 255, 255, 0.07);
-        }
-
-        .mini-progress i {
-          height: 100%;
-          display: block;
-          border-radius: inherit;
-          background: var(--game-accent);
-        }
-
-        .game-menu-count {
-          min-width: 34px;
-          height: 29px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 999px;
-          background: rgba(255, 255, 255, 0.055);
-          color: rgba(240, 248, 255, 0.68);
-          font-size: 10px;
-          font-weight: 850;
-        }
-
-        .sidebar-note {
-          margin-top: 18px;
-          padding: 14px;
-          display: grid;
-          grid-template-columns: 24px 1fr;
-          gap: 10px;
-          border-radius: 16px;
-          background: rgba(104, 209, 255, 0.07);
-          color: rgba(231, 246, 255, 0.66);
-          font-size: 12px;
-          line-height: 1.5;
-        }
-
-        .sidebar-note span {
-          color: #7ce1ff;
-        }
-
-        .sidebar-note p {
-          margin: 0;
-        }
-
-        .game-stage {
-          min-width: 0;
-          border-radius: 30px;
-          overflow: hidden;
-        }
-
+        .game-stage { height: 100%; min-width: 0; border-radius: 24px; overflow: hidden; display: flex; flex-direction: column; position: relative; }
         .game-stage-heading {
-          padding: 28px 30px 24px;
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(280px, 0.8fr);
-          align-items: end;
-          gap: 26px;
-          border-bottom: 1px solid rgba(126, 208, 255, 0.12);
-          background:
-            radial-gradient(
-              circle at 0% 0%,
-              color-mix(in srgb, var(--active-accent) 13%, transparent),
-              transparent 46%
-            ),
-            rgba(255, 255, 255, 0.018);
+          flex: 0 0 72px; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+          border-bottom: 1px solid rgba(126,208,255,.12);
+          background: radial-gradient(circle at 0 0, color-mix(in srgb, var(--active-accent) 13%, transparent), transparent 46%), rgba(255,255,255,.018);
         }
-
-        .game-title-row {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-        }
-
-        .active-game-icon {
-          --game-accent: var(--active-accent);
-          width: 58px;
-          height: 58px;
-          flex: 0 0 auto;
-          font-size: 28px;
-        }
-
-        .game-stage-heading h2 {
-          margin: 5px 0 0;
-          font-size: clamp(27px, 3vw, 39px);
-          letter-spacing: -0.045em;
-        }
-
-        .stage-summary > p {
-          margin: 0;
-          color: rgba(235, 246, 255, 0.67);
-          font-size: 14px;
-          line-height: 1.55;
-        }
-
-        .stage-progress {
-          margin-top: 13px;
-          display: grid;
-          gap: 6px;
-        }
-
-        .stage-progress span {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          color: rgba(235, 246, 255, 0.5);
-          font-size: 10px;
-          font-weight: 800;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-        }
-
-        .stage-progress span strong {
-          color: white;
-        }
-
-        .stage-progress > div {
-          height: 6px;
-          overflow: hidden;
-          border-radius: 999px;
-          background: rgba(255, 255, 255, 0.07);
-        }
-
-        .stage-progress i {
-          height: 100%;
-          display: block;
-          border-radius: inherit;
-          background: var(--active-accent);
-        }
-
-        .game-surface {
-          min-height: 610px;
-          padding: 28px 30px 32px;
-        }
-
+        .game-title-row { display: flex; align-items: center; gap: 11px; min-width: 0; }
+        .active-game-icon { --game-accent: var(--active-accent); width: 44px; height: 44px; flex: 0 0 auto; font-size: 22px; }
+        .game-stage-heading h2 { margin: 3px 0 0; font-size: clamp(20px, 2.3vw, 30px); letter-spacing: -.04em; white-space: nowrap; }
+        .stage-tools { display: flex; align-items: center; gap: 10px; }
+        .stage-progress { width: 150px; display: grid; gap: 5px; }
+        .stage-progress span { color: rgba(235,246,255,.5); font-size: 9px; font-weight: 800; text-transform: uppercase; text-align: right; }
+        .stage-progress span strong { color: white; }
+        .stage-progress > div { height: 5px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.07); }
+        .stage-progress i { display: block; height: 100%; border-radius: inherit; background: var(--active-accent); }
+        .game-surface { flex: 1 1 auto; min-height: 0; padding: 8px; overflow: hidden; }
         .save-message {
-          margin: 0 30px 26px;
-          padding: 12px 15px;
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          border-radius: 14px;
-          border: 1px solid rgba(111, 231, 177, 0.3);
-          background: rgba(55, 183, 126, 0.11);
-          color: #bdf8d9;
-          font-size: 13px;
-        }
-
-        .menu-backdrop {
-          display: none;
+          position: absolute; right: 12px; bottom: 10px; z-index: 25; max-width: min(420px, calc(100% - 24px));
+          padding: 9px 12px; display: flex; align-items: center; gap: 8px; border-radius: 12px;
+          border: 1px solid rgba(111,231,177,.3); background: rgba(12,55,43,.94); color: #bdf8d9; font-size: 11px; box-shadow: 0 14px 36px rgba(0,0,0,.35);
         }
 
         @media (max-width: 1120px) {
-          .lab-page {
-            padding-left: 20px;
-            padding-right: 20px;
-          }
-
-          .lab-layout {
-            grid-template-columns: 1fr;
-          }
-
-          .game-sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            bottom: 0;
-            z-index: 120;
-            width: min(340px, 88vw);
-            border-radius: 0 26px 26px 0;
-            padding: 88px 20px 24px;
-            overflow-y: auto;
-            transform: translateX(-105%);
-            transition: transform 220ms ease;
-          }
-
-          .game-sidebar.is-open {
-            transform: translateX(0);
-          }
-
-          .menu-backdrop {
-            position: fixed;
-            inset: 0;
-            z-index: 110;
-            display: block;
-            appearance: none;
-            border: 0;
-            background: rgba(0, 4, 12, 0.68);
-            backdrop-filter: blur(5px);
-          }
+          .lab-layout { grid-template-columns: 190px minmax(0,1fr); }
+          .game-sidebar { padding: 10px; }
+          .game-menu-card { min-height: 68px; grid-template-columns: 38px 1fr; }
+          .game-menu-count { position: absolute; right: 7px; top: 6px; min-width: 26px; height: 22px; }
+          .game-menu-icon { width: 38px; height: 38px; }
+          .sidebar-note { font-size: 9px; }
         }
 
-        @media (max-width: 760px) {
-          .lab-page {
-            padding: 122px 12px 28px;
-          }
+        @media (max-width: 720px) {
+          .lab-page { padding-top: 58px; }
+          .topbar { height: 58px; padding: 8px 7px; gap: 5px; }
+          .topbar-left, .topbar-stats { gap: 5px; }
+          .round-button { width: 40px; min-height: 40px; padding: 0; }
+          .round-button-label { display: none; }
+          .stat-pill { min-width: 56px; min-height: 40px; padding: 5px 8px; grid-template-columns: 1fr; gap: 0; text-align: center; }
+          .token-pill { min-width: 126px; grid-template-columns: 1fr; }
+          .token-pill .stat-label { display: none; }
+          .stat-label { font-size: 7px; }
+          .stat-pill strong { font-size: 11px; }
+          .assets-dropdown { position: fixed; top: 60px; right: 7px; left: 7px; width: auto; max-height: calc(100dvh - 67px); }
+          .assets-dropdown-scroll { max-height: calc(100dvh - 145px); }
 
-          .topbar {
-            min-height: 108px;
-            padding: 10px 12px;
-            align-items: flex-start;
-            flex-wrap: wrap;
-          }
+          .lab-layout { height: calc(100dvh - 58px); padding: 5px; grid-template-columns: 58px minmax(0,1fr); gap: 5px; }
+          .game-sidebar { padding: 5px; border-radius: 16px; }
+          .sidebar-heading, .sidebar-note { display: none; }
+          .game-list { gap: 6px; }
+          .game-menu-card { min-height: 64px; padding: 6px; display: flex; align-items: center; justify-content: center; border-radius: 13px; }
+          .game-menu-copy { display: none; }
+          .game-menu-icon { width: 42px; height: 42px; border-radius: 12px; font-size: 20px; }
+          .game-menu-count { right: 1px; top: 1px; min-width: 22px; height: 19px; padding: 0 4px; font-size: 7px; background: rgba(3,11,24,.95); }
 
-          .topbar-left,
-          .topbar-stats {
-            width: 100%;
-            justify-content: space-between;
-          }
-
-          .topbar-stats {
-            gap: 8px;
-          }
-
-          .stat-pill {
-            width: 50%;
-            min-width: 0;
-            min-height: 36px;
-            padding: 5px 10px;
-          }
-
-          .profile-assets-wrap {
-            width: 50%;
-          }
-
-          .token-pill {
-            width: 100%;
-            min-width: 0;
-          }
-
-          .assets-dropdown {
-            position: fixed;
-            top: 112px;
-            right: 12px;
-            left: 12px;
-            width: auto;
-            max-height: calc(100dvh - 124px);
-          }
-
-          .assets-dropdown-scroll {
-            max-height: calc(100dvh - 208px);
-          }
-
-          .round-button {
-            min-height: 40px;
-            padding: 0 13px;
-            font-size: 12px;
-          }
-
-          .hero {
-            padding: 22px 6px;
-            align-items: stretch;
-            flex-direction: column;
-          }
-
-          .hero h1 {
-            font-size: clamp(40px, 13vw, 58px);
-          }
-
-          .hero-copy {
-            margin-top: 13px;
-            font-size: 15px;
-          }
-
-          .reset-card {
-            min-width: 0;
-          }
-
-          .game-stage {
-            border-radius: 22px;
-          }
-
-          .game-stage-heading {
-            padding: 20px 18px;
-            grid-template-columns: 1fr;
-            gap: 14px;
-          }
-
-          .active-game-icon {
-            width: 50px;
-            height: 50px;
-          }
-
-          .game-stage-heading h2 {
-            font-size: 29px;
-          }
-
-          .game-surface {
-            min-height: 0;
-            padding: 18px 12px 22px;
-          }
-
-          .save-message {
-            margin: 0 14px 18px;
-          }
+          .game-stage { border-radius: 16px; }
+          .game-stage-heading { flex-basis: 56px; padding: 7px 8px; gap: 6px; }
+          .active-game-icon { width: 36px; height: 36px; border-radius: 10px; font-size: 18px; }
+          .game-skill { display: none; }
+          .game-stage-heading h2 { margin: 0; font-size: clamp(14px, 4.4vw, 19px); }
+          .stage-tools { gap: 6px; }
+          .stage-progress { width: 62px; }
+          .stage-progress span { font-size: 7px; }
+          .game-surface { padding: 5px; }
+          .save-message { right: 7px; bottom: 7px; font-size: 10px; }
         }
 
-        @media (max-width: 430px) {
-          .round-button-label {
-            display: none;
-          }
-
-          .round-button {
-            width: 42px;
-            padding: 0;
-          }
-
-          .stat-label {
-            font-size: 8px;
-          }
-
-          .stat-pill strong {
-            font-size: 12px;
-          }
+        @media (max-width: 390px) {
+          .token-pill { min-width: 112px; }
+          .stat-pill { min-width: 48px; padding-left: 5px; padding-right: 5px; }
+          .lab-layout { grid-template-columns: 54px minmax(0,1fr); }
+          .game-sidebar { padding: 4px; }
+          .game-menu-icon { width: 39px; height: 39px; }
+          .stage-progress { width: 54px; }
         }
       `}</style>
     </main>
+  );
+}
+
+
+function InstructionsButton({ gameId }: { gameId: GameId }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const instructions = GAME_INSTRUCTIONS[gameId];
+
+  useEffect(() => {
+    if (!open) return;
+
+    function closeOutside(event: MouseEvent | TouchEvent) {
+      const target = event.target;
+      if (target instanceof Node && !wrapRef.current?.contains(target)) {
+        setOpen(false);
+      }
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+
+    document.addEventListener("mousedown", closeOutside);
+    document.addEventListener("touchstart", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", closeOutside);
+      document.removeEventListener("touchstart", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  return (
+    <div
+      ref={wrapRef}
+      className="instructions-wrap"
+      onPointerEnter={(event: { pointerType: string }) => {
+        if (event.pointerType === "mouse") setOpen(true);
+      }}
+      onPointerLeave={(event: { pointerType: string }) => {
+        if (event.pointerType === "mouse") setOpen(false);
+      }}
+    >
+      <button
+        type="button"
+        className="instructions-button"
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+        aria-label={`Open ${instructions.title}`}
+      >
+        ?
+      </button>
+
+      {open && (
+        <div className="instructions-popup" role="dialog" aria-label={instructions.title}>
+          <p>Instructions</p>
+          <h3>{instructions.title}</h3>
+          <ol>
+            {instructions.steps.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+          <div>{instructions.note}</div>
+        </div>
+      )}
+
+      <style jsx>{`
+        .instructions-wrap { position: relative; z-index: 50; }
+        .instructions-button {
+          width: 38px;
+          height: 38px;
+          border-radius: 999px;
+          border: 1px solid rgba(137, 217, 255, 0.36);
+          background: rgba(255, 255, 255, 0.055);
+          color: #c9f5ff;
+          font: inherit;
+          font-size: 18px;
+          font-weight: 900;
+          cursor: pointer;
+          box-shadow: 0 0 18px rgba(83, 215, 255, 0.12);
+        }
+        .instructions-popup {
+          position: absolute;
+          top: calc(100% + 8px);
+          right: 0;
+          width: min(350px, calc(100vw - 90px));
+          padding: 16px;
+          border-radius: 17px;
+          border: 1px solid rgba(126, 224, 255, 0.28);
+          background: linear-gradient(145deg, rgba(3, 20, 39, 0.99), rgba(3, 10, 25, 0.99));
+          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+          color: white;
+        }
+        .instructions-popup > p {
+          margin: 0;
+          color: #8ee8ff;
+          font-size: 9px;
+          font-weight: 900;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+        }
+        .instructions-popup h3 { margin: 5px 0 0; font-size: 19px; }
+        .instructions-popup ol {
+          margin: 12px 0 0;
+          padding-left: 20px;
+          display: grid;
+          gap: 8px;
+          color: rgba(241, 249, 255, 0.72);
+          font-size: 10px;
+          line-height: 1.45;
+        }
+        .instructions-popup > div {
+          margin-top: 12px;
+          padding: 10px 11px;
+          border-radius: 12px;
+          background: rgba(255, 211, 110, 0.08);
+          color: #ffe39a;
+          font-size: 11px;
+          line-height: 1.4;
+        }
+        @media (max-width: 720px) {
+          .instructions-button { width: 34px; height: 34px; font-size: 16px; }
+          .instructions-popup {
+            position: fixed;
+            top: 64px;
+            right: 7px;
+            width: min(330px, calc(100vw - 76px));
+            padding: 14px;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function NovaWalkthrough({
+  open,
+  stepIndex,
+  screenMode,
+  onStepChange,
+  onClose,
+}: {
+  open: boolean;
+  stepIndex: number;
+  screenMode: ScreenMode;
+  onStepChange: (step: number) => void;
+  onClose: () => void;
+}) {
+  const step = WALKTHROUGH_STEPS[stepIndex] ?? WALKTHROUGH_STEPS[0];
+  const isMobile = screenMode === "mobile";
+  const isFirst = stepIndex === 0;
+  const isLast = stepIndex === WALKTHROUGH_STEPS.length - 1;
+
+  useEffect(() => {
+    if (!open) return;
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <>
+      <div className="walkthrough-backdrop" aria-hidden="true" />
+      <section className="walkthrough" role="dialog" aria-modal="true" aria-label="Nova guided walkthrough">
+        <button type="button" className="walkthrough-close" onClick={onClose} aria-label="Close walkthrough">
+          ×
+        </button>
+
+        <img src="/nova/nova-character.png" alt="Nova" />
+
+        <div className="walkthrough-copy">
+          <p>{step.eyebrow}</p>
+          <h2>{step.title}</h2>
+          <span>{step.text}</span>
+
+          <div className="walkthrough-footer">
+            <div className="walkthrough-dots" aria-label={`Step ${stepIndex + 1} of ${WALKTHROUGH_STEPS.length}`}>
+              {WALKTHROUGH_STEPS.map((_, index) => (
+                <i key={index} className={index === stepIndex ? "is-active" : ""} />
+              ))}
+            </div>
+
+            <div className="walkthrough-actions">
+              {!isFirst && (
+                <button type="button" onClick={() => onStepChange(stepIndex - 1)}>
+                  Back
+                </button>
+              )}
+              <button
+                type="button"
+                className="walkthrough-next"
+                onClick={() => (isLast ? onClose() : onStepChange(stepIndex + 1))}
+              >
+                {isLast ? "Start Playing" : "Next"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <style jsx>{`
+        .walkthrough-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 130;
+          background: rgba(0, 4, 14, 0.74);
+          backdrop-filter: blur(4px);
+        }
+        .walkthrough {
+          position: fixed;
+          left: ${isMobile ? "8px" : "28px"};
+          right: ${isMobile ? "8px" : "auto"};
+          bottom: ${isMobile ? "8px" : "24px"};
+          z-index: 140;
+          width: ${isMobile ? "auto" : "min(560px, calc(100vw - 56px))"};
+          min-height: ${isMobile ? "230px" : "260px"};
+          padding: ${isMobile ? "18px 16px 16px 118px" : "24px 26px 22px 195px"};
+          border-radius: 24px;
+          border: 1px solid rgba(142, 232, 255, 0.42);
+          background: linear-gradient(145deg, rgba(4, 21, 47, 0.99), rgba(3, 9, 24, 0.99));
+          box-shadow: 0 32px 90px rgba(0, 0, 0, 0.68), 0 0 40px rgba(83, 215, 255, 0.14);
+          color: white;
+        }
+        .walkthrough > img {
+          position: absolute;
+          left: ${isMobile ? "-2px" : "5px"};
+          bottom: -7px;
+          height: ${isMobile ? "185px" : "255px"};
+          width: auto;
+          pointer-events: none;
+          filter: drop-shadow(0 18px 36px rgba(0, 0, 0, 0.5));
+        }
+        .walkthrough-close {
+          position: absolute;
+          top: 12px;
+          right: 12px;
+          width: 34px;
+          height: 34px;
+          border-radius: 999px;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          background: rgba(255, 255, 255, 0.07);
+          color: white;
+          font-size: 20px;
+          cursor: pointer;
+        }
+        .walkthrough-copy > p {
+          margin: 0;
+          color: #8ee8ff;
+          font-size: 9px;
+          font-weight: 900;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+        }
+        .walkthrough-copy h2 {
+          margin: 7px 34px 0 0;
+          font-family: Georgia, "Times New Roman", serif;
+          font-size: ${isMobile ? "24px" : "33px"};
+          line-height: 1.08;
+          font-weight: 500;
+        }
+        .walkthrough-copy > span {
+          display: block;
+          margin-top: 12px;
+          color: rgba(255, 255, 255, 0.74);
+          font-size: ${isMobile ? "12px" : "14px"};
+          line-height: 1.5;
+        }
+        .walkthrough-footer {
+          margin-top: 17px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+        }
+        .walkthrough-dots { display: flex; gap: 5px; }
+        .walkthrough-dots i { width: 7px; height: 7px; border-radius: 999px; background: rgba(255, 255, 255, 0.18); }
+        .walkthrough-dots i.is-active { width: 20px; background: #8ee8ff; }
+        .walkthrough-actions { display: flex; gap: 7px; }
+        .walkthrough-actions button {
+          min-height: 38px;
+          padding: 0 13px;
+          border-radius: 11px;
+          border: 1px solid rgba(255, 255, 255, 0.16);
+          background: rgba(255, 255, 255, 0.055);
+          color: white;
+          font: inherit;
+          font-size: 11px;
+          font-weight: 800;
+          cursor: pointer;
+        }
+        .walkthrough-actions .walkthrough-next {
+          border-color: rgba(83, 215, 255, 0.4);
+          background: rgba(83, 215, 255, 0.15);
+        }
+        @media (max-width: 390px) {
+          .walkthrough { padding-left: 104px; min-height: 220px; }
+          .walkthrough > img { height: 168px; left: -8px; }
+          .walkthrough-copy h2 { font-size: 21px; }
+          .walkthrough-footer { align-items: flex-end; flex-direction: column; }
+        }
+      `}</style>
+    </>
   );
 }
 
@@ -2136,7 +1810,11 @@ function GamePanel({
 
       <style jsx>{`
         .game-panel {
-          min-height: 550px;
+          width: 100%;
+          height: 100%;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
           border-radius: 24px;
           border: 1px solid rgba(137, 215, 255, 0.13);
           background:
@@ -2150,27 +1828,30 @@ function GamePanel({
         }
 
         .game-panel-top {
-          padding: 15px 18px;
+          flex: 0 0 auto;
+          padding: 8px 12px;
           border-bottom: 1px solid rgba(137, 215, 255, 0.1);
           background: rgba(255, 255, 255, 0.025);
         }
 
         .game-panel-body {
-          padding: 24px;
+          flex: 1 1 auto;
+          min-height: 0;
+          padding: 10px;
+          overflow: hidden;
         }
 
         @media (max-width: 760px) {
           .game-panel {
-            min-height: 0;
-            border-radius: 19px;
+            border-radius: 12px;
           }
 
           .game-panel-top {
-            padding: 12px 13px;
+            padding: 6px 8px;
           }
 
           .game-panel-body {
-            padding: 16px 11px;
+            padding: 6px;
           }
         }
       `}</style>
@@ -2197,8 +1878,8 @@ function InstructionBar({
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 12px;
-          flex-wrap: wrap;
+          gap: 8px;
+          flex-wrap: nowrap;
         }
 
         .instruction-item {
@@ -2206,7 +1887,7 @@ function InstructionBar({
           align-items: center;
           gap: 8px;
           color: rgba(235, 247, 255, 0.62);
-          font-size: 10px;
+          font-size: 8px;
           font-weight: 750;
           letter-spacing: 0.08em;
           text-transform: uppercase;
@@ -2243,14 +1924,14 @@ function PrimaryButton({
 
       <style jsx>{`
         .primary-button {
-          min-height: 48px;
-          padding: 0 20px;
+          min-height: 40px;
+          padding: 0 15px;
           border-radius: 15px;
           border: 1px solid rgba(153, 230, 255, 0.46);
           background: linear-gradient(135deg, #2fbcf4, #596dff);
           color: white;
           font: inherit;
-          font-size: 14px;
+          font-size: 11px;
           font-weight: 850;
           cursor: pointer;
           box-shadow: 0 14px 28px rgba(42, 135, 255, 0.25);
@@ -2321,8 +2002,10 @@ function RewardResult({
 
       <style jsx>{`
         .result-card {
-          min-height: 460px;
-          padding: 38px 24px;
+          width: 100%;
+          height: 100%;
+          min-height: 0;
+          padding: 18px 16px;
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -2331,8 +2014,8 @@ function RewardResult({
         }
 
         .result-star {
-          width: 58px;
-          height: 58px;
+          width: 48px;
+          height: 48px;
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -2340,12 +2023,12 @@ function RewardResult({
           border: 1px solid rgba(126, 224, 255, 0.38);
           background: rgba(89, 182, 255, 0.12);
           color: #83e5ff;
-          font-size: 27px;
+          font-size: 22px;
           box-shadow: 0 0 34px rgba(85, 201, 255, 0.18);
         }
 
         .result-card > p:first-of-type {
-          margin: 17px 0 0;
+          margin: 10px 0 0;
           color: #79defc;
           font-size: 11px;
           font-weight: 900;
@@ -2360,14 +2043,14 @@ function RewardResult({
         }
 
         .reward-row {
-          margin-top: 24px;
+          margin-top: 14px;
           display: grid;
           grid-template-columns: repeat(2, minmax(130px, 1fr));
           gap: 12px;
         }
 
         .reward-row > div {
-          padding: 15px 20px;
+          padding: 10px 15px;
           display: grid;
           gap: 3px;
           border-radius: 16px;
@@ -2377,7 +2060,7 @@ function RewardResult({
 
         .reward-row strong {
           color: #8ee8ff;
-          font-size: 25px;
+          font-size: 21px;
         }
 
         .reward-row small {
@@ -2390,7 +2073,7 @@ function RewardResult({
 
         .result-copy {
           max-width: 480px;
-          margin: 20px 0 24px;
+          margin: 13px 0 15px;
           color: rgba(235, 246, 255, 0.66);
           line-height: 1.55;
         }
@@ -2403,7 +2086,7 @@ function RewardResult({
 
           .reward-row {
             width: 100%;
-            grid-template-columns: 1fr;
+            grid-template-columns: repeat(2, 1fr);
           }
         }
       `}</style>
@@ -2422,7 +2105,9 @@ function LoadingPanel() {
 
       <style jsx>{`
         .state-panel {
-          min-height: 450px;
+          width: 100%;
+          height: 100%;
+          min-height: 0;
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -2474,7 +2159,9 @@ function LoginPanel() {
 
       <style jsx>{`
         .login-panel {
-          min-height: 450px;
+          width: 100%;
+          height: 100%;
+          min-height: 0;
           padding: 30px;
           display: flex;
           flex-direction: column;
@@ -2553,7 +2240,9 @@ function DailyCompletePanel({
 
       <style jsx>{`
         .daily-complete {
-          min-height: 460px;
+          width: 100%;
+          height: 100%;
+          min-height: 0;
           padding: 32px 20px;
           display: flex;
           flex-direction: column;
@@ -2702,12 +2391,7 @@ function ColourCodeGame({
   onContinue: () => void;
 }) {
   const levelNumber = useRef(questionNumber).current;
-  const seed = makeSeed(
-    userId,
-    activityDate,
-    "colour-code",
-    levelNumber
-  );
+  const seed = makeSeed(userId, activityDate, "colour-code", levelNumber);
   const secret = useMemo(() => createColourSecret(seed), [seed]);
   const clueOrder = useMemo(
     () => seededShuffle([0, 1, 2, 3], `${seed}:clue-order`),
@@ -2723,16 +2407,13 @@ function ColourCodeGame({
   const [activeSlot, setActiveSlot] = useState(0);
   const [attempts, setAttempts] = useState<ColourCodeAttempt[]>([]);
   const [localClues, setLocalClues] = useState(cluesUsed);
-  const [phase, setPhase] = useState<
-    "playing" | "failed" | "complete"
-  >("playing");
-  const [completion, setCompletion] =
-    useState<CompletionResult | null>(null);
+  const [phase, setPhase] = useState<"playing" | "failed" | "complete">(
+    "playing"
+  );
+  const [completion, setCompletion] = useState<CompletionResult | null>(null);
   const [finalScore, setFinalScore] = useState(0);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState(
-    "Choose four colours. The same colour can appear more than once."
-  );
+  const [message, setMessage] = useState("Choose four colours.");
   const [errorMessage, setErrorMessage] = useState("");
 
   const revealedPositions = useMemo(
@@ -2750,21 +2431,17 @@ function ColourCodeGame({
     const nextEmpty = nextGuess.findIndex(
       (value, index) => value === null && index > activeSlot
     );
-
     if (nextEmpty !== -1) {
       setActiveSlot(nextEmpty);
       return;
     }
 
     const firstEmpty = nextGuess.findIndex((value) => value === null);
-    if (firstEmpty !== -1) {
-      setActiveSlot(firstEmpty);
-    }
+    if (firstEmpty !== -1) setActiveSlot(firstEmpty);
   }
 
   function editCurrentSlot(index: number) {
     if (phase !== "playing" || busy) return;
-
     const nextGuess = [...guess];
     nextGuess[index] = null;
     setGuess(nextGuess);
@@ -2773,14 +2450,13 @@ function ColourCodeGame({
 
   async function buyClue() {
     if (busy || localClues >= 4) return;
-
     setBusy(true);
     setErrorMessage("");
 
     try {
       const result = await onBuyClue("colour-code", levelNumber);
       setLocalClues(result.cluesUsed);
-      setMessage(`Position ${clueOrder[result.cluesUsed - 1] + 1} was revealed.`);
+      setMessage(`Position ${clueOrder[result.cluesUsed - 1] + 1} revealed.`);
     } catch (error) {
       setErrorMessage(formatSupabaseError(error));
     } finally {
@@ -2801,13 +2477,8 @@ function ColourCodeGame({
     const result = scoreColourGuess(secret, completedGuess);
     const nextAttempts = [
       ...attempts,
-      {
-        guess: completedGuess,
-        exact: result.exact,
-        misplaced: result.misplaced,
-      },
+      { guess: completedGuess, exact: result.exact, misplaced: result.misplaced },
     ];
-
     setAttempts(nextAttempts);
 
     if (result.exact === 4) {
@@ -2815,16 +2486,11 @@ function ColourCodeGame({
         250,
         1200 - nextAttempts.length * 45 - localClues * 70
       );
-
       setBusy(true);
       setErrorMessage("");
 
       try {
-        const rewardResult = await onComplete(
-          "colour-code",
-          levelNumber,
-          score
-        );
+        const rewardResult = await onComplete("colour-code", levelNumber, score);
         setFinalScore(score);
         setCompletion(rewardResult);
         setPhase("complete");
@@ -2833,23 +2499,18 @@ function ColourCodeGame({
       } finally {
         setBusy(false);
       }
-
       return;
     }
 
     if (nextAttempts.length >= COLOUR_MAX_ATTEMPTS) {
       setPhase("failed");
-      setMessage("All 15 attempts were used. Review the answer and try again.");
+      setMessage("All 15 attempts were used.");
       return;
     }
 
     setGuess([null, null, null, null]);
     setActiveSlot(0);
-    setMessage(
-      `${result.exact} in the right place and ${result.misplaced} correct colour${
-        result.misplaced === 1 ? "" : "s"
-      } in the wrong place.`
-    );
+    setMessage(`${result.exact} exact · ${result.misplaced} misplaced`);
   }
 
   function retryQuestion() {
@@ -2857,7 +2518,7 @@ function ColourCodeGame({
     setActiveSlot(0);
     setAttempts([]);
     setPhase("playing");
-    setMessage("Try the same daily code again. Your paid clues remain revealed.");
+    setMessage("Try the same code again. Paid clues remain visible.");
     setErrorMessage("");
   }
 
@@ -2867,7 +2528,7 @@ function ColourCodeGame({
         top={
           <InstructionBar
             items={[
-              { label: "Daily question", value: `${levelNumber}/3` },
+              { label: "Question", value: `${levelNumber}/3` },
               { label: "Attempts", value: String(attempts.length) },
               { label: "Clues", value: String(localClues) },
             ]}
@@ -2876,7 +2537,7 @@ function ColourCodeGame({
       >
         <RewardResult
           title="Code cracked!"
-          text="You used exact-position and wrong-position clues to identify every light."
+          text="You used the clue history to identify all four positions."
           reward={completion.reward}
           score={finalScore}
           isLastQuestion={completion.completedCount >= DAILY_LIMIT}
@@ -2891,10 +2552,10 @@ function ColourCodeGame({
       top={
         <InstructionBar
           items={[
-            { label: "Daily question", value: `${levelNumber}/3` },
+            { label: "Question", value: `${levelNumber}/3` },
             {
-              label: "Attempts left",
-              value: String(COLOUR_MAX_ATTEMPTS - attempts.length),
+              label: "Attempts",
+              value: `${attempts.length}/${COLOUR_MAX_ATTEMPTS}`,
             },
             { label: "Reward", value: "20 DT" },
           ]}
@@ -2902,257 +2563,178 @@ function ColourCodeGame({
       }
     >
       <div className="colour-layout">
-        <section className="colour-controls">
-          <div className="hidden-code-card">
-            <div>
-              <p>Nova’s hidden code</p>
-              <h3>Colours can repeat</h3>
-            </div>
-
-            <div className="hidden-code">
-              {secret.map((colourId, index) => {
-                const revealed = revealedPositions.has(index);
-
-                return (
-                  <span
-                    key={`secret-${index}`}
-                    className={revealed ? "is-revealed" : ""}
-                    style={
-                      revealed
-                        ? { background: colourById(colourId).hex }
-                        : undefined
-                    }
-                  >
-                    {revealed ? "" : "?"}
-                  </span>
-                );
-              })}
-            </div>
+        <section className="colour-focus">
+          <div className="secret-row" aria-label="Hidden code">
+            {secret.map((colourId, index) => {
+              const revealed = revealedPositions.has(index);
+              return (
+                <span
+                  key={`secret-${index}`}
+                  className={revealed ? "is-revealed" : ""}
+                  style={revealed ? { background: colourById(colourId).hex } : undefined}
+                >
+                  {revealed ? "" : "?"}
+                </span>
+              );
+            })}
           </div>
 
-          <div className="clue-row">
-            <div>
-              <strong>Reveal one position</strong>
-              <span>{localClues}/4 clues used</span>
-            </div>
-
-            <button
-              type="button"
-              onClick={buyClue}
-              disabled={
-                busy || localClues >= 4 || tokenBalance < CLUE_COST
-              }
-            >
-              {localClues >= 4 ? "All revealed" : `Clue · ${CLUE_COST} DT`}
-            </button>
+          <div className="current-guess" aria-label="Current guess">
+            {guess.map((colourId, index) => (
+              <button
+                type="button"
+                key={`guess-${index}`}
+                className={`${colourId ? "is-filled" : ""} ${
+                  activeSlot === index ? "is-active" : ""
+                }`}
+                style={
+                  colourId ? { background: colourById(colourId).hex } : undefined
+                }
+                onClick={() =>
+                  colourId ? editCurrentSlot(index) : setActiveSlot(index)
+                }
+                disabled={busy || phase !== "playing"}
+                aria-label={`Guess position ${index + 1}`}
+              />
+            ))}
           </div>
 
-          <div className="palette-heading">
-            <div>
-              <p>Current attempt</p>
-              <h3>Choose each circle</h3>
-            </div>
-            <span>Selected position: {activeSlot + 1}</span>
-          </div>
-
-          <div className="colour-palette">
+          <div className="colour-palette" aria-label="Choose a colour">
             {COLOURS.map((colour) => (
               <button
                 type="button"
                 key={colour.id}
                 onClick={() => chooseColour(colour.id)}
                 disabled={phase !== "playing" || busy}
+                aria-label={`Choose ${colour.name}`}
+                title={colour.name}
               >
                 <span style={{ background: colour.hex }} />
-                {colour.name}
               </button>
             ))}
           </div>
 
-          <div className="clue-key">
-            <span>
-              <i className="key-dot exact-dot" /> Right colour and place
-            </span>
-            <span>
-              <i className="key-dot misplaced-dot" /> Right colour, wrong place
-            </span>
+          <div className="colour-actions">
+            <button
+              type="button"
+              className="clue-button"
+              onClick={buyClue}
+              disabled={busy || localClues >= 4 || tokenBalance < CLUE_COST}
+            >
+              {localClues >= 4 ? "All revealed" : `Clue · ${CLUE_COST} DT`}
+            </button>
+
+            {phase === "failed" ? (
+              <PrimaryButton onClick={retryQuestion}>Retry code</PrimaryButton>
+            ) : (
+              <PrimaryButton
+                onClick={submitGuess}
+                disabled={busy || guess.some((colourId) => colourId === null)}
+              >
+                {busy ? "Checking…" : "Check"}
+              </PrimaryButton>
+            )}
           </div>
 
-          <div className="message-box" role="status">
-            <p>{message}</p>
+          <div className="colour-message" role="status">
+            <span>{message}</span>
             {errorMessage && <strong>{errorMessage}</strong>}
           </div>
 
-          {phase === "failed" ? (
-            <div className="failed-actions">
-              <div className="answer-reveal">
-                <span>Answer</span>
-                <div>
-                  {secret.map((colourId, index) => (
-                    <i
-                      key={`${colourId}-${index}`}
-                      style={{ background: colourById(colourId).hex }}
-                    />
-                  ))}
-                </div>
-              </div>
-              <PrimaryButton onClick={retryQuestion}>
-                Retry this question
-              </PrimaryButton>
+          {phase === "failed" && (
+            <div className="answer-strip" aria-label="Correct answer">
+              {secret.map((colourId, index) => (
+                <i
+                  key={`${colourId}-${index}`}
+                  style={{ background: colourById(colourId).hex }}
+                />
+              ))}
             </div>
-          ) : (
-            <PrimaryButton
-              onClick={submitGuess}
-              disabled={
-                busy || guess.some((colourId) => colourId === null)
-              }
-            >
-              {busy ? "Checking…" : "Check attempt"}
-            </PrimaryButton>
           )}
         </section>
 
         <aside className="attempt-board">
           <div className="attempt-heading">
-            <div>
-              <p>15 attempts</p>
-              <h3>Clue history</h3>
-            </div>
-            <span>{attempts.length}/{COLOUR_MAX_ATTEMPTS}</span>
+            <h3>Clue history</h3>
+            <span>
+              <i className="exact-dot" /> exact
+              <i className="misplaced-dot" /> misplaced
+            </span>
           </div>
 
           <div className="attempt-list">
-            {Array.from({ length: COLOUR_MAX_ATTEMPTS }).map(
-              (_, rowIndex) => {
-                const completedAttempt = attempts[rowIndex];
-                const isCurrent =
-                  phase === "playing" && rowIndex === attempts.length;
-                const rowColours = completedAttempt
-                  ? completedAttempt.guess
-                  : isCurrent
-                  ? guess
-                  : [null, null, null, null];
+            {Array.from({ length: COLOUR_MAX_ATTEMPTS }).map((_, rowIndex) => {
+              const completedAttempt = attempts[rowIndex];
+              const isCurrent = phase === "playing" && rowIndex === attempts.length;
+              const rowColours = completedAttempt
+                ? completedAttempt.guess
+                : isCurrent
+                ? guess
+                : [null, null, null, null];
 
-                return (
-                  <div
-                    className={`attempt-row ${
-                      isCurrent ? "is-current" : ""
-                    }`}
-                    key={`attempt-row-${rowIndex}`}
-                  >
-                    <span className="attempt-number">{rowIndex + 1}</span>
-
-                    <div className="attempt-circles">
-                      {rowColours.map((colourId, circleIndex) => (
-                        <button
-                          type="button"
-                          key={`attempt-${rowIndex}-${circleIndex}`}
-                          className={colourId ? "is-filled" : ""}
-                          style={
-                            colourId
-                              ? { background: colourById(colourId).hex }
-                              : undefined
-                          }
-                          onClick={() => {
-                            if (isCurrent && colourId) {
-                              editCurrentSlot(circleIndex);
-                            } else if (isCurrent) {
-                              setActiveSlot(circleIndex);
-                            }
-                          }}
-                          disabled={!isCurrent || busy}
-                          aria-label={
-                            colourId
-                              ? `${colourById(colourId).name} in position ${
-                                  circleIndex + 1
-                                }`
-                              : `Empty position ${circleIndex + 1}`
-                          }
-                        />
-                      ))}
-                    </div>
-
-                    <div className="attempt-result">
-                      {completedAttempt ? (
-                        <>
-                          <span>
-                            <i className="key-dot exact-dot" />
-                            {completedAttempt.exact}
-                          </span>
-                          <span>
-                            <i className="key-dot misplaced-dot" />
-                            {completedAttempt.misplaced}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="empty-result">—</span>
-                      )}
-                    </div>
+              return (
+                <div
+                  className={`attempt-row ${isCurrent ? "is-current" : ""}`}
+                  key={`attempt-row-${rowIndex}`}
+                >
+                  <span className="attempt-number">{rowIndex + 1}</span>
+                  <div className="attempt-circles">
+                    {rowColours.map((colourId, circleIndex) => (
+                      <span
+                        key={`attempt-${rowIndex}-${circleIndex}`}
+                        className={colourId ? "is-filled" : ""}
+                        style={
+                          colourId ? { background: colourById(colourId).hex } : undefined
+                        }
+                      />
+                    ))}
                   </div>
-                );
-              }
-            )}
+                  <div className="attempt-result">
+                    {completedAttempt ? (
+                      <>
+                        <span className="exact-result">{completedAttempt.exact}</span>
+                        <span className="misplaced-result">{completedAttempt.misplaced}</span>
+                      </>
+                    ) : (
+                      <span className="empty-result">—</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </aside>
       </div>
 
       <style jsx>{`
         .colour-layout {
+          width: 100%;
+          height: 100%;
+          min-height: 0;
           display: grid;
-          grid-template-columns: minmax(0, 1fr) 350px;
-          gap: 22px;
-          align-items: start;
+          grid-template-columns: minmax(0, 1fr) minmax(300px, 0.82fr);
+          gap: 9px;
+          overflow: hidden;
         }
-
-        .colour-controls,
+        .colour-focus,
         .attempt-board {
-          border-radius: 20px;
+          min-height: 0;
+          border-radius: 17px;
           border: 1px solid rgba(133, 213, 255, 0.12);
           background: rgba(255, 255, 255, 0.025);
         }
-
-        .colour-controls {
-          padding: 20px;
-        }
-
-        .hidden-code-card {
-          padding: 16px;
+        .colour-focus {
+          padding: 10px;
           display: flex;
+          flex-direction: column;
           align-items: center;
-          justify-content: space-between;
-          gap: 20px;
-          border-radius: 17px;
-          border: 1px solid rgba(102, 217, 255, 0.18);
-          background: rgba(102, 217, 255, 0.06);
+          justify-content: center;
+          overflow: hidden;
         }
-
-        .hidden-code-card p,
-        .palette-heading p,
-        .attempt-heading p {
-          margin: 0;
-          color: #75ddff;
-          font-size: 9px;
-          font-weight: 900;
-          letter-spacing: 0.16em;
-          text-transform: uppercase;
-        }
-
-        .hidden-code-card h3,
-        .palette-heading h3,
-        .attempt-heading h3 {
-          margin: 5px 0 0;
-          font-size: 20px;
-          letter-spacing: -0.03em;
-        }
-
-        .hidden-code {
-          display: flex;
-          gap: 8px;
-        }
-
-        .hidden-code span {
-          width: 43px;
-          height: 43px;
+        .secret-row { display: flex; justify-content: center; gap: 8px; }
+        .secret-row span {
+          width: 34px;
+          height: 34px;
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -3160,46 +2742,73 @@ function ColourCodeGame({
           border: 2px dashed rgba(131, 219, 255, 0.24);
           background: rgba(2, 10, 23, 0.72);
           color: rgba(231, 247, 255, 0.38);
+          font-size: 13px;
           font-weight: 900;
         }
-
-        .hidden-code span.is-revealed {
+        .secret-row span.is-revealed {
           border-style: solid;
           border-color: rgba(255, 255, 255, 0.22);
-          box-shadow:
-            0 10px 19px rgba(0, 0, 0, 0.22),
-            inset 0 3px 6px rgba(255, 255, 255, 0.24);
+          box-shadow: inset 0 3px 6px rgba(255, 255, 255, 0.22);
         }
-
-        .clue-row {
-          margin-top: 11px;
-          padding: 11px 13px;
+        .current-guess {
+          margin: clamp(10px, 2vh, 20px) 0;
           display: flex;
           align-items: center;
-          justify-content: space-between;
-          gap: 14px;
-          border-radius: 14px;
-          background: rgba(255, 255, 255, 0.032);
+          justify-content: center;
+          gap: clamp(10px, 1.5vw, 18px);
         }
-
-        .clue-row > div {
+        .current-guess button {
+          width: clamp(58px, 7vw, 86px);
+          height: clamp(58px, 7vw, 86px);
+          border-radius: 999px;
+          border: 3px dashed rgba(126, 220, 255, 0.27);
+          background: rgba(2, 10, 22, 0.62);
+          cursor: pointer;
+          box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22);
+        }
+        .current-guess button.is-active {
+          border-color: #76defd;
+          box-shadow: 0 0 0 4px rgba(118, 222, 253, 0.1), 0 12px 24px rgba(0, 0, 0, 0.22);
+        }
+        .current-guess button.is-filled {
+          border-style: solid;
+          border-color: rgba(255, 255, 255, 0.22);
+          box-shadow: inset 0 5px 10px rgba(255, 255, 255, 0.23), 0 12px 24px rgba(0, 0, 0, 0.24);
+        }
+        .colour-palette {
+          width: min(430px, 100%);
           display: grid;
-          gap: 3px;
+          grid-template-columns: repeat(6, 1fr);
+          gap: 7px;
         }
-
-        .clue-row strong {
-          font-size: 12px;
+        .colour-palette button {
+          aspect-ratio: 1;
+          min-width: 0;
+          padding: 4px;
+          border-radius: 999px;
+          border: 1px solid rgba(137, 215, 255, 0.12);
+          background: rgba(255, 255, 255, 0.035);
+          cursor: pointer;
         }
-
-        .clue-row span {
-          color: rgba(235, 247, 255, 0.48);
-          font-size: 10px;
+        .colour-palette button span {
+          width: 100%;
+          height: 100%;
+          display: block;
+          border-radius: 999px;
+          border: 2px solid rgba(255, 255, 255, 0.18);
+          box-shadow: inset 0 3px 7px rgba(255, 255, 255, 0.2);
         }
-
-        .clue-row button {
-          min-height: 37px;
-          padding: 0 13px;
-          border-radius: 11px;
+        .colour-palette button:disabled { opacity: 0.4; }
+        .colour-actions {
+          width: min(430px, 100%);
+          margin-top: 9px;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+        }
+        .clue-button {
+          min-height: 42px;
+          border-radius: 13px;
           border: 1px solid rgba(255, 211, 110, 0.28);
           background: rgba(255, 211, 110, 0.09);
           color: #ffdc82;
@@ -3208,298 +2817,121 @@ function ColourCodeGame({
           font-weight: 850;
           cursor: pointer;
         }
-
-        .clue-row button:disabled {
-          opacity: 0.4;
-          cursor: not-allowed;
-        }
-
-        .palette-heading {
-          margin-top: 22px;
-          display: flex;
-          align-items: flex-end;
-          justify-content: space-between;
-          gap: 14px;
-        }
-
-        .palette-heading > span {
-          color: rgba(235, 247, 255, 0.46);
-          font-size: 10px;
-        }
-
-        .colour-palette {
-          margin-top: 13px;
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 8px;
-        }
-
-        .colour-palette button {
-          min-height: 46px;
-          padding: 7px 9px;
+        .clue-button:disabled { opacity: 0.4; cursor: not-allowed; }
+        .colour-message {
+          width: min(430px, 100%);
+          min-height: 30px;
+          margin-top: 7px;
           display: flex;
           align-items: center;
-          gap: 8px;
-          border-radius: 12px;
-          border: 1px solid rgba(137, 215, 255, 0.12);
-          background: rgba(255, 255, 255, 0.035);
-          color: rgba(243, 250, 255, 0.74);
-          font: inherit;
+          justify-content: center;
+          gap: 7px;
+          color: rgba(235, 247, 255, 0.64);
           font-size: 11px;
-          font-weight: 750;
-          cursor: pointer;
+          text-align: center;
         }
-
-        .colour-palette button:disabled {
-          opacity: 0.4;
-        }
-
-        .colour-palette span {
-          width: 22px;
-          height: 22px;
-          flex: 0 0 auto;
-          border-radius: 999px;
-          border: 2px solid rgba(255, 255, 255, 0.18);
-        }
-
-        .clue-key {
-          margin: 15px 0;
-          display: flex;
-          align-items: center;
-          gap: 15px;
-          flex-wrap: wrap;
-          color: rgba(235, 247, 255, 0.56);
-          font-size: 10px;
-        }
-
-        .clue-key span,
-        .attempt-result span {
-          display: flex;
-          align-items: center;
-          gap: 5px;
-        }
-
-        .key-dot {
-          width: 8px;
-          height: 8px;
-          display: inline-block;
-          border-radius: 999px;
-        }
-
-        .exact-dot {
-          background: #63e7a3;
-          box-shadow: 0 0 9px rgba(99, 231, 163, 0.4);
-        }
-
-        .misplaced-dot {
-          background: #ffd465;
-          box-shadow: 0 0 9px rgba(255, 212, 101, 0.36);
-        }
-
-        .message-box {
-          min-height: 58px;
-          margin-bottom: 15px;
-          padding: 11px 13px;
-          display: grid;
-          gap: 5px;
-          border-radius: 13px;
-          background: rgba(255, 255, 255, 0.026);
-          color: rgba(235, 247, 255, 0.61);
-          font-size: 12px;
-          line-height: 1.45;
-        }
-
-        .message-box p {
-          margin: 0;
-        }
-
-        .message-box strong {
-          color: #ff9ca8;
-          font-size: 11px;
-        }
-
-        .failed-actions {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 14px;
-        }
-
-        .answer-reveal {
-          display: grid;
-          gap: 6px;
-        }
-
-        .answer-reveal > span {
-          color: rgba(235, 247, 255, 0.45);
-          font-size: 9px;
-          font-weight: 850;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-        }
-
-        .answer-reveal > div {
-          display: flex;
-          gap: 5px;
-        }
-
-        .answer-reveal i {
-          width: 22px;
-          height: 22px;
-          border-radius: 999px;
-          border: 1px solid rgba(255, 255, 255, 0.18);
-        }
+        .colour-message strong { color: #ff9ca8; }
+        .answer-strip { display: flex; gap: 5px; }
+        .answer-strip i { width: 18px; height: 18px; border-radius: 999px; }
 
         .attempt-board {
-          padding: 16px;
+          padding: 8px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          overflow: hidden;
         }
-
         .attempt-heading {
+          width: 100%;
+          padding: 2px 4px 7px;
           display: flex;
-          align-items: flex-end;
-          justify-content: space-between;
-          gap: 12px;
-          padding-bottom: 12px;
+          align-items: center;
+          justify-content: center;
+          gap: 14px;
           border-bottom: 1px solid rgba(137, 215, 255, 0.1);
+          text-align: center;
         }
-
+        .attempt-heading h3 { margin: 0; font-size: 14px; }
         .attempt-heading > span {
-          color: rgba(235, 247, 255, 0.45);
-          font-size: 10px;
-          font-weight: 850;
-        }
-
-        .attempt-list {
-          max-height: 545px;
-          padding: 11px 3px 2px 0;
-          display: grid;
-          gap: 7px;
-          overflow-y: auto;
-          scrollbar-width: thin;
-          scrollbar-color: rgba(116, 215, 255, 0.26) transparent;
-        }
-
-        .attempt-row {
-          min-height: 45px;
-          padding: 7px 8px;
-          display: grid;
-          grid-template-columns: 24px 1fr 58px;
-          align-items: center;
-          gap: 9px;
-          border-radius: 12px;
-          border: 1px solid transparent;
-          background: rgba(255, 255, 255, 0.025);
-        }
-
-        .attempt-row.is-current {
-          border-color: rgba(102, 217, 255, 0.3);
-          background: rgba(102, 217, 255, 0.07);
-        }
-
-        .attempt-number {
-          color: rgba(235, 247, 255, 0.36);
-          font-size: 10px;
-          font-weight: 850;
-        }
-
-        .attempt-circles {
           display: flex;
           align-items: center;
-          gap: 7px;
+          gap: 5px;
+          color: rgba(235, 247, 255, 0.46);
+          font-size: 8px;
         }
-
-        .attempt-circles button {
-          width: 27px;
-          height: 27px;
-          flex: 0 0 auto;
-          border-radius: 999px;
-          border: 1px dashed rgba(131, 219, 255, 0.22);
-          background: rgba(2, 10, 22, 0.56);
-          cursor: default;
-        }
-
-        .attempt-row.is-current .attempt-circles button {
-          cursor: pointer;
-        }
-
-        .attempt-circles button.is-filled {
-          border-style: solid;
-          border-color: rgba(255, 255, 255, 0.2);
-          box-shadow: inset 0 2px 5px rgba(255, 255, 255, 0.18);
-        }
-
-        .attempt-result {
+        .attempt-heading i { width: 7px; height: 7px; border-radius: 999px; }
+        .exact-dot { background: #63e7a3; }
+        .misplaced-dot { margin-left: 3px; background: #ffd465; }
+        .attempt-list {
+          width: min(330px, 100%);
+          flex: 1 1 auto;
+          min-height: 0;
+          padding-top: 5px;
           display: grid;
-          grid-template-columns: repeat(2, auto);
-          justify-content: end;
-          gap: 7px;
-          color: rgba(243, 250, 255, 0.68);
-          font-size: 10px;
-          font-weight: 850;
+          grid-template-rows: repeat(15, minmax(0, 1fr));
+          gap: 2px;
+          overflow: hidden;
         }
-
-        .empty-result {
-          color: rgba(235, 247, 255, 0.18);
+        .attempt-row {
+          min-height: 0;
+          padding: 1px 5px;
+          display: grid;
+          grid-template-columns: 18px 1fr 45px;
+          align-items: center;
+          gap: 5px;
+          border-radius: 7px;
+          border: 1px solid transparent;
+          background: rgba(255, 255, 255, 0.022);
         }
-
-        @media (max-width: 950px) {
-          .colour-layout {
-            grid-template-columns: 1fr;
-          }
-
-          .attempt-list {
-            max-height: 520px;
-          }
+        .attempt-row.is-current {
+          border-color: rgba(102, 217, 255, 0.28);
+          background: rgba(102, 217, 255, 0.065);
         }
+        .attempt-number { color: rgba(235, 247, 255, 0.34); font-size: 8px; font-weight: 850; }
+        .attempt-circles { display: flex; justify-content: center; gap: 5px; }
+        .attempt-circles span {
+          width: clamp(12px, 1.5vw, 18px);
+          height: clamp(12px, 1.5vw, 18px);
+          border-radius: 999px;
+          border: 1px dashed rgba(131, 219, 255, 0.2);
+          background: rgba(2, 10, 22, 0.56);
+        }
+        .attempt-circles span.is-filled { border-style: solid; border-color: rgba(255, 255, 255, 0.18); }
+        .attempt-result { display: flex; justify-content: flex-end; gap: 5px; font-size: 8px; font-weight: 900; }
+        .attempt-result span { min-width: 17px; height: 17px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; }
+        .exact-result { background: rgba(99, 231, 163, 0.12); color: #82efb7; }
+        .misplaced-result { background: rgba(255, 212, 101, 0.11); color: #ffdc82; }
+        .empty-result { color: rgba(235, 247, 255, 0.18); }
 
-        @media (max-width: 560px) {
-          .colour-controls {
-            padding: 14px 11px;
-          }
-
-          .hidden-code-card,
-          .palette-heading,
-          .failed-actions {
-            align-items: stretch;
-            flex-direction: column;
-          }
-
-          .hidden-code-card {
-            display: grid;
-          }
-
-          .hidden-code {
-            justify-content: space-between;
-          }
-
-          .hidden-code span {
-            width: 42px;
-            height: 42px;
-          }
-
-          .colour-palette {
-            grid-template-columns: repeat(2, 1fr);
-          }
-
-          .attempt-board {
-            padding: 13px 8px;
-          }
-
-          .attempt-row {
-            grid-template-columns: 20px 1fr 52px;
-            padding-left: 5px;
-            padding-right: 5px;
-            gap: 5px;
-          }
-
-          .attempt-circles {
-            gap: 5px;
-          }
-
-          .attempt-circles button {
-            width: 25px;
-            height: 25px;
-          }
+        @media (max-width: 900px) {
+          .colour-layout { grid-template-columns: minmax(0, 1fr) minmax(245px, 0.78fr); gap: 6px; }
+          .current-guess button { width: clamp(50px, 6.5vw, 68px); height: clamp(50px, 6.5vw, 68px); }
+        }
+        @media (max-width: 720px) {
+          .colour-layout { grid-template-columns: 1fr; grid-template-rows: minmax(210px, 0.82fr) minmax(0, 1.18fr); gap: 5px; }
+          .colour-focus { padding: 6px; justify-content: flex-start; }
+          .secret-row span { width: 24px; height: 24px; font-size: 10px; }
+          .current-guess { margin: 7px 0; gap: 7px; }
+          .current-guess button { width: clamp(43px, 13vw, 57px); height: clamp(43px, 13vw, 57px); border-width: 2px; }
+          .colour-palette { gap: 4px; }
+          .colour-palette button { padding: 3px; }
+          .colour-actions { margin-top: 5px; gap: 5px; }
+          .clue-button { min-height: 34px; font-size: 9px; }
+          .colour-message { min-height: 20px; margin-top: 3px; font-size: 9px; }
+          .attempt-board { padding: 4px; }
+          .attempt-heading { padding-bottom: 3px; }
+          .attempt-heading h3 { font-size: 11px; }
+          .attempt-heading > span { font-size: 7px; }
+          .attempt-list { padding-top: 2px; gap: 1px; }
+          .attempt-row { grid-template-columns: 15px 1fr 38px; padding: 0 3px; }
+          .attempt-circles { gap: 4px; }
+          .attempt-circles span { width: 11px; height: 11px; }
+          .attempt-result span { min-width: 14px; height: 14px; font-size: 7px; }
+        }
+        @media (max-height: 680px) and (max-width: 720px) {
+          .colour-layout { grid-template-rows: 190px minmax(0, 1fr); }
+          .current-guess button { width: 42px; height: 42px; }
+          .secret-row span { width: 21px; height: 21px; }
         }
       `}</style>
     </GamePanel>
@@ -3700,25 +3132,17 @@ function SetFinderGame({
   onContinue: () => void;
 }) {
   const levelNumber = useRef(questionNumber).current;
-  const baseSeed = makeSeed(
-    userId,
-    activityDate,
-    "set-finder",
-    levelNumber
-  );
+  const baseSeed = makeSeed(userId, activityDate, "set-finder", levelNumber);
 
   const [setsFound, setSetsFound] = useState(0);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [mistakes, setMistakes] = useState(0);
   const [localClues, setLocalClues] = useState(cluesUsed);
   const [currentBoardClues, setCurrentBoardClues] = useState(0);
-  const [message, setMessage] = useState(
-    "Select three cards. Every feature must be all the same or all different."
-  );
+  const [message, setMessage] = useState("Select three cards.");
   const [errorMessage, setErrorMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const [completion, setCompletion] =
-    useState<CompletionResult | null>(null);
+  const [completion, setCompletion] = useState<CompletionResult | null>(null);
   const [finalScore, setFinalScore] = useState(0);
 
   const board = useMemo(
@@ -3727,7 +3151,10 @@ function SetFinderGame({
   );
   const validSet = useMemo(() => findValidSet(board), [board]);
   const hintedCardIds = useMemo(
-    () => new Set((validSet ?? []).slice(0, currentBoardClues).map((card) => card.id)),
+    () =>
+      new Set(
+        (validSet ?? []).slice(0, currentBoardClues).map((card) => card.id)
+      ),
     [currentBoardClues, validSet]
   );
   const mayBuyCurrentClue =
@@ -3740,7 +3167,6 @@ function SetFinderGame({
       if (current.includes(cardId)) {
         return current.filter((id) => id !== cardId);
       }
-
       if (current.length >= 3) return current;
       return [...current, cardId];
     });
@@ -3748,7 +3174,6 @@ function SetFinderGame({
 
   async function buyClue() {
     if (!mayBuyCurrentClue || busy) return;
-
     setBusy(true);
     setErrorMessage("");
 
@@ -3756,7 +3181,7 @@ function SetFinderGame({
       const result = await onBuyClue("set-finder", levelNumber);
       setLocalClues(result.cluesUsed);
       setCurrentBoardClues((current) => Math.min(3, current + 1));
-      setMessage("Each glowing card belongs to one correct SET.");
+      setMessage("A glowing card belongs to a correct SET.");
     } catch (error) {
       setErrorMessage(formatSupabaseError(error));
     } finally {
@@ -3774,9 +3199,7 @@ function SetFinderGame({
     if (!isValidSet(selectedCards)) {
       setMistakes((current) => current + 1);
       setSelectedIds([]);
-      setMessage(
-        "Not a SET. Check colour, shape, number, and pattern separately."
-      );
+      setMessage("Not a SET. Try another group of three.");
       return;
     }
 
@@ -3790,20 +3213,12 @@ function SetFinderGame({
       return;
     }
 
-    const score = Math.max(
-      250,
-      1200 - mistakes * 80 - localClues * 75
-    );
-
+    const score = Math.max(250, 1200 - mistakes * 80 - localClues * 75);
     setBusy(true);
     setErrorMessage("");
 
     try {
-      const result = await onComplete(
-        "set-finder",
-        levelNumber,
-        score
-      );
+      const result = await onComplete("set-finder", levelNumber, score);
       setSetsFound(3);
       setFinalScore(score);
       setCompletion(result);
@@ -3820,8 +3235,8 @@ function SetFinderGame({
         top={
           <InstructionBar
             items={[
-              { label: "Daily level", value: `${levelNumber}/3` },
-              { label: "SETs found", value: "3/3" },
+              { label: "Level", value: `${levelNumber}/3` },
+              { label: "SETs", value: "3/3" },
               { label: "Clues", value: String(localClues) },
             ]}
           />
@@ -3829,7 +3244,7 @@ function SetFinderGame({
       >
         <RewardResult
           title="Three SETs found!"
-          text="You compared four features at the same time: colour, shape, number, and pattern."
+          text="You compared colour, shape, number, and pattern at the same time."
           reward={completion.reward}
           score={finalScore}
           isLastQuestion={completion.completedCount >= DAILY_LIMIT}
@@ -3844,40 +3259,35 @@ function SetFinderGame({
       top={
         <InstructionBar
           items={[
-            { label: "Daily level", value: `${levelNumber}/3` },
-            { label: "SETs found", value: `${setsFound}/3` },
+            { label: "Level", value: `${levelNumber}/3` },
+            { label: "SETs", value: `${setsFound}/3` },
             { label: "Reward", value: "20 DT" },
           ]}
         />
       }
     >
       <div className="set-layout">
-        <div className="set-help">
-          <div>
-            <p>SET rule</p>
-            <h3>All same or all different</h3>
-            <span>Apply the rule to every feature separately.</span>
+        <div className="set-toolbar">
+          <div className="set-progress" aria-label={`${setsFound} of 3 SETs found`}>
+            {[0, 1, 2].map((index) => (
+              <i key={index} className={index < setsFound ? "is-complete" : ""} />
+            ))}
           </div>
 
-          <div className="feature-chips">
-            <i>Colour</i>
-            <i>Shape</i>
-            <i>Number</i>
-            <i>Pattern</i>
+          <div className="set-message" role="status">
+            <span>{message}</span>
+            {errorMessage && <strong>{errorMessage}</strong>}
           </div>
 
           <button
             type="button"
+            className="set-clue"
             onClick={buyClue}
             disabled={
-              busy ||
-              !mayBuyCurrentClue ||
-              tokenBalance < CLUE_COST
+              busy || !mayBuyCurrentClue || tokenBalance < CLUE_COST
             }
           >
-            {localClues >= 3
-              ? "All clues used"
-              : `Reveal one card · ${CLUE_COST} DT`}
+            {localClues >= 3 ? "Clues used" : `Clue · ${CLUE_COST} DT`}
           </button>
         </div>
 
@@ -3895,253 +3305,174 @@ function SetFinderGame({
                 }`}
                 onClick={() => toggleCard(card.id)}
                 aria-pressed={selected}
-                aria-label={`${card.count + 1} ${
-                  PATTERN_LABELS[card.pattern]
-                } ${SHAPE_LABELS[card.shape]}`}
+                aria-label={`${card.count + 1} ${PATTERN_LABELS[card.pattern]} ${SHAPE_LABELS[card.shape]}`}
               >
                 <span className="set-symbols">
-                  {Array.from({ length: card.count + 1 }).map(
-                    (_, symbolIndex) => (
-                      <SetSymbol
-                        key={`${card.id}-${symbolIndex}`}
-                        card={card}
-                        symbolIndex={symbolIndex}
-                      />
-                    )
-                  )}
+                  {Array.from({ length: card.count + 1 }).map((_, symbolIndex) => (
+                    <SetSymbol
+                      key={`${card.id}-${symbolIndex}`}
+                      card={card}
+                      symbolIndex={symbolIndex}
+                    />
+                  ))}
                 </span>
-
-                {hinted && <span className="hint-label">Clue</span>}
+                {hinted && <span className="hint-mark">✦</span>}
               </button>
             );
           })}
         </div>
 
         <div className="set-footer">
-          <div className="set-message" role="status">
-            <p>{message}</p>
-            {errorMessage && <strong>{errorMessage}</strong>}
-          </div>
-
+          <span>{selectedIds.length}/3 selected</span>
           <PrimaryButton
             onClick={checkSelection}
             disabled={busy || selectedIds.length !== 3}
           >
-            {busy ? "Checking…" : "Check selected cards"}
+            {busy ? "Checking…" : "Check SET"}
           </PrimaryButton>
         </div>
       </div>
 
       <style jsx>{`
         .set-layout {
+          width: 100%;
+          height: 100%;
+          min-height: 0;
           display: grid;
-          gap: 18px;
+          grid-template-rows: 43px minmax(0, 1fr) 45px;
+          gap: 7px;
+          overflow: hidden;
         }
-
-        .set-help {
-          padding: 14px 16px;
+        .set-toolbar {
+          min-width: 0;
+          padding: 5px 7px;
           display: grid;
-          grid-template-columns: minmax(220px, 1fr) auto auto;
+          grid-template-columns: auto minmax(0, 1fr) auto;
           align-items: center;
-          gap: 18px;
-          border-radius: 17px;
-          border: 1px solid rgba(174, 139, 255, 0.18);
-          background: rgba(157, 115, 255, 0.07);
+          gap: 9px;
+          border-radius: 14px;
+          border: 1px solid rgba(174, 139, 255, 0.16);
+          background: rgba(157, 115, 255, 0.065);
         }
-
-        .set-help p {
-          margin: 0;
-          color: #b9a2ff;
-          font-size: 9px;
-          font-weight: 900;
-          letter-spacing: 0.16em;
-          text-transform: uppercase;
-        }
-
-        .set-help h3 {
-          margin: 4px 0 0;
-          font-size: 19px;
-        }
-
-        .set-help span {
-          display: block;
-          margin-top: 4px;
-          color: rgba(237, 246, 255, 0.53);
-          font-size: 11px;
-        }
-
-        .feature-chips {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          flex-wrap: wrap;
-        }
-
-        .feature-chips i {
-          padding: 6px 8px;
+        .set-progress { display: flex; gap: 5px; }
+        .set-progress i {
+          width: 22px;
+          height: 7px;
           border-radius: 999px;
-          background: rgba(255, 255, 255, 0.055);
-          color: rgba(241, 248, 255, 0.69);
-          font-size: 9px;
-          font-style: normal;
-          font-weight: 800;
+          background: rgba(255, 255, 255, 0.1);
         }
-
-        .set-help > button {
-          min-height: 39px;
-          padding: 0 13px;
-          border-radius: 11px;
+        .set-progress i.is-complete {
+          background: #8ee8ff;
+          box-shadow: 0 0 10px rgba(142, 232, 255, 0.28);
+        }
+        .set-message {
+          min-width: 0;
+          color: rgba(240, 248, 255, 0.62);
+          font-size: 10px;
+          text-align: center;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .set-message strong { margin-left: 6px; color: #ff9ca8; }
+        .set-clue {
+          min-height: 31px;
+          padding: 0 10px;
+          border-radius: 10px;
           border: 1px solid rgba(255, 211, 110, 0.28);
           background: rgba(255, 211, 110, 0.09);
           color: #ffdc82;
           font: inherit;
-          font-size: 10px;
+          font-size: 9px;
           font-weight: 850;
           cursor: pointer;
+          white-space: nowrap;
         }
-
-        .set-help > button:disabled {
-          opacity: 0.4;
-          cursor: not-allowed;
-        }
-
+        .set-clue:disabled { opacity: 0.4; cursor: not-allowed; }
         .set-board {
+          min-height: 0;
           display: grid;
           grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 10px;
+          grid-template-rows: repeat(3, minmax(0, 1fr));
+          gap: 7px;
+          overflow: hidden;
         }
-
         .set-card {
           position: relative;
-          min-height: 126px;
-          padding: 15px 10px;
+          min-width: 0;
+          min-height: 0;
+          padding: 5px;
           display: flex;
           align-items: center;
           justify-content: center;
-          border-radius: 19px;
+          border-radius: 15px;
           border: 1px solid rgba(137, 215, 255, 0.15);
-          background:
-            linear-gradient(
-              145deg,
-              rgba(255, 255, 255, 0.07),
-              rgba(255, 255, 255, 0.02)
-            ),
-            rgba(5, 14, 28, 0.8);
+          background: linear-gradient(145deg, rgba(255,255,255,.07), rgba(255,255,255,.02)), rgba(5,14,28,.8);
           cursor: pointer;
-          transition:
-            transform 170ms ease,
-            border-color 170ms ease,
-            background 170ms ease;
+          transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
+          overflow: hidden;
         }
-
-        .set-card:hover {
-          transform: translateY(-3px);
-          border-color: rgba(169, 139, 255, 0.42);
-        }
-
+        .set-card:hover { transform: translateY(-2px); border-color: rgba(169, 139, 255, 0.42); }
         .set-card.is-selected {
-          transform: translateY(-3px);
+          transform: translateY(-2px);
           border-color: #b49bff;
           background: rgba(159, 119, 255, 0.14);
-          box-shadow: 0 0 24px rgba(154, 115, 255, 0.2);
+          box-shadow: 0 0 20px rgba(154, 115, 255, 0.18);
         }
-
         .set-card.is-hinted {
           border-color: #ffd36e;
-          box-shadow:
-            0 0 0 3px rgba(255, 211, 110, 0.1),
-            0 0 24px rgba(255, 211, 110, 0.16);
+          box-shadow: inset 0 0 0 2px rgba(255, 211, 110, 0.12), 0 0 16px rgba(255, 211, 110, 0.12);
         }
-
         .set-symbols {
           width: 100%;
+          height: 100%;
           display: flex;
           align-items: center;
           justify-content: center;
           gap: 3px;
         }
-
         .set-symbols :global(svg) {
-          width: clamp(34px, 4.5vw, 52px);
-          height: clamp(34px, 4.5vw, 52px);
-          flex: 0 1 auto;
-          filter: drop-shadow(0 7px 10px rgba(0, 0, 0, 0.24));
+          width: min(31%, 54px);
+          max-height: 78%;
+          filter: drop-shadow(0 5px 8px rgba(0, 0, 0, 0.28));
         }
-
-        .hint-label {
+        .hint-mark {
           position: absolute;
-          top: 7px;
-          right: 7px;
-          padding: 4px 6px;
-          border-radius: 999px;
-          background: rgba(255, 211, 110, 0.16);
-          color: #ffe19a;
-          font-size: 8px;
-          font-weight: 900;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
+          top: 4px;
+          right: 5px;
+          color: #ffd36e;
+          font-size: 12px;
         }
-
         .set-footer {
+          padding: 2px 3px;
           display: flex;
           align-items: center;
-          justify-content: space-between;
-          gap: 18px;
+          justify-content: flex-end;
+          gap: 10px;
+        }
+        .set-footer > span {
+          color: rgba(239, 248, 255, 0.45);
+          font-size: 9px;
+          font-weight: 800;
         }
 
-        .set-message {
-          min-height: 48px;
-          display: grid;
-          align-content: center;
-          gap: 4px;
-          color: rgba(237, 247, 255, 0.61);
-          font-size: 12px;
-          line-height: 1.45;
-        }
-
-        .set-message p {
-          margin: 0;
-        }
-
-        .set-message strong {
-          color: #ff9ca8;
-          font-size: 11px;
-        }
-
-        @media (max-width: 880px) {
-          .set-help {
-            grid-template-columns: 1fr;
-          }
-
+        @media (max-width: 720px) {
+          .set-layout { grid-template-rows: 38px minmax(0, 1fr) 38px; gap: 4px; }
+          .set-toolbar { padding: 3px 4px; gap: 4px; }
+          .set-progress { gap: 2px; }
+          .set-progress i { width: 12px; height: 5px; }
+          .set-message { font-size: 8px; }
+          .set-clue { min-height: 28px; padding: 0 6px; font-size: 8px; }
           .set-board {
             grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-rows: repeat(4, minmax(0, 1fr));
+            gap: 4px;
           }
-        }
-
-        @media (max-width: 620px) {
-          .set-board {
-            gap: 6px;
-          }
-
-          .set-card {
-            min-height: 92px;
-            padding: 9px 4px;
-            border-radius: 14px;
-          }
-
-          .set-symbols {
-            gap: 0;
-          }
-
-          .set-symbols :global(svg) {
-            width: clamp(25px, 8vw, 38px);
-            height: clamp(25px, 8vw, 38px);
-          }
-
-          .set-footer {
-            align-items: stretch;
-            flex-direction: column;
-          }
+          .set-card { padding: 3px; border-radius: 11px; }
+          .set-symbols { gap: 1px; }
+          .set-symbols :global(svg) { width: min(32%, 42px); max-height: 72%; }
+          .set-footer { gap: 6px; }
+          .set-footer > span { font-size: 8px; }
         }
       `}</style>
     </GamePanel>
@@ -4184,7 +3515,7 @@ function TowerDisplay({
   hidden?: boolean;
   emptySlots?: number;
 }) {
-  const slots = [
+  const blocks = [
     ...sequence,
     ...Array.from({ length: emptySlots }, () => ""),
   ].slice(0, size);
@@ -4193,9 +3524,9 @@ function TowerDisplay({
     <div
       className="tower"
       style={{ "--tower-size": size } as CSSProperties}
-      aria-label="Colour tower"
+      aria-label={`${size}-block colour tower`}
     >
-      {[...slots].reverse().map((colourId, visualIndex) => {
+      {[...blocks].reverse().map((colourId, visualIndex) => {
         const colour = colourId ? colourById(colourId) : null;
 
         return (
@@ -4220,54 +3551,62 @@ function TowerDisplay({
 
       <style jsx>{`
         .tower {
-          width: min(250px, 78vw);
+          width: min(210px, 92%);
+          height: 100%;
+          max-height: 330px;
           margin: 0 auto;
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 5px;
+          justify-content: flex-end;
+          gap: 3px;
         }
-
         .tower-block {
           width: 100%;
-          height: clamp(34px, calc(330px / var(--tower-size)), 58px);
-          border-radius: 12px;
-          border: 3px solid rgba(255, 255, 255, 0.13);
+          height: clamp(20px, calc(250px / var(--tower-size)), 48px);
+          min-height: 0;
+          border-radius: 9px;
+          border: 2px solid rgba(255, 255, 255, 0.13);
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow:
-            0 9px 15px rgba(0, 0, 0, 0.2),
-            inset 0 4px 8px rgba(255, 255, 255, 0.2);
+          box-shadow: 0 6px 11px rgba(0, 0, 0, 0.2), inset 0 3px 6px rgba(255, 255, 255, 0.2);
         }
-
         .tower-block.is-hidden,
         .tower-block.is-empty {
           border: 1px dashed rgba(136, 217, 255, 0.22);
           color: rgba(229, 246, 255, 0.27);
           box-shadow: none;
         }
-
         .tower-block.is-hidden span {
           color: rgba(232, 247, 255, 0.28);
-          font-size: 18px;
+          font-size: 14px;
           font-weight: 900;
         }
-
         .tower-base {
-          width: calc(100% + 28px);
-          height: 25px;
-          margin-top: 2px;
-          border-radius: 8px 8px 14px 14px;
+          width: calc(100% + 18px);
+          height: 20px;
+          flex: 0 0 20px;
+          margin-top: 1px;
+          border-radius: 6px 6px 11px 11px;
           display: flex;
           align-items: center;
           justify-content: center;
           background: rgba(126, 222, 255, 0.12);
           border: 1px solid rgba(126, 222, 255, 0.19);
           color: rgba(229, 246, 255, 0.42);
-          font-size: 8px;
+          font-size: 7px;
           font-weight: 900;
-          letter-spacing: 0.2em;
+          letter-spacing: 0.16em;
+        }
+        @media (max-width: 720px) {
+          .tower { width: 94%; max-height: 245px; gap: 2px; }
+          .tower-block { height: clamp(16px, calc(180px / var(--tower-size)), 34px); border-radius: 7px; }
+          .tower-base { height: 17px; flex-basis: 17px; font-size: 6px; }
+        }
+        @media (max-height: 680px) and (max-width: 720px) {
+          .tower { max-height: 205px; }
+          .tower-block { height: clamp(14px, calc(145px / var(--tower-size)), 28px); }
         }
       `}</style>
     </div>
@@ -4278,12 +3617,21 @@ function TowerMemoryGame({
   userId,
   activityDate,
   questionNumber,
+  cluesUsed,
+  tokenBalance,
+  onBuyClue,
   onComplete,
   onContinue,
 }: {
   userId: string;
   activityDate: string;
   questionNumber: number;
+  cluesUsed: number;
+  tokenBalance: number;
+  onBuyClue: (
+    gameId: GameId,
+    questionNumber: number
+  ) => Promise<ClueResult>;
   onComplete: (
     gameId: GameId,
     questionNumber: number,
@@ -4294,30 +3642,24 @@ function TowerMemoryGame({
   const levelNumber = useRef(questionNumber).current;
   const size = towerSizeForQuestion(levelNumber);
   const expectedReward = towerRewardForQuestion(levelNumber);
-  const seed = makeSeed(
-    userId,
-    activityDate,
-    "tower-memory",
-    levelNumber
-  );
+  const seed = makeSeed(userId, activityDate, "tower-memory", levelNumber);
   const sequence = useMemo(
     () => createTowerSequence(seed, size),
     [seed, size]
   );
 
+  const initialPreviewSeconds = Math.max(5, size + 1);
   const [answer, setAnswer] = useState<string[]>([]);
-  const [phase, setPhase] = useState<"preview" | "build" | "complete">(
-    "preview"
-  );
-  const [previewSeconds, setPreviewSeconds] = useState(
-    Math.max(4, Math.round(size * 0.75))
-  );
-  const [mistakes, setMistakes] = useState(0);
-  const [message, setMessage] = useState("Study the tower from bottom to top.");
+  const [phase, setPhase] = useState<
+    "preview" | "build" | "failed" | "complete"
+  >("preview");
+  const [previewSeconds, setPreviewSeconds] = useState(initialPreviewSeconds);
+  const [attemptsUsed, setAttemptsUsed] = useState(0);
+  const [localClues, setLocalClues] = useState(cluesUsed);
+  const [message, setMessage] = useState("Study the tower.");
   const [errorMessage, setErrorMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const [completion, setCompletion] =
-    useState<CompletionResult | null>(null);
+  const [completion, setCompletion] = useState<CompletionResult | null>(null);
   const [finalScore, setFinalScore] = useState(0);
 
   useEffect(() => {
@@ -4346,39 +3688,69 @@ function TowerMemoryGame({
     setAnswer((current) => current.slice(0, -1));
   }
 
-  function showTowerAgain() {
-    if (busy) return;
-    setAnswer([]);
-    setPreviewSeconds(Math.max(3, Math.round(size * 0.6)));
-    setPhase("preview");
-    setMessage("Study the tower again.");
+  async function showTowerAgain() {
+    if (
+      busy ||
+      phase !== "build" ||
+      tokenBalance < CLUE_COST ||
+      localClues >= TOWER_MAX_ATTEMPTS
+    ) {
+      return;
+    }
+
+    setBusy(true);
+    setErrorMessage("");
+
+    try {
+      const result = await onBuyClue("tower-memory", levelNumber);
+      setLocalClues(result.cluesUsed);
+      setPreviewSeconds(Math.max(4, size - 1));
+      setPhase("preview");
+      setMessage("Study the tower again. Your answer is kept.");
+    } catch (error) {
+      setErrorMessage(formatSupabaseError(error));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function checkTower() {
     if (busy || phase !== "build" || answer.length !== size) return;
 
-    const correct = answer.every(
-      (colourId, index) => colourId === sequence[index]
+    const wrongBlocks = answer.reduce(
+      (total, colourId, index) => total + (colourId === sequence[index] ? 0 : 1),
+      0
     );
+    const nextAttempts = attemptsUsed + 1;
+    setAttemptsUsed(nextAttempts);
 
-    if (!correct) {
-      setMistakes((current) => current + 1);
+    if (wrongBlocks > 0) {
       setErrorMessage("");
-      setMessage("That order is different. The tower will appear again.");
-      showTowerAgain();
+
+      if (nextAttempts >= TOWER_MAX_ATTEMPTS) {
+        setPhase("failed");
+        setMessage(
+          `${wrongBlocks} of ${size} blocks were wrong. All ${TOWER_MAX_ATTEMPTS} attempts were used.`
+        );
+      } else {
+        setMessage(
+          `${wrongBlocks} of ${size} blocks are wrong. ${
+            TOWER_MAX_ATTEMPTS - nextAttempts
+          } attempts left.`
+        );
+      }
       return;
     }
 
-    const score = Math.max(250, 1200 - mistakes * 110 - size * 15);
+    const score = Math.max(
+      250,
+      1200 - Math.max(0, nextAttempts - 1) * 110 - localClues * 75 - size * 15
+    );
     setBusy(true);
     setErrorMessage("");
 
     try {
-      const result = await onComplete(
-        "tower-memory",
-        levelNumber,
-        score
-      );
+      const result = await onComplete("tower-memory", levelNumber, score);
       setFinalScore(score);
       setCompletion(result);
       setPhase("complete");
@@ -4389,22 +3761,31 @@ function TowerMemoryGame({
     }
   }
 
+  function retryLevel() {
+    setAnswer([]);
+    setAttemptsUsed(0);
+    setPreviewSeconds(initialPreviewSeconds);
+    setPhase("preview");
+    setMessage("Study the tower again.");
+    setErrorMessage("");
+  }
+
   if (phase === "complete" && completion) {
     return (
       <GamePanel
         top={
           <InstructionBar
             items={[
-              { label: "Daily level", value: `${levelNumber}/3` },
+              { label: "Level", value: `${levelNumber}/3` },
               { label: "Tower", value: `${size} blocks` },
-              { label: "Mistakes", value: String(mistakes) },
+              { label: "Attempts", value: String(attemptsUsed) },
             ]}
           />
         }
       >
         <RewardResult
           title={`${size}-block tower rebuilt!`}
-          text="You remembered the colour order and rebuilt the tower from its bottom block upward."
+          text="You remembered the exact colour order from the bottom block upward."
           reward={completion.reward}
           score={finalScore}
           isLastQuestion={completion.completedCount >= DAILY_LIMIT}
@@ -4419,65 +3800,62 @@ function TowerMemoryGame({
       top={
         <InstructionBar
           items={[
-            { label: "Daily level", value: `${levelNumber}/3` },
-            { label: "Tower size", value: `${size} blocks` },
+            { label: "Level", value: `${levelNumber}/3` },
+            { label: "Attempts", value: `${attemptsUsed}/${TOWER_MAX_ATTEMPTS}` },
             { label: "Reward", value: `${expectedReward} DT` },
           ]}
         />
       }
     >
       <div className="tower-layout">
-        <section className="tower-card preview-card">
-          <div className="tower-heading">
-            <div>
-              <p>Nova’s tower</p>
-              <h3>
-                {phase === "preview" ? "Study carefully" : "Tower hidden"}
-              </h3>
+        <div className="towers-row">
+          <section className="tower-card preview-card">
+            <div className="tower-heading">
+              <span>Nova’s tower</span>
+              <strong>
+                {phase === "preview" ? `${previewSeconds}s` : "Hidden"}
+              </strong>
             </div>
 
-            <span className="preview-timer">
-              {phase === "preview" ? `${previewSeconds}s` : "Hidden"}
-            </span>
-          </div>
+            {phase === "preview" && (
+              <div className="timer-bar" aria-label={`${previewSeconds} seconds remaining`}>
+                <i
+                  style={{
+                    width: `${Math.max(
+                      0,
+                      Math.min(100, (previewSeconds / initialPreviewSeconds) * 100)
+                    )}%`,
+                  }}
+                />
+              </div>
+            )}
 
-          <TowerDisplay
-            sequence={sequence}
-            size={size}
-            hidden={phase === "build"}
-          />
+            <div className="preview-area">
+              <TowerDisplay
+                sequence={sequence}
+                size={size}
+                hidden={phase === "build"}
+              />
 
-          {phase === "preview" && (
-            <button
-              type="button"
-              className="hide-now"
-              onClick={() => {
-                setPreviewSeconds(0);
-                setPhase("build");
-                setMessage("Rebuild the tower from bottom to top.");
-              }}
-            >
-              I am ready
-            </button>
-          )}
-        </section>
-
-        <section className="tower-card builder-card">
-          <div className="tower-heading">
-            <div>
-              <p>Your tower</p>
-              <h3>Build bottom first</h3>
             </div>
-            <span className="block-count">{answer.length}/{size}</span>
-          </div>
+          </section>
 
-          <TowerDisplay
-            sequence={answer}
-            size={size}
-            emptySlots={Math.max(0, size - answer.length)}
-          />
+          <section className="tower-card answer-card">
+            <div className="tower-heading">
+              <span>Your tower</span>
+              <strong>{answer.length}/{size}</strong>
+            </div>
 
-          <div className="tower-palette">
+            <TowerDisplay
+              sequence={answer}
+              size={size}
+              emptySlots={Math.max(0, size - answer.length)}
+            />
+          </section>
+        </div>
+
+        <div className="tower-controls">
+          <div className="tower-palette" aria-label="Choose a block colour">
             {COLOURS.map((colour) => (
               <button
                 type="button"
@@ -4485,201 +3863,222 @@ function TowerMemoryGame({
                 onClick={() => chooseColour(colour.id)}
                 disabled={phase !== "build" || busy || answer.length >= size}
                 aria-label={`Add ${colour.name} block`}
+                title={colour.name}
               >
                 <span style={{ background: colour.hex }} />
-                {colour.name}
               </button>
             ))}
           </div>
 
           <div className="tower-message" role="status">
-            <p>{message}</p>
+            <span>{message}</span>
             {errorMessage && <strong>{errorMessage}</strong>}
           </div>
 
           <div className="tower-actions">
-            <PrimaryButton
-              onClick={showTowerAgain}
-              disabled={busy || phase !== "build"}
-              secondary
-            >
-              Show tower again
-            </PrimaryButton>
+            {phase === "failed" ? (
+              <PrimaryButton onClick={retryLevel}>Retry level</PrimaryButton>
+            ) : (
+              <>
+                <PrimaryButton
+                  onClick={showTowerAgain}
+                  disabled={
+                    busy ||
+                    phase !== "build" ||
+                    tokenBalance < CLUE_COST ||
+                    localClues >= TOWER_MAX_ATTEMPTS
+                  }
+                  secondary
+                >
+                  Show again · 5 DT
+                </PrimaryButton>
 
-            <PrimaryButton
-              onClick={removeTopBlock}
-              disabled={busy || phase !== "build" || answer.length === 0}
-              secondary
-            >
-              Remove top block
-            </PrimaryButton>
+                <PrimaryButton
+                  onClick={removeTopBlock}
+                  disabled={busy || phase !== "build" || answer.length === 0}
+                  secondary
+                >
+                  Remove top
+                </PrimaryButton>
 
-            <PrimaryButton
-              onClick={checkTower}
-              disabled={busy || phase !== "build" || answer.length !== size}
-            >
-              {busy ? "Saving…" : "Check tower"}
-            </PrimaryButton>
+                <PrimaryButton
+                  onClick={checkTower}
+                  disabled={busy || phase !== "build" || answer.length !== size}
+                >
+                  {busy ? "Checking…" : "Check tower"}
+                </PrimaryButton>
+              </>
+            )}
           </div>
-        </section>
+        </div>
+
+        {phase === "failed" && (
+          <div className="failed-answer">
+            <span>Correct tower</span>
+            <div>
+              {sequence.map((colourId, index) => (
+                <i
+                  key={`${colourId}-${index}`}
+                  style={{ background: colourById(colourId).hex }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <style jsx>{`
         .tower-layout {
+          position: relative;
+          width: 100%;
+          height: 100%;
+          min-height: 0;
           display: grid;
-          grid-template-columns: minmax(250px, 0.8fr) minmax(0, 1.2fr);
-          gap: 22px;
-          align-items: stretch;
+          grid-template-rows: minmax(0, 1fr) auto;
+          gap: 7px;
+          overflow: hidden;
         }
-
+        .towers-row {
+          min-height: 0;
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 8px;
+          overflow: hidden;
+        }
         .tower-card {
-          padding: 20px;
-          border-radius: 20px;
-          border: 1px solid rgba(131, 213, 255, 0.12);
-          background: rgba(255, 255, 255, 0.025);
-        }
-
-        .preview-card {
+          min-width: 0;
+          min-height: 0;
+          padding: 8px;
           display: flex;
           flex-direction: column;
-          justify-content: space-between;
+          border-radius: 17px;
+          border: 1px solid rgba(131, 213, 255, 0.12);
+          background: rgba(255, 255, 255, 0.025);
+          overflow: hidden;
         }
-
         .tower-heading {
-          margin-bottom: 18px;
+          flex: 0 0 auto;
+          margin-bottom: 5px;
           display: flex;
-          align-items: flex-end;
+          align-items: center;
           justify-content: space-between;
-          gap: 14px;
+          gap: 8px;
         }
-
-        .tower-heading p {
-          margin: 0;
+        .tower-heading span {
           color: #77e7b7;
           font-size: 9px;
           font-weight: 900;
-          letter-spacing: 0.16em;
+          letter-spacing: 0.13em;
           text-transform: uppercase;
         }
-
-        .tower-heading h3 {
-          margin: 5px 0 0;
-          font-size: 21px;
+        .tower-heading strong {
+          color: rgba(241, 249, 255, 0.68);
+          font-size: 9px;
         }
-
-        .preview-timer,
-        .block-count {
-          min-width: 60px;
-          height: 31px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 999px;
-          background: rgba(111, 231, 177, 0.08);
-          color: #8ff1c0;
-          font-size: 10px;
-          font-weight: 850;
-        }
-
-        .hide-now {
-          min-height: 38px;
-          margin-top: 16px;
-          border-radius: 11px;
-          border: 1px solid rgba(137, 215, 255, 0.16);
-          background: rgba(255, 255, 255, 0.04);
-          color: rgba(241, 249, 255, 0.75);
-          font: inherit;
-          font-size: 11px;
-          font-weight: 800;
-          cursor: pointer;
-        }
-
-        .tower-palette {
-          margin-top: 18px;
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 7px;
-        }
-
-        .tower-palette button {
-          min-height: 42px;
-          padding: 6px 8px;
+        .preview-area {
+          position: relative;
+          flex: 1 1 auto;
+          min-height: 0;
           display: flex;
+          overflow: hidden;
+        }
+        .answer-card > :global(div:last-child) { flex: 1 1 auto; min-height: 0; }
+        .timer-bar {
+          flex: 0 0 5px;
+          height: 5px;
+          margin: -1px 3px 5px;
+          overflow: hidden;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.08);
+        }
+        .timer-bar i {
+          display: block;
+          height: 100%;
+          border-radius: inherit;
+          background: #6fe7b1;
+          transition: width 1s linear;
+          box-shadow: 0 0 12px rgba(111, 231, 177, 0.32);
+        }
+        .tower-controls {
+          padding: 7px;
+          display: grid;
+          grid-template-columns: minmax(210px, 0.7fr) minmax(160px, 1fr) auto;
           align-items: center;
-          gap: 7px;
-          border-radius: 11px;
+          gap: 8px;
+          border-radius: 15px;
+          border: 1px solid rgba(131, 213, 255, 0.1);
+          background: rgba(255, 255, 255, 0.025);
+        }
+        .tower-palette {
+          display: grid;
+          grid-template-columns: repeat(6, 1fr);
+          gap: 5px;
+        }
+        .tower-palette button {
+          aspect-ratio: 1;
+          min-width: 0;
+          padding: 3px;
+          border-radius: 999px;
           border: 1px solid rgba(137, 215, 255, 0.12);
           background: rgba(255, 255, 255, 0.035);
-          color: rgba(243, 250, 255, 0.72);
-          font: inherit;
-          font-size: 10px;
-          font-weight: 750;
           cursor: pointer;
         }
-
-        .tower-palette button:disabled {
-          opacity: 0.35;
-          cursor: not-allowed;
-        }
-
         .tower-palette button span {
-          width: 19px;
-          height: 19px;
-          flex: 0 0 auto;
-          border-radius: 5px;
+          width: 100%;
+          height: 100%;
+          display: block;
+          border-radius: 999px;
           border: 2px solid rgba(255, 255, 255, 0.18);
         }
-
+        .tower-palette button:disabled { opacity: 0.35; cursor: not-allowed; }
         .tower-message {
-          min-height: 48px;
-          margin-top: 13px;
-          padding: 10px 12px;
-          display: grid;
-          align-content: center;
-          gap: 4px;
-          border-radius: 12px;
-          background: rgba(255, 255, 255, 0.025);
-          color: rgba(235, 247, 255, 0.59);
-          font-size: 11px;
-          line-height: 1.4;
-        }
-
-        .tower-message p {
-          margin: 0;
-        }
-
-        .tower-message strong {
-          color: #ff9ca8;
+          min-width: 0;
+          color: rgba(235, 247, 255, 0.62);
           font-size: 10px;
+          line-height: 1.35;
+          text-align: center;
         }
-
-        .tower-actions {
-          margin-top: 13px;
-          display: flex;
-          justify-content: flex-end;
-          gap: 8px;
-          flex-wrap: wrap;
+        .tower-message strong { display: block; color: #ff9ca8; }
+        .tower-actions { display: flex; justify-content: flex-end; gap: 6px; }
+        .failed-answer {
+          position: absolute;
+          inset: auto 50% 66px auto;
+          transform: translateX(50%);
+          z-index: 5;
+          padding: 8px 10px;
+          border-radius: 12px;
+          background: rgba(3, 17, 31, 0.94);
+          border: 1px solid rgba(255, 156, 168, 0.22);
+          text-align: center;
         }
+        .failed-answer > span { color: rgba(241, 249, 255, 0.54); font-size: 8px; text-transform: uppercase; }
+        .failed-answer > div { margin-top: 5px; display: flex; gap: 4px; }
+        .failed-answer i { width: 18px; height: 18px; border-radius: 5px; }
 
         @media (max-width: 900px) {
-          .tower-layout {
-            grid-template-columns: 1fr;
-          }
+          .tower-controls { grid-template-columns: minmax(170px, 0.7fr) 1fr; }
+          .tower-actions { grid-column: 1 / -1; justify-content: center; }
         }
-
-        @media (max-width: 560px) {
-          .tower-card {
-            padding: 15px 10px;
-          }
-
-          .tower-palette {
-            grid-template-columns: repeat(2, 1fr);
-          }
-
-          .tower-actions {
-            display: grid;
+        @media (max-width: 720px) {
+          .tower-layout { gap: 4px; }
+          .towers-row { gap: 4px; }
+          .tower-card { padding: 5px 3px; border-radius: 12px; }
+          .tower-heading { margin-bottom: 2px; padding: 0 2px; }
+          .tower-heading span, .tower-heading strong { font-size: 7px; }
+          .tower-controls {
+            padding: 4px;
             grid-template-columns: 1fr;
+            gap: 4px;
           }
+          .tower-palette { width: min(250px, 100%); margin: 0 auto; gap: 4px; }
+          .tower-palette button { padding: 2px; }
+          .tower-message { min-height: 18px; font-size: 8px; }
+          .tower-actions { grid-column: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+          .failed-answer { bottom: 92px; }
+        }
+        @media (max-width: 410px) {
+          .tower-actions { grid-template-columns: 1fr 1fr; }
+          .tower-actions :global(button:last-child) { grid-column: 1 / -1; }
         }
       `}</style>
     </GamePanel>
