@@ -1090,10 +1090,10 @@ export default function MiloCategoriesPage() {
     }
 
     if (!showResult && isSelected) {
-      return "border-cyan-300/70 bg-cyan-300/16 text-white";
+      return "border-[#ffd18a]/70 bg-[#ffd18a]/16 text-white";
     }
 
-    return "border-cyan-200/14 bg-white/[0.045] text-white/82 hover:border-cyan-200/34 hover:bg-white/[0.075]";
+    return "border-white/12 bg-white/[0.045] text-white/82 hover:border-[#ffd18a]/35 hover:bg-white/[0.075]";
   }
 
   function getMultiplayerOptionClass(optionLetter: "A" | "B" | "C" | "D") {
@@ -1111,100 +1111,93 @@ export default function MiloCategoriesPage() {
     }
 
     if (!showResult && isSelected) {
-      return "border-cyan-300/70 bg-cyan-300/16 text-white";
+      return "border-[#ffd18a]/70 bg-[#ffd18a]/16 text-white";
     }
 
-    return "border-cyan-200/14 bg-white/[0.045] text-white/82 hover:border-cyan-200/34 hover:bg-white/[0.075]";
+    return "border-white/12 bg-white/[0.045] text-white/82 hover:border-[#ffd18a]/35 hover:bg-white/[0.075]";
   }
 
   return (
-  <main className="relative min-h-screen overflow-x-hidden bg-[#020813] px-5 py-8 text-white sm:px-8 sm:py-10">
-    <div className="pointer-events-none fixed inset-0 z-0">
-      <div
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-        style={{
-          backgroundImage: "url('/milo-world/activities/categories-bg.png')",
-        }}
-      />
-
-      <div
-        className="absolute inset-0"
-        style={{
-          background:
-            "linear-gradient(180deg, rgba(2,8,19,0.66) 0%, rgba(2,8,19,0.82) 44%, rgba(2,8,19,0.96) 100%)",
-        }}
-      />
-
-      <div
-        className="absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(circle at top, rgba(126,232,255,0.18), transparent 34%)",
-        }}
-      />
-
-      <div className="absolute left-[-120px] top-[-120px] h-[360px] w-[360px] rounded-full bg-cyan-400/10 blur-3xl" />
-      <div className="absolute bottom-[-140px] right-[-120px] h-[380px] w-[380px] rounded-full bg-orange-500/10 blur-3xl" />
-    </div>
-
-      <div className="relative z-10 mx-auto max-w-5xl">
+    <main
+      className="relative min-h-[100dvh] overflow-x-hidden text-white"
+      style={{
+        backgroundImage: `
+          linear-gradient(
+            180deg,
+            rgba(2, 8, 23, 0.76),
+            rgba(2, 8, 23, 0.9)
+          ),
+          url('/milo-world/activities/categories-bg.png')
+        `,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundAttachment: "fixed",
+        fontFamily:
+          'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      }}
+    >
+      <header className="relative z-10 flex items-center justify-between gap-3 px-3 py-3 sm:px-5 sm:py-5">
         <Link
           href="/milo-world/activity-lab"
-          className="inline-flex h-11 items-center rounded-full border border-cyan-200/25 bg-white/6 px-5 text-sm tracking-wide text-white shadow-[0_16px_36px_rgba(0,0,0,0.28)] backdrop-blur-xl transition hover:scale-[1.03] hover:border-cyan-200/45"
+          className="inline-flex h-[42px] items-center justify-center rounded-[14px] border border-white/16 bg-[#050d1c]/90 px-[18px] text-sm font-black text-white no-underline shadow-[0_14px_32px_rgba(0,0,0,0.22)] transition hover:bg-white/10"
         >
           ← Back to Activity Lab
         </Link>
+      </header>
 
-        <section className="mt-14 text-center">
-          <p className="m-0 text-xs font-bold uppercase tracking-[0.24em] text-[#7ee8ff]">
-            Activity Lab
-          </p>
+      <section className="relative z-10 px-0 pb-9 pt-2 sm:pb-14 sm:pt-5">
+        <div className="mx-auto w-[calc(100%_-_20px)] max-w-[1080px] overflow-hidden rounded-[22px] border border-white/16 bg-[#030a17]/72 shadow-[0_34px_100px_rgba(0,0,0,0.45)] backdrop-blur-[18px] sm:w-[calc(100%_-_32px)] sm:rounded-[30px]">
+          <div className="border-b border-white/12 bg-[linear-gradient(145deg,rgba(255,176,83,0.16),rgba(83,215,255,0.08))] px-5 py-6 sm:px-[34px] sm:py-[34px]">
+            <p className="m-0 text-xs font-black uppercase tracking-[0.2em] text-[#ffd18a]">
+              Milo’s Quiz Lab
+            </p>
 
-          <h1 className="mt-4 text-5xl font-extralight tracking-[-0.05em] text-white drop-shadow-[0_0_28px_rgba(126,232,255,0.18)] sm:text-7xl">
-            Categories
-          </h1>
+            <h1 className="mt-[14px] font-serif text-[46px] font-medium leading-[0.95] text-white sm:text-[clamp(44px,7vw,78px)]">
+              Categories
+            </h1>
 
-          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-white/62">
-            10 random questions. Correct answers earn more points when answered
-            faster.
-          </p>
+            <p className="mt-[18px] max-w-[740px] text-[15px] leading-[1.6] text-white/76 sm:text-[17px]">
+              Pick a category, answer quickly, and climb the scoreboard. Play
+              solo or challenge friends in a shared lobby.
+            </p>
 
-          <div className="mx-auto mt-6 grid max-w-3xl gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-cyan-200/14 bg-white/[0.045] p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-white/40">
-                Mode
-              </p>
-              <p className="mt-1 text-lg font-bold">
-                {categoryMode === "multiplayer" ? "Multiplayer" : "Single"}
-              </p>
-            </div>
+            <div className="mt-6 grid max-w-[760px] gap-3 sm:grid-cols-3">
+              <div className="rounded-[16px] border border-white/14 bg-white/[0.08] p-4">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-white/45">
+                  Mode
+                </p>
+                <p className="mt-1 text-lg font-black text-white">
+                  {categoryMode === "multiplayer" ? "Multiplayer" : "Single"}
+                </p>
+              </div>
 
-            <div className="rounded-2xl border border-cyan-200/14 bg-white/[0.045] p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-white/40">
-                Points
-              </p>
-              <p className="mt-1 text-2xl font-bold">
-                {categoryMode === "multiplayer"
-                  ? multiplayerPoints
-                  : categoryPoints}
-              </p>
-            </div>
+              <div className="rounded-[16px] border border-white/14 bg-white/[0.08] p-4">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-white/45">
+                  Points
+                </p>
+                <p className="mt-1 text-2xl font-black text-white">
+                  {categoryMode === "multiplayer"
+                    ? multiplayerPoints
+                    : categoryPoints}
+                </p>
+              </div>
 
-            <div className="rounded-2xl border border-orange-200/14 bg-orange-300/10 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-white/40">
-                Timer
-              </p>
-              <p className="mt-1 text-sm font-bold text-orange-100">
-                10 seconds/question
-              </p>
+              <div className="rounded-[16px] border border-[#ffd18a]/24 bg-[#ffd18a]/10 p-4">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-white/45">
+                  Timer
+                </p>
+                <p className="mt-1 text-sm font-black text-[#ffd18a]">
+                  10 seconds/question
+                </p>
+              </div>
             </div>
           </div>
-        </section>
 
-        <section className="mx-auto mt-12 max-w-3xl rounded-[32px] border border-cyan-200/18 bg-slate-950/70 p-6 shadow-[0_28px_90px_rgba(0,0,0,0.42)] backdrop-blur-xl sm:p-8">
+          <div className="p-5 sm:p-[34px]">
+            <section className="rounded-[24px] border border-white/14 bg-white/[0.08] p-5 sm:p-6">
           {categoriesStage === "mode" && (
             <>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#7ee8ff]">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
                 Choose Mode
               </p>
 
@@ -1212,7 +1205,7 @@ export default function MiloCategoriesPage() {
                 <button
                   type="button"
                   onClick={() => chooseCategoriesMode("single")}
-                  className="min-h-[180px] rounded-3xl border border-cyan-200/18 bg-[#061632]/75 p-6 text-left transition hover:scale-[1.02] hover:border-cyan-200/40"
+                  className="min-h-[180px] rounded-[24px] border border-white/14 bg-[#050d1c]/85 p-6 text-left transition hover:scale-[1.02] hover:border-[#ffd18a]/45"
                 >
                   <span className="text-2xl font-bold">Single Player</span>
                   <span className="mt-3 block text-sm leading-6 text-white/58">
@@ -1224,7 +1217,7 @@ export default function MiloCategoriesPage() {
                 <button
                   type="button"
                   onClick={() => chooseCategoriesMode("multiplayer")}
-                  className="min-h-[180px] rounded-3xl border border-orange-200/18 bg-orange-300/10 p-6 text-left transition hover:scale-[1.02] hover:border-orange-200/40"
+                  className="min-h-[180px] rounded-[24px] border border-[#ffd18a]/24 bg-[#ffd18a]/10 p-6 text-left transition hover:scale-[1.02] hover:border-[#ffd18a]/45"
                 >
                   <span className="text-2xl font-bold">Multiplayer</span>
                   <span className="mt-3 block text-sm leading-6 text-white/58">
@@ -1234,7 +1227,7 @@ export default function MiloCategoriesPage() {
                 </button>
               </div>
 
-              <div className="mt-6 rounded-3xl border border-yellow-200/18 bg-yellow-300/10 p-5">
+              <div className="mt-6 rounded-[24px] border border-yellow-200/18 bg-yellow-300/10 p-5">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ffd18a]">
                   Reward Rules
                 </p>
@@ -1253,7 +1246,7 @@ export default function MiloCategoriesPage() {
               <button
                 type="button"
                 onClick={() => setCategoriesStage("mode")}
-                className="text-sm font-bold text-[#7ee8ff]"
+                className="text-sm font-bold text-[#ffd18a]"
               >
                 ← Back to mode select
               </button>
@@ -1280,10 +1273,10 @@ export default function MiloCategoriesPage() {
                             type="button"
                             onClick={() => setSelectedCategory(category)}
                             disabled={isLoadingCategories}
-                            className={`min-h-[128px] rounded-3xl border p-5 text-left transition hover:scale-[1.02] disabled:cursor-wait disabled:opacity-50 ${
+                            className={`min-h-[128px] rounded-[24px] border p-5 text-left transition hover:scale-[1.02] disabled:cursor-wait disabled:opacity-50 ${
                               isSelected
-                                ? "border-orange-200/55 bg-orange-300/18 shadow-[0_0_32px_rgba(251,146,60,0.16)]"
-                                : "border-cyan-200/18 bg-[#061632]/75 hover:border-cyan-200/40 hover:bg-white/[0.065]"
+                                ? "border-[#ffd18a]/60 bg-[#ffd18a]/16 shadow-[0_0_32px_rgba(229,183,94,0.16)]"
+                                : "border-white/14 bg-[#050d1c]/85 hover:border-[#ffd18a]/45 hover:bg-white/[0.065]"
                             }`}
                           >
                             <span className="text-xs font-bold uppercase tracking-[0.16em] text-white/42">
@@ -1299,7 +1292,7 @@ export default function MiloCategoriesPage() {
                             </span>
 
                             {isSelected && (
-                              <span className="mt-4 inline-flex rounded-full border border-orange-200/25 bg-orange-300/14 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-orange-100">
+                              <span className="mt-4 inline-flex rounded-full border border-[#ffd18a]/30 bg-[#ffd18a]/12 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-[#ffd18a]">
                                 Selected
                               </span>
                             )}
@@ -1313,7 +1306,7 @@ export default function MiloCategoriesPage() {
                   type="button"
                   onClick={startSinglePlayerCategoryQuiz}
                   disabled={isLoadingCategoryQuiz || isLoadingCategories}
-                  className="mt-5 h-13 w-full rounded-full bg-white px-5 py-4 text-sm font-bold uppercase tracking-[0.12em] text-[#061632] transition hover:scale-[1.01] disabled:cursor-wait disabled:opacity-50"
+                  className="mt-5 h-13 w-full rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white shadow-[0_14px_32px_rgba(196,122,37,0.24)] transition hover:scale-[1.01] disabled:cursor-wait disabled:opacity-50"
                 >
                   {isLoadingCategoryQuiz
                     ? "Loading Quiz..."
@@ -1328,12 +1321,12 @@ export default function MiloCategoriesPage() {
               <button
                 type="button"
                 onClick={resetCategoriesQuiz}
-                className="text-sm font-bold text-[#7ee8ff]"
+                className="text-sm font-bold text-[#ffd18a]"
               >
                 ← Back to mode select
               </button>
 
-              <p className="mt-7 text-xs font-bold uppercase tracking-[0.2em] text-[#7ee8ff]">
+              <p className="mt-7 text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
                 Multiplayer Lobby
               </p>
 
@@ -1341,7 +1334,7 @@ export default function MiloCategoriesPage() {
                 <button
                   type="button"
                   onClick={() => setCategoriesStage("multiplayer-create")}
-                  className="min-h-[180px] rounded-3xl border border-cyan-200/18 bg-[#061632]/75 p-6 text-left transition hover:scale-[1.02] hover:border-cyan-200/40"
+                  className="min-h-[180px] rounded-[24px] border border-white/14 bg-[#050d1c]/85 p-6 text-left transition hover:scale-[1.02] hover:border-[#ffd18a]/45"
                 >
                   <span className="text-2xl font-bold">Create Lobby</span>
                   <span className="mt-3 block text-sm leading-6 text-white/58">
@@ -1352,7 +1345,7 @@ export default function MiloCategoriesPage() {
                 <button
                   type="button"
                   onClick={() => setCategoriesStage("multiplayer-join")}
-                  className="min-h-[180px] rounded-3xl border border-orange-200/18 bg-orange-300/10 p-6 text-left transition hover:scale-[1.02] hover:border-orange-200/40"
+                  className="min-h-[180px] rounded-[24px] border border-[#ffd18a]/24 bg-[#ffd18a]/10 p-6 text-left transition hover:scale-[1.02] hover:border-[#ffd18a]/45"
                 >
                   <span className="text-2xl font-bold">Join Lobby</span>
                   <span className="mt-3 block text-sm leading-6 text-white/58">
@@ -1368,7 +1361,7 @@ export default function MiloCategoriesPage() {
               <button
                 type="button"
                 onClick={() => setCategoriesStage("multiplayer-menu")}
-                className="text-sm font-bold text-[#7ee8ff]"
+                className="text-sm font-bold text-[#ffd18a]"
               >
                 ← Back to multiplayer
               </button>
@@ -1383,7 +1376,7 @@ export default function MiloCategoriesPage() {
                     value={displayName}
                     onChange={(event) => setDisplayName(event.target.value)}
                     placeholder="Player name"
-                    className="h-12 rounded-2xl border border-cyan-200/18 bg-[#061632] px-4 text-white outline-none placeholder:text-white/30"
+                    className="h-12 rounded-[14px] border border-white/14 bg-[#050d1c] px-4 text-white outline-none placeholder:text-white/30"
                   />
                 </label>
 
@@ -1395,7 +1388,7 @@ export default function MiloCategoriesPage() {
                   <select
                     value={selectedCategory}
                     onChange={(event) => setSelectedCategory(event.target.value)}
-                    className="h-12 rounded-2xl border border-cyan-200/18 bg-[#061632] px-4 text-white outline-none"
+                    className="h-12 rounded-[14px] border border-white/14 bg-[#050d1c] px-4 text-white outline-none"
                   >
                     {availableCategories.map((category) => (
                       <option key={category} value={category}>
@@ -1409,7 +1402,7 @@ export default function MiloCategoriesPage() {
                   type="button"
                   onClick={createMultiplayerLobby}
                   disabled={isCreatingLobby || isLoadingCategories}
-                  className="h-13 w-full rounded-full bg-white px-5 py-4 text-sm font-bold uppercase tracking-[0.12em] text-[#061632] transition hover:scale-[1.01] disabled:cursor-wait disabled:opacity-50"
+                  className="h-13 w-full rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white shadow-[0_14px_32px_rgba(196,122,37,0.24)] transition hover:scale-[1.01] disabled:cursor-wait disabled:opacity-50"
                 >
                   {isCreatingLobby ? "Creating Lobby..." : "Create Lobby"}
                 </button>
@@ -1422,7 +1415,7 @@ export default function MiloCategoriesPage() {
               <button
                 type="button"
                 onClick={() => setCategoriesStage("multiplayer-menu")}
-                className="text-sm font-bold text-[#7ee8ff]"
+                className="text-sm font-bold text-[#ffd18a]"
               >
                 ← Back to multiplayer
               </button>
@@ -1437,7 +1430,7 @@ export default function MiloCategoriesPage() {
                     value={displayName}
                     onChange={(event) => setDisplayName(event.target.value)}
                     placeholder="Player name"
-                    className="h-12 rounded-2xl border border-cyan-200/18 bg-[#061632] px-4 text-white outline-none placeholder:text-white/30"
+                    className="h-12 rounded-[14px] border border-white/14 bg-[#050d1c] px-4 text-white outline-none placeholder:text-white/30"
                   />
                 </label>
 
@@ -1453,7 +1446,7 @@ export default function MiloCategoriesPage() {
                     }
                     placeholder="ABC123"
                     maxLength={6}
-                    className="h-12 rounded-2xl border border-cyan-200/18 bg-[#061632] px-4 text-center text-2xl font-black uppercase tracking-[0.2em] text-white outline-none placeholder:text-white/30"
+                    className="h-12 rounded-[14px] border border-white/14 bg-[#050d1c] px-4 text-center text-2xl font-black uppercase tracking-[0.2em] text-white outline-none placeholder:text-white/30"
                   />
                 </label>
 
@@ -1461,7 +1454,7 @@ export default function MiloCategoriesPage() {
                   type="button"
                   onClick={joinMultiplayerLobby}
                   disabled={isJoiningLobby}
-                  className="h-13 w-full rounded-full bg-white px-5 py-4 text-sm font-bold uppercase tracking-[0.12em] text-[#061632] transition hover:scale-[1.01] disabled:cursor-wait disabled:opacity-50"
+                  className="h-13 w-full rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white shadow-[0_14px_32px_rgba(196,122,37,0.24)] transition hover:scale-[1.01] disabled:cursor-wait disabled:opacity-50"
                 >
                   {isJoiningLobby ? "Joining Lobby..." : "Join Lobby"}
                 </button>
@@ -1474,13 +1467,13 @@ export default function MiloCategoriesPage() {
               <button
                 type="button"
                 onClick={resetCategoriesQuiz}
-                className="text-sm font-bold text-[#7ee8ff]"
+                className="text-sm font-bold text-[#ffd18a]"
               >
                 ← Leave lobby
               </button>
 
-              <div className="mt-7 rounded-3xl border border-cyan-200/18 bg-[#061632]/75 p-6 text-center">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#7ee8ff]">
+              <div className="mt-7 rounded-[24px] border border-white/14 bg-[#050d1c]/85 p-6 text-center">
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
                   Lobby Code
                 </p>
 
@@ -1493,7 +1486,7 @@ export default function MiloCategoriesPage() {
                 </p>
               </div>
 
-              <div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-5">
+              <div className="mt-6 rounded-[24px] border border-white/10 bg-white/[0.04] p-5">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/44">
                   Players
                 </p>
@@ -1502,10 +1495,10 @@ export default function MiloCategoriesPage() {
                   {multiplayerPlayers.map((player) => (
                     <div
                       key={player.id}
-                      className="flex items-center justify-between rounded-2xl border border-cyan-200/14 bg-white/[0.045] px-4 py-3"
+                      className="flex items-center justify-between rounded-[14px] border border-white/12 bg-white/[0.045] px-4 py-3"
                     >
                       <span className="font-bold">{player.display_name}</span>
-                      <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#7ee8ff]">
+                      <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#ffd18a]">
                         {player.is_host ? "Host" : "Player"}
                       </span>
                     </div>
@@ -1517,12 +1510,12 @@ export default function MiloCategoriesPage() {
                 <button
                   type="button"
                   onClick={startMultiplayerGame}
-                  className="mt-6 h-13 w-full rounded-full bg-white px-5 py-4 text-sm font-bold uppercase tracking-[0.12em] text-[#061632] transition hover:scale-[1.01]"
+                  className="mt-6 h-13 w-full rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white shadow-[0_14px_32px_rgba(196,122,37,0.24)] transition hover:scale-[1.01]"
                 >
                   Start Game
                 </button>
               ) : (
-                <p className="mt-6 rounded-3xl border border-orange-200/18 bg-orange-300/10 p-5 text-sm font-bold text-orange-100">
+                <p className="mt-6 rounded-[24px] border border-[#ffd18a]/24 bg-[#ffd18a]/10 p-5 text-sm font-bold text-[#ffd18a]">
                   Waiting for the host to start the game.
                 </p>
               )}
@@ -1533,7 +1526,7 @@ export default function MiloCategoriesPage() {
             currentCategoryQuestion && (
               <div>
                 <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-                  <span className="rounded-full border border-cyan-200/18 bg-cyan-300/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-[#7ee8ff]">
+                  <span className="rounded-full border border-white/14 bg-white/[0.07] px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-[#ffd18a]">
                     {selectedCategory}
                   </span>
 
@@ -1541,7 +1534,7 @@ export default function MiloCategoriesPage() {
                     Question {categoryQuestionIndex + 1} / 10
                   </span>
 
-                  <span className="rounded-full border border-orange-200/18 bg-orange-300/10 px-4 py-2 text-xs font-bold text-orange-100">
+                  <span className="rounded-full border border-[#ffd18a]/24 bg-[#ffd18a]/10 px-4 py-2 text-xs font-bold text-[#ffd18a]">
                     {categoriesStage === "answered"
                       ? `Next in ${nextQuestionCountdown}s`
                       : `${questionCountdown}s`}
@@ -1549,7 +1542,7 @@ export default function MiloCategoriesPage() {
                 </div>
 
                 <div className="mb-6 grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-cyan-200/14 bg-white/[0.045] p-4">
+                  <div className="rounded-[14px] border border-white/12 bg-white/[0.045] p-4">
                     <p className="text-xs uppercase tracking-[0.18em] text-white/40">
                       Current Score
                     </p>
@@ -1558,14 +1551,14 @@ export default function MiloCategoriesPage() {
                     </p>
                   </div>
 
-                  <div className="rounded-2xl border border-cyan-200/14 bg-white/[0.045] p-4">
+                  <div className="rounded-[14px] border border-white/12 bg-white/[0.045] p-4">
                     <p className="text-xs uppercase tracking-[0.18em] text-white/40">
                       Total Points
                     </p>
                     <p className="mt-1 text-xl font-bold">{categoryPoints}</p>
                   </div>
 
-                  <div className="rounded-2xl border border-yellow-200/14 bg-yellow-300/10 p-4">
+                  <div className="rounded-[14px] border border-yellow-200/14 bg-yellow-300/10 p-4">
                     <p className="text-xs uppercase tracking-[0.18em] text-white/40">
                       Last Question
                     </p>
@@ -1593,7 +1586,7 @@ export default function MiloCategoriesPage() {
                       onClick={() =>
                         submitCategoryAnswer(letter as "A" | "B" | "C" | "D")
                       }
-                      className={`min-h-[58px] rounded-2xl border px-5 py-4 text-left text-sm font-bold transition ${getCategoryOptionClass(
+                      className={`min-h-[58px] rounded-[14px] border px-5 py-4 text-left text-sm font-bold transition ${getCategoryOptionClass(
                         letter as "A" | "B" | "C" | "D"
                       )}`}
                     >
@@ -1603,7 +1596,7 @@ export default function MiloCategoriesPage() {
                 </div>
 
                 {categoryMessage && (
-                  <p className="mt-5 text-sm font-bold leading-6 text-[#7ee8ff]">
+                  <p className="mt-5 text-sm font-bold leading-6 text-[#ffd18a]">
                     {categoryMessage}
                     {categoriesStage === "answered" &&
                       currentCategoryQuestion.explanation && (
@@ -1624,7 +1617,7 @@ export default function MiloCategoriesPage() {
             currentMultiplayerQuestion && (
               <div>
                 <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-                  <span className="rounded-full border border-cyan-200/18 bg-cyan-300/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-[#7ee8ff]">
+                  <span className="rounded-full border border-white/14 bg-white/[0.07] px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-[#ffd18a]">
                     {multiplayerLobby?.category}
                   </span>
 
@@ -1632,7 +1625,7 @@ export default function MiloCategoriesPage() {
                     Question {multiplayerQuestionIndex + 1} / 10
                   </span>
 
-                  <span className="rounded-full border border-orange-200/18 bg-orange-300/10 px-4 py-2 text-xs font-bold text-orange-100">
+                  <span className="rounded-full border border-[#ffd18a]/24 bg-[#ffd18a]/10 px-4 py-2 text-xs font-bold text-[#ffd18a]">
                     {categoriesStage === "multiplayer-answered"
                       ? `Next in ${multiplayerNextCountdown}s`
                       : `${multiplayerCountdown}s`}
@@ -1640,7 +1633,7 @@ export default function MiloCategoriesPage() {
                 </div>
 
                 <div className="mb-6 grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-cyan-200/14 bg-white/[0.045] p-4">
+                  <div className="rounded-[14px] border border-white/12 bg-white/[0.045] p-4">
                     <p className="text-xs uppercase tracking-[0.18em] text-white/40">
                       Your Score
                     </p>
@@ -1649,7 +1642,7 @@ export default function MiloCategoriesPage() {
                     </p>
                   </div>
 
-                  <div className="rounded-2xl border border-cyan-200/14 bg-white/[0.045] p-4">
+                  <div className="rounded-[14px] border border-white/12 bg-white/[0.045] p-4">
                     <p className="text-xs uppercase tracking-[0.18em] text-white/40">
                       Your Points
                     </p>
@@ -1658,7 +1651,7 @@ export default function MiloCategoriesPage() {
                     </p>
                   </div>
 
-                  <div className="rounded-2xl border border-yellow-200/14 bg-yellow-300/10 p-4">
+                  <div className="rounded-[14px] border border-yellow-200/14 bg-yellow-300/10 p-4">
                     <p className="text-xs uppercase tracking-[0.18em] text-white/40">
                       Last Question
                     </p>
@@ -1688,7 +1681,7 @@ export default function MiloCategoriesPage() {
                           letter as "A" | "B" | "C" | "D"
                         )
                       }
-                      className={`min-h-[58px] rounded-2xl border px-5 py-4 text-left text-sm font-bold transition ${getMultiplayerOptionClass(
+                      className={`min-h-[58px] rounded-[14px] border px-5 py-4 text-left text-sm font-bold transition ${getMultiplayerOptionClass(
                         letter as "A" | "B" | "C" | "D"
                       )}`}
                     >
@@ -1698,7 +1691,7 @@ export default function MiloCategoriesPage() {
                 </div>
 
                 {multiplayerMessage && (
-                  <p className="mt-5 text-sm font-bold leading-6 text-[#7ee8ff]">
+                  <p className="mt-5 text-sm font-bold leading-6 text-[#ffd18a]">
                     {multiplayerMessage}
                     {categoriesStage === "multiplayer-answered" &&
                       currentMultiplayerQuestion.explanation && (
@@ -1716,7 +1709,7 @@ export default function MiloCategoriesPage() {
 
           {categoriesStage === "finished" && (
             <div className="text-center">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#7ee8ff]">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
                 Quiz Complete
               </p>
 
@@ -1736,7 +1729,7 @@ export default function MiloCategoriesPage() {
                   : "Keep practising. These questions are designed to be tougher."}
               </p>
 
-              <div className="mt-7 rounded-3xl border border-yellow-200/18 bg-yellow-300/10 p-5 text-left">
+              <div className="mt-7 rounded-[24px] border border-yellow-200/18 bg-yellow-300/10 p-5 text-left">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ffd18a]">
                   Dreamscape Token Reward
                 </p>
@@ -1752,7 +1745,7 @@ export default function MiloCategoriesPage() {
                 )}
 
                 {alreadyRewardedThisWeek && (
-                  <p className="mt-4 text-sm font-bold text-orange-100">
+                  <p className="mt-4 text-sm font-bold text-[#ffd18a]">
                     Weekly reward already claimed.
                   </p>
                 )}
@@ -1761,7 +1754,7 @@ export default function MiloCategoriesPage() {
               <button
                 type="button"
                 onClick={resetCategoriesQuiz}
-                className="mt-7 h-13 w-full rounded-full bg-white px-5 py-4 text-sm font-bold uppercase tracking-[0.12em] text-[#061632] transition hover:scale-[1.01]"
+                className="mt-7 h-13 w-full rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white shadow-[0_14px_32px_rgba(196,122,37,0.24)] transition hover:scale-[1.01]"
               >
                 Back to Mode Select
               </button>
@@ -1770,7 +1763,7 @@ export default function MiloCategoriesPage() {
 
           {categoriesStage === "multiplayer-finished" && (
             <div className="text-center">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#7ee8ff]">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
                 Multiplayer Complete
               </p>
 
@@ -1782,8 +1775,8 @@ export default function MiloCategoriesPage() {
                 {multiplayerPoints} points
               </p>
 
-              <div className="mt-7 rounded-3xl border border-cyan-200/18 bg-white/[0.045] p-5 text-left">
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7ee8ff]">
+              <div className="mt-7 rounded-[24px] border border-white/14 bg-white/[0.045] p-5 text-left">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ffd18a]">
                   Leaderboard
                 </p>
 
@@ -1791,7 +1784,7 @@ export default function MiloCategoriesPage() {
                   {sortedMultiplayerPlayers.map((player, index) => (
                     <div
                       key={player.id}
-                      className="flex items-center justify-between rounded-2xl border border-cyan-200/14 bg-[#061632]/75 px-4 py-3"
+                      className="flex items-center justify-between rounded-[14px] border border-white/12 bg-[#050d1c]/85 px-4 py-3"
                     >
                       <div>
                         <p className="font-bold">
@@ -1814,7 +1807,7 @@ export default function MiloCategoriesPage() {
                 <button
                   type="button"
                   onClick={finishLobbyForEveryone}
-                  className="mt-5 h-13 w-full rounded-full border border-orange-200/18 bg-orange-300/10 px-5 py-4 text-sm font-bold uppercase tracking-[0.12em] text-orange-100 transition hover:scale-[1.01]"
+                  className="mt-5 h-13 w-full rounded-[14px] border border-[#ffd18a]/24 bg-[#ffd18a]/10 px-5 py-4 text-sm font-bold uppercase tracking-[0.12em] text-[#ffd18a] transition hover:scale-[1.01]"
                 >
                   End Lobby for Everyone
                 </button>
@@ -1823,7 +1816,7 @@ export default function MiloCategoriesPage() {
               <button
                 type="button"
                 onClick={resetCategoriesQuiz}
-                className="mt-5 h-13 w-full rounded-full bg-white px-5 py-4 text-sm font-bold uppercase tracking-[0.12em] text-[#061632] transition hover:scale-[1.01]"
+                className="mt-5 h-13 w-full rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white shadow-[0_14px_32px_rgba(196,122,37,0.24)] transition hover:scale-[1.01]"
               >
                 Back to Mode Select
               </button>
@@ -1831,7 +1824,7 @@ export default function MiloCategoriesPage() {
           )}
 
           {categoryMessage && categoriesStage === "mode" && (
-            <p className="mt-5 text-sm font-bold leading-6 text-[#7ee8ff]">
+            <p className="mt-5 text-sm font-bold leading-6 text-[#ffd18a]">
               {categoryMessage}
             </p>
           )}
@@ -1843,12 +1836,14 @@ export default function MiloCategoriesPage() {
               "multiplayer-join",
               "multiplayer-waiting",
             ].includes(categoriesStage) && (
-              <p className="mt-5 text-sm font-bold leading-6 text-[#7ee8ff]">
+              <p className="mt-5 text-sm font-bold leading-6 text-[#ffd18a]">
                 {multiplayerMessage}
               </p>
             )}
-        </section>
-      </div>
+            </section>
+          </div>
+        </div>
+      </section>
     </main>
   );
 }

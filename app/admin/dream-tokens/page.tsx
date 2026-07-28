@@ -1422,12 +1422,6 @@ function TeacherLicensingPanel() {
               Teacher are licence types rather than additional account roles.
             </p>
           </div>
-          <a
-            href="/teacher-dashboard"
-            className="w-fit rounded-full border border-cyan-200/20 bg-cyan-300/10 px-5 py-3 text-xs font-extrabold uppercase tracking-[0.12em] text-[#8dfcff] no-underline"
-          >
-            Teacher dashboard route ↗
-          </a>
         </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-[1.25fr_0.8fr_1fr_auto] xl:items-end">
@@ -1636,14 +1630,27 @@ function TeacherLicensingPanel() {
                   </button>
                 </div>
 
-                <button
-                  type="button"
-                  disabled={isSaving}
-                  onClick={() => void removeTeacherRole()}
-                  className="mt-5 rounded-full border border-red-200/24 bg-red-400/10 px-5 py-3 text-xs font-extrabold uppercase tracking-[0.12em] text-red-100 transition hover:bg-red-400/16 disabled:cursor-not-allowed disabled:opacity-45"
-                >
-                  Remove Teacher Role
-                </button>
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <a
+                    href={`/teacher-dashboard?teacherId=${encodeURIComponent(
+                      selectedTeacher.user_id,
+                    )}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-full border border-cyan-200/28 bg-cyan-300/12 px-5 py-3 text-xs font-extrabold uppercase tracking-[0.12em] text-[#8dfcff] no-underline transition hover:bg-cyan-300/18"
+                  >
+                    Open Teacher Dashboard ↗
+                  </a>
+
+                  <button
+                    type="button"
+                    disabled={isSaving}
+                    onClick={() => void removeTeacherRole()}
+                    className="rounded-full border border-red-200/24 bg-red-400/10 px-5 py-3 text-xs font-extrabold uppercase tracking-[0.12em] text-red-100 transition hover:bg-red-400/16 disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    Remove Teacher Role
+                  </button>
+                </div>
               </article>
 
               <article className="rounded-[32px] border border-cyan-200/18 bg-white/[0.045] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.26)] backdrop-blur-xl sm:p-7">

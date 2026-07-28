@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 type AttemptSource = "core" | "think" | "knowledge";
@@ -11,6 +12,8 @@ type AccuracyFilter = "all" | "with_mistakes" | "perfect";
 type RosterFilter = "all" | "active" | "needs_attention";
 
 type TeacherProfile = {
+  email: string | null;
+  username: string | null;
   role: string | null;
   tier: string | null;
   teacher_type: string | null;
@@ -31,6 +34,7 @@ type TeacherRosterRpcRow = {
   student_label: unknown;
   student_email: unknown;
   class_label: unknown;
+  is_active?: unknown;
   assigned_at: unknown;
 };
 
@@ -278,6 +282,10 @@ function answerDisplay(label: string | null, text: string | null) {
 }
 
 export default function TeacherDashboardPage() {
+  const searchParams = useSearchParams();
+  const previewTeacherId = searchParams.get("teacherId");
+
+  const [isAdminPreview, setIsAdminPreview] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadMessage, setLoadMessage] = useState("");
   const [teacherEmail, setTeacherEmail] = useState<string | null>(null);
@@ -304,6 +312,7 @@ export default function TeacherDashboardPage() {
     async function initialise() {
       setIsLoading(true);
       setLoadMessage("");
+      setIsAdminPreview(false);
 
       const {
         data: { user },
@@ -321,20 +330,55 @@ export default function TeacherDashboardPage() {
         return;
       }
 
-      setTeacherEmail(user.email ?? null);
+      const { data: viewerProfileData, error: viewerProfileError } =
+        await supabase
+          .from("profiles")
+          .select("role,tier")
+          .eq("id", user.id)
+          .maybeSingle();
+
+      if (cancelled) return;
+
+      if (viewerProfileError || !viewerProfileData) {
+        setTeacherProfile(null);
+        setRoster([]);
+        setAllAttempts([]);
+        setLoadMessage("Your account role could not be checked.");
+        setIsLoading(false);
+        return;
+      }
+
+      const viewerRole = normaliseRole(
+        viewerProfileData.role || viewerProfileData.tier,
+      );
+      const adminPreview = viewerRole === "admin" && Boolean(previewTeacherId);
+      const targetTeacherId = adminPreview ? previewTeacherId : user.id;
+
+      if (!targetTeacherId) {
+        setTeacherProfile(null);
+        setRoster([]);
+        setAllAttempts([]);
+        setLoadMessage("No teacher account was selected.");
+        setIsLoading(false);
+        return;
+      }
+
+      setIsAdminPreview(adminPreview);
 
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select(
-          "role,tier,teacher_type,organization_name,teacher_license_status",
+          "email,username,role,tier,teacher_type,organization_name,teacher_license_status",
         )
-        .eq("id", user.id)
+        .eq("id", targetTeacherId)
         .maybeSingle();
 
       if (cancelled) return;
 
       if (profileError || !profileData) {
         setTeacherProfile(null);
+        setRoster([]);
+        setAllAttempts([]);
         setLoadMessage("The teacher profile could not be loaded.");
         setIsLoading(false);
         return;
@@ -342,61 +386,87 @@ export default function TeacherDashboardPage() {
 
       const profile = profileData as TeacherProfile;
       setTeacherProfile(profile);
+      setTeacherEmail(profile.email || (!adminPreview ? user.email ?? null : null));
 
       const role = normaliseRole(profile.role || profile.tier);
       const activeLicence = profile.teacher_license_status === "active";
 
-      if (role !== "teacher" || !activeLicence) {
+      if (role !== "teacher") {
         setRoster([]);
         setAllAttempts([]);
-        setLoadMessage(
-          role !== "teacher"
-            ? "This account does not have the Teacher role."
-            : "This teacher licence is not active.",
-        );
+        setLoadMessage("The selected account does not have the Teacher role.");
         setIsLoading(false);
         return;
       }
 
-      const { data: rosterData, error: rosterError } = await supabase.rpc(
-        "get_my_teacher_roster",
-      );
+      if (!adminPreview && !activeLicence) {
+        setRoster([]);
+        setAllAttempts([]);
+        setLoadMessage("This teacher licence is not active.");
+        setIsLoading(false);
+        return;
+      }
+
+      const rosterRequest = adminPreview
+        ? supabase.rpc("admin_get_teacher_assignments", {
+            p_teacher_user_id: targetTeacherId,
+          })
+        : supabase.rpc("get_my_teacher_roster");
+
+      const { data: rosterData, error: rosterError } = await rosterRequest;
 
       if (cancelled) return;
 
       if (rosterError) {
         setRoster([]);
         setAllAttempts([]);
-        setLoadMessage(rosterError.message || "The assigned student list could not be loaded.");
+        setLoadMessage(
+          rosterError.message || "The assigned student list could not be loaded.",
+        );
         setIsLoading(false);
         return;
       }
 
       const rosterRows = (rosterData ?? []) as TeacherRosterRpcRow[];
-      const nextRoster: TeacherRosterRow[] = rosterRows.map(
+      const activeRosterRows = adminPreview
+        ? rosterRows.filter((row) => Boolean(row.is_active))
+        : rosterRows;
+
+      const nextRoster: TeacherRosterRow[] = activeRosterRows.map(
         (row): TeacherRosterRow => ({
           student_user_id: String(row.student_user_id),
           student_label: String(row.student_label || "Student"),
           student_email: row.student_email ? String(row.student_email) : null,
           class_label: row.class_label ? String(row.class_label) : null,
-          assigned_at: String(
-            row.assigned_at || new Date().toISOString(),
-          ),
+          assigned_at: String(row.assigned_at || new Date().toISOString()),
         }),
       );
 
       setRoster(nextRoster);
       setSelectedStudentId((current) => {
-        if (current && nextRoster.some((student) => student.student_user_id === current)) {
+        if (
+          current &&
+          nextRoster.some((student) => student.student_user_id === current)
+        ) {
           return current;
         }
         return nextRoster[0]?.student_user_id ?? null;
       });
 
+      if (adminPreview && !activeLicence) {
+        setLoadMessage(
+          `Admin preview: this teacher licence is ${
+            profile.teacher_license_status || "inactive"
+          }.`,
+        );
+      }
+
       if (nextRoster.length === 0) {
         setAllAttempts([]);
         setLoadMessage(
-          "No students have been assigned yet. An administrator must add students to this teacher roster.",
+          adminPreview
+            ? "This teacher currently has no active student assignments."
+            : "No students have been assigned yet. An administrator must add students to this teacher roster.",
         );
         setIsLoading(false);
         return;
@@ -423,7 +493,7 @@ export default function TeacherDashboardPage() {
       cancelled = true;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [previewTeacherId]);
 
   async function loadRosterAttempts(studentIds: string[]) {
     if (studentIds.length === 0) return [];
@@ -772,25 +842,31 @@ export default function TeacherDashboardPage() {
       <div className="background-grid" aria-hidden="true" />
 
       <header className="topbar">
-        <Link href="/" className="back-button">
-          ← Home
+        <Link href={isAdminPreview ? "/profile" : "/"} className="back-button">
+          {isAdminPreview ? "← Admin Profile" : "← Home"}
         </Link>
 
         <div className="topbar-copy">
-          <strong>Teacher Dashboard</strong>
+          <strong>{isAdminPreview ? "Teacher Dashboard Preview" : "Teacher Dashboard"}</strong>
           <span>{teacherProfile?.organization_name || teacherTypeLabel}</span>
         </div>
 
-        <Link href={teacherEmail ? "/profile" : "/login"} className="account-button">
-          {teacherEmail ? "My Account" : "Log In"}
+        <Link href="/profile" className="account-button">
+          {isAdminPreview ? "Admin Account" : teacherEmail ? "My Account" : "Log In"}
         </Link>
       </header>
 
       <section className="page-shell">
         <header className="hero">
           <div>
-            <p className="eyebrow">B2B Learning Management</p>
-            <h1>Your Student Roster</h1>
+            <p className="eyebrow">
+              {isAdminPreview ? "Administrator Preview" : "B2B Learning Management"}
+            </p>
+            <h1>
+              {isAdminPreview
+                ? `${teacherProfile?.username || teacherEmail || "Teacher"}’s Student Roster`
+                : "Your Student Roster"}
+            </h1>
             <p>
               Monitor assigned students, weekly participation, performance by subject,
               and every recorded quiz answer.

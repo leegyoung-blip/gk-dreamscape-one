@@ -20,6 +20,7 @@ const WALKTHROUGH_STORAGE_KEY = "thinking-skills-lab-walkthrough-v2";
 
 type GameId = "colour-code" | "set-finder" | "tower-memory";
 type ScreenMode = "desktop" | "tablet" | "mobile";
+type DailyLevelNumber = 1 | 2 | 3;
 
 type ColourOption = {
   id: string;
@@ -38,9 +39,16 @@ type GameDefinition = {
   rewardText: string;
 };
 
+type DailyLevelStatus = {
+  completed: boolean;
+  clues: number;
+  reward: number;
+};
+
 type DailyGameStatus = {
   completed: number;
   clues: number;
+  levels: Record<DailyLevelNumber, DailyLevelStatus>;
 };
 
 type LabStatus = {
@@ -120,6 +128,14 @@ type RpcStatusPayload = {
     {
       completed?: number;
       clues?: number;
+      levels?: Record<
+        string,
+        {
+          completed?: boolean;
+          clues?: number;
+          reward?: number;
+        }
+      >;
     }
   >;
 };
@@ -151,11 +167,11 @@ const GAME_DEFINITIONS: GameDefinition[] = [
     title: "Colour Code",
     shortTitle: "Colour Code",
     description:
-      "Crack a four-light code. Colours may repeat, so study every clue carefully.",
+      "Crack a four-light code across Easy, Medium, and Hard levels.",
     skill: "Deduction",
     icon: "●",
     accent: "#66D9FF",
-    rewardText: "20 DT each",
+    rewardText: "5 / 10 / 15 DT",
   },
   {
     id: "set-finder",
@@ -189,11 +205,12 @@ const GAME_INSTRUCTIONS: Record<
   "colour-code": {
     title: "How to play Colour Code",
     steps: [
-      "Choose four colours. Colours may repeat.",
+      "Choose Easy, Medium, or Hard in any order. The code always has four positions.",
+      "Easy uses 4 available colours, Medium uses 5, and Hard uses all 6. Colours may repeat.",
       "Green shows a colour in the correct position. Yellow shows a correct colour in the wrong position.",
       "Use the clue history to narrow the code within 15 attempts.",
     ],
-    note: "A position clue costs 5 DT. Solving one code rewards 20 DT.",
+    note: "A position clue costs 5 DT. Rewards are 5 DT, 10 DT, and 15 DT.",
   },
   "set-finder": {
     title: "How to play SET Finder",
@@ -207,6 +224,7 @@ const GAME_INSTRUCTIONS: Record<
   "tower-memory": {
     title: "How to play Tower Memory",
     steps: [
+      "Choose the 4-block, 6-block, or 8-block level in any order.",
       "Study the tower before the timer reaches zero.",
       "Rebuild it from the bottom block upward.",
       "You have five checking attempts. A paid review shows the tower again without clearing your answer.",
@@ -239,7 +257,7 @@ const WALKTHROUGH_STEPS = [
   {
     eyebrow: "You’re ready",
     title: "Complete three challenges in each game.",
-    text: "Your daily games reset at midnight Singapore time. Start with any game on the left.",
+    text: "Colour Code and Tower Memory let you choose their three levels in any order. Daily games reset at midnight Singapore time.",
   },
 ] as const;
 
@@ -255,9 +273,33 @@ const EMPTY_STATUS: LabStatus = {
   totalSessions: 0,
   bestScore: 0,
   games: {
-    "colour-code": { completed: 0, clues: 0 },
-    "set-finder": { completed: 0, clues: 0 },
-    "tower-memory": { completed: 0, clues: 0 },
+    "colour-code": {
+      completed: 0,
+      clues: 0,
+      levels: {
+        1: { completed: false, clues: 0, reward: 0 },
+        2: { completed: false, clues: 0, reward: 0 },
+        3: { completed: false, clues: 0, reward: 0 },
+      },
+    },
+    "set-finder": {
+      completed: 0,
+      clues: 0,
+      levels: {
+        1: { completed: false, clues: 0, reward: 0 },
+        2: { completed: false, clues: 0, reward: 0 },
+        3: { completed: false, clues: 0, reward: 0 },
+      },
+    },
+    "tower-memory": {
+      completed: 0,
+      clues: 0,
+      levels: {
+        1: { completed: false, clues: 0, reward: 0 },
+        2: { completed: false, clues: 0, reward: 0 },
+        3: { completed: false, clues: 0, reward: 0 },
+      },
+    },
   },
 };
 
@@ -326,8 +368,35 @@ function useMidnightCountdown(activityDate: string) {
   return countdown;
 }
 
+function normaliseDailyLevelStatus(
+  game:
+    | {
+        levels?: Record<
+          string,
+          {
+            completed?: boolean;
+            clues?: number;
+            reward?: number;
+          }
+        >;
+      }
+    | undefined,
+  level: DailyLevelNumber
+): DailyLevelStatus {
+  const levelPayload = game?.levels?.[String(level)];
+
+  return {
+    completed: Boolean(levelPayload?.completed ?? false),
+    clues: Number(levelPayload?.clues ?? 0),
+    reward: Number(levelPayload?.reward ?? 0),
+  };
+}
+
 function normaliseStatus(payload: RpcStatusPayload | null): LabStatus {
   const games = payload?.games;
+  const colourGame = games?.["colour-code"];
+  const setGame = games?.["set-finder"];
+  const towerGame = games?.["tower-memory"];
 
   return {
     activityDate: String(payload?.activity_date ?? ""),
@@ -336,16 +405,31 @@ function normaliseStatus(payload: RpcStatusPayload | null): LabStatus {
     bestScore: Number(payload?.best_score ?? 0),
     games: {
       "colour-code": {
-        completed: Number(games?.["colour-code"]?.completed ?? 0),
-        clues: Number(games?.["colour-code"]?.clues ?? 0),
+        completed: Number(colourGame?.completed ?? 0),
+        clues: Number(colourGame?.clues ?? 0),
+        levels: {
+          1: normaliseDailyLevelStatus(colourGame, 1),
+          2: normaliseDailyLevelStatus(colourGame, 2),
+          3: normaliseDailyLevelStatus(colourGame, 3),
+        },
       },
       "set-finder": {
-        completed: Number(games?.["set-finder"]?.completed ?? 0),
-        clues: Number(games?.["set-finder"]?.clues ?? 0),
+        completed: Number(setGame?.completed ?? 0),
+        clues: Number(setGame?.clues ?? 0),
+        levels: {
+          1: normaliseDailyLevelStatus(setGame, 1),
+          2: normaliseDailyLevelStatus(setGame, 2),
+          3: normaliseDailyLevelStatus(setGame, 3),
+        },
       },
       "tower-memory": {
-        completed: Number(games?.["tower-memory"]?.completed ?? 0),
-        clues: Number(games?.["tower-memory"]?.clues ?? 0),
+        completed: Number(towerGame?.completed ?? 0),
+        clues: Number(towerGame?.clues ?? 0),
+        levels: {
+          1: normaliseDailyLevelStatus(towerGame, 1),
+          2: normaliseDailyLevelStatus(towerGame, 2),
+          3: normaliseDailyLevelStatus(towerGame, 3),
+        },
       },
     },
   };
@@ -400,6 +484,24 @@ function makeSeed(
   return `${userId}:${activityDate}:${gameId}:${questionNumber}:${suffix}`;
 }
 
+function dailyLevelName(level: DailyLevelNumber) {
+  if (level === 1) return "Easy";
+  if (level === 2) return "Medium";
+  return "Hard";
+}
+
+function rewardForDailyLevel(level: DailyLevelNumber) {
+  if (level === 1) return 5;
+  if (level === 2) return 10;
+  return 15;
+}
+
+function colourCountForLevel(level: DailyLevelNumber) {
+  if (level === 1) return 4;
+  if (level === 2) return 5;
+  return 6;
+}
+
 function formatDreamTokenAmount(value: number) {
   return `${Math.max(0, Math.round(value)).toLocaleString("en-US")} DT`;
 }
@@ -450,6 +552,11 @@ export default function ThinkingSkillsLabPage() {
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
   const [gameVersion, setGameVersion] = useState(0);
+  const [selectedColourLevel, setSelectedColourLevel] =
+    useState<DailyLevelNumber>(1);
+  const [selectedTowerLevel, setSelectedTowerLevel] =
+    useState<DailyLevelNumber>(1);
+  const [completionInView, setCompletionInView] = useState<GameId | null>(null);
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
   const [walkthroughStep, setWalkthroughStep] = useState(0);
 
@@ -458,11 +565,21 @@ export default function ThinkingSkillsLabPage() {
     GAME_DEFINITIONS.find((game) => game.id === selectedGame) ??
     GAME_DEFINITIONS[0];
   const activeStatus = status.games[selectedGame];
-  const currentQuestion = Math.min(
-    DAILY_LIMIT,
-    activeStatus.completed + 1
-  );
-  const dailyComplete = activeStatus.completed >= DAILY_LIMIT;
+  const selectedFreeLevel =
+    selectedGame === "colour-code"
+      ? selectedColourLevel
+      : selectedGame === "tower-memory"
+      ? selectedTowerLevel
+      : null;
+  const currentQuestion =
+    selectedFreeLevel ??
+    (Math.min(DAILY_LIMIT, activeStatus.completed + 1) as DailyLevelNumber);
+  const activeClues =
+    selectedGame === "set-finder"
+      ? activeStatus.clues
+      : activeStatus.levels[currentQuestion].clues;
+  const dailyComplete =
+    activeStatus.completed >= DAILY_LIMIT && completionInView !== selectedGame;
   const displayedProfileAssets = useMemo(
     () => ({
       cash: profileAssets.cash,
@@ -761,6 +878,7 @@ export default function ThinkingSkillsLabPage() {
 
   useEffect(() => {
     setNotice("");
+    setCompletionInView(null);
     setGameVersion((current) => current + 1);
   }, [selectedGame]);
 
@@ -824,17 +942,32 @@ export default function ThinkingSkillsLabPage() {
         tokenBalance: Number(payload.token_balance ?? 0),
       };
 
-      setStatus((current) => ({
-        ...current,
-        tokenBalance: result.tokenBalance,
-        games: {
-          ...current.games,
-          [gameId]: {
-            ...current.games[gameId],
-            clues: result.cluesUsed,
+      setStatus((current) => {
+        const level = questionNumber as DailyLevelNumber;
+        const currentGame = current.games[gameId];
+
+        return {
+          ...current,
+          tokenBalance: result.tokenBalance,
+          games: {
+            ...current.games,
+            [gameId]: {
+              ...currentGame,
+              clues:
+                gameId === "set-finder"
+                  ? result.cluesUsed
+                  : currentGame.clues,
+              levels: {
+                ...currentGame.levels,
+                [level]: {
+                  ...currentGame.levels[level],
+                  clues: result.cluesUsed,
+                },
+              },
+            },
           },
-        },
-      }));
+        };
+      });
 
       setProfileAssets((current) => ({
         ...current,
@@ -882,19 +1015,35 @@ export default function ThinkingSkillsLabPage() {
         completedCount: Number(payload.completed_count ?? questionNumber),
       };
 
-      setStatus((current) => ({
-        ...current,
-        tokenBalance: result.tokenBalance,
-        totalSessions: current.totalSessions + 1,
-        bestScore: Math.max(current.bestScore, Math.round(score)),
-        games: {
-          ...current.games,
-          [gameId]: {
-            completed: result.completedCount,
-            clues: 0,
+      setStatus((current) => {
+        const level = questionNumber as DailyLevelNumber;
+        const currentGame = current.games[gameId];
+
+        return {
+          ...current,
+          tokenBalance: result.tokenBalance,
+          totalSessions: current.totalSessions + 1,
+          bestScore: Math.max(current.bestScore, Math.round(score)),
+          games: {
+            ...current.games,
+            [gameId]: {
+              ...currentGame,
+              completed: result.completedCount,
+              clues: gameId === "set-finder" ? 0 : currentGame.clues,
+              levels: {
+                ...currentGame.levels,
+                [level]: {
+                  ...currentGame.levels[level],
+                  completed: true,
+                  reward: result.reward,
+                },
+              },
+            },
           },
-        },
-      }));
+        };
+      });
+
+      setCompletionInView(gameId);
 
       setProfileAssets((current) => ({
         ...current,
@@ -912,7 +1061,29 @@ export default function ThinkingSkillsLabPage() {
 
   function beginNextQuestion() {
     setNotice("");
+    setCompletionInView(null);
     setGameVersion((current) => current + 1);
+  }
+
+  function continueAfterFreeLevel(
+    gameId: "colour-code" | "tower-memory",
+    completedLevel: DailyLevelNumber
+  ) {
+    const nextLevel = ([1, 2, 3] as DailyLevelNumber[]).find(
+      (level) =>
+        level !== completedLevel &&
+        !status.games[gameId].levels[level].completed
+    );
+
+    if (gameId === "colour-code" && nextLevel) {
+      setSelectedColourLevel(nextLevel);
+    }
+
+    if (gameId === "tower-memory" && nextLevel) {
+      setSelectedTowerLevel(nextLevel);
+    }
+
+    beginNextQuestion();
   }
 
   return (
@@ -1079,7 +1250,9 @@ export default function ThinkingSkillsLabPage() {
             <strong>
               {loading
                 ? "—"
-                : `${Object.values(status.games).reduce(
+                : `${(
+                    Object.values(status.games) as DailyGameStatus[]
+                  ).reduce(
                     (total, game) => total + game.completed,
                     0
                   )}/9`}
@@ -1151,8 +1324,8 @@ export default function ThinkingSkillsLabPage() {
           <div className="sidebar-note">
             <span aria-hidden="true">✦</span>
             <p>
-              Colour Code and SET clues cost 5 DT. Daily rewards can only
-              be collected once.
+              Colour Code and Tower levels can be played in any order.
+              Clues and tower reviews cost 5 DT.
             </p>
           </div>
         </aside>
@@ -1212,15 +1385,22 @@ export default function ThinkingSkillsLabPage() {
               <>
                 {selectedGame === "colour-code" && (
                   <ColourCodeGame
-                    key={`${status.activityDate}-${gameVersion}`}
+                    key={`${status.activityDate}-${gameVersion}-${selectedColourLevel}`}
                     userId={userId}
                     activityDate={status.activityDate}
-                    questionNumber={currentQuestion}
-                    cluesUsed={activeStatus.clues}
+                    questionNumber={selectedColourLevel}
+                    cluesUsed={activeClues}
+                    levelStatuses={activeStatus.levels}
                     tokenBalance={profileAssets.cash}
+                    onSelectLevel={setSelectedColourLevel}
                     onBuyClue={buyClue}
                     onComplete={completeQuestion}
-                    onContinue={beginNextQuestion}
+                    onContinue={() =>
+                      continueAfterFreeLevel(
+                        "colour-code",
+                        selectedColourLevel
+                      )
+                    }
                   />
                 )}
 
@@ -1240,15 +1420,22 @@ export default function ThinkingSkillsLabPage() {
 
                 {selectedGame === "tower-memory" && (
                   <TowerMemoryGame
-                    key={`${status.activityDate}-${gameVersion}`}
+                    key={`${status.activityDate}-${gameVersion}-${selectedTowerLevel}`}
                     userId={userId}
                     activityDate={status.activityDate}
-                    questionNumber={currentQuestion}
-                    cluesUsed={activeStatus.clues}
+                    questionNumber={selectedTowerLevel}
+                    cluesUsed={activeClues}
+                    levelStatuses={activeStatus.levels}
                     tokenBalance={profileAssets.cash}
+                    onSelectLevel={setSelectedTowerLevel}
                     onBuyClue={buyClue}
                     onComplete={completeQuestion}
-                    onContinue={beginNextQuestion}
+                    onContinue={() =>
+                      continueAfterFreeLevel(
+                        "tower-memory",
+                        selectedTowerLevel
+                      )
+                    }
                   />
                 )}
               </>
@@ -2326,6 +2513,225 @@ function DailyCompletePanel({
   );
 }
 
+function DailyLevelTabs({
+  selectedLevel,
+  levelStatuses,
+  game,
+  onSelectLevel,
+}: {
+  selectedLevel: DailyLevelNumber;
+  levelStatuses: Record<DailyLevelNumber, DailyLevelStatus>;
+  game: "colour-code" | "tower-memory";
+  onSelectLevel: (level: DailyLevelNumber) => void;
+}) {
+  const levels = [1, 2, 3] as DailyLevelNumber[];
+
+  return (
+    <div className="daily-level-tabs" aria-label="Choose daily level">
+      {levels.map((level) => {
+        const selected = selectedLevel === level;
+        const completed = levelStatuses[level].completed;
+        const detail =
+          game === "colour-code"
+            ? `${colourCountForLevel(level)} colours`
+            : `${towerSizeForQuestion(level)} blocks`;
+
+        return (
+          <button
+            type="button"
+            key={level}
+            className={`${selected ? "is-selected" : ""} ${
+              completed ? "is-complete" : ""
+            }`}
+            onClick={() => onSelectLevel(level)}
+            aria-pressed={selected}
+          >
+            <span className="level-status" aria-hidden="true">
+              {completed ? "✓" : level}
+            </span>
+            <span className="level-copy">
+              <strong>{dailyLevelName(level)}</strong>
+              <small>
+                {detail} · {rewardForDailyLevel(level)} DT
+              </small>
+            </span>
+          </button>
+        );
+      })}
+
+      <style jsx>{`
+        .daily-level-tabs {
+          width: 100%;
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 7px;
+        }
+        .daily-level-tabs button {
+          min-width: 0;
+          min-height: 42px;
+          padding: 5px 9px;
+          display: grid;
+          grid-template-columns: 27px minmax(0, 1fr);
+          align-items: center;
+          gap: 7px;
+          border-radius: 12px;
+          border: 1px solid rgba(137, 215, 255, 0.14);
+          background: rgba(255, 255, 255, 0.035);
+          color: white;
+          font: inherit;
+          text-align: left;
+          cursor: pointer;
+          transition:
+            border-color 160ms ease,
+            background 160ms ease,
+            transform 160ms ease;
+        }
+        .daily-level-tabs button:hover {
+          transform: translateY(-1px);
+          border-color: rgba(126, 224, 255, 0.38);
+        }
+        .daily-level-tabs button.is-selected {
+          border-color: rgba(126, 224, 255, 0.66);
+          background: rgba(83, 198, 255, 0.12);
+          box-shadow: inset 0 0 18px rgba(83, 198, 255, 0.06);
+        }
+        .daily-level-tabs button.is-complete {
+          border-color: rgba(111, 231, 177, 0.28);
+        }
+        .level-status {
+          width: 27px;
+          height: 27px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 9px;
+          border: 1px solid rgba(126, 224, 255, 0.22);
+          background: rgba(126, 224, 255, 0.075);
+          color: #8ee8ff;
+          font-size: 10px;
+          font-weight: 900;
+        }
+        button.is-complete .level-status {
+          border-color: rgba(111, 231, 177, 0.32);
+          background: rgba(111, 231, 177, 0.1);
+          color: #8ff1c0;
+        }
+        .level-copy {
+          min-width: 0;
+          display: grid;
+          gap: 2px;
+        }
+        .level-copy strong {
+          overflow: hidden;
+          font-size: 11px;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .level-copy small {
+          overflow: hidden;
+          color: rgba(235, 247, 255, 0.5);
+          font-size: 8px;
+          font-weight: 750;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        @media (max-width: 720px) {
+          .daily-level-tabs { gap: 4px; }
+          .daily-level-tabs button {
+            min-height: 36px;
+            padding: 4px 5px;
+            grid-template-columns: 22px minmax(0, 1fr);
+            gap: 4px;
+            border-radius: 9px;
+          }
+          .level-status {
+            width: 22px;
+            height: 22px;
+            border-radius: 7px;
+            font-size: 8px;
+          }
+          .level-copy strong { font-size: 9px; }
+          .level-copy small { font-size: 6px; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function CompletedSelectedLevel({
+  gameTitle,
+  level,
+  detail,
+  reward,
+}: {
+  gameTitle: string;
+  level: DailyLevelNumber;
+  detail: string;
+  reward: number;
+}) {
+  return (
+    <div className="selected-level-complete">
+      <span aria-hidden="true">✓</span>
+      <p>{dailyLevelName(level)} level complete</p>
+      <h3>{gameTitle}</h3>
+      <strong>
+        {detail} · {reward} DT collected
+      </strong>
+      <small>Select another level above to continue today.</small>
+
+      <style jsx>{`
+        .selected-level-complete {
+          width: 100%;
+          height: 100%;
+          min-height: 0;
+          padding: 22px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+        }
+        .selected-level-complete > span {
+          width: 58px;
+          height: 58px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 999px;
+          border: 1px solid rgba(111, 231, 177, 0.42);
+          background: rgba(73, 198, 139, 0.12);
+          color: #8ff1c0;
+          font-size: 27px;
+          box-shadow: 0 0 32px rgba(73, 198, 139, 0.16);
+        }
+        .selected-level-complete p {
+          margin: 14px 0 0;
+          color: #8ff1c0;
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+        }
+        .selected-level-complete h3 {
+          margin: 7px 0 0;
+          font-size: clamp(28px, 5vw, 44px);
+          letter-spacing: -0.04em;
+        }
+        .selected-level-complete strong {
+          margin-top: 12px;
+          color: #ffe39a;
+          font-size: 15px;
+        }
+        .selected-level-complete small {
+          margin-top: 10px;
+          color: rgba(235, 247, 255, 0.58);
+          font-size: 12px;
+        }
+      `}</style>
+    </div>
+  );
+}
+
 /* -------------------------------------------------------------------------- */
 /* Colour Code                                                                */
 /* -------------------------------------------------------------------------- */
@@ -2336,12 +2742,15 @@ type ColourCodeAttempt = {
   misplaced: number;
 };
 
-function createColourSecret(seedText: string) {
+function createColourSecret(
+  seedText: string,
+  availableColours: ColourOption[]
+) {
   const random = seededRandom(seedText);
 
   return Array.from({ length: 4 }, () => {
-    const index = Math.floor(random() * COLOURS.length);
-    return COLOURS[index].id;
+    const index = Math.floor(random() * availableColours.length);
+    return availableColours[index].id;
   });
 }
 
@@ -2380,16 +2789,20 @@ function ColourCodeGame({
   activityDate,
   questionNumber,
   cluesUsed,
+  levelStatuses,
   tokenBalance,
+  onSelectLevel,
   onBuyClue,
   onComplete,
   onContinue,
 }: {
   userId: string;
   activityDate: string;
-  questionNumber: number;
+  questionNumber: DailyLevelNumber;
   cluesUsed: number;
+  levelStatuses: Record<DailyLevelNumber, DailyLevelStatus>;
   tokenBalance: number;
+  onSelectLevel: (level: DailyLevelNumber) => void;
   onBuyClue: (
     gameId: GameId,
     questionNumber: number
@@ -2402,8 +2815,17 @@ function ColourCodeGame({
   onContinue: () => void;
 }) {
   const levelNumber = useRef(questionNumber).current;
+  const availableColours = useMemo(
+    () => COLOURS.slice(0, colourCountForLevel(levelNumber)),
+    [levelNumber]
+  );
+  const expectedReward = rewardForDailyLevel(levelNumber);
+  const selectedLevelStatus = levelStatuses[levelNumber];
   const seed = makeSeed(userId, activityDate, "colour-code", levelNumber);
-  const secret = useMemo(() => createColourSecret(seed), [seed]);
+  const secret = useMemo(
+    () => createColourSecret(seed, availableColours),
+    [availableColours, seed]
+  );
   const clueOrder = useMemo(
     () => seededShuffle([0, 1, 2, 3], `${seed}:clue-order`),
     [seed]
@@ -2537,18 +2959,26 @@ function ColourCodeGame({
     return (
       <GamePanel
         top={
-          <InstructionBar
-            items={[
-              { label: "Question", value: `${levelNumber}/3` },
-              { label: "Attempts", value: String(attempts.length) },
-              { label: "Clues", value: String(localClues) },
-            ]}
-          />
+          <div style={{ display: "grid", gap: "7px" }}>
+            <DailyLevelTabs
+              selectedLevel={levelNumber}
+              levelStatuses={levelStatuses}
+              game="colour-code"
+              onSelectLevel={onSelectLevel}
+            />
+            <InstructionBar
+              items={[
+                { label: "Level", value: dailyLevelName(levelNumber) },
+                { label: "Attempts", value: String(attempts.length) },
+                { label: "Clues", value: String(localClues) },
+              ]}
+            />
+          </div>
         }
       >
         <RewardResult
           title="Code cracked!"
-          text="You used the clue history to identify all four positions."
+          text={`You solved the ${dailyLevelName(levelNumber).toLowerCase()} code using ${availableColours.length} available colours.`}
           reward={completion.reward}
           score={finalScore}
           isLastQuestion={completion.completedCount >= DAILY_LIMIT}
@@ -2558,19 +2988,58 @@ function ColourCodeGame({
     );
   }
 
+  if (selectedLevelStatus.completed) {
+    return (
+      <GamePanel
+        top={
+          <div style={{ display: "grid", gap: "7px" }}>
+            <DailyLevelTabs
+              selectedLevel={levelNumber}
+              levelStatuses={levelStatuses}
+              game="colour-code"
+              onSelectLevel={onSelectLevel}
+            />
+            <InstructionBar
+              items={[
+                { label: "Level", value: dailyLevelName(levelNumber) },
+                { label: "Palette", value: `${availableColours.length} colours` },
+                { label: "Status", value: "Complete" },
+              ]}
+            />
+          </div>
+        }
+      >
+        <CompletedSelectedLevel
+          gameTitle="Colour Code"
+          level={levelNumber}
+          detail={`${availableColours.length} available colours`}
+          reward={selectedLevelStatus.reward || expectedReward}
+        />
+      </GamePanel>
+    );
+  }
+
   return (
     <GamePanel
       top={
-        <InstructionBar
-          items={[
-            { label: "Question", value: `${levelNumber}/3` },
-            {
-              label: "Attempts",
-              value: `${attempts.length}/${COLOUR_MAX_ATTEMPTS}`,
-            },
-            { label: "Reward", value: "20 DT" },
-          ]}
-        />
+        <div style={{ display: "grid", gap: "7px" }}>
+          <DailyLevelTabs
+            selectedLevel={levelNumber}
+            levelStatuses={levelStatuses}
+            game="colour-code"
+            onSelectLevel={onSelectLevel}
+          />
+          <InstructionBar
+            items={[
+              { label: "Level", value: dailyLevelName(levelNumber) },
+              {
+                label: "Attempts",
+                value: `${attempts.length}/${COLOUR_MAX_ATTEMPTS}`,
+              },
+              { label: "Reward", value: `${expectedReward} DT` },
+            ]}
+          />
+        </div>
       }
     >
       <div className="colour-layout">
@@ -2611,7 +3080,7 @@ function ColourCodeGame({
           </div>
 
           <div className="colour-palette" aria-label="Choose a colour">
-            {COLOURS.map((colour) => (
+            {availableColours.map((colour) => (
               <button
                 type="button"
                 key={colour.id}
@@ -3686,16 +4155,20 @@ function TowerMemoryGame({
   activityDate,
   questionNumber,
   cluesUsed,
+  levelStatuses,
   tokenBalance,
+  onSelectLevel,
   onBuyClue,
   onComplete,
   onContinue,
 }: {
   userId: string;
   activityDate: string;
-  questionNumber: number;
+  questionNumber: DailyLevelNumber;
   cluesUsed: number;
+  levelStatuses: Record<DailyLevelNumber, DailyLevelStatus>;
   tokenBalance: number;
+  onSelectLevel: (level: DailyLevelNumber) => void;
   onBuyClue: (
     gameId: GameId,
     questionNumber: number
@@ -3710,6 +4183,7 @@ function TowerMemoryGame({
   const levelNumber = useRef(questionNumber).current;
   const size = towerSizeForQuestion(levelNumber);
   const expectedReward = towerRewardForQuestion(levelNumber);
+  const selectedLevelStatus = levelStatuses[levelNumber];
   const seed = makeSeed(userId, activityDate, "tower-memory", levelNumber);
   const sequence = useMemo(
     () => createTowerSequence(seed, size),
@@ -3842,13 +4316,21 @@ function TowerMemoryGame({
     return (
       <GamePanel
         top={
-          <InstructionBar
-            items={[
-              { label: "Level", value: `${levelNumber}/3` },
-              { label: "Tower", value: `${size} blocks` },
-              { label: "Attempts", value: String(attemptsUsed) },
-            ]}
-          />
+          <div style={{ display: "grid", gap: "7px" }}>
+            <DailyLevelTabs
+              selectedLevel={levelNumber}
+              levelStatuses={levelStatuses}
+              game="tower-memory"
+              onSelectLevel={onSelectLevel}
+            />
+            <InstructionBar
+              items={[
+                { label: "Level", value: dailyLevelName(levelNumber) },
+                { label: "Tower", value: `${size} blocks` },
+                { label: "Attempts", value: String(attemptsUsed) },
+              ]}
+            />
+          </div>
         }
       >
         <RewardResult
@@ -3863,16 +4345,55 @@ function TowerMemoryGame({
     );
   }
 
+  if (selectedLevelStatus.completed) {
+    return (
+      <GamePanel
+        top={
+          <div style={{ display: "grid", gap: "7px" }}>
+            <DailyLevelTabs
+              selectedLevel={levelNumber}
+              levelStatuses={levelStatuses}
+              game="tower-memory"
+              onSelectLevel={onSelectLevel}
+            />
+            <InstructionBar
+              items={[
+                { label: "Level", value: dailyLevelName(levelNumber) },
+                { label: "Tower", value: `${size} blocks` },
+                { label: "Status", value: "Complete" },
+              ]}
+            />
+          </div>
+        }
+      >
+        <CompletedSelectedLevel
+          gameTitle="Tower Memory"
+          level={levelNumber}
+          detail={`${size}-block tower`}
+          reward={selectedLevelStatus.reward || expectedReward}
+        />
+      </GamePanel>
+    );
+  }
+
   return (
     <GamePanel
       top={
-        <InstructionBar
-          items={[
-            { label: "Level", value: `${levelNumber}/3` },
-            { label: "Attempts", value: `${attemptsUsed}/${TOWER_MAX_ATTEMPTS}` },
-            { label: "Reward", value: `${expectedReward} DT` },
-          ]}
-        />
+        <div style={{ display: "grid", gap: "7px" }}>
+          <DailyLevelTabs
+            selectedLevel={levelNumber}
+            levelStatuses={levelStatuses}
+            game="tower-memory"
+            onSelectLevel={onSelectLevel}
+          />
+          <InstructionBar
+            items={[
+              { label: "Level", value: dailyLevelName(levelNumber) },
+              { label: "Attempts", value: `${attemptsUsed}/${TOWER_MAX_ATTEMPTS}` },
+              { label: "Reward", value: `${expectedReward} DT` },
+            ]}
+          />
+        </div>
       }
     >
       <div className="tower-layout">
