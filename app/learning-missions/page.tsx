@@ -5,9 +5,15 @@ import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
 
-const STUDENT_COVER_IMAGE = "/nova/membership/student-access-cover.png";
-
 type ScreenMode = "desktop" | "tablet" | "mobile";
+
+type UserMissionAccess = {
+  userId: string | null;
+  email: string | null;
+  role: string | null;
+  hasFullAccess: boolean;
+  hasStudentRewardsAccess: boolean;
+};
 
 type DreamTokenTransaction = {
   id: string;
@@ -57,36 +63,12 @@ type ProfileAssetBreakdown = {
   stocks: number;
 };
 
-type ReferralMilestone = 1 | 5 | 15;
-
-type ReferralObjectiveDefinition = {
-  milestone: ReferralMilestone;
+type WalkthroughStep = {
+  eyebrow: string;
   title: string;
-  reward: number;
+  text: string;
+  zoneId?: string;
 };
-
-type ReferralObjectiveStatus = {
-  referral_count?: number;
-  claimed_milestones?: number[];
-};
-
-const REFERRAL_OBJECTIVES: ReferralObjectiveDefinition[] = [
-  {
-    milestone: 1,
-    title: "Complete your first successful referral",
-    reward: 25,
-  },
-  {
-    milestone: 5,
-    title: "Reach 5 successful referrals",
-    reward: 100,
-  },
-  {
-    milestone: 15,
-    title: "Reach 15 successful referrals",
-    reward: 500,
-  },
-];
 
 function useResponsiveMode() {
   const [screenMode, setScreenMode] = useState<ScreenMode>("desktop");
@@ -98,17 +80,17 @@ function useResponsiveMode() {
       const isPortrait = height > width;
       const aspectRatio = width / Math.max(height, 1);
 
-      // Keep the floating map positions only for genuinely wide screens.
-      // Half-screen windows and normal laptop layouts use the compact stack.
-      const shouldUseCompactLayout =
-        width < 1760 || isPortrait || aspectRatio < 1.65;
+      // Only use the floating mission-map layout on genuinely wide screens.
+      // Half-screen windows and ordinary laptop layouts use the vertical stack.
+      const shouldUseFloatingLayout =
+        width >= 1760 && !isPortrait && aspectRatio >= 1.65;
 
       if (width <= 720) {
         setScreenMode("mobile");
-      } else if (shouldUseCompactLayout) {
-        setScreenMode("tablet");
-      } else {
+      } else if (shouldUseFloatingLayout) {
         setScreenMode("desktop");
+      } else {
+        setScreenMode("tablet");
       }
     }
 
@@ -129,7 +111,6 @@ function formatDreamTokenTransactionDate(value: string | null) {
   if (!value) return "";
 
   const date = new Date(value);
-
   if (Number.isNaN(date.getTime())) return "";
 
   return new Intl.DateTimeFormat("en-SG", {
@@ -179,8 +160,26 @@ function hasActiveNovaSubscription(rows: NovaSubscriptionRow[]) {
   });
 }
 
-function roleHasStudentRewardsAccess(role: string | null) {
-  const cleanRole = String(role || "").trim().toLowerCase();
+type MissionZone = {
+  id: string;
+  title: string;
+  description: string;
+  position: CSSProperties;
+  accent: string;
+  requiresRoleAccess?: boolean;
+  comingSoon?: boolean;
+};
+
+function normaliseRole(role: string | null) {
+  return String(role || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/_/g, "-");
+}
+
+function roleHasFullLearningAccess(role: string | null) {
+  const cleanRole = normaliseRole(role);
 
   return (
     cleanRole === "admin" ||
@@ -189,109 +188,153 @@ function roleHasStudentRewardsAccess(role: string | null) {
   );
 }
 
-type Zone = {
-  id: string;
-  number: string;
-  title: string;
-  description: string;
-  href: string;
-  icon: string;
-};
+function getZoneHref(zoneId: string) {
+  if (zoneId === "knowledge-arena") return "/learning-missions/knowledge-arena";
+  if (zoneId === "core-missions") return "/learning-missions/core";
+  if (zoneId === "think-missions") return "/learning-missions/think";
+  if (zoneId === "express-missions") return "/learning-missions/express";
+  if (zoneId === "progress-rewards") return "/learning-missions/progress-rewards";
 
-type WalkthroughStep = {
-  eyebrow: string;
-  title: string;
-  text: string;
-  zoneNumber?: string;
-};
+  return null;
+}
 
-const WALKTHROUGH_STORAGE_KEY = "nova-world-walkthrough-completed-v3";
-
-const zones: Zone[] = [
+const missionZones: MissionZone[] = [
   {
-    id: "thinking-skills-lab",
-    number: "1",
-    title: "Thinking Skills Lab",
-    description: "Play puzzles that train logic, patterns, and reasoning.",
-    href: "/nova/thinking-skills-lab",
-    icon: "◇",
+    id: "knowledge-arena",
+    title: "Knowledge Arena",
+    description:
+      "Enter fast topic challenges through the central launch hatch, earn points, and collect Dreamscape Tokens.",
+    accent: "#53d7ff",
+    requiresRoleAccess: false,
+    position: {
+      left: "31%",
+      top: "39%",
+      width: "42%",
+      height: "40%",
+    },
   },
   {
-    id: "learning-missions",
-    number: "2",
-    title: "Learning Missions",
-    description: "Complete English, Math, and writing missions while earning rewards.",
-    href: "/learning-missions",
-    icon: "✦",
+    id: "core-missions",
+    title: "Core Missions",
+    description:
+      "Complete English and Math missions to prepare Nova’s Skyforge Rover and earn eligible Dream Gem rewards.",
+    accent: "#7ecbff",
+    requiresRoleAccess: true,
+    position: {
+      left: "35%",
+      top: "5%",
+      width: "35%",
+      height: "32%",
+    },
   },
   {
-    id: "inventor-hub",
-    number: "3",
-    title: "Inventor Hub",
-    description: "Customise creations, reward items, and Nova products.",
-    href: "/inventor/hub",
-    icon: "⌂",
+    id: "think-missions",
+    title: "Think Missions",
+    description:
+      "Train reasoning, logic, pattern spotting and HAP-style thinking while earning eligible Dream Gem rewards.",
+    accent: "#60f0d0",
+    requiresRoleAccess: true,
+    position: {
+      right: "1%",
+      top: "5%",
+      width: "28%",
+      height: "43%",
+    },
   },
   {
-    id: "membership-portal",
-    number: "4",
-    title: "Membership Portal",
-    description: "View Nova’s World access plans, benefits, and learning upgrades.",
-    href: "/nova/membership-portal",
-    icon: "✦",
+    id: "express-missions",
+    title: "Express Missions",
+    description: "LOCKED — Coming soon.",
+    accent: "#ff9df0",
+    requiresRoleAccess: true,
+    comingSoon: true,
+    position: {
+      right: "1%",
+      top: "50%",
+      width: "32%",
+      height: "47%",
+    },
+  },
+  {
+    id: "progress-rewards",
+    title: "Teaching Dashboard",
+    description:
+      "Parents and teachers can review student mission progress, completed levels, scores, and learning activity.",
+    accent: "#8dfcff",
+    requiresRoleAccess: true,
+    position: {
+      left: "1%",
+      top: "50%",
+      width: "29%",
+      height: "47%",
+    },
   },
 ];
+
+const WALKTHROUGH_STORAGE_KEY = "learning-missions-walkthrough-completed-v2";
 
 const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   {
     eyebrow: "Welcome",
-    title: "Welcome to Nova’s World.",
-    text: "Choose a zone and start exploring.",
+    title: "Let me show you around the Mission Centre.",
+    text:
+      "This is where you choose different challenges, prepare Nova’s equipment, earn rewards, and review your progress. I’ll show you what each zone is for.",
   },
   {
     eyebrow: "Your Rewards",
-    title: "DT for play. DG for rewards.",
+    title: "Look for both Dream Tokens and Dream Gems.",
     text:
-      "Spend Dream Tokens inside Dreamscape. Earn Dream Gems from eligible classes and missions.",
+      "Dream Tokens, or DT, are the standard currency used only inside Dreamscape. Dream Gems, or DG, are premium learning rewards earned through eligible paid activities. Core Missions and Think Missions can award DG to eligible Student Access users. On a full screen, both balances appear at the top. On tablet or mobile, open the Menu beneath the Back button to view them. Selected Gems can later be redeemed for tangible or premium rewards.",
   },
   {
-    eyebrow: "Stop 1 of 4",
-    title: "Train your thinking.",
-    text: "Play quick logic and reasoning challenges.",
-    zoneNumber: "1",
+    eyebrow: "Stop 1 of 5",
+    title: "Warm up in the Knowledge Arena.",
+    text:
+      "Enter quick topic challenges, test what you know, earn points, and collect Dreamscape Tokens. This zone is available to everyone.",
+    zoneId: "knowledge-arena",
   },
   {
-    eyebrow: "Stop 2 of 4",
-    title: "Complete learning missions.",
-    text: "Build skills, earn DT, and collect eligible DG rewards.",
-    zoneNumber: "2",
+    eyebrow: "Stop 2 of 5",
+    title: "Build strong foundations in Core Missions.",
+    text:
+      "Complete English and Math missions to prepare and upgrade Nova’s Skyforge Rover. Eligible Student Access users can also earn Dream Gems here.",
+    zoneId: "core-missions",
   },
   {
-    eyebrow: "Stop 3 of 4",
-    title: "Create and redeem.",
-    text: "Explore inventions, products, and Dream Gem rewards.",
-    zoneNumber: "3",
+    eyebrow: "Stop 3 of 5",
+    title: "Train your reasoning in Think Missions.",
+    text:
+      "Practise logic, patterns, strategy, and HAP-style thinking while unlocking gear and earning eligible Dream Gem rewards.",
+    zoneId: "think-missions",
   },
   {
-    eyebrow: "Stop 4 of 4",
-    title: "Manage your access.",
-    text: "View plans and unlock more learning activities.",
-    zoneNumber: "4",
+    eyebrow: "Stop 4 of 5",
+    title: "Express Missions are being prepared.",
+    text:
+      "This creative learning zone is currently locked and coming soon. It will appear here when it is ready.",
+    zoneId: "express-missions",
+  },
+  {
+    eyebrow: "Stop 5 of 5",
+    title: "Review progress in the Teaching Dashboard.",
+    text:
+      "Parents and teachers can use the Teaching Dashboard to review student mission progress, completed levels, scores, and learning activity.",
+    zoneId: "progress-rewards",
   },
   {
     eyebrow: "You’re ready",
-    title: "Choose a zone.",
-    text: "Tap Nova Guide whenever you need help.",
+    title: "Choose your first mission.",
+    text:
+      "Start with the Knowledge Arena or enter an unlocked mission zone. You can restart this walkthrough anytime using the Nova Guide button beneath Nova.",
   },
 ];
-export default function NovaWorldPage() {
+
+export default function LearningMissionsPage() {
   const screenMode = useResponsiveMode();
   const isDesktop = screenMode === "desktop";
-  const isTablet = screenMode === "tablet";
   const isMobile = screenMode === "mobile";
-  const [walkthroughOpen, setWalkthroughOpen] = useState(false);
-  const [walkthroughStep, setWalkthroughStep] = useState(0);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
+
+  const [hoveredZone, setHoveredZone] = useState<MissionZone | null>(null);
   const [profileAssets, setProfileAssets] = useState<ProfileAssetBreakdown>({
     cash: 0,
     property: 0,
@@ -304,22 +347,27 @@ export default function NovaWorldPage() {
   const [dreamGemTransactions, setDreamGemTransactions] = useState<
     DreamGemTransaction[]
   >([]);
-  const [hasStudentRewardsAccess, setHasStudentRewardsAccess] = useState(false);
   const [dreamGemsLoading, setDreamGemsLoading] = useState(true);
   const [profileAssetsLoading, setProfileAssetsLoading] = useState(true);
-  const [referralCount, setReferralCount] = useState(0);
-  const [claimedMilestones, setClaimedMilestones] = useState<
-    ReferralMilestone[]
-  >([]);
-  const [objectivesLoading, setObjectivesLoading] = useState(true);
-  const [showMembershipPortal, setShowMembershipPortal] = useState(false);
+  const [lockedZoneMessage, setLockedZoneMessage] = useState("");
+  const [walkthroughOpen, setWalkthroughOpen] = useState(false);
+  const [walkthroughStep, setWalkthroughStep] = useState(0);
+
+  const [userMissionAccess, setUserMissionAccess] =
+    useState<UserMissionAccess>({
+      userId: null,
+      email: null,
+      role: null,
+      hasFullAccess: false,
+      hasStudentRewardsAccess: false,
+    });
 
   useEffect(() => {
     let isMounted = true;
 
-    async function loadUserTokensAndObjectives() {
+    async function loadUserAndAssets() {
       if (isMounted) {
-        setObjectivesLoading(true);
+        setProfileAssetsLoading(true);
         setDreamGemsLoading(true);
       }
 
@@ -330,69 +378,23 @@ export default function NovaWorldPage() {
       if (!isMounted) return;
 
       if (!user) {
-        setUserEmail(null);
+        setUserMissionAccess({
+          userId: null,
+          email: null,
+          role: null,
+          hasFullAccess: false,
+          hasStudentRewardsAccess: false,
+        });
         setProfileAssets({ cash: 0, property: 0, stocks: 0 });
         setTokenTransactions([]);
         setDreamGemBalance(0);
         setDreamGemTransactions([]);
-        setHasStudentRewardsAccess(false);
         setDreamGemsLoading(false);
         setProfileAssetsLoading(false);
-        setReferralCount(0);
-        setClaimedMilestones([]);
-        setObjectivesLoading(false);
         return;
       }
 
-      setUserEmail(user.email ?? null);
-
-      // This RPC returns the referral count and awards any newly reached
-      // one-time referral objective bonus before the balance is loaded.
-      const { data: objectiveData, error: objectiveError } =
-        await supabase.rpc("get_referral_objective_status");
-
-      if (!isMounted) return;
-
-      if (objectiveError) {
-        console.warn(
-          "Could not load referral objectives:",
-          objectiveError.message
-        );
-        setReferralCount(0);
-        setClaimedMilestones([]);
-      } else {
-        const status = objectiveData as ReferralObjectiveStatus | null;
-        const safeReferralCount = Math.max(
-          0,
-          Number(status?.referral_count ?? 0)
-        );
-
-        const safeMilestones = Array.isArray(status?.claimed_milestones)
-          ? status.claimed_milestones
-              .map((value) => Number(value))
-              .filter(
-                (value): value is ReferralMilestone =>
-                  value === 1 || value === 5 || value === 15
-              )
-          : [];
-
-        setReferralCount(safeReferralCount);
-        setClaimedMilestones(safeMilestones);
-      }
-
-      setProfileAssetsLoading(true);
-
-      const [
-        profileResult,
-        subscriptionResult,
-        gemTransactionsResult,
-        balanceResult,
-        recentTransactionsResult,
-        stocksResult,
-        stockHoldingsResult,
-        propertiesResult,
-        propertyHoldingsResult,
-      ] = await Promise.all([
+      const [profileResult, subscriptionResult] = await Promise.all([
         supabase
           .from("profiles")
           .select("role,dream_gem_balance")
@@ -402,6 +404,58 @@ export default function NovaWorldPage() {
           .from("nova_subscriptions")
           .select("status,access_until")
           .eq("user_id", user.id),
+      ]);
+
+      if (!isMounted) return;
+
+      if (profileResult.error) {
+        console.warn(
+          "Could not load user profile and Dream Gem balance:",
+          profileResult.error.message,
+        );
+      }
+
+      if (subscriptionResult.error) {
+        console.warn(
+          "Could not load Nova Student Access status:",
+          subscriptionResult.error.message,
+        );
+      }
+
+      const role = profileResult.data?.role || null;
+      const subscriptionRows = subscriptionResult.error
+        ? []
+        : ((subscriptionResult.data || []) as NovaSubscriptionRow[]);
+      const hasStudentRewardsAccess =
+        roleHasFullLearningAccess(role) ||
+        hasActiveNovaSubscription(subscriptionRows);
+
+      setDreamGemBalance(
+        profileResult.error
+          ? 0
+          : Math.max(
+              0,
+              Number(profileResult.data?.dream_gem_balance || 0),
+            ),
+      );
+
+      setUserMissionAccess({
+        userId: user.id,
+        email: user.email ?? null,
+        role,
+        hasFullAccess: hasStudentRewardsAccess,
+        hasStudentRewardsAccess,
+      });
+
+      const [
+        gemTransactionsResult,
+        balanceResult,
+        recentTransactionsResult,
+        stocksResult,
+        stockHoldingsResult,
+        propertiesResult,
+        propertyHoldingsResult,
+      ] = await Promise.all([
         supabase
           .from("dream_gem_transactions")
           .select("id,amount,type,title,source,created_at")
@@ -440,37 +494,6 @@ export default function NovaWorldPage() {
 
       if (!isMounted) return;
 
-      if (profileResult.error) {
-        console.warn(
-          "Could not load Dream Gem balance:",
-          profileResult.error.message,
-        );
-        setDreamGemBalance(0);
-      } else {
-        setDreamGemBalance(
-          Math.max(0, Number(profileResult.data?.dream_gem_balance || 0)),
-        );
-      }
-
-      const role = profileResult.data?.role
-        ? String(profileResult.data.role)
-        : null;
-      const subscriptionRows = subscriptionResult.error
-        ? []
-        : ((subscriptionResult.data || []) as NovaSubscriptionRow[]);
-
-      if (subscriptionResult.error) {
-        console.warn(
-          "Could not load Nova Student Access status:",
-          subscriptionResult.error.message,
-        );
-      }
-
-      setHasStudentRewardsAccess(
-        roleHasStudentRewardsAccess(role) ||
-          hasActiveNovaSubscription(subscriptionRows),
-      );
-
       if (gemTransactionsResult.error) {
         console.warn(
           "Could not load Dream Gem transactions:",
@@ -498,10 +521,6 @@ export default function NovaWorldPage() {
             (sum, row) => sum + Number(row.amount || 0),
             0,
           ) || 0;
-
-      if (balanceResult.error) {
-        console.warn("Could not load Dreamscape Tokens:", balanceResult.error);
-      }
 
       const stockPrices = new Map(
         ((stocksResult.data || []) as StockRow[]).map((stock) => [
@@ -535,13 +554,15 @@ export default function NovaWorldPage() {
             0,
           );
 
+      if (balanceResult.error) {
+        console.warn("Could not load Dreamscape Tokens:", balanceResult.error);
+      }
       if (stocksResult.error || stockHoldingsResult.error) {
         console.warn(
           "Could not load stock assets:",
           stocksResult.error?.message || stockHoldingsResult.error?.message,
         );
       }
-
       if (propertiesResult.error || propertyHoldingsResult.error) {
         console.warn(
           "Could not load property assets:",
@@ -577,55 +598,33 @@ export default function NovaWorldPage() {
 
       setProfileAssetsLoading(false);
       setDreamGemsLoading(false);
-      setObjectivesLoading(false);
     }
 
-    loadUserTokensAndObjectives();
+    loadUserAndAssets();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(() => {
-      loadUserTokensAndObjectives();
+      loadUserAndAssets();
     });
 
-    function refreshReferralPanel() {
-      loadUserTokensAndObjectives();
-    }
-
-    window.addEventListener("focus", refreshReferralPanel);
-    window.addEventListener("dream-tokens-updated", refreshReferralPanel);
-    window.addEventListener("dream-gems-updated", refreshReferralPanel);
-    window.addEventListener(
-      "dream-referral-objectives-updated",
-      refreshReferralPanel
-    );
+    window.addEventListener("focus", loadUserAndAssets);
+    window.addEventListener("dream-tokens-updated", loadUserAndAssets);
+    window.addEventListener("dream-gems-updated", loadUserAndAssets);
 
     return () => {
       isMounted = false;
       subscription.unsubscribe();
-      window.removeEventListener("focus", refreshReferralPanel);
-      window.removeEventListener(
-        "dream-tokens-updated",
-        refreshReferralPanel
-      );
-      window.removeEventListener(
-        "dream-gems-updated",
-        refreshReferralPanel
-      );
-      window.removeEventListener(
-        "dream-referral-objectives-updated",
-        refreshReferralPanel
-      );
+      window.removeEventListener("focus", loadUserAndAssets);
+      window.removeEventListener("dream-tokens-updated", loadUserAndAssets);
+      window.removeEventListener("dream-gems-updated", loadUserAndAssets);
     };
   }, []);
 
   useEffect(() => {
     try {
-      const walkthroughCompleted = window.localStorage.getItem(
-        WALKTHROUGH_STORAGE_KEY,
-      );
-
-      if (!walkthroughCompleted) {
+      const completed = window.localStorage.getItem(WALKTHROUGH_STORAGE_KEY);
+      if (!completed) {
         setWalkthroughStep(0);
         setWalkthroughOpen(true);
       }
@@ -638,21 +637,70 @@ export default function NovaWorldPage() {
   useEffect(() => {
     if (!walkthroughOpen) return;
 
-    const activeZoneNumber = WALKTHROUGH_STEPS[walkthroughStep]?.zoneNumber;
-    if (!activeZoneNumber) return;
+    const zoneId = WALKTHROUGH_STEPS[walkthroughStep]?.zoneId;
+    if (!zoneId || screenMode === "desktop") return;
 
     const timeout = window.setTimeout(() => {
-      document.getElementById(`nova-zone-${activeZoneNumber}`)?.scrollIntoView({
+      document.getElementById(`mission-zone-${zoneId}`)?.scrollIntoView({
         behavior: "smooth",
         block: "center",
       });
     }, 120);
 
     return () => window.clearTimeout(timeout);
-  }, [walkthroughOpen, walkthroughStep]);
+  }, [screenMode, walkthroughOpen, walkthroughStep]);
+
+  function isZoneUnlocked(zone: MissionZone) {
+    if (zone.comingSoon) return false;
+    if (!zone.requiresRoleAccess) return true;
+
+    return userMissionAccess.hasFullAccess;
+  }
+
+  function isZoneLocked(zone: MissionZone) {
+    return Boolean(zone.requiresRoleAccess && !isZoneUnlocked(zone));
+  }
+
+  function getLockedMessage(zone: MissionZone) {
+    if (zone.comingSoon) {
+      return `${zone.title} is LOCKED and coming soon.`;
+    }
+
+    if (!userMissionAccess.userId) {
+      return "Please log in to access this mission zone.";
+    }
+
+    return `${zone.title} is only available to student, teacher, or admin accounts.`;
+  }
+
+  function getZoneClick(zone: MissionZone) {
+    const href = getZoneHref(zone.id);
+
+    if (zone.comingSoon) {
+      return () => {
+        setLockedZoneMessage(getLockedMessage(zone));
+      };
+    }
+
+    if (!href) return undefined;
+
+    return () => {
+      if (isZoneLocked(zone)) {
+        setLockedZoneMessage(getLockedMessage(zone));
+        return;
+      }
+
+      window.location.href = href;
+    };
+  }
+
+
+  const activeWalkthroughZoneId =
+    WALKTHROUGH_STEPS[walkthroughStep]?.zoneId ?? null;
 
   function startWalkthrough() {
-    setShowMembershipPortal(false);
+    setLockedZoneMessage("");
+    setHoveredZone(null);
     setWalkthroughStep(0);
     setWalkthroughOpen(true);
   }
@@ -661,7 +709,7 @@ export default function NovaWorldPage() {
     try {
       window.localStorage.setItem(WALKTHROUGH_STORAGE_KEY, "true");
     } catch {
-      // The walkthrough still closes if browser storage is unavailable.
+      // The guide still closes when browser storage is unavailable.
     }
 
     setWalkthroughOpen(false);
@@ -670,15 +718,13 @@ export default function NovaWorldPage() {
   return (
     <main
       style={{
-        position: "relative",
         minHeight: "100dvh",
         width: "100%",
-        overflowX: "hidden",
-        overflowY: "auto",
+        background:
+          "radial-gradient(circle at 50% 0%, rgba(83,215,255,0.18), transparent 38%), #020813",
         color: "white",
-        background: "#020813",
         fontFamily: "Arial, Helvetica, sans-serif",
-        paddingBottom: isDesktop ? "42px" : isMobile ? "170px" : "190px",
+        overflowX: "hidden",
       }}
     >
       <video
@@ -687,202 +733,275 @@ export default function NovaWorldPage() {
         loop
         playsInline
         preload="auto"
-        poster="/nova/nova-world-bg.png"
+        aria-hidden="true"
         style={{
           position: "fixed",
           inset: 0,
+          zIndex: 0,
           width: "100%",
           height: "100%",
           objectFit: "cover",
-          zIndex: 0,
+          objectPosition: "center",
           pointerEvents: "none",
         }}
       >
-        <source src="/nova/nova-world-bg-loop.mp4" type="video/mp4" />
+        <source
+          src="/nova/learning-missions/learning-missions-bg-loop.mp4"
+          type="video/mp4"
+        />
       </video>
 
       <div
+        aria-hidden="true"
         style={{
           position: "fixed",
           inset: 0,
           zIndex: 1,
-          background: `
-            linear-gradient(
-              180deg,
-              rgba(2, 8, 18, 0.42) 0%,
-              rgba(2, 8, 18, 0.16) 34%,
-              rgba(2, 8, 18, 0.88) 100%
-            ),
-            radial-gradient(
-              circle at 50% 38%,
-              transparent 0%,
-              rgba(2,8,18,0.04) 42%,
-              rgba(2,8,18,0.54) 100%
-            )
-          `,
+          background: isDesktop
+            ? "linear-gradient(180deg, rgba(2,8,19,0.12), rgba(2,8,19,0.34))"
+            : "linear-gradient(180deg, rgba(2,8,19,0.34), rgba(2,8,19,0.88))",
           pointerEvents: "none",
         }}
       />
 
-      <FloatingControls
-        userEmail={userEmail}
+      <FloatingMissionControls
+        userEmail={userMissionAccess.email}
         profileAssets={profileAssets}
         tokenTransactions={tokenTransactions}
         dreamGemBalance={dreamGemBalance}
         dreamGemTransactions={dreamGemTransactions}
         dreamGemsLoading={dreamGemsLoading}
-        hasStudentRewardsAccess={hasStudentRewardsAccess}
+        hasStudentRewardsAccess={userMissionAccess.hasStudentRewardsAccess}
         profileAssetsLoading={profileAssetsLoading}
-        referralCount={referralCount}
-        claimedMilestones={claimedMilestones}
-        objectivesLoading={objectivesLoading}
         screenMode={screenMode}
       />
 
-      <section
-        style={{
-          position: isDesktop ? "absolute" : "relative",
-          left: isDesktop ? "46px" : "auto",
-          top: isDesktop ? "80px" : "auto",
-          zIndex: 10,
-          width: isDesktop
-            ? "min(420px, 42vw)"
-            : "min(640px, calc(100% - 36px))",
-          margin: isDesktop ? 0 : isMobile ? "128px auto 26px" : "118px auto 28px",
-          padding: isDesktop ? 0 : "0 2px",
-        }}
-      >
-        <p
+      {isDesktop ? (
+        <section
           style={{
-            margin: 0,
-            fontSize: isMobile ? "11px" : "14px",
-            fontWeight: 500,
-            letterSpacing: isMobile ? "0.18em" : "0.24em",
-            textTransform: "uppercase",
-            color: "#69d9ff",
-            textShadow: "0 8px 22px rgba(0,0,0,0.45)",
+            position: "relative",
+            zIndex: activeWalkthroughZoneId ? 85 : 2,
+            minHeight: "100dvh",
+            width: "100%",
           }}
         >
-          Dreamscape One Learning Hub
-        </p>
-
-        <h1
-          style={{
-            margin: isMobile ? "12px 0 0" : "16px 0 0",
-            fontFamily: 'Georgia, "Times New Roman", serif',
-            fontSize: isMobile
-              ? "clamp(46px, 15vw, 64px)"
-              : isTablet
-              ? "clamp(58px, 9vw, 76px)"
-              : "76px",
-            fontWeight: 400,
-            lineHeight: 1.03,
-            letterSpacing: "0.01em",
-            textShadow: "0 18px 48px rgba(0,0,0,0.5)",
-          }}
-        >
-          Nova’s World
-        </h1>
-
-        <p
-          style={{
-            margin: "18px 0 0",
-            fontSize: isMobile ? "18px" : "22px",
-            fontWeight: 300,
-            lineHeight: 1.35,
-            color: "rgba(255,255,255,0.92)",
-            textShadow: "0 12px 30px rgba(0,0,0,0.45)",
-          }}
-        >
-          Think, learn, earn, and unlock creations.
-        </p>
-
-        <div
-          style={{
-            marginTop: isMobile ? "24px" : "34px",
-            display: "flex",
-            alignItems: "center",
-            gap: "16px",
-            color: "#53d7ff",
-            fontSize: isMobile ? "16px" : "19px",
-            fontWeight: 300,
-            letterSpacing: "0.03em",
-          }}
-        >
-          <span
+          <div
             style={{
-              width: "34px",
-              height: "34px",
-              borderRadius: "999px",
-              border: "1px solid rgba(83,215,255,0.8)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "0 0 16px rgba(83,215,255,0.4)",
-              flexShrink: 0,
+              position: "absolute",
+              left: "4vw",
+              top: "12%",
+              zIndex: 20,
+              width: "min(500px, 27vw)",
+              textAlign: "left",
+              pointerEvents: "none",
             }}
           >
-            ›
-          </span>
+            <p
+              style={{
+                margin: 0,
+                color: "#8dfcff",
+                fontSize: "13px",
+                letterSpacing: "0.24em",
+                textTransform: "uppercase",
+                fontWeight: 800,
+                textShadow: "0 0 16px rgba(83,215,255,0.42)",
+              }}
+            >
+              Nova’s Mission Centre
+            </p>
 
-          <span>Choose a location to begin</span>
-        </div>
-      </section>
+            <h1
+              style={{
+                margin: "12px 0 0",
+                fontSize: "64px",
+                lineHeight: 0.95,
+                fontWeight: 600,
+                letterSpacing: "-0.055em",
+                textShadow: "0 0 32px rgba(83,215,255,0.3)",
+              }}
+            >
+              Learning Missions
+            </h1>
 
-      <section
-        style={{
-          position: isDesktop ? "absolute" : "relative",
-          top: isDesktop ? "142px" : "auto",
-          left: isDesktop ? "50%" : "auto",
-          transform: isDesktop ? "translateX(-50%)" : "none",
-          zIndex: walkthroughOpen ? 90 : 20,
-          width: isDesktop
-            ? "min(470px, calc(100% - 48px))"
-            : isTablet
-              ? walkthroughOpen
-                ? "min(320px, calc(100% - 48px))"
-                : "min(680px, calc(100% - 36px))"
-              : "min(680px, calc(100% - 28px))",
-          margin: isDesktop
-            ? 0
-            : isTablet && walkthroughOpen
-              ? "0 24px 0 auto"
-              : "0 auto",
-          display: "grid",
-          gridTemplateColumns: "1fr",
-          gap: isMobile ? "12px" : "14px",
-          paddingBottom: isDesktop ? 0 : "24px",
-        }}
-      >
-        {zones.map((zone) => (
-          <ZoneCard
-            key={zone.id}
-            zone={zone}
-            screenMode={screenMode}
-            onClick={
-              zone.id === "membership-portal"
-                ? () => setShowMembershipPortal(true)
-                : undefined
-            }
-            walkthroughActive={walkthroughOpen}
-            walkthroughHighlighted={
-              walkthroughOpen &&
-              WALKTHROUGH_STEPS[walkthroughStep]?.zoneNumber === zone.number
-            }
-          />
-        ))}
-      </section>
+            <p
+              style={{
+                margin: "18px 0 0",
+                maxWidth: "470px",
+                color: "rgba(229,250,255,0.82)",
+                fontSize: "18px",
+                lineHeight: 1.55,
+                fontWeight: 300,
+              }}
+            >
+              Choose one of five mission zones to train skills, prepare Nova’s gear and
+              earn Dream Tokens and eligible Dream Gems.
+            </p>
 
-      {showMembershipPortal && (
-        <MembershipPortalPopup onClose={() => setShowMembershipPortal(false)} />
+            {lockedZoneMessage && (
+              <div
+                style={{
+                  marginTop: "18px",
+                  maxWidth: "560px",
+                  borderRadius: "16px",
+                  border: "1px solid rgba(255,215,106,0.36)",
+                  background: "rgba(255,215,106,0.1)",
+                  color: "#ffd76a",
+                  padding: "14px 16px",
+                  fontSize: "14px",
+                  lineHeight: 1.5,
+                  pointerEvents: "auto",
+                }}
+              >
+                {lockedZoneMessage}
+              </div>
+            )}
+          </div>
+
+          {missionZones.map((zone) => (
+            <MissionHotspot
+              key={zone.id}
+              zone={zone}
+              isLocked={isZoneLocked(zone)}
+              isWalkthroughActive={Boolean(activeWalkthroughZoneId)}
+              isHighlighted={activeWalkthroughZoneId === zone.id}
+              onEnter={() => setHoveredZone(zone)}
+              onLeave={() => setHoveredZone(null)}
+              onClick={getZoneClick(zone)}
+            />
+          ))}
+
+          {hoveredZone && (
+            <ZoneHoverPopup
+              zone={hoveredZone}
+              isLocked={isZoneLocked(hoveredZone)}
+            />
+          )}
+
+          <div
+            style={{
+              position: "absolute",
+              left: "50%",
+              bottom: "28px",
+              transform: "translateX(-50%)",
+              zIndex: 30,
+              padding: "12px 18px",
+              borderRadius: "999px",
+              border: "1px solid rgba(141,252,255,0.26)",
+              background: "rgba(2,8,19,0.52)",
+              backdropFilter: "blur(14px)",
+              color: "rgba(255,255,255,0.72)",
+              fontSize: "13px",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              boxShadow: "0 16px 36px rgba(0,0,0,0.28)",
+            }}
+          >
+            Hover over a zone, then click to enter
+          </div>
+        </section>
+      ) : (
+        <section
+          style={{
+            position: "relative",
+            zIndex: activeWalkthroughZoneId ? 85 : 2,
+            minHeight: "100dvh",
+            width: "100%",
+            padding: isMobile ? "104px 16px 170px" : "108px 32px 210px",
+          }}
+        >
+          <div
+            style={{
+              width: "min(980px, 100%)",
+              margin: "0 auto",
+            }}
+          >
+            <p
+              style={{
+                margin: 0,
+                color: "#8dfcff",
+                fontSize: "12px",
+                letterSpacing: "0.22em",
+                textTransform: "uppercase",
+                fontWeight: 800,
+              }}
+            >
+              Nova’s Mission Centre
+            </p>
+
+            <h1
+              style={{
+                margin: "10px 0 0",
+                fontSize: isMobile ? "42px" : "58px",
+                lineHeight: 0.96,
+                fontWeight: 600,
+                letterSpacing: "-0.055em",
+                textShadow: "0 0 30px rgba(83,215,255,0.24)",
+              }}
+            >
+              Learning Missions
+            </h1>
+
+            <p
+              style={{
+                margin: "16px 0 0",
+                maxWidth: "680px",
+                color: "rgba(229,250,255,0.82)",
+                fontSize: isMobile ? "16px" : "19px",
+                lineHeight: 1.55,
+                fontWeight: 300,
+              }}
+            >
+              Choose one of five mission zones to train skills, prepare Nova’s gear and
+              earn Dream Tokens and eligible Dream Gems.
+            </p>
+
+            {lockedZoneMessage && (
+              <div
+                style={{
+                  marginTop: "18px",
+                  maxWidth: "680px",
+                  borderRadius: "16px",
+                  border: "1px solid rgba(255,215,106,0.36)",
+                  background: "rgba(255,215,106,0.1)",
+                  color: "#ffd76a",
+                  padding: "14px 16px",
+                  fontSize: "14px",
+                  lineHeight: 1.5,
+                }}
+              >
+                {lockedZoneMessage}
+              </div>
+            )}
+
+            <div
+              style={{
+                marginTop: "28px",
+                display: "grid",
+                gridTemplateColumns: "1fr",
+                gap: "18px",
+              }}
+            >
+              {missionZones.map((zone) => (
+                <MissionCard
+                  key={zone.id}
+                  zone={zone}
+                  isLocked={isZoneLocked(zone)}
+                  isWalkthroughActive={Boolean(activeWalkthroughZoneId)}
+                  isHighlighted={activeWalkthroughZoneId === zone.id}
+                  onClick={getZoneClick(zone)}
+                />
+              ))}
+            </div>
+          </div>
+        </section>
       )}
 
 
       <div
         style={{
           position: "fixed",
-          right: isMobile ? "10px" : "18px",
-          bottom: isMobile ? "10px" : "16px",
+          right: isMobile ? "8px" : "18px",
+          bottom: isMobile ? "8px" : "16px",
           zIndex: 70,
           display: "flex",
           flexDirection: "column",
@@ -895,11 +1014,11 @@ export default function NovaWorldPage() {
           src="/nova/nova-character.png"
           alt="Nova"
           style={{
-            height: isDesktop ? "265px" : isMobile ? "150px" : "215px",
+            height: isDesktop ? "235px" : isMobile ? "145px" : "195px",
             width: "auto",
             transform: isMobile ? "translateX(18px)" : "none",
             pointerEvents: "none",
-            filter: "drop-shadow(0 28px 38px rgba(0,0,0,0.55))",
+            filter: "drop-shadow(0 24px 34px rgba(0,0,0,0.55))",
           }}
         />
 
@@ -936,7 +1055,7 @@ export default function NovaWorldPage() {
         </button>
       </div>
 
-      <GuidedWalkthrough
+      <MissionGuidedWalkthrough
         open={walkthroughOpen}
         stepIndex={walkthroughStep}
         onStepChange={setWalkthroughStep}
@@ -946,7 +1065,7 @@ export default function NovaWorldPage() {
   );
 }
 
-function FloatingControls({
+function FloatingMissionControls({
   userEmail,
   profileAssets,
   tokenTransactions,
@@ -955,9 +1074,6 @@ function FloatingControls({
   dreamGemsLoading,
   hasStudentRewardsAccess,
   profileAssetsLoading,
-  referralCount,
-  claimedMilestones,
-  objectivesLoading,
   screenMode,
 }: {
   userEmail: string | null;
@@ -968,9 +1084,6 @@ function FloatingControls({
   dreamGemsLoading: boolean;
   hasStudentRewardsAccess: boolean;
   profileAssetsLoading: boolean;
-  referralCount: number;
-  claimedMilestones: ReferralMilestone[];
-  objectivesLoading: boolean;
   screenMode: ScreenMode;
 }) {
   const isDesktop = screenMode === "desktop";
@@ -997,6 +1110,7 @@ function FloatingControls({
     return () => document.removeEventListener("keydown", closeOnEscape);
   }, [profileAssetsOpen, dreamGemsOpen, compactMenuOpen]);
 
+
   return (
     <>
       {(profileAssetsOpen || dreamGemsOpen || compactMenuOpen) && (
@@ -1020,16 +1134,16 @@ function FloatingControls({
       )}
 
       <Link
-        href="/"
+        href="/inventor"
         style={{
           position: "fixed",
-          top: isMobile ? "12px" : "18px",
-          left: isMobile ? "12px" : "18px",
+          top: isMobile ? "12px" : "22px",
+          left: isMobile ? "12px" : "22px",
           zIndex: 70,
           height: isMobile ? "40px" : "46px",
           padding: isMobile ? "0 14px" : "0 22px",
           borderRadius: "999px",
-          border: "1px solid rgba(116,200,255,0.5)",
+          border: "1px solid rgba(126,232,255,0.55)",
           background: "rgba(2,8,19,0.58)",
           backdropFilter: "blur(16px)",
           color: "white",
@@ -1040,19 +1154,20 @@ function FloatingControls({
           fontSize: isMobile ? "11px" : "14px",
           letterSpacing: isMobile ? "0.08em" : "0.12em",
           textTransform: "uppercase",
-          boxShadow: "0 16px 36px rgba(0,0,0,0.28)",
+          boxShadow: "0 16px 36px rgba(0,0,0,0.3)",
+          whiteSpace: "nowrap",
         }}
       >
         <span style={{ fontSize: isMobile ? "15px" : "18px" }}>←</span>
-        {isMobile ? "Home" : "Return to Home"}
+        {isMobile ? "Back" : "Exit Mission Centre"}
       </Link>
 
       {isCompact && (
         <div
           style={{
             position: "fixed",
-            top: isMobile ? "12px" : "18px",
-            right: isMobile ? "12px" : "18px",
+            top: isMobile ? "60px" : "76px",
+            left: isMobile ? "12px" : "18px",
             zIndex: 84,
           }}
         >
@@ -1076,7 +1191,6 @@ function FloatingControls({
               backdropFilter: "blur(16px)",
               WebkitBackdropFilter: "blur(16px)",
               color: "white",
-              display: "flex",
               alignItems: "center",
               gap: "9px",
               fontSize: isMobile ? "11px" : "13px",
@@ -1098,7 +1212,7 @@ function FloatingControls({
               style={{
                 position: "absolute",
                 top: "calc(100% + 9px)",
-                right: 0,
+                left: 0,
                 width: isMobile
                   ? "min(330px, calc(100vw - 24px))"
                   : "350px",
@@ -1116,6 +1230,26 @@ function FloatingControls({
                 color: "white",
               }}
             >
+              <Link
+                href={userEmail ? "/profile" : "/login"}
+                onClick={() => setCompactMenuOpen(false)}
+                style={compactMenuItemStyle}
+              >
+                <span aria-hidden="true">◎</span>
+                <span>{userEmail ? "My Account" : "Log In"}</span>
+                <span aria-hidden="true">›</span>
+              </Link>
+
+              <Link
+                href="/cart"
+                onClick={() => setCompactMenuOpen(false)}
+                style={compactMenuItemStyle}
+              >
+                <span aria-hidden="true">🛒</span>
+                <span>Cart</span>
+                <span aria-hidden="true">›</span>
+              </Link>
+
               <button
                 type="button"
                 onClick={() => {
@@ -1163,85 +1297,50 @@ function FloatingControls({
                     : formatDreamGemAmount(dreamGemBalance)}
                 </strong>
               </button>
-
-              <Link
-                href={userEmail ? "/profile" : "/login"}
-                onClick={() => setCompactMenuOpen(false)}
-                style={compactMenuItemStyle}
-              >
-                <span aria-hidden="true">◎</span>
-                <span>{userEmail ? "My Account" : "Log In"}</span>
-                <span aria-hidden="true">›</span>
-              </Link>
-
-              <Link
-                href="/cart"
-                onClick={() => setCompactMenuOpen(false)}
-                style={compactMenuItemStyle}
-              >
-                <span aria-hidden="true">🛒</span>
-                <span>Cart</span>
-                <span aria-hidden="true">›</span>
-              </Link>
             </div>
           )}
         </div>
       )}
 
+
       <div
         style={{
           position: isDesktop ? "fixed" : "static",
-          top: "18px",
-          right: "18px",
+          top: "22px",
+          right: "22px",
           zIndex: 70,
           display: isDesktop ? "flex" : "contents",
           alignItems: "center",
           justifyContent: "flex-end",
-          gap: "14px",
+          gap: "12px",
         }}
       >
         <Link
           href={userEmail ? "/profile" : "/login"}
           style={{
+            ...controlButtonStyle,
             display: isDesktop ? "flex" : "none",
             height: "46px",
-            padding: "0 22px",
-            borderRadius: "999px",
-            border: "1px solid rgba(116,200,255,0.45)",
-            background: "rgba(2,8,19,0.58)",
-            backdropFilter: "blur(16px)",
-            color: "white",
-            textDecoration: "none",
-            alignItems: "center",
-            gap: "10px",
-            fontSize: isMobile ? "11px" : "14px",
-            letterSpacing: isMobile ? "0.08em" : "0.1em",
-            textTransform: "uppercase",
-            boxShadow: "0 16px 36px rgba(0,0,0,0.28)",
+            padding: isMobile ? "0 12px" : "0 20px",
+            fontSize: isMobile ? "10px" : "14px",
+            letterSpacing: isMobile ? "0.06em" : "0.1em",
             whiteSpace: "nowrap",
           }}
         >
-          {userEmail ? "My Account" : "Log In"}
+          {userEmail ? (isMobile ? "Account" : "My Account") : "Log In"}
         </Link>
 
         <Link
           href="/cart"
           aria-label="Cart"
           style={{
+            ...controlButtonStyle,
+            display: isDesktop ? "flex" : "none",
             width: "46px",
             height: "46px",
             padding: 0,
-            borderRadius: "999px",
-            border: "1px solid rgba(116,200,255,0.45)",
-            background: "rgba(2,8,19,0.58)",
-            backdropFilter: "blur(16px)",
-            color: "white",
-            textDecoration: "none",
-            display: isDesktop ? "flex" : "none",
-            alignItems: "center",
             justifyContent: "center",
             fontSize: "18px",
-            boxShadow: "0 16px 36px rgba(0,0,0,0.28)",
             flexShrink: 0,
           }}
         >
@@ -1262,20 +1361,20 @@ function FloatingControls({
               height: "46px",
               padding: "0 18px",
               borderRadius: "999px",
-              border: "1px solid rgba(83,215,255,0.55)",
+              border: "1px solid rgba(83,215,255,0.6)",
               background:
                 "linear-gradient(145deg, rgba(2,14,28,0.72), rgba(2,8,19,0.8))",
               backdropFilter: "blur(16px)",
               WebkitBackdropFilter: "blur(16px)",
               color: "white",
               alignItems: "center",
-              gap: isMobile ? "7px" : "10px",
+              gap: isMobile ? "6px" : "10px",
               fontSize: isMobile ? "10px" : "14px",
-              letterSpacing: isMobile ? "0.03em" : "0.08em",
+              letterSpacing: isMobile ? "0.02em" : "0.08em",
               textTransform: "uppercase",
               boxShadow: profileAssetsOpen
                 ? "0 16px 38px rgba(0,0,0,0.34), 0 0 30px rgba(83,215,255,0.28)"
-                : "0 16px 36px rgba(0,0,0,0.28), 0 0 22px rgba(83,215,255,0.16)",
+                : "0 16px 36px rgba(0,0,0,0.28), 0 0 22px rgba(83,215,255,0.18)",
               whiteSpace: "nowrap",
               cursor: "pointer",
               fontFamily: "inherit",
@@ -1290,17 +1389,16 @@ function FloatingControls({
                 alignItems: "center",
                 justifyContent: "center",
                 background:
-                  "radial-gradient(circle, rgba(83,215,255,0.38), rgba(2,8,19,0.8))",
-                border: "1px solid rgba(83,215,255,0.6)",
+                  "radial-gradient(circle, rgba(83,215,255,0.42), rgba(2,8,19,0.82))",
+                border: "1px solid rgba(83,215,255,0.65)",
                 color: "#bdf6ff",
                 fontSize: "12px",
-                boxShadow: "0 0 14px rgba(83,215,255,0.32)",
+                boxShadow: "0 0 14px rgba(83,215,255,0.35)",
                 flexShrink: 0,
               }}
             >
               ◈
             </span>
-
             <span>{isDesktop ? "Profile Assets" : "Assets"}</span>
             <strong
               style={{
@@ -1330,8 +1428,8 @@ function FloatingControls({
               style={{
                 position: isCompact ? "fixed" : "absolute",
                 top: isCompact ? (isMobile ? "112px" : "132px") : "calc(100% + 10px)",
-                right: isCompact ? (isMobile ? "12px" : "18px") : 0,
-                left: "auto",
+                right: isCompact ? "auto" : 0,
+                left: isCompact ? (isMobile ? "12px" : "22px") : "auto",
                 width: isCompact ? "min(380px, calc(100vw - 24px))" : "380px",
                 maxHeight: "min(560px, calc(100dvh - 92px))",
                 overflowY: "auto",
@@ -1687,8 +1785,8 @@ function FloatingControls({
               style={{
                 position: isCompact ? "fixed" : "absolute",
                 top: isCompact ? (isMobile ? "112px" : "132px") : "calc(100% + 10px)",
-                right: isCompact ? (isMobile ? "12px" : "18px") : 0,
-                left: "auto",
+                right: isCompact ? "auto" : 0,
+                left: isCompact ? (isMobile ? "12px" : "22px") : "auto",
                 width: isCompact ? "min(390px, calc(100vw - 24px))" : "390px",
                 maxHeight: "min(590px, calc(100dvh - 92px))",
                 overflowY: "auto",
@@ -1766,10 +1864,10 @@ function FloatingControls({
                     lineHeight: 1.55,
                   }}
                 >
-                  Dream Gems are premium learning rewards. Eligible users can
-                  earn them through verified class attendance, Core Missions,
-                  and Think Missions. They may be redeemed for selected tangible
-                  or premium rewards, but never exchanged for cash.
+                  Dream Gems are premium learning rewards earned through
+                  verified class attendance and eligible Core or Think
+                  Missions. They may be redeemed for selected tangible or
+                  premium rewards, but never exchanged for cash.
                 </p>
               </div>
 
@@ -1821,7 +1919,7 @@ function FloatingControls({
                       }}
                     >
                       Your Dream Gem wallet is ready and currently starts at 0.
-                      Student Access unlocks eligible Core and Think activities
+                      Student Access unlocks eligible Core and Think Missions
                       that can award Dream Gems.
                     </p>
                     <Link
@@ -1980,14 +2078,6 @@ function FloatingControls({
           )}
         </div>
       </div>
-
-      <ReferralObjectivesPanel
-        isLoggedIn={Boolean(userEmail)}
-        referralCount={referralCount}
-        claimedMilestones={claimedMilestones}
-        isLoading={objectivesLoading}
-        screenMode={screenMode}
-      />
     </>
   );
 }
@@ -2010,1105 +2100,306 @@ const compactMenuItemStyle: CSSProperties = {
   fontWeight: 800,
 };
 
-function ReferralObjectivesPanel({
-  isLoggedIn,
-  referralCount,
-  claimedMilestones,
-  isLoading,
-  screenMode,
+function MissionHotspot({
+  zone,
+  isLocked,
+  isWalkthroughActive,
+  isHighlighted,
+  onEnter,
+  onLeave,
+  onClick,
 }: {
-  isLoggedIn: boolean;
-  referralCount: number;
-  claimedMilestones: ReferralMilestone[];
-  isLoading: boolean;
-  screenMode: ScreenMode;
+  zone: MissionZone;
+  isLocked: boolean;
+  isWalkthroughActive: boolean;
+  isHighlighted: boolean;
+  onEnter: () => void;
+  onLeave: () => void;
+  onClick?: () => void;
 }) {
-  const isMobile = screenMode === "mobile";
-  const [isOpen, setIsOpen] = useState(false);
-
-  const completedCount = REFERRAL_OBJECTIVES.filter((objective) =>
-    claimedMilestones.includes(objective.milestone)
-  ).length;
-
-  const nextMilestone =
-    REFERRAL_OBJECTIVES.find(
-      (objective) => !claimedMilestones.includes(objective.milestone)
-    )?.milestone ?? 15;
-
-  const overallProgress = Math.min(
-    100,
-    Math.max(0, (referralCount / nextMilestone) * 100)
-  );
-
   return (
-    <aside
+    <button
+      type="button"
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
+      onClick={onClick}
       style={{
-        position: "fixed",
-        top: isMobile ? "108px" : "76px",
-        right: isMobile ? "12px" : "18px",
-        left: isMobile ? "12px" : "auto",
-        zIndex: 69,
-        width: isMobile ? "auto" : "min(380px, calc(100vw - 36px))",
-        borderRadius: isOpen ? "20px" : "999px",
-        border: "1px solid rgba(126,232,255,0.38)",
-        background:
-          "linear-gradient(145deg, rgba(3,20,39,0.94), rgba(3,10,25,0.96))",
-        boxShadow:
-          "0 20px 48px rgba(0,0,0,0.38), 0 0 24px rgba(83,215,255,0.12)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
-        overflow: "hidden",
-        color: "white",
+        position: "absolute",
+        zIndex: isHighlighted ? 92 : 25,
+        ...zone.position,
+        border: isHighlighted
+          ? `2px solid ${zone.accent}`
+          : "1px solid transparent",
+        background: isHighlighted ? `${zone.accent}22` : "transparent",
+        boxShadow: isHighlighted
+          ? `0 0 0 8px ${zone.accent}18, 0 0 40px ${zone.accent}88`
+          : "none",
+        borderRadius: "28px",
+        cursor: onClick ? "pointer" : "default",
+        outline: "none",
+        opacity: isWalkthroughActive && !isHighlighted ? 0.12 : 1,
+        pointerEvents: isWalkthroughActive && !isHighlighted ? "none" : "auto",
+        transition: "opacity 220ms ease, border 220ms ease, background 220ms ease, box-shadow 220ms ease",
       }}
-    >
-      <button
-        type="button"
-        onClick={() => setIsOpen((current) => !current)}
-        aria-expanded={isOpen}
-        style={{
-          width: "100%",
-          minHeight: isMobile ? "50px" : "54px",
-          padding: isMobile ? "10px 14px" : "10px 16px",
-          border: "none",
-          background: "transparent",
-          color: "white",
-          display: "grid",
-          gridTemplateColumns: "36px minmax(0, 1fr) auto",
-          alignItems: "center",
-          gap: "10px",
-          cursor: "pointer",
-          textAlign: "left",
-          fontFamily: "inherit",
-        }}
-      >
-        <span
-          style={{
-            width: "34px",
-            height: "34px",
-            borderRadius: "12px",
-            border: "1px solid rgba(126,232,255,0.42)",
-            background: "rgba(83,215,255,0.12)",
-            color: "#8dfcff",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "16px",
-            boxShadow: "0 0 16px rgba(83,215,255,0.14)",
-          }}
-        >
-          ↗
-        </span>
-
-        <span style={{ minWidth: 0 }}>
-          <strong
-            style={{
-              display: "block",
-              fontSize: isMobile ? "12px" : "13px",
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
-            Referral Objectives
-          </strong>
-
-          <span
-            style={{
-              display: "block",
-              marginTop: "3px",
-              color: "rgba(255,255,255,0.56)",
-              fontSize: isMobile ? "10px" : "11px",
-            }}
-          >
-            {isLoading
-              ? "Loading progress..."
-              : isLoggedIn
-                ? `${completedCount}/3 complete · ${referralCount} successful referral${
-                    referralCount === 1 ? "" : "s"
-                  }`
-                : "Log in to start earning bonuses"}
-          </span>
-        </span>
-
-        <span
-          aria-hidden="true"
-          style={{
-            color: "#8dfcff",
-            fontSize: "18px",
-            transform: isOpen ? "rotate(90deg)" : "rotate(0deg)",
-            transition: "transform 180ms ease",
-          }}
-        >
-          ›
-        </span>
-      </button>
-
-      {!isLoading && isLoggedIn && !isOpen && (
-        <div
-          style={{
-            height: "3px",
-            background: "rgba(255,255,255,0.07)",
-          }}
-        >
-          <div
-            style={{
-              width: `${overallProgress}%`,
-              height: "100%",
-              background: "linear-gradient(90deg, #53d7ff, #60f0d0)",
-              boxShadow: "0 0 12px rgba(96,240,208,0.4)",
-              transition: "width 300ms ease",
-            }}
-          />
-        </div>
-      )}
-
-      {isOpen && (
-        <div
-          style={{
-            borderTop: "1px solid rgba(126,232,255,0.14)",
-            padding: isMobile ? "12px" : "14px",
-          }}
-        >
-          {!isLoggedIn ? (
-            <Link
-              href="/login"
-              style={{
-                minHeight: "54px",
-                borderRadius: "15px",
-                border: "1px solid rgba(126,232,255,0.28)",
-                background: "rgba(83,215,255,0.09)",
-                color: "white",
-                textDecoration: "none",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "12px 16px",
-                fontSize: "12px",
-                fontWeight: 800,
-                letterSpacing: "0.1em",
-                textTransform: "uppercase",
-              }}
-            >
-              Log in to view objectives
-            </Link>
-          ) : isLoading ? (
-            <div
-              style={{
-                padding: "18px",
-                color: "rgba(255,255,255,0.58)",
-                fontSize: "12px",
-                textAlign: "center",
-              }}
-            >
-              Loading referral progress...
-            </div>
-          ) : (
-            <>
-              <p
-                style={{
-                  margin: "0 2px 12px",
-                  color: "rgba(255,255,255,0.55)",
-                  fontSize: "11px",
-                  lineHeight: 1.5,
-                }}
-              >
-                You receive the normal +10 DT for every successful referral.
-                These milestone rewards are additional one-time bonuses.
-              </p>
-
-              <div style={{ display: "grid", gap: "9px" }}>
-                {REFERRAL_OBJECTIVES.map((objective) => {
-                  const isCompleted = claimedMilestones.includes(
-                    objective.milestone
-                  );
-                  const progress = Math.min(
-                    referralCount,
-                    objective.milestone
-                  );
-
-                  const rowStyle: CSSProperties = {
-                    minHeight: "66px",
-                    borderRadius: "16px",
-                    border: isCompleted
-                      ? "1px solid rgba(93,255,181,0.5)"
-                      : "1px solid rgba(126,232,255,0.18)",
-                    background: isCompleted
-                      ? "linear-gradient(145deg, rgba(18,116,76,0.52), rgba(8,56,45,0.66))"
-                      : "rgba(255,255,255,0.035)",
-                    color: "white",
-                    textDecoration: "none",
-                    display: "grid",
-                    gridTemplateColumns: "34px minmax(0, 1fr) auto",
-                    alignItems: "center",
-                    gap: "10px",
-                    padding: "11px 12px",
-                    boxShadow: isCompleted
-                      ? "0 0 18px rgba(93,255,181,0.1)"
-                      : "none",
-                    cursor: isCompleted ? "default" : "pointer",
-                    fontFamily: "inherit",
-                  };
-
-                  const rowContent = (
-                    <>
-                      <span
-                        style={{
-                          width: "30px",
-                          height: "30px",
-                          borderRadius: "999px",
-                          border: isCompleted
-                            ? "1px solid rgba(137,255,204,0.7)"
-                            : "1px solid rgba(126,232,255,0.32)",
-                          background: isCompleted
-                            ? "rgba(93,255,181,0.18)"
-                            : "rgba(83,215,255,0.08)",
-                          color: isCompleted ? "#9fffd2" : "#8dfcff",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "14px",
-                          fontWeight: 900,
-                        }}
-                      >
-                        {isCompleted ? "✓" : progress}
-                      </span>
-
-                      <span style={{ minWidth: 0 }}>
-                        <strong
-                          style={{
-                            display: "block",
-                            color: isCompleted ? "#d9ffed" : "white",
-                            fontSize: "12px",
-                            lineHeight: 1.35,
-                          }}
-                        >
-                          {objective.title}
-                        </strong>
-
-                        <span
-                          style={{
-                            display: "block",
-                            marginTop: "4px",
-                            color: isCompleted
-                              ? "#9fffd2"
-                              : "rgba(255,255,255,0.48)",
-                            fontSize: "10px",
-                            lineHeight: 1.35,
-                          }}
-                        >
-                          {isCompleted
-                            ? "Completed · reward awarded"
-                            : `${progress}/${objective.milestone} referrals`}
-                        </span>
-                      </span>
-
-                      <strong
-                        style={{
-                          color: isCompleted ? "#9fffd2" : "#8dfcff",
-                          fontSize: "11px",
-                          whiteSpace: "nowrap",
-                          textAlign: "right",
-                        }}
-                      >
-                        {isCompleted
-                          ? `+${objective.reward} DT ✓`
-                          : `+${objective.reward} DT`}
-                      </strong>
-                    </>
-                  );
-
-                  if (isCompleted) {
-                    return (
-                      <div
-                        key={objective.milestone}
-                        aria-disabled="true"
-                        style={{
-                          ...rowStyle,
-                          pointerEvents: "none",
-                          userSelect: "none",
-                        }}
-                      >
-                        {rowContent}
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <Link
-                      key={objective.milestone}
-                      href="/profile"
-                      style={rowStyle}
-                    >
-                      {rowContent}
-                    </Link>
-                  );
-                })}
-              </div>
-
-              <Link
-                href="/profile"
-                style={{
-                  marginTop: "11px",
-                  minHeight: "42px",
-                  borderRadius: "13px",
-                  border: "1px solid rgba(126,232,255,0.2)",
-                  background: "rgba(83,215,255,0.07)",
-                  color: "#bdf6ff",
-                  textDecoration: "none",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "10px",
-                  fontWeight: 800,
-                  letterSpacing: "0.1em",
-                  textTransform: "uppercase",
-                }}
-              >
-                View and copy referral code
-              </Link>
-            </>
-          )}
-        </div>
-      )}
-    </aside>
+      aria-label={isLocked ? `${zone.title} locked` : zone.title}
+    />
   );
 }
 
-function ZoneCard({
+function MissionCard({
   zone,
+  isLocked,
+  isWalkthroughActive,
+  isHighlighted,
   onClick,
-  screenMode,
-  walkthroughActive,
-  walkthroughHighlighted,
 }: {
-  zone: Zone;
+  zone: MissionZone;
+  isLocked: boolean;
+  isWalkthroughActive: boolean;
+  isHighlighted: boolean;
   onClick?: () => void;
-  screenMode: ScreenMode;
-  walkthroughActive: boolean;
-  walkthroughHighlighted: boolean;
 }) {
-  const [hovered, setHovered] = useState(false);
-  const isMobile = screenMode === "mobile";
-  const isEmphasised = hovered || walkthroughHighlighted;
-
-  const cardStyle: CSSProperties = {
-    position: "relative",
-    zIndex: walkthroughHighlighted ? 4 : hovered ? 3 : 1,
-    width: "100%",
-    minHeight: isMobile ? "82px" : "94px",
-    display: "grid",
-    gridTemplateColumns: isMobile
-      ? "50px 1px minmax(0, 1fr) 24px"
-      : "64px 1px minmax(0, 1fr) 32px",
-    alignItems: "center",
-    gap: isMobile ? "12px" : "18px",
-    padding: isMobile ? "16px" : "20px 24px 20px 20px",
-    borderRadius: "16px",
-    border: isEmphasised
-      ? "1px solid rgba(142,232,255,0.88)"
-      : "1px solid rgba(135,216,255,0.32)",
-    background: isEmphasised
-      ? "rgba(4,22,48,0.95)"
-      : "rgba(7,20,45,0.72)",
-    color: "white",
-    textDecoration: "none",
-    textAlign: "left",
-    fontFamily: "inherit",
-    backdropFilter: "blur(18px)",
-    WebkitBackdropFilter: "blur(18px)",
-    boxShadow: walkthroughHighlighted
-      ? "0 0 0 3px rgba(83,215,255,0.18), 0 0 54px rgba(83,215,255,0.48), 0 28px 74px rgba(0,0,0,0.55)"
-      : hovered
-        ? "0 0 42px rgba(83,215,255,0.28), 0 26px 70px rgba(0,0,0,0.42)"
-        : "0 14px 34px rgba(0,0,0,0.3)",
-    opacity:
-      walkthroughActive && !walkthroughHighlighted ? 0.2 : isEmphasised ? 1 : 0.88,
-    filter:
-      walkthroughActive && !walkthroughHighlighted
-        ? "saturate(0.35) brightness(0.5)"
-        : isEmphasised
-          ? "none"
-          : "saturate(0.86) brightness(0.94)",
-    transform: isEmphasised ? "translateY(-4px) scale(1.012)" : "none",
-    transition:
-      "transform 260ms ease, box-shadow 260ms ease, border-color 260ms ease, opacity 260ms ease, filter 260ms ease, background 260ms ease",
-    cursor: walkthroughActive ? "default" : "pointer",
-    pointerEvents: walkthroughActive ? "none" : "auto",
-    appearance: "none",
-  };
-
-  const content = (
-    <>
-      <div
+  return (
+    <button
+      id={`mission-zone-${zone.id}`}
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      style={{
+        minHeight: "170px",
+        borderRadius: "22px",
+        border: isHighlighted
+          ? `2px solid ${zone.accent}`
+          : `1px solid ${zone.accent}88`,
+        background:
+          "linear-gradient(145deg, rgba(8,35,70,0.10), rgba(3,13,34,0.10))",
+        backdropFilter: "blur(15px)",
+        WebkitBackdropFilter: "blur(15px)",
+        boxShadow: isHighlighted
+          ? `0 0 0 7px ${zone.accent}18, 0 0 34px ${zone.accent}88, 0 18px 42px rgba(0,0,0,0.28)`
+          : `0 0 24px ${zone.accent}2b, 0 18px 42px rgba(0,0,0,0.28)`,
+        padding: "22px",
+        color: "white",
+        textAlign: "left",
+        cursor: onClick ? "pointer" : "default",
+        opacity:
+          isWalkthroughActive && !isHighlighted
+            ? 0.14
+            : isLocked
+              ? 0.58
+              : onClick
+                ? 1
+                : 0.66,
+        filter: isLocked && !isHighlighted ? "saturate(0.45)" : "none",
+        transform: isHighlighted ? "translateY(-4px)" : "none",
+        transition:
+          "opacity 220ms ease, border 220ms ease, box-shadow 220ms ease, transform 220ms ease",
+      }}
+    >
+      <p
         style={{
-          width: isMobile ? "44px" : "52px",
-          height: isMobile ? "44px" : "52px",
-          borderRadius: "13px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: isMobile ? "20px" : "23px",
-          color: "#8ee8ff",
-          background:
-            "radial-gradient(circle, rgba(83,215,255,0.22), rgba(2,8,19,0.9))",
-          border: "1px solid rgba(83,215,255,0.48)",
-          boxShadow:
-            "0 0 22px rgba(83,215,255,0.22), inset 0 0 18px rgba(83,215,255,0.08)",
+          margin: 0,
+          color: isLocked ? "#ffd76a" : zone.accent,
+          fontSize: "12px",
+          letterSpacing: "0.18em",
+          textTransform: "uppercase",
+          fontWeight: 700,
         }}
       >
-        {zone.icon}
-      </div>
+        {zone.comingSoon
+          ? "Locked · Coming Soon"
+          : isLocked
+          ? "Locked Zone"
+          : "Learning Zone"}
+      </p>
 
-      <div
+      <h2
         style={{
-          width: "1px",
-          height: isMobile ? "52px" : "58px",
-          background: "rgba(255,255,255,0.16)",
+          margin: "10px 0 0",
+          fontSize: "24px",
+          lineHeight: 1.18,
+          fontWeight: 700,
         }}
-      />
+      >
+        {zone.title}
+      </h2>
 
-      <div style={{ minWidth: 0 }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            gap: isMobile ? "10px" : "14px",
-          }}
-        >
-          <span
-            style={{
-              flexShrink: 0,
-              fontSize: isMobile ? "15px" : "18px",
-              color: "rgba(255,255,255,0.86)",
-              lineHeight: 1.2,
-            }}
-          >
-            {zone.number}
-          </span>
-
-          <div style={{ minWidth: 0 }}>
-            <h2
-              style={{
-                margin: 0,
-                textTransform: "uppercase",
-                letterSpacing: "0.09em",
-                fontSize: isMobile ? "15px" : "17px",
-                lineHeight: 1.35,
-                fontWeight: 750,
-                color: "white",
-              }}
-            >
-              {zone.title}
-            </h2>
-
-            {!isMobile && (
-              <p
-                style={{
-                  margin: "7px 0 0",
-                  color: "rgba(255,255,255,0.64)",
-                  fontSize: "12px",
-                  lineHeight: 1.45,
-                }}
-              >
-                {zone.description}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div
-        aria-hidden="true"
+      <p
         style={{
-          fontSize: isMobile ? "22px" : "28px",
+          margin: "10px 0 0",
+          fontSize: "14px",
+          lineHeight: 1.5,
           color: "rgba(255,255,255,0.78)",
         }}
       >
-        →
+        {zone.description}
+      </p>
+
+      <div
+        style={{
+          marginTop: "18px",
+          color: isLocked
+            ? "#ffd76a"
+            : onClick
+            ? zone.accent
+            : "rgba(255,255,255,0.45)",
+          fontSize: "14px",
+          fontWeight: 700,
+        }}
+      >
+        {zone.comingSoon
+          ? "LOCKED · Coming Soon"
+          : isLocked
+          ? "Locked"
+          : onClick
+          ? "Enter Mission ›"
+          : "Coming Soon"}
       </div>
-    </>
-  );
-
-  const commonProps = {
-    id: `nova-zone-${zone.number}`,
-    onMouseEnter: () => setHovered(true),
-    onMouseLeave: () => setHovered(false),
-    style: cardStyle,
-  };
-
-  if (onClick) {
-    return (
-      <button type="button" onClick={onClick} {...commonProps}>
-        {content}
-      </button>
-    );
-  }
-
-  return (
-    <Link href={zone.href} {...commonProps}>
-      {content}
-    </Link>
+    </button>
   );
 }
 
-function MembershipPortalPopup({ onClose }: { onClose: () => void }) {
-  const screenMode = useResponsiveMode();
-  const isDesktop = screenMode === "desktop";
-  const isMobile = screenMode === "mobile";
-  const [studentHovered, setStudentHovered] = useState(false);
-
-  function openStudentAccessPage() {
-  onClose();
-  window.location.href = "/nova/membership-portal";
-}
+function ZoneHoverPopup({
+  zone,
+  isLocked,
+}: {
+  zone: MissionZone;
+  isLocked: boolean;
+}) {
+  const popupPosition = getPopupPosition(zone.id);
 
   return (
     <div
       style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 120,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: isMobile ? "14px" : "26px",
-        background: "rgba(2, 8, 19, 0.56)",
-        backdropFilter: "blur(14px)",
+        position: "absolute",
+        zIndex: 60,
+        ...popupPosition,
+        width: "330px",
+        borderRadius: "20px",
+        border: `1px solid ${isLocked ? "#ffd76a" : zone.accent}aa`,
+        background:
+          "linear-gradient(145deg, rgba(8,35,70,0.88), rgba(3,13,34,0.92))",
+        backdropFilter: "blur(18px)",
+        boxShadow: `0 0 28px ${
+          isLocked ? "#ffd76a55" : `${zone.accent}55`
+        }, 0 24px 60px rgba(0,0,0,0.45)`,
+        padding: "22px 24px",
+        pointerEvents: "none",
+        color: "white",
       }}
     >
-      <div
+      <p
         style={{
-          position: "relative",
-          width: "min(1160px, 94vw)",
-          maxHeight: isMobile ? "88dvh" : "92vh",
-          overflowY: "auto",
-          borderRadius: isMobile ? "22px" : "30px",
-          border: "1px solid rgba(126, 221, 255, 0.62)",
-          background:
-            "linear-gradient(145deg, rgba(15, 48, 88, 0.96), rgba(9, 24, 56, 0.98))",
-          boxShadow:
-            "0 0 45px rgba(85, 215, 255, 0.35), 0 30px 90px rgba(0, 0, 0, 0.55)",
-          padding: isMobile ? "28px 18px 24px" : "34px 46px 38px",
-          color: "white",
+          margin: 0,
+          color: isLocked ? "#ffd76a" : zone.accent,
+          fontSize: "12px",
+          letterSpacing: "0.18em",
+          textTransform: "uppercase",
+          fontWeight: 700,
         }}
       >
-        <button
-          type="button"
-          onClick={onClose}
-          style={{
-            position: "absolute",
-            top: isMobile ? "14px" : "22px",
-            right: isMobile ? "14px" : "22px",
-            width: isMobile ? "38px" : "44px",
-            height: isMobile ? "38px" : "44px",
-            borderRadius: "999px",
-            border: "1px solid rgba(150, 231, 255, 0.7)",
-            background: "rgba(255, 255, 255, 0.08)",
-            color: "white",
-            fontSize: isMobile ? "24px" : "28px",
-            lineHeight: 1,
-            cursor: "pointer",
-            boxShadow: "0 0 18px rgba(83, 215, 255, 0.22)",
-          }}
-        >
-          ×
-        </button>
+        {zone.comingSoon
+          ? "Locked · Coming Soon"
+          : isLocked
+          ? "Locked Zone"
+          : "Learning Zone"}
+      </p>
 
-        <div
-          style={{
-            textAlign: "center",
-            padding: isMobile ? "0 42px" : "0 70px",
-          }}
-        >
-          <p
-            style={{
-              margin: 0,
-              color: "#7ee8ff",
-              fontSize: "13px",
-              letterSpacing: "0.22em",
-              textTransform: "uppercase",
-              fontWeight: 700,
-            }}
-          >
-            Dreamscape One
-          </p>
+      <h2
+        style={{
+          margin: "10px 0 0",
+          fontSize: "25px",
+          lineHeight: 1.18,
+          fontWeight: 700,
+        }}
+      >
+        {zone.title}
+      </h2>
 
-          <h2
-            style={{
-              margin: "10px 0 0",
-              fontSize: isMobile ? "32px" : "44px",
-              fontWeight: 600,
-              letterSpacing: "-0.03em",
-              textShadow: "0 0 24px rgba(126, 221, 255, 0.35)",
-            }}
-          >
-            Membership Portal
-          </h2>
+      <p
+        style={{
+          margin: "12px 0 0",
+          fontSize: "14px",
+          lineHeight: 1.55,
+          color: "rgba(255,255,255,0.78)",
+        }}
+      >
+        {zone.description}
+      </p>
 
-          <p
-            style={{
-              margin: "10px 0 0",
-              fontSize: isMobile ? "16px" : "20px",
-              color: "#7ee8ff",
-              fontWeight: 300,
-            }}
-          >
-            Choose your Nova’s World access level.
-          </p>
-
-          <div
-            style={{
-              width: "210px",
-              maxWidth: "70%",
-              height: "1px",
-              margin: "20px auto 0",
-              background:
-                "linear-gradient(90deg, transparent, rgba(126,232,255,0.9), transparent)",
-            }}
-          />
-        </div>
-
-        <div
-          style={{
-            marginTop: isMobile ? "26px" : "38px",
-            display: "grid",
-            gridTemplateColumns: isDesktop ? "0.9fr 1.1fr" : "1fr",
-            gap: isMobile ? "16px" : "24px",
-            alignItems: "stretch",
-          }}
-        >
-          <article
-            style={{
-              minHeight: isDesktop ? "540px" : "auto",
-              borderRadius: "26px",
-              padding: isMobile ? "28px 22px" : "34px 30px",
-              border: "1px solid rgba(150, 220, 255, 0.38)",
-              background:
-                "linear-gradient(180deg, rgba(20, 58, 100, 0.74), rgba(8, 25, 56, 0.9))",
-              boxShadow:
-                "inset 0 0 24px rgba(255,255,255,0.03), 0 18px 42px rgba(0,0,0,0.22)",
-              display: "flex",
-              flexDirection: "column",
-              position: "relative",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                background:
-                  "radial-gradient(circle at top left, rgba(126,232,255,0.13), transparent 42%)",
-                pointerEvents: "none",
-              }}
-            />
-
-            <div style={{ position: "relative", zIndex: 1 }}>
-              <p
-                style={{
-                  margin: 0,
-                  color: "#7ee8ff",
-                  fontSize: "13px",
-                  letterSpacing: "0.18em",
-                  textTransform: "uppercase",
-                  fontWeight: 700,
-                }}
-              >
-                Basic Access
-              </p>
-
-              <h3
-                style={{
-                  margin: "24px 0 0",
-                  fontSize: isMobile ? "36px" : "48px",
-                  lineHeight: 1.04,
-                  fontWeight: 800,
-                  letterSpacing: "-0.05em",
-                }}
-              >
-                Explore Nova’s World
-              </h3>
-
-              <p
-                style={{
-                  margin: "28px 0 0",
-                  fontSize: isMobile ? "58px" : "78px",
-                  lineHeight: 0.95,
-                  fontWeight: 800,
-                  color: "#7ee8ff",
-                  textShadow: "0 0 24px rgba(126,232,255,0.22)",
-                }}
-              >
-                $0
-              </p>
-
-              <p
-                style={{
-                  margin: "22px 0 0",
-                  color: "rgba(255,255,255,0.78)",
-                  fontSize: "16px",
-                  lineHeight: 1.6,
-                }}
-              >
-                Basic access lets students enter Nova’s World and preview
-                selected parts of the Dreamscape experience.
-              </p>
-
-              <ul
-                style={{
-                  listStyle: "none",
-                  padding: 0,
-                  margin: "32px 0 0",
-                  display: "grid",
-                  gap: "16px",
-                }}
-              >
-                {[
-                  "Explore selected Nova zones",
-                  "Preview selected learning areas",
-                  "Access basic Dreamscape Token features",
-                  "Upgrade anytime to Student Access",
-                ].map((feature) => (
-                  <li
-                    key={feature}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "28px 1fr",
-                      gap: "12px",
-                      alignItems: "start",
-                      color: "rgba(255,255,255,0.84)",
-                      fontSize: "15px",
-                      lineHeight: 1.45,
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: "22px",
-                        height: "22px",
-                        borderRadius: "999px",
-                        border: "1px solid rgba(126,232,255,0.65)",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: "#7ee8ff",
-                        fontSize: "13px",
-                        fontWeight: 900,
-                        background: "rgba(126,232,255,0.1)",
-                        boxShadow: "0 0 12px rgba(126,232,255,0.24)",
-                      }}
-                    >
-                      ✓
-                    </span>
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <button
-              type="button"
-              disabled
-              style={{
-                position: "relative",
-                zIndex: 1,
-                marginTop: "48px",
-                width: "100%",
-                height: "56px",
-                borderRadius: "16px",
-                border: "1px solid rgba(126,232,255,0.16)",
-                background: "rgba(255,255,255,0.06)",
-                color: "rgba(255,255,255,0.42)",
-                fontSize: "16px",
-                fontWeight: 700,
-                cursor: "not-allowed",
-              }}
-            >
-              Current Plan
-            </button>
-          </article>
-
-          <article
-            onMouseEnter={() => setStudentHovered(true)}
-            onMouseLeave={() => setStudentHovered(false)}
-            onTouchStart={() => setStudentHovered((current) => !current)}
-            onClick={openStudentAccessPage}
-            style={{
-              position: "relative",
-              minHeight: isDesktop ? "540px" : isMobile ? "430px" : "520px",
-              borderRadius: "26px",
-              overflow: "hidden",
-              border: "1px solid rgba(99, 232, 255, 0.85)",
-              background:
-                "linear-gradient(180deg, rgba(17, 82, 136, 0.94), rgba(7, 27, 68, 0.98))",
-              boxShadow:
-                "0 0 34px rgba(83, 215, 255, 0.42), 0 26px 74px rgba(0,0,0,0.34)",
-              cursor: "pointer",
-            }}
-          >
-            <img
-              src={STUDENT_COVER_IMAGE}
-              alt="Nova Student Access"
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                objectPosition: "30%center",
-                display: "block",
-                transform: studentHovered ? "scale(1.035)" : "scale(1)",
-                transition: "transform 320ms ease",
-              }}
-              draggable={false}
-            />
-
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                background: studentHovered
-                  ? "linear-gradient(180deg, rgba(2,8,19,0.22), rgba(2,8,19,0.84))"
-                  : "linear-gradient(180deg, rgba(2,8,19,0.02), rgba(2,8,19,0.16))",
-                transition: "background 260ms ease",
-              }}
-            />
-
-            <div
-              style={{
-                position: "absolute",
-                top: "22px",
-                left: "22px",
-                right: "22px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                gap: "16px",
-                zIndex: 2,
-              }}
-            >
-              <div
-                style={{
-                  minHeight: "34px",
-                  padding: "0 16px",
-                  borderRadius: "999px",
-                  border: "1px solid rgba(255,255,255,0.42)",
-                  color: "white",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "13px",
-                  fontWeight: 900,
-                  background: "rgba(53,197,255,0.82)",
-                  boxShadow: "0 10px 24px rgba(0,0,0,0.14)",
-                  backdropFilter: "blur(8px)",
-                  WebkitBackdropFilter: "blur(8px)",
-                }}
-              >
-                ✦ Recommended
-              </div>
-
-              <div
-                style={{
-                  minHeight: "34px",
-                  padding: "0 16px",
-                  borderRadius: "999px",
-                  border: "1px solid rgba(255,255,255,0.38)",
-                  color: "white",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "13px",
-                  fontWeight: 900,
-                  background: "rgba(0,0,0,0.34)",
-                  backdropFilter: "blur(8px)",
-                  WebkitBackdropFilter: "blur(8px)",
-                }}
-              >
-                $1 first month
-              </div>
-            </div>
-
-            <div
-              style={{
-                position: "absolute",
-                left: "24px",
-                right: "24px",
-                bottom: "24px",
-                zIndex: 2,
-                transform: studentHovered
-                  ? "translateY(0)"
-                  : "translateY(18px)",
-                opacity: studentHovered ? 1 : 0,
-                transition: "opacity 240ms ease, transform 240ms ease",
-              }}
-            >
-              <div
-                style={{
-                  borderRadius: "22px",
-                  border: "1px solid rgba(255,255,255,0.22)",
-                  background: "rgba(4,16,38,0.78)",
-                  backdropFilter: "blur(14px)",
-                  WebkitBackdropFilter: "blur(14px)",
-                  padding: isMobile ? "20px" : "24px",
-                  color: "white",
-                  boxShadow: "0 20px 50px rgba(0,0,0,0.3)",
-                }}
-              >
-                <p
-                  style={{
-                    margin: 0,
-                    color: "#7ee8ff",
-                    fontSize: "12px",
-                    letterSpacing: "0.18em",
-                    textTransform: "uppercase",
-                    fontWeight: 900,
-                  }}
-                >
-                  Student Access Includes
-                </p>
-
-                <h3
-                  style={{
-                    margin: "10px 0 0",
-                    fontSize: isMobile ? "28px" : "34px",
-                    lineHeight: 1.05,
-                    fontWeight: 900,
-                    letterSpacing: "-0.04em",
-                  }}
-                >
-                  Full missions, rewards, and learning upgrades.
-                </h3>
-
-                <ul
-                  style={{
-                    listStyle: "none",
-                    padding: 0,
-                    margin: "18px 0 0",
-                    display: "grid",
-                    gap: "10px",
-                  }}
-                >
-                  {[
-                    "Full access to Learning Missions",
-                    "Regularly updated activities",
-                    "Dreamscape Token rewards",
-                    "Unlock and purchase future items",
-                  ].map((feature) => (
-                    <li
-                      key={feature}
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "22px 1fr",
-                        gap: "10px",
-                        alignItems: "start",
-                        color: "rgba(255,255,255,0.88)",
-                        fontSize: "14px",
-                        lineHeight: 1.4,
-                      }}
-                    >
-                      <span style={{ color: "#7ee8ff", fontWeight: 900 }}>
-                        ✓
-                      </span>
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-
-                <div
-                  style={{
-                    marginTop: "20px",
-                    height: "52px",
-                    borderRadius: "14px",
-                    border: "1px solid rgba(255,255,255,0.32)",
-                    background: "linear-gradient(135deg, #35c5ff, #4c6dff)",
-                    color: "white",
-                    fontSize: "16px",
-                    fontWeight: 900,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    boxShadow: "0 14px 28px rgba(83,215,255,0.2)",
-                  }}
-                >
-                  Start Student Access ›
-                </div>
-              </div>
-            </div>
-
-            {!studentHovered && (
-              <div
-                style={{
-                  position: "absolute",
-                  left: "24px",
-                  right: "24px",
-                  bottom: "24px",
-                  zIndex: 2,
-                  borderRadius: "18px",
-                  background: "rgba(255,255,255,0.88)",
-                  border: "1px solid rgba(126,232,255,0.24)",
-                  padding: "16px 18px",
-                  color: "#061632",
-                  boxShadow: "0 18px 40px rgba(0,0,0,0.12)",
-                }}
-              >
-                <p
-                  style={{
-                    margin: 0,
-                    color: "#256d91",
-                    fontSize: "12px",
-                    letterSpacing: "0.16em",
-                    textTransform: "uppercase",
-                    fontWeight: 900,
-                  }}
-                >
-                  Student Access
-                </p>
-
-                <h3
-                  style={{
-                    margin: "6px 0 0",
-                    fontSize: "24px",
-                    lineHeight: 1.08,
-                    fontWeight: 900,
-                    letterSpacing: "-0.03em",
-                  }}
-                >
-                  $1 first month
-                </h3>
-
-                <p
-                  style={{
-                    margin: "8px 0 0",
-                    color: "rgba(6,22,50,0.62)",
-                    fontSize: "13px",
-                    lineHeight: 1.45,
-                  }}
-                >
-                  Then $19.90/month. Use code DREAM1 at checkout.
-                </p>
-              </div>
-            )}
-          </article>
-        </div>
-
+      {isLocked && (
         <p
           style={{
-            margin: "22px 0 0",
-            color: "rgba(255,255,255,0.66)",
+            margin: "14px 0 0",
+            color: "#ffd76a",
             fontSize: "13px",
-            lineHeight: 1.6,
-            textAlign: "center",
+            lineHeight: 1.45,
+            fontWeight: 700,
           }}
         >
-          Active Guru Kids Pro students can activate included access from the
-          Student Access page.
+          {zone.comingSoon
+            ? "This mission zone is LOCKED and will be released in a future update."
+            : "This zone is only available to student, teacher, or admin accounts."}
         </p>
-      </div>
+      )}
+
+      <div
+        style={{
+          marginTop: "18px",
+          height: "1px",
+          background: `linear-gradient(90deg, transparent, ${
+            isLocked ? "#ffd76a" : zone.accent
+          }, transparent)`,
+        }}
+      />
     </div>
   );
 }
 
-function GuidedWalkthrough({
+function getPopupPosition(zoneId: string): CSSProperties {
+  switch (zoneId) {
+    case "knowledge-arena":
+      return {
+        left: "53%",
+        bottom: "20%",
+        transform: "translateX(-50%)",
+      };
+
+    case "core-missions":
+      return {
+        left: "50%",
+        top: "7%",
+        transform: "translateX(-50%)",
+      };
+
+    case "think-missions":
+      return {
+        right: "3%",
+        top: "13%",
+      };
+
+    case "express-missions":
+      return {
+        right: "3%",
+        bottom: "9%",
+      };
+
+    case "progress-rewards":
+      return {
+        left: "3%",
+        bottom: "9%",
+      };
+
+    default:
+      return {
+        left: "50%",
+        top: "50%",
+        transform: "translate(-50%, -50%)",
+      };
+  }
+}
+
+function MissionGuidedWalkthrough({
   open,
   stepIndex,
   onStepChange,
@@ -3121,9 +2412,6 @@ function GuidedWalkthrough({
 }) {
   const screenMode = useResponsiveMode();
   const isMobile = screenMode === "mobile";
-  // The walkthrough should keep its full desktop proportions on tablet and
-  // split-screen layouts. Only true mobile widths use the compact popup.
-  const useFullWalkthroughLayout = !isMobile;
   const step = WALKTHROUGH_STEPS[stepIndex] ?? WALKTHROUGH_STEPS[0];
   const isFirstStep = stepIndex === 0;
   const isLastStep = stepIndex === WALKTHROUGH_STEPS.length - 1;
@@ -3142,7 +2430,6 @@ function GuidedWalkthrough({
           window.clearInterval(interval);
           return current;
         }
-
         return current + 1;
       });
     }, 14);
@@ -3180,17 +2467,15 @@ function GuidedWalkthrough({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Nova’s World guided walkthrough"
+        aria-label="Learning Missions guided walkthrough"
         style={{
           position: "fixed",
           left: isMobile ? "12px" : "36px",
           right: isMobile ? "12px" : "auto",
           bottom: isMobile ? "12px" : "26px",
           zIndex: 100,
-          width: isMobile
-            ? "auto"
-            : "min(520px, calc(100vw - 72px))",
-          maxHeight: isMobile ? "52dvh" : "none",
+          width: isMobile ? "auto" : "min(520px, calc(100vw - 72px))",
+          maxHeight: isMobile ? "62dvh" : "none",
           overflowY: isMobile ? "auto" : "visible",
           borderRadius: isMobile ? "20px" : "26px",
           border: "1px solid rgba(142,232,255,0.42)",
@@ -3199,11 +2484,7 @@ function GuidedWalkthrough({
           boxShadow:
             "0 32px 90px rgba(0,0,0,0.68), 0 0 40px rgba(83,215,255,0.14)",
           color: "white",
-          padding: isMobile
-            ? "20px"
-            : useFullWalkthroughLayout
-              ? "26px 28px 24px 190px"
-              : "20px",
+          padding: isMobile ? "20px" : "26px 28px 24px 190px",
         }}
       >
         <button
@@ -3317,9 +2598,7 @@ function GuidedWalkthrough({
                   height: "7px",
                   borderRadius: "999px",
                   background:
-                    index === stepIndex
-                      ? "#8ee8ff"
-                      : "rgba(255,255,255,0.2)",
+                    index === stepIndex ? "#8ee8ff" : "rgba(255,255,255,0.2)",
                   transition: "width 180ms ease, background 180ms ease",
                 }}
               />
@@ -3345,7 +2624,6 @@ function GuidedWalkthrough({
                 Back
               </button>
             )}
-
             <button
               type="button"
               onClick={() =>
@@ -3370,3 +2648,21 @@ function GuidedWalkthrough({
     </>
   );
 }
+
+const controlButtonStyle: CSSProperties = {
+  height: "46px",
+  padding: "0 22px",
+  borderRadius: "999px",
+  border: "1px solid rgba(126,232,255,0.48)",
+  background: "rgba(2,8,19,0.58)",
+  backdropFilter: "blur(16px)",
+  color: "white",
+  textDecoration: "none",
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+  fontSize: "14px",
+  letterSpacing: "0.1em",
+  textTransform: "uppercase",
+  boxShadow: "0 16px 36px rgba(0,0,0,0.28)",
+};
