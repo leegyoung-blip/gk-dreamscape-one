@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 type Product = {
   id: string;
@@ -21,12 +22,60 @@ type HubArea = {
   items: Product[];
 };
 
-type BlindBoxPreview = {
+type RewardCategory = "children" | "vouchers";
+
+type RewardItem = {
   id: string;
   name: string;
-  theme: string;
-  image: string;
+  category: RewardCategory;
+  gemCost: number;
+  icon: string;
   description: string;
+  fulfilment: string;
+  badge?: string;
+};
+
+type DreamTokenTransaction = {
+  id: string;
+  amount: number;
+  type: string | null;
+  title: string | null;
+  created_at: string | null;
+};
+
+type DreamGemTransaction = {
+  id: string;
+  amount: number;
+  type: string;
+  source: string;
+  title: string;
+  created_at: string;
+};
+
+type StockRow = {
+  symbol: string;
+  current_price: number;
+};
+
+type StockHoldingRow = {
+  symbol: string;
+  quantity: number;
+};
+
+type PropertyRow = {
+  id: string;
+  current_value: number;
+};
+
+type PropertyHoldingRow = {
+  property_id: string;
+  quantity: number;
+};
+
+type ProfileAssetBreakdown = {
+  cash: number;
+  property: number;
+  stocks: number;
 };
 
 type TagColour = "blue" | "green" | "orange";
@@ -294,30 +343,70 @@ function getHapProductId(set: HapSet, pack: HapPack, paper: HapPaper) {
   return `hap-${set}-pack-3`;
 }
 
-const NOVA_BLIND_BOX_PREVIEWS: BlindBoxPreview[] = [
+const REWARD_CATALOG: RewardItem[] = [
   {
-    id: "delivery-bolt",
-    name: "Delivery Bolt",
-    theme: "Singapore Delivery",
-    image: "/activities/nova-blind-box/delivery-bolt.png",
+    id: "mini-puzzle-cube",
+    name: "Mini Puzzle Cube",
+    category: "children",
+    gemCost: 60,
+    icon: "🧩",
     description:
-      "A Singapore delivery-inspired Bolt with a simple green-and-white colour scheme and delivery pack.",
+      "A compact logic puzzle suitable for travel, classrooms, and quick thinking breaks.",
+    fulfilment: "Collect from Guru Kids Pro while stocks last.",
   },
   {
-    id: "hawker-bolt",
-    name: "Hawker Bolt",
-    theme: "Singapore Hawker",
-    image: "/activities/nova-blind-box/hawker-bolt.png",
+    id: "dreamscape-game-pack",
+    name: "Dreamscape Game Pack",
+    category: "children",
+    gemCost: 90,
+    icon: "🎲",
     description:
-      "A hawker-inspired Bolt serving local food with a bright orange apron and tray.",
+      "A small activity pack with card, word, or tabletop challenges for children.",
+    fulfilment: "Collect from Guru Kids Pro while stocks last.",
+    badge: "Popular",
   },
   {
-    id: "barista-bolt",
-    name: "Barista Bolt",
-    theme: "Singapore Café",
-    image: "/activities/nova-blind-box/barista-bolt.png",
+    id: "bolt-mini-figurine",
+    name: "Bolt Mini Figurine",
+    category: "children",
+    gemCost: 180,
+    icon: "🤖",
     description:
-      "A café-inspired Bolt with warm coffee colours, apron details, and a cup tray.",
+      "A small collectible Bolt figurine from Nova’s world.",
+    fulfilment: "Collection only. Design and availability may vary.",
+  },
+  {
+    id: "nova-collectible-figurine",
+    name: "Nova Collectible Figurine",
+    category: "children",
+    gemCost: 250,
+    icon: "🚀",
+    description:
+      "A premium Nova-themed collectible reserved for long-term learners.",
+    fulfilment: "Collection only. Limited quantities may apply.",
+    badge: "Premium",
+  },
+  {
+    id: "grab-voucher-5",
+    name: "$5 Grab Voucher",
+    category: "vouchers",
+    gemCost: 100,
+    icon: "🎟️",
+    description:
+      "A $5 Grab voucher delivered digitally after the redemption is approved.",
+    fulfilment: "Sent to the email linked to the Dreamscape account.",
+  },
+  {
+    id: "gkp-voucher-10",
+    name: "$10 Guru Kids Pro Voucher",
+    category: "vouchers",
+    gemCost: 150,
+    icon: "⭐",
+    description:
+      "A $10 voucher for an eligible Guru Kids Pro class fee or selected purchase.",
+    fulfilment:
+      "Applied after approval. Not exchangeable for cash and cannot be used for deposits.",
+    badge: "Best Value",
   },
 ];
 
@@ -369,18 +458,18 @@ const HUB_AREAS: HubArea[] = [
   },
   {
     id: "exclusive",
-    title: "Nova's Blind Box",
-    label: "Collect Singapore-inspired Bolt variants.",
+    title: "Rewards Redemption",
+    label: "Trade Dream Gems for selected rewards and vouchers.",
     status: "open",
     positionClass: "hotspotExclusive",
     items: [
       {
-        id: "nova-blind-box",
-        name: "Nova's Blind Box",
-        type: "Bolt Launch Series",
-        image: "/activities/nova-blind-box/delivery-bolt.png",
+        id: "dream-gem-rewards",
+        name: "Dream Gem Rewards",
+        type: "Rewards Redemption",
+        image: "",
         description:
-          "A blind box featuring one random Singapore-inspired Bolt variant.",
+          "Redeem Dream Gems for children’s rewards, vouchers, and selected discounts.",
         status: "available",
       },
     ],
@@ -405,8 +494,64 @@ const HUB_AREAS: HubArea[] = [
   },
 ];
 
+function formatDreamTokenAmount(value: number) {
+  return `${Math.round(Number(value || 0)).toLocaleString("en-SG")} DT`;
+}
+
+function formatDreamGemAmount(value: number) {
+  return `${Math.round(Number(value || 0)).toLocaleString("en-SG")} DG`;
+}
+
+function formatCurrencyTransactionDate(value: string | null) {
+  if (!value) return "";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  return new Intl.DateTimeFormat("en-SG", {
+    timeZone: "Asia/Singapore",
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatGemSource(source: string) {
+  const labels: Record<string, string> = {
+    class_attendance: "Class attendance",
+    core_mission: "Core Mission",
+    think_mission: "Think Mission",
+    redemption: "Reward redemption",
+    admin_adjustment: "Admin adjustment",
+    system: "System",
+    reversal: "Reversal",
+  };
+
+  return labels[source] || source.replace(/_/g, " ");
+}
+
 export default function InventorHubPage() {
   const router = useRouter();
+
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [profileAssets, setProfileAssets] = useState<ProfileAssetBreakdown>({
+    cash: 0,
+    property: 0,
+    stocks: 0,
+  });
+  const [tokenTransactions, setTokenTransactions] = useState<
+    DreamTokenTransaction[]
+  >([]);
+  const [dreamGemBalance, setDreamGemBalance] = useState(0);
+  const [gemTransactions, setGemTransactions] = useState<
+    DreamGemTransaction[]
+  >([]);
+  const [balancesLoading, setBalancesLoading] = useState(true);
+  const [redeemingRewardId, setRedeemingRewardId] = useState<string | null>(
+    null
+  );
+  const [redemptionMessage, setRedemptionMessage] = useState("");
 
   const [selectedArea, setSelectedArea] = useState<HubArea | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -470,12 +615,275 @@ export default function InventorHubPage() {
     selectedHapPaper
   );
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadBalances() {
+      if (isMounted) setBalancesLoading(true);
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!isMounted) return;
+
+      if (!user) {
+        setUserEmail(null);
+        setProfileAssets({ cash: 0, property: 0, stocks: 0 });
+        setTokenTransactions([]);
+        setDreamGemBalance(0);
+        setGemTransactions([]);
+        setBalancesLoading(false);
+        return;
+      }
+
+      setUserEmail(user.email ?? null);
+
+      const [
+        profileResult,
+        tokenBalanceResult,
+        recentTokenResult,
+        recentGemResult,
+        stocksResult,
+        stockHoldingsResult,
+        propertiesResult,
+        propertyHoldingsResult,
+      ] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("dream_gem_balance")
+          .eq("id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("dream_token_transactions")
+          .select("amount")
+          .eq("user_id", user.id)
+          .eq("token_kind", "virtual"),
+        supabase
+          .from("dream_token_transactions")
+          .select("id,amount,type,title,created_at")
+          .eq("user_id", user.id)
+          .eq("token_kind", "virtual")
+          .order("created_at", { ascending: false })
+          .limit(8),
+        supabase
+          .from("dream_gem_transactions")
+          .select("id,amount,type,source,title,created_at")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(8),
+        supabase
+          .from("milo_exchange_stocks")
+          .select("symbol,current_price")
+          .eq("is_active", true),
+        supabase
+          .from("milo_exchange_holdings")
+          .select("symbol,quantity")
+          .eq("user_id", user.id),
+        supabase
+          .from("milo_exchange_properties")
+          .select("id,current_value")
+          .eq("is_active", true),
+        supabase
+          .from("milo_exchange_property_holdings")
+          .select("property_id,quantity")
+          .eq("user_id", user.id),
+      ]);
+
+      if (!isMounted) return;
+
+      if (profileResult.error) {
+        console.warn(
+          "Could not load Dream Gem balance:",
+          profileResult.error.message
+        );
+      }
+
+      const cashValue = tokenBalanceResult.error
+        ? 0
+        : (tokenBalanceResult.data || []).reduce(
+            (sum, row) => sum + Number(row.amount || 0),
+            0
+          );
+
+      const stockPrices = new Map(
+        ((stocksResult.data || []) as StockRow[]).map((stock) => [
+          stock.symbol,
+          Number(stock.current_price || 0),
+        ])
+      );
+
+      const stockValue = stockHoldingsResult.error
+        ? 0
+        : ((stockHoldingsResult.data || []) as StockHoldingRow[]).reduce(
+            (total, holding) =>
+              total +
+              Number(holding.quantity || 0) *
+                Number(stockPrices.get(holding.symbol) || 0),
+            0
+          );
+
+      const propertyPrices = new Map(
+        ((propertiesResult.data || []) as PropertyRow[]).map((property) => [
+          property.id,
+          Number(property.current_value || 0),
+        ])
+      );
+
+      const propertyValue = propertyHoldingsResult.error
+        ? 0
+        : ((propertyHoldingsResult.data || []) as PropertyHoldingRow[]).reduce(
+            (total, holding) =>
+              total +
+              Number(holding.quantity || 0) *
+                Number(propertyPrices.get(holding.property_id) || 0),
+            0
+          );
+
+      setProfileAssets({
+        cash: cashValue,
+        property: propertyValue,
+        stocks: stockValue,
+      });
+
+      setDreamGemBalance(
+        Math.max(0, Number(profileResult.data?.dream_gem_balance || 0))
+      );
+
+      if (recentTokenResult.error) {
+        console.warn(
+          "Could not load recent Dream Token transactions:",
+          recentTokenResult.error.message
+        );
+        setTokenTransactions([]);
+      } else {
+        setTokenTransactions(
+          (recentTokenResult.data || []).map((transaction) => ({
+            id: String(transaction.id),
+            amount: Number(transaction.amount || 0),
+            type: transaction.type ? String(transaction.type) : null,
+            title: transaction.title ? String(transaction.title) : null,
+            created_at: transaction.created_at
+              ? String(transaction.created_at)
+              : null,
+          }))
+        );
+      }
+
+      if (recentGemResult.error) {
+        console.warn(
+          "Could not load recent Dream Gem transactions:",
+          recentGemResult.error.message
+        );
+        setGemTransactions([]);
+      } else {
+        setGemTransactions(
+          (recentGemResult.data || []).map((transaction) => ({
+            id: String(transaction.id),
+            amount: Number(transaction.amount || 0),
+            type: String(transaction.type || ""),
+            source: String(transaction.source || ""),
+            title: String(transaction.title || "Dream Gem activity"),
+            created_at: String(transaction.created_at || ""),
+          }))
+        );
+      }
+
+      setBalancesLoading(false);
+    }
+
+    loadBalances();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
+      loadBalances();
+    });
+
+    window.addEventListener("focus", loadBalances);
+    window.addEventListener("dream-tokens-updated", loadBalances);
+    window.addEventListener("dream-gems-updated", loadBalances);
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+      window.removeEventListener("focus", loadBalances);
+      window.removeEventListener("dream-tokens-updated", loadBalances);
+      window.removeEventListener("dream-gems-updated", loadBalances);
+    };
+  }, []);
+
+  async function redeemReward(reward: RewardItem) {
+    setRedemptionMessage("");
+
+    if (!userEmail) {
+      router.push("/login");
+      return;
+    }
+
+    if (dreamGemBalance < reward.gemCost) {
+      setRedemptionMessage(
+        `You need ${reward.gemCost - dreamGemBalance} more Dream Gems for ${reward.name}.`
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Redeem ${reward.name} for ${reward.gemCost} Dream Gems?`
+    );
+
+    if (!confirmed) return;
+
+    setRedeemingRewardId(reward.id);
+
+    const { data, error } = await supabase.rpc("redeem_dream_gem_reward", {
+      p_reward_id: reward.id,
+    });
+
+    setRedeemingRewardId(null);
+
+    if (error) {
+      setRedemptionMessage(error.message || "The reward could not be redeemed.");
+      return;
+    }
+
+    const result = Array.isArray(data) ? data[0] : data;
+    const newBalance = Number(result?.new_balance);
+
+    if (Number.isFinite(newBalance)) {
+      setDreamGemBalance(Math.max(0, newBalance));
+    } else {
+      setDreamGemBalance((current) =>
+        Math.max(0, current - reward.gemCost)
+      );
+    }
+
+    setGemTransactions((current) => [
+      {
+        id: String(result?.transaction_id || `redemption-${Date.now()}`),
+        amount: -reward.gemCost,
+        type: "spend",
+        source: "redemption",
+        title: `Redeemed: ${reward.name}`,
+        created_at: new Date().toISOString(),
+      },
+      ...current,
+    ].slice(0, 8));
+
+    setRedemptionMessage(
+      `${reward.name} was submitted for redemption. The Dreamscape team will confirm fulfilment.`
+    );
+
+    window.dispatchEvent(new Event("dream-gems-updated"));
+  }
+
   function notifyCartUpdated() {
     window.dispatchEvent(new Event("dreamscape-cart-updated"));
   }
 
   function openArea(area: HubArea) {
     setSelectedArea(area);
+    setRedemptionMessage("");
 
     if (area.id === "machine-zone") {
       setMachineStep(1);
@@ -516,6 +924,7 @@ export default function InventorHubPage() {
 
   function closeArea() {
     setSelectedArea(null);
+    setRedemptionMessage("");
     setMachineStep(1);
     setSelectedPurchaseTier("standard");
   }
@@ -622,37 +1031,6 @@ export default function InventorHubPage() {
     closeProduct();
   }
 
-  function addNovaBlindBoxToCart() {
-    const cartItem = {
-      id: `nova-blind-box-${Date.now()}`,
-      productType: "nova-blind-box",
-      name: "Nova's Blind Box",
-      series: "Bolt Launch Series",
-      description:
-        "One random Singapore-inspired Bolt variant from Nova's Blind Box launch series.",
-      possibleVariants: NOVA_BLIND_BOX_PREVIEWS.map((item) => item.name),
-      image: "/activities/nova-blind-box/delivery-bolt.png",
-      quantity: 1,
-      price: 17.9,
-      dimensions: "Approx. 8cm height",
-      material: "3D printed PLA",
-      disclaimer:
-        "Blind box variant is random. Actual 3D printed product will not look as detailed as the digital preview.",
-    };
-
-    const existingCart = JSON.parse(
-      localStorage.getItem("dreamscape-cart") || "[]"
-    );
-
-    localStorage.setItem(
-      "dreamscape-cart",
-      JSON.stringify([...existingCart, cartItem])
-    );
-
-    notifyCartUpdated();
-    alert("Nova's Blind Box added to cart!");
-    closeArea();
-  }
 
   return (
     <main className="inventorHubPage relative min-h-screen w-full overflow-x-hidden bg-[#050816]">
@@ -692,23 +1070,24 @@ export default function InventorHubPage() {
         <p className="mt-2 text-sm leading-6 text-cyan-50/75">
           <span className="hidden sm:inline">
             Hover over each zone to discover build sets, learning resources,
-            collectibles, and future tools.
+            Dream Gem rewards, and future tools.
           </span>
 
           <span className="sm:hidden">
             Tap each zone to discover build sets, learning resources,
-            collectibles, and future tools.
+            Dream Gem rewards, and future tools.
           </span>
         </p>
       </div>
 
-      <button
-        onClick={() => router.push("/cart")}
-        className="absolute right-5 top-5 z-20 flex items-center gap-2 rounded-full border border-cyan-300/60 bg-slate-950/60 px-4 py-2 text-xs font-bold tracking-[0.12em] text-cyan-50 shadow-[0_0_24px_rgba(0,220,255,0.35)] backdrop-blur-md hover:bg-cyan-400/20 sm:right-6 sm:top-6 sm:px-5 sm:py-3 sm:text-sm"
-      >
-        <span>🛒</span>
-        Cart
-      </button>
+      <InventorHubTopControls
+        userEmail={userEmail}
+        profileAssets={profileAssets}
+        tokenTransactions={tokenTransactions}
+        dreamGemBalance={dreamGemBalance}
+        gemTransactions={gemTransactions}
+        isLoading={balancesLoading}
+      />
 
       <div className="hubZones" aria-label="Inventor Hub zones">
         {HUB_AREAS.map((area) => (
@@ -873,7 +1252,7 @@ export default function InventorHubPage() {
           onClick={closeArea}
         >
           <section
-            className="relative max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-[30px] border border-cyan-200/50 bg-gradient-to-br from-slate-950 via-indigo-950 to-purple-950 p-8 text-white shadow-[0_0_55px_rgba(0,220,255,0.35)]"
+            className="relative max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-[30px] border border-violet-200/55 bg-gradient-to-br from-slate-950 via-indigo-950 to-purple-950 p-6 text-white shadow-[0_0_60px_rgba(173,92,255,0.32)] sm:p-8"
             onClick={(event) => event.stopPropagation()}
           >
             <button
@@ -883,98 +1262,161 @@ export default function InventorHubPage() {
               ×
             </button>
 
-            <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-cyan-300">
-              Nova's Blind Box
-            </p>
+            <div className="pr-12">
+              <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-violet-200">
+                Dream Gem Exchange
+              </p>
 
-            <h1 className="mt-2 text-4xl font-black md:text-6xl">
-              Bolt Launch Series
-            </h1>
+              <div className="mt-3 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <h1 className="text-4xl font-black md:text-6xl">
+                    Rewards Redemption
+                  </h1>
 
-            <p className="mt-3 max-w-3xl text-lg leading-relaxed text-cyan-50/85">
-              Collect one random Singapore-inspired Bolt variant from Nova's
-              launch blind box series.
-            </p>
-
-            <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-3">
-              {NOVA_BLIND_BOX_PREVIEWS.map((preview) => (
-                <div
-                  key={preview.id}
-                  className="rounded-[24px] border border-white/10 bg-white/10 p-5"
-                >
-                  <div className="flex h-[330px] items-center justify-center rounded-[18px] bg-slate-950/45">
-                    <img
-                      src={preview.image}
-                      alt={preview.name}
-                      className="h-full w-full object-contain"
-                      draggable={false}
-                    />
-                  </div>
-
-                  <p className="mt-4 text-xs font-black uppercase tracking-[0.16em] text-cyan-300">
-                    {preview.theme}
-                  </p>
-
-                  <h3 className="mt-1 text-2xl font-black">{preview.name}</h3>
-
-                  <p className="mt-2 text-sm leading-relaxed text-slate-200/75">
-                    {preview.description}
+                  <p className="mt-3 max-w-3xl text-base leading-relaxed text-violet-50/78 sm:text-lg">
+                    Trade Dream Gems for selected children’s rewards, vouchers,
+                    and discounts. Dream Tokens cannot be used here.
                   </p>
                 </div>
-              ))}
+
+                <div className="w-fit rounded-[22px] border border-violet-200/35 bg-violet-300/10 px-5 py-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-200/70">
+                    Available Balance
+                  </p>
+                  <p className="mt-1 text-3xl font-black text-white">
+                    {balancesLoading
+                      ? "Loading..."
+                      : formatDreamGemAmount(dreamGemBalance)}
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <div className="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-[1fr_360px]">
-              <div className="rounded-[24px] border border-white/10 bg-white/10 p-5 text-sm leading-relaxed text-slate-200/80">
-                <p className="text-lg font-black text-white">
-                  Product Description
-                </p>
+            <div className="mt-7 rounded-[22px] border border-cyan-200/18 bg-cyan-300/[0.07] p-5">
+              <p className="text-sm font-black text-cyan-100">
+                How Dream Gems are earned
+              </p>
+              <p className="mt-2 text-sm leading-6 text-cyan-50/70">
+                Eligible completed quizzes award 1 DG and verified Guru Kids Pro
+                class attendance awards 10 DG. Rewards are subject to
+                availability and cannot be exchanged for cash.
+              </p>
+            </div>
 
-                <ul className="mt-3 list-disc space-y-2 pl-5">
-                  <li>Includes 1 random Bolt variant from the launch series.</li>
-                  <li>
-                    Possible variants: Delivery Bolt, Hawker Bolt, or Barista
-                    Bolt.
-                  </li>
-                  <li>Approximate size: 8cm height.</li>
-                  <li>Material: 3D printed PLA.</li>
-                  <li>Designed as a collectible display figurine.</li>
-                  <li>Price: $17.90 per blind box.</li>
-                </ul>
-
-                <p className="mt-5 rounded-2xl border border-amber-300/30 bg-amber-300/10 p-4 text-xs leading-relaxed text-amber-100/90">
-                  Disclaimer: Blind box variant is random. The actual 3D printed
-                  product will not look as detailed as the digital preview.
-                  Small details may be simplified, layer lines may be visible,
-                  and colours may vary slightly depending on print settings and
-                  material availability.
-                </p>
+            {redemptionMessage && (
+              <div className="mt-5 rounded-[20px] border border-violet-200/28 bg-violet-300/10 px-5 py-4 text-sm leading-6 text-violet-50">
+                {redemptionMessage}
               </div>
+            )}
 
-              <div className="rounded-[24px] border border-cyan-300/40 bg-cyan-300/10 p-5">
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-300">
-                  Nova's Blind Box
-                </p>
+            {(["children", "vouchers"] as RewardCategory[]).map((category) => {
+              const rewards = REWARD_CATALOG.filter(
+                (reward) => reward.category === category
+              );
 
-                <h3 className="mt-2 text-3xl font-black">$17.90</h3>
+              return (
+                <section key={category} className="mt-8">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-200">
+                      {category === "children"
+                        ? "Section A"
+                        : "Section B"}
+                    </p>
+                    <h2 className="mt-2 text-3xl font-black">
+                      {category === "children"
+                        ? "Children’s Rewards"
+                        : "Vouchers & Discounts"}
+                    </h2>
+                    <p className="mt-2 text-sm leading-6 text-white/58">
+                      {category === "children"
+                        ? "Toys, games, activity items, and collectible figurines."
+                        : "Digital vouchers and Guru Kids Pro fee benefits."}
+                    </p>
+                  </div>
 
-                <p className="mt-2 text-sm leading-relaxed text-slate-200/75">
-                  1 random 8cm Bolt figurine from the Singapore-inspired launch
-                  series.
-                </p>
+                  <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    {rewards.map((reward) => {
+                      const canAfford = dreamGemBalance >= reward.gemCost;
+                      const isRedeeming = redeemingRewardId === reward.id;
 
-                <button
-                  type="button"
-                  disabled
-                  className="mt-6 w-full cursor-not-allowed rounded-full border border-cyan-200/20 bg-white/10 px-6 py-4 text-lg font-black text-white/45"
-                >
-                  Coming Soon
-                </button>
+                      return (
+                        <article
+                          key={reward.id}
+                          className="flex min-h-[310px] flex-col rounded-[24px] border border-white/12 bg-white/[0.07] p-5 shadow-[0_18px_36px_rgba(0,0,0,0.2)]"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex h-16 w-16 items-center justify-center rounded-[20px] border border-violet-200/22 bg-violet-300/10 text-4xl">
+                              {reward.icon}
+                            </div>
 
-                <p className="mt-3 text-center text-xs leading-relaxed text-cyan-50/45">
-                  This blind box is a digital preview and is not available for purchase yet.
-                </p>
-              </div>
+                            {reward.badge && (
+                              <span className="rounded-full border border-amber-200/28 bg-amber-300/12 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-100">
+                                {reward.badge}
+                              </span>
+                            )}
+                          </div>
+
+                          <h3 className="mt-5 text-xl font-black leading-snug">
+                            {reward.name}
+                          </h3>
+
+                          <p className="mt-3 text-sm leading-6 text-white/64">
+                            {reward.description}
+                          </p>
+
+                          <p className="mt-3 text-xs leading-5 text-violet-100/55">
+                            {reward.fulfilment}
+                          </p>
+
+                          <div className="mt-auto pt-5">
+                            <div className="flex items-end justify-between gap-3">
+                              <span className="text-3xl font-black text-violet-100">
+                                {reward.gemCost}
+                                <span className="ml-2 text-xs tracking-[0.14em] text-violet-200">
+                                  DG
+                                </span>
+                              </span>
+
+                              {!canAfford && userEmail && (
+                                <span className="text-right text-[10px] font-bold text-white/40">
+                                  Need {reward.gemCost - dreamGemBalance} more
+                                </span>
+                              )}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => redeemReward(reward)}
+                              disabled={isRedeeming}
+                              className={`mt-4 w-full rounded-full px-5 py-3 text-sm font-black uppercase tracking-[0.1em] transition ${
+                                !userEmail
+                                  ? "border border-cyan-200/25 bg-cyan-300/12 text-cyan-50 hover:bg-cyan-300/20"
+                                  : canAfford
+                                  ? "bg-violet-200 text-slate-950 hover:scale-[1.01] hover:bg-violet-100"
+                                  : "border border-white/10 bg-white/[0.05] text-white/35 hover:bg-white/[0.08]"
+                              } disabled:cursor-not-allowed disabled:opacity-60`}
+                            >
+                              {isRedeeming
+                                ? "Submitting..."
+                                : !userEmail
+                                ? "Log In to Redeem"
+                                : canAfford
+                                ? "Redeem Reward"
+                                : "Not Enough Gems"}
+                            </button>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+            })}
+
+            <div className="mt-8 rounded-[22px] border border-amber-200/20 bg-amber-300/[0.07] p-5 text-xs leading-6 text-amber-50/70">
+              Redemptions are reviewed before fulfilment. Physical rewards use
+              collection unless stated otherwise. Voucher conditions, stock,
+              expiry dates, and redemption limits may apply.
             </div>
           </section>
         </div>
@@ -1005,8 +1447,10 @@ export default function InventorHubPage() {
             </h1>
 
             <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-cyan-50/85">
-              The Machine Zone is being prepared as an exclusive area for
-              Student Access members.
+              The recommended direction is an Invention Forge where Student
+              Access members assemble virtual machines, test them in short
+              simulations, and unlock build plans using parts earned from Core
+              and Think Missions.
             </p>
 
             <div className="mx-auto mt-8 max-w-md rounded-[24px] border border-cyan-200/20 bg-white/10 p-6">
@@ -1015,8 +1459,9 @@ export default function InventorHubPage() {
               </p>
 
               <p className="mt-3 text-sm leading-relaxed text-slate-200/75">
-                Future tools, member-only activities, and advanced creation
-                features will appear here later.
+                Students could combine motors, wheels, sensors, power cores,
+                and structural parts; test speed, stability, or energy use; then
+                save successful inventions to their profile.
               </p>
             </div>
 
@@ -1423,7 +1868,7 @@ export default function InventorHubPage() {
         .hubIntroPanel {
           position: relative;
           width: min(680px, 100%);
-          margin: 82px auto 0;
+          margin: 130px auto 0;
         }
 
         .hubZones {
@@ -1622,7 +2067,7 @@ export default function InventorHubPage() {
           }
 
           .hubIntroPanel {
-            margin-top: 74px;
+            margin-top: 122px;
           }
 
           .hubZones {
@@ -1655,5 +2100,469 @@ export default function InventorHubPage() {
         }
       `}</style>
     </main>
+  );
+}
+
+function InventorHubTopControls({
+  userEmail,
+  profileAssets,
+  tokenTransactions,
+  dreamGemBalance,
+  gemTransactions,
+  isLoading,
+}: {
+  userEmail: string | null;
+  profileAssets: ProfileAssetBreakdown;
+  tokenTransactions: DreamTokenTransaction[];
+  dreamGemBalance: number;
+  gemTransactions: DreamGemTransaction[];
+  isLoading: boolean;
+}) {
+  const [isWide, setIsWide] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [activePanel, setActivePanel] = useState<"assets" | "gems" | null>(
+    null
+  );
+
+  const profileAssetsTotal =
+    profileAssets.cash + profileAssets.property + profileAssets.stocks;
+
+  useEffect(() => {
+    function updateLayout() {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      const aspectRatio = width / Math.max(height, 1);
+
+      setIsWide(width >= 1760 && aspectRatio >= 1.65 && width > height);
+    }
+
+    updateLayout();
+    window.addEventListener("resize", updateLayout);
+
+    return () => window.removeEventListener("resize", updateLayout);
+  }, []);
+
+  useEffect(() => {
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+        setActivePanel(null);
+      }
+    }
+
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, []);
+
+  const baseButton =
+    "flex h-[46px] items-center justify-center gap-2 rounded-full border bg-slate-950/70 px-5 text-xs font-black uppercase tracking-[0.1em] text-white shadow-[0_14px_34px_rgba(0,0,0,0.3)] backdrop-blur-xl transition hover:scale-[1.02]";
+
+  if (!isWide) {
+    return (
+      <>
+        {menuOpen && (
+          <button
+            type="button"
+            aria-label="Close Inventor Hub menu"
+            onClick={() => {
+              setMenuOpen(false);
+              setActivePanel(null);
+            }}
+            className="fixed inset-0 z-[24] cursor-default bg-black/15"
+          />
+        )}
+
+        <button
+          type="button"
+          onClick={() => {
+            setMenuOpen((current) => !current);
+            setActivePanel(null);
+          }}
+          className="fixed left-4 top-[68px] z-30 flex h-10 items-center gap-2 rounded-full border border-cyan-300/55 bg-slate-950/75 px-4 text-xs font-black uppercase tracking-[0.1em] text-white shadow-[0_14px_30px_rgba(0,0,0,0.32)] backdrop-blur-xl sm:left-6 sm:top-[76px]"
+        >
+          <span aria-hidden="true">☰</span>
+          Menu
+        </button>
+
+        {menuOpen && (
+          <div className="fixed left-4 top-[116px] z-40 max-h-[calc(100dvh-132px)] w-[min(390px,calc(100vw-32px))] overflow-y-auto rounded-[22px] border border-cyan-200/30 bg-gradient-to-br from-slate-950/98 via-blue-950/98 to-indigo-950/98 p-3 text-white shadow-[0_28px_80px_rgba(0,0,0,0.58)] backdrop-blur-2xl sm:left-6 sm:top-[126px]">
+            <button
+              type="button"
+              onClick={() =>
+                (window.location.href = userEmail ? "/profile" : "/login")
+              }
+              className="flex min-h-[52px] w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-left text-sm font-black hover:bg-white/[0.1]"
+            >
+              <span>{userEmail ? "My Account" : "Log In"}</span>
+              <span>→</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => (window.location.href = "/cart")}
+              className="mt-2 flex min-h-[52px] w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-left text-sm font-black hover:bg-white/[0.1]"
+            >
+              <span>Cart</span>
+              <span>🛒</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                setActivePanel((current) =>
+                  current === "assets" ? null : "assets"
+                )
+              }
+              className="mt-2 flex min-h-[58px] w-full items-center justify-between rounded-2xl border border-cyan-200/22 bg-cyan-300/[0.07] px-4 text-left"
+            >
+              <span>
+                <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200/65">
+                  Profile Assets
+                </span>
+                <span className="mt-1 block text-lg font-black text-cyan-50">
+                  {isLoading
+                    ? "Loading..."
+                    : formatDreamTokenAmount(profileAssetsTotal)}
+                </span>
+              </span>
+              <span>{activePanel === "assets" ? "▴" : "▾"}</span>
+            </button>
+
+            {activePanel === "assets" && (
+              <AssetsBalancePanel
+                profileAssets={profileAssets}
+                tokenTransactions={tokenTransactions}
+                isLoading={isLoading}
+                compact
+              />
+            )}
+
+            <button
+              type="button"
+              onClick={() =>
+                setActivePanel((current) =>
+                  current === "gems" ? null : "gems"
+                )
+              }
+              className="mt-2 flex min-h-[58px] w-full items-center justify-between rounded-2xl border border-violet-200/25 bg-violet-300/[0.08] px-4 text-left"
+            >
+              <span>
+                <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-violet-200/70">
+                  Dream Gems
+                </span>
+                <span className="mt-1 block text-lg font-black text-violet-50">
+                  {isLoading
+                    ? "Loading..."
+                    : formatDreamGemAmount(dreamGemBalance)}
+                </span>
+              </span>
+              <span>{activePanel === "gems" ? "▴" : "▾"}</span>
+            </button>
+
+            {activePanel === "gems" && (
+              <GemBalancePanel
+                dreamGemBalance={dreamGemBalance}
+                gemTransactions={gemTransactions}
+                isLoading={isLoading}
+                compact
+              />
+            )}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  return (
+    <>
+      {activePanel && (
+        <button
+          type="button"
+          aria-label="Close balance panel"
+          onClick={() => setActivePanel(null)}
+          className="fixed inset-0 z-[24] cursor-default bg-transparent"
+        />
+      )}
+
+      <div className="fixed right-5 top-5 z-30 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() =>
+            (window.location.href = userEmail ? "/profile" : "/login")
+          }
+          className={`${baseButton} border-cyan-200/35`}
+        >
+          {userEmail ? "My Account" : "Log In"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => (window.location.href = "/cart")}
+          className={`${baseButton} w-[46px] border-cyan-200/35 px-0`}
+          aria-label="Cart"
+        >
+          🛒
+        </button>
+
+        <div className="relative z-30">
+          <button
+            type="button"
+            onClick={() =>
+              setActivePanel((current) =>
+                current === "assets" ? null : "assets"
+              )
+            }
+            className={`${baseButton} border-cyan-300/55`}
+          >
+            <span className="flex h-6 w-6 items-center justify-center rounded-full border border-cyan-300/55 bg-cyan-300/10 text-cyan-100">
+              ◈
+            </span>
+            <span>Assets</span>
+            <strong className="text-cyan-200">
+              {isLoading
+                ? "..."
+                : formatDreamTokenAmount(profileAssetsTotal)}
+            </strong>
+            <span>▾</span>
+          </button>
+
+          {activePanel === "assets" && (
+            <div className="absolute right-0 top-[56px] w-[390px]">
+              <AssetsBalancePanel
+                profileAssets={profileAssets}
+                tokenTransactions={tokenTransactions}
+                isLoading={isLoading}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="relative z-30">
+          <button
+            type="button"
+            onClick={() =>
+              setActivePanel((current) =>
+                current === "gems" ? null : "gems"
+              )
+            }
+            className={`${baseButton} border-violet-300/55 bg-purple-950/75`}
+          >
+            <span className="flex h-6 w-6 items-center justify-center rounded-full border border-violet-300/60 bg-violet-300/14 text-violet-100">
+              ◆
+            </span>
+            <span>Dream Gems</span>
+            <strong className="text-violet-200">
+              {isLoading ? "..." : formatDreamGemAmount(dreamGemBalance)}
+            </strong>
+            <span>▾</span>
+          </button>
+
+          {activePanel === "gems" && (
+            <div className="absolute right-0 top-[56px] w-[390px]">
+              <GemBalancePanel
+                dreamGemBalance={dreamGemBalance}
+                gemTransactions={gemTransactions}
+                isLoading={isLoading}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function AssetsBalancePanel({
+  profileAssets,
+  tokenTransactions,
+  isLoading,
+  compact = false,
+}: {
+  profileAssets: ProfileAssetBreakdown;
+  tokenTransactions: DreamTokenTransaction[];
+  isLoading: boolean;
+  compact?: boolean;
+}) {
+  const total =
+    profileAssets.cash + profileAssets.property + profileAssets.stocks;
+
+  return (
+    <div
+      className={`overflow-hidden rounded-[20px] border border-cyan-200/28 bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950 text-white shadow-[0_26px_70px_rgba(0,0,0,0.56)] ${
+        compact ? "mt-2" : ""
+      }`}
+    >
+      <div className="border-b border-cyan-200/12 p-4">
+        <p className="text-[10px] font-black uppercase tracking-[0.17em] text-cyan-200/70">
+          Profile Assets
+        </p>
+        <p className="mt-2 text-3xl font-black">
+          {isLoading ? "Loading..." : formatDreamTokenAmount(total)}
+        </p>
+      </div>
+
+      <div className="p-3">
+        <div className="grid gap-2">
+          {[
+            ["Cash", profileAssets.cash, "✦"],
+            ["Property", profileAssets.property, "⌂"],
+            ["Stocks", profileAssets.stocks, "↗"],
+          ].map(([label, value, icon]) => (
+            <div
+              key={String(label)}
+              className="grid min-h-[54px] grid-cols-[34px_1fr_auto] items-center gap-3 rounded-2xl border border-white/8 bg-white/[0.04] px-3"
+            >
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-cyan-200/20 bg-cyan-300/[0.08] text-cyan-100">
+                {icon}
+              </span>
+              <strong className="text-xs">{label}</strong>
+              <strong className="text-xs text-emerald-200">
+                {isLoading ? "—" : formatDreamTokenAmount(Number(value))}
+              </strong>
+            </div>
+          ))}
+        </div>
+
+        <p className="mx-1 mb-2 mt-4 text-[10px] font-black uppercase tracking-[0.15em] text-white/38">
+          Latest DT activity
+        </p>
+
+        {isLoading ? (
+          <p className="rounded-2xl bg-white/[0.04] p-4 text-center text-xs text-white/50">
+            Loading transactions...
+          </p>
+        ) : tokenTransactions.length === 0 ? (
+          <p className="rounded-2xl bg-white/[0.04] p-4 text-center text-xs text-white/50">
+            No Dream Token activity yet.
+          </p>
+        ) : (
+          <div className="grid gap-2">
+            {tokenTransactions.slice(0, 5).map((transaction) => {
+              const positive = transaction.amount >= 0;
+
+              return (
+                <div
+                  key={transaction.id}
+                  className="grid grid-cols-[1fr_auto] gap-3 rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-3"
+                >
+                  <span className="min-w-0">
+                    <strong className="block truncate text-xs">
+                      {transaction.title ||
+                        (positive ? "Dream Token reward" : "Dream Token spend")}
+                    </strong>
+                    <span className="mt-1 block text-[10px] text-white/38">
+                      {formatCurrencyTransactionDate(
+                        transaction.created_at
+                      )}
+                    </span>
+                  </span>
+                  <strong
+                    className={`text-xs ${
+                      positive ? "text-emerald-200" : "text-orange-200"
+                    }`}
+                  >
+                    {positive ? "+" : ""}
+                    {transaction.amount} DT
+                  </strong>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function GemBalancePanel({
+  dreamGemBalance,
+  gemTransactions,
+  isLoading,
+  compact = false,
+}: {
+  dreamGemBalance: number;
+  gemTransactions: DreamGemTransaction[];
+  isLoading: boolean;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={`overflow-hidden rounded-[20px] border border-violet-200/30 bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 text-white shadow-[0_26px_70px_rgba(0,0,0,0.56)] ${
+        compact ? "mt-2" : ""
+      }`}
+    >
+      <div className="border-b border-violet-200/12 p-4">
+        <p className="text-[10px] font-black uppercase tracking-[0.17em] text-violet-200/70">
+          Dream Gems
+        </p>
+        <p className="mt-2 text-3xl font-black">
+          {isLoading
+            ? "Loading..."
+            : formatDreamGemAmount(dreamGemBalance)}
+        </p>
+        <p className="mt-2 text-xs leading-5 text-violet-50/50">
+          Earned through eligible quizzes, classes, Core Missions, and Think
+          Missions. DG can be used for selected rewards but not exchanged for
+          cash.
+        </p>
+      </div>
+
+      <div className="p-3">
+        <p className="mx-1 mb-2 text-[10px] font-black uppercase tracking-[0.15em] text-white/38">
+          Latest DG activity
+        </p>
+
+        {isLoading ? (
+          <p className="rounded-2xl bg-white/[0.04] p-4 text-center text-xs text-white/50">
+            Loading transactions...
+          </p>
+        ) : gemTransactions.length === 0 ? (
+          <p className="rounded-2xl bg-white/[0.04] p-4 text-center text-xs text-white/50">
+            No Dream Gem activity yet.
+          </p>
+        ) : (
+          <div className="grid gap-2">
+            {gemTransactions.slice(0, 5).map((transaction) => {
+              const positive = transaction.amount >= 0;
+
+              return (
+                <div
+                  key={transaction.id}
+                  className="grid grid-cols-[1fr_auto] gap-3 rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-3"
+                >
+                  <span className="min-w-0">
+                    <strong className="block truncate text-xs">
+                      {transaction.title}
+                    </strong>
+                    <span className="mt-1 block text-[10px] text-white/38">
+                      {formatGemSource(transaction.source)} ·{" "}
+                      {formatCurrencyTransactionDate(
+                        transaction.created_at
+                      )}
+                    </span>
+                  </span>
+                  <strong
+                    className={`text-xs ${
+                      positive ? "text-emerald-200" : "text-orange-200"
+                    }`}
+                  >
+                    {positive ? "+" : ""}
+                    {transaction.amount} DG
+                  </strong>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => (window.location.href = "/profile")}
+          className="mt-3 w-full rounded-full border border-violet-200/24 bg-violet-300/[0.08] px-4 py-3 text-xs font-black uppercase tracking-[0.1em] text-violet-50 hover:bg-violet-300/[0.14]"
+        >
+          View Full Wallet
+        </button>
+      </div>
+    </div>
   );
 }

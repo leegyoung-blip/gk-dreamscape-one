@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
 
@@ -59,6 +59,22 @@ type LobbyAnswer = {
   correct: boolean;
   points: number;
   secondsUsed: number;
+};
+
+type RecordedArenaAnswer = {
+  question_id: string;
+  answer: KnowledgeArenaAnswer | null;
+  seconds_used: number;
+  correct: boolean;
+  points: number;
+};
+
+type SavedArenaAttempt = {
+  attempt_id?: string;
+  score?: number;
+  correct_count?: number;
+  total_questions?: number;
+  tokens_earned?: number;
 };
 
 type LobbyPlayer = {
@@ -202,6 +218,10 @@ export default function KnowledgeArenaPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tokensEarned, setTokensEarned] = useState(0);
   const [rewardSaved, setRewardSaved] = useState(false);
+  const [attemptSaveMessage, setAttemptSaveMessage] = useState("");
+
+  const recordedAnswersRef = useRef<RecordedArenaAnswer[]>([]);
+  const attemptSaveStartedRef = useRef(false);
 
   const [lobby, setLobby] = useState<Lobby | null>(null);
   const [players, setPlayers] = useState<LobbyPlayer[]>([]);
@@ -380,6 +400,9 @@ export default function KnowledgeArenaPage() {
     setNextCountdown(5);
     setTokensEarned(0);
     setRewardSaved(false);
+    setAttemptSaveMessage("");
+    recordedAnswersRef.current = [];
+    attemptSaveStartedRef.current = false;
     setStage("solo-quiz");
   }
 
@@ -623,6 +646,87 @@ export default function KnowledgeArenaPage() {
     setAnswerLocked(false);
     setFeedback(null);
     setNextCountdown(5);
+    setTokensEarned(0);
+    setRewardSaved(false);
+    setAttemptSaveMessage("");
+    recordedAnswersRef.current = [];
+    attemptSaveStartedRef.current = false;
+  }
+
+  function getRecordedAttemptSummary() {
+    return recordedAnswersRef.current.reduce(
+      (summary, answer) => ({
+        score: summary.score + answer.points,
+        correctCount: summary.correctCount + (answer.correct ? 1 : 0),
+      }),
+      { score: 0, correctCount: 0 }
+    );
+  }
+
+  async function saveKnowledgeArenaAttempt(
+    mode: "solo" | "multiplayer"
+  ): Promise<SavedArenaAttempt | null> {
+    if (!userId || !selectedTopic) {
+      setAttemptSaveMessage(
+        mode === "solo"
+          ? "Log in to save this attempt and receive Dreamscape Tokens."
+          : "This multiplayer attempt could not be linked to an account."
+      );
+      return null;
+    }
+
+    if (recordedAnswersRef.current.length !== questions.length) {
+      setAttemptSaveMessage(
+        "The quiz finished, but not all answer records were available to save."
+      );
+      return null;
+    }
+
+    const answerPayload = recordedAnswersRef.current.map((answer) => ({
+      question_id: answer.question_id,
+      answer: answer.answer,
+      seconds_used: answer.seconds_used,
+    }));
+
+    const { data, error } = await supabase.rpc(
+      "save_knowledge_arena_attempt",
+      {
+        p_topic: selectedTopic,
+        p_mode: mode,
+        p_answers: answerPayload,
+      }
+    );
+
+    if (error) {
+      console.error("Could not save Knowledge Arena attempt:", error);
+      setAttemptSaveMessage(
+        "The result was completed, but its detailed answer record could not be saved."
+      );
+      return null;
+    }
+
+    const saved = (data ?? {}) as SavedArenaAttempt;
+    const savedScore = Number(saved.score ?? 0);
+    const savedCorrectCount = Number(saved.correct_count ?? 0);
+    const savedReward = Number(saved.tokens_earned ?? 0);
+
+    setScore(savedScore);
+    setCorrectCount(savedCorrectCount);
+    setTokensEarned(savedReward);
+    setRewardSaved(true);
+
+    if (mode === "solo" && savedReward > 0) {
+      setTokenBalance((current) => current + savedReward);
+      window.dispatchEvent(new Event("dream-tokens-updated"));
+    }
+
+    setAttemptSaveMessage(
+      mode === "solo"
+        ? "Your attempt, individual answers, explanations, and Dreamscape Token reward were saved."
+        : "Your multiplayer attempt and individual answers were saved to the Teaching Dashboard."
+    );
+
+    return saved;
   }
 
   async function lockAnswer(answer: KnowledgeArenaAnswer | null) {
@@ -645,6 +749,21 @@ export default function KnowledgeArenaPage() {
         : `Not quite. The correct answer is ${currentQuestion.correct_answer}. ${currentQuestion.explanation}`
     );
     setAnswerLocked(true);
+
+    const recordedAnswer: RecordedArenaAnswer = {
+      question_id: currentQuestion.id,
+      answer,
+      seconds_used: secondsUsed,
+      correct: isCorrect,
+      points,
+    };
+
+    recordedAnswersRef.current = [
+      ...recordedAnswersRef.current.filter(
+        (savedAnswer) => savedAnswer.question_id !== currentQuestion.id
+      ),
+      recordedAnswer,
+    ];
 
     if (stage === "multiplayer-quiz" && myPlayer) {
       const nextAnswers = [
@@ -700,38 +819,34 @@ export default function KnowledgeArenaPage() {
   }
 
   async function finishSoloQuiz() {
-    const reward = calculateTokenReward(score, correctCount);
-    setTokensEarned(reward);
+    if (attemptSaveStartedRef.current) return;
+    attemptSaveStartedRef.current = true;
+
+    const localSummary = getRecordedAttemptSummary();
+    const localReward = calculateTokenReward(
+      localSummary.score,
+      localSummary.correctCount
+    );
+
+    setScore(localSummary.score);
+    setCorrectCount(localSummary.correctCount);
+    setTokensEarned(localReward);
+    setRewardSaved(false);
     setStage("solo-results");
 
-    if (!userId || !selectedTopic) return;
-
-    await supabase.from("knowledge_arena_attempts").insert({
-      user_id: userId,
-      topic: selectedTopic,
-      score,
-      correct_count: correctCount,
-      total_questions: questions.length,
-      tokens_earned: reward,
-    });
-
-    const { error } = await supabase.from("dream_token_transactions").insert({
-      user_id: userId,
-      type: "earn",
-      title: "Knowledge Arena Reward",
-      amount: reward,
-      token_kind: "virtual",
-    });
-
-    if (!error) {
-      setRewardSaved(true);
-      setTokenBalance((current) => current + reward);
-      window.dispatchEvent(new Event("dream-tokens-updated"));
-    }
+    await saveKnowledgeArenaAttempt("solo");
   }
 
   async function finishMultiplayerQuiz() {
+    if (attemptSaveStartedRef.current) return;
+    attemptSaveStartedRef.current = true;
+
+    const localSummary = getRecordedAttemptSummary();
+    setScore(localSummary.score);
+    setCorrectCount(localSummary.correctCount);
     setStage("multiplayer-results");
+
+    await saveKnowledgeArenaAttempt("multiplayer");
 
     if (myPlayer) {
       await supabase
@@ -1133,6 +1248,7 @@ export default function KnowledgeArenaPage() {
             tokensEarned={tokensEarned}
             tokenBalance={tokenBalance}
             rewardSaved={rewardSaved}
+            saveMessage={attemptSaveMessage}
             onPrimary={() => setStage("topic")}
             primaryLabel="Play Another Topic"
             onSecondary={resetAll}
@@ -1147,6 +1263,22 @@ export default function KnowledgeArenaPage() {
             <h2 style={{ margin: "12px 0 28px", fontSize: "42px" }}>
               Leaderboard
             </h2>
+
+            {attemptSaveMessage && (
+              <p
+                style={{
+                  margin: "0 0 22px",
+                  borderRadius: "16px",
+                  border: "1px solid rgba(126,232,255,0.28)",
+                  background: "rgba(126,232,255,0.08)",
+                  padding: "14px 16px",
+                  color: "rgba(255,255,255,0.82)",
+                  lineHeight: 1.5,
+                }}
+              >
+                {attemptSaveMessage}
+              </p>
+            )}
 
             <div style={{ marginTop: "24px", display: "grid", gap: "12px" }}>
               {leaderboard.map((player, index) => (
@@ -1521,6 +1653,7 @@ function ResultsPanel({
   tokensEarned,
   tokenBalance,
   rewardSaved,
+  saveMessage,
   onPrimary,
   primaryLabel,
   onSecondary,
@@ -1532,6 +1665,7 @@ function ResultsPanel({
   tokensEarned: number;
   tokenBalance: number;
   rewardSaved: boolean;
+  saveMessage: string;
   onPrimary: () => void;
   primaryLabel: string;
   onSecondary: () => void;
@@ -1575,9 +1709,10 @@ function ResultsPanel({
           lineHeight: 1.5,
         }}
       >
-        {rewardSaved
-          ? "Your attempt and Dreamscape Token reward have been saved."
-          : "Log in to save your attempt and receive Dreamscape Tokens."}
+        {saveMessage ||
+          (rewardSaved
+            ? "Your attempt and Dreamscape Token reward have been saved."
+            : "Log in to save your attempt and receive Dreamscape Tokens.")}
       </p>
 
       <div
