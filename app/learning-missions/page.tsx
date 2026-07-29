@@ -186,18 +186,13 @@ function roleHasFullLearningAccess(role: string | null) {
   return (
     cleanRole === "admin" ||
     cleanRole === "student" ||
-    cleanRole === "teacher" ||
-    cleanRole === "curriculum-lead"
+    cleanRole === "teacher"
   );
 }
 
-function roleHasScienceStaffAccess(role: string | null) {
+function roleIsAdminOrTeacher(role: string | null) {
   const cleanRole = normaliseRole(role);
-  return (
-    cleanRole === "admin" ||
-    cleanRole === "teacher" ||
-    cleanRole === "curriculum-lead"
-  );
+  return cleanRole === "admin" || cleanRole === "teacher";
 }
 
 function getZoneLockNotice(zone: MissionZone) {
@@ -210,10 +205,10 @@ function getZoneLockNotice(zone: MissionZone) {
   }
 
   if (zone.staffOnly) {
-    return "This zone is only available to teacher, curriculum lead, or admin accounts.";
+    return "This zone is only available to teacher or admin accounts.";
   }
 
-  return "This zone is only available to student, teacher, curriculum lead, or admin accounts.";
+  return "This zone is only available to student, teacher, or admin accounts.";
 }
 
 function getZoneHref(zoneId: string) {
@@ -334,7 +329,7 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
     eyebrow: "Stop 3 of 5",
     title: "Explore the new Science Missions.",
     text:
-      "Open the Primary 1 to Primary 6 Science curriculum, choose a topic, and enter concept, practice, investigation, or mastery missions. This zone is currently available to teacher, curriculum lead and admin accounts.",
+      "Open the Primary 1 to Primary 6 Science curriculum, choose a topic, and enter concept, practice, investigation, or mastery missions. This zone is currently available to teacher and admin accounts.",
     zoneId: "science-missions",
   },
   {
@@ -684,7 +679,7 @@ export default function LearningMissionsPage() {
     if (zone.alwaysLocked || zone.comingSoon) return false;
     if (!zone.requiresRoleAccess) return true;
     if (zone.staffOnly) {
-      return roleHasScienceStaffAccess(userMissionAccess.role);
+      return roleIsAdminOrTeacher(userMissionAccess.role);
     }
 
     return userMissionAccess.hasFullAccess;
@@ -708,10 +703,10 @@ export default function LearningMissionsPage() {
     }
 
     if (zone.staffOnly) {
-      return `${zone.title} is only available to teacher, curriculum lead, or admin accounts.`;
+      return `${zone.title} is only available to teacher or admin accounts.`;
     }
 
-    return `${zone.title} is only available to student, teacher, curriculum lead, or admin accounts.`;
+    return `${zone.title} is only available to student, teacher, or admin accounts.`;
   }
 
   function getZoneClick(zone: MissionZone) {
