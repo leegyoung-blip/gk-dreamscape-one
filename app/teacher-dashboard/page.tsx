@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -281,7 +281,44 @@ function answerDisplay(label: string | null, text: string | null) {
   return text || label || "No answer";
 }
 
+function TeacherDashboardLoadingFallback() {
+  return (
+    <main
+      style={{
+        minHeight: "100dvh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "24px",
+        background: "#020813",
+        color: "white",
+        fontFamily: "Arial, Helvetica, sans-serif",
+      }}
+    >
+      <div
+        style={{
+          borderRadius: "18px",
+          border: "1px solid rgba(126,232,255,0.3)",
+          background: "rgba(255,255,255,0.06)",
+          padding: "24px",
+          color: "rgba(255,255,255,0.78)",
+        }}
+      >
+        Loading Teacher Dashboard...
+      </div>
+    </main>
+  );
+}
+
 export default function TeacherDashboardPage() {
+  return (
+    <Suspense fallback={<TeacherDashboardLoadingFallback />}>
+      <TeacherDashboardContent />
+    </Suspense>
+  );
+}
+
+function TeacherDashboardContent() {
   const searchParams = useSearchParams();
   const previewTeacherId = searchParams.get("teacherId");
 
