@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import QuizRoutePlaceholder from "./QuizRoutePlaceholder";
+import CoreQuizPlayer from "./CoreQuizPlayer";
 
 type PageProps = {
   params: Promise<{
@@ -22,7 +22,7 @@ export default async function CoreQuizRoute({ params }: PageProps) {
   }
 
   return (
-    <QuizRoutePlaceholder
+    <CoreQuizPlayer
       subject={resolved.subject as "english" | "math"}
       level={Number(levelMatch[1])}
       quizId={resolved.quizId}
