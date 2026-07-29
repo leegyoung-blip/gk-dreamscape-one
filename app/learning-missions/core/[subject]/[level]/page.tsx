@@ -1,9 +1,6 @@
 import { notFound } from "next/navigation";
 import CoreLevelClient from "./CoreLevelClient";
 
-export type CoreSubject = "english" | "math";
-export type PrimaryLevel = 1 | 2 | 3 | 4 | 5 | 6;
-
 type PageProps = {
   params: Promise<{
     subject: string;
@@ -11,13 +8,13 @@ type PageProps = {
   }>;
 };
 
-export default async function CoreLevelRoute({ params }: PageProps) {
+export default async function CoreLevelPage({ params }: PageProps) {
   const resolved = await params;
-  const subject = resolved.subject;
   const levelMatch = /^p([1-6])$/.exec(resolved.level);
 
   if (
-    (subject !== "english" && subject !== "math") ||
+    (resolved.subject !== "english" &&
+      resolved.subject !== "math") ||
     !levelMatch
   ) {
     notFound();
@@ -25,7 +22,10 @@ export default async function CoreLevelRoute({ params }: PageProps) {
 
   return (
     <CoreLevelClient
-      subject={subject as CoreSubject}
-      level={Number(levelMatch[1]) as PrimaryLevel} quizId={""}    />
+      subject={resolved.subject as "english" | "math"}
+      level={
+        Number(levelMatch[1]) as 1 | 2 | 3 | 4 | 5 | 6
+      }
+    />
   );
 }
