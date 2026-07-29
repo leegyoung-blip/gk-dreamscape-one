@@ -16,7 +16,10 @@ export default async function CoreLevelRoute({ params }: PageProps) {
   const subject = resolved.subject;
   const levelMatch = /^p([1-6])$/.exec(resolved.level);
 
-  if ((subject !== "english" && subject !== "math") || !levelMatch) {
+  if (
+    (subject !== "english" && subject !== "math") ||
+    !levelMatch
+  ) {
     notFound();
   }
 
