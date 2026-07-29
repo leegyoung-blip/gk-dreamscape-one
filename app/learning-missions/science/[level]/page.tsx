@@ -1,111 +1,336 @@
-import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { ProgressRing } from "@/components/science-missions/ProgressRing";
-import { ScienceHeader } from "@/components/science-missions/ScienceHeader";
-import { ScienceShell } from "@/components/science-missions/ScienceShell";
-import { TopicCard } from "@/components/science-missions/TopicCard";
-import { MISSION_TYPES, SCIENCE_LEVELS, getScienceLevel } from "@/data/science-missions";
+"use client";
 
-type LevelPageProps = {
-  params: Promise<{ level: string }>;
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
+import SciencePageShell from "@/components/science-missions/SciencePageShell";
+import { canAccessScience, canEditScience } from "@/lib/science/helpers";
+import { supabase } from "@/lib/supabase";
+import type {
+  ScienceLevelRow,
+  ScienceQuizRow,
+  ScienceTopicRow,
+} from "@/lib/science/types";
+
+type TopicWithCounts = ScienceTopicRow & {
+  publishedCount: number;
+  completedCount: number;
 };
 
-export function generateStaticParams() {
-  return SCIENCE_LEVELS.map((level) => ({ level: level.id }));
+function cleanRouteValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value || "";
 }
 
-export async function generateMetadata({ params }: LevelPageProps): Promise<Metadata> {
-  const { level: levelId } = await params;
-  const level = getScienceLevel(levelId);
+export default function ScienceLevelPage() {
+  const params = useParams<{ level: string }>();
+  const levelSlug = cleanRouteValue(params.level).toLowerCase();
 
-  if (!level) return {};
+  const [level, setLevel] = useState<ScienceLevelRow | null>(null);
+  const [topics, setTopics] = useState<ScienceTopicRow[]>([]);
+  const [quizzes, setQuizzes] = useState<ScienceQuizRow[]>([]);
+  const [completedQuizIds, setCompletedQuizIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [role, setRole] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
 
-  return {
-    title: `${level.schoolLevel} ${level.displayName} | Science Missions`,
-    description: level.description,
-  };
-}
+  useEffect(() => {
+    let cancelled = false;
 
-export default async function ScienceLevelPage({ params }: LevelPageProps) {
-  const { level: levelId } = await params;
-  const level = getScienceLevel(levelId);
+    async function load() {
+      setLoading(true);
+      setMessage("");
+      setLevel(null);
+      setTopics([]);
+      setQuizzes([]);
+      setCompletedQuizIds(new Set());
 
-  if (!level) notFound();
+      if (!/^p[1-6]$/.test(levelSlug)) {
+        setMessage("This Science level does not exist.");
+        setLoading(false);
+        return;
+      }
 
-  const completedQuizzes = 0;
-  const progress = Math.round((completedQuizzes / level.quizCount) * 100);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (cancelled) return;
+
+      if (!user) {
+        setMessage("Log in to open Science Missions.");
+        setLoading(false);
+        return;
+      }
+
+      const [profileResult, levelResult] = await Promise.all([
+        supabase.from("profiles").select("role").eq("id", user.id).maybeSingle(),
+        supabase
+          .from("science_levels")
+          .select("*")
+          .eq("slug", levelSlug)
+          .eq("is_active", true)
+          .maybeSingle(),
+      ]);
+
+      if (cancelled) return;
+
+      const loadedRole = profileResult.data?.role ?? null;
+      setRole(loadedRole);
+
+      if (!canAccessScience(loadedRole)) {
+        setMessage(
+          "Science Missions are currently available to Teacher, Curriculum Lead and Admin accounts.",
+        );
+        setLoading(false);
+        return;
+      }
+
+      if (levelResult.error || !levelResult.data) {
+        setMessage(
+          levelResult.error?.message ||
+            `${levelSlug.toUpperCase()} Science has not been added to Supabase yet.`,
+        );
+        setLoading(false);
+        return;
+      }
+
+      const loadedLevel = levelResult.data as ScienceLevelRow;
+      setLevel(loadedLevel);
+
+      const topicResult = await supabase
+        .from("science_topics")
+        .select("*")
+        .eq("level_id", loadedLevel.id)
+        .eq("status", "active")
+        .order("sort_order", { ascending: true });
+
+      if (cancelled) return;
+
+      if (topicResult.error) {
+        setMessage(topicResult.error.message);
+        setLoading(false);
+        return;
+      }
+
+      const loadedTopics = (topicResult.data ?? []) as ScienceTopicRow[];
+      setTopics(loadedTopics);
+
+      const topicIds = loadedTopics.map((topic) => topic.id);
+
+      const [quizResult, progressResult] = await Promise.all([
+        topicIds.length
+          ? supabase
+              .from("science_quizzes")
+              .select("*")
+              .in("topic_id", topicIds)
+              .eq("status", "published")
+              .order("sequence_no", { ascending: true })
+          : Promise.resolve({ data: [], error: null }),
+        supabase
+          .from("science_user_quiz_progress")
+          .select("quiz_id,first_completed_at")
+          .eq("user_id", user.id)
+          .not("first_completed_at", "is", null),
+      ]);
+
+      if (cancelled) return;
+
+      if (quizResult.error) {
+        setMessage(quizResult.error.message);
+      }
+
+      setQuizzes((quizResult.data ?? []) as ScienceQuizRow[]);
+      setCompletedQuizIds(
+        new Set((progressResult.data ?? []).map((row) => String(row.quiz_id))),
+      );
+      setLoading(false);
+    }
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [levelSlug]);
+
+  const topicRows = useMemo<TopicWithCounts[]>(() => {
+    return topics.map((topic) => {
+      const topicQuizzes = quizzes.filter((quiz) => quiz.topic_id === topic.id);
+
+      return {
+        ...topic,
+        publishedCount: topicQuizzes.length,
+        completedCount: topicQuizzes.filter((quiz) =>
+          completedQuizIds.has(quiz.id),
+        ).length,
+      };
+    });
+  }, [topics, quizzes, completedQuizIds]);
+
+  const totalPublished = topicRows.reduce(
+    (sum, topic) => sum + topic.publishedCount,
+    0,
+  );
+  const totalCompleted = topicRows.reduce(
+    (sum, topic) => sum + topic.completedCount,
+    0,
+  );
+  const completionPercentage =
+    totalPublished > 0 ? Math.round((totalCompleted / totalPublished) * 100) : 0;
+
+  const isDiscovery = level?.pathway === "science_discovery";
 
   return (
-    <ScienceShell>
-      <ScienceHeader backHref="/science-missions" backLabel="All Science Levels" />
+    <SciencePageShell>
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <Link
+          href="/learning-missions/science"
+          className="inline-flex min-h-11 items-center rounded-full border border-cyan-200/25 bg-white/[0.055] px-4 text-sm font-extrabold text-white no-underline backdrop-blur-xl"
+        >
+          ← Science Levels
+        </Link>
 
-      <section className="overflow-hidden rounded-[2.25rem] border border-white/10 bg-white/[0.06] shadow-2xl backdrop-blur-xl">
-        <div className={`h-2 bg-gradient-to-r ${level.theme.from} ${level.theme.via} ${level.theme.to}`} />
-        <div className="grid gap-6 p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center lg:p-10">
+        {canEditScience(role) && (
+          <Link
+            href="/learning-missions/science/manage"
+            className="inline-flex min-h-11 items-center rounded-full border border-violet-200/30 bg-violet-400/15 px-4 text-xs font-black uppercase tracking-[0.12em] text-violet-100 no-underline"
+          >
+            Curriculum Editor
+          </Link>
+        )}
+      </header>
+
+      <section className="mt-7 overflow-hidden rounded-[2.25rem] border border-emerald-200/20 bg-white/[0.055] shadow-[0_30px_90px_rgba(0,0,0,0.28)] backdrop-blur-xl">
+        <div className="h-2 bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400" />
+        <div className="grid gap-7 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_300px] lg:p-10">
           <div>
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-xs font-black uppercase tracking-[0.16em] text-slate-300">
-                {level.schoolLevel}
-              </span>
-              <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1.5 text-xs font-black uppercase tracking-[0.16em] text-cyan-100">
-                {level.pathway}
-              </span>
-            </div>
-
-            <h1 className="mt-5 text-4xl font-black tracking-tight text-white sm:text-5xl">
-              {level.displayName}
+            <p className="m-0 text-xs font-black uppercase tracking-[0.2em] text-emerald-200">
+              {level
+                ? `${level.school_level} · ${
+                    isDiscovery ? "Science Discovery" : "Primary Science"
+                  }`
+                : `${levelSlug.toUpperCase()} · Science Missions`}
+            </p>
+            <h1 className="mt-3 text-4xl font-black tracking-[-0.05em] sm:text-6xl">
+              {level?.display_name || "Science Missions"}
             </h1>
-            <p className="mt-2 text-lg font-bold text-cyan-100">{level.subtitle}</p>
-            <p className="mt-4 max-w-3xl text-base leading-7 text-slate-300">{level.description}</p>
+            <p className="mt-4 max-w-3xl text-base leading-7 text-white/65 sm:text-lg">
+              {level?.description || "Loading Science curriculum…"}
+            </p>
 
-            <div className="mt-6 flex flex-wrap gap-3">
-              <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-                <div className="text-xl font-black text-white">{level.topics.length}</div>
-                <div className="text-xs uppercase tracking-wider text-slate-400">Topics</div>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-                <div className="text-xl font-black text-white">{level.quizCount}</div>
-                <div className="text-xs uppercase tracking-wider text-slate-400">Total quizzes</div>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-                <div className="text-xl font-black text-white">{completedQuizzes}</div>
-                <div className="text-xs uppercase tracking-wider text-slate-400">Completed</div>
-              </div>
+            <div className="mt-6 flex flex-wrap gap-2">
+              <span className="rounded-full border border-emerald-200/20 bg-emerald-300/10 px-3 py-1.5 text-xs font-bold text-emerald-100">
+                {isDiscovery ? "Visual discovery" : "Concept mastery"}
+              </span>
+              <span className="rounded-full border border-cyan-200/20 bg-cyan-300/10 px-3 py-1.5 text-xs font-bold text-cyan-100">
+                Topic-based missions
+              </span>
+              <span className="rounded-full border border-white/15 bg-white/[0.05] px-3 py-1.5 text-xs font-bold text-white/70">
+                {level?.planned_quiz_count ?? 250} planned quizzes
+              </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-4 rounded-[2rem] border border-white/10 bg-black/20 p-5 lg:block lg:text-center">
-            <ProgressRing value={progress} size={104} label="Level" />
-            <div className="lg:mt-3">
-              <div className="text-sm font-black text-white">Level progress</div>
-              <div className="mt-1 text-xs text-slate-400">Complete topics to unlock mastery milestones.</div>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
+            <Metric label="Published" value={`${totalPublished}`} />
+            <Metric label="Completed" value={`${totalCompleted}`} />
+            <Metric label="Progress" value={`${completionPercentage}%`} />
+          </div>
+        </div>
+      </section>
+
+      {loading ? (
+        <div className="mt-7 rounded-3xl border border-white/10 bg-white/[0.04] p-8 text-center text-white/55">
+          Loading Science topics…
+        </div>
+      ) : message ? (
+        <div className="mt-7 rounded-3xl border border-amber-200/25 bg-amber-300/10 p-6 text-amber-100">
+          {message}
+        </div>
+      ) : (
+        <section className="mt-8">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="m-0 text-xs font-black uppercase tracking-[0.2em] text-cyan-200">
+                {level?.school_level} Topics
+              </p>
+              <h2 className="mt-2 text-3xl font-black tracking-[-0.035em]">
+                Choose a science topic
+              </h2>
             </div>
+            <p className="m-0 max-w-xl text-sm leading-6 text-white/50">
+              Quiz cards appear inside each topic after a Curriculum Lead or Admin publishes them.
+            </p>
           </div>
-        </div>
-      </section>
 
-      <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {MISSION_TYPES.map((mission) => (
-          <div key={mission.id} className="rounded-3xl border border-white/10 bg-white/[0.05] p-4 backdrop-blur">
-            <div className="text-2xl">{mission.icon}</div>
-            <div className="mt-3 text-sm font-black text-white">{mission.title}</div>
-            <div className="mt-1 text-xs leading-5 text-slate-400">{mission.description}</div>
+          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {topicRows.map((topic) => {
+              const topicProgress =
+                topic.publishedCount > 0
+                  ? Math.round(
+                      (topic.completedCount / topic.publishedCount) * 100,
+                    )
+                  : 0;
+
+              return (
+                <Link
+                  key={topic.id}
+                  href={`/learning-missions/science/${levelSlug}/${topic.slug}`}
+                  className="group rounded-[1.75rem] border border-white/10 bg-[linear-gradient(145deg,rgba(8,40,61,0.76),rgba(4,17,37,0.88))] p-5 text-white no-underline shadow-[0_20px_58px_rgba(0,0,0,0.22)] transition hover:-translate-y-1 hover:border-emerald-200/30"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="grid h-14 w-14 place-items-center rounded-2xl border border-emerald-200/20 bg-emerald-300/10 text-2xl">
+                      {topic.icon || "🔬"}
+                    </div>
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white/55">
+                      {topic.planned_quiz_count} planned
+                    </span>
+                  </div>
+
+                  <h3 className="mt-5 text-xl font-black tracking-[-0.025em]">
+                    {topic.title}
+                  </h3>
+                  <p className="mt-2 min-h-[66px] text-sm leading-6 text-white/55">
+                    {topic.summary}
+                  </p>
+
+                  <div className="mt-5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-white/45">
+                        {topic.publishedCount} published · {topic.completedCount} completed
+                      </span>
+                      <strong className="text-emerald-200">{topicProgress}%</strong>
+                    </div>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/[0.07]">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-cyan-400"
+                        style={{ width: `${topicProgress}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-5 text-sm font-extrabold text-cyan-200">
+                    Open topic →
+                  </div>
+                </Link>
+              );
+            })}
           </div>
-        ))}
-      </section>
+        </section>
+      )}
+    </SciencePageShell>
+  );
+}
 
-      <section className="mt-8">
-        <div className="mb-5">
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-200">Mission map</p>
-          <h2 className="mt-2 text-2xl font-black text-white sm:text-3xl">Choose a topic</h2>
-        </div>
-
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {level.topics.map((topic, index) => (
-            <TopicCard key={topic.slug} level={level} topic={topic} index={index} />
-          ))}
-        </div>
-      </section>
-    </ScienceShell>
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+      <strong className="block text-2xl font-black">{value}</strong>
+      <span className="mt-1 block text-[10px] font-black uppercase tracking-[0.13em] text-white/42">
+        {label}
+      </span>
+    </div>
   );
 }

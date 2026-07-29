@@ -73,6 +73,16 @@ export function normaliseRole(value: string | null | undefined) {
     .replace(/_/g, "-");
 }
 
+export function canAccessScience(role: string | null | undefined) {
+  const cleanRole = normaliseRole(role);
+
+  return (
+    cleanRole === "admin" ||
+    cleanRole === "teacher" ||
+    cleanRole === "curriculum-lead"
+  );
+}
+
 export function canEditScience(role: string | null | undefined) {
   const cleanRole = normaliseRole(role);
   return cleanRole === "admin" || cleanRole === "curriculum-lead";
