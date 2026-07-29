@@ -6,6 +6,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
+type ExchangeSection = "portfolio" | "market" | "trade";
 
 type Profile = {
   id: string;
@@ -311,7 +312,7 @@ function PriceHistoryChart({
         height={height}
         role="img"
         aria-label="Five-year fictional stock price history"
-        style={{ display: "block", minWidth: isMobile ? "640px" : "100%" }}
+        style={{ display: "block", width: "100%", minWidth: 0, height: "auto" }}
       >
         <defs>
           <linearGradient id="miloChartGlow" x1="0" x2="0" y1="0" y2="1">
@@ -418,6 +419,157 @@ function PriceHistoryChart({
   );
 }
 
+
+function PortfolioRing({
+  cash,
+  holdings,
+  stocks,
+  isMobile,
+}: {
+  cash: number;
+  holdings: Holding[];
+  stocks: Stock[];
+  isMobile: boolean;
+}) {
+  const stockParts = holdings
+    .map((holding, index) => {
+      const stock = stocks.find((item) => item.symbol === holding.symbol);
+      return {
+        label: holding.symbol,
+        value: stock ? holding.quantity * stock.current_price : 0,
+        color: [
+          "#8ee8ff",
+          "#ffd18a",
+          "#a9f5c7",
+          "#c6b8ff",
+          "#ffb6d9",
+          "#9bb7ff",
+        ][index % 6],
+      };
+    })
+    .filter((item) => item.value > 0);
+
+  const parts = [
+    { label: "Cash", value: Math.max(0, cash), color: "#ffffff" },
+    ...stockParts,
+  ];
+  const total = parts.reduce((sum, item) => sum + item.value, 0);
+
+  let cursor = 0;
+  const gradientStops =
+    total > 0
+      ? parts
+          .map((item) => {
+            const start = cursor;
+            cursor += (item.value / total) * 100;
+            return `${item.color} ${start}% ${cursor}%`;
+          })
+          .join(", ")
+      : "rgba(255,255,255,0.16) 0% 100%";
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: isMobile ? "1fr" : "220px minmax(0, 1fr)",
+        gap: "24px",
+        alignItems: "center",
+      }}
+    >
+      <div
+        aria-label="Portfolio allocation ring chart"
+        style={{
+          position: "relative",
+          width: isMobile ? "190px" : "220px",
+          aspectRatio: "1",
+          margin: isMobile ? "0 auto" : 0,
+          borderRadius: "50%",
+          background: `conic-gradient(${gradientStops})`,
+          boxShadow: "0 0 42px rgba(83,215,255,0.12)",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            inset: "22%",
+            borderRadius: "50%",
+            display: "grid",
+            placeItems: "center",
+            textAlign: "center",
+            background: "#071126",
+            border: "1px solid rgba(132,218,255,0.18)",
+            padding: "10px",
+          }}
+        >
+          <div>
+            <span
+              style={{
+                display: "block",
+                color: "rgba(255,255,255,0.48)",
+                fontSize: "10px",
+                fontWeight: 900,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+              }}
+            >
+              Total
+            </span>
+            <strong
+              style={{
+                display: "block",
+                marginTop: "5px",
+                fontSize: isMobile ? "22px" : "25px",
+              }}
+            >
+              {formatNumber(total)} DT
+            </strong>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gap: "10px", minWidth: 0 }}>
+        {parts.map((item) => {
+          const percent = total > 0 ? (item.value / total) * 100 : 0;
+          return (
+            <div
+              key={item.label}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "12px minmax(0, 1fr) auto",
+                alignItems: "center",
+                gap: "10px",
+                padding: "11px 12px",
+                borderRadius: "14px",
+                background: "rgba(255,255,255,0.045)",
+                border: "1px solid rgba(255,255,255,0.08)",
+              }}
+            >
+              <span
+                style={{
+                  width: "10px",
+                  height: "10px",
+                  borderRadius: "50%",
+                  background: item.color,
+                }}
+              />
+              <span style={{ minWidth: 0, fontWeight: 800 }}>{item.label}</span>
+              <span
+                style={{
+                  color: "rgba(255,255,255,0.66)",
+                  fontSize: "12px",
+                  textAlign: "right",
+                }}
+              >
+                {formatNumber(item.value)} DT · {percent.toFixed(1)}%
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function MiloStockExchangePage() {
   const screenMode = useResponsiveMode();
   const isDesktop = screenMode === "desktop";
@@ -439,6 +591,7 @@ export default function MiloStockExchangePage() {
 
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [quantity, setQuantity] = useState(1);
+  const [activeSection, setActiveSection] = useState<ExchangeSection>("portfolio");
 
   const [dob, setDob] = useState("");
   const [confirmAge, setConfirmAge] = useState(false);
@@ -1362,13 +1515,49 @@ export default function MiloStockExchangePage() {
     );
   }
 
+  const sidebarItems: {
+    id: ExchangeSection;
+    label: string;
+    description: string;
+    icon: string;
+  }[] = [
+    {
+      id: "portfolio",
+      label: "My Portfolio",
+      description: "Holdings, allocation and P/L",
+      icon: "◉",
+    },
+    {
+      id: "market",
+      label: "Market",
+      description: "Stocks, graphs and news",
+      icon: "⌁",
+    },
+    {
+      id: "trade",
+      label: "Trade",
+      description: "Buy or sell stocks",
+      icon: "⇄",
+    },
+  ];
+
+  const sectionTitle =
+    activeSection === "portfolio"
+      ? "My Portfolio"
+      : activeSection === "market"
+      ? "Market"
+      : "Trade";
+
+  const selectedHolding = selectedStock
+    ? getHolding(selectedStock.symbol)
+    : undefined;
+
   return (
     <main className="milo-stock-page milo-scrollbar" style={pageShell}>
       <ResponsiveScrollStyles />
-<Background />
+      <Background />
 
-
-<div style={contentWrap}>
+      <div style={contentWrap}>
         <header
           style={{
             display: "flex",
@@ -1376,15 +1565,12 @@ export default function MiloStockExchangePage() {
             justifyContent: "space-between",
             alignItems: isMobile ? "stretch" : "center",
             gap: "12px",
-            marginBottom: isMobile ? "24px" : "30px",
+            marginBottom: isMobile ? "18px" : "24px",
           }}
         >
           <Link
             href="/milo-world/exchange"
-            style={{
-              ...navButtonStyle,
-              width: isMobile ? "100%" : "auto",
-            }}
+            style={{ ...navButtonStyle, width: isMobile ? "100%" : "auto" }}
           >
             ← Exchange Home
           </Link>
@@ -1394,43 +1580,26 @@ export default function MiloStockExchangePage() {
             style={{
               display: isMobile ? "grid" : "flex",
               gridTemplateColumns: isMobile ? "1fr 1fr" : undefined,
-              flexWrap: "wrap",
               gap: "10px",
               width: isMobile ? "100%" : "auto",
-              justifyContent: isMobile ? "stretch" : "flex-end",
             }}
           >
-            <span
-              style={{
-                ...navButtonStyle,
-                color: "#8ee8ff",
-                border: "1px solid rgba(132,218,255,0.34)",
-                background: "rgba(83,215,255,0.12)",
-                width: isMobile ? "100%" : "auto",
-              }}
-            >
-              Stock Exchange
-            </span>
-
             <Link
               href="/milo-world/exchange/property"
               style={{
                 ...navButtonStyle,
                 color: "#ffd18a",
-                border: "1px solid rgba(255,209,138,0.26)",
                 background: "rgba(255,209,138,0.1)",
                 width: isMobile ? "100%" : "auto",
               }}
             >
-              Property Exchange
+              Property
             </Link>
-
             <Link
               href="/profile"
               style={{
                 ...navButtonStyle,
                 width: isMobile ? "100%" : "auto",
-                gridColumn: isMobile ? "1 / -1" : undefined,
               }}
             >
               My Account
@@ -1440,167 +1609,15 @@ export default function MiloStockExchangePage() {
 
         <section
           style={{
-            marginBottom: "18px",
+            marginBottom: "20px",
             display: "flex",
             flexDirection: isMobile ? "column" : "row",
             justifyContent: "space-between",
             alignItems: isMobile ? "flex-start" : "flex-end",
-            gap: "18px",
+            gap: "14px",
           }}
         >
           <div>
-            <h1
-              style={{
-                margin: 0,
-                fontFamily: 'Georgia, "Times New Roman", serif',
-                fontSize: isMobile ? "38px" : isCompact ? "54px" : "68px",
-                fontWeight: 500,
-                lineHeight: 0.98,
-                color: "white",
-                textShadow: "0 18px 60px rgba(0,0,0,0.45)",
-              }}
-            >
-              Milo’s Stock Exchange
-            </h1>
-
-            {pageMessage && (
-              <p
-                style={{
-                  margin: "14px 0 0",
-                  color: "#ffd18a",
-                  fontWeight: 800,
-                }}
-              >
-                {pageMessage}
-              </p>
-            )}
-          </div>
-        </section>
-
-        <section
-          className="milo-summary-grid"
-          style={{
-            marginBottom: "18px",
-            display: "grid",
-            gridTemplateColumns: isMobile
-              ? "1fr 1fr"
-              : isCompact
-              ? "repeat(3, minmax(0, 1fr))"
-              : "repeat(5, minmax(0, 1fr))",
-            gap: isMobile ? "10px" : "14px",
-          }}
-        >
-          {[
-            {
-              label: "Available Tokens",
-              value: `${formatNumber(dreamTokens)} DT`,
-              color: "white",
-              note: "Ready to use",
-            },
-            {
-              label: "Portfolio Value",
-              value: `${formatNumber(portfolioValue)} DT`,
-              color: "white",
-              note: "Current market value",
-            },
-            {
-              label: "Overall Stock P/L",
-              value: `${portfolioProfitLoss >= 0 ? "+" : "−"}${formatNumber(
-                Math.abs(portfolioProfitLoss)
-              )} DT`,
-              color: portfolioProfitLoss >= 0 ? "#8ee8ff" : "#ffb0b0",
-              note:
-                portfolioCostBasis > 0
-                  ? `${portfolioProfitLoss >= 0 ? "+" : ""}${portfolioProfitLossPercent.toFixed(
-                      1
-                    )}% · Cost ${formatNumber(portfolioCostBasis)} DT`
-                  : "No holdings yet",
-            },
-            {
-              label: "Estimated Total",
-              value: `${formatNumber(totalEstimatedValue)} DT`,
-              color: "white",
-              note: "Tokens + stocks",
-            },
-            {
-              label: "Token Purchases",
-              value: "Disabled",
-              color: "#ffd18a",
-              note: "Earned tokens only",
-            },
-          ].map((item) => (
-            <article
-              key={item.label}
-              style={{
-                ...glassPanel,
-                minWidth: 0,
-                gridColumn:
-                  item.label === "Token Purchases" && isMobile
-                    ? "1 / -1"
-                    : undefined,
-                borderRadius: "20px",
-                padding: isMobile ? "15px" : "18px",
-              }}
-            >
-              <span
-                style={{
-                  display: "block",
-                  color: "rgba(255,255,255,0.52)",
-                  fontSize: isMobile ? "10px" : "12px",
-                  fontWeight: 900,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                }}
-              >
-                {item.label}
-              </span>
-
-              <strong
-                style={{
-                  display: "block",
-                  marginTop: "8px",
-                  color: item.color,
-                  fontSize: isMobile ? "19px" : "24px",
-                  letterSpacing: "-0.03em",
-                  overflowWrap: "anywhere",
-                }}
-              >
-                {item.value}
-              </strong>
-
-              <span
-                style={{
-                  display: "block",
-                  marginTop: "6px",
-                  color: "rgba(255,255,255,0.45)",
-                  fontSize: isMobile ? "10px" : "11px",
-                  lineHeight: 1.35,
-                }}
-              >
-                {item.note}
-              </span>
-            </article>
-          ))}
-        </section>
-
-        <section
-          style={{
-            display: "grid",
-            gridTemplateColumns: isCompact
-              ? "1fr"
-              : "260px minmax(0, 1fr) 350px",
-            gap: isMobile ? "14px" : "18px",
-            alignItems: "start",
-          }}
-        >
-          <aside
-            style={{
-              ...glassPanel,
-              padding: isMobile ? "18px" : "20px",
-              position: isDesktop ? "sticky" : "relative",
-              top: isDesktop ? "18px" : "auto",
-            }}
-          >
             <p
               style={{
                 margin: 0,
@@ -1611,977 +1628,1162 @@ export default function MiloStockExchangePage() {
                 fontWeight: 900,
               }}
             >
-              Market
+              Milo’s Stock Exchange
             </p>
-
-            <h2
+            <h1
               style={{
-                margin: "10px 0 18px",
+                margin: "8px 0 0",
                 fontFamily: 'Georgia, "Times New Roman", serif',
-                fontSize: "30px",
+                fontSize: isMobile ? "38px" : isCompact ? "50px" : "60px",
                 fontWeight: 500,
                 lineHeight: 1,
               }}
             >
-              Stocks
-            </h2>
-
-            {stocks.length === 0 ? (
-              <p style={{ color: "rgba(255,255,255,0.68)", lineHeight: 1.55 }}>
-                No active fictional stocks found.
+              {sectionTitle}
+            </h1>
+            {pageMessage && (
+              <p style={{ margin: "12px 0 0", color: "#ffd18a", fontWeight: 800 }}>
+                {pageMessage}
               </p>
-            ) : (
-              <div
-                className="milo-market-strip milo-scrollbar"
-                style={{
-                  display: isCompact ? "flex" : "grid",
-                  gap: "10px",
-                  overflowX: isCompact ? "auto" : "visible",
-                  paddingBottom: isCompact ? "8px" : 0,
-                }}
-              >
-                {stocks.map((stock) => {
-                  const holding = getHolding(stock.symbol);
-                  const isSelected = selectedStock?.symbol === stock.symbol;
-                  const change = getChangePercent(stock);
-
-                  return (
-                    <button
-                      key={stock.symbol}
-                      className="milo-market-card"
-                      type="button"
-                      aria-pressed={isSelected}
-                      onClick={() => setSelectedSymbol(stock.symbol)}
-                      style={{
-                        width: isCompact
-                          ? isMobile
-                            ? "min(78vw, 240px)"
-                            : "220px"
-                          : "100%",
-                        flex: isCompact
-                          ? isMobile
-                            ? "0 0 min(78vw, 240px)"
-                            : "0 0 220px"
-                          : undefined,
-                        minHeight: "112px",
-                        padding: "15px",
-                        borderRadius: "18px",
-                        color: "white",
-                        textAlign: "left",
-                        cursor: "pointer",
-                        fontFamily: "inherit",
-                        background: isSelected
-                          ? "rgba(83,215,255,0.15)"
-                          : "rgba(255,255,255,0.055)",
-                        border: isSelected
-                          ? "1px solid rgba(132,218,255,0.58)"
-                          : "1px solid rgba(132,218,255,0.14)",
-                        boxShadow: isSelected
-                          ? "0 0 26px rgba(83,215,255,0.12)"
-                          : "none",
-                        transition:
-                          "border-color 180ms ease, background 180ms ease, transform 180ms ease",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          gap: "10px",
-                        }}
-                      >
-                        <strong style={{ fontSize: "17px" }}>
-                          {stock.symbol}
-                        </strong>
-
-                        <span
-                          style={{
-                            color: change >= 0 ? "#8ee8ff" : "#ffb0b0",
-                            fontSize: "13px",
-                            fontWeight: 900,
-                          }}
-                        >
-                          {change >= 0 ? "+" : ""}
-                          {change.toFixed(1)}%
-                        </span>
-                      </div>
-
-                      <span
-                        style={{
-                          display: "block",
-                          marginTop: "8px",
-                          color: "rgba(255,255,255,0.72)",
-                          fontSize: "13px",
-                          lineHeight: 1.35,
-                        }}
-                      >
-                        {stock.name}
-                      </span>
-
-                      <div
-                        style={{
-                          marginTop: "13px",
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          gap: "10px",
-                        }}
-                      >
-                        <strong style={{ color: "#ffd18a", fontSize: "17px" }}>
-                          {stock.current_price} DT
-                        </strong>
-
-                        <small style={{ color: "rgba(255,255,255,0.48)" }}>
-                          Own {holding?.quantity || 0}
-                        </small>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
             )}
-          </aside>
+          </div>
 
-          <div style={{ minWidth: 0, display: "grid", gap: "18px" }}>
-            {selectedStock ? (
-              <>
-                <section
-                  style={{
-                    ...glassPanel,
-                    padding: isMobile ? "20px" : "26px",
-                    minWidth: 0,
-                  }}
-                >
-                  <div
+          <div
+            style={{
+              borderRadius: "16px",
+              padding: "11px 14px",
+              background: "rgba(83,215,255,0.1)",
+              border: "1px solid rgba(132,218,255,0.22)",
+            }}
+          >
+            <span
+              style={{
+                display: "block",
+                color: "rgba(255,255,255,0.48)",
+                fontSize: "10px",
+                fontWeight: 900,
+                textTransform: "uppercase",
+                letterSpacing: "0.12em",
+              }}
+            >
+              Available Cash
+            </span>
+            <strong style={{ display: "block", marginTop: "4px", fontSize: "21px" }}>
+              {formatNumber(dreamTokens)} DT
+            </strong>
+          </div>
+        </section>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: isCompact ? "1fr" : "230px minmax(0, 1fr)",
+            gap: isMobile ? "14px" : "18px",
+            alignItems: "start",
+          }}
+        >
+          <aside
+            style={{
+              ...glassPanel,
+              padding: isMobile ? "10px" : "14px",
+              position: isDesktop ? "sticky" : "relative",
+              top: isDesktop ? "18px" : undefined,
+              zIndex: 8,
+            }}
+          >
+            <nav
+              aria-label="Stock exchange sections"
+              className="milo-scrollbar"
+              style={{
+                display: isCompact ? "flex" : "grid",
+                gap: "8px",
+                overflowX: isCompact ? "auto" : "visible",
+                paddingBottom: isCompact ? "2px" : 0,
+              }}
+            >
+              {sidebarItems.map((item) => {
+                const active = activeSection === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setActiveSection(item.id)}
                     style={{
-                      display: "flex",
-                      flexDirection: isMobile ? "column" : "row",
-                      justifyContent: "space-between",
-                      alignItems: isMobile ? "flex-start" : "flex-end",
-                      gap: "14px",
-                      marginBottom: "18px",
+                      width: isCompact ? (isMobile ? "176px" : "210px") : "100%",
+                      flex: isCompact
+                        ? `0 0 ${isMobile ? "176px" : "210px"}`
+                        : undefined,
+                      minHeight: isCompact ? "62px" : "76px",
+                      borderRadius: "17px",
+                      border: active
+                        ? "1px solid rgba(132,218,255,0.52)"
+                        : "1px solid rgba(255,255,255,0.08)",
+                      background: active
+                        ? "rgba(83,215,255,0.14)"
+                        : "rgba(255,255,255,0.04)",
+                      color: "white",
+                      padding: "12px",
+                      display: "grid",
+                      gridTemplateColumns: "30px minmax(0, 1fr)",
+                      gap: "9px",
+                      alignItems: "center",
+                      textAlign: "left",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
                     }}
                   >
-                    <div>
-                      <p
-                        style={{
-                          margin: 0,
-                          color: "#8ee8ff",
-                          fontSize: "12px",
-                          letterSpacing: "0.2em",
-                          textTransform: "uppercase",
-                          fontWeight: 900,
-                        }}
-                      >
-                        {selectedStock.sector}
-                      </p>
-
-                      <h2
-                        style={{
-                          margin: "9px 0 0",
-                          fontFamily: 'Georgia, "Times New Roman", serif',
-                          fontSize: isMobile ? "34px" : "42px",
-                          fontWeight: 500,
-                          lineHeight: 1,
-                        }}
-                      >
-                        {selectedStock.symbol} Price Timeline
-                      </h2>
-
-                      <p
-                        style={{
-                          margin: "12px 0 0",
-                          maxWidth: "760px",
-                          color: "rgba(255,255,255,0.62)",
-                          fontSize: "14px",
-                          lineHeight: 1.55,
-                        }}
-                      >
-                        {selectedStock.description}
-                      </p>
-                    </div>
-
-                    <div
+                    <span
                       style={{
-                        flex: "0 0 auto",
-                        borderRadius: "18px",
-                        padding: "12px 15px",
-                        background: "rgba(255,209,138,0.09)",
-                        border: "1px solid rgba(255,209,138,0.18)",
+                        width: "30px",
+                        height: "30px",
+                        borderRadius: "10px",
+                        display: "grid",
+                        placeItems: "center",
+                        background: active
+                          ? "rgba(142,232,255,0.17)"
+                          : "rgba(255,255,255,0.06)",
+                        color: active ? "#8ee8ff" : "rgba(255,255,255,0.62)",
+                        fontSize: "17px",
+                        fontWeight: 900,
+                      }}
+                    >
+                      {item.icon}
+                    </span>
+                    <span style={{ minWidth: 0 }}>
+                      <strong style={{ display: "block", fontSize: "14px" }}>
+                        {item.label}
+                      </strong>
+                      {!isMobile && (
+                        <small
+                          style={{
+                            display: "block",
+                            marginTop: "4px",
+                            color: "rgba(255,255,255,0.42)",
+                            lineHeight: 1.3,
+                          }}
+                        >
+                          {item.description}
+                        </small>
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
+            </nav>
+          </aside>
+
+          <div style={{ minWidth: 0 }}>
+            {activeSection === "portfolio" && (
+              <div style={{ display: "grid", gap: "18px" }}>
+                <section
+                  className="milo-summary-grid"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: isMobile
+                      ? "1fr 1fr"
+                      : "repeat(4, minmax(0, 1fr))",
+                    gap: "12px",
+                  }}
+                >
+                  {[
+                    {
+                      label: "Total Value",
+                      value: `${formatNumber(totalEstimatedValue)} DT`,
+                      note: "Cash + stocks",
+                      color: "white",
+                    },
+                    {
+                      label: "Cash",
+                      value: `${formatNumber(dreamTokens)} DT`,
+                      note: "Available to trade",
+                      color: "white",
+                    },
+                    {
+                      label: "Stocks",
+                      value: `${formatNumber(portfolioValue)} DT`,
+                      note: "Current market value",
+                      color: "#ffd18a",
+                    },
+                    {
+                      label: "Unrealised P/L",
+                      value: `${portfolioProfitLoss >= 0 ? "+" : "−"}${formatNumber(
+                        Math.abs(portfolioProfitLoss)
+                      )} DT`,
+                      note:
+                        portfolioCostBasis > 0
+                          ? `${portfolioProfitLoss >= 0 ? "+" : ""}${portfolioProfitLossPercent.toFixed(
+                              1
+                            )}% overall`
+                          : "No holdings yet",
+                      color: portfolioProfitLoss >= 0 ? "#8ee8ff" : "#ffb0b0",
+                    },
+                  ].map((item) => (
+                    <article
+                      key={item.label}
+                      style={{
+                        ...glassPanel,
+                        borderRadius: "20px",
+                        padding: isMobile ? "15px" : "18px",
+                        minWidth: 0,
                       }}
                     >
                       <span
                         style={{
                           display: "block",
                           color: "rgba(255,255,255,0.48)",
-                          fontSize: "11px",
+                          fontSize: "10px",
                           fontWeight: 900,
                           textTransform: "uppercase",
                           letterSpacing: "0.1em",
                         }}
                       >
-                        Current Price
+                        {item.label}
                       </span>
                       <strong
                         style={{
                           display: "block",
-                          marginTop: "5px",
-                          color: "#ffd18a",
-                          fontSize: "22px",
+                          marginTop: "7px",
+                          color: item.color,
+                          fontSize: isMobile ? "19px" : "23px",
+                          overflowWrap: "anywhere",
                         }}
                       >
-                        {selectedStock.current_price} DT
+                        {item.value}
                       </strong>
-                    </div>
-                  </div>
+                      <span
+                        style={{
+                          display: "block",
+                          marginTop: "5px",
+                          color: "rgba(255,255,255,0.4)",
+                          fontSize: "11px",
+                        }}
+                      >
+                        {item.note}
+                      </span>
+                    </article>
+                  ))}
+                </section>
 
-                  <PriceHistoryChart
-                    points={selectedPriceHistory}
+                <section style={{ ...glassPanel, padding: isMobile ? "20px" : "26px" }}>
+                  <p
+                    style={{
+                      margin: 0,
+                      color: "#8ee8ff",
+                      fontSize: "11px",
+                      letterSpacing: "0.2em",
+                      textTransform: "uppercase",
+                      fontWeight: 900,
+                    }}
+                  >
+                    Allocation
+                  </p>
+                  <h2
+                    style={{
+                      margin: "8px 0 22px",
+                      fontFamily: 'Georgia, "Times New Roman", serif',
+                      fontSize: isMobile ? "30px" : "36px",
+                      fontWeight: 500,
+                    }}
+                  >
+                    Portfolio Breakdown
+                  </h2>
+                  <PortfolioRing
+                    cash={dreamTokens}
+                    holdings={holdings}
+                    stocks={stocks}
                     isMobile={isMobile}
                   />
                 </section>
 
                 <section
                   style={{
-                    ...glassPanel,
-                    padding: isMobile ? "20px" : "24px",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
-                      gap: "16px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        borderRadius: "20px",
-                        border: "1px solid rgba(132,218,255,0.12)",
-                        background: "rgba(255,255,255,0.045)",
-                        padding: "18px",
-                      }}
-                    >
-                      <h3 style={{ margin: 0, fontSize: "21px" }}>
-                        Market News
-                      </h3>
-
-                      {selectedPastNews.length === 0 ? (
-                        <p style={{ color: "rgba(255,255,255,0.58)" }}>
-                          No published market news yet.
-                        </p>
-                      ) : (
-                        <div
-                          style={{
-                            marginTop: "14px",
-                            display: "grid",
-                            gap: "10px",
-                          }}
-                        >
-                          {selectedPastNews.map((event) => (
-                            <article
-                              key={event.id}
-                              style={{
-                                borderRadius: "15px",
-                                background: "rgba(5,13,28,0.42)",
-                                border: "1px solid rgba(255,255,255,0.08)",
-                                padding: "13px",
-                              }}
-                            >
-                              <div
-                                style={{
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                  gap: "8px",
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    color: "#8ee8ff",
-                                    fontSize: "11px",
-                                    fontWeight: 900,
-                                    textTransform: "uppercase",
-                                  }}
-                                >
-                                  {formatShortDate(event.event_date)}
-                                </span>
-
-                                <span
-                                  style={{
-                                    color:
-                                      event.impact_label === "positive"
-                                        ? "#8ee8ff"
-                                        : event.impact_label === "negative"
-                                        ? "#ffb0b0"
-                                        : "rgba(255,255,255,0.5)",
-                                    fontSize: "11px",
-                                    fontWeight: 900,
-                                    textTransform: "uppercase",
-                                  }}
-                                >
-                                  {event.impact_label}
-                                </span>
-                              </div>
-
-                              <strong
-                                style={{
-                                  display: "block",
-                                  marginTop: "8px",
-                                  lineHeight: 1.35,
-                                }}
-                              >
-                                {event.headline}
-                              </strong>
-
-                              <p
-                                style={{
-                                  margin: "7px 0 0",
-                                  color: "rgba(255,255,255,0.58)",
-                                  fontSize: "13px",
-                                  lineHeight: 1.45,
-                                }}
-                              >
-                                {event.description}
-                              </p>
-                            </article>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    <div
-                      style={{
-                        borderRadius: "20px",
-                        border: "1px solid rgba(255,209,138,0.14)",
-                        background: "rgba(255,209,138,0.045)",
-                        padding: "18px",
-                      }}
-                    >
-                      <h3 style={{ margin: 0, fontSize: "21px" }}>
-                        Upcoming Events
-                      </h3>
-
-                      <p
-                        style={{
-                          margin: "8px 0 0",
-                          color: "rgba(255,255,255,0.52)",
-                          fontSize: "13px",
-                          lineHeight: 1.45,
-                        }}
-                      >
-                        Future price effects remain hidden until release.
-                      </p>
-
-                      {selectedUpcomingNews.length === 0 ? (
-                        <p style={{ color: "rgba(255,255,255,0.58)" }}>
-                          No upcoming market events yet.
-                        </p>
-                      ) : (
-                        <div
-                          style={{
-                            marginTop: "14px",
-                            display: "grid",
-                            gap: "10px",
-                          }}
-                        >
-                          {selectedUpcomingNews.map((event) => (
-                            <article
-                              key={event.id}
-                              style={{
-                                borderRadius: "15px",
-                                background: "rgba(5,13,28,0.42)",
-                                border: "1px solid rgba(255,209,138,0.12)",
-                                padding: "13px",
-                              }}
-                            >
-                              <span
-                                style={{
-                                  color: "#ffd18a",
-                                  fontSize: "11px",
-                                  fontWeight: 900,
-                                  textTransform: "uppercase",
-                                }}
-                              >
-                                {formatShortDate(event.event_date)}
-                              </span>
-
-                              <strong
-                                style={{
-                                  display: "block",
-                                  marginTop: "8px",
-                                  lineHeight: 1.35,
-                                }}
-                              >
-                                {event.headline}
-                              </strong>
-
-                              <p
-                                style={{
-                                  margin: "7px 0 0",
-                                  color: "rgba(255,255,255,0.58)",
-                                  fontSize: "13px",
-                                  lineHeight: 1.45,
-                                }}
-                              >
-                                {event.description}
-                              </p>
-                            </article>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </section>
-              </>
-            ) : (
-              <section
-                style={{
-                  ...glassPanel,
-                  minHeight: "420px",
-                  padding: "28px",
-                  display: "grid",
-                  placeItems: "center",
-                  color: "rgba(255,255,255,0.62)",
-                  textAlign: "center",
-                }}
-              >
-                Select a stock to view its graph and news.
-              </section>
-            )}
-          </div>
-
-          <aside
-            style={{
-              display: "grid",
-              gap: "18px",
-              position: isDesktop ? "sticky" : "relative",
-              top: isDesktop ? "18px" : "auto",
-              minWidth: 0,
-            }}
-          >
-            <section
-              style={{
-                ...glassPanel,
-                padding: isMobile ? "20px" : "22px",
-              }}
-            >
-              {selectedStock ? (
-                <>
-                  <p
-                    style={{
-                      margin: 0,
-                      color: "#8ee8ff",
-                      fontSize: "12px",
-                      letterSpacing: "0.2em",
-                      textTransform: "uppercase",
-                      fontWeight: 900,
-                    }}
-                  >
-                    Trade
-                  </p>
-
-                  <h2
-                    style={{
-                      margin: "10px 0 0",
-                      fontFamily: 'Georgia, "Times New Roman", serif',
-                      fontSize: "31px",
-                      fontWeight: 500,
-                      lineHeight: 1,
-                    }}
-                  >
-                    {selectedStock.symbol}
-                  </h2>
-
-                  <div
-                    style={{
-                      marginTop: "16px",
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: "10px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        borderRadius: "15px",
-                        background: "rgba(255,255,255,0.07)",
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        padding: "13px",
-                      }}
-                    >
-                      <span
-                        style={{
-                          display: "block",
-                          color: "rgba(255,255,255,0.48)",
-                          fontSize: "11px",
-                          fontWeight: 900,
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        Price
-                      </span>
-                      <strong
-                        style={{
-                          display: "block",
-                          marginTop: "5px",
-                          color: "#ffd18a",
-                        }}
-                      >
-                        {selectedStock.current_price} DT
-                      </strong>
-                    </div>
-
-                    <div
-                      style={{
-                        borderRadius: "15px",
-                        background: "rgba(255,255,255,0.07)",
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        padding: "13px",
-                      }}
-                    >
-                      <span
-                        style={{
-                          display: "block",
-                          color: "rgba(255,255,255,0.48)",
-                          fontSize: "11px",
-                          fontWeight: 900,
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        You own
-                      </span>
-                      <strong
-                        style={{
-                          display: "block",
-                          marginTop: "5px",
-                        }}
-                      >
-                        {getHolding(selectedStock.symbol)?.quantity || 0}
-                      </strong>
-                    </div>
-                  </div>
-
-                  <label
-                    style={{
-                      marginTop: "16px",
-                      display: "grid",
-                      gap: "7px",
-                    }}
-                  >
-                    <span
-                      style={{
-                        color: "rgba(255,255,255,0.62)",
-                        fontSize: "11px",
-                        letterSpacing: "0.12em",
-                        textTransform: "uppercase",
-                        fontWeight: 900,
-                      }}
-                    >
-                      Quantity
-                    </span>
-
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min={1}
-                      step={1}
-                      value={quantity}
-                      onChange={(event) =>
-                        setQuantity(Number(event.target.value))
-                      }
-                      style={inputStyle}
-                    />
-                  </label>
-
-                  <div
-                    style={{
-                      marginTop: "12px",
-                      borderRadius: "15px",
-                      background: "rgba(255,255,255,0.07)",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      padding: "13px",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: "10px",
-                    }}
-                  >
-                    <span style={{ color: "rgba(255,255,255,0.52)" }}>
-                      Total
-                    </span>
-                    <strong>
-                      {formatNumber(
-                        Math.max(1, Math.floor(Number(quantity) || 1)) *
-                          selectedStock.current_price
-                      )}{" "}
-                      DT
-                    </strong>
-                  </div>
-
-                  <div
-                    style={{
-                      marginTop: "14px",
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: "10px",
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={buyStock}
-                      disabled={actionLoading}
-                      style={{
-                        height: "46px",
-                        borderRadius: "13px",
-                        border: "1px solid rgba(132,218,255,0.3)",
-                        background: "rgba(83,215,255,0.16)",
-                        color: "white",
-                        fontWeight: 900,
-                        cursor: actionLoading ? "not-allowed" : "pointer",
-                        opacity: actionLoading ? 0.6 : 1,
-                        fontFamily: "inherit",
-                      }}
-                    >
-                      Buy
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={sellStock}
-                      disabled={actionLoading}
-                      style={{
-                        height: "46px",
-                        borderRadius: "13px",
-                        border: "1px solid rgba(255,255,255,0.18)",
-                        background: "rgba(255,255,255,0.07)",
-                        color: "white",
-                        fontWeight: 900,
-                        cursor: actionLoading ? "not-allowed" : "pointer",
-                        opacity: actionLoading ? 0.6 : 1,
-                        fontFamily: "inherit",
-                      }}
-                    >
-                      Sell
-                    </button>
-                  </div>
-
-                  {tradeMessage && (
-                    <p
-                      style={{
-                        margin: "13px 0 0",
-                        color: "#ffd18a",
-                        fontSize: "13px",
-                        fontWeight: 800,
-                        lineHeight: 1.45,
-                      }}
-                    >
-                      {tradeMessage}
-                    </p>
-                  )}
-                </>
-              ) : (
-                <p>Select a stock to begin trading.</p>
-              )}
-            </section>
-
-            <section
-              style={{
-                ...glassPanel,
-                padding: isMobile ? "20px" : "22px",
-              }}
-            >
-              <p
-                style={{
-                  margin: 0,
-                  color: "#8ee8ff",
-                  fontSize: "12px",
-                  letterSpacing: "0.2em",
-                  textTransform: "uppercase",
-                  fontWeight: 900,
-                }}
-              >
-                Portfolio
-              </p>
-
-              <h2
-                style={{
-                  margin: "10px 0 8px",
-                  fontFamily: 'Georgia, "Times New Roman", serif',
-                  fontSize: "28px",
-                  fontWeight: 500,
-                  lineHeight: 1,
-                }}
-              >
-                My Holdings
-              </h2>
-
-              <p
-                style={{
-                  margin: "0 0 16px",
-                  color: "rgba(255,255,255,0.42)",
-                  fontSize: "11px",
-                  lineHeight: 1.45,
-                }}
-              >
-                P/L compares each current holding value with its average
-                purchase cost.
-              </p>
-
-              {holdings.length === 0 ? (
-                <p
-                  style={{
-                    margin: 0,
-                    color: "rgba(255,255,255,0.58)",
-                    fontSize: "13px",
-                    lineHeight: 1.5,
-                  }}
-                >
-                  You do not own any fictional stocks yet.
-                </p>
-              ) : (
-                <div
-                  className="milo-scrollbar"
-                  style={{
                     display: "grid",
-                    gap: "9px",
-                    maxHeight: isDesktop ? "300px" : "none",
-                    overflowY: isDesktop ? "auto" : "visible",
-                    paddingRight: isDesktop ? "4px" : 0,
+                    gridTemplateColumns: isCompact ? "1fr" : "minmax(0, 1.15fr) minmax(320px, 0.85fr)",
+                    gap: "18px",
                   }}
                 >
-                  {holdings.map((holding) => {
-                    const stock = stocks.find(
-                      (item) => item.symbol === holding.symbol
-                    );
-                    if (!stock) return null;
+                  <div style={{ ...glassPanel, padding: isMobile ? "20px" : "24px", minWidth: 0 }}>
+                    <h2
+                      style={{
+                        margin: 0,
+                        fontFamily: 'Georgia, "Times New Roman", serif',
+                        fontSize: "30px",
+                        fontWeight: 500,
+                      }}
+                    >
+                      Individual Stocks
+                    </h2>
 
-                    const holdingValue =
-                      holding.quantity * stock.current_price;
-                    const holdingCost =
-                      holding.quantity * Number(holding.average_price || 0);
-                    const holdingProfitLoss = holdingValue - holdingCost;
-                    const holdingProfitLossPercent =
-                      holdingCost > 0
-                        ? (holdingProfitLoss / holdingCost) * 100
-                        : 0;
+                    {holdings.length === 0 ? (
+                      <p style={{ color: "rgba(255,255,255,0.58)" }}>
+                        You do not own any fictional stocks yet.
+                      </p>
+                    ) : (
+                      <div style={{ marginTop: "16px", display: "grid", gap: "10px" }}>
+                        {holdings.map((holding) => {
+                          const stock = stocks.find(
+                            (item) => item.symbol === holding.symbol
+                          );
+                          if (!stock) return null;
+                          const value = holding.quantity * stock.current_price;
+                          const cost =
+                            holding.quantity * Number(holding.average_price || 0);
+                          const pl = value - cost;
+                          const plPercent = cost > 0 ? (pl / cost) * 100 : 0;
 
-                    return (
-                      <button
-                        key={holding.id}
-                        type="button"
-                        onClick={() => setSelectedSymbol(holding.symbol)}
+                          return (
+                            <button
+                              key={holding.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedSymbol(holding.symbol);
+                                setActiveSection("market");
+                              }}
+                              style={{
+                                width: "100%",
+                                borderRadius: "16px",
+                                border: "1px solid rgba(255,255,255,0.09)",
+                                background: "rgba(255,255,255,0.045)",
+                                color: "white",
+                                padding: "14px",
+                                display: "grid",
+                                gridTemplateColumns: isMobile
+                                  ? "1fr auto"
+                                  : "minmax(0, 1.3fr) repeat(3, minmax(90px, .7fr))",
+                                gap: "10px",
+                                alignItems: "center",
+                                textAlign: "left",
+                                cursor: "pointer",
+                                fontFamily: "inherit",
+                              }}
+                            >
+                              <span>
+                                <strong style={{ display: "block" }}>{stock.symbol}</strong>
+                                <small style={{ color: "rgba(255,255,255,0.45)" }}>
+                                  {holding.quantity} shares · Avg {holding.average_price} DT
+                                </small>
+                              </span>
+                              {!isMobile && (
+                                <span>
+                                  <small style={{ display: "block", color: "rgba(255,255,255,0.42)" }}>
+                                    Price
+                                  </small>
+                                  <strong>{stock.current_price} DT</strong>
+                                </span>
+                              )}
+                              {!isMobile && (
+                                <span>
+                                  <small style={{ display: "block", color: "rgba(255,255,255,0.42)" }}>
+                                    Value
+                                  </small>
+                                  <strong>{formatNumber(value)} DT</strong>
+                                </span>
+                              )}
+                              <strong
+                                style={{
+                                  color: pl >= 0 ? "#8ee8ff" : "#ffb0b0",
+                                  textAlign: "right",
+                                }}
+                              >
+                                {pl >= 0 ? "+" : "−"}
+                                {formatNumber(Math.abs(pl))} DT
+                                <small style={{ display: "block" }}>
+                                  {pl >= 0 ? "+" : ""}
+                                  {plPercent.toFixed(1)}%
+                                </small>
+                              </strong>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ ...glassPanel, padding: isMobile ? "20px" : "24px" }}>
+                    <h2
+                      style={{
+                        margin: 0,
+                        fontFamily: 'Georgia, "Times New Roman", serif',
+                        fontSize: "30px",
+                        fontWeight: 500,
+                      }}
+                    >
+                      Trade History
+                    </h2>
+                    {trades.length === 0 ? (
+                      <p style={{ color: "rgba(255,255,255,0.58)" }}>No trades yet.</p>
+                    ) : (
+                      <div
+                        className="milo-scrollbar"
                         style={{
-                          borderRadius: "15px",
-                          border:
-                            selectedStock?.symbol === holding.symbol
-                              ? "1px solid rgba(132,218,255,0.4)"
-                              : "1px solid rgba(255,255,255,0.09)",
-                          background:
-                            selectedStock?.symbol === holding.symbol
-                              ? "rgba(83,215,255,0.11)"
-                              : "rgba(255,255,255,0.055)",
-                          padding: "12px",
-                          color: "white",
-                          textAlign: "left",
-                          cursor: "pointer",
-                          fontFamily: "inherit",
+                          marginTop: "16px",
+                          display: "grid",
+                          gap: "9px",
+                          maxHeight: isDesktop ? "390px" : undefined,
+                          overflowY: isDesktop ? "auto" : "visible",
+                          paddingRight: isDesktop ? "4px" : 0,
                         }}
                       >
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            gap: "10px",
-                          }}
-                        >
-                          <strong>{holding.symbol}</strong>
-                          <strong style={{ color: "#ffd18a" }}>
-                            {formatNumber(holdingValue)} DT
-                          </strong>
-                        </div>
-
-                        <div
-                          style={{
-                            marginTop: "6px",
-                            display: "flex",
-                            flexWrap: "wrap",
-                            justifyContent: "space-between",
-                            gap: "6px 10px",
-                            color: "rgba(255,255,255,0.48)",
-                            fontSize: "12px",
-                          }}
-                        >
-                          <span>{holding.quantity} shares</span>
-                          <span>Avg {holding.average_price} DT</span>
-                        </div>
-
-                        <div
-                          style={{
-                            marginTop: "7px",
-                            display: "flex",
-                            flexWrap: "wrap",
-                            justifyContent: "space-between",
-                            gap: "6px 10px",
-                            fontSize: "12px",
-                            fontWeight: 900,
-                          }}
-                        >
-                          <span style={{ color: "rgba(255,255,255,0.42)" }}>
-                            P/L
-                          </span>
-                          <span
+                        {trades.map((trade) => (
+                          <div
+                            key={trade.id}
                             style={{
-                              color:
-                                holdingProfitLoss >= 0
-                                  ? "#8ee8ff"
-                                  : "#ffb0b0",
+                              borderRadius: "15px",
+                              background: "rgba(255,255,255,0.045)",
+                              border: "1px solid rgba(255,255,255,0.08)",
+                              padding: "12px",
                             }}
                           >
-                            {holdingProfitLoss >= 0 ? "+" : "−"}
-                            {formatNumber(Math.abs(holdingProfitLoss))} DT (
-                            {holdingProfitLoss >= 0 ? "+" : ""}
-                            {holdingProfitLossPercent.toFixed(1)}%)
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                gap: "10px",
+                              }}
+                            >
+                              <strong>
+                                {trade.side === "buy" ? "Bought" : "Sold"}{" "}
+                                {trade.quantity} {trade.symbol}
+                              </strong>
+                              <strong
+                                style={{
+                                  color:
+                                    trade.side === "buy" ? "#ffb0b0" : "#8ee8ff",
+                                }}
+                              >
+                                {trade.side === "buy" ? "−" : "+"}
+                                {formatNumber(trade.total)} DT
+                              </strong>
+                            </div>
+                            <small
+                              style={{
+                                display: "block",
+                                marginTop: "5px",
+                                color: "rgba(255,255,255,0.42)",
+                              }}
+                            >
+                              {formatDateTime(trade.created_at)}
+                            </small>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </section>
+              </div>
+            )}
+
+            {activeSection === "market" && (
+              <div style={{ display: "grid", gap: "18px" }}>
+                <section style={{ ...glassPanel, padding: isMobile ? "18px" : "22px" }}>
+                  <div
+                    className="milo-market-strip milo-scrollbar"
+                    style={{
+                      display: "flex",
+                      gap: "10px",
+                      overflowX: "auto",
+                      paddingBottom: "7px",
+                    }}
+                  >
+                    {stocks.map((stock) => {
+                      const holding = getHolding(stock.symbol);
+                      const active = selectedStock?.symbol === stock.symbol;
+                      const change = getChangePercent(stock);
+                      return (
+                        <button
+                          key={stock.symbol}
+                          type="button"
+                          onClick={() => setSelectedSymbol(stock.symbol)}
+                          style={{
+                            flex: `0 0 ${isMobile ? "220px" : "240px"}`,
+                            minHeight: "112px",
+                            padding: "15px",
+                            borderRadius: "18px",
+                            border: active
+                              ? "1px solid rgba(132,218,255,0.58)"
+                              : "1px solid rgba(255,255,255,0.09)",
+                            background: active
+                              ? "rgba(83,215,255,0.14)"
+                              : "rgba(255,255,255,0.045)",
+                            color: "white",
+                            textAlign: "left",
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              gap: "10px",
+                            }}
+                          >
+                            <strong style={{ fontSize: "17px" }}>{stock.symbol}</strong>
+                            <strong
+                              style={{
+                                color: change >= 0 ? "#8ee8ff" : "#ffb0b0",
+                                fontSize: "13px",
+                              }}
+                            >
+                              {change >= 0 ? "+" : ""}
+                              {change.toFixed(1)}%
+                            </strong>
+                          </div>
+                          <span
+                            style={{
+                              display: "block",
+                              marginTop: "8px",
+                              color: "rgba(255,255,255,0.64)",
+                              fontSize: "13px",
+                            }}
+                          >
+                            {stock.name}
                           </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
+                          <div
+                            style={{
+                              marginTop: "14px",
+                              display: "flex",
+                              justifyContent: "space-between",
+                            }}
+                          >
+                            <strong style={{ color: "#ffd18a" }}>
+                              {stock.current_price} DT
+                            </strong>
+                            <small style={{ color: "rgba(255,255,255,0.44)" }}>
+                              Own {holding?.quantity || 0}
+                            </small>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
 
-            <section
-              style={{
-                ...glassPanel,
-                padding: isMobile ? "20px" : "22px",
-              }}
-            >
-              <p
-                style={{
-                  margin: 0,
-                  color: "#8ee8ff",
-                  fontSize: "12px",
-                  letterSpacing: "0.2em",
-                  textTransform: "uppercase",
-                  fontWeight: 900,
-                }}
-              >
-                Recent Activity
-              </p>
-
-              <h2
-                style={{
-                  margin: "10px 0 16px",
-                  fontFamily: 'Georgia, "Times New Roman", serif',
-                  fontSize: "28px",
-                  fontWeight: 500,
-                  lineHeight: 1,
-                }}
-              >
-                Trade History
-              </h2>
-
-              {trades.length === 0 ? (
-                <p
-                  style={{
-                    margin: 0,
-                    color: "rgba(255,255,255,0.58)",
-                    fontSize: "13px",
-                  }}
-                >
-                  No trades yet.
-                </p>
-              ) : (
-                <div
-                  className="milo-scrollbar"
-                  style={{
-                    display: "grid",
-                    gap: "9px",
-                    maxHeight: isDesktop ? "330px" : "none",
-                    overflowY: isDesktop ? "auto" : "visible",
-                    paddingRight: isDesktop ? "4px" : 0,
-                  }}
-                >
-                  {trades.map((trade) => (
-                    <div
-                      key={trade.id}
+                {selectedStock ? (
+                  <>
+                    <section
                       style={{
-                        borderRadius: "15px",
-                        background: "rgba(255,255,255,0.055)",
-                        border: "1px solid rgba(255,255,255,0.09)",
-                        padding: "12px",
+                        ...glassPanel,
+                        padding: isMobile ? "20px" : "26px",
+                        minWidth: 0,
                       }}
                     >
                       <div
                         style={{
                           display: "flex",
+                          flexDirection: isMobile ? "column" : "row",
                           justifyContent: "space-between",
+                          alignItems: isMobile ? "flex-start" : "flex-end",
+                          gap: "14px",
+                          marginBottom: "18px",
+                        }}
+                      >
+                        <div>
+                          <p
+                            style={{
+                              margin: 0,
+                              color: "#8ee8ff",
+                              fontSize: "11px",
+                              letterSpacing: "0.2em",
+                              textTransform: "uppercase",
+                              fontWeight: 900,
+                            }}
+                          >
+                            {selectedStock.sector}
+                          </p>
+                          <h2
+                            style={{
+                              margin: "8px 0 0",
+                              fontFamily: 'Georgia, "Times New Roman", serif',
+                              fontSize: isMobile ? "31px" : "40px",
+                              fontWeight: 500,
+                            }}
+                          >
+                            {selectedStock.symbol} Price Timeline
+                          </h2>
+                          <p
+                            style={{
+                              margin: "10px 0 0",
+                              color: "rgba(255,255,255,0.58)",
+                              lineHeight: 1.5,
+                              maxWidth: "760px",
+                            }}
+                          >
+                            {selectedStock.description}
+                          </p>
+                        </div>
+                        <div
+                          style={{
+                            borderRadius: "16px",
+                            padding: "11px 14px",
+                            background: "rgba(255,209,138,0.08)",
+                            border: "1px solid rgba(255,209,138,0.18)",
+                          }}
+                        >
+                          <small
+                            style={{
+                              display: "block",
+                              color: "rgba(255,255,255,0.45)",
+                              textTransform: "uppercase",
+                              fontWeight: 900,
+                            }}
+                          >
+                            Current Price
+                          </small>
+                          <strong
+                            style={{
+                              display: "block",
+                              marginTop: "5px",
+                              color: "#ffd18a",
+                              fontSize: "22px",
+                            }}
+                          >
+                            {selectedStock.current_price} DT
+                          </strong>
+                        </div>
+                      </div>
+                      <PriceHistoryChart
+                        points={selectedPriceHistory}
+                        isMobile={isMobile}
+                      />
+                    </section>
+
+                    <section
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: isCompact ? "1fr" : "1fr 1fr",
+                        gap: "18px",
+                      }}
+                    >
+                      <div style={{ ...glassPanel, padding: isMobile ? "20px" : "24px" }}>
+                        <h2
+                          style={{
+                            margin: 0,
+                            fontFamily: 'Georgia, "Times New Roman", serif',
+                            fontSize: "30px",
+                            fontWeight: 500,
+                          }}
+                        >
+                          Market News
+                        </h2>
+                        {selectedPastNews.length === 0 ? (
+                          <p style={{ color: "rgba(255,255,255,0.58)" }}>
+                            No published market news yet.
+                          </p>
+                        ) : (
+                          <div style={{ marginTop: "14px", display: "grid", gap: "10px" }}>
+                            {selectedPastNews.map((event) => (
+                              <article
+                                key={event.id}
+                                style={{
+                                  borderRadius: "15px",
+                                  background: "rgba(255,255,255,0.04)",
+                                  border: "1px solid rgba(255,255,255,0.08)",
+                                  padding: "13px",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    gap: "10px",
+                                  }}
+                                >
+                                  <small style={{ color: "#8ee8ff", fontWeight: 900 }}>
+                                    {formatShortDate(event.event_date)}
+                                  </small>
+                                  <small
+                                    style={{
+                                      color:
+                                        event.impact_label === "positive"
+                                          ? "#8ee8ff"
+                                          : event.impact_label === "negative"
+                                          ? "#ffb0b0"
+                                          : "rgba(255,255,255,0.5)",
+                                      fontWeight: 900,
+                                      textTransform: "uppercase",
+                                    }}
+                                  >
+                                    {event.impact_label}
+                                  </small>
+                                </div>
+                                <strong
+                                  style={{
+                                    display: "block",
+                                    marginTop: "8px",
+                                    lineHeight: 1.35,
+                                  }}
+                                >
+                                  {event.headline}
+                                </strong>
+                                <p
+                                  style={{
+                                    margin: "7px 0 0",
+                                    color: "rgba(255,255,255,0.56)",
+                                    fontSize: "13px",
+                                    lineHeight: 1.45,
+                                  }}
+                                >
+                                  {event.description}
+                                </p>
+                              </article>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div style={{ ...glassPanel, padding: isMobile ? "20px" : "24px" }}>
+                        <h2
+                          style={{
+                            margin: 0,
+                            fontFamily: 'Georgia, "Times New Roman", serif',
+                            fontSize: "30px",
+                            fontWeight: 500,
+                          }}
+                        >
+                          Upcoming Events
+                        </h2>
+                        <p
+                          style={{
+                            color: "rgba(255,255,255,0.46)",
+                            fontSize: "13px",
+                            lineHeight: 1.45,
+                          }}
+                        >
+                          Future price effects stay hidden until release.
+                        </p>
+                        {selectedUpcomingNews.length === 0 ? (
+                          <p style={{ color: "rgba(255,255,255,0.58)" }}>
+                            No upcoming market events yet.
+                          </p>
+                        ) : (
+                          <div style={{ marginTop: "14px", display: "grid", gap: "10px" }}>
+                            {selectedUpcomingNews.map((event) => (
+                              <article
+                                key={event.id}
+                                style={{
+                                  borderRadius: "15px",
+                                  background: "rgba(255,209,138,0.04)",
+                                  border: "1px solid rgba(255,209,138,0.12)",
+                                  padding: "13px",
+                                }}
+                              >
+                                <small style={{ color: "#ffd18a", fontWeight: 900 }}>
+                                  {formatShortDate(event.event_date)}
+                                </small>
+                                <strong
+                                  style={{
+                                    display: "block",
+                                    marginTop: "8px",
+                                    lineHeight: 1.35,
+                                  }}
+                                >
+                                  {event.headline}
+                                </strong>
+                                <p
+                                  style={{
+                                    margin: "7px 0 0",
+                                    color: "rgba(255,255,255,0.56)",
+                                    fontSize: "13px",
+                                    lineHeight: 1.45,
+                                  }}
+                                >
+                                  {event.description}
+                                </p>
+                              </article>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </section>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveSection("trade")}
+                      style={{
+                        ...primaryButton,
+                        justifySelf: "start",
+                        width: isMobile ? "100%" : "auto",
+                      }}
+                    >
+                      Trade {selectedStock.symbol}
+                    </button>
+                  </>
+                ) : (
+                  <section style={{ ...glassPanel, padding: "28px" }}>
+                    Select a stock to view its graph and news.
+                  </section>
+                )}
+              </div>
+            )}
+
+            {activeSection === "trade" && (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: isCompact
+                    ? "1fr"
+                    : "minmax(0, 1fr) minmax(330px, 420px)",
+                  gap: "18px",
+                  alignItems: "start",
+                }}
+              >
+                <section style={{ ...glassPanel, padding: isMobile ? "20px" : "24px" }}>
+                  <p
+                    style={{
+                      margin: 0,
+                      color: "#8ee8ff",
+                      fontSize: "11px",
+                      letterSpacing: "0.2em",
+                      textTransform: "uppercase",
+                      fontWeight: 900,
+                    }}
+                  >
+                    Choose Stock
+                  </p>
+                  <div
+                    style={{
+                      marginTop: "15px",
+                      display: "grid",
+                      gridTemplateColumns: isMobile
+                        ? "1fr"
+                        : "repeat(2, minmax(0, 1fr))",
+                      gap: "10px",
+                    }}
+                  >
+                    {stocks.map((stock) => {
+                      const active = selectedStock?.symbol === stock.symbol;
+                      const change = getChangePercent(stock);
+                      return (
+                        <button
+                          key={stock.symbol}
+                          type="button"
+                          onClick={() => setSelectedSymbol(stock.symbol)}
+                          style={{
+                            borderRadius: "17px",
+                            border: active
+                              ? "1px solid rgba(132,218,255,0.55)"
+                              : "1px solid rgba(255,255,255,0.09)",
+                            background: active
+                              ? "rgba(83,215,255,0.14)"
+                              : "rgba(255,255,255,0.045)",
+                            color: "white",
+                            padding: "15px",
+                            textAlign: "left",
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              gap: "10px",
+                            }}
+                          >
+                            <strong>{stock.symbol}</strong>
+                            <strong
+                              style={{
+                                color: change >= 0 ? "#8ee8ff" : "#ffb0b0",
+                                fontSize: "13px",
+                              }}
+                            >
+                              {change >= 0 ? "+" : ""}
+                              {change.toFixed(1)}%
+                            </strong>
+                          </div>
+                          <span
+                            style={{
+                              display: "block",
+                              marginTop: "7px",
+                              color: "rgba(255,255,255,0.56)",
+                              fontSize: "13px",
+                            }}
+                          >
+                            {stock.name}
+                          </span>
+                          <div
+                            style={{
+                              marginTop: "12px",
+                              display: "flex",
+                              justifyContent: "space-between",
+                            }}
+                          >
+                            <strong style={{ color: "#ffd18a" }}>
+                              {stock.current_price} DT
+                            </strong>
+                            <small style={{ color: "rgba(255,255,255,0.44)" }}>
+                              Own {getHolding(stock.symbol)?.quantity || 0}
+                            </small>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+
+                <aside
+                  style={{
+                    ...glassPanel,
+                    padding: isMobile ? "20px" : "24px",
+                    position: isDesktop ? "sticky" : "relative",
+                    top: isDesktop ? "18px" : undefined,
+                  }}
+                >
+                  {selectedStock ? (
+                    <>
+                      <p
+                        style={{
+                          margin: 0,
+                          color: "#8ee8ff",
+                          fontSize: "11px",
+                          letterSpacing: "0.2em",
+                          textTransform: "uppercase",
+                          fontWeight: 900,
+                        }}
+                      >
+                        Order Ticket
+                      </p>
+                      <h2
+                        style={{
+                          margin: "8px 0 0",
+                          fontFamily: 'Georgia, "Times New Roman", serif',
+                          fontSize: "38px",
+                          fontWeight: 500,
+                        }}
+                      >
+                        {selectedStock.symbol}
+                      </h2>
+                      <p
+                        style={{
+                          margin: "7px 0 0",
+                          color: "rgba(255,255,255,0.52)",
+                          fontSize: "13px",
+                        }}
+                      >
+                        {selectedStock.name}
+                      </p>
+
+                      <div
+                        style={{
+                          marginTop: "17px",
+                          display: "grid",
+                          gridTemplateColumns: "1fr 1fr",
                           gap: "10px",
                         }}
                       >
-                        <strong style={{ fontSize: "13px" }}>
-                          {trade.side === "buy" ? "Bought" : "Sold"}{" "}
-                          {trade.quantity} {trade.symbol}
-                        </strong>
-                        <strong
+                        <div
                           style={{
-                            color:
-                              trade.side === "buy" ? "#ffb0b0" : "#8ee8ff",
-                            fontSize: "13px",
+                            borderRadius: "15px",
+                            padding: "13px",
+                            background: "rgba(255,255,255,0.05)",
+                            border: "1px solid rgba(255,255,255,0.09)",
                           }}
                         >
-                          {trade.side === "buy" ? "−" : "+"}
-                          {formatNumber(trade.total)} DT
+                          <small
+                            style={{
+                              display: "block",
+                              color: "rgba(255,255,255,0.42)",
+                              textTransform: "uppercase",
+                              fontWeight: 900,
+                            }}
+                          >
+                            Price
+                          </small>
+                          <strong
+                            style={{
+                              display: "block",
+                              marginTop: "5px",
+                              color: "#ffd18a",
+                            }}
+                          >
+                            {selectedStock.current_price} DT
+                          </strong>
+                        </div>
+                        <div
+                          style={{
+                            borderRadius: "15px",
+                            padding: "13px",
+                            background: "rgba(255,255,255,0.05)",
+                            border: "1px solid rgba(255,255,255,0.09)",
+                          }}
+                        >
+                          <small
+                            style={{
+                              display: "block",
+                              color: "rgba(255,255,255,0.42)",
+                              textTransform: "uppercase",
+                              fontWeight: 900,
+                            }}
+                          >
+                            You Own
+                          </small>
+                          <strong style={{ display: "block", marginTop: "5px" }}>
+                            {selectedHolding?.quantity || 0}
+                          </strong>
+                        </div>
+                      </div>
+
+                      <label style={{ marginTop: "16px", display: "grid", gap: "7px" }}>
+                        <span
+                          style={{
+                            color: "rgba(255,255,255,0.54)",
+                            fontSize: "11px",
+                            fontWeight: 900,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.1em",
+                          }}
+                        >
+                          Quantity
+                        </span>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min={1}
+                          step={1}
+                          value={quantity}
+                          onChange={(event) => setQuantity(Number(event.target.value))}
+                          style={inputStyle}
+                        />
+                      </label>
+
+                      <div
+                        style={{
+                          marginTop: "12px",
+                          borderRadius: "15px",
+                          padding: "13px",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: "10px",
+                          background: "rgba(255,255,255,0.05)",
+                          border: "1px solid rgba(255,255,255,0.09)",
+                        }}
+                      >
+                        <span style={{ color: "rgba(255,255,255,0.5)" }}>
+                          Order Total
+                        </span>
+                        <strong>
+                          {formatNumber(
+                            Math.max(1, Math.floor(Number(quantity) || 1)) *
+                              selectedStock.current_price
+                          )}{" "}
+                          DT
                         </strong>
                       </div>
 
-                      <span
+                      <div
                         style={{
-                          display: "block",
-                          marginTop: "5px",
-                          color: "rgba(255,255,255,0.42)",
-                          fontSize: "11px",
+                          marginTop: "14px",
+                          display: "grid",
+                          gridTemplateColumns: "1fr 1fr",
+                          gap: "10px",
                         }}
                       >
-                        {formatDateTime(trade.created_at)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          </aside>
-        </section>
+                        <button
+                          type="button"
+                          onClick={buyStock}
+                          disabled={actionLoading}
+                          style={{
+                            height: "48px",
+                            borderRadius: "14px",
+                            border: "1px solid rgba(132,218,255,0.3)",
+                            background: "rgba(83,215,255,0.16)",
+                            color: "white",
+                            fontWeight: 900,
+                            cursor: actionLoading ? "not-allowed" : "pointer",
+                            opacity: actionLoading ? 0.6 : 1,
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          Buy
+                        </button>
+                        <button
+                          type="button"
+                          onClick={sellStock}
+                          disabled={actionLoading}
+                          style={{
+                            height: "48px",
+                            borderRadius: "14px",
+                            border: "1px solid rgba(255,255,255,0.18)",
+                            background: "rgba(255,255,255,0.07)",
+                            color: "white",
+                            fontWeight: 900,
+                            cursor: actionLoading ? "not-allowed" : "pointer",
+                            opacity: actionLoading ? 0.6 : 1,
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          Sell
+                        </button>
+                      </div>
+
+                      {tradeMessage && (
+                        <p
+                          style={{
+                            margin: "13px 0 0",
+                            color: "#ffd18a",
+                            fontSize: "13px",
+                            fontWeight: 800,
+                            lineHeight: 1.45,
+                          }}
+                        >
+                          {tradeMessage}
+                        </p>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveSection("market")}
+                        style={{
+                          marginTop: "14px",
+                          width: "100%",
+                          border: 0,
+                          background: "transparent",
+                          color: "#8ee8ff",
+                          fontWeight: 800,
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        View graph and news →
+                      </button>
+                    </>
+                  ) : (
+                    <p>Select a stock to begin trading.</p>
+                  )}
+                </aside>
+              </div>
+            )}
+          </div>
+        </div>
 
         <section
           style={{
-            marginTop: "28px",
+            marginTop: "24px",
             display: "flex",
             flexDirection: isMobile ? "column-reverse" : "row",
             justifyContent: "flex-end",
             alignItems: isMobile ? "stretch" : "flex-end",
-            gap: isMobile ? "4px" : "12px",
+            gap: "8px",
           }}
         >
           <div
             style={{
-              position: "relative",
-              width: isMobile ? "100%" : "min(470px, 42vw)",
-              marginBottom: isMobile ? 0 : "76px",
-              borderRadius: "24px 24px 6px 24px",
-              border: "1px solid rgba(132,218,255,0.28)",
-              background: "rgba(5,13,28,0.86)",
-              boxShadow:
-                "0 24px 70px rgba(0,0,0,0.42), 0 0 28px rgba(83,215,255,0.08)",
+              width: isMobile ? "100%" : "min(430px, 42vw)",
+              marginBottom: isMobile ? 0 : "66px",
+              borderRadius: "22px",
+              border: "1px solid rgba(132,218,255,0.24)",
+              background: "rgba(5,13,28,0.84)",
+              padding: isMobile ? "17px" : "20px",
               backdropFilter: "blur(18px)",
               WebkitBackdropFilter: "blur(18px)",
-              padding: isMobile ? "18px" : "21px 23px",
             }}
           >
             <p
               style={{
                 margin: 0,
                 color: "#8ee8ff",
-                fontSize: "12px",
+                fontSize: "11px",
                 letterSpacing: "0.17em",
                 textTransform: "uppercase",
                 fontWeight: 900,
@@ -2589,35 +2791,18 @@ export default function MiloStockExchangePage() {
             >
               Milo says
             </p>
-
             <p
               style={{
-                margin: "9px 0 0",
-                color: "rgba(255,255,255,0.78)",
-                fontSize: isMobile ? "14px" : "15px",
-                lineHeight: 1.6,
+                margin: "8px 0 0",
+                color: "rgba(255,255,255,0.72)",
+                fontSize: "14px",
+                lineHeight: 1.55,
               }}
             >
-              Choose a fictional stock on the left, study its price graph and
-              market news in the middle, then trade and track your stock holdings
-              on the right. Return to Exchange Home for your overall portfolio,
-              leaderboard, friends and complete transaction history.
+              Use My Portfolio to review your allocation and unrealised P/L,
+              Market to study prices and news, and Trade to place a fictional
+              buy or sell order.
             </p>
-
-            {!isMobile && (
-              <span
-                style={{
-                  position: "absolute",
-                  right: "-18px",
-                  bottom: "14px",
-                  width: 0,
-                  height: 0,
-                  borderTop: "14px solid transparent",
-                  borderBottom: "14px solid transparent",
-                  borderLeft: "18px solid rgba(132,218,255,0.28)",
-                }}
-              />
-            )}
           </div>
 
           <img
@@ -2625,7 +2810,7 @@ export default function MiloStockExchangePage() {
             alt="Milo"
             style={{
               width: "auto",
-              height: isMobile ? "150px" : "210px",
+              height: isMobile ? "135px" : "190px",
               objectFit: "contain",
               alignSelf: isMobile ? "flex-end" : "auto",
               marginRight: isMobile ? "8px" : 0,

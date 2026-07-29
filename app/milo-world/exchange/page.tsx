@@ -143,9 +143,9 @@ function getAgeBand(age: number) {
   return "18_plus";
 }
 
-function getSixteenthBirthday(dateString: string) {
+function getThirteenthBirthday(dateString: string) {
   const birthDate = new Date(`${dateString}T00:00:00`);
-  birthDate.setFullYear(birthDate.getFullYear() + 16);
+  birthDate.setFullYear(birthDate.getFullYear() + 13);
   return birthDate.toISOString().slice(0, 10);
 }
 
@@ -274,7 +274,7 @@ export default function MiloExchangeMainPage() {
     (friend) => friend.status === "pending" && friend.direction === "outgoing"
   );
 
-  const isLockedUnder16 = useMemo(() => {
+  const isLockedUnder13 = useMemo(() => {
     if (!profile?.milo_exchange_locked_until) return false;
     if (profile.milo_exchange_unlocked) return false;
     return profile.milo_exchange_locked_until > getTodayDateOnly();
@@ -283,7 +283,8 @@ export default function MiloExchangeMainPage() {
   const canEnterExchange =
     Boolean(profile?.milo_exchange_unlocked) &&
     Boolean(profile?.milo_exchange_terms_accepted_at) &&
-    (profile?.milo_exchange_age_band === "16_17" ||
+    (profile?.milo_exchange_age_band === "13_15" ||
+      profile?.milo_exchange_age_band === "16_17" ||
       profile?.milo_exchange_age_band === "18_plus");
 
   useEffect(() => {
@@ -708,8 +709,8 @@ export default function MiloExchangeMainPage() {
     const now = new Date().toISOString();
     setActionLoading(true);
 
-    if (age < 16) {
-      const lockedUntil = getSixteenthBirthday(dob);
+    if (age < 13) {
+      const lockedUntil = getThirteenthBirthday(dob);
 
       const { error } = await supabase
         .from("profiles")
@@ -988,9 +989,9 @@ export default function MiloExchangeMainPage() {
     );
   }
 
-  if (isLockedUnder16) {
+  if (isLockedUnder13) {
     return (
-      <CenterPanel eyebrow="Locked Feature" title="Milo’s Exchange is for users aged 16 and above.">
+      <CenterPanel eyebrow="Locked Feature" title="Milo’s Exchange is for users aged 13 and above.">
         <p>
           The exchange is locked for this account. You can continue earning
           Dreamscape Tokens through Milo’s Activity Lab.
@@ -1013,7 +1014,7 @@ export default function MiloExchangeMainPage() {
 
   if (!canEnterExchange) {
     return (
-      <CenterPanel eyebrow="Age Check Required" title="Milo’s Exchange is for users aged 16 and above.">
+      <CenterPanel eyebrow="Age Check Required" title="Milo’s Exchange is for users aged 13 and above.">
         <p>
           Verify your age before entering. This is a fictional market using
           earned Dreamscape Tokens only.

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
 
@@ -695,10 +695,20 @@ export default function LearningMissionsPage() {
   }
 
 
-  const activeWalkthroughZoneId =
-    WALKTHROUGH_STEPS[walkthroughStep]?.zoneId ?? null;
+  const walkthroughStartScrollY = useRef(0);
+
+  const activeWalkthroughZoneId = walkthroughOpen
+    ? WALKTHROUGH_STEPS[walkthroughStep]?.zoneId ?? null
+    : null;
+
+  const activeWalkthroughZone = activeWalkthroughZoneId
+    ? missionZones.find((zone) => zone.id === activeWalkthroughZoneId) ?? null
+    : null;
+
+  const displayedDesktopZone = activeWalkthroughZone ?? hoveredZone;
 
   function startWalkthrough() {
+    walkthroughStartScrollY.current = window.scrollY;
     setLockedZoneMessage("");
     setHoveredZone(null);
     setWalkthroughStep(0);
@@ -713,6 +723,17 @@ export default function LearningMissionsPage() {
     }
 
     setWalkthroughOpen(false);
+    setWalkthroughStep(0);
+    setHoveredZone(null);
+
+    if (!isDesktop) {
+      window.requestAnimationFrame(() => {
+        window.scrollTo({
+          top: walkthroughStartScrollY.current,
+          behavior: "smooth",
+        });
+      });
+    }
   }
 
   return (
@@ -864,16 +885,23 @@ export default function LearningMissionsPage() {
               isLocked={isZoneLocked(zone)}
               isWalkthroughActive={Boolean(activeWalkthroughZoneId)}
               isHighlighted={activeWalkthroughZoneId === zone.id}
-              onEnter={() => setHoveredZone(zone)}
-              onLeave={() => setHoveredZone(null)}
+              onEnter={() => {
+                if (!walkthroughOpen) setHoveredZone(zone);
+              }}
+              onLeave={() => {
+                if (!walkthroughOpen) setHoveredZone(null);
+              }}
               onClick={getZoneClick(zone)}
             />
           ))}
 
-          {hoveredZone && (
+          {displayedDesktopZone && (
             <ZoneHoverPopup
-              zone={hoveredZone}
-              isLocked={isZoneLocked(hoveredZone)}
+              zone={displayedDesktopZone}
+              isLocked={isZoneLocked(displayedDesktopZone)}
+              isHighlighted={
+                activeWalkthroughZoneId === displayedDesktopZone.id
+              }
             />
           )}
 
@@ -997,63 +1025,65 @@ export default function LearningMissionsPage() {
       )}
 
 
-      <div
-        style={{
-          position: "fixed",
-          right: isMobile ? "8px" : "18px",
-          bottom: isMobile ? "8px" : "16px",
-          zIndex: 70,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: isMobile ? "4px" : "8px",
-          pointerEvents: "none",
-        }}
-      >
-        <img
-          src="/nova/nova-character.png"
-          alt="Nova"
+      {!walkthroughOpen && (
+        <div
           style={{
-            height: isDesktop ? "235px" : isMobile ? "145px" : "195px",
-            width: "auto",
-            transform: isMobile ? "translateX(18px)" : "none",
-            pointerEvents: "none",
-            filter: "drop-shadow(0 24px 34px rgba(0,0,0,0.55))",
-          }}
-        />
-
-        <button
-          type="button"
-          onClick={startWalkthrough}
-          style={{
-            minHeight: isMobile ? "40px" : "46px",
-            padding: isMobile ? "0 14px" : "0 19px",
-            borderRadius: "999px",
-            border: "1px solid rgba(83,215,255,0.62)",
-            background: "rgba(20,84,118,0.82)",
-            backdropFilter: "blur(16px)",
-            WebkitBackdropFilter: "blur(16px)",
-            color: "white",
+            position: "fixed",
+            right: isMobile ? "8px" : "18px",
+            bottom: isMobile ? "8px" : "16px",
+            zIndex: 70,
             display: "flex",
+            flexDirection: "column",
             alignItems: "center",
-            justifyContent: "center",
-            gap: "8px",
-            fontSize: isMobile ? "11px" : "13px",
-            fontWeight: 850,
-            letterSpacing: "0.1em",
-            textTransform: "uppercase",
-            boxShadow:
-              "0 16px 36px rgba(0,0,0,0.32), 0 0 22px rgba(83,215,255,0.18)",
-            whiteSpace: "nowrap",
-            cursor: "pointer",
-            fontFamily: "inherit",
-            pointerEvents: "auto",
+            gap: isMobile ? "4px" : "8px",
+            pointerEvents: "none",
           }}
         >
-          <span aria-hidden="true">✦</span>
-          {isMobile ? "Guide" : "Nova Guide"}
-        </button>
-      </div>
+          <img
+            src="/nova/nova-character.png"
+            alt="Nova"
+            style={{
+              height: isDesktop ? "235px" : isMobile ? "145px" : "195px",
+              width: "auto",
+              transform: isMobile ? "translateX(18px)" : "none",
+              pointerEvents: "none",
+              filter: "drop-shadow(0 24px 34px rgba(0,0,0,0.55))",
+            }}
+          />
+
+          <button
+            type="button"
+            onClick={startWalkthrough}
+            style={{
+              minHeight: isMobile ? "40px" : "46px",
+              padding: isMobile ? "0 14px" : "0 19px",
+              borderRadius: "999px",
+              border: "1px solid rgba(83,215,255,0.62)",
+              background: "rgba(20,84,118,0.82)",
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
+              color: "white",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+              fontSize: isMobile ? "11px" : "13px",
+              fontWeight: 850,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              boxShadow:
+                "0 16px 36px rgba(0,0,0,0.32), 0 0 22px rgba(83,215,255,0.18)",
+              whiteSpace: "nowrap",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              pointerEvents: "auto",
+            }}
+          >
+            <span aria-hidden="true">✦</span>
+            {isMobile ? "Guide" : "Nova Guide"}
+          </button>
+        </div>
+      )}
 
       <MissionGuidedWalkthrough
         open={walkthroughOpen}
@@ -2127,19 +2157,15 @@ function MissionHotspot({
         position: "absolute",
         zIndex: isHighlighted ? 92 : 25,
         ...zone.position,
-        border: isHighlighted
-          ? `2px solid ${zone.accent}`
-          : "1px solid transparent",
-        background: isHighlighted ? `${zone.accent}22` : "transparent",
-        boxShadow: isHighlighted
-          ? `0 0 0 8px ${zone.accent}18, 0 0 40px ${zone.accent}88`
-          : "none",
+        border: "1px solid transparent",
+        background: "transparent",
+        boxShadow: "none",
         borderRadius: "28px",
         cursor: onClick ? "pointer" : "default",
         outline: "none",
-        opacity: isWalkthroughActive && !isHighlighted ? 0.12 : 1,
-        pointerEvents: isWalkthroughActive && !isHighlighted ? "none" : "auto",
-        transition: "opacity 220ms ease, border 220ms ease, background 220ms ease, box-shadow 220ms ease",
+        opacity: 1,
+        pointerEvents:
+          isWalkthroughActive && !isHighlighted ? "none" : "auto",
       }}
       aria-label={isLocked ? `${zone.title} locked` : zone.title}
     />
@@ -2262,30 +2288,50 @@ function MissionCard({
 function ZoneHoverPopup({
   zone,
   isLocked,
+  isHighlighted = false,
 }: {
   zone: MissionZone;
   isLocked: boolean;
+  isHighlighted?: boolean;
 }) {
   const popupPosition = getPopupPosition(zone.id);
+  const popupTransform =
+    typeof popupPosition.transform === "string"
+      ? popupPosition.transform
+      : "";
+  const popupPositionWithoutTransform = {
+    ...popupPosition,
+    transform: undefined,
+  };
 
   return (
     <div
       style={{
         position: "absolute",
         zIndex: 60,
-        ...popupPosition,
+        ...popupPositionWithoutTransform,
         width: "330px",
         borderRadius: "20px",
-        border: `1px solid ${isLocked ? "#ffd76a" : zone.accent}aa`,
+        border: `${isHighlighted ? 2 : 1}px solid ${
+          isLocked ? "#ffd76a" : zone.accent
+        }${isHighlighted ? "" : "aa"}`,
         background:
-          "linear-gradient(145deg, rgba(8,35,70,0.88), rgba(3,13,34,0.92))",
+          "linear-gradient(145deg, rgba(8,35,70,0.94), rgba(3,13,34,0.96))",
         backdropFilter: "blur(18px)",
-        boxShadow: `0 0 28px ${
-          isLocked ? "#ffd76a55" : `${zone.accent}55`
-        }, 0 24px 60px rgba(0,0,0,0.45)`,
+        WebkitBackdropFilter: "blur(18px)",
+        boxShadow: isHighlighted
+          ? `0 0 0 8px ${zone.accent}18, 0 0 46px ${zone.accent}aa, 0 24px 60px rgba(0,0,0,0.52)`
+          : `0 0 28px ${
+              isLocked ? "#ffd76a55" : `${zone.accent}55`
+            }, 0 24px 60px rgba(0,0,0,0.45)`,
         padding: "22px 24px",
         pointerEvents: "none",
         color: "white",
+        transform: `${popupTransform}${
+          isHighlighted ? " scale(1.035)" : ""
+        }`.trim() || undefined,
+        transition:
+          "border-color 220ms ease, box-shadow 220ms ease, transform 220ms ease",
       }}
     >
       <p
@@ -2411,6 +2457,7 @@ function MissionGuidedWalkthrough({
   onClose: () => void;
 }) {
   const screenMode = useResponsiveMode();
+  const isDesktop = screenMode === "desktop";
   const isMobile = screenMode === "mobile";
   const step = WALKTHROUGH_STEPS[stepIndex] ?? WALKTHROUGH_STEPS[0];
   const isFirstStep = stepIndex === 0;
@@ -2470,13 +2517,19 @@ function MissionGuidedWalkthrough({
         aria-label="Learning Missions guided walkthrough"
         style={{
           position: "fixed",
-          left: isMobile ? "12px" : "36px",
-          right: isMobile ? "12px" : "auto",
-          bottom: isMobile ? "12px" : "26px",
+          top: isDesktop ? "auto" : isMobile ? "8px" : "18px",
+          right: isDesktop ? "24px" : "auto",
+          bottom: isDesktop ? "24px" : "auto",
+          left: isDesktop ? "auto" : "50%",
+          transform: isDesktop ? "none" : "translateX(-50%)",
           zIndex: 100,
-          width: isMobile ? "auto" : "min(520px, calc(100vw - 72px))",
-          maxHeight: isMobile ? "62dvh" : "none",
-          overflowY: isMobile ? "auto" : "visible",
+          width: isDesktop
+            ? "min(560px, calc(100vw - 48px))"
+            : isMobile
+              ? "calc(100vw - 16px)"
+              : "min(720px, calc(100vw - 36px))",
+          maxHeight: isDesktop ? "none" : isMobile ? "58dvh" : "min(430px, 52dvh)",
+          overflowY: isDesktop ? "visible" : "auto",
           borderRadius: isMobile ? "20px" : "26px",
           border: "1px solid rgba(142,232,255,0.42)",
           background:
@@ -2484,7 +2537,7 @@ function MissionGuidedWalkthrough({
           boxShadow:
             "0 32px 90px rgba(0,0,0,0.68), 0 0 40px rgba(83,215,255,0.14)",
           color: "white",
-          padding: isMobile ? "20px" : "26px 28px 24px 190px",
+          padding: isMobile ? "18px" : "26px 28px 24px 190px",
         }}
       >
         <button
@@ -2515,7 +2568,7 @@ function MissionGuidedWalkthrough({
           style={{
             position: isMobile ? "relative" : "absolute",
             left: isMobile ? "auto" : "4px",
-            bottom: isMobile ? "auto" : "-8px",
+            bottom: isMobile ? "auto" : isDesktop ? "-8px" : "0px",
             height: isMobile ? "108px" : "245px",
             width: "auto",
             objectFit: "contain",
