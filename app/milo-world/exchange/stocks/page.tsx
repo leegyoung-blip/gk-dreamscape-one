@@ -195,12 +195,34 @@ function ResponsiveScrollStyles() {
       }
 
       .milo-market-strip {
-        scroll-snap-type: x proximity;
-        overscroll-behavior-inline: contain;
+        width: 100%;
+        min-width: 0;
       }
 
       .milo-market-card {
-        scroll-snap-align: start;
+        width: 100%;
+        min-width: 0;
+      }
+
+      .milo-responsive-chart {
+        width: 100%;
+        min-width: 0;
+        overflow: hidden;
+      }
+
+      .milo-responsive-chart svg {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+      }
+
+      .milo-content-column,
+      .milo-content-column > *,
+      .milo-market-layout,
+      .milo-market-layout > * {
+        min-width: 0;
+        max-width: 100%;
       }
 
       @media (max-width: 820px) {
@@ -210,6 +232,12 @@ function ResponsiveScrollStyles() {
 
         .milo-mobile-nav > * {
           min-width: 0;
+        }
+      }
+
+      @media (max-width: 620px) {
+        .milo-market-strip {
+          grid-template-columns: 1fr !important;
         }
       }
 
@@ -249,8 +277,8 @@ function PriceHistoryChart({
     );
   }
 
-  const width = isMobile ? 680 : 900;
-  const height = isMobile ? 270 : 340;
+  const width = 1000;
+  const height = isMobile ? 430 : 390;
   const paddingLeft = 52;
   const paddingRight = 24;
   const paddingTop = 24;
@@ -296,9 +324,11 @@ function PriceHistoryChart({
 
   return (
     <div
+      className="milo-responsive-chart"
       style={{
         width: "100%",
-        overflowX: "auto",
+        minWidth: 0,
+        overflow: "hidden",
         borderRadius: "22px",
         border: "1px solid rgba(132,218,255,0.18)",
         background:
@@ -309,10 +339,17 @@ function PriceHistoryChart({
       <svg
         viewBox={`0 0 ${width} ${height}`}
         width="100%"
-        height={height}
         role="img"
         aria-label="Five-year fictional stock price history"
-        style={{ display: "block", width: "100%", minWidth: 0, height: "auto" }}
+        preserveAspectRatio="xMidYMid meet"
+        style={{
+          display: "block",
+          width: "100%",
+          maxWidth: "100%",
+          minWidth: 0,
+          height: "auto",
+          aspectRatio: `${width} / ${height}`,
+        }}
       >
         <defs>
           <linearGradient id="miloChartGlow" x1="0" x2="0" y1="0" y2="1">
@@ -1772,7 +1809,7 @@ export default function MiloStockExchangePage() {
             </nav>
           </aside>
 
-          <div style={{ minWidth: 0 }}>
+          <div className="milo-content-column" style={{ minWidth: 0, width: "100%", maxWidth: "100%" }}>
             {activeSection === "portfolio" && (
               <div style={{ display: "grid", gap: "18px" }}>
                 <section
@@ -2074,15 +2111,18 @@ export default function MiloStockExchangePage() {
             )}
 
             {activeSection === "market" && (
-              <div style={{ display: "grid", gap: "18px" }}>
-                <section style={{ ...glassPanel, padding: isMobile ? "18px" : "22px" }}>
+              <div className="milo-market-layout" style={{ display: "grid", gap: "18px", minWidth: 0, width: "100%" }}>
+                <section style={{ ...glassPanel, padding: isMobile ? "14px" : "22px", minWidth: 0, width: "100%", overflow: "hidden" }}>
                   <div
-                    className="milo-market-strip milo-scrollbar"
+                    className="milo-market-strip"
                     style={{
-                      display: "flex",
+                      display: "grid",
+                      gridTemplateColumns: isMobile
+                        ? "repeat(2, minmax(0, 1fr))"
+                        : "repeat(auto-fit, minmax(190px, 1fr))",
                       gap: "10px",
-                      overflowX: "auto",
-                      paddingBottom: "7px",
+                      width: "100%",
+                      minWidth: 0,
                     }}
                   >
                     {stocks.map((stock) => {
@@ -2095,8 +2135,9 @@ export default function MiloStockExchangePage() {
                           type="button"
                           onClick={() => setSelectedSymbol(stock.symbol)}
                           style={{
-                            flex: `0 0 ${isMobile ? "220px" : "240px"}`,
-                            minHeight: "112px",
+                            width: "100%",
+                            minWidth: 0,
+                            minHeight: isMobile ? "104px" : "112px",
                             padding: "15px",
                             borderRadius: "18px",
                             border: active
@@ -2135,6 +2176,8 @@ export default function MiloStockExchangePage() {
                               marginTop: "8px",
                               color: "rgba(255,255,255,0.64)",
                               fontSize: "13px",
+                              lineHeight: 1.35,
+                              overflowWrap: "anywhere",
                             }}
                           >
                             {stock.name}
@@ -2164,8 +2207,11 @@ export default function MiloStockExchangePage() {
                     <section
                       style={{
                         ...glassPanel,
-                        padding: isMobile ? "20px" : "26px",
+                        padding: isMobile ? "16px" : "26px",
                         minWidth: 0,
+                        width: "100%",
+                        maxWidth: "100%",
+                        overflow: "hidden",
                       }}
                     >
                       <div
@@ -2195,7 +2241,7 @@ export default function MiloStockExchangePage() {
                             style={{
                               margin: "8px 0 0",
                               fontFamily: 'Georgia, "Times New Roman", serif',
-                              fontSize: isMobile ? "31px" : "40px",
+                              fontSize: "clamp(28px, 4vw, 40px)",
                               fontWeight: 500,
                             }}
                           >
