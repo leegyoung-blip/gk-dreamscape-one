@@ -14,7 +14,8 @@ export default async function CoreQuizRoute({ params }: PageProps) {
   const levelMatch = /^p([1-6])$/.exec(resolved.level);
 
   if (
-    (resolved.subject !== "english" && resolved.subject !== "math") ||
+    (resolved.subject !== "english" &&
+      resolved.subject !== "math") ||
     !levelMatch ||
     !resolved.quizId
   ) {
