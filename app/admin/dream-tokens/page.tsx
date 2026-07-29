@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import RoleManagementPanel from "@/components/admin/RoleManagementPanel";
 
 type AdminUser = {
   id: string;
@@ -16,7 +17,7 @@ type AdminUser = {
 };
 
 
-type AdminSection = "currency" | "teachers";
+type AdminSection = "currency" | "teachers" | "roles";
 
 type DirectoryUser = {
   user_id: string;
@@ -539,6 +540,18 @@ export default function DreamTokensAdminPage() {
           >
             Teacher Licensing & Rosters
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSection("roles")}
+            className={`min-h-14 flex-1 rounded-2xl border px-5 text-sm font-extrabold uppercase tracking-[0.12em] transition ${
+              activeSection === "roles"
+                ? "border-violet-200/40 bg-violet-300/12 text-violet-100 shadow-[0_0_28px_rgba(167,139,250,0.1)]"
+                : "border-white/10 bg-white/[0.035] text-white/58 hover:border-white/20 hover:text-white"
+            }`}
+          >
+            User Roles
+          </button>
         </section>
 
         {activeSection === "currency" ? (
@@ -907,8 +920,10 @@ export default function DreamTokensAdminPage() {
           </div>
         </div>
           </>
-        ) : (
+        ) : activeSection === "teachers" ? (
           <TeacherLicensingPanel />
+        ) : (
+          <RoleManagementPanel />
         )}
       </div>
 
@@ -1000,6 +1015,12 @@ function normaliseRole(value: unknown) {
     .toLowerCase()
     .replace(/\s+/g, "-")
     .replace(/_/g, "-");
+}
+
+function isTeachingRole(value: string | null | undefined) {
+  const role = normaliseRole(value);
+
+  return role === "teacher" || role === "curriculum-lead";
 }
 
 function TeacherLicensingPanel() {
@@ -1312,7 +1333,7 @@ function TeacherLicensingPanel() {
   }
 
   const teachers = useMemo(
-    () => directory.filter((user) => user.user_role === "teacher"),
+    () => directory.filter((user) => isTeachingRole(user.user_role)),
     [directory]
   );
 

@@ -167,6 +167,8 @@ type MissionZone = {
   position: CSSProperties;
   accent: string;
   requiresRoleAccess?: boolean;
+  staffOnly?: boolean;
+  alwaysLocked?: boolean;
   comingSoon?: boolean;
 };
 
@@ -184,8 +186,34 @@ function roleHasFullLearningAccess(role: string | null) {
   return (
     cleanRole === "admin" ||
     cleanRole === "student" ||
-    cleanRole === "teacher"
+    cleanRole === "teacher" ||
+    cleanRole === "curriculum-lead"
   );
+}
+
+function roleHasScienceStaffAccess(role: string | null) {
+  const cleanRole = normaliseRole(role);
+  return (
+    cleanRole === "admin" ||
+    cleanRole === "teacher" ||
+    cleanRole === "curriculum-lead"
+  );
+}
+
+function getZoneLockNotice(zone: MissionZone) {
+  if (zone.alwaysLocked) {
+    return "This mission zone is currently locked.";
+  }
+
+  if (zone.comingSoon) {
+    return "This mission zone is locked and will be released in a future update.";
+  }
+
+  if (zone.staffOnly) {
+    return "This zone is only available to teacher, curriculum lead, or admin accounts.";
+  }
+
+  return "This zone is only available to student, teacher, curriculum lead, or admin accounts.";
 }
 
 function getZoneHref(zoneId: string) {
@@ -228,12 +256,13 @@ const missionZones: MissionZone[] = [
     },
   },
   {
-    id: "think-missions",
-    title: "Think Missions",
+    id: "science-missions",
+    title: "Science Missions",
     description:
-      "Train reasoning, logic, pattern spotting and HAP-style thinking while earning eligible Dream Gem rewards.",
-    accent: "#60f0d0",
+      "Explore Primary 1 to Primary 6 Science through concept, practice, investigation and mastery missions.",
+    accent: "#ff9df0",
     requiresRoleAccess: true,
+    staffOnly: true,
     position: {
       right: "1%",
       top: "5%",
@@ -242,12 +271,13 @@ const missionZones: MissionZone[] = [
     },
   },
   {
-    id: "science-missions",
-    title: "Science Missions",
-    description: "LOCKED — Coming soon.",
-    accent: "#ff9df0",
+    id: "think-missions",
+    title: "Think Missions",
+    description:
+      "Train reasoning, logic, pattern spotting and HAP-style thinking while earning eligible Dream Gem rewards.",
+    accent: "#60f0d0",
     requiresRoleAccess: true,
-    comingSoon: true,
+    alwaysLocked: true,
     position: {
       right: "1%",
       top: "50%",
@@ -302,17 +332,17 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   },
   {
     eyebrow: "Stop 3 of 5",
-    title: "Train your reasoning in Think Missions.",
+    title: "Explore the new Science Missions.",
     text:
-      "Practise logic, patterns, strategy, and HAP-style thinking while unlocking gear and earning eligible Dream Gem rewards.",
-    zoneId: "think-missions",
+      "Open the Primary 1 to Primary 6 Science curriculum, choose a topic, and enter concept, practice, investigation, or mastery missions. This zone is currently available to teacher, curriculum lead and admin accounts.",
+    zoneId: "science-missions",
   },
   {
     eyebrow: "Stop 4 of 5",
-    title: "Express Missions are being prepared.",
+    title: "Think Missions are currently locked.",
     text:
-      "This creative learning zone is currently locked and coming soon. It will appear here when it is ready.",
-    zoneId: "science-missions",
+      "The reasoning, logic, pattern, and HAP-style mission zone is currently unavailable and will remain here for a future update.",
+    zoneId: "think-missions",
   },
   {
     eyebrow: "Stop 5 of 5",
@@ -651,8 +681,11 @@ export default function LearningMissionsPage() {
   }, [screenMode, walkthroughOpen, walkthroughStep]);
 
   function isZoneUnlocked(zone: MissionZone) {
-    if (zone.comingSoon) return false;
+    if (zone.alwaysLocked || zone.comingSoon) return false;
     if (!zone.requiresRoleAccess) return true;
+    if (zone.staffOnly) {
+      return roleHasScienceStaffAccess(userMissionAccess.role);
+    }
 
     return userMissionAccess.hasFullAccess;
   }
@@ -662,15 +695,23 @@ export default function LearningMissionsPage() {
   }
 
   function getLockedMessage(zone: MissionZone) {
+    if (zone.alwaysLocked) {
+      return `${zone.title} is currently locked.`;
+    }
+
     if (zone.comingSoon) {
-      return `${zone.title} is LOCKED and coming soon.`;
+      return `${zone.title} is locked and coming soon.`;
     }
 
     if (!userMissionAccess.userId) {
       return "Please log in to access this mission zone.";
     }
 
-    return `${zone.title} is only available to student, teacher, or admin accounts.`;
+    if (zone.staffOnly) {
+      return `${zone.title} is only available to teacher, curriculum lead, or admin accounts.`;
+    }
+
+    return `${zone.title} is only available to student, teacher, curriculum lead, or admin accounts.`;
   }
 
   function getZoneClick(zone: MissionZone) {
@@ -2383,9 +2424,7 @@ function ZoneHoverPopup({
             fontWeight: 700,
           }}
         >
-          {zone.comingSoon
-            ? "This mission zone is LOCKED and will be released in a future update."
-            : "This zone is only available to student, teacher, or admin accounts."}
+          {getZoneLockNotice(zone)}
         </p>
       )}
 
@@ -2418,13 +2457,13 @@ function getPopupPosition(zoneId: string): CSSProperties {
         transform: "translateX(-50%)",
       };
 
-    case "think-missions":
+    case "science-missions":
       return {
         right: "3%",
         top: "13%",
       };
 
-    case "science-missions":
+    case "think-missions":
       return {
         right: "3%",
         bottom: "9%",

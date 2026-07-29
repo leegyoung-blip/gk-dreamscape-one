@@ -147,6 +147,20 @@ function hasActiveSubscription(subscriptions: NovaSubscription[]) {
   });
 }
 
+function normaliseRole(value: string | null | undefined) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/_/g, "-");
+}
+
+function hasTeachingDashboardRole(value: string | null | undefined) {
+  const cleanRole = normaliseRole(value);
+
+  return cleanRole === "teacher" || cleanRole === "curriculum-lead";
+}
+
 export default function ProfilePage() {
   const router = useRouter();
 
@@ -195,9 +209,12 @@ export default function ProfilePage() {
   const totalNetWorth =
     dreamTokenBalance + stockPortfolioValue + propertyPortfolioValue;
 
-  const normalizedRole = role?.trim().toLowerCase() || "regular";
+  const normalizedRole = normaliseRole(role) || "regular";
+  const hasTeachingDashboardAccess = hasTeachingDashboardRole(normalizedRole);
   const accountAccessLabel = isAdmin
     ? "Admin"
+    : normalizedRole === "curriculum-lead"
+    ? "Curriculum Lead"
     : normalizedRole === "teacher"
     ? "Teacher Access"
     : hasStudentRewardsAccess
@@ -276,10 +293,13 @@ export default function ProfilePage() {
       }
 
       const loadedUsername = profile?.username ?? null;
-      const loadedRole = profile?.role?.trim().toLowerCase() || "regular";
-      const roleHasRewardsAccess = ["student", "teacher", "admin"].includes(
-        loadedRole
-      );
+      const loadedRole = normaliseRole(profile?.role) || "regular";
+      const roleHasRewardsAccess = [
+        "student",
+        "teacher",
+        "curriculum-lead",
+        "admin",
+      ].includes(loadedRole);
 
       setRole(loadedRole);
       setIsAdmin(loadedRole === "admin");
@@ -628,6 +648,18 @@ Thank you.`;
       </button>
 
       <div className="fixed right-5 top-5 z-50 flex items-center gap-3 sm:right-8 sm:top-8">
+        {hasTeachingDashboardAccess && (
+          <button
+            type="button"
+            onClick={() =>
+              router.push("/learning-missions/progress-rewards")
+            }
+            className="hidden h-[46px] items-center justify-center rounded-full border border-cyan-200/28 bg-cyan-400/18 px-5 text-xs font-extrabold uppercase tracking-[0.12em] text-white shadow-[0_12px_28px_rgba(34,211,238,0.18)] backdrop-blur-xl transition hover:scale-[1.03] sm:flex"
+          >
+            Teaching Dashboard
+          </button>
+        )}
+
         {isAdmin && (
           <button
             type="button"
@@ -804,11 +836,23 @@ Thank you.`;
               </div>
             </div>
 
+            {hasTeachingDashboardAccess && (
+              <button
+                type="button"
+                onClick={() =>
+                  router.push("/learning-missions/progress-rewards")
+                }
+                className="mt-6 w-full rounded-2xl border border-cyan-200/25 bg-cyan-400/16 px-5 py-4 text-sm font-extrabold uppercase tracking-[0.14em] text-white transition hover:scale-[1.01] hover:bg-cyan-400/24 sm:hidden"
+              >
+                Teaching Dashboard
+              </button>
+            )}
+
             {isAdmin && (
               <button
                 type="button"
                 onClick={() => router.push("/admin/dream-tokens")}
-                className="mt-6 w-full rounded-2xl border border-violet-200/25 bg-violet-500/24 px-5 py-4 text-sm font-extrabold uppercase tracking-[0.14em] text-white transition hover:scale-[1.01] hover:bg-violet-500/34 sm:hidden"
+                className={`${hasTeachingDashboardAccess ? "mt-3" : "mt-6"} w-full rounded-2xl border border-violet-200/25 bg-violet-500/24 px-5 py-4 text-sm font-extrabold uppercase tracking-[0.14em] text-white transition hover:scale-[1.01] hover:bg-violet-500/34 sm:hidden`}
               >
                 Admin Panel
               </button>

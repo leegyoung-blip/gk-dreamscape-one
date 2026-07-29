@@ -248,6 +248,20 @@ function answerDisplay(label: string | null, text: string | null) {
   return text || label || "No answer";
 }
 
+function normaliseRole(value: string | null | undefined) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/_/g, "-");
+}
+
+function hasTeacherDashboardRole(value: string | null | undefined) {
+  const cleanRole = normaliseRole(value);
+
+  return cleanRole === "teacher" || cleanRole === "curriculum-lead";
+}
+
 export default function TeachingDashboardPage() {
   const screenMode = useResponsiveMode();
   const isMobile = screenMode === "mobile";
@@ -256,6 +270,7 @@ export default function TeachingDashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadMessage, setLoadMessage] = useState("");
   const [viewerId, setViewerId] = useState<string | null>(null);
+  const [viewerRole, setViewerRole] = useState<string>("regular");
   const [students, setStudents] = useState<DashboardStudent[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [attempts, setAttempts] = useState<DashboardAttempt[]>([]);
@@ -285,6 +300,7 @@ export default function TeachingDashboardPage() {
 
       if (!user) {
         setViewerId(null);
+        setViewerRole("regular");
         setSelectedStudentId(null);
         setStudents([]);
         setAttempts([]);
@@ -294,6 +310,24 @@ export default function TeachingDashboardPage() {
       }
 
       setViewerId(user.id);
+
+      const { data: viewerProfile, error: viewerProfileError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      if (viewerProfileError) {
+        console.info(
+          "Could not load the Teaching Dashboard role label:",
+          viewerProfileError.message,
+        );
+      }
+
+      const loadedViewerRole = normaliseRole(viewerProfile?.role) || "regular";
+      setViewerRole(loadedViewerRole);
 
       const accessibleStudents: DashboardStudent[] = [
         { id: user.id, label: "My learning", relationship: "self" },
@@ -629,6 +663,13 @@ export default function TeachingDashboardPage() {
     : detailAnswers;
 
   const selectedStudent = students.find((student) => student.id === selectedStudentId);
+  const isTeachingViewer = hasTeacherDashboardRole(viewerRole);
+  const dashboardAudienceLabel =
+    viewerRole === "curriculum-lead"
+      ? "Curriculum Lead"
+      : viewerRole === "teacher"
+        ? "Teacher Dashboard"
+        : "Parents & Teachers";
 
   return (
     <main className="dashboard-page">
@@ -650,6 +691,9 @@ export default function TeachingDashboardPage() {
                 {students.map((student) => (
                   <option key={student.id} value={student.id}>
                     {student.label}
+                    {student.relationship !== "self"
+                      ? ` · ${student.relationship}`
+                      : ""}
                   </option>
                 ))}
               </select>
@@ -666,10 +710,12 @@ export default function TeachingDashboardPage() {
       <section className="dashboard-shell">
         <header className="hero">
           <div>
-            <p className="eyebrow">Parents & Teachers</p>
+            <p className="eyebrow">{dashboardAudienceLabel}</p>
             <h1>Teaching Dashboard</h1>
             <p className="hero-copy">
-              Review weekly quiz activity, subject performance, and every recorded answer.
+              {isTeachingViewer
+                ? "Review assigned student activity, subject performance, and every recorded answer."
+                : "Review weekly quiz activity, subject performance, and every recorded answer."}
             </p>
           </div>
 
