@@ -23,7 +23,6 @@ export default async function CoreLevelRoute({ params }: PageProps) {
   return (
     <CoreLevelClient
       subject={subject as CoreSubject}
-      level={Number(levelMatch[1]) as PrimaryLevel}
-    />
+      level={Number(levelMatch[1]) as PrimaryLevel} quizId={""}    />
   );
 }
