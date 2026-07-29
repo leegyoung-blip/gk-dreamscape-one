@@ -192,7 +192,7 @@ function getZoneHref(zoneId: string) {
   if (zoneId === "knowledge-arena") return "/learning-missions/knowledge-arena";
   if (zoneId === "core-missions") return "/learning-missions/core";
   if (zoneId === "think-missions") return "/learning-missions/think";
-  if (zoneId === "express-missions") return "/learning-missions/express";
+  if (zoneId === "science-missions") return "/learning-missions/science";
   if (zoneId === "progress-rewards") return "/learning-missions/progress-rewards";
 
   return null;
@@ -242,8 +242,8 @@ const missionZones: MissionZone[] = [
     },
   },
   {
-    id: "express-missions",
-    title: "Express Missions",
+    id: "science-missions",
+    title: "Science Missions",
     description: "LOCKED — Coming soon.",
     accent: "#ff9df0",
     requiresRoleAccess: true,
@@ -312,7 +312,7 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
     title: "Express Missions are being prepared.",
     text:
       "This creative learning zone is currently locked and coming soon. It will appear here when it is ready.",
-    zoneId: "express-missions",
+    zoneId: "science-missions",
   },
   {
     eyebrow: "Stop 5 of 5",
@@ -2424,7 +2424,7 @@ function getPopupPosition(zoneId: string): CSSProperties {
         top: "13%",
       };
 
-    case "express-missions":
+    case "science-missions":
       return {
         right: "3%",
         bottom: "9%",

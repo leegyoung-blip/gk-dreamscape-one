@@ -1,117 +1,44 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { useCoreMissionAccess } from "@/hooks/useCoreMissionAccess";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 type CoreSubject = "english" | "math";
-type CoreLevelBand = "foundation" | "growth" | "mastery";
-type CoreAnswer = "A" | "B" | "C" | "D";
-type CoreScreen =
-  | "checking"
-  | "locked"
-  | "subject"
-  | "level"
-  | "quiz-list"
-  | "loading"
-  | "quiz"
-  | "results";
+type PrimaryLevel = 1 | 2 | 3 | 4 | 5 | 6;
+type SelectorScreen = "subject" | "level";
 
-type CoreMissionQuiz = {
-  id: string;
-  subject: CoreSubject;
-  level_band: CoreLevelBand;
-  level_label: string;
-  title: string;
-  description: string;
-  quiz_order: number;
-};
-
-type CoreMissionQuestion = {
-  id: string;
-  quiz_id: string;
-  question_order: number;
-  question_text: string;
-  question_image: string | null;
-  option_a: string;
-  option_b: string;
-  option_c: string;
-  option_d: string;
-  correct_answer: CoreAnswer;
-  explanation: string;
-  skill: string;
-  difficulty: string;
-};
-
-type CompletedCoreAttempt = {
-  quiz_id: string;
-  score: number;
-  correct_count: number;
-  tokens_earned: number;
-  gems_earned: number;
-  created_at?: string;
-};
-
-type CoreAnswerRecord = {
-  question_id: string;
-  answer: CoreAnswer;
-};
-
-type SaveCoreAttemptResult = {
-  attempt_id: string;
-  score: number;
-  correct_count: number;
-  total_questions: number;
-  tokens_earned: number;
-  gems_earned: number;
-  first_completion: boolean;
-  token_balance: number;
-  gem_balance: number;
-};
-
-const coreSubjects = [
+const SUBJECTS = [
   {
     id: "english" as const,
     title: "English",
-    subtitle:
-      "Grammar, vocabulary, comprehension, sentence skills and language use.",
+    subtitle: "Grammar, vocabulary, comprehension, writing, listening and oral skills.",
     icon: "✎",
     accent: "#ff9df0",
   },
   {
     id: "math" as const,
-    title: "Math",
-    subtitle:
-      "Number skills, word problems, geometry, measurement and problem-solving.",
+    title: "Mathematics",
+    subtitle: "Number skills, measurement, geometry, data and problem-solving.",
     icon: "∑",
     accent: "#53d7ff",
   },
 ];
 
-const coreLevelBands = [
-  {
-    id: "foundation" as const,
-    title: "Foundation",
-    label: "P1–P2",
-    subtitle: "Build essential school basics with clear practice.",
-    accent: "#7ee8ff",
-  },
-  {
-    id: "growth" as const,
-    title: "Growth",
-    label: "P3–P4",
-    subtitle: "Strengthen concepts, accuracy and confidence.",
-    accent: "#60f0d0",
-  },
-  {
-    id: "mastery" as const,
-    title: "Mastery",
-    label: "P5–P6",
-    subtitle: "Practise upper-primary and challenging questions.",
-    accent: "#ffd76a",
-  },
+const LEVELS: Array<{
+  id: PrimaryLevel;
+  title: string;
+  subtitle: string;
+  accent: string;
+}> = [
+  { id: 1, title: "Primary 1", subtitle: "Build strong foundations.", accent: "#7ee8ff" },
+  { id: 2, title: "Primary 2", subtitle: "Strengthen essential skills.", accent: "#72e6d2" },
+  { id: 3, title: "Primary 3", subtitle: "Develop accuracy and confidence.", accent: "#60f0a8" },
+  { id: 4, title: "Primary 4", subtitle: "Apply skills across more complex tasks.", accent: "#b6e86b" },
+  { id: 5, title: "Primary 5", subtitle: "Prepare for upper-primary mastery.", accent: "#ffd76a" },
+  { id: 6, title: "Primary 6", subtitle: "Consolidate and prepare for PSLE.", accent: "#ffb36b" },
 ];
 
 function useResponsiveMode() {
@@ -135,947 +62,139 @@ function useResponsiveMode() {
   return mode;
 }
 
-function normaliseRole(role: string | null | undefined) {
-  return String(role || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/_/g, "-");
-}
-
-function roleHasFullCoreAccess(role: string | null | undefined) {
-  const cleanRole = normaliseRole(role);
-  return (
-    cleanRole === "admin" || cleanRole === "student" || cleanRole === "teacher"
-  );
-}
-
 export default function CoreMissionsPage() {
   const router = useRouter();
   const screenMode = useResponsiveMode();
   const isMobile = screenMode === "mobile";
   const isCompact = screenMode !== "desktop";
+  const { status, tokenBalance, dreamGemBalance } = useCoreMissionAccess();
 
-  const [screen, setScreen] = useState<CoreScreen>("checking");
-  const [userId, setUserId] = useState<string | null>(null);
-  const [tokenBalance, setTokenBalance] = useState(0);
-  const [dreamGemBalance, setDreamGemBalance] = useState(0);
-
-  const [selectedSubject, setSelectedSubject] = useState<CoreSubject | null>(
-    null,
-  );
-  const [selectedLevelBand, setSelectedLevelBand] =
-    useState<CoreLevelBand | null>(null);
-  const [selectedQuiz, setSelectedQuiz] = useState<CoreMissionQuiz | null>(
-    null,
-  );
-
-  const [quizzes, setQuizzes] = useState<CoreMissionQuiz[]>([]);
-  const [questions, setQuestions] = useState<CoreMissionQuestion[]>([]);
-  const [questionIndex, setQuestionIndex] = useState(0);
-  const [quizPage, setQuizPage] = useState(0);
-
-  const [selectedAnswer, setSelectedAnswer] = useState<CoreAnswer | null>(null);
-  const [answerLocked, setAnswerLocked] = useState(false);
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const [answerRecords, setAnswerRecords] = useState<CoreAnswerRecord[]>([]);
-
-  const [score, setScore] = useState(0);
-  const [correctCount, setCorrectCount] = useState(0);
-  const [tokensEarned, setTokensEarned] = useState(0);
-  const [gemsEarned, setGemsEarned] = useState(0);
-  const [firstCompletion, setFirstCompletion] = useState(false);
-  const [rewardSaved, setRewardSaved] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [isFinishing, setIsFinishing] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [completedAttempts, setCompletedAttempts] = useState<
-    CompletedCoreAttempt[]
-  >([]);
-
-  const currentQuestion = questions[questionIndex];
-
-  const completedQuizIds = useMemo(
-    () => new Set(completedAttempts.map((attempt) => attempt.quiz_id)),
-    [completedAttempts],
-  );
-
-  const quizzesPerPage = isMobile ? 3 : isCompact ? 4 : 6;
-  const pageCount = Math.max(1, Math.ceil(quizzes.length / quizzesPerPage));
-  const visibleQuizzes = quizzes.slice(
-    quizPage * quizzesPerPage,
-    quizPage * quizzesPerPage + quizzesPerPage,
-  );
-
-  const selectedSubjectInfo = coreSubjects.find(
-    (subject) => subject.id === selectedSubject,
-  );
-  const selectedLevelInfo = coreLevelBands.find(
-    (level) => level.id === selectedLevelBand,
-  );
-
-  useEffect(() => {
-    void initialise();
-  }, []);
-
-  useEffect(() => {
-    function handleRewardUpdate() {
-      void loadBalances();
-    }
-
-    window.addEventListener("dream-tokens-updated", handleRewardUpdate);
-    window.addEventListener("dream-gems-updated", handleRewardUpdate);
-    window.addEventListener("focus", handleRewardUpdate);
-
-    return () => {
-      window.removeEventListener("dream-tokens-updated", handleRewardUpdate);
-      window.removeEventListener("dream-gems-updated", handleRewardUpdate);
-      window.removeEventListener("focus", handleRewardUpdate);
-    };
-  }, []);
-
-  async function initialise() {
-    setScreen("checking");
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setScreen("locked");
-      return;
-    }
-
-    setUserId(user.id);
-    await loadBalances(user.id);
-
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role, tier")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (profileError || !profile) {
-      console.warn("Could not check Core Missions profile:", profileError);
-      setScreen("locked");
-      return;
-    }
-
-    const role = profile.role || profile.tier || null;
-
-    if (!roleHasFullCoreAccess(role)) {
-      const { data: accessRow, error: accessError } = await supabase
-        .from("learning_mission_zone_access")
-        .select("is_unlocked")
-        .eq("user_id", user.id)
-        .eq("zone_key", "core")
-        .maybeSingle();
-
-      if (accessError || !accessRow?.is_unlocked) {
-        if (accessError) {
-          console.warn("Could not check Core access:", accessError.message);
-        }
-        setScreen("locked");
-        return;
-      }
-    }
-
-    await loadCompletedAttempts(user.id);
-    setScreen("subject");
-  }
-
-  async function loadBalances(activeUserId?: string) {
-    const resolvedUserId =
-      activeUserId ?? (await supabase.auth.getUser()).data.user?.id;
-
-    if (!resolvedUserId) {
-      setTokenBalance(0);
-      setDreamGemBalance(0);
-      return;
-    }
-
-    const [tokenResult, profileResult] = await Promise.all([
-      supabase
-        .from("dream_token_transactions")
-        .select("amount")
-        .eq("user_id", resolvedUserId)
-        .eq("token_kind", "virtual"),
-      supabase
-        .from("profiles")
-        .select("dream_gem_balance")
-        .eq("id", resolvedUserId)
-        .maybeSingle(),
-    ]);
-
-    if (tokenResult.error) {
-      console.warn("Could not load Dreamscape Tokens:", tokenResult.error);
-    } else {
-      setTokenBalance(
-        tokenResult.data?.reduce(
-          (sum, row) => sum + Number(row.amount || 0),
-          0,
-        ) || 0,
-      );
-    }
-
-    if (profileResult.error) {
-      console.warn("Could not load Dream Gems:", profileResult.error);
-    } else {
-      setDreamGemBalance(
-        Math.max(0, Number(profileResult.data?.dream_gem_balance || 0)),
-      );
-    }
-  }
-
-  async function loadCompletedAttempts(activeUserId: string) {
-    const { data, error } = await supabase
-      .from("core_mission_attempts")
-      .select(
-        "quiz_id, score, correct_count, tokens_earned, gems_earned, created_at",
-      )
-      .eq("user_id", activeUserId)
-      .order("created_at", { ascending: true });
-
-    if (error) {
-      console.warn("Could not load Core Mission attempts:", error);
-      setCompletedAttempts([]);
-      return;
-    }
-
-    const unique = new Map<string, CompletedCoreAttempt>();
-
-    for (const attempt of data ?? []) {
-      if (!unique.has(attempt.quiz_id)) {
-        unique.set(attempt.quiz_id, {
-          quiz_id: attempt.quiz_id,
-          score: Number(attempt.score),
-          correct_count: Number(attempt.correct_count),
-          tokens_earned: Number(attempt.tokens_earned || 0),
-          gems_earned: Number(attempt.gems_earned || 0),
-          created_at: attempt.created_at
-            ? String(attempt.created_at)
-            : undefined,
-        });
-      }
-    }
-
-    setCompletedAttempts(Array.from(unique.values()));
-  }
+  const [screen, setScreen] = useState<SelectorScreen>("subject");
+  const [selectedSubject, setSelectedSubject] = useState<CoreSubject | null>(null);
 
   function chooseSubject(subject: CoreSubject) {
     setSelectedSubject(subject);
-    setSelectedLevelBand(null);
-    setSelectedQuiz(null);
-    setQuizzes([]);
-    setQuestions([]);
-    setLoadError(null);
     setScreen("level");
   }
 
-  async function chooseLevel(levelBand: CoreLevelBand) {
+  function chooseLevel(level: PrimaryLevel) {
     if (!selectedSubject) return;
-
-    setSelectedLevelBand(levelBand);
-    setQuizPage(0);
-    setLoadError(null);
-    setScreen("loading");
-
-    const { data, error } = await supabase
-      .from("core_mission_quizzes")
-      .select(
-        "id, subject, level_band, level_label, title, description, quiz_order",
-      )
-      .eq("subject", selectedSubject)
-      .eq("level_band", levelBand)
-      .eq("is_active", true)
-      .order("quiz_order", { ascending: true });
-
-    if (error || !data) {
-      console.warn("Could not load Core quizzes:", error);
-      setLoadError("Could not load this quiz list.");
-      setScreen("level");
-      return;
-    }
-
-    setQuizzes(data as CoreMissionQuiz[]);
-    setScreen("quiz-list");
+    router.push(`/learning-missions/core/${selectedSubject}/p${level}`);
   }
 
-  async function startQuiz(quiz: CoreMissionQuiz) {
-    setSelectedQuiz(quiz);
-    setLoadError(null);
-    setScreen("loading");
-
-    const { data, error } = await supabase
-      .from("core_mission_questions")
-      .select(
-        "id, quiz_id, question_order, question_text, question_image, option_a, option_b, option_c, option_d, correct_answer, explanation, skill, difficulty",
-      )
-      .eq("quiz_id", quiz.id)
-      .eq("is_active", true)
-      .order("question_order", { ascending: true })
-      .limit(20);
-
-    if (error || !data) {
-      console.warn("Could not load Core questions:", error);
-      setLoadError("Could not load this quiz.");
-      setScreen("quiz-list");
-      return;
-    }
-
-    if (data.length < 20) {
-      setLoadError("This quiz needs 20 active questions in Supabase.");
-      setScreen("quiz-list");
-      return;
-    }
-
-    setQuestions(data as CoreMissionQuestion[]);
-    setQuestionIndex(0);
-    setSelectedAnswer(null);
-    setAnswerLocked(false);
-    setFeedback(null);
-    setScore(0);
-    setCorrectCount(0);
-    setAnswerRecords([]);
-    setTokensEarned(0);
-    setGemsEarned(0);
-    setFirstCompletion(false);
-    setRewardSaved(false);
-    setSaveError(null);
-    setIsFinishing(false);
-    setScreen("quiz");
-  }
-
-  function chooseAnswer(answer: CoreAnswer) {
-    if (!currentQuestion || answerLocked || isFinishing) return;
-
-    setSelectedAnswer(answer);
-    setAnswerRecords((current) => [
-      ...current.filter(
-        (record) => record.question_id !== currentQuestion.id,
-      ),
-      {
-        question_id: currentQuestion.id,
-        answer,
-      },
-    ]);
-
-    const isCorrect = answer === currentQuestion.correct_answer;
-
-    if (isCorrect) {
-      setScore((current) => current + 5);
-      setCorrectCount((current) => current + 1);
-      setFeedback(`+5 points. ${currentQuestion.explanation}`);
-    } else {
-      setFeedback(
-        `The correct answer is ${currentQuestion.correct_answer}. ${currentQuestion.explanation}`,
-      );
-    }
-
-    setAnswerLocked(true);
-  }
-
-  async function nextQuestion() {
-    if (questionIndex >= questions.length - 1) {
-      await finishQuiz();
-      return;
-    }
-
-    setQuestionIndex((current) => current + 1);
-    setSelectedAnswer(null);
-    setAnswerLocked(false);
-    setFeedback(null);
-  }
-
-  async function finishQuiz() {
-    if (isFinishing) return;
-
-    setIsFinishing(true);
-    setRewardSaved(false);
-    setSaveError(null);
-    setScreen("results");
-
-    if (!userId || !selectedQuiz) {
-      setSaveError("Log in again before saving this quiz.");
-      setIsFinishing(false);
-      return;
-    }
-
-    if (answerRecords.length !== questions.length) {
-      setSaveError(
-        "The quiz could not be saved because one or more answers are missing.",
-      );
-      setIsFinishing(false);
-      return;
-    }
-
-    const orderedAnswers = questions.map((question) => {
-      const record = answerRecords.find(
-        (answer) => answer.question_id === question.id,
-      );
-
-      return {
-        question_id: question.id,
-        answer: record?.answer ?? null,
-      };
-    });
-
-    const { data, error } = await supabase.rpc(
-      "save_core_mission_attempt",
-      {
-        p_quiz_id: selectedQuiz.id,
-        p_answers: orderedAnswers,
-      },
-    );
-
-    if (error) {
-      console.warn("Could not save Core Mission attempt:", error);
-      setSaveError(error.message);
-      setIsFinishing(false);
-      return;
-    }
-
-    const result = data as SaveCoreAttemptResult | null;
-
-    if (!result) {
-      setSaveError("Supabase did not return the saved quiz result.");
-      setIsFinishing(false);
-      return;
-    }
-
-    const officialScore = Number(result.score || 0);
-    const officialCorrectCount = Number(result.correct_count || 0);
-    const officialTokens = Number(result.tokens_earned || 0);
-    const officialGems = Number(result.gems_earned || 0);
-    const wasFirstCompletion = Boolean(result.first_completion);
-
-    setScore(officialScore);
-    setCorrectCount(officialCorrectCount);
-    setTokensEarned(officialTokens);
-    setGemsEarned(officialGems);
-    setFirstCompletion(wasFirstCompletion);
-    setTokenBalance(Number(result.token_balance || 0));
-    setDreamGemBalance(Number(result.gem_balance || 0));
-    setRewardSaved(true);
-    setIsFinishing(false);
-
-    await loadCompletedAttempts(userId);
-
-    if (officialTokens > 0) {
-      window.dispatchEvent(new Event("dream-tokens-updated"));
-    }
-
-    if (officialGems > 0) {
-      window.dispatchEvent(new Event("dream-gems-updated"));
-    }
-  }
-
-  function resetQuizState() {
-    setSelectedQuiz(null);
-    setQuestions([]);
-    setQuestionIndex(0);
-    setSelectedAnswer(null);
-    setAnswerLocked(false);
-    setFeedback(null);
-    setScore(0);
-    setCorrectCount(0);
-    setAnswerRecords([]);
-    setTokensEarned(0);
-    setGemsEarned(0);
-    setFirstCompletion(false);
-    setRewardSaved(false);
-    setSaveError(null);
-    setIsFinishing(false);
-    setLoadError(null);
-  }
-
-  function resetToSubjects() {
-    resetQuizState();
-    setSelectedSubject(null);
-    setSelectedLevelBand(null);
-    setQuizzes([]);
-    setScreen("subject");
-  }
-
-  function resetToLevels() {
-    resetQuizState();
-    setSelectedLevelBand(null);
-    setQuizzes([]);
-    setScreen("level");
-  }
-
-  function resetToQuizList() {
-    resetQuizState();
-    setScreen("quiz-list");
-  }
+  const subjectInfo = SUBJECTS.find((subject) => subject.id === selectedSubject);
 
   return (
-    <main
-      style={{
-        position: "fixed",
-        inset: 0,
-        overflow: "hidden",
-        backgroundImage: `
-          linear-gradient(180deg, rgba(2,8,19,0.28), rgba(2,8,19,0.62)),
-          url("/activities/learning-missions/core/skyforge-hangar-bg.png")
-        `,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        color: "white",
-        fontFamily: "Arial, Helvetica, sans-serif",
-      }}
-    >
-      <header
-        style={{
-          height: isMobile ? "58px" : "68px",
-          padding: isMobile ? "8px 10px" : "10px 18px",
-          display: "grid",
-          gridTemplateColumns: isMobile
-            ? "auto minmax(0,1fr)"
-            : "1fr auto 1fr",
-          alignItems: "center",
-          gap: "10px",
-          borderBottom: "none",
-          background: "transparent",
-          backdropFilter: "none",
-          textShadow: "0 2px 12px rgba(0,0,0,0.72)",
-        }}
-      >
+    <main style={pageShell}>
+      <header style={headerStyle(isMobile)}>
         <button
           type="button"
           onClick={() => router.push("/learning-missions")}
-          style={{ ...pillButton, justifySelf: "start" }}
+          style={pillButton}
         >
           ← Missions
         </button>
 
         {!isMobile && (
-          <div style={{ textAlign: "center", minWidth: 0 }}>
-            <p
-              style={{
-                margin: 0,
-                color: "#7ee8ff",
-                fontSize: "11px",
-                letterSpacing: "0.2em",
-                fontWeight: 900,
-              }}
-            >
-              CORE MISSIONS
-            </p>
-            <p style={{ margin: "3px 0 0", fontSize: "13px", opacity: 0.72 }}>
-              English & Math
-            </p>
+          <div style={{ textAlign: "center" }}>
+            <p style={headerEyebrow}>CORE MISSIONS</p>
+            <p style={headerSubtitle}>English & Mathematics</p>
           </div>
         )}
 
-        <div
-          style={{
-            justifySelf: "end",
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-          }}
-        >
-          <div
-            style={{
-              ...tokenPill,
-              ...(isMobile ? compactBalancePill : {}),
-            }}
-            aria-label={`${tokenBalance} Dream Tokens`}
-          >
+        <div style={headerActions}>
+          <div style={{ ...tokenPill, ...(isMobile ? compactPill : {}) }}>
             <span style={{ color: "#ffd76a" }}>✦</span>
             {tokenBalance} DT
           </div>
-
-          <div
-            style={{
-              ...gemPill,
-              ...(isMobile ? compactBalancePill : {}),
-            }}
-            aria-label={`${dreamGemBalance} Dream Gems`}
-          >
+          <div style={{ ...gemPill, ...(isMobile ? compactPill : {}) }}>
             <span style={{ color: "#e7b7ff" }}>◆</span>
             {dreamGemBalance} DG
           </div>
-
           <button
             type="button"
             onClick={() => router.push("/learning-missions/core/rover")}
-            style={{
-              ...myRoverButton,
-              ...(isMobile
-                ? {
-                    minHeight: "34px",
-                    padding: "0 8px",
-                    fontSize: "10px",
-                  }
-                : {}),
-            }}
+            style={{ ...roverButton, ...(isMobile ? mobileRoverButton : {}) }}
           >
             {isMobile ? "Rover ›" : "My Rover ›"}
           </button>
         </div>
       </header>
 
-      <section
-        style={{
-          height: `calc(100dvh - ${isMobile ? 58 : 68}px)`,
-          padding: isMobile ? "8px" : isCompact ? "12px" : "20px 28px 28px",
-          overflow: "hidden",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <div
-          style={{
-            width:
-              isMobile || isCompact
-                ? "100%"
-                : "min(1420px, calc(100vw - 72px))",
-            height:
-              isMobile || isCompact
-                ? "100%"
-                : "min(760px, calc(100dvh - 118px))",
-            overflow: "hidden",
-            borderRadius: isMobile ? "18px" : "26px",
-            border: "1px solid rgba(126,232,255,0.32)",
-            background:
-              "linear-gradient(145deg, rgba(5,18,42,0.56), rgba(8,26,58,0.72))",
-            backdropFilter: "blur(10px)",
-            WebkitBackdropFilter: "blur(10px)",
-            boxShadow:
-              "0 0 34px rgba(83,215,255,0.12), 0 22px 58px rgba(0,0,0,0.28)",
-            padding: isMobile ? "12px" : isCompact ? "18px" : "22px 24px 24px",
-            display: "flex",
-            flexDirection: "column",
-            minHeight: 0,
-          }}
-        >
-          {screen === "checking" && (
-            <CenteredMessage message="Checking Core Missions access..." />
-          )}
+      <section style={contentSection(isMobile, isCompact)}>
+        <div style={glassPanel(isMobile, isCompact)}>
+          {status === "checking" && <CenteredMessage text="Checking Core Missions access..." />}
 
-          {screen === "locked" && (
-            <LockedScreen
-              isMobile={isMobile}
-              onExit={() => router.push("/learning-missions")}
-            />
-          )}
-
-          {screen === "loading" && (
-            <CenteredMessage message="Loading Core Mission..." />
-          )}
-
-          {screen === "subject" && (
-            <ScreenFrame
-              isMobile={isMobile}
-              eyebrow="Choose Subject"
-              title="Start a Core Mission"
-              description="Select English or Math."
-            >
-              <div style={twoCardGrid(isMobile)}>
-                {coreSubjects.map((subject) => (
-                  <ChoiceCard
-                    key={subject.id}
-                    accent={subject.accent}
-                    title={subject.title}
-                    subtitle={subject.subtitle}
-                    label={subject.icon}
-                    onClick={() => chooseSubject(subject.id)}
-                  />
-                ))}
-              </div>
-            </ScreenFrame>
-          )}
-
-          {screen === "level" && selectedSubjectInfo && (
-            <ScreenFrame
-              isMobile={isMobile}
-              eyebrow={`${selectedSubjectInfo.title} · Choose Level`}
-              title={`${selectedSubjectInfo.title} Missions`}
-              description="Select the level band for this mission set."
-              backLabel="← Subjects"
-              onBack={resetToSubjects}
-            >
-              <div style={threeCardGrid(isMobile, isCompact)}>
-                {coreLevelBands.map((level) => (
-                  <ChoiceCard
-                    key={level.id}
-                    accent={level.accent}
-                    title={level.title}
-                    subtitle={level.subtitle}
-                    label={level.label}
-                    onClick={() => void chooseLevel(level.id)}
-                  />
-                ))}
-              </div>
-            </ScreenFrame>
-          )}
-
-          {screen === "quiz-list" &&
-            selectedSubjectInfo &&
-            selectedLevelInfo && (
-              <ScreenFrame
-                isMobile={isMobile}
-                eyebrow={`${selectedSubjectInfo.title} · ${selectedLevelInfo.label}`}
-                title={`${selectedLevelInfo.title} Mission Set`}
-                description="Your first completion earns score-based DT, 1 DG, and rover progress. Replays are saved without extra rewards."
-                backLabel="← Levels"
-                onBack={resetToLevels}
-                rightSlot={
-                  pageCount > 1 ? (
-                    <div style={{ display: "flex", gap: "8px" }}>
-                      <button
-                        type="button"
-                        disabled={quizPage <= 0}
-                        onClick={() =>
-                          setQuizPage((current) => Math.max(0, current - 1))
-                        }
-                        style={smallPageButton}
-                      >
-                        ‹
-                      </button>
-                      <div style={pageCounter}>
-                        {quizPage + 1}/{pageCount}
-                      </div>
-                      <button
-                        type="button"
-                        disabled={quizPage >= pageCount - 1}
-                        onClick={() =>
-                          setQuizPage((current) =>
-                            Math.min(pageCount - 1, current + 1),
-                          )
-                        }
-                        style={smallPageButton}
-                      >
-                        ›
-                      </button>
-                    </div>
-                  ) : null
-                }
-              >
-                {loadError && <ErrorBanner message={loadError} />}
-                <div style={quizGrid(isMobile, isCompact)}>
-                  {visibleQuizzes.map((quiz) => {
-                    const completed = completedQuizIds.has(quiz.id);
-                    const attempt = completedAttempts.find(
-                      (item) => item.quiz_id === quiz.id,
-                    );
-
-                    return (
-                      <button
-                        key={quiz.id}
-                        type="button"
-                        onClick={() => void startQuiz(quiz)}
-                        style={quizCard(completed)}
-                      >
-                        <p
-                          style={{
-                            margin: 0,
-                            color: completed ? "#86efac" : "#7ee8ff",
-                            fontSize: isMobile ? "10px" : "12px",
-                            letterSpacing: "0.14em",
-                            fontWeight: 900,
-                          }}
-                        >
-                          {completed ? "COMPLETED" : `QUIZ ${quiz.quiz_order}`}
-                        </p>
-                        <h3 style={quizTitle}>{quiz.title}</h3>
-                        <p style={clampedDescription}>{quiz.description}</p>
-                        {completed && attempt && (
-                          <p style={attemptText}>
-                            {attempt.correct_count}/20 · {attempt.score}/100 · +
-                            {attempt.tokens_earned} DT · +{attempt.gems_earned} DG
-                          </p>
-                        )}
-                        <div
-                          style={{
-                            ...smallAction,
-                            background: completed
-                              ? "linear-gradient(135deg, #86efac, #22c55e)"
-                              : smallAction.background,
-                            color: completed ? "#052e16" : "white",
-                          }}
-                        >
-                          {completed ? "Replay" : "Start"}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </ScreenFrame>
-            )}
-
-          {screen === "quiz" && currentQuestion && selectedQuiz && (
-            <div
-              style={{
-                height: "100%",
-                display: "flex",
-                flexDirection: "column",
-                minHeight: 0,
-                gap: isMobile ? "8px" : "12px",
-              }}
-            >
-              <div style={quizTopBar}>
-                <button
-                  type="button"
-                  onClick={resetToQuizList}
-                  style={backButton}
-                >
-                  ← Quiz List
-                </button>
-                <div style={{ textAlign: "center", minWidth: 0 }}>
-                  <p style={quizTopTitle}>{selectedQuiz.title}</p>
-                  <p style={quizTopMeta}>Question {questionIndex + 1}/20</p>
-                </div>
-                <div style={scorePill}>Score {score}</div>
-              </div>
-
-              <div
-                style={{
-                  flex: 1,
-                  minHeight: 0,
-                  display: "grid",
-                  gridTemplateColumns: isCompact
-                    ? "1fr"
-                    : "minmax(0,1.08fr) minmax(340px,0.92fr)",
-                  gridTemplateRows: isCompact
-                    ? "minmax(0,0.9fr) minmax(0,1.1fr)"
-                    : "1fr",
-                  gap: isMobile ? "8px" : "12px",
-                }}
-              >
-                <div style={questionPanel}>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <p style={skillLabel}>
-                      {currentQuestion.skill || "Core Mission"}
-                    </p>
-                    <h2 style={questionHeading}>
-                      Question {questionIndex + 1}
-                    </h2>
-                    {currentQuestion.question_image && (
-                      <div style={questionImageBox(isMobile, isCompact)}>
-                        <img
-                          src={currentQuestion.question_image}
-                          alt={`Question ${questionIndex + 1}`}
-                          draggable={false}
-                          style={{
-                            width: "100%",
-                            height: "100%",
-                            objectFit: "contain",
-                          }}
-                        />
-                      </div>
-                    )}
-                    <p style={questionText(isMobile, isCompact)}>
-                      {currentQuestion.question_text}
-                    </p>
-                  </div>
-
-                  {feedback && (
-                    <div
-                      style={feedbackBox(
-                        selectedAnswer === currentQuestion.correct_answer,
-                      )}
-                    >
-                      <strong>
-                        {selectedAnswer === currentQuestion.correct_answer
-                          ? "Correct! "
-                          : "Not quite. "}
-                      </strong>
-                      {feedback}
-                    </div>
-                  )}
-                </div>
-
-                <div style={answerPanel}>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns:
-                        isMobile || !isCompact
-                          ? "1fr"
-                          : "repeat(2,minmax(0,1fr))",
-                      gap: isMobile ? "6px" : "9px",
-                      minHeight: 0,
-                    }}
-                  >
-                    <AnswerButton
-                      label="A"
-                      text={currentQuestion.option_a}
-                      selected={selectedAnswer === "A"}
-                      answerLocked={answerLocked}
-                      correctAnswer={currentQuestion.correct_answer}
-                      onClick={() => chooseAnswer("A")}
-                    />
-                    <AnswerButton
-                      label="B"
-                      text={currentQuestion.option_b}
-                      selected={selectedAnswer === "B"}
-                      answerLocked={answerLocked}
-                      correctAnswer={currentQuestion.correct_answer}
-                      onClick={() => chooseAnswer("B")}
-                    />
-                    <AnswerButton
-                      label="C"
-                      text={currentQuestion.option_c}
-                      selected={selectedAnswer === "C"}
-                      answerLocked={answerLocked}
-                      correctAnswer={currentQuestion.correct_answer}
-                      onClick={() => chooseAnswer("C")}
-                    />
-                    <AnswerButton
-                      label="D"
-                      text={currentQuestion.option_d}
-                      selected={selectedAnswer === "D"}
-                      answerLocked={answerLocked}
-                      correctAnswer={currentQuestion.correct_answer}
-                      onClick={() => chooseAnswer("D")}
-                    />
-                  </div>
-
+          {status === "locked" && (
+            <div style={centeredFill}>
+              <div style={lockedCard}>
+                <h2 style={{ margin: 0, fontSize: isMobile ? "26px" : "34px" }}>
+                  Core Missions Locked
+                </h2>
+                <p style={lockedText}>Sign in with an account that has Core Missions access.</p>
+                <div style={lockedActions}>
+                  <a href="/login" style={{ ...primaryAction, textDecoration: "none" }}>
+                    Log In
+                  </a>
                   <button
                     type="button"
-                    disabled={!answerLocked || isFinishing}
-                    onClick={() => void nextQuestion()}
-                    style={{
-                      ...nextButton,
-                      opacity: answerLocked && !isFinishing ? 1 : 0.35,
-                      cursor:
-                        answerLocked && !isFinishing ? "pointer" : "default",
-                    }}
+                    onClick={() => router.push("/learning-missions")}
+                    style={ghostAction}
                   >
-                    {isFinishing
-                      ? "Saving Mission..."
-                      : questionIndex >= 19
-                        ? "Finish Mission"
-                        : answerLocked
-                          ? "Next Question"
-                          : "Choose an answer"}
+                    Exit
                   </button>
                 </div>
               </div>
             </div>
           )}
 
-          {screen === "results" && selectedQuiz && (
-            <ResultsScreen
+          {status === "allowed" && screen === "subject" && (
+            <ScreenHeader
               isMobile={isMobile}
-              quizTitle={selectedQuiz.title}
-              correctCount={correctCount}
-              score={score}
-              tokensEarned={tokensEarned}
-              gemsEarned={gemsEarned}
-              tokenBalance={tokenBalance}
-              dreamGemBalance={dreamGemBalance}
-              firstCompletion={firstCompletion}
-              rewardSaved={rewardSaved}
-              saveError={saveError}
-              isSaving={isFinishing}
-              onAnotherQuiz={resetToQuizList}
-              onMyRover={() => router.push("/learning-missions/core/rover")}
-            />
+              eyebrow="CHOOSE SUBJECT"
+              title="Start a Core Mission"
+              description="Choose a subject, then select Primary 1 to Primary 6."
+            >
+              <div style={subjectGrid(isMobile)}>
+                {SUBJECTS.map((subject) => (
+                  <ChoiceCard
+                    key={subject.id}
+                    accent={subject.accent}
+                    label={subject.icon}
+                    title={subject.title}
+                    subtitle={subject.subtitle}
+                    onClick={() => chooseSubject(subject.id)}
+                  />
+                ))}
+              </div>
+            </ScreenHeader>
+          )}
+
+          {status === "allowed" && screen === "level" && subjectInfo && (
+            <ScreenHeader
+              isMobile={isMobile}
+              eyebrow={`${subjectInfo.title.toUpperCase()} · CHOOSE LEVEL`}
+              title={`${subjectInfo.title} Missions`}
+              description="Each level opens its own curriculum page, topics and quiz bank."
+              backLabel="← Subjects"
+              onBack={() => {
+                setSelectedSubject(null);
+                setScreen("subject");
+              }}
+            >
+              <div style={levelGrid(isMobile, isCompact)}>
+                {LEVELS.map((level) => (
+                  <ChoiceCard
+                    key={level.id}
+                    accent={level.accent}
+                    label={`P${level.id}`}
+                    title={level.title}
+                    subtitle={level.subtitle}
+                    onClick={() => chooseLevel(level.id)}
+                  />
+                ))}
+              </div>
+            </ScreenHeader>
           )}
         </div>
       </section>
@@ -1083,14 +202,13 @@ export default function CoreMissionsPage() {
   );
 }
 
-function ScreenFrame({
+function ScreenHeader({
   isMobile,
   eyebrow,
   title,
   description,
   backLabel,
   onBack,
-  rightSlot,
   children,
 }: {
   isMobile: boolean;
@@ -1099,338 +217,265 @@ function ScreenFrame({
   description: string;
   backLabel?: string;
   onBack?: () => void;
-  rightSlot?: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <div
-      style={{
-        height: "100%",
-        minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      <div style={sectionTopRow}>
-        <div>
-          {backLabel && onBack && (
-            <button type="button" onClick={onBack} style={backButton}>
-              {backLabel}
-            </button>
-          )}
-        </div>
-        {rightSlot}
+    <div style={screenFrame}>
+      <div style={screenTopRow}>
+        {backLabel && onBack ? (
+          <button type="button" onClick={onBack} style={backButton}>
+            {backLabel}
+          </button>
+        ) : (
+          <span />
+        )}
       </div>
 
       <div style={{ textAlign: "center", flexShrink: 0 }}>
         <p style={sectionEyebrow}>{eyebrow}</p>
-        <h1
-          style={{
-            margin: "5px 0 0",
-            fontSize: isMobile ? "24px" : "clamp(38px,3vw,52px)",
-            lineHeight: 1.05,
-          }}
-        >
-          {title}
-        </h1>
-        <p
-          style={{
-            margin: "7px auto 0",
-            maxWidth: "700px",
-            fontSize: isMobile ? "12px" : "16px",
-            color: "rgba(255,255,255,0.62)",
-          }}
-        >
-          {description}
-        </p>
+        <h1 style={sectionTitle(isMobile)}>{title}</h1>
+        <p style={sectionDescription(isMobile)}>{description}</p>
       </div>
 
-      <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          marginTop: isMobile ? "10px" : "16px",
-        }}
-      >
-        {children}
-      </div>
+      <div style={screenBody(isMobile)}>{children}</div>
     </div>
   );
 }
 
 function ChoiceCard({
   accent,
+  label,
   title,
   subtitle,
-  label,
   onClick,
 }: {
   accent: string;
+  label: string;
   title: string;
   subtitle: string;
-  label: string;
   onClick: () => void;
 }) {
   return (
     <button type="button" onClick={onClick} style={choiceCard(accent)}>
-      <div style={{ color: accent, fontSize: "clamp(24px,4vh,44px)" }}>
+      <div style={{ color: accent, fontSize: "clamp(24px,4vh,44px)", fontWeight: 900 }}>
         {label}
       </div>
-      <h2
-        style={{
-          margin: "10px 0 0",
-          fontSize: "clamp(22px,3vh,34px)",
-        }}
-      >
-        {title}
-      </h2>
-      <p
-        style={{
-          margin: "8px auto 0",
-          maxWidth: "460px",
-          color: "rgba(255,255,255,0.68)",
-          lineHeight: 1.45,
-          fontSize: "clamp(12px,1.7vh,16px)",
-        }}
-      >
-        {subtitle}
-      </p>
-      <div style={choiceAction}>Choose ›</div>
+      <h2 style={choiceTitle}>{title}</h2>
+      <p style={choiceSubtitle}>{subtitle}</p>
+      <div style={choiceAction}>Open ›</div>
     </button>
   );
 }
 
-function AnswerButton({
-  label,
-  text,
-  selected,
-  answerLocked,
-  correctAnswer,
-  onClick,
-}: {
-  label: CoreAnswer;
-  text: string;
-  selected: boolean;
-  answerLocked: boolean;
-  correctAnswer: CoreAnswer;
-  onClick: () => void;
-}) {
-  const correctSelected = selected && answerLocked && label === correctAnswer;
-  const wrongSelected = selected && answerLocked && label !== correctAnswer;
-
-  let background = "rgba(255,255,255,0.075)";
-  let border = "1px solid rgba(126,232,255,0.26)";
-
-  if (correctSelected) {
-    background = "rgba(34,197,94,0.78)";
-    border = "1px solid rgba(134,239,172,0.9)";
-  } else if (wrongSelected) {
-    background = "rgba(220,38,38,0.78)";
-    border = "1px solid rgba(252,165,165,0.9)";
-  }
-
-  return (
-    <button
-      type="button"
-      disabled={answerLocked}
-      onClick={onClick}
-      style={{
-        minHeight: 0,
-        height: "100%",
-        borderRadius: "14px",
-        border,
-        background,
-        color: "white",
-        display: "grid",
-        gridTemplateColumns: "32px 1fr",
-        alignItems: "center",
-        gap: "10px",
-        padding: "8px 11px",
-        textAlign: "left",
-        cursor: answerLocked ? "default" : "pointer",
-      }}
-    >
-      <strong style={answerLetter}>{label}</strong>
-      <span
-        style={{
-          fontSize: "clamp(12px,1.6vh,16px)",
-          lineHeight: 1.3,
-          fontWeight: 700,
-        }}
-      >
-        {text}
-      </span>
-    </button>
-  );
-}
-
-function ResultsScreen({
-  isMobile,
-  quizTitle,
-  correctCount,
-  score,
-  tokensEarned,
-  gemsEarned,
-  tokenBalance,
-  dreamGemBalance,
-  firstCompletion,
-  rewardSaved,
-  saveError,
-  isSaving,
-  onAnotherQuiz,
-  onMyRover,
-}: {
-  isMobile: boolean;
-  quizTitle: string;
-  correctCount: number;
-  score: number;
-  tokensEarned: number;
-  gemsEarned: number;
-  tokenBalance: number;
-  dreamGemBalance: number;
-  firstCompletion: boolean;
-  rewardSaved: boolean;
-  saveError: string | null;
-  isSaving: boolean;
-  onAnotherQuiz: () => void;
-  onMyRover: () => void;
-}) {
-  return (
-    <div style={resultsWrap}>
-      <p style={sectionEyebrow}>CORE MISSION COMPLETE</p>
-      <h1
-        style={{
-          margin: "8px 0 0",
-          fontSize: isMobile ? "27px" : "clamp(34px,5vh,54px)",
-        }}
-      >
-        {quizTitle}
-      </h1>
-
-      <div style={resultsGrid(isMobile)}>
-        <ResultStat label="Correct" value={`${correctCount}/20`} />
-        <ResultStat label="Score" value={`${score}/100`} />
-        <ResultStat label="DT Earned" value={`+${tokensEarned}`} />
-        <ResultStat label="DG Earned" value={`+${gemsEarned}`} />
-        <ResultStat label="DT Balance" value={`${tokenBalance} DT`} />
-        <ResultStat label="DG Balance" value={`${dreamGemBalance} DG`} />
-      </div>
-
-      <p
-        style={{
-          margin: "14px 0 0",
-          color: rewardSaved ? "#b8ffdb" : "#ffe6a8",
-          fontSize: "13px",
-          lineHeight: 1.5,
-        }}
-      >
-        {isSaving
-          ? "Saving the attempt, individual answers, and rewards..."
-          : saveError
-            ? `The mission is complete, but it could not be saved: ${saveError}`
-            : rewardSaved && firstCompletion
-              ? tokensEarned > 0
-                ? `First completion saved. You received ${tokensEarned} DT and ${gemsEarned} DG.`
-                : `First completion saved. You received ${gemsEarned} DG. DT rewards begin at 60%.`
-              : rewardSaved
-                ? "Replay saved to the Teaching Dashboard. Replays do not award extra DT, DG, or rover progress."
-                : "The mission is complete, but the result has not been saved yet."}
-      </p>
-
-      <div
-        style={{
-          marginTop: "16px",
-          display: "flex",
-          flexDirection: isMobile ? "column" : "row",
-          justifyContent: "center",
-          gap: "10px",
-        }}
-      >
-        <button
-          type="button"
-          onClick={onAnotherQuiz}
-          disabled={isSaving}
-          style={{
-            ...ghostAction,
-            opacity: isSaving ? 0.45 : 1,
-            cursor: isSaving ? "default" : "pointer",
-          }}
-        >
-          Choose Another Quiz
-        </button>
-        <button
-          type="button"
-          onClick={onMyRover}
-          disabled={isSaving}
-          style={{
-            ...primaryAction,
-            opacity: isSaving ? 0.45 : 1,
-            cursor: isSaving ? "default" : "pointer",
-          }}
-        >
-          View My Rover
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function ResultStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={resultStat}>
-      <p style={resultLabel}>{label}</p>
-      <p style={resultValue}>{value}</p>
-    </div>
-  );
-}
-
-function CenteredMessage({ message }: { message: string }) {
+function CenteredMessage({ text }: { text: string }) {
   return (
     <div style={centeredFill}>
-      <div style={messageCard}>{message}</div>
+      <div style={messageCard}>{text}</div>
     </div>
   );
 }
 
-function LockedScreen({
-  isMobile,
-  onExit,
-}: {
-  isMobile: boolean;
-  onExit: () => void;
-}) {
-  return (
-    <div style={centeredFill}>
-      <div style={lockedCard}>
-        <h2 style={{ margin: 0, fontSize: isMobile ? "26px" : "34px" }}>
-          Core Missions Locked
-        </h2>
-        <p style={{ margin: "12px 0 0", lineHeight: 1.55, opacity: 0.72 }}>
-          Sign in with an account that has Core Missions access.
-        </p>
-        <div
-          style={{
-            marginTop: "20px",
-            display: "flex",
-            justifyContent: "center",
-            gap: "10px",
-          }}
-        >
-          <a href="/login" style={{ ...primaryAction, textDecoration: "none" }}>
-            Log In
-          </a>
-          <button type="button" onClick={onExit} style={ghostAction}>
-            Exit
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+const pageShell: CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  overflow: "hidden",
+  backgroundImage: `
+    linear-gradient(180deg, rgba(2,8,19,0.28), rgba(2,8,19,0.62)),
+    url("/activities/learning-missions/core/skyforge-hangar-bg.png")
+  `,
+  backgroundSize: "cover",
+  backgroundPosition: "center",
+  color: "white",
+  fontFamily: "Arial, Helvetica, sans-serif",
+};
+
+function headerStyle(isMobile: boolean): CSSProperties {
+  return {
+    height: isMobile ? "58px" : "68px",
+    padding: isMobile ? "8px 10px" : "10px 18px",
+    display: "grid",
+    gridTemplateColumns: isMobile ? "auto minmax(0,1fr)" : "1fr auto 1fr",
+    alignItems: "center",
+    gap: "10px",
+    textShadow: "0 2px 12px rgba(0,0,0,0.72)",
+  };
 }
 
-function ErrorBanner({ message }: { message: string }) {
-  return <div style={errorBanner}>{message}</div>;
+const headerEyebrow: CSSProperties = {
+  margin: 0,
+  color: "#7ee8ff",
+  fontSize: "11px",
+  letterSpacing: "0.2em",
+  fontWeight: 900,
+};
+
+const headerSubtitle: CSSProperties = {
+  margin: "3px 0 0",
+  fontSize: "13px",
+  opacity: 0.72,
+};
+
+const headerActions: CSSProperties = {
+  justifySelf: "end",
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+};
+
+function contentSection(isMobile: boolean, isCompact: boolean): CSSProperties {
+  return {
+    height: `calc(100dvh - ${isMobile ? 58 : 68}px)`,
+    padding: isMobile ? "8px" : isCompact ? "12px" : "20px 28px 28px",
+    overflow: "hidden",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  };
 }
+
+function glassPanel(isMobile: boolean, isCompact: boolean): CSSProperties {
+  return {
+    width: isMobile || isCompact ? "100%" : "min(1420px, calc(100vw - 72px))",
+    height: isMobile || isCompact ? "100%" : "min(760px, calc(100dvh - 118px))",
+    overflow: "hidden",
+    borderRadius: isMobile ? "18px" : "26px",
+    border: "1px solid rgba(126,232,255,0.32)",
+    background: "linear-gradient(145deg, rgba(5,18,42,0.56), rgba(8,26,58,0.72))",
+    backdropFilter: "blur(10px)",
+    WebkitBackdropFilter: "blur(10px)",
+    boxShadow: "0 0 34px rgba(83,215,255,0.12), 0 22px 58px rgba(0,0,0,0.28)",
+    padding: isMobile ? "12px" : isCompact ? "18px" : "22px 24px 24px",
+    display: "flex",
+    flexDirection: "column",
+    minHeight: 0,
+  };
+}
+
+const screenFrame: CSSProperties = {
+  height: "100%",
+  minHeight: 0,
+  display: "flex",
+  flexDirection: "column",
+};
+
+const screenTopRow: CSSProperties = {
+  minHeight: "38px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  flexShrink: 0,
+};
+
+const sectionEyebrow: CSSProperties = {
+  margin: 0,
+  color: "#7ee8ff",
+  fontSize: "12px",
+  letterSpacing: "0.2em",
+  fontWeight: 900,
+};
+
+function sectionTitle(isMobile: boolean): CSSProperties {
+  return {
+    margin: "5px 0 0",
+    fontSize: isMobile ? "24px" : "clamp(38px,3vw,52px)",
+    lineHeight: 1.05,
+  };
+}
+
+function sectionDescription(isMobile: boolean): CSSProperties {
+  return {
+    margin: "7px auto 0",
+    maxWidth: "760px",
+    fontSize: isMobile ? "12px" : "16px",
+    color: "rgba(255,255,255,0.62)",
+  };
+}
+
+function screenBody(isMobile: boolean): CSSProperties {
+  return {
+    flex: 1,
+    minHeight: 0,
+    marginTop: isMobile ? "10px" : "16px",
+  };
+}
+
+function subjectGrid(isMobile: boolean): CSSProperties {
+  return {
+    width: "100%",
+    height: isMobile ? "100%" : "min(470px,100%)",
+    maxWidth: isMobile ? "none" : "1160px",
+    minHeight: 0,
+    margin: "auto",
+    display: "grid",
+    gridTemplateColumns: isMobile ? "1fr" : "repeat(2,minmax(0,1fr))",
+    gridTemplateRows: isMobile ? "repeat(2,minmax(0,1fr))" : "1fr",
+    gap: isMobile ? "12px" : "18px",
+  };
+}
+
+function levelGrid(isMobile: boolean, isCompact: boolean): CSSProperties {
+  return {
+    width: "100%",
+    height: "100%",
+    minHeight: 0,
+    display: "grid",
+    gridTemplateColumns: isMobile
+      ? "repeat(2,minmax(0,1fr))"
+      : isCompact
+        ? "repeat(3,minmax(0,1fr))"
+        : "repeat(3,minmax(0,1fr))",
+    gridTemplateRows: isMobile
+      ? "repeat(3,minmax(0,1fr))"
+      : "repeat(2,minmax(0,1fr))",
+    gap: isMobile ? "8px" : "14px",
+  };
+}
+
+function choiceCard(accent: string): CSSProperties {
+  return {
+    minHeight: 0,
+    height: "100%",
+    borderRadius: "20px",
+    border: `1px solid ${accent}77`,
+    background: "linear-gradient(180deg, rgba(20,58,100,0.66), rgba(8,25,56,0.78))",
+    color: "white",
+    padding: "clamp(10px,2vh,22px)",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    textAlign: "center",
+    cursor: "pointer",
+    boxShadow: `0 0 24px ${accent}18`,
+    overflow: "hidden",
+  };
+}
+
+const choiceTitle: CSSProperties = {
+  margin: "8px 0 0",
+  fontSize: "clamp(18px,2.6vh,30px)",
+};
+
+const choiceSubtitle: CSSProperties = {
+  margin: "7px auto 0",
+  maxWidth: "420px",
+  color: "rgba(255,255,255,0.68)",
+  lineHeight: 1.4,
+  fontSize: "clamp(10px,1.55vh,15px)",
+};
+
+const choiceAction: CSSProperties = {
+  marginTop: "clamp(8px,1.7vh,18px)",
+  minHeight: "36px",
+  minWidth: "120px",
+  borderRadius: "11px",
+  background: "linear-gradient(135deg, #35c5ff, #4c6dff)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "12px",
+  fontWeight: 800,
+};
 
 const pillButton: CSSProperties = {
   minHeight: "38px",
@@ -1443,12 +488,17 @@ const pillButton: CSSProperties = {
   fontWeight: 700,
 };
 
-const myRoverButton: CSSProperties = {
+const roverButton: CSSProperties = {
   ...pillButton,
   border: "1px solid rgba(255,215,106,0.45)",
-  background:
-    "linear-gradient(135deg, rgba(255,215,106,0.2), rgba(83,215,255,0.17))",
+  background: "linear-gradient(135deg, rgba(255,215,106,0.2), rgba(83,215,255,0.17))",
   color: "#fff3c4",
+};
+
+const mobileRoverButton: CSSProperties = {
+  minHeight: "34px",
+  padding: "0 8px",
+  fontSize: "10px",
 };
 
 const tokenPill: CSSProperties = {
@@ -1480,28 +530,11 @@ const gemPill: CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const compactBalancePill: CSSProperties = {
+const compactPill: CSSProperties = {
   minHeight: "34px",
   padding: "0 7px",
   gap: "4px",
   fontSize: "10px",
-};
-
-const sectionTopRow: CSSProperties = {
-  minHeight: "38px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: "10px",
-  flexShrink: 0,
-};
-
-const sectionEyebrow: CSSProperties = {
-  margin: 0,
-  color: "#7ee8ff",
-  fontSize: "12px",
-  letterSpacing: "0.2em",
-  fontWeight: 900,
 };
 
 const backButton: CSSProperties = {
@@ -1514,371 +547,6 @@ const backButton: CSSProperties = {
   cursor: "pointer",
   fontSize: "12px",
   fontWeight: 700,
-};
-
-function twoCardGrid(isMobile: boolean): CSSProperties {
-  return {
-    width: "100%",
-    height: isMobile ? "100%" : "min(470px, 100%)",
-    maxWidth: isMobile ? "none" : "1160px",
-    minHeight: 0,
-    margin: "auto",
-    display: "grid",
-    gridTemplateColumns: isMobile ? "1fr" : "repeat(2,minmax(0,1fr))",
-    gridTemplateRows: isMobile ? "repeat(2,minmax(0,1fr))" : "1fr",
-    gap: isMobile ? "12px" : "18px",
-  };
-}
-
-function threeCardGrid(isMobile: boolean, isCompact: boolean): CSSProperties {
-  const shouldStack = isMobile || isCompact;
-
-  return {
-    width: "100%",
-    height: shouldStack ? "100%" : "min(450px, 100%)",
-    maxWidth: shouldStack ? "760px" : "1200px",
-    minHeight: 0,
-    margin: "auto",
-    display: "grid",
-    gridTemplateColumns: shouldStack
-      ? "1fr"
-      : "repeat(3,minmax(0,1fr))",
-    gridTemplateRows: shouldStack
-      ? "repeat(3,minmax(0,1fr))"
-      : "1fr",
-    gap: isMobile ? "10px" : isCompact ? "14px" : "16px",
-  };
-}
-
-function choiceCard(accent: string): CSSProperties {
-  return {
-    minHeight: 0,
-    height: "100%",
-    borderRadius: "20px",
-    border: `1px solid ${accent}77`,
-    background:
-      "linear-gradient(180deg, rgba(20,58,100,0.66), rgba(8,25,56,0.78))",
-    color: "white",
-    padding: "clamp(12px,2.2vh,24px)",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    textAlign: "center",
-    cursor: "pointer",
-    boxShadow: `0 0 24px ${accent}18`,
-    overflow: "hidden",
-  };
-}
-
-const choiceAction: CSSProperties = {
-  marginTop: "clamp(10px,2vh,22px)",
-  minHeight: "38px",
-  minWidth: "140px",
-  borderRadius: "12px",
-  background: "linear-gradient(135deg, #35c5ff, #4c6dff)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "13px",
-  fontWeight: 800,
-};
-
-function quizGrid(isMobile: boolean, isCompact: boolean): CSSProperties {
-  return {
-    height: "100%",
-    minHeight: 0,
-    display: "grid",
-    gridTemplateColumns: isMobile
-      ? "1fr"
-      : isCompact
-        ? "repeat(2,minmax(0,1fr))"
-        : "repeat(3,minmax(0,1fr))",
-    gridTemplateRows: isMobile
-      ? "repeat(3,minmax(0,1fr))"
-      : isCompact
-        ? "repeat(2,minmax(0,1fr))"
-        : "repeat(2,minmax(0,1fr))",
-    gap: "10px",
-  };
-}
-
-function quizCard(completed: boolean): CSSProperties {
-  return {
-    minHeight: 0,
-    height: "100%",
-    borderRadius: "17px",
-    border: completed
-      ? "1px solid rgba(74,222,128,0.48)"
-      : "1px solid rgba(126,232,255,0.3)",
-    background: completed
-      ? "linear-gradient(180deg, rgba(20,92,60,0.66), rgba(8,35,36,0.8))"
-      : "linear-gradient(180deg, rgba(20,58,100,0.66), rgba(8,25,56,0.8))",
-    color: "white",
-    padding: "18px",
-    display: "flex",
-    flexDirection: "column",
-    textAlign: "left",
-    cursor: "pointer",
-    overflow: "hidden",
-  };
-}
-
-const quizTitle: CSSProperties = {
-  margin: "10px 0 0",
-  fontSize: "clamp(21px,2.5vh,29px)",
-  lineHeight: 1.15,
-};
-
-const clampedDescription: CSSProperties = {
-  margin: "9px 0 0",
-  color: "rgba(255,255,255,0.76)",
-  fontSize: "clamp(13px,1.45vh,16px)",
-  lineHeight: 1.35,
-  display: "-webkit-box",
-  WebkitLineClamp: 2,
-  WebkitBoxOrient: "vertical",
-  overflow: "hidden",
-};
-
-const attemptText: CSSProperties = {
-  margin: "9px 0 0",
-  color: "rgba(255,255,255,0.8)",
-  fontSize: "12px",
-};
-
-const smallAction: CSSProperties = {
-  marginTop: "auto",
-  minHeight: "40px",
-  borderRadius: "10px",
-  background: "linear-gradient(135deg, #35c5ff, #4c6dff)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "14px",
-  fontWeight: 800,
-};
-
-const smallPageButton: CSSProperties = {
-  width: "34px",
-  height: "34px",
-  borderRadius: "999px",
-  border: "1px solid rgba(126,232,255,0.25)",
-  background: "rgba(255,255,255,0.06)",
-  color: "white",
-  cursor: "pointer",
-};
-
-const pageCounter: CSSProperties = {
-  minWidth: "52px",
-  height: "34px",
-  borderRadius: "999px",
-  background: "rgba(255,255,255,0.06)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "12px",
-};
-
-const quizTopBar: CSSProperties = {
-  minHeight: "38px",
-  display: "grid",
-  gridTemplateColumns: "1fr minmax(0,1fr) 1fr",
-  alignItems: "center",
-  gap: "8px",
-  flexShrink: 0,
-};
-
-const quizTopTitle: CSSProperties = {
-  margin: 0,
-  fontWeight: 800,
-  fontSize: "12px",
-  whiteSpace: "nowrap",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-};
-
-const quizTopMeta: CSSProperties = {
-  margin: "2px 0 0",
-  color: "rgba(255,255,255,0.55)",
-  fontSize: "10px",
-};
-
-const scorePill: CSSProperties = {
-  justifySelf: "end",
-  minHeight: "34px",
-  borderRadius: "999px",
-  border: "1px solid rgba(255,215,106,0.3)",
-  background: "rgba(255,215,106,0.08)",
-  color: "#ffe6a8",
-  padding: "0 12px",
-  display: "flex",
-  alignItems: "center",
-  fontSize: "12px",
-  fontWeight: 900,
-};
-
-const questionPanel: CSSProperties = {
-  minHeight: 0,
-  borderRadius: "18px",
-  border: "1px solid rgba(126,232,255,0.28)",
-  background:
-    "linear-gradient(180deg, rgba(20,58,100,0.8), rgba(8,25,56,0.94))",
-  padding: "clamp(10px,1.8vh,20px)",
-  display: "flex",
-  flexDirection: "column",
-  overflow: "hidden",
-};
-
-const skillLabel: CSSProperties = {
-  margin: 0,
-  color: "#7ee8ff",
-  fontSize: "9px",
-  letterSpacing: "0.16em",
-  fontWeight: 900,
-};
-
-const questionHeading: CSSProperties = {
-  margin: "4px 0 0",
-  fontSize: "clamp(17px,2.4vh,27px)",
-};
-
-function questionImageBox(
-  isMobile: boolean,
-  isCompact: boolean,
-): CSSProperties {
-  return {
-    marginTop: "7px",
-    height: isMobile ? "70px" : isCompact ? "95px" : "clamp(120px,26vh,250px)",
-    borderRadius: "12px",
-    background: "rgba(255,255,255,0.95)",
-    overflow: "hidden",
-  };
-}
-
-function questionText(isMobile: boolean, isCompact: boolean): CSSProperties {
-  return {
-    margin: "8px 0 0",
-    fontSize: isMobile
-      ? "clamp(14px,2.2vh,18px)"
-      : isCompact
-        ? "clamp(17px,2.5vh,23px)"
-        : "clamp(21px,3vh,31px)",
-    lineHeight: 1.3,
-    fontWeight: 600,
-  };
-}
-
-function feedbackBox(correct: boolean): CSSProperties {
-  return {
-    marginTop: "8px",
-    borderRadius: "12px",
-    border: correct
-      ? "1px solid rgba(74,222,128,0.5)"
-      : "1px solid rgba(248,113,113,0.5)",
-    background: correct ? "rgba(34,197,94,0.13)" : "rgba(239,68,68,0.13)",
-    padding: "8px 10px",
-    fontSize: "clamp(10px,1.45vh,13px)",
-    lineHeight: 1.35,
-    overflow: "hidden",
-    flexShrink: 0,
-  };
-}
-
-const answerPanel: CSSProperties = {
-  minHeight: 0,
-  borderRadius: "18px",
-  border: "1px solid rgba(126,232,255,0.28)",
-  background:
-    "linear-gradient(180deg, rgba(17,82,136,0.9), rgba(7,27,68,0.98))",
-  padding: "clamp(8px,1.5vh,16px)",
-  display: "grid",
-  gridTemplateRows: "minmax(0,1fr) auto",
-  gap: "8px",
-  overflow: "hidden",
-};
-
-const answerLetter: CSSProperties = {
-  width: "30px",
-  height: "30px",
-  borderRadius: "999px",
-  background: "rgba(255,255,255,0.13)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
-
-const nextButton: CSSProperties = {
-  minHeight: "40px",
-  borderRadius: "12px",
-  border: "1px solid rgba(255,255,255,0.35)",
-  background: "linear-gradient(135deg, #7ee8ff, #35c5ff)",
-  color: "#06142d",
-  fontWeight: 900,
-};
-
-const resultsWrap: CSSProperties = {
-  margin: "auto",
-  width: "min(920px,100%)",
-  maxHeight: "100%",
-  borderRadius: "24px",
-  border: "1px solid rgba(126,232,255,0.44)",
-  background:
-    "linear-gradient(180deg, rgba(17,82,136,0.87), rgba(7,27,68,0.98))",
-  padding: "clamp(18px,3vh,34px)",
-  textAlign: "center",
-};
-
-function resultsGrid(isMobile: boolean): CSSProperties {
-  return {
-    marginTop: "18px",
-    display: "grid",
-    gridTemplateColumns: isMobile
-      ? "repeat(2,minmax(0,1fr))"
-      : "repeat(3,minmax(0,1fr))",
-    gap: "8px",
-  };
-}
-
-const resultStat: CSSProperties = {
-  borderRadius: "13px",
-  border: "1px solid rgba(126,232,255,0.22)",
-  background: "rgba(255,255,255,0.06)",
-  padding: "12px 8px",
-};
-
-const resultLabel: CSSProperties = {
-  margin: 0,
-  color: "#7ee8ff",
-  fontSize: "9px",
-  letterSpacing: "0.13em",
-  fontWeight: 900,
-};
-
-const resultValue: CSSProperties = {
-  margin: "6px 0 0",
-  fontSize: "clamp(18px,2.6vh,27px)",
-  fontWeight: 900,
-};
-
-const primaryAction: CSSProperties = {
-  minHeight: "44px",
-  borderRadius: "12px",
-  border: "1px solid rgba(255,255,255,0.3)",
-  background: "linear-gradient(135deg, #35c5ff, #4c6dff)",
-  color: "white",
-  padding: "0 18px",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  cursor: "pointer",
-  fontWeight: 800,
-};
-
-const ghostAction: CSSProperties = {
-  ...primaryAction,
-  border: "1px solid rgba(126,232,255,0.28)",
-  background: "rgba(255,255,255,0.06)",
 };
 
 const centeredFill: CSSProperties = {
@@ -1906,12 +574,35 @@ const lockedCard: CSSProperties = {
   textAlign: "center",
 };
 
-const errorBanner: CSSProperties = {
-  marginBottom: "8px",
-  borderRadius: "10px",
-  border: "1px solid rgba(255,215,106,0.4)",
-  background: "rgba(255,215,106,0.08)",
-  color: "#ffe6a8",
-  padding: "8px 10px",
-  fontSize: "11px",
+const lockedText: CSSProperties = {
+  margin: "12px 0 0",
+  lineHeight: 1.55,
+  opacity: 0.72,
+};
+
+const lockedActions: CSSProperties = {
+  marginTop: "20px",
+  display: "flex",
+  justifyContent: "center",
+  gap: "10px",
+};
+
+const primaryAction: CSSProperties = {
+  minHeight: "44px",
+  borderRadius: "12px",
+  border: "1px solid rgba(255,255,255,0.3)",
+  background: "linear-gradient(135deg, #35c5ff, #4c6dff)",
+  color: "white",
+  padding: "0 18px",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+  fontWeight: 800,
+};
+
+const ghostAction: CSSProperties = {
+  ...primaryAction,
+  border: "1px solid rgba(126,232,255,0.28)",
+  background: "rgba(255,255,255,0.06)",
 };
