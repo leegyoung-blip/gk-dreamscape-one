@@ -402,11 +402,17 @@ export default function QuizBuilderView({
                     updateForm("topicId", event.target.value);
                     updateForm("skillId", "");
                   }}
-                  style={input}
+                  style={selectInput}
                 >
-                  <option value="">Choose a topic</option>
+                  <option value="" style={selectOption}>
+                    Choose a topic
+                  </option>
                   {topics.map((topic) => (
-                    <option key={topic.id} value={topic.id}>
+                    <option
+                      key={topic.id}
+                      value={topic.id}
+                      style={selectOption}
+                    >
                       {topic.subject === "english" ? "English" : "Math"} P
                       {topic.primary_level} · {topic.title}
                     </option>
@@ -420,11 +426,17 @@ export default function QuizBuilderView({
                   value={form.skillId}
                   disabled={!editable}
                   onChange={(event) => updateForm("skillId", event.target.value)}
-                  style={input}
+                  style={selectInput}
                 >
-                  <option value="">No specific skill</option>
+                  <option value="" style={selectOption}>
+                    No specific skill
+                  </option>
                   {relevantSkills.map((skill) => (
-                    <option key={skill.id} value={skill.id}>
+                    <option
+                      key={skill.id}
+                      value={skill.id}
+                      style={selectOption}
+                    >
                       {skill.title}
                     </option>
                   ))}
@@ -724,10 +736,14 @@ function SelectField({
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        style={input}
+        style={selectInput}
       >
         {options.map(([optionValue, optionLabel]) => (
-          <option key={optionValue} value={optionValue}>
+          <option
+            key={optionValue}
+            value={optionValue}
+            style={selectOption}
+          >
             {optionLabel}
           </option>
         ))}
@@ -888,6 +904,20 @@ const input: CSSProperties = {
   color: "white",
   padding: "8px 10px",
 };
+
+const selectInput: CSSProperties = {
+  ...input,
+  backgroundColor: "#102442",
+  color: "#ffffff",
+  colorScheme: "dark",
+  cursor: "pointer",
+};
+
+const selectOption: CSSProperties = {
+  backgroundColor: "#102442",
+  color: "#ffffff",
+};
+
 const textArea: CSSProperties = { ...input, resize: "vertical" };
 const checkRow: CSSProperties = { marginTop: "13px", display: "flex", flexWrap: "wrap", gap: "14px" };
 const checkLabel: CSSProperties = { display: "flex", alignItems: "center", gap: "7px", fontSize: "11px" };
