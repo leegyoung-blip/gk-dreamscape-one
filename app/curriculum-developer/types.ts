@@ -13,7 +13,12 @@ export type SupportedQuestionType =
   | "multiple_choice"
   | "true_false"
   | "short_text"
-  | "sentence_reordering";
+  | "sentence_reordering"
+  | "numeric"
+  | "numeric_unit"
+  | "fraction"
+  | "money"
+  | "math_multi_part";
 
 export type CoreTopic = {
   id: string;

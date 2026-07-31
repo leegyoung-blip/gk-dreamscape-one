@@ -71,6 +71,8 @@ export default function QuizBuilderView({
     (role === "admin" && ["in_review", "approved"].includes(selectedQuiz.status));
 
   const relevantSkills = skills.filter((skill) => skill.topic_id === form.topicId);
+  const selectedTopic = topics.find((topic) => topic.id === form.topicId) || null;
+  const selectedSubject = selectedTopic?.subject || "english";
 
   useEffect(() => {
     if (!selectedQuiz) {
@@ -141,7 +143,7 @@ export default function QuizBuilderView({
       return;
     }
 
-    const questionMap = new Map(
+    const questionMap = new Map<string, any>(
       (questionRows || []).map((question: any) => [String(question.id), question]),
     );
     const combined = (links || [])
@@ -647,6 +649,7 @@ export default function QuizBuilderView({
               </section>
 
               <QuestionForm
+                subject={selectedSubject}
                 question={editingQuestion}
                 disabled={!editable || questions.length >= selectedQuiz.question_count && !editingQuestion}
                 onSave={saveQuestion}

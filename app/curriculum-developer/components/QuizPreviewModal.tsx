@@ -1,6 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
+import MathVisual from "@/components/core-math/MathVisual";
 import type { CoreQuiz, LinkedQuestion } from "../types";
 
 export default function QuizPreviewModal({
@@ -39,6 +40,7 @@ export default function QuizPreviewModal({
                   <p style={instruction}>{question.instruction}</p>
                 )}
                 <h3 style={prompt}>{question.prompt}</h3>
+                <MathVisual visual={question.content?.math_visual} compact />
                 <PreviewResponse question={question} />
               </article>
             ))
@@ -77,6 +79,50 @@ function PreviewResponse({ question }: { question: LinkedQuestion }) {
 
   if (question.question_type === "short_text") {
     return <div style={answerBox}>Student types an answer here.</div>;
+  }
+
+  if (question.question_type === "numeric") {
+    return <div style={answerBox}>Numeric answer</div>;
+  }
+
+  if (question.question_type === "numeric_unit") {
+    return (
+      <div style={inlineAnswerRow}>
+        <div style={{ ...answerBox, flex: 1 }}>Numeric value</div>
+        <div style={{ ...answerBox, width: 150 }}>Unit</div>
+      </div>
+    );
+  }
+
+  if (question.question_type === "fraction") {
+    return (
+      <div style={fractionPreview}>
+        <div style={fractionInput}>Numerator</div>
+        <div style={fractionLine} />
+        <div style={fractionInput}>Denominator</div>
+      </div>
+    );
+  }
+
+  if (question.question_type === "money") {
+    return <div style={answerBox}>$ 0.00</div>;
+  }
+
+  if (question.question_type === "math_multi_part") {
+    const parts = Array.isArray(question.content?.parts)
+      ? question.content.parts
+      : [];
+    return (
+      <div style={multiPartGrid}>
+        {parts.map((part: any) => (
+          <div key={String(part.id)} style={partCard}>
+            <strong>{String(part.label || part.id)}</strong>
+            <p style={{ margin: "6px 0 0" }}>{String(part.prompt || "")}</p>
+            <div style={answerBox}>Student answer</div>
+          </div>
+        ))}
+      </div>
+    );
   }
 
   const tokens = Array.isArray(question.content?.tokens)
@@ -137,7 +183,11 @@ const closeButton: CSSProperties = {
   padding: "0 13px",
   cursor: "pointer",
 };
-const questionList: CSSProperties = { marginTop: "18px", display: "grid", gap: "12px" };
+const questionList: CSSProperties = {
+  marginTop: "18px",
+  display: "grid",
+  gap: "12px",
+};
 const questionCard: CSSProperties = {
   borderRadius: "17px",
   border: "1px solid rgba(126,232,255,0.22)",
@@ -179,7 +229,49 @@ const answerBox: CSSProperties = {
   color: "rgba(255,255,255,0.42)",
   padding: "12px",
 };
-const tokenWrap: CSSProperties = { marginTop: "12px", display: "flex", flexWrap: "wrap", gap: "8px" };
+const inlineAnswerRow: CSSProperties = {
+  display: "flex",
+  gap: "10px",
+  alignItems: "stretch",
+};
+const fractionPreview: CSSProperties = {
+  marginTop: "12px",
+  width: "190px",
+  display: "grid",
+  justifyItems: "center",
+  gap: "6px",
+};
+const fractionInput: CSSProperties = {
+  width: "100%",
+  minHeight: "40px",
+  borderRadius: "10px",
+  border: "1px solid rgba(126,232,255,0.2)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  color: "rgba(255,255,255,0.42)",
+};
+const fractionLine: CSSProperties = {
+  width: "100%",
+  height: "2px",
+  background: "white",
+};
+const multiPartGrid: CSSProperties = {
+  marginTop: "12px",
+  display: "grid",
+  gap: "10px",
+};
+const partCard: CSSProperties = {
+  borderRadius: "12px",
+  border: "1px solid rgba(126,232,255,0.18)",
+  padding: "12px",
+};
+const tokenWrap: CSSProperties = {
+  marginTop: "12px",
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "8px",
+};
 const tokenChip: CSSProperties = {
   borderRadius: "999px",
   background: "rgba(126,232,255,0.12)",
