@@ -5,8 +5,8 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
-type AttemptSource = "core" | "think" | "knowledge";
-type SubjectKey = "english" | "math" | "thinking" | "knowledge";
+type AttemptSource = "core" | "core_v2" | "think" | "knowledge" | "science";
+type SubjectKey = "english" | "math" | "thinking" | "knowledge" | "science";
 type DateFilter = "this_week" | "last_week" | "this_month" | "all_time";
 type AccuracyFilter = "all" | "with_mistakes" | "perfect";
 type RosterFilter = "all" | "active" | "needs_attention";
@@ -49,6 +49,45 @@ type CoreAttemptRow = {
   created_at: string | null;
 };
 
+type CoreV2AttemptRow = {
+  id: string;
+  user_id: string;
+  quiz_id: string;
+  attempt_number: number | null;
+  status: string | null;
+  score: number | null;
+  percentage: number | null;
+  correct_count: number | null;
+  total_questions: number | null;
+  tokens_earned: number | null;
+  gems_earned: number | null;
+  duration_seconds: number | null;
+  submitted_at: string | null;
+  created_at: string | null;
+  quiz_title: string | null;
+  quiz_code: string | null;
+  quiz_type: string | null;
+  subject: string | null;
+  primary_level: number | null;
+  topic_title: string | null;
+};
+
+type CoreV2AttemptAnswerRow = {
+  id: string;
+  question_id: string | null;
+  question_order: number;
+  question_text: string;
+  question_image: string | null;
+  student_answer_label: string | null;
+  student_answer_text: string | null;
+  correct_answer_label: string | null;
+  correct_answer_text: string | null;
+  explanation: string | null;
+  is_correct: boolean | null;
+  skill: string | null;
+  subject: string | null;
+};
+
 type ThinkAttemptRow = CoreAttemptRow & {
   mode: string | null;
   time_taken_seconds: number | null;
@@ -66,6 +105,22 @@ type KnowledgeAttemptRow = {
   created_at: string | null;
 };
 
+type ScienceAttemptRow = {
+  id: string;
+  user_id: string;
+  quiz_id: string;
+  score: number | null;
+  percentage: number | null;
+  correct_count: number | null;
+  total_questions: number | null;
+  time_seconds: number | null;
+  tokens_earned: number | null;
+  gems_earned: number | null;
+  first_completion: boolean | null;
+  submitted_at: string | null;
+  created_at: string | null;
+};
+
 type CoreQuizRow = {
   id: string;
   title: string | null;
@@ -77,6 +132,25 @@ type ThinkQuizRow = {
   id: string;
   title: string | null;
   level_label: string | null;
+};
+
+type ScienceQuizRow = {
+  id: string;
+  title: string | null;
+  topic_id: string;
+  mission_type: string | null;
+};
+
+type ScienceTopicRow = {
+  id: string;
+  title: string | null;
+  level_id: string;
+};
+
+type ScienceLevelRow = {
+  id: string;
+  display_name: string | null;
+  school_level: string | null;
 };
 
 type DashboardAttempt = {
@@ -153,6 +227,12 @@ const SUBJECT_META: Record<
     icon: "◎",
     accent: "#ffd76a",
   },
+  science: {
+    label: "Science",
+    shortLabel: "Science",
+    icon: "⚗",
+    accent: "#a6ff7a",
+  },
 };
 
 const KNOWLEDGE_TOPIC_LABELS: Record<string, string> = {
@@ -160,6 +240,14 @@ const KNOWLEDGE_TOPIC_LABELS: Record<string, string> = {
   time_traveller: "Time Traveller",
   science_sparks: "Science Sparks",
   mystery_logic: "Mystery Logic",
+};
+
+const SCIENCE_MISSION_TYPE_LABELS: Record<string, string> = {
+  learn: "Learn",
+  practice: "Practice",
+  investigate: "Investigate",
+  mastery: "Mastery",
+  assessment: "Assessment",
 };
 
 function normaliseRole(value: string | null | undefined) {
@@ -426,12 +514,18 @@ function TeacherDashboardContent() {
       setTeacherEmail(profile.email || (!adminPreview ? user.email ?? null : null));
 
       const role = normaliseRole(profile.role || profile.tier);
-      const activeLicence = profile.teacher_license_status === "active";
+      const canUseTeacherDashboard =
+        role === "teacher" || role === "curriculum-lead";
+      const activeLicence =
+        profile.teacher_license_status === "active" ||
+        role === "curriculum-lead";
 
-      if (role !== "teacher") {
+      if (!canUseTeacherDashboard) {
         setRoster([]);
         setAllAttempts([]);
-        setLoadMessage("The selected account does not have the Teacher role.");
+        setLoadMessage(
+          "The selected account does not have the Teacher or Curriculum Lead role.",
+        );
         setIsLoading(false);
         return;
       }
@@ -511,6 +605,7 @@ function TeacherDashboardContent() {
 
       const attempts = await loadRosterAttempts(
         nextRoster.map((student) => student.student_user_id),
+        adminPreview ? targetTeacherId : null,
       );
 
       if (cancelled) return;
@@ -532,39 +627,67 @@ function TeacherDashboardContent() {
     };
   }, [previewTeacherId]);
 
-  async function loadRosterAttempts(studentIds: string[]) {
+  async function loadRosterAttempts(
+    studentIds: string[],
+    previewTeacherUserId: string | null,
+  ) {
     if (studentIds.length === 0) return [];
 
-    const [coreResult, thinkResult, knowledgeResult] = await Promise.all([
-      supabase
-        .from("core_mission_attempts")
-        .select(
-          "id,user_id,quiz_id,score,correct_count,total_questions,tokens_earned,created_at",
-        )
-        .in("user_id", studentIds)
-        .order("created_at", { ascending: false })
-        .limit(3000),
-      supabase
-        .from("think_mission_attempts")
-        .select(
-          "id,user_id,quiz_id,mode,score,correct_count,total_questions,time_taken_seconds,tokens_earned,created_at",
-        )
-        .in("user_id", studentIds)
-        .order("created_at", { ascending: false })
-        .limit(3000),
-      supabase
-        .from("knowledge_arena_attempts")
-        .select(
-          "id,user_id,topic,mode,score,correct_count,total_questions,tokens_earned,created_at",
-        )
-        .in("user_id", studentIds)
-        .order("created_at", { ascending: false })
-        .limit(3000),
-    ]);
+    const [
+      coreV2Result,
+      coreResult,
+      thinkResult,
+      knowledgeResult,
+      scienceResult,
+    ] = await Promise.all([
+        supabase.rpc("teacher_get_core_quiz_attempts", {
+          p_student_user_ids: studentIds,
+          p_teacher_user_id: previewTeacherUserId,
+        }),
+        supabase
+          .from("core_mission_attempts")
+          .select(
+            "id,user_id,quiz_id,score,correct_count,total_questions,tokens_earned,created_at",
+          )
+          .in("user_id", studentIds)
+          .order("created_at", { ascending: false })
+          .limit(3000),
+        supabase
+          .from("think_mission_attempts")
+          .select(
+            "id,user_id,quiz_id,mode,score,correct_count,total_questions,time_taken_seconds,tokens_earned,created_at",
+          )
+          .in("user_id", studentIds)
+          .order("created_at", { ascending: false })
+          .limit(3000),
+        supabase
+          .from("knowledge_arena_attempts")
+          .select(
+            "id,user_id,topic,mode,score,correct_count,total_questions,tokens_earned,created_at",
+          )
+          .in("user_id", studentIds)
+          .order("created_at", { ascending: false })
+          .limit(3000),
+        supabase
+          .from("science_quiz_attempts")
+          .select(
+            "id,user_id,quiz_id,score,percentage,correct_count,total_questions,time_seconds,tokens_earned,gems_earned,first_completion,submitted_at,created_at",
+          )
+          .in("user_id", studentIds)
+          .eq("status", "submitted")
+          .order("submitted_at", { ascending: false, nullsFirst: false })
+          .limit(3000),
+      ]);
 
-    const errors = [coreResult.error, thinkResult.error, knowledgeResult.error].filter(Boolean);
+    const errors = [
+      coreV2Result.error,
+      coreResult.error,
+      thinkResult.error,
+      knowledgeResult.error,
+      scienceResult.error,
+    ].filter(Boolean);
 
-    if (errors.length === 3) {
+    if (errors.length === 5) {
       setLoadMessage("The teacher dashboard could not load the quiz-attempt tables.");
       return [];
     }
@@ -576,14 +699,19 @@ function TeacherDashboardContent() {
       errors.forEach((error) => console.warn("Teacher dashboard load error:", error));
     }
 
+    const coreV2Rows = (coreV2Result.data ?? []) as CoreV2AttemptRow[];
     const coreRows = (coreResult.data ?? []) as CoreAttemptRow[];
     const thinkRows = (thinkResult.data ?? []) as ThinkAttemptRow[];
     const knowledgeRows = (knowledgeResult.data ?? []) as KnowledgeAttemptRow[];
+    const scienceRows = (scienceResult.data ?? []) as ScienceAttemptRow[];
 
     const coreQuizIds = [...new Set(coreRows.map((row) => row.quiz_id).filter(Boolean))];
     const thinkQuizIds = [...new Set(thinkRows.map((row) => row.quiz_id).filter(Boolean))];
+    const scienceQuizIds = [
+      ...new Set(scienceRows.map((row) => row.quiz_id).filter(Boolean)),
+    ];
 
-    const [coreQuizResult, thinkQuizResult] = await Promise.all([
+    const [coreQuizResult, thinkQuizResult, scienceQuizResult] = await Promise.all([
       coreQuizIds.length
         ? supabase
             .from("core_mission_quizzes")
@@ -596,7 +724,66 @@ function TeacherDashboardContent() {
             .select("id,title,level_label")
             .in("id", thinkQuizIds)
         : Promise.resolve({ data: [], error: null }),
+      scienceQuizIds.length
+        ? supabase
+            .from("science_quizzes")
+            .select("id,title,topic_id,mission_type")
+            .in("id", scienceQuizIds)
+        : Promise.resolve({ data: [], error: null }),
     ]);
+
+    const catalogueErrors = [
+      coreQuizResult.error,
+      thinkQuizResult.error,
+      scienceQuizResult.error,
+    ].filter(Boolean);
+
+    if (catalogueErrors.length > 0) {
+      setLoadMessage(
+        "Some quiz titles could not be loaded. Attempt records are still shown where available.",
+      );
+      catalogueErrors.forEach((error) =>
+        console.warn("Teacher dashboard catalogue error:", error),
+      );
+    }
+
+    const scienceQuizRows = (scienceQuizResult.data ?? []) as ScienceQuizRow[];
+    const scienceTopicIds = [
+      ...new Set(scienceQuizRows.map((quiz) => quiz.topic_id).filter(Boolean)),
+    ];
+
+    const scienceTopicResult = scienceTopicIds.length
+      ? await supabase
+          .from("science_topics")
+          .select("id,title,level_id")
+          .in("id", scienceTopicIds)
+      : { data: [], error: null };
+
+    if (scienceTopicResult.error) {
+      console.warn(
+        "Teacher dashboard Science-topic error:",
+        scienceTopicResult.error,
+      );
+    }
+
+    const scienceTopicRows = (scienceTopicResult.data ?? []) as ScienceTopicRow[];
+    const scienceLevelIds = [
+      ...new Set(scienceTopicRows.map((topic) => topic.level_id).filter(Boolean)),
+    ];
+
+    const scienceLevelResult = scienceLevelIds.length
+      ? await supabase
+          .from("science_levels")
+          .select("id,display_name,school_level")
+          .in("id", scienceLevelIds)
+      : { data: [], error: null };
+
+    if (scienceLevelResult.error) {
+      console.warn(
+        "Teacher dashboard Science-level error:",
+        scienceLevelResult.error,
+      );
+    }
 
     const coreQuizMap = new Map(
       ((coreQuizResult.data ?? []) as CoreQuizRow[]).map((quiz) => [quiz.id, quiz]),
@@ -604,8 +791,65 @@ function TeacherDashboardContent() {
     const thinkQuizMap = new Map(
       ((thinkQuizResult.data ?? []) as ThinkQuizRow[]).map((quiz) => [quiz.id, quiz]),
     );
+    const scienceQuizMap = new Map(
+      scienceQuizRows.map((quiz) => [quiz.id, quiz]),
+    );
+    const scienceTopicMap = new Map(
+      scienceTopicRows.map((topic) => [topic.id, topic]),
+    );
+    const scienceLevelMap = new Map(
+      ((scienceLevelResult.data ?? []) as ScienceLevelRow[]).map((level) => [
+        level.id,
+        level,
+      ]),
+    );
 
     const attempts: DashboardAttempt[] = [];
+
+    for (const row of coreV2Rows) {
+      const subject: SubjectKey =
+        String(row.subject || "").toLowerCase() === "math"
+          ? "math"
+          : "english";
+
+      const primaryLevel = safeNumber(row.primary_level);
+      const quizType = String(row.quiz_type || "")
+        .replaceAll("_", " ")
+        .trim();
+
+      attempts.push({
+        id: String(row.id),
+        source: "core_v2",
+        userId: String(row.user_id),
+        quizId: row.quiz_id,
+        title: row.quiz_title || "Core Mission Quiz",
+        subtitle: [
+          SUBJECT_META[subject].label,
+          primaryLevel > 0 ? `Primary ${primaryLevel}` : null,
+          row.topic_title,
+          quizType || null,
+          safeNumber(row.attempt_number) > 0
+            ? `Attempt ${safeNumber(row.attempt_number)}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        subject,
+        mode: row.quiz_type,
+        score: safeNumber(row.score),
+        correctCount: safeNumber(row.correct_count),
+        totalQuestions: safeNumber(row.total_questions),
+        tokensEarned: safeNumber(row.tokens_earned),
+        durationSeconds:
+          row.duration_seconds === null
+            ? null
+            : safeNumber(row.duration_seconds),
+        createdAt:
+          row.submitted_at ||
+          row.created_at ||
+          new Date(0).toISOString(),
+      });
+    }
 
     for (const row of coreRows) {
       const quiz = coreQuizMap.get(row.quiz_id);
@@ -676,6 +920,41 @@ function TeacherDashboardContent() {
       });
     }
 
+    for (const row of scienceRows) {
+      const quiz = scienceQuizMap.get(row.quiz_id);
+      const topic = quiz ? scienceTopicMap.get(quiz.topic_id) : undefined;
+      const level = topic ? scienceLevelMap.get(topic.level_id) : undefined;
+      const missionType = quiz?.mission_type
+        ? SCIENCE_MISSION_TYPE_LABELS[quiz.mission_type] || quiz.mission_type
+        : null;
+
+      attempts.push({
+        id: String(row.id),
+        source: "science",
+        userId: String(row.user_id),
+        quizId: row.quiz_id,
+        title: quiz?.title || "Science Mission Quiz",
+        subtitle: [
+          "Science",
+          level?.display_name || level?.school_level,
+          topic?.title,
+          missionType,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        subject: "science",
+        mode: quiz?.mission_type || null,
+        score: safeNumber(row.score),
+        correctCount: safeNumber(row.correct_count),
+        totalQuestions: safeNumber(row.total_questions),
+        tokensEarned: safeNumber(row.tokens_earned),
+        durationSeconds:
+          row.time_seconds === null ? null : safeNumber(row.time_seconds),
+        createdAt:
+          row.submitted_at || row.created_at || new Date(0).toISOString(),
+      });
+    }
+
     return attempts.sort(
       (first, second) =>
         new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime(),
@@ -688,6 +967,60 @@ function TeacherDashboardContent() {
     setDetailAnswers([]);
     setDetailMessage("");
     setDetailsLoading(true);
+
+    if (attempt.source === "core_v2") {
+      const { data, error } = await supabase.rpc(
+        "teacher_get_core_quiz_attempt_answers",
+        {
+          p_attempt_id: attempt.id,
+          p_student_user_id: attempt.userId,
+          p_teacher_user_id:
+            isAdminPreview && previewTeacherId
+              ? previewTeacherId
+              : null,
+        },
+      );
+
+      if (error) {
+        setDetailMessage(
+          error.message ||
+            "The English or Mathematics answer record could not be loaded.",
+        );
+        setDetailsLoading(false);
+        return;
+      }
+
+      const rows = ((data ?? []) as CoreV2AttemptAnswerRow[]).map(
+        (row): AttemptAnswerRow => ({
+          id: String(row.id),
+          attempt_source: "core_v2",
+          attempt_id: attempt.id,
+          question_id: row.question_id,
+          question_order: safeNumber(row.question_order),
+          question_text: row.question_text || "Core question",
+          question_image: row.question_image,
+          student_answer_label: row.student_answer_label,
+          student_answer_text: row.student_answer_text,
+          correct_answer_label: row.correct_answer_label,
+          correct_answer_text: row.correct_answer_text,
+          explanation: row.explanation,
+          is_correct: row.is_correct === true,
+          skill: row.skill,
+          subject: row.subject,
+        }),
+      );
+
+      setDetailAnswers(rows);
+
+      if (rows.length === 0) {
+        setDetailMessage(
+          "This Core attempt has a score summary but no saved answer rows.",
+        );
+      }
+
+      setDetailsLoading(false);
+      return;
+    }
 
     const { data, error } = await supabase
       .from("learning_mission_attempt_answers")
@@ -871,8 +1204,15 @@ function TeacherDashboardContent() {
     ? detailAnswers.filter((answer) => !answer.is_correct)
     : detailAnswers;
 
+  const dashboardRole = normaliseRole(
+    teacherProfile?.role || teacherProfile?.tier,
+  );
   const teacherTypeLabel =
-    teacherProfile?.teacher_type === "gkp" ? "GKP Teacher" : "External Teacher";
+    dashboardRole === "curriculum-lead"
+      ? "Curriculum Lead"
+      : teacherProfile?.teacher_type === "gkp"
+        ? "GKP Teacher"
+        : "External Teacher";
 
   return (
     <main className="teacher-page">

@@ -77,10 +77,15 @@ export function canAccessScience(role: string | null | undefined) {
   const cleanRole = normaliseRole(role);
 
   return (
-    cleanRole === "admin" ||
+    cleanRole === "student" ||
     cleanRole === "teacher" ||
-    cleanRole === "curriculum-lead"
+    cleanRole === "curriculum-lead" ||
+    cleanRole === "admin"
   );
+}
+
+export function canAttemptScienceQuiz(role: string | null | undefined) {
+  return canAccessScience(role);
 }
 
 export function canEditScience(role: string | null | undefined) {
