@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
-type AttemptSource = "core" | "think" | "knowledge";
+type AttemptSource = "core" | "core_v2" | "think" | "knowledge";
 type SubjectKey = "english" | "math" | "thinking" | "knowledge";
 type DateFilter = "this_week" | "last_week" | "this_month" | "all_time";
 type AccuracyFilter = "all" | "with_mistakes" | "perfect";
@@ -20,6 +20,45 @@ type CoreAttemptRow = {
   total_questions: number | null;
   tokens_earned: number | null;
   created_at: string | null;
+};
+
+type NewCoreAttemptRpcRow = {
+  id: string;
+  user_id: string;
+  quiz_id: string;
+  attempt_number: number | null;
+  status: string | null;
+  score: number | null;
+  percentage: number | null;
+  correct_count: number | null;
+  total_questions: number | null;
+  tokens_earned: number | null;
+  gems_earned: number | null;
+  duration_seconds: number | null;
+  submitted_at: string | null;
+  created_at: string | null;
+  quiz_title: string | null;
+  quiz_code: string | null;
+  quiz_type: string | null;
+  subject: string | null;
+  primary_level: number | null;
+  topic_title: string | null;
+};
+
+type NewCoreAnswerRpcRow = {
+  id: string;
+  question_id: string | null;
+  question_order: number;
+  question_text: string;
+  question_image: string | null;
+  student_answer_label: string | null;
+  student_answer_text: string | null;
+  correct_answer_label: string | null;
+  correct_answer_text: string | null;
+  explanation: string | null;
+  is_correct: boolean;
+  skill: string | null;
+  subject: string | null;
 };
 
 type ThinkAttemptRow = CoreAttemptRow & {
@@ -389,32 +428,49 @@ export default function TeachingDashboardPage() {
     setIsLoading(true);
     setLoadMessage("");
 
-    const [coreResult, thinkResult, knowledgeResult] = await Promise.all([
-      supabase
-        .from("core_mission_attempts")
-        .select("id,user_id,quiz_id,score,correct_count,total_questions,tokens_earned,created_at")
-        .eq("user_id", studentId)
-        .order("created_at", { ascending: false })
-        .limit(500),
-      supabase
-        .from("think_mission_attempts")
-        .select(
-          "id,user_id,quiz_id,mode,score,correct_count,total_questions,time_taken_seconds,tokens_earned,created_at",
-        )
-        .eq("user_id", studentId)
-        .order("created_at", { ascending: false })
-        .limit(500),
-      supabase
-        .from("knowledge_arena_attempts")
-        .select("id,user_id,topic,mode,score,correct_count,total_questions,tokens_earned,created_at")
-        .eq("user_id", studentId)
-        .order("created_at", { ascending: false })
-        .limit(500),
-    ]);
+    const [coreResult, newCoreResult, thinkResult, knowledgeResult] =
+      await Promise.all([
+        supabase
+          .from("core_mission_attempts")
+          .select(
+            "id,user_id,quiz_id,score,correct_count,total_questions,tokens_earned,created_at",
+          )
+          .eq("user_id", studentId)
+          .order("created_at", { ascending: false })
+          .limit(500),
 
-    const errors = [coreResult.error, thinkResult.error, knowledgeResult.error].filter(Boolean);
+        supabase.rpc("teacher_get_core_quiz_attempts", {
+          p_student_user_ids: [studentId],
+          p_teacher_user_id: null,
+        }),
 
-    if (errors.length === 3) {
+        supabase
+          .from("think_mission_attempts")
+          .select(
+            "id,user_id,quiz_id,mode,score,correct_count,total_questions,time_taken_seconds,tokens_earned,created_at",
+          )
+          .eq("user_id", studentId)
+          .order("created_at", { ascending: false })
+          .limit(500),
+
+        supabase
+          .from("knowledge_arena_attempts")
+          .select(
+            "id,user_id,topic,mode,score,correct_count,total_questions,tokens_earned,created_at",
+          )
+          .eq("user_id", studentId)
+          .order("created_at", { ascending: false })
+          .limit(500),
+      ]);
+
+    const errors = [
+      coreResult.error,
+      newCoreResult.error,
+      thinkResult.error,
+      knowledgeResult.error,
+    ].filter(Boolean);
+
+    if (errors.length === 4) {
       setAttempts([]);
       setLoadMessage("The dashboard could not load the quiz attempt tables.");
       setIsLoading(false);
@@ -422,6 +478,7 @@ export default function TeachingDashboardPage() {
     }
 
     const coreRows = (coreResult.data ?? []) as CoreAttemptRow[];
+    const newCoreRows = (newCoreResult.data ?? []) as NewCoreAttemptRpcRow[];
     const thinkRows = (thinkResult.data ?? []) as ThinkAttemptRow[];
     const knowledgeRows = (knowledgeResult.data ?? []) as KnowledgeAttemptRow[];
 
@@ -471,6 +528,45 @@ export default function TeachingDashboardPage() {
         tokensEarned: safeNumber(row.tokens_earned),
         durationSeconds: null,
         createdAt: row.created_at || new Date(0).toISOString(),
+      });
+    }
+
+    for (const row of newCoreRows) {
+      const subject: SubjectKey = row.subject === "math" ? "math" : "english";
+      const levelLabel = row.primary_level
+        ? `Primary ${row.primary_level}`
+        : null;
+
+      nextAttempts.push({
+        id: String(row.id),
+        source: "core_v2",
+        userId: String(row.user_id),
+        quizId: row.quiz_id,
+        title: row.quiz_title || "Core Mission Quiz",
+        subtitle: [
+          SUBJECT_META[subject].label,
+          levelLabel,
+          row.topic_title,
+          row.quiz_type
+            ? row.quiz_type.replaceAll("_", " ")
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        subject,
+        mode: row.quiz_type,
+        score: safeNumber(row.score),
+        correctCount: safeNumber(row.correct_count),
+        totalQuestions: safeNumber(row.total_questions),
+        tokensEarned: safeNumber(row.tokens_earned),
+        durationSeconds:
+          row.duration_seconds === null
+            ? null
+            : safeNumber(row.duration_seconds),
+        createdAt:
+          row.submitted_at ||
+          row.created_at ||
+          new Date(0).toISOString(),
       });
     }
 
@@ -540,6 +636,54 @@ export default function TeachingDashboardPage() {
     setDetailMessage("");
     setDetailsLoading(true);
 
+    if (attempt.source === "core_v2") {
+      const { data, error } = await supabase.rpc(
+        "teacher_get_core_quiz_attempt_answers",
+        {
+          p_attempt_id: attempt.id,
+          p_student_user_id: attempt.userId,
+          p_teacher_user_id: null,
+        },
+      );
+
+      if (error) {
+        console.info(
+          "New Core answer detail could not be loaded:",
+          error.message,
+        );
+        setDetailMessage(
+          "The English or Mathematics answer record could not be loaded. Run the Teaching Dashboard Core SQL update and try again.",
+        );
+        setDetailsLoading(false);
+        return;
+      }
+
+      const rows = ((data ?? []) as NewCoreAnswerRpcRow[]).map(
+        (row): AttemptAnswerRow => ({
+          ...row,
+          id: String(row.id),
+          attempt_source: "core_v2",
+          attempt_id: attempt.id,
+          question_id: row.question_id
+            ? String(row.question_id)
+            : null,
+          question_order: safeNumber(row.question_order),
+          is_correct: Boolean(row.is_correct),
+        }),
+      );
+
+      setDetailAnswers(rows);
+
+      if (rows.length === 0) {
+        setDetailMessage(
+          "This attempt has a final result but no saved question responses.",
+        );
+      }
+
+      setDetailsLoading(false);
+      return;
+    }
+
     const { data, error } = await supabase
       .from("learning_mission_attempt_answers")
       .select(
@@ -551,7 +695,10 @@ export default function TeachingDashboardPage() {
       .order("question_order", { ascending: true });
 
     if (error) {
-      console.info("Detailed answer tracking is not available yet:", error.message);
+      console.info(
+        "Detailed answer tracking is not available yet:",
+        error.message,
+      );
       setDetailMessage(
         "Individual answers were not recorded for this attempt. Install the answer-tracking table and update the quiz pages to save each answer.",
       );
