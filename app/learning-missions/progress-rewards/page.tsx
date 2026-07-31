@@ -6,8 +6,8 @@ import type { ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
-type AttemptSource = "core" | "core_v2" | "think" | "knowledge";
-type SubjectKey = "english" | "math" | "thinking" | "knowledge";
+type AttemptSource = "core" | "core_v2" | "science" | "knowledge";
+type SubjectKey = "english" | "math" | "science" | "knowledge";
 type DateFilter = "this_week" | "last_week" | "this_month" | "all_time";
 type AccuracyFilter = "all" | "with_mistakes" | "perfect";
 
@@ -61,9 +61,21 @@ type NewCoreAnswerRpcRow = {
   subject: string | null;
 };
 
-type ThinkAttemptRow = CoreAttemptRow & {
-  mode: string | null;
-  time_taken_seconds: number | null;
+type ScienceAttemptRow = {
+  id: string;
+  user_id: string;
+  quiz_id: string;
+  status: string | null;
+  score: number | null;
+  percentage: number | null;
+  correct_count: number | null;
+  total_questions: number | null;
+  time_seconds: number | null;
+  tokens_earned: number | null;
+  gems_earned: number | null;
+  first_completion: boolean | null;
+  submitted_at: string | null;
+  created_at: string | null;
 };
 
 type KnowledgeAttemptRow = {
@@ -85,10 +97,23 @@ type CoreQuizRow = {
   level_label: string | null;
 };
 
-type ThinkQuizRow = {
+type ScienceQuizRow = {
   id: string;
   title: string | null;
-  level_label: string | null;
+  topic_id: string;
+  mission_type: string | null;
+};
+
+type ScienceTopicRow = {
+  id: string;
+  title: string | null;
+  level_id: string;
+};
+
+type ScienceLevelRow = {
+  id: string;
+  display_name: string | null;
+  school_level: string | null;
 };
 
 type DashboardAttempt = {
@@ -148,11 +173,11 @@ const SUBJECT_META: Record<
     icon: "∑",
     accent: "#53d7ff",
   },
-  thinking: {
-    label: "Thinking Skills",
-    shortLabel: "Thinking",
-    icon: "◇",
-    accent: "#60f0d0",
+  science: {
+    label: "Science",
+    shortLabel: "Science",
+    icon: "⚗",
+    accent: "#a6ff7a",
   },
   knowledge: {
     label: "Knowledge Arena",
@@ -167,6 +192,14 @@ const KNOWLEDGE_TOPIC_LABELS: Record<string, string> = {
   time_traveller: "Time Traveller",
   science_sparks: "Science Sparks",
   mystery_logic: "Mystery Logic",
+};
+
+const SCIENCE_MISSION_TYPE_LABELS: Record<string, string> = {
+  learn: "Learn",
+  practice: "Practice",
+  investigate: "Investigate",
+  mastery: "Mastery",
+  assessment: "Assessment",
 };
 
 function useResponsiveMode() {
@@ -428,7 +461,7 @@ export default function TeachingDashboardPage() {
     setIsLoading(true);
     setLoadMessage("");
 
-    const [coreResult, newCoreResult, thinkResult, knowledgeResult] =
+    const [coreResult, newCoreResult, scienceResult, knowledgeResult] =
       await Promise.all([
         supabase
           .from("core_mission_attempts")
@@ -445,12 +478,13 @@ export default function TeachingDashboardPage() {
         }),
 
         supabase
-          .from("think_mission_attempts")
+          .from("science_quiz_attempts")
           .select(
-            "id,user_id,quiz_id,mode,score,correct_count,total_questions,time_taken_seconds,tokens_earned,created_at",
+            "id,user_id,quiz_id,status,score,percentage,correct_count,total_questions,time_seconds,tokens_earned,gems_earned,first_completion,submitted_at,created_at",
           )
           .eq("user_id", studentId)
-          .order("created_at", { ascending: false })
+          .eq("status", "submitted")
+          .order("submitted_at", { ascending: false, nullsFirst: false })
           .limit(500),
 
         supabase
@@ -466,7 +500,7 @@ export default function TeachingDashboardPage() {
     const errors = [
       coreResult.error,
       newCoreResult.error,
-      thinkResult.error,
+      scienceResult.error,
       knowledgeResult.error,
     ].filter(Boolean);
 
@@ -477,34 +511,108 @@ export default function TeachingDashboardPage() {
       return;
     }
 
+    if (errors.length > 0) {
+      setLoadMessage(
+        "Some mission records could not be loaded. Check the browser console for the table error.",
+      );
+      errors.forEach((error) =>
+        console.warn("Teaching Dashboard attempt load error:", error),
+      );
+    }
+
     const coreRows = (coreResult.data ?? []) as CoreAttemptRow[];
     const newCoreRows = (newCoreResult.data ?? []) as NewCoreAttemptRpcRow[];
-    const thinkRows = (thinkResult.data ?? []) as ThinkAttemptRow[];
+    const scienceRows = (scienceResult.data ?? []) as ScienceAttemptRow[];
     const knowledgeRows = (knowledgeResult.data ?? []) as KnowledgeAttemptRow[];
 
-    const coreQuizIds = [...new Set(coreRows.map((row) => row.quiz_id).filter(Boolean))];
-    const thinkQuizIds = [...new Set(thinkRows.map((row) => row.quiz_id).filter(Boolean))];
+    const coreQuizIds = [
+      ...new Set(coreRows.map((row) => row.quiz_id).filter(Boolean)),
+    ];
+    const scienceQuizIds = [
+      ...new Set(scienceRows.map((row) => row.quiz_id).filter(Boolean)),
+    ];
 
-    const [coreQuizResult, thinkQuizResult] = await Promise.all([
+    const [coreQuizResult, scienceQuizResult] = await Promise.all([
       coreQuizIds.length
         ? supabase
             .from("core_mission_quizzes")
             .select("id,title,subject,level_label")
             .in("id", coreQuizIds)
         : Promise.resolve({ data: [], error: null }),
-      thinkQuizIds.length
+      scienceQuizIds.length
         ? supabase
-            .from("think_mission_quizzes")
-            .select("id,title,level_label")
-            .in("id", thinkQuizIds)
+            .from("science_quizzes")
+            .select("id,title,topic_id,mission_type")
+            .in("id", scienceQuizIds)
         : Promise.resolve({ data: [], error: null }),
     ]);
+
+    const catalogueErrors = [
+      coreQuizResult.error,
+      scienceQuizResult.error,
+    ].filter(Boolean);
+
+    if (catalogueErrors.length > 0) {
+      setLoadMessage(
+        "Some quiz titles could not be loaded. Attempt records are still shown where available.",
+      );
+      catalogueErrors.forEach((error) =>
+        console.warn("Teaching Dashboard catalogue error:", error),
+      );
+    }
+
+    const scienceQuizRows = (scienceQuizResult.data ?? []) as ScienceQuizRow[];
+    const scienceTopicIds = [
+      ...new Set(scienceQuizRows.map((quiz) => quiz.topic_id).filter(Boolean)),
+    ];
+
+    const scienceTopicResult = scienceTopicIds.length
+      ? await supabase
+          .from("science_topics")
+          .select("id,title,level_id")
+          .in("id", scienceTopicIds)
+      : { data: [], error: null };
+
+    if (scienceTopicResult.error) {
+      console.warn(
+        "Teaching Dashboard Science-topic error:",
+        scienceTopicResult.error,
+      );
+    }
+
+    const scienceTopicRows = (scienceTopicResult.data ?? []) as ScienceTopicRow[];
+    const scienceLevelIds = [
+      ...new Set(scienceTopicRows.map((topic) => topic.level_id).filter(Boolean)),
+    ];
+
+    const scienceLevelResult = scienceLevelIds.length
+      ? await supabase
+          .from("science_levels")
+          .select("id,display_name,school_level")
+          .in("id", scienceLevelIds)
+      : { data: [], error: null };
+
+    if (scienceLevelResult.error) {
+      console.warn(
+        "Teaching Dashboard Science-level error:",
+        scienceLevelResult.error,
+      );
+    }
 
     const coreQuizMap = new Map(
       ((coreQuizResult.data ?? []) as CoreQuizRow[]).map((quiz) => [quiz.id, quiz]),
     );
-    const thinkQuizMap = new Map(
-      ((thinkQuizResult.data ?? []) as ThinkQuizRow[]).map((quiz) => [quiz.id, quiz]),
+    const scienceQuizMap = new Map(
+      scienceQuizRows.map((quiz) => [quiz.id, quiz]),
+    );
+    const scienceTopicMap = new Map(
+      scienceTopicRows.map((topic) => [topic.id, topic]),
+    );
+    const scienceLevelMap = new Map(
+      ((scienceLevelResult.data ?? []) as ScienceLevelRow[]).map((level) => [
+        level.id,
+        level,
+      ]),
     );
 
     const nextAttempts: DashboardAttempt[] = [];
@@ -519,7 +627,9 @@ export default function TeachingDashboardPage() {
         userId: String(row.user_id),
         quizId: row.quiz_id,
         title: quiz?.title || "Core Mission Quiz",
-        subtitle: [SUBJECT_META[subject].label, quiz?.level_label].filter(Boolean).join(" · "),
+        subtitle: [SUBJECT_META[subject].label, quiz?.level_label]
+          .filter(Boolean)
+          .join(" · "),
         subject,
         mode: null,
         score: safeNumber(row.score),
@@ -547,9 +657,7 @@ export default function TeachingDashboardPage() {
           SUBJECT_META[subject].label,
           levelLabel,
           row.topic_title,
-          row.quiz_type
-            ? row.quiz_type.replaceAll("_", " ")
-            : null,
+          row.quiz_type ? row.quiz_type.replaceAll("_", " ") : null,
         ]
           .filter(Boolean)
           .join(" · "),
@@ -564,31 +672,42 @@ export default function TeachingDashboardPage() {
             ? null
             : safeNumber(row.duration_seconds),
         createdAt:
-          row.submitted_at ||
-          row.created_at ||
-          new Date(0).toISOString(),
+          row.submitted_at || row.created_at || new Date(0).toISOString(),
       });
     }
 
-    for (const row of thinkRows) {
-      const quiz = thinkQuizMap.get(row.quiz_id);
+    for (const row of scienceRows) {
+      const quiz = scienceQuizMap.get(row.quiz_id);
+      const topic = quiz ? scienceTopicMap.get(quiz.topic_id) : undefined;
+      const level = topic ? scienceLevelMap.get(topic.level_id) : undefined;
+      const missionType = quiz?.mission_type
+        ? SCIENCE_MISSION_TYPE_LABELS[quiz.mission_type] || quiz.mission_type
+        : null;
 
       nextAttempts.push({
         id: String(row.id),
-        source: "think",
+        source: "science",
         userId: String(row.user_id),
         quizId: row.quiz_id,
-        title: quiz?.title || "Think Mission Quiz",
-        subtitle: ["Thinking Skills", quiz?.level_label, row.mode].filter(Boolean).join(" · "),
-        subject: "thinking",
-        mode: row.mode,
+        title: quiz?.title || "Science Mission Quiz",
+        subtitle: [
+          "Science",
+          level?.display_name || level?.school_level,
+          topic?.title,
+          missionType,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        subject: "science",
+        mode: quiz?.mission_type || null,
         score: safeNumber(row.score),
         correctCount: safeNumber(row.correct_count),
         totalQuestions: safeNumber(row.total_questions),
         tokensEarned: safeNumber(row.tokens_earned),
         durationSeconds:
-          row.time_taken_seconds === null ? null : safeNumber(row.time_taken_seconds),
-        createdAt: row.created_at || new Date(0).toISOString(),
+          row.time_seconds === null ? null : safeNumber(row.time_seconds),
+        createdAt:
+          row.submitted_at || row.created_at || new Date(0).toISOString(),
       });
     }
 
@@ -615,17 +734,11 @@ export default function TeachingDashboardPage() {
 
     nextAttempts.sort(
       (first, second) =>
-        new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime(),
+        new Date(second.createdAt).getTime() -
+        new Date(first.createdAt).getTime(),
     );
 
     setAttempts(nextAttempts);
-
-    if (errors.length > 0) {
-      setLoadMessage(
-        "Some mission records could not be loaded. Check the browser console for the table error.",
-      );
-    }
-
     setIsLoading(false);
   }
 
@@ -1073,7 +1186,9 @@ export default function TeachingDashboardPage() {
                       return (
                         <button
                           type="button"
-                          className="attempt-row"
+                          className={`attempt-row ${
+                            accuracy < 100 ? "has-wrong-answers" : "perfect-attempt"
+                          }`}
                           key={`${attempt.source}-${attempt.id}`}
                           onClick={() => void openAttempt(attempt)}
                         >
@@ -1101,7 +1216,7 @@ export default function TeachingDashboardPage() {
                           </span>
                           <span
                             className={`desktop-cell accuracy-badge ${
-                              accuracy === 100 ? "perfect" : accuracy < 60 ? "needs-work" : ""
+                              accuracy === 100 ? "perfect" : "needs-work"
                             }`}
                           >
                             {accuracy}%
@@ -1741,6 +1856,23 @@ export default function TeachingDashboardPage() {
           background: rgba(126, 232, 255, 0.055);
         }
 
+        .attempt-row.has-wrong-answers {
+          border-color: rgba(255, 78, 96, 0.5);
+          background:
+            linear-gradient(90deg, rgba(255, 44, 67, 0.17), rgba(255, 44, 67, 0.07));
+          box-shadow: inset 4px 0 0 #ff4e60;
+        }
+
+        .attempt-row.has-wrong-answers:hover {
+          border-color: rgba(255, 94, 110, 0.78);
+          background:
+            linear-gradient(90deg, rgba(255, 44, 67, 0.24), rgba(255, 44, 67, 0.1));
+        }
+
+        .attempt-row.perfect-attempt {
+          border-color: rgba(93, 255, 181, 0.2);
+        }
+
         .attempt-title-cell {
           min-width: 0;
           display: grid;
@@ -1800,8 +1932,9 @@ export default function TeachingDashboardPage() {
         }
 
         .accuracy-badge.needs-work {
-          color: #ffc0a0;
-          background: rgba(255, 138, 92, 0.08);
+          color: #ffd6dc;
+          border: 1px solid rgba(255, 78, 96, 0.5);
+          background: rgba(255, 44, 67, 0.2);
         }
 
         .view-link {
@@ -1976,7 +2109,9 @@ export default function TeachingDashboardPage() {
         }
 
         .answer-table-row.wrong {
-          background: rgba(255, 138, 92, 0.035);
+          border-top-color: rgba(255, 78, 96, 0.42);
+          background: rgba(255, 44, 67, 0.16);
+          box-shadow: inset 5px 0 0 #ff4e60;
         }
 
         .answer-table-row.correct {
@@ -2041,7 +2176,9 @@ export default function TeachingDashboardPage() {
         }
 
         .mobile-answer-card.wrong {
-          border-color: rgba(255, 138, 92, 0.26);
+          border-color: rgba(255, 78, 96, 0.62);
+          background: rgba(255, 44, 67, 0.14);
+          box-shadow: inset 4px 0 0 #ff4e60;
         }
 
         .mobile-answer-card.correct {
