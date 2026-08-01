@@ -1,0 +1,1002 @@
+.page,
+.adminPage,
+.centeredPage {
+  --ink: #17133f;
+  --text: #3e3957;
+  --muted: #746f84;
+  --line: rgba(79, 49, 151, 0.15);
+  --purple: #6034d4;
+  --blue: #2678df;
+  --pink: #db4b9e;
+  --orange: #f28628;
+  --teal: #1199a4;
+  min-height: 100vh;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 8% 5%, rgba(111, 70, 226, 0.11), transparent 26%),
+    radial-gradient(circle at 94% 16%, rgba(244, 135, 47, 0.12), transparent 25%),
+    linear-gradient(180deg, #fffdfb 0%, #ffffff 52%, #faf7ff 100%);
+}
+
+.page,
+.adminPage {
+  padding: 64px 22px 90px;
+}
+
+.page > *,
+.adminPage > * {
+  width: min(1220px, 100%);
+  margin-inline: auto;
+}
+
+.page *,
+.page *::before,
+.page *::after,
+.adminPage *,
+.adminPage *::before,
+.adminPage *::after,
+.centeredPage *,
+.centeredPage *::before,
+.centeredPage *::after {
+  box-sizing: border-box;
+}
+
+.eyebrow {
+  margin: 0 0 12px;
+  color: var(--purple);
+  font-size: 0.76rem;
+  font-weight: 950;
+  letter-spacing: 0.15em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.hero,
+.heroCompact,
+.adminHeader,
+.formSection,
+.introCard,
+.successCard,
+.adminCard {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 22px 64px rgba(63, 39, 119, 0.09);
+}
+
+.hero,
+.heroCompact {
+  overflow: hidden;
+  border-radius: 38px;
+}
+
+.hero {
+  padding: clamp(38px, 6vw, 76px);
+}
+
+.heroCompact {
+  padding: clamp(34px, 5vw, 58px);
+  margin-bottom: 24px;
+}
+
+.hero h1,
+.heroCompact h1,
+.adminHeader h1,
+.successCard h1 {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(3.1rem, 7vw, 7rem);
+  line-height: 0.91;
+  letter-spacing: -0.065em;
+}
+
+.heroCompact h1,
+.adminHeader h1,
+.successCard h1 {
+  font-size: clamp(2.6rem, 5.4vw, 5.2rem);
+}
+
+.heroText,
+.heroCompact > p:last-child,
+.adminHeader p,
+.successCard > p {
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+.heroText {
+  max-width: 840px;
+  margin: 24px 0 0;
+  font-size: clamp(1.05rem, 1.7vw, 1.36rem);
+}
+
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 34px;
+}
+
+.statGrid > div {
+  padding: 21px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: linear-gradient(145deg, #f7f2ff, #fff);
+}
+
+.statGrid strong,
+.statGrid span {
+  display: block;
+}
+
+.statGrid strong {
+  color: var(--ink);
+  font-size: 1.5rem;
+}
+
+.statGrid span {
+  margin-top: 6px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.introCard {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+  padding: 24px;
+  border-radius: 30px;
+}
+
+.introCard > div {
+  padding: 22px;
+  border-radius: 22px;
+  background: #fbf9ff;
+}
+
+.introCard span {
+  color: var(--purple);
+  font-size: 0.75rem;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+}
+
+.introCard strong {
+  display: block;
+  margin-top: 13px;
+  color: var(--ink);
+  font-size: 1.12rem;
+}
+
+.introCard p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.form {
+  margin-top: 24px;
+}
+
+.formSection {
+  margin-bottom: 20px;
+  padding: clamp(26px, 4vw, 46px);
+  border-radius: 30px;
+}
+
+.sectionTitle {
+  display: flex;
+  gap: 15px;
+  align-items: flex-start;
+  margin-bottom: 26px;
+}
+
+.sectionTitle > span {
+  display: grid;
+  flex: 0 0 auto;
+  width: 43px;
+  height: 43px;
+  place-items: center;
+  border-radius: 14px;
+  background: linear-gradient(145deg, var(--purple), var(--pink));
+  color: #fff;
+  font-weight: 950;
+}
+
+.sectionTitle h2,
+.adminCard h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(1.6rem, 3vw, 2.55rem);
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.sectionTitle p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.form label,
+.adminForm label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 0.93rem;
+  font-weight: 800;
+}
+
+.form label b {
+  color: var(--pink);
+}
+
+.form input,
+.form select,
+.form textarea,
+.adminForm input,
+.adminForm select,
+.adminForm textarea {
+  width: 100%;
+  border: 1px solid rgba(75, 51, 133, 0.19);
+  border-radius: 15px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  outline: none;
+}
+
+.form input,
+.form select,
+.adminForm input,
+.adminForm select {
+  min-height: 51px;
+  padding: 12px 14px;
+}
+
+.form textarea,
+.adminForm textarea {
+  padding: 14px;
+  resize: vertical;
+}
+
+.form input:focus,
+.form select:focus,
+.form textarea:focus,
+.adminForm input:focus,
+.adminForm select:focus,
+.adminForm textarea:focus {
+  border-color: var(--purple);
+  box-shadow: 0 0 0 4px rgba(96, 52, 212, 0.09);
+}
+
+.form input:disabled,
+.form input[readonly] {
+  background: #f5f2fa;
+  color: var(--muted);
+}
+
+.fullWidth {
+  grid-column: 1 / -1;
+}
+
+.fieldError {
+  margin: 0;
+  color: #b52355;
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+
+.formError,
+.successBanner {
+  margin: 0 auto 20px;
+  padding: 16px 19px;
+  border-radius: 17px;
+  font-weight: 750;
+  line-height: 1.55;
+}
+
+.formError {
+  border: 1px solid rgba(190, 35, 84, 0.28);
+  background: #fff0f5;
+  color: #9d1d48;
+}
+
+.successBanner {
+  border: 1px solid rgba(25, 145, 100, 0.25);
+  background: #effbf6;
+  color: #116b4b;
+}
+
+.checkboxGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 11px;
+  margin: 0 0 22px;
+  padding: 0;
+  border: 0;
+}
+
+.checkboxGrid legend {
+  grid-column: 1 / -1;
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 750;
+}
+
+.choiceCard {
+  display: flex !important;
+  min-height: 54px;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 10px !important;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: #fbf9ff;
+  cursor: pointer;
+}
+
+.choiceCard input,
+.declarations input {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  flex: 0 0 auto;
+  accent-color: var(--purple);
+}
+
+.declarations {
+  display: grid;
+  gap: 12px;
+}
+
+.declarations label {
+  display: flex;
+  min-height: 54px;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 15px 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fcfbff;
+  font-weight: 650;
+  line-height: 1.5;
+}
+
+.declarations a {
+  color: var(--purple);
+}
+
+.honeypot {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.submitPanel {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: center;
+  padding: 28px;
+  border-radius: 28px;
+  background: linear-gradient(135deg, #24115d, #6130c4 55%, #df4b9f);
+  color: #fff;
+  box-shadow: 0 24px 60px rgba(72, 34, 144, 0.23);
+}
+
+.submitPanel strong {
+  font-size: 1.25rem;
+}
+
+.submitPanel p {
+  max-width: 720px;
+  margin: 7px 0 0;
+  color: rgba(255, 255, 255, 0.78);
+  line-height: 1.55;
+}
+
+.submitPanel button,
+.copyGrid button,
+.approveButton,
+.rejectButton,
+.secondaryButton {
+  min-height: 48px;
+  padding: 13px 19px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.submitPanel button {
+  min-width: 210px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.submitPanel button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.centeredPage {
+  display: grid;
+  place-items: center;
+  padding: 40px 18px;
+}
+
+.successCard {
+  width: min(820px, 100%);
+  padding: clamp(32px, 6vw, 64px);
+  border-radius: 36px;
+  text-align: center;
+}
+
+.successIcon,
+.errorIcon {
+  display: grid;
+  width: 68px;
+  height: 68px;
+  place-items: center;
+  margin: 0 auto 22px;
+  border-radius: 22px;
+  color: #fff;
+  font-size: 2rem;
+  font-weight: 950;
+}
+
+.successIcon {
+  background: linear-gradient(145deg, #0ba875, #47d59e);
+}
+
+.errorIcon {
+  background: linear-gradient(145deg, #d3326b, #f1844c);
+}
+
+.referenceBox,
+.infoBox {
+  margin-top: 22px;
+  padding: 17px 19px;
+  border: 1px solid var(--line);
+  border-radius: 17px;
+  background: #f7f3ff;
+  line-height: 1.55;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.primaryLink,
+.secondaryLink {
+  display: inline-flex;
+  min-height: 50px;
+  align-items: center;
+  justify-content: center;
+  padding: 13px 20px;
+  border-radius: 999px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.primaryLink {
+  background: linear-gradient(135deg, var(--purple), var(--pink));
+  color: #fff;
+}
+
+.secondaryLink {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+}
+
+.buttonRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 25px;
+}
+
+.approvalBadge {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 18px;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 22px;
+  border: 1px solid rgba(96, 52, 212, 0.2);
+  border-radius: 24px;
+  background: linear-gradient(145deg, #f2edff, #fff8fc);
+}
+
+.approvalBadge span,
+.approvalBadge small {
+  color: var(--muted);
+}
+
+.approvalBadge strong {
+  grid-row: 1 / 3;
+  grid-column: 2;
+  color: var(--purple);
+  font-size: 2.5rem;
+}
+
+.welcomeCard {
+  width: min(980px, 100%);
+}
+
+.copyGrid {
+  display: grid;
+  grid-template-columns: 0.65fr 1.35fr;
+  gap: 14px;
+  margin-top: 27px;
+  text-align: left;
+}
+
+.copyGrid > div {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 14px;
+  align-items: center;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 21px;
+  background: #faf8ff;
+}
+
+.copyGrid span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.copyGrid strong {
+  grid-column: 1 / -1;
+  color: var(--ink);
+  font-size: 1.08rem;
+}
+
+.copyGrid button {
+  grid-column: 2;
+  grid-row: 1;
+  min-height: 36px;
+  padding: 8px 12px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 0.78rem;
+}
+
+.breakText {
+  overflow-wrap: anywhere;
+}
+
+.infoGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 13px;
+  margin-top: 20px;
+  text-align: left;
+}
+
+.infoGrid > div {
+  padding: 19px;
+  border: 1px solid var(--line);
+  border-radius: 19px;
+}
+
+.infoGrid strong {
+  color: var(--ink);
+}
+
+.infoGrid p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.adminPage {
+  background:
+    radial-gradient(circle at 90% 3%, rgba(65, 169, 211, 0.09), transparent 24%),
+    #f5f7fb;
+}
+
+.adminHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-end;
+  padding: clamp(30px, 5vw, 54px);
+  border-radius: 32px;
+}
+
+.adminHeader p {
+  margin: 14px 0 0;
+}
+
+.statusTabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin-top: 18px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+}
+
+.statusTabs a {
+  flex: 0 0 auto;
+  padding: 9px 13px;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 850;
+  text-decoration: none;
+  text-transform: capitalize;
+}
+
+.statusTabs .activeTab {
+  background: var(--ink);
+  color: #fff;
+}
+
+.adminCard {
+  margin-top: 18px;
+  padding: 25px;
+  border-radius: 25px;
+}
+
+.tableScroll {
+  overflow-x: auto;
+}
+
+.adminTable {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+}
+
+.adminTable th,
+.adminTable td {
+  padding: 15px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.adminTable th {
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.adminTable td {
+  font-size: 0.9rem;
+}
+
+.adminTable td > strong,
+.adminTable td > span {
+  display: block;
+}
+
+.adminTable td > span {
+  margin-top: 5px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.adminTable a {
+  color: var(--purple);
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.statusPill {
+  display: inline-flex !important;
+  width: fit-content;
+  margin: 0 !important;
+  padding: 6px 9px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: capitalize;
+}
+
+.status_submitted { background: #eef2ff; color: #3d57a8 !important; }
+.status_under_review { background: #fff5df; color: #9a6515 !important; }
+.status_information_requested { background: #fff0f5; color: #a92858 !important; }
+.status_approved_pending_onboarding { background: #f2edff; color: #6034d4 !important; }
+.status_active { background: #eaf9f2; color: #10704e !important; }
+.status_rejected,
+.status_terminated { background: #f2f2f4; color: #676574 !important; }
+.status_suspended { background: #fff0e9; color: #a84b22 !important; }
+
+.emptyCell {
+  padding: 42px !important;
+  color: var(--muted);
+  text-align: center !important;
+}
+
+.backRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.backRow a {
+  color: var(--purple);
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.adminDetailGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.65fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.adminActionsColumn {
+  position: sticky;
+  top: 18px;
+}
+
+.detailList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 20px 0 0;
+}
+
+.detailList > div {
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: #faf9fd;
+}
+
+.detailList dt {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.detailList dd {
+  margin: 6px 0 0;
+  color: var(--ink);
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.adminCard h3 {
+  margin: 24px 0 9px;
+  color: var(--ink);
+  font-size: 1rem;
+}
+
+.adminCard p {
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.tagList,
+.linkList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tagList span,
+.linkList a {
+  padding: 8px 11px;
+  border-radius: 999px;
+  background: #f2edff;
+  color: var(--purple);
+  font-size: 0.8rem;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.preWrap {
+  white-space: pre-wrap;
+}
+
+.inlineForm {
+  margin-top: 18px;
+}
+
+.adminForm {
+  display: grid;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.inputSuffix {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  border: 1px solid rgba(75, 51, 133, 0.19);
+  border-radius: 15px;
+  overflow: hidden;
+}
+
+.inputSuffix input {
+  border: 0;
+  border-radius: 0;
+}
+
+.inputSuffix span {
+  padding: 0 15px;
+  color: var(--muted);
+}
+
+.approveCard {
+  border-color: rgba(24, 145, 99, 0.23);
+}
+
+.rejectCard {
+  border-color: rgba(190, 35, 84, 0.22);
+}
+
+.approveButton {
+  background: #159764;
+  color: #fff;
+}
+
+.rejectButton {
+  background: #ba2957;
+  color: #fff;
+}
+
+.secondaryButton {
+  border: 1px solid var(--line);
+  background: #f7f4fc;
+  color: var(--ink);
+}
+
+.auditList {
+  display: grid;
+  gap: 10px;
+  margin-top: 17px;
+}
+
+.auditList > div {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #faf9fd;
+}
+
+.auditList strong,
+.auditList span {
+  display: block;
+}
+
+.auditList span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.auditList pre {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 900px) {
+  .statGrid,
+  .introCard,
+  .infoGrid,
+  .checkboxGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .adminDetailGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .adminActionsColumn {
+    position: static;
+  }
+
+  .adminHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 680px) {
+  .page,
+  .adminPage {
+    padding: 36px 14px 60px;
+  }
+
+  .hero,
+  .heroCompact,
+  .formSection,
+  .adminHeader,
+  .adminCard,
+  .successCard {
+    border-radius: 24px;
+  }
+
+  .hero,
+  .heroCompact,
+  .formSection,
+  .adminHeader,
+  .adminCard {
+    padding: 24px 19px;
+  }
+
+  .hero h1,
+  .heroCompact h1,
+  .adminHeader h1,
+  .successCard h1 {
+    font-size: clamp(2.8rem, 14vw, 4.4rem);
+  }
+
+  .formGrid,
+  .copyGrid,
+  .detailList {
+    grid-template-columns: 1fr;
+  }
+
+  .fullWidth {
+    grid-column: auto;
+  }
+
+  .submitPanel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .submitPanel button {
+    width: 100%;
+  }
+
+  .approvalBadge {
+    grid-template-columns: 1fr;
+  }
+
+  .approvalBadge strong {
+    grid-row: auto;
+    grid-column: auto;
+  }
+
+  .copyGrid > div {
+    grid-template-columns: 1fr;
+  }
+
+  .copyGrid button {
+    grid-column: auto;
+    grid-row: auto;
+    justify-self: start;
+  }
+}
