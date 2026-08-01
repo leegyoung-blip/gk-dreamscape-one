@@ -61,7 +61,7 @@ export default async function AffiliateWelcomePage() {
         </div>
 
         <div className={styles.buttonRow}>
-          <Link href="/terms#affiliate" className={styles.primaryLink}>Read Affiliate Terms</Link>
+          <Link href="/affiliate-terms" className={styles.primaryLink}>Read Affiliate Terms</Link>
           <a href="mailto:admin@gurukidspro.com" className={styles.secondaryLink}>Contact Support</a>
         </div>
       </section>

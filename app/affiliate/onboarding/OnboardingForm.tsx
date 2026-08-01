@@ -86,7 +86,7 @@ export default function OnboardingForm({
       <section className={styles.formSection}>
         <div className={styles.sectionTitle}><span>3</span><div><h2>Final agreement</h2><p>Complete these confirmations to activate your account.</p></div></div>
         <div className={styles.declarations}>
-          <label><input type="checkbox" name="terms_accepted" required />I accept the current <Link href="/terms#affiliate" target="_blank">Affiliate Programme Terms</Link>.</label>
+          <label><input type="checkbox" name="terms_accepted" required />I accept the current <Link href="/affiliate-terms" target="_blank">Affiliate Programme Terms</Link>.</label>
           <label><input type="checkbox" name="payout_confirmed" required />I confirm that my payout and contact information is accurate.</label>
           <label><input type="checkbox" name="billing_rule_accepted" required />I understand that commission starts only after an eligible customer completes the first paid billing cycle.</label>
           <label><input type="checkbox" name="participation_rule_accepted" required />I understand that recurring commission ends when the subscription or my programme participation ends.</label>

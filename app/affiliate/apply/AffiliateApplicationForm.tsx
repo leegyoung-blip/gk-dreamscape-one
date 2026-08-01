@@ -179,7 +179,7 @@ export default function AffiliateApplicationForm() {
           <label><input type="checkbox" name="information_confirmed" required />I confirm that the information submitted is accurate and complete.</label>
           <label>
             <input type="checkbox" name="terms_accepted" required />
-            I agree to the <Link href="/terms#affiliate" target="_blank">Affiliate Programme Terms</Link>.
+            I agree to the <Link href="/affiliate-terms" target="_blank">Affiliate Programme Terms</Link>.
           </label>
           <label>
             <input type="checkbox" name="privacy_accepted" required />
