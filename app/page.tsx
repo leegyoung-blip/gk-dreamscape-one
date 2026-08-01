@@ -14,7 +14,7 @@ const FIRST_VISIT_KEY = "dreamscape-first-visit-complete";
 const ageDestinations: Record<AgeGroup, string> = {
   "5-8": "/inventor",
   "9-12": "/inventor",
-  "13-17": "/inventor",
+  "13-17": "/milo-world",
   "18+": "/milo-world",
 };
 
@@ -32,7 +32,7 @@ const worlds: World[] = [
   {
     key: "nova",
     title: "Nova’s World",
-    subtitle: "Learn, invent, and complete missions.",
+    subtitle: "Master English, Math, and Science through learning missions.",
     href: "/inventor",
     imageSrc: "/home/nova-world-cover.png",
     videoSrc: "/home/nova-world-preview.mp4",
@@ -41,7 +41,7 @@ const worlds: World[] = [
   {
     key: "milo",
     title: "Milo’s World",
-    subtitle: "Create, play, and bring ideas to life.",
+    subtitle: "Build businesses and practise real-world decision-making.",
     href: "/milo-world",
     imageSrc: "/home/milo-world-cover.png",
     videoSrc: "/home/milo-world-preview.mp4",
@@ -52,23 +52,16 @@ const worlds: World[] = [
 const ecosystemSteps = [
   {
     title: "Guru Kids Pro",
-    subtitle: "The learning foundation",
-    text: "Established enrichment experience, thinking-skills training, and student development.",
+    subtitle: "Learning and teacher support",
+    text: "The academic foundation: curriculum expertise, small-group classes, thinking-skills training, and real teacher guidance.",
     image: "/home/ecosystem-gkp.png",
     href: "https://gurukidspro.com",
   },
   {
     title: "Dreamscape One",
-    subtitle: "The interactive world",
-    text: "A digital learning and creation environment where students and creators explore worlds, missions, progress, and products.",
+    subtitle: "Independent digital progression",
+    text: "The gamified platform: Learning Missions, progress tracking, rewards, financial literacy, and business simulations that grow with the learner.",
     image: "/home/ecosystem-dreamscape.png",
-  },
-  {
-    title: "GKDL Production",
-    subtitle: "The creative production layer",
-    text: "The design, 3D printing, and custom product side that brings ideas into real physical items.",
-    image: "/home/ecosystem-gkdl-production.png",
-    href: "https://gurukidspro.com/pages/design-lab",
   },
 ];
 
@@ -906,7 +899,7 @@ export default function Home() {
               textAlign: "center",
             }}
           >
-            Where learning becomes creation.
+            From curriculum mastery to real-world life skills.
           </h2>
 
           <p
@@ -920,10 +913,11 @@ export default function Home() {
               textAlign: "center",
             }}
           >
-            Dreamscape One is a creative learning and design world by Guru Kids
-            Pro. It connects thinking skills, learning missions, custom
-            products, 3D printing, and real-world creation through two main
-            worlds: Nova’s World and Milo’s World.
+            Dreamscape One is a gamified learning ecosystem by Guru Kids Pro.
+            Children begin in Nova’s World with curriculum-based Learning
+            Missions, thinking challenges, and independent progress. As they
+            grow, Milo’s World introduces financial literacy, entrepreneurship,
+            and real-world decision-making through safe simulations.
           </p>
 
           <div
@@ -952,7 +946,7 @@ export default function Home() {
                 display: "grid",
                 gridTemplateColumns: isMobile
                   ? "1fr"
-                  : "minmax(0, 1fr) 44px minmax(0, 1fr) 44px minmax(0, 1fr)",
+                  : "minmax(0, 1fr) 52px minmax(0, 1fr)",
                 alignItems: "center",
                 justifyContent: "center",
                 gap: isMobile ? "18px" : "0",
@@ -991,15 +985,15 @@ export default function Home() {
             <AboutCard
               imageSrc="/nova/nova-character.png"
               title="Nova’s World"
-              audience="Built for ages 6–16"
-              description="A student world for learning missions, thinking challenges, invention, progress, and exclusive student creations."
+              audience="Built for ages 6–12"
+              description="A gamified learning world where children strengthen English, Mathematics, and Science through Learning Missions while developing thinking skills, creativity, and learning independence."
             />
 
             <AboutCard
               imageSrc="/milo-world/milo-character.png"
               title="Milo’s World"
-              audience="Built for ages 16+"
-              description="A creator world for custom products, 3D printing services, prototypes, gifts, and small-batch production."
+              audience="Built for ages 13+"
+              description="A real-world skills world where teens build and manage businesses, explore investments, and practise financial decision-making through safe simulations."
             />
           </div>
 
@@ -1026,6 +1020,245 @@ export default function Home() {
           >
             Back to top
           </button>
+        </div>
+      </section>
+
+      <section
+        id="affiliate"
+        style={{
+          position: "relative",
+          padding: isMobile ? "82px 22px" : "112px 7.6vw",
+          overflow: "hidden",
+          color: "white",
+          background:
+            "radial-gradient(circle at 14% 28%, rgba(83,215,255,0.16), transparent 28%), radial-gradient(circle at 86% 70%, rgba(255,138,43,0.16), transparent 30%), linear-gradient(135deg, #061326 0%, #130a2d 52%, #24103d 100%)",
+          borderTop: "1px solid rgba(116,200,255,0.16)",
+          borderBottom: "1px solid rgba(197,140,255,0.18)",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            pointerEvents: "none",
+            background:
+              "linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.025) 45%, transparent 100%)",
+          }}
+        />
+
+        <div
+          style={{
+            position: "relative",
+            zIndex: 2,
+            maxWidth: "1320px",
+            margin: "0 auto",
+            display: "grid",
+            gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.15fr) minmax(320px, 0.85fr)",
+            gap: isMobile ? "34px" : "74px",
+            alignItems: "center",
+          }}
+        >
+          <div style={{ textAlign: isMobile ? "center" : "left" }}>
+            <p
+              style={{
+                margin: 0,
+                color: "#8ee8ff",
+                fontSize: "13px",
+                fontWeight: 700,
+                letterSpacing: "0.24em",
+                textTransform: "uppercase",
+              }}
+            >
+              Dreamscape Affiliate Programme
+            </p>
+
+            <h2
+              style={{
+                margin: "20px 0 0",
+                maxWidth: "760px",
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontSize: isMobile ? "42px" : "66px",
+                fontWeight: 400,
+                lineHeight: 1.04,
+                color: "white",
+                textShadow: "0 18px 48px rgba(0,0,0,0.38)",
+              }}
+            >
+              Partner with Dreamscape.
+            </h2>
+
+            <p
+              style={{
+                margin: "24px 0 0",
+                maxWidth: "760px",
+                color: "rgba(255,255,255,0.72)",
+                fontSize: isMobile ? "17px" : "21px",
+                fontWeight: 300,
+                lineHeight: 1.7,
+              }}
+            >
+              Educators, child-focused businesses, and parenting creators can
+              earn recurring commission while helping more families discover
+              Dreamscape One.
+            </p>
+
+            <div
+              style={{
+                marginTop: "30px",
+                display: "flex",
+                flexWrap: "wrap",
+                justifyContent: isMobile ? "center" : "flex-start",
+                gap: "10px",
+              }}
+            >
+              {[
+                "20% recurring commission",
+                "Monthly PayNow payouts",
+                "No minimum payout",
+              ].map((item) => (
+                <span
+                  key={item}
+                  style={{
+                    padding: "10px 14px",
+                    borderRadius: "999px",
+                    border: "1px solid rgba(142,232,255,0.24)",
+                    background: "rgba(255,255,255,0.055)",
+                    color: "rgba(255,255,255,0.9)",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    backdropFilter: "blur(12px)",
+                  }}
+                >
+                  {item}
+                </span>
+              ))}
+            </div>
+
+            <Link
+              href="/affiliate/apply"
+              style={{
+                marginTop: "32px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "12px",
+                minHeight: "54px",
+                padding: "14px 24px",
+                borderRadius: "999px",
+                textDecoration: "none",
+                color: "#150a31",
+                background:
+                  "linear-gradient(90deg, #8ee8ff 0%, #c58cff 58%, #ff9a45 100%)",
+                fontSize: "14px",
+                fontWeight: 900,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                boxShadow:
+                  "0 18px 42px rgba(71,33,139,0.34), 0 0 26px rgba(83,215,255,0.12)",
+              }}
+            >
+              Apply to become an affiliate
+              <span aria-hidden="true">→</span>
+            </Link>
+          </div>
+
+          <div
+            style={{
+              minHeight: isMobile ? "310px" : "390px",
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "30px",
+              border: "1px solid rgba(197,140,255,0.3)",
+              overflow: "hidden",
+              background:
+                "radial-gradient(circle at 50% 40%, rgba(197,140,255,0.24), transparent 38%), linear-gradient(145deg, rgba(255,255,255,0.07), rgba(255,255,255,0.025))",
+              boxShadow:
+                "0 28px 70px rgba(0,0,0,0.34), inset 0 0 30px rgba(83,215,255,0.04)",
+              backdropFilter: "blur(16px)",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                inset: "24px",
+                borderRadius: "24px",
+                border: "1px solid rgba(255,255,255,0.08)",
+              }}
+            />
+
+            <img
+              src="/nova/nova-character.png"
+              alt="Nova from Dreamscape One"
+              style={{
+                position: "absolute",
+                left: isMobile ? "10%" : "8%",
+                bottom: 0,
+                width: isMobile ? "44%" : "48%",
+                maxHeight: "92%",
+                objectFit: "contain",
+                objectPosition: "bottom",
+                filter: "drop-shadow(0 22px 32px rgba(0,0,0,0.38))",
+              }}
+            />
+
+            <img
+              src="/home/dreamscape-logo.png"
+              alt=""
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                right: "12%",
+                top: "15%",
+                width: isMobile ? "86px" : "112px",
+                height: isMobile ? "86px" : "112px",
+                objectFit: "contain",
+                opacity: 0.94,
+                borderRadius: "999px",
+                boxShadow:
+                  "0 0 30px rgba(83,215,255,0.25), 0 0 38px rgba(197,140,255,0.22)",
+              }}
+            />
+
+            <div
+              style={{
+                position: "absolute",
+                right: "8%",
+                bottom: "13%",
+                width: isMobile ? "44%" : "46%",
+                padding: isMobile ? "18px" : "22px",
+                borderRadius: "22px",
+                border: "1px solid rgba(255,255,255,0.13)",
+                background: "rgba(2,8,19,0.66)",
+                backdropFilter: "blur(16px)",
+                textAlign: "left",
+              }}
+            >
+              <p
+                style={{
+                  margin: 0,
+                  color: "#ffb55f",
+                  fontSize: isMobile ? "25px" : "34px",
+                  fontWeight: 900,
+                  lineHeight: 1,
+                }}
+              >
+                20%
+              </p>
+              <p
+                style={{
+                  margin: "8px 0 0",
+                  color: "white",
+                  fontSize: isMobile ? "14px" : "17px",
+                  fontWeight: 800,
+                  lineHeight: 1.35,
+                }}
+              >
+                recurring commission on eligible referrals
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -1115,9 +1348,9 @@ export default function Home() {
                 fontWeight: 300,
               }}
             >
-              A creative learning and design world where students and creators
-              bring ideas to life through learning missions, invention, custom
-              products, and 3D printing.
+              A gamified learning ecosystem that supports children from
+              primary-school curriculum mastery to financial literacy,
+              entrepreneurship, and real-world life skills.
             </p>
           </div>
 
@@ -1198,14 +1431,13 @@ export default function Home() {
                 Guru Kids Pro
               </a>
 
-              <a
-                href="https://gurukidspro.com/pages/design-lab"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={footerLinkStyle}
-              >
-                GKDL Production
-              </a>
+              <Link href="/affiliate/apply" style={footerLinkStyle}>
+                Affiliate Programme
+              </Link>
+
+              <Link href="/terms" style={footerLinkStyle}>
+                Terms & Conditions
+              </Link>
 
               <a
                 href="https://www.instagram.com/gurukidspro/"
@@ -1236,7 +1468,9 @@ export default function Home() {
           }}
         >
           <span>© {new Date().getFullYear()} Dreamscape One.</span>
-          <span>Learning · Creation · 3D Printing · Custom Products</span>
+          <span>
+            Learning Missions · Thinking Skills · Financial Literacy · Entrepreneurship
+          </span>
         </div>
       </footer>
     </main>
