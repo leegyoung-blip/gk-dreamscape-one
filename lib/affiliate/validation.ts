@@ -36,10 +36,18 @@ export const affiliateApplicationSchema = z.object({
   linkedin: optionalUrl,
   otherSocial: optionalUrl,
   promotionChannels: z.array(z.string().trim().min(1).max(80)).min(1).max(20),
-  audienceDescription: z.string().trim().min(30).max(2000),
+  audienceDescription: z
+    .string()
+    .trim()
+    .min(1, "Briefly describe your main audience")
+    .max(2000),
   audienceSize: optionalInteger(100_000_000),
   audienceCountries: z.string().trim().max(1000).optional().default(""),
-  promotionPlan: z.string().trim().min(50).max(3000),
+  promotionPlan: z
+    .string()
+    .trim()
+    .min(1, "Briefly describe how you plan to promote Dreamscape")
+    .max(3000),
   expectedReferrals: optionalInteger(1_000_000),
   programmeRequested: z.enum(["standard", "kol", "unsure"]),
   ageConfirmed: z.literal(true),

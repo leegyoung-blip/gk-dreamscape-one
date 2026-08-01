@@ -134,7 +134,12 @@ export default function AffiliateApplicationForm() {
         <div className={styles.formGrid}>
           <label className={styles.fullWidth}>
             Describe your main audience <b>*</b>
-            <textarea name="audience_description" required rows={5} placeholder="Who do you reach, and why would Dreamscape be relevant to them?" />
+            <textarea
+              name="audience_description"
+              required
+              rows={4}
+              placeholder="Briefly tell us who you reach and why Dreamscape may be relevant to them. A short answer is fine."
+            />
             <ErrorText messages={state.fieldErrors?.audienceDescription} />
           </label>
           <label>
@@ -147,7 +152,12 @@ export default function AffiliateApplicationForm() {
           </label>
           <label className={styles.fullWidth}>
             How do you plan to promote Dreamscape? <b>*</b>
-            <textarea name="promotion_plan" required rows={6} placeholder="Describe the content, outreach or referral approach you plan to use." />
+            <textarea
+              name="promotion_plan"
+              required
+              rows={4}
+              placeholder="Briefly describe how you plan to share or promote Dreamscape. A short answer is fine."
+            />
             <ErrorText messages={state.fieldErrors?.promotionPlan} />
           </label>
           <label>
