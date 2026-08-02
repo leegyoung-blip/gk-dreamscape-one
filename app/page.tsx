@@ -969,7 +969,7 @@ export default function Home() {
                 gridTemplateColumns: isMobile
                   ? "1fr"
                   : "minmax(0, 1fr) 52px minmax(0, 1fr)",
-                alignItems: "center",
+                alignItems: "stretch",
                 justifyContent: "center",
                 gap: isMobile ? "18px" : "0",
               }}
@@ -1662,12 +1662,15 @@ function EcosystemCard({
       <div
         style={{
           height: "205px",
+          minHeight: "205px",
+          flex: "0 0 205px",
           position: "relative",
           overflow: "hidden",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           padding: "18px 22px 8px",
+          boxSizing: "border-box",
           background:
             "radial-gradient(circle at center, rgba(83,215,255,0.14), rgba(2,8,19,0.08) 55%, rgba(2,8,19,0.22))",
         }}
@@ -1689,12 +1692,14 @@ function EcosystemCard({
 
       <div
         style={{
-          minHeight: "185px",
+          minHeight: "205px",
+          flex: "1 1 auto",
           padding: "26px 28px 32px",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "flex-start",
+          boxSizing: "border-box",
           background:
             "linear-gradient(180deg, rgba(2,8,19,0.42), rgba(2,8,19,0.62))",
           borderTop: "1px solid rgba(116,200,255,0.12)",
@@ -1741,7 +1746,14 @@ function EcosystemCard({
   );
 
   const sharedStyle: CSSProperties = {
-    minHeight: "390px",
+    width: "100%",
+    height: "100%",
+    minWidth: 0,
+    minHeight: "410px",
+    display: "flex",
+    flexDirection: "column",
+    alignSelf: "stretch",
+    boxSizing: "border-box",
     borderRadius: "24px",
     overflow: "hidden",
     border: "1px solid rgba(116,200,255,0.28)",
