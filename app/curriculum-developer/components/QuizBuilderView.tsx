@@ -5,6 +5,7 @@ import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
 import QuestionForm, { type QuestionPayload } from "./QuestionForm";
 import QuizPreviewModal from "./QuizPreviewModal";
+import { syncQuestionMedia } from "../media";
 import type {
   CoreQuiz,
   CoreSkill,
@@ -32,6 +33,20 @@ const EMPTY_FORM: QuizFormState = {
   randomiseQuestions: false,
   randomiseOptions: false,
 };
+
+function countQuestionMedia(question: LinkedQuestion) {
+  const optionImageCount = Array.isArray(question.content?.options)
+    ? question.content.options.filter(
+        (option: any) => option?.image_url || option?.image_path,
+      ).length
+    : 0;
+
+  return (
+    (question.stimulus ? 1 : 0) +
+    (question.assets?.length || 0) +
+    optionImageCount
+  );
+}
 
 export default function QuizBuilderView({
   role,
@@ -105,7 +120,7 @@ export default function QuizBuilderView({
     void loadQuestions(selectedQuiz.id);
   }, [selectedQuiz, topics]);
 
-  async function loadQuestions(quizId: string) {
+  async function loadQuestions(quizId: string): Promise<LinkedQuestion[]> {
     setLoadingQuestions(true);
     setError(null);
 
@@ -119,14 +134,14 @@ export default function QuizBuilderView({
       setError(linkError.message);
       setQuestions([]);
       setLoadingQuestions(false);
-      return;
+      return [];
     }
 
     const ids = (links || []).map((link: any) => String(link.question_id));
     if (ids.length === 0) {
       setQuestions([]);
       setLoadingQuestions(false);
-      return;
+      return [];
     }
 
     const { data: questionRows, error: questionError } = await supabase
@@ -140,7 +155,59 @@ export default function QuizBuilderView({
       setError(questionError.message);
       setQuestions([]);
       setLoadingQuestions(false);
-      return;
+      return [];
+    }
+
+    const stimulusIds = Array.from(
+      new Set(
+        (questionRows || [])
+          .map((question: any) =>
+            question.stimulus_id ? String(question.stimulus_id) : null,
+          )
+          .filter(Boolean) as string[],
+      ),
+    );
+
+    let stimulusRows: any[] = [];
+    if (stimulusIds.length > 0) {
+      const { data, error: stimulusError } = await supabase
+        .from("core_stimuli")
+        .select(
+          "id, subject, primary_level, stimulus_type, title, body, storage_bucket, storage_path, alt_text, transcript, is_active, created_at, updated_at",
+        )
+        .in("id", stimulusIds);
+
+      if (stimulusError) {
+        setError(stimulusError.message);
+        setQuestions([]);
+        setLoadingQuestions(false);
+        return [];
+      }
+      stimulusRows = data || [];
+    }
+
+    const { data: assetRows, error: assetError } = await supabase
+      .from("core_question_assets")
+      .select(
+        "id, question_id, asset_type, storage_bucket, storage_path, alt_text, caption, width, height, metadata, sort_order, created_at",
+      )
+      .in("question_id", ids)
+      .order("sort_order", { ascending: true });
+
+    if (assetError) {
+      setError(assetError.message);
+      setQuestions([]);
+      setLoadingQuestions(false);
+      return [];
+    }
+
+    const stimulusMap = new Map<string, any>(
+      stimulusRows.map((stimulus: any) => [String(stimulus.id), stimulus]),
+    );
+    const assetMap = new Map<string, any[]>();
+    for (const asset of assetRows || []) {
+      const questionId = String(asset.question_id);
+      assetMap.set(questionId, [...(assetMap.get(questionId) || []), asset]);
     }
 
     const questionMap = new Map<string, any>(
@@ -155,12 +222,17 @@ export default function QuizBuilderView({
           question_order: Number(link.question_order),
           marks_override:
             link.marks_override === null ? null : Number(link.marks_override),
+          stimulus: question.stimulus_id
+            ? stimulusMap.get(String(question.stimulus_id)) || null
+            : null,
+          assets: assetMap.get(String(question.id)) || [],
         } as LinkedQuestion;
       })
       .filter(Boolean) as LinkedQuestion[];
 
     setQuestions(combined);
     setLoadingQuestions(false);
+    return combined;
   }
 
   function updateForm<K extends keyof QuizFormState>(
@@ -251,25 +323,72 @@ export default function QuizBuilderView({
   async function saveQuestion(payload: QuestionPayload) {
     if (!selectedQuiz) throw new Error("Save the quiz before adding questions.");
 
-    const { error: saveError } = await supabase.rpc("curriculum_save_question", {
-      p_quiz_id: selectedQuiz.id,
-      p_question_id: payload.questionId,
-      p_question_type: payload.questionType,
-      p_instruction: payload.instruction || null,
-      p_prompt: payload.prompt,
-      p_content: payload.content,
-      p_answer_data: payload.answerData,
-      p_explanation: payload.explanation,
-      p_skill: payload.skill || null,
-      p_difficulty: payload.difficulty,
-      p_marks: payload.marks,
-    });
+    const { data: savedQuestionId, error: saveError } = await supabase.rpc(
+      "curriculum_save_question",
+      {
+        p_quiz_id: selectedQuiz.id,
+        p_question_id: payload.questionId,
+        p_question_type: payload.questionType,
+        p_instruction: payload.instruction || null,
+        p_prompt: payload.prompt,
+        p_content: payload.content,
+        p_answer_data: payload.answerData,
+        p_explanation: payload.explanation,
+        p_skill: payload.skill || null,
+        p_difficulty: payload.difficulty,
+        p_marks: payload.marks,
+      },
+    );
 
     if (saveError) throw saveError;
+    if (!savedQuestionId) {
+      throw new Error("The question was saved, but its ID was not returned.");
+    }
+
+    const questionId = String(savedQuestionId);
+    const { data: savedQuestion, error: questionLookupError } = await supabase
+      .from("core_questions")
+      .select("code, subject, primary_level")
+      .eq("id", questionId)
+      .single();
+
+    if (questionLookupError || !savedQuestion) {
+      throw questionLookupError || new Error("Could not reload the saved question.");
+    }
+
+    try {
+      await syncQuestionMedia({
+        questionId,
+        questionCode: String(savedQuestion.code),
+        subject: savedQuestion.subject as "english" | "math",
+        primaryLevel: Number(savedQuestion.primary_level),
+        content: payload.content,
+        media: payload.media,
+      });
+    } catch (mediaError: any) {
+      const refreshedQuestions = await loadQuestions(selectedQuiz.id);
+      await onDataChanged();
+      setEditingQuestion(
+        refreshedQuestions.find((question) => question.id === questionId) || null,
+      );
+      setMessage(
+        "The question was saved, but its media needs attention. The saved question has been reopened.",
+      );
+      throw new Error(
+        `Question saved, but media could not be completed: ${
+          mediaError?.message || "Unknown media error"
+        }`,
+      );
+    }
+
     await loadQuestions(selectedQuiz.id);
     await onDataChanged();
     setEditingQuestion(null);
-    setMessage(payload.questionId ? "Question updated." : "Question added.");
+    setMessage(
+      payload.questionId
+        ? "Question and media updated."
+        : "Question and media added.",
+    );
   }
 
   async function deleteQuestion(question: LinkedQuestion) {
@@ -616,6 +735,11 @@ export default function QuizBuilderView({
                           <strong>{question.prompt}</strong>
                           <p style={questionMeta}>
                             {question.code} · {question.question_type.replaceAll("_", " ")} · {question.marks} mark(s)
+                            {countQuestionMedia(question) > 0
+                              ? ` · ${countQuestionMedia(question)} media item${
+                                  countQuestionMedia(question) === 1 ? "" : "s"
+                                }`
+                              : ""}
                           </p>
                         </div>
                         <div style={questionActions}>

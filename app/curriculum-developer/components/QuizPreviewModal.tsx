@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 import MathVisual from "@/components/core-math/MathVisual";
+import QuestionMediaRenderer from "@/components/core-media/QuestionMediaRenderer";
 import type { CoreQuiz, LinkedQuestion } from "../types";
 
 export default function QuizPreviewModal({
@@ -39,6 +40,10 @@ export default function QuizPreviewModal({
                 {question.instruction && (
                   <p style={instruction}>{question.instruction}</p>
                 )}
+                <QuestionMediaRenderer
+                  stimulus={question.stimulus}
+                  assets={question.assets}
+                />
                 <h3 style={prompt}>{question.prompt}</h3>
                 <MathVisual visual={question.content?.math_visual} compact />
                 <PreviewResponse question={question} />
@@ -61,7 +66,16 @@ function PreviewResponse({ question }: { question: LinkedQuestion }) {
         {options.map((option: any, index: number) => (
           <div key={String(option.id)} style={optionCard}>
             <strong>{String.fromCharCode(65 + index)}</strong>
-            <span>{String(option.text || "")}</span>
+            <span style={optionContent}>
+              {option.image_url && (
+                <img
+                  src={String(option.image_url)}
+                  alt={String(option.image_alt || option.text || "Answer option")}
+                  style={optionImage}
+                />
+              )}
+              <span>{String(option.text || "")}</span>
+            </span>
           </div>
         ))}
       </div>
@@ -218,7 +232,22 @@ const optionCard: CSSProperties = {
   background: "rgba(255,255,255,0.055)",
   padding: "11px",
   display: "flex",
+  alignItems: "flex-start",
   gap: "9px",
+};
+const optionContent: CSSProperties = {
+  minWidth: 0,
+  display: "grid",
+  gap: "8px",
+};
+const optionImage: CSSProperties = {
+  display: "block",
+  width: "100%",
+  maxWidth: "220px",
+  maxHeight: "150px",
+  objectFit: "contain",
+  borderRadius: "9px",
+  background: "white",
 };
 const answerBox: CSSProperties = {
   marginTop: "12px",

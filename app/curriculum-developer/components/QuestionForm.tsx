@@ -6,6 +6,12 @@ import MathVisual, {
   normaliseMathVisual,
   type MathVisualData,
 } from "@/components/core-math/MathVisual";
+import QuestionMediaEditor from "./QuestionMediaEditor";
+import {
+  emptyQuestionMediaDraft,
+  questionMediaDraftFromQuestion,
+  type QuestionMediaDraft,
+} from "../media";
 import type {
   CoreSubject,
   JsonObject,
@@ -24,6 +30,7 @@ export type QuestionPayload = {
   skill: string;
   difficulty: number;
   marks: number;
+  media: QuestionMediaDraft;
 };
 
 type MultiPartKind = "numeric" | "numeric_unit" | "fraction" | "money";
@@ -139,6 +146,9 @@ export default function QuestionForm({
   ]);
 
   const [mathVisual, setMathVisual] = useState<MathVisualData>({ type: "none" });
+  const [media, setMedia] = useState<QuestionMediaDraft>(
+    emptyQuestionMediaDraft(),
+  );
   const [explanation, setExplanation] = useState("");
   const [skill, setSkill] = useState("");
   const [difficulty, setDifficulty] = useState(1);
@@ -181,6 +191,7 @@ export default function QuestionForm({
       setMoneyToleranceCents("0");
       setMultiParts([emptyPart(0), emptyPart(1)]);
       setMathVisual({ type: "none" });
+      setMedia(emptyQuestionMediaDraft());
       setExplanation("");
       setSkill("");
       setDifficulty(1);
@@ -197,6 +208,7 @@ export default function QuestionForm({
     setDifficulty(Number(question.difficulty || 1));
     setMarks(Number(question.marks || 1));
     setMathVisual(normaliseMathVisual(question.content?.math_visual));
+    setMedia(questionMediaDraftFromQuestion(question));
 
     if (question.question_type === "multiple_choice") {
       const currentOptions = Array.isArray(question.content?.options)
@@ -564,6 +576,7 @@ export default function QuestionForm({
         skill,
         difficulty,
         marks,
+        media,
       });
     } catch (saveError: any) {
       setError(saveError?.message || "Could not save this question.");
@@ -1038,6 +1051,14 @@ export default function QuestionForm({
           </div>
         </div>
       )}
+
+      <QuestionMediaEditor
+        value={media}
+        questionType={questionType}
+        optionLabels={options}
+        disabled={disabled}
+        onChange={setMedia}
+      />
 
       {subject === "math" && (
         <MathVisualEditor

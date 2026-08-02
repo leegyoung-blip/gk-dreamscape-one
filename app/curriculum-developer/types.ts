@@ -20,6 +20,17 @@ export type SupportedQuestionType =
   | "money"
   | "math_multi_part";
 
+export type CoreMediaAssetType = "image" | "svg" | "audio" | "video";
+export type CoreStimulusType =
+  | "passage"
+  | "visual_text"
+  | "image"
+  | "audio"
+  | "video"
+  | "diagram"
+  | "table"
+  | "graph";
+
 export type CoreTopic = {
   id: string;
   subject: CoreSubject;
@@ -79,6 +90,37 @@ export type CoreQuiz = {
 
 export type JsonObject = Record<string, any>;
 
+export type CoreStimulus = {
+  id: string;
+  subject: CoreSubject;
+  primary_level: number;
+  stimulus_type: CoreStimulusType;
+  title: string | null;
+  body: JsonObject;
+  storage_bucket: string | null;
+  storage_path: string | null;
+  alt_text: string | null;
+  transcript: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CoreQuestionAsset = {
+  id: string;
+  question_id: string;
+  asset_type: CoreMediaAssetType;
+  storage_bucket: string;
+  storage_path: string;
+  alt_text: string | null;
+  caption: string | null;
+  width: number | null;
+  height: number | null;
+  metadata: JsonObject;
+  sort_order: number;
+  created_at: string;
+};
+
 export type CoreQuestion = {
   id: string;
   subject: CoreSubject;
@@ -107,6 +149,8 @@ export type CoreQuestion = {
 export type LinkedQuestion = CoreQuestion & {
   question_order: number;
   marks_override: number | null;
+  stimulus: CoreStimulus | null;
+  assets: CoreQuestionAsset[];
 };
 
 export type QuizFormState = {
