@@ -129,15 +129,24 @@ const enquiryHref =
 const pilotHref =
   "mailto:admin@gurukidspro.com?subject=Dreamscape%2014-Day%20Education%20Pilot&body=Organisation%20name%3A%0AContact%20person%3A%0AProposed%20pilot%20start%20date%3A";
 
+const whatsappHref =
+  "https://wa.me/6583888949?text=Hello%20Guru%20Kids%20Pro%2C%20I%20would%20like%20to%20enquire%20about%20the%20Dreamscape%20Education%20Licence.";
+
+const pilotWhatsappHref =
+  "https://wa.me/6583888949?text=Hello%20Guru%20Kids%20Pro%2C%20I%20would%20like%20to%20enquire%20about%20the%2014-day%20Dreamscape%20education%20pilot.";
+
 export default function EducationLicencePage() {
-  const [isMobile, setIsMobile] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState(1440);
 
   useEffect(() => {
-    const update = () => setIsMobile(window.innerWidth <= 900);
+    const update = () => setViewportWidth(window.innerWidth);
     update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
   }, []);
+
+  const isMobile = viewportWidth <= 700;
+  const isCompact = viewportWidth <= 1180;
 
   const navLinkStyle: CSSProperties = {
     color: "rgba(255,255,255,0.72)",
@@ -158,7 +167,7 @@ export default function EducationLicencePage() {
       <header
         style={{
           minHeight: isMobile ? "72px" : "86px",
-          padding: isMobile ? "0 18px" : "0 6vw",
+          padding: isMobile ? "0 14px" : isCompact ? "0 28px" : "0 6vw",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -184,8 +193,8 @@ export default function EducationLicencePage() {
             src="/home/dreamscape-logo.png"
             alt="Dreamscape One"
             style={{
-              width: isMobile ? "40px" : "50px",
-              height: isMobile ? "40px" : "50px",
+              width: isMobile ? "38px" : isCompact ? "44px" : "50px",
+              height: isMobile ? "38px" : isCompact ? "44px" : "50px",
               objectFit: "contain",
               borderRadius: "999px",
             }}
@@ -194,8 +203,13 @@ export default function EducationLicencePage() {
             <p
               style={{
                 margin: 0,
-                fontSize: isMobile ? "12px" : "16px",
-                letterSpacing: isMobile ? "0.16em" : "0.3em",
+                fontSize: isMobile ? "10px" : isCompact ? "13px" : "16px",
+                letterSpacing: isMobile
+                  ? "0.12em"
+                  : isCompact
+                    ? "0.2em"
+                    : "0.3em",
+                whiteSpace: "nowrap",
               }}
             >
               DREAMSCAPE ONE
@@ -218,10 +232,10 @@ export default function EducationLicencePage() {
           style={{
             display: "flex",
             alignItems: "center",
-            gap: isMobile ? "10px" : "22px",
+            gap: isMobile ? "8px" : isCompact ? "12px" : "22px",
           }}
         >
-          {!isMobile && (
+          {!isCompact && (
             <>
               <Link href="/" style={navLinkStyle}>
                 Home
@@ -232,28 +246,30 @@ export default function EducationLicencePage() {
             </>
           )}
           <a
-            href={enquiryHref}
+            href={whatsappHref}
+            target="_blank"
+            rel="noopener noreferrer"
             style={{
-              padding: isMobile ? "10px 13px" : "11px 18px",
+              padding: isMobile ? "9px 11px" : "11px 18px",
               borderRadius: "999px",
               color: "#170827",
               background:
                 "linear-gradient(90deg, #8ee8ff, #c58cff 62%, #ffae5c)",
               textDecoration: "none",
-              fontSize: "11px",
+              fontSize: isMobile ? "9px" : "11px",
               fontWeight: 900,
-              letterSpacing: "0.08em",
+              letterSpacing: "0.07em",
               whiteSpace: "nowrap",
             }}
           >
-            ENQUIRE
+            {isMobile ? "WHATSAPP" : "WHATSAPP 8388 8949"}
           </a>
         </nav>
       </header>
 
       <section
         style={{
-          padding: isMobile ? "78px 20px 66px" : "110px 6vw 82px",
+          padding: isMobile ? "72px 18px 60px" : isCompact ? "88px 34px 70px" : "110px 6vw 82px",
           textAlign: "center",
         }}
       >
@@ -275,7 +291,7 @@ export default function EducationLicencePage() {
             margin: "22px auto 0",
             maxWidth: "1080px",
             fontFamily: 'Georgia, "Times New Roman", serif',
-            fontSize: isMobile ? "46px" : "76px",
+            fontSize: isMobile ? "clamp(38px, 11vw, 46px)" : "clamp(50px, 6.2vw, 76px)",
             fontWeight: 400,
             lineHeight: 1.04,
           }}
@@ -288,7 +304,7 @@ export default function EducationLicencePage() {
             margin: "28px auto 0",
             maxWidth: "900px",
             color: "rgba(255,255,255,0.7)",
-            fontSize: isMobile ? "17px" : "21px",
+            fontSize: isMobile ? "16px" : "clamp(18px, 1.9vw, 21px)",
             fontWeight: 300,
             lineHeight: 1.72,
           }}
@@ -329,11 +345,13 @@ export default function EducationLicencePage() {
               boxSizing: "border-box",
             }}
           >
-            Request an Education Licence
+            Email admin@gurukidspro.com
           </a>
 
           <a
-            href={pilotHref}
+            href={whatsappHref}
+            target="_blank"
+            rel="noopener noreferrer"
             style={{
               width: isMobile ? "100%" : "auto",
               minHeight: "56px",
@@ -353,14 +371,14 @@ export default function EducationLicencePage() {
               boxSizing: "border-box",
             }}
           >
-            Start a 14-Day Pilot
+            WhatsApp 8388 8949
           </a>
         </div>
       </section>
 
       <section
         style={{
-          padding: isMobile ? "0 20px 88px" : "0 6vw 110px",
+          padding: isMobile ? "0 18px 80px" : isCompact ? "0 34px 94px" : "0 6vw 110px",
         }}
       >
         <div
@@ -370,8 +388,10 @@ export default function EducationLicencePage() {
             display: "grid",
             gridTemplateColumns: isMobile
               ? "1fr"
-              : "repeat(4, minmax(0, 1fr))",
-            gap: isMobile ? "20px" : "22px",
+              : isCompact
+                ? "repeat(2, minmax(0, 1fr))"
+                : "repeat(4, minmax(0, 1fr))",
+            gap: isMobile ? "18px" : isCompact ? "20px" : "22px",
             alignItems: "stretch",
           }}
         >
@@ -379,10 +399,10 @@ export default function EducationLicencePage() {
             <article
               key={item.name}
               style={{
-                minHeight: "470px",
+                minHeight: isMobile ? "420px" : "440px",
                 display: "flex",
                 flexDirection: "column",
-                padding: "32px 27px",
+                padding: isMobile ? "28px 23px" : isCompact ? "30px 25px" : "32px 27px",
                 borderRadius: "28px",
                 border: `1px solid ${item.accent}55`,
                 background:
@@ -406,7 +426,11 @@ export default function EducationLicencePage() {
               <h2
                 style={{
                   margin: "15px 0 0",
-                  fontSize: "31px",
+                  fontSize: isMobile
+                    ? "27px"
+                    : isCompact
+                      ? "29px"
+                      : "31px",
                   fontWeight: 800,
                 }}
               >
@@ -444,7 +468,11 @@ export default function EducationLicencePage() {
                 </span>
                 <span
                   style={{
-                    fontSize: isMobile ? "48px" : "52px",
+                    fontSize: isMobile
+                      ? "clamp(40px, 12vw, 48px)"
+                      : isCompact
+                        ? "clamp(42px, 4.6vw, 48px)"
+                        : "52px",
                     fontWeight: 900,
                     lineHeight: 1,
                   }}
@@ -511,29 +539,6 @@ export default function EducationLicencePage() {
                   ✓ 12-month access
                 </span>
               </div>
-
-              <a
-                href={`${enquiryHref}%0APackage%20selected%3A%20${encodeURIComponent(
-                  item.name,
-                )}`}
-                style={{
-                  marginTop: "26px",
-                  minHeight: "52px",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderRadius: "999px",
-                  textDecoration: "none",
-                  background: "rgba(255,255,255,0.94)",
-                  color: "#19092e",
-                  fontSize: "12px",
-                  fontWeight: 900,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                }}
-              >
-                Enquire about {item.name}
-              </a>
             </article>
           ))}
         </div>
@@ -541,7 +546,7 @@ export default function EducationLicencePage() {
 
       <section
         style={{
-          padding: isMobile ? "80px 20px" : "105px 6vw",
+          padding: isMobile ? "76px 18px" : isCompact ? "88px 34px" : "105px 6vw",
           background:
             "linear-gradient(180deg, rgba(8,22,40,0.78), rgba(2,8,19,0.98))",
           borderTop: "1px solid rgba(142,232,255,0.13)",
@@ -552,8 +557,8 @@ export default function EducationLicencePage() {
             maxWidth: "1360px",
             margin: "0 auto",
             display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "0.9fr 1.1fr",
-            gap: isMobile ? "38px" : "70px",
+            gridTemplateColumns: isCompact ? "1fr" : "0.9fr 1.1fr",
+            gap: isMobile ? "34px" : isCompact ? "44px" : "70px",
             alignItems: "center",
           }}
         >
@@ -575,7 +580,7 @@ export default function EducationLicencePage() {
               style={{
                 margin: "18px 0 0",
                 fontFamily: 'Georgia, "Times New Roman", serif',
-                fontSize: isMobile ? "40px" : "58px",
+                fontSize: isMobile ? "36px" : "clamp(42px, 5vw, 58px)",
                 fontWeight: 400,
                 lineHeight: 1.08,
               }}
@@ -609,33 +614,70 @@ export default function EducationLicencePage() {
               within seven days after the pilot ends.
             </p>
 
-            <a
-              href={pilotHref}
+            <div
               style={{
                 marginTop: "29px",
-                minHeight: "54px",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "14px 23px",
-                borderRadius: "999px",
-                textDecoration: "none",
-                background:
-                  "linear-gradient(90deg, #8ee8ff, #c58cff 60%, #ffae5c)",
-                color: "#160729",
-                fontSize: "13px",
-                fontWeight: 900,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
+                display: "flex",
+                flexDirection: isMobile ? "column" : "row",
+                flexWrap: "wrap",
+                gap: "12px",
               }}
             >
-              Request a Pilot
-            </a>
+              <a
+                href={pilotHref}
+                style={{
+                  width: isMobile ? "100%" : "auto",
+                  minHeight: "54px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "14px 23px",
+                  borderRadius: "999px",
+                  textDecoration: "none",
+                  background:
+                    "linear-gradient(90deg, #8ee8ff, #c58cff 60%, #ffae5c)",
+                  color: "#160729",
+                  fontSize: "13px",
+                  fontWeight: 900,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  boxSizing: "border-box",
+                }}
+              >
+                Email about the pilot
+              </a>
+
+              <a
+                href={pilotWhatsappHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  width: isMobile ? "100%" : "auto",
+                  minHeight: "54px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "14px 23px",
+                  borderRadius: "999px",
+                  textDecoration: "none",
+                  border: "1px solid rgba(255,255,255,0.24)",
+                  background: "rgba(255,255,255,0.05)",
+                  color: "white",
+                  fontSize: "13px",
+                  fontWeight: 900,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  boxSizing: "border-box",
+                }}
+              >
+                WhatsApp 8388 8949
+              </a>
+            </div>
           </div>
 
           <div
             style={{
-              padding: isMobile ? "30px 24px" : "38px 34px",
+              padding: isMobile ? "28px 22px" : isCompact ? "32px 28px" : "38px 34px",
               borderRadius: "30px",
               border: "1px solid rgba(142,232,255,0.22)",
               background:
@@ -685,7 +727,7 @@ export default function EducationLicencePage() {
 
       <section
         style={{
-          padding: isMobile ? "84px 20px" : "110px 6vw",
+          padding: isMobile ? "78px 18px" : isCompact ? "92px 34px" : "110px 6vw",
         }}
       >
         <div style={{ maxWidth: "1350px", margin: "0 auto" }}>
@@ -709,7 +751,7 @@ export default function EducationLicencePage() {
               maxWidth: "900px",
               textAlign: "center",
               fontFamily: 'Georgia, "Times New Roman", serif',
-              fontSize: isMobile ? "40px" : "56px",
+              fontSize: isMobile ? "36px" : "clamp(42px, 4.8vw, 56px)",
               fontWeight: 400,
             }}
           >
@@ -722,7 +764,9 @@ export default function EducationLicencePage() {
               display: "grid",
               gridTemplateColumns: isMobile
                 ? "1fr"
-                : "repeat(3, minmax(0, 1fr))",
+                : isCompact
+                  ? "repeat(2, minmax(0, 1fr))"
+                  : "repeat(3, minmax(0, 1fr))",
               gap: "18px",
             }}
           >
@@ -765,7 +809,7 @@ export default function EducationLicencePage() {
 
       <section
         style={{
-          padding: isMobile ? "82px 20px" : "105px 6vw",
+          padding: isMobile ? "76px 18px" : isCompact ? "88px 34px" : "105px 6vw",
           background:
             "linear-gradient(180deg, rgba(9,20,37,0.78), rgba(2,8,19,0.98))",
           borderTop: "1px solid rgba(142,232,255,0.12)",
@@ -795,7 +839,7 @@ export default function EducationLicencePage() {
             style={{
               margin: "18px 0 0",
               fontFamily: 'Georgia, "Times New Roman", serif',
-              fontSize: isMobile ? "39px" : "54px",
+              fontSize: isMobile ? "35px" : "clamp(41px, 4.6vw, 54px)",
               fontWeight: 400,
             }}
           >
@@ -860,7 +904,7 @@ export default function EducationLicencePage() {
             <h3
               style={{
                 margin: 0,
-                fontSize: isMobile ? "27px" : "33px",
+                fontSize: isMobile ? "25px" : "clamp(28px, 3vw, 33px)",
               }}
             >
               Ready to discuss your organisation?
@@ -877,28 +921,77 @@ export default function EducationLicencePage() {
               Tell us your organisation name, expected student seats, and
               preferred package. We will reply with the next onboarding steps.
             </p>
-            <a
-              href={enquiryHref}
+            <div
               style={{
                 marginTop: "25px",
-                minHeight: "54px",
-                display: "inline-flex",
-                alignItems: "center",
+                display: "flex",
+                flexDirection: isMobile ? "column" : "row",
+                flexWrap: "wrap",
                 justifyContent: "center",
-                padding: "14px 23px",
-                borderRadius: "999px",
-                textDecoration: "none",
-                background:
-                  "linear-gradient(90deg, #8ee8ff, #c58cff 60%, #ffae5c)",
-                color: "#160729",
-                fontSize: "13px",
-                fontWeight: 900,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
+                gap: "12px",
               }}
             >
-              Email Guru Kids Pro
-            </a>
+              <a
+                href={enquiryHref}
+                style={{
+                  width: isMobile ? "100%" : "auto",
+                  minHeight: "54px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "14px 23px",
+                  borderRadius: "999px",
+                  textDecoration: "none",
+                  background:
+                    "linear-gradient(90deg, #8ee8ff, #c58cff 60%, #ffae5c)",
+                  color: "#160729",
+                  fontSize: "13px",
+                  fontWeight: 900,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  boxSizing: "border-box",
+                }}
+              >
+                Email admin@gurukidspro.com
+              </a>
+
+              <a
+                href={whatsappHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  width: isMobile ? "100%" : "auto",
+                  minHeight: "54px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "14px 23px",
+                  borderRadius: "999px",
+                  textDecoration: "none",
+                  border: "1px solid rgba(255,255,255,0.24)",
+                  background: "rgba(255,255,255,0.05)",
+                  color: "white",
+                  fontSize: "13px",
+                  fontWeight: 900,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  boxSizing: "border-box",
+                }}
+              >
+                WhatsApp 8388 8949
+              </a>
+            </div>
+
+            <p
+              style={{
+                margin: "18px 0 0",
+                color: "rgba(255,255,255,0.56)",
+                fontSize: "13px",
+                lineHeight: 1.6,
+              }}
+            >
+              Email: admin@gurukidspro.com · WhatsApp: 8388 8949
+            </p>
           </div>
 
           <p

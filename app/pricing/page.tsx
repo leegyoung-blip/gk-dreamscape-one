@@ -181,14 +181,17 @@ function money(value: number) {
 export default function PricingPage() {
   const [billingCycle, setBillingCycle] =
     useState<BillingCycle>("annual");
-  const [isMobile, setIsMobile] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState(1440);
 
   useEffect(() => {
-    const update = () => setIsMobile(window.innerWidth <= 900);
+    const update = () => setViewportWidth(window.innerWidth);
     update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
   }, []);
+
+  const isMobile = viewportWidth <= 700;
+  const isCompact = viewportWidth <= 1180;
 
   const annualSavings = useMemo(
     () =>
@@ -435,7 +438,11 @@ export default function PricingPage() {
                   minHeight: "650px",
                   display: "flex",
                   flexDirection: "column",
-                  padding: isMobile ? "32px 25px" : "38px 31px",
+                  padding: isMobile
+                    ? "30px 22px"
+                    : isCompact
+                      ? "34px 22px"
+                      : "38px 31px",
                   borderRadius: "30px",
                   border: plan.featured
                     ? `1px solid ${plan.accent}`
@@ -603,26 +610,71 @@ export default function PricingPage() {
                 <Link
                   href={checkoutHref}
                   style={{
-                    marginTop: "30px",
-                    minHeight: "55px",
-                    display: "inline-flex",
+                    marginTop: isMobile ? "24px" : "30px",
+                    width: "100%",
+                    minWidth: 0,
+                    minHeight: isMobile
+                      ? "56px"
+                      : isCompact
+                        ? "60px"
+                        : "58px",
+                    padding: isMobile
+                      ? "11px 12px 11px 17px"
+                      : isCompact
+                        ? "12px 13px 12px 18px"
+                        : "13px 14px 13px 21px",
+                    display: "flex",
                     alignItems: "center",
-                    justifyContent: "center",
-                    gap: "10px",
+                    justifyContent: "space-between",
+                    gap: isCompact ? "10px" : "14px",
                     borderRadius: "999px",
                     textDecoration: "none",
                     background: plan.featured
                       ? "linear-gradient(90deg, #8ee8ff, #c58cff 58%, #ffae5c)"
                       : "rgba(255,255,255,0.94)",
                     color: "#18082e",
-                    fontSize: "13px",
+                    fontSize: isMobile
+                      ? "11px"
+                      : isCompact
+                        ? "clamp(10px, 1.05vw, 12px)"
+                        : "13px",
                     fontWeight: 900,
-                    letterSpacing: "0.08em",
+                    lineHeight: 1.25,
+                    letterSpacing: isCompact ? "0.045em" : "0.075em",
                     textTransform: "uppercase",
+                    textAlign: "left",
+                    boxSizing: "border-box",
+                    overflow: "hidden",
                   }}
                 >
-                  Choose {plan.name}
-                  <span aria-hidden="true">→</span>
+                  <span
+                    style={{
+                      minWidth: 0,
+                      flex: "1 1 auto",
+                      overflowWrap: "break-word",
+                    }}
+                  >
+                    Choose {plan.name}
+                  </span>
+
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: isMobile ? "32px" : "34px",
+                      height: isMobile ? "32px" : "34px",
+                      flex: "0 0 auto",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: "999px",
+                      border: "1px solid rgba(24,8,46,0.18)",
+                      background: "rgba(255,255,255,0.28)",
+                      fontSize: "15px",
+                      lineHeight: 1,
+                    }}
+                  >
+                    →
+                  </span>
                 </Link>
               </article>
             );
