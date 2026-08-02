@@ -1825,7 +1825,7 @@ function FloatingControls({
                       that can award Dream Gems.
                     </p>
                     <Link
-                      href="/nova/membership-portal"
+                      href="/pricing"
                       onClick={() => setDreamGemsOpen(false)}
                       style={{
                         marginTop: "13px",
@@ -2560,9 +2560,9 @@ function MembershipPortalPopup({ onClose }: { onClose: () => void }) {
   const [studentHovered, setStudentHovered] = useState(false);
 
   function openStudentAccessPage() {
-  onClose();
-  window.location.href = "/nova/membership-portal";
-}
+    onClose();
+    window.location.href = "/pricing";
+  }
 
   return (
     <div
@@ -2836,7 +2836,7 @@ function MembershipPortalPopup({ onClose }: { onClose: () => void }) {
             onClick={openStudentAccessPage}
             style={{
               position: "relative",
-              minHeight: isDesktop ? "540px" : isMobile ? "430px" : "520px",
+              minHeight: isDesktop ? "560px" : isMobile ? "610px" : "560px",
               borderRadius: "26px",
               overflow: "hidden",
               border: "1px solid rgba(99, 232, 255, 0.85)",
@@ -2854,7 +2854,7 @@ function MembershipPortalPopup({ onClose }: { onClose: () => void }) {
                 width: "100%",
                 height: "100%",
                 objectFit: "cover",
-                objectPosition: "30%center",
+                objectPosition: "30% center",
                 display: "block",
                 transform: studentHovered ? "scale(1.035)" : "scale(1)",
                 transition: "transform 320ms ease",
@@ -2924,7 +2924,7 @@ function MembershipPortalPopup({ onClose }: { onClose: () => void }) {
                   WebkitBackdropFilter: "blur(8px)",
                 }}
               >
-                $1 first month
+                SGD 24.90/month
               </div>
             </div>
 
@@ -2935,10 +2935,11 @@ function MembershipPortalPopup({ onClose }: { onClose: () => void }) {
                 right: "24px",
                 bottom: "24px",
                 zIndex: 2,
-                transform: studentHovered
-                  ? "translateY(0)"
-                  : "translateY(18px)",
-                opacity: studentHovered ? 1 : 0,
+                transform:
+                  studentHovered || isMobile
+                    ? "translateY(0)"
+                    : "translateY(18px)",
+                opacity: studentHovered || isMobile ? 1 : 0,
                 transition: "opacity 240ms ease, transform 240ms ease",
               }}
             >
@@ -2970,14 +2971,27 @@ function MembershipPortalPopup({ onClose }: { onClose: () => void }) {
                 <h3
                   style={{
                     margin: "10px 0 0",
-                    fontSize: isMobile ? "28px" : "34px",
-                    lineHeight: 1.05,
+                    fontSize: isMobile ? "27px" : "34px",
+                    lineHeight: 1.08,
                     fontWeight: 900,
                     letterSpacing: "-0.04em",
                   }}
                 >
-                  Full missions, rewards, and learning upgrades.
+                  Complete Missions for SGD 24.90/month.
                 </h3>
+
+                <p
+                  style={{
+                    margin: "12px 0 0",
+                    color: "rgba(255,255,255,0.74)",
+                    fontSize: isMobile ? "13px" : "14px",
+                    lineHeight: 1.55,
+                  }}
+                >
+                  Full Nova Student Access across English, Mathematics, and
+                  Science, with Milo’s Business Builder included when it
+                  launches.
+                </p>
 
                 <ul
                   style={{
@@ -2989,10 +3003,12 @@ function MembershipPortalPopup({ onClose }: { onClose: () => void }) {
                   }}
                 >
                   {[
-                    "Full access to Learning Missions",
-                    "Regularly updated activities",
-                    "Dreamscape Token rewards",
-                    "Unlock and purchase future items",
+                    "Full English Learning Missions",
+                    "Full Mathematics Learning Missions",
+                    "Full Science Learning Missions",
+                    "Topic quizzes and mixed assessments",
+                    "Progress, Dream Token, and Dream Gem rewards",
+                    "Milo’s Business Builder included when launched",
                   ].map((feature) => (
                     <li
                       key={feature}
@@ -3030,12 +3046,12 @@ function MembershipPortalPopup({ onClose }: { onClose: () => void }) {
                     boxShadow: "0 14px 28px rgba(83,215,255,0.2)",
                   }}
                 >
-                  Start Student Access ›
+                  View Student Access Plans ›
                 </div>
               </div>
             </div>
 
-            {!studentHovered && (
+            {!studentHovered && !isMobile && (
               <div
                 style={{
                   position: "absolute",
@@ -3073,7 +3089,7 @@ function MembershipPortalPopup({ onClose }: { onClose: () => void }) {
                     letterSpacing: "-0.03em",
                   }}
                 >
-                  $1 first month
+                  SGD 24.90/month
                 </h3>
 
                 <p
@@ -3084,7 +3100,8 @@ function MembershipPortalPopup({ onClose }: { onClose: () => void }) {
                     lineHeight: 1.45,
                   }}
                 >
-                  Then $19.90/month. Use code DREAM1 at checkout.
+                  Complete English, Mathematics, and Science missions. Milo’s
+                  Business Builder is included when launched.
                 </p>
               </div>
             )}
@@ -3100,8 +3117,8 @@ function MembershipPortalPopup({ onClose }: { onClose: () => void }) {
             textAlign: "center",
           }}
         >
-          Active Guru Kids Pro students can activate included access from the
-          Student Access page.
+          View the pricing page for all monthly and annual options. Existing
+          Guru Kids Pro students may have separate eligible access arrangements.
         </p>
       </div>
     </div>
