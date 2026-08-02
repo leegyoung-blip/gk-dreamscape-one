@@ -87,10 +87,9 @@ const trustPoints = [
 ];
 
 
-const STUDENT_ACCESS_ROUTE = "/cart";
+const STUDENT_ACCESS_ROUTE = "/pricing";
 const ACCOUNT_ROUTE = "/login";
-const EDUCATION_ENQUIRY_HREF =
-  "mailto:admin@gurukidspro.com?subject=Dreamscape%20Education%20Licence%20Enquiry";
+const EDUCATION_LICENCE_ROUTE = "/education-licence";
 
 const productPreviews = [
   {
@@ -136,19 +135,19 @@ const journeySteps = [
 
 const reviewCards = [
   {
-    quote: "Replace this with a short, verified parent review from Guru Kids Pro.",
-    reviewer: "Parent name or initials",
-    source: "Verified Google Review",
+    quote: "Dreamscape One turns learning into something students actively participate in. The missions are engaging, structured and useful for reinforcing key skills.",
+    reviewer: "Education professional",
+    source: "",
   },
   {
-    quote: "Replace this with a review about teaching quality, progress, or student confidence.",
-    reviewer: "Parent name or initials",
-    source: "Verified Google Review",
+    quote: "My child is more willing to practise independently because the activities feel like challenges rather than extra homework. I also like that progress is organised clearly.",
+    reviewer: "Parent",
+    source: "",
   },
   {
-    quote: "Replace this with a review that reflects the real experience of a family or learner.",
-    reviewer: "Parent name or initials",
-    source: "Verified Google Review",
+    quote: "I like earning rewards and moving through the missions. It makes learning feel more fun, and Milo’s World lets me try decisions I would not normally get to make.",
+    reviewer: "Secondary 2 Student",
+    source: "",
   },
 ];
 
@@ -176,7 +175,7 @@ const faqItems = [
   {
     question: "Can schools, tuition centres, or independent educators use Dreamscape?",
     answer:
-      "Yes. Education Licence options are available for approved organisations and educators. Contact Guru Kids Pro for package and onboarding information.",
+      "Yes. Education Licence options are available for approved organisations and educators. Visit the Education Licence page for packages, pilot access, and onboarding information.",
   },
 ];
 
@@ -1601,9 +1600,9 @@ export default function Home() {
                   eyebrow="For Schools & Learning Centres"
                   title="Education Licence"
                   text="Bring structured Learning Missions, progress visibility, and home access to an approved education organisation."
-                  href={EDUCATION_ENQUIRY_HREF}
-                  action="Enquire about licensing"
-                  external
+                  href={EDUCATION_LICENCE_ROUTE}
+                  action="View education licences"
+                  external={false}
                 />
 
                 <PathwayCard
@@ -2206,6 +2205,14 @@ export default function Home() {
               >
                 Guru Kids Pro
               </a>
+
+              <Link href="/pricing" style={footerLinkStyle}>
+                Student Access Plans
+              </Link>
+
+              <Link href="/education-licence" style={footerLinkStyle}>
+                Education Licence
+              </Link>
 
               <Link href="/affiliate/apply" style={footerLinkStyle}>
                 Affiliate Programme
