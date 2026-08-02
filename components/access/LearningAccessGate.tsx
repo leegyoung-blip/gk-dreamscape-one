@@ -28,8 +28,17 @@ export default function LearningAccessGate({
 
   useEffect(() => {
     let cancelled = false;
+    let expiryTimer: number | null = null;
+
+    function clearExpiryTimer() {
+      if (expiryTimer !== null) {
+        window.clearTimeout(expiryTimer);
+        expiryTimer = null;
+      }
+    }
 
     async function checkAccess() {
+      clearExpiryTimer();
       setStatus("checking");
 
       const {
@@ -80,12 +89,45 @@ export default function LearningAccessGate({
         );
       }
 
+      const subscriptionRows = subscriptionResult.error
+        ? []
+        : ((subscriptionResult.data || []) as SubscriptionRow[]);
+
       const entitlements = getLearningEntitlements(
         profileResult.data.role,
-        subscriptionResult.error
-          ? []
-          : ((subscriptionResult.data || []) as SubscriptionRow[]),
+        subscriptionRows,
       );
+
+      const futureExpiries = subscriptionRows
+        .filter(
+          (row) =>
+            String(row.status || "").trim().toLowerCase() ===
+              "active" && row.access_until,
+        )
+        .map((row) =>
+          new Date(String(row.access_until)).getTime(),
+        )
+        .filter(
+          (value) =>
+            Number.isFinite(value) &&
+            value > Date.now(),
+        )
+        .sort((a, b) => a - b);
+
+      if (futureExpiries.length > 0) {
+        const delay = Math.min(
+          Math.max(
+            futureExpiries[0] - Date.now() + 750,
+            1000,
+          ),
+          2_147_000_000,
+        );
+
+        expiryTimer = window.setTimeout(
+          () => void checkAccess(),
+          delay,
+        );
+      }
 
       const manualAccess =
         !manualAccessResult.error &&
@@ -111,6 +153,7 @@ export default function LearningAccessGate({
 
     return () => {
       cancelled = true;
+      clearExpiryTimer();
       subscription.unsubscribe();
       window.removeEventListener("focus", checkAccess);
     };
