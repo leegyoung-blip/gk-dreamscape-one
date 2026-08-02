@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getLearningEntitlements, learningPlanLabel } from "@/lib/learning-access";
 import { supabase } from "@/lib/supabase";
 
 type DreamTokenTransaction = {
@@ -22,6 +23,7 @@ type DreamGemTransaction = {
     | "class_attendance"
     | "core_mission"
     | "think_mission"
+    | "science_mission"
     | "redemption"
     | "admin_adjustment"
     | "system"
@@ -36,6 +38,7 @@ type DreamGemTransaction = {
 type NovaSubscription = {
   status: string | null;
   access_until: string | null;
+  plan_code: string | null;
 };
 
 type ExchangeStock = {
@@ -85,6 +88,7 @@ function formatGemSource(source: DreamGemTransaction["source"]) {
     class_attendance: "Class Attendance",
     core_mission: "Core Mission",
     think_mission: "Think Mission",
+    science_mission: "Science Mission",
     redemption: "Reward Redemption",
     admin_adjustment: "Admin Adjustment",
     system: "Dreamscape System",
@@ -141,33 +145,6 @@ function GemIcon({
       />
     </svg>
   );
-}
-
-function hasActiveSubscription(
-  subscriptions: NovaSubscription[],
-) {
-  const now = Date.now();
-
-  return subscriptions.some((subscription) => {
-    if (
-      subscription.status?.trim().toLowerCase() !== "active"
-    ) {
-      return false;
-    }
-
-    if (!subscription.access_until) {
-      return true;
-    }
-
-    const accessUntil = new Date(
-      subscription.access_until,
-    ).getTime();
-
-    return (
-      Number.isFinite(accessUntil) &&
-      accessUntil >= now
-    );
-  });
 }
 
 function normaliseRole(
@@ -249,6 +226,9 @@ export default function ProfilePage() {
     setHasStudentRewardsAccess,
   ] = useState(false);
 
+  const [activeLearningPlanLabels, setActiveLearningPlanLabels] =
+    useState<string[]>([]);
+
   const [tokenTransactions, setTokenTransactions] =
     useState<DreamTokenTransaction[]>([]);
 
@@ -307,9 +287,13 @@ export default function ProfilePage() {
       ? "Curriculum Lead"
       : normalizedRole === "teacher"
         ? "Teacher Access"
-        : hasStudentRewardsAccess
-          ? "Student Access"
-          : "Basic Access";
+        : activeLearningPlanLabels.length === 1
+          ? activeLearningPlanLabels[0]
+          : activeLearningPlanLabels.length > 1
+            ? "Combined Student Access"
+            : hasStudentRewardsAccess
+              ? "Student Access"
+              : "Basic Access";
 
   useEffect(() => {
     function updateShareMode() {
@@ -373,6 +357,7 @@ export default function ProfilePage() {
         setUsernameDraft("");
         setIsAdmin(false);
         setHasStudentRewardsAccess(false);
+        setActiveLearningPlanLabels([]);
         setTokenTransactions([]);
         setGemTransactions([]);
         setDreamGemBalance(0);
@@ -416,12 +401,6 @@ export default function ProfilePage() {
       const loadedRole =
         normaliseRole(profile?.role) || "regular";
 
-      const roleHasRewardsAccess = [
-        "student",
-        "teacher",
-        "curriculum-lead",
-        "admin",
-      ].includes(loadedRole);
 
       setRole(loadedRole);
       setIsAdmin(loadedRole === "admin");
@@ -439,7 +418,7 @@ export default function ProfilePage() {
         error: subscriptionError,
       } = await supabase
         .from("nova_subscriptions")
-        .select("status,access_until")
+        .select("status,access_until,plan_code")
         .eq("user_id", userId)
         .order("access_until", {
           ascending: false,
@@ -456,17 +435,18 @@ export default function ProfilePage() {
         );
       }
 
-      const subscriptionHasRewardsAccess =
-        subscriptionError
-          ? false
-          : hasActiveSubscription(
-              (subscriptionRows ||
-                []) as NovaSubscription[],
-            );
+      const subscriptionData = subscriptionError
+        ? []
+        : ((subscriptionRows || []) as NovaSubscription[]);
 
-      setHasStudentRewardsAccess(
-        roleHasRewardsAccess ||
-          subscriptionHasRewardsAccess,
+      const entitlements = getLearningEntitlements(
+        loadedRole,
+        subscriptionData,
+      );
+
+      setHasStudentRewardsAccess(entitlements.rewards);
+      setActiveLearningPlanLabels(
+        entitlements.activePlans.map(learningPlanLabel),
       );
 
       const pendingReferralCode =
@@ -1370,7 +1350,7 @@ Thank you.`;
 
                   <p className="mt-4 max-w-md text-sm leading-6 text-white/62">
                     Earn DG through eligible class
-                    attendance and selected Core and
+                    attendance and selected Core, Science and
                     Think Learning Missions. Redeem
                     them for selected Dreamscape
                     rewards.
@@ -1701,7 +1681,7 @@ Thank you.`;
                     </p>
 
                     <p className="mt-1 text-sm leading-6 text-white/48">
-                      Core and Think reward rules will
+                      Core, Science and Think reward rules will
                       appear here after those mission
                       pages are connected to the Dream
                       Gem ledger.

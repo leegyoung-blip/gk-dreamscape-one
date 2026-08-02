@@ -2,6 +2,10 @@ import type {
   ScienceMissionType,
   ScienceQuizStatus,
 } from "@/lib/science/types";
+import {
+  normaliseRole,
+  roleHasStaffLearningAccess,
+} from "@/lib/learning-access";
 
 export const SCIENCE_MISSION_META: Record<
   ScienceMissionType,
@@ -65,23 +69,15 @@ export const SCIENCE_STATUS_META: Record<
   },
 };
 
-export function normaliseRole(value: string | null | undefined) {
-  return String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/_/g, "-");
-}
-
+/*
+ * All /learning-missions/science routes are protected by
+ * app/learning-missions/science/layout.tsx, which checks the active plan.
+ * This helper keeps the existing page-level student/staff checks working.
+ */
 export function canAccessScience(role: string | null | undefined) {
   const cleanRole = normaliseRole(role);
 
-  return (
-    cleanRole === "student" ||
-    cleanRole === "teacher" ||
-    cleanRole === "curriculum-lead" ||
-    cleanRole === "admin"
-  );
+  return cleanRole === "student" || roleHasStaffLearningAccess(cleanRole);
 }
 
 export function canAttemptScienceQuiz(role: string | null | undefined) {
@@ -90,8 +86,11 @@ export function canAttemptScienceQuiz(role: string | null | undefined) {
 
 export function canEditScience(role: string | null | undefined) {
   const cleanRole = normaliseRole(role);
+
   return cleanRole === "admin" || cleanRole === "curriculum-lead";
 }
+
+export { normaliseRole };
 
 export function csvToArray(value: string) {
   return value

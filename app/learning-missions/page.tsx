@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { getLearningEntitlements, roleHasStaffLearningAccess } from "@/lib/learning-access";
 import { supabase } from "@/lib/supabase";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
@@ -13,6 +14,8 @@ type UserMissionAccess = {
   role: string | null;
   hasFullAccess: boolean;
   hasStudentRewardsAccess: boolean;
+  canAccessCore: boolean;
+  canAccessScience: boolean;
 };
 
 type DreamTokenTransaction = {
@@ -35,6 +38,7 @@ type DreamGemTransaction = {
 type NovaSubscriptionRow = {
   status: string | null;
   access_until: string | null;
+  plan_code: string | null;
 };
 
 type StockRow = {
@@ -134,6 +138,8 @@ function formatDreamGemSource(source: string | null) {
       return "Core Mission";
     case "think_mission":
       return "Think Mission";
+    case "science_mission":
+      return "Science Mission";
     case "redemption":
       return "Reward redemption";
     case "admin_adjustment":
@@ -145,21 +151,6 @@ function formatDreamGemSource(source: string | null) {
   }
 }
 
-function hasActiveNovaSubscription(rows: NovaSubscriptionRow[]) {
-  const now = Date.now();
-
-  return rows.some((row) => {
-    if (String(row.status || "").trim().toLowerCase() !== "active") {
-      return false;
-    }
-
-    if (!row.access_until) return true;
-
-    const expiry = new Date(row.access_until).getTime();
-    return Number.isNaN(expiry) || expiry > now;
-  });
-}
-
 type MissionZone = {
   id: string;
   title: string;
@@ -167,33 +158,11 @@ type MissionZone = {
   position: CSSProperties;
   accent: string;
   requiresRoleAccess?: boolean;
+  accessKey?: "core" | "science";
   staffOnly?: boolean;
   alwaysLocked?: boolean;
   comingSoon?: boolean;
 };
-
-function normaliseRole(role: string | null) {
-  return String(role || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/_/g, "-");
-}
-
-function roleHasFullLearningAccess(role: string | null) {
-  const cleanRole = normaliseRole(role);
-
-  return (
-    cleanRole === "admin" ||
-    cleanRole === "student" ||
-    cleanRole === "teacher"
-  );
-}
-
-function roleIsAdminOrTeacher(role: string | null) {
-  const cleanRole = normaliseRole(role);
-  return cleanRole === "admin" || cleanRole === "teacher";
-}
 
 function getZoneLockNotice(zone: MissionZone) {
   if (zone.alwaysLocked) {
@@ -205,10 +174,10 @@ function getZoneLockNotice(zone: MissionZone) {
   }
 
   if (zone.staffOnly) {
-    return "This zone is only available to teacher or admin accounts.";
+    return "This zone requires active Science or Complete Student Access.";
   }
 
-  return "This zone is only available to student, teacher, or admin accounts.";
+  return "This zone requires an active Dreamscape learning plan.";
 }
 
 function getZoneHref(zoneId: string) {
@@ -243,6 +212,7 @@ const missionZones: MissionZone[] = [
       "Complete English and Math missions to prepare Nova’s Skyforge Rover and earn eligible Dream Gem rewards.",
     accent: "#7ecbff",
     requiresRoleAccess: true,
+    accessKey: "core",
     position: {
       left: "35%",
       top: "5%",
@@ -257,7 +227,7 @@ const missionZones: MissionZone[] = [
       "Explore Primary 1 to Primary 6 Science through concept, practice, investigation and mastery missions.",
     accent: "#ff9df0",
     requiresRoleAccess: true,
-    staffOnly: true,
+    accessKey: "science",
     position: {
       right: "1%",
       top: "5%",
@@ -329,7 +299,7 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
     eyebrow: "Stop 3 of 5",
     title: "Explore the new Science Missions.",
     text:
-      "Open the Primary 1 to Primary 6 Science curriculum, choose a topic, and enter concept, practice, investigation, or mastery missions. This zone is currently available to teacher and admin accounts.",
+      "Open the Primary 1 to Primary 6 Science curriculum, choose a topic, and enter concept, practice, investigation, or mastery missions. Access follows the Science or Complete plan linked to the learner’s account.",
     zoneId: "science-missions",
   },
   {
@@ -385,6 +355,8 @@ export default function LearningMissionsPage() {
       role: null,
       hasFullAccess: false,
       hasStudentRewardsAccess: false,
+      canAccessCore: false,
+      canAccessScience: false,
     });
 
   useEffect(() => {
@@ -409,6 +381,8 @@ export default function LearningMissionsPage() {
           role: null,
           hasFullAccess: false,
           hasStudentRewardsAccess: false,
+          canAccessCore: false,
+          canAccessScience: false,
         });
         setProfileAssets({ cash: 0, property: 0, stocks: 0 });
         setTokenTransactions([]);
@@ -419,17 +393,23 @@ export default function LearningMissionsPage() {
         return;
       }
 
-      const [profileResult, subscriptionResult] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("role,dream_gem_balance")
-          .eq("id", user.id)
-          .maybeSingle(),
-        supabase
-          .from("nova_subscriptions")
-          .select("status,access_until")
-          .eq("user_id", user.id),
-      ]);
+      const [profileResult, subscriptionResult, zoneAccessResult] =
+        await Promise.all([
+          supabase
+            .from("profiles")
+            .select("role,dream_gem_balance")
+            .eq("id", user.id)
+            .maybeSingle(),
+          supabase
+            .from("nova_subscriptions")
+            .select("status,access_until,plan_code")
+            .eq("user_id", user.id),
+          supabase
+            .from("learning_mission_zone_access")
+            .select("zone_key,is_unlocked")
+            .eq("user_id", user.id)
+            .in("zone_key", ["core", "science"]),
+        ]);
 
       if (!isMounted) return;
 
@@ -451,9 +431,25 @@ export default function LearningMissionsPage() {
       const subscriptionRows = subscriptionResult.error
         ? []
         : ((subscriptionResult.data || []) as NovaSubscriptionRow[]);
-      const hasStudentRewardsAccess =
-        roleHasFullLearningAccess(role) ||
-        hasActiveNovaSubscription(subscriptionRows);
+
+      const entitlements = getLearningEntitlements(
+        role,
+        subscriptionRows,
+      );
+
+      const manuallyUnlockedZones = new Set(
+        zoneAccessResult.error
+          ? []
+          : (zoneAccessResult.data || [])
+              .filter((row) => Boolean(row.is_unlocked))
+              .map((row) => String(row.zone_key)),
+      );
+
+      const canAccessCore =
+        entitlements.core || manuallyUnlockedZones.has("core");
+      const canAccessScience =
+        entitlements.science || manuallyUnlockedZones.has("science");
+      const hasStudentRewardsAccess = entitlements.rewards;
 
       setDreamGemBalance(
         profileResult.error
@@ -468,8 +464,13 @@ export default function LearningMissionsPage() {
         userId: user.id,
         email: user.email ?? null,
         role,
-        hasFullAccess: hasStudentRewardsAccess,
+        hasFullAccess:
+          canAccessCore ||
+          canAccessScience ||
+          entitlements.anyPaidAccess,
         hasStudentRewardsAccess,
+        canAccessCore,
+        canAccessScience,
       });
 
       const [
@@ -678,8 +679,17 @@ export default function LearningMissionsPage() {
   function isZoneUnlocked(zone: MissionZone) {
     if (zone.alwaysLocked || zone.comingSoon) return false;
     if (!zone.requiresRoleAccess) return true;
+
+    if (zone.accessKey === "core") {
+      return userMissionAccess.canAccessCore;
+    }
+
+    if (zone.accessKey === "science") {
+      return userMissionAccess.canAccessScience;
+    }
+
     if (zone.staffOnly) {
-      return roleIsAdminOrTeacher(userMissionAccess.role);
+      return roleHasStaffLearningAccess(userMissionAccess.role);
     }
 
     return userMissionAccess.hasFullAccess;
@@ -702,11 +712,19 @@ export default function LearningMissionsPage() {
       return "Please log in to access this mission zone.";
     }
 
-    if (zone.staffOnly) {
-      return `${zone.title} is only available to teacher or admin accounts.`;
+    if (zone.accessKey === "core") {
+      return "This account does not currently have active Core Missions access.";
     }
 
-    return `${zone.title} is only available to student, teacher, or admin accounts.`;
+    if (zone.accessKey === "science") {
+      return "This account does not currently have active Science Missions access.";
+    }
+
+    if (zone.staffOnly) {
+      return `${zone.title} is only available to staff accounts.`;
+    }
+
+    return `${zone.title} requires an active Dreamscape learning plan.`;
   }
 
   function getZoneClick(zone: MissionZone) {
