@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 
-type BillingCycle = "monthly" | "annual";
+type PricingView = "monthly" | "annual" | "gkp";
 
 type Plan = {
   key: "science" | "core" | "complete";
@@ -16,6 +16,17 @@ type Plan = {
   features: string[];
   accent: string;
   featured?: boolean;
+};
+
+type GkpPlan = {
+  key: "gkp-core" | "gkp-full";
+  name: string;
+  price: number;
+  eyebrow: string;
+  description: string;
+  features: string[];
+  accent: string;
+  featured: boolean;
 };
 
 const plans: Plan[] = [
@@ -141,11 +152,59 @@ const faqItems = [
       "Milo’s Business Builder is coming soon. When launched, it will be available for SGD 9.90 per month as a standalone subscription and included at no additional charge with an active Complete Missions subscription.",
   },
   {
+    question: "How does the Guru Kids Pro student offer work?",
+    answer:
+      "New students who sign up for an eligible Guru Kids Pro Primary English or Mathematics class and complete one full month of classes receive one month of Full Dreamscape Student Access. After the free month, continued access is available at SGD 9.90 per month for Core Access or SGD 14.90 per month for Full Access. The selected Dreamscape charge is added to the student’s normal Guru Kids Pro class billing.",
+  },
+  {
     question: "How are payments processed?",
     answer:
-      "Payments are processed through Shopify or another payment method displayed at checkout. Dreamscape One does not ask users to send card details by email.",
+      "Public plans are processed through Shopify or another payment method displayed at checkout. GKP student add-ons are added to the student’s normal Guru Kids Pro class billing.",
   },
 ];
+
+const gkpPlans: GkpPlan[] = [
+  {
+    key: "gkp-core",
+    name: "GKP Core Access",
+    price: 9.9,
+    eyebrow: "For active GKP students",
+    description:
+      "English and Mathematics Learning Missions at a special monthly add-on rate for eligible Guru Kids Pro students.",
+    features: [
+      "Primary 1–6 English Learning Missions",
+      "Primary 1–6 Mathematics Learning Missions",
+      "Topic quizzes and mixed assessments",
+      "Progress, Dream Token, and Dream Gem rewards",
+      "Added to normal Guru Kids Pro class billing",
+    ],
+    accent: "#8ee8ff",
+    featured: false,
+  },
+  {
+    key: "gkp-full",
+    name: "GKP Full Access",
+    price: 14.9,
+    eyebrow: "Best GKP value",
+    description:
+      "Complete English, Mathematics, and Science access for eligible Guru Kids Pro students.",
+    features: [
+      "Everything in GKP Core Access",
+      "Primary 1–6 Science Learning Missions",
+      "Complete Learning Missions progression",
+      "Milo’s Business Builder included when launched",
+      "Added to normal Guru Kids Pro class billing",
+    ],
+    accent: "#ffae5c",
+    featured: true,
+  },
+];
+
+const gkpEmailHref =
+  "mailto:admin@gurukidspro.com?subject=Guru%20Kids%20Pro%20Dreamscape%20Student%20Access&body=Parent%20name%3A%0AStudent%20name%3A%0ACurrent%20or%20new%20GKP%20class%3A%0APreferred%20Dreamscape%20plan%3A";
+
+const gkpWhatsAppHref =
+  "https://wa.me/6583888949?text=Hello%20Guru%20Kids%20Pro%2C%20I%20would%20like%20to%20enquire%20about%20Dreamscape%20Student%20Access%20for%20GKP%20students.";
 
 const checkoutLinks = {
   science: {
@@ -179,8 +238,9 @@ function money(value: number) {
 }
 
 export default function PricingPage() {
-  const [billingCycle, setBillingCycle] =
-    useState<BillingCycle>("annual");
+  const [pricingView, setPricingView] =
+    useState<PricingView>("annual");
+  const [showGkpTerms, setShowGkpTerms] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(1440);
 
   useEffect(() => {
@@ -192,6 +252,7 @@ export default function PricingPage() {
 
   const isMobile = viewportWidth <= 700;
   const isCompact = viewportWidth <= 1180;
+  const regularBillingCycle = pricingView === "monthly" ? "monthly" : "annual";
 
   const annualSavings = useMemo(
     () =>
@@ -365,46 +426,59 @@ export default function PricingPage() {
         <div
           style={{
             margin: "36px auto 0",
-            width: "fit-content",
-            maxWidth: "100%",
+            width: isMobile ? "100%" : "fit-content",
+            maxWidth: "680px",
             padding: "6px",
             display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            borderRadius: "999px",
+            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+            borderRadius: isMobile ? "22px" : "999px",
             border: "1px solid rgba(142,232,255,0.24)",
             background: "rgba(255,255,255,0.05)",
           }}
         >
-          {(["monthly", "annual"] as BillingCycle[]).map((cycle) => {
-            const active = billingCycle === cycle;
+          {(
+            [
+              ["monthly", "Monthly"],
+              ["annual", "Annual"],
+              ["gkp", "GKP Students"],
+            ] as const
+          ).map(([view, label]) => {
+            const active = pricingView === view;
+
             return (
               <button
-                key={cycle}
+                key={view}
                 type="button"
-                onClick={() => setBillingCycle(cycle)}
+                onClick={() => setPricingView(view)}
                 style={{
-                  minWidth: isMobile ? "130px" : "170px",
-                  padding: "12px 18px",
+                  minWidth: 0,
+                  minHeight: isMobile ? "52px" : "48px",
+                  padding: isMobile ? "10px 8px" : "12px 18px",
                   border: "none",
                   borderRadius: "999px",
                   cursor: "pointer",
                   background: active
-                    ? "linear-gradient(90deg, #8ee8ff, #c58cff)"
+                    ? view === "gkp"
+                      ? "linear-gradient(90deg, #8ee8ff, #ffae5c)"
+                      : "linear-gradient(90deg, #8ee8ff, #c58cff)"
                     : "transparent",
                   color: active ? "#100622" : "rgba(255,255,255,0.7)",
-                  fontSize: "13px",
+                  fontSize: isMobile ? "10px" : "13px",
                   fontWeight: 900,
-                  letterSpacing: "0.08em",
+                  lineHeight: 1.2,
+                  letterSpacing: isMobile ? "0.035em" : "0.08em",
                   textTransform: "uppercase",
+                  textAlign: "center",
                 }}
               >
-                {cycle}
+                {label}
               </button>
             );
           })}
         </div>
       </section>
 
+      {pricingView !== "gkp" && (
       <section
         style={{
           padding: isMobile ? "0 20px 80px" : "0 6vw 100px",
@@ -424,11 +498,11 @@ export default function PricingPage() {
         >
           {plans.map((plan) => {
             const price =
-              billingCycle === "monthly"
+              regularBillingCycle === "monthly"
                 ? plan.monthlyPrice
                 : plan.annualPrice;
             const checkoutHref =
-              checkoutLinks[plan.key][billingCycle];
+              checkoutLinks[plan.key][regularBillingCycle];
 
             return (
               <article
@@ -534,12 +608,12 @@ export default function PricingPage() {
                     fontSize: "14px",
                   }}
                 >
-                  {billingCycle === "monthly"
+                  {regularBillingCycle === "monthly"
                     ? "per month"
                     : "per year, paid upfront"}
                 </p>
 
-                {billingCycle === "annual" && (
+                {regularBillingCycle === "annual" && (
                   <p
                     style={{
                       margin: "12px 0 0",
@@ -896,6 +970,396 @@ export default function PricingPage() {
         </div>
       </section>
 
+      )}
+
+      {pricingView === "gkp" && (
+        <section
+          style={{
+            padding: isMobile ? "0 20px 82px" : "0 6vw 105px",
+          }}
+        >
+          <div
+            style={{
+              maxWidth: "1320px",
+              margin: "0 auto",
+              padding: isMobile ? "34px 24px" : "48px 46px",
+              borderRadius: "32px",
+              border: "1px solid rgba(255,174,92,0.32)",
+              background:
+                "radial-gradient(circle at 10% 12%, rgba(83,215,255,0.16), transparent 30%), radial-gradient(circle at 90% 90%, rgba(255,174,92,0.14), transparent 30%), linear-gradient(145deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02))",
+              boxShadow:
+                "0 30px 90px rgba(0,0,0,0.38), inset 0 0 28px rgba(83,215,255,0.025)",
+            }}
+          >
+            <div style={{ textAlign: "center" }}>
+              <p
+                style={{
+                  margin: 0,
+                  color: "#ffbd73",
+                  fontSize: "12px",
+                  fontWeight: 900,
+                  letterSpacing: "0.2em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Exclusive for Guru Kids Pro Students
+              </p>
+
+              <h2
+                style={{
+                  margin: "18px auto 0",
+                  maxWidth: "900px",
+                  fontFamily: 'Georgia, "Times New Roman", serif',
+                  fontSize: isMobile ? "38px" : "clamp(48px, 5vw, 62px)",
+                  fontWeight: 400,
+                  lineHeight: 1.08,
+                }}
+              >
+                Join a GKP Primary class and receive one month of Full Student Access.
+              </h2>
+
+              <p
+                style={{
+                  margin: "24px auto 0",
+                  maxWidth: "880px",
+                  color: "rgba(255,255,255,0.72)",
+                  fontSize: isMobile ? "16px" : "19px",
+                  fontWeight: 300,
+                  lineHeight: 1.72,
+                }}
+              >
+                New sign-ups to eligible Guru Kids Pro Primary English or
+                Mathematics classes receive one month of Full Dreamscape
+                Student Access after completing one full month of classes.
+              </p>
+
+              <div
+                style={{
+                  marginTop: "28px",
+                  display: "flex",
+                  flexWrap: "wrap",
+                  justifyContent: "center",
+                  gap: "10px",
+                }}
+              >
+                {[
+                  "New sign-ups only",
+                  "Primary English or Mathematics only",
+                  "Complete one full month at GKP",
+                  "One free month of Full Access",
+                ].map((item) => (
+                  <span
+                    key={item}
+                    style={{
+                      padding: "10px 13px",
+                      borderRadius: "999px",
+                      border: "1px solid rgba(255,174,92,0.24)",
+                      background: "rgba(255,255,255,0.045)",
+                      color: "rgba(255,255,255,0.82)",
+                      fontSize: "12px",
+                      fontWeight: 800,
+                    }}
+                  >
+                    {item}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div
+              style={{
+                marginTop: isMobile ? "36px" : "48px",
+                display: "grid",
+                gridTemplateColumns: isMobile
+                  ? "1fr"
+                  : "repeat(2, minmax(0, 1fr))",
+                gap: isMobile ? "20px" : "24px",
+                alignItems: "stretch",
+              }}
+            >
+              {gkpPlans.map((plan) => (
+                <article
+                  key={plan.key}
+                  style={{
+                    position: "relative",
+                    minHeight: "540px",
+                    display: "flex",
+                    flexDirection: "column",
+                    padding: isMobile ? "30px 23px" : "36px 30px",
+                    borderRadius: "28px",
+                    border: plan.featured
+                      ? `1px solid ${plan.accent}`
+                      : "1px solid rgba(142,232,255,0.23)",
+                    background: plan.featured
+                      ? "radial-gradient(circle at 50% 0%, rgba(255,174,92,0.13), transparent 34%), linear-gradient(145deg, rgba(255,255,255,0.085), rgba(255,255,255,0.025))"
+                      : "linear-gradient(145deg, rgba(255,255,255,0.065), rgba(255,255,255,0.02))",
+                    boxShadow: plan.featured
+                      ? "0 28px 80px rgba(0,0,0,0.36), 0 0 32px rgba(255,174,92,0.1)"
+                      : "0 24px 65px rgba(0,0,0,0.28)",
+                  }}
+                >
+                  {plan.featured && (
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: "18px",
+                        right: "18px",
+                        padding: "8px 11px",
+                        borderRadius: "999px",
+                        background: "#ffae5c",
+                        color: "#1b0c26",
+                        fontSize: "10px",
+                        fontWeight: 900,
+                        letterSpacing: "0.1em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Full Access
+                    </span>
+                  )}
+
+                  <p
+                    style={{
+                      margin: 0,
+                      color: plan.accent,
+                      fontSize: "11px",
+                      fontWeight: 900,
+                      letterSpacing: "0.18em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {plan.eyebrow}
+                  </p>
+
+                  <h3
+                    style={{
+                      margin: "15px 0 0",
+                      color: "white",
+                      fontSize: isMobile ? "29px" : "34px",
+                      fontWeight: 800,
+                      lineHeight: 1.15,
+                    }}
+                  >
+                    {plan.name}
+                  </h3>
+
+                  <div
+                    style={{
+                      marginTop: "24px",
+                      display: "flex",
+                      alignItems: "flex-end",
+                      gap: "8px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        color: "rgba(255,255,255,0.6)",
+                        fontSize: "17px",
+                        paddingBottom: "7px",
+                      }}
+                    >
+                      SGD
+                    </span>
+                    <span
+                      style={{
+                        fontSize: isMobile ? "50px" : "58px",
+                        fontWeight: 900,
+                        lineHeight: 1,
+                      }}
+                    >
+                      {money(plan.price)}
+                    </span>
+                  </div>
+
+                  <p
+                    style={{
+                      margin: "8px 0 0",
+                      color: "rgba(255,255,255,0.55)",
+                      fontSize: "14px",
+                    }}
+                  >
+                    per month · GKP students only
+                  </p>
+
+                  <p
+                    style={{
+                      margin: "23px 0 0",
+                      color: "rgba(255,255,255,0.7)",
+                      fontSize: "16px",
+                      fontWeight: 300,
+                      lineHeight: 1.65,
+                    }}
+                  >
+                    {plan.description}
+                  </p>
+
+                  <div
+                    style={{
+                      marginTop: "25px",
+                      paddingTop: "23px",
+                      borderTop: "1px solid rgba(255,255,255,0.1)",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "13px",
+                      flex: 1,
+                    }}
+                  >
+                    {plan.features.map((feature) => (
+                      <div
+                        key={feature}
+                        style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          gap: "11px",
+                        }}
+                      >
+                        <span
+                          aria-hidden="true"
+                          style={{ color: plan.accent, fontWeight: 900 }}
+                        >
+                          ✓
+                        </span>
+                        <span
+                          style={{
+                            color: "rgba(255,255,255,0.74)",
+                            fontSize: "15px",
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          {feature}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <div
+              style={{
+                marginTop: isMobile ? "28px" : "36px",
+                padding: isMobile ? "25px 21px" : "30px 28px",
+                borderRadius: "24px",
+                border: "1px solid rgba(142,232,255,0.2)",
+                background: "rgba(255,255,255,0.035)",
+                textAlign: "center",
+              }}
+            >
+              <h3
+                style={{
+                  margin: 0,
+                  color: "white",
+                  fontSize: isMobile ? "24px" : "29px",
+                  fontWeight: 800,
+                }}
+              >
+                Dreamscape is added to normal GKP class billing.
+              </h3>
+
+              <p
+                style={{
+                  margin: "14px auto 0",
+                  maxWidth: "820px",
+                  color: "rgba(255,255,255,0.66)",
+                  fontSize: "15px",
+                  lineHeight: 1.68,
+                }}
+              >
+                After the free Full Access month, parents may continue with
+                GKP Core Access at SGD 9.90/month or GKP Full Access at SGD
+                14.90/month. Unless the parent or guardian opts out before the
+                free month ends, the selected Dreamscape add-on will be added
+                to the student’s normal Guru Kids Pro class billing.
+              </p>
+
+              <div
+                style={{
+                  marginTop: "24px",
+                  display: "flex",
+                  flexDirection: isMobile ? "column" : "row",
+                  flexWrap: "wrap",
+                  justifyContent: "center",
+                  gap: "12px",
+                }}
+              >
+                <a
+                  href={gkpEmailHref}
+                  style={{
+                    width: isMobile ? "100%" : "auto",
+                    minHeight: "54px",
+                    padding: "14px 22px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: "999px",
+                    background:
+                      "linear-gradient(90deg, #8ee8ff, #c58cff 60%, #ffae5c)",
+                    color: "#160729",
+                    textDecoration: "none",
+                    fontSize: "12px",
+                    fontWeight: 900,
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  Email Guru Kids Pro
+                </a>
+
+                <a
+                  href={gkpWhatsAppHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    width: isMobile ? "100%" : "auto",
+                    minHeight: "54px",
+                    padding: "14px 22px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: "999px",
+                    border: "1px solid rgba(255,255,255,0.24)",
+                    background: "rgba(255,255,255,0.05)",
+                    color: "white",
+                    textDecoration: "none",
+                    fontSize: "12px",
+                    fontWeight: 900,
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  WhatsApp 8388 8949
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => setShowGkpTerms(true)}
+                  style={{
+                    width: isMobile ? "100%" : "auto",
+                    minHeight: "54px",
+                    padding: "14px 22px",
+                    borderRadius: "999px",
+                    border: "1px solid rgba(255,174,92,0.28)",
+                    background: "rgba(255,174,92,0.08)",
+                    color: "#ffcb92",
+                    fontSize: "12px",
+                    fontWeight: 900,
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                    cursor: "pointer",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  View GKP Offer T&Cs
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {pricingView !== "gkp" && (
       <section
         style={{
           padding: isMobile ? "78px 20px" : "100px 6vw",
@@ -1011,6 +1475,8 @@ export default function PricingPage() {
           </div>
         </div>
       </section>
+
+      )}
 
       <section
         style={{
@@ -1130,6 +1596,224 @@ export default function PricingPage() {
           </div>
         </div>
       </section>
+      {showGkpTerms && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="gkp-terms-title"
+          onClick={() => setShowGkpTerms(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: isMobile ? "14px" : "28px",
+            background: "rgba(1,4,11,0.78)",
+            backdropFilter: "blur(14px)",
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              position: "relative",
+              width: "min(760px, 100%)",
+              maxHeight: "calc(100dvh - 28px)",
+              overflowY: "auto",
+              padding: isMobile ? "32px 22px 26px" : "42px 40px 34px",
+              borderRadius: isMobile ? "24px" : "30px",
+              border: "1px solid rgba(255,174,92,0.34)",
+              background:
+                "radial-gradient(circle at 10% 0%, rgba(83,215,255,0.13), transparent 32%), radial-gradient(circle at 100% 100%, rgba(255,174,92,0.13), transparent 34%), #071326",
+              boxShadow:
+                "0 34px 100px rgba(0,0,0,0.58), 0 0 36px rgba(255,174,92,0.1)",
+              color: "white",
+            }}
+          >
+            <button
+              type="button"
+              aria-label="Close GKP offer terms"
+              onClick={() => setShowGkpTerms(false)}
+              style={{
+                position: "absolute",
+                top: "14px",
+                right: "14px",
+                width: "38px",
+                height: "38px",
+                borderRadius: "999px",
+                border: "1px solid rgba(255,255,255,0.2)",
+                background: "rgba(255,255,255,0.06)",
+                color: "white",
+                fontSize: "22px",
+                cursor: "pointer",
+              }}
+            >
+              ×
+            </button>
+
+            <p
+              style={{
+                margin: 0,
+                color: "#ffbd73",
+                fontSize: "11px",
+                fontWeight: 900,
+                letterSpacing: "0.19em",
+                textTransform: "uppercase",
+              }}
+            >
+              Guru Kids Pro Student Offer
+            </p>
+
+            <h2
+              id="gkp-terms-title"
+              style={{
+                margin: "15px 42px 0 0",
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontSize: isMobile ? "34px" : "44px",
+                fontWeight: 400,
+                lineHeight: 1.08,
+              }}
+            >
+              Terms & Conditions
+            </h2>
+
+            <ol
+              style={{
+                margin: "26px 0 0",
+                paddingLeft: "22px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "15px",
+                color: "rgba(255,255,255,0.74)",
+                fontSize: isMobile ? "14px" : "15px",
+                lineHeight: 1.7,
+              }}
+            >
+              <li>
+                This promotion is available only to new student sign-ups for
+                eligible Guru Kids Pro Primary English or Primary Mathematics
+                classes.
+              </li>
+              <li>
+                The student must complete one full month of the eligible Guru
+                Kids Pro class before the free Dreamscape access is confirmed.
+              </li>
+              <li>
+                Each eligible new student receives one month of Full
+                Dreamscape Student Access. The free month is limited to one
+                redemption per student.
+              </li>
+              <li>
+                The free month’s activation date is determined by Guru Kids
+                Pro after eligibility has been verified.
+              </li>
+              <li>
+                After the free month, continued Dreamscape access is charged
+                at SGD 9.90/month for GKP Core Access or SGD 14.90/month for
+                GKP Full Access.
+              </li>
+              <li>
+                Unless the parent or guardian opts out before the free month
+                ends, the selected Dreamscape add-on will be added to the
+                student’s normal Guru Kids Pro class billing.
+              </li>
+              <li>
+                GKP Core Access includes English and Mathematics Learning
+                Missions. GKP Full Access includes English, Mathematics, and
+                Science Learning Missions, together with Milo’s Business
+                Builder when it launches.
+              </li>
+              <li>
+                The offer cannot be exchanged for cash, transferred to another
+                student, or combined with another introductory Dreamscape
+                promotion unless Guru Kids Pro agrees in writing.
+              </li>
+              <li>
+                If the eligible GKP class is cancelled, withdrawn from, or not
+                completed for the required first month, Guru Kids Pro may
+                withdraw the free access offer.
+              </li>
+              <li>
+                Dreamscape access remains subject to the general Dreamscape One
+                Terms & Conditions and Privacy Policy.
+              </li>
+            </ol>
+
+            <div
+              style={{
+                marginTop: "27px",
+                padding: "18px",
+                borderRadius: "18px",
+                border: "1px solid rgba(142,232,255,0.18)",
+                background: "rgba(255,255,255,0.035)",
+                color: "rgba(255,255,255,0.65)",
+                fontSize: "13px",
+                lineHeight: 1.65,
+              }}
+            >
+              Questions or opt-out requests: admin@gurukidspro.com or WhatsApp
+              8388 8949.
+            </div>
+
+            <div
+              style={{
+                marginTop: "23px",
+                display: "flex",
+                flexDirection: isMobile ? "column" : "row",
+                flexWrap: "wrap",
+                gap: "11px",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setShowGkpTerms(false)}
+                style={{
+                  width: isMobile ? "100%" : "auto",
+                  minHeight: "52px",
+                  padding: "13px 22px",
+                  border: "none",
+                  borderRadius: "999px",
+                  background:
+                    "linear-gradient(90deg, #8ee8ff, #c58cff 60%, #ffae5c)",
+                  color: "#160729",
+                  fontSize: "12px",
+                  fontWeight: 900,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  cursor: "pointer",
+                }}
+              >
+                Close
+              </button>
+
+              <Link
+                href="/terms"
+                style={{
+                  width: isMobile ? "100%" : "auto",
+                  minHeight: "52px",
+                  padding: "13px 22px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(255,255,255,0.22)",
+                  background: "rgba(255,255,255,0.045)",
+                  color: "white",
+                  textDecoration: "none",
+                  fontSize: "12px",
+                  fontWeight: 900,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  boxSizing: "border-box",
+                }}
+              >
+                General Terms
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

@@ -13,6 +13,8 @@ type Package = {
   accent: string;
 };
 
+type EmailCopySource = "hero" | "pilot" | "footer";
+
 const packages: Package[] = [
   {
     name: "Starter",
@@ -123,11 +125,7 @@ const faqItems = [
   },
 ];
 
-const enquiryHref =
-  "mailto:admin@gurukidspro.com?subject=Dreamscape%20Education%20Licence%20Enquiry&body=Organisation%20name%3A%0AContact%20person%3A%0AEstimated%20student%20seats%3A%0APackage%20of%20interest%3A";
-
-const pilotHref =
-  "mailto:admin@gurukidspro.com?subject=Dreamscape%2014-Day%20Education%20Pilot&body=Organisation%20name%3A%0AContact%20person%3A%0AProposed%20pilot%20start%20date%3A";
+const ADMIN_EMAIL = "admin@gurukidspro.com";
 
 const whatsappHref =
   "https://wa.me/6583888949?text=Hello%20Guru%20Kids%20Pro%2C%20I%20would%20like%20to%20enquire%20about%20the%20Dreamscape%20Education%20Licence.";
@@ -137,6 +135,9 @@ const pilotWhatsappHref =
 
 export default function EducationLicencePage() {
   const [viewportWidth, setViewportWidth] = useState(1440);
+  const [copiedEmailSource, setCopiedEmailSource] =
+    useState<EmailCopySource | null>(null);
+  const [showLicenceTerms, setShowLicenceTerms] = useState(false);
 
   useEffect(() => {
     const update = () => setViewportWidth(window.innerWidth);
@@ -144,6 +145,45 @@ export default function EducationLicencePage() {
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
   }, []);
+
+  async function copyAdminEmail(source: EmailCopySource) {
+    function fallbackCopy() {
+      const textArea = document.createElement("textarea");
+      textArea.value = ADMIN_EMAIL;
+      textArea.setAttribute("readonly", "");
+      textArea.style.position = "fixed";
+      textArea.style.left = "-9999px";
+      textArea.style.opacity = "0";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      textArea.setSelectionRange(0, textArea.value.length);
+      document.execCommand("copy");
+      document.body.removeChild(textArea);
+    }
+
+    try {
+      if (
+        typeof navigator !== "undefined" &&
+        navigator.clipboard &&
+        window.isSecureContext
+      ) {
+        await navigator.clipboard.writeText(ADMIN_EMAIL);
+      } else {
+        fallbackCopy();
+      }
+    } catch {
+      fallbackCopy();
+    }
+
+    setCopiedEmailSource(source);
+
+    window.setTimeout(() => {
+      setCopiedEmailSource((current) =>
+        current === source ? null : current,
+      );
+    }, 2400);
+  }
 
   const isMobile = viewportWidth <= 700;
   const isCompact = viewportWidth <= 1180;
@@ -324,8 +364,9 @@ export default function EducationLicencePage() {
             gap: "13px",
           }}
         >
-          <a
-            href={enquiryHref}
+          <button
+            type="button"
+            onClick={() => copyAdminEmail("hero")}
             style={{
               width: isMobile ? "100%" : "auto",
               minHeight: "56px",
@@ -333,8 +374,8 @@ export default function EducationLicencePage() {
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
+              border: "none",
               borderRadius: "999px",
-              textDecoration: "none",
               background:
                 "linear-gradient(90deg, #8ee8ff, #c58cff 60%, #ffae5c)",
               color: "#160729",
@@ -343,10 +384,14 @@ export default function EducationLicencePage() {
               letterSpacing: "0.08em",
               textTransform: "uppercase",
               boxSizing: "border-box",
+              cursor: "pointer",
+              fontFamily: "inherit",
             }}
           >
-            Email admin@gurukidspro.com
-          </a>
+            {copiedEmailSource === "hero"
+              ? "Email copied"
+              : "Copy admin@gurukidspro.com"}
+          </button>
 
           <a
             href={whatsappHref}
@@ -623,8 +668,9 @@ export default function EducationLicencePage() {
                 gap: "12px",
               }}
             >
-              <a
-                href={pilotHref}
+              <button
+                type="button"
+                onClick={() => copyAdminEmail("pilot")}
                 style={{
                   width: isMobile ? "100%" : "auto",
                   minHeight: "54px",
@@ -632,8 +678,8 @@ export default function EducationLicencePage() {
                   alignItems: "center",
                   justifyContent: "center",
                   padding: "14px 23px",
+                  border: "none",
                   borderRadius: "999px",
-                  textDecoration: "none",
                   background:
                     "linear-gradient(90deg, #8ee8ff, #c58cff 60%, #ffae5c)",
                   color: "#160729",
@@ -642,10 +688,14 @@ export default function EducationLicencePage() {
                   letterSpacing: "0.08em",
                   textTransform: "uppercase",
                   boxSizing: "border-box",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
                 }}
               >
-                Email about the pilot
-              </a>
+                {copiedEmailSource === "pilot"
+                  ? "Email copied"
+                  : "Copy email for pilot enquiry"}
+              </button>
 
               <a
                 href={pilotWhatsappHref}
@@ -931,8 +981,9 @@ export default function EducationLicencePage() {
                 gap: "12px",
               }}
             >
-              <a
-                href={enquiryHref}
+              <button
+                type="button"
+                onClick={() => copyAdminEmail("footer")}
                 style={{
                   width: isMobile ? "100%" : "auto",
                   minHeight: "54px",
@@ -940,8 +991,8 @@ export default function EducationLicencePage() {
                   alignItems: "center",
                   justifyContent: "center",
                   padding: "14px 23px",
+                  border: "none",
                   borderRadius: "999px",
-                  textDecoration: "none",
                   background:
                     "linear-gradient(90deg, #8ee8ff, #c58cff 60%, #ffae5c)",
                   color: "#160729",
@@ -950,10 +1001,14 @@ export default function EducationLicencePage() {
                   letterSpacing: "0.08em",
                   textTransform: "uppercase",
                   boxSizing: "border-box",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
                 }}
               >
-                Email admin@gurukidspro.com
-              </a>
+                {copiedEmailSource === "footer"
+                  ? "Email copied"
+                  : "Copy admin@gurukidspro.com"}
+              </button>
 
               <a
                 href={whatsappHref}
@@ -980,6 +1035,32 @@ export default function EducationLicencePage() {
               >
                 WhatsApp 8388 8949
               </a>
+
+              <button
+                type="button"
+                onClick={() => setShowLicenceTerms(true)}
+                style={{
+                  width: isMobile ? "100%" : "auto",
+                  minHeight: "54px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "14px 23px",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(255,174,92,0.3)",
+                  background: "rgba(255,174,92,0.08)",
+                  color: "#ffcb92",
+                  fontSize: "13px",
+                  fontWeight: 900,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  boxSizing: "border-box",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                View Licence T&Cs
+              </button>
             </div>
 
             <p
@@ -1018,9 +1099,20 @@ export default function EducationLicencePage() {
               gap: "16px",
             }}
           >
-            <Link href="/terms" style={navLinkStyle}>
-              Terms & Conditions
-            </Link>
+            <button
+              type="button"
+              onClick={() => setShowLicenceTerms(true)}
+              style={{
+                ...navLinkStyle,
+                border: "none",
+                padding: 0,
+                background: "transparent",
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              Education Licence Terms
+            </button>
             <Link href="/privacy" style={navLinkStyle}>
               Privacy Policy
             </Link>
@@ -1030,6 +1122,296 @@ export default function EducationLicencePage() {
           </div>
         </div>
       </section>
+
+      {showLicenceTerms && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="education-licence-terms-title"
+          onClick={() => setShowLicenceTerms(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: isMobile ? "14px" : "28px",
+            background: "rgba(1,4,11,0.8)",
+            backdropFilter: "blur(14px)",
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              position: "relative",
+              width: "min(820px, 100%)",
+              maxHeight: "calc(100dvh - 28px)",
+              overflowY: "auto",
+              padding: isMobile ? "32px 22px 26px" : "42px 40px 34px",
+              borderRadius: isMobile ? "24px" : "30px",
+              border: "1px solid rgba(142,232,255,0.3)",
+              background:
+                "radial-gradient(circle at 8% 0%, rgba(83,215,255,0.14), transparent 32%), radial-gradient(circle at 100% 100%, rgba(197,140,255,0.13), transparent 34%), #071326",
+              boxShadow:
+                "0 34px 100px rgba(0,0,0,0.6), 0 0 38px rgba(83,215,255,0.1)",
+              color: "white",
+            }}
+          >
+            <button
+              type="button"
+              aria-label="Close Education Licence terms"
+              onClick={() => setShowLicenceTerms(false)}
+              style={{
+                position: "absolute",
+                top: "14px",
+                right: "14px",
+                width: "38px",
+                height: "38px",
+                borderRadius: "999px",
+                border: "1px solid rgba(255,255,255,0.2)",
+                background: "rgba(255,255,255,0.06)",
+                color: "white",
+                fontSize: "22px",
+                cursor: "pointer",
+              }}
+            >
+              ×
+            </button>
+
+            <p
+              style={{
+                margin: 0,
+                color: "#8ee8ff",
+                fontSize: "11px",
+                fontWeight: 900,
+                letterSpacing: "0.19em",
+                textTransform: "uppercase",
+              }}
+            >
+              Dreamscape One
+            </p>
+
+            <h2
+              id="education-licence-terms-title"
+              style={{
+                margin: "15px 42px 0 0",
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontSize: isMobile ? "34px" : "44px",
+                fontWeight: 400,
+                lineHeight: 1.08,
+              }}
+            >
+              Education Licence Terms & Conditions
+            </h2>
+
+            <p
+              style={{
+                margin: "20px 0 0",
+                color: "rgba(255,255,255,0.68)",
+                fontSize: isMobile ? "14px" : "15px",
+                lineHeight: 1.7,
+              }}
+            >
+              These summary terms apply together with the accepted quotation,
+              onboarding details, Dreamscape One Terms & Conditions, and
+              Privacy Policy. The final written offer will govern the approved
+              organisation’s licence.
+            </p>
+
+            <ol
+              style={{
+                margin: "26px 0 0",
+                paddingLeft: "22px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "15px",
+                color: "rgba(255,255,255,0.74)",
+                fontSize: isMobile ? "14px" : "15px",
+                lineHeight: 1.72,
+              }}
+            >
+              <li>
+                Education Licences are available only to organisations and
+                educators approved by Guru Kids Pro.
+              </li>
+              <li>
+                Each package is for one approved organisation. Access may not
+                be shared across unrelated companies, organisations, or
+                branches without written approval.
+              </li>
+              <li>
+                Standard licences are prepaid for 12 months from the agreed
+                activation date. Renewal is manual unless otherwise agreed in
+                writing.
+              </li>
+              <li>
+                The package includes only the stated number of student seats
+                and Teacher/Admin accounts. Additional Teacher/Admin accounts
+                are SGD 149 per year.
+              </li>
+              <li>
+                Additional student seats are charged at SGD 19.90 for every
+                full remaining month and begin on the next monthly licence
+                anniversary. Standard packages support up to 20 student seats.
+              </li>
+              <li>
+                Mid-term upgrades are calculated using the annual package price
+                difference divided by 12, multiplied by the full remaining
+                months, plus a SGD 49 administration fee.
+              </li>
+              <li>
+                A student seat may be reassigned up to two times per school
+                term when a learner leaves. Progress and account history are
+                not transferred to the replacement learner.
+              </li>
+              <li>
+                Unused seats do not roll over and are not refundable or
+                exchangeable for credit, except where required by law or
+                expressly agreed in writing.
+              </li>
+              <li>
+                The licensed organisation is responsible for obtaining any
+                required parent or guardian consent and for assigning accounts
+                only to authorised students and staff.
+              </li>
+              <li>
+                Teacher/Admin users may assign eligible work, review answers,
+                and monitor progress. The standard licence does not include
+                custom quiz or lesson creation.
+              </li>
+              <li>
+                Students may use their assigned access at home during the
+                active licence term. Accounts and login details must not be
+                shared outside the approved users.
+              </li>
+              <li>
+                The 14-day pilot includes up to five students and one
+                Teacher/Admin account for SGD 49.90. The pilot fee is credited
+                only when an annual package is purchased within seven days
+                after the pilot ends.
+              </li>
+              <li>
+                The usual SGD 15 setup fee per account is currently waived.
+                Guru Kids Pro may change or end this waiver before a new
+                licence is accepted.
+              </li>
+              <li>
+                A 14-day expiry grace period may be provided for renewal and
+                account administration. Full access is not guaranteed after
+                the paid term ends.
+              </li>
+              <li>
+                Dreamscape content, software, questions, dashboards, and
+                branding may not be copied, resold, exported in bulk, or used
+                to create a competing product or question bank.
+              </li>
+              <li>
+                Guru Kids Pro may suspend or terminate access for non-payment,
+                unauthorised sharing, misuse, security concerns, or material
+                breach of the applicable terms.
+              </li>
+            </ol>
+
+            <div
+              style={{
+                marginTop: "27px",
+                padding: "18px",
+                borderRadius: "18px",
+                border: "1px solid rgba(142,232,255,0.18)",
+                background: "rgba(255,255,255,0.035)",
+                color: "rgba(255,255,255,0.65)",
+                fontSize: "13px",
+                lineHeight: 1.65,
+              }}
+            >
+              Contact Guru Kids Pro at admin@gurukidspro.com or WhatsApp
+              8388 8949 before accepting a licence if any term is unclear.
+            </div>
+
+            <div
+              style={{
+                marginTop: "23px",
+                display: "flex",
+                flexDirection: isMobile ? "column" : "row",
+                flexWrap: "wrap",
+                gap: "11px",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setShowLicenceTerms(false)}
+                style={{
+                  width: isMobile ? "100%" : "auto",
+                  minHeight: "52px",
+                  padding: "13px 22px",
+                  border: "none",
+                  borderRadius: "999px",
+                  background:
+                    "linear-gradient(90deg, #8ee8ff, #c58cff 60%, #ffae5c)",
+                  color: "#160729",
+                  fontSize: "12px",
+                  fontWeight: 900,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                Close
+              </button>
+
+              <Link
+                href="/terms"
+                style={{
+                  width: isMobile ? "100%" : "auto",
+                  minHeight: "52px",
+                  padding: "13px 22px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(255,255,255,0.22)",
+                  background: "rgba(255,255,255,0.045)",
+                  color: "white",
+                  textDecoration: "none",
+                  fontSize: "12px",
+                  fontWeight: 900,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  boxSizing: "border-box",
+                }}
+              >
+                General Terms
+              </Link>
+
+              <Link
+                href="/privacy"
+                style={{
+                  width: isMobile ? "100%" : "auto",
+                  minHeight: "52px",
+                  padding: "13px 22px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(255,255,255,0.22)",
+                  background: "rgba(255,255,255,0.045)",
+                  color: "white",
+                  textDecoration: "none",
+                  fontSize: "12px",
+                  fontWeight: 900,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  boxSizing: "border-box",
+                }}
+              >
+                Privacy Policy
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
