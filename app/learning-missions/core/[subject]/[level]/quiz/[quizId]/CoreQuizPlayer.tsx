@@ -11,6 +11,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useCoreMissionAccess } from "@/hooks/useCoreMissionAccess";
+import QuestionMediaRenderer from "@/components/core-media/QuestionMediaRenderer";
 
 type CoreSubject = "english" | "math";
 type ScreenMode = "desktop" | "tablet" | "mobile";
@@ -191,10 +192,6 @@ function useResponsiveMode() {
   return mode;
 }
 
-function storagePublicUrl(bucket: string | null, path: string | null) {
-  if (!bucket || !path) return null;
-  return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
-}
 
 function asOptions(content: JsonObject) {
   const options = Array.isArray(content.options) ? content.options : [];
@@ -800,8 +797,10 @@ export default function CoreQuizPlayer({
               <p style={instructionText}>{currentQuestion.instruction}</p>
             )}
 
-            <StimulusBlock stimulus={currentQuestion.stimulus} />
-            <AssetBlock assets={currentQuestion.assets} />
+            <QuestionMediaRenderer
+              stimulus={currentQuestion.stimulus}
+              assets={currentQuestion.assets}
+            />
 
             <h1 style={questionPrompt(isMobile)}>{currentQuestion.prompt}</h1>
 
@@ -1449,76 +1448,6 @@ function OralRecorder({
         </>
       )}
       {recordingError && <div style={errorBanner}>{recordingError}</div>}
-    </div>
-  );
-}
-
-function StimulusBlock({ stimulus }: { stimulus: QuizStimulus | null }) {
-  if (!stimulus) return null;
-
-  const publicUrl = storagePublicUrl(
-    stimulus.storage_bucket,
-    stimulus.storage_path,
-  );
-  const bodyText = String(
-    stimulus.body?.text ?? stimulus.body?.content ?? stimulus.body?.passage ?? "",
-  );
-
-  return (
-    <div style={stimulusCard}>
-      {stimulus.title && <h2 style={stimulusTitle}>{stimulus.title}</h2>}
-      {(stimulus.stimulus_type === "passage" ||
-        stimulus.stimulus_type === "visual_text" ||
-        stimulus.stimulus_type === "table") &&
-        bodyText && <p style={stimulusText}>{bodyText}</p>}
-      {(stimulus.stimulus_type === "image" ||
-        stimulus.stimulus_type === "diagram" ||
-        stimulus.stimulus_type === "graph") &&
-        publicUrl && (
-          <img
-            src={publicUrl}
-            alt={stimulus.alt_text || "Question stimulus"}
-            style={stimulusImage}
-          />
-        )}
-      {stimulus.stimulus_type === "audio" && publicUrl && (
-        <audio controls preload="metadata" src={publicUrl} style={{ width: "100%" }} />
-      )}
-      {stimulus.stimulus_type === "video" && publicUrl && (
-        <video controls preload="metadata" src={publicUrl} style={stimulusVideo} />
-      )}
-    </div>
-  );
-}
-
-function AssetBlock({ assets }: { assets: QuestionAsset[] }) {
-  if (!assets?.length) return null;
-
-  return (
-    <div style={assetGrid}>
-      {assets.map((asset) => {
-        const publicUrl = storagePublicUrl(asset.storage_bucket, asset.storage_path);
-        if (!publicUrl) return null;
-
-        if (asset.asset_type === "image" || asset.asset_type === "svg") {
-          return (
-            <figure key={asset.id} style={assetFigure}>
-              <img
-                src={publicUrl}
-                alt={asset.alt_text || "Question image"}
-                style={assetImage}
-              />
-              {asset.caption && <figcaption style={assetCaption}>{asset.caption}</figcaption>}
-            </figure>
-          );
-        }
-
-        if (asset.asset_type === "audio") {
-          return <audio key={asset.id} controls preload="metadata" src={publicUrl} style={{ width: "100%" }} />;
-        }
-
-        return <video key={asset.id} controls preload="metadata" src={publicUrl} style={stimulusVideo} />;
-      })}
     </div>
   );
 }
@@ -2393,67 +2322,6 @@ const recorderCard: CSSProperties = {
   textAlign: "center",
 };
 
-const stimulusCard: CSSProperties = {
-  marginTop: "13px",
-  borderRadius: "16px",
-  border: "1px solid rgba(126,232,255,0.25)",
-  background: "rgba(255,255,255,0.96)",
-  color: "#10213b",
-  padding: "clamp(13px,2vw,20px)",
-};
-
-const stimulusTitle: CSSProperties = {
-  margin: 0,
-  fontSize: "20px",
-};
-
-const stimulusText: CSSProperties = {
-  margin: "9px 0 0",
-  whiteSpace: "pre-wrap",
-  fontSize: "clamp(15px,1.9vw,19px)",
-  lineHeight: 1.7,
-};
-
-const stimulusImage: CSSProperties = {
-  display: "block",
-  width: "100%",
-  maxHeight: "360px",
-  objectFit: "contain",
-  marginTop: "10px",
-};
-
-const stimulusVideo: CSSProperties = {
-  width: "100%",
-  maxHeight: "360px",
-  borderRadius: "10px",
-};
-
-const assetGrid: CSSProperties = {
-  marginTop: "13px",
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
-  gap: "10px",
-};
-
-const assetFigure: CSSProperties = {
-  margin: 0,
-  borderRadius: "14px",
-  background: "white",
-  color: "#10213b",
-  overflow: "hidden",
-};
-
-const assetImage: CSSProperties = {
-  width: "100%",
-  height: "min(280px,32vh)",
-  objectFit: "contain",
-};
-
-const assetCaption: CSSProperties = {
-  padding: "8px 10px",
-  fontSize: "12px",
-  textAlign: "center",
-};
 
 function feedbackCard(correct: boolean): CSSProperties {
   return {
