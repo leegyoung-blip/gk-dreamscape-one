@@ -194,6 +194,8 @@ export default function NovaVirtualTeacherPopup({
   const [loading, setLoading] = useState(false);
   const [savingPreference, setSavingPreference] = useState(false);
   const [message, setMessage] = useState("");
+  const [localPlanEnabled, setLocalPlanEnabled] = useState(false);
+  const [localEmailEnabled, setLocalEmailEnabled] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -211,6 +213,13 @@ export default function NovaVirtualTeacherPopup({
     void loadReport(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, studentUserId, viewerUserId]);
+
+  useEffect(() => {
+    if (!report) return;
+
+    setLocalPlanEnabled(Boolean(report.preferences.plan_enabled));
+    setLocalEmailEnabled(Boolean(report.preferences.monday_email_enabled));
+  }, [report]);
 
   async function loadReport(force: boolean) {
     if (!studentUserId) return;
@@ -268,6 +277,9 @@ export default function NovaVirtualTeacherPopup({
       return;
     }
 
+    setLocalPlanEnabled(nextPlanEnabled);
+    setLocalEmailEnabled(nextEmailEnabled);
+
     setReport((current) =>
       current
         ? {
@@ -281,6 +293,7 @@ export default function NovaVirtualTeacherPopup({
         : current,
     );
 
+    // Refreshing the report can fail independently of saving the preference.
     await loadReport(true);
     setSavingPreference(false);
   }
@@ -350,10 +363,12 @@ export default function NovaVirtualTeacherPopup({
         "Revisit a quiz only when it is below mastery or enough time has passed since the last attempt.",
       ];
 
-  const planEnabled = Boolean(report?.preferences.plan_enabled);
-  const emailEnabled = Boolean(
-    report?.preferences.monday_email_enabled,
-  );
+  const planEnabled = report
+    ? Boolean(report.preferences.plan_enabled)
+    : localPlanEnabled;
+  const emailEnabled = report
+    ? Boolean(report.preferences.monday_email_enabled)
+    : localEmailEnabled;
 
   if (!open) return null;
 
@@ -421,41 +436,47 @@ export default function NovaVirtualTeacherPopup({
           </div>
 
           <div className="nova-vt-switches">
-            <label>
-              <span>
+            <button
+              type="button"
+              className={`nova-vt-setting-toggle ${planEnabled ? "enabled" : "disabled"}`}
+              aria-pressed={planEnabled}
+              disabled={savingPreference || !studentUserId}
+              onClick={() =>
+                void updatePreferences(!planEnabled, emailEnabled)
+              }
+            >
+              <span className="nova-vt-setting-copy">
                 <strong>Schedule weekly plan</strong>
-                <small>Parents can switch Nova’s quiz plan on or off.</small>
+                <small>Nova selects a Monday-to-Sunday quiz plan.</small>
               </span>
-              <input
-                type="checkbox"
-                checked={planEnabled}
-                disabled={savingPreference || loading || !report}
-                onChange={(event) =>
-                  void updatePreferences(
-                    event.target.checked,
-                    emailEnabled,
-                  )
-                }
-              />
-            </label>
+              <span className="nova-vt-toggle-pill" aria-hidden="true">
+                <span className="nova-vt-toggle-knob" />
+              </span>
+              <span className="nova-vt-toggle-state">
+                {savingPreference ? "SAVING" : planEnabled ? "ON" : "OFF"}
+              </span>
+            </button>
 
-            <label>
-              <span>
+            <button
+              type="button"
+              className={`nova-vt-setting-toggle email ${emailEnabled ? "enabled" : "disabled"}`}
+              aria-pressed={emailEnabled}
+              disabled={savingPreference || !studentUserId}
+              onClick={() =>
+                void updatePreferences(planEnabled, !emailEnabled)
+              }
+            >
+              <span className="nova-vt-setting-copy">
                 <strong>Notify me every Monday</strong>
-                <small>Send the weekly report to the registered email.</small>
+                <small>Send the report to the registered parent email.</small>
               </span>
-              <input
-                type="checkbox"
-                checked={emailEnabled}
-                disabled={savingPreference || loading || !report}
-                onChange={(event) =>
-                  void updatePreferences(
-                    planEnabled,
-                    event.target.checked,
-                  )
-                }
-              />
-            </label>
+              <span className="nova-vt-toggle-pill" aria-hidden="true">
+                <span className="nova-vt-toggle-knob" />
+              </span>
+              <span className="nova-vt-toggle-state">
+                {savingPreference ? "SAVING" : emailEnabled ? "ON" : "OFF"}
+              </span>
+            </button>
           </div>
         </div>
 
@@ -859,36 +880,121 @@ export default function NovaVirtualTeacherPopup({
             gap: 10px;
           }
 
-          .nova-vt-switches label {
-            min-height: 52px;
-            padding: 7px 11px 7px 13px;
-            display: flex;
+          .nova-vt-setting-toggle {
+            min-height: 54px;
+            min-width: 286px;
+            padding: 7px 10px 7px 15px;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 44px 48px;
             align-items: center;
-            gap: 12px;
-            border-radius: 15px;
-            border: 1px solid rgba(142, 232, 255, 0.12);
-            background: rgba(255, 255, 255, 0.03);
+            gap: 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(142, 232, 255, 0.18);
+            background: rgba(255, 255, 255, 0.035);
+            color: white;
+            text-align: left;
+            cursor: pointer;
+            transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 180ms ease;
           }
 
-          .nova-vt-switches label > span {
+          .nova-vt-setting-toggle:hover:not(:disabled) {
+            transform: translateY(-1px);
+            border-color: rgba(142, 232, 255, 0.42);
+            background: rgba(83, 215, 255, 0.075);
+          }
+
+          .nova-vt-setting-toggle.enabled {
+            border-color: rgba(83, 215, 255, 0.52);
+            background: linear-gradient(135deg, rgba(25, 115, 150, 0.34), rgba(31, 83, 122, 0.2));
+            box-shadow: 0 0 22px rgba(83, 215, 255, 0.12);
+          }
+
+          .nova-vt-setting-toggle.email.enabled {
+            border-color: rgba(216, 180, 254, 0.52);
+            background: linear-gradient(135deg, rgba(126, 64, 170, 0.3), rgba(66, 34, 112, 0.22));
+            box-shadow: 0 0 22px rgba(192, 132, 252, 0.12);
+          }
+
+          .nova-vt-setting-toggle:disabled {
+            opacity: 0.58;
+            cursor: wait;
+          }
+
+          .nova-vt-setting-copy {
+            min-width: 0;
             display: grid;
             gap: 3px;
           }
 
-          .nova-vt-switches strong {
+          .nova-vt-setting-copy strong {
             font-size: 11px;
           }
 
-          .nova-vt-switches small {
+          .nova-vt-setting-copy small {
+            overflow: hidden;
             color: rgba(235, 247, 255, 0.43);
+            text-overflow: ellipsis;
+            white-space: nowrap;
             font-size: 9px;
           }
 
-          .nova-vt-switches input {
-            width: 38px;
-            height: 20px;
-            accent-color: #53d7ff;
-            cursor: pointer;
+          .nova-vt-toggle-pill {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.24);
+          }
+
+          .nova-vt-toggle-knob {
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 16px;
+            height: 16px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.66);
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.32);
+            transition: left 180ms ease, background 180ms ease, box-shadow 180ms ease;
+          }
+
+          .nova-vt-setting-toggle.enabled .nova-vt-toggle-pill {
+            border-color: rgba(83, 215, 255, 0.58);
+            background: rgba(83, 215, 255, 0.28);
+          }
+
+          .nova-vt-setting-toggle.email.enabled .nova-vt-toggle-pill {
+            border-color: rgba(216, 180, 254, 0.62);
+            background: rgba(192, 132, 252, 0.3);
+          }
+
+          .nova-vt-setting-toggle.enabled .nova-vt-toggle-knob {
+            left: 23px;
+            background: #bdf6ff;
+            box-shadow: 0 0 12px rgba(83, 215, 255, 0.5);
+          }
+
+          .nova-vt-setting-toggle.email.enabled .nova-vt-toggle-knob {
+            background: #f3e8ff;
+            box-shadow: 0 0 12px rgba(192, 132, 252, 0.5);
+          }
+
+          .nova-vt-toggle-state {
+            text-align: center;
+            color: rgba(235, 247, 255, 0.45);
+            font-size: 9px;
+            font-weight: 900;
+            letter-spacing: 0.12em;
+          }
+
+          .nova-vt-setting-toggle.enabled .nova-vt-toggle-state {
+            color: #8dfcff;
+          }
+
+          .nova-vt-setting-toggle.email.enabled .nova-vt-toggle-state {
+            color: #e9d5ff;
           }
 
           .nova-vt-notice,
@@ -1333,6 +1439,20 @@ export default function NovaVirtualTeacherPopup({
               grid-template-columns: repeat(2, minmax(0, 1fr));
             }
 
+            .nova-vt-setting-toggle {
+              width: 100%;
+              min-width: 0;
+            }
+            .nova-vt-controls {
+              align-items: stretch;
+              flex-direction: column;
+            }
+
+            .nova-vt-switches {
+              display: grid;
+              grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
             .nova-vt-summary {
               grid-template-columns: 1fr;
             }
@@ -1347,6 +1467,29 @@ export default function NovaVirtualTeacherPopup({
           }
 
           @media (max-width: 720px) {
+            .nova-vt-tabs {
+              display: grid;
+              grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .nova-vt-tabs button {
+              padding: 0 10px;
+              font-size: 10px;
+            }
+
+            .nova-vt-switches {
+              grid-template-columns: 1fr;
+            }
+
+            .nova-vt-setting-toggle {
+              grid-template-columns: minmax(0, 1fr) 42px 42px;
+              padding-left: 13px;
+            }
+
+            .nova-vt-setting-copy small {
+              white-space: normal;
+              line-height: 1.35;
+            }
             .nova-vt-backdrop {
               padding: 0;
               align-items: stretch;
