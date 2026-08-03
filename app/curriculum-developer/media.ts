@@ -10,6 +10,37 @@ import type {
 
 export const CORE_MEDIA_BUCKET = "core-question-assets";
 
+type CoreSubject = "english" | "math";
+
+type MediaTableSet = {
+  questions: "english_questions" | "math_questions";
+  stimuli: "english_stimuli" | "math_stimuli";
+  questionAssets:
+    | "english_question_assets"
+    | "math_question_assets";
+};
+
+const ALL_STIMULUS_TABLES = [
+  "english_stimuli",
+  "math_stimuli",
+] as const;
+
+function mediaTablesFor(subject: CoreSubject): MediaTableSet {
+  if (subject === "english") {
+    return {
+      questions: "english_questions",
+      stimuli: "english_stimuli",
+      questionAssets: "english_question_assets",
+    };
+  }
+
+  return {
+    questions: "math_questions",
+    stimuli: "math_stimuli",
+    questionAssets: "math_question_assets",
+  };
+}
+
 export type StimulusEditorMode = "none" | "text" | "media";
 
 export type StimulusDraft = {
@@ -58,7 +89,7 @@ export type QuestionMediaDraft = {
 export type SyncQuestionMediaInput = {
   questionId: string;
   questionCode: string;
-  subject: "english" | "math";
+  subject: CoreSubject;
   primaryLevel: number;
   content: JsonObject;
   media: QuestionMediaDraft;
@@ -231,7 +262,7 @@ async function removeStoredFile(
 ) {
   if (!bucket || !path) return;
   const { error } = await supabase.storage.from(bucket).remove([path]);
-  if (error) console.warn("Could not remove old Core media file:", error.message);
+  if (error) console.warn("Could not remove old curriculum media file:", error.message);
 }
 
 function stimulusBody(draft: StimulusDraft): JsonObject {
@@ -260,18 +291,31 @@ async function removeStimulusFileIfUnreferenced(
 ) {
   if (!bucket || !path) return;
 
-  const { count, error } = await supabase
-    .from("core_stimuli")
-    .select("id", { count: "exact", head: true })
-    .eq("storage_bucket", bucket)
-    .eq("storage_path", path);
+  const checks = await Promise.all(
+    ALL_STIMULUS_TABLES.map((table) =>
+      supabase
+        .from(table)
+        .select("id", { count: "exact", head: true })
+        .eq("storage_bucket", bucket)
+        .eq("storage_path", path),
+    ),
+  );
 
-  if (error) {
-    console.warn("Could not verify shared stimulus file usage:", error.message);
+  const firstError = checks.find((result) => result.error)?.error;
+  if (firstError) {
+    console.warn(
+      "Could not verify shared stimulus file usage:",
+      firstError.message,
+    );
     return;
   }
 
-  if ((count || 0) === 0) {
+  const totalReferences = checks.reduce(
+    (sum, result) => sum + Number(result.count || 0),
+    0,
+  );
+
+  if (totalReferences === 0) {
     await removeStoredFile(bucket, path);
   }
 }
@@ -292,12 +336,14 @@ async function syncStimulus({
 }: {
   questionId: string;
   questionCode: string;
-  subject: "english" | "math";
+  subject: CoreSubject;
   primaryLevel: number;
   draft: StimulusDraft;
 }) {
+  const tables = mediaTablesFor(subject);
+
   const { data: questionRow, error: questionError } = await supabase
-    .from("core_questions")
+    .from(tables.questions)
     .select("stimulus_id")
     .eq("id", questionId)
     .single();
@@ -310,12 +356,12 @@ async function syncStimulus({
 
   if (draft.mode === "none") {
     const { error } = await supabase
-      .from("core_questions")
+      .from(tables.questions)
       .update({ stimulus_id: null })
       .eq("id", questionId);
     if (error) throw error;
 
-    await removeUnusedStimulus(oldStimulusId);
+    await removeUnusedStimulus(subject, oldStimulusId);
     return null;
   }
 
@@ -327,13 +373,13 @@ async function syncStimulus({
   // safe to support reusing the same stimulus across several questions later.
   if (draft.existingId && !draft.dirty) {
     const { error } = await supabase
-      .from("core_questions")
+      .from(tables.questions)
       .update({ stimulus_id: draft.existingId })
       .eq("id", questionId);
     if (error) throw error;
 
     if (oldStimulusId && oldStimulusId !== draft.existingId) {
-      await removeUnusedStimulus(oldStimulusId);
+      await removeUnusedStimulus(subject, oldStimulusId);
     }
     return draft.existingId;
   }
@@ -347,7 +393,7 @@ async function syncStimulus({
 
   if (draft.existingId) {
     const { data, error } = await supabase
-      .from("core_stimuli")
+      .from(tables.stimuli)
       .select("id, stimulus_type, storage_bucket, storage_path")
       .eq("id", draft.existingId)
       .maybeSingle();
@@ -420,7 +466,7 @@ async function syncStimulus({
 
   if (stimulusId) {
     const { count, error: countError } = await supabase
-      .from("core_questions")
+      .from(tables.questions)
       .select("id", { count: "exact", head: true })
       .eq("stimulus_id", stimulusId);
     if (countError) throw countError;
@@ -434,13 +480,13 @@ async function syncStimulus({
 
   if (updateExisting && stimulusId) {
     const { error } = await supabase
-      .from("core_stimuli")
+      .from(tables.stimuli)
       .update(row)
       .eq("id", stimulusId);
     if (error) throw error;
   } else {
     const { data, error } = await supabase
-      .from("core_stimuli")
+      .from(tables.stimuli)
       .insert(row)
       .select("id")
       .single();
@@ -451,7 +497,7 @@ async function syncStimulus({
   }
 
   const { error: attachError } = await supabase
-    .from("core_questions")
+    .from(tables.questions)
     .update({ stimulus_id: stimulusId })
     .eq("id", questionId);
   if (attachError) throw attachError;
@@ -470,29 +516,34 @@ async function syncStimulus({
   }
 
   if (oldStimulusId && oldStimulusId !== stimulusId) {
-    await removeUnusedStimulus(oldStimulusId);
+    await removeUnusedStimulus(subject, oldStimulusId);
   }
 
   return stimulusId;
 }
 
-async function removeUnusedStimulus(stimulusId: string | null) {
+async function removeUnusedStimulus(
+  subject: CoreSubject,
+  stimulusId: string | null,
+) {
   if (!stimulusId) return;
 
+  const tables = mediaTablesFor(subject);
+
   const { count, error: countError } = await supabase
-    .from("core_questions")
+    .from(tables.questions)
     .select("id", { count: "exact", head: true })
     .eq("stimulus_id", stimulusId);
   if (countError || (count || 0) > 0) return;
 
   const { data } = await supabase
-    .from("core_stimuli")
+    .from(tables.stimuli)
     .select("storage_bucket,storage_path")
     .eq("id", stimulusId)
     .maybeSingle();
 
   const { error: deleteError } = await supabase
-    .from("core_stimuli")
+    .from(tables.stimuli)
     .delete()
     .eq("id", stimulusId);
 
@@ -513,16 +564,18 @@ async function syncAssets({
 }: {
   questionId: string;
   questionCode: string;
-  subject: "english" | "math";
+  subject: CoreSubject;
   primaryLevel: number;
   assets: QuestionAssetDraft[];
 }) {
+  const tables = mediaTablesFor(subject);
+
   for (let index = 0; index < assets.length; index += 1) {
     const asset = assets[index];
 
     if (asset.existingId && asset.removed) {
       const { error } = await supabase
-        .from("core_question_assets")
+        .from(tables.questionAssets)
         .delete()
         .eq("id", asset.existingId)
         .eq("question_id", questionId);
@@ -549,7 +602,7 @@ async function syncAssets({
       }
 
       const { error } = await supabase
-        .from("core_question_assets")
+        .from(tables.questionAssets)
         .update({
           asset_type: asset.file ? assetTypeFromFile(asset.file) : asset.assetType,
           storage_bucket: bucket,
@@ -579,7 +632,7 @@ async function syncAssets({
       });
       await uploadFile(path, asset.file);
 
-      const { error } = await supabase.from("core_question_assets").insert({
+      const { error } = await supabase.from(tables.questionAssets).insert({
         question_id: questionId,
         asset_type: assetTypeFromFile(asset.file),
         storage_bucket: CORE_MEDIA_BUCKET,
@@ -602,7 +655,7 @@ async function syncOptionImages({
   optionImages,
 }: {
   questionCode: string;
-  subject: "english" | "math";
+  subject: CoreSubject;
   primaryLevel: number;
   content: JsonObject;
   optionImages: Record<string, OptionImageDraft>;
@@ -666,6 +719,8 @@ async function syncOptionImages({
 }
 
 export async function syncQuestionMedia(input: SyncQuestionMediaInput) {
+  const tables = mediaTablesFor(input.subject);
+
   const contentWithOptionImages = await syncOptionImages({
     questionCode: input.questionCode,
     subject: input.subject,
@@ -683,7 +738,7 @@ export async function syncQuestionMedia(input: SyncQuestionMediaInput) {
   });
 
   const { error: contentError } = await supabase
-    .from("core_questions")
+    .from(tables.questions)
     .update({
       content: contentWithOptionImages,
       stimulus_id: stimulusId,
