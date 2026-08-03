@@ -279,14 +279,17 @@ const pageShell: CSSProperties = {
   position: "fixed",
   inset: 0,
   overflow: "hidden",
-  backgroundImage: `
-    linear-gradient(180deg, rgba(2,8,19,0.28), rgba(2,8,19,0.62)),
-    url("/activities/learning-missions/core/skyforge-hangar-bg.png")
-  `,
-  backgroundSize: "cover",
-  backgroundPosition: "center",
   color: "white",
   fontFamily: "Arial, Helvetica, sans-serif",
+  backgroundColor: "#06111f",
+  backgroundImage: `
+    linear-gradient(rgba(83, 215, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(83, 215, 255, 0.035) 1px, transparent 1px),
+    radial-gradient(circle at 50% 0%, rgba(34, 211, 238, 0.12), transparent 42%),
+    linear-gradient(180deg, #09182a 0%, #020813 100%)
+  `,
+  backgroundSize: "48px 48px, 48px 48px, 100% 100%, 100% 100%",
+  backgroundPosition: "center",
 };
 
 function headerStyle(isMobile: boolean): CSSProperties {
@@ -324,8 +327,10 @@ const headerActions: CSSProperties = {
 
 function contentSection(isMobile: boolean, isCompact: boolean): CSSProperties {
   return {
+    width: "min(1500px, 100%)",
     height: `calc(100dvh - ${isMobile ? 58 : 68}px)`,
-    padding: isMobile ? "8px" : isCompact ? "12px" : "20px 28px 28px",
+    margin: "0 auto",
+    padding: isMobile ? "8px" : isCompact ? "12px" : "18px 28px 28px",
     overflow: "hidden",
     display: "flex",
     alignItems: "center",
@@ -335,15 +340,9 @@ function contentSection(isMobile: boolean, isCompact: boolean): CSSProperties {
 
 function glassPanel(isMobile: boolean, isCompact: boolean): CSSProperties {
   return {
-    width: isMobile || isCompact ? "100%" : "min(1420px, calc(100vw - 72px))",
-    height: isMobile || isCompact ? "100%" : "min(760px, calc(100dvh - 118px))",
+    width: "min(1460px, 100%)",
+    height: "100%",
     overflow: "hidden",
-    borderRadius: isMobile ? "18px" : "26px",
-    border: "1px solid rgba(126,232,255,0.32)",
-    background: "linear-gradient(145deg, rgba(5,18,42,0.56), rgba(8,26,58,0.72))",
-    backdropFilter: "blur(10px)",
-    WebkitBackdropFilter: "blur(10px)",
-    boxShadow: "0 0 34px rgba(83,215,255,0.12), 0 22px 58px rgba(0,0,0,0.28)",
     padding: isMobile ? "12px" : isCompact ? "18px" : "22px 24px 24px",
     display: "flex",
     flexDirection: "column",

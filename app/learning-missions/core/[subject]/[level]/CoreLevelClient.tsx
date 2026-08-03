@@ -843,18 +843,20 @@ function StatusCard({
   );
 }
 
-function pageShell(mode: ScreenMode): CSSProperties {
+function pageShell(_mode: ScreenMode): CSSProperties {
   return {
     minHeight: "100dvh",
     color: "#f8fafc",
     fontFamily: "Arial, Helvetica, sans-serif",
+    backgroundColor: "#06111f",
     backgroundImage: `
-      linear-gradient(180deg, rgba(2,8,19,0.48), rgba(2,8,19,0.86)),
-      url("/activities/learning-missions/core/skyforge-hangar-bg.png")
+      linear-gradient(rgba(83, 215, 255, 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(83, 215, 255, 0.035) 1px, transparent 1px),
+      radial-gradient(circle at 50% 0%, rgba(34, 211, 238, 0.12), transparent 42%),
+      linear-gradient(180deg, #09182a 0%, #020813 100%)
     `,
-    backgroundSize: "cover",
+    backgroundSize: "48px 48px, 48px 48px, 100% 100%, 100% 100%",
     backgroundPosition: "center",
-    backgroundAttachment: mode === "mobile" ? "scroll" : "fixed",
   };
 }
 
@@ -967,39 +969,32 @@ function roverButton(
 
 function contentArea(mode: ScreenMode): CSSProperties {
   return {
+    width: "min(1500px, 100%)",
+    margin: "0 auto",
     padding:
       mode === "mobile"
-        ? "10px 8px 22px"
+        ? "10px 10px 24px"
         : mode === "tablet"
-          ? "14px 14px 28px"
-          : "20px 24px 36px",
+          ? "18px 20px 32px"
+          : "22px 28px 40px",
   };
 }
 
 function mainPanel(mode: ScreenMode): CSSProperties {
   return {
-    width: "min(1420px, 100%)",
+    width: "100%",
     minHeight:
       mode === "mobile"
         ? "calc(100dvh - 118px)"
         : "calc(100dvh - 126px)",
     margin: "0 auto",
-    overflow: "hidden",
-    borderRadius:
-      mode === "mobile" ? "20px" : mode === "tablet" ? "24px" : "30px",
-    border: "1px solid rgba(148,163,184,0.18)",
-    background:
-      "linear-gradient(145deg, rgba(4,12,28,0.94), rgba(7,18,39,0.91))",
-    backdropFilter: "blur(18px)",
-    WebkitBackdropFilter: "blur(18px)",
+    overflow: "visible",
     padding:
       mode === "mobile"
-        ? "15px"
+        ? "8px 4px"
         : mode === "tablet"
-          ? "20px"
-          : "28px",
-    boxShadow:
-      "0 30px 80px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.035)",
+          ? "12px 6px"
+          : "14px 8px",
   };
 }
 
