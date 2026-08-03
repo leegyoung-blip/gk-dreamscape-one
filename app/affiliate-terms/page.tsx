@@ -8,8 +8,8 @@ export const metadata: Metadata = {
     "Terms and conditions for participation in the Dreamscape Affiliate Programme operated by Guru Kids Pro.",
 };
 
-const EFFECTIVE_DATE = "1 August 2026";
-const TERMS_VERSION = "affiliate-terms-v1-2026-08-01";
+const EFFECTIVE_DATE = "3 August 2026";
+const TERMS_VERSION = "affiliate-terms-v2-2026-08-03";
 
 function Heading({ number, children }: { number: string; children: React.ReactNode }) {
   return (
@@ -168,100 +168,145 @@ export default function AffiliateTermsPage() {
               <Heading number="4">Referral tracking and attribution</Heading>
               <ol>
                 <li>
-                  Referrals are tracked using a unique affiliate link, referral code or
-                  another tracking method supplied by us.
+                  A referral is commissionable only when the Eligible Customer enters and
+                  submits the specific referral code assigned to the Affiliate during the
+                  relevant Dreamscape signup or purchase process.
                 </li>
                 <li>
-                  A valid affiliate link normally has a 30-day tracking period, subject to
-                  cookies, browser settings, device changes, cookie deletion, technical
-                  limitations and customer actions.
+                  An affiliate link may direct the customer to Dreamscape or prefill a
+                  referral code, but the referral code must still be successfully recorded
+                  in our systems. Link clicks, cookies, browser history or verbal claims
+                  alone do not create attribution.
                 </li>
                 <li>
-                  A valid referral code entered during signup overrides an earlier tracked
-                  affiliate link.
+                  The customer must use the Affiliate&apos;s own approved code. A missing,
+                  invalid, expired, altered or different referral code does not qualify.
                 </li>
                 <li>
-                  Where no code is entered, the most recent valid affiliate link recorded
-                  by our systems receives attribution.
+                  Only one Affiliate may be attributed to an Eligible Customer. Attribution
+                  cannot normally be added, transferred, replaced or changed after the
+                  customer&apos;s first eligible signup or purchase.
                 </li>
                 <li>
-                  Attribution cannot normally be added, moved or changed after signup. Our
-                  records are final unless a clear and verifiable technical error occurred.
+                  Our referral-code and transaction records are final unless we identify a
+                  clear and verifiable technical error.
                 </li>
                 <li>
-                  There are no second-level or multi-level commissions. A person referred
-                  by an Affiliate does not generate commission on their own later referrals
-                  unless the new customer uses the original Affiliate&apos;s valid link or code.
+                  There are no second-level or multi-level commissions. A referred customer&apos;s
+                  later referrals do not generate commission for the original Affiliate.
                 </li>
               </ol>
             </section>
 
             <section id="commission" className={styles.card}>
-              <Heading number="5">Standard commission</Heading>
+              <Heading number="5">Commission and 12-month limit</Heading>
               <div className={styles.highlight}>
-                <strong>Current standard rate: 20% recurring commission</strong>
+                <strong>Current regular Affiliate rate: 10%</strong>
                 <p>
                   Commission is calculated on Net Subscription Revenue from an Eligible
-                  Subscription validly attributed to the Affiliate.
+                  Subscription validly attributed through the Affiliate&apos;s specific
+                  referral code.
                 </p>
               </div>
+
+              <h3>Maximum commission period per referred customer</h3>
+              <ol>
+                <li>
+                  Each Eligible Customer may generate commission for a maximum of
+                  <strong> 12 consecutive months</strong>, beginning on the date of that
+                  customer&apos;s first successful eligible subscription payment.
+                </li>
+                <li>
+                  The 12-month period continues to run even if the customer pauses,
+                  downgrades, upgrades, changes plans or temporarily stops paying.
+                </li>
+                <li>
+                  Only eligible paid billing cycles completed within that 12-month period
+                  are commissionable.
+                </li>
+                <li>
+                  No commission is payable for any payment, renewal or reactivation occurring
+                  after the end of the customer&apos;s 12-month commission period.
+                </li>
+                <li>
+                  The 12-month limit applies separately to each validly referred customer,
+                  not to each subscription, product, plan change or account created for the
+                  same customer.
+                </li>
+              </ol>
 
               <h3>Monthly subscriptions</h3>
               <ol>
                 <li>
-                  Commission eligibility begins only after the Eligible Customer completes
-                  the first full paid billing cycle.
+                  The first monthly billing cycle becomes commissionable only after it has
+                  been successfully paid and completed without refund, reversal, chargeback,
+                  fraud, payment failure or other ineligibility.
                 </li>
                 <li>
-                  Commission is then earned for each later eligible completed billing cycle
-                  while the subscription remains active and paid.
+                  Commission may then be earned on each eligible completed monthly billing
+                  cycle falling within the customer&apos;s 12-month commission period.
                 </li>
                 <li>
-                  Commission ends when the subscription is cancelled, expires, becomes
-                  unpaid, is refunded, charged back, fraudulent or otherwise ineligible.
+                  Commission stops at the earliest of cancellation, expiry, payment failure,
+                  refund, chargeback, fraud, other ineligibility, termination of the
+                  Affiliate&apos;s participation, or the end of the 12-month commission period.
                 </li>
               </ol>
 
               <h3>Annual subscriptions</h3>
               <ol>
                 <li>
-                  Total annual commission is the approved percentage of eligible annual Net
-                  Subscription Revenue.
+                  Total regular annual commission is 10% of eligible annual Net Subscription
+                  Revenue actually received by us.
                 </li>
                 <li>
-                  Standard annual commission is released in 12 monthly portions, beginning
-                  after the first month of active paid service.
+                  Annual commission may be released in 12 monthly portions after the annual
+                  payment is verified, subject to continued eligibility and adjustment for
+                  refunds, reversals, disputes, chargebacks or fraud.
                 </li>
                 <li>
-                  Minor rounding adjustments may be applied to the final portion so total
-                  commission equals the approved percentage.
+                  Minor rounding adjustments may be applied to the final portion so the total
+                  paid commission equals the approved percentage.
                 </li>
                 <li>
-                  A paid annual renewal starts a new 12-month commission term.
+                  An annual renewal is commissionable only when the renewal payment falls
+                  within the original customer&apos;s 12-month commission period. A renewal
+                  after that period does not begin a new commission term.
                 </li>
               </ol>
 
               <h3>KOL and creator partnerships</h3>
               <ol>
                 <li>
-                  Approved KOL or creator partners may receive an enhanced rate of up to 40%.
+                  Approved KOL or creator partners may receive an enhanced commission rate
+                  of up to <strong>20%</strong>.
                 </li>
                 <li>
-                  The maximum is not automatic. The actual approved rate depends on audience
-                  fit, content quality, campaign scope, deliverables, usage rights and written
-                  approval.
+                  The maximum rate is not automatic. The actual approved rate depends on our
+                  assessment of audience fit, content quality, campaign scope, deliverables,
+                  usage rights, performance expectations and commercial sustainability.
                 </li>
                 <li>
-                  The actual approved rate shown during onboarding or in a signed campaign
-                  agreement applies. Promotional references to “up to 40%” are not a promise
-                  that every creator will receive 40%.
+                  The actual rate confirmed in writing during onboarding or in a signed
+                  campaign agreement applies. Promotional references to “up to 20%” are not
+                  a promise that every KOL or creator will receive 20%.
+                </li>
+                <li>
+                  Each validly referred customer may generate KOL or creator commission for
+                  no more than the same 12 consecutive months beginning from the customer&apos;s
+                  first successful eligible subscription payment.
+                </li>
+                <li>
+                  A higher KOL or creator rate does not extend the 12-month commission period
+                  and does not create lifetime, renewal or perpetual commission rights.
                 </li>
               </ol>
 
               <p className={styles.smallPrint}>
                 Illustrations and earnings examples are not guarantees. Actual earnings depend
-                on the purchased plan, valid attribution, discounts, customer eligibility,
-                continued payment and these Terms.
+                on the approved rate, purchased plan, valid referral-code attribution,
+                discounts, customer eligibility, completed payment, the 12-month limit and
+                these Terms.
               </p>
             </section>
 
@@ -369,8 +414,10 @@ export default function AffiliateTermsPage() {
                   payable after verification.
                 </li>
                 <li>
-                  Recurring commission eligibility for existing subscribers ends when the
-                  Affiliate&apos;s participation ends. There is no lifetime right to future commission.
+                  Commission eligibility for existing subscribers ends at the earliest of
+                  the Affiliate&apos;s effective termination date, the customer becoming
+                  ineligible, or the end of that customer&apos;s 12-month commission period.
+                  There is no lifetime, perpetual or post-termination right to future commission.
                 </li>
                 <li>
                   We may suspend or terminate immediately for fraud, manipulation, spam,
