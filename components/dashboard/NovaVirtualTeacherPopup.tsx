@@ -216,23 +216,22 @@ export default function NovaVirtualTeacherPopup({
 
     lockedScrollPosition.current = { x: scrollX, y: scrollY };
 
-    const previousBodyStyles = {
-      position: body.style.position,
-      top: body.style.top,
-      left: body.style.left,
-      right: body.style.right,
-      width: body.style.width,
-      overflow: body.style.overflow,
-      paddingRight: body.style.paddingRight,
+    const previousStyles = {
+      bodyOverflow: body.style.overflow,
+      bodyPaddingRight: body.style.paddingRight,
+      htmlOverflow: html.style.overflow,
+      htmlOverscrollBehavior: html.style.overscrollBehavior,
+      htmlScrollBehavior: html.style.scrollBehavior,
     };
-    const previousScrollBehavior = html.style.scrollBehavior;
 
+    /*
+     * Do not set body.position = "fixed".
+     * The popup is portalled into document.body, so shifting the body by the
+     * current scroll offset also shifts the popup outside the viewport.
+     */
     html.style.scrollBehavior = "auto";
-    body.style.position = "fixed";
-    body.style.top = `-${scrollY}px`;
-    body.style.left = `-${scrollX}px`;
-    body.style.right = "0";
-    body.style.width = "100%";
+    html.style.overflow = "hidden";
+    html.style.overscrollBehavior = "none";
     body.style.overflow = "hidden";
 
     if (scrollbarWidth > 0) {
@@ -240,19 +239,19 @@ export default function NovaVirtualTeacherPopup({
     }
 
     return () => {
-      body.style.position = previousBodyStyles.position;
-      body.style.top = previousBodyStyles.top;
-      body.style.left = previousBodyStyles.left;
-      body.style.right = previousBodyStyles.right;
-      body.style.width = previousBodyStyles.width;
-      body.style.overflow = previousBodyStyles.overflow;
-      body.style.paddingRight = previousBodyStyles.paddingRight;
-      html.style.scrollBehavior = previousScrollBehavior;
+      body.style.overflow = previousStyles.bodyOverflow;
+      body.style.paddingRight = previousStyles.bodyPaddingRight;
+      html.style.overflow = previousStyles.htmlOverflow;
+      html.style.overscrollBehavior =
+        previousStyles.htmlOverscrollBehavior;
+      html.style.scrollBehavior = previousStyles.htmlScrollBehavior;
 
-      window.scrollTo(
-        lockedScrollPosition.current.x,
-        lockedScrollPosition.current.y,
-      );
+      window.requestAnimationFrame(() => {
+        window.scrollTo(
+          lockedScrollPosition.current.x,
+          lockedScrollPosition.current.y,
+        );
+      });
     };
   }, [open, portalReady]);
 
@@ -816,23 +815,32 @@ export default function NovaVirtualTeacherPopup({
           .nova-vt-backdrop {
             position: fixed;
             inset: 0;
-            z-index: 200;
+            z-index: 2147483000;
             padding: clamp(14px, 2.2vw, 32px);
-            display: grid;
-            place-items: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             overflow: hidden;
+            visibility: visible;
+            opacity: 1;
+            pointer-events: auto;
             background: rgba(0, 3, 12, 0.78);
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
           }
 
           .nova-vt-modal {
+            position: relative;
+            z-index: 1;
             width: min(1480px, calc(100vw - 48px));
             max-height: calc(100dvh - 48px);
             margin: 0;
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            visibility: visible;
+            opacity: 1;
+            transform: none;
             border-radius: 30px;
             border: 1px solid rgba(142, 232, 255, 0.34);
             background: linear-gradient(145deg, #071a32, #030916 74%);
@@ -1567,7 +1575,8 @@ export default function NovaVirtualTeacherPopup({
             }
             .nova-vt-backdrop {
               padding: 8px;
-              place-items: center;
+              align-items: center;
+              justify-content: center;
             }
 
             .nova-vt-modal {
