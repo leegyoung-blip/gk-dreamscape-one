@@ -12,6 +12,74 @@ import type { CoreQuiz, CoreSkill, CoreSubject, CoreTopic } from "./types";
 
 type Section = "dashboard" | "builder" | "review";
 
+const QUIZ_PAGE_SIZE = 1000;
+
+const QUIZ_SELECT = `
+  id,
+  topic_id,
+  skill_id,
+  code,
+  title,
+  description,
+  quiz_type,
+  difficulty,
+  question_count,
+  estimated_minutes,
+  passing_percentage,
+  quiz_order,
+  reward_tokens,
+  reward_gems,
+  feedback_mode,
+  randomise_questions,
+  randomise_options,
+  is_published,
+  status,
+  created_by,
+  updated_by,
+  submitted_by,
+  submitted_at,
+  reviewed_by,
+  reviewed_at,
+  review_notes,
+  version,
+  created_at,
+  updated_at
+`;
+
+async function fetchAllQuizzes(table: string) {
+  const allRows: any[] = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from(table)
+      .select(QUIZ_SELECT)
+      .order("updated_at", { ascending: false })
+      .range(from, from + QUIZ_PAGE_SIZE - 1);
+
+    if (error) {
+      return {
+        data: null,
+        error,
+      };
+    }
+
+    const rows = data ?? [];
+    allRows.push(...rows);
+
+    if (rows.length < QUIZ_PAGE_SIZE) {
+      break;
+    }
+
+    from += QUIZ_PAGE_SIZE;
+  }
+
+  return {
+    data: allRows,
+    error: null,
+  };
+}
+
 const CONTENT_SOURCES: Array<{
   subject: CoreSubject;
   topics: string;
@@ -66,12 +134,7 @@ export default function CurriculumDeveloperClient() {
             )
             .eq("is_active", true)
             .order("sort_order", { ascending: true }),
-          supabase
-            .from(source.quizzes)
-            .select(
-              "id, topic_id, skill_id, code, title, description, quiz_type, difficulty, question_count, estimated_minutes, passing_percentage, quiz_order, reward_tokens, reward_gems, feedback_mode, randomise_questions, randomise_options, is_published, status, created_by, updated_by, submitted_by, submitted_at, reviewed_by, reviewed_at, review_notes, version, created_at, updated_at",
-            )
-            .order("updated_at", { ascending: false }),
+          fetchAllQuizzes(source.quizzes),
         ]);
 
         return { source, topicResult, skillResult, quizResult };
