@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
-type AttemptSource = "core" | "core_v2" | "science" | "knowledge";
+type AttemptSource = "core" | "english" | "math" | "science" | "knowledge";
 type SubjectKey = "english" | "math" | "science" | "knowledge";
 type DateFilter = "this_week" | "last_week" | "this_month" | "all_time";
 type AccuracyFilter = "all" | "with_mistakes" | "perfect";
@@ -461,50 +461,62 @@ export default function TeachingDashboardPage() {
     setIsLoading(true);
     setLoadMessage("");
 
-    const [coreResult, newCoreResult, scienceResult, knowledgeResult] =
-      await Promise.all([
-        supabase
-          .from("core_mission_attempts")
-          .select(
-            "id,user_id,quiz_id,score,correct_count,total_questions,tokens_earned,created_at",
-          )
-          .eq("user_id", studentId)
-          .order("created_at", { ascending: false })
-          .limit(500),
+    const [
+      coreResult,
+      englishResult,
+      mathResult,
+      scienceResult,
+      knowledgeResult,
+    ] = await Promise.all([
+      // Legacy Core records are retained so older completed work remains visible.
+      supabase
+        .from("core_mission_attempts")
+        .select(
+          "id,user_id,quiz_id,score,correct_count,total_questions,tokens_earned,created_at",
+        )
+        .eq("user_id", studentId)
+        .order("created_at", { ascending: false })
+        .limit(500),
 
-        supabase.rpc("teacher_get_core_quiz_attempts", {
-          p_student_user_ids: [studentId],
-          p_teacher_user_id: null,
-        }),
+      supabase.rpc("teacher_get_english_quiz_attempts", {
+        p_student_user_ids: [studentId],
+        p_teacher_user_id: null,
+      }),
 
-        supabase
-          .from("science_quiz_attempts")
-          .select(
-            "id,user_id,quiz_id,status,score,percentage,correct_count,total_questions,time_seconds,tokens_earned,gems_earned,first_completion,submitted_at,created_at",
-          )
-          .eq("user_id", studentId)
-          .eq("status", "submitted")
-          .order("submitted_at", { ascending: false, nullsFirst: false })
-          .limit(500),
+      supabase.rpc("teacher_get_math_quiz_attempts", {
+        p_student_user_ids: [studentId],
+        p_teacher_user_id: null,
+      }),
 
-        supabase
-          .from("knowledge_arena_attempts")
-          .select(
-            "id,user_id,topic,mode,score,correct_count,total_questions,tokens_earned,created_at",
-          )
-          .eq("user_id", studentId)
-          .order("created_at", { ascending: false })
-          .limit(500),
-      ]);
+      supabase
+        .from("science_quiz_attempts")
+        .select(
+          "id,user_id,quiz_id,status,score,percentage,correct_count,total_questions,time_seconds,tokens_earned,gems_earned,first_completion,submitted_at,created_at",
+        )
+        .eq("user_id", studentId)
+        .eq("status", "submitted")
+        .order("submitted_at", { ascending: false, nullsFirst: false })
+        .limit(500),
+
+      supabase
+        .from("knowledge_arena_attempts")
+        .select(
+          "id,user_id,topic,mode,score,correct_count,total_questions,tokens_earned,created_at",
+        )
+        .eq("user_id", studentId)
+        .order("created_at", { ascending: false })
+        .limit(500),
+    ]);
 
     const errors = [
       coreResult.error,
-      newCoreResult.error,
+      englishResult.error,
+      mathResult.error,
       scienceResult.error,
       knowledgeResult.error,
     ].filter(Boolean);
 
-    if (errors.length === 4) {
+    if (errors.length === 5) {
       setAttempts([]);
       setLoadMessage("The dashboard could not load the quiz attempt tables.");
       setIsLoading(false);
@@ -513,15 +525,16 @@ export default function TeachingDashboardPage() {
 
     if (errors.length > 0) {
       setLoadMessage(
-        "Some mission records could not be loaded. Check the browser console for the table error.",
+        "Some mission records could not be loaded. Check the browser console for the table or RPC error.",
       );
       errors.forEach((error) =>
-        console.warn("Teaching Dashboard attempt load error:", error),
+        console.warn("Progress dashboard attempt load error:", error),
       );
     }
 
     const coreRows = (coreResult.data ?? []) as CoreAttemptRow[];
-    const newCoreRows = (newCoreResult.data ?? []) as NewCoreAttemptRpcRow[];
+    const englishRows = (englishResult.data ?? []) as NewCoreAttemptRpcRow[];
+    const mathRows = (mathResult.data ?? []) as NewCoreAttemptRpcRow[];
     const scienceRows = (scienceResult.data ?? []) as ScienceAttemptRow[];
     const knowledgeRows = (knowledgeResult.data ?? []) as KnowledgeAttemptRow[];
 
@@ -641,39 +654,45 @@ export default function TeachingDashboardPage() {
       });
     }
 
-    for (const row of newCoreRows) {
-      const subject: SubjectKey = row.subject === "math" ? "math" : "english";
-      const levelLabel = row.primary_level
-        ? `Primary ${row.primary_level}`
-        : null;
+    for (const [subject, rows] of [
+      ["english", englishRows],
+      ["math", mathRows],
+    ] as const) {
+      for (const row of rows) {
+        const levelLabel = row.primary_level
+          ? `Primary ${row.primary_level}`
+          : null;
 
-      nextAttempts.push({
-        id: String(row.id),
-        source: "core_v2",
-        userId: String(row.user_id),
-        quizId: row.quiz_id,
-        title: row.quiz_title || "Core Mission Quiz",
-        subtitle: [
-          SUBJECT_META[subject].label,
-          levelLabel,
-          row.topic_title,
-          row.quiz_type ? row.quiz_type.replaceAll("_", " ") : null,
-        ]
-          .filter(Boolean)
-          .join(" · "),
-        subject,
-        mode: row.quiz_type,
-        score: safeNumber(row.score),
-        correctCount: safeNumber(row.correct_count),
-        totalQuestions: safeNumber(row.total_questions),
-        tokensEarned: safeNumber(row.tokens_earned),
-        durationSeconds:
-          row.duration_seconds === null
-            ? null
-            : safeNumber(row.duration_seconds),
-        createdAt:
-          row.submitted_at || row.created_at || new Date(0).toISOString(),
-      });
+        nextAttempts.push({
+          id: String(row.id),
+          source: subject,
+          userId: String(row.user_id),
+          quizId: row.quiz_id,
+          title:
+            row.quiz_title ||
+            `${SUBJECT_META[subject].label} Mission Quiz`,
+          subtitle: [
+            SUBJECT_META[subject].label,
+            levelLabel,
+            row.topic_title,
+            row.quiz_type ? row.quiz_type.replaceAll("_", " ") : null,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+          subject,
+          mode: row.quiz_type,
+          score: safeNumber(row.score),
+          correctCount: safeNumber(row.correct_count),
+          totalQuestions: safeNumber(row.total_questions),
+          tokensEarned: safeNumber(row.tokens_earned),
+          durationSeconds:
+            row.duration_seconds === null
+              ? null
+              : safeNumber(row.duration_seconds),
+          createdAt:
+            row.submitted_at || row.created_at || new Date(0).toISOString(),
+        });
+      }
     }
 
     for (const row of scienceRows) {
@@ -749,23 +768,25 @@ export default function TeachingDashboardPage() {
     setDetailMessage("");
     setDetailsLoading(true);
 
-    if (attempt.source === "core_v2") {
-      const { data, error } = await supabase.rpc(
-        "teacher_get_core_quiz_attempt_answers",
-        {
-          p_attempt_id: attempt.id,
-          p_student_user_id: attempt.userId,
-          p_teacher_user_id: null,
-        },
-      );
+    if (attempt.source === "english" || attempt.source === "math") {
+      const answerRpc =
+        attempt.source === "english"
+          ? "teacher_get_english_quiz_attempt_answers"
+          : "teacher_get_math_quiz_attempt_answers";
+
+      const { data, error } = await supabase.rpc(answerRpc, {
+        p_attempt_id: attempt.id,
+        p_student_user_id: attempt.userId,
+        p_teacher_user_id: null,
+      });
 
       if (error) {
         console.info(
-          "New Core answer detail could not be loaded:",
+          `${SUBJECT_META[attempt.source].label} answer detail could not be loaded:`,
           error.message,
         );
         setDetailMessage(
-          "The English or Mathematics answer record could not be loaded. Run the Teaching Dashboard Core SQL update and try again.",
+          `The ${SUBJECT_META[attempt.source].label} answer record could not be loaded. Run the split Teaching Dashboard RPC migration and try again.`,
         );
         setDetailsLoading(false);
         return;
@@ -775,7 +796,7 @@ export default function TeachingDashboardPage() {
         (row): AttemptAnswerRow => ({
           ...row,
           id: String(row.id),
-          attempt_source: "core_v2",
+          attempt_source: attempt.source,
           attempt_id: attempt.id,
           question_id: row.question_id
             ? String(row.question_id)

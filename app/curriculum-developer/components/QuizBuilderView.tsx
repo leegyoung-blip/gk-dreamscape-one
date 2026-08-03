@@ -9,6 +9,7 @@ import { syncQuestionMedia } from "../media";
 import type {
   CoreQuiz,
   CoreSkill,
+  CoreSubject,
   CoreTopic,
   CurriculumRole,
   FeedbackMode,
@@ -33,6 +34,59 @@ const EMPTY_FORM: QuizFormState = {
   randomiseQuestions: false,
   randomiseOptions: false,
 };
+
+const CONTENT_TABLES: Record<
+  CoreSubject,
+  {
+    quizQuestions: string;
+    questions: string;
+    stimuli: string;
+    questionAssets: string;
+  }
+> = {
+  english: {
+    quizQuestions: "english_quiz_questions",
+    questions: "english_questions",
+    stimuli: "english_stimuli",
+    questionAssets: "english_question_assets",
+  },
+  math: {
+    quizQuestions: "math_quiz_questions",
+    questions: "math_questions",
+    stimuli: "math_stimuli",
+    questionAssets: "math_question_assets",
+  },
+};
+
+const CURRICULUM_RPCS: Record<
+  CoreSubject,
+  {
+    createQuizDraft: string;
+    updateQuizDraft: string;
+    saveQuestion: string;
+    deleteQuestion: string;
+    reorderQuestions: string;
+    submitQuiz: string;
+  }
+> = {
+  english: {
+    createQuizDraft: "curriculum_create_english_quiz_draft",
+    updateQuizDraft: "curriculum_update_english_quiz_draft",
+    saveQuestion: "curriculum_save_english_question",
+    deleteQuestion: "curriculum_delete_english_question",
+    reorderQuestions: "curriculum_reorder_english_quiz_questions",
+    submitQuiz: "curriculum_submit_english_quiz",
+  },
+  math: {
+    createQuizDraft: "curriculum_create_math_quiz_draft",
+    updateQuizDraft: "curriculum_update_math_quiz_draft",
+    saveQuestion: "curriculum_save_math_question",
+    deleteQuestion: "curriculum_delete_math_question",
+    reorderQuestions: "curriculum_reorder_math_quiz_questions",
+    submitQuiz: "curriculum_submit_math_quiz",
+  },
+};
+
 
 function countQuestionMedia(question: LinkedQuestion) {
   const optionImageCount = Array.isArray(question.content?.options)
@@ -86,8 +140,12 @@ export default function QuizBuilderView({
     (role === "admin" && ["in_review", "approved"].includes(selectedQuiz.status));
 
   const relevantSkills = skills.filter((skill) => skill.topic_id === form.topicId);
-  const selectedTopic = topics.find((topic) => topic.id === form.topicId) || null;
-  const selectedSubject = selectedTopic?.subject || "english";
+  const selectedTopic =
+    topics.find((topic) => topic.id === form.topicId) || null;
+  const selectedSubject: CoreSubject =
+    selectedQuiz?.subject || selectedTopic?.subject || "english";
+  const contentTables = CONTENT_TABLES[selectedSubject];
+  const curriculumRpcs = CURRICULUM_RPCS[selectedSubject];
 
   useEffect(() => {
     if (!selectedQuiz) {
@@ -125,7 +183,7 @@ export default function QuizBuilderView({
     setError(null);
 
     const { data: links, error: linkError } = await supabase
-      .from("core_quiz_questions")
+      .from(contentTables.quizQuestions)
       .select("question_id, question_order, marks_override")
       .eq("quiz_id", quizId)
       .order("question_order", { ascending: true });
@@ -145,7 +203,7 @@ export default function QuizBuilderView({
     }
 
     const { data: questionRows, error: questionError } = await supabase
-      .from("core_questions")
+      .from(contentTables.questions)
       .select(
         "id, subject, primary_level, topic_id, skill_id, stimulus_id, code, question_type, instruction, prompt, content, answer_data, explanation, skill, difficulty, marks, requires_manual_marking, status, created_by, updated_by, created_at, updated_at",
       )
@@ -171,7 +229,7 @@ export default function QuizBuilderView({
     let stimulusRows: any[] = [];
     if (stimulusIds.length > 0) {
       const { data, error: stimulusError } = await supabase
-        .from("core_stimuli")
+        .from(contentTables.stimuli)
         .select(
           "id, subject, primary_level, stimulus_type, title, body, storage_bucket, storage_path, alt_text, transcript, is_active, created_at, updated_at",
         )
@@ -187,7 +245,7 @@ export default function QuizBuilderView({
     }
 
     const { data: assetRows, error: assetError } = await supabase
-      .from("core_question_assets")
+      .from(contentTables.questionAssets)
       .select(
         "id, question_id, asset_type, storage_bucket, storage_path, alt_text, caption, width, height, metadata, sort_order, created_at",
       )
@@ -267,7 +325,7 @@ export default function QuizBuilderView({
     try {
       if (!selectedQuiz) {
         const { data, error: createError } = await supabase.rpc(
-          "curriculum_create_quiz_draft",
+          curriculumRpcs.createQuizDraft,
           {
             p_topic_id: form.topicId,
             p_skill_id: form.skillId || null,
@@ -291,7 +349,7 @@ export default function QuizBuilderView({
         setMessage("Draft quiz created. Add its questions below.");
       } else {
         const { error: updateError } = await supabase.rpc(
-          "curriculum_update_quiz_draft",
+          curriculumRpcs.updateQuizDraft,
           {
             p_quiz_id: selectedQuiz.id,
             p_skill_id: form.skillId || null,
@@ -324,7 +382,7 @@ export default function QuizBuilderView({
     if (!selectedQuiz) throw new Error("Save the quiz before adding questions.");
 
     const { data: savedQuestionId, error: saveError } = await supabase.rpc(
-      "curriculum_save_question",
+      curriculumRpcs.saveQuestion,
       {
         p_quiz_id: selectedQuiz.id,
         p_question_id: payload.questionId,
@@ -347,7 +405,7 @@ export default function QuizBuilderView({
 
     const questionId = String(savedQuestionId);
     const { data: savedQuestion, error: questionLookupError } = await supabase
-      .from("core_questions")
+      .from(contentTables.questions)
       .select("code, subject, primary_level")
       .eq("id", questionId)
       .single();
@@ -398,7 +456,7 @@ export default function QuizBuilderView({
     setBusyAction(true);
     setError(null);
     const { error: deleteError } = await supabase.rpc(
-      "curriculum_delete_question",
+      curriculumRpcs.deleteQuestion,
       {
         p_quiz_id: selectedQuiz.id,
         p_question_id: question.id,
@@ -423,7 +481,7 @@ export default function QuizBuilderView({
 
     setBusyAction(true);
     const { error: reorderError } = await supabase.rpc(
-      "curriculum_reorder_quiz_questions",
+      curriculumRpcs.reorderQuestions,
       {
         p_quiz_id: selectedQuiz.id,
         p_question_ids: reordered.map((question) => question.id),
@@ -440,7 +498,7 @@ export default function QuizBuilderView({
     setError(null);
     setMessage(null);
     const { error: submitError } = await supabase.rpc(
-      "curriculum_submit_quiz",
+      curriculumRpcs.submitQuiz,
       { p_quiz_id: selectedQuiz.id },
     );
     if (submitError) setError(submitError.message);
@@ -492,7 +550,9 @@ export default function QuizBuilderView({
                 }}
               >
                 <strong>{quiz.title}</strong>
-                <span style={quizListMeta}>{quiz.code}</span>
+                <span style={quizListMeta}>
+                  {quiz.subject === "english" ? "English" : "Math"} · {quiz.code}
+                </span>
                 <span style={statusText}>{quiz.status.replaceAll("_", " ")}</span>
               </button>
             ))}

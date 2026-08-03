@@ -5,7 +5,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
-type AttemptSource = "core" | "core_v2" | "think" | "knowledge" | "science";
+type AttemptSource = "core" | "english" | "math" | "think" | "knowledge" | "science";
 type SubjectKey = "english" | "math" | "thinking" | "knowledge" | "science";
 type DateFilter = "this_week" | "last_week" | "this_month" | "all_time";
 type AccuracyFilter = "all" | "with_mistakes" | "perfect";
@@ -634,72 +634,80 @@ function TeacherDashboardContent() {
     if (studentIds.length === 0) return [];
 
     const [
-      coreV2Result,
+      englishResult,
+      mathResult,
       coreResult,
       thinkResult,
       knowledgeResult,
       scienceResult,
     ] = await Promise.all([
-        supabase.rpc("teacher_get_core_quiz_attempts", {
-          p_student_user_ids: studentIds,
-          p_teacher_user_id: previewTeacherUserId,
-        }),
-        supabase
-          .from("core_mission_attempts")
-          .select(
-            "id,user_id,quiz_id,score,correct_count,total_questions,tokens_earned,created_at",
-          )
-          .in("user_id", studentIds)
-          .order("created_at", { ascending: false })
-          .limit(3000),
-        supabase
-          .from("think_mission_attempts")
-          .select(
-            "id,user_id,quiz_id,mode,score,correct_count,total_questions,time_taken_seconds,tokens_earned,created_at",
-          )
-          .in("user_id", studentIds)
-          .order("created_at", { ascending: false })
-          .limit(3000),
-        supabase
-          .from("knowledge_arena_attempts")
-          .select(
-            "id,user_id,topic,mode,score,correct_count,total_questions,tokens_earned,created_at",
-          )
-          .in("user_id", studentIds)
-          .order("created_at", { ascending: false })
-          .limit(3000),
-        supabase
-          .from("science_quiz_attempts")
-          .select(
-            "id,user_id,quiz_id,score,percentage,correct_count,total_questions,time_seconds,tokens_earned,gems_earned,first_completion,submitted_at,created_at",
-          )
-          .in("user_id", studentIds)
-          .eq("status", "submitted")
-          .order("submitted_at", { ascending: false, nullsFirst: false })
-          .limit(3000),
-      ]);
+      supabase.rpc("teacher_get_english_quiz_attempts", {
+        p_student_user_ids: studentIds,
+        p_teacher_user_id: previewTeacherUserId,
+      }),
+      supabase.rpc("teacher_get_math_quiz_attempts", {
+        p_student_user_ids: studentIds,
+        p_teacher_user_id: previewTeacherUserId,
+      }),
+      // Legacy Core records are retained so older completed work remains visible.
+      supabase
+        .from("core_mission_attempts")
+        .select(
+          "id,user_id,quiz_id,score,correct_count,total_questions,tokens_earned,created_at",
+        )
+        .in("user_id", studentIds)
+        .order("created_at", { ascending: false })
+        .limit(3000),
+      supabase
+        .from("think_mission_attempts")
+        .select(
+          "id,user_id,quiz_id,mode,score,correct_count,total_questions,time_taken_seconds,tokens_earned,created_at",
+        )
+        .in("user_id", studentIds)
+        .order("created_at", { ascending: false })
+        .limit(3000),
+      supabase
+        .from("knowledge_arena_attempts")
+        .select(
+          "id,user_id,topic,mode,score,correct_count,total_questions,tokens_earned,created_at",
+        )
+        .in("user_id", studentIds)
+        .order("created_at", { ascending: false })
+        .limit(3000),
+      supabase
+        .from("science_quiz_attempts")
+        .select(
+          "id,user_id,quiz_id,score,percentage,correct_count,total_questions,time_seconds,tokens_earned,gems_earned,first_completion,submitted_at,created_at",
+        )
+        .in("user_id", studentIds)
+        .eq("status", "submitted")
+        .order("submitted_at", { ascending: false, nullsFirst: false })
+        .limit(3000),
+    ]);
 
     const errors = [
-      coreV2Result.error,
+      englishResult.error,
+      mathResult.error,
       coreResult.error,
       thinkResult.error,
       knowledgeResult.error,
       scienceResult.error,
     ].filter(Boolean);
 
-    if (errors.length === 5) {
+    if (errors.length === 6) {
       setLoadMessage("The teacher dashboard could not load the quiz-attempt tables.");
       return [];
     }
 
     if (errors.length > 0) {
       setLoadMessage(
-        "Some mission records could not be loaded. Check the browser console for the table error.",
+        "Some mission records could not be loaded. Check the browser console for the table or RPC error.",
       );
       errors.forEach((error) => console.warn("Teacher dashboard load error:", error));
     }
 
-    const coreV2Rows = (coreV2Result.data ?? []) as CoreV2AttemptRow[];
+    const englishRows = (englishResult.data ?? []) as CoreV2AttemptRow[];
+    const mathRows = (mathResult.data ?? []) as CoreV2AttemptRow[];
     const coreRows = (coreResult.data ?? []) as CoreAttemptRow[];
     const thinkRows = (thinkResult.data ?? []) as ThinkAttemptRow[];
     const knowledgeRows = (knowledgeResult.data ?? []) as KnowledgeAttemptRow[];
@@ -806,49 +814,51 @@ function TeacherDashboardContent() {
 
     const attempts: DashboardAttempt[] = [];
 
-    for (const row of coreV2Rows) {
-      const subject: SubjectKey =
-        String(row.subject || "").toLowerCase() === "math"
-          ? "math"
-          : "english";
+    for (const [subject, rows] of [
+      ["english", englishRows],
+      ["math", mathRows],
+    ] as const) {
+      for (const row of rows) {
+        const primaryLevel = safeNumber(row.primary_level);
+        const quizType = String(row.quiz_type || "")
+          .replaceAll("_", " ")
+          .trim();
 
-      const primaryLevel = safeNumber(row.primary_level);
-      const quizType = String(row.quiz_type || "")
-        .replaceAll("_", " ")
-        .trim();
-
-      attempts.push({
-        id: String(row.id),
-        source: "core_v2",
-        userId: String(row.user_id),
-        quizId: row.quiz_id,
-        title: row.quiz_title || "Core Mission Quiz",
-        subtitle: [
-          SUBJECT_META[subject].label,
-          primaryLevel > 0 ? `Primary ${primaryLevel}` : null,
-          row.topic_title,
-          quizType || null,
-          safeNumber(row.attempt_number) > 0
-            ? `Attempt ${safeNumber(row.attempt_number)}`
-            : null,
-        ]
-          .filter(Boolean)
-          .join(" · "),
-        subject,
-        mode: row.quiz_type,
-        score: safeNumber(row.score),
-        correctCount: safeNumber(row.correct_count),
-        totalQuestions: safeNumber(row.total_questions),
-        tokensEarned: safeNumber(row.tokens_earned),
-        durationSeconds:
-          row.duration_seconds === null
-            ? null
-            : safeNumber(row.duration_seconds),
-        createdAt:
-          row.submitted_at ||
-          row.created_at ||
-          new Date(0).toISOString(),
-      });
+        attempts.push({
+          id: String(row.id),
+          source: subject,
+          userId: String(row.user_id),
+          quizId: row.quiz_id,
+          title:
+            row.quiz_title ||
+            `${SUBJECT_META[subject].label} Mission Quiz`,
+          subtitle: [
+            SUBJECT_META[subject].label,
+            primaryLevel > 0 ? `Primary ${primaryLevel}` : null,
+            row.topic_title,
+            quizType || null,
+            safeNumber(row.attempt_number) > 0
+              ? `Attempt ${safeNumber(row.attempt_number)}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+          subject,
+          mode: row.quiz_type,
+          score: safeNumber(row.score),
+          correctCount: safeNumber(row.correct_count),
+          totalQuestions: safeNumber(row.total_questions),
+          tokensEarned: safeNumber(row.tokens_earned),
+          durationSeconds:
+            row.duration_seconds === null
+              ? null
+              : safeNumber(row.duration_seconds),
+          createdAt:
+            row.submitted_at ||
+            row.created_at ||
+            new Date(0).toISOString(),
+        });
+      }
     }
 
     for (const row of coreRows) {
@@ -968,23 +978,25 @@ function TeacherDashboardContent() {
     setDetailMessage("");
     setDetailsLoading(true);
 
-    if (attempt.source === "core_v2") {
-      const { data, error } = await supabase.rpc(
-        "teacher_get_core_quiz_attempt_answers",
-        {
-          p_attempt_id: attempt.id,
-          p_student_user_id: attempt.userId,
-          p_teacher_user_id:
-            isAdminPreview && previewTeacherId
-              ? previewTeacherId
-              : null,
-        },
-      );
+    if (attempt.source === "english" || attempt.source === "math") {
+      const answerRpc =
+        attempt.source === "english"
+          ? "teacher_get_english_quiz_attempt_answers"
+          : "teacher_get_math_quiz_attempt_answers";
+
+      const { data, error } = await supabase.rpc(answerRpc, {
+        p_attempt_id: attempt.id,
+        p_student_user_id: attempt.userId,
+        p_teacher_user_id:
+          isAdminPreview && previewTeacherId
+            ? previewTeacherId
+            : null,
+      });
 
       if (error) {
         setDetailMessage(
           error.message ||
-            "The English or Mathematics answer record could not be loaded.",
+            `The ${SUBJECT_META[attempt.source].label} answer record could not be loaded.`,
         );
         setDetailsLoading(false);
         return;
@@ -993,11 +1005,13 @@ function TeacherDashboardContent() {
       const rows = ((data ?? []) as CoreV2AttemptAnswerRow[]).map(
         (row): AttemptAnswerRow => ({
           id: String(row.id),
-          attempt_source: "core_v2",
+          attempt_source: attempt.source,
           attempt_id: attempt.id,
           question_id: row.question_id,
           question_order: safeNumber(row.question_order),
-          question_text: row.question_text || "Core question",
+          question_text:
+            row.question_text ||
+            `${SUBJECT_META[attempt.source].label} question`,
           question_image: row.question_image,
           student_answer_label: row.student_answer_label,
           student_answer_text: row.student_answer_text,
@@ -1006,7 +1020,7 @@ function TeacherDashboardContent() {
           explanation: row.explanation,
           is_correct: row.is_correct === true,
           skill: row.skill,
-          subject: row.subject,
+          subject: row.subject || attempt.source,
         }),
       );
 
@@ -1014,7 +1028,7 @@ function TeacherDashboardContent() {
 
       if (rows.length === 0) {
         setDetailMessage(
-          "This Core attempt has a score summary but no saved answer rows.",
+          `This ${SUBJECT_META[attempt.source].label} attempt has a score summary but no saved answer rows.`,
         );
       }
 

@@ -8,9 +8,29 @@ import { useCurriculumDeveloperAccess } from "@/hooks/useCurriculumDeveloperAcce
 import DashboardView from "./components/DashboardView";
 import QuizBuilderView from "./components/QuizBuilderView";
 import ReviewQueueView from "./components/ReviewQueueView";
-import type { CoreQuiz, CoreSkill, CoreTopic } from "./types";
+import type { CoreQuiz, CoreSkill, CoreSubject, CoreTopic } from "./types";
 
 type Section = "dashboard" | "builder" | "review";
+
+const CONTENT_SOURCES: Array<{
+  subject: CoreSubject;
+  topics: string;
+  skills: string;
+  quizzes: string;
+}> = [
+  {
+    subject: "english",
+    topics: "english_topics",
+    skills: "english_skills",
+    quizzes: "english_quizzes",
+  },
+  {
+    subject: "math",
+    topics: "math_topics",
+    skills: "math_skills",
+    quizzes: "math_quizzes",
+  },
+];
 
 export default function CurriculumDeveloperClient() {
   const router = useRouter();
@@ -29,40 +49,87 @@ export default function CurriculumDeveloperClient() {
     setLoading(true);
     setLoadError(null);
 
-    const [topicResult, skillResult, quizResult] = await Promise.all([
-      supabase
-        .from("core_topics")
-        .select(
-          "id, subject, primary_level, slug, title, short_title, description, quiz_target, sort_order, is_assessment_topic, is_active",
-        )
-        .order("subject", { ascending: true })
-        .order("primary_level", { ascending: true })
-        .order("sort_order", { ascending: true }),
-      supabase
-        .from("core_skills")
-        .select(
-          "id, topic_id, code, title, description, quiz_target, sort_order, is_active",
-        )
-        .eq("is_active", true)
-        .order("sort_order", { ascending: true }),
-      supabase
-        .from("core_quizzes")
-        .select(
-          "id, topic_id, skill_id, code, title, description, quiz_type, difficulty, question_count, estimated_minutes, passing_percentage, quiz_order, reward_tokens, reward_gems, feedback_mode, randomise_questions, randomise_options, is_published, status, created_by, updated_by, submitted_by, submitted_at, reviewed_by, reviewed_at, review_notes, version, created_at, updated_at",
-        )
-        .order("updated_at", { ascending: false }),
-    ]);
+    const sourceResults = await Promise.all(
+      CONTENT_SOURCES.map(async (source) => {
+        const [topicResult, skillResult, quizResult] = await Promise.all([
+          supabase
+            .from(source.topics)
+            .select(
+              "id, subject, primary_level, slug, title, short_title, description, quiz_target, sort_order, is_assessment_topic, is_active",
+            )
+            .order("primary_level", { ascending: true })
+            .order("sort_order", { ascending: true }),
+          supabase
+            .from(source.skills)
+            .select(
+              "id, topic_id, code, title, description, quiz_target, sort_order, is_active",
+            )
+            .eq("is_active", true)
+            .order("sort_order", { ascending: true }),
+          supabase
+            .from(source.quizzes)
+            .select(
+              "id, topic_id, skill_id, code, title, description, quiz_type, difficulty, question_count, estimated_minutes, passing_percentage, quiz_order, reward_tokens, reward_gems, feedback_mode, randomise_questions, randomise_options, is_published, status, created_by, updated_by, submitted_by, submitted_at, reviewed_by, reviewed_at, review_notes, version, created_at, updated_at",
+            )
+            .order("updated_at", { ascending: false }),
+        ]);
 
-    const firstError = topicResult.error || skillResult.error || quizResult.error;
+        return { source, topicResult, skillResult, quizResult };
+      }),
+    );
+
+    const firstError = sourceResults
+      .flatMap(({ topicResult, skillResult, quizResult }) => [
+        topicResult.error,
+        skillResult.error,
+        quizResult.error,
+      ])
+      .find(Boolean);
+
     if (firstError) {
       setLoadError(firstError.message);
       setLoading(false);
       return;
     }
 
-    setTopics((topicResult.data || []) as CoreTopic[]);
-    setSkills((skillResult.data || []) as CoreSkill[]);
-    setQuizzes((quizResult.data || []) as CoreQuiz[]);
+    const loadedTopics = sourceResults.flatMap(({ source, topicResult }) =>
+      (topicResult.data || []).map((topic) => ({
+        ...topic,
+        subject: source.subject,
+      })),
+    ) as CoreTopic[];
+
+    const loadedSkills = sourceResults.flatMap(({ source, skillResult }) =>
+      (skillResult.data || []).map((skill) => ({
+        ...skill,
+        subject: source.subject,
+      })),
+    ) as CoreSkill[];
+
+    const loadedQuizzes = sourceResults.flatMap(({ source, quizResult }) =>
+      (quizResult.data || []).map((quiz) => ({
+        ...quiz,
+        subject: source.subject,
+      })),
+    ) as CoreQuiz[];
+
+    loadedTopics.sort(
+      (a, b) =>
+        a.subject.localeCompare(b.subject) ||
+        a.primary_level - b.primary_level ||
+        a.sort_order - b.sort_order,
+    );
+    loadedSkills.sort(
+      (a, b) =>
+        a.subject.localeCompare(b.subject) || a.sort_order - b.sort_order,
+    );
+    loadedQuizzes.sort((a, b) =>
+      a.updated_at < b.updated_at ? 1 : a.updated_at > b.updated_at ? -1 : 0,
+    );
+
+    setTopics(loadedTopics);
+    setSkills(loadedSkills);
+    setQuizzes(loadedQuizzes);
     setLoading(false);
   }, [status]);
 

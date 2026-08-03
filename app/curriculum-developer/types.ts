@@ -11,9 +11,19 @@ export type QuizType = "quick" | "standard" | "challenge" | "assessment";
 export type FeedbackMode = "immediate" | "end_of_quiz" | "none";
 export type SupportedQuestionType =
   | "multiple_choice"
+  | "multiple_select"
   | "true_false"
   | "short_text"
+  | "long_text"
   | "sentence_reordering"
+  | "matching"
+  | "word_bank"
+  | "dropdown_cloze"
+  | "open_cloze"
+  | "editing"
+  | "picture_description"
+  | "listening_comprehension"
+  | "oral_recording"
   | "numeric"
   | "numeric_unit"
   | "fraction"
@@ -47,6 +57,7 @@ export type CoreTopic = {
 
 export type CoreSkill = {
   id: string;
+  subject: CoreSubject;
   topic_id: string;
   code: string;
   title: string;
@@ -58,6 +69,7 @@ export type CoreSkill = {
 
 export type CoreQuiz = {
   id: string;
+  subject: CoreSubject;
   topic_id: string;
   skill_id: string | null;
   code: string;

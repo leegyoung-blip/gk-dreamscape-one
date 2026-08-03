@@ -60,6 +60,22 @@ const QUIZ_TYPE_NAMES: Record<QuizType, string> = {
   assessment: "Assessment Paper",
 };
 
+const CORE_TABLES: Record<
+  CoreSubject,
+  { topics: string; quizzes: string; attempts: string }
+> = {
+  english: {
+    topics: "english_topics",
+    quizzes: "english_quizzes",
+    attempts: "english_quiz_attempts",
+  },
+  math: {
+    topics: "math_topics",
+    quizzes: "math_quizzes",
+    attempts: "math_quiz_attempts",
+  },
+};
+
 export default function CoreLevelClient({
   subject,
   level,
@@ -85,6 +101,7 @@ export default function CoreLevelClient({
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const subjectName = SUBJECT_NAMES[subject];
+  const tables = CORE_TABLES[subject];
 
   useEffect(() => {
     if (status !== "allowed") {
@@ -98,7 +115,7 @@ export default function CoreLevelClient({
       setLoadError(null);
 
       const { data: topicData, error: topicError } = await supabase
-        .from("core_topics")
+        .from(tables.topics)
         .select(
           `
             id,
@@ -158,7 +175,7 @@ export default function CoreLevelClient({
       const topicIds = loadedTopics.map((topic) => topic.id);
 
       const { data: quizData, error: quizError } = await supabase
-        .from("core_quizzes")
+        .from(tables.quizzes)
         .select(
           `
             id,
@@ -206,7 +223,7 @@ export default function CoreLevelClient({
       const quizIds = loadedQuizzes.map((quiz) => quiz.id);
 
       const { data: attemptData, error: attemptError } = await supabase
-        .from("core_quiz_attempts")
+        .from(tables.attempts)
         .select(
           `
             quiz_id,
@@ -238,7 +255,16 @@ export default function CoreLevelClient({
     return () => {
       cancelled = true;
     };
-  }, [status, subject, level, userId, subjectName]);
+  }, [
+    status,
+    subject,
+    level,
+    userId,
+    subjectName,
+    tables.topics,
+    tables.quizzes,
+    tables.attempts,
+  ]);
 
   const activeTopic = useMemo(
     () =>
@@ -409,7 +435,7 @@ export default function CoreLevelClient({
 
                   <p style={emptyDescription}>
                     Add active topics for {subjectName} Primary {level} in
-                    the <code>core_topics</code> table.
+                    the <code>{tables.topics}</code> table.
                   </p>
                 </div>
               ) : (
