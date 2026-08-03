@@ -1,607 +1,459 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import CoreMissionPageShell from "@/components/core-missions/CoreMissionPageShell";
+import CoreMissionTopBar from "@/components/core-missions/CoreMissionTopBar";
+import {
+  CORE_LEVEL_COPY,
+  CORE_SUBJECT_THEMES,
+  CORE_TABLES,
+  type CoreSubject,
+  type PrimaryLevel,
+} from "@/lib/core-missions/catalogue";
 import { useCoreMissionAccess } from "@/hooks/useCoreMissionAccess";
+import { supabase } from "@/lib/supabase";
 
-type ScreenMode = "desktop" | "tablet" | "mobile";
-type CoreSubject = "english" | "math";
-type PrimaryLevel = 1 | 2 | 3 | 4 | 5 | 6;
-type SelectorScreen = "subject" | "level";
+type TopicRow = {
+  id: string;
+  primary_level: number;
+  quiz_target: number;
+};
 
-const SUBJECTS = [
-  {
-    id: "english" as const,
-    title: "English",
-    subtitle: "Grammar, vocabulary, comprehension, writing, listening and oral skills.",
-    icon: "✎",
-    accent: "#ff9df0",
-  },
-  {
-    id: "math" as const,
-    title: "Mathematics",
-    subtitle: "Number skills, measurement, geometry, data and problem-solving.",
-    icon: "∑",
-    accent: "#53d7ff",
-  },
-];
+type QuizRow = {
+  id: string;
+  topic_id: string;
+};
 
-const LEVELS: Array<{
-  id: PrimaryLevel;
-  title: string;
-  subtitle: string;
-  accent: string;
-}> = [
-  { id: 1, title: "Primary 1", subtitle: "Build strong foundations.", accent: "#7ee8ff" },
-  { id: 2, title: "Primary 2", subtitle: "Strengthen essential skills.", accent: "#72e6d2" },
-  { id: 3, title: "Primary 3", subtitle: "Develop accuracy and confidence.", accent: "#60f0a8" },
-  { id: 4, title: "Primary 4", subtitle: "Apply skills across more complex tasks.", accent: "#b6e86b" },
-  { id: 5, title: "Primary 5", subtitle: "Prepare for upper-primary mastery.", accent: "#ffd76a" },
-  { id: 6, title: "Primary 6", subtitle: "Consolidate and prepare for PSLE.", accent: "#ffb36b" },
-];
+type AttemptRow = {
+  quiz_id: string;
+};
 
-function useResponsiveMode() {
-  const [mode, setMode] = useState<ScreenMode>("desktop");
+type LevelSummary = {
+  level: PrimaryLevel;
+  planned: number;
+  published: number;
+  completed: number;
+};
 
-  useEffect(() => {
-    const update = () => {
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-
-      if (width <= 720) setMode("mobile");
-      else if (width <= 1180 || height > width) setMode("tablet");
-      else setMode("desktop");
-    };
-
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
-
-  return mode;
-}
+const LEVELS: PrimaryLevel[] = [1, 2, 3, 4, 5, 6];
 
 export default function CoreMissionsPage() {
   const router = useRouter();
-  const screenMode = useResponsiveMode();
-  const isMobile = screenMode === "mobile";
-  const isCompact = screenMode !== "desktop";
-  const { status, tokenBalance, dreamGemBalance } = useCoreMissionAccess();
+  const { status, userId } = useCoreMissionAccess();
 
-  const [screen, setScreen] = useState<SelectorScreen>("subject");
-  const [selectedSubject, setSelectedSubject] = useState<CoreSubject | null>(null);
+  const [subject, setSubject] = useState<CoreSubject>("english");
+  const [summaries, setSummaries] = useState<LevelSummary[]>(
+    LEVELS.map((level) => ({
+      level,
+      planned: 0,
+      published: 0,
+      completed: 0,
+    })),
+  );
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
 
-  function chooseSubject(subject: CoreSubject) {
-    setSelectedSubject(subject);
-    setScreen("level");
+  const theme = CORE_SUBJECT_THEMES[subject];
+  const tables = CORE_TABLES[subject];
+
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const requestedSubject = query.get("subject");
+
+    if (requestedSubject === "english" || requestedSubject === "math") {
+      setSubject(requestedSubject);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (status !== "allowed") return;
+
+    let cancelled = false;
+
+    async function loadCatalogue() {
+      setLoading(true);
+      setMessage("");
+
+      const topicResult = await supabase
+        .from(tables.topics)
+        .select("id,primary_level,quiz_target")
+        .eq("subject", subject)
+        .eq("is_active", true)
+        .order("primary_level", { ascending: true });
+
+      if (cancelled) return;
+
+      if (topicResult.error) {
+        setMessage(topicResult.error.message);
+        setSummaries(
+          LEVELS.map((level) => ({
+            level,
+            planned: 0,
+            published: 0,
+            completed: 0,
+          })),
+        );
+        setLoading(false);
+        return;
+      }
+
+      const topics = (topicResult.data || []) as TopicRow[];
+      const topicIds = topics.map((topic) => topic.id);
+
+      const quizResult = topicIds.length
+        ? await supabase
+            .from(tables.quizzes)
+            .select("id,topic_id")
+            .in("topic_id", topicIds)
+            .eq("is_published", true)
+        : { data: [], error: null };
+
+      if (cancelled) return;
+
+      if (quizResult.error) {
+        setMessage(quizResult.error.message);
+      }
+
+      const quizzes = (quizResult.data || []) as QuizRow[];
+      const quizIds = quizzes.map((quiz) => quiz.id);
+
+      const attemptResult =
+        userId && quizIds.length
+          ? await supabase
+              .from(tables.attempts)
+              .select("quiz_id")
+              .eq("user_id", userId)
+              .eq("status", "marked")
+              .in("quiz_id", quizIds)
+          : { data: [], error: null };
+
+      if (cancelled) return;
+
+      if (attemptResult.error) {
+        console.warn(
+          "Could not load Core level progress:",
+          attemptResult.error.message,
+        );
+      }
+
+      const completedQuizIds = new Set(
+        ((attemptResult.data || []) as AttemptRow[]).map(
+          (attempt) => attempt.quiz_id,
+        ),
+      );
+
+      const nextSummaries = LEVELS.map((level) => {
+        const levelTopics = topics.filter(
+          (topic) => topic.primary_level === level,
+        );
+        const levelTopicIds = new Set(levelTopics.map((topic) => topic.id));
+        const levelQuizzes = quizzes.filter((quiz) =>
+          levelTopicIds.has(quiz.topic_id),
+        );
+
+        return {
+          level,
+          planned: levelTopics.reduce(
+            (sum, topic) => sum + Number(topic.quiz_target || 0),
+            0,
+          ),
+          published: levelQuizzes.length,
+          completed: levelQuizzes.filter((quiz) =>
+            completedQuizIds.has(quiz.id),
+          ).length,
+        };
+      });
+
+      setSummaries(nextSummaries);
+      setLoading(false);
+    }
+
+    void loadCatalogue();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    status,
+    userId,
+    subject,
+    tables.topics,
+    tables.quizzes,
+    tables.attempts,
+  ]);
+
+  const totals = useMemo(
+    () =>
+      summaries.reduce(
+        (total, summary) => ({
+          planned: total.planned + summary.planned,
+          published: total.published + summary.published,
+          completed: total.completed + summary.completed,
+        }),
+        { planned: 0, published: 0, completed: 0 },
+      ),
+    [summaries],
+  );
+
+  const totalProgress =
+    totals.published > 0
+      ? Math.round((totals.completed / totals.published) * 100)
+      : 0;
+
+  function chooseSubject(nextSubject: CoreSubject) {
+    setSubject(nextSubject);
+    window.history.replaceState(
+      null,
+      "",
+      `/learning-missions/core?subject=${nextSubject}`,
+    );
   }
 
-  function chooseLevel(level: PrimaryLevel) {
-    if (!selectedSubject) return;
-    router.push(`/learning-missions/core/${selectedSubject}/p${level}`);
+  if (status === "checking") {
+    return (
+      <CoreMissionPageShell>
+        <CoreMissionTopBar
+          backHref="/learning-missions"
+          backLabel="Missions"
+        />
+        <StatusPanel text="Checking Core Missions access…" />
+      </CoreMissionPageShell>
+    );
   }
 
-  const subjectInfo = SUBJECTS.find((subject) => subject.id === selectedSubject);
+  if (status === "locked") {
+    return (
+      <CoreMissionPageShell>
+        <CoreMissionTopBar
+          backHref="/learning-missions"
+          backLabel="Missions"
+        />
+        <LockedPanel />
+      </CoreMissionPageShell>
+    );
+  }
 
   return (
-    <main style={pageShell}>
-      <header style={headerStyle(isMobile)}>
-        <button
-          type="button"
-          onClick={() => router.push("/learning-missions")}
-          style={pillButton}
-        >
-          ← Missions
-        </button>
+    <CoreMissionPageShell>
+      <CoreMissionTopBar
+        backHref="/learning-missions"
+        backLabel="Missions"
+      />
 
-        {!isMobile && (
-          <div style={{ textAlign: "center" }}>
-            <p style={headerEyebrow}>CORE MISSIONS</p>
-            <p style={headerSubtitle}>English & Mathematics</p>
-          </div>
-        )}
+      <section
+        className={[
+          "mt-7 overflow-hidden rounded-[2.25rem] border bg-white/[0.055] shadow-[0_30px_90px_rgba(0,0,0,0.28)] backdrop-blur-xl",
+          theme.borderClass,
+        ].join(" ")}
+      >
+        <div className={`h-2 ${theme.barClass}`} />
 
-        <div style={headerActions}>
-          <div style={{ ...tokenPill, ...(isMobile ? compactPill : {}) }}>
-            <span style={{ color: "#ffd76a" }}>✦</span>
-            {tokenBalance} DT
-          </div>
-          <div style={{ ...gemPill, ...(isMobile ? compactPill : {}) }}>
-            <span style={{ color: "#e7b7ff" }}>◆</span>
-            {dreamGemBalance} DG
-          </div>
-          <button
-            type="button"
-            onClick={() => router.push("/learning-missions/core/rover")}
-            style={{ ...roverButton, ...(isMobile ? mobileRoverButton : {}) }}
-          >
-            {isMobile ? "Rover ›" : "My Rover ›"}
-          </button>
-        </div>
-      </header>
+        <div className="grid gap-7 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_300px] lg:p-10">
+          <div>
+            <p
+              className={[
+                "m-0 text-xs font-black uppercase tracking-[0.2em]",
+                theme.eyebrowClass,
+              ].join(" ")}
+            >
+              Core Missions · English and Mathematics
+            </p>
 
-      <section style={contentSection(isMobile, isCompact)}>
-        <div style={glassPanel(isMobile, isCompact)}>
-          {status === "checking" && <CenteredMessage text="Checking Core Missions access..." />}
+            <h1 className="mt-3 text-4xl font-black tracking-[-0.05em] sm:text-6xl">
+              {theme.name} Levels
+            </h1>
 
-          {status === "locked" && (
-            <div style={centeredFill}>
-              <div style={lockedCard}>
-                <h2 style={{ margin: 0, fontSize: isMobile ? "26px" : "34px" }}>
-                  Core Missions Locked
-                </h2>
-                <p style={lockedText}>Sign in with an account that has Core Missions access.</p>
-                <div style={lockedActions}>
-                  <a href="/login" style={{ ...primaryAction, textDecoration: "none" }}>
-                    Log In
-                  </a>
+            <p className="mt-4 max-w-3xl text-base leading-7 text-white/65 sm:text-lg">
+              {theme.description}
+            </p>
+
+            <div className="mt-6 flex flex-wrap gap-2">
+              {(
+                [
+                  ["english", "Aa", "English"],
+                  ["math", "∑", "Mathematics"],
+                ] as const
+              ).map(([id, icon, label]) => {
+                const active = subject === id;
+
+                return (
                   <button
+                    key={id}
                     type="button"
-                    onClick={() => router.push("/learning-missions")}
-                    style={ghostAction}
+                    onClick={() => chooseSubject(id)}
+                    className={[
+                      "inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-xs font-black transition",
+                      active
+                        ? `${CORE_SUBJECT_THEMES[id].borderClass} ${CORE_SUBJECT_THEMES[id].softClass} ${CORE_SUBJECT_THEMES[id].textClass}`
+                        : "border-white/10 bg-white/[0.04] text-white/55 hover:border-white/20 hover:text-white/80",
+                    ].join(" ")}
                   >
-                    Exit
+                    <span>{icon}</span>
+                    {label}
                   </button>
-                </div>
-              </div>
+                );
+              })}
+
+              <span className="inline-flex min-h-10 items-center rounded-full border border-white/15 bg-white/[0.05] px-4 text-xs font-bold text-white/65">
+                {totals.planned || 1500} planned quizzes
+              </span>
             </div>
-          )}
+          </div>
 
-          {status === "allowed" && screen === "subject" && (
-            <ScreenHeader
-              isMobile={isMobile}
-              eyebrow="CHOOSE SUBJECT"
-              title="Start a Core Mission"
-              description="Choose a subject, then select Primary 1 to Primary 6."
-            >
-              <div style={subjectGrid(isMobile)}>
-                {SUBJECTS.map((subject) => (
-                  <ChoiceCard
-                    key={subject.id}
-                    accent={subject.accent}
-                    label={subject.icon}
-                    title={subject.title}
-                    subtitle={subject.subtitle}
-                    onClick={() => chooseSubject(subject.id)}
-                  />
-                ))}
-              </div>
-            </ScreenHeader>
-          )}
-
-          {status === "allowed" && screen === "level" && subjectInfo && (
-            <ScreenHeader
-              isMobile={isMobile}
-              eyebrow={`${subjectInfo.title.toUpperCase()} · CHOOSE LEVEL`}
-              title={`${subjectInfo.title} Missions`}
-              description="Each level opens its own curriculum page, topics and quiz bank."
-              backLabel="← Subjects"
-              onBack={() => {
-                setSelectedSubject(null);
-                setScreen("subject");
-              }}
-            >
-              <div style={levelGrid(isMobile, isCompact)}>
-                {LEVELS.map((level) => (
-                  <ChoiceCard
-                    key={level.id}
-                    accent={level.accent}
-                    label={`P${level.id}`}
-                    title={level.title}
-                    subtitle={level.subtitle}
-                    onClick={() => chooseLevel(level.id)}
-                  />
-                ))}
-              </div>
-            </ScreenHeader>
-          )}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
+            <Metric label="Published" value={String(totals.published)} />
+            <Metric label="Completed" value={String(totals.completed)} />
+            <Metric label="Progress" value={`${totalProgress}%`} />
+          </div>
         </div>
       </section>
-    </main>
+
+      {loading ? (
+        <StatusPanel text={`Loading ${theme.name} levels…`} />
+      ) : message ? (
+        <MessagePanel text={message} />
+      ) : (
+        <section className="mt-8">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="m-0 text-xs font-black uppercase tracking-[0.2em] text-cyan-200">
+                Primary Levels
+              </p>
+              <h2 className="mt-2 text-3xl font-black tracking-[-0.035em]">
+                Choose a {theme.name} level
+              </h2>
+            </div>
+
+            <p className="m-0 max-w-xl text-sm leading-6 text-white/50">
+              Each level contains curriculum topics, published missions and
+              your completion progress.
+            </p>
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {summaries.map((summary) => {
+              const progress =
+                summary.published > 0
+                  ? Math.round(
+                      (summary.completed / summary.published) * 100,
+                    )
+                  : 0;
+              const copy = CORE_LEVEL_COPY[summary.level];
+
+              return (
+                <button
+                  key={summary.level}
+                  type="button"
+                  onClick={() =>
+                    router.push(
+                      `/learning-missions/core/${subject}/p${summary.level}`,
+                    )
+                  }
+                  className={[
+                    "group rounded-[1.75rem] border border-white/10 p-5 text-left text-white shadow-[0_20px_58px_rgba(0,0,0,0.22)] transition hover:-translate-y-1",
+                    theme.cardBackground,
+                    subject === "english"
+                      ? "hover:border-violet-200/30"
+                      : "hover:border-emerald-200/30",
+                  ].join(" ")}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div
+                      className={[
+                        "grid h-14 w-14 place-items-center rounded-2xl border text-xl font-black",
+                        theme.borderClass,
+                        theme.softClass,
+                        theme.textClass,
+                      ].join(" ")}
+                    >
+                      P{summary.level}
+                    </div>
+
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white/55">
+                      {summary.planned || 250} planned
+                    </span>
+                  </div>
+
+                  <h3 className="mt-5 text-xl font-black tracking-[-0.025em]">
+                    {copy.title}
+                  </h3>
+
+                  <p className="mt-2 min-h-[66px] text-sm leading-6 text-white/55">
+                    {copy.subtitle}
+                  </p>
+
+                  <div className="mt-5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-white/45">
+                        {summary.published} published · {summary.completed} completed
+                      </span>
+                      <strong className={theme.eyebrowClass}>
+                        {progress}%
+                      </strong>
+                    </div>
+
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/[0.07]">
+                      <div
+                        className={`h-full rounded-full ${theme.progressClass}`}
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-5 text-sm font-extrabold text-cyan-200">
+                    Open level →
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+    </CoreMissionPageShell>
   );
 }
 
-function ScreenHeader({
-  isMobile,
-  eyebrow,
-  title,
-  description,
-  backLabel,
-  onBack,
-  children,
-}: {
-  isMobile: boolean;
-  eyebrow: string;
-  title: string;
-  description: string;
-  backLabel?: string;
-  onBack?: () => void;
-  children: ReactNode;
-}) {
+function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div style={screenFrame}>
-      <div style={screenTopRow}>
-        {backLabel && onBack ? (
-          <button type="button" onClick={onBack} style={backButton}>
-            {backLabel}
-          </button>
-        ) : (
-          <span />
-        )}
-      </div>
-
-      <div style={{ textAlign: "center", flexShrink: 0 }}>
-        <p style={sectionEyebrow}>{eyebrow}</p>
-        <h1 style={sectionTitle(isMobile)}>{title}</h1>
-        <p style={sectionDescription(isMobile)}>{description}</p>
-      </div>
-
-      <div style={screenBody(isMobile)}>{children}</div>
-    </div>
-  );
-}
-
-function ChoiceCard({
-  accent,
-  label,
-  title,
-  subtitle,
-  onClick,
-}: {
-  accent: string;
-  label: string;
-  title: string;
-  subtitle: string;
-  onClick: () => void;
-}) {
-  return (
-    <button type="button" onClick={onClick} style={choiceCard(accent)}>
-      <div style={{ color: accent, fontSize: "clamp(24px,4vh,44px)", fontWeight: 900 }}>
+    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+      <strong className="block text-2xl font-black">{value}</strong>
+      <span className="mt-1 block text-[10px] font-black uppercase tracking-[0.13em] text-white/40">
         {label}
-      </div>
-      <h2 style={choiceTitle}>{title}</h2>
-      <p style={choiceSubtitle}>{subtitle}</p>
-      <div style={choiceAction}>Open ›</div>
-    </button>
-  );
-}
-
-function CenteredMessage({ text }: { text: string }) {
-  return (
-    <div style={centeredFill}>
-      <div style={messageCard}>{text}</div>
+      </span>
     </div>
   );
 }
 
-const pageShell: CSSProperties = {
-  position: "fixed",
-  inset: 0,
-  overflow: "hidden",
-  color: "white",
-  fontFamily: "Arial, Helvetica, sans-serif",
-  backgroundColor: "#06111f",
-  backgroundImage: `
-    linear-gradient(rgba(83, 215, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(83, 215, 255, 0.035) 1px, transparent 1px),
-    radial-gradient(circle at 50% 0%, rgba(34, 211, 238, 0.12), transparent 42%),
-    linear-gradient(180deg, #09182a 0%, #020813 100%)
-  `,
-  backgroundSize: "48px 48px, 48px 48px, 100% 100%, 100% 100%",
-  backgroundPosition: "center",
-};
-
-function headerStyle(isMobile: boolean): CSSProperties {
-  return {
-    height: isMobile ? "58px" : "68px",
-    padding: isMobile ? "8px 10px" : "10px 18px",
-    display: "grid",
-    gridTemplateColumns: isMobile ? "auto minmax(0,1fr)" : "1fr auto 1fr",
-    alignItems: "center",
-    gap: "10px",
-    textShadow: "0 2px 12px rgba(0,0,0,0.72)",
-  };
+function StatusPanel({ text }: { text: string }) {
+  return (
+    <div className="mt-7 rounded-3xl border border-white/10 bg-white/[0.04] p-8 text-center text-white/55">
+      {text}
+    </div>
+  );
 }
 
-const headerEyebrow: CSSProperties = {
-  margin: 0,
-  color: "#7ee8ff",
-  fontSize: "11px",
-  letterSpacing: "0.2em",
-  fontWeight: 900,
-};
-
-const headerSubtitle: CSSProperties = {
-  margin: "3px 0 0",
-  fontSize: "13px",
-  opacity: 0.72,
-};
-
-const headerActions: CSSProperties = {
-  justifySelf: "end",
-  display: "flex",
-  alignItems: "center",
-  gap: "8px",
-};
-
-function contentSection(isMobile: boolean, isCompact: boolean): CSSProperties {
-  return {
-    width: "min(1500px, 100%)",
-    height: `calc(100dvh - ${isMobile ? 58 : 68}px)`,
-    margin: "0 auto",
-    padding: isMobile ? "8px" : isCompact ? "12px" : "18px 28px 28px",
-    overflow: "hidden",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  };
+function MessagePanel({ text }: { text: string }) {
+  return (
+    <div className="mt-7 rounded-3xl border border-amber-200/25 bg-amber-300/10 p-6 text-amber-100">
+      {text}
+    </div>
+  );
 }
 
-function glassPanel(isMobile: boolean, isCompact: boolean): CSSProperties {
-  return {
-    width: "min(1460px, 100%)",
-    height: "100%",
-    overflow: "hidden",
-    padding: isMobile ? "12px" : isCompact ? "18px" : "22px 24px 24px",
-    display: "flex",
-    flexDirection: "column",
-    minHeight: 0,
-  };
+function LockedPanel() {
+  return (
+    <div className="mx-auto mt-16 max-w-2xl rounded-[2rem] border border-amber-200/20 bg-amber-300/10 p-8 text-center">
+      <h1 className="m-0 text-3xl font-black">Core Missions Locked</h1>
+      <p className="mt-3 text-white/65">
+        Log in with an account that has access to Core Missions.
+      </p>
+      <a
+        href="/login"
+        className="mt-6 inline-flex min-h-11 items-center rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 px-6 text-sm font-black text-white no-underline"
+      >
+        Log In
+      </a>
+    </div>
+  );
 }
-
-const screenFrame: CSSProperties = {
-  height: "100%",
-  minHeight: 0,
-  display: "flex",
-  flexDirection: "column",
-};
-
-const screenTopRow: CSSProperties = {
-  minHeight: "38px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  flexShrink: 0,
-};
-
-const sectionEyebrow: CSSProperties = {
-  margin: 0,
-  color: "#7ee8ff",
-  fontSize: "12px",
-  letterSpacing: "0.2em",
-  fontWeight: 900,
-};
-
-function sectionTitle(isMobile: boolean): CSSProperties {
-  return {
-    margin: "5px 0 0",
-    fontSize: isMobile ? "24px" : "clamp(38px,3vw,52px)",
-    lineHeight: 1.05,
-  };
-}
-
-function sectionDescription(isMobile: boolean): CSSProperties {
-  return {
-    margin: "7px auto 0",
-    maxWidth: "760px",
-    fontSize: isMobile ? "12px" : "16px",
-    color: "rgba(255,255,255,0.62)",
-  };
-}
-
-function screenBody(isMobile: boolean): CSSProperties {
-  return {
-    flex: 1,
-    minHeight: 0,
-    marginTop: isMobile ? "10px" : "16px",
-  };
-}
-
-function subjectGrid(isMobile: boolean): CSSProperties {
-  return {
-    width: "100%",
-    height: isMobile ? "100%" : "min(470px,100%)",
-    maxWidth: isMobile ? "none" : "1160px",
-    minHeight: 0,
-    margin: "auto",
-    display: "grid",
-    gridTemplateColumns: isMobile ? "1fr" : "repeat(2,minmax(0,1fr))",
-    gridTemplateRows: isMobile ? "repeat(2,minmax(0,1fr))" : "1fr",
-    gap: isMobile ? "12px" : "18px",
-  };
-}
-
-function levelGrid(isMobile: boolean, isCompact: boolean): CSSProperties {
-  return {
-    width: "100%",
-    height: "100%",
-    minHeight: 0,
-    display: "grid",
-    gridTemplateColumns: isMobile
-      ? "repeat(2,minmax(0,1fr))"
-      : isCompact
-        ? "repeat(3,minmax(0,1fr))"
-        : "repeat(3,minmax(0,1fr))",
-    gridTemplateRows: isMobile
-      ? "repeat(3,minmax(0,1fr))"
-      : "repeat(2,minmax(0,1fr))",
-    gap: isMobile ? "8px" : "14px",
-  };
-}
-
-function choiceCard(accent: string): CSSProperties {
-  return {
-    minHeight: 0,
-    height: "100%",
-    borderRadius: "20px",
-    border: `1px solid ${accent}77`,
-    background: "linear-gradient(180deg, rgba(20,58,100,0.66), rgba(8,25,56,0.78))",
-    color: "white",
-    padding: "clamp(10px,2vh,22px)",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    textAlign: "center",
-    cursor: "pointer",
-    boxShadow: `0 0 24px ${accent}18`,
-    overflow: "hidden",
-  };
-}
-
-const choiceTitle: CSSProperties = {
-  margin: "8px 0 0",
-  fontSize: "clamp(18px,2.6vh,30px)",
-};
-
-const choiceSubtitle: CSSProperties = {
-  margin: "7px auto 0",
-  maxWidth: "420px",
-  color: "rgba(255,255,255,0.68)",
-  lineHeight: 1.4,
-  fontSize: "clamp(10px,1.55vh,15px)",
-};
-
-const choiceAction: CSSProperties = {
-  marginTop: "clamp(8px,1.7vh,18px)",
-  minHeight: "36px",
-  minWidth: "120px",
-  borderRadius: "11px",
-  background: "linear-gradient(135deg, #35c5ff, #4c6dff)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "12px",
-  fontWeight: 800,
-};
-
-const pillButton: CSSProperties = {
-  minHeight: "38px",
-  borderRadius: "999px",
-  border: "1px solid rgba(126,232,255,0.32)",
-  background: "rgba(255,255,255,0.06)",
-  color: "white",
-  padding: "0 14px",
-  cursor: "pointer",
-  fontWeight: 700,
-};
-
-const roverButton: CSSProperties = {
-  ...pillButton,
-  border: "1px solid rgba(255,215,106,0.45)",
-  background: "linear-gradient(135deg, rgba(255,215,106,0.2), rgba(83,215,255,0.17))",
-  color: "#fff3c4",
-};
-
-const mobileRoverButton: CSSProperties = {
-  minHeight: "34px",
-  padding: "0 8px",
-  fontSize: "10px",
-};
-
-const tokenPill: CSSProperties = {
-  minHeight: "38px",
-  borderRadius: "999px",
-  border: "1px solid rgba(255,215,106,0.24)",
-  background: "rgba(255,215,106,0.08)",
-  padding: "0 13px",
-  display: "flex",
-  alignItems: "center",
-  gap: "6px",
-  fontSize: "13px",
-  fontWeight: 800,
-  whiteSpace: "nowrap",
-};
-
-const gemPill: CSSProperties = {
-  minHeight: "38px",
-  borderRadius: "999px",
-  border: "1px solid rgba(231,183,255,0.3)",
-  background: "rgba(168,85,247,0.11)",
-  padding: "0 13px",
-  display: "flex",
-  alignItems: "center",
-  gap: "6px",
-  color: "#f4e8ff",
-  fontSize: "13px",
-  fontWeight: 800,
-  whiteSpace: "nowrap",
-};
-
-const compactPill: CSSProperties = {
-  minHeight: "34px",
-  padding: "0 7px",
-  gap: "4px",
-  fontSize: "10px",
-};
-
-const backButton: CSSProperties = {
-  minHeight: "34px",
-  borderRadius: "999px",
-  border: "1px solid rgba(126,232,255,0.28)",
-  background: "rgba(255,255,255,0.055)",
-  color: "white",
-  padding: "0 12px",
-  cursor: "pointer",
-  fontSize: "12px",
-  fontWeight: 700,
-};
-
-const centeredFill: CSSProperties = {
-  flex: 1,
-  minHeight: 0,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
-
-const messageCard: CSSProperties = {
-  borderRadius: "18px",
-  border: "1px solid rgba(126,232,255,0.3)",
-  background: "rgba(255,255,255,0.06)",
-  padding: "24px",
-  color: "rgba(255,255,255,0.78)",
-};
-
-const lockedCard: CSSProperties = {
-  width: "min(620px,100%)",
-  borderRadius: "22px",
-  border: "1px solid rgba(255,215,106,0.4)",
-  background: "linear-gradient(180deg, rgba(90,62,16,0.55), rgba(30,20,8,0.8))",
-  padding: "28px",
-  textAlign: "center",
-};
-
-const lockedText: CSSProperties = {
-  margin: "12px 0 0",
-  lineHeight: 1.55,
-  opacity: 0.72,
-};
-
-const lockedActions: CSSProperties = {
-  marginTop: "20px",
-  display: "flex",
-  justifyContent: "center",
-  gap: "10px",
-};
-
-const primaryAction: CSSProperties = {
-  minHeight: "44px",
-  borderRadius: "12px",
-  border: "1px solid rgba(255,255,255,0.3)",
-  background: "linear-gradient(135deg, #35c5ff, #4c6dff)",
-  color: "white",
-  padding: "0 18px",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  cursor: "pointer",
-  fontWeight: 800,
-};
-
-const ghostAction: CSSProperties = {
-  ...primaryAction,
-  border: "1px solid rgba(126,232,255,0.28)",
-  background: "rgba(255,255,255,0.06)",
-};
