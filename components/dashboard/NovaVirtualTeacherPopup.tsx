@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
@@ -198,62 +198,10 @@ export default function NovaVirtualTeacherPopup({
   const [localPlanEnabled, setLocalPlanEnabled] = useState(false);
   const [localEmailEnabled, setLocalEmailEnabled] = useState(false);
   const [portalReady, setPortalReady] = useState(false);
-  const lockedScrollPosition = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     setPortalReady(true);
   }, []);
-
-  useEffect(() => {
-    if (!open || !portalReady) return;
-
-    const body = document.body;
-    const html = document.documentElement;
-    const scrollX = window.scrollX;
-    const scrollY = window.scrollY;
-    const scrollbarWidth =
-      window.innerWidth - document.documentElement.clientWidth;
-
-    lockedScrollPosition.current = { x: scrollX, y: scrollY };
-
-    const previousStyles = {
-      bodyOverflow: body.style.overflow,
-      bodyPaddingRight: body.style.paddingRight,
-      htmlOverflow: html.style.overflow,
-      htmlOverscrollBehavior: html.style.overscrollBehavior,
-      htmlScrollBehavior: html.style.scrollBehavior,
-    };
-
-    /*
-     * Do not set body.position = "fixed".
-     * The popup is portalled into document.body, so shifting the body by the
-     * current scroll offset also shifts the popup outside the viewport.
-     */
-    html.style.scrollBehavior = "auto";
-    html.style.overflow = "hidden";
-    html.style.overscrollBehavior = "none";
-    body.style.overflow = "hidden";
-
-    if (scrollbarWidth > 0) {
-      body.style.paddingRight = `${scrollbarWidth}px`;
-    }
-
-    return () => {
-      body.style.overflow = previousStyles.bodyOverflow;
-      body.style.paddingRight = previousStyles.bodyPaddingRight;
-      html.style.overflow = previousStyles.htmlOverflow;
-      html.style.overscrollBehavior =
-        previousStyles.htmlOverscrollBehavior;
-      html.style.scrollBehavior = previousStyles.htmlScrollBehavior;
-
-      window.requestAnimationFrame(() => {
-        window.scrollTo(
-          lockedScrollPosition.current.x,
-          lockedScrollPosition.current.y,
-        );
-      });
-    };
-  }, [open, portalReady]);
 
   useEffect(() => {
     if (!open) return;
@@ -435,6 +383,20 @@ export default function NovaVirtualTeacherPopup({
       className="nova-vt-backdrop"
       role="presentation"
       onMouseDown={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 2147483000,
+        padding: "clamp(14px, 2.2vw, 32px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        overflow: "hidden",
+        overscrollBehavior: "none",
+        background: "rgba(0, 3, 12, 0.78)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+      }}
     >
       <section
         className="nova-vt-modal"
@@ -442,6 +404,25 @@ export default function NovaVirtualTeacherPopup({
         aria-modal="true"
         aria-label="Nova Virtual Teacher"
         onMouseDown={(event) => event.stopPropagation()}
+        style={{
+          position: "relative",
+          zIndex: 1,
+          width: "min(1480px, calc(100vw - 48px))",
+          maxHeight: "calc(100dvh - 48px)",
+          margin: 0,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          overscrollBehavior: "contain",
+          borderRadius: "30px",
+          border: "1px solid rgba(142, 232, 255, 0.34)",
+          background:
+            "linear-gradient(145deg, #071a32, #030916 74%)",
+          color: "white",
+          boxShadow:
+            "0 42px 110px rgba(0, 0, 0, 0.68), 0 0 44px rgba(83, 215, 255, 0.12)",
+          fontFamily: "Arial, Helvetica, sans-serif",
+        }}
       >
         <header className="nova-vt-header">
           <div className="nova-vt-title-wrap">
@@ -807,7 +788,7 @@ export default function NovaVirtualTeacherPopup({
           )}
         </div>
 
-        <style jsx>{`
+        <style jsx global>{`
           :global(*) {
             box-sizing: border-box;
           }
