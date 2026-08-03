@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import NovaVirtualTeacherPopup from "@/components/dashboard/NovaVirtualTeacherPopup";
+import DashboardTopControls from "@/components/dashboard/DashboardTopControls";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 type AttemptSource = "core" | "english" | "math" | "science" | "knowledge";
@@ -1458,12 +1459,10 @@ export default function TeachingDashboardPage() {
     <main className="dashboard-page">
       <div className="background-grid" aria-hidden="true" />
 
-      <header className="topbar">
-        <Link href="/learning-missions" className="back-button">
-          ← Learning Missions
-        </Link>
+      <DashboardTopControls />
 
-        <div className="topbar-right">
+      <section className="dashboard-shell">
+        <div className="dashboard-context-row">
           {students.length > 1 && (
             <label className="student-picker">
               <span>Student</span>
@@ -1488,9 +1487,6 @@ export default function TeachingDashboardPage() {
             <strong>{selectedStudent?.label || "My learning"}</strong>
           </div>
         </div>
-      </header>
-
-      <section className="dashboard-shell">
         <header className="hero">
           <div>
             <p className="eyebrow">{dashboardAudienceLabel}</p>
@@ -2071,44 +2067,12 @@ export default function TeachingDashboardPage() {
           mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), transparent 85%);
         }
 
-        .topbar {
-          position: sticky;
-          top: 0;
-          z-index: 50;
-          min-height: 70px;
-          padding: 12px 22px;
+        .dashboard-context-row {
+          min-height: 46px;
+          margin-bottom: 28px;
           display: flex;
           align-items: center;
-          justify-content: space-between;
-          gap: 16px;
-          border-bottom: 1px solid rgba(126, 232, 255, 0.14);
-          background: rgba(3, 8, 18, 0.82);
-          backdrop-filter: blur(20px);
-        }
-
-        .back-button,
-        .viewer-pill,
-        .student-picker {
-          border: 1px solid rgba(126, 232, 255, 0.25);
-          background: rgba(12, 31, 57, 0.72);
-          box-shadow: 0 14px 30px rgba(0, 0, 0, 0.24);
-        }
-
-        .back-button {
-          min-height: 42px;
-          padding: 0 16px;
-          border-radius: 999px;
-          display: inline-flex;
-          align-items: center;
-          color: white;
-          text-decoration: none;
-          font-size: 13px;
-          font-weight: 800;
-        }
-
-        .topbar-right {
-          display: flex;
-          align-items: center;
+          justify-content: flex-end;
           gap: 10px;
         }
 
@@ -2116,6 +2080,10 @@ export default function TeachingDashboardPage() {
         .student-picker {
           min-height: 42px;
           border-radius: 999px;
+          border: 1px solid rgba(126, 232, 255, 0.25);
+          background: rgba(12, 31, 57, 0.72);
+          box-shadow: 0 14px 30px rgba(0, 0, 0, 0.24);
+          backdrop-filter: blur(16px);
         }
 
         .viewer-pill {
@@ -2165,7 +2133,7 @@ export default function TeachingDashboardPage() {
           z-index: 2;
           width: min(1440px, calc(100% - 40px));
           margin: 0 auto;
-          padding: 48px 0 70px;
+          padding: 100px 0 70px;
         }
 
         .hero {
@@ -3361,20 +3329,9 @@ export default function TeachingDashboardPage() {
         }
 
         @media (max-width: 720px) {
-          .topbar {
-            padding: 10px 12px;
-          }
-
-          .back-button {
-            width: 42px;
-            padding: 0;
-            overflow: hidden;
-            white-space: nowrap;
-            color: transparent;
-          }
-
-          .back-button::first-letter {
-            color: white;
+          .dashboard-context-row {
+            min-height: 40px;
+            margin-bottom: 22px;
           }
 
           .student-picker span,
@@ -3395,7 +3352,7 @@ export default function TeachingDashboardPage() {
 
           .dashboard-shell {
             width: min(100% - 24px, 1440px);
-            padding-top: 30px;
+            padding-top: 84px;
           }
 
           .hero {

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
 
@@ -196,6 +197,64 @@ export default function NovaVirtualTeacherPopup({
   const [message, setMessage] = useState("");
   const [localPlanEnabled, setLocalPlanEnabled] = useState(false);
   const [localEmailEnabled, setLocalEmailEnabled] = useState(false);
+  const [portalReady, setPortalReady] = useState(false);
+  const lockedScrollPosition = useRef({ x: 0, y: 0 });
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!open || !portalReady) return;
+
+    const body = document.body;
+    const html = document.documentElement;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const scrollbarWidth =
+      window.innerWidth - document.documentElement.clientWidth;
+
+    lockedScrollPosition.current = { x: scrollX, y: scrollY };
+
+    const previousBodyStyles = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+      overflow: body.style.overflow,
+      paddingRight: body.style.paddingRight,
+    };
+    const previousScrollBehavior = html.style.scrollBehavior;
+
+    html.style.scrollBehavior = "auto";
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.left = `-${scrollX}px`;
+    body.style.right = "0";
+    body.style.width = "100%";
+    body.style.overflow = "hidden";
+
+    if (scrollbarWidth > 0) {
+      body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+
+    return () => {
+      body.style.position = previousBodyStyles.position;
+      body.style.top = previousBodyStyles.top;
+      body.style.left = previousBodyStyles.left;
+      body.style.right = previousBodyStyles.right;
+      body.style.width = previousBodyStyles.width;
+      body.style.overflow = previousBodyStyles.overflow;
+      body.style.paddingRight = previousBodyStyles.paddingRight;
+      html.style.scrollBehavior = previousScrollBehavior;
+
+      window.scrollTo(
+        lockedScrollPosition.current.x,
+        lockedScrollPosition.current.y,
+      );
+    };
+  }, [open, portalReady]);
 
   useEffect(() => {
     if (!open) return;
@@ -370,9 +429,9 @@ export default function NovaVirtualTeacherPopup({
     ? Boolean(report.preferences.monday_email_enabled)
     : localEmailEnabled;
 
-  if (!open) return null;
+  if (!open || !portalReady) return null;
 
-  return (
+  return createPortal(
     <div
       className="nova-vt-backdrop"
       role="presentation"
@@ -757,18 +816,20 @@ export default function NovaVirtualTeacherPopup({
           .nova-vt-backdrop {
             position: fixed;
             inset: 0;
-            z-index: 130;
-            padding: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: rgba(0, 3, 12, 0.8);
+            z-index: 200;
+            padding: clamp(14px, 2.2vw, 32px);
+            display: grid;
+            place-items: center;
+            overflow: hidden;
+            background: rgba(0, 3, 12, 0.78);
             backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
           }
 
           .nova-vt-modal {
-            width: min(1480px, 97vw);
-            max-height: 94dvh;
+            width: min(1480px, calc(100vw - 48px));
+            max-height: calc(100dvh - 48px);
+            margin: 0;
             display: flex;
             flex-direction: column;
             overflow: hidden;
@@ -776,7 +837,9 @@ export default function NovaVirtualTeacherPopup({
             border: 1px solid rgba(142, 232, 255, 0.34);
             background: linear-gradient(145deg, #071a32, #030916 74%);
             color: white;
-            box-shadow: 0 42px 110px rgba(0, 0, 0, 0.68), 0 0 44px rgba(83, 215, 255, 0.12);
+            box-shadow:
+              0 42px 110px rgba(0, 0, 0, 0.68),
+              0 0 44px rgba(83, 215, 255, 0.12);
             font-family: Arial, Helvetica, sans-serif;
           }
 
@@ -1466,6 +1529,18 @@ export default function NovaVirtualTeacherPopup({
             }
           }
 
+          @media (max-width: 1180px) {
+            .nova-vt-backdrop {
+              padding: 14px;
+            }
+
+            .nova-vt-modal {
+              width: calc(100vw - 28px);
+              max-height: calc(100dvh - 28px);
+              border-radius: 24px;
+            }
+          }
+
           @media (max-width: 720px) {
             .nova-vt-tabs {
               display: grid;
@@ -1491,14 +1566,14 @@ export default function NovaVirtualTeacherPopup({
               line-height: 1.35;
             }
             .nova-vt-backdrop {
-              padding: 0;
-              align-items: stretch;
+              padding: 8px;
+              place-items: center;
             }
 
             .nova-vt-modal {
-              width: 100%;
-              max-height: 100dvh;
-              border-radius: 0;
+              width: calc(100vw - 16px);
+              max-height: calc(100dvh - 16px);
+              border-radius: 22px;
             }
 
             .nova-vt-header {
@@ -1592,7 +1667,8 @@ export default function NovaVirtualTeacherPopup({
           }
         `}</style>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
