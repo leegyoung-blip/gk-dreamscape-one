@@ -782,11 +782,11 @@ export default function TeachingDashboardPage() {
 
       if (error) {
         console.info(
-          `${SUBJECT_META[attempt.source].label} answer detail could not be loaded:`,
+          `${SUBJECT_META[attempt.subject].label} answer detail could not be loaded:`,
           error.message,
         );
         setDetailMessage(
-          `The ${SUBJECT_META[attempt.source].label} answer record could not be loaded. Run the split Teaching Dashboard RPC migration and try again.`,
+          `The ${SUBJECT_META[attempt.subject].label} answer record could not be loaded. Run the split Teaching Dashboard RPC migration and try again.`,
         );
         setDetailsLoading(false);
         return;

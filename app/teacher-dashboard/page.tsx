@@ -996,7 +996,7 @@ function TeacherDashboardContent() {
       if (error) {
         setDetailMessage(
           error.message ||
-            `The ${SUBJECT_META[attempt.source].label} answer record could not be loaded.`,
+            `The ${SUBJECT_META[attempt.subject].label} answer record could not be loaded.`,
         );
         setDetailsLoading(false);
         return;
@@ -1011,7 +1011,7 @@ function TeacherDashboardContent() {
           question_order: safeNumber(row.question_order),
           question_text:
             row.question_text ||
-            `${SUBJECT_META[attempt.source].label} question`,
+            `${SUBJECT_META[attempt.subject].label} question`,
           question_image: row.question_image,
           student_answer_label: row.student_answer_label,
           student_answer_text: row.student_answer_text,
@@ -1028,7 +1028,7 @@ function TeacherDashboardContent() {
 
       if (rows.length === 0) {
         setDetailMessage(
-          `This ${SUBJECT_META[attempt.source].label} attempt has a score summary but no saved answer rows.`,
+          `This ${SUBJECT_META[attempt.subject].label} attempt has a score summary but no saved answer rows.`,
         );
       }
 
