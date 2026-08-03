@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
+import NovaVirtualTeacherPopup from "@/components/dashboard/NovaVirtualTeacherPopup";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 type AttemptSource = "core" | "english" | "math" | "science" | "knowledge";
@@ -155,6 +156,22 @@ type DashboardStudent = {
   id: string;
   label: string;
   relationship: string;
+};
+
+type LearningMonthRange = {
+  index: number;
+  start: string;
+  end: string;
+  label: string;
+};
+
+type AnalyticsSkillRow = {
+  subject: SubjectKey;
+  skill: string;
+  correct: number;
+  wrong: number;
+  total: number;
+  accuracy: number;
 };
 
 const SUBJECT_META: Record<
@@ -310,6 +327,65 @@ function formatDuration(seconds: number | null) {
   return `${minutes}:${String(remaining).padStart(2, "0")}`;
 }
 
+function differenceInDays(startKey: string, endKey: string) {
+  const milliseconds =
+    parseDateKey(endKey).getTime() - parseDateKey(startKey).getTime();
+
+  return Math.max(0, Math.floor(milliseconds / 86_400_000));
+}
+
+function formatDateKeyShort(key: string) {
+  const date = parseDateKey(key);
+
+  return new Intl.DateTimeFormat("en-SG", {
+    timeZone: "UTC",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function buildLearningMonthRanges(
+  attempts: DashboardAttempt[],
+): LearningMonthRange[] {
+  if (attempts.length === 0) {
+    const today = singaporeDateKey(new Date());
+
+    return [
+      {
+        index: 0,
+        start: today,
+        end: addDaysToKey(today, 27),
+        label: "Learning Month 1",
+      },
+    ];
+  }
+
+  const firstAttempt = [...attempts].sort(
+    (first, second) =>
+      new Date(first.createdAt).getTime() -
+      new Date(second.createdAt).getTime(),
+  )[0];
+
+  const firstKey = singaporeDateKey(
+    new Date(firstAttempt.createdAt),
+  );
+  const todayKey = singaporeDateKey(new Date());
+  const monthCount =
+    Math.floor(differenceInDays(firstKey, todayKey) / 28) + 1;
+
+  return Array.from({ length: monthCount }, (_, index) => {
+    const start = addDaysToKey(firstKey, index * 28);
+
+    return {
+      index,
+      start,
+      end: addDaysToKey(start, 27),
+      label: `Learning Month ${index + 1}`,
+    };
+  });
+}
+
 function accuracyOf(attempt: DashboardAttempt) {
   if (attempt.totalQuestions <= 0) return 0;
   return Math.round((attempt.correctCount / attempt.totalQuestions) * 100);
@@ -356,6 +432,16 @@ export default function TeachingDashboardPage() {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailMessage, setDetailMessage] = useState("");
   const [wrongOnly, setWrongOnly] = useState(false);
+
+  const [selectedLearningMonthIndex, setSelectedLearningMonthIndex] =
+    useState(0);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsMessage, setAnalyticsMessage] = useState("");
+  const [analyticsSkillRows, setAnalyticsSkillRows] = useState<
+    AnalyticsSkillRow[]
+  >([]);
+  const [analyticsAnswerCount, setAnalyticsAnswerCount] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -852,6 +938,168 @@ export default function TeachingDashboardPage() {
     setDetailsLoading(false);
   }
 
+  async function openAnalytics() {
+    setAnalyticsOpen(true);
+    setAnalyticsLoading(true);
+    setAnalyticsMessage("");
+    setAnalyticsSkillRows([]);
+    setAnalyticsAnswerCount(0);
+
+    const todayKey = singaporeDateKey(new Date());
+    const analyticsStart = addDaysToKey(todayKey, -55);
+    const recentAttempts = attempts
+      .filter((attempt) => {
+        const key = singaporeDateKey(new Date(attempt.createdAt));
+        return key >= analyticsStart && key <= todayKey;
+      })
+      .slice(0, 30);
+
+    if (recentAttempts.length === 0) {
+      setAnalyticsMessage(
+        "Nova needs at least one recorded quiz before she can prepare a results summary.",
+      );
+      setAnalyticsLoading(false);
+      return;
+    }
+
+    const aggregate = new Map<
+      string,
+      {
+        subject: SubjectKey;
+        skill: string;
+        correct: number;
+        wrong: number;
+        total: number;
+      }
+    >();
+
+    let loadedAnswerCount = 0;
+    let failedAttemptCount = 0;
+
+    for (let index = 0; index < recentAttempts.length; index += 6) {
+      const batch = recentAttempts.slice(index, index + 6);
+
+      const batchResults = await Promise.all(
+        batch.map(async (attempt) => {
+          if (
+            attempt.source === "english" ||
+            attempt.source === "math"
+          ) {
+            const answerRpc =
+              attempt.source === "english"
+                ? "teacher_get_english_quiz_attempt_answers"
+                : "teacher_get_math_quiz_attempt_answers";
+
+            const { data, error } = await supabase.rpc(answerRpc, {
+              p_attempt_id: attempt.id,
+              p_student_user_id: attempt.userId,
+              p_teacher_user_id: null,
+            });
+
+            return {
+              attempt,
+              rows: (data ?? []) as NewCoreAnswerRpcRow[],
+              error,
+            };
+          }
+
+          const { data, error } = await supabase
+            .from("learning_mission_attempt_answers")
+            .select(
+              "question_text,is_correct,skill,subject",
+            )
+            .eq("attempt_source", attempt.source)
+            .eq("attempt_id", attempt.id)
+            .eq("user_id", attempt.userId);
+
+          return {
+            attempt,
+            rows: (data ?? []) as Array<{
+              question_text: string | null;
+              is_correct: boolean | null;
+              skill: string | null;
+              subject: string | null;
+            }>,
+            error,
+          };
+        }),
+      );
+
+      for (const result of batchResults) {
+        if (result.error) {
+          failedAttemptCount += 1;
+          continue;
+        }
+
+        for (const row of result.rows) {
+          loadedAnswerCount += 1;
+
+          const rawSkill = String(
+            row.skill ||
+              result.attempt.subtitle
+                .split(" · ")
+                .filter(Boolean)
+                .slice(-2, -1)[0] ||
+              result.attempt.title,
+          ).trim();
+
+          const skill = rawSkill || result.attempt.title;
+          const key = `${result.attempt.subject}::${skill}`;
+          const current = aggregate.get(key) || {
+            subject: result.attempt.subject,
+            skill,
+            correct: 0,
+            wrong: 0,
+            total: 0,
+          };
+
+          current.total += 1;
+
+          if (Boolean(row.is_correct)) {
+            current.correct += 1;
+          } else {
+            current.wrong += 1;
+          }
+
+          aggregate.set(key, current);
+        }
+      }
+    }
+
+    const nextRows = [...aggregate.values()]
+      .map((row): AnalyticsSkillRow => ({
+        ...row,
+        accuracy:
+          row.total > 0
+            ? Math.round((row.correct / row.total) * 100)
+            : 0,
+      }))
+      .filter((row) => row.total >= 2 || row.wrong >= 2)
+      .sort(
+        (first, second) =>
+          first.accuracy - second.accuracy ||
+          second.wrong - first.wrong ||
+          second.total - first.total,
+      );
+
+    setAnalyticsSkillRows(nextRows);
+    setAnalyticsAnswerCount(loadedAnswerCount);
+
+    if (loadedAnswerCount === 0) {
+      setAnalyticsMessage(
+        "Skill-level answer records were not available, so Nova is using quiz scores and topic names for this summary.",
+      );
+    } else if (failedAttemptCount > 0) {
+      setAnalyticsMessage(
+        `Nova analysed ${loadedAnswerCount} saved answers. ${failedAttemptCount} older attempt record${
+          failedAttemptCount === 1 ? "" : "s"
+        } could not provide question-level details.`,
+      );
+    }
+
+    setAnalyticsLoading(false);
+  }
+
   const thisWeekRange = useMemo(() => getDateRange("this_week"), []);
   const previousWeekRange = useMemo(() => getDateRange("last_week"), []);
 
@@ -864,6 +1112,260 @@ export default function TeachingDashboardPage() {
     () => attempts.filter((attempt) => isDateInsideRange(attempt.createdAt, previousWeekRange)),
     [attempts, previousWeekRange],
   );
+
+
+  const learningMonths = useMemo(
+    () => buildLearningMonthRanges(attempts),
+    [attempts],
+  );
+
+  useEffect(() => {
+    setSelectedLearningMonthIndex(
+      Math.max(0, learningMonths.length - 1),
+    );
+  }, [selectedStudentId, learningMonths.length]);
+
+  const selectedLearningMonth =
+    learningMonths[
+      Math.min(
+        selectedLearningMonthIndex,
+        Math.max(0, learningMonths.length - 1),
+      )
+    ] || learningMonths[0];
+
+  const learningMonthAttempts = useMemo(() => {
+    if (!selectedLearningMonth) return [];
+
+    return attempts.filter((attempt) =>
+      isDateInsideRange(attempt.createdAt, {
+        start: selectedLearningMonth.start,
+        end: selectedLearningMonth.end,
+      }),
+    );
+  }, [attempts, selectedLearningMonth]);
+
+  const learningMonthWeeks = useMemo(() => {
+    if (!selectedLearningMonth) return [];
+
+    return Array.from({ length: 4 }, (_, index) => {
+      const start = addDaysToKey(
+        selectedLearningMonth.start,
+        index * 7,
+      );
+      const end = addDaysToKey(start, 6);
+      const weekAttempts = learningMonthAttempts.filter((attempt) =>
+        isDateInsideRange(attempt.createdAt, { start, end }),
+      );
+      const questions = weekAttempts.reduce(
+        (sum, attempt) => sum + attempt.totalQuestions,
+        0,
+      );
+      const correct = weekAttempts.reduce(
+        (sum, attempt) => sum + attempt.correctCount,
+        0,
+      );
+
+      return {
+        index,
+        start,
+        end,
+        label: `Week ${index + 1}`,
+        attempts: weekAttempts.length,
+        questions,
+        accuracy:
+          questions > 0
+            ? Math.round((correct / questions) * 100)
+            : 0,
+      };
+    });
+  }, [learningMonthAttempts, selectedLearningMonth]);
+
+  const maxLearningWeekAttempts = Math.max(
+    1,
+    ...learningMonthWeeks.map((week) => week.attempts),
+  );
+
+  const analyticsRange = useMemo(() => {
+    const todayKey = singaporeDateKey(new Date());
+    return {
+      start: addDaysToKey(todayKey, -55),
+      end: todayKey,
+    };
+  }, []);
+
+  const analyticsAttempts = useMemo(
+    () =>
+      attempts
+        .filter((attempt) =>
+          isDateInsideRange(attempt.createdAt, analyticsRange),
+        )
+        .slice(0, 30),
+    [attempts, analyticsRange],
+  );
+
+  const analyticsSubjectSummaries = useMemo(() => {
+    const todayKey = singaporeDateKey(new Date());
+    const recentStart = addDaysToKey(todayKey, -27);
+    const previousStart = addDaysToKey(todayKey, -55);
+    const previousEnd = addDaysToKey(todayKey, -28);
+
+    return (Object.keys(SUBJECT_META) as SubjectKey[]).map(
+      (subject) => {
+        const subjectAttempts = analyticsAttempts.filter(
+          (attempt) => attempt.subject === subject,
+        );
+        const questions = subjectAttempts.reduce(
+          (sum, attempt) => sum + attempt.totalQuestions,
+          0,
+        );
+        const correct = subjectAttempts.reduce(
+          (sum, attempt) => sum + attempt.correctCount,
+          0,
+        );
+        const recentAttempts = subjectAttempts.filter((attempt) =>
+          isDateInsideRange(attempt.createdAt, {
+            start: recentStart,
+            end: todayKey,
+          }),
+        );
+        const previousAttempts = subjectAttempts.filter((attempt) =>
+          isDateInsideRange(attempt.createdAt, {
+            start: previousStart,
+            end: previousEnd,
+          }),
+        );
+
+        function periodAccuracy(rows: DashboardAttempt[]) {
+          const periodQuestions = rows.reduce(
+            (sum, attempt) => sum + attempt.totalQuestions,
+            0,
+          );
+          const periodCorrect = rows.reduce(
+            (sum, attempt) => sum + attempt.correctCount,
+            0,
+          );
+
+          return periodQuestions > 0
+            ? Math.round(
+                (periodCorrect / periodQuestions) * 100,
+              )
+            : null;
+        }
+
+        const recentAccuracy = periodAccuracy(recentAttempts);
+        const previousAccuracy = periodAccuracy(previousAttempts);
+        const accuracy =
+          questions > 0
+            ? Math.round((correct / questions) * 100)
+            : 0;
+        const trend =
+          recentAccuracy !== null && previousAccuracy !== null
+            ? recentAccuracy - previousAccuracy
+            : null;
+        const weakestAttempt = [...subjectAttempts]
+          .sort(
+            (first, second) =>
+              accuracyOf(first) - accuracyOf(second),
+          )[0];
+
+        return {
+          subject,
+          attempts: subjectAttempts.length,
+          questions,
+          accuracy,
+          trend,
+          weakestAttempt,
+        };
+      },
+    );
+  }, [analyticsAttempts]);
+
+  const analyticsOverall = useMemo(() => {
+    const questions = analyticsAttempts.reduce(
+      (sum, attempt) => sum + attempt.totalQuestions,
+      0,
+    );
+    const correct = analyticsAttempts.reduce(
+      (sum, attempt) => sum + attempt.correctCount,
+      0,
+    );
+
+    return {
+      attempts: analyticsAttempts.length,
+      questions,
+      accuracy:
+        questions > 0
+          ? Math.round((correct / questions) * 100)
+          : 0,
+    };
+  }, [analyticsAttempts]);
+
+  const weakRecentAttempts = useMemo(
+    () =>
+      [...analyticsAttempts]
+        .filter((attempt) => accuracyOf(attempt) < 70)
+        .sort(
+          (first, second) =>
+            accuracyOf(first) - accuracyOf(second),
+        )
+        .slice(0, 6),
+    [analyticsAttempts],
+  );
+
+  const weakestSubject = useMemo(
+    () =>
+      analyticsSubjectSummaries
+        .filter((summary) => summary.questions > 0)
+        .sort(
+          (first, second) =>
+            first.accuracy - second.accuracy,
+        )[0] || null,
+    [analyticsSubjectSummaries],
+  );
+
+  const strongestSubject = useMemo(
+    () =>
+      analyticsSubjectSummaries
+        .filter((summary) => summary.questions > 0)
+        .sort(
+          (first, second) =>
+            second.accuracy - first.accuracy,
+        )[0] || null,
+    [analyticsSubjectSummaries],
+  );
+
+  const novaAnalyticsSummary = useMemo(() => {
+    if (analyticsAttempts.length === 0) {
+      return "There is not enough recorded work yet for a reliable learning summary.";
+    }
+
+    if (!weakestSubject) {
+      return "Nova found recent quiz activity, but there are not enough scored questions to identify a clear priority.";
+    }
+
+    const weakestMeta = SUBJECT_META[weakestSubject.subject];
+    const strongestMeta = strongestSubject
+      ? SUBJECT_META[strongestSubject.subject]
+      : null;
+
+    if (weakestSubject.accuracy < 70) {
+      return `${weakestMeta.label} needs the most immediate attention at ${weakestSubject.accuracy}% accuracy. ${
+        strongestMeta && strongestSubject?.subject !== weakestSubject.subject
+          ? `${strongestMeta.label} is currently the strongest subject at ${strongestSubject?.accuracy}%.`
+          : "Start with the lowest-scoring topics below."
+      }`;
+    }
+
+    if (weakestSubject.accuracy < 85) {
+      return `${weakestMeta.label} is developing but remains the main area to strengthen at ${weakestSubject.accuracy}% accuracy. Focused revision should help turn partial understanding into consistent mastery.`;
+    }
+
+    return `Performance is currently secure across the recorded subjects. ${weakestMeta.label} is still the best place for targeted improvement because it has the lowest recent accuracy at ${weakestSubject.accuracy}%.`;
+  }, [
+    analyticsAttempts.length,
+    weakestSubject,
+    strongestSubject,
+  ]);
 
   const weeklyQuestionCount = thisWeekAttempts.reduce(
     (sum, attempt) => sum + attempt.totalQuestions,
@@ -1000,13 +1502,25 @@ export default function TeachingDashboardPage() {
             </p>
           </div>
 
-          <div className="week-comparison">
-            <span>This week</span>
-            <strong>{thisWeekAttempts.length} quizzes</strong>
-            <small>
-              {thisWeekAttempts.length - previousWeekAttempts.length >= 0 ? "+" : ""}
-              {thisWeekAttempts.length - previousWeekAttempts.length} compared with last week
-            </small>
+          <div className="hero-insights">
+            <button
+              type="button"
+              className="analytics-tab"
+              onClick={() => void openAnalytics()}
+            >
+              <span>Results Analytics</span>
+              <strong>Nova’s quick summary</strong>
+              <small>Weaknesses, trends and next steps →</small>
+            </button>
+
+            <div className="week-comparison">
+              <span>This week</span>
+              <strong>{thisWeekAttempts.length} quizzes</strong>
+              <small>
+                {thisWeekAttempts.length - previousWeekAttempts.length >= 0 ? "+" : ""}
+                {thisWeekAttempts.length - previousWeekAttempts.length} compared with last week
+              </small>
+            </div>
           </div>
         </header>
 
@@ -1056,25 +1570,112 @@ export default function TeachingDashboardPage() {
 
             <section className="overview-grid">
               <article className="panel weekly-chart-panel">
-                <div className="panel-heading">
+                <div className="panel-heading monthly-panel-heading">
                   <div>
-                    <p className="section-label">Weekly activity</p>
-                    <h2>Quizzes completed by day</h2>
+                    <p className="section-label">Monthly activity</p>
+                    <h2>Compare each learning week</h2>
+                    <p className="monthly-description">
+                      Learning Month 1 begins on the date of the student’s first recorded quiz.
+                    </p>
                   </div>
-                  <span className="panel-total">{thisWeekAttempts.length} total</span>
+
+                  <span className="panel-total">
+                    {selectedLearningMonth?.label || "Learning Month 1"}
+                  </span>
                 </div>
 
-                <div className="weekly-chart" aria-label="Weekly quiz completion chart">
-                  {weeklyDays.map((day) => (
-                    <div className="chart-day" key={day.key}>
-                      <div className="chart-value">{day.count}</div>
+                <div className="month-slider-controls">
+                  <button
+                    type="button"
+                    aria-label="Previous learning month"
+                    disabled={selectedLearningMonthIndex <= 0}
+                    onClick={() =>
+                      setSelectedLearningMonthIndex((current) =>
+                        Math.max(0, current - 1),
+                      )
+                    }
+                  >
+                    ‹
+                  </button>
+
+                  <div className="month-slider-copy">
+                    <strong>
+                      {selectedLearningMonth
+                        ? `${formatDateKeyShort(
+                            selectedLearningMonth.start,
+                          )} – ${formatDateKeyShort(
+                            selectedLearningMonth.end,
+                          )}`
+                        : "No recorded month"}
+                    </strong>
+
+                    <input
+                      type="range"
+                      min={0}
+                      max={Math.max(0, learningMonths.length - 1)}
+                      value={Math.min(
+                        selectedLearningMonthIndex,
+                        Math.max(0, learningMonths.length - 1),
+                      )}
+                      onChange={(event) =>
+                        setSelectedLearningMonthIndex(
+                          Number(event.target.value),
+                        )
+                      }
+                      aria-label="Select learning month"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    aria-label="Next learning month"
+                    disabled={
+                      selectedLearningMonthIndex >=
+                      learningMonths.length - 1
+                    }
+                    onClick={() =>
+                      setSelectedLearningMonthIndex((current) =>
+                        Math.min(
+                          learningMonths.length - 1,
+                          current + 1,
+                        ),
+                      )
+                    }
+                  >
+                    ›
+                  </button>
+                </div>
+
+                <div
+                  className="weekly-chart monthly-week-chart"
+                  aria-label="Four-week learning month comparison"
+                >
+                  {learningMonthWeeks.map((week) => (
+                    <div className="chart-day" key={week.start}>
+                      <div className="chart-value">
+                        {week.attempts} quiz{week.attempts === 1 ? "" : "zes"}
+                      </div>
+
                       <div className="bar-track">
                         <div
                           className="bar-fill"
-                          style={{ height: `${Math.max(5, (day.count / maxDailyCount) * 100)}%` }}
+                          style={{
+                            height: `${Math.max(
+                              5,
+                              (week.attempts /
+                                maxLearningWeekAttempts) *
+                                100,
+                            )}%`,
+                          }}
                         />
                       </div>
-                      <span>{day.label}</span>
+
+                      <span>{week.label}</span>
+                      <small>
+                        {week.questions > 0
+                          ? `${week.accuracy}% · ${week.questions} questions`
+                          : "No activity"}
+                      </small>
                     </div>
                   ))}
                 </div>
@@ -1208,7 +1809,11 @@ export default function TeachingDashboardPage() {
                         <button
                           type="button"
                           className={`attempt-row ${
-                            accuracy < 100 ? "has-wrong-answers" : "perfect-attempt"
+                            accuracy < 70
+                              ? "low-attempt"
+                              : accuracy === 100
+                                ? "perfect-attempt"
+                                : "neutral-attempt"
                           }`}
                           key={`${attempt.source}-${attempt.id}`}
                           onClick={() => void openAttempt(attempt)}
@@ -1237,7 +1842,11 @@ export default function TeachingDashboardPage() {
                           </span>
                           <span
                             className={`desktop-cell accuracy-badge ${
-                              accuracy === 100 ? "perfect" : "needs-work"
+                              accuracy === 100
+                                ? "perfect"
+                                : accuracy < 70
+                                  ? "needs-work"
+                                  : "neutral"
                             }`}
                           >
                             {accuracy}%
@@ -1264,6 +1873,21 @@ export default function TeachingDashboardPage() {
           </>
         )}
       </section>
+
+      <NovaVirtualTeacherPopup
+        open={analyticsOpen}
+        onClose={() => setAnalyticsOpen(false)}
+        viewerUserId={viewerId}
+        studentUserId={selectedStudentId}
+        studentLabel={selectedStudent?.label || "Student"}
+        clientSummary={novaAnalyticsSummary}
+        clientOverall={analyticsOverall}
+        clientSubjects={analyticsSubjectSummaries}
+        clientSkills={analyticsSkillRows}
+        clientAnalyticsLoading={analyticsLoading}
+        clientAnalyticsMessage={analyticsMessage}
+        clientAnswerCount={analyticsAnswerCount}
+      />
 
       {selectedAttempt && (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setSelectedAttempt(null)}>
@@ -1578,13 +2202,63 @@ export default function TeachingDashboardPage() {
           line-height: 1.55;
         }
 
+        .hero-insights {
+          display: grid;
+          grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr);
+          gap: 12px;
+        }
+
+        .analytics-tab,
         .week-comparison {
-          min-width: 240px;
+          min-width: 220px;
           padding: 20px 22px;
           border-radius: 22px;
           border: 1px solid rgba(126, 232, 255, 0.2);
-          background: rgba(6, 22, 47, 0.74);
           box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+        }
+
+        .analytics-tab {
+          background:
+            linear-gradient(145deg, rgba(71, 35, 112, 0.78), rgba(19, 13, 55, 0.9));
+          color: white;
+          text-align: left;
+          cursor: pointer;
+        }
+
+        .analytics-tab:hover {
+          border-color: rgba(216, 180, 254, 0.48);
+          box-shadow:
+            0 24px 60px rgba(0, 0, 0, 0.3),
+            0 0 28px rgba(192, 132, 252, 0.16);
+        }
+
+        .analytics-tab span,
+        .analytics-tab strong,
+        .analytics-tab small {
+          display: block;
+        }
+
+        .analytics-tab span {
+          color: #e9d5ff;
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+        }
+
+        .analytics-tab strong {
+          margin-top: 8px;
+          font-size: 19px;
+        }
+
+        .analytics-tab small {
+          margin-top: 6px;
+          color: rgba(245, 235, 255, 0.58);
+          line-height: 1.4;
+        }
+
+        .week-comparison {
+          background: rgba(6, 22, 47, 0.74);
         }
 
         .week-comparison span,
@@ -1697,11 +2371,60 @@ export default function TeachingDashboardPage() {
           font-weight: 850;
         }
 
+        .monthly-description {
+          max-width: 620px;
+          margin: 8px 0 0;
+          color: rgba(235, 247, 255, 0.5);
+          font-size: 12px;
+          line-height: 1.5;
+        }
+
+        .month-slider-controls {
+          margin-top: 20px;
+          display: grid;
+          grid-template-columns: 42px minmax(0, 1fr) 42px;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .month-slider-controls > button {
+          width: 42px;
+          height: 42px;
+          border-radius: 999px;
+          border: 1px solid rgba(126, 232, 255, 0.18);
+          background: rgba(255, 255, 255, 0.04);
+          color: white;
+          cursor: pointer;
+          font-size: 24px;
+        }
+
+        .month-slider-controls > button:disabled {
+          opacity: 0.28;
+          cursor: not-allowed;
+        }
+
+        .month-slider-copy {
+          display: grid;
+          gap: 9px;
+          text-align: center;
+        }
+
+        .month-slider-copy strong {
+          color: rgba(245, 251, 255, 0.82);
+          font-size: 12px;
+        }
+
+        .month-slider-copy input {
+          width: 100%;
+          accent-color: #53d7ff;
+          cursor: pointer;
+        }
+
         .weekly-chart {
           height: 250px;
           margin-top: 28px;
           display: grid;
-          grid-template-columns: repeat(7, 1fr);
+          grid-template-columns: repeat(4, 1fr);
           align-items: end;
           gap: 12px;
         }
@@ -1709,12 +2432,19 @@ export default function TeachingDashboardPage() {
         .chart-day {
           height: 100%;
           display: grid;
-          grid-template-rows: 22px 1fr 20px;
+          grid-template-rows: 28px 1fr 20px 30px;
           align-items: end;
           text-align: center;
           color: rgba(235, 247, 255, 0.56);
           font-size: 11px;
           font-weight: 750;
+        }
+
+        .chart-day small {
+          align-self: start;
+          color: rgba(235, 247, 255, 0.38);
+          font-size: 9px;
+          line-height: 1.35;
         }
 
         .chart-value {
@@ -1877,21 +2607,36 @@ export default function TeachingDashboardPage() {
           background: rgba(126, 232, 255, 0.055);
         }
 
-        .attempt-row.has-wrong-answers {
+        .attempt-row.low-attempt {
           border-color: rgba(255, 78, 96, 0.5);
           background:
             linear-gradient(90deg, rgba(255, 44, 67, 0.17), rgba(255, 44, 67, 0.07));
           box-shadow: inset 4px 0 0 #ff4e60;
         }
 
-        .attempt-row.has-wrong-answers:hover {
+        .attempt-row.low-attempt:hover {
           border-color: rgba(255, 94, 110, 0.78);
           background:
             linear-gradient(90deg, rgba(255, 44, 67, 0.24), rgba(255, 44, 67, 0.1));
         }
 
+        .attempt-row.neutral-attempt {
+          border-color: rgba(126, 232, 255, 0.11);
+          background: rgba(255, 255, 255, 0.027);
+          box-shadow: none;
+        }
+
         .attempt-row.perfect-attempt {
-          border-color: rgba(93, 255, 181, 0.2);
+          border-color: rgba(93, 255, 181, 0.28);
+          background:
+            linear-gradient(90deg, rgba(36, 145, 102, 0.16), rgba(36, 145, 102, 0.055));
+          box-shadow: inset 4px 0 0 rgba(93, 255, 181, 0.72);
+        }
+
+        .attempt-row.perfect-attempt:hover {
+          border-color: rgba(93, 255, 181, 0.48);
+          background:
+            linear-gradient(90deg, rgba(36, 145, 102, 0.22), rgba(36, 145, 102, 0.08));
         }
 
         .attempt-title-cell {
@@ -1958,6 +2703,12 @@ export default function TeachingDashboardPage() {
           background: rgba(255, 44, 67, 0.2);
         }
 
+        .accuracy-badge.neutral {
+          color: rgba(245, 251, 255, 0.76);
+          border: 1px solid rgba(126, 232, 255, 0.14);
+          background: rgba(126, 232, 255, 0.055);
+        }
+
         .view-link {
           color: #8dfcff;
           font-weight: 850;
@@ -1977,6 +2728,359 @@ export default function TeachingDashboardPage() {
           background: rgba(255, 255, 255, 0.025);
           color: rgba(235, 247, 255, 0.58);
           text-align: center;
+        }
+
+        .analytics-modal {
+          width: min(1320px, 96vw);
+          max-height: 92dvh;
+          overflow: hidden;
+          border-radius: 30px;
+          border: 1px solid rgba(216, 180, 254, 0.32);
+          background:
+            linear-gradient(145deg, rgba(14, 20, 48, 0.99), rgba(4, 9, 23, 0.995));
+          box-shadow:
+            0 40px 110px rgba(0, 0, 0, 0.68),
+            0 0 44px rgba(192, 132, 252, 0.14);
+        }
+
+        .analytics-modal-header {
+          padding: 22px 24px;
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 20px;
+          border-bottom: 1px solid rgba(216, 180, 254, 0.14);
+          background:
+            radial-gradient(circle at 12% 0%, rgba(192, 132, 252, 0.14), transparent 38%);
+        }
+
+        .analytics-title-block {
+          display: flex;
+          align-items: center;
+          gap: 18px;
+        }
+
+        .analytics-nova {
+          width: 92px;
+          height: 92px;
+          object-fit: contain;
+          filter: drop-shadow(0 16px 28px rgba(0, 0, 0, 0.4));
+        }
+
+        .analytics-modal-header h2 {
+          margin: 7px 0 0;
+          font-family: Georgia, "Times New Roman", serif;
+          font-size: clamp(32px, 4vw, 48px);
+          font-weight: 500;
+          letter-spacing: -0.045em;
+        }
+
+        .analytics-modal-header p:last-child {
+          margin: 8px 0 0;
+          color: rgba(245, 239, 255, 0.56);
+          line-height: 1.5;
+        }
+
+        .analytics-scroll {
+          max-height: calc(92dvh - 138px);
+          overflow-y: auto;
+          padding: 20px;
+        }
+
+        .nova-summary-card {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 20px;
+          align-items: center;
+          border-radius: 22px;
+          border: 1px solid rgba(216, 180, 254, 0.2);
+          background:
+            linear-gradient(145deg, rgba(94, 48, 145, 0.22), rgba(25, 18, 61, 0.42));
+          padding: 20px;
+        }
+
+        .nova-summary-card h3 {
+          margin: 9px 0 0;
+          max-width: 850px;
+          font-size: 23px;
+          line-height: 1.45;
+          letter-spacing: -0.02em;
+        }
+
+        .analytics-coverage {
+          min-width: 170px;
+          display: grid;
+          grid-template-columns: auto auto;
+          align-items: baseline;
+          gap: 6px 10px;
+          padding: 14px;
+          border-radius: 16px;
+          background: rgba(0, 0, 0, 0.2);
+        }
+
+        .analytics-coverage strong {
+          color: #e9d5ff;
+          font-size: 22px;
+        }
+
+        .analytics-coverage span {
+          color: rgba(245, 239, 255, 0.48);
+          font-size: 10px;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+        }
+
+        .analytics-metric-grid {
+          margin-top: 14px;
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 10px;
+        }
+
+        .analytics-section {
+          margin-top: 14px;
+          border-radius: 22px;
+          border: 1px solid rgba(216, 180, 254, 0.12);
+          background: rgba(255, 255, 255, 0.026);
+          padding: 20px;
+        }
+
+        .analytics-section-heading {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 16px;
+        }
+
+        .analytics-section-heading h3 {
+          margin: 7px 0 0;
+          font-size: 24px;
+          letter-spacing: -0.03em;
+        }
+
+        .analytics-section-heading > span {
+          padding: 7px 10px;
+          border-radius: 999px;
+          border: 1px solid rgba(216, 180, 254, 0.14);
+          background: rgba(192, 132, 252, 0.07);
+          color: rgba(245, 239, 255, 0.58);
+          font-size: 10px;
+          font-weight: 800;
+        }
+
+        .analytics-subject-grid {
+          margin-top: 16px;
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 10px;
+        }
+
+        .analytics-subject-card {
+          min-height: 230px;
+          border-radius: 18px;
+          border: 1px solid rgba(126, 232, 255, 0.11);
+          background: rgba(255, 255, 255, 0.026);
+          padding: 15px;
+        }
+
+        .analytics-subject-card.low {
+          border-color: rgba(255, 78, 96, 0.38);
+          background: rgba(255, 44, 67, 0.08);
+        }
+
+        .analytics-subject-card.perfect {
+          border-color: rgba(93, 255, 181, 0.3);
+          background: rgba(36, 145, 102, 0.08);
+        }
+
+        .analytics-subject-card.no-data {
+          opacity: 0.55;
+        }
+
+        .analytics-subject-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+        }
+
+        .analytics-status {
+          color: rgba(245, 251, 255, 0.5);
+          font-size: 9px;
+          font-weight: 900;
+          letter-spacing: 0.09em;
+          text-transform: uppercase;
+        }
+
+        .analytics-subject-card h4 {
+          margin: 15px 0 0;
+          font-size: 17px;
+        }
+
+        .analytics-subject-accuracy {
+          display: block;
+          margin-top: 6px;
+          font-size: 32px;
+          letter-spacing: -0.04em;
+        }
+
+        .analytics-subject-card > p,
+        .analytics-subject-card > small {
+          display: block;
+          margin: 7px 0 0;
+          color: rgba(245, 251, 255, 0.48);
+          font-size: 10px;
+          line-height: 1.45;
+        }
+
+        .analytics-focus-quiz {
+          margin-top: 13px;
+          padding-top: 12px;
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .analytics-focus-quiz span,
+        .analytics-focus-quiz strong {
+          display: block;
+        }
+
+        .analytics-focus-quiz span {
+          color: rgba(245, 251, 255, 0.4);
+          font-size: 9px;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+        }
+
+        .analytics-focus-quiz strong {
+          margin-top: 5px;
+          font-size: 11px;
+          line-height: 1.4;
+        }
+
+        .weakness-list {
+          margin-top: 16px;
+          display: grid;
+          gap: 8px;
+        }
+
+        .weakness-row {
+          min-height: 62px;
+          display: grid;
+          grid-template-columns: 34px minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 11px;
+          border-radius: 15px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: rgba(255, 255, 255, 0.025);
+          padding: 10px 12px;
+        }
+
+        .weakness-rank {
+          width: 32px;
+          height: 32px;
+          display: grid;
+          place-items: center;
+          border-radius: 11px;
+          border: 1px solid rgba(216, 180, 254, 0.18);
+          background: rgba(192, 132, 252, 0.08);
+          color: #e9d5ff;
+          font-weight: 900;
+        }
+
+        .weakness-copy {
+          min-width: 0;
+        }
+
+        .weakness-copy strong,
+        .weakness-copy small {
+          display: block;
+        }
+
+        .weakness-copy strong {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-size: 13px;
+        }
+
+        .weakness-copy small {
+          margin-top: 4px;
+          color: rgba(245, 251, 255, 0.43);
+          font-size: 10px;
+        }
+
+        .weakness-score {
+          min-width: 52px;
+          padding: 7px 9px;
+          border-radius: 999px;
+          text-align: center;
+          font-size: 11px;
+        }
+
+        .weakness-score.low {
+          border: 1px solid rgba(255, 78, 96, 0.4);
+          background: rgba(255, 44, 67, 0.13);
+          color: #ffd6dc;
+        }
+
+        .weakness-score.neutral {
+          border: 1px solid rgba(126, 232, 255, 0.14);
+          background: rgba(126, 232, 255, 0.05);
+          color: rgba(245, 251, 255, 0.75);
+        }
+
+        .analytics-loading,
+        .analytics-message {
+          margin-top: 16px;
+          border-radius: 15px;
+          border: 1px solid rgba(216, 180, 254, 0.12);
+          background: rgba(192, 132, 252, 0.05);
+          padding: 16px;
+          color: rgba(245, 239, 255, 0.58);
+          font-size: 12px;
+          line-height: 1.55;
+          text-align: center;
+        }
+
+        .recommendation-grid {
+          margin-top: 16px;
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 10px;
+        }
+
+        .recommendation-grid article {
+          min-height: 140px;
+          display: grid;
+          grid-template-columns: 34px minmax(0, 1fr);
+          gap: 11px;
+          border-radius: 17px;
+          border: 1px solid rgba(126, 232, 255, 0.1);
+          background: rgba(255, 255, 255, 0.025);
+          padding: 14px;
+        }
+
+        .recommendation-grid article > span {
+          width: 32px;
+          height: 32px;
+          display: grid;
+          place-items: center;
+          border-radius: 999px;
+          border: 1px solid rgba(126, 232, 255, 0.2);
+          background: rgba(126, 232, 255, 0.07);
+          color: #8dfcff;
+          font-weight: 900;
+        }
+
+        .recommendation-grid strong {
+          font-size: 13px;
+        }
+
+        .recommendation-grid p {
+          margin: 7px 0 0;
+          color: rgba(245, 251, 255, 0.5);
+          font-size: 11px;
+          line-height: 1.55;
         }
 
         .modal-backdrop {
@@ -2220,6 +3324,21 @@ export default function TeachingDashboardPage() {
         }
 
         @media (max-width: 1180px) {
+          .hero-insights {
+            grid-template-columns: 1fr;
+          }
+
+          .analytics-subject-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .recommendation-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .analytics-metric-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
           .summary-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
           }
@@ -2289,6 +3408,102 @@ export default function TeachingDashboardPage() {
 
           .week-comparison {
             min-width: 0;
+          }
+
+          .hero-insights {
+            width: 100%;
+          }
+
+          .analytics-tab,
+          .week-comparison {
+            min-width: 0;
+          }
+
+          .monthly-panel-heading {
+            display: grid;
+          }
+
+          .month-slider-controls {
+            grid-template-columns: 38px minmax(0, 1fr) 38px;
+            gap: 8px;
+          }
+
+          .month-slider-controls > button {
+            width: 38px;
+            height: 38px;
+          }
+
+          .monthly-week-chart {
+            height: 220px;
+            gap: 7px;
+          }
+
+          .analytics-backdrop {
+            padding: 0;
+            align-items: stretch;
+          }
+
+          .analytics-modal {
+            width: 100%;
+            max-height: 100dvh;
+            border-radius: 0;
+          }
+
+          .analytics-modal-header {
+            padding: 14px;
+          }
+
+          .analytics-title-block {
+            align-items: flex-start;
+            gap: 10px;
+          }
+
+          .analytics-nova {
+            width: 64px;
+            height: 64px;
+          }
+
+          .analytics-modal-header h2 {
+            font-size: 28px;
+          }
+
+          .analytics-modal-header p:last-child {
+            font-size: 11px;
+          }
+
+          .analytics-scroll {
+            max-height: calc(100dvh - 106px);
+            padding: 12px;
+          }
+
+          .nova-summary-card {
+            grid-template-columns: 1fr;
+            padding: 15px;
+          }
+
+          .nova-summary-card h3 {
+            font-size: 18px;
+          }
+
+          .analytics-coverage {
+            grid-template-columns: auto 1fr auto 1fr;
+          }
+
+          .analytics-subject-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .analytics-section {
+            padding: 14px;
+          }
+
+          .analytics-section-heading {
+            display: grid;
+          }
+
+          .weakness-row {
+            grid-template-columns: 30px minmax(0, 1fr) auto;
+            padding: 9px;
           }
 
           .summary-grid {
