@@ -683,13 +683,27 @@ export default function LearningSkillsClient() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={openNewSkill}
-            style={primaryButton}
-          >
-            + New Skill
-          </button>
+          <div className="ls-heading-actions" style={headingActions}>
+            <button
+              type="button"
+              onClick={() =>
+                router.push(
+                  "/curriculum-developer/learning-skills/question-mapping",
+                )
+              }
+              style={secondaryButton}
+            >
+              Map Questions
+            </button>
+
+            <button
+              type="button"
+              onClick={openNewSkill}
+              style={primaryButton}
+            >
+              + New Skill
+            </button>
+          </div>
         </div>
 
         <div className="ls-tabs" style={tabRow}>
@@ -1511,7 +1525,13 @@ export default function LearningSkillsClient() {
             grid-template-columns: 1fr !important;
           }
 
-          .ls-heading-row > button {
+          .ls-heading-actions {
+            width: 100%;
+            display: grid !important;
+            grid-template-columns: 1fr !important;
+          }
+
+          .ls-heading-actions > button {
             width: 100%;
           }
 
@@ -1743,6 +1763,13 @@ const pageDescription: CSSProperties = {
   color: "rgba(235,247,255,0.62)",
   fontSize: "17px",
   lineHeight: 1.6,
+};
+
+const headingActions: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+  flexWrap: "wrap",
 };
 
 const primaryButton: CSSProperties = {
