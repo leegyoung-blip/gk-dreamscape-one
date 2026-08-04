@@ -72,6 +72,7 @@ export default function QuestionSkillMappingPanel({
   questionVersion,
   questionPreview,
   topicTitle,
+  canApprove = false,
   onSaved,
 }: {
   questionSource:
@@ -84,6 +85,7 @@ export default function QuestionSkillMappingPanel({
   questionVersion?: string | null;
   questionPreview?: string;
   topicTitle?: string;
+  canApprove?: boolean;
   onSaved?: () => void | Promise<void>;
 }) {
   const [skills, setSkills] = useState<MappingSkill[]>([]);
@@ -152,17 +154,17 @@ export default function QuestionSkillMappingPanel({
       mappingResult,
       auditResult,
     ] = await Promise.all([
-      supabase.rpc("admin_get_learning_skill_catalogue", {
+      supabase.rpc("curriculum_get_learning_skill_catalogue", {
         p_subject: subject,
         p_primary_level: primaryLevel,
         p_topic: null,
         p_include_inactive: true,
       }),
-      supabase.rpc("admin_get_question_skill_mapping", {
+      supabase.rpc("curriculum_get_question_skill_mapping", {
         p_question_source: questionSource,
         p_question_id: questionId,
       }),
-      supabase.rpc("admin_get_question_mapping_audit", {
+      supabase.rpc("curriculum_get_question_mapping_audit", {
         p_question_source: questionSource,
         p_question_id: questionId,
       }),
@@ -321,7 +323,10 @@ export default function QuestionSkillMappingPanel({
       setReviewStatus(
         current.review_status === "retired"
           ? "draft"
-          : current.review_status,
+          : current.review_status === "approved" &&
+              !canApprove
+            ? "reviewed"
+            : current.review_status,
       );
       setReason(
         current.mappings.find(
@@ -367,7 +372,7 @@ export default function QuestionSkillMappingPanel({
     setMessage(null);
 
     const { data, error: suggestionError } = await supabase.rpc(
-      "admin_suggest_question_skill_mapping",
+      "curriculum_suggest_question_skill_mapping",
       {
         p_question_source: questionSource,
         p_question_id: questionId,
@@ -475,7 +480,7 @@ export default function QuestionSkillMappingPanel({
     setSaving(true);
 
     const { error: saveError } = await supabase.rpc(
-      "admin_save_question_skill_mapping",
+      "curriculum_save_question_skill_mapping",
       {
         p_question_source: questionSource,
         p_question_id: questionId,
@@ -580,7 +585,9 @@ export default function QuestionSkillMappingPanel({
               >
                 <option value="draft">Draft</option>
                 <option value="reviewed">Reviewed</option>
-                <option value="approved">Approved</option>
+                {canApprove && (
+                  <option value="approved">Approved</option>
+                )}
               </select>
             </label>
 
@@ -667,14 +674,16 @@ export default function QuestionSkillMappingPanel({
               {saving ? "Saving..." : "Save Mapping"}
             </button>
 
-            <button
-              type="button"
-              onClick={() => void saveMapping("approved")}
-              disabled={saving}
-              style={primaryButton}
-            >
-              {saving ? "Saving..." : "Save & Approve"}
-            </button>
+            {canApprove && (
+              <button
+                type="button"
+                onClick={() => void saveMapping("approved")}
+                disabled={saving}
+                style={primaryButton}
+              >
+                {saving ? "Saving..." : "Save & Approve"}
+              </button>
+            )}
           </div>
 
           {suggestions.length > 0 && (

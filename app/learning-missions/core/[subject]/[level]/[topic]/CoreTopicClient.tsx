@@ -115,6 +115,7 @@ export default function CoreTopicClient({
         )
         .eq("topic_id", loadedTopic.id)
         .eq("is_published", true)
+        .eq("status", "published")
         .order("quiz_order", { ascending: true });
 
       if (cancelled) return;

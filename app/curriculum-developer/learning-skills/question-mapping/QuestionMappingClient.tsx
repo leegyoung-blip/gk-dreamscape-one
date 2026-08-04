@@ -107,7 +107,11 @@ export default function QuestionMappingClient() {
     error: accessError,
   } = useCurriculumDeveloperAccess();
 
-  const isAdmin = normaliseRole(role) === "admin";
+  const normalisedRole = normaliseRole(role);
+  const isAdmin = normalisedRole === "admin";
+  const isEditor = ["admin", "curriculum_lead"].includes(
+    normalisedRole,
+  );
 
   const [subject, setSubject] =
     useState<MappingSubject>("english");
@@ -149,7 +153,7 @@ export default function QuestionMappingClient() {
   const [message, setMessage] = useState<string | null>(null);
 
   const loadWorkspace = useCallback(async () => {
-    if (status !== "allowed" || !isAdmin) {
+    if (status !== "allowed" || !isEditor) {
       setLoading(false);
       return;
     }
@@ -162,7 +166,7 @@ export default function QuestionMappingClient() {
       topicsResult,
       skillsResult,
     ] = await Promise.all([
-      supabase.rpc("admin_get_question_mapping_queue", {
+      supabase.rpc("curriculum_get_question_mapping_queue", {
         p_subject: subject,
         p_primary_level: primaryLevel,
         p_topic_ref: topicRef === "all" ? null : topicRef,
@@ -171,11 +175,11 @@ export default function QuestionMappingClient() {
         p_page: page,
         p_page_size: 25,
       }),
-      supabase.rpc("admin_get_question_mapping_topics", {
+      supabase.rpc("curriculum_get_question_mapping_topics", {
         p_subject: subject,
         p_primary_level: primaryLevel,
       }),
-      supabase.rpc("admin_get_learning_skill_catalogue", {
+      supabase.rpc("curriculum_get_learning_skill_catalogue", {
         p_subject: subject,
         p_primary_level: primaryLevel,
         p_topic: null,
@@ -327,7 +331,7 @@ export default function QuestionMappingClient() {
     setSelectedIds(new Set());
     setLoading(false);
   }, [
-    isAdmin,
+    isEditor,
     mappingState,
     page,
     primaryLevel,
@@ -473,7 +477,7 @@ export default function QuestionMappingClient() {
     setBusy(true);
 
     const { data, error: bulkError } = await supabase.rpc(
-      "admin_bulk_save_question_skill_mapping",
+      "curriculum_bulk_save_question_skill_mapping",
       {
         p_question_source: questionSource(subject),
         p_question_ids: Array.from(selectedIds),
@@ -527,7 +531,7 @@ export default function QuestionMappingClient() {
     setMessage(null);
 
     const { data, error: statusError } = await supabase.rpc(
-      "admin_bulk_set_question_mapping_status",
+      "curriculum_bulk_set_question_mapping_status",
       {
         p_question_source: questionSource(subject),
         p_question_ids: Array.from(selectedIds),
@@ -570,11 +574,11 @@ export default function QuestionMappingClient() {
     );
   }
 
-  if (!isAdmin) {
+  if (!isEditor) {
     return (
       <LockedPage
-        title="Admin Preview Only"
-        message="Question-level skill mapping is restricted to admins during Phase 2B development."
+        title="Access Restricted"
+        message="Question-level skill mapping requires an Admin or Curriculum Lead role."
         onBack={() =>
           router.push("/curriculum-developer/learning-skills")
         }
@@ -600,7 +604,9 @@ export default function QuestionMappingClient() {
           <p style={headerSubtitle}>Question Mapping</p>
         </div>
 
-        <div style={adminPill}>Admin</div>
+        <div style={adminPill}>
+          {isAdmin ? "Admin" : "Curriculum Lead"}
+        </div>
       </header>
 
       <section style={workspace}>
@@ -800,14 +806,16 @@ export default function QuestionMappingClient() {
             >
               Mark Reviewed
             </button>
-            <button
-              type="button"
-              onClick={() => void bulkStatus("approved")}
-              disabled={selectedIds.size === 0 || busy}
-              style={approveButton}
-            >
-              Approve Selected
-            </button>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => void bulkStatus("approved")}
+                disabled={selectedIds.size === 0 || busy}
+                style={approveButton}
+              >
+                Approve Selected
+              </button>
+            )}
           </div>
         </section>
 
@@ -960,6 +968,7 @@ export default function QuestionMappingClient() {
                 editingQuestion.question_preview
               }
               topicTitle={editingQuestion.topic_title}
+              canApprove={isAdmin}
               onSaved={async () => {
                 await loadWorkspace();
               }}
@@ -1046,7 +1055,9 @@ export default function QuestionMappingClient() {
                 >
                   <option value="draft">Draft</option>
                   <option value="reviewed">Reviewed</option>
-                  <option value="approved">Approved</option>
+                  {isAdmin && (
+                    <option value="approved">Approved</option>
+                  )}
                 </select>
               </label>
 

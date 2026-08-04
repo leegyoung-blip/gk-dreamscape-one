@@ -102,6 +102,7 @@ export default function CoreLevelClient({
             .select("id,topic_id")
             .in("topic_id", topicIds)
             .eq("is_published", true)
+            .eq("status", "published")
             .order("quiz_order", { ascending: true })
         : { data: [], error: null };
 
@@ -109,6 +110,8 @@ export default function CoreLevelClient({
 
       if (quizResult.error) {
         setMessage(quizResult.error.message);
+        setLoading(false);
+        return;
       }
 
       const loadedQuizzes = (quizResult.data || []) as CoreQuiz[];

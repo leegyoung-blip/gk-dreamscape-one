@@ -95,7 +95,7 @@ function normaliseRole(value: string | null | undefined) {
   return String(value || "")
     .trim()
     .toLowerCase()
-    .replace(/[\\s-]+/g, "_");
+    .replace(/[\s-]+/g, "_");
 }
 
 function subjectLabel(subject: Subject) {
@@ -189,7 +189,11 @@ export default function LearningSkillsClient() {
     error: accessError,
   } = useCurriculumDeveloperAccess();
 
-  const isAdmin = normaliseRole(role) === "admin";
+  const normalisedRole = normaliseRole(role);
+  const isAdmin = normalisedRole === "admin";
+  const isEditor = ["admin", "curriculum_lead"].includes(
+    normalisedRole,
+  );
 
   const [tab, setTab] = useState<WorkspaceTab>("catalogue");
   const [skills, setSkills] = useState<LearningSkill[]>([]);
@@ -215,7 +219,7 @@ export default function LearningSkillsClient() {
   const [message, setMessage] = useState<string | null>(null);
 
   const loadWorkspace = useCallback(async () => {
-    if (status !== "allowed" || !isAdmin) {
+    if (status !== "allowed" || !isEditor) {
       setLoading(false);
       return;
     }
@@ -229,13 +233,13 @@ export default function LearningSkillsClient() {
       levelFilter === "all" ? null : levelFilter;
 
     const [skillsResult, coverageResult] = await Promise.all([
-      supabase.rpc("admin_get_learning_skill_catalogue", {
+      supabase.rpc("curriculum_get_learning_skill_catalogue", {
         p_subject: subject,
         p_primary_level: primaryLevel,
         p_topic: null,
         p_include_inactive: true,
       }),
-      supabase.rpc("admin_get_question_mapping_coverage", {
+      supabase.rpc("curriculum_get_question_mapping_coverage", {
         p_subject: subject,
         p_primary_level: primaryLevel,
       }),
@@ -321,7 +325,7 @@ export default function LearningSkillsClient() {
     setCoverage(parsedCoverage);
     setLoading(false);
   }, [
-    isAdmin,
+    isEditor,
     levelFilter,
     status,
     subjectFilter,
@@ -499,6 +503,14 @@ export default function LearningSkillsClient() {
 
     const nextForm = { ...form, ...override };
 
+    if (
+      !isAdmin &&
+      ["approved", "retired"].includes(nextForm.reviewStatus)
+    ) {
+      nextForm.reviewStatus = "reviewed";
+      nextForm.isActive = true;
+    }
+
     if (!nextForm.domain.trim()) {
       setActionError("Enter the curriculum domain.");
       return;
@@ -522,7 +534,7 @@ export default function LearningSkillsClient() {
     setSaving(true);
 
     const { error } = await supabase.rpc(
-      "admin_upsert_learning_skill_v2",
+      "curriculum_save_learning_skill",
       {
         p_skill_id: nextForm.id,
         p_subject: nextForm.subject,
@@ -595,7 +607,7 @@ export default function LearningSkillsClient() {
     setMessage(null);
 
     const { error } = await supabase.rpc(
-      "admin_upsert_learning_skill_v2",
+      "curriculum_save_learning_skill",
       {
         p_skill_id: skill.id,
         p_subject: skill.subject,
@@ -642,11 +654,11 @@ export default function LearningSkillsClient() {
     );
   }
 
-  if (!isAdmin) {
+  if (!isEditor) {
     return (
       <LockedPage
-        title="Admin Preview Only"
-        message="The Learning Skills workspace is currently restricted to admins while the taxonomy and mapping process are being built."
+        title="Access Restricted"
+        message="The Learning Skills workspace requires an Admin or Curriculum Lead role."
         onBack={() => router.push("/curriculum-developer")}
       />
     );
@@ -668,7 +680,9 @@ export default function LearningSkillsClient() {
           <p style={headerSubtitle}>Learning Skills</p>
         </div>
 
-        <div style={adminPill}>Admin</div>
+        <div style={adminPill}>
+          {isAdmin ? "Admin" : "Curriculum Lead"}
+        </div>
       </header>
 
       <section style={workspace}>
@@ -694,6 +708,18 @@ export default function LearningSkillsClient() {
               style={secondaryButton}
             >
               Map Questions
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                router.push(
+                  "/curriculum-developer/learning-skills/rollout",
+                )
+              }
+              style={secondaryButton}
+            >
+              Rollout & QA
             </button>
 
             <button
@@ -963,15 +989,19 @@ export default function LearningSkillsClient() {
                         </div>
 
                         <div style={skillActions}>
-                          <button
-                            type="button"
-                            onClick={() => openEditSkill(skill)}
-                            style={smallButton}
-                          >
-                            Edit
-                          </button>
+                          {(isAdmin ||
+                            skill.review_status !== "approved") && (
+                            <button
+                              type="button"
+                              onClick={() => openEditSkill(skill)}
+                              style={smallButton}
+                            >
+                              Edit
+                            </button>
+                          )}
 
-                          {skill.review_status !== "approved" &&
+                          {isAdmin &&
+                            skill.review_status !== "approved" &&
                             skill.review_status !== "retired" && (
                               <button
                                 type="button"
@@ -988,7 +1018,8 @@ export default function LearningSkillsClient() {
                               </button>
                             )}
 
-                          {skill.review_status !== "retired" && (
+                          {isAdmin &&
+                            skill.review_status !== "retired" && (
                             <button
                               type="button"
                               onClick={() =>
@@ -1412,8 +1443,12 @@ export default function LearningSkillsClient() {
                 >
                   <option value="draft">Draft</option>
                   <option value="reviewed">Reviewed</option>
-                  <option value="approved">Approved</option>
-                  <option value="retired">Retired</option>
+                  {isAdmin && (
+                    <option value="approved">Approved</option>
+                  )}
+                  {isAdmin && (
+                    <option value="retired">Retired</option>
+                  )}
                 </select>
               </label>
 
