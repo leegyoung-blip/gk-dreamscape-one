@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
+import LearningProfilePanel from "@/components/dashboard/LearningProfilePanel";
 
 type SubjectKey = "english" | "math" | "science" | "knowledge";
 type PopupTab = "analytics" | "plan" | "profile";
@@ -438,18 +439,6 @@ export default function NovaVirtualTeacherPopup({
   const emailEnabled = report
     ? Boolean(report.preferences.monday_email_enabled)
     : localEmailEnabled;
-
-  const subjectsWithData = displayedSubjects.filter(
-    (subject) => subject.questions > 0,
-  );
-
-  const strongestSubject = [...subjectsWithData].sort(
-    (first, second) => second.accuracy - first.accuracy,
-  )[0] ?? null;
-
-  const prioritySubject = [...subjectsWithData].sort(
-    (first, second) => first.accuracy - second.accuracy,
-  )[0] ?? null;
 
   if (!open || !portalReady) return null;
 
@@ -895,170 +884,10 @@ export default function NovaVirtualTeacherPopup({
               </div>
             </section>
           ) : (
-            <section className="nova-vt-profile-section">
-              <div className="nova-vt-profile-heading">
-                <div>
-                  <p className="nova-vt-eyebrow">Admin development preview</p>
-                  <h3>{studentLabel}’s Learning Profile</h3>
-                  <p>
-                    This tab will become Nova’s long-term understanding of this
-                    learner across Learning Missions and, where reliable records
-                    are available, the Thinking Skills Lab.
-                  </p>
-                </div>
-
-                <span className="nova-vt-admin-badge">
-                  Admin only
-                </span>
-              </div>
-
-              <div className="nova-vt-profile-overview">
-                <article>
-                  <span>Mission attempts known</span>
-                  <strong>{displayedAttempts}</strong>
-                  <p>
-                    Recorded quizzes currently included in Nova’s recent
-                    analysis window.
-                  </p>
-                </article>
-
-                <article>
-                  <span>Questions analysed</span>
-                  <strong>{displayedQuestions}</strong>
-                  <p>
-                    Verified questions used to build the learner’s current
-                    academic picture.
-                  </p>
-                </article>
-
-                <article>
-                  <span>Saved answer evidence</span>
-                  <strong>{clientAnswerCount}</strong>
-                  <p>
-                    Individual answer records available for misconception and
-                    skill-pattern analysis.
-                  </p>
-                </article>
-
-                <article>
-                  <span>Current data confidence</span>
-                  <strong>
-                    {analytics?.confidence ||
-                      (clientAnswerCount > 20 ? "High" : "Medium")}
-                  </strong>
-                  <p>
-                    Confidence will rise as more subjects and answer records are
-                    connected.
-                  </p>
-                </article>
-              </div>
-
-              <div className="nova-vt-profile-columns">
-                <article className="nova-vt-profile-card">
-                  <p className="nova-vt-eyebrow">Current understanding</p>
-                  <h4>What Nova already knows</h4>
-
-                  <div className="nova-vt-profile-facts">
-                    <div>
-                      <span>Strongest current subject</span>
-                      <strong>
-                        {strongestSubject
-                          ? `${strongestSubject.label} · ${strongestSubject.accuracy}%`
-                          : "More activity needed"}
-                      </strong>
-                    </div>
-
-                    <div>
-                      <span>Highest-priority subject</span>
-                      <strong>
-                        {prioritySubject
-                          ? `${prioritySubject.label} · ${prioritySubject.accuracy}%`
-                          : "More activity needed"}
-                      </strong>
-                    </div>
-
-                    <div>
-                      <span>Priority skill signals</span>
-                      <strong>
-                        {weaknesses.length > 0
-                          ? weaknesses
-                              .slice(0, 3)
-                              .map((area) => area.label)
-                              .join(", ")
-                          : "No consistent weakness detected yet"}
-                      </strong>
-                    </div>
-
-                    <div>
-                      <span>Current weekly direction</span>
-                      <strong>{displayedSummary}</strong>
-                    </div>
-                  </div>
-                </article>
-
-                <article className="nova-vt-profile-card">
-                  <p className="nova-vt-eyebrow">Data coverage</p>
-                  <h4>Sources planned for the full profile</h4>
-
-                  <div className="nova-vt-source-list">
-                    <div className="connected">
-                      <span>✓</span>
-                      <div>
-                        <strong>English Missions</strong>
-                        <small>Quiz scores, topics and saved answers</small>
-                      </div>
-                    </div>
-
-                    <div className="connected">
-                      <span>✓</span>
-                      <div>
-                        <strong>Mathematics Missions</strong>
-                        <small>Quiz scores, topics and saved answers</small>
-                      </div>
-                    </div>
-
-                    <div className="connected">
-                      <span>✓</span>
-                      <div>
-                        <strong>Science Missions</strong>
-                        <small>Mission results, topics and completion patterns</small>
-                      </div>
-                    </div>
-
-                    <div className="connected">
-                      <span>✓</span>
-                      <div>
-                        <strong>Knowledge Arena</strong>
-                        <small>General-knowledge activity and results</small>
-                      </div>
-                    </div>
-
-                    <div className="pending">
-                      <span>…</span>
-                      <div>
-                        <strong>Thinking Skills Lab</strong>
-                        <small>
-                          Not connected yet. Game attempts, level progression,
-                          persistence and reasoning patterns will be added next.
-                        </small>
-                      </div>
-                    </div>
-                  </div>
-                </article>
-              </div>
-
-              <div className="nova-vt-profile-next">
-                <p className="nova-vt-eyebrow">Next build phase</p>
-                <h4>Learning Profile AI analytics</h4>
-                <p>
-                  The next version will turn these records into a persistent
-                  learner model covering mastery, misconceptions, learning
-                  habits, confidence, persistence, preferred challenge level
-                  and long-term development. This development preview does not
-                  yet make permanent personality or ability conclusions.
-                </p>
-              </div>
-            </section>
+            <LearningProfilePanel
+              studentUserId={studentUserId}
+              studentLabel={studentLabel}
+            />
           )}
         </div>
 
