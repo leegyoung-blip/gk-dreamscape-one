@@ -19,6 +19,11 @@ import type {
 
 type Section = "dashboard" | "builder" | "review" | "history";
 
+const QUIZ_PAGE_SIZE = 500;
+
+const QUIZ_SELECT =
+  "id, topic_id, skill_id, code, title, description, quiz_type, difficulty, question_count, estimated_minutes, passing_percentage, quiz_order, reward_tokens, reward_gems, feedback_mode, randomise_questions, randomise_options, is_published, status, created_by, updated_by, submitted_by, submitted_at, reviewed_by, reviewed_at, review_notes, version, created_at, updated_at";
+
 const CONTENT_SOURCES: Array<{
   subject: CoreSubject;
   topics: string;
@@ -38,6 +43,30 @@ const CONTENT_SOURCES: Array<{
     quizzes: "math_quizzes",
   },
 ];
+
+async function loadAllQuizzes(table: string) {
+  const rows: Record<string, any>[] = [];
+
+  for (let from = 0; ; from += QUIZ_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from(table)
+      .select(QUIZ_SELECT)
+      .order("updated_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, from + QUIZ_PAGE_SIZE - 1);
+
+    if (error) {
+      return { data: null, error };
+    }
+
+    const page = data || [];
+    rows.push(...page);
+
+    if (page.length < QUIZ_PAGE_SIZE) break;
+  }
+
+  return { data: rows, error: null };
+}
 
 export default function CurriculumDeveloperClient() {
   const router = useRouter();
@@ -76,12 +105,7 @@ export default function CurriculumDeveloperClient() {
             )
             .eq("is_active", true)
             .order("sort_order", { ascending: true }),
-          supabase
-            .from(source.quizzes)
-            .select(
-              "id, topic_id, skill_id, code, title, description, quiz_type, difficulty, question_count, estimated_minutes, passing_percentage, quiz_order, reward_tokens, reward_gems, feedback_mode, randomise_questions, randomise_options, is_published, status, created_by, updated_by, submitted_by, submitted_at, reviewed_by, reviewed_at, review_notes, version, created_at, updated_at",
-            )
-            .order("updated_at", { ascending: false }),
+          loadAllQuizzes(source.quizzes),
         ]);
 
         return { source, topicResult, skillResult, quizResult };
