@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-export type CoreAccessStatus =
+export type ScienceAccessStatus =
   | "checking"
   | "signed_out"
   | "profile_required"
@@ -12,7 +12,6 @@ export type CoreAccessStatus =
 
 type LearningProfileStatus = {
   complete?: boolean;
-  missing_fields?: string[];
   date_of_birth?: string | null;
   age_years?: number | null;
   age_band?: string | null;
@@ -26,7 +25,7 @@ function normaliseRole(role: string | null | undefined) {
     .replace(/_/g, "-");
 }
 
-function roleHasFullCoreAccess(role: string | null | undefined) {
+function roleHasFullScienceAccess(role: string | null | undefined) {
   const cleanRole = normaliseRole(role);
 
   return (
@@ -37,52 +36,12 @@ function roleHasFullCoreAccess(role: string | null | undefined) {
   );
 }
 
-export function useCoreMissionAccess() {
-  const [status, setStatus] = useState<CoreAccessStatus>("checking");
+export function useScienceMissionAccess() {
+  const [status, setStatus] =
+    useState<ScienceAccessStatus>("checking");
   const [userId, setUserId] = useState<string | null>(null);
-  const [tokenBalance, setTokenBalance] = useState(0);
-  const [dreamGemBalance, setDreamGemBalance] = useState(0);
   const [learningProfile, setLearningProfile] =
     useState<LearningProfileStatus | null>(null);
-
-  const refreshBalances = useCallback(async (activeUserId?: string) => {
-    const resolvedUserId =
-      activeUserId ?? (await supabase.auth.getUser()).data.user?.id;
-
-    if (!resolvedUserId) {
-      setTokenBalance(0);
-      setDreamGemBalance(0);
-      return;
-    }
-
-    const [tokenResult, profileResult] = await Promise.all([
-      supabase
-        .from("dream_token_transactions")
-        .select("amount")
-        .eq("user_id", resolvedUserId)
-        .eq("token_kind", "virtual"),
-      supabase
-        .from("profiles")
-        .select("dream_gem_balance")
-        .eq("id", resolvedUserId)
-        .maybeSingle(),
-    ]);
-
-    if (!tokenResult.error) {
-      setTokenBalance(
-        tokenResult.data?.reduce(
-          (sum, row) => sum + Number(row.amount || 0),
-          0,
-        ) || 0,
-      );
-    }
-
-    if (!profileResult.error) {
-      setDreamGemBalance(
-        Math.max(0, Number(profileResult.data?.dream_gem_balance || 0)),
-      );
-    }
-  }, []);
 
   const refreshAccess = useCallback(async () => {
     setStatus("checking");
@@ -99,7 +58,6 @@ export function useCoreMissionAccess() {
     }
 
     setUserId(user.id);
-    await refreshBalances(user.id);
 
     const { data: profileStatus, error: profileStatusError } =
       await supabase.rpc("get_my_learning_profile_status");
@@ -130,52 +88,38 @@ export function useCoreMissionAccess() {
       .maybeSingle();
 
     if (profileError || !profile) {
-      console.warn(
-        "Could not check Core Missions profile:",
-        profileError?.message,
-      );
       setStatus("locked");
       return;
     }
 
     const role = profile.role || profile.tier || null;
 
-    if (!roleHasFullCoreAccess(role)) {
+    if (!roleHasFullScienceAccess(role)) {
       const { data: accessRow, error: accessError } = await supabase
         .from("learning_mission_zone_access")
         .select("is_unlocked")
         .eq("user_id", user.id)
-        .eq("zone_key", "core")
+        .eq("zone_key", "science")
         .maybeSingle();
 
       if (accessError || !accessRow?.is_unlocked) {
-        if (accessError) {
-          console.warn("Could not check Core access:", accessError.message);
-        }
-
         setStatus("locked");
         return;
       }
     }
 
     setStatus("allowed");
-  }, [refreshBalances]);
+  }, []);
 
   useEffect(() => {
     void refreshAccess();
   }, [refreshAccess]);
 
   useEffect(() => {
-    function handleRefresh() {
-      void refreshBalances();
-    }
-
     function handleProfileRefresh() {
       void refreshAccess();
     }
 
-    window.addEventListener("dream-tokens-updated", handleRefresh);
-    window.addEventListener("dream-gems-updated", handleRefresh);
     window.addEventListener(
       "learning-profile-updated",
       handleProfileRefresh,
@@ -183,23 +127,18 @@ export function useCoreMissionAccess() {
     window.addEventListener("focus", handleProfileRefresh);
 
     return () => {
-      window.removeEventListener("dream-tokens-updated", handleRefresh);
-      window.removeEventListener("dream-gems-updated", handleRefresh);
       window.removeEventListener(
         "learning-profile-updated",
         handleProfileRefresh,
       );
       window.removeEventListener("focus", handleProfileRefresh);
     };
-  }, [refreshAccess, refreshBalances]);
+  }, [refreshAccess]);
 
   return {
     status,
     userId,
-    tokenBalance,
-    dreamGemBalance,
     learningProfile,
-    refreshBalances,
     refreshAccess,
   };
 }
