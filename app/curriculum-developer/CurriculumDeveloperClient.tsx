@@ -8,77 +8,16 @@ import { useCurriculumDeveloperAccess } from "@/hooks/useCurriculumDeveloperAcce
 import DashboardView from "./components/DashboardView";
 import QuizBuilderView from "./components/QuizBuilderView";
 import ReviewQueueView from "./components/ReviewQueueView";
-import type { CoreQuiz, CoreSkill, CoreSubject, CoreTopic } from "./types";
+import EditHistoryView from "./components/EditHistoryView";
+import type {
+  CoreQuiz,
+  CoreSkill,
+  CoreSubject,
+  CoreTopic,
+  CurriculumAuditEntry,
+} from "./types";
 
-type Section = "dashboard" | "builder" | "review";
-
-const QUIZ_PAGE_SIZE = 1000;
-
-const QUIZ_SELECT = `
-  id,
-  topic_id,
-  skill_id,
-  code,
-  title,
-  description,
-  quiz_type,
-  difficulty,
-  question_count,
-  estimated_minutes,
-  passing_percentage,
-  quiz_order,
-  reward_tokens,
-  reward_gems,
-  feedback_mode,
-  randomise_questions,
-  randomise_options,
-  is_published,
-  status,
-  created_by,
-  updated_by,
-  submitted_by,
-  submitted_at,
-  reviewed_by,
-  reviewed_at,
-  review_notes,
-  version,
-  created_at,
-  updated_at
-`;
-
-async function fetchAllQuizzes(table: string) {
-  const allRows: any[] = [];
-  let from = 0;
-
-  while (true) {
-    const { data, error } = await supabase
-      .from(table)
-      .select(QUIZ_SELECT)
-      .order("updated_at", { ascending: false })
-      .range(from, from + QUIZ_PAGE_SIZE - 1);
-
-    if (error) {
-      return {
-        data: null,
-        error,
-      };
-    }
-
-    const rows = data ?? [];
-    allRows.push(...rows);
-
-    if (rows.length < QUIZ_PAGE_SIZE) {
-      break;
-    }
-
-    from += QUIZ_PAGE_SIZE;
-  }
-
-  return {
-    data: allRows,
-    error: null,
-  };
-}
+type Section = "dashboard" | "builder" | "review" | "history";
 
 const CONTENT_SOURCES: Array<{
   subject: CoreSubject;
@@ -107,15 +46,18 @@ export default function CurriculumDeveloperClient() {
   const [topics, setTopics] = useState<CoreTopic[]>([]);
   const [skills, setSkills] = useState<CoreSkill[]>([]);
   const [quizzes, setQuizzes] = useState<CoreQuiz[]>([]);
+  const [auditEntries, setAuditEntries] = useState<CurriculumAuditEntry[]>([]);
   const [selectedQuizId, setSelectedQuizId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   const loadContent = useCallback(async () => {
     if (status !== "allowed") return;
 
     setLoading(true);
     setLoadError(null);
+    setHistoryError(null);
 
     const sourceResults = await Promise.all(
       CONTENT_SOURCES.map(async (source) => {
@@ -134,7 +76,12 @@ export default function CurriculumDeveloperClient() {
             )
             .eq("is_active", true)
             .order("sort_order", { ascending: true }),
-          fetchAllQuizzes(source.quizzes),
+          supabase
+            .from(source.quizzes)
+            .select(
+              "id, topic_id, skill_id, code, title, description, quiz_type, difficulty, question_count, estimated_minutes, passing_percentage, quiz_order, reward_tokens, reward_gems, feedback_mode, randomise_questions, randomise_options, is_published, status, created_by, updated_by, submitted_by, submitted_at, reviewed_by, reviewed_at, review_notes, version, created_at, updated_at",
+            )
+            .order("updated_at", { ascending: false }),
         ]);
 
         return { source, topicResult, skillResult, quizResult };
@@ -193,6 +140,24 @@ export default function CurriculumDeveloperClient() {
     setTopics(loadedTopics);
     setSkills(loadedSkills);
     setQuizzes(loadedQuizzes);
+
+    const { data: auditData, error: auditError } = await supabase
+      .from("core_content_audit_log")
+      .select(
+        "id, user_id, entity_type, entity_id, quiz_id, subject, action, before_data, after_data, notes, created_at",
+      )
+      .order("created_at", { ascending: false })
+      .limit(1500);
+
+    if (auditError) {
+      setAuditEntries([]);
+      setHistoryError(
+        `${auditError.message}. Run the Quiz Builder V3 SQL migration before using Edit History.`,
+      );
+    } else {
+      setAuditEntries((auditData || []) as CurriculumAuditEntry[]);
+    }
+
     setLoading(false);
   }, [status]);
 
@@ -271,9 +236,16 @@ export default function CurriculumDeveloperClient() {
             badge={quizzes.filter((quiz) => quiz.status === "in_review").length}
             onClick={() => setSection("review")}
           />
+          <NavButton
+            active={section === "history"}
+            label="Edit History"
+            icon="↺"
+            onClick={() => setSection("history")}
+          />
 
           <div style={sidebarNote}>
-            Curriculum leads create and submit content. Admins approve and publish it.
+            Admins and curriculum leads can create, edit and publish English and
+            Mathematics quizzes. Published edits go live immediately.
           </div>
         </aside>
 
@@ -302,13 +274,21 @@ export default function CurriculumDeveloperClient() {
               onSelectQuiz={setSelectedQuizId}
               onDataChanged={loadContent}
             />
-          ) : (
+          ) : section === "review" ? (
             <ReviewQueueView
               role={role}
               quizzes={quizzes}
               topics={topics}
               onOpenQuiz={openQuiz}
               onDataChanged={loadContent}
+            />
+          ) : (
+            <EditHistoryView
+              entries={auditEntries}
+              quizzes={quizzes}
+              topics={topics}
+              error={historyError}
+              onOpenQuiz={openQuiz}
             />
           )}
         </section>
@@ -417,13 +397,17 @@ const rolePill: CSSProperties = {
 };
 const appGrid: CSSProperties = {
   width: "min(1700px,100%)",
+  boxSizing: "border-box",
   margin: "0 auto",
   padding: "14px",
-  display: "grid",
-  gridTemplateColumns: "220px minmax(0,1fr)",
+  display: "flex",
+  flexWrap: "wrap",
   gap: "14px",
 };
 const sidebar: CSSProperties = {
+  flex: "1 1 210px",
+  width: "min(100%,240px)",
+  maxWidth: "240px",
   position: "sticky",
   top: "82px",
   alignSelf: "start",
@@ -433,92 +417,96 @@ const sidebar: CSSProperties = {
   padding: "13px",
   display: "grid",
   gap: "8px",
-  backdropFilter: "blur(10px)",
+  boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
+  backdropFilter: "blur(14px)",
 };
 const sidebarEyebrow: CSSProperties = {
-  margin: "3px 5px 7px",
-  color: "rgba(255,255,255,0.46)",
-  fontSize: "8px",
-  letterSpacing: "0.13em",
+  margin: "3px 4px 7px",
+  color: "rgba(255,255,255,0.48)",
+  fontSize: "9px",
   fontWeight: 900,
+  letterSpacing: "0.16em",
 };
 const navButton: CSSProperties = {
-  minHeight: "46px",
-  borderRadius: "12px",
+  width: "100%",
+  minHeight: "44px",
+  borderRadius: "13px",
   border: "1px solid rgba(126,232,255,0.12)",
   background: "rgba(255,255,255,0.035)",
   color: "white",
-  padding: "0 11px",
   display: "grid",
-  gridTemplateColumns: "27px 1fr auto",
+  gridTemplateColumns: "28px 1fr auto",
   alignItems: "center",
   gap: "7px",
+  padding: "0 11px",
   textAlign: "left",
   cursor: "pointer",
   fontWeight: 800,
 };
-const navIcon: CSSProperties = { color: "#7ee8ff", fontSize: "17px" };
+const navIcon: CSSProperties = {
+  color: "#7ee8ff",
+  fontSize: "17px",
+  textAlign: "center",
+};
 const navBadge: CSSProperties = {
-  minWidth: "22px",
-  height: "22px",
+  minWidth: "20px",
+  height: "20px",
   borderRadius: "999px",
   background: "rgba(255,215,106,0.18)",
   color: "#ffe6a8",
-  display: "flex",
+  display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
+  padding: "0 5px",
   fontSize: "9px",
-  fontWeight: 900,
 };
 const sidebarNote: CSSProperties = {
   marginTop: "8px",
-  borderRadius: "12px",
-  background: "rgba(126,232,255,0.055)",
-  color: "rgba(255,255,255,0.54)",
-  padding: "10px",
-  fontSize: "9px",
-  lineHeight: 1.45,
+  borderRadius: "13px",
+  border: "1px solid rgba(126,232,255,0.12)",
+  background: "rgba(126,232,255,0.045)",
+  color: "rgba(255,255,255,0.58)",
+  padding: "11px",
+  fontSize: "10px",
+  lineHeight: 1.55,
 };
 const workspace: CSSProperties = {
-  minWidth: 0,
-  minHeight: "calc(100dvh - 98px)",
+  flex: "10 1 760px",
+  minWidth: "min(100%,620px)",
   borderRadius: "24px",
-  border: "1px solid rgba(126,232,255,0.25)",
-  background: "linear-gradient(145deg,rgba(5,18,42,0.77),rgba(8,26,58,0.9))",
-  padding: "20px",
-  backdropFilter: "blur(12px)",
-  boxShadow: "0 22px 58px rgba(0,0,0,0.28)",
+  border: "1px solid rgba(126,232,255,0.18)",
+  background: "rgba(2,12,31,0.72)",
+  padding: "clamp(16px,2.5vw,28px)",
+  boxShadow: "0 24px 70px rgba(0,0,0,0.28)",
+  backdropFilter: "blur(18px)",
 };
-const lockedCard: CSSProperties = {
-  width: "min(620px,calc(100% - 30px))",
-  margin: "18vh auto 0",
-  borderRadius: "22px",
-  border: "1px solid rgba(255,215,106,0.35)",
-  background: "rgba(7,25,55,0.92)",
+const messageCard: CSSProperties = {
+  width: "min(560px,calc(100% - 32px))",
+  margin: "100px auto",
+  borderRadius: "20px",
+  border: "1px solid rgba(126,232,255,0.22)",
+  background: "rgba(4,20,48,0.78)",
   padding: "28px",
   textAlign: "center",
 };
-const mutedText: CSSProperties = { color: "rgba(255,255,255,0.65)", lineHeight: 1.5 };
-const errorText: CSSProperties = { color: "#fecaca", fontSize: "11px" };
-const primaryButton: CSSProperties = {
-  marginTop: "16px",
-  minHeight: "43px",
-  borderRadius: "11px",
-  border: "1px solid rgba(255,255,255,0.3)",
-  background: "linear-gradient(135deg,#35c5ff,#4c6dff)",
-  color: "white",
-  padding: "0 16px",
-  fontWeight: 900,
-  cursor: "pointer",
+const lockedCard: CSSProperties = {
+  ...messageCard,
+  textAlign: "left",
 };
-const messageCard: CSSProperties = {
-  width: "min(620px,calc(100% - 30px))",
-  margin: "18vh auto 0",
-  borderRadius: "20px",
-  border: "1px solid rgba(126,232,255,0.3)",
-  background: "rgba(7,25,55,0.92)",
-  padding: "24px",
-  textAlign: "center",
+const mutedText: CSSProperties = {
+  color: "rgba(255,255,255,0.62)",
+  lineHeight: 1.6,
+};
+const errorText: CSSProperties = { color: "#fecaca" };
+const primaryButton: CSSProperties = {
+  minHeight: "42px",
+  borderRadius: "12px",
+  border: "1px solid rgba(126,232,255,0.38)",
+  background: "linear-gradient(135deg,rgba(34,211,238,0.3),rgba(59,130,246,0.28))",
+  color: "white",
+  padding: "0 15px",
+  cursor: "pointer",
+  fontWeight: 900,
 };
 const errorBanner: CSSProperties = {
   borderRadius: "12px",

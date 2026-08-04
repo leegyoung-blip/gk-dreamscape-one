@@ -181,3 +181,27 @@ export type QuizFormState = {
   randomiseQuestions: boolean;
   randomiseOptions: boolean;
 };
+
+export type CurriculumAuditEntry = {
+  id: string;
+  user_id: string;
+  entity_type: "quiz" | "question" | "stimulus" | "asset";
+  entity_id: string;
+  quiz_id: string | null;
+  subject: CoreSubject | null;
+  action:
+    | "created"
+    | "updated"
+    | "submitted"
+    | "changes_requested"
+    | "approved"
+    | "published"
+    | "unpublished"
+    | "archived"
+    | "deleted"
+    | "reordered";
+  before_data: JsonObject | null;
+  after_data: JsonObject | null;
+  notes: string | null;
+  created_at: string;
+};
