@@ -6,7 +6,7 @@ import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
 
 type SubjectKey = "english" | "math" | "science" | "knowledge";
-type PopupTab = "analytics" | "plan";
+type PopupTab = "analytics" | "plan" | "profile";
 
 type ClientSubjectSummary = {
   subject: SubjectKey;
@@ -176,6 +176,14 @@ function itemTypeLabel(value: PlanItem["item_type"]) {
   }
 }
 
+function normaliseRole(value: string | null | undefined) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, "-")
+    .replace(/-+/g, "-");
+}
+
 export default function NovaVirtualTeacherPopup({
   open,
   onClose,
@@ -198,10 +206,52 @@ export default function NovaVirtualTeacherPopup({
   const [localPlanEnabled, setLocalPlanEnabled] = useState(false);
   const [localEmailEnabled, setLocalEmailEnabled] = useState(false);
   const [portalReady, setPortalReady] = useState(false);
+  const [viewerRole, setViewerRole] = useState<string | null>(null);
+  const [viewerRoleLoading, setViewerRoleLoading] = useState(false);
 
   useEffect(() => {
     setPortalReady(true);
   }, []);
+
+  useEffect(() => {
+    if (!open || !viewerUserId) {
+      setViewerRole(null);
+      setViewerRoleLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadViewerRole() {
+      setViewerRoleLoading(true);
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", viewerUserId)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      if (error) {
+        console.warn(
+          "Nova Learning Profile role check failed:",
+          error.message,
+        );
+        setViewerRole(null);
+      } else {
+        setViewerRole(data?.role ? String(data.role) : null);
+      }
+
+      setViewerRoleLoading(false);
+    }
+
+    void loadViewerRole();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, viewerUserId]);
 
   useEffect(() => {
     if (!open) return;
@@ -226,6 +276,19 @@ export default function NovaVirtualTeacherPopup({
     setLocalPlanEnabled(Boolean(report.preferences.plan_enabled));
     setLocalEmailEnabled(Boolean(report.preferences.monday_email_enabled));
   }, [report]);
+
+  const learningProfileUnlocked =
+    normaliseRole(viewerRole) === "admin";
+
+  useEffect(() => {
+    if (
+      tab === "profile" &&
+      !viewerRoleLoading &&
+      !learningProfileUnlocked
+    ) {
+      setTab("analytics");
+    }
+  }, [tab, viewerRoleLoading, learningProfileUnlocked]);
 
   async function loadReport(force: boolean) {
     if (!studentUserId) return;
@@ -376,6 +439,18 @@ export default function NovaVirtualTeacherPopup({
     ? Boolean(report.preferences.monday_email_enabled)
     : localEmailEnabled;
 
+  const subjectsWithData = displayedSubjects.filter(
+    (subject) => subject.questions > 0,
+  );
+
+  const strongestSubject = [...subjectsWithData].sort(
+    (first, second) => second.accuracy - first.accuracy,
+  )[0] ?? null;
+
+  const prioritySubject = [...subjectsWithData].sort(
+    (first, second) => first.accuracy - second.accuracy,
+  )[0] ?? null;
+
   if (!open || !portalReady) return null;
 
   return createPortal(
@@ -433,9 +508,12 @@ export default function NovaVirtualTeacherPopup({
             />
 
             <div>
-              <p className="nova-vt-eyebrow">Nova Virtual Teacher</p>
-              <h2>{studentLabel}’s weekly report</h2>
-              <p>
+              <p className="nova-vt-brand">NOVA</p>
+              <h2>Your Personal Learning Coach</h2>
+              <p className="nova-vt-report-label">
+                {studentLabel}’s weekly report
+              </p>
+              <p className="nova-vt-refresh-copy">
                 Results analytics refresh continuously. The seven-day plan
                 refreshes every Monday.
               </p>
@@ -471,6 +549,37 @@ export default function NovaVirtualTeacherPopup({
               onClick={() => setTab("plan")}
             >
               Seven-day plan
+            </button>
+
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "profile"}
+              aria-disabled={!learningProfileUnlocked}
+              disabled={!learningProfileUnlocked}
+              className={[
+                tab === "profile" ? "active" : "",
+                !learningProfileUnlocked ? "locked" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              onClick={() => {
+                if (learningProfileUnlocked) {
+                  setTab("profile");
+                }
+              }}
+              title={
+                learningProfileUnlocked
+                  ? "Open Nova’s Learning Profile"
+                  : "Learning Profile is currently available to admins only"
+              }
+            >
+              Learning Profile
+              {!learningProfileUnlocked && (
+                <span className="nova-vt-tab-lock" aria-hidden="true">
+                  🔒
+                </span>
+              )}
             </button>
           </div>
 
@@ -655,7 +764,7 @@ export default function NovaVirtualTeacherPopup({
                 </article>
               </section>
             </>
-          ) : (
+          ) : tab === "plan" ? (
             <section className="nova-vt-plan-section">
               <div className="nova-vt-plan-heading">
                 <div>
@@ -785,6 +894,171 @@ export default function NovaVirtualTeacherPopup({
                 </p>
               </div>
             </section>
+          ) : (
+            <section className="nova-vt-profile-section">
+              <div className="nova-vt-profile-heading">
+                <div>
+                  <p className="nova-vt-eyebrow">Admin development preview</p>
+                  <h3>{studentLabel}’s Learning Profile</h3>
+                  <p>
+                    This tab will become Nova’s long-term understanding of this
+                    learner across Learning Missions and, where reliable records
+                    are available, the Thinking Skills Lab.
+                  </p>
+                </div>
+
+                <span className="nova-vt-admin-badge">
+                  Admin only
+                </span>
+              </div>
+
+              <div className="nova-vt-profile-overview">
+                <article>
+                  <span>Mission attempts known</span>
+                  <strong>{displayedAttempts}</strong>
+                  <p>
+                    Recorded quizzes currently included in Nova’s recent
+                    analysis window.
+                  </p>
+                </article>
+
+                <article>
+                  <span>Questions analysed</span>
+                  <strong>{displayedQuestions}</strong>
+                  <p>
+                    Verified questions used to build the learner’s current
+                    academic picture.
+                  </p>
+                </article>
+
+                <article>
+                  <span>Saved answer evidence</span>
+                  <strong>{clientAnswerCount}</strong>
+                  <p>
+                    Individual answer records available for misconception and
+                    skill-pattern analysis.
+                  </p>
+                </article>
+
+                <article>
+                  <span>Current data confidence</span>
+                  <strong>
+                    {analytics?.confidence ||
+                      (clientAnswerCount > 20 ? "High" : "Medium")}
+                  </strong>
+                  <p>
+                    Confidence will rise as more subjects and answer records are
+                    connected.
+                  </p>
+                </article>
+              </div>
+
+              <div className="nova-vt-profile-columns">
+                <article className="nova-vt-profile-card">
+                  <p className="nova-vt-eyebrow">Current understanding</p>
+                  <h4>What Nova already knows</h4>
+
+                  <div className="nova-vt-profile-facts">
+                    <div>
+                      <span>Strongest current subject</span>
+                      <strong>
+                        {strongestSubject
+                          ? `${strongestSubject.label} · ${strongestSubject.accuracy}%`
+                          : "More activity needed"}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span>Highest-priority subject</span>
+                      <strong>
+                        {prioritySubject
+                          ? `${prioritySubject.label} · ${prioritySubject.accuracy}%`
+                          : "More activity needed"}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span>Priority skill signals</span>
+                      <strong>
+                        {weaknesses.length > 0
+                          ? weaknesses
+                              .slice(0, 3)
+                              .map((area) => area.label)
+                              .join(", ")
+                          : "No consistent weakness detected yet"}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span>Current weekly direction</span>
+                      <strong>{displayedSummary}</strong>
+                    </div>
+                  </div>
+                </article>
+
+                <article className="nova-vt-profile-card">
+                  <p className="nova-vt-eyebrow">Data coverage</p>
+                  <h4>Sources planned for the full profile</h4>
+
+                  <div className="nova-vt-source-list">
+                    <div className="connected">
+                      <span>✓</span>
+                      <div>
+                        <strong>English Missions</strong>
+                        <small>Quiz scores, topics and saved answers</small>
+                      </div>
+                    </div>
+
+                    <div className="connected">
+                      <span>✓</span>
+                      <div>
+                        <strong>Mathematics Missions</strong>
+                        <small>Quiz scores, topics and saved answers</small>
+                      </div>
+                    </div>
+
+                    <div className="connected">
+                      <span>✓</span>
+                      <div>
+                        <strong>Science Missions</strong>
+                        <small>Mission results, topics and completion patterns</small>
+                      </div>
+                    </div>
+
+                    <div className="connected">
+                      <span>✓</span>
+                      <div>
+                        <strong>Knowledge Arena</strong>
+                        <small>General-knowledge activity and results</small>
+                      </div>
+                    </div>
+
+                    <div className="pending">
+                      <span>…</span>
+                      <div>
+                        <strong>Thinking Skills Lab</strong>
+                        <small>
+                          Not connected yet. Game attempts, level progression,
+                          persistence and reasoning patterns will be added next.
+                        </small>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              </div>
+
+              <div className="nova-vt-profile-next">
+                <p className="nova-vt-eyebrow">Next build phase</p>
+                <h4>Learning Profile AI analytics</h4>
+                <p>
+                  The next version will turn these records into a persistent
+                  learner model covering mastery, misconceptions, learning
+                  habits, confidence, persistence, preferred challenge level
+                  and long-term development. This development preview does not
+                  yet make permanent personality or ability conclusions.
+                </p>
+              </div>
+            </section>
           )}
         </div>
 
@@ -830,6 +1104,7 @@ export default function NovaVirtualTeacherPopup({
               0 42px 110px rgba(0, 0, 0, 0.68),
               0 0 44px rgba(83, 215, 255, 0.12);
             font-family: Arial, Helvetica, sans-serif;
+            font-size: 15px;
           }
 
           .nova-vt-header {
@@ -857,24 +1132,39 @@ export default function NovaVirtualTeacherPopup({
             filter: drop-shadow(0 18px 28px rgba(0, 0, 0, 0.42));
           }
 
-          .nova-vt-eyebrow {
+          .nova-vt-eyebrow,
+          .nova-vt-brand {
             margin: 0;
             color: #8dfcff;
-            font-size: 10px;
+            font-size: 11px;
             font-weight: 900;
             letter-spacing: 0.18em;
             text-transform: uppercase;
           }
 
+          .nova-vt-brand {
+            font-size: 13px;
+            letter-spacing: 0.22em;
+          }
+
           .nova-vt-title-wrap h2 {
             margin: 7px 0 0;
-            font-size: clamp(31px, 4vw, 49px);
+            font-size: clamp(32px, 4vw, 50px);
+            line-height: 1.05;
             letter-spacing: -0.045em;
           }
 
-          .nova-vt-title-wrap p:last-child {
+          .nova-vt-report-label {
             margin: 9px 0 0;
+            color: rgba(255, 255, 255, 0.86);
+            font-size: 14px;
+            font-weight: 800;
+          }
+
+          .nova-vt-refresh-copy {
+            margin: 6px 0 0;
             color: rgba(235, 247, 255, 0.59);
+            font-size: 13px;
             line-height: 1.5;
           }
 
@@ -914,7 +1204,7 @@ export default function NovaVirtualTeacherPopup({
             background: rgba(255, 255, 255, 0.035);
             color: rgba(255, 255, 255, 0.62);
             padding: 0 16px;
-            font-size: 12px;
+            font-size: 13px;
             font-weight: 850;
             cursor: pointer;
           }
@@ -924,6 +1214,18 @@ export default function NovaVirtualTeacherPopup({
             background: rgba(83, 215, 255, 0.13);
             color: white;
             box-shadow: 0 0 20px rgba(83, 215, 255, 0.11);
+          }
+
+          .nova-vt-tabs button.locked {
+            border-color: rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.02);
+            color: rgba(255, 255, 255, 0.32);
+            cursor: not-allowed;
+          }
+
+          .nova-vt-tab-lock {
+            margin-left: 7px;
+            font-size: 11px;
           }
 
           .nova-vt-switches {
@@ -979,7 +1281,7 @@ export default function NovaVirtualTeacherPopup({
           }
 
           .nova-vt-setting-copy strong {
-            font-size: 11px;
+            font-size: 12px;
           }
 
           .nova-vt-setting-copy small {
@@ -987,7 +1289,7 @@ export default function NovaVirtualTeacherPopup({
             color: rgba(235, 247, 255, 0.43);
             text-overflow: ellipsis;
             white-space: nowrap;
-            font-size: 9px;
+            font-size: 10px;
           }
 
           .nova-vt-toggle-pill {
@@ -1057,7 +1359,7 @@ export default function NovaVirtualTeacherPopup({
             border: 1px solid rgba(142, 232, 255, 0.13);
             background: rgba(83, 215, 255, 0.06);
             color: rgba(235, 247, 255, 0.68);
-            font-size: 12px;
+            font-size: 13px;
           }
 
           .nova-vt-message {
@@ -1092,7 +1394,8 @@ export default function NovaVirtualTeacherPopup({
           .nova-vt-section h3,
           .nova-vt-plan-heading h3 {
             margin: 8px 0 0;
-            font-size: 25px;
+            font-size: 27px;
+            line-height: 1.15;
             letter-spacing: -0.03em;
           }
 
@@ -1379,7 +1682,7 @@ export default function NovaVirtualTeacherPopup({
           }
 
           .nova-vt-day strong {
-            font-size: 13px;
+            font-size: 14px;
           }
 
           .nova-vt-day small {
@@ -1424,14 +1727,14 @@ export default function NovaVirtualTeacherPopup({
 
           .nova-vt-plan-copy h4 {
             margin: 6px 0 0;
-            font-size: 15px;
+            font-size: 17px;
           }
 
           .nova-vt-plan-copy p {
             margin: 6px 0 0;
-            color: rgba(235, 247, 255, 0.5);
-            font-size: 11px;
-            line-height: 1.45;
+            color: rgba(235, 247, 255, 0.56);
+            font-size: 12px;
+            line-height: 1.5;
           }
 
           .nova-vt-plan-meta {
@@ -1480,6 +1783,202 @@ export default function NovaVirtualTeacherPopup({
             margin: 5px 0 0;
           }
 
+          .nova-vt-profile-section {
+            padding: 22px;
+            border-radius: 23px;
+            border: 1px solid rgba(142, 232, 255, 0.12);
+            background: rgba(255, 255, 255, 0.027);
+          }
+
+          .nova-vt-profile-heading {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 20px;
+          }
+
+          .nova-vt-profile-heading h3 {
+            margin: 8px 0 0;
+            font-size: 30px;
+            line-height: 1.12;
+            letter-spacing: -0.035em;
+          }
+
+          .nova-vt-profile-heading > div > p:last-child {
+            max-width: 830px;
+            margin: 11px 0 0;
+            color: rgba(235, 247, 255, 0.6);
+            font-size: 14px;
+            line-height: 1.6;
+          }
+
+          .nova-vt-admin-badge {
+            flex: 0 0 auto;
+            padding: 8px 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(216, 180, 254, 0.3);
+            background: rgba(192, 132, 252, 0.1);
+            color: #e9d5ff;
+            font-size: 10px;
+            font-weight: 900;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+          }
+
+          .nova-vt-profile-overview {
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+          }
+
+          .nova-vt-profile-overview article {
+            min-height: 142px;
+            padding: 16px;
+            border-radius: 17px;
+            border: 1px solid rgba(142, 232, 255, 0.1);
+            background: rgba(255, 255, 255, 0.025);
+          }
+
+          .nova-vt-profile-overview span {
+            color: rgba(235, 247, 255, 0.5);
+            font-size: 10px;
+            font-weight: 900;
+            letter-spacing: 0.11em;
+            text-transform: uppercase;
+          }
+
+          .nova-vt-profile-overview strong {
+            display: block;
+            margin-top: 10px;
+            color: #8dfcff;
+            font-size: 28px;
+            letter-spacing: -0.035em;
+          }
+
+          .nova-vt-profile-overview p {
+            margin: 8px 0 0;
+            color: rgba(235, 247, 255, 0.5);
+            font-size: 12px;
+            line-height: 1.5;
+          }
+
+          .nova-vt-profile-columns {
+            margin-top: 16px;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+          }
+
+          .nova-vt-profile-card,
+          .nova-vt-profile-next {
+            padding: 20px;
+            border-radius: 20px;
+            border: 1px solid rgba(142, 232, 255, 0.1);
+            background: rgba(255, 255, 255, 0.025);
+          }
+
+          .nova-vt-profile-card h4,
+          .nova-vt-profile-next h4 {
+            margin: 8px 0 0;
+            font-size: 23px;
+            letter-spacing: -0.025em;
+          }
+
+          .nova-vt-profile-facts,
+          .nova-vt-source-list {
+            margin-top: 16px;
+            display: grid;
+            gap: 9px;
+          }
+
+          .nova-vt-profile-facts > div {
+            padding: 13px 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(142, 232, 255, 0.09);
+            background: rgba(255, 255, 255, 0.025);
+          }
+
+          .nova-vt-profile-facts span {
+            display: block;
+            color: rgba(235, 247, 255, 0.46);
+            font-size: 10px;
+            font-weight: 900;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+          }
+
+          .nova-vt-profile-facts strong {
+            display: block;
+            margin-top: 7px;
+            color: rgba(255, 255, 255, 0.88);
+            font-size: 13px;
+            line-height: 1.5;
+          }
+
+          .nova-vt-source-list > div {
+            min-height: 62px;
+            padding: 11px 12px;
+            display: grid;
+            grid-template-columns: 34px minmax(0, 1fr);
+            align-items: center;
+            gap: 11px;
+            border-radius: 14px;
+            border: 1px solid rgba(142, 232, 255, 0.09);
+            background: rgba(255, 255, 255, 0.025);
+          }
+
+          .nova-vt-source-list > div > span {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 11px;
+            font-weight: 900;
+          }
+
+          .nova-vt-source-list .connected > span {
+            border: 1px solid rgba(93, 255, 181, 0.28);
+            background: rgba(93, 255, 181, 0.09);
+            color: #9fffd2;
+          }
+
+          .nova-vt-source-list .pending > span {
+            border: 1px solid rgba(255, 215, 106, 0.25);
+            background: rgba(255, 215, 106, 0.08);
+            color: #ffe6a7;
+          }
+
+          .nova-vt-source-list strong,
+          .nova-vt-source-list small {
+            display: block;
+          }
+
+          .nova-vt-source-list strong {
+            font-size: 13px;
+          }
+
+          .nova-vt-source-list small {
+            margin-top: 4px;
+            color: rgba(235, 247, 255, 0.46);
+            font-size: 11px;
+            line-height: 1.45;
+          }
+
+          .nova-vt-profile-next {
+            margin-top: 16px;
+            border-color: rgba(216, 180, 254, 0.15);
+            background: rgba(192, 132, 252, 0.04);
+          }
+
+          .nova-vt-profile-next > p:last-child {
+            margin: 10px 0 0;
+            color: rgba(235, 247, 255, 0.58);
+            font-size: 13px;
+            line-height: 1.6;
+          }
+
           @media (max-width: 1040px) {
             .nova-vt-controls {
               align-items: stretch;
@@ -1516,6 +2015,14 @@ export default function NovaVirtualTeacherPopup({
             .nova-vt-two-column {
               grid-template-columns: 1fr;
             }
+
+            .nova-vt-profile-overview {
+              grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .nova-vt-profile-columns {
+              grid-template-columns: 1fr;
+            }
           }
 
           @media (max-width: 1180px) {
@@ -1533,12 +2040,13 @@ export default function NovaVirtualTeacherPopup({
           @media (max-width: 720px) {
             .nova-vt-tabs {
               display: grid;
-              grid-template-columns: repeat(2, minmax(0, 1fr));
+              grid-template-columns: repeat(3, minmax(0, 1fr));
             }
 
             .nova-vt-tabs button {
-              padding: 0 10px;
-              font-size: 10px;
+              padding: 0 7px;
+              font-size: 10.5px;
+              line-height: 1.2;
             }
 
             .nova-vt-switches {
@@ -1582,11 +2090,17 @@ export default function NovaVirtualTeacherPopup({
             }
 
             .nova-vt-title-wrap h2 {
-              font-size: 25px;
+              font-size: 26px;
+              line-height: 1.04;
             }
 
-            .nova-vt-title-wrap p:last-child {
-              font-size: 11px;
+            .nova-vt-report-label {
+              margin-top: 7px;
+              font-size: 12px;
+            }
+
+            .nova-vt-refresh-copy {
+              display: none;
             }
 
             .nova-vt-close {
@@ -1600,12 +2114,13 @@ export default function NovaVirtualTeacherPopup({
 
             .nova-vt-tabs {
               display: grid;
-              grid-template-columns: repeat(2, minmax(0, 1fr));
+              grid-template-columns: repeat(3, minmax(0, 1fr));
             }
 
             .nova-vt-tabs button {
-              padding: 0 10px;
-              font-size: 10px;
+              padding: 0 7px;
+              font-size: 10.5px;
+              line-height: 1.2;
             }
 
             .nova-vt-switches {
@@ -1652,7 +2167,43 @@ export default function NovaVirtualTeacherPopup({
             }
 
             .nova-vt-plan-copy h4 {
+              font-size: 15px;
+            }
+
+            .nova-vt-profile-section {
+              padding: 15px;
+              border-radius: 18px;
+            }
+
+            .nova-vt-profile-heading {
+              flex-direction: column;
+            }
+
+            .nova-vt-profile-heading h3 {
+              font-size: 25px;
+            }
+
+            .nova-vt-profile-heading > div > p:last-child {
               font-size: 13px;
+            }
+
+            .nova-vt-profile-overview {
+              grid-template-columns: repeat(2, minmax(0, 1fr));
+              gap: 8px;
+            }
+
+            .nova-vt-profile-overview article {
+              min-height: 154px;
+              padding: 13px;
+            }
+
+            .nova-vt-profile-overview strong {
+              font-size: 24px;
+            }
+
+            .nova-vt-profile-card,
+            .nova-vt-profile-next {
+              padding: 15px;
             }
           }
         `}</style>
