@@ -152,7 +152,7 @@ export default function EditHistoryView({
         <div>
           <p style={eyebrow}>AUDIT TRAIL</p>
           <h1 style={title}>Edit History</h1>
-          <p style={description}>
+          <p className="curriculum-page-description" style={description}>
             Review quiz settings, question edits, publishing actions and workflow
             changes across English and Mathematics.
           </p>
@@ -351,27 +351,28 @@ const headingRow: CSSProperties = {
 const eyebrow: CSSProperties = {
   margin: 0,
   color: "#7ee8ff",
-  fontSize: "11px",
+  fontSize: "13px",
   letterSpacing: "0.18em",
   fontWeight: 900,
 };
 const title: CSSProperties = {
   margin: "6px 0 0",
-  fontSize: "clamp(30px,4vw,48px)",
+  fontSize: "clamp(38px,4vw,56px)",
 };
 const description: CSSProperties = {
   margin: "8px 0 0",
   maxWidth: "760px",
-  color: "rgba(255,255,255,0.66)",
-  lineHeight: 1.55,
+  color: "rgba(255,255,255,0.7)",
+  fontSize: "17px",
+  lineHeight: 1.6,
 };
 const countPill: CSSProperties = {
   borderRadius: "999px",
   border: "1px solid rgba(126,232,255,0.26)",
   background: "rgba(126,232,255,0.08)",
   color: "#bcefff",
-  padding: "9px 12px",
-  fontSize: "10px",
+  padding: "10px 14px",
+  fontSize: "13px",
   fontWeight: 900,
 };
 const filterGrid: CSSProperties = {
@@ -384,19 +385,20 @@ const fieldLabel: CSSProperties = {
   display: "grid",
   gap: "6px",
   color: "rgba(255,255,255,0.67)",
-  fontSize: "10px",
+  fontSize: "14px",
   fontWeight: 800,
 };
 const input: CSSProperties = {
   width: "100%",
-  minHeight: "42px",
+  minHeight: "48px",
   boxSizing: "border-box",
   borderRadius: "11px",
   border: "1px solid rgba(126,232,255,0.22)",
   background: "rgba(255,255,255,0.055)",
   color: "white",
-  padding: "0 11px",
+  padding: "0 13px",
   outline: "none",
+  fontSize: "15px",
 };
 const historyList: CSSProperties = {
   marginTop: "16px",
@@ -406,8 +408,8 @@ const historyList: CSSProperties = {
 const historyCard: CSSProperties = {
   borderRadius: "18px",
   border: "1px solid rgba(126,232,255,0.2)",
-  background: "rgba(4,20,48,0.58)",
-  padding: "15px",
+  background: "#0b1a36",
+  padding: "20px",
 };
 const cardTopRow: CSSProperties = {
   display: "flex",
@@ -425,8 +427,8 @@ const actionPill: CSSProperties = {
   borderRadius: "999px",
   background: "rgba(74,222,128,0.12)",
   color: "#bbf7d0",
-  padding: "5px 8px",
-  fontSize: "8px",
+  padding: "6px 10px",
+  fontSize: "11px",
   fontWeight: 900,
   textTransform: "uppercase",
 };
@@ -442,19 +444,21 @@ const subjectPill: CSSProperties = {
 };
 const recordTitle: CSSProperties = {
   margin: "8px 0 0",
-  fontSize: "20px",
+  fontSize: "26px",
   overflowWrap: "anywhere",
 };
 const recordMeta: CSSProperties = {
   margin: "5px 0 0",
   color: "rgba(255,255,255,0.54)",
-  fontSize: "10px",
+  fontSize: "14px",
+  lineHeight: 1.45,
 };
 const rightMeta: CSSProperties = {
   display: "grid",
   gap: "4px",
   color: "rgba(255,255,255,0.48)",
-  fontSize: "9px",
+  fontSize: "12px",
+  lineHeight: 1.45,
   textAlign: "right",
 };
 const notesBox: CSSProperties = {
@@ -462,8 +466,8 @@ const notesBox: CSSProperties = {
   borderRadius: "10px",
   background: "rgba(255,215,106,0.08)",
   color: "#ffe6a8",
-  padding: "9px",
-  fontSize: "10px",
+  padding: "12px",
+  fontSize: "14px",
 };
 const diffList: CSSProperties = {
   marginTop: "12px",
@@ -477,8 +481,8 @@ const diffRow: CSSProperties = {
   gap: "8px",
   borderRadius: "9px",
   background: "rgba(255,255,255,0.035)",
-  padding: "8px 9px",
-  fontSize: "9px",
+  padding: "11px 12px",
+  fontSize: "13px",
 };
 const diffKey: CSSProperties = {
   color: "rgba(255,255,255,0.72)",
@@ -495,7 +499,7 @@ const afterValue: CSSProperties = {
 };
 const moreText: CSSProperties = {
   color: "rgba(255,255,255,0.48)",
-  fontSize: "9px",
+  fontSize: "12px",
 };
 const cardActions: CSSProperties = {
   marginTop: "12px",
@@ -505,13 +509,14 @@ const cardActions: CSSProperties = {
   flexWrap: "wrap",
 };
 const openButton: CSSProperties = {
-  minHeight: "36px",
+  minHeight: "44px",
   borderRadius: "10px",
   border: "1px solid rgba(126,232,255,0.3)",
   background: "rgba(126,232,255,0.09)",
   color: "white",
-  padding: "0 11px",
+  padding: "0 14px",
   cursor: "pointer",
+  fontSize: "14px",
   fontWeight: 800,
 };
 const detailsBox: CSSProperties = {
@@ -520,12 +525,12 @@ const detailsBox: CSSProperties = {
   borderRadius: "10px",
   border: "1px solid rgba(126,232,255,0.12)",
   background: "rgba(0,0,0,0.12)",
-  padding: "9px 10px",
+  padding: "12px 13px",
 };
 const summary: CSSProperties = {
   cursor: "pointer",
   color: "#bcefff",
-  fontSize: "10px",
+  fontSize: "14px",
   fontWeight: 800,
 };
 const jsonGrid: CSSProperties = {
@@ -537,7 +542,7 @@ const jsonGrid: CSSProperties = {
 const jsonHeading: CSSProperties = {
   margin: "0 0 5px",
   color: "rgba(255,255,255,0.56)",
-  fontSize: "9px",
+  fontSize: "12px",
   fontWeight: 900,
   textTransform: "uppercase",
 };
@@ -548,8 +553,8 @@ const pre: CSSProperties = {
   borderRadius: "8px",
   background: "rgba(0,0,0,0.25)",
   color: "rgba(255,255,255,0.72)",
-  padding: "9px",
-  fontSize: "8px",
+  padding: "12px",
+  fontSize: "12px",
   lineHeight: 1.5,
   whiteSpace: "pre-wrap",
   overflowWrap: "anywhere",
@@ -557,8 +562,9 @@ const pre: CSSProperties = {
 const emptyState: CSSProperties = {
   borderRadius: "17px",
   border: "1px dashed rgba(126,232,255,0.25)",
-  padding: "30px",
-  color: "rgba(255,255,255,0.56)",
+  padding: "34px",
+  color: "rgba(255,255,255,0.6)",
+  fontSize: "15px",
   textAlign: "center",
 };
 const errorBanner: CSSProperties = {
@@ -567,5 +573,6 @@ const errorBanner: CSSProperties = {
   border: "1px solid rgba(248,113,113,0.42)",
   background: "rgba(239,68,68,0.13)",
   color: "#fecaca",
-  padding: "10px",
+  padding: "13px",
+  fontSize: "14px",
 };

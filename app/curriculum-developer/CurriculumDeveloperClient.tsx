@@ -200,7 +200,7 @@ export default function CurriculumDeveloperClient() {
 
   if (status === "locked" || !role) {
     return (
-      <main style={pageShell}>
+      <main id="curriculum-developer-root" style={pageShell}>
         <div style={lockedCard}>
           <p style={brandEyebrow}>CURRICULUM DEVELOPER</p>
           <h1 style={{ margin: "7px 0 0" }}>Access Restricted</h1>
@@ -222,8 +222,8 @@ export default function CurriculumDeveloperClient() {
   }
 
   return (
-    <main style={pageShell}>
-      <header style={header}>
+    <main id="curriculum-developer-root" style={pageShell}>
+      <header className="curriculum-header" style={header}>
         <button
           type="button"
           onClick={() => router.push("/learning-missions")}
@@ -238,9 +238,9 @@ export default function CurriculumDeveloperClient() {
         <div style={rolePill}>{role.replaceAll("_", " ")}</div>
       </header>
 
-      <div style={appGrid}>
-        <aside style={sidebar}>
-          <p style={sidebarEyebrow}>CONTENT WORKSPACE</p>
+      <div className="curriculum-layout" style={appGrid}>
+        <aside className="curriculum-sidebar" style={sidebar}>
+          <p className="curriculum-sidebar-eyebrow" style={sidebarEyebrow}>CONTENT WORKSPACE</p>
           <NavButton
             active={section === "dashboard"}
             label="Dashboard"
@@ -267,13 +267,13 @@ export default function CurriculumDeveloperClient() {
             onClick={() => setSection("history")}
           />
 
-          <div style={sidebarNote}>
+          <div className="curriculum-sidebar-note" style={sidebarNote}>
             Admins and curriculum leads can create, edit and publish English and
             Mathematics quizzes. Published edits go live immediately.
           </div>
         </aside>
 
-        <section style={workspace}>
+        <section className="curriculum-workspace" style={workspace}>
           {loading ? (
             <PageMessage text="Loading curriculum content..." embedded />
           ) : loadError ? (
@@ -317,6 +317,86 @@ export default function CurriculumDeveloperClient() {
           )}
         </section>
       </div>
+
+      <style jsx global>{`
+        #curriculum-developer-root {
+          background: #071226;
+        }
+
+        #curriculum-developer-root button,
+        #curriculum-developer-root input,
+        #curriculum-developer-root select,
+        #curriculum-developer-root textarea {
+          font-family: inherit;
+          font-size: 15px !important;
+        }
+
+        #curriculum-developer-root label,
+        #curriculum-developer-root summary,
+        #curriculum-developer-root th,
+        #curriculum-developer-root td {
+          font-size: 14px !important;
+        }
+
+        #curriculum-developer-root small {
+          font-size: 13px !important;
+        }
+
+        #curriculum-developer-root .curriculum-workspace p {
+          font-size: 14px !important;
+        }
+
+        #curriculum-developer-root .curriculum-workspace .curriculum-page-description {
+          font-size: 17px !important;
+          line-height: 1.6 !important;
+        }
+
+        @media (max-width: 980px) {
+          .curriculum-layout {
+            display: block !important;
+          }
+
+          .curriculum-sidebar {
+            position: static !important;
+            width: 100% !important;
+            max-width: none !important;
+            height: auto !important;
+            min-height: 0 !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            border-right: 0 !important;
+            border-bottom: 1px solid rgba(126,232,255,0.18) !important;
+          }
+
+          .curriculum-sidebar-eyebrow,
+          .curriculum-sidebar-note {
+            grid-column: 1 / -1;
+          }
+
+          .curriculum-workspace {
+            border-left: 0 !important;
+            padding: 24px 18px 40px !important;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .curriculum-header {
+            grid-template-columns: 1fr auto !important;
+          }
+
+          .curriculum-header > div:nth-child(2) {
+            display: none;
+          }
+
+          .curriculum-sidebar {
+            grid-template-columns: 1fr !important;
+          }
+
+          .curriculum-sidebar-eyebrow,
+          .curriculum-sidebar-note {
+            grid-column: auto;
+          }
+        }
+      `}</style>
     </main>
   );
 }
@@ -338,6 +418,7 @@ function NavButton({
     <button
       type="button"
       onClick={onClick}
+      className="curriculum-nav-button"
       style={{
         ...navButton,
         background: active ? "rgba(83,215,255,0.15)" : navButton.background,
@@ -346,7 +427,7 @@ function NavButton({
           : "rgba(126,232,255,0.12)",
       }}
     >
-      <span style={navIcon}>{icon}</span>
+      <span className="curriculum-nav-icon" style={navIcon}>{icon}</span>
       <span>{label}</span>
       {Boolean(badge) && <span style={navBadge}>{badge}</span>}
     </button>
@@ -362,98 +443,104 @@ function PageMessage({
 }) {
   const content = <div style={messageCard}>{text}</div>;
   if (embedded) return content;
-  return <main style={pageShell}>{content}</main>;
+  return <main id="curriculum-developer-root" style={pageShell}>{content}</main>;
 }
 
 const pageShell: CSSProperties = {
   minHeight: "100dvh",
   color: "white",
   fontFamily: "Arial, Helvetica, sans-serif",
-  backgroundImage: `
-    linear-gradient(180deg, rgba(2,8,19,0.38), rgba(2,8,19,0.82)),
-    url("/activities/learning-missions/core/skyforge-hangar-bg.png")
-  `,
-  backgroundSize: "cover",
-  backgroundPosition: "center",
-  backgroundAttachment: "fixed",
+  background: "#071226",
+  fontSize: "16px",
 };
 const header: CSSProperties = {
-  minHeight: "68px",
+  minHeight: "72px",
   padding: "10px 18px",
   display: "grid",
   gridTemplateColumns: "1fr auto 1fr",
   alignItems: "center",
-  gap: "10px",
-  borderBottom: "1px solid rgba(126,232,255,0.14)",
-  background: "rgba(2,10,28,0.52)",
-  backdropFilter: "blur(12px)",
+  gap: "12px",
+  position: "sticky",
+  top: 0,
+  zIndex: 50,
+  borderBottom: "1px solid rgba(126,232,255,0.2)",
+  background: "#0a1730",
 };
 const backButton: CSSProperties = {
   justifySelf: "start",
-  minHeight: "38px",
+  minHeight: "46px",
   borderRadius: "999px",
-  border: "1px solid rgba(126,232,255,0.28)",
-  background: "rgba(255,255,255,0.055)",
+  border: "1px solid rgba(126,232,255,0.32)",
+  background: "rgba(255,255,255,0.06)",
   color: "white",
-  padding: "0 13px",
+  padding: "0 16px",
   cursor: "pointer",
+  fontSize: "16px",
   fontWeight: 800,
 };
 const headerTitle: CSSProperties = { textAlign: "center" };
 const brandEyebrow: CSSProperties = {
   margin: 0,
   color: "#7ee8ff",
-  fontSize: "10px",
+  fontSize: "12px",
   letterSpacing: "0.18em",
   fontWeight: 900,
 };
-const headerSubtitle: CSSProperties = { margin: "3px 0 0", fontWeight: 900 };
+const headerSubtitle: CSSProperties = {
+  margin: "4px 0 0",
+  fontSize: "18px",
+  fontWeight: 900,
+};
 const rolePill: CSSProperties = {
   justifySelf: "end",
   borderRadius: "999px",
   border: "1px solid rgba(255,215,106,0.32)",
   background: "rgba(255,215,106,0.09)",
   color: "#ffe6a8",
-  padding: "8px 12px",
-  fontSize: "10px",
+  padding: "9px 14px",
+  fontSize: "12px",
   fontWeight: 900,
   textTransform: "uppercase",
 };
 const appGrid: CSSProperties = {
-  width: "min(1700px,100%)",
+  width: "100%",
+  minHeight: "calc(100dvh - 72px)",
   boxSizing: "border-box",
-  margin: "0 auto",
-  padding: "14px",
-  display: "flex",
-  flexWrap: "wrap",
-  gap: "14px",
+  margin: 0,
+  padding: 0,
+  display: "grid",
+  gridTemplateColumns: "270px minmax(0,1fr)",
+  gap: 0,
+  alignItems: "stretch",
 };
 const sidebar: CSSProperties = {
-  flex: "1 1 210px",
-  width: "min(100%,240px)",
-  maxWidth: "240px",
+  width: "100%",
+  maxWidth: "none",
+  minHeight: "calc(100dvh - 72px)",
   position: "sticky",
-  top: "82px",
+  top: "72px",
   alignSelf: "start",
-  borderRadius: "20px",
-  border: "1px solid rgba(126,232,255,0.2)",
-  background: "rgba(4,18,43,0.77)",
-  padding: "13px",
+  boxSizing: "border-box",
+  borderRadius: 0,
+  border: 0,
+  borderRight: "1px solid rgba(126,232,255,0.18)",
+  background: "#0a1730",
+  padding: "22px 18px",
   display: "grid",
-  gap: "8px",
-  boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
-  backdropFilter: "blur(14px)",
+  alignContent: "start",
+  gap: "10px",
+  overflowY: "auto",
 };
 const sidebarEyebrow: CSSProperties = {
   margin: "3px 4px 7px",
   color: "rgba(255,255,255,0.48)",
-  fontSize: "9px",
+  fontSize: "11px",
   fontWeight: 900,
   letterSpacing: "0.16em",
 };
 const navButton: CSSProperties = {
   width: "100%",
-  minHeight: "44px",
+  minHeight: "52px",
   borderRadius: "13px",
   border: "1px solid rgba(126,232,255,0.12)",
   background: "rgba(255,255,255,0.035)",
@@ -462,14 +549,15 @@ const navButton: CSSProperties = {
   gridTemplateColumns: "28px 1fr auto",
   alignItems: "center",
   gap: "7px",
-  padding: "0 11px",
+  padding: "0 14px",
   textAlign: "left",
   cursor: "pointer",
+  fontSize: "16px",
   fontWeight: 800,
 };
 const navIcon: CSSProperties = {
   color: "#7ee8ff",
-  fontSize: "17px",
+  fontSize: "19px",
   textAlign: "center",
 };
 const navBadge: CSSProperties = {
@@ -482,7 +570,7 @@ const navBadge: CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   padding: "0 5px",
-  fontSize: "9px",
+  fontSize: "11px",
 };
 const sidebarNote: CSSProperties = {
   marginTop: "8px",
@@ -490,19 +578,18 @@ const sidebarNote: CSSProperties = {
   border: "1px solid rgba(126,232,255,0.12)",
   background: "rgba(126,232,255,0.045)",
   color: "rgba(255,255,255,0.58)",
-  padding: "11px",
-  fontSize: "10px",
-  lineHeight: 1.55,
+  padding: "13px",
+  fontSize: "13px",
+  lineHeight: 1.65,
 };
 const workspace: CSSProperties = {
-  flex: "10 1 760px",
-  minWidth: "min(100%,620px)",
-  borderRadius: "24px",
-  border: "1px solid rgba(126,232,255,0.18)",
-  background: "rgba(2,12,31,0.72)",
-  padding: "clamp(16px,2.5vw,28px)",
-  boxShadow: "0 24px 70px rgba(0,0,0,0.28)",
-  backdropFilter: "blur(18px)",
+  minWidth: 0,
+  width: "100%",
+  boxSizing: "border-box",
+  borderRadius: 0,
+  border: 0,
+  background: "#071226",
+  padding: "30px clamp(24px,3vw,52px) 48px",
 };
 const messageCard: CSSProperties = {
   width: "min(560px,calc(100% - 32px))",
@@ -510,8 +597,9 @@ const messageCard: CSSProperties = {
   borderRadius: "20px",
   border: "1px solid rgba(126,232,255,0.22)",
   background: "rgba(4,20,48,0.78)",
-  padding: "28px",
+  padding: "32px",
   textAlign: "center",
+  fontSize: "16px",
 };
 const lockedCard: CSSProperties = {
   ...messageCard,
@@ -519,17 +607,19 @@ const lockedCard: CSSProperties = {
 };
 const mutedText: CSSProperties = {
   color: "rgba(255,255,255,0.62)",
-  lineHeight: 1.6,
+  lineHeight: 1.65,
+  fontSize: "15px",
 };
 const errorText: CSSProperties = { color: "#fecaca" };
 const primaryButton: CSSProperties = {
-  minHeight: "42px",
+  minHeight: "46px",
   borderRadius: "12px",
   border: "1px solid rgba(126,232,255,0.38)",
   background: "linear-gradient(135deg,rgba(34,211,238,0.3),rgba(59,130,246,0.28))",
   color: "white",
-  padding: "0 15px",
+  padding: "0 17px",
   cursor: "pointer",
+  fontSize: "15px",
   fontWeight: 900,
 };
 const errorBanner: CSSProperties = {
@@ -537,5 +627,6 @@ const errorBanner: CSSProperties = {
   border: "1px solid rgba(248,113,113,0.42)",
   background: "rgba(239,68,68,0.13)",
   color: "#fecaca",
-  padding: "12px",
+  padding: "14px",
+  fontSize: "14px",
 };

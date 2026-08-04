@@ -646,7 +646,7 @@ export default function QuizBuilderView({
         <div>
           <p style={eyebrow}>QUIZ PRODUCTION</p>
           <h1 style={pageTitle}>Quiz Builder</h1>
-          <p style={pageDescription}>
+          <p className="curriculum-page-description" style={pageDescription}>
             Search, create, edit, preview and publish English and Mathematics quizzes.
           </p>
         </div>
@@ -659,8 +659,8 @@ export default function QuizBuilderView({
         </button>
       </div>
 
-      <div style={builderGrid}>
-        <aside style={quizListPanel}>
+      <div className="quiz-builder-layout" style={builderGrid}>
+        <aside className="quiz-browser-panel" style={quizListPanel}>
           <div style={listHeadingRow}>
             <p style={listHeading}>QUIZZES</p>
             <span style={resultCount}>{filteredQuizzes.length}</span>
@@ -704,7 +704,7 @@ export default function QuizBuilderView({
             </select>
           </div>
 
-          <div style={quizList}>
+          <div className="quiz-browser-list" style={quizList}>
             {filteredQuizzes.length === 0 ? (
               <div style={smallEmptyState}>No quizzes match this search.</div>
             ) : (
@@ -742,7 +742,7 @@ export default function QuizBuilderView({
           </div>
         </aside>
 
-        <div style={editorColumn}>
+        <div className="quiz-editor-column" style={editorColumn}>
           <section style={panel}>
             <div style={sectionHeadingRow}>
               <div>
@@ -769,7 +769,7 @@ export default function QuizBuilderView({
               </div>
             )}
 
-            <div style={formGrid}>
+            <div className="quiz-settings-grid" style={formGrid}>
               <label style={fieldLabel}>
                 Subject, level and topic
                 <select
@@ -1113,6 +1113,30 @@ export default function QuizBuilderView({
           onClose={() => setShowPreview(false)}
         />
       )}
+
+      <style jsx global>{`
+        @media (max-width: 1180px) {
+          .quiz-builder-layout {
+            grid-template-columns: 1fr !important;
+          }
+
+          .quiz-browser-panel {
+            position: static !important;
+            width: 100% !important;
+            max-width: none !important;
+          }
+
+          .quiz-browser-list {
+            max-height: 360px !important;
+          }
+        }
+
+        @media (max-width: 720px) {
+          .quiz-settings-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
@@ -1218,35 +1242,38 @@ const headingRow: CSSProperties = {
 const eyebrow: CSSProperties = {
   margin: 0,
   color: "#7ee8ff",
-  fontSize: "11px",
+  fontSize: "13px",
   letterSpacing: "0.18em",
   fontWeight: 900,
 };
 const pageTitle: CSSProperties = {
-  margin: "6px 0 0",
-  fontSize: "clamp(30px,4vw,48px)",
+  margin: "7px 0 0",
+  fontSize: "clamp(38px,4vw,56px)",
+  lineHeight: 1.08,
 };
 const pageDescription: CSSProperties = {
-  margin: "8px 0 0",
-  color: "rgba(255,255,255,0.66)",
+  margin: "10px 0 0",
+  color: "rgba(255,255,255,0.7)",
+  fontSize: "17px",
+  lineHeight: 1.6,
 };
 const builderGrid: CSSProperties = {
-  marginTop: "20px",
-  display: "flex",
-  flexWrap: "wrap",
-  gap: "14px",
+  marginTop: "26px",
+  display: "grid",
+  gridTemplateColumns: "360px minmax(0,1fr)",
+  gap: "20px",
   alignItems: "flex-start",
 };
 const quizListPanel: CSSProperties = {
-  flex: "1 1 270px",
-  width: "min(100%,310px)",
-  maxWidth: "310px",
+  width: "100%",
+  maxWidth: "none",
+  boxSizing: "border-box",
   position: "sticky",
-  top: "84px",
+  top: "96px",
   borderRadius: "18px",
-  border: "1px solid rgba(126,232,255,0.18)",
-  background: "rgba(4,20,48,0.58)",
-  padding: "12px",
+  border: "1px solid rgba(126,232,255,0.2)",
+  background: "#0b1a36",
+  padding: "16px",
 };
 const listHeadingRow: CSSProperties = {
   display: "flex",
@@ -1257,7 +1284,7 @@ const listHeadingRow: CSSProperties = {
 const listHeading: CSSProperties = {
   margin: 0,
   color: "rgba(255,255,255,0.52)",
-  fontSize: "9px",
+  fontSize: "12px",
   letterSpacing: "0.14em",
   fontWeight: 900,
 };
@@ -1265,21 +1292,22 @@ const resultCount: CSSProperties = {
   borderRadius: "999px",
   background: "rgba(126,232,255,0.1)",
   color: "#bcefff",
-  padding: "4px 7px",
-  fontSize: "8px",
+  padding: "5px 9px",
+  fontSize: "11px",
   fontWeight: 900,
 };
 const searchInput: CSSProperties = {
   width: "100%",
-  minHeight: "40px",
+  minHeight: "48px",
   boxSizing: "border-box",
   marginTop: "10px",
   borderRadius: "11px",
   border: "1px solid rgba(126,232,255,0.26)",
   background: "rgba(255,255,255,0.055)",
   color: "white",
-  padding: "0 10px",
+  padding: "0 13px",
   outline: "none",
+  fontSize: "15px",
 };
 const filterRow: CSSProperties = {
   marginTop: "8px",
@@ -1289,17 +1317,17 @@ const filterRow: CSSProperties = {
 };
 const compactSelect: CSSProperties = {
   width: "100%",
-  minHeight: "36px",
+  minHeight: "44px",
   borderRadius: "9px",
   border: "1px solid rgba(126,232,255,0.16)",
   background: "rgba(3,15,38,0.96)",
   color: "white",
-  padding: "0 7px",
-  fontSize: "9px",
+  padding: "0 10px",
+  fontSize: "14px",
 };
 const quizList: CSSProperties = {
   marginTop: "9px",
-  maxHeight: "calc(100dvh - 280px)",
+  maxHeight: "calc(100dvh - 320px)",
   overflowY: "auto",
   display: "grid",
   gap: "7px",
@@ -1311,23 +1339,25 @@ const quizListItem: CSSProperties = {
   border: "1px solid rgba(126,232,255,0.17)",
   background: "rgba(255,255,255,0.035)",
   color: "white",
-  padding: "10px",
+  padding: "13px",
   textAlign: "left",
   cursor: "pointer",
   display: "grid",
   gap: "4px",
 };
 const quizListTitle: CSSProperties = {
-  fontSize: "11px",
+  fontSize: "15px",
+  lineHeight: 1.35,
   overflowWrap: "anywhere",
 };
 const quizListMeta: CSSProperties = {
   color: "rgba(255,255,255,0.5)",
-  fontSize: "8px",
+  fontSize: "12px",
+  lineHeight: 1.4,
 };
 const statusText: CSSProperties = {
   color: "#bcefff",
-  fontSize: "8px",
+  fontSize: "11px",
   fontWeight: 900,
   textTransform: "uppercase",
 };
@@ -1337,19 +1367,19 @@ const smallEmptyState: CSSProperties = {
   color: "rgba(255,255,255,0.5)",
   padding: "18px 10px",
   textAlign: "center",
-  fontSize: "9px",
+  fontSize: "13px",
 };
 const editorColumn: CSSProperties = {
-  flex: "10 1 650px",
-  minWidth: "min(100%,560px)",
+  minWidth: 0,
+  width: "100%",
   display: "grid",
   gap: "12px",
 };
 const panel: CSSProperties = {
   borderRadius: "19px",
   border: "1px solid rgba(126,232,255,0.18)",
-  background: "rgba(4,20,48,0.58)",
-  padding: "clamp(14px,2vw,20px)",
+  background: "#0b1a36",
+  padding: "clamp(20px,2vw,28px)",
 };
 const sectionHeadingRow: CSSProperties = {
   display: "flex",
@@ -1361,20 +1391,20 @@ const sectionHeadingRow: CSSProperties = {
 const smallEyebrow: CSSProperties = {
   margin: 0,
   color: "#7ee8ff",
-  fontSize: "9px",
+  fontSize: "12px",
   letterSpacing: "0.15em",
   fontWeight: 900,
 };
 const sectionTitle: CSSProperties = {
   margin: "5px 0 0",
-  fontSize: "clamp(20px,2.5vw,28px)",
+  fontSize: "clamp(26px,2.5vw,34px)",
 };
 const statusPill: CSSProperties = {
   borderRadius: "999px",
   background: "rgba(126,232,255,0.13)",
   color: "#bcefff",
-  padding: "7px 10px",
-  fontSize: "9px",
+  padding: "8px 12px",
+  fontSize: "12px",
   fontWeight: 900,
   textTransform: "uppercase",
 };
@@ -1389,9 +1419,9 @@ const liveWarning: CSSProperties = {
   border: "1px solid rgba(74,222,128,0.32)",
   background: "rgba(34,197,94,0.09)",
   color: "#d1fae5",
-  padding: "11px",
-  fontSize: "10px",
-  lineHeight: 1.55,
+  padding: "14px",
+  fontSize: "14px",
+  lineHeight: 1.6,
 };
 const archivedWarning: CSSProperties = {
   marginTop: "13px",
@@ -1399,32 +1429,33 @@ const archivedWarning: CSSProperties = {
   border: "1px solid rgba(248,113,113,0.32)",
   background: "rgba(239,68,68,0.09)",
   color: "#fecaca",
-  padding: "11px",
-  fontSize: "10px",
+  padding: "14px",
+  fontSize: "14px",
 };
 const formGrid: CSSProperties = {
   marginTop: "16px",
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,220px),1fr))",
-  gap: "11px",
+  gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,250px),1fr))",
+  gap: "15px",
 };
 const fieldLabel: CSSProperties = {
   display: "grid",
   gap: "6px",
   color: "rgba(255,255,255,0.66)",
-  fontSize: "10px",
+  fontSize: "14px",
   fontWeight: 800,
 };
 const input: CSSProperties = {
   width: "100%",
-  minHeight: "41px",
+  minHeight: "48px",
   boxSizing: "border-box",
   borderRadius: "10px",
   border: "1px solid rgba(126,232,255,0.2)",
   background: "rgba(255,255,255,0.05)",
   color: "white",
-  padding: "0 10px",
+  padding: "0 13px",
   outline: "none",
+  fontSize: "15px",
 };
 const selectInput: CSSProperties = {
   ...input,
@@ -1432,8 +1463,8 @@ const selectInput: CSSProperties = {
 };
 const textarea: CSSProperties = {
   ...input,
-  minHeight: "82px",
-  padding: "10px",
+  minHeight: "100px",
+  padding: "13px",
   resize: "vertical",
   fontFamily: "inherit",
 };
@@ -1448,7 +1479,7 @@ const toggleLabel: CSSProperties = {
   alignItems: "center",
   gap: "7px",
   color: "rgba(255,255,255,0.68)",
-  fontSize: "10px",
+  fontSize: "14px",
   fontWeight: 800,
 };
 const settingsActions: CSSProperties = {
@@ -1458,37 +1489,40 @@ const settingsActions: CSSProperties = {
   flexWrap: "wrap",
 };
 const primaryButton: CSSProperties = {
-  minHeight: "42px",
+  minHeight: "48px",
   borderRadius: "11px",
   border: "1px solid rgba(126,232,255,0.38)",
   background: "linear-gradient(135deg,rgba(34,211,238,0.3),rgba(59,130,246,0.28))",
   color: "white",
-  padding: "0 14px",
+  padding: "0 17px",
   cursor: "pointer",
+  fontSize: "15px",
   fontWeight: 900,
 };
 const ghostButton: CSSProperties = {
-  minHeight: "42px",
+  minHeight: "48px",
   borderRadius: "11px",
   border: "1px solid rgba(126,232,255,0.24)",
   background: "rgba(255,255,255,0.05)",
   color: "white",
-  padding: "0 13px",
+  padding: "0 16px",
   cursor: "pointer",
+  fontSize: "15px",
   fontWeight: 800,
 };
 const mutedText: CSSProperties = {
   margin: "8px 0 0",
   color: "rgba(255,255,255,0.58)",
   lineHeight: 1.55,
-  fontSize: "10px",
+  fontSize: "14px",
 };
 const emptyState: CSSProperties = {
   marginTop: "13px",
   borderRadius: "15px",
   border: "1px dashed rgba(126,232,255,0.24)",
-  padding: "24px",
-  color: "rgba(255,255,255,0.54)",
+  padding: "28px",
+  color: "rgba(255,255,255,0.58)",
+  fontSize: "14px",
   textAlign: "center",
 };
 const questionList: CSSProperties = {
@@ -1507,25 +1541,26 @@ const questionItem: CSSProperties = {
   flexWrap: "wrap",
 };
 const questionNumber: CSSProperties = {
-  width: "28px",
-  height: "28px",
+  width: "34px",
+  height: "34px",
   borderRadius: "9px",
   background: "rgba(126,232,255,0.11)",
   color: "#bcefff",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  fontSize: "10px",
+  fontSize: "13px",
   fontWeight: 900,
 };
 const questionPrompt: CSSProperties = {
-  fontSize: "11px",
+  fontSize: "15px",
+  lineHeight: 1.45,
   overflowWrap: "anywhere",
 };
 const questionMeta: CSSProperties = {
   margin: "5px 0 0",
   color: "rgba(255,255,255,0.48)",
-  fontSize: "8px",
+  fontSize: "12px",
 };
 const questionActions: CSSProperties = {
   display: "flex",
@@ -1534,20 +1569,20 @@ const questionActions: CSSProperties = {
   flexWrap: "wrap",
 };
 const iconButton: CSSProperties = {
-  minHeight: "32px",
+  minHeight: "38px",
   borderRadius: "8px",
   border: "1px solid rgba(126,232,255,0.18)",
   background: "rgba(255,255,255,0.045)",
   color: "white",
-  padding: "0 8px",
+  padding: "0 11px",
   cursor: "pointer",
-  fontSize: "9px",
+  fontSize: "13px",
 };
 const submissionPanel: CSSProperties = {
   borderRadius: "19px",
   border: "1px solid rgba(126,232,255,0.18)",
-  background: "rgba(4,20,48,0.58)",
-  padding: "clamp(14px,2vw,20px)",
+  background: "#0b1a36",
+  padding: "clamp(20px,2vw,28px)",
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
@@ -1575,7 +1610,7 @@ const publishButton: CSSProperties = {
 const roleNote: CSSProperties = {
   margin: "7px 0 0",
   color: "rgba(255,255,255,0.42)",
-  fontSize: "8px",
+  fontSize: "11px",
   textTransform: "uppercase",
   fontWeight: 900,
 };
@@ -1584,12 +1619,14 @@ const successBanner: CSSProperties = {
   border: "1px solid rgba(74,222,128,0.4)",
   background: "rgba(34,197,94,0.12)",
   color: "#bbf7d0",
-  padding: "10px",
+  padding: "13px",
+  fontSize: "14px",
 };
 const errorBanner: CSSProperties = {
   borderRadius: "11px",
   border: "1px solid rgba(248,113,113,0.42)",
   background: "rgba(239,68,68,0.13)",
   color: "#fecaca",
-  padding: "10px",
+  padding: "13px",
+  fontSize: "14px",
 };

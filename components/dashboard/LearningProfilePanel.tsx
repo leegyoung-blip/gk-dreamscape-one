@@ -541,12 +541,11 @@ export default function LearningProfilePanel({
         <div className="lp-view-content">
           <article className="lp-summary-card">
             <div>
-              <p className="lp-eyebrow">Nova’s current understanding</p>
+              <div className="lp-heading-with-info">
+                <p className="lp-eyebrow">Nova’s current understanding</p>
+                <InfoTip text="This summary is based on recorded Dreamscape activity. It is not a diagnosis of ability, personality or a learning condition." />
+              </div>
               <h4>{profileSummary}</h4>
-              <p>
-                This summary describes recorded learning evidence. It does not
-                diagnose ability, personality or a learning condition.
-              </p>
             </div>
 
             <div className="lp-summary-metrics">
@@ -688,24 +687,6 @@ export default function LearningProfilePanel({
             </section>
           </div>
 
-          <section className="lp-thinking-card">
-            <div className="lp-thinking-icon">◇</div>
-            <div>
-              <p className="lp-eyebrow">Thinking Skills Lab</p>
-              <h4>
-                {snapshot.thinking_skills_summary?.status === "connected"
-                  ? "Thinking Skills activity is connected"
-                  : "Thinking Skills integration is ready for the next connection step"}
-              </h4>
-              <p>
-                {snapshot.thinking_skills_summary?.message ??
-                  "The data model can accept memory, logic, planning and persistence events, but the current game pages have not started sending them yet."}
-              </p>
-            </div>
-            <strong>
-              {snapshot.thinking_skills_summary?.event_count ?? 0} events
-            </strong>
-          </section>
         </div>
       )}
 
@@ -717,9 +698,10 @@ export default function LearningProfilePanel({
                 <p className="lp-eyebrow">Skill and topic mastery</p>
                 <h4>Mastery Map</h4>
                 <p>
-                  Topic-level rows work immediately. As questions are mapped to
-                  finer skills, Nova will automatically replace broad findings
-                  with more specific misconceptions and strengths.
+                  See the areas your child understands well, the areas still
+                  developing and the skills that need more practice. As Nova
+                  reviews more completed questions, the guidance becomes more
+                  specific.
                 </p>
               </div>
 
@@ -765,7 +747,7 @@ export default function LearningProfilePanel({
                         <div>
                           <div className="lp-mastery-title-line">
                             <h5>{skill.skill_name}</h5>
-                            {skill.is_topic_level && <span>Topic-level</span>}
+                            {skill.is_topic_level && <span>Topic overview</span>}
                           </div>
                           <p>
                             {meta.label}
@@ -822,12 +804,11 @@ export default function LearningProfilePanel({
           <section className="lp-section-block">
             <div className="lp-section-heading">
               <div>
-                <p className="lp-eyebrow">Measured learning behaviours</p>
+                <div className="lp-heading-with-info">
+                  <p className="lp-eyebrow">Measured learning behaviours</p>
+                  <InfoTip text="These patterns describe recent recorded activity. They should not be treated as fixed personality labels." />
+                </div>
                 <h4>Learning Patterns</h4>
-                <p>
-                  These describe observed activity patterns. They are not fixed
-                  personality labels.
-                </p>
               </div>
             </div>
 
@@ -949,6 +930,34 @@ export default function LearningProfilePanel({
 
       <LearningProfileStyles />
     </section>
+  );
+}
+
+function InfoTip({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <span
+      className={`lp-info-tip ${open ? "open" : ""}`}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        className="lp-info-button"
+        aria-label="More information"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        onBlur={() => {
+          window.setTimeout(() => setOpen(false), 120);
+        }}
+      >
+        i
+      </button>
+
+      <span className="lp-info-popover" role="tooltip">
+        {text}
+      </span>
+    </span>
   );
 }
 
@@ -1373,44 +1382,72 @@ function LearningProfileStyles() {
         line-height: 1.5;
       }
 
-      .lp-thinking-card {
-        padding: 18px;
-        display: grid;
-        grid-template-columns: 46px minmax(0, 1fr) auto;
-        align-items: center;
-        gap: 14px;
-        border-color: rgba(196, 181, 253, 0.15);
-        background: rgba(167, 139, 250, 0.04);
-      }
-
-      .lp-thinking-icon {
-        width: 46px;
-        height: 46px;
+      .lp-heading-with-info {
         display: flex;
         align-items: center;
+        gap: 8px;
+      }
+
+      .lp-info-tip {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+      }
+
+      .lp-info-button {
+        width: 21px;
+        height: 21px;
+        padding: 0;
+        border-radius: 999px;
+        border: 1px solid rgba(142, 232, 255, 0.3);
+        background: rgba(83, 215, 255, 0.08);
+        color: #8dfcff;
+        display: inline-flex;
+        align-items: center;
         justify-content: center;
-        border-radius: 15px;
-        border: 1px solid rgba(196, 181, 253, 0.28);
-        background: rgba(167, 139, 250, 0.1);
-        color: #ddd6fe;
-        font-size: 21px;
+        font-size: 12px;
+        font-weight: 900;
+        line-height: 1;
+        cursor: pointer;
       }
 
-      .lp-thinking-card h4 {
-        margin: 7px 0 0;
-        font-size: 17px;
+      .lp-info-button:hover,
+      .lp-info-button:focus-visible {
+        border-color: rgba(142, 232, 255, 0.64);
+        background: rgba(83, 215, 255, 0.16);
+        outline: none;
       }
 
-      .lp-thinking-card p:last-child {
-        margin: 7px 0 0;
-        color: rgba(235, 247, 255, 0.5);
+      .lp-info-popover {
+        position: absolute;
+        left: 50%;
+        bottom: calc(100% + 9px);
+        z-index: 40;
+        width: min(310px, calc(100vw - 48px));
+        padding: 11px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(142, 232, 255, 0.22);
+        background: rgba(3, 12, 27, 0.98);
+        color: rgba(245, 251, 255, 0.82);
+        box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
         font-size: 12px;
         line-height: 1.5;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transform: translate(-50%, 5px);
+        transition:
+          opacity 150ms ease,
+          transform 150ms ease,
+          visibility 150ms ease;
       }
 
-      .lp-thinking-card > strong {
-        color: #ddd6fe;
-        font-size: 13px;
+      .lp-info-tip:hover .lp-info-popover,
+      .lp-info-tip:focus-within .lp-info-popover,
+      .lp-info-tip.open .lp-info-popover {
+        opacity: 1;
+        visibility: visible;
+        transform: translate(-50%, 0);
       }
 
       .lp-subject-filter {
@@ -1760,6 +1797,18 @@ function LearningProfileStyles() {
       }
 
       @media (max-width: 760px) {
+        .lp-info-popover {
+          left: 0;
+          transform: translate(0, 5px);
+          width: min(280px, calc(100vw - 52px));
+        }
+
+        .lp-info-tip:hover .lp-info-popover,
+        .lp-info-tip:focus-within .lp-info-popover,
+        .lp-info-tip.open .lp-info-popover {
+          transform: translate(0, 0);
+        }
+
         .lp-header {
           padding: 16px;
           flex-direction: column;
@@ -1829,14 +1878,6 @@ function LearningProfileStyles() {
         }
 
         .lp-mastery-evidence {
-          grid-column: 1 / -1;
-        }
-
-        .lp-thinking-card {
-          grid-template-columns: 42px minmax(0, 1fr);
-        }
-
-        .lp-thinking-card > strong {
           grid-column: 1 / -1;
         }
 

@@ -499,13 +499,6 @@ export default function NovaVirtualTeacherPopup({
             <div>
               <p className="nova-vt-brand">NOVA</p>
               <h2>Your Personal Learning Coach</h2>
-              <p className="nova-vt-report-label">
-                {studentLabel}’s weekly report
-              </p>
-              <p className="nova-vt-refresh-copy">
-                Results analytics refresh continuously. The seven-day plan
-                refreshes every Monday.
-              </p>
             </div>
           </div>
 
@@ -981,20 +974,6 @@ export default function NovaVirtualTeacherPopup({
             font-size: clamp(32px, 4vw, 50px);
             line-height: 1.05;
             letter-spacing: -0.045em;
-          }
-
-          .nova-vt-report-label {
-            margin: 9px 0 0;
-            color: rgba(255, 255, 255, 0.86);
-            font-size: 14px;
-            font-weight: 800;
-          }
-
-          .nova-vt-refresh-copy {
-            margin: 6px 0 0;
-            color: rgba(235, 247, 255, 0.59);
-            font-size: 13px;
-            line-height: 1.5;
           }
 
           .nova-vt-close {
@@ -1921,15 +1900,6 @@ export default function NovaVirtualTeacherPopup({
             .nova-vt-title-wrap h2 {
               font-size: 26px;
               line-height: 1.04;
-            }
-
-            .nova-vt-report-label {
-              margin-top: 7px;
-              font-size: 12px;
-            }
-
-            .nova-vt-refresh-copy {
-              display: none;
             }
 
             .nova-vt-close {

@@ -119,7 +119,7 @@ export default function ReviewQueueView({
       <div>
         <p style={eyebrow}>QUALITY CONTROL</p>
         <h1 style={title}>Review Queue</h1>
-        <p style={description}>
+        <p className="curriculum-page-description" style={description}>
           Admins can request changes and approve submissions. Both admins and
           curriculum leads can publish a completed English or Mathematics quiz.
         </p>
@@ -235,18 +235,19 @@ export default function ReviewQueueView({
 const eyebrow: CSSProperties = {
   margin: 0,
   color: "#7ee8ff",
-  fontSize: "11px",
+  fontSize: "13px",
   letterSpacing: "0.18em",
   fontWeight: 900,
 };
 const title: CSSProperties = {
   margin: "6px 0 0",
-  fontSize: "clamp(30px,4vw,48px)",
+  fontSize: "clamp(38px,4vw,56px)",
 };
 const description: CSSProperties = {
   margin: "8px 0 0",
-  color: "rgba(255,255,255,0.66)",
-  lineHeight: 1.55,
+  color: "rgba(255,255,255,0.7)",
+  fontSize: "17px",
+  lineHeight: 1.6,
 };
 const notice: CSSProperties = {
   marginTop: "16px",
@@ -254,19 +255,19 @@ const notice: CSSProperties = {
   border: "1px solid rgba(74,222,128,0.3)",
   background: "rgba(34,197,94,0.07)",
   color: "#d1fae5",
-  padding: "11px",
-  fontSize: "10px",
+  padding: "14px",
+  fontSize: "14px",
 };
 const queueList: CSSProperties = {
   marginTop: "18px",
   display: "grid",
-  gap: "10px",
+  gap: "14px",
 };
 const card: CSSProperties = {
   borderRadius: "18px",
   border: "1px solid rgba(126,232,255,0.22)",
-  background: "rgba(4,20,48,0.62)",
-  padding: "16px",
+  background: "#0b1a36",
+  padding: "20px",
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
@@ -282,7 +283,7 @@ const codeRow: CSSProperties = {
 const code: CSSProperties = {
   margin: 0,
   color: "#7ee8ff",
-  fontSize: "9px",
+  fontSize: "12px",
   letterSpacing: "0.12em",
   fontWeight: 900,
 };
@@ -291,27 +292,28 @@ const subjectPill: CSSProperties = {
   border: "1px solid rgba(198,166,255,0.3)",
   background: "rgba(168,85,247,0.1)",
   color: "#eadcff",
-  padding: "4px 7px",
-  fontSize: "8px",
+  padding: "5px 9px",
+  fontSize: "11px",
   fontWeight: 900,
   textTransform: "uppercase",
 };
 const quizTitle: CSSProperties = {
   margin: "5px 0 0",
-  fontSize: "22px",
+  fontSize: "28px",
 };
 const meta: CSSProperties = {
   margin: "7px 0 0",
   color: "rgba(255,255,255,0.56)",
-  fontSize: "11px",
+  fontSize: "14px",
+  lineHeight: 1.5,
 };
 const reviewNotes: CSSProperties = {
   marginTop: "9px",
   borderRadius: "10px",
   background: "rgba(255,215,106,0.07)",
   color: "#ffe6a8",
-  padding: "9px",
-  fontSize: "11px",
+  padding: "12px",
+  fontSize: "14px",
 };
 const actionArea: CSSProperties = {
   display: "flex",
@@ -324,19 +326,21 @@ const statusPill: CSSProperties = {
   borderRadius: "999px",
   background: "rgba(126,232,255,0.13)",
   color: "#bcefff",
-  padding: "7px 10px",
-  fontSize: "9px",
+  padding: "8px 12px",
+  fontSize: "12px",
   fontWeight: 900,
   textTransform: "uppercase",
 };
 const ghostButton: CSSProperties = {
-  minHeight: "36px",
+  minHeight: "44px",
   borderRadius: "10px",
   border: "1px solid rgba(126,232,255,0.24)",
   background: "rgba(255,255,255,0.05)",
   color: "white",
-  padding: "0 11px",
+  padding: "0 14px",
   cursor: "pointer",
+  fontSize: "14px",
+  fontWeight: 800,
 };
 const changesButton: CSSProperties = {
   ...ghostButton,
@@ -359,8 +363,9 @@ const publishButton: CSSProperties = {
 const emptyState: CSSProperties = {
   borderRadius: "17px",
   border: "1px dashed rgba(126,232,255,0.25)",
-  padding: "30px",
-  color: "rgba(255,255,255,0.56)",
+  padding: "34px",
+  color: "rgba(255,255,255,0.6)",
+  fontSize: "15px",
   textAlign: "center",
 };
 const successBanner: CSSProperties = {
@@ -369,7 +374,8 @@ const successBanner: CSSProperties = {
   border: "1px solid rgba(74,222,128,0.4)",
   background: "rgba(34,197,94,0.12)",
   color: "#bbf7d0",
-  padding: "10px",
+  padding: "13px",
+  fontSize: "14px",
 };
 const errorBanner: CSSProperties = {
   marginTop: "12px",
@@ -377,5 +383,6 @@ const errorBanner: CSSProperties = {
   border: "1px solid rgba(248,113,113,0.42)",
   background: "rgba(239,68,68,0.13)",
   color: "#fecaca",
-  padding: "10px",
+  padding: "13px",
+  fontSize: "14px",
 };
