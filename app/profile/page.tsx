@@ -41,6 +41,65 @@ type NovaSubscription = {
   plan_code: string | null;
 };
 
+type LearningProfileStatus = {
+  complete?: boolean;
+  missing_fields?: string[];
+  date_of_birth?: string | null;
+  age_years?: number | null;
+  age_band?: string | null;
+};
+
+function calculateAge(dateOfBirth: string) {
+  if (!dateOfBirth) {
+    return null;
+  }
+
+  const birthDate = new Date(`${dateOfBirth}T00:00:00`);
+  const today = new Date();
+
+  if (Number.isNaN(birthDate.getTime())) {
+    return null;
+  }
+
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDifference = today.getMonth() - birthDate.getMonth();
+
+  if (
+    monthDifference < 0 ||
+    (monthDifference === 0 &&
+      today.getDate() < birthDate.getDate())
+  ) {
+    age -= 1;
+  }
+
+  return age;
+}
+
+function ageBandFromAge(age: number | null) {
+  if (age === null || age < 4 || age > 120) return null;
+  if (age <= 5) return "4_5";
+  if (age <= 7) return "6_7";
+  if (age <= 9) return "8_9";
+  if (age <= 12) return "10_12";
+  if (age <= 15) return "13_15";
+  if (age <= 17) return "16_17";
+  return "18_plus";
+}
+
+function formatAgeBand(value: string | null) {
+  const labels: Record<string, string> = {
+    "4_5": "Ages 4–5",
+    "6_7": "Ages 6–7",
+    "8_9": "Ages 8–9",
+    "10_12": "Ages 10–12",
+    "13_15": "Ages 13–15",
+    "16_17": "Ages 16–17",
+    "18_plus": "Age 18+",
+  };
+
+  return value ? labels[value] || value : "Not recorded";
+}
+
 type ExchangeStock = {
   symbol: string;
   current_price: number;
@@ -219,6 +278,29 @@ export default function ProfilePage() {
   const [isSavingUsername, setIsSavingUsername] =
     useState(false);
 
+  const [dateOfBirth, setDateOfBirth] =
+    useState("");
+
+  const [ageYears, setAgeYears] =
+    useState<number | null>(null);
+
+  const [ageBand, setAgeBand] =
+    useState<string | null>(null);
+
+  const [isLoadingLearnerDetails, setIsLoadingLearnerDetails] =
+    useState(true);
+
+  const [isSavingLearnerDetails, setIsSavingLearnerDetails] =
+    useState(false);
+
+  const [learnerDetailsMessage, setLearnerDetailsMessage] =
+    useState("");
+
+  const [
+    learnerDetailsMessageType,
+    setLearnerDetailsMessageType,
+  ] = useState<"success" | "error" | "">("");
+
   const [isAdmin, setIsAdmin] = useState(false);
 
   const [
@@ -334,6 +416,7 @@ export default function ProfilePage() {
       setIsLoadingTokens(true);
       setIsLoadingGems(true);
       setIsLoadingPortfolio(true);
+      setIsLoadingLearnerDetails(true);
 
       const { data, error: userError } =
         await supabase.auth.getUser();
@@ -355,6 +438,11 @@ export default function ProfilePage() {
         setReferralCode(null);
         setUsername(null);
         setUsernameDraft("");
+        setDateOfBirth("");
+        setAgeYears(null);
+        setAgeBand(null);
+        setLearnerDetailsMessage("");
+        setLearnerDetailsMessageType("");
         setIsAdmin(false);
         setHasStudentRewardsAccess(false);
         setActiveLearningPlanLabels([]);
@@ -366,6 +454,7 @@ export default function ProfilePage() {
         setIsLoadingTokens(false);
         setIsLoadingGems(false);
         setIsLoadingPortfolio(false);
+        setIsLoadingLearnerDetails(false);
         return;
       }
 
@@ -412,6 +501,49 @@ export default function ProfilePage() {
       setDreamGemBalance(
         Number(profile?.dream_gem_balance || 0),
       );
+
+      const {
+        data: learningProfileData,
+        error: learningProfileError,
+      } = await supabase.rpc(
+        "get_my_learning_profile_status",
+      );
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (learningProfileError) {
+        console.warn(
+          "Could not load learner details:",
+          learningProfileError.message,
+        );
+
+        setDateOfBirth("");
+        setAgeYears(null);
+        setAgeBand(null);
+        setLearnerDetailsMessage(
+          "Learner details could not be loaded.",
+        );
+        setLearnerDetailsMessageType("error");
+      } else {
+        const learningProfile =
+          (learningProfileData || {}) as LearningProfileStatus;
+
+        setDateOfBirth(
+          learningProfile.date_of_birth || "",
+        );
+        setAgeYears(
+          typeof learningProfile.age_years === "number"
+            ? learningProfile.age_years
+            : null,
+        );
+        setAgeBand(
+          learningProfile.age_band || null,
+        );
+      }
+
+      setIsLoadingLearnerDetails(false);
 
       const {
         data: subscriptionRows,
@@ -779,6 +911,71 @@ export default function ProfilePage() {
     setUsernameMessageType("success");
   }
 
+  async function saveLearnerDetails() {
+    setLearnerDetailsMessage("");
+    setLearnerDetailsMessageType("");
+
+    const age = calculateAge(dateOfBirth);
+
+    if (!dateOfBirth || age === null || age < 4 || age > 120) {
+      setLearnerDetailsMessage(
+        "Please enter a valid date of birth.",
+      );
+      setLearnerDetailsMessageType("error");
+      return;
+    }
+
+    setIsSavingLearnerDetails(true);
+
+    const { data, error } = await supabase.rpc(
+      "update_my_learning_profile",
+      {
+        p_date_of_birth: dateOfBirth,
+      },
+    );
+
+    setIsSavingLearnerDetails(false);
+
+    if (error) {
+      console.error(
+        "Learner details update error:",
+        error.message,
+      );
+
+      setLearnerDetailsMessage(
+        error.message ||
+          "Learner details could not be saved.",
+      );
+      setLearnerDetailsMessageType("error");
+      return;
+    }
+
+    const learningProfile =
+      (data || {}) as LearningProfileStatus;
+
+    setDateOfBirth(
+      learningProfile.date_of_birth || dateOfBirth,
+    );
+    setAgeYears(
+      typeof learningProfile.age_years === "number"
+        ? learningProfile.age_years
+        : age,
+    );
+    setAgeBand(
+      learningProfile.age_band ||
+        ageBandFromAge(age),
+    );
+    setLearnerDetailsMessage(
+      "Learner details saved.",
+    );
+    setLearnerDetailsMessageType("success");
+
+    localStorage.removeItem("pending-date-of-birth");
+    window.dispatchEvent(
+      new Event("learning-profile-updated"),
+    );
+  }
+
   async function copyReferralCode() {
     if (!referralCode) {
       return;
@@ -902,6 +1099,9 @@ Thank you.`;
     );
     localStorage.removeItem(
       "pending-referral-code",
+    );
+    localStorage.removeItem(
+      "pending-date-of-birth",
     );
 
     await supabase.auth.signOut();
@@ -1083,6 +1283,111 @@ Thank you.`;
                   >
                     {usernameMessage}
                   </p>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-cyan-200/18 bg-[linear-gradient(145deg,rgba(12,57,89,0.72),rgba(6,22,50,0.82))] p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.18em] text-[#7ee8ff]">
+                      Learner Details
+                    </p>
+
+                    <h3 className="mt-2 text-2xl font-extrabold text-white">
+                      Age Profile
+                    </h3>
+                  </div>
+
+                  {!dateOfBirth && !isLoadingLearnerDetails && (
+                    <span className="rounded-full border border-amber-200/25 bg-amber-300/10 px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-amber-100">
+                      Required
+                    </span>
+                  )}
+                </div>
+
+                <p className="mt-3 text-sm leading-6 text-white/54">
+                  Nova uses the learner&apos;s age to adjust explanations and
+                  recommendations. Age does not change quiz marks.
+                </p>
+
+                {isLoadingLearnerDetails ? (
+                  <p className="mt-5 text-sm text-white/48">
+                    Loading learner details...
+                  </p>
+                ) : (
+                  <>
+                    <label className="mt-5 block">
+                      <span className="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-white/48">
+                        Date of birth
+                      </span>
+
+                      <input
+                        type="date"
+                        required
+                        max={new Date().toISOString().slice(0, 10)}
+                        value={dateOfBirth}
+                        onChange={(event) => {
+                          const nextDate = event.target.value;
+                          const nextAge = calculateAge(nextDate);
+
+                          setDateOfBirth(nextDate);
+                          setAgeYears(nextAge);
+                          setAgeBand(ageBandFromAge(nextAge));
+                          setLearnerDetailsMessage("");
+                          setLearnerDetailsMessageType("");
+                        }}
+                        autoComplete="bday"
+                        className="min-h-[52px] w-full rounded-2xl border border-cyan-200/16 bg-[#020a1b]/70 px-5 text-base text-white outline-none transition focus:border-cyan-200/48"
+                      />
+                    </label>
+
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/40">
+                          Current Age
+                        </p>
+
+                        <p className="mt-2 text-lg font-extrabold text-white">
+                          {ageYears === null
+                            ? "Not recorded"
+                            : `${ageYears} years`}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/40">
+                          Nova Age Band
+                        </p>
+
+                        <p className="mt-2 text-lg font-extrabold text-white">
+                          {formatAgeBand(ageBand)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {learnerDetailsMessage && (
+                      <p
+                        className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${
+                          learnerDetailsMessageType === "success"
+                            ? "border-green-200/20 bg-green-400/10 text-green-200"
+                            : "border-red-200/20 bg-red-400/10 text-red-200"
+                        }`}
+                      >
+                        {learnerDetailsMessage}
+                      </p>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={saveLearnerDetails}
+                      disabled={isSavingLearnerDetails}
+                      className="mt-4 min-h-[50px] w-full rounded-full border border-cyan-200/25 bg-cyan-300/16 px-6 text-xs font-extrabold uppercase tracking-[0.14em] text-white transition hover:scale-[1.01] hover:bg-cyan-300/22 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isSavingLearnerDetails
+                        ? "Saving..."
+                        : "Save Learner Details"}
+                    </button>
+                  </>
                 )}
               </div>
 

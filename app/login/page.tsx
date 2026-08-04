@@ -10,6 +10,50 @@ function normaliseEmail(value: string) {
   return value.trim().toLowerCase();
 }
 
+function calculateAge(dateOfBirth: string) {
+  if (!dateOfBirth) {
+    return null;
+  }
+
+  const birthDate = new Date(`${dateOfBirth}T00:00:00`);
+  const today = new Date();
+
+  if (Number.isNaN(birthDate.getTime())) {
+    return null;
+  }
+
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDifference = today.getMonth() - birthDate.getMonth();
+
+  if (
+    monthDifference < 0 ||
+    (monthDifference === 0 &&
+      today.getDate() < birthDate.getDate())
+  ) {
+    age -= 1;
+  }
+
+  return age;
+}
+
+function getRequestedNextPath() {
+  if (typeof window === "undefined") {
+    return "/profile";
+  }
+
+  const requested = new URLSearchParams(window.location.search).get("next");
+
+  if (!requested || !requested.startsWith("/") || requested.startsWith("//")) {
+    return "/profile";
+  }
+
+  return requested;
+}
+
+function getCompleteProfilePath(nextPath: string) {
+  return `/complete-profile?next=${encodeURIComponent(nextPath)}`;
+}
+
 function getAuthErrorMessage(error: unknown) {
   const authError = error as {
     code?: string;
@@ -46,6 +90,7 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
   const [referralCode, setReferralCode] = useState("");
 
   const [showPassword, setShowPassword] = useState(false);
@@ -110,9 +155,46 @@ export default function LoginPage() {
         return;
       }
 
-      displayMessage("Login successful. Opening your profile.", "success");
+      const nextPath = getRequestedNextPath();
+      const enteredAge = calculateAge(dateOfBirth);
 
-      router.replace("/profile");
+      if (
+        dateOfBirth &&
+        enteredAge !== null &&
+        enteredAge >= 4 &&
+        enteredAge <= 120
+      ) {
+        localStorage.setItem("pending-date-of-birth", dateOfBirth);
+      }
+
+      const {
+        data: learningProfileStatus,
+        error: learningProfileError,
+      } = await supabase.rpc("get_my_learning_profile_status");
+
+      const resolvedLearningProfile =
+        (learningProfileStatus || {}) as {
+          complete?: boolean;
+        };
+
+      if (learningProfileError || !resolvedLearningProfile.complete) {
+        displayMessage(
+          "Login successful. Complete the learner profile to continue.",
+          "success"
+        );
+
+        router.replace(getCompleteProfilePath(nextPath));
+      } else {
+        localStorage.removeItem("pending-date-of-birth");
+
+        displayMessage(
+          "Login successful. Opening your profile.",
+          "success"
+        );
+
+        router.replace(nextPath);
+      }
+
       router.refresh();
     } catch (error) {
       console.error("Login error:", error);
@@ -131,6 +213,15 @@ export default function LoginPage() {
 
     const cleanEmail = normaliseEmail(email);
     const cleanReferralCode = referralCode.trim().toUpperCase();
+    const age = calculateAge(dateOfBirth);
+
+    if (!dateOfBirth || age === null || age < 4 || age > 120) {
+      displayMessage(
+        "Please enter a valid learner date of birth before creating an account.",
+        "error"
+      );
+      return;
+    }
 
     if (!cleanEmail || !password) {
       displayMessage(
@@ -158,7 +249,12 @@ export default function LoginPage() {
         password,
 
         options: {
-          emailRedirectTo: `${window.location.origin}/profile`,
+          emailRedirectTo: `${
+            window.location.origin
+          }${getCompleteProfilePath("/profile")}`,
+          data: {
+            date_of_birth: dateOfBirth,
+          },
         },
       });
 
@@ -185,9 +281,21 @@ export default function LoginPage() {
       }
 
       setPassword("");
+      localStorage.setItem("pending-date-of-birth", dateOfBirth);
+
+      if (data.session) {
+        displayMessage(
+          "Account created. Complete the learner profile to continue.",
+          "success"
+        );
+
+        router.replace(getCompleteProfilePath("/profile"));
+        router.refresh();
+        return;
+      }
 
       displayMessage(
-        "Account created. Please check your email and click the confirmation link before logging in.",
+        "Account created. Please check your email and click the confirmation link. You will then complete the learner profile.",
         "success"
       );
     } catch (error) {
@@ -216,13 +324,28 @@ export default function LoginPage() {
       localStorage.removeItem("pending-referral-code");
     }
 
+    const age = calculateAge(dateOfBirth);
+
+    if (
+      dateOfBirth &&
+      age !== null &&
+      age >= 4 &&
+      age <= 120
+    ) {
+      localStorage.setItem("pending-date-of-birth", dateOfBirth);
+    } else {
+      localStorage.removeItem("pending-date-of-birth");
+    }
+
     setLoadingAction("google");
 
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/profile`,
+          redirectTo: `${
+            window.location.origin
+          }${getCompleteProfilePath(getRequestedNextPath())}`,
           queryParams: {
             prompt: "select_account",
           },
@@ -439,6 +562,30 @@ export default function LoginPage() {
                       {showPassword ? "Hide" : "Show"}
                     </button>
                   </div>
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-white/58">
+                    Learner date of birth
+                  </span>
+
+                  <input
+                    type="date"
+                    value={dateOfBirth}
+                    max={new Date().toISOString().slice(0, 10)}
+                    onChange={(event) => {
+                      setDateOfBirth(event.target.value);
+                      clearMessage();
+                    }}
+                    autoComplete="bday"
+                    className="h-14 w-full rounded-2xl border border-cyan-200/18 bg-[#020a1b]/75 px-5 text-base text-white outline-none transition focus:border-cyan-200/55 focus:ring-2 focus:ring-cyan-300/10"
+                  />
+
+                  <p className="mt-2 text-xs leading-5 text-white/42">
+                    Required when creating an account. Existing users can log
+                    in without re-entering it and will be prompted only if
+                    their learner profile is incomplete.
+                  </p>
                 </label>
               </div>
 

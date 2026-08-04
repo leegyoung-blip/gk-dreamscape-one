@@ -222,6 +222,30 @@ export default function CoreMissionsPage() {
     );
   }
 
+  if (status === "signed_out") {
+    return (
+      <CoreMissionPageShell>
+        <CoreMissionTopBar
+          backHref="/learning-missions"
+          backLabel="Missions"
+        />
+        <SignedOutPanel />
+      </CoreMissionPageShell>
+    );
+  }
+
+  if (status === "profile_required") {
+    return (
+      <CoreMissionPageShell>
+        <CoreMissionTopBar
+          backHref="/learning-missions"
+          backLabel="Missions"
+        />
+        <ProfileRequiredPanel />
+      </CoreMissionPageShell>
+    );
+  }
+
   if (status === "locked") {
     return (
       <CoreMissionPageShell>
@@ -441,19 +465,91 @@ function MessagePanel({ text }: { text: string }) {
   );
 }
 
-function LockedPanel() {
+function SignedOutPanel() {
   return (
-    <div className="mx-auto mt-16 max-w-2xl rounded-[2rem] border border-amber-200/20 bg-amber-300/10 p-8 text-center">
-      <h1 className="m-0 text-3xl font-black">Core Missions Locked</h1>
-      <p className="mt-3 text-white/65">
-        Log in with an account that has access to Core Missions.
+    <div className="mx-auto mt-16 max-w-2xl rounded-[2rem] border border-cyan-200/20 bg-cyan-300/10 p-8 text-center">
+      <p className="m-0 text-xs font-black uppercase tracking-[0.18em] text-cyan-200">
+        Account required
       </p>
+
+      <h1 className="mt-3 text-3xl font-black">
+        Log in to enter Core Missions
+      </h1>
+
+      <p className="mt-3 text-white/65">
+        Use your Dreamscape account to load your access, progress and rewards.
+      </p>
+
       <a
-        href="/login"
+        href="/login?next=/learning-missions/core"
         className="mt-6 inline-flex min-h-11 items-center rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 px-6 text-sm font-black text-white no-underline"
       >
         Log In
       </a>
+    </div>
+  );
+}
+
+function ProfileRequiredPanel() {
+  return (
+    <div className="mx-auto mt-16 max-w-2xl rounded-[2rem] border border-cyan-200/20 bg-[linear-gradient(145deg,rgba(34,211,238,0.13),rgba(124,58,237,0.12))] p-8 text-center">
+      <p className="m-0 text-xs font-black uppercase tracking-[0.18em] text-cyan-200">
+        Learner profile required
+      </p>
+
+      <h1 className="mt-3 text-3xl font-black">
+        Complete Your Learner Profile
+      </h1>
+
+      <p className="mx-auto mt-3 max-w-xl text-white/65">
+        Enter the learner&apos;s date of birth so Nova can provide
+        age-appropriate analysis and recommendations before Core Missions
+        opens.
+      </p>
+
+      <div className="mt-6 flex flex-wrap justify-center gap-3">
+        <a
+          href="/complete-profile?next=%2Flearning-missions%2Fcore"
+          className="inline-flex min-h-11 items-center rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 px-6 text-sm font-black text-white no-underline"
+        >
+          Complete Profile
+        </a>
+
+        <a
+          href="/learning-missions"
+          className="inline-flex min-h-11 items-center rounded-full border border-white/15 bg-white/[0.05] px-6 text-sm font-black text-white no-underline"
+        >
+          Return to Missions
+        </a>
+      </div>
+    </div>
+  );
+}
+
+function LockedPanel() {
+  return (
+    <div className="mx-auto mt-16 max-w-2xl rounded-[2rem] border border-amber-200/20 bg-amber-300/10 p-8 text-center">
+      <h1 className="m-0 text-3xl font-black">Core Missions Locked</h1>
+
+      <p className="mt-3 text-white/65">
+        This account does not currently have Core Missions access.
+      </p>
+
+      <div className="mt-6 flex flex-wrap justify-center gap-3">
+        <a
+          href="/nova/membership-portal"
+          className="inline-flex min-h-11 items-center rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 px-6 text-sm font-black text-white no-underline"
+        >
+          View Access Plans
+        </a>
+
+        <a
+          href="/learning-missions"
+          className="inline-flex min-h-11 items-center rounded-full border border-white/15 bg-white/[0.05] px-6 text-sm font-black text-white no-underline"
+        >
+          Return to Missions
+        </a>
+      </div>
     </div>
   );
 }
