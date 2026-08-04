@@ -171,6 +171,28 @@ const SUBJECT_LABELS: Record<CoreSubject, string> = {
   math: "Mathematics",
 };
 
+const CORE_RPCS: Record<
+  CoreSubject,
+  {
+    getPayload: "get_english_quiz_payload" | "get_math_quiz_payload";
+    saveAnswer: "save_english_quiz_answer" | "save_math_quiz_answer";
+    submitAttempt:
+      | "submit_english_quiz_attempt"
+      | "submit_math_quiz_attempt";
+  }
+> = {
+  english: {
+    getPayload: "get_english_quiz_payload",
+    saveAnswer: "save_english_quiz_answer",
+    submitAttempt: "submit_english_quiz_attempt",
+  },
+  math: {
+    getPayload: "get_math_quiz_payload",
+    saveAnswer: "save_math_quiz_answer",
+    submitAttempt: "submit_math_quiz_attempt",
+  },
+};
+
 function useResponsiveMode() {
   const [mode, setMode] = useState<ScreenMode>("desktop");
 
@@ -284,6 +306,7 @@ export default function CoreQuizPlayer({
   const screenMode = useResponsiveMode();
   const isMobile = screenMode === "mobile";
   const isCompact = screenMode !== "desktop";
+  const rpcNames = CORE_RPCS[subject];
 
   const {
     status,
@@ -315,7 +338,7 @@ export default function CoreQuizPlayer({
     setError(null);
 
     const { data, error: loadError } = await supabase.rpc(
-      "get_core_quiz_payload",
+      rpcNames.getPayload,
       { p_quiz_id: quizId },
     );
 
@@ -373,7 +396,7 @@ export default function CoreQuizPlayer({
     quizStartedAtRef.current = Date.now();
     questionOpenedAtRef.current = Date.now();
     setStage("intro");
-  }, [level, quizId, status, subject]);
+  }, [level, quizId, status, subject, rpcNames.getPayload]);
 
   useEffect(() => {
     void loadQuiz();
@@ -430,7 +453,7 @@ export default function CoreQuizPlayer({
     setError(null);
 
     const { data, error: saveError } = await supabase.rpc(
-      "save_core_quiz_answer",
+      rpcNames.saveAnswer,
       {
         p_attempt_id: payload.attempt_id,
         p_question_id: currentQuestion.id,
@@ -550,7 +573,7 @@ export default function CoreQuizPlayer({
     }));
 
     const { data, error: submitError } = await supabase.rpc(
-      "submit_core_quiz_attempt",
+      rpcNames.submitAttempt,
       {
         p_attempt_id: payload.attempt_id,
         p_answers: responseArray,

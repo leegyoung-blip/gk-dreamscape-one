@@ -8,6 +8,26 @@ import { supabase } from "@/lib/supabase";
 type SubjectKey = "english" | "math" | "science" | "knowledge";
 type PopupTab = "analytics" | "plan" | "profile";
 
+type NovaAgeContext = {
+  available: boolean;
+  age_years: number | null;
+  age_band: string | null;
+  age_band_label: string;
+  session_minutes_min: number | null;
+  session_minutes_max: number | null;
+  recommended_session_minutes: number | null;
+  explanation_style: string;
+  feedback_style: string;
+  support_guidance: string;
+  independence_guidance: string;
+  plan_spacing: string;
+  curriculum_rule: string;
+  privacy_rule: string;
+  context_version: string;
+  as_of: string | null;
+};
+
+
 type ClientSubjectSummary = {
   subject: SubjectKey;
   attempts: number;
@@ -55,6 +75,8 @@ type ReportArea = {
 
 type ReportAnalytics = {
   summary: string;
+  analytics_version?: string;
+  age_context?: NovaAgeContext;
   parent_note: string;
   confidence: "low" | "medium" | "high";
   attempts_analyzed: number;
@@ -84,6 +106,9 @@ type PlanItem = {
   target_skill_code?: string | null;
   target_skill_name?: string | null;
   recommendation_version?: string | null;
+  recommended_session_minutes?: number | null;
+  support_guidance?: string | null;
+  age_context_version?: string | null;
   status: "pending" | "completed" | "missed" | "cancelled";
   completed_at: string | null;
 };
@@ -221,6 +246,8 @@ type ProfileSnapshot = {
   source_event_count: number;
   source_question_count: number;
   generated_at: string;
+  age_context?: NovaAgeContext;
+  age_context_version?: string | null;
 };
 
 type LearningProfilePayload = {
@@ -235,6 +262,8 @@ type LearningProfilePayload = {
   resolved_insights: ProfileInsight[];
   timeline: ProfileSnapshot[];
   processing: Record<string, unknown>;
+  age_context?: NovaAgeContext;
+  age_context_version?: string;
 };
 
 type ProfileTopicGroup = {
@@ -338,6 +367,31 @@ function itemTypeLabel(value: PlanItem["item_type"]) {
   }
 }
 
+
+
+function readableGuidance(value: string | null | undefined) {
+  return String(value || "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (character) =>
+      character.toUpperCase(),
+    );
+}
+
+function ageContextSummary(
+  context: NovaAgeContext | null | undefined,
+) {
+  if (!context?.available) {
+    return "Age context unavailable";
+  }
+
+  const minutes =
+    context.session_minutes_min !== null &&
+    context.session_minutes_max !== null
+      ? `${context.session_minutes_min}–${context.session_minutes_max} min`
+      : "Session length building";
+
+  return `${context.age_band_label} · ${minutes}`;
+}
 
 function safeNumber(value: unknown, fallback = 0) {
   const parsed = Number(value);
@@ -760,8 +814,8 @@ export default function NovaVirtualTeacherPopup({
     setProfileError("");
 
     const functionName = refresh
-      ? "admin_refresh_learning_profile"
-      : "admin_get_learning_profile";
+      ? "admin_refresh_learning_profile_with_age"
+      : "admin_get_learning_profile_with_age";
 
     const { data, error } = await supabase.rpc(functionName, {
       p_student_user_id: studentUserId,
@@ -1074,6 +1128,13 @@ export default function NovaVirtualTeacherPopup({
   )[0] || null;
 
   const profileSnapshot = profilePayload?.latest_snapshot || {};
+  const reportAgeContext = analytics?.age_context || null;
+  const profileAgeContext =
+    profilePayload?.age_context ||
+    ((profileSnapshot.age_context &&
+      typeof profileSnapshot.age_context === "object")
+      ? (profileSnapshot.age_context as NovaAgeContext)
+      : null);
   const granularReadyCount = profileSkills.filter(
     (skill) =>
       !skill.is_topic_level &&
@@ -1296,6 +1357,50 @@ export default function NovaVirtualTeacherPopup({
                 </div>
               </section>
 
+              {reportAgeContext?.available && (
+                <section className="nova-vt-age-context">
+                  <div>
+                    <p className="nova-vt-eyebrow">
+                      Age-aware guidance
+                    </p>
+                    <h3>
+                      {ageContextSummary(reportAgeContext)}
+                    </h3>
+                    <p>
+                      {reportAgeContext.support_guidance}
+                    </p>
+                  </div>
+
+                  <div className="nova-vt-age-context-grid">
+                    <Metric
+                      label="Explanation style"
+                      value={readableGuidance(
+                        reportAgeContext.explanation_style,
+                      )}
+                    />
+                    <Metric
+                      label="Independence"
+                      value={readableGuidance(
+                        reportAgeContext.independence_guidance,
+                      )}
+                    />
+                    <Metric
+                      label="Plan spacing"
+                      value={readableGuidance(
+                        reportAgeContext.plan_spacing,
+                      )}
+                    />
+                  </div>
+
+                  <div className="nova-vt-age-context-rule">
+                    <InfoTip text="Nova receives only the derived age and age band, not the learner’s exact date of birth. Age changes wording, suggested session length and support guidance only. It does not change correctness, marks, mastery, skill priority, quiz eligibility or rewards." />
+                    <span>
+                      Primary level remains the curriculum reference.
+                    </span>
+                  </div>
+                </section>
+              )}
+
               <section className="nova-vt-section">
                 <div className="nova-vt-section-heading">
                   <div>
@@ -1490,6 +1595,11 @@ export default function NovaVirtualTeacherPopup({
                           <div className="nova-vt-plan-meta">
                             {item.target_accuracy !== null && (
                               <span>Target: {item.target_accuracy}%</span>
+                            )}
+                            {item.recommended_session_minutes && (
+                              <span>
+                                About {item.recommended_session_minutes} min
+                              </span>
                             )}
                             {item.bonus_dt > 0 && (
                               <span className="bonus">+{item.bonus_dt} bonus DT</span>
@@ -1687,6 +1797,24 @@ export default function NovaVirtualTeacherPopup({
                           current profile.
                         </p>
                       </article>
+
+                      <article>
+                        <span>
+                          Age context
+                          <InfoTip text="Age changes how Nova explains findings, suggests session length and describes adult support. It never changes quiz marks, mastery calculations, curriculum standards or rewards." />
+                        </span>
+                        <strong>
+                          {profileAgeContext?.available &&
+                          profileAgeContext.age_years !== null
+                            ? `${profileAgeContext.age_years} years`
+                            : "Not available"}
+                        </strong>
+                        <p>
+                          {profileAgeContext?.available
+                            ? ageContextSummary(profileAgeContext)
+                            : "Complete the learner DOB profile to activate age-aware guidance."}
+                        </p>
+                      </article>
                     </div>
 
                     <div className="nova-vt-profile-columns">
@@ -1765,6 +1893,17 @@ export default function NovaVirtualTeacherPopup({
                                       .map((area) => area.label)
                                       .join(", ")
                                   : "No reliable priority detected yet"}
+                            </strong>
+                          </div>
+
+                          <div>
+                            <span>Age contextualisation</span>
+                            <strong>
+                              {profileAgeContext?.available
+                                ? `${profileAgeContext.age_band_label} · ${readableGuidance(
+                                    profileAgeContext.independence_guidance,
+                                  )}`
+                                : "Waiting for completed learner DOB"}
                             </strong>
                           </div>
 
@@ -2875,7 +3014,7 @@ export default function NovaVirtualTeacherPopup({
           .nova-vt-subject-grid {
             margin-top: 17px;
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(5, minmax(0, 1fr));
             gap: 10px;
           }
 
@@ -4545,6 +4684,69 @@ export default function NovaVirtualTeacherPopup({
             .nova-mastery-skill-metrics,
             .nova-mastery-evidence-row,
             .nova-timeline-metrics {
+              grid-template-columns: 1fr;
+            }
+          }
+
+
+          .nova-vt-age-context {
+            margin-top: 14px;
+            padding: 18px;
+            display: grid;
+            grid-template-columns: minmax(250px, 1.15fr) minmax(420px, 1.85fr);
+            gap: 16px;
+            border-radius: 18px;
+            border: 1px solid rgba(126, 232, 255, 0.18);
+            background:
+              linear-gradient(
+                145deg,
+                rgba(83, 215, 255, 0.075),
+                rgba(167, 139, 250, 0.055)
+              );
+          }
+
+          .nova-vt-age-context h3 {
+            margin: 7px 0 0;
+            font-size: 21px;
+          }
+
+          .nova-vt-age-context > div:first-child > p:last-child {
+            margin: 9px 0 0;
+            color: rgba(235, 247, 255, 0.58);
+            font-size: 12px;
+            line-height: 1.55;
+          }
+
+          .nova-vt-age-context-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+          }
+
+          .nova-vt-age-context-grid > div {
+            background: rgba(255, 255, 255, 0.035);
+          }
+
+          .nova-vt-age-context-grid > div strong {
+            font-size: 11px;
+            line-height: 1.35;
+          }
+
+          .nova-vt-age-context-rule {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            color: rgba(235, 247, 255, 0.43);
+            font-size: 10px;
+          }
+
+          @media (max-width: 900px) {
+            .nova-vt-age-context {
+              grid-template-columns: 1fr;
+            }
+
+            .nova-vt-age-context-grid {
               grid-template-columns: 1fr;
             }
           }
