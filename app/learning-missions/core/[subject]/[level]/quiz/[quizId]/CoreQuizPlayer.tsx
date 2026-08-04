@@ -171,26 +171,6 @@ const SUBJECT_LABELS: Record<CoreSubject, string> = {
   math: "Mathematics",
 };
 
-const CORE_RPCS: Record<
-  CoreSubject,
-  {
-    getPayload: string;
-    saveAnswer: string;
-    submitAttempt: string;
-  }
-> = {
-  english: {
-    getPayload: "get_english_quiz_payload",
-    saveAnswer: "save_english_quiz_answer",
-    submitAttempt: "submit_english_quiz_attempt",
-  },
-  math: {
-    getPayload: "get_math_quiz_payload",
-    saveAnswer: "save_math_quiz_answer",
-    submitAttempt: "submit_math_quiz_attempt",
-  },
-};
-
 function useResponsiveMode() {
   const [mode, setMode] = useState<ScreenMode>("desktop");
 
@@ -304,7 +284,6 @@ export default function CoreQuizPlayer({
   const screenMode = useResponsiveMode();
   const isMobile = screenMode === "mobile";
   const isCompact = screenMode !== "desktop";
-  const rpcNames = CORE_RPCS[subject];
 
   const {
     status,
@@ -336,7 +315,7 @@ export default function CoreQuizPlayer({
     setError(null);
 
     const { data, error: loadError } = await supabase.rpc(
-      rpcNames.getPayload,
+      "get_core_quiz_payload",
       { p_quiz_id: quizId },
     );
 
@@ -394,7 +373,7 @@ export default function CoreQuizPlayer({
     quizStartedAtRef.current = Date.now();
     questionOpenedAtRef.current = Date.now();
     setStage("intro");
-  }, [level, quizId, rpcNames.getPayload, status, subject]);
+  }, [level, quizId, status, subject]);
 
   useEffect(() => {
     void loadQuiz();
@@ -451,7 +430,7 @@ export default function CoreQuizPlayer({
     setError(null);
 
     const { data, error: saveError } = await supabase.rpc(
-      rpcNames.saveAnswer,
+      "save_core_quiz_answer",
       {
         p_attempt_id: payload.attempt_id,
         p_question_id: currentQuestion.id,
@@ -571,7 +550,7 @@ export default function CoreQuizPlayer({
     }));
 
     const { data, error: submitError } = await supabase.rpc(
-      rpcNames.submitAttempt,
+      "submit_core_quiz_attempt",
       {
         p_attempt_id: payload.attempt_id,
         p_answers: responseArray,
@@ -595,7 +574,6 @@ export default function CoreQuizPlayer({
     await refreshBalances();
     window.dispatchEvent(new Event("dream-tokens-updated"));
     window.dispatchEvent(new Event("dream-gems-updated"));
-    window.dispatchEvent(new Event(`${subject}-missions-progress-updated`));
     window.dispatchEvent(new Event("core-missions-progress-updated"));
   }
 
@@ -961,7 +939,7 @@ function QuestionResponse({
     case "multiple_choice":
     case "listening_comprehension":
       return (
-        <OptionGrid>
+        <OptionGrid optionCount={options.length}>
           {options.map((option, index) => (
             <OptionButton
               key={option.id}
@@ -984,7 +962,7 @@ function QuestionResponse({
               { id: "false", text: "False", image_url: null },
             ];
       return (
-        <OptionGrid>
+        <OptionGrid optionCount={trueFalseOptions.length}>
           {trueFalseOptions.map((option) => (
             <OptionButton
               key={option.id}
@@ -1003,7 +981,7 @@ function QuestionResponse({
       return (
         <div>
           <p style={helperText}>Choose every correct answer.</p>
-          <OptionGrid>
+          <OptionGrid optionCount={options.length}>
             {options.map((option, index) => {
               const selectedIds = Array.isArray(response.option_ids)
                 ? response.option_ids.map(String)
@@ -1109,8 +1087,14 @@ function QuestionResponse({
   }
 }
 
-function OptionGrid({ children }: { children: ReactNode }) {
-  return <div style={optionGrid}>{children}</div>;
+function OptionGrid({
+  children,
+  optionCount,
+}: {
+  children: ReactNode;
+  optionCount: number;
+}) {
+  return <div style={optionGrid(optionCount)}>{children}</div>;
 }
 
 function OptionButton({
@@ -1141,10 +1125,11 @@ function OptionButton({
             alt=""
             style={{
               display: "block",
-              maxWidth: "160px",
-              maxHeight: "100px",
+              width: "100%",
+              maxWidth: "220px",
+              maxHeight: "150px",
               objectFit: "contain",
-              marginBottom: "7px",
+              margin: "0 auto 8px",
             }}
           />
         )}
@@ -2169,11 +2154,19 @@ const navigatorPopover: CSSProperties = {
   boxShadow: "0 20px 50px rgba(0,0,0,0.42)",
 };
 
-const optionGrid: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))",
-  gap: "9px",
-};
+function optionGrid(optionCount: number): CSSProperties {
+  return {
+    display: "grid",
+    // Four choices must always form a balanced 2 × 2 grid. The old auto-fit
+    // layout could produce three choices on the first row and one below.
+    gridTemplateColumns:
+      optionCount === 4 || optionCount === 2
+        ? "repeat(2,minmax(0,1fr))"
+        : "repeat(auto-fit,minmax(240px,1fr))",
+    gap: "12px",
+    alignItems: "stretch",
+  };
+}
 
 function optionButton(selected: boolean, disabled: boolean): CSSProperties {
   return {
@@ -2187,8 +2180,10 @@ function optionButton(selected: boolean, disabled: boolean): CSSProperties {
       : "rgba(255,255,255,0.065)",
     color: "white",
     padding: "10px 12px",
+    width: "100%",
+    minWidth: 0,
     display: "grid",
-    gridTemplateColumns: "34px 1fr",
+    gridTemplateColumns: "34px minmax(0,1fr)",
     alignItems: "center",
     gap: "10px",
     textAlign: "left",

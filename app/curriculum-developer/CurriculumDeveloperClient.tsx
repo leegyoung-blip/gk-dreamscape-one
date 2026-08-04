@@ -253,6 +253,16 @@ export default function CurriculumDeveloperClient() {
             icon="✎"
             onClick={() => setSection("builder")}
           />
+
+          <NavButton
+            active={false}
+            label="Learning Skills"
+            icon="◎"
+            onClick={() =>
+              router.push("/curriculum-developer/learning-skills")
+            }
+          />
+
           <NavButton
             active={section === "review"}
             label="Review Queue"
