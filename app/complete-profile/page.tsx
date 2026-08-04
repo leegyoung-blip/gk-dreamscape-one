@@ -1,6 +1,12 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  Suspense,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -41,6 +47,22 @@ function calculateAge(dateOfBirth: string) {
 }
 
 export default function CompleteProfilePage() {
+  return (
+    <Suspense fallback={<CompleteProfileLoading />}>
+      <CompleteProfileContent />
+    </Suspense>
+  );
+}
+
+function CompleteProfileLoading() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-[#020813] px-4 text-white">
+      Checking your learner profile...
+    </main>
+  );
+}
+
+function CompleteProfileContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = safeNextPath(searchParams.get("next"));
@@ -156,11 +178,7 @@ export default function CompleteProfilePage() {
   const today = new Date().toISOString().slice(0, 10);
 
   if (loading) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[#020813] px-4 text-white">
-        Checking your learner profile...
-      </main>
-    );
+    return <CompleteProfileLoading />;
   }
 
   return (
