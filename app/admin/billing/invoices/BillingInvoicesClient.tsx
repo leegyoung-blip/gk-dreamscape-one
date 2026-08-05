@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { FormEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -348,6 +349,89 @@ export default function BillingInvoicesClient() {
         `${Number(result?.invoice_count || 0)} invoice drafts generated with ${Number(result?.billable_lesson_count || 0)} billable lessons.`,
       );
       await loadMonth(selectedInvoiceId);
+    }
+
+    setWorking(false);
+  }
+
+  function secureParentPath(invoice: BillingInvoiceOverview) {
+    return `/invoice/${invoice.public_token}`;
+  }
+
+  async function copyParentLink() {
+    if (!selectedInvoice || !selectedInvoice.public_link_enabled) return;
+
+    const url = `${window.location.origin}${secureParentPath(selectedInvoice)}`;
+
+    try {
+      await navigator.clipboard.writeText(url);
+      setNotice(`Secure parent link copied for ${selectedInvoice.invoice_number}.`);
+    } catch (error) {
+      setLoadError(errorMessage(error, "The secure link could not be copied."));
+    }
+  }
+
+  async function rotateParentLink() {
+    if (!selectedInvoice) return;
+
+    const confirmed = window.confirm(
+      `Replace the secure parent link for ${selectedInvoice.invoice_number}? The previous link will stop working immediately.`,
+    );
+
+    if (!confirmed) return;
+
+    setWorking(true);
+    setLoadError("");
+    setNotice("");
+
+    const { error } = await supabase.rpc(
+      "gkp_rotate_invoice_public_token",
+      { p_invoice_id: selectedInvoice.id },
+    );
+
+    if (error) {
+      setLoadError(error.message);
+    } else {
+      setNotice(`A new secure link was created for ${selectedInvoice.invoice_number}.`);
+      await loadMonth(selectedInvoice.id);
+    }
+
+    setWorking(false);
+  }
+
+  async function toggleParentLink() {
+    if (!selectedInvoice) return;
+
+    const nextEnabled = !selectedInvoice.public_link_enabled;
+    const confirmed = window.confirm(
+      nextEnabled
+        ? `Reactivate the parent link for ${selectedInvoice.invoice_number}?`
+        : `Disable the parent link for ${selectedInvoice.invoice_number}? The invoice will remain issued, but the current link will stop opening.`,
+    );
+
+    if (!confirmed) return;
+
+    setWorking(true);
+    setLoadError("");
+    setNotice("");
+
+    const { error } = await supabase.rpc(
+      "gkp_set_invoice_public_link",
+      {
+        p_invoice_id: selectedInvoice.id,
+        p_enabled: nextEnabled,
+      },
+    );
+
+    if (error) {
+      setLoadError(error.message);
+    } else {
+      setNotice(
+        nextEnabled
+          ? `Parent link activated for ${selectedInvoice.invoice_number}.`
+          : `Parent link disabled for ${selectedInvoice.invoice_number}.`,
+      );
+      await loadMonth(selectedInvoice.id);
     }
 
     setWorking(false);
@@ -893,9 +977,21 @@ export default function BillingInvoicesClient() {
                     <p className="mt-2 text-sm text-[#746d62]">
                       {selectedInvoice.billing_email} · Due {formatDate(selectedInvoice.due_date)}
                     </p>
+                    <p className="mt-2 text-xs font-semibold text-[#8a8378]">
+                      Parent link: {selectedInvoice.public_link_enabled ? "Active" : "Inactive"}
+                      {numberValue(selectedInvoice.public_link_view_count) > 0
+                        ? ` · ${numberValue(selectedInvoice.public_link_view_count)} recorded view${numberValue(selectedInvoice.public_link_view_count) === 1 ? "" : "s"}`
+                        : " · Not viewed yet"}
+                    </p>
                   </div>
 
                   <div className="flex flex-wrap gap-2">
+                    <Link
+                      href={`/admin/billing/invoices/${selectedInvoice.id}/preview`}
+                      className="inline-flex min-h-10 items-center rounded-full border border-[#d7c9ae] bg-white px-4 text-xs font-bold"
+                    >
+                      Preview invoice
+                    </Link>
                     {editableInvoice && (
                       <>
                         <button
@@ -934,6 +1030,54 @@ export default function BillingInvoicesClient() {
                       >
                         Return to draft
                       </button>
+                    )}
+                    {["issued", "partially_paid", "paid", "overdue"].includes(
+                      selectedInvoice.status,
+                    ) && (
+                      <>
+                        {selectedInvoice.public_link_enabled && (
+                          <>
+                            <a
+                              href={secureParentPath(selectedInvoice)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex min-h-10 items-center rounded-full bg-[#9b7029] px-4 text-xs font-bold text-white"
+                            >
+                              Open parent view
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => void copyParentLink()}
+                              disabled={working}
+                              className="min-h-10 rounded-full border border-[#d7c9ae] bg-white px-4 text-xs font-bold"
+                            >
+                              Copy secure link
+                            </button>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => void toggleParentLink()}
+                          disabled={working}
+                          className={`min-h-10 rounded-full border px-4 text-xs font-bold ${
+                            selectedInvoice.public_link_enabled
+                              ? "border-amber-200 bg-amber-50 text-amber-800"
+                              : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          }`}
+                        >
+                          {selectedInvoice.public_link_enabled
+                            ? "Disable link"
+                            : "Enable link"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void rotateParentLink()}
+                          disabled={working}
+                          className="min-h-10 rounded-full border border-red-200 bg-red-50 px-4 text-xs font-bold text-red-700"
+                        >
+                          Replace link
+                        </button>
+                      </>
                     )}
                     {!['paid', 'partially_paid', 'void'].includes(selectedInvoice.status) && (
                       <button

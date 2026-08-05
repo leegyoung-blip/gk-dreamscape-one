@@ -135,7 +135,13 @@ export type BillingInvoiceOverview = {
   total_amount: number | string;
   amount_paid: number | string;
   balance_due: number | string;
+  public_token: string;
+  public_link_enabled: boolean;
+  public_link_last_rotated_at: string | null;
+  public_link_last_viewed_at: string | null;
+  public_link_view_count: number | string;
   issued_at: string | null;
+  paid_at: string | null;
   created_at: string;
   updated_at: string;
   account_code: string;
