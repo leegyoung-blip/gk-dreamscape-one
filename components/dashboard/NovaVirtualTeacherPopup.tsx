@@ -113,14 +113,17 @@ type PlanItem = {
   completed_at: string | null;
 };
 
+
+type NovaPreferences = {
+  plan_enabled: boolean;
+  monday_email_enabled: boolean;
+};
+
 type WeeklyReportResponse = {
   week_start: string;
   week_end: string;
   next_refresh_at: string;
-  preferences: {
-    plan_enabled: boolean;
-    monday_email_enabled: boolean;
-  };
+  preferences: NovaPreferences;
   analytics: ReportAnalytics;
   plan: PlanItem[];
 };
@@ -393,6 +396,123 @@ function ageContextSummary(
   return `${context.age_band_label} · ${minutes}`;
 }
 
+
+function normalisePreferences(
+  value: unknown,
+): NovaPreferences {
+  const row = Array.isArray(value)
+    ? value[0]
+    : value;
+
+  if (!row || typeof row !== "object") {
+    return {
+      plan_enabled: false,
+      monday_email_enabled: false,
+    };
+  }
+
+  const record = row as Record<string, unknown>;
+
+  return {
+    plan_enabled: Boolean(record.plan_enabled),
+    monday_email_enabled: Boolean(
+      record.monday_email_enabled,
+    ),
+  };
+}
+
+function singaporeDateKey(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Singapore",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function addDateKeyDays(dateKey: string, days: number) {
+  const date = new Date(`${dateKey}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function currentSingaporeWeek() {
+  const today = singaporeDateKey();
+  const day = new Date(`${today}T00:00:00Z`).getUTCDay();
+  const daysFromMonday = day === 0 ? 6 : day - 1;
+  const weekStart = addDateKeyDays(today, -daysFromMonday);
+
+  return {
+    weekStart,
+    weekEnd: addDateKeyDays(weekStart, 6),
+    nextRefreshAt:
+      `${addDateKeyDays(weekStart, 7)}T08:00:00+08:00`,
+  };
+}
+
+async function functionErrorDetail(error: unknown) {
+  const fallback =
+    error &&
+    typeof error === "object" &&
+    "message" in error
+      ? String(
+          (error as { message?: unknown }).message ||
+            "Edge Function request failed",
+        )
+      : "Edge Function request failed";
+
+  const context =
+    error &&
+    typeof error === "object" &&
+    "context" in error
+      ? (error as { context?: unknown }).context
+      : null;
+
+  if (
+    !context ||
+    typeof context !== "object" ||
+    !("clone" in context)
+  ) {
+    return fallback;
+  }
+
+  try {
+    const response = (
+      context as Response
+    ).clone();
+
+    const contentType =
+      response.headers.get("content-type") || "";
+
+    if (contentType.includes("application/json")) {
+      const payload = await response.json();
+
+      if (payload && typeof payload === "object") {
+        const record = payload as Record<string, unknown>;
+        return String(
+          record.error ||
+            record.message ||
+            record.details ||
+            fallback,
+        );
+      }
+    }
+
+    const text = await response.text();
+    return text.trim() || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 function safeNumber(value: unknown, fallback = 0) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -643,7 +763,11 @@ export default function NovaVirtualTeacherPopup({
   const [report, setReport] = useState<WeeklyReportResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [savingPreference, setSavingPreference] = useState(false);
+  const [preferencesLoading, setPreferencesLoading] =
+    useState(false);
   const [message, setMessage] = useState("");
+  const [reportErrorDetail, setReportErrorDetail] =
+    useState("");
   const [localPlanEnabled, setLocalPlanEnabled] = useState(false);
   const [localEmailEnabled, setLocalEmailEnabled] = useState(false);
   const [portalReady, setPortalReady] = useState(false);
@@ -717,17 +841,20 @@ export default function NovaVirtualTeacherPopup({
   }, [open, onClose]);
 
   useEffect(() => {
+    setReport(null);
+    setMessage("");
+    setReportErrorDetail("");
+    setLocalPlanEnabled(false);
+    setLocalEmailEnabled(false);
+  }, [studentUserId]);
+
+  useEffect(() => {
     if (!open || !studentUserId || !viewerUserId) return;
+
+    void loadPreferences();
     void loadReport(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, studentUserId, viewerUserId]);
-
-  useEffect(() => {
-    if (!report) return;
-
-    setLocalPlanEnabled(Boolean(report.preferences.plan_enabled));
-    setLocalEmailEnabled(Boolean(report.preferences.monday_email_enabled));
-  }, [report]);
 
   const learningProfileUnlocked =
     normaliseRole(viewerRole) === "admin";
@@ -773,33 +900,191 @@ export default function NovaVirtualTeacherPopup({
     }
   }, [tab, viewerRoleLoading, learningProfileUnlocked]);
 
+
+  async function loadPreferences() {
+    if (!studentUserId) return null;
+
+    setPreferencesLoading(true);
+
+    const { data, error } = await supabase.rpc(
+      "get_nova_virtual_teacher_preferences",
+      {
+        p_student_user_id: studentUserId,
+      },
+    );
+
+    setPreferencesLoading(false);
+
+    if (error) {
+      console.warn(
+        "Nova preference load error:",
+        error.message,
+      );
+      setMessage(
+        "Nova could not load the saved weekly-plan preferences. Confirm that the Nova preference RPC is installed.",
+      );
+      return null;
+    }
+
+    const preferences = normalisePreferences(data);
+    setLocalPlanEnabled(preferences.plan_enabled);
+    setLocalEmailEnabled(
+      preferences.monday_email_enabled,
+    );
+
+    setReport((current) =>
+      current
+        ? {
+            ...current,
+            preferences,
+          }
+        : current,
+    );
+
+    return preferences;
+  }
+
+  async function loadStoredReportFallback() {
+    if (!studentUserId) return null;
+
+    const week = currentSingaporeWeek();
+
+    const { data: storedReport, error: storedError } =
+      await supabase
+        .from("nova_weekly_reports")
+        .select(
+          "id,week_start,week_end,analytics_json",
+        )
+        .eq("student_user_id", studentUserId)
+        .eq("week_start", week.weekStart)
+        .maybeSingle();
+
+    if (storedError || !storedReport) {
+      if (storedError) {
+        console.warn(
+          "Stored Nova report fallback failed:",
+          storedError.message,
+        );
+      }
+      return null;
+    }
+
+    const { data: planRows, error: planError } =
+      await supabase
+        .from("nova_weekly_plan_items")
+        .select(
+          "id,plan_date,day_index,item_type,subject,quiz_id,quiz_title,quiz_href,reason,target_accuracy,bonus_dt,target_skill_id,target_skill_code,target_skill_name,recommendation_version,recommended_session_minutes,support_guidance,age_context_version,status,completed_at",
+        )
+        .eq("report_id", storedReport.id)
+        .order("day_index", { ascending: true });
+
+    if (planError) {
+      console.warn(
+        "Stored Nova plan fallback failed:",
+        planError.message,
+      );
+      return null;
+    }
+
+    const preferences =
+      (await loadPreferences()) || {
+        plan_enabled: localPlanEnabled,
+        monday_email_enabled: localEmailEnabled,
+      };
+
+    return {
+      week_start:
+        String(storedReport.week_start || week.weekStart),
+      week_end:
+        String(storedReport.week_end || week.weekEnd),
+      next_refresh_at: week.nextRefreshAt,
+      preferences,
+      analytics:
+        storedReport.analytics_json as ReportAnalytics,
+      plan: (planRows || []).map((item) => ({
+        ...item,
+        day_name:
+          [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+          ][safeNumber(item.day_index)] || "Day",
+      })) as PlanItem[],
+    } satisfies WeeklyReportResponse;
+  }
+
   async function loadReport(force: boolean) {
     if (!studentUserId) return;
 
     setLoading(true);
     setMessage("");
+    setReportErrorDetail("");
 
-    const { data, error } = await supabase.functions.invoke(
-      "nova-weekly-report",
-      {
-        body: {
-          student_user_id: studentUserId,
-          force,
-        },
-      },
-    );
+    try {
+      const { data, error } =
+        await supabase.functions.invoke(
+          "nova-weekly-report",
+          {
+            body: {
+              student_user_id: studentUserId,
+              force,
+            },
+          },
+        );
 
-    if (error) {
-      console.warn("Nova weekly report error:", error.message);
-      setMessage(
-        "Nova could not load the stored weekly plan. The live dashboard analytics below are still available.",
-      );
+      if (error) {
+        const detail =
+          await functionErrorDetail(error);
+
+        console.warn(
+          "Nova weekly report error:",
+          detail,
+        );
+
+        setReportErrorDetail(detail);
+
+        const stored =
+          await loadStoredReportFallback();
+
+        if (stored) {
+          setReport(stored);
+          setMessage(
+            `Nova loaded the last stored weekly plan, but could not refresh it. ${detail}`,
+          );
+        } else {
+          setReport(null);
+          setMessage(
+            `Nova could not generate this week’s plan. ${detail}`,
+          );
+        }
+
+        return;
+      }
+
+      const nextReport =
+        data as WeeklyReportResponse;
+
+      setReport(nextReport);
+
+      if (nextReport?.preferences) {
+        const preferences =
+          normalisePreferences(
+            nextReport.preferences,
+          );
+        setLocalPlanEnabled(
+          preferences.plan_enabled,
+        );
+        setLocalEmailEnabled(
+          preferences.monday_email_enabled,
+        );
+      }
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setReport(data as WeeklyReportResponse);
-    setLoading(false);
   }
 
   async function loadLearningProfile(refresh: boolean) {
@@ -843,10 +1128,20 @@ export default function NovaVirtualTeacherPopup({
   ) {
     if (!studentUserId) return;
 
+    const previousPlanEnabled =
+      localPlanEnabled;
+    const previousEmailEnabled =
+      localEmailEnabled;
+
     setSavingPreference(true);
     setMessage("");
 
-    const { error } = await supabase.rpc(
+    // Update the switch immediately. It is rolled back only if
+    // the preference RPC itself fails.
+    setLocalPlanEnabled(nextPlanEnabled);
+    setLocalEmailEnabled(nextEmailEnabled);
+
+    const { data, error } = await supabase.rpc(
       "set_nova_virtual_teacher_preferences",
       {
         p_student_user_id: studentUserId,
@@ -856,33 +1151,47 @@ export default function NovaVirtualTeacherPopup({
     );
 
     if (error) {
-      console.warn("Nova preference update error:", error.message);
+      console.warn(
+        "Nova preference update error:",
+        error.message,
+      );
+
+      setLocalPlanEnabled(previousPlanEnabled);
+      setLocalEmailEnabled(previousEmailEnabled);
       setMessage(
-        "The preference could not be saved. Check that the Nova Virtual Teacher SQL migration has been run.",
+        `The preference could not be saved. ${error.message}`,
       );
       setSavingPreference(false);
       return;
     }
 
-    setLocalPlanEnabled(nextPlanEnabled);
-    setLocalEmailEnabled(nextEmailEnabled);
+    const savedPreferences =
+      normalisePreferences(data);
+
+    setLocalPlanEnabled(
+      savedPreferences.plan_enabled,
+    );
+    setLocalEmailEnabled(
+      savedPreferences.monday_email_enabled,
+    );
 
     setReport((current) =>
       current
         ? {
             ...current,
-            preferences: {
-              plan_enabled: nextPlanEnabled,
-              monday_email_enabled: nextEmailEnabled,
-            },
-            plan: nextPlanEnabled ? current.plan : [],
+            preferences: savedPreferences,
+            plan: savedPreferences.plan_enabled
+              ? current.plan
+              : [],
           }
         : current,
     );
 
-    // Refreshing the report can fail independently of saving the preference.
-    await loadReport(true);
     setSavingPreference(false);
+
+    // Report generation is separate from preference persistence.
+    // A report failure must never switch the saved settings back off.
+    void loadReport(true);
   }
 
   const analytics = report?.analytics;
@@ -950,12 +1259,8 @@ export default function NovaVirtualTeacherPopup({
         "Revisit a quiz only when it is below mastery or enough time has passed since the last attempt.",
       ];
 
-  const planEnabled = report
-    ? Boolean(report.preferences.plan_enabled)
-    : localPlanEnabled;
-  const emailEnabled = report
-    ? Boolean(report.preferences.monday_email_enabled)
-    : localEmailEnabled;
+  const planEnabled = localPlanEnabled;
+  const emailEnabled = localEmailEnabled;
 
   const subjectsWithData = displayedSubjects.filter(
     (subject) => subject.questions > 0,
@@ -1286,7 +1591,11 @@ export default function NovaVirtualTeacherPopup({
               type="button"
               className={`nova-vt-setting-toggle ${planEnabled ? "enabled" : "disabled"}`}
               aria-pressed={planEnabled}
-              disabled={savingPreference || !studentUserId}
+              disabled={
+                savingPreference ||
+                preferencesLoading ||
+                !studentUserId
+              }
               onClick={() =>
                 void updatePreferences(!planEnabled, emailEnabled)
               }
@@ -1307,7 +1616,11 @@ export default function NovaVirtualTeacherPopup({
               type="button"
               className={`nova-vt-setting-toggle email ${emailEnabled ? "enabled" : "disabled"}`}
               aria-pressed={emailEnabled}
-              disabled={savingPreference || !studentUserId}
+              disabled={
+                savingPreference ||
+                preferencesLoading ||
+                !studentUserId
+              }
               onClick={() =>
                 void updatePreferences(planEnabled, !emailEnabled)
               }
@@ -1515,7 +1828,9 @@ export default function NovaVirtualTeacherPopup({
                   <p>
                     {report
                       ? `${formatDate(report.week_start)} to ${formatDate(report.week_end)} · Refreshes ${formatDateTime(report.next_refresh_at)}`
-                      : "The plan appears after the weekly report service is installed."}
+                      : reportErrorDetail
+                        ? "The weekly report service returned an error."
+                        : "Nova is preparing the first stored weekly report."}
                   </p>
                 </div>
 
@@ -1532,7 +1847,7 @@ export default function NovaVirtualTeacherPopup({
 
               {!report ? (
                 <div className="nova-vt-empty">
-                  Run the Nova Virtual Teacher SQL and deploy the weekly report Edge Function to activate plans.
+                  Nova could not generate the current plan. Check the error message above, then use “Refresh this week” after the weekly report function is redeployed.
                 </div>
               ) : !planEnabled ? (
                 <div className="nova-vt-plan-off">
@@ -3410,7 +3725,7 @@ export default function NovaVirtualTeacherPopup({
           .nova-vt-profile-overview {
             margin-top: 20px;
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(5, minmax(0, 1fr));
             gap: 10px;
           }
 
