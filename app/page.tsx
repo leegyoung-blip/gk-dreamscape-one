@@ -133,6 +133,24 @@ const journeySteps = [
   },
 ];
 
+const reviewCards = [
+  {
+    quote: "Dreamscape One turns learning into something students actively participate in. The missions are engaging, structured and useful for reinforcing key skills.",
+    reviewer: "Education professional",
+    source: "",
+  },
+  {
+    quote: "My child is more willing to practise independently because the activities feel like challenges rather than extra homework. I also like that progress is organised clearly.",
+    reviewer: "Parent",
+    source: "",
+  },
+  {
+    quote: "I like earning rewards and moving through the missions. It makes learning feel more fun, and Milo’s World lets me try decisions I would not normally get to make.",
+    reviewer: "Secondary 2 Student",
+    source: "",
+  },
+];
+
 const faqItems = [
   {
     question: "What ages is Dreamscape One designed for?",
@@ -165,7 +183,7 @@ const faqItems = [
 function WorldPanel({ world, isMobile }: { world: World; isMobile: boolean }) {
   const panelStyle: CSSProperties = {
     position: "relative",
-    height: isMobile ? "500px" : "clamp(620px, 78vh, 820px)",
+    height: isMobile ? "520px" : "calc(100vh - 86px)",
     minWidth: 0,
     overflow: "hidden",
     textDecoration: "none",
@@ -245,7 +263,7 @@ function WorldPanel({ world, isMobile }: { world: World; isMobile: boolean }) {
       />
 
       <div style={contentStyle}>
-        <h2
+        <h1
           style={{
             margin: 0,
             fontFamily: 'Georgia, "Times New Roman", serif',
@@ -258,7 +276,7 @@ function WorldPanel({ world, isMobile }: { world: World; isMobile: boolean }) {
           }}
         >
           {world.title}
-        </h2>
+        </h1>
 
         <p
           style={{
@@ -303,11 +321,9 @@ function WorldPanel({ world, isMobile }: { world: World; isMobile: boolean }) {
 function FirstVisitPopup({
   isMobile,
   onSelectAge,
-  onClose,
 }: {
   isMobile: boolean;
   onSelectAge: (age: AgeGroup) => void;
-  onClose: () => void;
 }) {
   const ageOptions: AgeGroup[] = ["5-8", "9-12", "13-17", "18+"];
 
@@ -330,13 +346,12 @@ function FirstVisitPopup({
     >
       <div
         style={{
-          position: "relative",
           width: "100%",
           maxWidth: "720px",
           maxHeight: "calc(100vh - 36px)",
           overflowY: "auto",
           borderRadius: isMobile ? "24px" : "32px",
-          padding: isMobile ? "54px 22px 28px" : "58px 46px 40px",
+          padding: isMobile ? "34px 22px 28px" : "46px 46px 40px",
           border: "1px solid rgba(116,200,255,0.35)",
           background:
             "radial-gradient(circle at 12% 0%, rgba(83,215,255,0.18), transparent 36%), radial-gradient(circle at 100% 100%, rgba(197,140,255,0.18), transparent 38%), rgba(3,10,23,0.97)",
@@ -346,28 +361,6 @@ function FirstVisitPopup({
           textAlign: "center",
         }}
       >
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close age selector"
-          style={{
-            position: "absolute",
-            top: "16px",
-            right: "16px",
-            width: "40px",
-            height: "40px",
-            borderRadius: "999px",
-            border: "1px solid rgba(255,255,255,0.2)",
-            background: "rgba(255,255,255,0.06)",
-            color: "white",
-            fontSize: "22px",
-            lineHeight: 1,
-            cursor: "pointer",
-          }}
-        >
-          ×
-        </button>
-
         <img
           src="/home/dreamscape-logo.png"
           alt="Dreamscape One logo"
@@ -410,45 +403,15 @@ function FirstVisitPopup({
         <p
           style={{
             margin: "18px auto 0",
-            maxWidth: "590px",
-            color: "rgba(255,255,255,0.74)",
+            maxWidth: "560px",
+            color: "rgba(255,255,255,0.7)",
             fontSize: isMobile ? "16px" : "18px",
-            lineHeight: 1.65,
+            lineHeight: 1.6,
             fontWeight: 300,
           }}
         >
-          Dreamscape One is a gamified education platform by Guru Kids Pro.
-          Choose your age group to enter the learning world designed for you.
+          Choose your age group and we’ll take you directly to the right world.
         </p>
-
-        <div
-          style={{
-            marginTop: "18px",
-            display: "flex",
-            flexWrap: "wrap",
-            justifyContent: "center",
-            gap: "14px",
-          }}
-        >
-          <Link
-            href="/privacy"
-            style={{ color: "#8ee8ff", fontSize: "13px" }}
-          >
-            Privacy Policy
-          </Link>
-          <Link
-            href="/terms"
-            style={{ color: "#8ee8ff", fontSize: "13px" }}
-          >
-            Terms & Conditions
-          </Link>
-          <a
-            href="mailto:admin@gurukidspro.com"
-            style={{ color: "#8ee8ff", fontSize: "13px" }}
-          >
-            Contact Support
-          </a>
-        </div>
 
         <div
           style={{
@@ -535,11 +498,14 @@ export default function Home() {
       setIsLoggedIn(hasAccount);
       setIsCheckingAccount(false);
 
-      // Keep the public homepage fully visible to signed-out visitors.
-      // The age selector now opens only after the visitor chooses it.
       if (hasAccount) {
         setShowFirstVisitPopup(false);
+        return;
       }
+
+      const hasCompletedFirstVisit =
+        window.localStorage.getItem(FIRST_VISIT_KEY) === "true";
+      setShowFirstVisitPopup(!hasCompletedFirstVisit);
     }
 
     checkUser();
@@ -686,11 +652,7 @@ export default function Home() {
       }}
     >
       {showFirstVisitPopup && !isCheckingAccount && !isLoggedIn && (
-        <FirstVisitPopup
-          isMobile={isMobile}
-          onSelectAge={handleAgeSelection}
-          onClose={() => setShowFirstVisitPopup(false)}
-        />
+        <FirstVisitPopup isMobile={isMobile} onSelectAge={handleAgeSelection} />
       )}
 
       <header
@@ -904,368 +866,105 @@ export default function Home() {
 
       <section
         id="home"
-        aria-labelledby="dreamscape-home-heading"
         style={{
           position: "relative",
-          width: "100%",
+          width: "100vw",
+          height: isMobile ? "auto" : "100vh",
           paddingTop: isMobile ? "72px" : "86px",
+          display: "grid",
+          gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+          gridTemplateRows: "1fr",
           background: "#020813",
-          color: "white",
         }}
       >
+        <WorldPanel world={worlds[0]} isMobile={isMobile} />
+        <WorldPanel world={worlds[1]} isMobile={isMobile} />
+
         <div
           style={{
-            position: "relative",
-            overflow: "hidden",
-            padding: isMobile ? "66px 22px 62px" : "94px 7.6vw 88px",
-            borderBottom: "1px solid rgba(142,232,255,0.18)",
-            background:
-              "radial-gradient(circle at 18% 20%, rgba(83,215,255,0.2), transparent 30%), radial-gradient(circle at 82% 72%, rgba(197,140,255,0.19), transparent 32%), linear-gradient(135deg, #041226 0%, #0b102c 48%, #1b0d38 100%)",
+            position: "absolute",
+            left: "50%",
+            top: "calc(86px + ((100vh - 86px) / 2) - 3px)",
+            zIndex: 30,
+            width: "82px",
+            height: "82px",
+            transform: "translate(-50%, -50%)",
+            borderRadius: "999px",
+            display: isMobile ? "none" : "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "37px",
+            color: "white",
+            background: `
+              radial-gradient(
+                circle,
+                rgba(255,255,255,0.13),
+                rgba(2,8,18,0.94)
+              ),
+              linear-gradient(
+                135deg,
+                rgba(83,215,255,0.3),
+                rgba(197,140,255,0.32)
+              )
+            `,
+            border: "1px solid rgba(255,255,255,0.22)",
+            boxShadow:
+              "0 0 31px rgba(83,215,255,0.24), 0 0 46px rgba(197,140,255,0.2)",
+            pointerEvents: "none",
           }}
         >
-          <div
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              inset: 0,
-              pointerEvents: "none",
-              background:
-                "linear-gradient(115deg, transparent 0%, rgba(255,255,255,0.03) 48%, transparent 100%)",
-            }}
-          />
-
-          <div
-            style={{
-              position: "relative",
-              zIndex: 2,
-              maxWidth: "1120px",
-              margin: "0 auto",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              textAlign: "center",
-            }}
-          >
-            <img
-              src="/home/dreamscape-logo.png"
-              alt="Dreamscape One logo"
-              style={{
-                width: isMobile ? "76px" : "92px",
-                height: isMobile ? "76px" : "92px",
-                objectFit: "contain",
-                borderRadius: "999px",
-                boxShadow:
-                  "0 0 28px rgba(83,215,255,0.24), 0 0 36px rgba(197,140,255,0.22)",
-              }}
-            />
-
-            <p
-              style={{
-                margin: "24px 0 0",
-                color: "#8ee8ff",
-                fontSize: isMobile ? "11px" : "13px",
-                fontWeight: 900,
-                letterSpacing: isMobile ? "0.16em" : "0.24em",
-                textTransform: "uppercase",
-              }}
-            >
-              Gamified education platform by Guru Kids Pro
-            </p>
-
-            <h1
-              id="dreamscape-home-heading"
-              style={{
-                margin: "18px 0 0",
-                fontFamily: 'Georgia, "Times New Roman", serif',
-                fontSize: isMobile ? "48px" : "clamp(64px, 7vw, 92px)",
-                fontWeight: 400,
-                lineHeight: 1,
-                letterSpacing: "0.01em",
-                color: "white",
-                textShadow: "0 22px 62px rgba(0,0,0,0.42)",
-              }}
-            >
-              Dreamscape One
-            </h1>
-
-            <p
-              style={{
-                margin: "28px 0 0",
-                maxWidth: "920px",
-                color: "rgba(255,255,255,0.86)",
-                fontSize: isMobile ? "18px" : "23px",
-                fontWeight: 400,
-                lineHeight: 1.65,
-              }}
-            >
-              Dreamscape One helps children and teenagers learn independently
-              through curriculum-aligned missions, thinking challenges, progress
-              tracking, rewards, financial-literacy activities, and safe business
-              simulations.
-            </p>
-
-            <p
-              style={{
-                margin: "17px 0 0",
-                maxWidth: "900px",
-                color: "rgba(255,255,255,0.7)",
-                fontSize: isMobile ? "16px" : "18px",
-                fontWeight: 300,
-                lineHeight: 1.7,
-              }}
-            >
-              Nova’s World supports learners aged 6–12 with English,
-              Mathematics, Science, and thinking-skills practice. Milo’s World
-              supports learners aged 13 and above with entrepreneurship,
-              investment, and real-world decision-making simulations.
-            </p>
-
-            <p
-              style={{
-                margin: "15px 0 0",
-                maxWidth: "860px",
-                color: "rgba(255,255,255,0.62)",
-                fontSize: isMobile ? "14px" : "16px",
-                fontWeight: 300,
-                lineHeight: 1.65,
-              }}
-            >
-              Users may create an account or sign in with Google to access their
-              profile and save learning progress, quiz results, achievements,
-              and rewards.
-            </p>
-
-            <div
-              style={{
-                marginTop: "34px",
-                display: "flex",
-                flexDirection: isMobile ? "column" : "row",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "13px",
-                width: isMobile ? "100%" : "auto",
-              }}
-            >
-              <Link
-                href="/inventor"
-                style={{
-                  width: isMobile ? "100%" : "auto",
-                  minHeight: "54px",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "13px 24px",
-                  borderRadius: "999px",
-                  color: "#07101e",
-                  background:
-                    "linear-gradient(90deg, #8ee8ff 0%, #53d7ff 100%)",
-                  textDecoration: "none",
-                  fontSize: "13px",
-                  fontWeight: 900,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                  boxSizing: "border-box",
-                }}
-              >
-                Explore Nova’s World
-              </Link>
-
-              <Link
-                href="/milo-world"
-                style={{
-                  width: isMobile ? "100%" : "auto",
-                  minHeight: "54px",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "13px 24px",
-                  borderRadius: "999px",
-                  color: "white",
-                  background:
-                    "linear-gradient(90deg, rgba(197,140,255,0.28), rgba(255,154,69,0.24))",
-                  border: "1px solid rgba(255,255,255,0.28)",
-                  textDecoration: "none",
-                  fontSize: "13px",
-                  fontWeight: 900,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                  boxSizing: "border-box",
-                }}
-              >
-                Explore Milo’s World
-              </Link>
-
-              <button
-                type="button"
-                onClick={() => setShowFirstVisitPopup(true)}
-                style={{
-                  width: isMobile ? "100%" : "auto",
-                  minHeight: "54px",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "13px 24px",
-                  borderRadius: "999px",
-                  color: "white",
-                  background: "rgba(255,255,255,0.06)",
-                  border: "1px solid rgba(255,255,255,0.24)",
-                  fontSize: "13px",
-                  fontWeight: 900,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                  cursor: "pointer",
-                  boxSizing: "border-box",
-                }}
-              >
-                Find My World
-              </button>
-            </div>
-
-            <div
-              aria-label="Dreamscape One legal and support links"
-              style={{
-                marginTop: "28px",
-                display: "flex",
-                flexWrap: "wrap",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: isMobile ? "14px" : "22px",
-              }}
-            >
-              <Link
-                href="/privacy"
-                style={{
-                  color: "rgba(255,255,255,0.78)",
-                  fontSize: "14px",
-                  textUnderlineOffset: "4px",
-                }}
-              >
-                Privacy Policy
-              </Link>
-              <Link
-                href="/terms"
-                style={{
-                  color: "rgba(255,255,255,0.78)",
-                  fontSize: "14px",
-                  textUnderlineOffset: "4px",
-                }}
-              >
-                Terms & Conditions
-              </Link>
-              <a
-                href="mailto:admin@gurukidspro.com"
-                style={{
-                  color: "rgba(255,255,255,0.78)",
-                  fontSize: "14px",
-                  textUnderlineOffset: "4px",
-                }}
-              >
-                Contact Support
-              </a>
-            </div>
-          </div>
+          ✦
         </div>
 
         <div
-          id="choose-your-world"
-          aria-label="Choose a Dreamscape One learning world"
           style={{
-            position: "relative",
-            width: "100%",
-            display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
-            background: "#020813",
+            position: "absolute",
+            left: "50%",
+            bottom: "39px",
+            zIndex: 30,
+            transform: "translateX(-50%)",
+            display: isMobile ? "none" : "flex",
+            alignItems: "center",
+            gap: "26px",
+            pointerEvents: "none",
           }}
         >
-          <WorldPanel world={worlds[0]} isMobile={isMobile} />
-          <WorldPanel world={worlds[1]} isMobile={isMobile} />
-
-          <div
+          <span
             style={{
-              position: "absolute",
-              left: "50%",
-              top: "50%",
-              zIndex: 30,
-              width: "82px",
-              height: "82px",
-              transform: "translate(-50%, -50%)",
-              borderRadius: "999px",
-              display: isMobile ? "none" : "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "37px",
-              color: "white",
-              background: `
-                radial-gradient(
-                  circle,
-                  rgba(255,255,255,0.13),
-                  rgba(2,8,18,0.94)
-                ),
-                linear-gradient(
-                  135deg,
-                  rgba(83,215,255,0.3),
-                  rgba(197,140,255,0.32)
-                )
-              `,
-              border: "1px solid rgba(255,255,255,0.22)",
-              boxShadow:
-                "0 0 31px rgba(83,215,255,0.24), 0 0 46px rgba(197,140,255,0.2)",
-              pointerEvents: "none",
+              width: "149px",
+              height: "1px",
+              opacity: 0.75,
+              background:
+                "linear-gradient(90deg, transparent, rgba(255,255,255,0.48))",
+            }}
+          />
+
+          <p
+            style={{
+              margin: 0,
+              fontSize: "17px",
+              fontWeight: 300,
+              lineHeight: 1,
+              letterSpacing: "0.56em",
+              whiteSpace: "nowrap",
+              color: "transparent",
+              background: "linear-gradient(90deg, #53d7ff, #c58cff)",
+              backgroundClip: "text",
+              WebkitBackgroundClip: "text",
             }}
           >
-            ✦
-          </div>
+            CHOOSE YOUR WORLD.
+          </p>
 
-          <div
+          <span
             style={{
-              position: "absolute",
-              left: "50%",
-              bottom: "39px",
-              zIndex: 30,
-              transform: "translateX(-50%)",
-              display: isMobile ? "none" : "flex",
-              alignItems: "center",
-              gap: "26px",
-              pointerEvents: "none",
+              width: "149px",
+              height: "1px",
+              opacity: 0.75,
+              background:
+                "linear-gradient(90deg, rgba(255,255,255,0.48), transparent)",
             }}
-          >
-            <span
-              style={{
-                width: "149px",
-                height: "1px",
-                opacity: 0.75,
-                background:
-                  "linear-gradient(90deg, transparent, rgba(255,255,255,0.48))",
-              }}
-            />
-
-            <p
-              style={{
-                margin: 0,
-                fontSize: "17px",
-                fontWeight: 300,
-                lineHeight: 1,
-                letterSpacing: "0.56em",
-                whiteSpace: "nowrap",
-                color: "transparent",
-                background: "linear-gradient(90deg, #53d7ff, #c58cff)",
-                backgroundClip: "text",
-                WebkitBackgroundClip: "text",
-              }}
-            >
-              CHOOSE YOUR WORLD.
-            </p>
-
-            <span
-              style={{
-                width: "149px",
-                height: "1px",
-                opacity: 0.75,
-                background:
-                  "linear-gradient(90deg, rgba(255,255,255,0.48), transparent)",
-              }}
-            />
-          </div>
+          />
         </div>
       </section>
 
@@ -1724,6 +1423,85 @@ export default function Home() {
             </div>
           </section>
 
+          <section
+            id="reviews"
+            aria-labelledby="reviews-heading"
+            style={{
+              marginTop: "76px",
+              width: "100%",
+              maxWidth: "1450px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
+            <p
+              style={{
+                margin: 0,
+                color: "#8ee8ff",
+                fontSize: "13px",
+                fontWeight: 800,
+                letterSpacing: "0.28em",
+                textTransform: "uppercase",
+              }}
+            >
+              Teaching Experience & Trust
+            </p>
+
+            <h2
+              id="reviews-heading"
+              style={{
+                margin: "20px 0 0",
+                maxWidth: "980px",
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontSize: isMobile ? "40px" : "60px",
+                fontWeight: 400,
+                lineHeight: 1.08,
+                color: "white",
+                textAlign: "center",
+              }}
+            >
+              Trusted by families. Built from real teaching experience.
+            </h2>
+
+            <p
+              style={{
+                margin: "22px 0 0",
+                maxWidth: "850px",
+                color: "rgba(255,255,255,0.68)",
+                fontSize: isMobile ? "16px" : "19px",
+                fontWeight: 300,
+                lineHeight: 1.7,
+                textAlign: "center",
+              }}
+            >
+              Replace the three development placeholders below with genuine,
+              permission-cleared Guru Kids Pro reviews before publishing them
+              as testimonials.
+            </p>
+
+            <div
+              style={{
+                marginTop: isMobile ? "36px" : "46px",
+                width: "100%",
+                display: "grid",
+                gridTemplateColumns: isMobile
+                  ? "1fr"
+                  : "repeat(3, minmax(0, 1fr))",
+                gap: isMobile ? "20px" : "24px",
+                alignItems: "stretch",
+              }}
+            >
+              {reviewCards.map((review, index) => (
+                <ReviewCard
+                  key={`${review.reviewer}-${index}`}
+                  quote={review.quote}
+                  reviewer={review.reviewer}
+                  source={review.source}
+                />
+              ))}
+            </div>
+          </section>
 
           <section
             id="student-access"
@@ -2812,6 +2590,90 @@ function ProductPreviewCard({
           }}
         >
           {text}
+        </p>
+      </div>
+    </article>
+  );
+}
+
+function ReviewCard({
+  quote,
+  reviewer,
+  source,
+}: {
+  quote: string;
+  reviewer: string;
+  source: string;
+}) {
+  return (
+    <article
+      style={{
+        minHeight: "285px",
+        display: "flex",
+        flexDirection: "column",
+        padding: "30px 29px",
+        borderRadius: "25px",
+        border: "1px solid rgba(255,181,95,0.22)",
+        background:
+          "radial-gradient(circle at 90% 10%, rgba(255,181,95,0.1), transparent 28%), linear-gradient(145deg, rgba(255,255,255,0.065), rgba(255,255,255,0.02))",
+        textAlign: "left",
+      }}
+    >
+      <p
+        aria-hidden="true"
+        style={{
+          margin: 0,
+          color: "#ffb55f",
+          fontFamily: 'Georgia, "Times New Roman", serif',
+          fontSize: "48px",
+          lineHeight: 0.8,
+        }}
+      >
+        “
+      </p>
+
+      <p
+        style={{
+          margin: "18px 0 0",
+          flex: 1,
+          color: "rgba(255,255,255,0.82)",
+          fontSize: "18px",
+          fontWeight: 300,
+          lineHeight: 1.65,
+          fontStyle: "italic",
+        }}
+      >
+        {quote}
+      </p>
+
+      <div
+        style={{
+          marginTop: "25px",
+          paddingTop: "20px",
+          borderTop: "1px solid rgba(255,255,255,0.1)",
+        }}
+      >
+        <p
+          style={{
+            margin: 0,
+            color: "white",
+            fontSize: "15px",
+            fontWeight: 800,
+          }}
+        >
+          {reviewer}
+        </p>
+        <p
+          style={{
+            margin: "7px 0 0",
+            color: "#8ee8ff",
+            fontSize: "11px",
+            fontWeight: 900,
+            letterSpacing: "0.16em",
+            textTransform: "uppercase",
+          }}
+        >
+          {source}
         </p>
       </div>
     </article>
