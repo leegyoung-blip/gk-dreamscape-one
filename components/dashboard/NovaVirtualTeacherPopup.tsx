@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
+import { useNovaFeatureFlags } from "@/hooks/useNovaFeatureFlags";
 
 type SubjectKey = "english" | "math" | "science" | "knowledge";
 type PopupTab = "analytics" | "plan" | "profile";
@@ -785,6 +786,42 @@ export default function NovaVirtualTeacherPopup({
   const [expandedTopics, setExpandedTopics] =
     useState<Set<string>>(new Set());
 
+  const {
+    isEnabled: featureEnabled,
+    loading: featureFlagsLoading,
+  } = useNovaFeatureFlags(viewerUserId);
+
+  const weeklyAnalyticsFeatureEnabled =
+    featureEnabled(
+      "nova_weekly_analytics_enabled",
+      true,
+    );
+  const weeklyPlanFeatureEnabled =
+    featureEnabled(
+      "nova_weekly_plan_enabled",
+      true,
+    );
+  const weeklyEmailFeatureEnabled =
+    featureEnabled(
+      "nova_weekly_email_enabled",
+      true,
+    );
+  const learningProfileFeatureEnabled =
+    featureEnabled(
+      "nova_learning_profile_enabled",
+      true,
+    );
+  const granularInsightsFeatureEnabled =
+    featureEnabled(
+      "nova_granular_insights_enabled",
+      true,
+    );
+  const ageContextFeatureEnabled =
+    featureEnabled(
+      "nova_age_context_enabled",
+      true,
+    );
+
   useEffect(() => {
     setPortalReady(true);
   }, []);
@@ -857,7 +894,8 @@ export default function NovaVirtualTeacherPopup({
   }, [open, studentUserId, viewerUserId]);
 
   const learningProfileUnlocked =
-    normaliseRole(viewerRole) === "admin";
+    normaliseRole(viewerRole) === "admin" &&
+    learningProfileFeatureEnabled;
 
   useEffect(() => {
     setProfilePayload(null);
@@ -896,9 +934,55 @@ export default function NovaVirtualTeacherPopup({
       !viewerRoleLoading &&
       !learningProfileUnlocked
     ) {
-      setTab("analytics");
+      setTab(
+        weeklyAnalyticsFeatureEnabled
+          ? "analytics"
+          : "plan",
+      );
     }
-  }, [tab, viewerRoleLoading, learningProfileUnlocked]);
+  }, [
+    tab,
+    viewerRoleLoading,
+    learningProfileUnlocked,
+    weeklyAnalyticsFeatureEnabled,
+  ]);
+
+  useEffect(() => {
+    if (featureFlagsLoading) return;
+
+    if (
+      tab === "analytics" &&
+      !weeklyAnalyticsFeatureEnabled
+    ) {
+      setTab(
+        weeklyPlanFeatureEnabled
+          ? "plan"
+          : learningProfileUnlocked
+            ? "profile"
+            : "analytics",
+      );
+      return;
+    }
+
+    if (
+      tab === "plan" &&
+      !weeklyPlanFeatureEnabled
+    ) {
+      setTab(
+        weeklyAnalyticsFeatureEnabled
+          ? "analytics"
+          : learningProfileUnlocked
+            ? "profile"
+            : "plan",
+      );
+    }
+  }, [
+    featureFlagsLoading,
+    learningProfileUnlocked,
+    tab,
+    weeklyAnalyticsFeatureEnabled,
+    weeklyPlanFeatureEnabled,
+  ]);
 
 
   async function loadPreferences() {
@@ -1276,9 +1360,17 @@ export default function NovaVirtualTeacherPopup({
 
   const profileSubjectSummaries =
     profilePayload?.subject_summaries || [];
-  const profileSkills = profilePayload?.skills || [];
+  const profileSkills = granularInsightsFeatureEnabled
+    ? profilePayload?.skills || []
+    : (profilePayload?.skills || []).filter(
+        (skill) => skill.is_topic_level,
+      );
   const profilePatterns = profilePayload?.patterns || [];
-  const profileInsights = profilePayload?.insights || [];
+  const profileInsights = granularInsightsFeatureEnabled
+    ? profilePayload?.insights || []
+    : (profilePayload?.insights || []).filter(
+        (insight) => !insight.skill_id,
+      );
   const resolvedProfileInsights =
     profilePayload?.resolved_insights || [];
   const profileTimeline = profilePayload?.timeline || [];
@@ -1433,13 +1525,16 @@ export default function NovaVirtualTeacherPopup({
   )[0] || null;
 
   const profileSnapshot = profilePayload?.latest_snapshot || {};
-  const reportAgeContext = analytics?.age_context || null;
-  const profileAgeContext =
-    profilePayload?.age_context ||
-    ((profileSnapshot.age_context &&
-      typeof profileSnapshot.age_context === "object")
-      ? (profileSnapshot.age_context as NovaAgeContext)
-      : null);
+  const reportAgeContext = ageContextFeatureEnabled
+    ? analytics?.age_context || null
+    : null;
+  const profileAgeContext = ageContextFeatureEnabled
+    ? profilePayload?.age_context ||
+      ((profileSnapshot.age_context &&
+        typeof profileSnapshot.age_context === "object")
+        ? (profileSnapshot.age_context as NovaAgeContext)
+        : null)
+    : null;
   const granularReadyCount = profileSkills.filter(
     (skill) =>
       !skill.is_topic_level &&
@@ -1539,19 +1634,71 @@ export default function NovaVirtualTeacherPopup({
               type="button"
               role="tab"
               aria-selected={tab === "analytics"}
-              className={tab === "analytics" ? "active" : ""}
-              onClick={() => setTab("analytics")}
+              aria-disabled={!weeklyAnalyticsFeatureEnabled}
+              disabled={!weeklyAnalyticsFeatureEnabled}
+              className={[
+                tab === "analytics" ? "active" : "",
+                !weeklyAnalyticsFeatureEnabled
+                  ? "locked"
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              onClick={() => {
+                if (weeklyAnalyticsFeatureEnabled) {
+                  setTab("analytics");
+                }
+              }}
+              title={
+                weeklyAnalyticsFeatureEnabled
+                  ? "Open weekly analytics"
+                  : "Weekly analytics are disabled by the production release controls"
+              }
             >
               Weekly analytics
+              {!weeklyAnalyticsFeatureEnabled && (
+                <span
+                  className="nova-vt-tab-lock"
+                  aria-hidden="true"
+                >
+                  🔒
+                </span>
+              )}
             </button>
             <button
               type="button"
               role="tab"
               aria-selected={tab === "plan"}
-              className={tab === "plan" ? "active" : ""}
-              onClick={() => setTab("plan")}
+              aria-disabled={!weeklyPlanFeatureEnabled}
+              disabled={!weeklyPlanFeatureEnabled}
+              className={[
+                tab === "plan" ? "active" : "",
+                !weeklyPlanFeatureEnabled
+                  ? "locked"
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              onClick={() => {
+                if (weeklyPlanFeatureEnabled) {
+                  setTab("plan");
+                }
+              }}
+              title={
+                weeklyPlanFeatureEnabled
+                  ? "Open Nova’s seven-day plan"
+                  : "The seven-day plan is disabled by the production release controls"
+              }
             >
               Seven-day plan
+              {!weeklyPlanFeatureEnabled && (
+                <span
+                  className="nova-vt-tab-lock"
+                  aria-hidden="true"
+                >
+                  🔒
+                </span>
+              )}
             </button>
 
             <button
@@ -1574,7 +1721,9 @@ export default function NovaVirtualTeacherPopup({
               title={
                 learningProfileUnlocked
                   ? "Open Nova’s Learning Profile"
-                  : "Learning Profile is currently available to admins only"
+                  : learningProfileFeatureEnabled
+                    ? "Learning Profile is currently available to admins only"
+                    : "Learning Profile is disabled by the production release controls"
               }
             >
               Learning Profile
@@ -1594,6 +1743,8 @@ export default function NovaVirtualTeacherPopup({
               disabled={
                 savingPreference ||
                 preferencesLoading ||
+                featureFlagsLoading ||
+                !weeklyPlanFeatureEnabled ||
                 !studentUserId
               }
               onClick={() =>
@@ -1602,7 +1753,11 @@ export default function NovaVirtualTeacherPopup({
             >
               <span className="nova-vt-setting-copy">
                 <strong>Schedule weekly plan</strong>
-                <small>Nova selects a Monday-to-Sunday quiz plan.</small>
+                <small>
+                  {weeklyPlanFeatureEnabled
+                    ? "Nova selects a Monday-to-Sunday quiz plan."
+                    : "Disabled by the production release controls."}
+                </small>
               </span>
               <span className="nova-vt-toggle-pill" aria-hidden="true">
                 <span className="nova-vt-toggle-knob" />
@@ -1619,6 +1774,8 @@ export default function NovaVirtualTeacherPopup({
               disabled={
                 savingPreference ||
                 preferencesLoading ||
+                featureFlagsLoading ||
+                !weeklyEmailFeatureEnabled ||
                 !studentUserId
               }
               onClick={() =>
@@ -1627,7 +1784,11 @@ export default function NovaVirtualTeacherPopup({
             >
               <span className="nova-vt-setting-copy">
                 <strong>Notify me every Monday</strong>
-                <small>Send the report to the registered parent email.</small>
+                <small>
+                  {weeklyEmailFeatureEnabled
+                    ? "Send the report to the registered parent email."
+                    : "Disabled by the production release controls."}
+                </small>
               </span>
               <span className="nova-vt-toggle-pill" aria-hidden="true">
                 <span className="nova-vt-toggle-knob" />

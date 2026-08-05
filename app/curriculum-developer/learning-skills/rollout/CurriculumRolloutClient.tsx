@@ -10,6 +10,7 @@ import type { ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useCurriculumDeveloperAccess } from "@/hooks/useCurriculumDeveloperAccess";
+import { useNovaFeatureFlags } from "@/hooks/useNovaFeatureFlags";
 import {
   downloadCsv,
   MAPPING_TEMPLATE,
@@ -170,6 +171,15 @@ export default function CurriculumRolloutClient() {
   const currentRole = roleKey(role);
   const isAdmin = currentRole === "admin";
   const isEditor = ["admin", "curriculum_lead"].includes(currentRole);
+  const {
+    isEnabled: featureEnabled,
+    loading: featureFlagsLoading,
+  } = useNovaFeatureFlags(role);
+  const rolloutWorkspaceEnabled =
+    featureEnabled(
+      "curriculum_rollout_workspace_enabled",
+      true,
+    );
 
   const [tab, setTab] = useState<Tab>("dashboard");
   const [subject, setSubject] = useState<"all" | Subject>("all");
@@ -638,14 +648,22 @@ export default function CurriculumRolloutClient() {
     return <main className="cr-shell cr-center">Checking access…</main>;
   }
 
-  if (status === "locked" || !isEditor) {
+  if (
+    status === "locked" ||
+    !isEditor ||
+    (!isAdmin &&
+      !featureFlagsLoading &&
+      !rolloutWorkspaceEnabled)
+  ) {
     return (
       <main className="cr-shell cr-center">
         <section className="cr-panel cr-locked">
           <p className="cr-eyebrow">CURRICULUM ROLLOUT</p>
           <h1>Access Restricted</h1>
           <p>
-            This workspace requires an Admin or Curriculum Lead role.
+            {!isAdmin && !rolloutWorkspaceEnabled
+              ? "Curriculum Lead access to the Rollout workspace is currently disabled by the production release controls."
+              : "This workspace requires an Admin or Curriculum Lead role."}
           </p>
           {accessError && <div className="cr-error">{accessError}</div>}
           <button
@@ -707,6 +725,18 @@ export default function CurriculumRolloutClient() {
             >
               Skill Catalogue
             </button>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() =>
+                  router.push(
+                    "/curriculum-developer/learning-skills/operations",
+                  )
+                }
+              >
+                Production Operations
+              </button>
+            )}
           </div>
         </div>
 

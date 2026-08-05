@@ -10,15 +10,15 @@ import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useCurriculumDeveloperAccess } from "@/hooks/useCurriculumDeveloperAccess";
+import { useNovaFeatureFlags } from "@/hooks/useNovaFeatureFlags";
 import QuestionSkillMappingPanel from "./QuestionSkillMappingPanel";
-import type {
-  MappingQuestion,
-  MappingReviewStatus,
-  MappingSkill,
-  MappingState,
-  MappingSubject,
-  MappingTopic,
-} from "./mapping-types";
+
+type MappingReviewStatus = string;
+type MappingState = string;
+type MappingSubject = string;
+type MappingTopic = Record<string, any>;
+type MappingSkill = Record<string, any>;
+type MappingQuestion = Record<string, any>;
 
 type QueueSummary = {
   all: number;
@@ -112,6 +112,15 @@ export default function QuestionMappingClient() {
   const isEditor = ["admin", "curriculum_lead"].includes(
     normalisedRole,
   );
+  const {
+    isEnabled: featureEnabled,
+    loading: featureFlagsLoading,
+  } = useNovaFeatureFlags(role);
+  const curriculumLeadMappingEnabled =
+    featureEnabled(
+      "curriculum_lead_mapping_enabled",
+      true,
+    );
 
   const [subject, setSubject] =
     useState<MappingSubject>("english");
@@ -574,11 +583,21 @@ export default function QuestionMappingClient() {
     );
   }
 
-  if (!isEditor) {
+  if (
+    !isEditor ||
+    (!isAdmin &&
+      !featureFlagsLoading &&
+      !curriculumLeadMappingEnabled)
+  ) {
     return (
       <LockedPage
         title="Access Restricted"
-        message="Question-level skill mapping requires an Admin or Curriculum Lead role."
+        message={
+          !isAdmin &&
+          !curriculumLeadMappingEnabled
+            ? "Curriculum Lead access to Question Mapping is currently disabled by the production release controls."
+            : "Question-level skill mapping requires an Admin or Curriculum Lead role."
+        }
         onBack={() =>
           router.push("/curriculum-developer/learning-skills")
         }

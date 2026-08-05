@@ -10,6 +10,7 @@ import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useCurriculumDeveloperAccess } from "@/hooks/useCurriculumDeveloperAccess";
+import { useNovaFeatureFlags } from "@/hooks/useNovaFeatureFlags";
 
 type Subject = "english" | "math" | "science";
 type ReviewStatus = "draft" | "reviewed" | "approved" | "retired";
@@ -194,6 +195,15 @@ export default function LearningSkillsClient() {
   const isEditor = ["admin", "curriculum_lead"].includes(
     normalisedRole,
   );
+  const {
+    isEnabled: featureEnabled,
+    loading: featureFlagsLoading,
+  } = useNovaFeatureFlags(role);
+  const curriculumLeadCatalogueEnabled =
+    featureEnabled(
+      "curriculum_lead_skill_catalogue_enabled",
+      true,
+    );
 
   const [tab, setTab] = useState<WorkspaceTab>("catalogue");
   const [skills, setSkills] = useState<LearningSkill[]>([]);
@@ -654,11 +664,21 @@ export default function LearningSkillsClient() {
     );
   }
 
-  if (!isEditor) {
+  if (
+    !isEditor ||
+    (!isAdmin &&
+      !featureFlagsLoading &&
+      !curriculumLeadCatalogueEnabled)
+  ) {
     return (
       <LockedPage
         title="Access Restricted"
-        message="The Learning Skills workspace requires an Admin or Curriculum Lead role."
+        message={
+          !isAdmin &&
+          !curriculumLeadCatalogueEnabled
+            ? "Curriculum Lead access to the Skill Catalogue is currently disabled by the production release controls."
+            : "The Learning Skills workspace requires an Admin or Curriculum Lead role."
+        }
         onBack={() => router.push("/curriculum-developer")}
       />
     );
