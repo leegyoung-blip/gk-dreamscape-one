@@ -20,7 +20,7 @@ const packages: Package[] = [
     name: "Starter",
     students: 5,
     teachers: 1,
-    annualPrice: 799,
+    annualPrice: 899,
     description:
       "A focused starting point for an independent educator, small learning group, or pilot cohort.",
     accent: "#53d7ff",
@@ -29,7 +29,7 @@ const packages: Package[] = [
     name: "Classroom",
     students: 10,
     teachers: 1,
-    annualPrice: 1399,
+    annualPrice: 1599,
     description:
       "Designed for one active class or a growing tuition-centre programme.",
     accent: "#8ee8ff",
@@ -38,7 +38,7 @@ const packages: Package[] = [
     name: "Growth",
     students: 15,
     teachers: 1,
-    annualPrice: 1999,
+    annualPrice: 2199,
     description:
       "More student capacity for centres expanding Dreamscape across multiple groups.",
     accent: "#c58cff",
@@ -46,8 +46,8 @@ const packages: Package[] = [
   {
     name: "Centre",
     students: 20,
-    teachers: 1,
-    annualPrice: 2499,
+    teachers: 2,
+    annualPrice: 2699,
     description:
       "The largest standard package for one approved education organisation.",
     accent: "#ffae5c",
@@ -68,27 +68,27 @@ const includedItems = [
 const operationalTerms = [
   {
     title: "One organisation",
-    text: "Each package is for one approved business or organisation and may not be shared across unrelated branches or entities.",
+    text: "Each package is for one approved business or organisation and may not be shared across unrelated tutors, outlets, branches, companies, or entities without written approval.",
   },
   {
     title: "12-month term",
-    text: "Annual licences are paid in advance and run for 12 months from the agreed activation date. Renewal is manual.",
+    text: "Annual licences are paid upfront and run for 12 months from the agreed activation date. Renewal is manual and there is no automatic renewal.",
   },
   {
-    title: "Seat changes",
-    text: "Student seats may be reassigned up to two times per school term when a learner leaves. Existing progress is not transferred.",
+    title: "Seat reassignment",
+    text: "After the initial assignment, a student seat may normally be reassigned once every 30 days when a learner leaves. The previous learner loses organisation-funded access and progress is not transferred.",
   },
   {
     title: "Additional students",
-    text: "Additional students are charged at SGD 19.90 for each full remaining month and activate on the next monthly anniversary. Standard packages support up to 20 students.",
+    text: "Additional seats are prorated using the effective per-seat rate of the organisation’s current package for the remaining full months. Activation is normally within 1–2 business days after payment. More than 20 seats require a package upgrade or custom quote.",
   },
   {
-    title: "Extra teacher access",
-    text: "Additional Teacher/Admin accounts are SGD 149 per year.",
+    title: "Extra staff access",
+    text: "Additional named Teacher/Admin accounts are SGD 149 per year. Staff accounts are personal and may not be shared.",
   },
   {
     title: "Upgrades",
-    text: "Mid-term upgrades are calculated using the annual package difference divided by 12, multiplied by full remaining months, plus a SGD 49 administration fee.",
+    text: "Mid-term upgrades are based on the package-price difference for the remaining full months. No administration fee applies, and activation is normally within 1–2 business days after payment.",
   },
 ];
 
@@ -116,7 +116,7 @@ const faqItems = [
   {
     question: "Is there a grace period after expiry?",
     answer:
-      "A 14-day expiry grace period may be provided for renewal and account administration. Continued full access is not guaranteed after the paid term ends.",
+      "Renewal reminders may be sent before expiry. During days 1–14 after expiry, access may be restricted or read-only for renewal and account administration. Access may be suspended after the grace period.",
   },
   {
     question: "Are international organisations accepted?",
@@ -573,7 +573,7 @@ export default function EducationLicencePage() {
                     fontSize: "14px",
                   }}
                 >
-                  ✓ {item.teachers} Teacher/Admin account
+                  ✓ {item.teachers} Teacher/Admin {item.teachers === 1 ? "account" : "accounts"}
                 </span>
                 <span
                   style={{
@@ -655,8 +655,8 @@ export default function EducationLicencePage() {
                 lineHeight: 1.6,
               }}
             >
-              The pilot fee is credited when an annual package is purchased
-              within seven days after the pilot ends.
+              The pilot fee is credited in full when an eligible annual package is
+              purchased during the pilot or within 30 days after it ends.
             </p>
 
             <div
@@ -1084,10 +1084,11 @@ export default function EducationLicencePage() {
               lineHeight: 1.7,
             }}
           >
-            Prices are in Singapore dollars. The usual SGD 15 setup fee per
-            account is currently waived. Unused seats do not roll over beyond
-            the active term. Final access remains subject to approval and the
-            applicable Education Licence Terms.
+            Prices are in Singapore dollars and exclude GST where applicable.
+            Standard organisation setup is included at no additional charge.
+            Packages above 20 student seats require a custom quote. Final
+            access remains subject to approval and the applicable Education
+            Licence Terms.
           </p>
 
           <div
@@ -1251,19 +1252,28 @@ export default function EducationLicencePage() {
                 are SGD 149 per year.
               </li>
               <li>
-                Additional student seats are charged at SGD 19.90 for every
-                full remaining month and begin on the next monthly licence
-                anniversary. Standard packages support up to 20 student seats.
+                Each Teacher/Admin account must be assigned to a named staff
+                member and may not be shared. Non-urgent support enquiries are
+                normally answered within 1–2 business days.
               </li>
               <li>
-                Mid-term upgrades are calculated using the annual package price
-                difference divided by 12, multiplied by the full remaining
-                months, plus a SGD 49 administration fee.
+                Additional student seats are prorated using the effective
+                per-seat rate of the organisation’s current package for the
+                remaining full months. They normally activate within 1–2
+                business days after payment. More than 20 seats require a
+                package upgrade or custom quote.
               </li>
               <li>
-                A student seat may be reassigned up to two times per school
-                term when a learner leaves. Progress and account history are
-                not transferred to the replacement learner.
+                Mid-term upgrades are calculated using the package-price
+                difference for the remaining full months. No administration
+                fee applies. Upgrades normally activate within 1–2 business
+                days after payment.
+              </li>
+              <li>
+                After initial assignment, a student seat may normally be
+                reassigned once every 30 days when a learner leaves, subject
+                to reasonable-use controls. The previous learner loses
+                organisation-funded access, and progress is not transferred.
               </li>
               <li>
                 Unused seats do not roll over and are not refundable or
@@ -1286,20 +1296,22 @@ export default function EducationLicencePage() {
                 shared outside the approved users.
               </li>
               <li>
-                The 14-day pilot includes up to five students and one
+                The 14-day pilot includes up to five students and one named
                 Teacher/Admin account for SGD 49.90. The pilot fee is credited
-                only when an annual package is purchased within seven days
-                after the pilot ends.
+                in full when an eligible annual package is purchased during
+                the pilot or within 30 days after it ends. Otherwise, the pilot
+                fee is non-refundable.
               </li>
               <li>
-                The usual SGD 15 setup fee per account is currently waived.
-                Guru Kids Pro may change or end this waiver before a new
-                licence is accepted.
+                Standard organisation setup is included at no additional
+                charge. Onboarding is normally completed within one week after
+                full payment and receipt of the required account details.
               </li>
               <li>
-                A 14-day expiry grace period may be provided for renewal and
-                account administration. Full access is not guaranteed after
-                the paid term ends.
+                Renewal reminders may be sent before expiry. During days
+                1–14 after expiry, access may be restricted or read-only for
+                renewal and account administration. Access may be suspended
+                after the grace period.
               </li>
               <li>
                 Dreamscape content, software, questions, dashboards, and

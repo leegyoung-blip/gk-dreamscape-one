@@ -3,8 +3,22 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
+import { supabase } from "@/lib/supabase";
 
 type PricingView = "monthly" | "annual" | "gkp";
+
+const STAFF_CHECKOUT_ROLES = new Set([
+  "admin",
+  "teacher",
+  "curriculum_lead",
+]);
+
+function normaliseRole(role: string | null | undefined) {
+  return String(role || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+}
 
 type Plan = {
   key: "science" | "core" | "complete";
@@ -159,7 +173,7 @@ const faqItems = [
   {
     question: "How are payments processed?",
     answer:
-      "Public plans are processed through Shopify or another payment method displayed at checkout. GKP student add-ons are added to the student’s normal Guru Kids Pro class billing.",
+      "Public subscriptions are not yet open. When subscriptions launch, available payment methods will be displayed during checkout. GKP student add-ons continue to be handled through normal Guru Kids Pro class billing.",
   },
 ];
 
@@ -241,6 +255,10 @@ export default function PricingPage() {
   const [pricingView, setPricingView] =
     useState<PricingView>("annual");
   const [showGkpTerms, setShowGkpTerms] = useState(false);
+  const [showSubscriptionComingSoon, setShowSubscriptionComingSoon] =
+    useState(false);
+  const [checkoutRole, setCheckoutRole] = useState<string | null>(null);
+  const [checkoutAccessLoading, setCheckoutAccessLoading] = useState(true);
   const [viewportWidth, setViewportWidth] = useState(1440);
 
   useEffect(() => {
@@ -249,6 +267,67 @@ export default function PricingPage() {
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadCheckoutAccess() {
+      setCheckoutAccessLoading(true);
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (!isMounted) return;
+
+      if (userError || !user) {
+        setCheckoutRole(null);
+        setCheckoutAccessLoading(false);
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!isMounted) return;
+
+      if (profileError) {
+        console.warn(
+          "Could not load pricing checkout role:",
+          profileError.message,
+        );
+        setCheckoutRole(null);
+      } else {
+        setCheckoutRole(normaliseRole(profile?.role));
+      }
+
+      setCheckoutAccessLoading(false);
+    }
+
+    void loadCheckoutAccess();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const canOpenShopifyCheckout =
+    checkoutRole !== null && STAFF_CHECKOUT_ROLES.has(checkoutRole);
+
+  function handleSubscriptionClick(checkoutHref: string) {
+    if (checkoutAccessLoading) return;
+
+    if (canOpenShopifyCheckout) {
+      window.location.assign(checkoutHref);
+      return;
+    }
+
+    setShowSubscriptionComingSoon(true);
+  }
 
   const isMobile = viewportWidth <= 700;
   const isCompact = viewportWidth <= 1180;
@@ -487,6 +566,27 @@ export default function PricingPage() {
         <div
           style={{
             maxWidth: "1420px",
+            margin: "0 auto 24px",
+            padding: isMobile ? "16px 18px" : "17px 22px",
+            borderRadius: "20px",
+            border: "1px solid rgba(142,232,255,0.24)",
+            background:
+              "linear-gradient(90deg, rgba(83,215,255,0.09), rgba(197,140,255,0.07), rgba(255,174,92,0.08))",
+            color: "rgba(255,255,255,0.8)",
+            fontSize: isMobile ? "13px" : "14px",
+            fontWeight: 700,
+            lineHeight: 1.6,
+            textAlign: "center",
+          }}
+        >
+          <strong style={{ color: "#8ee8ff" }}>Trial phase:</strong>{" "}
+          Public subscriptions are coming soon. Prices and plan details are
+          currently available for preview.
+        </div>
+
+        <div
+          style={{
+            maxWidth: "1420px",
             margin: "0 auto",
             display: "grid",
             gridTemplateColumns: isMobile
@@ -681,12 +781,18 @@ export default function PricingPage() {
                   ))}
                 </div>
 
-                <Link
-                  href={checkoutHref}
+                <button
+                  type="button"
+                  onClick={() => handleSubscriptionClick(checkoutHref)}
+                  disabled={checkoutAccessLoading}
                   style={{
                     marginTop: isMobile ? "24px" : "30px",
                     width: "100%",
                     minWidth: 0,
+                    border: "none",
+                    fontFamily: "inherit",
+                    cursor: checkoutAccessLoading ? "wait" : "pointer",
+                    opacity: checkoutAccessLoading ? 0.72 : 1,
                     minHeight: isMobile
                       ? "56px"
                       : isCompact
@@ -728,7 +834,9 @@ export default function PricingPage() {
                       overflowWrap: "break-word",
                     }}
                   >
-                    Choose {plan.name}
+                    {checkoutAccessLoading
+                      ? "Checking access..."
+                      : `Choose ${plan.name}`}
                   </span>
 
                   <span
@@ -749,7 +857,7 @@ export default function PricingPage() {
                   >
                     →
                   </span>
-                </Link>
+                </button>
               </article>
             );
           })}
@@ -1567,9 +1675,10 @@ export default function PricingPage() {
               lineHeight: 1.7,
             }}
           >
-            All prices are in Singapore dollars. Purchases and rewards are
-            subject to the applicable Terms & Conditions. Parents or guardians
-            must authorise paid access for users below 18.
+            All prices are in Singapore dollars. Prices and plan details are
+            shown for preview during the Dreamscape One trial phase. Public
+            subscriptions are coming soon. Purchases and rewards remain subject
+            to the applicable Terms & Conditions.
           </p>
 
           <div
@@ -1811,6 +1920,139 @@ export default function PricingPage() {
                 General Terms
               </Link>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showSubscriptionComingSoon && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="subscription-coming-soon-title"
+          onClick={() => setShowSubscriptionComingSoon(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 110,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: isMobile ? "16px" : "28px",
+            background: "rgba(1,4,11,0.8)",
+            backdropFilter: "blur(14px)",
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              position: "relative",
+              width: "min(610px, 100%)",
+              padding: isMobile ? "34px 23px 27px" : "45px 42px 36px",
+              borderRadius: isMobile ? "25px" : "31px",
+              border: "1px solid rgba(142,232,255,0.3)",
+              background:
+                "radial-gradient(circle at 10% 0%, rgba(83,215,255,0.16), transparent 34%), radial-gradient(circle at 100% 100%, rgba(255,174,92,0.13), transparent 35%), #071326",
+              boxShadow:
+                "0 34px 100px rgba(0,0,0,0.6), 0 0 40px rgba(142,232,255,0.09)",
+              color: "white",
+              textAlign: "center",
+            }}
+          >
+            <button
+              type="button"
+              aria-label="Close subscriptions coming soon message"
+              onClick={() => setShowSubscriptionComingSoon(false)}
+              style={{
+                position: "absolute",
+                top: "14px",
+                right: "14px",
+                width: "38px",
+                height: "38px",
+                borderRadius: "999px",
+                border: "1px solid rgba(255,255,255,0.2)",
+                background: "rgba(255,255,255,0.06)",
+                color: "white",
+                fontSize: "22px",
+                cursor: "pointer",
+              }}
+            >
+              ×
+            </button>
+
+            <p
+              style={{
+                margin: 0,
+                color: "#8ee8ff",
+                fontSize: "11px",
+                fontWeight: 900,
+                letterSpacing: "0.2em",
+                textTransform: "uppercase",
+              }}
+            >
+              Dreamscape One Trial Phase
+            </p>
+
+            <h2
+              id="subscription-coming-soon-title"
+              style={{
+                margin: "17px 0 0",
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontSize: isMobile ? "37px" : "48px",
+                fontWeight: 400,
+                lineHeight: 1.08,
+              }}
+            >
+              Subscriptions coming soon
+            </h2>
+
+            <p
+              style={{
+                margin: "22px auto 0",
+                maxWidth: "500px",
+                color: "rgba(255,255,255,0.72)",
+                fontSize: isMobile ? "15px" : "17px",
+                lineHeight: 1.7,
+              }}
+            >
+              Dreamscape One is currently in its trial phase. Public
+              subscriptions are not open yet, but invited users can continue
+              exploring the platform with their assigned access.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setShowSubscriptionComingSoon(false)}
+              style={{
+                marginTop: "28px",
+                minHeight: "54px",
+                padding: "14px 25px",
+                border: "none",
+                borderRadius: "999px",
+                background:
+                  "linear-gradient(90deg, #8ee8ff, #c58cff 60%, #ffae5c)",
+                color: "#160729",
+                fontFamily: "inherit",
+                fontSize: "12px",
+                fontWeight: 900,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                cursor: "pointer",
+              }}
+            >
+              Continue exploring
+            </button>
+
+            <p
+              style={{
+                margin: "17px 0 0",
+                color: "rgba(255,255,255,0.45)",
+                fontSize: "12px",
+                lineHeight: 1.6,
+              }}
+            >
+              Staff testing access remains available to authorised admin,
+              teacher and curriculum lead accounts.
+            </p>
           </div>
         </div>
       )}
