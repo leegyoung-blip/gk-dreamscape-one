@@ -42,7 +42,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     label: "Invoices",
     icon: "□",
-    phase: "Phase 4",
+    href: "/admin/billing/invoices",
   },
   {
     label: "Payments",
@@ -271,9 +271,8 @@ export default function BillingAdminShell({
             })}
 
             <div className="col-span-2 mt-2 hidden rounded-2xl border border-[#d8c9ad] bg-white/65 p-4 text-xs leading-5 text-[#6f675a] sm:col-span-3 lg:col-span-1 lg:block">
-              <strong className="block text-[#15233b]">Phase 3</strong>
-              Family accounts, students, programmes and individual enrolment
-              fees are active.
+              <strong className="block text-[#15233b]">Phase 4</strong>
+              Per-lesson schedules, draft invoices and review controls are active.
             </div>
           </nav>
         </aside>

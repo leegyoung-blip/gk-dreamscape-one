@@ -37,7 +37,7 @@ const DEFAULT_FORM: ProgrammeForm = {
   name: "",
   description: "",
   default_fee: "0",
-  billing_frequency: "monthly",
+  billing_frequency: "per_lesson",
   sort_order: "0",
   is_active: true,
 };
@@ -115,11 +115,11 @@ export default function BillingProgrammesClient() {
     });
   }, [programmes, search, showInactive]);
 
-  const totalDefaultMonthly = programmes
+  const totalPerLessonFees = programmes
     .filter(
       (programme) =>
         programme.is_active &&
-        programme.billing_frequency === "monthly",
+        programme.billing_frequency === "per_lesson",
     )
     .reduce(
       (sum, programme) =>
@@ -275,15 +275,15 @@ export default function BillingProgrammesClient() {
           detail={`${programmes.length} total records`}
         />
         <SummaryCard
-          label="Monthly programmes"
+          label="Per-lesson programmes"
           value={String(
             programmes.filter(
               (programme) =>
                 programme.is_active &&
-                programme.billing_frequency === "monthly",
+                programme.billing_frequency === "per_lesson",
             ).length,
           )}
-          detail="Eligible for monthly generation"
+          detail="Lesson dates determine invoice quantity"
         />
         <SummaryCard
           label="Open enrolments"
@@ -295,9 +295,9 @@ export default function BillingProgrammesClient() {
           detail="Across all students"
         />
         <SummaryCard
-          label="Sum of standard fees"
-          value={formatCurrency(totalDefaultMonthly)}
-          detail="Reference only, not revenue"
+          label="Sum of lesson rates"
+          value={formatCurrency(totalPerLessonFees)}
+          detail="Reference only, not monthly revenue"
         />
       </div>
 
@@ -537,7 +537,7 @@ export default function BillingProgrammesClient() {
               required
             />
             <TextField
-              label="Standard fee (SGD)"
+              label={form.billing_frequency === "per_lesson" ? "Standard fee per lesson (SGD)" : "Standard fee (SGD)"}
               type="number"
               min="0"
               step="0.01"

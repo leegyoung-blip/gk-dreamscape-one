@@ -267,7 +267,7 @@ export default function BillingDashboardClient() {
             <div>
               <h2 className="text-xl font-semibold">Recent invoices</h2>
               <p className="mt-1 text-sm text-[#81796d]">
-                Invoice creation begins in Phase 4.
+                Drafts are generated from per-lesson schedules.
               </p>
             </div>
           </div>
@@ -285,8 +285,7 @@ export default function BillingDashboardClient() {
                 No invoices yet
               </h3>
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#81796d]">
-                Create family accounts, students and enrolments now.
-                Monthly invoices will be generated in Phase 4.
+                Add the students’ regular weekdays, then open Invoices to generate the first prepaid billing month.
               </p>
             </div>
           ) : (
@@ -344,7 +343,7 @@ export default function BillingDashboardClient() {
         <div className="grid content-start gap-6">
           <section className="rounded-[2rem] border border-[#ded5c4] bg-[#15233b] p-6 text-white shadow-[0_20px_60px_rgba(21,35,59,0.12)]">
             <p className="text-xs font-black uppercase tracking-[0.2em] text-[#e8c474]">
-              Phase 3 records
+              Billing records
             </p>
             <div className="mt-5 grid grid-cols-2 gap-3">
               <Count label="Families" value={numberValue(phaseStatus.accounts)} />
@@ -372,7 +371,13 @@ export default function BillingDashboardClient() {
                 href="/admin/billing/accounts"
                 className="rounded-2xl border border-[#ded5c4] bg-[#fbfaf7] p-4 text-sm font-bold transition hover:border-[#bd9650]"
               >
-                2. Add families, students and enrolments
+                2. Add families, students and class weekdays
+              </Link>
+              <Link
+                href="/admin/billing/invoices"
+                className="rounded-2xl border border-[#ded5c4] bg-[#fbfaf7] p-4 text-sm font-bold transition hover:border-[#bd9650]"
+              >
+                3. Review lesson dates and generate invoices
               </Link>
             </div>
           </section>

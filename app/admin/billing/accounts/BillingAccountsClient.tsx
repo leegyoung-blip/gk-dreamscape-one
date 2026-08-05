@@ -26,6 +26,8 @@ import {
   normaliseOptionalText,
   numberValue,
   singaporeToday,
+  formatTime,
+  weekdayLabel,
 } from "../_lib/billingUtils";
 
 type AccountForm = {
@@ -64,6 +66,8 @@ type EnrolmentForm = {
   billing_frequency: BillingFrequency;
   standard_discount_amount: string;
   discount_description: string;
+  regular_weekday: string;
+  regular_start_time: string;
   status: EnrolmentStatus;
   invoice_description: string;
 };
@@ -74,7 +78,7 @@ const DEFAULT_ACCOUNT_FORM: AccountForm = {
   phone: "",
   alternate_email: "",
   address: "",
-  default_due_day: "7",
+  default_due_day: "25",
   status: "active",
   notes: "",
   first_student_name: "",
@@ -101,9 +105,11 @@ const DEFAULT_ENROLMENT_FORM: EnrolmentForm = {
   start_date: singaporeToday(),
   end_date: "",
   agreed_fee: "",
-  billing_frequency: "monthly",
+  billing_frequency: "per_lesson",
   standard_discount_amount: "0",
   discount_description: "",
+  regular_weekday: "",
+  regular_start_time: "",
   status: "active",
   invoice_description: "",
 };
@@ -409,6 +415,12 @@ export default function BillingAccountsClient() {
       ),
       discount_description:
         enrolment.discount_description || "",
+      regular_weekday: enrolment.regular_weekday
+        ? String(enrolment.regular_weekday)
+        : "",
+      regular_start_time: enrolment.regular_start_time
+        ? enrolment.regular_start_time.slice(0, 5)
+        : "",
       status: enrolment.status,
       invoice_description: enrolment.invoice_description || "",
     });
@@ -605,8 +617,15 @@ export default function BillingAccountsClient() {
 
       if (discount > agreedFee) {
         throw new Error(
-          "The recurring discount cannot exceed the agreed fee.",
+          "The per-lesson discount cannot exceed the per-lesson fee.",
         );
+      }
+
+      if (
+        enrolmentForm.billing_frequency === "per_lesson" &&
+        !enrolmentForm.regular_weekday
+      ) {
+        throw new Error("Select the student's regular class weekday.");
       }
 
       const payload = {
@@ -620,6 +639,16 @@ export default function BillingAccountsClient() {
         discount_description: normaliseOptionalText(
           enrolmentForm.discount_description,
         ),
+        regular_weekday:
+          enrolmentForm.billing_frequency === "per_lesson" &&
+          enrolmentForm.regular_weekday
+            ? Number(enrolmentForm.regular_weekday)
+            : null,
+        regular_start_time:
+          enrolmentForm.billing_frequency === "per_lesson"
+            ? normaliseOptionalText(enrolmentForm.regular_start_time)
+            : null,
+        discount_basis_lessons: 4,
         status: enrolmentForm.status,
         invoice_description: normaliseOptionalText(
           enrolmentForm.invoice_description,
@@ -736,10 +765,10 @@ export default function BillingAccountsClient() {
               (enrolment) => enrolment.status === "active",
             ).length,
           )}
-          detail="Ready for monthly billing"
+          detail="Ready for invoice generation"
         />
         <SummaryCard
-          label="Monthly recurring"
+          label="Four-lesson base"
           value={formatCurrency(
             accountOverviews.reduce(
               (sum, account) =>
@@ -933,7 +962,7 @@ export default function BillingAccountsClient() {
                     )}
                   />
                   <InfoCell
-                    label="Recurring monthly"
+                    label="Four-lesson base"
                     value={formatCurrency(
                       numberValue(
                         selectedOverview?.recurring_monthly_total,
@@ -1417,6 +1446,12 @@ export default function BillingAccountsClient() {
         >
           {formError && <Alert tone="error">{formError}</Alert>}
 
+          <div className="rounded-2xl border border-[#decda9] bg-[#f8f1e3] p-4 text-sm leading-6 text-[#6d6250]">
+            For per-lesson billing, enter the fee and discount for one lesson.
+            The recurring discount is always multiplied by four, even when the
+            selected month contains five lessons.
+          </div>
+
           <div className="grid gap-4 md:grid-cols-2">
             <SelectField
               label="Programme"
@@ -1444,14 +1479,18 @@ export default function BillingAccountsClient() {
                 }))
               }
               options={[
-                ["monthly", "Monthly"],
+                ["per_lesson", "Per lesson"],
+                ["monthly", "Monthly fixed fee"],
                 ["termly", "Termly"],
                 ["one_off", "One-off"],
-                ["per_lesson", "Per lesson"],
               ]}
             />
             <TextField
-              label="Agreed fee (SGD)"
+              label={
+                enrolmentForm.billing_frequency === "per_lesson"
+                  ? "Fee per lesson (SGD)"
+                  : "Agreed fee (SGD)"
+              }
               type="number"
               min="0"
               step="0.01"
@@ -1465,7 +1504,11 @@ export default function BillingAccountsClient() {
               required
             />
             <TextField
-              label="Recurring discount (SGD)"
+              label={
+                enrolmentForm.billing_frequency === "per_lesson"
+                  ? "Discount per lesson (SGD)"
+                  : "Recurring discount (SGD)"
+              }
               type="number"
               min="0"
               step="0.01"
@@ -1478,6 +1521,44 @@ export default function BillingAccountsClient() {
               }
               required
             />
+
+            {enrolmentForm.billing_frequency === "per_lesson" && (
+              <>
+                <SelectField
+                  label="Regular class weekday"
+                  value={enrolmentForm.regular_weekday}
+                  onChange={(value) =>
+                    setEnrolmentForm((current) => ({
+                      ...current,
+                      regular_weekday: value,
+                    }))
+                  }
+                  required
+                  options={[
+                    ["", "Select weekday"],
+                    ["1", "Monday"],
+                    ["2", "Tuesday"],
+                    ["3", "Wednesday"],
+                    ["4", "Thursday"],
+                    ["5", "Friday"],
+                    ["6", "Saturday"],
+                    ["7", "Sunday"],
+                  ]}
+                />
+                <TextField
+                  label="Regular class start time"
+                  type="time"
+                  value={enrolmentForm.regular_start_time}
+                  onChange={(value) =>
+                    setEnrolmentForm((current) => ({
+                      ...current,
+                      regular_start_time: value,
+                    }))
+                  }
+                />
+              </>
+            )}
+
             <TextField
               label="Start date"
               type="date"
@@ -1519,7 +1600,7 @@ export default function BillingAccountsClient() {
             />
             <TextField
               label="Invoice line description"
-              placeholder="Defaults to programme name"
+              placeholder="e.g. Primary 4 Mathematics Tuition"
               value={enrolmentForm.invoice_description}
               onChange={(value) =>
                 setEnrolmentForm((current) => ({
@@ -1542,20 +1623,62 @@ export default function BillingAccountsClient() {
             }
           />
 
-          <div className="rounded-2xl border border-[#decda9] bg-[#f8f1e3] p-4 text-sm">
-            <span className="text-[#746a59]">Net recurring charge:</span>{" "}
-            <strong className="text-[#15233b]">
-              {formatCurrency(
-                Math.max(
-                  numberValue(enrolmentForm.agreed_fee) -
-                    numberValue(
-                      enrolmentForm.standard_discount_amount,
+          {enrolmentForm.billing_frequency === "per_lesson" ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-[#decda9] bg-[#f8f1e3] p-4 text-sm">
+                <span className="block text-xs font-black uppercase tracking-[0.12em] text-[#887759]">
+                  Four-lesson month
+                </span>
+                <strong className="mt-2 block text-lg text-[#15233b]">
+                  {formatCurrency(
+                    Math.max(
+                      numberValue(enrolmentForm.agreed_fee) * 4 -
+                        numberValue(
+                          enrolmentForm.standard_discount_amount,
+                        ) *
+                          4,
+                      0,
                     ),
-                  0,
-                ),
-              )}
-            </strong>
-          </div>
+                  )}
+                </strong>
+              </div>
+              <div className="rounded-2xl border border-[#decda9] bg-[#f8f1e3] p-4 text-sm">
+                <span className="block text-xs font-black uppercase tracking-[0.12em] text-[#887759]">
+                  Five-lesson month
+                </span>
+                <strong className="mt-2 block text-lg text-[#15233b]">
+                  {formatCurrency(
+                    Math.max(
+                      numberValue(enrolmentForm.agreed_fee) * 5 -
+                        numberValue(
+                          enrolmentForm.standard_discount_amount,
+                        ) *
+                          4,
+                      0,
+                    ),
+                  )}
+                </strong>
+                <span className="mt-1 block text-xs text-[#7d7465]">
+                  The fifth lesson is charged at the full agreed rate.
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-[#decda9] bg-[#f8f1e3] p-4 text-sm">
+              <span className="text-[#746a59]">Net recurring charge:</span>{" "}
+              <strong className="text-[#15233b]">
+                {formatCurrency(
+                  Math.max(
+                    numberValue(enrolmentForm.agreed_fee) -
+                      numberValue(
+                        enrolmentForm.standard_discount_amount,
+                      ),
+                    0,
+                  ),
+                )}
+              </strong>
+            </div>
+          )}
         </form>
       </BillingModal>
     </BillingAdminShell>
@@ -1584,22 +1707,24 @@ function StudentCard({
     status: EnrolmentStatus,
   ) => void;
 }) {
-  const activeMonthlyTotal = enrolments
-    .filter(
-      (enrolment) =>
-        enrolment.status === "active" &&
-        enrolment.billing_frequency === "monthly",
-    )
-    .reduce(
-      (sum, enrolment) =>
-        sum +
-        Math.max(
-          numberValue(enrolment.agreed_fee) -
-            numberValue(enrolment.standard_discount_amount),
-          0,
-        ),
-      0,
-    );
+  const activeFourLessonEstimate = enrolments
+    .filter((enrolment) => enrolment.status === "active")
+    .reduce((sum, enrolment) => {
+      const fee = numberValue(enrolment.agreed_fee);
+      const discount = numberValue(
+        enrolment.standard_discount_amount,
+      );
+
+      if (enrolment.billing_frequency === "per_lesson") {
+        return sum + Math.max(fee * 4 - discount * 4, 0);
+      }
+
+      if (enrolment.billing_frequency === "monthly") {
+        return sum + Math.max(fee - discount, 0);
+      }
+
+      return sum;
+    }, 0);
 
   return (
     <article className="overflow-hidden rounded-[1.65rem] border border-[#ded5c4] bg-[#fbfaf7]">
@@ -1656,8 +1781,8 @@ function StudentCard({
           )}
         />
         <InfoCell
-          label="Monthly total"
-          value={formatCurrency(activeMonthlyTotal)}
+          label="Four-lesson estimate"
+          value={formatCurrency(activeFourLessonEstimate)}
         />
       </div>
 
@@ -1667,14 +1792,14 @@ function StudentCard({
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[850px] text-left">
+          <table className="w-full min-w-[1080px] text-left">
             <thead>
               <tr className="border-b border-[#ebe4da] text-[10px] font-black uppercase tracking-[0.13em] text-[#898176]">
                 <th className="px-5 py-3">Programme</th>
-                <th className="px-4 py-3">Period</th>
-                <th className="px-4 py-3">Agreed fee</th>
-                <th className="px-4 py-3">Discount</th>
-                <th className="px-4 py-3">Net</th>
+                <th className="px-4 py-3">Schedule</th>
+                <th className="px-4 py-3">Fee basis</th>
+                <th className="px-4 py-3">Discount rule</th>
+                <th className="px-4 py-3">4-lesson base</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-5 py-3 text-right">Actions</th>
               </tr>
@@ -1684,13 +1809,14 @@ function StudentCard({
                 const programme = programmeMap.get(
                   enrolment.programme_id,
                 );
-                const net = Math.max(
-                  numberValue(enrolment.agreed_fee) -
-                    numberValue(
-                      enrolment.standard_discount_amount,
-                    ),
-                  0,
+                const fee = numberValue(enrolment.agreed_fee);
+                const discount = numberValue(
+                  enrolment.standard_discount_amount,
                 );
+                const fourLessonBase =
+                  enrolment.billing_frequency === "per_lesson"
+                    ? Math.max(fee * 4 - discount * 4, 0)
+                    : Math.max(fee - discount, 0);
 
                 return (
                   <tr
@@ -1708,30 +1834,52 @@ function StudentCard({
                       </span>
                     </td>
                     <td className="px-4 py-4 text-sm">
-                      {formatDate(enrolment.start_date)}
-                      <span className="block text-xs text-[#8a8378]">
-                        to {formatDate(enrolment.end_date)}
+                      {enrolment.billing_frequency === "per_lesson" ? (
+                        <>
+                          <strong className="block">
+                            {weekdayLabel(enrolment.regular_weekday)}
+                          </strong>
+                          <span className="mt-1 block text-xs text-[#8a8378]">
+                            {formatTime(enrolment.regular_start_time)}
+                          </span>
+                        </>
+                      ) : (
+                        <strong className="block">
+                          {billingFrequencyLabel(
+                            enrolment.billing_frequency,
+                          )}
+                        </strong>
+                      )}
+                      <span className="mt-1 block text-xs text-[#8a8378]">
+                        {formatDate(enrolment.start_date)} to{" "}
+                        {formatDate(enrolment.end_date)}
                       </span>
                     </td>
                     <td className="px-4 py-4 font-bold">
-                      {formatCurrency(
-                        numberValue(enrolment.agreed_fee),
-                      )}
+                      {formatCurrency(fee)}
+                      <span className="mt-1 block text-xs font-normal text-[#8a8378]">
+                        {enrolment.billing_frequency === "per_lesson"
+                          ? "per lesson"
+                          : billingFrequencyLabel(
+                              enrolment.billing_frequency,
+                            )}
+                      </span>
                     </td>
                     <td className="px-4 py-4">
-                      {formatCurrency(
-                        numberValue(
-                          enrolment.standard_discount_amount,
-                        ),
-                      )}
+                      {formatCurrency(discount)}
+                      <span className="mt-1 block max-w-[180px] text-xs text-[#8a8378]">
+                        {enrolment.billing_frequency === "per_lesson"
+                          ? "per lesson × 4 every month"
+                          : "per billing period"}
+                      </span>
                       {enrolment.discount_description && (
-                        <span className="mt-1 block max-w-[150px] truncate text-xs text-[#8a8378]">
+                        <span className="mt-1 block max-w-[180px] truncate text-xs text-[#8a8378]">
                           {enrolment.discount_description}
                         </span>
                       )}
                     </td>
                     <td className="px-4 py-4 font-black text-[#8a6325]">
-                      {formatCurrency(net)}
+                      {formatCurrency(fourLessonBase)}
                     </td>
                     <td className="px-4 py-4">
                       <span className="rounded-full border border-[#dcd3c5] bg-white px-3 py-1.5 text-xs font-bold">
