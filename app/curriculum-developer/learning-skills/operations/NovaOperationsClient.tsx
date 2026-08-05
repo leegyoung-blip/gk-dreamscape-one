@@ -267,7 +267,7 @@ export default function NovaOperationsClient() {
   }, [dashboard?.release_checklist]);
 
   async function runAction(
-    action: () => Promise<{
+    action: () => PromiseLike<{
       data: unknown;
       error: { message: string } | null;
     }>,
@@ -277,18 +277,32 @@ export default function NovaOperationsClient() {
     setError("");
     setMessage("");
 
-    const result = await action();
+    try {
+      const result = await action();
 
-    setBusy(false);
+      if (result.error) {
+        setError(result.error.message);
+        return false;
+      }
 
-    if (result.error) {
-      setError(result.error.message);
+      setMessage(successMessage);
+      await load();
+      return true;
+    } catch (actionError) {
+      const detail =
+        actionError instanceof Error
+          ? actionError.message
+          : "The Nova Operations action failed.";
+
+      console.error(
+        "Nova Operations action error:",
+        actionError,
+      );
+      setError(detail);
       return false;
+    } finally {
+      setBusy(false);
     }
-
-    setMessage(successMessage);
-    await load();
-    return true;
   }
 
   function updateFlagDraft(
