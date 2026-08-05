@@ -142,6 +142,15 @@ export type BillingInvoiceOverview = {
   public_link_view_count: number | string;
   issued_at: string | null;
   paid_at: string | null;
+  hitpay_payment_request_id: string | null;
+  hitpay_payment_status: string | null;
+  hitpay_payment_environment: "sandbox" | "production" | null;
+  hitpay_payment_request_created_at: string | null;
+  hitpay_qr_expiry: string | null;
+  hitpay_requested_amount: number | string | null;
+  hitpay_last_webhook_at: string | null;
+  successful_payment_total: number | string;
+  overpayment_amount: number | string;
   created_at: string;
   updated_at: string;
   account_code: string;

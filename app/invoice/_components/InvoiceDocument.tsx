@@ -1,4 +1,5 @@
 import PrintInvoiceButton from "./PrintInvoiceButton";
+import PayNowPaymentPanel from "./PayNowPaymentPanel";
 import type {
   InvoiceDocumentData,
   InvoiceDocumentItem,
@@ -148,15 +149,24 @@ export default function InvoiceDocument({
                 </p>
               </section>
 
-              {!isPaid && (
+              {!isPaid && !isPreview && (
+                <PayNowPaymentPanel
+                  publicToken={invoice.public_token}
+                  invoiceNumber={invoice.invoice_number}
+                  balanceDue={invoice.balance_due}
+                  currency={invoice.currency}
+                />
+              )}
+
+              {!isPaid && isPreview && (
                 <section className="rounded-2xl border border-[#d9c49a] bg-[#fff9eb] p-5">
                   <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#94671f]">
-                    Payment
+                    PayNow parent view
                   </p>
                   <p className="mt-3 text-sm leading-6 text-[#6e5a38]">
-                    Please follow the payment instructions provided by Guru Kids
-                    Pro. The PayNow QR and automatic payment confirmation will
-                    appear here once online payment is enabled.
+                    The live parent invoice will show a button to generate an
+                    exact-amount PayNow QR. Staff preview does not create a real
+                    payment request.
                   </p>
                 </section>
               )}
@@ -366,7 +376,8 @@ const PRINT_STYLES = `
       padding: 0 !important;
     }
 
-    .invoice-toolbar {
+    .invoice-toolbar,
+    .payment-live-panel {
       display: none !important;
     }
 

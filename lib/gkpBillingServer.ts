@@ -9,7 +9,7 @@ const PUBLIC_INVOICE_STATUSES = [
   "overdue",
 ] as const;
 
-function createBillingServiceClient() {
+export function createBillingServiceClient() {
   const supabaseUrl =
     process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

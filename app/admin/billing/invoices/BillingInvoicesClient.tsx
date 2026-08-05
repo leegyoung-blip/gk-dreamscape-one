@@ -983,6 +983,15 @@ export default function BillingInvoicesClient() {
                         ? ` · ${numberValue(selectedInvoice.public_link_view_count)} recorded view${numberValue(selectedInvoice.public_link_view_count) === 1 ? "" : "s"}`
                         : " · Not viewed yet"}
                     </p>
+                    <p className="mt-1 text-xs font-semibold text-[#8a8378]">
+                      HitPay: {selectedInvoice.hitpay_payment_status || "No payment request"}
+                      {selectedInvoice.hitpay_payment_environment
+                        ? ` · ${selectedInvoice.hitpay_payment_environment}`
+                        : ""}
+                      {numberValue(selectedInvoice.overpayment_amount) > 0
+                        ? ` · Overpayment ${formatCurrency(numberValue(selectedInvoice.overpayment_amount))}`
+                        : ""}
+                    </p>
                   </div>
 
                   <div className="flex flex-wrap gap-2">
