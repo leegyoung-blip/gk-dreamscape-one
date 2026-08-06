@@ -196,6 +196,8 @@ type Zone = {
   description: string;
   href: string;
   icon: string;
+  adminOnly?: boolean;
+  statusLabel?: string;
 };
 
 type WalkthroughStep = {
@@ -228,9 +230,12 @@ const zones: Zone[] = [
     id: "inventor-hub",
     number: "3",
     title: "Inventor Hub",
-    description: "Customise creations, reward items, and Nova products.",
+    description:
+      "Coming soon. Admins can enter for preview, testing, and development.",
     href: "/inventor/hub",
     icon: "⌂",
+    adminOnly: true,
+    statusLabel: "Coming Soon",
   },
   {
     id: "membership-portal",
@@ -268,8 +273,8 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   },
   {
     eyebrow: "Stop 3 of 4",
-    title: "Create and redeem.",
-    text: "Explore inventions, products, and Dream Gem rewards.",
+    title: "Inventor Hub is coming soon.",
+    text: "This zone is being prepared. Admins can enter for preview and testing.",
     zoneNumber: "3",
   },
   {
@@ -313,6 +318,7 @@ export default function NovaWorldPage() {
   >([]);
   const [objectivesLoading, setObjectivesLoading] = useState(true);
   const [showMembershipPortal, setShowMembershipPortal] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -336,6 +342,7 @@ export default function NovaWorldPage() {
         setDreamGemBalance(0);
         setDreamGemTransactions([]);
         setHasStudentRewardsAccess(false);
+        setIsAdmin(false);
         setDreamGemsLoading(false);
         setProfileAssetsLoading(false);
         setReferralCount(0);
@@ -455,6 +462,9 @@ export default function NovaWorldPage() {
       const role = profileResult.data?.role
         ? String(profileResult.data.role)
         : null;
+
+      setIsAdmin(String(role || "").trim().toLowerCase() === "admin");
+
       const subscriptionRows = subscriptionResult.error
         ? []
         : ((subscriptionResult.data || []) as NovaSubscriptionRow[]);
@@ -859,6 +869,7 @@ export default function NovaWorldPage() {
             key={zone.id}
             zone={zone}
             screenMode={screenMode}
+            isAdmin={isAdmin}
             onClick={
               zone.id === "membership-portal"
                 ? () => setShowMembershipPortal(true)
@@ -2382,16 +2393,20 @@ function ZoneCard({
   screenMode,
   walkthroughActive,
   walkthroughHighlighted,
+  isAdmin,
 }: {
   zone: Zone;
   onClick?: () => void;
   screenMode: ScreenMode;
   walkthroughActive: boolean;
   walkthroughHighlighted: boolean;
+  isAdmin: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   const isMobile = screenMode === "mobile";
-  const isEmphasised = hovered || walkthroughHighlighted;
+  const isAdminOnly = Boolean(zone.adminOnly);
+  const isLocked = isAdminOnly && !isAdmin;
+  const isEmphasised = (hovered && !isLocked) || walkthroughHighlighted;
 
   const cardStyle: CSSProperties = {
     position: "relative",
@@ -2400,18 +2415,22 @@ function ZoneCard({
     minHeight: isMobile ? "82px" : "94px",
     display: "grid",
     gridTemplateColumns: isMobile
-      ? "50px 1px minmax(0, 1fr) 24px"
-      : "64px 1px minmax(0, 1fr) 32px",
+      ? "50px 1px minmax(0, 1fr) 42px"
+      : "64px 1px minmax(0, 1fr) 52px",
     alignItems: "center",
     gap: isMobile ? "12px" : "18px",
     padding: isMobile ? "16px" : "20px 24px 20px 20px",
     borderRadius: "16px",
     border: isEmphasised
       ? "1px solid rgba(142,232,255,0.88)"
-      : "1px solid rgba(135,216,255,0.32)",
+      : isLocked
+        ? "1px solid rgba(255,209,138,0.34)"
+        : "1px solid rgba(135,216,255,0.32)",
     background: isEmphasised
       ? "rgba(4,22,48,0.95)"
-      : "rgba(7,20,45,0.72)",
+      : isLocked
+        ? "linear-gradient(145deg, rgba(42,30,35,0.82), rgba(14,18,38,0.82))"
+        : "rgba(7,20,45,0.72)",
     color: "white",
     textDecoration: "none",
     textAlign: "left",
@@ -2420,21 +2439,32 @@ function ZoneCard({
     WebkitBackdropFilter: "blur(18px)",
     boxShadow: walkthroughHighlighted
       ? "0 0 0 3px rgba(83,215,255,0.18), 0 0 54px rgba(83,215,255,0.48), 0 28px 74px rgba(0,0,0,0.55)"
-      : hovered
+      : hovered && !isLocked
         ? "0 0 42px rgba(83,215,255,0.28), 0 26px 70px rgba(0,0,0,0.42)"
-        : "0 14px 34px rgba(0,0,0,0.3)",
+        : isLocked
+          ? "0 14px 34px rgba(0,0,0,0.3), inset 0 0 24px rgba(255,186,94,0.04)"
+          : "0 14px 34px rgba(0,0,0,0.3)",
     opacity:
-      walkthroughActive && !walkthroughHighlighted ? 0.2 : isEmphasised ? 1 : 0.88,
+      walkthroughActive && !walkthroughHighlighted
+        ? 0.2
+        : isLocked
+          ? 0.78
+          : isEmphasised
+            ? 1
+            : 0.88,
     filter:
       walkthroughActive && !walkthroughHighlighted
         ? "saturate(0.35) brightness(0.5)"
-        : isEmphasised
-          ? "none"
-          : "saturate(0.86) brightness(0.94)",
-    transform: isEmphasised ? "translateY(-4px) scale(1.012)" : "none",
+        : isLocked
+          ? "saturate(0.62) brightness(0.86)"
+          : isEmphasised
+            ? "none"
+            : "saturate(0.86) brightness(0.94)",
+    transform:
+      isEmphasised && !isLocked ? "translateY(-4px) scale(1.012)" : "none",
     transition:
       "transform 260ms ease, box-shadow 260ms ease, border-color 260ms ease, opacity 260ms ease, filter 260ms ease, background 260ms ease",
-    cursor: walkthroughActive ? "default" : "pointer",
+    cursor: walkthroughActive ? "default" : isLocked ? "not-allowed" : "pointer",
     pointerEvents: walkthroughActive ? "none" : "auto",
     appearance: "none",
   };
@@ -2450,12 +2480,16 @@ function ZoneCard({
           alignItems: "center",
           justifyContent: "center",
           fontSize: isMobile ? "20px" : "23px",
-          color: "#8ee8ff",
-          background:
-            "radial-gradient(circle, rgba(83,215,255,0.22), rgba(2,8,19,0.9))",
-          border: "1px solid rgba(83,215,255,0.48)",
-          boxShadow:
-            "0 0 22px rgba(83,215,255,0.22), inset 0 0 18px rgba(83,215,255,0.08)",
+          color: isLocked ? "#ffd18a" : "#8ee8ff",
+          background: isLocked
+            ? "radial-gradient(circle, rgba(255,186,94,0.18), rgba(23,14,24,0.92))"
+            : "radial-gradient(circle, rgba(83,215,255,0.22), rgba(2,8,19,0.9))",
+          border: isLocked
+            ? "1px solid rgba(255,209,138,0.42)"
+            : "1px solid rgba(83,215,255,0.48)",
+          boxShadow: isLocked
+            ? "0 0 22px rgba(255,186,94,0.1), inset 0 0 18px rgba(255,186,94,0.05)"
+            : "0 0 22px rgba(83,215,255,0.22), inset 0 0 18px rgba(83,215,255,0.08)",
         }}
       >
         {zone.icon}
@@ -2488,26 +2522,83 @@ function ZoneCard({
             {zone.number}
           </span>
 
-          <div style={{ minWidth: 0 }}>
-            <h2
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div
               style={{
-                margin: 0,
-                textTransform: "uppercase",
-                letterSpacing: "0.09em",
-                fontSize: isMobile ? "15px" : "17px",
-                lineHeight: 1.35,
-                fontWeight: 750,
-                color: "white",
+                display: "flex",
+                alignItems: "center",
+                gap: "9px",
+                flexWrap: "wrap",
               }}
             >
-              {zone.title}
-            </h2>
+              <h2
+                style={{
+                  margin: 0,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.09em",
+                  fontSize: isMobile ? "15px" : "17px",
+                  lineHeight: 1.35,
+                  fontWeight: 750,
+                  color: "white",
+                }}
+              >
+                {zone.title}
+              </h2>
+
+              {zone.statusLabel && (
+                <span
+                  style={{
+                    minHeight: "24px",
+                    padding: "0 9px",
+                    borderRadius: "999px",
+                    border: "1px solid rgba(255,209,138,0.34)",
+                    background: "rgba(255,186,94,0.12)",
+                    color: "#ffd18a",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: isMobile ? "8px" : "9px",
+                    fontWeight: 900,
+                    letterSpacing: "0.12em",
+                    textTransform: "uppercase",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {zone.statusLabel}
+                </span>
+              )}
+
+              {isAdminOnly && isAdmin && (
+                <span
+                  style={{
+                    minHeight: "24px",
+                    padding: "0 9px",
+                    borderRadius: "999px",
+                    border: "1px solid rgba(126,232,255,0.28)",
+                    background: "rgba(83,215,255,0.09)",
+                    color: "#bdf6ff",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: isMobile ? "8px" : "9px",
+                    fontWeight: 900,
+                    letterSpacing: "0.1em",
+                    textTransform: "uppercase",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Admin Preview
+                </span>
+              )}
+            </div>
 
             {!isMobile && (
               <p
                 style={{
                   margin: "7px 0 0",
-                  color: "rgba(255,255,255,0.64)",
+                  color: isLocked
+                    ? "rgba(255,224,178,0.68)"
+                    : "rgba(255,255,255,0.64)",
                   fontSize: "12px",
                   lineHeight: 1.45,
                 }}
@@ -2522,11 +2613,23 @@ function ZoneCard({
       <div
         aria-hidden="true"
         style={{
-          fontSize: isMobile ? "22px" : "28px",
-          color: "rgba(255,255,255,0.78)",
+          width: isMobile ? "38px" : "46px",
+          height: isMobile ? "38px" : "46px",
+          borderRadius: "999px",
+          border: isLocked
+            ? "1px solid rgba(255,209,138,0.3)"
+            : "1px solid rgba(126,232,255,0.16)",
+          background: isLocked
+            ? "rgba(255,186,94,0.08)"
+            : "rgba(83,215,255,0.05)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: isLocked ? (isMobile ? "16px" : "18px") : isMobile ? "22px" : "26px",
+          color: isLocked ? "#ffd18a" : "rgba(255,255,255,0.78)",
         }}
       >
-        →
+        {isLocked ? "🔒" : "→"}
       </div>
     </>
   );
@@ -2537,6 +2640,20 @@ function ZoneCard({
     onMouseLeave: () => setHovered(false),
     style: cardStyle,
   };
+
+  if (isLocked) {
+    return (
+      <button
+        type="button"
+        aria-label={`${zone.title} is coming soon`}
+        aria-disabled="true"
+        disabled
+        {...commonProps}
+      >
+        {content}
+      </button>
+    );
+  }
 
   if (onClick) {
     return (

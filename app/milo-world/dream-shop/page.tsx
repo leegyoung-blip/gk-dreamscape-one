@@ -52,6 +52,10 @@ const SHOPIFY_STORE_URL = "https://gurukidspro.com";
 const DREAM_TOKEN_1000_VARIANT_ID = "52635551629595";
 const DREAM_TOKEN_5000_VARIANT_ID = "52635551858971";
 
+// Temporary purchase gate.
+// Keep this false until Shopify token purchases are ready to reopen.
+const DREAM_TOKEN_PURCHASES_ENABLED = false;
+
 function buildShopifyTokenUrl({
   variantId,
   tokens,
@@ -535,25 +539,29 @@ function TokenPackCard({
   isMobile,
   userId,
   userEmail,
+  onPurchaseBlocked,
 }: {
   tokenPackage: TokenPackage;
   isMobile: boolean;
   userId: string;
   userEmail: string;
+  onPurchaseBlocked: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const variantConfigured = Boolean(tokenPackage.variantId.trim());
   const accountReady = Boolean(userId);
-  const purchaseEnabled = variantConfigured && accountReady;
+  const purchasePrerequisitesMet = variantConfigured && accountReady;
 
-  const shopifyCheckoutUrl = purchaseEnabled
-    ? buildShopifyTokenUrl({
-        variantId: tokenPackage.variantId,
-        tokens: tokenPackage.tokens,
-        userId,
-        userEmail,
-      })
-    : "";
+  // Shopify URLs are only created when purchases are deliberately reopened.
+  const shopifyCheckoutUrl =
+    DREAM_TOKEN_PURCHASES_ENABLED && purchasePrerequisitesMet
+      ? buildShopifyTokenUrl({
+          variantId: tokenPackage.variantId,
+          tokens: tokenPackage.tokens,
+          userId,
+          userEmail,
+        })
+      : "";
 
   return (
     <article
@@ -670,37 +678,71 @@ function TokenPackCard({
             paddingTop: "16px",
           }}
         >
-          {purchaseEnabled ? (
-            <a
-              href={shopifyCheckoutUrl}
-              aria-label={`Buy ${tokenPackage.tokens.toLocaleString()} Dreamscape Tokens on Shopify`}
-              style={{
-                width: "100%",
-                height: "50px",
-                borderRadius: "14px",
-                border: "1px solid rgba(126,232,255,0.42)",
-                background:
-                  "linear-gradient(135deg, rgba(83,215,255,0.24), rgba(120,99,255,0.24))",
-                color: "white",
-                textDecoration: "none",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "9px",
-                padding: "0 16px",
-                fontWeight: 900,
-                fontSize: isMobile ? "11px" : "12px",
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                textAlign: "center",
-                boxShadow: "0 12px 28px rgba(0,0,0,0.18)",
-              }}
-            >
-              Buy Now on Shopify
-              <span aria-hidden="true" style={{ fontSize: "17px" }}>
-                →
-              </span>
-            </a>
+          {purchasePrerequisitesMet ? (
+            DREAM_TOKEN_PURCHASES_ENABLED ? (
+              <a
+                href={shopifyCheckoutUrl}
+                aria-label={`Buy ${tokenPackage.tokens.toLocaleString()} Dreamscape Tokens on Shopify`}
+                style={{
+                  width: "100%",
+                  height: "50px",
+                  borderRadius: "14px",
+                  border: "1px solid rgba(126,232,255,0.42)",
+                  background:
+                    "linear-gradient(135deg, rgba(83,215,255,0.24), rgba(120,99,255,0.24))",
+                  color: "white",
+                  textDecoration: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "9px",
+                  padding: "0 16px",
+                  fontWeight: 900,
+                  fontSize: isMobile ? "11px" : "12px",
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  textAlign: "center",
+                  boxShadow: "0 12px 28px rgba(0,0,0,0.18)",
+                }}
+              >
+                Buy Now on Shopify
+                <span aria-hidden="true" style={{ fontSize: "17px" }}>
+                  →
+                </span>
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={onPurchaseBlocked}
+                aria-label={`Purchase ${tokenPackage.tokens.toLocaleString()} Dreamscape Tokens`}
+                style={{
+                  width: "100%",
+                  height: "50px",
+                  borderRadius: "14px",
+                  border: "1px solid rgba(126,232,255,0.42)",
+                  background:
+                    "linear-gradient(135deg, rgba(83,215,255,0.24), rgba(120,99,255,0.24))",
+                  color: "white",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "9px",
+                  padding: "0 16px",
+                  fontWeight: 900,
+                  fontSize: isMobile ? "11px" : "12px",
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  textAlign: "center",
+                  boxShadow: "0 12px 28px rgba(0,0,0,0.18)",
+                  cursor: "pointer",
+                }}
+              >
+                Buy Dream Tokens
+                <span aria-hidden="true" style={{ fontSize: "15px" }}>
+                  🔒
+                </span>
+              </button>
+            )
           ) : (
             <button
               type="button"
@@ -876,6 +918,140 @@ function ComingSoonCard({
   );
 }
 
+function TokenPurchaseGate({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+
+  return (
+    <div
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="token-purchase-gate-title"
+      aria-describedby="token-purchase-gate-description"
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 220,
+        padding: "18px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "rgba(0,0,0,0.72)",
+        backdropFilter: "blur(9px)",
+        WebkitBackdropFilter: "blur(9px)",
+      }}
+    >
+      <section
+        onClick={(event) => event.stopPropagation()}
+        style={{
+          position: "relative",
+          width: "min(520px, 100%)",
+          overflow: "hidden",
+          borderRadius: "28px",
+          border: "1px solid rgba(126,232,255,0.28)",
+          background:
+            "linear-gradient(145deg, rgba(6,24,48,0.99), rgba(10,8,29,0.99))",
+          boxShadow:
+            "0 36px 120px rgba(0,0,0,0.68), inset 0 0 60px rgba(83,215,255,0.05)",
+          color: "white",
+          padding: "34px 28px 28px",
+          textAlign: "center",
+        }}
+      >
+        <div
+          aria-hidden="true"
+          style={{
+            width: "64px",
+            height: "64px",
+            margin: "0 auto",
+            borderRadius: "20px",
+            border: "1px solid rgba(126,232,255,0.34)",
+            background: "rgba(83,215,255,0.11)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "28px",
+            boxShadow: "0 0 36px rgba(83,215,255,0.12)",
+          }}
+        >
+          🔒
+        </div>
+
+        <p
+          style={{
+            margin: "20px 0 0",
+            color: "#8ee8ff",
+            fontSize: "11px",
+            fontWeight: 900,
+            letterSpacing: "0.18em",
+            textTransform: "uppercase",
+          }}
+        >
+          Temporary Purchase Gate
+        </p>
+
+        <h3
+          id="token-purchase-gate-title"
+          style={{
+            margin: "10px 0 0",
+            fontFamily: 'Georgia, "Times New Roman", serif',
+            fontSize: "clamp(34px, 8vw, 46px)",
+            lineHeight: 1,
+            fontWeight: 400,
+            letterSpacing: "-0.04em",
+          }}
+        >
+          Dream Token purchases are not available yet.
+        </h3>
+
+        <p
+          id="token-purchase-gate-description"
+          style={{
+            margin: "16px auto 0",
+            maxWidth: "420px",
+            color: "rgba(255,255,255,0.66)",
+            fontSize: "14px",
+            lineHeight: 1.65,
+          }}
+        >
+          We are completing the payment and account-crediting setup. Shopify
+          checkout has been temporarily disabled, and no payment has been
+          taken.
+        </p>
+
+        <button
+          type="button"
+          onClick={onClose}
+          autoFocus
+          style={{
+            marginTop: "24px",
+            width: "100%",
+            height: "50px",
+            borderRadius: "14px",
+            border: "1px solid rgba(126,232,255,0.42)",
+            background:
+              "linear-gradient(135deg, rgba(83,215,255,0.24), rgba(120,99,255,0.24))",
+            color: "white",
+            fontWeight: 900,
+            fontSize: "12px",
+            letterSpacing: "0.09em",
+            textTransform: "uppercase",
+            cursor: "pointer",
+          }}
+        >
+          Back to Dream Shop
+        </button>
+      </section>
+    </div>
+  );
+}
+
 function ShopPopup({
   activePopup,
   onClose,
@@ -888,6 +1064,7 @@ function ShopPopup({
   const isCompact = screenMode !== "desktop";
   const [shopperUserId, setShopperUserId] = useState("");
   const [shopperEmail, setShopperEmail] = useState("");
+  const [purchaseGateOpen, setPurchaseGateOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -919,7 +1096,27 @@ function ShopPopup({
   }, []);
 
   useEffect(() => {
-    if (!activePopup) return;
+    if (!activePopup) {
+      setPurchaseGateOpen(false);
+    }
+  }, [activePopup]);
+
+  useEffect(() => {
+    if (!purchaseGateOpen) return;
+
+    function handlePurchaseGateEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setPurchaseGateOpen(false);
+      }
+    }
+
+    window.addEventListener("keydown", handlePurchaseGateEscape);
+    return () =>
+      window.removeEventListener("keydown", handlePurchaseGateEscape);
+  }, [purchaseGateOpen]);
+
+  useEffect(() => {
+    if (!activePopup || purchaseGateOpen) return;
 
     function handleEscape(event: KeyboardEvent) {
       if (event.key === "Escape") onClose();
@@ -932,7 +1129,7 @@ function ShopPopup({
       document.body.style.overflow = "";
       window.removeEventListener("keydown", handleEscape);
     };
-  }, [activePopup, onClose]);
+  }, [activePopup, onClose, purchaseGateOpen]);
 
   if (!activePopup) return null;
 
@@ -1092,6 +1289,7 @@ function ShopPopup({
                     isMobile={isMobile}
                     userId={shopperUserId}
                     userEmail={shopperEmail}
+                    onPurchaseBlocked={() => setPurchaseGateOpen(true)}
                   />
                 ))}
               </div>
@@ -1357,6 +1555,11 @@ function ShopPopup({
           )}
         </div>
       </section>
+
+      <TokenPurchaseGate
+        open={purchaseGateOpen}
+        onClose={() => setPurchaseGateOpen(false)}
+      />
     </div>
   );
 }
