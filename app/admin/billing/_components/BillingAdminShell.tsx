@@ -158,8 +158,8 @@ export default function BillingAdminShell({
           </p>
           <h1 className="mt-3 text-3xl font-semibold">Access restricted</h1>
           <p className="mt-4 leading-7 text-[#667085]">
-            This workspace is available only to Dreamscape administrators and
-            active billing staff.
+            This workspace is available to Dreamscape administrators, curriculum
+            leads and active billing staff.
           </p>
           <Link
             href="/profile"

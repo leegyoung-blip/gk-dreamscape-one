@@ -104,6 +104,9 @@ const gemActions: {
   },
 ];
 
+const GKP_BILLING_URL =
+  process.env.NEXT_PUBLIC_GKP_BILLING_URL?.trim() || "";
+
 function formatDate(dateString: string) {
   return new Date(dateString).toLocaleDateString("en-SG", {
     day: "numeric",
@@ -486,13 +489,33 @@ export default function DreamTokensAdminPage() {
         <div className="absolute bottom-[-140px] right-[-120px] h-[380px] w-[380px] rounded-full bg-violet-500/10 blur-3xl" />
       </div>
 
-      <button
-        type="button"
-        onClick={() => router.push("/profile")}
-        className="relative z-30 rounded-full border border-cyan-200/25 bg-white/[0.08] px-5 py-3 text-sm tracking-wide text-white shadow-[0_16px_36px_rgba(0,0,0,0.28)] backdrop-blur-xl transition hover:scale-[1.03] hover:border-cyan-200/45"
-      >
-        ← Back to Profile
-      </button>
+      <div className="relative z-30 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => router.push("/profile")}
+          className="rounded-full border border-cyan-200/25 bg-white/[0.08] px-5 py-3 text-sm tracking-wide text-white shadow-[0_16px_36px_rgba(0,0,0,0.28)] backdrop-blur-xl transition hover:scale-[1.03] hover:border-cyan-200/45"
+        >
+          ← Back to Profile
+        </button>
+
+        {GKP_BILLING_URL ? (
+          <a
+            href={GKP_BILLING_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-full border border-emerald-200/30 bg-emerald-300/12 px-5 py-3 text-sm font-extrabold tracking-wide text-emerald-100 shadow-[0_16px_36px_rgba(0,0,0,0.28)] backdrop-blur-xl transition hover:scale-[1.03] hover:border-emerald-200/50 hover:bg-emerald-300/18"
+          >
+            Open GKP Billing ↗
+          </a>
+        ) : (
+          <span
+            title="Add NEXT_PUBLIC_GKP_BILLING_URL in Vercel."
+            className="cursor-not-allowed rounded-full border border-white/10 bg-white/[0.035] px-5 py-3 text-sm font-bold tracking-wide text-white/34"
+          >
+            GKP Billing URL Not Set
+          </span>
+        )}
+      </div>
 
       <div className="relative z-10 mx-auto mt-10 max-w-7xl">
         <section>

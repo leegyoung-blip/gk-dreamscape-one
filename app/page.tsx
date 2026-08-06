@@ -66,6 +66,91 @@ const ecosystemSteps = [
   },
 ];
 
+const trustPoints = [
+  {
+    title: "AI-Assisted Development",
+    text: "AI helps us develop, organise, and improve learning content more efficiently.",
+    imageSrc: "/home/trust-ai-development.png",
+    placeholderLabel: "AI DEVELOPMENT",
+  },
+  {
+    title: "Teacher Verification",
+    text: "Qualified teachers review educational content before it reaches learners.",
+    imageSrc: "/home/trust-teacher-review.png",
+    placeholderLabel: "TEACHER REVIEW",
+  },
+  {
+    title: "Continuously Improved",
+    text: "Content is refined using teacher feedback, learner performance, and curriculum updates.",
+    imageSrc: "/home/trust-continuous-improvement.png",
+    placeholderLabel: "CONTINUOUS IMPROVEMENT",
+  },
+];
+
+const productPreviews = [
+  {
+    eyebrow: "Curriculum Learning",
+    title: "Learning Missions",
+    text: "Students practise English, Mathematics, and Science through structured quizzes, topic missions, rewards, and progressive challenges.",
+    imageSrc: "/home/preview-learning-missions.png",
+    placeholderLabel: "LEARNING MISSIONS SCREENSHOT",
+  },
+  {
+    eyebrow: "Meaningful Progress",
+    title: "Progress and Teacher Support",
+    text: "Learning activity, scores, topic progress, and rewards are organised so students, parents, and educators can understand what comes next.",
+    imageSrc: "/home/preview-progress-dashboard.png",
+    placeholderLabel: "PROGRESS DASHBOARD SCREENSHOT",
+  },
+  {
+    eyebrow: "Real-World Practice",
+    title: "Milo’s Business Builder",
+    text: "Teens make business, investment, pricing, staffing, and growth decisions through safe simulations with no real financial risk.",
+    imageSrc: "/home/preview-business-builder.png",
+    placeholderLabel: "BUSINESS BUILDER SCREENSHOT",
+  },
+];
+
+const journeySteps = [
+  {
+    number: "01",
+    title: "Choose a world",
+    text: "Nova supports learners aged 6–12. Milo introduces real-world skills from age 13.",
+  },
+  {
+    number: "02",
+    title: "Learn through action",
+    text: "Complete missions, solve challenges, make decisions, and earn meaningful progress.",
+  },
+  {
+    number: "03",
+    title: "Track growth",
+    text: "Review scores, rewards, achievements, and the next areas to strengthen.",
+  },
+];
+
+const reviewCards = [
+  {
+    quote:
+      "Dreamscape One turns learning into something students actively participate in. The missions are engaging, structured and useful for reinforcing key skills.",
+    reviewer: "Education professional",
+    source: "Development preview",
+  },
+  {
+    quote:
+      "My child is more willing to practise independently because the activities feel like challenges rather than extra homework. I also like that progress is organised clearly.",
+    reviewer: "Parent",
+    source: "Development preview",
+  },
+  {
+    quote:
+      "I like earning rewards and moving through the missions. It makes learning feel more fun, and Milo’s World lets me try decisions I would not normally get to make.",
+    reviewer: "Secondary 2 student",
+    source: "Development preview",
+  },
+];
+
+
 function WorldPanel({ world, isMobile }: { world: World; isMobile: boolean }) {
   const panelStyle: CSSProperties = {
     position: "relative",
@@ -999,6 +1084,373 @@ export default function Home() {
             />
           </div>
 
+
+
+          <section
+            id="inside-dreamscape"
+            aria-labelledby="inside-dreamscape-heading"
+            style={{
+              marginTop: "76px",
+              width: "100%",
+              maxWidth: "1450px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
+            <p
+              style={{
+                margin: 0,
+                color: "#8ee8ff",
+                fontSize: "13px",
+                fontWeight: 800,
+                letterSpacing: "0.28em",
+                textTransform: "uppercase",
+              }}
+            >
+              See Inside Dreamscape
+            </p>
+
+            <h2
+              id="inside-dreamscape-heading"
+              style={{
+                margin: "20px 0 0",
+                maxWidth: "980px",
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontSize: isMobile ? "40px" : "62px",
+                fontWeight: 400,
+                lineHeight: 1.08,
+                color: "white",
+                textAlign: "center",
+              }}
+            >
+              More than a game. A complete learning journey.
+            </h2>
+
+            <p
+              style={{
+                margin: "24px 0 0",
+                maxWidth: "920px",
+                color: "rgba(255,255,255,0.72)",
+                fontSize: isMobile ? "17px" : "20px",
+                fontWeight: 300,
+                lineHeight: 1.72,
+                textAlign: "center",
+              }}
+            >
+              Explore curriculum-based missions, understand meaningful progress,
+              and practise real-world decision-making in one connected platform.
+            </p>
+
+            <div
+              style={{
+                marginTop: isMobile ? "38px" : "50px",
+                width: "100%",
+                display: "grid",
+                gridTemplateColumns: isMobile
+                  ? "1fr"
+                  : "repeat(3, minmax(0, 1fr))",
+                gap: isMobile ? "22px" : "26px",
+                alignItems: "stretch",
+              }}
+            >
+              {productPreviews.map((preview) => (
+                <ProductPreviewCard
+                  key={preview.title}
+                  eyebrow={preview.eyebrow}
+                  title={preview.title}
+                  text={preview.text}
+                  imageSrc={preview.imageSrc}
+                  placeholderLabel={preview.placeholderLabel}
+                />
+              ))}
+            </div>
+
+            <div
+              style={{
+                marginTop: isMobile ? "34px" : "46px",
+                width: "100%",
+                display: "grid",
+                gridTemplateColumns: isMobile
+                  ? "1fr"
+                  : "repeat(3, minmax(0, 1fr))",
+                gap: isMobile ? "14px" : "18px",
+              }}
+            >
+              {journeySteps.map((step) => (
+                <article
+                  key={step.number}
+                  style={{
+                    minHeight: "178px",
+                    padding: "26px 25px",
+                    borderRadius: "22px",
+                    border: "1px solid rgba(142,232,255,0.18)",
+                    background:
+                      "linear-gradient(145deg, rgba(255,255,255,0.055), rgba(255,255,255,0.02))",
+                    textAlign: "left",
+                  }}
+                >
+                  <p
+                    style={{
+                      margin: 0,
+                      color: "#ffbd73",
+                      fontSize: "12px",
+                      fontWeight: 900,
+                      letterSpacing: "0.16em",
+                    }}
+                  >
+                    {step.number}
+                  </p>
+                  <h3
+                    style={{
+                      margin: "14px 0 0",
+                      color: "white",
+                      fontSize: "24px",
+                      fontWeight: 800,
+                    }}
+                  >
+                    {step.title}
+                  </h3>
+                  <p
+                    style={{
+                      margin: "13px 0 0",
+                      color: "rgba(255,255,255,0.64)",
+                      fontSize: "15px",
+                      fontWeight: 300,
+                      lineHeight: 1.62,
+                    }}
+                  >
+                    {step.text}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section
+            id="trust"
+            aria-labelledby="trust-heading"
+            style={{
+              position: "relative",
+              marginTop: "72px",
+              width: "100%",
+              maxWidth: "1450px",
+              padding: isMobile ? "56px 20px 50px" : "76px 54px 62px",
+              borderRadius: isMobile ? "28px" : "38px",
+              overflow: "hidden",
+              border: "1px solid rgba(142,232,255,0.3)",
+              background:
+                "radial-gradient(circle at 10% 12%, rgba(83,215,255,0.18), transparent 30%), radial-gradient(circle at 92% 88%, rgba(197,140,255,0.18), transparent 32%), linear-gradient(145deg, rgba(8,24,45,0.94), rgba(13,8,35,0.96))",
+              boxShadow:
+                "0 34px 88px rgba(0,0,0,0.38), inset 0 0 36px rgba(83,215,255,0.035)",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                pointerEvents: "none",
+                background:
+                  "linear-gradient(115deg, transparent 0%, rgba(255,255,255,0.025) 48%, transparent 100%)",
+              }}
+            />
+
+            <div
+              style={{
+                position: "relative",
+                zIndex: 2,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+              }}
+            >
+              <p
+                style={{
+                  margin: 0,
+                  color: "#8ee8ff",
+                  fontSize: "13px",
+                  fontWeight: 800,
+                  letterSpacing: "0.28em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Quality & Trust
+              </p>
+
+              <h2
+                id="trust-heading"
+                style={{
+                  margin: "20px 0 0",
+                  maxWidth: "980px",
+                  fontFamily: 'Georgia, "Times New Roman", serif',
+                  fontSize: isMobile ? "39px" : "62px",
+                  fontWeight: 400,
+                  lineHeight: 1.08,
+                  color: "white",
+                  textAlign: "center",
+                  textShadow: "0 18px 48px rgba(0,0,0,0.38)",
+                }}
+              >
+                Built with AI. Verified by qualified teachers.
+              </h2>
+
+              <p
+                style={{
+                  margin: "24px 0 0",
+                  maxWidth: "930px",
+                  color: "rgba(255,255,255,0.72)",
+                  fontSize: isMobile ? "17px" : "20px",
+                  fontWeight: 300,
+                  lineHeight: 1.72,
+                  textAlign: "center",
+                }}
+              >
+                Dreamscape One combines the speed and flexibility of AI with
+                the experience and judgement of educators. Educational content
+                is reviewed for accuracy, clarity, age appropriateness, and
+                curriculum relevance before publication.
+              </p>
+
+              <div
+                style={{
+                  marginTop: isMobile ? "38px" : "48px",
+                  width: "100%",
+                  display: "grid",
+                  gridTemplateColumns: isMobile
+                    ? "1fr"
+                    : "repeat(3, minmax(0, 1fr))",
+                  gap: isMobile ? "20px" : "24px",
+                  alignItems: "stretch",
+                }}
+              >
+                {trustPoints.map((point) => (
+                  <TrustCard
+                    key={point.title}
+                    title={point.title}
+                    text={point.text}
+                    imageSrc={point.imageSrc}
+                    placeholderLabel={point.placeholderLabel}
+                  />
+                ))}
+              </div>
+
+              <div
+                style={{
+                  marginTop: isMobile ? "36px" : "46px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "12px",
+                  maxWidth: "760px",
+                  padding: isMobile ? "15px 18px" : "16px 26px",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(142,232,255,0.34)",
+                  background:
+                    "linear-gradient(135deg, rgba(83,215,255,0.1), rgba(197,140,255,0.11))",
+                  boxShadow:
+                    "0 16px 40px rgba(0,0,0,0.24), inset 0 0 18px rgba(83,215,255,0.04)",
+                  color: "rgba(255,255,255,0.94)",
+                  fontSize: isMobile ? "14px" : "16px",
+                  fontWeight: 800,
+                  lineHeight: 1.4,
+                  textAlign: "center",
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    color: "#8ee8ff",
+                    fontSize: "18px",
+                    flexShrink: 0,
+                  }}
+                >
+                  ✓
+                </span>
+                AI supports the process. Teachers make the final call.
+              </div>
+            </div>
+          </section>
+
+          <section
+            id="reviews"
+            aria-labelledby="reviews-heading"
+            style={{
+              marginTop: "76px",
+              width: "100%",
+              maxWidth: "1450px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
+            <p
+              style={{
+                margin: 0,
+                color: "#8ee8ff",
+                fontSize: "13px",
+                fontWeight: 800,
+                letterSpacing: "0.28em",
+                textTransform: "uppercase",
+              }}
+            >
+              Teaching Experience & Trust
+            </p>
+
+            <h2
+              id="reviews-heading"
+              style={{
+                margin: "20px 0 0",
+                maxWidth: "980px",
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontSize: isMobile ? "40px" : "60px",
+                fontWeight: 400,
+                lineHeight: 1.08,
+                color: "white",
+                textAlign: "center",
+              }}
+            >
+              Trusted by families. Built from real teaching experience.
+            </h2>
+
+            <p
+              style={{
+                margin: "22px 0 0",
+                maxWidth: "850px",
+                color: "rgba(255,255,255,0.68)",
+                fontSize: isMobile ? "16px" : "19px",
+                fontWeight: 300,
+                lineHeight: 1.7,
+                textAlign: "center",
+              }}
+            >
+              These development-preview quotes must be replaced with genuine,
+              permission-cleared reviews before they are published as customer
+              testimonials.
+            </p>
+
+            <div
+              style={{
+                marginTop: isMobile ? "36px" : "46px",
+                width: "100%",
+                display: "grid",
+                gridTemplateColumns: isMobile
+                  ? "1fr"
+                  : "repeat(3, minmax(0, 1fr))",
+                gap: isMobile ? "18px" : "24px",
+                alignItems: "stretch",
+              }}
+            >
+              {reviewCards.map((review, index) => (
+                <ReviewCard
+                  key={`${review.reviewer}-${index}`}
+                  quote={review.quote}
+                  reviewer={review.reviewer}
+                  source={review.source}
+                />
+              ))}
+            </div>
+          </section>
+
           <button
             type="button"
             onClick={() => scrollToSection("home")}
@@ -1636,6 +2088,338 @@ function EcosystemArrow({ isMobile }: { isMobile: boolean }) {
     >
       {isMobile ? "↓" : "→"}
     </div>
+  );
+}
+
+
+
+function ProductPreviewCard({
+  eyebrow,
+  title,
+  text,
+  imageSrc,
+  placeholderLabel,
+}: {
+  eyebrow: string;
+  title: string;
+  text: string;
+  imageSrc: string;
+  placeholderLabel: string;
+}) {
+  return (
+    <article
+      style={{
+        minHeight: "520px",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        borderRadius: "28px",
+        border: "1px solid rgba(142,232,255,0.22)",
+        background:
+          "linear-gradient(145deg, rgba(255,255,255,0.07), rgba(255,255,255,0.022))",
+        boxShadow:
+          "0 26px 66px rgba(0,0,0,0.32), inset 0 0 26px rgba(83,215,255,0.025)",
+      }}
+    >
+      <div
+        style={{
+          height: "270px",
+          minHeight: "270px",
+          position: "relative",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          overflow: "hidden",
+          borderBottom: "1px solid rgba(142,232,255,0.12)",
+          background:
+            "radial-gradient(circle at 50% 38%, rgba(83,215,255,0.18), rgba(197,140,255,0.1) 48%, rgba(2,8,19,0.82))",
+        }}
+      >
+        {imageSrc ? (
+          <img
+            src={imageSrc}
+            alt={`${title} preview`}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              display: "block",
+            }}
+          />
+        ) : (
+          <div
+            aria-label={`${placeholderLabel} placeholder`}
+            style={{
+              width: "calc(100% - 42px)",
+              height: "calc(100% - 42px)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "12px",
+              borderRadius: "22px",
+              border: "1px dashed rgba(142,232,255,0.4)",
+              color: "rgba(255,255,255,0.62)",
+              padding: "22px",
+              boxSizing: "border-box",
+            }}
+          >
+            <span
+              aria-hidden="true"
+              style={{ fontSize: "34px", color: "#8ee8ff" }}
+            >
+              ◫
+            </span>
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 900,
+                letterSpacing: "0.15em",
+                lineHeight: 1.5,
+                textTransform: "uppercase",
+                textAlign: "center",
+              }}
+            >
+              {placeholderLabel}
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div
+        style={{
+          flex: 1,
+          padding: "29px 28px 32px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "flex-start",
+          textAlign: "left",
+        }}
+      >
+        <p
+          style={{
+            margin: 0,
+            color: "#8ee8ff",
+            fontSize: "12px",
+            fontWeight: 900,
+            letterSpacing: "0.19em",
+            textTransform: "uppercase",
+          }}
+        >
+          {eyebrow}
+        </p>
+
+        <h3
+          style={{
+            margin: "13px 0 0",
+            color: "white",
+            fontSize: "27px",
+            fontWeight: 800,
+            lineHeight: 1.2,
+          }}
+        >
+          {title}
+        </h3>
+
+        <p
+          style={{
+            margin: "18px 0 0",
+            color: "rgba(255,255,255,0.68)",
+            fontSize: "16px",
+            fontWeight: 300,
+            lineHeight: 1.68,
+          }}
+        >
+          {text}
+        </p>
+      </div>
+    </article>
+  );
+}
+
+function TrustCard({
+  title,
+  text,
+  imageSrc,
+  placeholderLabel,
+}: {
+  title: string;
+  text: string;
+  imageSrc: string;
+  placeholderLabel: string;
+}) {
+  return (
+    <article
+      style={{
+        minHeight: "360px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        textAlign: "center",
+        padding: "34px 28px 32px",
+        borderRadius: "26px",
+        border: "1px solid rgba(142,232,255,0.2)",
+        background:
+          "linear-gradient(145deg, rgba(255,255,255,0.075), rgba(255,255,255,0.025))",
+        boxShadow:
+          "0 22px 58px rgba(0,0,0,0.28), inset 0 0 24px rgba(83,215,255,0.025)",
+        backdropFilter: "blur(14px)",
+      }}
+    >
+      <div
+        style={{
+          width: "132px",
+          height: "132px",
+          borderRadius: "30px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          overflow: "hidden",
+          border: imageSrc
+            ? "1px solid rgba(142,232,255,0.32)"
+            : "1px dashed rgba(142,232,255,0.42)",
+          background:
+            "radial-gradient(circle at 50% 38%, rgba(83,215,255,0.2), rgba(197,140,255,0.1) 55%, rgba(2,8,19,0.78))",
+          boxShadow:
+            "0 0 30px rgba(83,215,255,0.13), inset 0 0 22px rgba(83,215,255,0.04)",
+        }}
+      >
+        {imageSrc ? (
+          <img
+            src={imageSrc}
+            alt=""
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              display: "block",
+            }}
+          />
+        ) : (
+          <span
+            style={{
+              padding: "14px",
+              color: "rgba(255,255,255,0.62)",
+              fontSize: "10px",
+              fontWeight: 900,
+              letterSpacing: "0.13em",
+              lineHeight: 1.5,
+              textTransform: "uppercase",
+            }}
+          >
+            {placeholderLabel}
+          </span>
+        )}
+      </div>
+
+      <h3
+        style={{
+          margin: "24px 0 0",
+          color: "white",
+          fontSize: "27px",
+          fontWeight: 800,
+          lineHeight: 1.2,
+        }}
+      >
+        {title}
+      </h3>
+
+      <p
+        style={{
+          margin: "18px 0 0",
+          color: "rgba(255,255,255,0.68)",
+          fontSize: "16px",
+          fontWeight: 300,
+          lineHeight: 1.68,
+        }}
+      >
+        {text}
+      </p>
+    </article>
+  );
+}
+
+function ReviewCard({
+  quote,
+  reviewer,
+  source,
+}: {
+  quote: string;
+  reviewer: string;
+  source: string;
+}) {
+  return (
+    <article
+      style={{
+        minHeight: "285px",
+        display: "flex",
+        flexDirection: "column",
+        padding: "30px 29px",
+        borderRadius: "25px",
+        border: "1px solid rgba(255,181,95,0.22)",
+        background:
+          "radial-gradient(circle at 90% 10%, rgba(255,181,95,0.1), transparent 28%), linear-gradient(145deg, rgba(255,255,255,0.065), rgba(255,255,255,0.02))",
+        textAlign: "left",
+      }}
+    >
+      <p
+        aria-hidden="true"
+        style={{
+          margin: 0,
+          color: "#ffb55f",
+          fontFamily: 'Georgia, "Times New Roman", serif',
+          fontSize: "48px",
+          lineHeight: 0.8,
+        }}
+      >
+        “
+      </p>
+
+      <p
+        style={{
+          margin: "18px 0 0",
+          flex: 1,
+          color: "rgba(255,255,255,0.82)",
+          fontSize: "18px",
+          fontWeight: 300,
+          lineHeight: 1.65,
+          fontStyle: "italic",
+        }}
+      >
+        {quote}
+      </p>
+
+      <div
+        style={{
+          marginTop: "25px",
+          paddingTop: "20px",
+          borderTop: "1px solid rgba(255,255,255,0.1)",
+        }}
+      >
+        <p
+          style={{
+            margin: 0,
+            color: "white",
+            fontSize: "15px",
+            fontWeight: 800,
+          }}
+        >
+          {reviewer}
+        </p>
+        <p
+          style={{
+            margin: "7px 0 0",
+            color: "#8ee8ff",
+            fontSize: "11px",
+            fontWeight: 900,
+            letterSpacing: "0.16em",
+            textTransform: "uppercase",
+          }}
+        >
+          {source}
+        </p>
+      </div>
+    </article>
   );
 }
 
