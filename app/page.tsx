@@ -134,19 +134,16 @@ const reviewCards = [
     quote:
       "Dreamscape One turns learning into something students actively participate in. The missions are engaging, structured and useful for reinforcing key skills.",
     reviewer: "Education professional",
-    source: "Development preview",
   },
   {
     quote:
       "My child is more willing to practise independently because the activities feel like challenges rather than extra homework. I also like that progress is organised clearly.",
     reviewer: "Parent",
-    source: "Development preview",
   },
   {
     quote:
       "I like earning rewards and moving through the missions. It makes learning feel more fun, and Milo’s World lets me try decisions I would not normally get to make.",
     reviewer: "Secondary 2 student",
-    source: "Development preview",
   },
 ];
 
@@ -1445,7 +1442,6 @@ export default function Home() {
                   key={`${review.reviewer}-${index}`}
                   quote={review.quote}
                   reviewer={review.reviewer}
-                  source={review.source}
                 />
               ))}
             </div>
@@ -1949,6 +1945,7 @@ function EcosystemCard({
       <div
         style={{
           height: "205px",
+          flex: "0 0 205px",
           position: "relative",
           overflow: "hidden",
           display: "flex",
@@ -1976,7 +1973,8 @@ function EcosystemCard({
 
       <div
         style={{
-          minHeight: "185px",
+          minHeight: 0,
+          flex: 1,
           padding: "26px 28px 32px",
           display: "flex",
           flexDirection: "column",
@@ -2028,7 +2026,10 @@ function EcosystemCard({
   );
 
   const sharedStyle: CSSProperties = {
-    minHeight: "390px",
+    height: "420px",
+    minHeight: "420px",
+    display: "flex",
+    flexDirection: "column",
     borderRadius: "24px",
     overflow: "hidden",
     border: "1px solid rgba(116,200,255,0.28)",
@@ -2342,11 +2343,9 @@ function TrustCard({
 function ReviewCard({
   quote,
   reviewer,
-  source,
 }: {
   quote: string;
   reviewer: string;
-  source: string;
 }) {
   return (
     <article
@@ -2405,18 +2404,6 @@ function ReviewCard({
           }}
         >
           {reviewer}
-        </p>
-        <p
-          style={{
-            margin: "7px 0 0",
-            color: "#8ee8ff",
-            fontSize: "11px",
-            fontWeight: 900,
-            letterSpacing: "0.16em",
-            textTransform: "uppercase",
-          }}
-        >
-          {source}
         </p>
       </div>
     </article>
