@@ -1133,7 +1133,7 @@ Thank you.`;
             type="button"
             onClick={() =>
               router.push(
-                "/learning-missions/progress-rewards",
+                "/teacher-dashboard",
               )
             }
             className="hidden h-[46px] items-center justify-center rounded-full border border-cyan-200/28 bg-cyan-400/18 px-5 text-xs font-extrabold uppercase tracking-[0.12em] text-white shadow-[0_12px_28px_rgba(34,211,238,0.18)] backdrop-blur-xl transition hover:scale-[1.03] sm:flex"
@@ -1468,7 +1468,7 @@ Thank you.`;
                 type="button"
                 onClick={() =>
                   router.push(
-                    "/learning-missions/progress-rewards",
+                    "/teacher-dashboard",
                   )
                 }
                 className="mt-6 w-full rounded-2xl border border-cyan-200/25 bg-cyan-400/16 px-5 py-4 text-sm font-extrabold uppercase tracking-[0.14em] text-white transition hover:scale-[1.01] hover:bg-cyan-400/24 sm:hidden"
