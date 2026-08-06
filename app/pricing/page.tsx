@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
+import { isPublicPreviewActive } from "@/lib/public-preview";
 
 type PricingView = "monthly" | "annual" | "gkp";
 
@@ -173,7 +174,7 @@ const faqItems = [
   {
     question: "How are payments processed?",
     answer:
-      "Public subscriptions are not yet open. When subscriptions launch, available payment methods will be displayed during checkout. GKP student add-ons continue to be handled through normal Guru Kids Pro class billing.",
+      "During the Public Preview, public subscriptions are not open. Once public checkout is available, payment methods will be displayed during checkout. GKP student add-ons continue to be handled through normal Guru Kids Pro class billing.",
   },
 ];
 
@@ -260,12 +261,22 @@ export default function PricingPage() {
   const [checkoutRole, setCheckoutRole] = useState<string | null>(null);
   const [checkoutAccessLoading, setCheckoutAccessLoading] = useState(true);
   const [viewportWidth, setViewportWidth] = useState(1440);
+  const [publicPreviewActive, setPublicPreviewActive] = useState(() =>
+    isPublicPreviewActive(),
+  );
 
   useEffect(() => {
     const update = () => setViewportWidth(window.innerWidth);
     update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
+  }, []);
+
+  useEffect(() => {
+    const update = () => setPublicPreviewActive(isPublicPreviewActive());
+    update();
+    const interval = window.setInterval(update, 60_000);
+    return () => window.clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -316,7 +327,8 @@ export default function PricingPage() {
   }, []);
 
   const canOpenShopifyCheckout =
-    checkoutRole !== null && STAFF_CHECKOUT_ROLES.has(checkoutRole);
+    !publicPreviewActive ||
+    (checkoutRole !== null && STAFF_CHECKOUT_ROLES.has(checkoutRole));
 
   function handleSubscriptionClick(checkoutHref: string) {
     if (checkoutAccessLoading) return;
@@ -563,26 +575,28 @@ export default function PricingPage() {
           padding: isMobile ? "0 20px 80px" : "0 6vw 100px",
         }}
       >
-        <div
-          style={{
-            maxWidth: "1420px",
-            margin: "0 auto 24px",
-            padding: isMobile ? "16px 18px" : "17px 22px",
-            borderRadius: "20px",
-            border: "1px solid rgba(142,232,255,0.24)",
-            background:
-              "linear-gradient(90deg, rgba(83,215,255,0.09), rgba(197,140,255,0.07), rgba(255,174,92,0.08))",
-            color: "rgba(255,255,255,0.8)",
-            fontSize: isMobile ? "13px" : "14px",
-            fontWeight: 700,
-            lineHeight: 1.6,
-            textAlign: "center",
-          }}
-        >
-          <strong style={{ color: "#8ee8ff" }}>Trial phase:</strong>{" "}
-          Public subscriptions are coming soon. Prices and plan details are
-          currently available for preview.
-        </div>
+        {publicPreviewActive && (
+          <div
+            style={{
+              maxWidth: "1420px",
+              margin: "0 auto 24px",
+              padding: isMobile ? "16px 18px" : "17px 22px",
+              borderRadius: "20px",
+              border: "1px solid rgba(142,232,255,0.24)",
+              background:
+                "linear-gradient(90deg, rgba(83,215,255,0.09), rgba(197,140,255,0.07), rgba(255,174,92,0.08))",
+              color: "rgba(255,255,255,0.8)",
+              fontSize: isMobile ? "13px" : "14px",
+              fontWeight: 700,
+              lineHeight: 1.6,
+              textAlign: "center",
+            }}
+          >
+            <strong style={{ color: "#8ee8ff" }}>Public Preview:</strong>{" "}
+            Free activity zones are available now. Student Access subscriptions
+            open on 1 October.
+          </div>
+        )}
 
         <div
           style={{
@@ -1989,7 +2003,7 @@ export default function PricingPage() {
                 textTransform: "uppercase",
               }}
             >
-              Dreamscape One Trial Phase
+              Dreamscape One Public Preview
             </p>
 
             <h2
@@ -2014,33 +2028,65 @@ export default function PricingPage() {
                 lineHeight: 1.7,
               }}
             >
-              Dreamscape One is currently in its trial phase. Public
-              subscriptions are not open yet, but invited users can continue
-              exploring the platform with their assigned access.
+              Free activity zones are open now. Public Student Access
+              subscriptions open on 1 October. Authorised staff accounts can
+              continue testing the existing Shopify checkout links during the
+              preview.
             </p>
 
-            <button
-              type="button"
-              onClick={() => setShowSubscriptionComingSoon(false)}
+            <div
               style={{
                 marginTop: "28px",
-                minHeight: "54px",
-                padding: "14px 25px",
-                border: "none",
-                borderRadius: "999px",
-                background:
-                  "linear-gradient(90deg, #8ee8ff, #c58cff 60%, #ffae5c)",
-                color: "#160729",
-                fontFamily: "inherit",
-                fontSize: "12px",
-                fontWeight: 900,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                cursor: "pointer",
+                display: "flex",
+                flexWrap: "wrap",
+                justifyContent: "center",
+                gap: "10px",
               }}
             >
-              Continue exploring
-            </button>
+              <Link
+                href="/milo-world/activity-lab"
+                onClick={() => setShowSubscriptionComingSoon(false)}
+                style={{
+                  minHeight: "54px",
+                  padding: "14px 25px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: "999px",
+                  background:
+                    "linear-gradient(90deg, #8ee8ff, #c58cff 60%, #ffae5c)",
+                  color: "#160729",
+                  textDecoration: "none",
+                  fontSize: "12px",
+                  fontWeight: 900,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Explore Free Activities
+              </Link>
+
+              <button
+                type="button"
+                onClick={() => setShowSubscriptionComingSoon(false)}
+                style={{
+                  minHeight: "54px",
+                  padding: "14px 25px",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  background: "rgba(255,255,255,0.05)",
+                  color: "white",
+                  fontFamily: "inherit",
+                  fontSize: "12px",
+                  fontWeight: 900,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  cursor: "pointer",
+                }}
+              >
+                Not Now
+              </button>
+            </div>
 
             <p
               style={{

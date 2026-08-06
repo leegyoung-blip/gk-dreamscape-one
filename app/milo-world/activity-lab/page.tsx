@@ -4,6 +4,9 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
 import { supabase } from "@/lib/supabase";
+import DailyActivityReferralPrompt, {
+  canOfferDailyReferralPrompt,
+} from "@/components/DailyActivityReferralPrompt";
 
 type DailyPuzzle = {
   id: string;
@@ -569,6 +572,7 @@ export default function ActivityLabPage() {
   const [revealedLetter, setRevealedLetter] = useState("");
   const [puzzleAnswer, setPuzzleAnswer] = useState("");
   const [puzzleMessage, setPuzzleMessage] = useState("");
+  const [showDailyReferralPrompt, setShowDailyReferralPrompt] = useState(false);
   const [loading, setLoading] = useState(true);
   const [validWords, setValidWords] = useState<Set<string> | null>(null);
   const [wordListLoading, setWordListLoading] = useState(true);
@@ -985,6 +989,10 @@ export default function ActivityLabPage() {
         ? `Code solved. You earned ${reward} Dreamscape Tokens.`
         : "Code solved, but the reward could not be saved.",
     );
+
+    if (awarded && canOfferDailyReferralPrompt()) {
+      setShowDailyReferralPrompt(true);
+    }
   }
 
   function addLetter(letter: string) {
@@ -1670,6 +1678,11 @@ export default function ActivityLabPage() {
           </form>
         </article>
       </section>
+
+      <DailyActivityReferralPrompt
+        open={showDailyReferralPrompt}
+        onClose={() => setShowDailyReferralPrompt(false)}
+      />
 
       {mobile && menuOpen && (
         <div
