@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 type AccessStatus = "checking" | "allowed" | "locked" | "error";
@@ -22,6 +22,16 @@ type NavItem = {
   href?: string;
   phase?: string;
 };
+
+type BillingWalkthroughStep = {
+  eyebrow: string;
+  title: string;
+  text: string;
+  highlightedNav?: string;
+};
+
+const BILLING_GUIDE_STORAGE_KEY =
+  "gkp-billing-milo-guide-completed-v1";
 
 const NAV_ITEMS: NavItem[] = [
   {
@@ -56,6 +66,70 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
+const BILLING_WALKTHROUGH_STEPS: BillingWalkthroughStep[] = [
+  {
+    eyebrow: "Welcome",
+    title: "Let me show you the Guru Kids Pro billing system.",
+    text:
+      "This workspace manages family accounts, student enrolments, lesson schedules, prepaid invoices, parent invoice links and payment records. The walkthrough is optional and can be restarted anytime.",
+  },
+  {
+    eyebrow: "Stop 1 of 7",
+    title: "Begin with the billing overview.",
+    text:
+      "The Overview page summarises issued invoices, money collected, outstanding balances, overdue invoices and drafts awaiting review. Use it as the first health check for every billing cycle.",
+    highlightedNav: "Overview",
+  },
+  {
+    eyebrow: "Stop 2 of 7",
+    title: "Create one billing account for each family.",
+    text:
+      "Billing Accounts stores the payer and all siblings under the same family. Add each student separately, then attach the student’s programmes, agreed lesson fee, recurring discount, regular weekday and start date.",
+    highlightedNav: "Billing Accounts",
+  },
+  {
+    eyebrow: "Stop 3 of 7",
+    title: "Use Programmes as standard fee templates.",
+    text:
+      "A programme holds the normal programme name, standard per-lesson fee and billing frequency. The student’s enrolment can still use a different agreed fee. Sort order only controls how programmes are arranged on screen.",
+    highlightedNav: "Programmes",
+  },
+  {
+    eyebrow: "Stop 4 of 7",
+    title: "Prepare the month before generating invoices.",
+    text:
+      "On the Invoices page, select the billing month, confirm every active schedule, record centre closures and review the generated lesson dates. Add or remove replacement lessons before generating family drafts.",
+    highlightedNav: "Invoices",
+  },
+  {
+    eyebrow: "Stop 5 of 7",
+    title: "Check the four-lesson discount rule.",
+    text:
+      "Per-lesson fees use the actual number of billable lessons in that month. A recurring lesson discount is applied to a maximum of four lessons, even when the month contains five billable lessons.",
+    highlightedNav: "Invoices",
+  },
+  {
+    eyebrow: "Stop 6 of 7",
+    title: "Review the draft before issuing it.",
+    text:
+      "Open each family draft and check the students, lesson dates, quantities, rates, discounts, credits and final total. Preview the parent document first. Once correct, issue the invoice to activate its secure parent link.",
+    highlightedNav: "Invoices",
+  },
+  {
+    eyebrow: "Stop 7 of 7",
+    title: "Treat payment confirmation as a separate step.",
+    text:
+      "The parent view will display the payment option once HitPay is active. Only a validated HitPay webhook should mark an invoice as paid. Never assume that opening a QR or payment page means payment succeeded.",
+    highlightedNav: "Invoices",
+  },
+  {
+    eyebrow: "You’re ready",
+    title: "Use the same safe order every month.",
+    text:
+      "Accounts and enrolments first, lesson dates second, draft generation third, review fourth and issuing last. Return an unpaid invoice to draft before correcting it, and keep paid invoice history intact. Restart this guide anytime from the bottom-left Milo Guide button.",
+  },
+];
+
 export default function BillingAdminShell({
   eyebrow,
   title,
@@ -71,6 +145,18 @@ export default function BillingAdminShell({
   const [accessError, setAccessError] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [roleLabel, setRoleLabel] = useState("Billing staff");
+
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [guideStep, setGuideStep] = useState(0);
+  const [guideCompleted, setGuideCompleted] = useState(true);
+
+  const highlightedNav = useMemo(
+    () =>
+      guideOpen
+        ? BILLING_WALKTHROUGH_STEPS[guideStep]?.highlightedNav
+        : undefined,
+    [guideOpen, guideStep],
+  );
 
   useEffect(() => {
     let active = true;
@@ -144,6 +230,32 @@ export default function BillingAdminShell({
       active = false;
     };
   }, [router]);
+
+  useEffect(() => {
+    try {
+      setGuideCompleted(
+        window.localStorage.getItem(BILLING_GUIDE_STORAGE_KEY) === "true",
+      );
+    } catch {
+      setGuideCompleted(true);
+    }
+  }, []);
+
+  function startGuide() {
+    setGuideStep(0);
+    setGuideOpen(true);
+  }
+
+  function closeGuide() {
+    setGuideOpen(false);
+    setGuideCompleted(true);
+
+    try {
+      window.localStorage.setItem(BILLING_GUIDE_STORAGE_KEY, "true");
+    } catch {
+      // The walkthrough still works if browser storage is unavailable.
+    }
+  }
 
   if (accessStatus === "checking") {
     return <FullPageMessage text="Checking GKP billing access…" />;
@@ -234,17 +346,30 @@ export default function BillingAdminShell({
                   ? pathname === item.href
                   : Boolean(item.href && pathname.startsWith(item.href));
 
+              const walkthroughHighlighted =
+                guideOpen && highlightedNav === item.label;
+
+              const sharedClassName = `relative min-h-12 rounded-2xl border px-3 py-2 text-left transition ${
+                walkthroughHighlighted
+                  ? "z-[75] border-cyan-300 bg-[#15233b] text-white ring-4 ring-cyan-300/30 shadow-[0_0_42px_rgba(34,211,238,0.5)]"
+                  : active
+                    ? "border-[#15233b] bg-[#15233b] text-white"
+                    : "border-transparent bg-white/45 text-[#4f4a42]"
+              }`;
+
               if (!item.href) {
                 return (
                   <div
                     key={item.label}
-                    className="min-h-12 cursor-not-allowed rounded-2xl border border-transparent bg-white/45 px-3 py-2 text-left text-[#4f4a42] opacity-65"
+                    className={`${sharedClassName} cursor-not-allowed ${
+                      walkthroughHighlighted ? "" : "opacity-65"
+                    }`}
                   >
                     <NavContent
                       icon={item.icon}
                       label={item.label}
                       phase={item.phase}
-                      active={false}
+                      active={active || walkthroughHighlighted}
                     />
                   </div>
                 );
@@ -255,29 +380,32 @@ export default function BillingAdminShell({
                   key={item.label}
                   href={item.href}
                   aria-current={active ? "page" : undefined}
-                  className={`min-h-12 rounded-2xl border px-3 py-2 text-left transition ${
-                    active
-                      ? "border-[#15233b] bg-[#15233b] text-white"
-                      : "border-transparent bg-white/45 text-[#4f4a42] hover:bg-white"
+                  className={`${sharedClassName} ${
+                    walkthroughHighlighted
+                      ? ""
+                      : active
+                        ? ""
+                        : "hover:bg-white"
                   }`}
                 >
                   <NavContent
                     icon={item.icon}
                     label={item.label}
-                    active={active}
+                    active={active || walkthroughHighlighted}
                   />
                 </Link>
               );
             })}
 
             <div className="col-span-2 mt-2 hidden rounded-2xl border border-[#d8c9ad] bg-white/65 p-4 text-xs leading-5 text-[#6f675a] sm:col-span-3 lg:col-span-1 lg:block">
-              <strong className="block text-[#15233b]">Phase 4</strong>
-              Per-lesson schedules, draft invoices and review controls are active.
+              <strong className="block text-[#15233b]">Billing System</strong>
+              Family accounts, per-lesson schedules, draft invoices, parent
+              links and payment controls.
             </div>
           </nav>
         </aside>
 
-        <section className="min-w-0 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <section className="min-w-0 px-4 py-6 pb-28 sm:px-6 lg:px-8 lg:py-8 lg:pb-28">
           <div className="mx-auto max-w-[1500px]">
             <div className="flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
               <div>
@@ -303,7 +431,204 @@ export default function BillingAdminShell({
           </div>
         </section>
       </div>
+
+      {!guideOpen && (
+        <button
+          type="button"
+          onClick={startGuide}
+          className="fixed bottom-3 left-3 z-50 flex min-h-14 items-center gap-3 rounded-2xl border border-cyan-300/50 bg-[#07172d]/95 py-2 pl-2 pr-4 text-left text-white shadow-[0_22px_55px_rgba(0,0,0,0.34),0_0_28px_rgba(34,211,238,0.18)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-cyan-200 sm:bottom-5 sm:left-5"
+          aria-label="Open Milo’s billing walkthrough"
+        >
+          <span className="relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl border border-cyan-300/35 bg-[#0c2844]">
+            <img
+              src="/milo-world/milo-character.png"
+              alt=""
+              className="h-16 w-auto translate-y-2 object-contain"
+            />
+          </span>
+
+          <span>
+            <span className="flex items-center gap-2">
+              <strong className="block text-sm font-black">Milo Guide</strong>
+              {!guideCompleted && (
+                <span className="rounded-full bg-cyan-300 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-[#07172d]">
+                  New
+                </span>
+              )}
+            </span>
+            <span className="mt-0.5 block text-[11px] text-white/60">
+              Billing walkthrough
+            </span>
+          </span>
+        </button>
+      )}
+
+      <BillingGuidedWalkthrough
+        open={guideOpen}
+        stepIndex={guideStep}
+        onStepChange={setGuideStep}
+        onClose={closeGuide}
+      />
     </main>
+  );
+}
+
+function BillingGuidedWalkthrough({
+  open,
+  stepIndex,
+  onStepChange,
+  onClose,
+}: {
+  open: boolean;
+  stepIndex: number;
+  onStepChange: (nextStep: number) => void;
+  onClose: () => void;
+}) {
+  const step =
+    BILLING_WALKTHROUGH_STEPS[stepIndex] ??
+    BILLING_WALKTHROUGH_STEPS[0];
+
+  const isFirstStep = stepIndex === 0;
+  const isLastStep =
+    stepIndex === BILLING_WALKTHROUGH_STEPS.length - 1;
+
+  const [typedLength, setTypedLength] = useState(0);
+
+  useEffect(() => {
+    if (!open) {
+      setTypedLength(0);
+      return;
+    }
+
+    setTypedLength(0);
+
+    const interval = window.setInterval(() => {
+      setTypedLength((current) => {
+        if (current >= step.text.length) {
+          window.clearInterval(interval);
+          return current;
+        }
+
+        return current + 1;
+      });
+    }, 14);
+
+    return () => window.clearInterval(interval);
+  }, [open, step.text]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+
+    document.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <>
+      <div
+        aria-hidden="true"
+        className="fixed inset-0 z-[60] bg-[#00030c]/75 backdrop-blur-[3px]"
+      />
+
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Milo’s Guru Kids Pro billing walkthrough"
+        className="fixed bottom-3 left-3 right-3 z-[80] max-h-[72dvh] overflow-y-auto rounded-[1.4rem] border border-cyan-200/40 bg-[linear-gradient(145deg,rgba(4,17,34,0.99),rgba(3,9,24,0.99))] p-5 text-white shadow-[0_32px_90px_rgba(0,0,0,0.68),0_0_40px_rgba(83,215,255,0.12)] sm:bottom-6 sm:left-6 sm:right-auto sm:w-[min(540px,calc(100vw-48px))] sm:overflow-visible sm:rounded-[1.65rem] sm:py-6 sm:pl-[190px] sm:pr-7"
+      >
+        <button
+          type="button"
+          aria-label="Close walkthrough"
+          onClick={onClose}
+          className="absolute right-3.5 top-3.5 z-[3] grid h-9 w-9 place-items-center rounded-full border border-white/20 bg-white/[0.08] text-xl text-white"
+        >
+          ×
+        </button>
+
+        <img
+          src="/milo-world/milo-character.png"
+          alt="Milo"
+          className="relative mx-auto mb-2 block h-[110px] w-auto object-contain drop-shadow-[0_18px_36px_rgba(0,0,0,0.52)] pointer-events-none sm:absolute sm:-bottom-2 sm:left-[18px] sm:m-0 sm:h-[245px]"
+        />
+
+        <p className="m-0 text-[11px] font-black uppercase tracking-[0.2em] text-cyan-200">
+          {step.eyebrow}
+        </p>
+
+        <h2 className="mr-10 mt-2 font-serif text-[1.7rem] font-medium leading-[1.08] sm:text-[2.15rem]">
+          {step.title}
+        </h2>
+
+        <p className="mt-3 min-h-[88px] text-sm leading-[1.58] text-white/80 sm:min-h-[104px] sm:text-base">
+          {step.text.slice(0, typedLength)}
+          {typedLength < step.text.length && (
+            <span
+              aria-hidden="true"
+              className="ml-1 inline-block h-4 w-[7px] translate-y-0.5 bg-white/70"
+            />
+          )}
+        </p>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <div
+            aria-label={`Walkthrough step ${stepIndex + 1} of ${BILLING_WALKTHROUGH_STEPS.length}`}
+            className="flex items-center gap-1.5"
+          >
+            {BILLING_WALKTHROUGH_STEPS.map((_, index) => (
+              <span
+                key={index}
+                className={`h-[7px] rounded-full transition-all ${
+                  index === stepIndex
+                    ? "w-[22px] bg-cyan-200"
+                    : "w-[7px] bg-white/20"
+                }`}
+              />
+            ))}
+          </div>
+
+          <div className="flex gap-2">
+            {!isFirstStep && (
+              <button
+                type="button"
+                onClick={() => onStepChange(stepIndex - 1)}
+                className="min-h-11 rounded-xl border border-white/20 bg-white/[0.06] px-4 text-sm font-bold text-white"
+              >
+                Back
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() =>
+                isLastStep
+                  ? onClose()
+                  : onStepChange(stepIndex + 1)
+              }
+              className="min-h-11 rounded-xl border border-cyan-300/40 bg-cyan-300/15 px-5 text-sm font-black text-white"
+            >
+              {isLastStep
+                ? "Finish Guide"
+                : isFirstStep
+                  ? "Show Me"
+                  : "Next"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
 
