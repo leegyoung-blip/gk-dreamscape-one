@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { claimMyOrganisationInvites } from "@/lib/organisation-access";
 import { supabase } from "@/lib/supabase";
 
 type MessageType = "success" | "error" | "info";
@@ -145,14 +146,22 @@ export default function LoginPage() {
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
-
-        // Do not trim passwords. Spaces may be part of a password.
         password,
       });
 
       if (error) {
         displayMessage(getAuthErrorMessage(error), "error");
         return;
+      }
+
+      const organisationClaim =
+        await claimMyOrganisationInvites();
+
+      if (organisationClaim.error) {
+        console.warn(
+          "Organisation invite claim error:",
+          organisationClaim.error.message,
+        );
       }
 
       const nextPath = getRequestedNextPath();
@@ -188,7 +197,8 @@ export default function LoginPage() {
         localStorage.removeItem("pending-date-of-birth");
 
         displayMessage(
-          "Login successful. Opening your profile.",
+          organisationClaim.message ||
+            "Login successful. Opening your profile.",
           "success"
         );
 
@@ -244,10 +254,7 @@ export default function LoginPage() {
     try {
       const { data, error } = await supabase.auth.signUp({
         email: cleanEmail,
-
-        // Do not trim passwords.
         password,
-
         options: {
           emailRedirectTo: `${
             window.location.origin
@@ -284,8 +291,19 @@ export default function LoginPage() {
       localStorage.setItem("pending-date-of-birth", dateOfBirth);
 
       if (data.session) {
+        const organisationClaim =
+          await claimMyOrganisationInvites();
+
+        if (organisationClaim.error) {
+          console.warn(
+            "Organisation invite claim error:",
+            organisationClaim.error.message,
+          );
+        }
+
         displayMessage(
-          "Account created. Complete the learner profile to continue.",
+          organisationClaim.message ||
+            "Account created. Complete the learner profile to continue.",
           "success"
         );
 
@@ -356,8 +374,6 @@ export default function LoginPage() {
         displayMessage(getAuthErrorMessage(error), "error");
         setLoadingAction(null);
       }
-
-      // When successful, Supabase redirects the browser to Google.
     } catch (error) {
       console.error("Google login error:", error);
 
@@ -400,10 +416,6 @@ export default function LoginPage() {
         return;
       }
 
-      /*
-       * Use a general response so the page does not reveal
-       * whether a particular email address has an account.
-       */
       displayMessage(
         "If an account exists for this email, a password-reset link has been sent. Please also check the spam or junk folder.",
         "success"
@@ -426,9 +438,7 @@ export default function LoginPage() {
     <main className="relative min-h-screen overflow-x-hidden bg-[#020813] px-4 py-8 text-white sm:px-6 sm:py-12">
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(51,198,255,0.18),transparent_36%),radial-gradient(circle_at_bottom_right,rgba(126,87,255,0.18),transparent_38%),linear-gradient(180deg,#07172d_0%,#03091a_48%,#020813_100%)]" />
-
         <div className="absolute left-[-140px] top-[15%] h-[340px] w-[340px] rounded-full bg-cyan-400/10 blur-3xl" />
-
         <div className="absolute bottom-[-130px] right-[-100px] h-[380px] w-[380px] rounded-full bg-violet-500/10 blur-3xl" />
       </div>
 

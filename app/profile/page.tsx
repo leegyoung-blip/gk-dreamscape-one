@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getLearningEntitlements, learningPlanLabel } from "@/lib/learning-access";
+import {
+  claimMyOrganisationInvites,
+  takeOrganisationClaimMessage,
+} from "@/lib/organisation-access";
 import { supabase } from "@/lib/supabase";
 
 type DreamTokenTransaction = {
@@ -259,6 +263,9 @@ export default function ProfilePage() {
   const [referralMessage, setReferralMessage] =
     useState("");
 
+  const [organisationClaimMessage, setOrganisationClaimMessage] =
+    useState("");
+
   const [supportMessage, setSupportMessage] =
     useState("");
 
@@ -446,6 +453,7 @@ export default function ProfilePage() {
         setAgeBand(null);
         setLearnerDetailsMessage("");
         setLearnerDetailsMessageType("");
+        setOrganisationClaimMessage("");
         setIsAdmin(false);
         setHasOrganisationPortalAccess(false);
         setHasStudentRewardsAccess(false);
@@ -465,6 +473,29 @@ export default function ProfilePage() {
       const userId = data.user.id;
 
       setEmail(data.user.email ?? null);
+
+      const carriedClaimMessage =
+        takeOrganisationClaimMessage();
+
+      const organisationClaim =
+        await claimMyOrganisationInvites();
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (organisationClaim.error) {
+        console.warn(
+          "Organisation invite claim error:",
+          organisationClaim.error.message,
+        );
+      }
+
+      if (organisationClaim.message || carriedClaimMessage) {
+        setOrganisationClaimMessage(
+          organisationClaim.message || carriedClaimMessage,
+        );
+      }
 
       const {
         data: profile,
@@ -1244,6 +1275,12 @@ Thank you.`;
           {referralMessage && (
             <div className="mx-auto mt-6 max-w-xl rounded-2xl border border-violet-200/20 bg-violet-400/12 px-5 py-4 text-sm leading-6 text-white/78">
               {referralMessage}
+            </div>
+          )}
+
+          {organisationClaimMessage && (
+            <div className="mx-auto mt-4 max-w-xl rounded-2xl border border-emerald-200/22 bg-emerald-400/10 px-5 py-4 text-sm leading-6 text-emerald-100">
+              {organisationClaimMessage}
             </div>
           )}
         </section>

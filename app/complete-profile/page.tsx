@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { claimMyOrganisationInvites } from "@/lib/organisation-access";
 import { supabase } from "@/lib/supabase";
 
 type ProfileStatus = {
@@ -96,6 +97,18 @@ function CompleteProfileContent() {
         return;
       }
 
+      const organisationClaim =
+        await claimMyOrganisationInvites();
+
+      if (cancelled) return;
+
+      if (organisationClaim.error) {
+        console.warn(
+          "Organisation invite claim error:",
+          organisationClaim.error.message,
+        );
+      }
+
       const { data, error } = await supabase.rpc(
         "get_my_learning_profile_status",
       );
@@ -129,6 +142,11 @@ function CompleteProfileContent() {
           metadataDateOfBirth ||
           "",
       );
+
+      if (organisationClaim.message) {
+        setMessage(organisationClaim.message);
+      }
+
       setLoading(false);
     }
 
@@ -231,7 +249,7 @@ function CompleteProfileContent() {
         )}
 
         {message && (
-          <div className="mt-5 rounded-2xl border border-rose-300/25 bg-rose-400/10 px-5 py-4 text-sm text-rose-100">
+          <div className="mt-5 rounded-2xl border border-cyan-300/25 bg-cyan-400/10 px-5 py-4 text-sm text-cyan-100">
             {message}
           </div>
         )}

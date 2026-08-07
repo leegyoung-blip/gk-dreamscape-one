@@ -310,7 +310,8 @@ function OrganisationManageContent() {
           </h1>
           <p className="mt-5 max-w-3xl text-base leading-7 text-white/60">
             Manage the approved teacher and student emails covered by your Dreamscape
-            organisation licence. Account linking itself is installed in Phase 1C.
+            organisation licence. Approved emails now link automatically when the
+            matching verified Dreamscape account signs in.
           </p>
         </header>
 
@@ -543,8 +544,8 @@ function OrganisationManageContent() {
                   <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                     {members.length === 0 ? (
                       <p className="text-sm text-white/42">
-                        No claimed accounts yet. Existing organisation administrators
-                        linked by a Dreamscape admin will appear here.
+                        No claimed accounts yet. A matching approved email will appear here after
+                        that verified Dreamscape account signs in.
                       </p>
                     ) : (
                       members.map((member) => (
