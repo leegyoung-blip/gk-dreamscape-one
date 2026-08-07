@@ -883,6 +883,16 @@ export default function ThinkingSkillsLabPage() {
   }, [selectedGame]);
 
   useEffect(() => {
+    if (!notice) return;
+
+    const timer = window.setTimeout(() => {
+      setNotice("");
+    }, 5000);
+
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
+  useEffect(() => {
     try {
       if (!window.localStorage.getItem(WALKTHROUGH_STORAGE_KEY)) {
         setWalkthroughStep(0);
@@ -1245,7 +1255,13 @@ export default function ThinkingSkillsLabPage() {
             )}
           </div>
 
-          <div className="stat-pill">
+          <div
+            className={`stat-pill ${
+              walkthroughOpen && walkthroughStep === 4
+                ? "walkthrough-highlight"
+                : ""
+            }`}
+          >
             <span className="stat-label">Today</span>
             <strong>
               {loading
@@ -1264,7 +1280,11 @@ export default function ThinkingSkillsLabPage() {
       <div className="lab-layout">
         <aside
           id="thinking-game-menu"
-          className="game-sidebar"
+          className={`game-sidebar ${
+            walkthroughOpen && walkthroughStep === 1
+              ? "walkthrough-highlight"
+              : ""
+          }`}
         >
           <div className="sidebar-heading">
             <div>
@@ -1319,6 +1339,29 @@ export default function ThinkingSkillsLabPage() {
                 </button>
               );
             })}
+
+            {[1, 2].map((slot) => (
+              <div
+                key={`coming-soon-${slot}`}
+                className="game-menu-card coming-soon-card"
+                aria-label="New game coming soon"
+              >
+                <span
+                  className="game-menu-icon coming-soon-icon"
+                  aria-hidden="true"
+                >
+                  ＋
+                </span>
+
+                <span className="game-menu-copy">
+                  <strong>NEW GAME</strong>
+                  <small>COMING SOON</small>
+                  <span className="mini-progress coming-soon-progress" />
+                </span>
+
+                <span className="coming-soon-badge">SOON</span>
+              </div>
+            ))}
           </div>
 
           <div className="sidebar-note">
@@ -1351,7 +1394,13 @@ export default function ThinkingSkillsLabPage() {
             </div>
 
             <div className="stage-tools">
-              <div className="stage-progress">
+              <div
+                className={`stage-progress ${
+                  walkthroughOpen && walkthroughStep === 4
+                    ? "walkthrough-highlight compact-highlight"
+                    : ""
+                }`}
+              >
                 <span>
                   <strong>{activeStatus.completed}/3</strong> today
                 </span>
@@ -1367,7 +1416,10 @@ export default function ThinkingSkillsLabPage() {
                 </div>
               </div>
 
-              <InstructionsButton gameId={selectedGame} />
+              <InstructionsButton
+                gameId={selectedGame}
+                highlighted={walkthroughOpen && walkthroughStep === 2}
+              />
             </div>
           </div>
 
@@ -1401,6 +1453,9 @@ export default function ThinkingSkillsLabPage() {
                         selectedColourLevel
                       )
                     }
+                    walkthroughHighlightClue={
+                      walkthroughOpen && walkthroughStep === 3
+                    }
                   />
                 )}
 
@@ -1415,6 +1470,9 @@ export default function ThinkingSkillsLabPage() {
                     onBuyClue={buyClue}
                     onComplete={completeQuestion}
                     onContinue={beginNextQuestion}
+                    walkthroughHighlightClue={
+                      walkthroughOpen && walkthroughStep === 3
+                    }
                   />
                 )}
 
@@ -1436,20 +1494,24 @@ export default function ThinkingSkillsLabPage() {
                         selectedTowerLevel
                       )
                     }
+                    walkthroughHighlightClue={
+                      walkthroughOpen && walkthroughStep === 3
+                    }
                   />
                 )}
               </>
             )}
           </div>
 
-          {notice && (
-            <div className="save-message" role="status">
-              <span aria-hidden="true">✓</span>
-              {notice}
-            </div>
-          )}
         </section>
       </div>
+
+      {notice && (
+        <div className="save-message" role="status" aria-live="polite">
+          <span aria-hidden="true">✓</span>
+          {notice}
+        </div>
+      )}
 
       <NovaWalkthrough
         open={walkthroughOpen}
@@ -1509,7 +1571,7 @@ export default function ThinkingSkillsLabPage() {
         }
         .round-button {
           padding: 0 15px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-          color: white; text-decoration: none; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer;
+          color: white; text-decoration: none; font: inherit; font-size: 14px; font-weight: 800; cursor: pointer;
         }
         .guide-button { appearance: none; color: #d9f8ff; }
         .stat-pill { min-width: 100px; padding: 6px 13px; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; }
@@ -1518,8 +1580,8 @@ export default function ThinkingSkillsLabPage() {
         .assets-button strong { display: inline-flex; align-items: center; gap: 6px; }
         .assets-chevron { color: #8ee8ff; font-size: 12px; transition: transform 180ms ease; }
         .assets-chevron.is-open { transform: rotate(180deg); }
-        .stat-label { color: rgba(232,245,255,.62); font-size: 9px; font-weight: 850; letter-spacing: .11em; text-transform: uppercase; }
-        .stat-pill strong { color: #8ee8ff; font-size: 14px; white-space: nowrap; }
+        .stat-label { color: rgba(232,245,255,.62); font-size: 10px; font-weight: 850; letter-spacing: .11em; text-transform: uppercase; }
+        .stat-pill strong { color: #8ee8ff; font-size: 15px; white-space: nowrap; }
 
         .assets-dropdown {
           position: absolute; top: calc(100% + 8px); right: 0; z-index: 90; width: 380px;
@@ -1566,9 +1628,9 @@ export default function ThinkingSkillsLabPage() {
         }
         .game-sidebar { height: 100%; padding: 14px; border-radius: 22px; overflow: hidden; display: flex; flex-direction: column; }
         .sidebar-heading { padding: 0 2px 12px; }
-        .sidebar-eyebrow, .game-skill { margin: 0; color: #73dcff; font-size: 9px; font-weight: 850; letter-spacing: .16em; text-transform: uppercase; }
-        .sidebar-heading h2 { margin: 4px 0 0; font-size: 20px; letter-spacing: -.03em; }
-        .sidebar-reset { display: block; margin-top: 5px; color: rgba(235,247,255,.45); font-size: 9px; font-weight: 800; }
+        .sidebar-eyebrow, .game-skill { margin: 0; color: #73dcff; font-size: 10px; font-weight: 850; letter-spacing: .16em; text-transform: uppercase; }
+        .sidebar-heading h2 { margin: 4px 0 0; font-size: 22px; letter-spacing: -.03em; }
+        .sidebar-reset { display: block; margin-top: 5px; color: rgba(235,247,255,.45); font-size: 10px; font-weight: 800; }
         .game-list { display: grid; gap: 8px; }
         .game-menu-card {
           position: relative; width: 100%; min-height: 74px; padding: 10px; display: grid; grid-template-columns: 40px 1fr auto;
@@ -1588,12 +1650,52 @@ export default function ThinkingSkillsLabPage() {
         }
         .game-menu-icon { width: 40px; height: 40px; font-size: 20px; }
         .game-menu-copy { min-width: 0; display: grid; gap: 3px; }
-        .game-menu-copy strong { font-size: 13px; }
-        .game-menu-copy small { color: rgba(235,246,255,.52); font-size: 9px; }
+        .game-menu-copy strong { font-size: 14px; }
+        .game-menu-copy small { color: rgba(235,246,255,.52); font-size: 10px; }
         .mini-progress { width: 100%; height: 3px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.07); }
         .mini-progress i { display: block; height: 100%; border-radius: inherit; background: var(--game-accent); }
-        .game-menu-count { min-width: 32px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: rgba(255,255,255,.055); color: rgba(240,248,255,.68); font-size: 9px; font-weight: 850; }
-        .sidebar-note { margin-top: auto; padding: 11px; display: grid; grid-template-columns: 18px 1fr; gap: 8px; border-radius: 14px; background: rgba(104,209,255,.07); color: rgba(231,246,255,.58); font-size: 10px; line-height: 1.45; }
+        .game-menu-count { min-width: 32px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: rgba(255,255,255,.055); color: rgba(240,248,255,.68); font-size: 10px; font-weight: 850; }
+
+        .coming-soon-card {
+          cursor: default;
+          opacity: .64;
+          border-style: dashed;
+          border-color: rgba(180,206,228,.16);
+          background: rgba(255,255,255,.018);
+        }
+        .coming-soon-card:hover { transform: none; border-color: rgba(180,206,228,.24); }
+        .coming-soon-icon {
+          --game-accent: #89a2ba;
+          color: rgba(220,235,248,.72);
+          border-style: dashed;
+        }
+        .coming-soon-card .game-menu-copy strong {
+          color: rgba(242,248,255,.72);
+          letter-spacing: .05em;
+        }
+        .coming-soon-card .game-menu-copy small {
+          color: rgba(207,225,240,.44);
+          font-weight: 850;
+          letter-spacing: .08em;
+        }
+        .coming-soon-progress { background: rgba(255,255,255,.04); }
+        .coming-soon-badge {
+          min-width: 38px;
+          height: 24px;
+          padding: 0 7px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 999px;
+          border: 1px solid rgba(190,215,235,.12);
+          background: rgba(255,255,255,.035);
+          color: rgba(224,237,248,.48);
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: .08em;
+        }
+
+        .sidebar-note { margin-top: auto; padding: 11px; display: grid; grid-template-columns: 18px 1fr; gap: 8px; border-radius: 14px; background: rgba(104,209,255,.07); color: rgba(231,246,255,.58); font-size: 11px; line-height: 1.5; }
         .sidebar-note span { color: #7ce1ff; } .sidebar-note p { margin: 0; }
 
         .game-stage { height: 100%; min-width: 0; border-radius: 24px; overflow: hidden; display: flex; flex-direction: column; position: relative; }
@@ -1604,18 +1706,72 @@ export default function ThinkingSkillsLabPage() {
         }
         .game-title-row { display: flex; align-items: center; gap: 11px; min-width: 0; }
         .active-game-icon { --game-accent: var(--active-accent); width: 44px; height: 44px; flex: 0 0 auto; font-size: 22px; }
-        .game-stage-heading h2 { margin: 3px 0 0; font-size: clamp(20px, 2.3vw, 30px); letter-spacing: -.04em; white-space: nowrap; }
+        .game-stage-heading h2 { margin: 3px 0 0; font-size: clamp(22px, 2.4vw, 32px); letter-spacing: -.04em; white-space: nowrap; }
         .stage-tools { display: flex; align-items: center; gap: 10px; }
         .stage-progress { width: 150px; display: grid; gap: 5px; }
-        .stage-progress span { color: rgba(235,246,255,.5); font-size: 9px; font-weight: 800; text-transform: uppercase; text-align: right; }
+        .stage-progress span { color: rgba(235,246,255,.5); font-size: 10px; font-weight: 800; text-transform: uppercase; text-align: right; }
         .stage-progress span strong { color: white; }
         .stage-progress > div { height: 5px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.07); }
         .stage-progress i { display: block; height: 100%; border-radius: inherit; background: var(--active-accent); }
         .game-surface { flex: 1 1 auto; min-height: 0; padding: 8px; overflow: hidden; }
+        .walkthrough-highlight {
+          position: relative;
+          z-index: 120;
+          border-color: rgba(120,226,255,.78) !important;
+          box-shadow:
+            0 0 0 2px rgba(120,226,255,.2),
+            0 0 34px rgba(83,215,255,.38),
+            inset 0 0 26px rgba(83,215,255,.08) !important;
+          filter: brightness(1.18);
+          animation: guideGlow 1.5s ease-in-out infinite alternate;
+        }
+        .compact-highlight {
+          padding: 8px 10px;
+          border: 1px solid rgba(120,226,255,.55);
+          border-radius: 12px;
+          background: rgba(83,215,255,.08);
+        }
+        @keyframes guideGlow {
+          from {
+            box-shadow:
+              0 0 0 2px rgba(120,226,255,.16),
+              0 0 24px rgba(83,215,255,.25),
+              inset 0 0 18px rgba(83,215,255,.05);
+          }
+          to {
+            box-shadow:
+              0 0 0 2px rgba(120,226,255,.26),
+              0 0 42px rgba(83,215,255,.48),
+              inset 0 0 30px rgba(83,215,255,.1);
+          }
+        }
+
         .save-message {
-          position: absolute; right: 12px; bottom: 10px; z-index: 25; max-width: min(420px, calc(100% - 24px));
-          padding: 9px 12px; display: flex; align-items: center; gap: 8px; border-radius: 12px;
-          border: 1px solid rgba(111,231,177,.3); background: rgba(12,55,43,.94); color: #bdf8d9; font-size: 11px; box-shadow: 0 14px 36px rgba(0,0,0,.35);
+          position: fixed;
+          top: 78px;
+          left: 50%;
+          z-index: 160;
+          width: max-content;
+          max-width: min(520px, calc(100vw - 28px));
+          transform: translateX(-50%);
+          padding: 12px 17px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 9px;
+          border-radius: 14px;
+          border: 1px solid rgba(111,231,177,.38);
+          background: rgba(10,58,44,.97);
+          color: #c8ffe2;
+          font-size: 13px;
+          font-weight: 800;
+          text-align: center;
+          box-shadow: 0 18px 44px rgba(0,0,0,.42), 0 0 24px rgba(111,231,177,.12);
+          animation: noticeIn 180ms ease-out;
+        }
+        @keyframes noticeIn {
+          from { opacity: 0; transform: translate(-50%, -8px); }
+          to { opacity: 1; transform: translate(-50%, 0); }
         }
 
         @media (max-width: 1120px) {
@@ -1623,6 +1779,7 @@ export default function ThinkingSkillsLabPage() {
           .game-sidebar { padding: 10px; }
           .game-menu-card { min-height: 68px; grid-template-columns: 38px 1fr; }
           .game-menu-count { position: absolute; right: 7px; top: 6px; min-width: 26px; height: 22px; }
+          .coming-soon-badge { position: absolute; right: 7px; top: 6px; min-width: 34px; height: 22px; }
           .game-menu-icon { width: 38px; height: 38px; }
           .sidebar-note { font-size: 9px; }
         }
@@ -1648,7 +1805,8 @@ export default function ThinkingSkillsLabPage() {
           .game-menu-card { min-height: 64px; padding: 6px; display: flex; align-items: center; justify-content: center; border-radius: 13px; }
           .game-menu-copy { display: none; }
           .game-menu-icon { width: 42px; height: 42px; border-radius: 12px; font-size: 20px; }
-          .game-menu-count { right: 1px; top: 1px; min-width: 22px; height: 19px; padding: 0 4px; font-size: 7px; background: rgba(3,11,24,.95); }
+          .game-menu-count { right: 1px; top: 1px; min-width: 22px; height: 19px; padding: 0 4px; font-size: 8px; background: rgba(3,11,24,.95); }
+          .coming-soon-badge { display: none; }
 
           .game-stage { border-radius: 16px; }
           .game-stage-heading { flex-basis: 56px; padding: 7px 8px; gap: 6px; }
@@ -1659,7 +1817,7 @@ export default function ThinkingSkillsLabPage() {
           .stage-progress { width: 62px; }
           .stage-progress span { font-size: 7px; }
           .game-surface { padding: 5px; }
-          .save-message { right: 7px; bottom: 7px; font-size: 10px; }
+          .save-message { top: 66px; font-size: 12px; padding: 10px 13px; }
         }
 
         @media (max-width: 390px) {
@@ -1676,7 +1834,13 @@ export default function ThinkingSkillsLabPage() {
 }
 
 
-function InstructionsButton({ gameId }: { gameId: GameId }) {
+function InstructionsButton({
+  gameId,
+  highlighted = false,
+}: {
+  gameId: GameId;
+  highlighted?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const instructions = GAME_INSTRUCTIONS[gameId];
@@ -1709,7 +1873,7 @@ function InstructionsButton({ gameId }: { gameId: GameId }) {
   return (
     <div
       ref={wrapRef}
-      className="instructions-wrap"
+      className={`instructions-wrap ${highlighted ? "is-highlighted" : ""}`}
       onPointerEnter={(event: { pointerType: string }) => {
         if (event.pointerType === "mouse") setOpen(true);
       }}
@@ -1742,6 +1906,30 @@ function InstructionsButton({ gameId }: { gameId: GameId }) {
 
       <style jsx>{`
         .instructions-wrap { position: relative; z-index: 50; }
+        .instructions-wrap.is-highlighted {
+          z-index: 125;
+          filter: brightness(1.2);
+        }
+        .instructions-wrap.is-highlighted .instructions-button {
+          border-color: rgba(126, 224, 255, 0.92);
+          background: rgba(83, 215, 255, 0.16);
+          box-shadow:
+            0 0 0 4px rgba(83, 215, 255, 0.12),
+            0 0 30px rgba(83, 215, 255, 0.48);
+          animation: instructionGlow 1.4s ease-in-out infinite alternate;
+        }
+        @keyframes instructionGlow {
+          from {
+            box-shadow:
+              0 0 0 3px rgba(83, 215, 255, 0.1),
+              0 0 20px rgba(83, 215, 255, 0.3);
+          }
+          to {
+            box-shadow:
+              0 0 0 5px rgba(83, 215, 255, 0.17),
+              0 0 36px rgba(83, 215, 255, 0.58);
+          }
+        }
         .instructions-button {
           width: 38px;
           height: 38px;
@@ -1770,7 +1958,7 @@ function InstructionsButton({ gameId }: { gameId: GameId }) {
         .instructions-popup > p {
           margin: 0;
           color: #8ee8ff;
-          font-size: 11px;
+          font-size: 12px;
           font-weight: 900;
           letter-spacing: 0.18em;
           text-transform: uppercase;
@@ -1778,7 +1966,7 @@ function InstructionsButton({ gameId }: { gameId: GameId }) {
         .instructions-popup h3 {
           margin: 8px 0 0;
           font-family: Georgia, "Times New Roman", serif;
-          font-size: 29px;
+          font-size: 31px;
           line-height: 1.12;
           font-weight: 500;
         }
@@ -1788,7 +1976,7 @@ function InstructionsButton({ gameId }: { gameId: GameId }) {
           display: grid;
           gap: 12px;
           color: rgba(241, 249, 255, 0.82);
-          font-size: 16px;
+          font-size: 17px;
           line-height: 1.58;
         }
         .instructions-popup > div {
@@ -1797,7 +1985,7 @@ function InstructionsButton({ gameId }: { gameId: GameId }) {
           border-radius: 14px;
           background: rgba(255, 211, 110, 0.09);
           color: #ffe39a;
-          font-size: 14px;
+          font-size: 15px;
           line-height: 1.5;
         }
         @media (max-width: 720px) {
@@ -1851,8 +2039,12 @@ function NovaWalkthrough({
 
   return (
     <>
-      <div className="walkthrough-backdrop" aria-hidden="true" />
-      <section className="walkthrough" role="dialog" aria-modal="true" aria-label="Nova guided walkthrough">
+      <section
+        className="walkthrough"
+        role="dialog"
+        aria-modal="false"
+        aria-label="Nova guided walkthrough"
+      >
         <button type="button" className="walkthrough-close" onClick={onClose} aria-label="Close walkthrough">
           ×
         </button>
@@ -1890,13 +2082,7 @@ function NovaWalkthrough({
       </section>
 
       <style jsx>{`
-        .walkthrough-backdrop {
-          position: fixed;
-          inset: 0;
-          z-index: 130;
-          background: rgba(0, 4, 14, 0.74);
-          backdrop-filter: blur(4px);
-        }
+
         .walkthrough {
           position: fixed;
           left: ${isMobile ? "8px" : "28px"};
@@ -1937,7 +2123,7 @@ function NovaWalkthrough({
         .walkthrough-copy > p {
           margin: 0;
           color: #8ee8ff;
-          font-size: 9px;
+          font-size: 11px;
           font-weight: 900;
           letter-spacing: 0.18em;
           text-transform: uppercase;
@@ -1945,7 +2131,7 @@ function NovaWalkthrough({
         .walkthrough-copy h2 {
           margin: 7px 34px 0 0;
           font-family: Georgia, "Times New Roman", serif;
-          font-size: ${isMobile ? "24px" : "33px"};
+          font-size: ${isMobile ? "26px" : "35px"};
           line-height: 1.08;
           font-weight: 500;
         }
@@ -1953,7 +2139,7 @@ function NovaWalkthrough({
           display: block;
           margin-top: 12px;
           color: rgba(255, 255, 255, 0.74);
-          font-size: ${isMobile ? "12px" : "14px"};
+          font-size: ${isMobile ? "14px" : "16px"};
           line-height: 1.5;
         }
         .walkthrough-footer {
@@ -1975,7 +2161,7 @@ function NovaWalkthrough({
           background: rgba(255, 255, 255, 0.055);
           color: white;
           font: inherit;
-          font-size: 11px;
+          font-size: 12px;
           font-weight: 800;
           cursor: pointer;
         }
@@ -2085,7 +2271,7 @@ function InstructionBar({
           align-items: center;
           gap: 8px;
           color: rgba(235, 247, 255, 0.62);
-          font-size: 8px;
+          font-size: 9px;
           font-weight: 750;
           letter-spacing: 0.08em;
           text-transform: uppercase;
@@ -2093,7 +2279,7 @@ function InstructionBar({
 
         .instruction-item strong {
           color: white;
-          font-size: 12px;
+          font-size: 13px;
         }
       `}</style>
     </div>
@@ -2105,16 +2291,20 @@ function PrimaryButton({
   onClick,
   disabled = false,
   secondary = false,
+  highlighted = false,
 }: {
   children: ReactNode;
   onClick: () => void;
   disabled?: boolean;
   secondary?: boolean;
+  highlighted?: boolean;
 }) {
   return (
     <button
       type="button"
-      className={`primary-button ${secondary ? "is-secondary" : ""}`}
+      className={`primary-button ${secondary ? "is-secondary" : ""} ${
+        highlighted ? "is-highlighted" : ""
+      }`}
       onClick={onClick}
       disabled={disabled}
     >
@@ -2129,7 +2319,7 @@ function PrimaryButton({
           background: linear-gradient(135deg, #2fbcf4, #596dff);
           color: white;
           font: inherit;
-          font-size: 11px;
+          font-size: 12px;
           font-weight: 850;
           cursor: pointer;
           box-shadow: 0 14px 28px rgba(42, 135, 255, 0.25);
@@ -2153,6 +2343,32 @@ function PrimaryButton({
           background: rgba(255, 255, 255, 0.055);
           box-shadow: none;
           color: rgba(241, 249, 255, 0.82);
+        }
+
+        .primary-button.is-highlighted {
+          position: relative;
+          z-index: 125;
+          border-color: rgba(255, 224, 126, 0.82);
+          background: rgba(255, 211, 110, 0.16);
+          color: #ffe8a8;
+          box-shadow:
+            0 0 0 3px rgba(255, 211, 110, 0.1),
+            0 0 30px rgba(255, 211, 110, 0.34);
+          filter: brightness(1.18);
+          animation: clueGlow 1.4s ease-in-out infinite alternate;
+        }
+
+        @keyframes clueGlow {
+          from {
+            box-shadow:
+              0 0 0 3px rgba(255,211,110,.08),
+              0 0 18px rgba(255,211,110,.22);
+          }
+          to {
+            box-shadow:
+              0 0 0 5px rgba(255,211,110,.14),
+              0 0 34px rgba(255,211,110,.42);
+          }
         }
       `}</style>
     </button>
@@ -2228,7 +2444,7 @@ function RewardResult({
         .result-card > p:first-of-type {
           margin: 10px 0 0;
           color: #79defc;
-          font-size: 11px;
+          font-size: 12px;
           font-weight: 900;
           letter-spacing: 0.18em;
           text-transform: uppercase;
@@ -2263,7 +2479,7 @@ function RewardResult({
 
         .reward-row small {
           color: rgba(235, 247, 255, 0.46);
-          font-size: 9px;
+          font-size: 10px;
           font-weight: 850;
           letter-spacing: 0.12em;
           text-transform: uppercase;
@@ -2623,14 +2839,14 @@ function DailyLevelTabs({
         }
         .level-copy strong {
           overflow: hidden;
-          font-size: 11px;
+          font-size: 12px;
           text-overflow: ellipsis;
           white-space: nowrap;
         }
         .level-copy small {
           overflow: hidden;
           color: rgba(235, 247, 255, 0.5);
-          font-size: 8px;
+          font-size: 9px;
           font-weight: 750;
           text-overflow: ellipsis;
           white-space: nowrap;
@@ -2795,6 +3011,7 @@ function ColourCodeGame({
   onBuyClue,
   onComplete,
   onContinue,
+  walkthroughHighlightClue = false,
 }: {
   userId: string;
   activityDate: string;
@@ -2802,6 +3019,7 @@ function ColourCodeGame({
   cluesUsed: number;
   levelStatuses: Record<DailyLevelNumber, DailyLevelStatus>;
   tokenBalance: number;
+  walkthroughHighlightClue?: boolean;
   onSelectLevel: (level: DailyLevelNumber) => void;
   onBuyClue: (
     gameId: GameId,
@@ -3097,7 +3315,9 @@ function ColourCodeGame({
           <div className="colour-actions">
             <button
               type="button"
-              className="clue-button"
+              className={`clue-button ${
+                walkthroughHighlightClue ? "is-walkthrough-highlighted" : ""
+              }`}
               onClick={buyClue}
               disabled={busy || localClues >= 4 || tokenBalance < CLUE_COST}
             >
@@ -3293,11 +3513,34 @@ function ColourCodeGame({
           background: rgba(255, 211, 110, 0.09);
           color: #ffdc82;
           font: inherit;
-          font-size: 11px;
+          font-size: 12px;
           font-weight: 850;
           cursor: pointer;
         }
         .clue-button:disabled { opacity: 0.4; cursor: not-allowed; }
+        .clue-button.is-walkthrough-highlighted {
+          position: relative;
+          z-index: 125;
+          border-color: rgba(255, 224, 126, 0.82);
+          background: rgba(255, 211, 110, 0.17);
+          box-shadow:
+            0 0 0 3px rgba(255, 211, 110, 0.09),
+            0 0 30px rgba(255, 211, 110, 0.34);
+          filter: brightness(1.2);
+          animation: clueButtonGlow 1.4s ease-in-out infinite alternate;
+        }
+        @keyframes clueButtonGlow {
+          from {
+            box-shadow:
+              0 0 0 3px rgba(255,211,110,.08),
+              0 0 18px rgba(255,211,110,.22);
+          }
+          to {
+            box-shadow:
+              0 0 0 5px rgba(255,211,110,.14),
+              0 0 34px rgba(255,211,110,.42);
+          }
+        }
         .colour-message {
           width: min(620px, 100%);
           min-height: 42px;
@@ -3334,13 +3577,13 @@ function ColourCodeGame({
           border-bottom: 1px solid rgba(137, 215, 255, 0.12);
           text-align: center;
         }
-        .attempt-heading h3 { margin: 0; font-size: 18px; }
+        .attempt-heading h3 { margin: 0; font-size: 20px; }
         .attempt-heading > span {
           display: flex;
           align-items: center;
           gap: 7px;
           color: rgba(235, 247, 255, 0.62);
-          font-size: 11px;
+          font-size: 12px;
           font-weight: 750;
         }
         .attempt-heading i { width: 10px; height: 10px; border-radius: 999px; }
@@ -3651,12 +3894,14 @@ function SetFinderGame({
   onBuyClue,
   onComplete,
   onContinue,
+  walkthroughHighlightClue = false,
 }: {
   userId: string;
   activityDate: string;
   questionNumber: number;
   cluesUsed: number;
   tokenBalance: number;
+  walkthroughHighlightClue?: boolean;
   onBuyClue: (
     gameId: GameId,
     questionNumber: number
@@ -3818,7 +4063,9 @@ function SetFinderGame({
 
           <button
             type="button"
-            className="set-clue"
+            className={`set-clue ${
+              walkthroughHighlightClue ? "is-walkthrough-highlighted" : ""
+            }`}
             onClick={buyClue}
             disabled={
               busy || !mayBuyCurrentClue || tokenBalance < CLUE_COST
@@ -3905,7 +4152,7 @@ function SetFinderGame({
         .set-message {
           min-width: 0;
           color: rgba(240, 248, 255, 0.82);
-          font-size: 15px;
+          font-size: 16px;
           line-height: 1.35;
           font-weight: 700;
           text-align: center;
@@ -3920,12 +4167,35 @@ function SetFinderGame({
           background: rgba(255, 211, 110, 0.09);
           color: #ffdc82;
           font: inherit;
-          font-size: 9px;
+          font-size: 10px;
           font-weight: 850;
           cursor: pointer;
           white-space: nowrap;
         }
         .set-clue:disabled { opacity: 0.4; cursor: not-allowed; }
+        .set-clue.is-walkthrough-highlighted {
+          position: relative;
+          z-index: 125;
+          border-color: rgba(255, 224, 126, 0.82);
+          background: rgba(255, 211, 110, 0.17);
+          box-shadow:
+            0 0 0 3px rgba(255, 211, 110, 0.09),
+            0 0 30px rgba(255, 211, 110, 0.34);
+          filter: brightness(1.2);
+          animation: setClueGlow 1.4s ease-in-out infinite alternate;
+        }
+        @keyframes setClueGlow {
+          from {
+            box-shadow:
+              0 0 0 3px rgba(255,211,110,.08),
+              0 0 18px rgba(255,211,110,.22);
+          }
+          to {
+            box-shadow:
+              0 0 0 5px rgba(255,211,110,.14),
+              0 0 34px rgba(255,211,110,.42);
+          }
+        }
         .set-board {
           min-height: 0;
           display: grid;
@@ -4161,6 +4431,7 @@ function TowerMemoryGame({
   onBuyClue,
   onComplete,
   onContinue,
+  walkthroughHighlightClue = false,
 }: {
   userId: string;
   activityDate: string;
@@ -4168,6 +4439,7 @@ function TowerMemoryGame({
   cluesUsed: number;
   levelStatuses: Record<DailyLevelNumber, DailyLevelStatus>;
   tokenBalance: number;
+  walkthroughHighlightClue?: boolean;
   onSelectLevel: (level: DailyLevelNumber) => void;
   onBuyClue: (
     gameId: GameId,
@@ -4471,6 +4743,7 @@ function TowerMemoryGame({
               <>
                 <PrimaryButton
                   onClick={showTowerAgain}
+                  highlighted={walkthroughHighlightClue}
                   disabled={
                     busy ||
                     phase !== "build" ||
@@ -4555,14 +4828,14 @@ function TowerMemoryGame({
         }
         .tower-heading span {
           color: #77e7b7;
-          font-size: 9px;
+          font-size: 10px;
           font-weight: 900;
           letter-spacing: 0.13em;
           text-transform: uppercase;
         }
         .tower-heading strong {
           color: rgba(241, 249, 255, 0.68);
-          font-size: 9px;
+          font-size: 10px;
         }
         .preview-area {
           position: relative;
