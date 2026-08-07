@@ -10,6 +10,7 @@ import type {
   NovaFreshnessStatus,
   NovaTrendDirection,
 } from "@/lib/nova-analytics-contract";
+import TeacherLearnerActionPanel from "@/components/teacher/TeacherLearnerActionPanel";
 import { supabase } from "@/lib/supabase";
 
 export type NovaAttemptIndexRow = {
@@ -27,6 +28,12 @@ type EvidenceState = {
 };
 
 type ReportView = NovaAnalyticsReport | NovaAnalyticsReportHistoryRow;
+
+type NovaTeacherFeedbackRating =
+  | "helpful"
+  | "partially_accurate"
+  | "not_accurate"
+  | "insufficient_evidence";
 
 const confidenceText: Record<NovaConfidenceLabel, string> = {
   insufficient: "Insufficient",
@@ -133,6 +140,7 @@ function findingTitle(finding: NovaAnalyticsFinding) {
 }
 
 export default function NovaLearnerAnalyticsPanel({
+  classId,
   studentUserId,
   studentLabel,
   classSubject,
@@ -141,6 +149,7 @@ export default function NovaLearnerAnalyticsPanel({
   attemptIndex,
   onOpenAttempt,
 }: {
+  classId: string;
   studentUserId: string;
   studentLabel: string;
   classSubject: string | null;
@@ -169,6 +178,9 @@ export default function NovaLearnerAnalyticsPanel({
     rows: [],
     message: "",
   });
+
+  const [actionRefreshToken, setActionRefreshToken] = useState(0);
+  const [teacherActionMessage, setTeacherActionMessage] = useState("");
 
   useEffect(() => {
     setScope(defaultScope);
@@ -385,6 +397,120 @@ export default function NovaLearnerAnalyticsPanel({
     });
   }
 
+  async function addFindingToFocus(
+    finding: NovaAnalyticsFinding,
+    actionStatus: "active" | "monitoring",
+  ) {
+    if (teacherPreviewUserId) {
+      return "Error: Admin teacher preview is read-only."
+    }
+
+    const { error } = await supabase.rpc(
+      "add_nova_finding_to_active_focus_plan",
+      {
+        p_class_id: classId,
+        p_student_user_id: studentUserId,
+        p_nova_finding_id: finding.finding_id,
+        p_action_status: actionStatus,
+        p_priority_level: null,
+        p_teacher_note: null,
+      },
+    );
+
+    if (error) {
+      return `Error: ${
+        error.message ||
+        "This Nova finding could not be added to the teaching focus."
+      }`;
+    }
+
+    setActionRefreshToken((current) => current + 1);
+
+    const nextMessage =
+      actionStatus === "monitoring"
+        ? `${findingTitle(finding)} added as a monitored area.`
+        : `${findingTitle(finding)} added to the active teaching focus.`;
+
+    setTeacherActionMessage(nextMessage);
+    return nextMessage;
+  }
+
+  async function addFindingObservation(
+    finding: NovaAnalyticsFinding,
+    note: string,
+  ) {
+    if (teacherPreviewUserId) {
+      return "Error: Admin teacher preview is read-only."
+    }
+
+    const cleanNote = note.trim();
+
+    if (!cleanNote) {
+      return "Error: Enter a teacher observation first.";
+    }
+
+    const { error } = await supabase.rpc(
+      "add_teacher_student_observation",
+      {
+        p_class_id: classId,
+        p_student_user_id: studentUserId,
+        p_observation_type: "observation",
+        p_note: cleanNote,
+        p_subject: finding.subject || classSubject || null,
+        p_nova_finding_id: finding.finding_id,
+      },
+    );
+
+    if (error) {
+      return `Error: ${
+        error.message || "Teacher observation could not be saved."
+      }`;
+    }
+
+    setActionRefreshToken((current) => current + 1);
+
+    const nextMessage =
+      "Teacher observation saved separately from Nova Analytics.";
+
+    setTeacherActionMessage(nextMessage);
+    return nextMessage;
+  }
+
+  async function submitNovaFeedback(
+    finding: NovaAnalyticsFinding,
+    rating: NovaTeacherFeedbackRating,
+    comment: string,
+  ) {
+    if (teacherPreviewUserId) {
+      return "Error: Admin teacher preview is read-only."
+    }
+
+    const { error } = await supabase.rpc(
+      "upsert_nova_teacher_feedback",
+      {
+        p_class_id: classId,
+        p_student_user_id: studentUserId,
+        p_nova_finding_id: finding.finding_id,
+        p_feedback_rating: rating,
+        p_comment: comment.trim() || null,
+      },
+    );
+
+    if (error) {
+      return `Error: ${
+        error.message || "Nova feedback could not be saved."
+      }`;
+    }
+
+    setActionRefreshToken((current) => current + 1);
+
+    const nextMessage =
+      "Nova feedback saved. The original Nova finding remains unchanged.";
+
+    setTeacherActionMessage(nextMessage);
+    return nextMessage;
+  }
+
   return (
     <section className="grid gap-4">
       <header className="flex flex-col gap-5 rounded-[22px] border border-violet-200/15 bg-[linear-gradient(145deg,rgba(13,25,51,0.92),rgba(5,13,30,0.95))] p-5 shadow-[0_24px_58px_rgba(0,0,0,0.24)] xl:flex-row xl:items-end xl:justify-between">
@@ -431,6 +557,21 @@ export default function NovaLearnerAnalyticsPanel({
           </button>
         </div>
       </header>
+
+      {teacherActionMessage && (
+        <div className="rounded-xl border border-emerald-200/15 bg-emerald-300/[0.05] px-4 py-3 text-[10px] text-emerald-100">
+          {teacherActionMessage}
+        </div>
+      )}
+
+      <TeacherLearnerActionPanel
+        classId={classId}
+        studentUserId={studentUserId}
+        studentLabel={studentLabel}
+        classSubject={classSubject}
+        readOnly={Boolean(teacherPreviewUserId)}
+        refreshToken={actionRefreshToken}
+      />
 
       {showHistory && (
         <section className="rounded-[22px] border border-violet-200/15 bg-white/[0.035] p-5">
@@ -611,6 +752,10 @@ export default function NovaLearnerAnalyticsPanel({
                 attemptIndex={attemptIndex}
                 onToggleEvidence={toggleEvidence}
                 onOpenAttempt={onOpenAttempt}
+                onAddToFocus={addFindingToFocus}
+                onAddObservation={addFindingObservation}
+                onSubmitFeedback={submitNovaFeedback}
+                readOnly={Boolean(teacherPreviewUserId)}
                 emptyText="Nova did not publish any current priority findings in this report."
               />
 
@@ -622,6 +767,10 @@ export default function NovaLearnerAnalyticsPanel({
                 attemptIndex={attemptIndex}
                 onToggleEvidence={toggleEvidence}
                 onOpenAttempt={onOpenAttempt}
+                onAddToFocus={addFindingToFocus}
+                onAddObservation={addFindingObservation}
+                onSubmitFeedback={submitNovaFeedback}
+                readOnly={Boolean(teacherPreviewUserId)}
                 emptyText="Nova did not publish any strength findings in this report."
               />
 
@@ -679,6 +828,10 @@ export default function NovaLearnerAnalyticsPanel({
                   attemptIndex={attemptIndex}
                   onToggleEvidence={toggleEvidence}
                   onOpenAttempt={onOpenAttempt}
+                  onAddToFocus={addFindingToFocus}
+                  onAddObservation={addFindingObservation}
+                  onSubmitFeedback={submitNovaFeedback}
+                  readOnly={Boolean(teacherPreviewUserId)}
                   emptyText=""
                 />
               )}
@@ -765,6 +918,10 @@ function FindingSection({
   attemptIndex,
   onToggleEvidence,
   onOpenAttempt,
+  onAddToFocus,
+  onAddObservation,
+  onSubmitFeedback,
+  readOnly,
   emptyText,
 }: {
   eyebrow: string;
@@ -774,6 +931,20 @@ function FindingSection({
   attemptIndex: NovaAttemptIndexRow[];
   onToggleEvidence: (findingId: string) => void | Promise<void>;
   onOpenAttempt: (source: string, attemptId: string) => void;
+  onAddToFocus: (
+    finding: NovaAnalyticsFinding,
+    actionStatus: "active" | "monitoring",
+  ) => Promise<string>;
+  onAddObservation: (
+    finding: NovaAnalyticsFinding,
+    note: string,
+  ) => Promise<string>;
+  onSubmitFeedback: (
+    finding: NovaAnalyticsFinding,
+    rating: NovaTeacherFeedbackRating,
+    comment: string,
+  ) => Promise<string>;
+  readOnly: boolean;
   emptyText: string;
 }) {
   return (
@@ -794,6 +965,10 @@ function FindingSection({
               attemptIndex={attemptIndex}
               onToggleEvidence={() => void onToggleEvidence(finding.finding_id)}
               onOpenAttempt={onOpenAttempt}
+              onAddToFocus={onAddToFocus}
+              onAddObservation={onAddObservation}
+              onSubmitFeedback={onSubmitFeedback}
+              readOnly={readOnly}
             />
           ))}
         </div>
@@ -808,14 +983,82 @@ function FindingCard({
   attemptIndex,
   onToggleEvidence,
   onOpenAttempt,
+  onAddToFocus,
+  onAddObservation,
+  onSubmitFeedback,
+  readOnly,
 }: {
   finding: NovaAnalyticsFinding;
   evidence: EvidenceState;
   attemptIndex: NovaAttemptIndexRow[];
   onToggleEvidence: () => void;
   onOpenAttempt: (source: string, attemptId: string) => void;
+  onAddToFocus: (
+    finding: NovaAnalyticsFinding,
+    actionStatus: "active" | "monitoring",
+  ) => Promise<string>;
+  onAddObservation: (
+    finding: NovaAnalyticsFinding,
+    note: string,
+  ) => Promise<string>;
+  onSubmitFeedback: (
+    finding: NovaAnalyticsFinding,
+    rating: NovaTeacherFeedbackRating,
+    comment: string,
+  ) => Promise<string>;
+  readOnly: boolean;
 }) {
   const evidenceOpen = evidence.findingId === finding.finding_id;
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [teacherNote, setTeacherNote] = useState("");
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackRating, setFeedbackRating] =
+    useState<NovaTeacherFeedbackRating>("helpful");
+  const [feedbackComment, setFeedbackComment] = useState("");
+  const [actionSaving, setActionSaving] = useState(false);
+  const [localActionMessage, setLocalActionMessage] = useState("");
+
+  async function handleFocus(actionStatus: "active" | "monitoring") {
+    setActionSaving(true);
+    setLocalActionMessage("");
+    const result = await onAddToFocus(finding, actionStatus);
+    setLocalActionMessage(result);
+    setActionSaving(false);
+  }
+
+  async function handleSaveNote() {
+    setActionSaving(true);
+    setLocalActionMessage("");
+    const result = await onAddObservation(finding, teacherNote);
+    setLocalActionMessage(result);
+
+    if (teacherNote.trim() && !result.startsWith("Error:")) {
+      setTeacherNote("");
+      setNoteOpen(false);
+    }
+
+    setActionSaving(false);
+  }
+
+  async function handleFeedback() {
+    setActionSaving(true);
+    setLocalActionMessage("");
+
+    const result = await onSubmitFeedback(
+      finding,
+      feedbackRating,
+      feedbackComment,
+    );
+
+    setLocalActionMessage(result);
+
+    if (!result.startsWith("Error:")) {
+      setFeedbackOpen(false);
+      setFeedbackComment("");
+    }
+
+    setActionSaving(false);
+  }
 
   return (
     <article className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
@@ -891,6 +1134,115 @@ function FindingCard({
           <p className="mt-1.5 text-[11px] leading-5 text-white/66">
             {finding.recommendation}
           </p>
+        </div>
+      )}
+
+      {!readOnly && (
+        <div className="mt-3 rounded-xl border border-emerald-200/10 bg-emerald-300/[0.025] p-3">
+          <span className="text-[8px] font-black uppercase tracking-[0.1em] text-emerald-100/70">
+            Teacher response
+          </span>
+
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={actionSaving}
+              onClick={() => void handleFocus("active")}
+              className="min-h-9 rounded-full border border-emerald-200/15 bg-emerald-300/[0.05] px-3 text-[8px] font-black uppercase tracking-[0.07em] text-emerald-100 disabled:opacity-40"
+            >
+              Add to Focus
+            </button>
+            <button
+              type="button"
+              disabled={actionSaving}
+              onClick={() => void handleFocus("monitoring")}
+              className="min-h-9 rounded-full border border-amber-200/15 bg-amber-300/[0.05] px-3 text-[8px] font-black uppercase tracking-[0.07em] text-amber-100 disabled:opacity-40"
+            >
+              Monitor
+            </button>
+            <button
+              type="button"
+              disabled={actionSaving}
+              onClick={() => {
+                setNoteOpen((current) => !current);
+                setFeedbackOpen(false);
+              }}
+              className="min-h-9 rounded-full border border-cyan-200/15 bg-cyan-300/[0.05] px-3 text-[8px] font-black uppercase tracking-[0.07em] text-cyan-100 disabled:opacity-40"
+            >
+              Teacher Note
+            </button>
+            <button
+              type="button"
+              disabled={actionSaving}
+              onClick={() => {
+                setFeedbackOpen((current) => !current);
+                setNoteOpen(false);
+              }}
+              className="min-h-9 rounded-full border border-violet-200/15 bg-violet-300/[0.05] px-3 text-[8px] font-black uppercase tracking-[0.07em] text-violet-100 disabled:opacity-40"
+            >
+              Nova Feedback
+            </button>
+          </div>
+
+          {noteOpen && (
+            <div className="mt-2 grid gap-2">
+              <textarea
+                value={teacherNote}
+                onChange={(event) => setTeacherNote(event.target.value)}
+                rows={2}
+                placeholder="Record what you observed in class. This remains separate from Nova."
+                className="w-full resize-y rounded-xl border border-white/10 bg-[#061329] px-3 py-3 text-[10px] text-white outline-none placeholder:text-white/25"
+              />
+              <button
+                type="button"
+                disabled={actionSaving || !teacherNote.trim()}
+                onClick={() => void handleSaveNote()}
+                className="min-h-9 w-fit rounded-full border border-cyan-200/15 bg-cyan-300/[0.05] px-3 text-[8px] font-black uppercase text-cyan-100 disabled:opacity-40"
+              >
+                Save Observation
+              </button>
+            </div>
+          )}
+
+          {feedbackOpen && (
+            <div className="mt-2 grid gap-2">
+              <select
+                value={feedbackRating}
+                onChange={(event) =>
+                  setFeedbackRating(
+                    event.target.value as NovaTeacherFeedbackRating,
+                  )
+                }
+                className="min-h-10 rounded-xl border border-white/10 bg-[#061329] px-3 text-[10px] text-white outline-none"
+              >
+                <option value="helpful">Helpful</option>
+                <option value="partially_accurate">Partially accurate</option>
+                <option value="not_accurate">Not accurate</option>
+                <option value="insufficient_evidence">Insufficient evidence</option>
+              </select>
+              <textarea
+                value={feedbackComment}
+                onChange={(event) => setFeedbackComment(event.target.value)}
+                rows={2}
+                placeholder="Optional reason. This evaluates Nova but does not change the finding."
+                className="w-full resize-y rounded-xl border border-white/10 bg-[#061329] px-3 py-3 text-[10px] text-white outline-none placeholder:text-white/25"
+              />
+              <button
+                type="button"
+                disabled={actionSaving}
+                onClick={() => void handleFeedback()}
+                className="min-h-9 w-fit rounded-full border border-violet-200/15 bg-violet-300/[0.05] px-3 text-[8px] font-black uppercase text-violet-100 disabled:opacity-40"
+              >
+                Save Nova Feedback
+              </button>
+            </div>
+          )}
+
+          {localActionMessage && (
+            <p className="m-0 mt-2 rounded-lg border border-white/8 bg-black/10 px-3 py-2 text-[9px] text-white/50">
+              {localActionMessage}
+            </p>
+          )}
         </div>
       )}
 

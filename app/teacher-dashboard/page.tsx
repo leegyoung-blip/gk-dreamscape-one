@@ -1821,6 +1821,7 @@ function TeacherDashboardContent() {
 
                     {studentWorkspaceTab === "nova" && (
                       <NovaLearnerAnalyticsPanel
+                        classId={selectedClass.class_id}
                         studentUserId={selectedSummary.student.student_user_id}
                         studentLabel={selectedSummary.student.student_label}
                         classSubject={selectedClass?.subject || null}
