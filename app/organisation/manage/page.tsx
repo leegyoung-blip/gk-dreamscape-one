@@ -292,13 +292,25 @@ function OrganisationManageContent() {
             ← Back to Profile
           </button>
 
-          <button
-            type="button"
-            onClick={() => void refreshAll()}
-            className="w-fit rounded-full border border-cyan-200/22 bg-cyan-300/10 px-5 py-3 text-xs font-extrabold uppercase tracking-[0.12em] text-[#8dfcff]"
-          >
-            Refresh
-          </button>
+          <div className="flex flex-wrap gap-3">
+            {!loading && organisations.some((organisation) => organisation.organisation_role !== "dreamscape_admin") && (
+              <button
+                type="button"
+                onClick={() => router.push("/teacher-dashboard")}
+                className="w-fit rounded-full border border-emerald-200/24 bg-emerald-300/10 px-5 py-3 text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-100"
+              >
+                Teacher Dashboard & Classes
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => void refreshAll()}
+              className="w-fit rounded-full border border-cyan-200/22 bg-cyan-300/10 px-5 py-3 text-xs font-extrabold uppercase tracking-[0.12em] text-[#8dfcff]"
+            >
+              Refresh
+            </button>
+          </div>
         </div>
 
         <header className="mt-8">
@@ -311,7 +323,8 @@ function OrganisationManageContent() {
           <p className="mt-5 max-w-3xl text-base leading-7 text-white/60">
             Manage the approved teacher and student emails covered by your Dreamscape
             organisation licence. Approved emails now link automatically when the
-            matching verified Dreamscape account signs in.
+            matching verified Dreamscape account signs in. Formal classes are created
+            and managed from the Teacher Dashboard.
           </p>
         </header>
 

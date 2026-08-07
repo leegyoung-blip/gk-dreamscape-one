@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import ClassManagerModal, { type TeachingClassRow } from "@/components/teacher/ClassManagerModal";
 import { supabase } from "@/lib/supabase";
 
 type AttemptSource = "core" | "english" | "math" | "think" | "knowledge" | "science";
@@ -36,6 +37,37 @@ type TeacherRosterRpcRow = {
   class_label: unknown;
   is_active?: unknown;
   assigned_at: unknown;
+};
+
+type OrganisationRow = {
+  organisation_id: string;
+  organisation_name: string;
+  organisation_slug: string;
+  organisation_type: string;
+  membership_role: string;
+  licence_id: string;
+  licence_type: string;
+  licence_status: string;
+  starts_at: string;
+  ends_at: string | null;
+};
+
+type ClassStudentRpcRow = {
+  class_student_id: string;
+  student_user_id: string;
+  student_label: string;
+  student_email: string | null;
+  joined_at: string;
+};
+
+type OrganisationRosterRpcRow = {
+  membership_id: string;
+  organisation_id: string;
+  organisation_name: string;
+  student_user_id: string;
+  student_label: string;
+  student_email: string | null;
+  joined_at: string;
 };
 
 type CoreAttemptRow = {
@@ -258,6 +290,31 @@ function normaliseRole(value: string | null | undefined) {
     .replace(/_/g, "-");
 }
 
+const CLASS_DAY_LABELS: Record<number, string> = {
+  1: "Mon",
+  2: "Tue",
+  3: "Wed",
+  4: "Thu",
+  5: "Fri",
+  6: "Sat",
+  7: "Sun",
+};
+
+function formatClassSchedule(classRow: TeachingClassRow) {
+  const parts: string[] = [];
+  if (classRow.primary_level) parts.push(`Primary ${classRow.primary_level}`);
+  if (classRow.day_of_week) parts.push(CLASS_DAY_LABELS[classRow.day_of_week] || `Day ${classRow.day_of_week}`);
+  if (classRow.start_time) parts.push(String(classRow.start_time).slice(0, 5));
+  return parts.join(" · ") || "Schedule not set";
+}
+
+function formatClassSubject(subject: string) {
+  if (subject === "math") return "Mathematics";
+  if (subject === "thinking") return "Thinking Skills";
+  if (subject === "knowledge") return "Knowledge Arena";
+  return subject.charAt(0).toUpperCase() + subject.slice(1);
+}
+
 function safeNumber(value: unknown) {
   const number = Number(value ?? 0);
   return Number.isFinite(number) ? number : 0;
@@ -419,6 +476,14 @@ function TeacherDashboardContent() {
   const [allAttempts, setAllAttempts] = useState<DashboardAttempt[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
+  const [organisations, setOrganisations] = useState<OrganisationRow[]>([]);
+  const [selectedOrganisationId, setSelectedOrganisationId] = useState("");
+  const [classes, setClasses] = useState<TeachingClassRow[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState("");
+  const [organisationRosterCount, setOrganisationRosterCount] = useState(0);
+  const [showClassManager, setShowClassManager] = useState(false);
+  const [classManagerTarget, setClassManagerTarget] = useState<TeachingClassRow | null>(null);
+
   const [rosterSearch, setRosterSearch] = useState("");
   const [rosterFilter, setRosterFilter] = useState<RosterFilter>("all");
   const [dateFilter, setDateFilter] = useState<DateFilter>("this_week");
@@ -430,6 +495,114 @@ function TeacherDashboardContent() {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailMessage, setDetailMessage] = useState("");
   const [wrongOnly, setWrongOnly] = useState(false);
+
+  const selectedOrganisation = useMemo(
+    () =>
+      organisations.find(
+        (organisation) => organisation.organisation_id === selectedOrganisationId,
+      ) || null,
+    [organisations, selectedOrganisationId],
+  );
+
+  const selectedClass = useMemo(
+    () => classes.find((classRow) => classRow.class_id === selectedClassId) || null,
+    [classes, selectedClassId],
+  );
+
+  async function loadOrganisationClasses(
+    organisationId: string,
+    targetTeacherId: string | null,
+    preferredClassId?: string,
+  ) {
+    const { data, error } = await supabase.rpc("get_teacher_dashboard_classes", {
+      p_organisation_id: organisationId,
+      p_teacher_user_id: targetTeacherId,
+    });
+
+    if (error) {
+      setClasses([]);
+      setSelectedClassId("");
+      setRoster([]);
+      setAllAttempts([]);
+      setLoadMessage(error.message || "The class list could not be loaded.");
+      return;
+    }
+
+    const rows = (data || []) as TeachingClassRow[];
+    setClasses(rows);
+
+    const nextClassId =
+      preferredClassId && rows.some((row) => row.class_id === preferredClassId)
+        ? preferredClassId
+        : selectedClassId && rows.some((row) => row.class_id === selectedClassId)
+          ? selectedClassId
+          : rows[0]?.class_id || "";
+
+    setSelectedClassId(nextClassId);
+  }
+
+  async function loadOrganisationRosterCount(organisationId: string) {
+    const { data, error } = await supabase.rpc("get_my_organisation_roster", {
+      p_organisation_id: organisationId,
+    });
+
+    if (error) {
+      setOrganisationRosterCount(0);
+      console.warn("Organisation roster count error:", error.message);
+      return;
+    }
+
+    setOrganisationRosterCount(((data || []) as OrganisationRosterRpcRow[]).length);
+  }
+
+  async function loadSelectedClassRoster(
+    classId: string,
+    previewTeacherUserId: string | null,
+  ) {
+    setLoadMessage("");
+
+    const { data, error } = await supabase.rpc(
+      "get_teacher_dashboard_class_students",
+      { p_class_id: classId },
+    );
+
+    if (error) {
+      setRoster([]);
+      setAllAttempts([]);
+      setSelectedStudentId(null);
+      setLoadMessage(error.message || "The class roster could not be loaded.");
+      return;
+    }
+
+    const className = classes.find((row) => row.class_id === classId)?.class_name || "Class";
+    const rows = (data || []) as ClassStudentRpcRow[];
+    const nextRoster: TeacherRosterRow[] = rows.map((row) => ({
+      student_user_id: String(row.student_user_id),
+      student_label: String(row.student_label || "Student"),
+      student_email: row.student_email ? String(row.student_email) : null,
+      class_label: className,
+      assigned_at: String(row.joined_at || new Date().toISOString()),
+    }));
+
+    setRoster(nextRoster);
+    setSelectedStudentId((current) => {
+      if (current && nextRoster.some((student) => student.student_user_id === current)) {
+        return current;
+      }
+      return nextRoster[0]?.student_user_id ?? null;
+    });
+
+    if (nextRoster.length === 0) {
+      setAllAttempts([]);
+      return;
+    }
+
+    const attempts = await loadRosterAttempts(
+      nextRoster.map((student) => student.student_user_id),
+      previewTeacherUserId,
+    );
+    setAllAttempts(attempts);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -448,6 +621,8 @@ function TeacherDashboardContent() {
       if (!user) {
         setTeacherEmail(null);
         setTeacherProfile(null);
+        setOrganisations([]);
+        setClasses([]);
         setRoster([]);
         setAllAttempts([]);
         setLoadMessage("Log in with an active teacher account to view this dashboard.");
@@ -455,34 +630,25 @@ function TeacherDashboardContent() {
         return;
       }
 
-      const { data: viewerProfileData, error: viewerProfileError } =
-        await supabase
-          .from("profiles")
-          .select("role,tier")
-          .eq("id", user.id)
-          .maybeSingle();
+      const { data: viewerProfileData, error: viewerProfileError } = await supabase
+        .from("profiles")
+        .select("role,tier")
+        .eq("id", user.id)
+        .maybeSingle();
 
       if (cancelled) return;
 
       if (viewerProfileError || !viewerProfileData) {
-        setTeacherProfile(null);
-        setRoster([]);
-        setAllAttempts([]);
         setLoadMessage("Your account role could not be checked.");
         setIsLoading(false);
         return;
       }
 
-      const viewerRole = normaliseRole(
-        viewerProfileData.role || viewerProfileData.tier,
-      );
+      const viewerRole = normaliseRole(viewerProfileData.role || viewerProfileData.tier);
       const adminPreview = viewerRole === "admin" && Boolean(previewTeacherId);
       const targetTeacherId = adminPreview ? previewTeacherId : user.id;
 
       if (!targetTeacherId) {
-        setTeacherProfile(null);
-        setRoster([]);
-        setAllAttempts([]);
         setLoadMessage("No teacher account was selected.");
         setIsLoading(false);
         return;
@@ -492,9 +658,7 @@ function TeacherDashboardContent() {
 
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
-        .select(
-          "email,username,role,tier,teacher_type,organization_name,teacher_license_status",
-        )
+        .select("email,username,role,tier,teacher_type,organization_name,teacher_license_status")
         .eq("id", targetTeacherId)
         .maybeSingle();
 
@@ -502,8 +666,6 @@ function TeacherDashboardContent() {
 
       if (profileError || !profileData) {
         setTeacherProfile(null);
-        setRoster([]);
-        setAllAttempts([]);
         setLoadMessage("The teacher profile could not be loaded.");
         setIsLoading(false);
         return;
@@ -514,102 +676,63 @@ function TeacherDashboardContent() {
       setTeacherEmail(profile.email || (!adminPreview ? user.email ?? null : null));
 
       const role = normaliseRole(profile.role || profile.tier);
-      const canUseTeacherDashboard =
-        role === "teacher" || role === "curriculum-lead";
-      const activeLicence =
-        profile.teacher_license_status === "active" ||
-        role === "curriculum-lead";
-
-      if (!canUseTeacherDashboard) {
-        setRoster([]);
-        setAllAttempts([]);
+      if (role !== "teacher" && role !== "curriculum-lead") {
         setLoadMessage(
-          "The selected account does not have the Teacher or Curriculum Lead role.",
+          "The selected account does not have Teacher or Curriculum Lead access.",
         );
         setIsLoading(false);
         return;
       }
 
-      if (!adminPreview && !activeLicence) {
-        setRoster([]);
-        setAllAttempts([]);
-        setLoadMessage("This teacher licence is not active.");
-        setIsLoading(false);
-        return;
-      }
-
-      const rosterRequest = adminPreview
-        ? supabase.rpc("admin_get_teacher_assignments", {
-            p_teacher_user_id: targetTeacherId,
-          })
-        : supabase.rpc("get_my_teacher_roster");
-
-      const { data: rosterData, error: rosterError } = await rosterRequest;
-
-      if (cancelled) return;
-
-      if (rosterError) {
-        setRoster([]);
-        setAllAttempts([]);
-        setLoadMessage(
-          rosterError.message || "The assigned student list could not be loaded.",
-        );
-        setIsLoading(false);
-        return;
-      }
-
-      const rosterRows = (rosterData ?? []) as TeacherRosterRpcRow[];
-      const activeRosterRows = adminPreview
-        ? rosterRows.filter((row) => Boolean(row.is_active))
-        : rosterRows;
-
-      const nextRoster: TeacherRosterRow[] = activeRosterRows.map(
-        (row): TeacherRosterRow => ({
-          student_user_id: String(row.student_user_id),
-          student_label: String(row.student_label || "Student"),
-          student_email: row.student_email ? String(row.student_email) : null,
-          class_label: row.class_label ? String(row.class_label) : null,
-          assigned_at: String(row.assigned_at || new Date().toISOString()),
-        }),
-      );
-
-      setRoster(nextRoster);
-      setSelectedStudentId((current) => {
-        if (
-          current &&
-          nextRoster.some((student) => student.student_user_id === current)
-        ) {
-          return current;
-        }
-        return nextRoster[0]?.student_user_id ?? null;
-      });
-
-      if (adminPreview && !activeLicence) {
-        setLoadMessage(
-          `Admin preview: this teacher licence is ${
-            profile.teacher_license_status || "inactive"
-          }.`,
-        );
-      }
-
-      if (nextRoster.length === 0) {
-        setAllAttempts([]);
-        setLoadMessage(
-          adminPreview
-            ? "This teacher currently has no active student assignments."
-            : "No students have been assigned yet. An administrator must add students to this teacher roster.",
-        );
-        setIsLoading(false);
-        return;
-      }
-
-      const attempts = await loadRosterAttempts(
-        nextRoster.map((student) => student.student_user_id),
-        adminPreview ? targetTeacherId : null,
+      const { data: organisationData, error: organisationError } = await supabase.rpc(
+        "get_teacher_dashboard_organisations",
+        { p_teacher_user_id: adminPreview ? targetTeacherId : null },
       );
 
       if (cancelled) return;
-      setAllAttempts(attempts);
+
+      if (organisationError) {
+        setOrganisations([]);
+        setClasses([]);
+        setRoster([]);
+        setAllAttempts([]);
+        setLoadMessage(
+          organisationError.message || "Organisation access could not be loaded.",
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      const organisationRows = (organisationData || []) as OrganisationRow[];
+      setOrganisations(organisationRows);
+
+      if (organisationRows.length === 0) {
+        setClasses([]);
+        setRoster([]);
+        setAllAttempts([]);
+        setLoadMessage(
+          "This account does not yet have an active organisation membership. Complete the Phase 1C link or GKP migration first.",
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      const nextOrganisationId = organisationRows.some(
+        (row) => row.organisation_id === selectedOrganisationId,
+      )
+        ? selectedOrganisationId
+        : organisationRows[0].organisation_id;
+
+      setSelectedOrganisationId(nextOrganisationId);
+      await Promise.all([
+        loadOrganisationClasses(
+          nextOrganisationId,
+          adminPreview ? targetTeacherId : null,
+        ),
+        loadOrganisationRosterCount(nextOrganisationId),
+      ]);
+
+      if (cancelled) return;
       setIsLoading(false);
     }
 
@@ -626,6 +749,38 @@ function TeacherDashboardContent() {
       subscription.unsubscribe();
     };
   }, [previewTeacherId]);
+
+  useEffect(() => {
+    if (!selectedOrganisationId) return;
+
+    const previewTarget = isAdminPreview && previewTeacherId ? previewTeacherId : null;
+    void Promise.all([
+      loadOrganisationClasses(selectedOrganisationId, previewTarget),
+      loadOrganisationRosterCount(selectedOrganisationId),
+    ]);
+  }, [selectedOrganisationId]);
+
+  useEffect(() => {
+    if (!selectedClassId) {
+      setRoster([]);
+      setAllAttempts([]);
+      setSelectedStudentId(null);
+      return;
+    }
+
+    const previewTarget = isAdminPreview && previewTeacherId ? previewTeacherId : null;
+    void loadSelectedClassRoster(selectedClassId, previewTarget);
+  }, [selectedClassId, classes]);
+
+  async function refreshClasses(preferredClassId?: string) {
+    if (!selectedOrganisationId) return;
+    const previewTarget = isAdminPreview && previewTeacherId ? previewTeacherId : null;
+    await Promise.all([
+      loadOrganisationClasses(selectedOrganisationId, previewTarget, preferredClassId),
+      loadOrganisationRosterCount(selectedOrganisationId),
+    ]);
+    if (preferredClassId) setSelectedClassId(preferredClassId);
+  }
 
   async function loadRosterAttempts(
     studentIds: string[],
@@ -649,40 +804,22 @@ function TeacherDashboardContent() {
         p_student_user_ids: studentIds,
         p_teacher_user_id: previewTeacherUserId,
       }),
-      // Legacy Core records are retained so older completed work remains visible.
-      supabase
-        .from("core_mission_attempts")
-        .select(
-          "id,user_id,quiz_id,score,correct_count,total_questions,tokens_earned,created_at",
-        )
-        .in("user_id", studentIds)
-        .order("created_at", { ascending: false })
-        .limit(3000),
-      supabase
-        .from("think_mission_attempts")
-        .select(
-          "id,user_id,quiz_id,mode,score,correct_count,total_questions,time_taken_seconds,tokens_earned,created_at",
-        )
-        .in("user_id", studentIds)
-        .order("created_at", { ascending: false })
-        .limit(3000),
-      supabase
-        .from("knowledge_arena_attempts")
-        .select(
-          "id,user_id,topic,mode,score,correct_count,total_questions,tokens_earned,created_at",
-        )
-        .in("user_id", studentIds)
-        .order("created_at", { ascending: false })
-        .limit(3000),
-      supabase
-        .from("science_quiz_attempts")
-        .select(
-          "id,user_id,quiz_id,score,percentage,correct_count,total_questions,time_seconds,tokens_earned,gems_earned,first_completion,submitted_at,created_at",
-        )
-        .in("user_id", studentIds)
-        .eq("status", "submitted")
-        .order("submitted_at", { ascending: false, nullsFirst: false })
-        .limit(3000),
+      supabase.rpc("teacher_get_legacy_core_attempts", {
+        p_student_user_ids: studentIds,
+        p_teacher_user_id: previewTeacherUserId,
+      }),
+      supabase.rpc("teacher_get_think_mission_attempts", {
+        p_student_user_ids: studentIds,
+        p_teacher_user_id: previewTeacherUserId,
+      }),
+      supabase.rpc("teacher_get_knowledge_arena_attempts", {
+        p_student_user_ids: studentIds,
+        p_teacher_user_id: previewTeacherUserId,
+      }),
+      supabase.rpc("teacher_get_science_quiz_attempts", {
+        p_student_user_ids: studentIds,
+        p_teacher_user_id: previewTeacherUserId,
+      }),
     ]);
 
     const errors = [
@@ -1036,15 +1173,16 @@ function TeacherDashboardContent() {
       return;
     }
 
-    const { data, error } = await supabase
-      .from("learning_mission_attempt_answers")
-      .select(
-        "id,attempt_source,attempt_id,question_id,question_order,question_text,question_image,student_answer_label,student_answer_text,correct_answer_label,correct_answer_text,explanation,is_correct,skill,subject",
-      )
-      .eq("attempt_source", attempt.source)
-      .eq("attempt_id", attempt.id)
-      .eq("user_id", attempt.userId)
-      .order("question_order", { ascending: true });
+    const { data, error } = await supabase.rpc(
+      "teacher_get_learning_mission_attempt_answers",
+      {
+        p_attempt_source: attempt.source,
+        p_attempt_id: attempt.id,
+        p_student_user_id: attempt.userId,
+        p_teacher_user_id:
+          isAdminPreview && previewTeacherId ? previewTeacherId : null,
+      },
+    );
 
     if (error) {
       setDetailMessage(
@@ -1138,7 +1276,7 @@ function TeacherDashboardContent() {
         !search ||
         student.student_label.toLowerCase().includes(search) ||
         String(student.student_email || "").toLowerCase().includes(search) ||
-        String(student.class_label || "").toLowerCase().includes(search);
+        String(student.student_email || "").toLowerCase().includes(search);
 
       if (!matchesSearch) return false;
       if (rosterFilter === "active") return summary.weeklyAttempts.length > 0;
@@ -1224,9 +1362,11 @@ function TeacherDashboardContent() {
   const teacherTypeLabel =
     dashboardRole === "curriculum-lead"
       ? "Curriculum Lead"
-      : teacherProfile?.teacher_type === "gkp"
-        ? "GKP Teacher"
-        : "External Teacher";
+      : selectedOrganisation?.membership_role === "organisation_admin"
+        ? "Organisation Administrator"
+        : "Teacher";
+
+  const canManageClasses = !isAdminPreview && Boolean(selectedOrganisation);
 
   return (
     <main className="teacher-page">
@@ -1239,7 +1379,7 @@ function TeacherDashboardContent() {
 
         <div className="topbar-copy">
           <strong>{isAdminPreview ? "Teacher Dashboard Preview" : "Teacher Dashboard"}</strong>
-          <span>{teacherProfile?.organization_name || teacherTypeLabel}</span>
+          <span>{selectedOrganisation?.organisation_name || teacherTypeLabel}</span>
         </div>
 
         <Link href="/profile" className="account-button">
@@ -1255,28 +1395,51 @@ function TeacherDashboardContent() {
             </p>
             <h1>
               {isAdminPreview
-                ? `${teacherProfile?.username || teacherEmail || "Teacher"}’s Student Roster`
-                : "Your Student Roster"}
+                ? `${teacherProfile?.username || teacherEmail || "Teacher"}’s Classes`
+                : "Your Classes"}
             </h1>
             <p>
-              Monitor assigned students, weekly participation, performance by subject,
-              and every recorded quiz answer.
+              Build formal classes from your organisation roster, then monitor each class separately through participation, performance by subject, quiz history, and every recorded answer.
             </p>
           </div>
 
           <div className="licence-card">
             <span>{teacherTypeLabel}</span>
-            <strong>{teacherProfile?.organization_name || "Dreamscape One"}</strong>
-            <small>Licence: {teacherProfile?.teacher_license_status || "inactive"}</small>
+            <strong>{selectedOrganisation?.organisation_name || "Dreamscape One"}</strong>
+            <small>{selectedOrganisation ? `${selectedOrganisation.licence_type} licence · ${selectedOrganisation.licence_status}` : "No active organisation"}</small>
           </div>
         </header>
 
+        {organisations.length > 1 && (
+          <section className="organisation-switcher">
+            <div>
+              <p className="section-label">Organisation</p>
+              <strong>Choose your active workspace</strong>
+            </div>
+            <select
+              value={selectedOrganisationId}
+              onChange={(event) => {
+                setSelectedOrganisationId(event.target.value);
+                setSelectedClassId("");
+                setRoster([]);
+                setAllAttempts([]);
+              }}
+            >
+              {organisations.map((organisation) => (
+                <option key={organisation.organisation_id} value={organisation.organisation_id}>
+                  {organisation.organisation_name}
+                </option>
+              ))}
+            </select>
+          </section>
+        )}
+
         {isLoading && <div className="notice-card">Loading teacher dashboard…</div>}
 
-        {!isLoading && loadMessage && roster.length === 0 && (
+        {!isLoading && organisations.length === 0 && (
           <div className="notice-card">
             <strong>Teacher dashboard unavailable</strong>
-            <p>{loadMessage}</p>
+            <p>{loadMessage || "No active organisation is connected to this teacher."}</p>
             {!teacherEmail && (
               <Link href="/login" className="primary-link">
                 Log in
@@ -1285,13 +1448,104 @@ function TeacherDashboardContent() {
           </div>
         )}
 
-        {!isLoading && roster.length > 0 && (
+        {!isLoading && organisations.length > 0 && (
           <>
             {loadMessage && <div className="warning-card">{loadMessage}</div>}
 
+            <section className="class-directory">
+              <div className="class-directory-heading">
+                <div>
+                  <p className="section-label">{selectedOrganisation?.organisation_name || "Organisation"}</p>
+                  <h2>My Classes</h2>
+                  <p>{organisationRosterCount} active students available in the organisation roster.</p>
+                </div>
+                {canManageClasses && (
+                  <button
+                    type="button"
+                    className="create-class-button"
+                    onClick={() => {
+                      setClassManagerTarget(null);
+                      setShowClassManager(true);
+                    }}
+                  >
+                    + New Class
+                  </button>
+                )}
+              </div>
+
+              {classes.length === 0 ? (
+                <div className="empty-classes">
+                  <strong>No formal classes yet.</strong>
+                  <p>Create the first class and choose its students from the organisation roster.</p>
+                  {canManageClasses && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setClassManagerTarget(null);
+                        setShowClassManager(true);
+                      }}
+                    >
+                      Create First Class
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="class-cards">
+                  {classes.map((classRow) => (
+                    <button
+                      type="button"
+                      key={classRow.class_id}
+                      className={`class-card ${classRow.class_id === selectedClassId ? "selected" : ""}`}
+                      onClick={() => setSelectedClassId(classRow.class_id)}
+                    >
+                      <div className="class-card-top">
+                        <span>{formatClassSubject(classRow.subject)}</span>
+                        <strong>{classRow.student_count} students</strong>
+                      </div>
+                      <h3>{classRow.class_name}</h3>
+                      <p>{formatClassSchedule(classRow)}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {selectedClass && (
+              <section className="selected-class-header">
+                <div>
+                  <p className="section-label">Selected Class</p>
+                  <h2>{selectedClass.class_name}</h2>
+                  <p>
+                    {formatClassSchedule(selectedClass)} · {selectedClass.capacity ? `${selectedClass.student_count}/${selectedClass.capacity} seats` : `${selectedClass.student_count} students`}
+                  </p>
+                </div>
+                {canManageClasses && (
+                  <button
+                    type="button"
+                    className="manage-class-button"
+                    onClick={() => {
+                      setClassManagerTarget(selectedClass);
+                      setShowClassManager(true);
+                    }}
+                  >
+                    Manage Class
+                  </button>
+                )}
+              </section>
+            )}
+
+            {selectedClass && roster.length === 0 && (
+              <div className="notice-card">
+                <strong>This class has no students yet.</strong>
+                <p>Use Manage Class to select students from the organisation roster.</p>
+              </div>
+            )}
+
+            {selectedClass && roster.length > 0 && (
+              <>
             <section className="class-summary-grid">
               <SummaryCard
-                label="Assigned students"
+                label="Students in class"
                 value={String(roster.length)}
                 supporting={`${activeStudentCount} active this week`}
                 icon="♙"
@@ -1320,7 +1574,7 @@ function TeacherDashboardContent() {
               <aside className="panel roster-panel">
                 <div className="panel-heading">
                   <div>
-                    <p className="section-label">Assigned users</p>
+                    <p className="section-label">Class roster</p>
                     <h2>Students</h2>
                   </div>
                   <span>{filteredRoster.length}</span>
@@ -1330,7 +1584,7 @@ function TeacherDashboardContent() {
                   value={rosterSearch}
                   onChange={(event) => setRosterSearch(event.target.value)}
                   className="search-input"
-                  placeholder="Search student or class"
+                  placeholder="Search student"
                 />
 
                 <div className="roster-filters">
@@ -1370,7 +1624,7 @@ function TeacherDashboardContent() {
                         <span className="student-copy">
                           <strong>{summary.student.student_label}</strong>
                           <small>
-                            {summary.student.class_label || "No class label"} · {formatRelativeActivity(summary.lastActivity)}
+                            {formatRelativeActivity(summary.lastActivity)}
                           </small>
                         </span>
                         <span
@@ -1398,7 +1652,7 @@ function TeacherDashboardContent() {
                         <p className="section-label">Selected student</p>
                         <h2>{selectedSummary.student.student_label}</h2>
                         <p>
-                          {selectedSummary.student.class_label || "No class assigned"}
+                          {selectedClass?.class_name || "Selected class"}
                           {selectedSummary.student.student_email
                             ? ` · ${selectedSummary.student.student_email}`
                             : ""}
@@ -1649,9 +1903,26 @@ function TeacherDashboardContent() {
                 )}
               </section>
             </section>
+              </>
+            )}
           </>
         )}
       </section>
+
+      {showClassManager && selectedOrganisation && (
+        <ClassManagerModal
+          organisationId={selectedOrganisation.organisation_id}
+          organisationName={selectedOrganisation.organisation_name}
+          existingClass={classManagerTarget}
+          onClose={() => {
+            setShowClassManager(false);
+            setClassManagerTarget(null);
+          }}
+          onSaved={async (classId) => {
+            await refreshClasses(classId);
+          }}
+        />
+      )}
 
       {selectedAttempt && selectedSummary && (
         <div
@@ -1902,6 +2173,119 @@ function TeacherDashboardContent() {
           font-size: 11px;
         }
         .licence-card strong { font-size: 18px; }
+
+        .organisation-switcher, .class-directory, .selected-class-header {
+          margin-top: 24px;
+          border-radius: 22px;
+          border: 1px solid rgba(126, 232, 255, 0.15);
+          background: linear-gradient(145deg, rgba(7, 24, 48, 0.84), rgba(4, 13, 30, 0.9));
+          box-shadow: 0 24px 58px rgba(0, 0, 0, 0.24);
+        }
+
+        .organisation-switcher {
+          padding: 17px 19px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 20px;
+        }
+
+        .organisation-switcher strong { display: block; margin-top: 6px; }
+        .organisation-switcher select {
+          min-width: 290px;
+          min-height: 44px;
+          padding: 0 14px;
+          border-radius: 13px;
+          border: 1px solid rgba(126, 232, 255, 0.18);
+          background: #071a35;
+          color: white;
+          outline: none;
+        }
+
+        .class-directory { padding: 20px; }
+        .class-directory-heading, .selected-class-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 18px;
+        }
+        .class-directory-heading h2, .selected-class-header h2 {
+          margin: 6px 0 0;
+          font-size: 30px;
+          letter-spacing: -0.04em;
+        }
+        .class-directory-heading p:last-child, .selected-class-header p:last-child {
+          margin: 7px 0 0;
+          color: rgba(235, 247, 255, 0.5);
+          font-size: 12px;
+        }
+        .selected-class-header { padding: 20px; }
+
+        .create-class-button, .manage-class-button {
+          min-height: 46px;
+          padding: 0 18px;
+          border-radius: 999px;
+          border: 1px solid rgba(126, 232, 255, 0.28);
+          background: rgba(83, 215, 255, 0.1);
+          color: white;
+          cursor: pointer;
+          font-size: 11px;
+          font-weight: 900;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+        }
+
+        .class-cards {
+          margin-top: 18px;
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 10px;
+        }
+        .class-card {
+          min-height: 126px;
+          padding: 16px;
+          border-radius: 17px;
+          border: 1px solid rgba(126, 232, 255, 0.11);
+          background: rgba(255, 255, 255, 0.025);
+          color: white;
+          text-align: left;
+          cursor: pointer;
+          transition: 0.18s ease;
+        }
+        .class-card:hover, .class-card.selected {
+          border-color: rgba(126, 232, 255, 0.42);
+          background: rgba(83, 215, 255, 0.09);
+        }
+        .class-card-top {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          color: #8dfcff;
+          font-size: 9px;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+        }
+        .class-card h3 { margin: 18px 0 0; font-size: 19px; }
+        .class-card p { margin: 8px 0 0; color: rgba(235, 247, 255, 0.46); font-size: 11px; }
+
+        .empty-classes {
+          margin-top: 18px;
+          min-height: 170px;
+          display: grid;
+          place-items: center;
+          align-content: center;
+          gap: 8px;
+          padding: 28px;
+          border-radius: 17px;
+          border: 1px dashed rgba(126, 232, 255, 0.18);
+          background: rgba(255, 255, 255, 0.02);
+          text-align: center;
+        }
+        .empty-classes p { margin: 0; color: rgba(235, 247, 255, 0.48); }
+        .empty-classes button {
+          margin-top: 8px; min-height: 43px; padding: 0 17px; border-radius: 999px;
+          border: 1px solid rgba(126, 232, 255, 0.25); background: rgba(83, 215, 255, 0.1); color: white;
+        }
 
         .notice-card, .warning-card {
           margin-top: 24px;
@@ -2347,6 +2731,7 @@ function TeacherDashboardContent() {
         .mobile-label { display: none; }
 
         @media (max-width: 1240px) {
+          .class-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
           .workspace-grid { grid-template-columns: 320px minmax(0, 1fr); }
           .class-summary-grid, .student-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
           .overview-grid { grid-template-columns: 1fr; }
@@ -2355,6 +2740,8 @@ function TeacherDashboardContent() {
 
         @media (max-width: 900px) {
           .topbar { grid-template-columns: auto 1fr auto; }
+          .organisation-switcher, .class-directory-heading, .selected-class-header { align-items: stretch; flex-direction: column; }
+          .organisation-switcher select { min-width: 0; width: 100%; }
           .page-shell { width: min(100% - 24px, 900px); padding-top: 26px; }
           .hero { align-items: stretch; flex-direction: column; }
           .licence-card { min-width: 0; }
@@ -2369,6 +2756,7 @@ function TeacherDashboardContent() {
         }
 
         @media (max-width: 680px) {
+          .class-cards { grid-template-columns: 1fr; }
           .topbar { min-height: 60px; padding: 8px 10px; }
           .topbar-copy span { display: none; }
           .back-button, .account-button { min-height: 38px; padding: 0 11px; font-size: 10px; }
