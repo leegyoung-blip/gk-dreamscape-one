@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import ClassManagerModal, { type TeachingClassRow } from "@/components/teacher/ClassManagerModal";
+import NovaLearnerAnalyticsPanel from "@/components/teacher/NovaLearnerAnalyticsPanel";
 import { supabase } from "@/lib/supabase";
 
 type AttemptSource = "core" | "english" | "math" | "think" | "knowledge" | "science";
@@ -11,6 +12,7 @@ type SubjectKey = "english" | "math" | "thinking" | "knowledge" | "science";
 type DateFilter = "this_week" | "last_week" | "this_month" | "all_time";
 type AccuracyFilter = "all" | "with_mistakes" | "perfect";
 type RosterFilter = "all" | "active" | "needs_attention";
+type StudentWorkspaceTab = "overview" | "nova" | "history";
 
 type TeacherProfile = {
   email: string | null;
@@ -486,6 +488,7 @@ function TeacherDashboardContent() {
 
   const [rosterSearch, setRosterSearch] = useState("");
   const [rosterFilter, setRosterFilter] = useState<RosterFilter>("all");
+  const [studentWorkspaceTab, setStudentWorkspaceTab] = useState<StudentWorkspaceTab>("overview");
   const [dateFilter, setDateFilter] = useState<DateFilter>("this_week");
   const [subjectFilter, setSubjectFilter] = useState<SubjectKey | "all">("all");
   const [accuracyFilter, setAccuracyFilter] = useState<AccuracyFilter>("all");
@@ -1616,7 +1619,10 @@ function TeacherDashboardContent() {
                         type="button"
                         key={summary.student.student_user_id}
                         className={`student-row ${selected ? "selected" : ""}`}
-                        onClick={() => setSelectedStudentId(summary.student.student_user_id)}
+                        onClick={() => {
+                          setSelectedStudentId(summary.student.student_user_id);
+                          setStudentWorkspaceTab("overview");
+                        }}
                       >
                         <span className="avatar">
                           {summary.student.student_label.charAt(0).toUpperCase()}
@@ -1702,7 +1708,38 @@ function TeacherDashboardContent() {
                       />
                     </section>
 
-                    <section className="overview-grid">
+                    <nav
+                      className="student-workspace-tabs"
+                      aria-label="Student workspace sections"
+                    >
+                      <button
+                        type="button"
+                        className={studentWorkspaceTab === "overview" ? "active" : ""}
+                        onClick={() => setStudentWorkspaceTab("overview")}
+                      >
+                        Overview
+                      </button>
+
+                      <button
+                        type="button"
+                        className={studentWorkspaceTab === "nova" ? "active" : ""}
+                        onClick={() => setStudentWorkspaceTab("nova")}
+                      >
+                        Nova Analysis
+                      </button>
+
+                      <button
+                        type="button"
+                        className={studentWorkspaceTab === "history" ? "active" : ""}
+                        onClick={() => setStudentWorkspaceTab("history")}
+                      >
+                        Quiz History
+                      </button>
+                    </nav>
+
+                    {studentWorkspaceTab === "overview" && (
+                      <>
+                        <section className="overview-grid">
                       <article className="panel chart-panel">
                         <div className="panel-heading">
                           <div>
@@ -1779,8 +1816,40 @@ function TeacherDashboardContent() {
                         </div>
                       </article>
                     </section>
+                      </>
+                    )}
 
-                    <section className="panel attempts-panel">
+                    {studentWorkspaceTab === "nova" && (
+                      <NovaLearnerAnalyticsPanel
+                        studentUserId={selectedSummary.student.student_user_id}
+                        studentLabel={selectedSummary.student.student_label}
+                        classSubject={selectedClass?.subject || null}
+                        primaryLevel={selectedClass?.primary_level || null}
+                        teacherPreviewUserId={
+                          isAdminPreview && previewTeacherId ? previewTeacherId : null
+                        }
+                        attemptIndex={selectedAttempts.map((attempt) => ({
+                          id: attempt.id,
+                          source: attempt.source,
+                          title: attempt.title,
+                          createdAt: attempt.createdAt,
+                        }))}
+                        onOpenAttempt={(source, attemptId) => {
+                          const targetAttempt = selectedAttempts.find(
+                            (attempt) =>
+                              attempt.id === attemptId && attempt.source === source,
+                          );
+
+                          if (targetAttempt) {
+                            void openAttempt(targetAttempt);
+                          }
+                        }}
+                      />
+                    )}
+
+                    {studentWorkspaceTab === "history" && (
+                      <>
+                        <section className="panel attempts-panel">
                       <div className="attempt-heading">
                         <div>
                           <p className="section-label">Recorded attempts</p>
@@ -1895,6 +1964,9 @@ function TeacherDashboardContent() {
                         </div>
                       )}
                     </section>
+                      </>
+                    )}
+
                   </>
                 ) : (
                   <div className="panel empty-workspace">
@@ -2456,6 +2528,45 @@ function TeacherDashboardContent() {
           gap: 8px;
         }
 
+        .student-workspace-tabs {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 7px;
+          padding: 6px;
+          border: 1px solid rgba(126, 232, 255, 0.12);
+          border-radius: 16px;
+          background: rgba(255, 255, 255, 0.025);
+        }
+
+        .student-workspace-tabs button {
+          min-height: 44px;
+          border: 1px solid transparent;
+          border-radius: 11px;
+          background: transparent;
+          color: rgba(235, 247, 255, 0.48);
+          cursor: pointer;
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          transition: 0.18s ease;
+        }
+
+        .student-workspace-tabs button:hover {
+          color: white;
+          background: rgba(255, 255, 255, 0.035);
+        }
+
+        .student-workspace-tabs button.active {
+          border-color: rgba(183, 156, 255, 0.28);
+          background: linear-gradient(
+            145deg,
+            rgba(183, 156, 255, 0.13),
+            rgba(83, 215, 255, 0.06)
+          );
+          color: white;
+        }
+
         .overview-grid {
           display: grid;
           grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
@@ -2750,6 +2861,7 @@ function TeacherDashboardContent() {
           .roster-list { max-height: 340px; }
           .student-header-card { align-items: stretch; flex-direction: column; }
           .student-header-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+          .student-workspace-tabs { grid-template-columns: 1fr; }
           .filter-grid { grid-template-columns: 1fr; }
           .attempt-row { grid-template-columns: 42px minmax(0, 1fr) 64px 64px; }
           .view-link { display: none; }
