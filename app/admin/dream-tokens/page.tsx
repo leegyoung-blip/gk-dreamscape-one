@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import RoleManagementPanel from "@/components/admin/RoleManagementPanel";
+import OrganisationLicensingPanel from "@/components/admin/OrganisationLicensingPanel";
 
 type AdminUser = {
   id: string;
@@ -17,7 +18,7 @@ type AdminUser = {
 };
 
 
-type AdminSection = "currency" | "teachers" | "roles";
+type AdminSection = "currency" | "organisations" | "teachers" | "roles";
 
 type DirectoryUser = {
   user_id: string;
@@ -542,6 +543,18 @@ export default function DreamTokensAdminPage() {
 
           <button
             type="button"
+            onClick={() => setActiveSection("organisations")}
+            className={`min-h-14 flex-1 rounded-2xl border px-5 text-sm font-extrabold uppercase tracking-[0.12em] transition ${
+              activeSection === "organisations"
+                ? "border-emerald-200/40 bg-emerald-300/12 text-emerald-100 shadow-[0_0_28px_rgba(52,211,153,0.1)]"
+                : "border-white/10 bg-white/[0.035] text-white/58 hover:border-white/20 hover:text-white"
+            }`}
+          >
+            Organisations & Licensing
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveSection("teachers")}
             className={`min-h-14 flex-1 rounded-2xl border px-5 text-sm font-extrabold uppercase tracking-[0.12em] transition ${
               activeSection === "teachers"
@@ -549,7 +562,7 @@ export default function DreamTokensAdminPage() {
                 : "border-white/10 bg-white/[0.035] text-white/58 hover:border-white/20 hover:text-white"
             }`}
           >
-            Teacher Licensing & Rosters
+            Legacy Teacher Rosters
           </button>
 
           <button
@@ -931,6 +944,8 @@ export default function DreamTokensAdminPage() {
           </div>
         </div>
           </>
+        ) : activeSection === "organisations" ? (
+          <OrganisationLicensingPanel />
         ) : activeSection === "teachers" ? (
           <TeacherLicensingPanel />
         ) : (

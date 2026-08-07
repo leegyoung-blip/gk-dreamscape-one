@@ -303,6 +303,9 @@ export default function ProfilePage() {
 
   const [isAdmin, setIsAdmin] = useState(false);
 
+  const [hasOrganisationPortalAccess, setHasOrganisationPortalAccess] =
+    useState(false);
+
   const [
     hasStudentRewardsAccess,
     setHasStudentRewardsAccess,
@@ -444,6 +447,7 @@ export default function ProfilePage() {
         setLearnerDetailsMessage("");
         setLearnerDetailsMessageType("");
         setIsAdmin(false);
+        setHasOrganisationPortalAccess(false);
         setHasStudentRewardsAccess(false);
         setActiveLearningPlanLabels([]);
         setTokenTransactions([]);
@@ -493,6 +497,29 @@ export default function ProfilePage() {
 
       setRole(loadedRole);
       setIsAdmin(loadedRole === "admin");
+
+      const {
+        data: manageableOrganisationRows,
+        error: manageableOrganisationError,
+      } = await supabase.rpc("get_my_manageable_organisations");
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (manageableOrganisationError) {
+        console.warn(
+          "Could not load organisation portal access:",
+          manageableOrganisationError.message,
+        );
+        setHasOrganisationPortalAccess(false);
+      } else {
+        setHasOrganisationPortalAccess(
+          Array.isArray(manageableOrganisationRows) &&
+            manageableOrganisationRows.length > 0,
+        );
+      }
+
       setReferralCode(
         profile?.referral_code ?? null,
       );
@@ -1156,6 +1183,16 @@ Thank you.`;
           </button>
         )}
 
+        {hasOrganisationPortalAccess && (
+          <button
+            type="button"
+            onClick={() => router.push("/organisation/manage")}
+            className="hidden h-[46px] items-center justify-center rounded-full border border-amber-200/28 bg-amber-300/16 px-5 text-xs font-extrabold uppercase tracking-[0.12em] text-white shadow-[0_12px_28px_rgba(251,191,36,0.12)] backdrop-blur-xl transition hover:scale-[1.03] sm:flex"
+          >
+            Organisation Portal
+          </button>
+        )}
+
         {isAdmin && (
           <button
             type="button"
@@ -1492,6 +1529,22 @@ Thank you.`;
                 } w-full rounded-2xl border border-emerald-200/25 bg-emerald-400/16 px-5 py-4 text-sm font-extrabold uppercase tracking-[0.14em] text-white transition hover:scale-[1.01] hover:bg-emerald-400/24 sm:hidden`}
               >
                 Quiz Builder
+              </button>
+            )}
+
+            {hasOrganisationPortalAccess && (
+              <button
+                type="button"
+                onClick={() => router.push("/organisation/manage")}
+                className={`${
+                  hasTeachingDashboardAccess ||
+                  hasCurriculumDeveloperAccess ||
+                  hasOrganisationPortalAccess
+                    ? "mt-3"
+                    : "mt-6"
+                } w-full rounded-2xl border border-amber-200/25 bg-amber-300/16 px-5 py-4 text-sm font-extrabold uppercase tracking-[0.14em] text-white transition hover:scale-[1.01] hover:bg-amber-300/24 sm:hidden`}
+              >
+                Organisation Portal
               </button>
             )}
 
