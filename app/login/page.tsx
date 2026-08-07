@@ -1,11 +1,12 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { claimMyOrganisationInvites } from "@/lib/organisation-access";
 import { supabase } from "@/lib/supabase";
 
 type MessageType = "success" | "error" | "info";
+type AuthMode = "login" | "signup";
 
 function normaliseEmail(value: string) {
   return value.trim().toLowerCase();
@@ -96,6 +97,7 @@ export default function LoginPage() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [showResetForm, setShowResetForm] = useState(false);
+  const [authMode, setAuthMode] = useState<AuthMode>("login");
 
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] =
@@ -104,6 +106,14 @@ export default function LoginPage() {
   const [loadingAction, setLoadingAction] = useState<
     "login" | "signup" | "google" | "reset" | null
   >(null);
+
+  useEffect(() => {
+    const requestedMode = new URLSearchParams(window.location.search).get("mode");
+
+    if (requestedMode === "signup") {
+      setAuthMode("signup");
+    }
+  }, []);
 
   function displayMessage(
     text: string,
@@ -115,6 +125,14 @@ export default function LoginPage() {
 
   function clearMessage() {
     setMessage("");
+  }
+
+  function switchAuthMode(mode: AuthMode) {
+    setAuthMode(mode);
+    setShowResetForm(false);
+    setPassword("");
+    setShowPassword(false);
+    clearMessage();
   }
 
   function goBack() {
@@ -223,6 +241,7 @@ export default function LoginPage() {
 
     const cleanEmail = normaliseEmail(email);
     const cleanReferralCode = referralCode.trim().toUpperCase();
+    const nextPath = getRequestedNextPath();
     const age = calculateAge(dateOfBirth);
 
     if (!dateOfBirth || age === null || age < 4 || age > 120) {
@@ -258,7 +277,7 @@ export default function LoginPage() {
         options: {
           emailRedirectTo: `${
             window.location.origin
-          }${getCompleteProfilePath("/profile")}`,
+          }${getCompleteProfilePath(nextPath)}`,
           data: {
             date_of_birth: dateOfBirth,
           },
@@ -307,7 +326,7 @@ export default function LoginPage() {
           "success"
         );
 
-        router.replace(getCompleteProfilePath("/profile"));
+        router.replace(getCompleteProfilePath(nextPath));
         router.refresh();
         return;
       }
@@ -333,25 +352,30 @@ export default function LoginPage() {
 
     const cleanReferralCode = referralCode.trim().toUpperCase();
 
-    if (cleanReferralCode) {
-      localStorage.setItem(
-        "pending-referral-code",
-        cleanReferralCode
-      );
+    if (authMode === "signup") {
+      if (cleanReferralCode) {
+        localStorage.setItem(
+          "pending-referral-code",
+          cleanReferralCode
+        );
+      } else {
+        localStorage.removeItem("pending-referral-code");
+      }
+
+      const age = calculateAge(dateOfBirth);
+
+      if (
+        dateOfBirth &&
+        age !== null &&
+        age >= 4 &&
+        age <= 120
+      ) {
+        localStorage.setItem("pending-date-of-birth", dateOfBirth);
+      } else {
+        localStorage.removeItem("pending-date-of-birth");
+      }
     } else {
       localStorage.removeItem("pending-referral-code");
-    }
-
-    const age = calculateAge(dateOfBirth);
-
-    if (
-      dateOfBirth &&
-      age !== null &&
-      age >= 4 &&
-      age <= 120
-    ) {
-      localStorage.setItem("pending-date-of-birth", dateOfBirth);
-    } else {
       localStorage.removeItem("pending-date-of-birth");
     }
 
@@ -461,13 +485,17 @@ export default function LoginPage() {
             <h1 className="mt-4 text-4xl font-light tracking-[-0.05em] text-white sm:text-5xl">
               {showResetForm
                 ? "Reset Password"
-                : "Enter Dreamscape"}
+                : authMode === "signup"
+                  ? "Create your account"
+                  : "Enter Dreamscape"}
             </h1>
 
             <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-white/58 sm:text-base">
               {showResetForm
                 ? "Enter your account email and we will send you a secure password-reset link."
-                : "Log in, create an account, or continue with Google."}
+                : authMode === "signup"
+                  ? "Create a free Dreamscape account and start your journey."
+                  : "Log in to continue your Dreamscape journey."}
             </p>
           </header>
 
@@ -518,7 +546,33 @@ export default function LoginPage() {
               </button>
             </form>
           ) : (
-            <form onSubmit={login} className="mt-8">
+            <form
+              onSubmit={(event) => {
+                if (authMode === "signup") {
+                  event.preventDefault();
+                  void signUp();
+                  return;
+                }
+
+                void login(event);
+              }}
+              className="mt-8"
+            >
+              {authMode === "signup" && (
+                <div className="mb-6 rounded-3xl border border-amber-200/20 bg-amber-300/8 p-5 text-left">
+                  <p className="m-0 text-xs font-extrabold uppercase tracking-[0.18em] text-amber-100/75">
+                    New account bonus
+                  </p>
+                  <p className="mt-2 text-2xl font-extrabold text-white">
+                    Start with 100 DreamTokens
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-white/55">
+                    Every new Dreamscape account starts with 100 DreamTokens and
+                    access to Daily Games.
+                  </p>
+                </div>
+              )}
+
               <div className="grid gap-5">
                 <label className="block">
                   <span className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-white/58">
@@ -552,8 +606,16 @@ export default function LoginPage() {
                         setPassword(event.target.value);
                         clearMessage();
                       }}
-                      autoComplete="current-password"
-                      placeholder="Enter your password"
+                      autoComplete={
+                        authMode === "signup"
+                          ? "new-password"
+                          : "current-password"
+                      }
+                      placeholder={
+                        authMode === "signup"
+                          ? "Create a password"
+                          : "Enter your password"
+                      }
                       className="h-14 w-full rounded-2xl border border-cyan-200/18 bg-[#020a1b]/75 px-5 pr-16 text-base text-white outline-none transition placeholder:text-white/28 focus:border-cyan-200/55 focus:ring-2 focus:ring-cyan-300/10"
                     />
 
@@ -574,94 +636,119 @@ export default function LoginPage() {
                   </div>
                 </label>
 
-                <label className="block">
-                  <span className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-white/58">
-                    Learner date of birth
-                  </span>
+                {authMode === "signup" && (
+                  <label className="block">
+                    <span className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-white/58">
+                      Learner date of birth
+                    </span>
 
-                  <input
-                    type="date"
-                    value={dateOfBirth}
-                    max={new Date().toISOString().slice(0, 10)}
-                    onChange={(event) => {
-                      setDateOfBirth(event.target.value);
+                    <input
+                      type="date"
+                      value={dateOfBirth}
+                      max={new Date().toISOString().slice(0, 10)}
+                      onChange={(event) => {
+                        setDateOfBirth(event.target.value);
+                        clearMessage();
+                      }}
+                      autoComplete="bday"
+                      className="h-14 w-full rounded-2xl border border-cyan-200/18 bg-[#020a1b]/75 px-5 text-base text-white outline-none transition focus:border-cyan-200/55 focus:ring-2 focus:ring-cyan-300/10"
+                    />
+
+                    <p className="mt-2 text-xs leading-5 text-white/42">
+                      Used to set up the learner profile and age-appropriate
+                      Dreamscape experience.
+                    </p>
+                  </label>
+                )}
+              </div>
+
+              {authMode === "login" && (
+                <div className="mt-3 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowResetForm(true);
+                      setPassword("");
                       clearMessage();
                     }}
-                    autoComplete="bday"
-                    className="h-14 w-full rounded-2xl border border-cyan-200/18 bg-[#020a1b]/75 px-5 text-base text-white outline-none transition focus:border-cyan-200/55 focus:ring-2 focus:ring-cyan-300/10"
-                  />
+                    className="text-sm text-cyan-100/65 underline decoration-cyan-200/25 underline-offset-4 transition hover:text-cyan-100"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+              )}
 
-                  <p className="mt-2 text-xs leading-5 text-white/42">
-                    Required when creating an account. Existing users can log
-                    in without re-entering it and will be prompted only if
-                    their learner profile is incomplete.
+              {authMode === "signup" && (
+                <div className="mt-6 rounded-3xl border border-violet-200/18 bg-violet-500/8 p-5">
+                  <label className="block">
+                    <span className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-violet-100/72">
+                      Referral code
+                    </span>
+
+                    <input
+                      type="text"
+                      value={referralCode}
+                      onChange={(event) => {
+                        setReferralCode(
+                          event.target.value.toUpperCase()
+                        );
+                        clearMessage();
+                      }}
+                      autoCapitalize="characters"
+                      autoComplete="off"
+                      placeholder="Optional"
+                      className="h-14 w-full rounded-2xl border border-violet-200/18 bg-[#080c22]/75 px-5 text-base uppercase tracking-[0.12em] text-white outline-none transition placeholder:normal-case placeholder:tracking-normal placeholder:text-white/28 focus:border-violet-200/55 focus:ring-2 focus:ring-violet-300/10"
+                    />
+                  </label>
+
+                  <p className="mt-3 text-sm leading-6 text-white/48">
+                    Have a referral code? Enter it before creating your account
+                    to receive the referral reward.
                   </p>
-                </label>
-              </div>
-
-              <div className="mt-3 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowResetForm(true);
-                    setPassword("");
-                    clearMessage();
-                  }}
-                  className="text-sm text-cyan-100/65 underline decoration-cyan-200/25 underline-offset-4 transition hover:text-cyan-100"
-                >
-                  Forgot password?
-                </button>
-              </div>
-
-              <div className="mt-6 rounded-3xl border border-violet-200/18 bg-violet-500/8 p-5">
-                <label className="block">
-                  <span className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-violet-100/72">
-                    Referral code
-                  </span>
-
-                  <input
-                    type="text"
-                    value={referralCode}
-                    onChange={(event) => {
-                      setReferralCode(
-                        event.target.value.toUpperCase()
-                      );
-                      clearMessage();
-                    }}
-                    autoCapitalize="characters"
-                    autoComplete="off"
-                    placeholder="Optional"
-                    className="h-14 w-full rounded-2xl border border-violet-200/18 bg-[#080c22]/75 px-5 text-base uppercase tracking-[0.12em] text-white outline-none transition placeholder:normal-case placeholder:tracking-normal placeholder:text-white/28 focus:border-violet-200/55 focus:ring-2 focus:ring-violet-300/10"
-                  />
-                </label>
-
-                <p className="mt-3 text-sm leading-6 text-white/48">
-                  Enter a referral code before creating an account
-                  or continuing with Google to receive the referral
-                  reward.
-                </p>
-              </div>
+                </div>
+              )}
 
               <button
                 type="submit"
                 disabled={isLoading}
-                className="mt-7 h-14 w-full rounded-full bg-white px-5 text-sm font-extrabold uppercase tracking-[0.22em] text-[#071329] transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
+                className="mt-7 h-14 w-full rounded-full bg-white px-5 text-sm font-extrabold uppercase tracking-[0.2em] text-[#071329] transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {loadingAction === "login"
-                  ? "Logging in..."
-                  : "Log in"}
+                {authMode === "signup"
+                  ? loadingAction === "signup"
+                    ? "Creating account..."
+                    : "Create free account"
+                  : loadingAction === "login"
+                    ? "Logging in..."
+                    : "Log in"}
               </button>
 
-              <button
-                type="button"
-                disabled={isLoading}
-                onClick={signUp}
-                className="mt-3 h-14 w-full rounded-full border border-cyan-200/38 bg-cyan-300/8 px-5 text-sm font-extrabold uppercase tracking-[0.18em] text-white transition hover:scale-[1.01] hover:bg-cyan-200/12 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {loadingAction === "signup"
-                  ? "Creating account..."
-                  : "Create account"}
-              </button>
+              <div className="mt-4 text-center text-sm text-white/52">
+                {authMode === "signup" ? (
+                  <>
+                    Already have an account?{" "}
+                    <button
+                      type="button"
+                      disabled={isLoading}
+                      onClick={() => switchAuthMode("login")}
+                      className="font-bold text-cyan-100 underline decoration-cyan-200/25 underline-offset-4 transition hover:text-white disabled:opacity-50"
+                    >
+                      Log in
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    New to Dreamscape?{" "}
+                    <button
+                      type="button"
+                      disabled={isLoading}
+                      onClick={() => switchAuthMode("signup")}
+                      className="font-bold text-cyan-100 underline decoration-cyan-200/25 underline-offset-4 transition hover:text-white disabled:opacity-50"
+                    >
+                      Create a free account
+                    </button>
+                  </>
+                )}
+              </div>
 
               <div className="my-7 flex items-center gap-4">
                 <div className="h-px flex-1 bg-white/12" />
@@ -681,7 +768,9 @@ export default function LoginPage() {
               >
                 {loadingAction === "google"
                   ? "Opening Google..."
-                  : "Continue with Google"}
+                  : authMode === "signup"
+                    ? "Create account with Google"
+                    : "Continue with Google"}
               </button>
             </form>
           )}

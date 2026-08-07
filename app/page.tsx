@@ -8,15 +8,15 @@ import { supabase } from "@/lib/supabase";
 import PublicPreviewBanner from "@/components/PublicPreviewBanner";
 
 type Section = "home" | "about";
-type AgeGroup = "5-8" | "9-12" | "13-17" | "18+";
+type FirstVisitInterest = "school-learning" | "life-skills" | "exploring";
 
 const FIRST_VISIT_KEY = "dreamscape-first-visit-complete";
+const FIRST_VISIT_INTEREST_KEY = "dreamscape-first-visit-interest";
 
-const ageDestinations: Record<AgeGroup, string> = {
-  "5-8": "/inventor",
-  "9-12": "/inventor",
-  "13-17": "/milo-world",
-  "18+": "/milo-world",
+const firstVisitDestinations: Record<FirstVisitInterest, string | null> = {
+  "school-learning": "/inventor",
+  "life-skills": "/milo-world",
+  exploring: null,
 };
 
 type World = {
@@ -114,8 +114,8 @@ const productPreviews = [
 const journeySteps = [
   {
     number: "01",
-    title: "Choose a world",
-    text: "Nova supports learners aged 6–12. Milo introduces real-world skills from age 13.",
+    title: "Choose what to explore",
+    text: "Start with School Learning in Nova, Life Skills in Milo, or simply explore both worlds before deciding.",
   },
   {
     number: "02",
@@ -288,12 +288,56 @@ function WorldPanel({ world, isMobile }: { world: World; isMobile: boolean }) {
 
 function FirstVisitPopup({
   isMobile,
-  onSelectAge,
+  onCreateAccount,
+  onContinue,
 }: {
   isMobile: boolean;
-  onSelectAge: (age: AgeGroup) => void;
+  onCreateAccount: (interest: FirstVisitInterest) => void;
+  onContinue: (interest: FirstVisitInterest) => void;
 }) {
-  const ageOptions: AgeGroup[] = ["5-8", "9-12", "13-17", "18+"];
+  const [selectedInterest, setSelectedInterest] =
+    useState<FirstVisitInterest | null>(null);
+
+  const interestOptions: Array<{
+    key: FirstVisitInterest;
+    eyebrow: string;
+    title: string;
+    description: string;
+    destination: string;
+    accent: string;
+  }> = [
+    {
+      key: "school-learning",
+      eyebrow: "Explore Nova",
+      title: "School Learning",
+      description:
+        "English, Mathematics, Science and thinking skills through structured learning missions.",
+      destination: "Nova’s World",
+      accent: "#53d7ff",
+    },
+    {
+      key: "life-skills",
+      eyebrow: "Explore Milo",
+      title: "Life Skills",
+      description:
+        "Money, business, decision-making and real-world skills through safe simulations.",
+      destination: "Milo’s World",
+      accent: "#c58cff",
+    },
+    {
+      key: "exploring",
+      eyebrow: "See Everything",
+      title: "Just Exploring",
+      description:
+        "Take a look around Dreamscape One and discover both worlds before choosing.",
+      destination: "Dreamscape One",
+      accent: "#ffbd73",
+    },
+  ];
+
+  const selectedOption = interestOptions.find(
+    (option) => option.key === selectedInterest,
+  );
 
   return (
     <div
@@ -308,18 +352,18 @@ function FirstVisitPopup({
         alignItems: "center",
         justifyContent: "center",
         padding: isMobile ? "18px" : "32px",
-        background: "rgba(1,4,11,0.78)",
+        background: "rgba(1,4,11,0.8)",
         backdropFilter: "blur(14px)",
       }}
     >
       <div
         style={{
           width: "100%",
-          maxWidth: "720px",
+          maxWidth: selectedInterest ? "680px" : "900px",
           maxHeight: "calc(100vh - 36px)",
           overflowY: "auto",
           borderRadius: isMobile ? "24px" : "32px",
-          padding: isMobile ? "34px 22px 28px" : "46px 46px 40px",
+          padding: isMobile ? "32px 20px 26px" : "44px 44px 38px",
           border: "1px solid rgba(116,200,255,0.35)",
           background:
             "radial-gradient(circle at 12% 0%, rgba(83,215,255,0.18), transparent 36%), radial-gradient(circle at 100% 100%, rgba(197,140,255,0.18), transparent 38%), rgba(3,10,23,0.97)",
@@ -327,14 +371,15 @@ function FirstVisitPopup({
             "0 34px 100px rgba(0,0,0,0.58), inset 0 0 38px rgba(83,215,255,0.04)",
           color: "white",
           textAlign: "center",
+          transition: "max-width 250ms ease",
         }}
       >
         <img
           src="/home/dreamscape-logo.png"
           alt="Dreamscape One logo"
           style={{
-            width: isMobile ? "62px" : "74px",
-            height: isMobile ? "62px" : "74px",
+            width: isMobile ? "60px" : "70px",
+            height: isMobile ? "60px" : "70px",
             objectFit: "contain",
             borderRadius: "999px",
             boxShadow:
@@ -344,7 +389,7 @@ function FirstVisitPopup({
 
         <p
           style={{
-            margin: "22px 0 0",
+            margin: "20px 0 0",
             color: "#8ee8ff",
             fontSize: "12px",
             fontWeight: 700,
@@ -355,74 +400,281 @@ function FirstVisitPopup({
           Welcome to Dreamscape One
         </p>
 
-        <h2
-          id="first-visit-title"
-          style={{
-            margin: "14px 0 0",
-            fontFamily: 'Georgia, "Times New Roman", serif',
-            fontSize: isMobile ? "36px" : "48px",
-            fontWeight: 400,
-            lineHeight: 1.08,
-          }}
-        >
-          How old are you?
-        </h2>
-
-        <p
-          style={{
-            margin: "18px auto 0",
-            maxWidth: "560px",
-            color: "rgba(255,255,255,0.7)",
-            fontSize: isMobile ? "16px" : "18px",
-            lineHeight: 1.6,
-            fontWeight: 300,
-          }}
-        >
-          Choose your age group and we’ll take you directly to the right world.
-        </p>
-
-        <div
-          style={{
-            marginTop: "30px",
-            display: "grid",
-            gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)",
-            gap: "12px",
-          }}
-        >
-          {ageOptions.map((age) => (
-            <button
-              key={age}
-              type="button"
-              onClick={() => onSelectAge(age)}
+        {!selectedInterest ? (
+          <>
+            <h2
+              id="first-visit-title"
               style={{
-                minHeight: "62px",
-                borderRadius: "16px",
-                border: "1px solid rgba(116,200,255,0.3)",
-                background: "rgba(255,255,255,0.055)",
-                color: "white",
-                fontSize: "16px",
-                fontWeight: 700,
-                cursor: "pointer",
-                transition:
-                  "transform 200ms ease, border-color 200ms ease, background 200ms ease",
-              }}
-              onMouseEnter={(event) => {
-                event.currentTarget.style.transform = "translateY(-3px)";
-                event.currentTarget.style.borderColor = "rgba(116,200,255,0.7)";
-                event.currentTarget.style.background =
-                  "linear-gradient(135deg, rgba(83,215,255,0.2), rgba(197,140,255,0.18))";
-              }}
-              onMouseLeave={(event) => {
-                event.currentTarget.style.transform = "translateY(0)";
-                event.currentTarget.style.borderColor = "rgba(116,200,255,0.3)";
-                event.currentTarget.style.background =
-                  "rgba(255,255,255,0.055)";
+                margin: "14px 0 0",
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontSize: isMobile ? "35px" : "48px",
+                fontWeight: 400,
+                lineHeight: 1.08,
               }}
             >
-              {age}
+              What would you like to explore?
+            </h2>
+
+            <p
+              style={{
+                margin: "18px auto 0",
+                maxWidth: "650px",
+                color: "rgba(255,255,255,0.7)",
+                fontSize: isMobile ? "16px" : "18px",
+                lineHeight: 1.6,
+                fontWeight: 300,
+              }}
+            >
+              Choose what interests you most. You can explore everything later.
+            </p>
+
+            <div
+              style={{
+                marginTop: "30px",
+                display: "grid",
+                gridTemplateColumns: isMobile
+                  ? "1fr"
+                  : "repeat(3, minmax(0, 1fr))",
+                gap: "14px",
+              }}
+            >
+              {interestOptions.map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => setSelectedInterest(option.key)}
+                  style={{
+                    minHeight: isMobile ? "150px" : "210px",
+                    padding: isMobile ? "22px 20px" : "28px 24px",
+                    borderRadius: "20px",
+                    border: `1px solid ${option.accent}55`,
+                    background:
+                      "linear-gradient(145deg, rgba(255,255,255,0.07), rgba(255,255,255,0.025))",
+                    color: "white",
+                    textAlign: "left",
+                    cursor: "pointer",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "flex-start",
+                    transition:
+                      "transform 200ms ease, border-color 200ms ease, background 200ms ease, box-shadow 200ms ease",
+                  }}
+                  onMouseEnter={(event) => {
+                    event.currentTarget.style.transform = "translateY(-4px)";
+                    event.currentTarget.style.borderColor = option.accent;
+                    event.currentTarget.style.background =
+                      "linear-gradient(145deg, rgba(83,215,255,0.11), rgba(197,140,255,0.09))";
+                    event.currentTarget.style.boxShadow =
+                      "0 18px 38px rgba(0,0,0,0.28)";
+                  }}
+                  onMouseLeave={(event) => {
+                    event.currentTarget.style.transform = "translateY(0)";
+                    event.currentTarget.style.borderColor = `${option.accent}55`;
+                    event.currentTarget.style.background =
+                      "linear-gradient(145deg, rgba(255,255,255,0.07), rgba(255,255,255,0.025))";
+                    event.currentTarget.style.boxShadow = "none";
+                  }}
+                >
+                  <span
+                    style={{
+                      color: option.accent,
+                      fontSize: "11px",
+                      fontWeight: 900,
+                      letterSpacing: "0.18em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {option.eyebrow}
+                  </span>
+
+                  <span
+                    style={{
+                      marginTop: "13px",
+                      fontSize: isMobile ? "24px" : "27px",
+                      fontWeight: 800,
+                      lineHeight: 1.18,
+                    }}
+                  >
+                    {option.title}
+                  </span>
+
+                  <span
+                    style={{
+                      marginTop: "12px",
+                      color: "rgba(255,255,255,0.67)",
+                      fontSize: "15px",
+                      fontWeight: 300,
+                      lineHeight: 1.55,
+                    }}
+                  >
+                    {option.description}
+                  </span>
+
+                  <span
+                    style={{
+                      marginTop: "auto",
+                      paddingTop: "18px",
+                      color: "rgba(255,255,255,0.9)",
+                      fontSize: "13px",
+                      fontWeight: 800,
+                    }}
+                  >
+                    {option.destination} →
+                  </span>
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            <h2
+              id="first-visit-title"
+              style={{
+                margin: "14px 0 0",
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontSize: isMobile ? "35px" : "46px",
+                fontWeight: 400,
+                lineHeight: 1.08,
+              }}
+            >
+              Create your free account
+            </h2>
+
+            <p
+              style={{
+                margin: "18px auto 0",
+                maxWidth: "560px",
+                color: "rgba(255,255,255,0.74)",
+                fontSize: isMobile ? "16px" : "18px",
+                lineHeight: 1.6,
+                fontWeight: 300,
+              }}
+            >
+              Get <strong style={{ color: "white" }}>100 bonus DreamTokens</strong>{" "}
+              when you create an account now, plus access to Daily Games.
+            </p>
+
+            <div
+              style={{
+                margin: "28px auto 0",
+                maxWidth: "500px",
+                display: "grid",
+                gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+                gap: "10px",
+                textAlign: "left",
+              }}
+            >
+              {["100 bonus DreamTokens", "Access Daily Games", "Save your progress", "Build your Dreamscape profile"].map(
+                (benefit) => (
+                  <div
+                    key={benefit}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "9px",
+                      minHeight: "44px",
+                      padding: "10px 12px",
+                      borderRadius: "14px",
+                      border: "1px solid rgba(142,232,255,0.15)",
+                      background: "rgba(255,255,255,0.045)",
+                      color: "rgba(255,255,255,0.82)",
+                      fontSize: "14px",
+                      lineHeight: 1.35,
+                    }}
+                  >
+                    <span
+                      aria-hidden="true"
+                      style={{ color: "#8ee8ff", fontWeight: 900 }}
+                    >
+                      ✓
+                    </span>
+                    {benefit}
+                  </div>
+                ),
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => onCreateAccount(selectedInterest)}
+              style={{
+                marginTop: "28px",
+                width: "100%",
+                maxWidth: "500px",
+                minHeight: "58px",
+                border: "none",
+                borderRadius: "999px",
+                padding: "14px 24px",
+                background:
+                  "linear-gradient(90deg, #8ee8ff 0%, #c58cff 58%, #ff9a45 100%)",
+                color: "#150a31",
+                fontSize: "15px",
+                fontWeight: 900,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                cursor: "pointer",
+                boxShadow:
+                  "0 18px 42px rgba(71,33,139,0.34), 0 0 26px rgba(83,215,255,0.12)",
+              }}
+            >
+              Create Free Account + Get 100 DreamTokens
             </button>
-          ))}
-        </div>
+
+            <button
+              type="button"
+              onClick={() => onContinue(selectedInterest)}
+              style={{
+                marginTop: "16px",
+                border: "none",
+                background: "transparent",
+                color: "rgba(255,255,255,0.64)",
+                fontSize: "14px",
+                fontWeight: 600,
+                cursor: "pointer",
+                textDecoration: "underline",
+                textUnderlineOffset: "4px",
+              }}
+            >
+              Continue without an account
+            </button>
+
+            <div
+              style={{
+                marginTop: "22px",
+                paddingTop: "20px",
+                borderTop: "1px solid rgba(255,255,255,0.1)",
+              }}
+            >
+              <p
+                style={{
+                  margin: 0,
+                  color: "rgba(255,255,255,0.5)",
+                  fontSize: "13px",
+                  lineHeight: 1.5,
+                }}
+              >
+                You selected {selectedOption?.title}. We’ll take you to{" "}
+                {selectedOption?.destination} next.
+              </p>
+
+              <button
+                type="button"
+                onClick={() => setSelectedInterest(null)}
+                style={{
+                  marginTop: "12px",
+                  border: "none",
+                  background: "transparent",
+                  color: "#8ee8ff",
+                  fontSize: "13px",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                }}
+              >
+                ← Change selection
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -534,10 +786,30 @@ export default function Home() {
     };
   }, [showFirstVisitPopup]);
 
-  function handleAgeSelection(age: AgeGroup) {
+  function saveFirstVisitChoice(interest: FirstVisitInterest) {
     window.localStorage.setItem(FIRST_VISIT_KEY, "true");
+    window.localStorage.setItem(FIRST_VISIT_INTEREST_KEY, interest);
+  }
+
+  function handleFirstVisitContinue(interest: FirstVisitInterest) {
+    saveFirstVisitChoice(interest);
     setShowFirstVisitPopup(false);
-    router.push(ageDestinations[age]);
+
+    const destination = firstVisitDestinations[interest];
+
+    if (destination) {
+      router.push(destination);
+    }
+  }
+
+  function handleFirstVisitCreateAccount(interest: FirstVisitInterest) {
+    saveFirstVisitChoice(interest);
+    setShowFirstVisitPopup(false);
+
+    const destination = firstVisitDestinations[interest] ?? "/";
+    const nextPath = encodeURIComponent(destination);
+
+    router.push(`/login?mode=signup&next=${nextPath}`);
   }
 
   function scrollToSection(section: Section) {
@@ -620,7 +892,11 @@ export default function Home() {
       }}
     >
       {showFirstVisitPopup && !isCheckingAccount && !isLoggedIn && (
-        <FirstVisitPopup isMobile={isMobile} onSelectAge={handleAgeSelection} />
+        <FirstVisitPopup
+          isMobile={isMobile}
+          onCreateAccount={handleFirstVisitCreateAccount}
+          onContinue={handleFirstVisitContinue}
+        />
       )}
 
       <header
