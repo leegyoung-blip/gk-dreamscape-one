@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import ClassManagerModal, { type TeachingClassRow } from "@/components/teacher/ClassManagerModal";
+import ClassAnalyticsPlanningPanel from "@/components/teacher/ClassAnalyticsPlanningPanel";
 import NovaLearnerAnalyticsPanel from "@/components/teacher/NovaLearnerAnalyticsPanel";
 import { supabase } from "@/lib/supabase";
 
@@ -485,6 +486,7 @@ function TeacherDashboardContent() {
   const [organisationRosterCount, setOrganisationRosterCount] = useState(0);
   const [showClassManager, setShowClassManager] = useState(false);
   const [classManagerTarget, setClassManagerTarget] = useState<TeachingClassRow | null>(null);
+  const [showClassAnalytics, setShowClassAnalytics] = useState(false);
 
   const [rosterSearch, setRosterSearch] = useState("");
   const [rosterFilter, setRosterFilter] = useState<RosterFilter>("all");
@@ -1523,16 +1525,26 @@ function TeacherDashboardContent() {
                   </p>
                 </div>
                 {canManageClasses && (
-                  <button
-                    type="button"
-                    className="manage-class-button"
-                    onClick={() => {
-                      setClassManagerTarget(selectedClass);
-                      setShowClassManager(true);
-                    }}
-                  >
-                    Manage Class
-                  </button>
+                  <div className="selected-class-actions">
+                    <button
+                      type="button"
+                      className="class-analytics-button"
+                      onClick={() => setShowClassAnalytics(true)}
+                    >
+                      Class Analytics
+                    </button>
+
+                    <button
+                      type="button"
+                      className="manage-class-button"
+                      onClick={() => {
+                        setClassManagerTarget(selectedClass);
+                        setShowClassManager(true);
+                      }}
+                    >
+                      Manage Class
+                    </button>
+                  </div>
                 )}
               </section>
             )}
@@ -1982,6 +1994,14 @@ function TeacherDashboardContent() {
         )}
       </section>
 
+      {showClassAnalytics && selectedClass && (
+        <ClassAnalyticsPlanningPanel
+          classId={selectedClass.class_id}
+          className={selectedClass.class_name}
+          onClose={() => setShowClassAnalytics(false)}
+        />
+      )}
+
       {showClassManager && selectedOrganisation && (
         <ClassManagerModal
           organisationId={selectedOrganisation.organisation_id}
@@ -2293,6 +2313,32 @@ function TeacherDashboardContent() {
           font-size: 12px;
         }
         .selected-class-header { padding: 20px; }
+
+        .selected-class-actions {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 8px;
+        }
+
+        .class-analytics-button {
+          min-height: 46px;
+          padding: 0 18px;
+          border-radius: 999px;
+          border: 1px solid rgba(183, 156, 255, 0.28);
+          background: linear-gradient(
+            145deg,
+            rgba(183, 156, 255, 0.13),
+            rgba(83, 215, 255, 0.06)
+          );
+          color: white;
+          cursor: pointer;
+          font-size: 11px;
+          font-weight: 900;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+        }
 
         .create-class-button, .manage-class-button {
           min-height: 46px;
@@ -2853,6 +2899,13 @@ function TeacherDashboardContent() {
         @media (max-width: 900px) {
           .topbar { grid-template-columns: auto 1fr auto; }
           .organisation-switcher, .class-directory-heading, .selected-class-header { align-items: stretch; flex-direction: column; }
+          .selected-class-actions {
+            justify-content: flex-start;
+          }
+
+          .selected-class-actions button {
+            flex: 1 1 180px;
+          }
           .organisation-switcher select { min-width: 0; width: 100%; }
           .page-shell { width: min(100% - 24px, 900px); padding-top: 26px; }
           .hero { align-items: stretch; flex-direction: column; }
