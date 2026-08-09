@@ -293,6 +293,20 @@ function OrganisationManageContent() {
           </button>
 
           <div className="flex flex-wrap gap-3">
+            {!loading && selectedId && (
+              <button
+                type="button"
+                onClick={() =>
+                  router.push(
+                    `/organisation/class-matching?organisationId=${selectedId}`,
+                  )
+                }
+                className="w-fit rounded-full border border-violet-200/24 bg-violet-300/10 px-5 py-3 text-xs font-extrabold uppercase tracking-[0.12em] text-violet-100"
+              >
+                Class Matching
+              </button>
+            )}
+
             {!loading && organisations.some((organisation) => organisation.organisation_role !== "dreamscape_admin") && (
               <button
                 type="button"
