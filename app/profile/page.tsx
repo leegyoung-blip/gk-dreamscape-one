@@ -1395,24 +1395,26 @@ Thank you.`;
                         Date of birth
                       </span>
 
-                      <input
-                        type="date"
-                        required
-                        max={new Date().toISOString().slice(0, 10)}
-                        value={dateOfBirth}
-                        onChange={(event) => {
-                          const nextDate = event.target.value;
-                          const nextAge = calculateAge(nextDate);
+                      <div className="w-full min-w-0 max-w-full overflow-hidden rounded-2xl">
+                        <input
+                          type="date"
+                          required
+                          max={new Date().toISOString().slice(0, 10)}
+                          value={dateOfBirth}
+                          onChange={(event) => {
+                            const nextDate = event.target.value;
+                            const nextAge = calculateAge(nextDate);
 
-                          setDateOfBirth(nextDate);
-                          setAgeYears(nextAge);
-                          setAgeBand(ageBandFromAge(nextAge));
-                          setLearnerDetailsMessage("");
-                          setLearnerDetailsMessageType("");
-                        }}
-                        autoComplete="bday"
-                        className="min-h-[52px] w-full rounded-2xl border border-cyan-200/16 bg-[#020a1b]/70 px-5 text-base text-white outline-none transition focus:border-cyan-200/48"
-                      />
+                            setDateOfBirth(nextDate);
+                            setAgeYears(nextAge);
+                            setAgeBand(ageBandFromAge(nextAge));
+                            setLearnerDetailsMessage("");
+                            setLearnerDetailsMessageType("");
+                          }}
+                          autoComplete="bday"
+                          className="dream-mobile-date-input block min-h-[52px] w-full min-w-0 max-w-full rounded-2xl border border-cyan-200/16 bg-[#020a1b]/70 px-4 text-[16px] text-white outline-none transition focus:border-cyan-200/48 sm:px-5 sm:text-base"
+                        />
+                      </div>
                     </label>
 
                     <div className="mt-4 grid grid-cols-2 gap-3">
@@ -2175,6 +2177,22 @@ Thank you.`;
           </div>
         </div>
       )}
+
+      <style jsx global>{`
+        @media (max-width: 639px) {
+          .dream-mobile-date-input {
+            box-sizing: border-box;
+            min-width: 0 !important;
+            max-width: 100% !important;
+            width: 100% !important;
+          }
+
+          .dream-mobile-date-input::-webkit-date-and-time-value {
+            min-width: 0;
+            text-align: left;
+          }
+        }
+      `}</style>
     </main>
   );
 }

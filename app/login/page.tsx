@@ -642,17 +642,19 @@ export default function LoginPage() {
                       Learner date of birth
                     </span>
 
-                    <input
-                      type="date"
-                      value={dateOfBirth}
-                      max={new Date().toISOString().slice(0, 10)}
-                      onChange={(event) => {
-                        setDateOfBirth(event.target.value);
-                        clearMessage();
-                      }}
-                      autoComplete="bday"
-                      className="h-14 w-full rounded-2xl border border-cyan-200/18 bg-[#020a1b]/75 px-5 text-base text-white outline-none transition focus:border-cyan-200/55 focus:ring-2 focus:ring-cyan-300/10"
-                    />
+                    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-2xl">
+                      <input
+                        type="date"
+                        value={dateOfBirth}
+                        max={new Date().toISOString().slice(0, 10)}
+                        onChange={(event) => {
+                          setDateOfBirth(event.target.value);
+                          clearMessage();
+                        }}
+                        autoComplete="bday"
+                        className="dream-mobile-date-input block h-14 w-full min-w-0 max-w-full rounded-2xl border border-cyan-200/18 bg-[#020a1b]/75 px-4 text-[16px] text-white outline-none transition focus:border-cyan-200/55 focus:ring-2 focus:ring-cyan-300/10 sm:px-5 sm:text-base"
+                      />
+                    </div>
 
                     <p className="mt-2 text-xs leading-5 text-white/42">
                       Used to set up the learner profile and age-appropriate
@@ -800,6 +802,22 @@ export default function LoginPage() {
           </div>
         </section>
       </div>
+
+      <style jsx global>{`
+        @media (max-width: 639px) {
+          .dream-mobile-date-input {
+            box-sizing: border-box;
+            min-width: 0 !important;
+            max-width: 100% !important;
+            width: 100% !important;
+          }
+
+          .dream-mobile-date-input::-webkit-date-and-time-value {
+            min-width: 0;
+            text-align: left;
+          }
+        }
+      `}</style>
     </main>
   );
 }
