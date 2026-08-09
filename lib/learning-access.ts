@@ -25,8 +25,8 @@ const STAFF_LEARNING_ROLES = new Set([
   "curriculum-lead",
 
   /*
-   * This additional spelling protects against a database
-   * value accidentally saved without a separator.
+   * Extra protection in case a database value is
+   * accidentally stored without a separator.
    */
   "curriculumlead",
 ]);
@@ -45,9 +45,9 @@ export function normaliseRole(
 export function roleHasStaffLearningAccess(
   value: string | null | undefined,
 ) {
-  const role = normaliseRole(value);
-
-  return STAFF_LEARNING_ROLES.has(role);
+  return STAFF_LEARNING_ROLES.has(
+    normaliseRole(value),
+  );
 }
 
 export function isActiveSubscription(
@@ -63,8 +63,8 @@ export function isActiveSubscription(
   }
 
   /*
-   * A subscription without an access-until date remains active
-   * until its status is changed.
+   * An active subscription without an access-until date
+   * remains active until its status changes.
    */
   if (!row.access_until) {
     return true;
@@ -81,12 +81,13 @@ export function isActiveSubscription(
 
 function normalisePlanCode(
   value: string | null | undefined,
-): LearningPlanCode {
+): LearningPlanCode | null {
   const plan = String(value || "")
     .trim()
     .toLowerCase()
     .replace(/[\s_]+/g, "-")
-    .replace(/-+/g, "-");
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
 
   if (plan === "science") {
     return "science";
@@ -96,11 +97,18 @@ function normalisePlanCode(
     return "core";
   }
 
+  if (plan === "complete") {
+    return "complete";
+  }
+
   /*
-   * Existing and unknown paid plans are treated as Complete
-   * so older paid learners are not accidentally locked out.
+   * Unknown or blank paid plan codes do NOT silently
+   * become Complete access.
+   *
+   * This keeps learner access controlled by the actual
+   * Core / Science / Complete tier.
    */
-  return "complete";
+  return null;
 }
 
 export function getLearningEntitlements(
@@ -108,7 +116,7 @@ export function getLearningEntitlements(
   rows: NovaSubscriptionAccessRow[],
 ): LearningEntitlements {
   /*
-   * Staff roles bypass subscription requirements.
+   * Dreamscape staff do not depend on learner plans.
    */
   if (roleHasStaffLearningAccess(roleValue)) {
     return {
@@ -132,29 +140,18 @@ export function getLearningEntitlements(
         )
         .map((row) =>
           normalisePlanCode(row.plan_code),
+        )
+        .filter(
+          (
+            plan,
+          ): plan is LearningPlanCode =>
+            plan !== null,
         ),
     ),
   ) as LearningPlanCode[];
 
-  /*
-   * Backwards compatibility:
-   *
-   * Before plan-based subscriptions were introduced,
-   * the student role itself granted complete access.
-   *
-   * A student with no subscription records is therefore
-   * treated as a legacy full-access student.
-   *
-   * Once at least one subscription record exists,
-   * active access is controlled by its status and expiry.
-   */
-  const isLegacyStudent =
-    normaliseRole(roleValue) === "student" &&
-    rows.length === 0;
-
   const hasComplete =
-    activePlans.includes("complete") ||
-    isLegacyStudent;
+    activePlans.includes("complete");
 
   const hasCore =
     activePlans.includes("core");
@@ -174,10 +171,14 @@ export function getLearningEntitlements(
       hasComplete ||
       hasCore ||
       hasScience,
-    activePlans: isLegacyStudent
-      ? ["complete"]
-      : activePlans,
-    isLegacyStudent,
+    activePlans,
+
+    /*
+     * Retained in the return type so existing UI does not
+     * break, but the student role alone no longer grants
+     * Complete access.
+     */
+    isLegacyStudent: false,
   };
 }
 

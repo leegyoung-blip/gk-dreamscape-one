@@ -1,7 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { getLearningEntitlements } from "@/lib/learning-access";
+import {
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
+import {
+  getLearningEntitlements,
+  roleHasStaffLearningAccess,
+} from "@/lib/learning-access";
 import { supabase } from "@/lib/supabase";
 
 export type ScienceAccessStatus =
@@ -27,137 +34,178 @@ type LearningProfileStatus = {
 
 export function useScienceMissionAccess() {
   const [status, setStatus] =
-    useState<ScienceAccessStatus>("checking");
+    useState<ScienceAccessStatus>(
+      "checking",
+    );
+
   const [userId, setUserId] =
     useState<string | null>(null);
-  const [learningProfile, setLearningProfile] =
-    useState<LearningProfileStatus | null>(null);
 
-  const refreshAccess = useCallback(async () => {
-    setStatus("checking");
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError) {
-      console.warn(
-        "Could not check the current user:",
-        userError.message,
-      );
-    }
-
-    if (!user) {
-      setUserId(null);
-      setLearningProfile(null);
-      setStatus("signed_out");
-      return;
-    }
-
-    setUserId(user.id);
-
-    const {
-      data: learningProfileData,
-      error: learningProfileError,
-    } = await supabase.rpc(
-      "get_my_learning_profile_status",
+  const [
+    learningProfile,
+    setLearningProfile,
+  ] =
+    useState<LearningProfileStatus | null>(
+      null,
     );
 
-    if (learningProfileError) {
-      console.warn(
-        "Could not check the learner profile:",
-        learningProfileError.message,
-      );
-      setStatus("locked");
-      return;
-    }
+  const refreshAccess =
+    useCallback(async () => {
+      setStatus("checking");
 
-    const resolvedLearningProfile =
-      (learningProfileData || {}) as LearningProfileStatus;
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-    setLearningProfile(
-      resolvedLearningProfile,
-    );
+      if (userError) {
+        console.warn(
+          "Could not check the current user:",
+          userError.message,
+        );
+      }
 
-    if (!resolvedLearningProfile.complete) {
-      setStatus("profile_required");
-      return;
-    }
+      if (!user) {
+        setUserId(null);
+        setLearningProfile(null);
+        setStatus("signed_out");
+        return;
+      }
 
-    const [
-      profileResult,
-      subscriptionResult,
-      manualAccessResult,
-    ] = await Promise.all([
-      supabase
-        .from("profiles")
-        .select("role,tier")
-        .eq("id", user.id)
-        .maybeSingle(),
-      supabase
-        .from("nova_subscriptions")
-        .select(
-          "status,access_until,plan_code",
-        )
-        .eq("user_id", user.id),
-      supabase
-        .from(
-          "learning_mission_zone_access",
-        )
-        .select("is_unlocked")
-        .eq("user_id", user.id)
-        .eq("zone_key", "science")
-        .maybeSingle(),
-    ]);
+      setUserId(user.id);
 
-    if (
-      profileResult.error ||
-      !profileResult.data
-    ) {
-      console.warn(
-        "Could not check Science Missions profile:",
-        profileResult.error?.message,
-      );
-      setStatus("locked");
-      return;
-    }
+      /*
+       * IMPORTANT:
+       * Resolve staff role BEFORE applying the learner
+       * date-of-birth gate.
+       */
+      const profileResult =
+        await supabase
+          .from("profiles")
+          .select("role,tier")
+          .eq("id", user.id)
+          .maybeSingle();
 
-    if (subscriptionResult.error) {
-      console.warn(
-        "Could not check Science subscription:",
-        subscriptionResult.error.message,
-      );
-    }
+      if (
+        profileResult.error ||
+        !profileResult.data
+      ) {
+        console.warn(
+          "Could not check Science Missions profile:",
+          profileResult.error?.message,
+        );
 
-    const role =
-      profileResult.data.role ||
-      profileResult.data.tier ||
-      null;
+        setStatus("locked");
+        return;
+      }
 
-    const entitlements =
-      getLearningEntitlements(
-        role,
-        subscriptionResult.error
-          ? []
-          : ((subscriptionResult.data ||
-              []) as SubscriptionRow[]),
+      const role =
+        profileResult.data.role ||
+        profileResult.data.tier ||
+        null;
+
+      /*
+       * Admin / Teacher / Curriculum Lead receive full
+       * Science access and are not learner-DOB gated.
+       */
+      if (
+        roleHasStaffLearningAccess(role)
+      ) {
+        setLearningProfile(null);
+        setStatus("allowed");
+        return;
+      }
+
+      const {
+        data: learningProfileData,
+        error: learningProfileError,
+      } = await supabase.rpc(
+        "get_my_learning_profile_status",
       );
 
-    const manuallyUnlocked =
-      !manualAccessResult.error &&
-      Boolean(
-        manualAccessResult.data
-          ?.is_unlocked,
+      if (learningProfileError) {
+        console.warn(
+          "Could not check the learner profile:",
+          learningProfileError.message,
+        );
+
+        setStatus("locked");
+        return;
+      }
+
+      const resolvedLearningProfile =
+        (learningProfileData ||
+          {}) as LearningProfileStatus;
+
+      setLearningProfile(
+        resolvedLearningProfile,
       );
 
-    setStatus(
-      entitlements.science ||
-        manuallyUnlocked
-        ? "allowed"
-        : "locked",
-    );
-  }, []);
+      if (
+        !resolvedLearningProfile.complete
+      ) {
+        setStatus("profile_required");
+        return;
+      }
+
+      const [
+        subscriptionResult,
+        manualAccessResult,
+      ] = await Promise.all([
+        supabase
+          .from("nova_subscriptions")
+          .select(
+            "status,access_until,plan_code",
+          )
+          .eq("user_id", user.id),
+
+        supabase
+          .from(
+            "learning_mission_zone_access",
+          )
+          .select("is_unlocked")
+          .eq("user_id", user.id)
+          .eq("zone_key", "science")
+          .maybeSingle(),
+      ]);
+
+      if (subscriptionResult.error) {
+        console.warn(
+          "Could not check Science subscription:",
+          subscriptionResult.error.message,
+        );
+      }
+
+      if (manualAccessResult.error) {
+        console.warn(
+          "Could not check manual Science access:",
+          manualAccessResult.error.message,
+        );
+      }
+
+      const entitlements =
+        getLearningEntitlements(
+          role,
+          subscriptionResult.error
+            ? []
+            : ((subscriptionResult.data ||
+                []) as SubscriptionRow[]),
+        );
+
+      const manuallyUnlocked =
+        !manualAccessResult.error &&
+        Boolean(
+          manualAccessResult.data
+            ?.is_unlocked,
+        );
+
+      setStatus(
+        entitlements.science ||
+          manuallyUnlocked
+          ? "allowed"
+          : "locked",
+      );
+    }, []);
 
   useEffect(() => {
     void refreshAccess();
@@ -172,6 +220,7 @@ export function useScienceMissionAccess() {
       "learning-profile-updated",
       handleAccessUpdate,
     );
+
     window.addEventListener(
       "focus",
       handleAccessUpdate,
@@ -182,6 +231,7 @@ export function useScienceMissionAccess() {
         "learning-profile-updated",
         handleAccessUpdate,
       );
+
       window.removeEventListener(
         "focus",
         handleAccessUpdate,
