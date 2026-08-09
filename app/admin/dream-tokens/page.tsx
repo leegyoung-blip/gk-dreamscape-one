@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import RoleManagementPanel from "@/components/admin/RoleManagementPanel";
 import OrganisationLicensingPanel from "@/components/admin/OrganisationLicensingPanel";
+import StudentAccessPanel from "@/components/admin/StudentAccessPanel";
 
 type AdminUser = {
   id: string;
@@ -18,7 +19,12 @@ type AdminUser = {
 };
 
 
-type AdminSection = "currency" | "organisations" | "teachers" | "roles";
+type AdminSection =
+  | "currency"
+  | "organisations"
+  | "teachers"
+  | "roles"
+  | "student-access";
 
 type DirectoryUser = {
   user_id: string;
@@ -528,7 +534,7 @@ export default function DreamTokensAdminPage() {
           )}
         </section>
 
-        <section className="mt-8 flex flex-col gap-3 rounded-[28px] border border-cyan-200/16 bg-white/[0.04] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:flex-row">
+        <section className="mt-8 grid grid-cols-1 gap-3 rounded-[28px] border border-cyan-200/16 bg-white/[0.04] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:grid-cols-2 xl:grid-cols-5">
           <button
             type="button"
             onClick={() => setActiveSection("currency")}
@@ -575,6 +581,18 @@ export default function DreamTokensAdminPage() {
             }`}
           >
             User Roles
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSection("student-access")}
+            className={`min-h-14 flex-1 rounded-2xl border px-5 text-sm font-extrabold uppercase tracking-[0.12em] transition ${
+              activeSection === "student-access"
+                ? "border-sky-200/40 bg-sky-300/12 text-sky-100 shadow-[0_0_28px_rgba(56,189,248,0.1)]"
+                : "border-white/10 bg-white/[0.035] text-white/58 hover:border-white/20 hover:text-white"
+            }`}
+          >
+            Student Access
           </button>
         </section>
 
@@ -948,8 +966,10 @@ export default function DreamTokensAdminPage() {
           <OrganisationLicensingPanel />
         ) : activeSection === "teachers" ? (
           <TeacherLicensingPanel />
-        ) : (
+        ) : activeSection === "roles" ? (
           <RoleManagementPanel />
+        ) : (
+          <StudentAccessPanel />
         )}
       </div>
 
