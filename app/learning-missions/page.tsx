@@ -2514,6 +2514,17 @@ function MissionGuidedWalkthrough({
   const step = WALKTHROUGH_STEPS[stepIndex] ?? WALKTHROUGH_STEPS[0];
   const isFirstStep = stepIndex === 0;
   const isLastStep = stepIndex === WALKTHROUGH_STEPS.length - 1;
+
+  const isThinkMissionStep = step.zoneId === "think-missions";
+  const isTeachingDashboardStep = step.zoneId === "progress-rewards";
+
+  const shouldCenterDesktopGuide =
+    isDesktop && isThinkMissionStep;
+
+  const shouldTopMobileGuide =
+    isMobile &&
+    (isThinkMissionStep || isTeachingDashboardStep);
+
   const [typedLength, setTypedLength] = useState(0);
 
   useEffect(() => {
@@ -2569,11 +2580,39 @@ function MissionGuidedWalkthrough({
         aria-label="Learning Missions guided walkthrough"
         style={{
           position: "fixed",
-          top: isDesktop ? "auto" : isMobile ? "8px" : "18px",
-          right: isDesktop ? "24px" : "auto",
-          bottom: isDesktop ? "24px" : "auto",
-          left: isDesktop ? "auto" : "50%",
-          transform: isDesktop ? "none" : "translateX(-50%)",
+          top: shouldCenterDesktopGuide
+            ? "50%"
+            : isDesktop
+              ? "auto"
+              : isMobile
+                ? shouldTopMobileGuide
+                  ? "8px"
+                  : "auto"
+                : "18px",
+          right: shouldCenterDesktopGuide
+            ? "auto"
+            : isDesktop
+              ? "24px"
+              : "auto",
+          bottom: shouldCenterDesktopGuide
+            ? "auto"
+            : isDesktop
+              ? "24px"
+              : isMobile
+                ? shouldTopMobileGuide
+                  ? "auto"
+                  : "8px"
+                : "auto",
+          left: shouldCenterDesktopGuide
+            ? "50%"
+            : isDesktop
+              ? "auto"
+              : "50%",
+          transform: shouldCenterDesktopGuide
+            ? "translate(-50%, -50%)"
+            : isDesktop
+              ? "none"
+              : "translateX(-50%)",
           zIndex: 100,
           width: isDesktop
             ? "min(560px, calc(100vw - 48px))"
@@ -2588,6 +2627,8 @@ function MissionGuidedWalkthrough({
             "linear-gradient(145deg, rgba(4,21,47,0.98), rgba(3,9,24,0.98))",
           boxShadow:
             "0 32px 90px rgba(0,0,0,0.68), 0 0 40px rgba(83,215,255,0.14)",
+          transition:
+            "top 260ms ease, right 260ms ease, bottom 260ms ease, left 260ms ease, transform 260ms ease",
           color: "white",
           padding: isMobile ? "18px" : "26px 28px 24px 190px",
         }}
