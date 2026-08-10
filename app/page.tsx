@@ -1024,6 +1024,37 @@ export default function Home() {
           >
             <button
               type="button"
+              onClick={() => router.push("/pricing")}
+              aria-label="View pricing"
+              style={{
+                minWidth: isMobile ? "38px" : "112px",
+                height: isMobile ? "38px" : "44px",
+                padding: isMobile ? 0 : "0 18px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: "999px",
+                border: "1px solid rgba(142,232,255,0.42)",
+                background:
+                  "linear-gradient(135deg, rgba(83,215,255,0.12), rgba(197,140,255,0.12))",
+                color: "white",
+                fontSize: isMobile ? "15px" : "11px",
+                fontWeight: 900,
+                letterSpacing: isMobile ? 0 : "0.1em",
+                textTransform: "uppercase",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                boxShadow:
+                  "0 10px 30px rgba(0,0,0,0.24), inset 0 0 16px rgba(83,215,255,0.04)",
+                backdropFilter: "blur(14px)",
+                flexShrink: 0,
+              }}
+            >
+              {isMobile ? "$" : "PRICING"}
+            </button>
+
+            <button
+              type="button"
               onClick={() => router.push(isLoggedIn ? "/profile" : "/login")}
               style={{
                 background: "rgba(255,255,255,0.94)",

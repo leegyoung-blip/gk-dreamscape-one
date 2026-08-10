@@ -240,3 +240,72 @@ export type BillingEmailLog = {
   created_at: string;
   updated_at: string;
 };
+
+
+export type BillingPaymentOverview = {
+  id: string;
+  invoice_id: string;
+  account_id: string;
+  invoice_number: string;
+  account_code: string;
+  payer_name: string;
+  billing_email: string;
+  student_names: string;
+  provider: "hitpay" | "manual" | "shopify" | "other";
+  provider_payment_id: string | null;
+  provider_reference: string | null;
+  payment_method: string | null;
+  payment_status:
+    | "pending"
+    | "succeeded"
+    | "failed"
+    | "refunded"
+    | "partially_refunded";
+  gross_amount: number | string;
+  refund_total: number | string;
+  net_amount: number | string;
+  currency: string;
+  paid_at: string | null;
+  created_at: string;
+  invoice_status: InvoiceStatus;
+  invoice_total: number | string;
+  invoice_amount_paid: number | string;
+  invoice_balance_due: number | string;
+  invoice_overpayment: number | string;
+};
+
+export type BillingRefund = {
+  id: string;
+  payment_id: string;
+  invoice_id: string;
+  account_id: string;
+  amount: number | string;
+  currency: string;
+  reason: string;
+  provider_refund_id: string | null;
+  external_refund_completed: boolean;
+  refunded_at: string;
+  recorded_by: string | null;
+  created_at: string;
+};
+
+export type BillingSettings = {
+  id: boolean;
+  business_name: string;
+  business_address: string;
+  billing_email: string;
+  support_email: string;
+  currency: string;
+  timezone: string;
+  invoice_prefix: string;
+  default_due_days: number;
+  grace_period_days: number;
+  default_family_due_day: number;
+  email_sender_name: string;
+  is_gst_registered: boolean;
+  gst_registration_number: string | null;
+  payment_terms: string;
+  footer_note: string;
+  created_at: string;
+  updated_at: string;
+};

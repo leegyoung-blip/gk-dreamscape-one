@@ -121,6 +121,7 @@ export default function BillingInvoicesClient() {
   const [loading, setLoading] = useState(true);
   const [itemsLoading, setItemsLoading] = useState(false);
   const [working, setWorking] = useState(false);
+  const [showVoidedInvoices, setShowVoidedInvoices] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -306,6 +307,30 @@ export default function BillingInvoicesClient() {
       invoices.find((invoice) => invoice.id === selectedInvoiceId) || null,
     [invoices, selectedInvoiceId],
   );
+
+  const visibleInvoices = useMemo(
+    () =>
+      showVoidedInvoices
+        ? invoices
+        : invoices.filter((invoice) => invoice.status !== "void"),
+    [invoices, showVoidedInvoices],
+  );
+
+  const voidedInvoiceCount = useMemo(
+    () => invoices.filter((invoice) => invoice.status === "void").length,
+    [invoices],
+  );
+
+  useEffect(() => {
+    if (
+      !showVoidedInvoices &&
+      selectedInvoice?.status === "void"
+    ) {
+      setSelectedInvoiceId(
+        invoices.find((invoice) => invoice.status !== "void")?.id || "",
+      );
+    }
+  }, [invoices, selectedInvoice, showVoidedInvoices]);
 
   const totals = useMemo(
     () =>
@@ -703,6 +728,57 @@ export default function BillingInvoicesClient() {
     setWorking(false);
   }
 
+  async function deleteSelectedInvoice() {
+    if (!selectedInvoice) return;
+
+    const allowedStatus = ["draft", "review", "void"].includes(
+      selectedInvoice.status,
+    );
+
+    if (!allowedStatus) {
+      setLoadError(
+        "Only draft, review or void invoices can be deleted. Issued or paid invoices must remain in the billing history.",
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Permanently delete ${selectedInvoice.invoice_number}?\n\nThis is only allowed when the invoice has no payment, HitPay, email, parent-view or credit history. Invoice numbers are never reused.`,
+    );
+
+    if (!confirmed) return;
+
+    const reason = window.prompt(
+      `Reason for deleting ${selectedInvoice.invoice_number}:`,
+      "Test / duplicate invoice cleanup",
+    );
+
+    if (reason === null) return;
+
+    setWorking(true);
+    setLoadError("");
+    setNotice("");
+
+    const { data, error } = await supabase.rpc("gkp_delete_invoice", {
+      p_invoice_id: selectedInvoice.id,
+      p_reason: normaliseOptionalText(reason),
+    });
+
+    if (error) {
+      setLoadError(error.message);
+    } else if (!data) {
+      setLoadError("The invoice could not be deleted.");
+    } else {
+      setNotice(
+        `${selectedInvoice.invoice_number} permanently deleted. Its invoice number will not be reused.`,
+      );
+      setSelectedInvoiceId("");
+      await loadMonth();
+    }
+
+    setWorking(false);
+  }
+
   function openClosureModal() {
     setClosureForm({
       ...DEFAULT_CLOSURE_FORM,
@@ -1059,26 +1135,46 @@ export default function BillingInvoicesClient() {
                 Select an invoice to review its lesson lines.
               </p>
             </div>
-            {batch && (
-              <span className="rounded-full border border-[#d8c59e] bg-[#f8f1e3] px-3 py-2 text-xs font-black text-[#8a672a]">
-                Batch {batch.status}
-              </span>
-            )}
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {voidedInvoiceCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowVoidedInvoices((current) => !current)}
+                  className="min-h-9 rounded-full border border-[#d8c59e] bg-white px-3 text-[11px] font-black text-[#6f675a]"
+                >
+                  {showVoidedInvoices
+                    ? "Hide voided"
+                    : `Show voided (${voidedInvoiceCount})`}
+                </button>
+              )}
+
+              {batch && (
+                <span className="rounded-full border border-[#d8c59e] bg-[#f8f1e3] px-3 py-2 text-xs font-black text-[#8a672a]">
+                  Batch {batch.status}
+                </span>
+              )}
+            </div>
           </div>
 
           {loading ? (
             <div className="p-8 text-sm text-[#81796d]">Loading invoices…</div>
-          ) : invoices.length === 0 ? (
+          ) : visibleInvoices.length === 0 ? (
             <div className="px-6 py-14 text-center">
               <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#f1eadc] text-xl font-black text-[#a27627]">0</div>
-              <h3 className="mt-4 text-lg font-semibold">No invoice drafts</h3>
+              <h3 className="mt-4 text-lg font-semibold">
+                {voidedInvoiceCount > 0 && !showVoidedInvoices
+                  ? "No active invoices"
+                  : "No invoice drafts"}
+              </h3>
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#81796d]">
-                Refresh the lesson dates, review any closures, then generate the month’s drafts.
+                {voidedInvoiceCount > 0 && !showVoidedInvoices
+                  ? "Voided invoices are hidden. Use Show voided if you need to review old records."
+                  : "Refresh the lesson dates, review any closures, then generate the month’s drafts."}
               </p>
             </div>
           ) : (
             <div className="max-h-[760px] overflow-y-auto p-3 sm:p-4">
-              {invoices.map((invoice) => {
+              {visibleInvoices.map((invoice) => {
                 const active = invoice.id === selectedInvoiceId;
 
                 return (
@@ -1268,6 +1364,18 @@ export default function BillingInvoicesClient() {
                         className="min-h-10 rounded-full border border-red-200 bg-red-50 px-4 text-xs font-bold text-red-700"
                       >
                         Void
+                      </button>
+                    )}
+                    {["draft", "review", "void"].includes(
+                      selectedInvoice.status,
+                    ) && (
+                      <button
+                        type="button"
+                        onClick={() => void deleteSelectedInvoice()}
+                        disabled={working}
+                        className="min-h-10 rounded-full border border-red-300 bg-red-600 px-4 text-xs font-bold text-white"
+                      >
+                        Delete invoice
                       </button>
                     )}
                   </div>

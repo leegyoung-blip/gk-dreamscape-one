@@ -57,12 +57,12 @@ const NAV_ITEMS: NavItem[] = [
   {
     label: "Payments",
     icon: "$",
-    phase: "Phase 6",
+    href: "/admin/billing/payments",
   },
   {
     label: "Settings",
     icon: "⚙",
-    phase: "Later",
+    href: "/admin/billing/settings",
   },
 ];
 
@@ -74,53 +74,67 @@ const BILLING_WALKTHROUGH_STEPS: BillingWalkthroughStep[] = [
       "This workspace manages family accounts, student enrolments, lesson schedules, prepaid invoices, parent invoice links and payment records. The walkthrough is optional and can be restarted anytime.",
   },
   {
-    eyebrow: "Stop 1 of 7",
+    eyebrow: "Stop 1 of 9",
     title: "Begin with the billing overview.",
     text:
       "The Overview page summarises issued invoices, money collected, outstanding balances, overdue invoices and drafts awaiting review. Use it as the first health check for every billing cycle.",
     highlightedNav: "Overview",
   },
   {
-    eyebrow: "Stop 2 of 7",
+    eyebrow: "Stop 2 of 9",
     title: "Create one billing account for each family.",
     text:
       "Billing Accounts stores the payer and all siblings under the same family. Add each student separately, then attach the student’s programmes, agreed lesson fee, recurring discount, regular weekday and start date.",
     highlightedNav: "Billing Accounts",
   },
   {
-    eyebrow: "Stop 3 of 7",
+    eyebrow: "Stop 3 of 9",
     title: "Use Programmes as standard fee templates.",
     text:
       "A programme holds the normal programme name, standard per-lesson fee and billing frequency. The student’s enrolment can still use a different agreed fee. Sort order only controls how programmes are arranged on screen.",
     highlightedNav: "Programmes",
   },
   {
-    eyebrow: "Stop 4 of 7",
+    eyebrow: "Stop 4 of 9",
     title: "Prepare the month before generating invoices.",
     text:
       "On the Invoices page, select the billing month, confirm every active schedule, record centre closures and review the generated lesson dates. Add or remove replacement lessons before generating family drafts.",
     highlightedNav: "Invoices",
   },
   {
-    eyebrow: "Stop 5 of 7",
+    eyebrow: "Stop 5 of 9",
     title: "Check the four-lesson discount rule.",
     text:
       "Per-lesson fees use the actual number of billable lessons in that month. A recurring lesson discount is applied to a maximum of four lessons, even when the month contains five billable lessons.",
     highlightedNav: "Invoices",
   },
   {
-    eyebrow: "Stop 6 of 7",
+    eyebrow: "Stop 6 of 9",
     title: "Review the draft before issuing it.",
     text:
       "Open each family draft and check the students, lesson dates, quantities, rates, discounts, credits and final total. Preview the parent document first. Once correct, issue the invoice to activate its secure parent link.",
     highlightedNav: "Invoices",
   },
   {
-    eyebrow: "Stop 7 of 7",
+    eyebrow: "Stop 7 of 9",
     title: "Treat payment confirmation as a separate step.",
     text:
       "The parent view will display the payment option once HitPay is active. Only a validated HitPay webhook should mark an invoice as paid. Never assume that opening a QR or payment page means payment succeeded.",
     highlightedNav: "Invoices",
+  },
+  {
+    eyebrow: "Stop 8 of 9",
+    title: "Use Payments for reconciliation, not just viewing totals.",
+    text:
+      "Payments lists HitPay and manually recorded receipts, refunds, unmatched provider events and overpayments. Record a manual payment only after money is actually received. For a HitPay refund, complete the refund in HitPay first, then record it here.",
+    highlightedNav: "Payments",
+  },
+  {
+    eyebrow: "Stop 9 of 9",
+    title: "Keep operational billing rules in Settings.",
+    text:
+      "Settings controls business details, invoice wording, default family due day, GST information and the Resend sender name. API keys and webhook salts never appear here; they remain protected in Vercel.",
+    highlightedNav: "Settings",
   },
   {
     eyebrow: "You’re ready",
@@ -399,8 +413,8 @@ export default function BillingAdminShell({
 
             <div className="col-span-2 mt-2 hidden rounded-2xl border border-[#d8c9ad] bg-white/65 p-4 text-xs leading-5 text-[#6f675a] sm:col-span-3 lg:col-span-1 lg:block">
               <strong className="block text-[#15233b]">Billing System</strong>
-              Family accounts, per-lesson schedules, draft invoices, parent
-              links and payment controls.
+              Family accounts, per-lesson schedules, invoices, payments,
+              reconciliation and billing settings.
             </div>
           </nav>
         </aside>

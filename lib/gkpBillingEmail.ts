@@ -18,6 +18,7 @@ type PreparedEmail = {
   invoiceId: string;
   accountId: string;
   recipients: string[];
+  fromAddress: string;
   subject: string;
   html: string;
   idempotencyKey: string;
@@ -34,10 +35,10 @@ function requiredEnv(name: string) {
   return value;
 }
 
-function senderAddress() {
+function senderAddress(displayName?: string | null) {
   return (
     process.env.RESEND_FROM?.trim() ||
-    "Guru Kids Pro <admin@gurukidspro.com>"
+    `${String(displayName || "Guru Kids Pro").trim()} <admin@gurukidspro.com>`
   );
 }
 
@@ -246,7 +247,7 @@ async function prepareEmail(
       .maybeSingle(),
     client
       .from("gkp_billing_settings")
-      .select("billing_email,support_email")
+      .select("billing_email,support_email,email_sender_name")
       .eq("id", true)
       .maybeSingle(),
     client
@@ -368,6 +369,9 @@ async function prepareEmail(
     invoiceId: invoice.id,
     accountId: invoice.account_id,
     recipients,
+    fromAddress: senderAddress(
+      settingsResult.data?.email_sender_name,
+    ),
     subject,
     html,
     idempotencyKey: `gkp-${options.emailType}-${keyHash}`,
@@ -491,7 +495,7 @@ export async function sendGkpBillingEmail(options: SendOptions) {
       "Idempotency-Key": email.idempotencyKey,
     },
     body: JSON.stringify({
-      from: senderAddress(),
+      from: email.fromAddress,
       to: email.recipients,
       reply_to: "admin@gurukidspro.com",
       subject: email.subject,
@@ -604,7 +608,7 @@ export async function sendGkpInvoiceBatch({
       },
       body: JSON.stringify(
         chunk.map(({ email }) => ({
-          from: senderAddress(),
+          from: email.fromAddress,
           to: email.recipients,
           reply_to: "admin@gurukidspro.com",
           subject: email.subject,

@@ -128,6 +128,7 @@ export default function BillingAccountsClient() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [notice, setNotice] = useState("");
+  const [defaultFamilyDueDay, setDefaultFamilyDueDay] = useState(25);
 
   const [accountModalOpen, setAccountModalOpen] = useState(false);
   const [accountModalMode, setAccountModalMode] =
@@ -160,6 +161,7 @@ export default function BillingAccountsClient() {
         studentsResult,
         programmesResult,
         enrolmentsResult,
+        settingsResult,
       ] = await Promise.all([
         supabase
           .from("gkp_billing_account_overview")
@@ -185,6 +187,11 @@ export default function BillingAccountsClient() {
           .from("gkp_billing_enrolments")
           .select("*")
           .order("start_date", { ascending: false }),
+        supabase
+          .from("gkp_billing_settings")
+          .select("default_family_due_day")
+          .eq("id", true)
+          .maybeSingle(),
       ]);
 
       const firstError =
@@ -192,7 +199,8 @@ export default function BillingAccountsClient() {
         accountsResult.error ||
         studentsResult.error ||
         programmesResult.error ||
-        enrolmentsResult.error;
+        enrolmentsResult.error ||
+        settingsResult.error;
 
       if (firstError) {
         setLoadError(firstError.message);
@@ -208,6 +216,10 @@ export default function BillingAccountsClient() {
         (studentsResult.data || []) as BillingStudent[];
       const loadedProgrammes =
         (programmesResult.data || []) as BillingProgramme[];
+
+      setDefaultFamilyDueDay(
+        Number(settingsResult.data?.default_family_due_day || 25),
+      );
       const loadedEnrolments =
         (enrolmentsResult.data || []) as BillingEnrolment[];
 
@@ -319,6 +331,7 @@ export default function BillingAccountsClient() {
     setAccountModalMode("create");
     setAccountForm({
       ...DEFAULT_ACCOUNT_FORM,
+      default_due_day: String(defaultFamilyDueDay),
       first_student_joined_on: singaporeToday(),
     });
     setFormError("");
