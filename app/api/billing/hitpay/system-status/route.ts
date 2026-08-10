@@ -11,6 +11,14 @@ function json(body: unknown, status = 200) {
   });
 }
 
+function hasEnv(name: string) {
+  return Boolean(process.env[name]?.trim());
+}
+
+function firstDetected(names: string[]) {
+  return names.find((name) => hasEnv(name)) || null;
+}
+
 async function requireBillingStaff(request: Request) {
   const authHeader = request.headers.get("authorization") || "";
   const token = authHeader.startsWith("Bearer ")
@@ -25,7 +33,9 @@ async function requireBillingStaff(request: Request) {
 
   const anonKey =
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    process.env.SUPABASE_ANON_KEY;
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_PUBLISHABLE_KEY;
 
   if (!url || !anonKey) {
     throw new Error("SUPABASE_AUTH_CONFIG_MISSING");
@@ -61,32 +71,95 @@ export async function GET(request: Request) {
   try {
     await requireBillingStaff(request);
 
+    const resendName = firstDetected([
+      "RESEND_API_KEY",
+      "RESEND_KEY",
+    ]);
+
+    const serviceRoleName = firstDetected([
+      "SUPABASE_SERVICE_ROLE_KEY",
+      "SUPABASE_SERVICE_KEY",
+    ]);
+
+    const hitpayEnvironmentName = firstDetected([
+      "HITPAY_ENVIRONMENT",
+      "HITPAY_ENV",
+    ]);
+
+    const hitpayProductionApiKeyName = firstDetected([
+      "HITPAY_PRODUCTION_API_KEY",
+      "HITPAY_API_KEY",
+    ]);
+
+    const hitpayProductionWebhookSaltName = firstDetected([
+      "HITPAY_PRODUCTION_WEBHOOK_SALT",
+      "HITPAY_WEBHOOK_SALT",
+      "HITPAY_WEBHOOK_SECRET",
+    ]);
+
     const hitpayEnvironment =
-      process.env.HITPAY_ENVIRONMENT?.trim() || "not set";
+      process.env.HITPAY_ENVIRONMENT?.trim() ||
+      process.env.HITPAY_ENV?.trim() ||
+      "not set";
 
     const hitpayConfigured =
       hitpayEnvironment === "production"
         ? Boolean(
-            process.env.HITPAY_PRODUCTION_API_KEY?.trim() &&
-              process.env.HITPAY_PRODUCTION_WEBHOOK_SALT?.trim(),
+            hitpayProductionApiKeyName &&
+              hitpayProductionWebhookSaltName,
           )
         : Boolean(
-            process.env.HITPAY_SANDBOX_API_KEY?.trim() &&
-              process.env.HITPAY_SANDBOX_WEBHOOK_SALT?.trim(),
+            firstDetected([
+              "HITPAY_SANDBOX_API_KEY",
+            ]) &&
+              firstDetected([
+                "HITPAY_SANDBOX_WEBHOOK_SALT",
+              ]),
           );
 
     return json({
       hitpayConfigured,
       hitpayEnvironment,
-      resendConfigured: Boolean(
-        process.env.RESEND_API_KEY?.trim(),
-      ),
+      resendConfigured: Boolean(resendName),
       resendFrom:
         process.env.RESEND_FROM?.trim() ||
         "Guru Kids Pro <admin@gurukidspro.com>",
-      serviceRoleConfigured: Boolean(
-        process.env.SUPABASE_SERVICE_ROLE_KEY?.trim(),
-      ),
+      serviceRoleConfigured: Boolean(serviceRoleName),
+
+      diagnostics: {
+        vercelEnvironment:
+          process.env.VERCEL_ENV || "not available",
+        vercelTargetEnvironment:
+          process.env.VERCEL_TARGET_ENV || "not available",
+        gitBranch:
+          process.env.VERCEL_GIT_COMMIT_REF || "not available",
+        productionUrl:
+          process.env.VERCEL_PROJECT_PRODUCTION_URL ||
+          "not available",
+
+        detectedVariableNames: {
+          resend: resendName,
+          supabaseServiceRole: serviceRoleName,
+          hitpayEnvironment: hitpayEnvironmentName,
+          hitpayProductionApiKey: hitpayProductionApiKeyName,
+          hitpayProductionWebhookSalt:
+            hitpayProductionWebhookSaltName,
+        },
+
+        exactExpectedNames: {
+          RESEND_API_KEY: hasEnv("RESEND_API_KEY"),
+          SUPABASE_SERVICE_ROLE_KEY: hasEnv(
+            "SUPABASE_SERVICE_ROLE_KEY",
+          ),
+          HITPAY_ENVIRONMENT: hasEnv("HITPAY_ENVIRONMENT"),
+          HITPAY_PRODUCTION_API_KEY: hasEnv(
+            "HITPAY_PRODUCTION_API_KEY",
+          ),
+          HITPAY_PRODUCTION_WEBHOOK_SALT: hasEnv(
+            "HITPAY_PRODUCTION_WEBHOOK_SALT",
+          ),
+        },
+      },
     });
   } catch (error) {
     const message =
@@ -97,7 +170,10 @@ export async function GET(request: Request) {
     }
 
     if (message === "ACCESS_DENIED") {
-      return json({ error: "Billing staff access is required." }, 403);
+      return json(
+        { error: "Billing staff access is required." },
+        403,
+      );
     }
 
     return json({ error: message }, 500);
