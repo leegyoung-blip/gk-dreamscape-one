@@ -55,7 +55,14 @@ type ItemForm = {
   discount_amount: string;
 };
 
+type ManualItemPresetId =
+  | "custom"
+  | "refundable_class_slot_deposit"
+  | "registration_fee"
+  | "registration_fee_waiver";
+
 type ManualItemForm = {
+  preset_id: ManualItemPresetId;
   item_kind: "charge" | "discount" | "credit";
   description: string;
   amount: string;
@@ -80,7 +87,38 @@ const DEFAULT_ITEM_FORM: ItemForm = {
   discount_amount: "0",
 };
 
+const MANUAL_ITEM_PRESETS: Record<
+  Exclude<ManualItemPresetId, "custom">,
+  {
+    label: string;
+    item_kind: ManualItemForm["item_kind"];
+    description: string;
+    amount: string;
+  }
+> = {
+  refundable_class_slot_deposit: {
+    label: "Refundable Class-Slot Deposit — $200",
+    item_kind: "charge",
+    description:
+      "Refundable Class-Slot Deposit — refundable with at least four classes' advance cancellation notice",
+    amount: "200",
+  },
+  registration_fee: {
+    label: "One-Time Registration Fee — $50",
+    item_kind: "charge",
+    description: "One-Time Registration Fee",
+    amount: "50",
+  },
+  registration_fee_waiver: {
+    label: "Promotional Registration Fee Waiver — -$50",
+    item_kind: "discount",
+    description: "Promotional Registration Fee Waiver",
+    amount: "50",
+  },
+};
+
 const DEFAULT_MANUAL_ITEM_FORM: ManualItemForm = {
+  preset_id: "custom",
   item_kind: "charge",
   description: "",
   amount: "0",
@@ -986,7 +1024,13 @@ export default function BillingInvoicesClient() {
           manualItemForm.item_kind === "charge" ? amount : -amount,
         discount_amount: 0,
         sort_order: 9500 + invoiceItems.length * 10,
-        metadata: { source: "manual_invoice_review" },
+        metadata: {
+          source: "manual_invoice_review",
+          preset:
+            manualItemForm.preset_id === "custom"
+              ? null
+              : manualItemForm.preset_id,
+        },
       });
 
     if (error) {
@@ -1677,9 +1721,92 @@ export default function BillingInvoicesClient() {
       >
         <form id="manual-item-form" onSubmit={submitManualItem} className="grid gap-4">
           {formError && <Alert tone="error">{formError}</Alert>}
-          <SelectField label="Line type" value={manualItemForm.item_kind} onChange={(value) => setManualItemForm((current) => ({ ...current, item_kind: value as ManualItemForm['item_kind'] }))} options={[["charge", "Additional charge"], ["discount", "One-off discount"], ["credit", "Account credit"]]} />
-          <TextField label="Description" value={manualItemForm.description} onChange={(value) => setManualItemForm((current) => ({ ...current, description: value }))} placeholder="e.g. Materials fee or goodwill credit" required />
-          <TextField label="Amount (SGD)" type="number" min="0.01" step="0.01" value={manualItemForm.amount} onChange={(value) => setManualItemForm((current) => ({ ...current, amount: value }))} required />
+          <SelectField
+            label="Common billing item"
+            value={manualItemForm.preset_id}
+            onChange={(value) => {
+              const presetId = value as ManualItemPresetId;
+
+              if (presetId === "custom") {
+                setManualItemForm((current) => ({
+                  ...current,
+                  preset_id: "custom",
+                }));
+                return;
+              }
+
+              const preset = MANUAL_ITEM_PRESETS[presetId];
+
+              setManualItemForm({
+                preset_id: presetId,
+                item_kind: preset.item_kind,
+                description: preset.description,
+                amount: preset.amount,
+              });
+            }}
+            options={[
+              ["custom", "Custom invoice line"],
+              [
+                "refundable_class_slot_deposit",
+                MANUAL_ITEM_PRESETS.refundable_class_slot_deposit.label,
+              ],
+              [
+                "registration_fee",
+                MANUAL_ITEM_PRESETS.registration_fee.label,
+              ],
+              [
+                "registration_fee_waiver",
+                MANUAL_ITEM_PRESETS.registration_fee_waiver.label,
+              ],
+            ]}
+          />
+
+          <SelectField
+            label="Line type"
+            value={manualItemForm.item_kind}
+            onChange={(value) =>
+              setManualItemForm((current) => ({
+                ...current,
+                preset_id: "custom",
+                item_kind: value as ManualItemForm["item_kind"],
+              }))
+            }
+            options={[
+              ["charge", "Additional charge"],
+              ["discount", "One-off discount"],
+              ["credit", "Account credit"],
+            ]}
+          />
+
+          <TextField
+            label="Description"
+            value={manualItemForm.description}
+            onChange={(value) =>
+              setManualItemForm((current) => ({
+                ...current,
+                preset_id: "custom",
+                description: value,
+              }))
+            }
+            placeholder="e.g. Materials fee or goodwill credit"
+            required
+          />
+
+          <TextField
+            label="Amount (SGD)"
+            type="number"
+            min="0.01"
+            step="0.01"
+            value={manualItemForm.amount}
+            onChange={(value) =>
+              setManualItemForm((current) => ({
+                ...current,
+                preset_id: "custom",
+                amount: value,
+              }))
+            }
+            required
+          />
         </form>
       </BillingModal>
     </BillingAdminShell>
