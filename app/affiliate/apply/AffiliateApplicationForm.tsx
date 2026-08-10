@@ -2,7 +2,10 @@
 
 import { useActionState } from "react";
 import Link from "next/link";
-import { submitAffiliateApplication, type ApplicationFormState } from "./actions";
+import {
+  submitAffiliateApplication,
+  type ApplicationFormState,
+} from "./actions";
 import styles from "../affiliate.module.css";
 
 const initialState: ApplicationFormState = {};
@@ -21,6 +24,9 @@ export default function AffiliateApplicationForm() {
   return (
     <form action={formAction} className={styles.form} noValidate>
       {state.error ? <div className={styles.formError}>{state.error}</div> : null}
+
+      {/* Keep the current server action/database contract unchanged. */}
+      <input type="hidden" name="programme_requested" value="standard" />
 
       <section className={styles.formSection}>
         <div className={styles.sectionTitle}>
@@ -53,12 +59,19 @@ export default function AffiliateApplicationForm() {
           </label>
           <label>
             Country <b>*</b>
-            <input name="country" defaultValue="Singapore" required autoComplete="country-name" />
+            <input
+              name="country"
+              defaultValue="Singapore"
+              required
+              autoComplete="country-name"
+            />
           </label>
           <label>
             Applicant type <b>*</b>
             <select name="applicant_type" required defaultValue="">
-              <option value="" disabled>Select one</option>
+              <option value="" disabled>
+                Select one
+              </option>
               <option value="individual">Individual</option>
               <option value="sole_proprietor">Sole proprietor</option>
               <option value="registered_business">Registered business</option>
@@ -113,12 +126,50 @@ export default function AffiliateApplicationForm() {
         <ErrorText messages={state.fieldErrors?.promotionChannels} />
 
         <div className={styles.formGrid}>
-          <label>Instagram profile<input name="instagram" type="url" placeholder="https://instagram.com/..." /></label>
-          <label>TikTok profile<input name="tiktok" type="url" placeholder="https://tiktok.com/@..." /></label>
-          <label>Facebook page<input name="facebook" type="url" placeholder="https://facebook.com/..." /></label>
-          <label>YouTube channel<input name="youtube" type="url" placeholder="https://youtube.com/..." /></label>
-          <label>LinkedIn profile<input name="linkedin" type="url" placeholder="https://linkedin.com/..." /></label>
-          <label>Other relevant link<input name="other_social" type="url" placeholder="https://" /></label>
+          <label>
+            Instagram profile
+            <input
+              name="instagram"
+              type="url"
+              placeholder="https://instagram.com/..."
+            />
+          </label>
+          <label>
+            TikTok profile
+            <input
+              name="tiktok"
+              type="url"
+              placeholder="https://tiktok.com/@..."
+            />
+          </label>
+          <label>
+            Facebook page
+            <input
+              name="facebook"
+              type="url"
+              placeholder="https://facebook.com/..."
+            />
+          </label>
+          <label>
+            YouTube channel
+            <input
+              name="youtube"
+              type="url"
+              placeholder="https://youtube.com/..."
+            />
+          </label>
+          <label>
+            LinkedIn profile
+            <input
+              name="linkedin"
+              type="url"
+              placeholder="https://linkedin.com/..."
+            />
+          </label>
+          <label>
+            Other relevant link
+            <input name="other_social" type="url" placeholder="https://" />
+          </label>
         </div>
       </section>
 
@@ -144,7 +195,12 @@ export default function AffiliateApplicationForm() {
           </label>
           <label>
             Approximate audience size
-            <input name="audience_size" type="number" min="0" inputMode="numeric" />
+            <input
+              name="audience_size"
+              type="number"
+              min="0"
+              inputMode="numeric"
+            />
           </label>
           <label>
             Main audience countries
@@ -162,16 +218,99 @@ export default function AffiliateApplicationForm() {
           </label>
           <label>
             Expected referrals per month
-            <input name="expected_referrals" type="number" min="0" inputMode="numeric" />
+            <input
+              name="expected_referrals"
+              type="number"
+              min="0"
+              inputMode="numeric"
+            />
           </label>
-          <label>
-            Programme interest <b>*</b>
-            <select name="programme_requested" defaultValue="standard" required>
-              <option value="standard">Standard Affiliate Programme</option>
-              <option value="kol">KOL Creator Partnership</option>
-              <option value="unsure">Not sure yet</option>
-            </select>
-          </label>
+        </div>
+
+        <div
+          style={{
+            marginTop: "26px",
+            padding: "22px",
+            borderRadius: "22px",
+            border: "1px solid rgba(142,232,255,0.24)",
+            background:
+              "linear-gradient(145deg, rgba(14,61,92,0.56), rgba(5,19,44,0.72))",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "12px",
+            }}
+          >
+            <div>
+              <p
+                style={{
+                  margin: 0,
+                  color: "#8ee8ff",
+                  fontSize: "11px",
+                  fontWeight: 900,
+                  letterSpacing: "0.14em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Current application tier
+              </p>
+              <h3 style={{ margin: "8px 0 0", fontSize: "24px" }}>
+                Affiliate Regular
+              </h3>
+            </div>
+
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                minHeight: "30px",
+                padding: "6px 11px",
+                borderRadius: "999px",
+                border: "1px solid rgba(126,255,200,0.28)",
+                background: "rgba(52,211,153,0.1)",
+                color: "#b8fbd9",
+                fontSize: "10px",
+                fontWeight: 900,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+              }}
+            >
+              Available now
+            </span>
+          </div>
+
+          <p
+            style={{
+              margin: "15px 0 0",
+              color: "rgba(255,255,255,0.68)",
+              fontSize: "14px",
+              lineHeight: 1.65,
+            }}
+          >
+            This form applies only for the free Regular Affiliate tier: 10%
+            recurring commission on eligible subscriptions, for up to 12
+            consecutive months per eligible referred customer. Affiliate Plus and
+            Affiliate Pro are coming soon and cannot be selected or applied for yet.
+          </p>
+
+          <Link
+            href="/affiliate"
+            style={{
+              marginTop: "14px",
+              display: "inline-flex",
+              color: "#8ee8ff",
+              fontSize: "13px",
+              fontWeight: 800,
+              textDecoration: "none",
+            }}
+          >
+            Compare the planned affiliate tiers →
+          </Link>
         </div>
       </section>
 
@@ -185,31 +324,55 @@ export default function AffiliateApplicationForm() {
         </div>
 
         <div className={styles.declarations}>
-          <label><input type="checkbox" name="age_confirmed" required />I confirm that I am at least 18 years old.</label>
-          <label><input type="checkbox" name="information_confirmed" required />I confirm that the information submitted is accurate and complete.</label>
           <label>
-            <input type="checkbox" name="terms_accepted" required />
-            I agree to the <Link href="/affiliate-terms" target="_blank">Affiliate Programme Terms</Link>.
+            <input type="checkbox" name="age_confirmed" required />I confirm
+            that I am at least 18 years old.
           </label>
           <label>
-            <input type="checkbox" name="privacy_accepted" required />
-            I agree to the <Link href="/privacy" target="_blank">Privacy Policy</Link>.
+            <input type="checkbox" name="information_confirmed" required />I
+            confirm that the information submitted is accurate and complete.
           </label>
-          <label><input type="checkbox" name="conduct_accepted" required />I will not use misleading claims, spam, self-referrals, multi-level referrals or unauthorised advertising.</label>
+          <label>
+            <input type="checkbox" name="terms_accepted" required />I agree to
+            the{" "}
+            <Link href="/affiliate-terms" target="_blank">
+              Affiliate Programme Terms
+            </Link>
+            .
+          </label>
+          <label>
+            <input type="checkbox" name="privacy_accepted" required />I agree
+            to the{" "}
+            <Link href="/privacy" target="_blank">
+              Privacy Policy
+            </Link>
+            .
+          </label>
+          <label>
+            <input type="checkbox" name="conduct_accepted" required />I will not
+            use misleading claims, spam, self-referrals, multi-level referrals or
+            unauthorised advertising.
+          </label>
         </div>
       </section>
 
       <div className={styles.honeypot} aria-hidden="true">
-        <label>Company website<input name="company_website" tabIndex={-1} autoComplete="off" /></label>
+        <label>
+          Company website
+          <input name="company_website" tabIndex={-1} autoComplete="off" />
+        </label>
       </div>
 
       <div className={styles.submitPanel}>
         <div>
-          <strong>Ready to apply?</strong>
-          <p>Submitting an application does not guarantee approval. Reviews normally take 3–5 business days.</p>
+          <strong>Ready to apply for Affiliate Regular?</strong>
+          <p>
+            Submitting an application does not guarantee approval. Reviews normally
+            take 3–5 business days.
+          </p>
         </div>
         <button type="submit" disabled={pending}>
-          {pending ? "Submitting..." : "Submit Application"}
+          {pending ? "Submitting..." : "Submit Regular Application"}
         </button>
       </div>
     </form>

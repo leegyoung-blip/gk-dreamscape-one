@@ -1838,8 +1838,9 @@ export default function Home() {
               }}
             >
               {[
-                "10% regular affiliate commission",
-                "Up to 20% for approved KOLs",
+                "Regular tier available now",
+                "10% recurring commission",
+                "Plus & Pro coming soon",
                 "Maximum 12 months per customer",
               ].map((item) => (
                 <span
@@ -1861,7 +1862,7 @@ export default function Home() {
             </div>
 
             <Link
-              href="/affiliate/apply"
+              href="/affiliate"
               style={{
                 marginTop: "32px",
                 display: "inline-flex",
@@ -1883,9 +1884,21 @@ export default function Home() {
                   "0 18px 42px rgba(71,33,139,0.34), 0 0 26px rgba(83,215,255,0.12)",
               }}
             >
-              Apply to become an affiliate
+              Explore Affiliate Programme
               <span aria-hidden="true">→</span>
             </Link>
+
+            <p
+              style={{
+                margin: "14px 0 0",
+                color: "rgba(255,255,255,0.52)",
+                fontSize: "13px",
+                lineHeight: 1.6,
+              }}
+            >
+              Affiliate Regular applications are open now. Affiliate Plus and
+              Affiliate Pro are coming soon.
+            </p>
           </div>
 
           <div
@@ -1913,6 +1926,48 @@ export default function Home() {
                 border: "1px solid rgba(255,255,255,0.08)",
               }}
             />
+
+            <div
+              style={{
+                position: "absolute",
+                top: isMobile ? "18px" : "22px",
+                left: isMobile ? "18px" : "22px",
+                zIndex: 3,
+                padding: "9px 12px",
+                borderRadius: "999px",
+                border: "1px solid rgba(142,232,255,0.3)",
+                background: "rgba(2,8,19,0.72)",
+                color: "#8ee8ff",
+                fontSize: "10px",
+                fontWeight: 900,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                backdropFilter: "blur(12px)",
+              }}
+            >
+              Regular · Available Now
+            </div>
+
+            <div
+              style={{
+                position: "absolute",
+                top: isMobile ? "56px" : "62px",
+                left: isMobile ? "18px" : "22px",
+                zIndex: 3,
+                padding: "8px 11px",
+                borderRadius: "999px",
+                border: "1px solid rgba(255,181,95,0.26)",
+                background: "rgba(2,8,19,0.66)",
+                color: "#ffbd73",
+                fontSize: "9px",
+                fontWeight: 900,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                backdropFilter: "blur(12px)",
+              }}
+            >
+              Plus & Pro · Coming Soon
+            </div>
 
             <img
               src="/nova/nova-character.png"
@@ -2157,7 +2212,7 @@ export default function Home() {
                 Guru Kids Pro
               </a>
 
-              <Link href="/affiliate/apply" style={footerLinkStyle}>
+              <Link href="/affiliate" style={footerLinkStyle}>
                 Affiliate Programme
               </Link>
 

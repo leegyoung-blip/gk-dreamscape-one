@@ -217,3 +217,26 @@ export type LessonOccurrenceOverview = {
   payer_name: string;
   account_code: string;
 };
+
+
+export type BillingEmailLog = {
+  id: string;
+  invoice_id: string;
+  account_id: string;
+  email_type:
+    | "invoice_issued"
+    | "invoice_resent"
+    | "payment_received"
+    | "payment_reminder"
+    | "overdue_reminder";
+  recipient_emails: string[];
+  subject: string;
+  resend_email_id: string | null;
+  status: "pending" | "sent" | "failed";
+  error_message: string | null;
+  metadata: Record<string, unknown> | null;
+  requested_by: string | null;
+  sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+};

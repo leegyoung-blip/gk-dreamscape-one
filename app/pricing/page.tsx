@@ -22,7 +22,7 @@ function normaliseRole(role: string | null | undefined) {
 }
 
 type Plan = {
-  key: "science" | "core" | "complete";
+  key: "core" | "full" | "nova";
   name: string;
   eyebrow: string;
   monthlyPrice: number;
@@ -31,10 +31,14 @@ type Plan = {
   features: string[];
   accent: string;
   featured?: boolean;
+  badge?: string;
+  comingSoon?: boolean;
+  regularMonthlyPrice?: number;
+  regularAnnualPrice?: number;
 };
 
 type GkpPlan = {
-  key: "gkp-core" | "gkp-full";
+  key: "gkp-core" | "gkp-full" | "gkp-nova";
   name: string;
   price: number;
   eyebrow: string;
@@ -42,26 +46,11 @@ type GkpPlan = {
   features: string[];
   accent: string;
   featured: boolean;
+  badge?: string;
+  comingSoon?: boolean;
 };
 
 const plans: Plan[] = [
-  {
-    key: "science",
-    name: "Science Missions",
-    eyebrow: "Focused Access",
-    monthlyPrice: 9.9,
-    annualPrice: 99,
-    description:
-      "Curriculum-based Science missions for learners who want focused topic practice and regular revision.",
-    features: [
-      "Primary 1–6 Science missions",
-      "Topic quizzes and mixed assessments",
-      "Scores, progress, and completion records",
-      "Dream Token and Dream Gem rewards",
-      "New content and platform updates",
-    ],
-    accent: "#53d7ff",
-  },
   {
     key: "core",
     name: "Core Missions",
@@ -69,79 +58,121 @@ const plans: Plan[] = [
     monthlyPrice: 19.9,
     annualPrice: 199,
     description:
-      "Structured English and Mathematics practice across key primary-school topics and assessment formats.",
+      "Structured English and Mathematics learning across Dreamscape, with practice, thinking activities, rewards, and clear progress tracking.",
     features: [
-      "Primary 1–6 English missions",
-      "Primary 1–6 Mathematics missions",
-      "Topic quizzes and mixed assessments",
-      "Scores, progress, and completion records",
+      "Primary 1–6 English Learning Missions",
+      "Primary 1–6 Mathematics Learning Missions",
+      "Think Missions and Knowledge Arena access",
+      "Basic topic mastery and progress insights",
       "Dream Token and Dream Gem rewards",
+      "Regular content and platform updates",
     ],
     accent: "#c58cff",
   },
   {
-    key: "complete",
-    name: "Complete Missions",
-    eyebrow: "Best Overall Value + Milo",
+    key: "full",
+    name: "Full Access",
+    eyebrow: "English + Mathematics + Science",
     monthlyPrice: 24.9,
     annualPrice: 249,
     description:
-      "Full access to English, Mathematics, and Science Learning Missions, with Milo’s Business Builder included when it launches.",
+      "The complete three-subject Dreamscape learning experience, combining English, Mathematics, and Science with the wider learning world.",
     features: [
       "Everything in Core Missions",
-      "Everything in Science Missions",
-      "English, Mathematics, and Science access",
-      "Full curriculum-mission progression",
-      "Milo’s Business Builder included when launched",
-      "One complete Dreamscape learning plan",
+      "Primary 1–6 Science Learning Missions",
+      "Science topic quizzes and mixed assessments",
+      "Science progress and mastery tracking",
+      "Complete three-subject Learning Missions access",
+      "Regular content and platform updates",
     ],
     accent: "#ffae5c",
     featured: true,
+    badge: "Best Value",
+  },
+  {
+    key: "nova",
+    name: "Nova+",
+    eyebrow: "Personalised Learning Intelligence",
+    monthlyPrice: 34.9,
+    annualPrice: 349,
+    regularMonthlyPrice: 39.9,
+    regularAnnualPrice: 399,
+    description:
+      "The future premium Dreamscape plan for families who want deeper learning diagnosis, personalised plans, and adaptive recommendations powered by Nova.",
+    features: [
+      "Everything in Full Access",
+      "Deeper learning-gap and misconception diagnosis",
+      "Personalised learning plans",
+      "Adaptive recommended missions and reassessment",
+      "Parent-friendly Nova learning summaries",
+      "Advanced longitudinal learning insights",
+    ],
+    accent: "#8ee8ff",
+    badge: "Coming Soon",
+    comingSoon: true,
   },
 ];
 
 const comparisonRows = [
   {
     feature: "Primary English missions",
-    science: false,
     core: true,
-    complete: true,
+    full: true,
+    nova: true,
   },
   {
     feature: "Primary Mathematics missions",
-    science: false,
     core: true,
-    complete: true,
+    full: true,
+    nova: true,
   },
   {
     feature: "Primary Science missions",
-    science: true,
     core: false,
-    complete: true,
+    full: true,
+    nova: true,
   },
   {
-    feature: "Topic quizzes and assessments",
-    science: true,
+    feature: "Think Missions and Knowledge Arena",
     core: true,
-    complete: true,
+    full: true,
+    nova: true,
   },
   {
-    feature: "Progress and reward records",
-    science: true,
+    feature: "Basic topic mastery and progress insights",
     core: true,
-    complete: true,
+    full: true,
+    nova: true,
+  },
+  {
+    feature: "Advanced learning-gap diagnosis",
+    core: false,
+    full: false,
+    nova: true,
+  },
+  {
+    feature: "Personalised learning plans",
+    core: false,
+    full: false,
+    nova: true,
+  },
+  {
+    feature: "Adaptive mission recommendations",
+    core: false,
+    full: false,
+    nova: true,
+  },
+  {
+    feature: "Parent-friendly Nova AI summaries",
+    core: false,
+    full: false,
+    nova: true,
   },
   {
     feature: "Content and platform updates",
-    science: true,
     core: true,
-    complete: true,
-  },
-  {
-    feature: "Milo’s Business Builder when launched",
-    science: false,
-    core: false,
-    complete: true,
+    full: true,
+    nova: true,
   },
 ];
 
@@ -162,14 +193,19 @@ const faqItems = [
       "Annual access is paid upfront for a 12-month subscription. The annual prices shown are lower than paying the equivalent monthly plan for 12 months.",
   },
   {
-    question: "Is Milo’s Business Builder included?",
+    question: "What is Nova+?",
     answer:
-      "Milo’s Business Builder is coming soon. When launched, it will be available for SGD 9.90 per month as a standalone subscription and included at no additional charge with an active Complete Missions subscription.",
+      "Nova+ is Dreamscape’s planned premium personalised-learning tier. It is intended to build on Full Access with deeper learning-gap diagnosis, misconception detection, personalised learning plans, adaptive mission recommendations, reassessment, and parent-friendly Nova insights. Nova+ is not yet open for subscription.",
+  },
+  {
+    question: "What will Nova+ cost?",
+    answer:
+      "The planned founding price is SGD 34.90 per month or SGD 349 per year. The intended future regular price is SGD 39.90 per month or SGD 399 per year once Nova+ reaches a mature release. Final launch details will be confirmed before subscriptions open.",
   },
   {
     question: "How does the Guru Kids Pro student offer work?",
     answer:
-      "New students who sign up for an eligible Guru Kids Pro Primary English or Mathematics class and complete one full month of classes receive one month of Full Dreamscape Student Access. After the free month, continued access is available at SGD 9.90 per month for Core Access or SGD 14.90 per month for Full Access. The selected Dreamscape charge is added to the student’s normal Guru Kids Pro class billing.",
+      "New students who sign up for an eligible Guru Kids Pro Primary English or Mathematics class and complete one full month of classes receive one month of Full Dreamscape Student Access. After the free month, continued access is available at SGD 9.90 per month for GKP Core Access or SGD 14.90 per month for GKP Full Access. GKP Nova+ is planned at SGD 19.90 per month when it launches.",
   },
   {
     question: "How are payments processed?",
@@ -189,8 +225,8 @@ const gkpPlans: GkpPlan[] = [
     features: [
       "Primary 1–6 English Learning Missions",
       "Primary 1–6 Mathematics Learning Missions",
-      "Topic quizzes and mixed assessments",
-      "Progress, Dream Token, and Dream Gem rewards",
+      "Think Missions and Knowledge Arena access",
+      "Basic topic mastery and progress insights",
       "Added to normal Guru Kids Pro class billing",
     ],
     accent: "#8ee8ff",
@@ -206,12 +242,32 @@ const gkpPlans: GkpPlan[] = [
     features: [
       "Everything in GKP Core Access",
       "Primary 1–6 Science Learning Missions",
-      "Complete Learning Missions progression",
-      "Milo’s Business Builder included when launched",
+      "Science progress and mastery tracking",
+      "Complete three-subject Learning Missions access",
       "Added to normal Guru Kids Pro class billing",
     ],
     accent: "#ffae5c",
     featured: true,
+    badge: "Best Value",
+  },
+  {
+    key: "gkp-nova",
+    name: "GKP Nova+",
+    price: 19.9,
+    eyebrow: "Future GKP premium",
+    description:
+      "Full Dreamscape access plus Nova’s advanced personalised-learning intelligence at an exclusive rate for eligible GKP students.",
+    features: [
+      "Everything in GKP Full Access",
+      "Learning-gap and misconception diagnosis",
+      "Personalised learning plans",
+      "Adaptive mission recommendations",
+      "Parent-friendly Nova learning summaries",
+    ],
+    accent: "#c58cff",
+    featured: false,
+    badge: "Coming Soon",
+    comingSoon: true,
   },
 ];
 
@@ -222,14 +278,6 @@ const gkpWhatsAppHref =
   "https://wa.me/6583888949?text=Hello%20Guru%20Kids%20Pro%2C%20I%20would%20like%20to%20enquire%20about%20Dreamscape%20Student%20Access%20for%20GKP%20students.";
 
 const checkoutLinks = {
-  science: {
-    monthly:
-      process.env.NEXT_PUBLIC_SHOPIFY_SCIENCE_MONTHLY_URL ??
-      "/cart?plan=science-monthly",
-    annual:
-      process.env.NEXT_PUBLIC_SHOPIFY_SCIENCE_ANNUAL_URL ??
-      "/cart?plan=science-annual",
-  },
   core: {
     monthly:
       process.env.NEXT_PUBLIC_SHOPIFY_CORE_MONTHLY_URL ??
@@ -238,13 +286,15 @@ const checkoutLinks = {
       process.env.NEXT_PUBLIC_SHOPIFY_CORE_ANNUAL_URL ??
       "/cart?plan=core-annual",
   },
-  complete: {
+  full: {
     monthly:
+      process.env.NEXT_PUBLIC_SHOPIFY_FULL_MONTHLY_URL ??
       process.env.NEXT_PUBLIC_SHOPIFY_COMPLETE_MONTHLY_URL ??
-      "/cart?plan=complete-monthly",
+      "/cart?plan=full-monthly",
     annual:
+      process.env.NEXT_PUBLIC_SHOPIFY_FULL_ANNUAL_URL ??
       process.env.NEXT_PUBLIC_SHOPIFY_COMPLETE_ANNUAL_URL ??
-      "/cart?plan=complete-annual",
+      "/cart?plan=full-annual",
   },
 } as const;
 
@@ -496,7 +546,7 @@ export default function PricingPage() {
             lineHeight: 1.04,
           }}
         >
-          Choose the right Learning Missions plan.
+          Choose the right Dreamscape plan.
         </h1>
 
         <p
@@ -509,9 +559,9 @@ export default function PricingPage() {
             lineHeight: 1.7,
           }}
         >
-          Build consistent practice across English, Mathematics, and Science
-          with structured missions, meaningful progress, and rewards. Complete
-          Missions will also include Milo’s Business Builder when it launches.
+          Build consistent learning across English, Mathematics, and Science
+          with structured missions, meaningful progress, rewards, and a clear
+          path toward Nova’s future personalised learning intelligence.
         </p>
 
         <div
@@ -616,7 +666,9 @@ export default function PricingPage() {
                 ? plan.monthlyPrice
                 : plan.annualPrice;
             const checkoutHref =
-              checkoutLinks[plan.key][regularBillingCycle];
+              plan.key === "nova"
+                ? null
+                : checkoutLinks[plan.key][regularBillingCycle];
 
             return (
               <article
@@ -643,7 +695,7 @@ export default function PricingPage() {
                     : "0 25px 70px rgba(0,0,0,0.3)",
                 }}
               >
-                {plan.featured && (
+                {plan.badge && (
                   <span
                     style={{
                       position: "absolute",
@@ -651,7 +703,7 @@ export default function PricingPage() {
                       right: "18px",
                       padding: "8px 11px",
                       borderRadius: "999px",
-                      background: "#ffae5c",
+                      background: plan.comingSoon ? plan.accent : "#ffae5c",
                       color: "#1b0c26",
                       fontSize: "10px",
                       fontWeight: 900,
@@ -659,7 +711,7 @@ export default function PricingPage() {
                       textTransform: "uppercase",
                     }}
                   >
-                    Best Value
+                    {plan.badge}
                   </span>
                 )}
 
@@ -722,10 +774,35 @@ export default function PricingPage() {
                     fontSize: "14px",
                   }}
                 >
-                  {regularBillingCycle === "monthly"
-                    ? "per month"
-                    : "per year, paid upfront"}
+                  {plan.comingSoon
+                    ? regularBillingCycle === "monthly"
+                      ? "planned founding monthly price"
+                      : "planned founding annual price"
+                    : regularBillingCycle === "monthly"
+                      ? "per month"
+                      : "per year, paid upfront"}
                 </p>
+
+                {plan.comingSoon &&
+                  plan.regularMonthlyPrice !== undefined &&
+                  plan.regularAnnualPrice !== undefined && (
+                    <p
+                      style={{
+                        margin: "11px 0 0",
+                        color: "rgba(255,255,255,0.62)",
+                        fontSize: "13px",
+                        fontWeight: 700,
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      Intended future regular price: SGD {money(
+                        regularBillingCycle === "monthly"
+                          ? plan.regularMonthlyPrice
+                          : plan.regularAnnualPrice,
+                      )}
+                      {regularBillingCycle === "monthly" ? "/month" : "/year"}.
+                    </p>
+                  )}
 
                 {regularBillingCycle === "annual" && (
                   <p
@@ -797,16 +874,23 @@ export default function PricingPage() {
 
                 <button
                   type="button"
-                  onClick={() => handleSubscriptionClick(checkoutHref)}
-                  disabled={checkoutAccessLoading}
+                  onClick={() => {
+                    if (!checkoutHref || plan.comingSoon) return;
+                    handleSubscriptionClick(checkoutHref);
+                  }}
+                  disabled={checkoutAccessLoading || plan.comingSoon}
                   style={{
                     marginTop: isMobile ? "24px" : "30px",
                     width: "100%",
                     minWidth: 0,
                     border: "none",
                     fontFamily: "inherit",
-                    cursor: checkoutAccessLoading ? "wait" : "pointer",
-                    opacity: checkoutAccessLoading ? 0.72 : 1,
+                    cursor: plan.comingSoon
+                      ? "not-allowed"
+                      : checkoutAccessLoading
+                        ? "wait"
+                        : "pointer",
+                    opacity: checkoutAccessLoading || plan.comingSoon ? 0.72 : 1,
                     minHeight: isMobile
                       ? "56px"
                       : isCompact
@@ -848,9 +932,11 @@ export default function PricingPage() {
                       overflowWrap: "break-word",
                     }}
                   >
-                    {checkoutAccessLoading
-                      ? "Checking access..."
-                      : `Choose ${plan.name}`}
+                    {plan.comingSoon
+                      ? "Nova+ Coming Soon"
+                      : checkoutAccessLoading
+                        ? "Checking access..."
+                        : `Choose ${plan.name}`}
                   </span>
 
                   <span
@@ -877,219 +963,6 @@ export default function PricingPage() {
           })}
         </div>
 
-        <div
-          style={{
-            maxWidth: "1420px",
-            margin: isMobile ? "28px auto 0" : "34px auto 0",
-            position: "relative",
-            overflow: "hidden",
-            display: "grid",
-            gridTemplateColumns: isMobile
-              ? "1fr"
-              : "minmax(0, 0.72fr) minmax(0, 1.28fr)",
-            gap: isMobile ? "28px" : "50px",
-            alignItems: "center",
-            padding: isMobile ? "32px 25px" : "42px 46px",
-            borderRadius: "30px",
-            border: "1px solid rgba(255,174,92,0.34)",
-            background:
-              "radial-gradient(circle at 12% 20%, rgba(255,174,92,0.17), transparent 28%), radial-gradient(circle at 88% 80%, rgba(197,140,255,0.14), transparent 30%), linear-gradient(145deg, rgba(255,255,255,0.075), rgba(255,255,255,0.022))",
-            boxShadow:
-              "0 28px 80px rgba(0,0,0,0.34), inset 0 0 28px rgba(255,174,92,0.025)",
-          }}
-        >
-          <div
-            style={{
-              minHeight: isMobile ? "220px" : "270px",
-              position: "relative",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: "25px",
-              border: "1px solid rgba(255,174,92,0.2)",
-              background:
-                "radial-gradient(circle at 50% 38%, rgba(255,174,92,0.17), rgba(197,140,255,0.1) 48%, rgba(2,8,19,0.82))",
-              overflow: "hidden",
-            }}
-          >
-            <img
-              src="/milo-world/milo-character.png"
-              alt="Milo from Dreamscape One"
-              style={{
-                position: "absolute",
-                left: "3%",
-                bottom: 0,
-                width: isMobile ? "52%" : "48%",
-                maxHeight: "94%",
-                objectFit: "contain",
-                objectPosition: "bottom",
-                filter: "drop-shadow(0 20px 30px rgba(0,0,0,0.34))",
-              }}
-            />
-
-            <div
-              style={{
-                position: "absolute",
-                right: "8%",
-                top: "12%",
-                padding: "10px 13px",
-                borderRadius: "999px",
-                background: "#ffae5c",
-                color: "#1a0b24",
-                fontSize: "10px",
-                fontWeight: 900,
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-              }}
-            >
-              Coming Soon
-            </div>
-
-            <div
-              style={{
-                position: "absolute",
-                right: "8%",
-                bottom: "12%",
-                width: isMobile ? "46%" : "48%",
-                padding: isMobile ? "15px" : "18px",
-                borderRadius: "20px",
-                border: "1px solid rgba(255,255,255,0.13)",
-                background: "rgba(2,8,19,0.7)",
-                backdropFilter: "blur(14px)",
-                textAlign: "left",
-              }}
-            >
-              <p
-                style={{
-                  margin: 0,
-                  color: "#ffae5c",
-                  fontSize: isMobile ? "24px" : "30px",
-                  fontWeight: 900,
-                  lineHeight: 1,
-                }}
-              >
-                SGD 9.90
-              </p>
-              <p
-                style={{
-                  margin: "7px 0 0",
-                  color: "rgba(255,255,255,0.76)",
-                  fontSize: "13px",
-                  fontWeight: 700,
-                  lineHeight: 1.45,
-                }}
-              >
-                per month standalone
-              </p>
-            </div>
-          </div>
-
-          <div style={{ textAlign: "left" }}>
-            <p
-              style={{
-                margin: 0,
-                color: "#ffae5c",
-                fontSize: "12px",
-                fontWeight: 900,
-                letterSpacing: "0.2em",
-                textTransform: "uppercase",
-              }}
-            >
-              Milo’s World Add-On
-            </p>
-
-            <h2
-              style={{
-                margin: "15px 0 0",
-                fontFamily: 'Georgia, "Times New Roman", serif',
-                fontSize: isMobile ? "38px" : "52px",
-                fontWeight: 400,
-                lineHeight: 1.08,
-              }}
-            >
-              Milo’s Business Builder
-            </h2>
-
-            <p
-              style={{
-                margin: "21px 0 0",
-                color: "rgba(255,255,255,0.7)",
-                fontSize: isMobile ? "16px" : "18px",
-                fontWeight: 300,
-                lineHeight: 1.7,
-              }}
-            >
-              Build and manage virtual businesses, make pricing and staffing
-              decisions, explore market demand, and practise entrepreneurship
-              through a safe simulation.
-            </p>
-
-            <div
-              style={{
-                marginTop: "25px",
-                display: "flex",
-                flexWrap: "wrap",
-                gap: "10px",
-              }}
-            >
-              {[
-                "SGD 9.90/month standalone",
-                "Included with Complete Missions",
-                "No real financial risk",
-              ].map((item) => (
-                <span
-                  key={item}
-                  style={{
-                    padding: "10px 13px",
-                    borderRadius: "999px",
-                    border: "1px solid rgba(255,174,92,0.22)",
-                    background: "rgba(255,255,255,0.045)",
-                    color: "rgba(255,255,255,0.82)",
-                    fontSize: "12px",
-                    fontWeight: 800,
-                  }}
-                >
-                  {item}
-                </span>
-              ))}
-            </div>
-
-            <div
-              aria-disabled="true"
-              style={{
-                marginTop: "28px",
-                minHeight: "54px",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "14px 24px",
-                borderRadius: "999px",
-                border: "1px solid rgba(255,174,92,0.32)",
-                background: "rgba(255,174,92,0.08)",
-                color: "#ffca8c",
-                fontSize: "13px",
-                fontWeight: 900,
-                letterSpacing: "0.09em",
-                textTransform: "uppercase",
-                cursor: "not-allowed",
-              }}
-            >
-              Coming Soon
-            </div>
-
-            <p
-              style={{
-                margin: "14px 0 0",
-                color: "rgba(255,255,255,0.48)",
-                fontSize: "12px",
-                lineHeight: 1.6,
-              }}
-            >
-              No separate Business Builder payment is required for active
-              Complete Missions subscribers once the feature launches.
-            </p>
-          </div>
-        </div>
       </section>
 
       )}
@@ -1192,9 +1065,9 @@ export default function PricingPage() {
               style={{
                 marginTop: isMobile ? "36px" : "48px",
                 display: "grid",
-                gridTemplateColumns: isMobile
+                gridTemplateColumns: isCompact
                   ? "1fr"
-                  : "repeat(2, minmax(0, 1fr))",
+                  : "repeat(3, minmax(0, 1fr))",
                 gap: isMobile ? "20px" : "24px",
                 alignItems: "stretch",
               }}
@@ -1220,7 +1093,7 @@ export default function PricingPage() {
                       : "0 24px 65px rgba(0,0,0,0.28)",
                   }}
                 >
-                  {plan.featured && (
+                  {plan.badge && (
                     <span
                       style={{
                         position: "absolute",
@@ -1228,7 +1101,7 @@ export default function PricingPage() {
                         right: "18px",
                         padding: "8px 11px",
                         borderRadius: "999px",
-                        background: "#ffae5c",
+                        background: plan.comingSoon ? plan.accent : "#ffae5c",
                         color: "#1b0c26",
                         fontSize: "10px",
                         fontWeight: 900,
@@ -1236,7 +1109,7 @@ export default function PricingPage() {
                         textTransform: "uppercase",
                       }}
                     >
-                      Full Access
+                      {plan.badge}
                     </span>
                   )}
 
@@ -1300,7 +1173,9 @@ export default function PricingPage() {
                       fontSize: "14px",
                     }}
                   >
-                    per month · GKP students only
+                    {plan.comingSoon
+                      ? "planned monthly price · GKP students only"
+                      : "per month · GKP students only"}
                   </p>
 
                   <p
@@ -1389,9 +1264,10 @@ export default function PricingPage() {
               >
                 After the free Full Access month, parents may continue with
                 GKP Core Access at SGD 9.90/month or GKP Full Access at SGD
-                14.90/month. Unless the parent or guardian opts out before the
-                free month ends, the selected Dreamscape add-on will be added
-                to the student’s normal Guru Kids Pro class billing.
+                14.90/month. GKP Nova+ is planned at SGD 19.90/month when it
+                launches. Unless the parent or guardian opts out before the free
+                month ends, the selected Dreamscape add-on will be added to the
+                student’s normal Guru Kids Pro class billing.
               </p>
 
               <div
@@ -1537,9 +1413,9 @@ export default function PricingPage() {
                 <tr>
                   {[
                     "Feature",
-                    "Science Missions",
                     "Core Missions",
-                    "Complete Missions",
+                    "Full Access",
+                    "Nova+",
                   ].map((heading) => (
                     <th
                       key={heading}
@@ -1571,7 +1447,7 @@ export default function PricingPage() {
                     >
                       {row.feature}
                     </td>
-                    {(["science", "core", "complete"] as const).map(
+                    {(["core", "full", "nova"] as const).map(
                       (key) => (
                         <td
                           key={key}
@@ -1834,7 +1710,8 @@ export default function PricingPage() {
               <li>
                 After the free month, continued Dreamscape access is charged
                 at SGD 9.90/month for GKP Core Access or SGD 14.90/month for
-                GKP Full Access.
+                GKP Full Access. GKP Nova+ is planned at SGD 19.90/month when
+                it launches.
               </li>
               <li>
                 Unless the parent or guardian opts out before the free month
@@ -1844,8 +1721,9 @@ export default function PricingPage() {
               <li>
                 GKP Core Access includes English and Mathematics Learning
                 Missions. GKP Full Access includes English, Mathematics, and
-                Science Learning Missions, together with Milo’s Business
-                Builder when it launches.
+                Science Learning Missions. GKP Nova+ is planned to include
+                everything in GKP Full Access together with Nova’s advanced
+                personalised-learning intelligence when it launches.
               </li>
               <li>
                 The offer cannot be exchanged for cash, transferred to another

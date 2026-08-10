@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import BillingAdminShell from "../_components/BillingAdminShell";
 import BillingModal from "../_components/BillingModal";
 import type {
+  BillingEmailLog,
   BillingInvoiceBatch,
   BillingInvoiceItem,
   BillingInvoiceOverview,
@@ -115,6 +116,8 @@ export default function BillingInvoicesClient() {
 
   const [selectedInvoiceId, setSelectedInvoiceId] = useState("");
   const [invoiceItems, setInvoiceItems] = useState<BillingInvoiceItem[]>([]);
+  const [emailHistory, setEmailHistory] = useState<BillingEmailLog[]>([]);
+  const [emailHistoryLoading, setEmailHistoryLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [itemsLoading, setItemsLoading] = useState(false);
   const [working, setWorking] = useState(false);
@@ -165,6 +168,31 @@ export default function BillingInvoicesClient() {
     }
 
     setItemsLoading(false);
+  }, []);
+
+  const loadEmailHistory = useCallback(async (invoiceId: string) => {
+    if (!invoiceId) {
+      setEmailHistory([]);
+      return;
+    }
+
+    setEmailHistoryLoading(true);
+
+    const { data, error } = await supabase
+      .from("gkp_billing_email_logs")
+      .select("*")
+      .eq("invoice_id", invoiceId)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (error) {
+      setLoadError(error.message);
+      setEmailHistory([]);
+    } else {
+      setEmailHistory((data || []) as BillingEmailLog[]);
+    }
+
+    setEmailHistoryLoading(false);
   }, []);
 
   const loadMonth = useCallback(
@@ -246,10 +274,14 @@ export default function BillingInvoicesClient() {
         : loadedInvoices[0]?.id || "";
 
       setSelectedInvoiceId(nextSelected);
-      await loadInvoiceItems(nextSelected);
+      await Promise.all([
+        loadInvoiceItems(nextSelected),
+        loadEmailHistory(nextSelected),
+      ]);
       setLoading(false);
     },
     [
+      loadEmailHistory,
       loadInvoiceItems,
       periodEnd,
       periodStart,
@@ -266,7 +298,8 @@ export default function BillingInvoicesClient() {
 
   useEffect(() => {
     void loadInvoiceItems(selectedInvoiceId);
-  }, [loadInvoiceItems, selectedInvoiceId]);
+    void loadEmailHistory(selectedInvoiceId);
+  }, [loadEmailHistory, loadInvoiceItems, selectedInvoiceId]);
 
   const selectedInvoice = useMemo(
     () =>
@@ -437,6 +470,81 @@ export default function BillingInvoicesClient() {
     setWorking(false);
   }
 
+  async function sendInvoiceEmailRequest({
+    invoiceId,
+    batchId,
+    mode = "issued",
+  }: {
+    invoiceId?: string;
+    batchId?: string;
+    mode?: "issued" | "resend";
+  }) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.access_token) {
+      throw new Error("Please sign in again before sending billing email.");
+    }
+
+    const response = await fetch("/api/billing/email/invoice", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        invoiceId,
+        batchId,
+        mode,
+      }),
+    });
+
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: string;
+      sent?: boolean | number;
+      skipped?: boolean | number;
+      failed?: number;
+      recipients?: string[];
+    };
+
+    if (!response.ok) {
+      throw new Error(payload.error || "The billing email could not be sent.");
+    }
+
+    return payload;
+  }
+
+  async function resendSelectedInvoiceEmail() {
+    if (!selectedInvoice) return;
+
+    setWorking(true);
+    setLoadError("");
+    setNotice("");
+
+    try {
+      const result = await sendInvoiceEmailRequest({
+        invoiceId: selectedInvoice.id,
+        mode: "resend",
+      });
+
+      setNotice(
+        `Invoice email resent to ${
+          Array.isArray(result.recipients)
+            ? result.recipients.join(", ")
+            : selectedInvoice.billing_email
+        }.`,
+      );
+      await loadEmailHistory(selectedInvoice.id);
+    } catch (error) {
+      setLoadError(
+        errorMessage(error, "The invoice email could not be resent."),
+      );
+    }
+
+    setWorking(false);
+  }
+
   async function issueSelectedInvoice() {
     if (!selectedInvoice) return;
 
@@ -451,7 +559,26 @@ export default function BillingInvoicesClient() {
     if (error) {
       setLoadError(error.message);
     } else {
-      setNotice(`${selectedInvoice.invoice_number} issued.`);
+      try {
+        const emailResult = await sendInvoiceEmailRequest({
+          invoiceId: selectedInvoice.id,
+          mode: "issued",
+        });
+
+        setNotice(
+          emailResult.skipped
+            ? `${selectedInvoice.invoice_number} issued. Its issue email had already been sent.`
+            : `${selectedInvoice.invoice_number} issued and emailed to the parent.`,
+        );
+      } catch (emailError) {
+        setLoadError(
+          `${selectedInvoice.invoice_number} was issued, but the email could not be sent: ${errorMessage(
+            emailError,
+            "Unknown email error",
+          )}`,
+        );
+      }
+
       await loadMonth(selectedInvoice.id);
     }
 
@@ -479,7 +606,36 @@ export default function BillingInvoicesClient() {
     if (error) {
       setLoadError(error.message);
     } else {
-      setNotice(`${Number(data || 0)} invoices issued.`);
+      const issuedCount = Number(data || 0);
+
+      try {
+        const emailResult = await sendInvoiceEmailRequest({
+          batchId: batch.id,
+          mode: "issued",
+        });
+
+        setNotice(
+          `${issuedCount} invoices issued. ${Number(emailResult.sent || 0)} email${
+            Number(emailResult.sent || 0) === 1 ? "" : "s"
+          } sent${
+            Number(emailResult.skipped || 0) > 0
+              ? `; ${Number(emailResult.skipped || 0)} already sent`
+              : ""
+          }${
+            Number(emailResult.failed || 0) > 0
+              ? `; ${Number(emailResult.failed || 0)} failed`
+              : ""
+          }.`,
+        );
+      } catch (emailError) {
+        setLoadError(
+          `${issuedCount} invoices were issued, but the batch email send failed: ${errorMessage(
+            emailError,
+            "Unknown email error",
+          )}`,
+        );
+      }
+
       await loadMonth(selectedInvoiceId);
     }
 
@@ -992,6 +1148,14 @@ export default function BillingInvoicesClient() {
                         ? ` · Overpayment ${formatCurrency(numberValue(selectedInvoice.overpayment_amount))}`
                         : ""}
                     </p>
+                    <p className="mt-1 text-xs font-semibold text-[#8a8378]">
+                      Email:{" "}
+                      {emailHistoryLoading
+                        ? "Checking…"
+                        : emailHistory[0]
+                          ? `${emailTypeLabel(emailHistory[0].email_type)} · ${emailHistory[0].status}`
+                          : "Not sent yet"}
+                    </p>
                   </div>
 
                   <div className="flex flex-wrap gap-2">
@@ -1062,6 +1226,14 @@ export default function BillingInvoicesClient() {
                             >
                               Copy secure link
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => void resendSelectedInvoiceEmail()}
+                              disabled={working}
+                              className="min-h-10 rounded-full border border-emerald-200 bg-emerald-50 px-4 text-xs font-bold text-emerald-700"
+                            >
+                              Resend email
+                            </button>
                           </>
                         )}
                         <button
@@ -1107,6 +1279,68 @@ export default function BillingInvoicesClient() {
                   <InfoCell label="Credits" value={formatCurrency(numberValue(selectedInvoice.credit_total))} />
                   <InfoCell label="Total due" value={formatCurrency(numberValue(selectedInvoice.total_amount))} emphasis />
                 </div>
+              </div>
+
+              <div className="border-b border-[#ebe5da] bg-[#fbfaf7] px-5 py-5 sm:px-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#9a7029]">
+                      Email history
+                    </p>
+                    <p className="mt-1 text-xs text-[#81796d]">
+                      Invoice and payment emails sent through Resend.
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-[#ded5c4] bg-white px-3 py-1.5 text-[10px] font-black text-[#6f675a]">
+                    {emailHistory.length}
+                  </span>
+                </div>
+
+                {emailHistoryLoading ? (
+                  <p className="mt-4 text-xs text-[#81796d]">
+                    Loading email history…
+                  </p>
+                ) : emailHistory.length === 0 ? (
+                  <p className="mt-4 text-xs text-[#81796d]">
+                    No billing email has been recorded for this invoice yet.
+                  </p>
+                ) : (
+                  <div className="mt-4 grid gap-2">
+                    {emailHistory.slice(0, 6).map((email) => (
+                      <div
+                        key={email.id}
+                        className="flex flex-col justify-between gap-2 rounded-2xl border border-[#e6dfd3] bg-white px-4 py-3 sm:flex-row sm:items-center"
+                      >
+                        <div>
+                          <strong className="block text-xs text-[#15233b]">
+                            {emailTypeLabel(email.email_type)}
+                          </strong>
+                          <span className="mt-1 block text-[11px] text-[#8a8378]">
+                            {(email.recipient_emails || []).join(", ")}
+                            {" · "}
+                            {formatEmailDate(email.sent_at || email.created_at)}
+                          </span>
+                          {email.error_message && (
+                            <span className="mt-1 block text-[11px] text-red-600">
+                              {email.error_message}
+                            </span>
+                          )}
+                        </div>
+                        <span
+                          className={`w-fit rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${
+                            email.status === "sent"
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                              : email.status === "failed"
+                                ? "border-red-200 bg-red-50 text-red-700"
+                                : "border-amber-200 bg-amber-50 text-amber-700"
+                          }`}
+                        >
+                          {email.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {itemsLoading ? (
@@ -1402,6 +1636,31 @@ function Alert({ tone, children }: { tone: "error" | "success"; children: ReactN
   return (
     <div className={`mb-5 rounded-2xl border p-4 text-sm leading-6 ${tone === "error" ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>{children}</div>
   );
+}
+
+function emailTypeLabel(value: BillingEmailLog["email_type"]) {
+  if (value === "invoice_issued") return "Invoice issued";
+  if (value === "invoice_resent") return "Invoice resent";
+  if (value === "payment_received") return "Payment received";
+  if (value === "payment_reminder") return "Payment reminder";
+  if (value === "overdue_reminder") return "Overdue reminder";
+  return value;
+}
+
+function formatEmailDate(value: string | null) {
+  if (!value) return "—";
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+
+  return new Intl.DateTimeFormat("en-SG", {
+    timeZone: "Asia/Singapore",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(parsed);
 }
 
 function TextField({ label, value, onChange, type = "text", placeholder, required = false, min, step }: { label: string; value: string; onChange: (value: string) => void; type?: string; placeholder?: string; required?: boolean; min?: string; step?: string }) {

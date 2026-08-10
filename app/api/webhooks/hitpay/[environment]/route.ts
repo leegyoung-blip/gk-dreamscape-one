@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createBillingServiceClient } from "@/lib/gkpBillingServer";
+import { sendGkpBillingEmail } from "@/lib/gkpBillingEmail";
 import {
   getHitPayWebhookSalt,
   isHitPayEnvironment,
@@ -120,6 +121,30 @@ export async function POST(
     if (error) {
       console.error("HitPay webhook database processing failed", error);
       return json({ error: error.message }, 500);
+    }
+
+    try {
+      const { data: paymentRequest } = await client
+        .from("gkp_billing_payment_requests")
+        .select("invoice_id")
+        .eq("provider", "hitpay")
+        .eq("provider_request_id", requestId)
+        .maybeSingle();
+
+      if (paymentRequest?.invoice_id) {
+        await sendGkpBillingEmail({
+          invoiceId: paymentRequest.invoice_id,
+          emailType: "payment_received",
+          origin: new URL(request.url).origin,
+          paymentId,
+        });
+      }
+    } catch (emailError) {
+      // Payment processing must remain successful even if email delivery fails.
+      console.error(
+        "HitPay payment was recorded, but the paid-invoice email failed",
+        emailError,
+      );
     }
 
     return json({ received: true });
