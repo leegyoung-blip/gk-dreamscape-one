@@ -576,9 +576,14 @@ export default function BillingPaymentsClient() {
 
       <BillingModal
         open={manualModalOpen}
+        eyebrow="Payments"
         title="Record manual payment"
         description="Use this only after Guru Kids Pro has actually received the money."
-        onClose={() => !working && setManualModalOpen(false)}
+        onClose={() => {
+          if (!working) {
+            setManualModalOpen(false);
+          }
+        }}
       >
         <div className="grid gap-4">
           <Field label="Invoice">
@@ -697,13 +702,18 @@ export default function BillingPaymentsClient() {
 
       <BillingModal
         open={refundModalOpen}
+        eyebrow="Payments"
         title="Record refund"
         description={
           refundPayment?.provider === "hitpay"
             ? "Complete the actual refund in HitPay first. This form records it in GKP billing and recalculates the invoice."
             : "Record money that has actually been returned to the payer."
         }
-        onClose={() => !working && setRefundModalOpen(false)}
+        onClose={() => {
+          if (!working) {
+            setRefundModalOpen(false);
+          }
+        }}
       >
         {refundPayment && (
           <div className="grid gap-4">
