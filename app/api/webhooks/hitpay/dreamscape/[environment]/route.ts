@@ -6,6 +6,7 @@ import {
   validateHitPayWebhookSignature,
   type HitPayEnvironment,
 } from "@/lib/hitpay";
+import { sendDreamscapeSubscriptionEmail } from "@/lib/dreamscapeSubscriptionEmail";
 import {
   addBillingPeriod,
   extractDate,
@@ -328,6 +329,15 @@ export async function POST(
           reason: `HitPay subscription ${providerStatus}`,
           providerStatus,
         });
+
+        await sendDreamscapeSubscriptionEmail({
+          contractId: contract.id,
+          emailType: "subscription_ended",
+          origin: new URL(request.url).origin,
+          eventKey: `provider-ended:${providerStatus}:${objectId || eventRow?.id || "unknown"}`,
+        }).catch((emailError) =>
+          console.error("Dreamscape ended email failed", emailError),
+        );
       }
     } else if (event.name === "recurring_billing.method_attached") {
       await supabaseAdmin
@@ -383,6 +393,15 @@ export async function POST(
           })
           .eq("user_id", contract.learner_user_id);
       }
+
+      await sendDreamscapeSubscriptionEmail({
+        contractId: contract.id,
+        emailType: "payment_issue",
+        origin: new URL(request.url).origin,
+        eventKey: `method-detached:${objectId || eventRow?.id || graceUntil.toISOString()}`,
+      }).catch((emailError) =>
+        console.error("Dreamscape payment issue email failed", emailError),
+      );
     } else if (event.name === "charge.created") {
       const chargeStatus = String(payload.status || "")
         .trim()
@@ -441,6 +460,17 @@ export async function POST(
             updated_at: new Date().toISOString(),
           })
           .eq("id", contract.id);
+
+        await sendDreamscapeSubscriptionEmail({
+          contractId: contract.id,
+          emailType: contract.first_paid_at
+            ? "payment_received"
+            : "subscription_started",
+          origin: new URL(request.url).origin,
+          eventKey: `charge:${objectId || paidAt.toISOString()}`,
+        }).catch((emailError) =>
+          console.error("Dreamscape payment email failed", emailError),
+        );
       }
     }
 

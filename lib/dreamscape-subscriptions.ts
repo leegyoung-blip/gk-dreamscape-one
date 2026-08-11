@@ -42,6 +42,8 @@ export type DreamscapeContractRow = {
   cancellation_requested_at?: string | null;
   cancellation_mode?: string | null;
   failed_charge_count?: number;
+  first_paid_at?: string | null;
+  updated_at?: string | null;
 };
 
 export function normaliseEmail(value: unknown) {

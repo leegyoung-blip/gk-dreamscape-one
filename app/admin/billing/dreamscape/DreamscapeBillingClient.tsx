@@ -68,6 +68,34 @@ type Settings = {
   updated_at: string;
 };
 
+type AddonWarning = {
+  addon_id: string;
+  student_id: string;
+  account_id: string;
+  account_code: string;
+  payer_name: string;
+  student_code: string;
+  student_name: string;
+  learner_email: string;
+  plan_code: string;
+  monthly_fee: number | string;
+  starts_on: string;
+  warning_code: string;
+  warning_message: string;
+};
+
+type SubscriptionEmailLog = {
+  id: string;
+  email_type: string;
+  recipient_email: string;
+  subject: string;
+  status: string;
+  resend_email_id: string | null;
+  error_message: string | null;
+  sent_at: string | null;
+  created_at: string;
+};
+
 function money(value: number | string, currency = "SGD") {
   return new Intl.NumberFormat("en-SG", {
     style: "currency",
@@ -99,6 +127,8 @@ export default function DreamscapeBillingClient() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [selectedContractId, setSelectedContractId] = useState("");
+  const [addonWarnings, setAddonWarnings] = useState<AddonWarning[]>([]);
+  const [emailHistory, setEmailHistory] = useState<SubscriptionEmailLog[]>([]);
   const [paymentHistory, setPaymentHistory] = useState<
     Array<{
       id: string;
@@ -115,8 +145,13 @@ export default function DreamscapeBillingClient() {
     setLoading(true);
     setError("");
 
-    const [plansResult, contractsResult, metricsResult, settingsResult] =
-      await Promise.all([
+    const [
+      plansResult,
+      contractsResult,
+      metricsResult,
+      settingsResult,
+      warningResult,
+    ] = await Promise.all([
         supabase.rpc("gkp_get_dreamscape_subscription_plans"),
         supabase.rpc(
           "gkp_get_dreamscape_subscription_contracts",
@@ -124,13 +159,15 @@ export default function DreamscapeBillingClient() {
         ),
         supabase.rpc("gkp_get_dreamscape_subscription_metrics"),
         supabase.rpc("gkp_get_dreamscape_billing_settings"),
+        supabase.rpc("gkp_get_gkp_dreamscape_addon_warnings"),
       ]);
 
     const firstError =
       plansResult.error ||
       contractsResult.error ||
       metricsResult.error ||
-      settingsResult.error;
+      settingsResult.error ||
+      warningResult.error;
 
     if (firstError) {
       setError(firstError.message);
@@ -146,6 +183,7 @@ export default function DreamscapeBillingClient() {
     setSettings(
       ((settingsResult.data || [])[0] || null) as Settings | null,
     );
+    setAddonWarnings((warningResult.data || []) as AddonWarning[]);
     setLoading(false);
   }, []);
 
@@ -262,17 +300,26 @@ export default function DreamscapeBillingClient() {
       return;
     }
 
-    const { data, error: historyError } = await supabase.rpc(
-      "gkp_get_dreamscape_subscription_payments",
-      { p_contract_id: contractId },
-    );
+    const [paymentResult, emailResult] = await Promise.all([
+      supabase.rpc(
+        "gkp_get_dreamscape_subscription_payments",
+        { p_contract_id: contractId },
+      ),
+      supabase.rpc(
+        "gkp_get_dreamscape_subscription_email_history",
+        { p_contract_id: contractId },
+      ),
+    ]);
 
-    if (historyError) {
-      setError(historyError.message);
+    const firstError = paymentResult.error || emailResult.error;
+
+    if (firstError) {
+      setError(firstError.message);
       return;
     }
 
-    setPaymentHistory((data || []) as typeof paymentHistory);
+    setPaymentHistory((paymentResult.data || []) as typeof paymentHistory);
+    setEmailHistory((emailResult.data || []) as SubscriptionEmailLog[]);
   }
 
   async function runSubscriptionAction(
@@ -371,6 +418,62 @@ export default function DreamscapeBillingClient() {
         caught instanceof Error
           ? caught.message
           : "The subscription action could not be completed.",
+      );
+    }
+
+    setWorking(false);
+  }
+
+  async function sendManagementEmail(contract: Contract) {
+    setWorking(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("Please sign in again.");
+      }
+
+      const response = await fetch(
+        "/api/billing/dreamscape/subscriptions/email",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ contractId: contract.id }),
+        },
+      );
+
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string; recipient?: string }
+        | null;
+
+      if (!response.ok) {
+        throw new Error(
+          payload?.error || "The management email could not be sent.",
+        );
+      }
+
+      setMessage(
+        `Secure subscription management link sent to ${
+          payload?.recipient || contract.parent_email
+        }.`,
+      );
+
+      if (selectedContractId === contract.id) {
+        await loadPaymentHistory(contract.id);
+      }
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The management email could not be sent.",
       );
     }
 
@@ -553,6 +656,42 @@ export default function DreamscapeBillingClient() {
         </div>
       </section>
 
+      {addonWarnings.length > 0 && (
+        <section className="mt-6 rounded-[28px] border border-amber-200 bg-amber-50 p-6 shadow-[0_20px_60px_rgba(21,35,59,0.05)]">
+          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-amber-700">
+            GKP access review
+          </p>
+          <h2 className="mt-2 text-xl font-semibold text-[#15233b]">
+            {addonWarnings.length} GKP Dreamscape add-on
+            {addonWarnings.length === 1 ? "" : "s"} need review
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-amber-900/75">
+            These students still have GKP-priced Dreamscape access but no
+            active GKP programme enrolment. Review whether the add-on should
+            end or move to a public Dreamscape subscription.
+          </p>
+
+          <div className="mt-5 grid gap-3 lg:grid-cols-2">
+            {addonWarnings.map((warning) => (
+              <div
+                key={warning.addon_id}
+                className="rounded-2xl border border-amber-200 bg-white p-4"
+              >
+                <strong className="text-sm text-[#15233b]">
+                  {warning.student_name}
+                </strong>
+                <p className="mt-1 text-xs text-[#81796d]">
+                  {warning.account_code} · {warning.payer_name}
+                </p>
+                <p className="mt-3 text-xs leading-5 text-amber-800">
+                  {warning.warning_message}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="mt-6 rounded-[28px] border border-[#ded5c4] bg-white p-6 shadow-[0_20px_60px_rgba(21,35,59,0.05)]">
         <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#8a8378]">
           Plan mapping
@@ -725,6 +864,15 @@ export default function DreamscapeBillingClient() {
                         <button
                           type="button"
                           disabled={working}
+                          onClick={() => void sendManagementEmail(contract)}
+                          className="rounded-full border border-violet-200 bg-violet-50 px-3 py-2 text-[10px] font-bold text-violet-700"
+                        >
+                          Email parent
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={working}
                           onClick={() =>
                             void runSubscriptionAction(
                               contract,
@@ -818,6 +966,7 @@ export default function DreamscapeBillingClient() {
               onClick={() => {
                 setSelectedContractId("");
                 setPaymentHistory([]);
+                setEmailHistory([]);
               }}
               className="min-h-10 rounded-full border border-[#d7c9ae] bg-white px-4 text-xs font-bold"
             >
@@ -900,6 +1049,61 @@ export default function DreamscapeBillingClient() {
                       </td>
                       <td className="px-4 py-4 text-xs text-[#81796d]">
                         {payment.provider_charge_id || "—"}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-6 overflow-x-auto rounded-2xl border border-[#ebe5da]">
+            <div className="border-b border-[#ebe5da] bg-[#fbfaf7] px-4 py-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
+                Subscription email history
+              </p>
+            </div>
+            <table className="w-full min-w-[760px] border-collapse text-left">
+              <thead>
+                <tr className="border-b border-[#ebe5da] text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
+                  <th className="px-4 py-3">Type</th>
+                  <th className="px-4 py-3">Recipient</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Sent</th>
+                </tr>
+              </thead>
+              <tbody>
+                {emailHistory.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="px-4 py-7 text-center text-sm text-[#81796d]"
+                    >
+                      No Dreamscape subscription emails recorded yet.
+                    </td>
+                  </tr>
+                ) : (
+                  emailHistory.map((email) => (
+                    <tr
+                      key={email.id}
+                      className="border-b border-[#f0ece4] last:border-b-0"
+                    >
+                      <td className="px-4 py-4 text-xs font-bold">
+                        {email.email_type.replaceAll("_", " ")}
+                      </td>
+                      <td className="px-4 py-4 text-xs">
+                        {email.recipient_email}
+                      </td>
+                      <td className="px-4 py-4">
+                        <StatusPill status={email.status} />
+                      </td>
+                      <td className="px-4 py-4 text-xs text-[#81796d]">
+                        {date(email.sent_at || email.created_at)}
+                        {email.error_message && (
+                          <span className="mt-1 block max-w-[260px] text-red-600">
+                            {email.error_message}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))

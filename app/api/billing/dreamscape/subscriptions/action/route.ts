@@ -7,6 +7,7 @@ import {
   isHitPayEnvironment,
   updateHitPayRecurringBilling,
 } from "@/lib/hitpay";
+import { sendDreamscapeSubscriptionEmail } from "@/lib/dreamscapeSubscriptionEmail";
 import {
   keepNovaAccessUntilPeriodEnd,
   projectContractToNovaAccess,
@@ -113,21 +114,24 @@ function requireProviderSubscription(
     provider_environment: string | null;
   },
 ) {
-  if (!contract.provider_subscription_id) {
+  const subscriptionId = contract.provider_subscription_id;
+  const environment = contract.provider_environment;
+
+  if (!subscriptionId) {
     throw new Error(
       "This contract does not yet have a HitPay subscription ID.",
     );
   }
 
-  if (!isHitPayEnvironment(contract.provider_environment)) {
+  if (!environment || !isHitPayEnvironment(environment)) {
     throw new Error(
       "This contract does not have a valid HitPay environment.",
     );
   }
 
   return {
-    id: contract.provider_subscription_id,
-    environment: contract.provider_environment,
+    id: subscriptionId,
+    environment,
   };
 }
 
@@ -292,6 +296,15 @@ export async function POST(request: Request) {
         })
         .eq("id", contract.id);
 
+      await sendDreamscapeSubscriptionEmail({
+        contractId: contract.id,
+        emailType: "cancellation_scheduled",
+        origin: new URL(request.url).origin,
+        eventKey: `admin-period-end:${cancellationRequestedAt}`,
+      }).catch((emailError) =>
+        console.error("Dreamscape cancellation email failed", emailError),
+      );
+
       return json({
         ok: true,
         status: "cancel_at_period_end",
@@ -324,6 +337,15 @@ export async function POST(request: Request) {
         reason: "Dreamscape subscription cancelled immediately",
         providerStatus: "canceled",
       });
+
+      await sendDreamscapeSubscriptionEmail({
+        contractId: contract.id,
+        emailType: "subscription_ended",
+        origin: new URL(request.url).origin,
+        eventKey: `admin-immediate:${new Date().toISOString()}`,
+      }).catch((emailError) =>
+        console.error("Dreamscape ended email failed", emailError),
+      );
 
       return json({
         ok: true,
