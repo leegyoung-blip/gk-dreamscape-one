@@ -20,7 +20,10 @@ export default async function AffiliateAdminPage({
   searchParams: Promise<{ status?: string }>;
 }) {
   const { status = "all" } = await searchParams;
-  const activeStatus = allowedStatuses.includes(status) ? status : "all";
+  const activeStatus = allowedStatuses.includes(status)
+    ? status
+    : "all";
+
   const { admin } = await requireAdmin();
 
   let query = admin
@@ -41,21 +44,53 @@ export default async function AffiliateAdminPage({
     <main className={styles.adminPage}>
       <header className={styles.adminHeader}>
         <div>
-          <p className={styles.eyebrow}>Dreamscape Administration</p>
+          <p className={styles.eyebrow}>
+            Dreamscape Administration
+          </p>
+
           <h1>Affiliate applications</h1>
-          <p>Review applicants, approve commission rates and issue secure onboarding links.</p>
+
+          <p>
+            Review applicants, approve commission
+            rates and issue secure onboarding links.
+          </p>
         </div>
-        <Link href="/affiliate/apply" className={styles.secondaryLink} target="_blank">
-          Open public form
-        </Link>
+
+        <div className={styles.buttonRow}>
+          <Link
+            href="/admin/affiliates/finance"
+            className={styles.primaryLink}
+          >
+            Affiliate Finance
+          </Link>
+
+          <Link
+            href="/affiliate/apply"
+            className={styles.secondaryLink}
+            target="_blank"
+          >
+            Open public form
+          </Link>
+        </div>
       </header>
 
-      <nav className={styles.statusTabs} aria-label="Filter affiliate applications">
+      <nav
+        className={styles.statusTabs}
+        aria-label="Filter affiliate applications"
+      >
         {allowedStatuses.map((item) => (
           <Link
             key={item}
-            href={item === "all" ? "/admin/affiliates" : `/admin/affiliates?status=${item}`}
-            className={activeStatus === item ? styles.activeTab : ""}
+            href={
+              item === "all"
+                ? "/admin/affiliates"
+                : `/admin/affiliates?status=${item}`
+            }
+            className={
+              activeStatus === item
+                ? styles.activeTab
+                : ""
+            }
           >
             {item.replaceAll("_", " ")}
           </Link>
@@ -63,7 +98,12 @@ export default async function AffiliateAdminPage({
       </nav>
 
       <section className={styles.adminCard}>
-        {error ? <div className={styles.formError}>{error.message}</div> : null}
+        {error ? (
+          <div className={styles.formError}>
+            {error.message}
+          </div>
+        ) : null}
+
         <div className={styles.tableScroll}>
           <table className={styles.adminTable}>
             <thead>
@@ -77,23 +117,80 @@ export default async function AffiliateAdminPage({
                 <th></th>
               </tr>
             </thead>
+
             <tbody>
               {applications?.map((application) => (
                 <tr key={application.id}>
-                  <td><strong>{application.application_number}</strong></td>
                   <td>
-                    <strong>{application.business_name || application.legal_name}</strong>
-                    <span>{application.email}<br />{application.country}</span>
+                    <strong>
+                      {application.application_number}
+                    </strong>
                   </td>
-                  <td>{application.applicant_type.replaceAll("_", " ")}</td>
-                  <td>{application.programme_requested}</td>
-                  <td><span className={`${styles.statusPill} ${styles[`status_${application.status}`]}`}>{application.status.replaceAll("_", " ")}</span></td>
-                  <td>{new Date(application.submitted_at).toLocaleDateString("en-SG")}</td>
-                  <td><Link href={`/admin/affiliates/${application.id}`}>Review →</Link></td>
+
+                  <td>
+                    <strong>
+                      {application.business_name ||
+                        application.legal_name}
+                    </strong>
+                    <span>
+                      {application.email}
+                      <br />
+                      {application.country}
+                    </span>
+                  </td>
+
+                  <td>
+                    {application.applicant_type.replaceAll(
+                      "_",
+                      " ",
+                    )}
+                  </td>
+
+                  <td>
+                    {application.programme_requested}
+                  </td>
+
+                  <td>
+                    <span
+                      className={`${styles.statusPill} ${
+                        styles[
+                          `status_${application.status}`
+                        ]
+                      }`}
+                    >
+                      {application.status.replaceAll(
+                        "_",
+                        " ",
+                      )}
+                    </span>
+                  </td>
+
+                  <td>
+                    {new Date(
+                      application.submitted_at,
+                    ).toLocaleDateString("en-SG")}
+                  </td>
+
+                  <td>
+                    <Link
+                      href={`/admin/affiliates/${application.id}`}
+                    >
+                      Review →
+                    </Link>
+                  </td>
                 </tr>
               ))}
+
               {!applications?.length ? (
-                <tr><td colSpan={7} className={styles.emptyCell}>No applications match this filter.</td></tr>
+                <tr>
+                  <td
+                    colSpan={7}
+                    className={styles.emptyCell}
+                  >
+                    No applications match this
+                    filter.
+                  </td>
+                </tr>
               ) : null}
             </tbody>
           </table>

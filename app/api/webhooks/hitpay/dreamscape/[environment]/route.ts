@@ -32,7 +32,6 @@ function dreamscapeWebhookSalt(environment: HitPayEnvironment) {
 
   if (dedicated) return dedicated;
 
-  // Deliberately do not silently reuse another endpoint's per-webhook salt.
   throw new Error(
     `Missing Dreamscape ${environment} HitPay webhook salt.`,
   );
@@ -101,13 +100,35 @@ async function findContract(
   }
 
   if (eventObject === "charge") {
+    const chargeId = extractString(payload, ["id"]);
+
+    if (chargeId) {
+      const { data: payment } = await supabaseAdmin
+        .from("dreamscape_subscription_payments")
+        .select("contract_id")
+        .eq("provider", "hitpay")
+        .eq("provider_charge_id", chargeId)
+        .maybeSingle();
+
+      if (payment?.contract_id) {
+        const { data: byPayment } = await supabaseAdmin
+          .from("dreamscape_subscription_contracts")
+          .select("*")
+          .eq("id", payment.contract_id)
+          .maybeSingle();
+
+        if (byPayment) {
+          return byPayment as DreamscapeContractRow;
+        }
+      }
+    }
+
     const customerEmail = extractNestedString(payload, [
       "customer",
       "email",
     ]).toLowerCase();
 
     const amount = Number(payload.amount || 0);
-
     const currency = String(payload.currency || "")
       .trim()
       .toUpperCase();
@@ -162,15 +183,6 @@ async function loadPlan(planId: string) {
   return data as DreamscapePlanRow;
 }
 
-/**
- * Find the permanent subscription-payment row after the HitPay charge
- * has been stored.
- *
- * Normally we use the HitPay charge ID, which is the safest lookup.
- *
- * The fallback exists only for the unlikely case where the webhook
- * payload has no charge ID.
- */
 async function findStoredPayment(params: {
   contractId: string;
   environment: HitPayEnvironment;
@@ -197,10 +209,7 @@ async function findStoredPayment(params: {
       .maybeSingle();
 
     if (error) throw error;
-
-    if (data?.id) {
-      return data;
-    }
+    if (data?.id) return data;
   }
 
   const { data, error } = await supabaseAdmin
@@ -222,16 +231,6 @@ async function findStoredPayment(params: {
   return data;
 }
 
-/**
- * Phase 4:
- * Convert a successful Dreamscape subscription payment into an
- * affiliate commission ledger record where applicable.
- *
- * The database function is idempotent:
- * one payment can have at most one commission ledger row.
- *
- * A non-affiliate subscription legitimately returns null.
- */
 async function recordAffiliateCommission(paymentId: string) {
   const { data, error } = await supabaseAdmin.rpc(
     "record_dreamscape_affiliate_commission",
@@ -247,6 +246,46 @@ async function recordAffiliateCommission(paymentId: string) {
   }
 
   return data;
+}
+
+async function applyAffiliateRefund(params: {
+  paymentId: string;
+  refundedAmount: number;
+  eventId: string | null;
+  providerChargeId: string | null;
+}) {
+  const {
+    paymentId,
+    refundedAmount,
+    eventId,
+    providerChargeId,
+  } = params;
+
+  const sourceKey = eventId
+    ? `hitpay-charge-updated:${eventId}`
+    : `hitpay-refund:${providerChargeId || paymentId}:${refundedAmount.toFixed(
+        2,
+      )}`;
+
+  const { error } = await supabaseAdmin.rpc(
+    "apply_dreamscape_affiliate_refund",
+    {
+      p_payment_id: paymentId,
+      p_refunded_amount: refundedAmount,
+      p_source_key: sourceKey,
+      p_metadata: {
+        provider: "hitpay",
+        provider_charge_id: providerChargeId,
+        subscription_event_id: eventId,
+      },
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Affiliate refund reconciliation failed: ${error.message}`,
+    );
+  }
 }
 
 export async function POST(
@@ -268,9 +307,7 @@ export async function POST(
   }
 
   const environment = rawEnvironment;
-
   const rawBody = await request.text();
-
   const signature =
     request.headers.get("hitpay-signature") || "";
 
@@ -328,7 +365,6 @@ export async function POST(
   }
 
   const event = eventNameFromHeaders(request);
-
   const objectId = extractString(payload, ["id"]);
 
   const { data: eventRow, error: eventInsertError } =
@@ -385,10 +421,6 @@ export async function POST(
       payload,
       ["status"],
     ).toLowerCase();
-
-    // =========================================================
-    // RECURRING SUBSCRIPTION UPDATED
-    // =========================================================
 
     if (
       event.name ===
@@ -476,10 +508,6 @@ export async function POST(
           ),
         );
       }
-
-      // =======================================================
-      // PAYMENT METHOD ATTACHED
-      // =======================================================
     } else if (
       event.name ===
       "recurring_billing.method_attached"
@@ -493,10 +521,6 @@ export async function POST(
           updated_at: new Date().toISOString(),
         })
         .eq("id", contract.id);
-
-      // =======================================================
-      // PAYMENT METHOD DETACHED
-      // =======================================================
     } else if (
       event.name ===
       "recurring_billing.method_detached"
@@ -570,10 +594,6 @@ export async function POST(
           emailError,
         ),
       );
-
-      // =======================================================
-      // SUCCESSFUL CHARGE
-      // =======================================================
     } else if (event.name === "charge.created") {
       const chargeStatus = String(
         payload.status || "",
@@ -597,10 +617,6 @@ export async function POST(
             plan.currency ||
             "SGD",
         ).toUpperCase();
-
-        // -----------------------------------------------------
-        // 1. Store payment idempotently.
-        // -----------------------------------------------------
 
         const { error: paymentError } =
           await supabaseAdmin
@@ -633,14 +649,6 @@ export async function POST(
           throw paymentError;
         }
 
-        // -----------------------------------------------------
-        // 2. Retrieve the permanent payment row.
-        //
-        // This works for both:
-        // - the first webhook delivery, and
-        // - HitPay retry deliveries where the upsert was ignored.
-        // -----------------------------------------------------
-
         const storedPayment =
           await findStoredPayment({
             contractId: contract.id,
@@ -658,50 +666,12 @@ export async function POST(
           );
         }
 
-        // -----------------------------------------------------
-        // 3. Phase 4 affiliate commission processing.
-        //
-        // The database function decides:
-        //
-        // - no affiliate -> no commission
-        // - monthly payment #1 -> ineligible
-        // - monthly payment #2+ -> commission
-        // - annual payment -> commission
-        // - inactive affiliate -> ineligible
-        //
-        // The payment_id unique constraint prevents duplicates.
-        // -----------------------------------------------------
-
-        const commissionId =
-          await recordAffiliateCommission(
-            storedPayment.id,
-          );
-
-        if (commissionId) {
-          console.info(
-            "Dreamscape affiliate commission recorded",
-            {
-              contractId: contract.id,
-              paymentId: storedPayment.id,
-              commissionId,
-            },
-          );
-        }
-
-        // -----------------------------------------------------
-        // 4. Existing Nova subscription projection.
-        // -----------------------------------------------------
-
         await projectContractToNovaAccess({
           contract,
           plan,
           providerPayload: payload,
           paidAt,
         });
-
-        // -----------------------------------------------------
-        // 5. Existing contract state update.
-        // -----------------------------------------------------
 
         await supabaseAdmin
           .from(
@@ -719,9 +689,21 @@ export async function POST(
           })
           .eq("id", contract.id);
 
-        // -----------------------------------------------------
-        // 6. Existing subscription/payment email.
-        // -----------------------------------------------------
+        const commissionId =
+          await recordAffiliateCommission(
+            storedPayment.id,
+          );
+
+        if (commissionId) {
+          console.info(
+            "Dreamscape affiliate commission recorded",
+            {
+              contractId: contract.id,
+              paymentId: storedPayment.id,
+              commissionId,
+            },
+          );
+        }
 
         await sendDreamscapeSubscriptionEmail({
           contractId: contract.id,
@@ -741,11 +723,58 @@ export async function POST(
           ),
         );
       }
-    }
+    } else if (event.name === "charge.updated") {
+      if (!objectId) {
+        throw new Error(
+          "HitPay charge.updated webhook did not include a charge ID.",
+        );
+      }
 
-    // =========================================================
-    // EVENT JOURNAL COMPLETE
-    // =========================================================
+      const { data: storedPayment, error: paymentError } =
+        await supabaseAdmin
+          .from("dreamscape_subscription_payments")
+          .select("id,raw_payload")
+          .eq("provider", "hitpay")
+          .eq("provider_charge_id", objectId)
+          .maybeSingle();
+
+      if (paymentError) throw paymentError;
+
+      if (!storedPayment?.id) {
+        throw new Error(
+          `No Dreamscape subscription payment matches refunded HitPay charge ${objectId}.`,
+        );
+      }
+
+      const refundedAmount = Number(
+        payload.refunded_amount || 0,
+      );
+
+      if (
+        !Number.isFinite(refundedAmount) ||
+        refundedAmount < 0
+      ) {
+        throw new Error(
+          "HitPay charge.updated contained an invalid refunded_amount.",
+        );
+      }
+
+      await supabaseAdmin
+        .from("dreamscape_subscription_payments")
+        .update({
+          raw_payload: payload,
+        })
+        .eq("id", storedPayment.id);
+
+      if (refundedAmount > 0) {
+        await applyAffiliateRefund({
+          paymentId: storedPayment.id,
+          refundedAmount,
+          eventId: eventRow?.id || null,
+          providerChargeId: objectId,
+        });
+      }
+    }
 
     if (eventRow?.id) {
       await supabaseAdmin

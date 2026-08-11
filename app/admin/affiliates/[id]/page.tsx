@@ -127,6 +127,16 @@ export default async function AffiliateApplicationDetailPage({
                 <div><dt>Referral code</dt><dd>{partner.referral_code || "Not activated"}</dd></div>
                 <div><dt>Activated</dt><dd>{partner.activated_at ? new Date(partner.activated_at).toLocaleString("en-SG") : "Not yet"}</dd></div>
               </dl>
+
+              <div className={styles.buttonRow}>
+                <Link
+                  href="/admin/affiliates/finance"
+                  className={styles.secondaryLink}
+                >
+                  Open affiliate finance
+                </Link>
+              </div>
+
               {application.status === "approved_pending_onboarding" ? (
                 <form action={resendAffiliateApprovalLink} className={styles.inlineForm}>
                   <input type="hidden" name="application_id" value={id} />
