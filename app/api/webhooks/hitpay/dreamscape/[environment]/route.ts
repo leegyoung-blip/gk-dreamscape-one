@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
-  getHitPayWebhookSalt,
   isHitPayEnvironment,
   validateHitPayWebhookSignature,
   type HitPayEnvironment,
 } from "@/lib/hitpay";
 import { sendDreamscapeSubscriptionEmail } from "@/lib/dreamscapeSubscriptionEmail";
 import {
-  addBillingPeriod,
   extractDate,
   extractNestedString,
   extractString,
@@ -103,11 +101,13 @@ async function findContract(
   }
 
   if (eventObject === "charge") {
-    const customerEmail =
-      extractNestedString(payload, ["customer", "email"])
-        .toLowerCase();
+    const customerEmail = extractNestedString(payload, [
+      "customer",
+      "email",
+    ]).toLowerCase();
 
     const amount = Number(payload.amount || 0);
+
     const currency = String(payload.currency || "")
       .trim()
       .toUpperCase();
@@ -137,8 +137,7 @@ async function findContract(
 
         return (
           Math.abs(Number(plan?.amount || 0) - amount) < 0.001 &&
-          String(plan?.currency || "")
-            .toUpperCase() === currency
+          String(plan?.currency || "").toUpperCase() === currency
         );
       });
 
@@ -159,7 +158,95 @@ async function loadPlan(planId: string) {
     .single();
 
   if (error) throw error;
+
   return data as DreamscapePlanRow;
+}
+
+/**
+ * Find the permanent subscription-payment row after the HitPay charge
+ * has been stored.
+ *
+ * Normally we use the HitPay charge ID, which is the safest lookup.
+ *
+ * The fallback exists only for the unlikely case where the webhook
+ * payload has no charge ID.
+ */
+async function findStoredPayment(params: {
+  contractId: string;
+  environment: HitPayEnvironment;
+  providerChargeId: string | null;
+  amount: number;
+  currency: string;
+  paidAt: Date;
+}) {
+  const {
+    contractId,
+    environment,
+    providerChargeId,
+    amount,
+    currency,
+    paidAt,
+  } = params;
+
+  if (providerChargeId) {
+    const { data, error } = await supabaseAdmin
+      .from("dreamscape_subscription_payments")
+      .select("id")
+      .eq("provider", "hitpay")
+      .eq("provider_charge_id", providerChargeId)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (data?.id) {
+      return data;
+    }
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("dreamscape_subscription_payments")
+    .select("id")
+    .eq("contract_id", contractId)
+    .eq("provider", "hitpay")
+    .eq("provider_environment", environment)
+    .eq("status", "succeeded")
+    .eq("amount", amount)
+    .eq("currency", currency)
+    .eq("paid_at", paidAt.toISOString())
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return data;
+}
+
+/**
+ * Phase 4:
+ * Convert a successful Dreamscape subscription payment into an
+ * affiliate commission ledger record where applicable.
+ *
+ * The database function is idempotent:
+ * one payment can have at most one commission ledger row.
+ *
+ * A non-affiliate subscription legitimately returns null.
+ */
+async function recordAffiliateCommission(paymentId: string) {
+  const { data, error } = await supabaseAdmin.rpc(
+    "record_dreamscape_affiliate_commission",
+    {
+      p_payment_id: paymentId,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Affiliate commission recording failed: ${error.message}`,
+    );
+  }
+
+  return data;
 }
 
 export async function POST(
@@ -170,13 +257,20 @@ export async function POST(
 
   if (!isHitPayEnvironment(rawEnvironment)) {
     return NextResponse.json(
-      { ok: false, error: "Invalid HitPay environment." },
-      { status: 404 },
+      {
+        ok: false,
+        error: "Invalid HitPay environment.",
+      },
+      {
+        status: 404,
+      },
     );
   }
 
   const environment = rawEnvironment;
+
   const rawBody = await request.text();
+
   const signature =
     request.headers.get("hitpay-signature") || "";
 
@@ -186,9 +280,15 @@ export async function POST(
     salt = dreamscapeWebhookSalt(environment);
   } catch (error) {
     console.error(error);
+
     return NextResponse.json(
-      { ok: false, error: "Webhook is not configured." },
-      { status: 500 },
+      {
+        ok: false,
+        error: "Webhook is not configured.",
+      },
+      {
+        status: 500,
+      },
     );
   }
 
@@ -201,8 +301,13 @@ export async function POST(
     })
   ) {
     return NextResponse.json(
-      { ok: false, error: "Invalid HitPay signature." },
-      { status: 401 },
+      {
+        ok: false,
+        error: "Invalid HitPay signature.",
+      },
+      {
+        status: 401,
+      },
     );
   }
 
@@ -212,12 +317,18 @@ export async function POST(
     payload = JSON.parse(rawBody) as Record<string, unknown>;
   } catch {
     return NextResponse.json(
-      { ok: false, error: "Invalid JSON payload." },
-      { status: 400 },
+      {
+        ok: false,
+        error: "Invalid JSON payload.",
+      },
+      {
+        status: 400,
+      },
     );
   }
 
   const event = eventNameFromHeaders(request);
+
   const objectId = extractString(payload, ["id"]);
 
   const { data: eventRow, error: eventInsertError } =
@@ -243,7 +354,10 @@ export async function POST(
   }
 
   try {
-    const contract = await findContract(payload, event.object);
+    const contract = await findContract(
+      payload,
+      event.object,
+    );
 
     if (!contract) {
       if (eventRow?.id) {
@@ -266,10 +380,20 @@ export async function POST(
     }
 
     const plan = await loadPlan(contract.plan_id);
-    const providerStatus = extractString(payload, ["status"])
-      .toLowerCase();
 
-    if (event.name === "recurring_billing.subscription_updated") {
+    const providerStatus = extractString(
+      payload,
+      ["status"],
+    ).toLowerCase();
+
+    // =========================================================
+    // RECURRING SUBSCRIPTION UPDATED
+    // =========================================================
+
+    if (
+      event.name ===
+      "recurring_billing.subscription_updated"
+    ) {
       await supabaseAdmin
         .from("dreamscape_subscription_contracts")
         .update({
@@ -289,11 +413,15 @@ export async function POST(
           providerPayload: payload,
         });
       } else if (
-        ["cancelled", "canceled"].includes(providerStatus) &&
+        ["cancelled", "canceled"].includes(
+          providerStatus,
+        ) &&
         Boolean(contract.cancel_at_period_end) &&
         contract.current_period_end
       ) {
-        const periodEnd = new Date(contract.current_period_end);
+        const periodEnd = new Date(
+          contract.current_period_end,
+        );
 
         if (
           Number.isFinite(periodEnd.getTime()) &&
@@ -320,9 +448,13 @@ export async function POST(
           });
         }
       } else if (
-        ["inactive", "paused", "cancelled", "canceled", "expired"].includes(
-          providerStatus,
-        )
+        [
+          "inactive",
+          "paused",
+          "cancelled",
+          "canceled",
+          "expired",
+        ].includes(providerStatus)
       ) {
         await suspendNovaAccess({
           contract,
@@ -334,21 +466,41 @@ export async function POST(
           contractId: contract.id,
           emailType: "subscription_ended",
           origin: new URL(request.url).origin,
-          eventKey: `provider-ended:${providerStatus}:${objectId || eventRow?.id || "unknown"}`,
+          eventKey:
+            `provider-ended:${providerStatus}:` +
+            `${objectId || eventRow?.id || "unknown"}`,
         }).catch((emailError) =>
-          console.error("Dreamscape ended email failed", emailError),
+          console.error(
+            "Dreamscape ended email failed",
+            emailError,
+          ),
         );
       }
-    } else if (event.name === "recurring_billing.method_attached") {
+
+      // =======================================================
+      // PAYMENT METHOD ATTACHED
+      // =======================================================
+    } else if (
+      event.name ===
+      "recurring_billing.method_attached"
+    ) {
       await supabaseAdmin
         .from("dreamscape_subscription_contracts")
         .update({
-          provider_status: providerStatus || "method_attached",
+          provider_status:
+            providerStatus || "method_attached",
           provider_data: payload,
           updated_at: new Date().toISOString(),
         })
         .eq("id", contract.id);
-    } else if (event.name === "recurring_billing.method_detached") {
+
+      // =======================================================
+      // PAYMENT METHOD DETACHED
+      // =======================================================
+    } else if (
+      event.name ===
+      "recurring_billing.method_detached"
+    ) {
       const graceDaysResult = await supabaseAdmin
         .from("dreamscape_billing_settings")
         .select("failed_payment_grace_days")
@@ -356,20 +508,24 @@ export async function POST(
         .maybeSingle();
 
       const graceDays = Number(
-        graceDaysResult.data?.failed_payment_grace_days || 7,
+        graceDaysResult.data?.failed_payment_grace_days ||
+          7,
       );
 
       const graceUntil = new Date(
-        Date.now() + graceDays * 24 * 60 * 60 * 1000,
+        Date.now() +
+          graceDays * 24 * 60 * 60 * 1000,
       );
 
       await supabaseAdmin
         .from("dreamscape_subscription_contracts")
         .update({
           status: "payment_issue",
-          provider_status: providerStatus || "method_detached",
+          provider_status:
+            providerStatus || "method_detached",
           grace_until: graceUntil.toISOString(),
-          last_failed_charge_at: new Date().toISOString(),
+          last_failed_charge_at:
+            new Date().toISOString(),
           failed_charge_count:
             Number(
               (
@@ -391,55 +547,150 @@ export async function POST(
             grace_until: graceUntil.toISOString(),
             updated_at: new Date().toISOString(),
           })
-          .eq("user_id", contract.learner_user_id);
+          .eq(
+            "user_id",
+            contract.learner_user_id,
+          );
       }
 
       await sendDreamscapeSubscriptionEmail({
         contractId: contract.id,
         emailType: "payment_issue",
         origin: new URL(request.url).origin,
-        eventKey: `method-detached:${objectId || eventRow?.id || graceUntil.toISOString()}`,
+        eventKey:
+          `method-detached:` +
+          `${
+            objectId ||
+            eventRow?.id ||
+            graceUntil.toISOString()
+          }`,
       }).catch((emailError) =>
-        console.error("Dreamscape payment issue email failed", emailError),
+        console.error(
+          "Dreamscape payment issue email failed",
+          emailError,
+        ),
       );
+
+      // =======================================================
+      // SUCCESSFUL CHARGE
+      // =======================================================
     } else if (event.name === "charge.created") {
-      const chargeStatus = String(payload.status || "")
+      const chargeStatus = String(
+        payload.status || "",
+      )
         .trim()
         .toLowerCase();
 
       if (chargeStatus === "succeeded") {
         const paidAt =
-          extractDate(payload, ["closed_at", "created_at"]) ||
-          new Date();
+          extractDate(payload, [
+            "closed_at",
+            "created_at",
+          ]) || new Date();
 
-        const amount = Number(payload.amount || plan.amount || 0);
+        const amount = Number(
+          payload.amount || plan.amount || 0,
+        );
+
         const currency = String(
-          payload.currency || plan.currency || "SGD",
+          payload.currency ||
+            plan.currency ||
+            "SGD",
         ).toUpperCase();
 
-        const { error: paymentError } = await supabaseAdmin
-          .from("dreamscape_subscription_payments")
-          .upsert(
-            {
-              contract_id: contract.id,
-              provider: "hitpay",
-              provider_environment: environment,
-              provider_charge_id: objectId || null,
-              provider_subscription_id:
-                contract.provider_subscription_id,
-              amount,
-              currency,
-              status: "succeeded",
-              paid_at: paidAt.toISOString(),
-              raw_payload: payload,
-            },
-            {
-              onConflict: "provider,provider_charge_id",
-              ignoreDuplicates: true,
-            },
+        // -----------------------------------------------------
+        // 1. Store payment idempotently.
+        // -----------------------------------------------------
+
+        const { error: paymentError } =
+          await supabaseAdmin
+            .from(
+              "dreamscape_subscription_payments",
+            )
+            .upsert(
+              {
+                contract_id: contract.id,
+                provider: "hitpay",
+                provider_environment: environment,
+                provider_charge_id:
+                  objectId || null,
+                provider_subscription_id:
+                  contract.provider_subscription_id,
+                amount,
+                currency,
+                status: "succeeded",
+                paid_at: paidAt.toISOString(),
+                raw_payload: payload,
+              },
+              {
+                onConflict:
+                  "provider,provider_charge_id",
+                ignoreDuplicates: true,
+              },
+            );
+
+        if (paymentError) {
+          throw paymentError;
+        }
+
+        // -----------------------------------------------------
+        // 2. Retrieve the permanent payment row.
+        //
+        // This works for both:
+        // - the first webhook delivery, and
+        // - HitPay retry deliveries where the upsert was ignored.
+        // -----------------------------------------------------
+
+        const storedPayment =
+          await findStoredPayment({
+            contractId: contract.id,
+            environment,
+            providerChargeId:
+              objectId || null,
+            amount,
+            currency,
+            paidAt,
+          });
+
+        if (!storedPayment?.id) {
+          throw new Error(
+            "The successful HitPay charge was stored, but its Dreamscape payment row could not be resolved.",
+          );
+        }
+
+        // -----------------------------------------------------
+        // 3. Phase 4 affiliate commission processing.
+        //
+        // The database function decides:
+        //
+        // - no affiliate -> no commission
+        // - monthly payment #1 -> ineligible
+        // - monthly payment #2+ -> commission
+        // - annual payment -> commission
+        // - inactive affiliate -> ineligible
+        //
+        // The payment_id unique constraint prevents duplicates.
+        // -----------------------------------------------------
+
+        const commissionId =
+          await recordAffiliateCommission(
+            storedPayment.id,
           );
 
-        if (paymentError) throw paymentError;
+        if (commissionId) {
+          console.info(
+            "Dreamscape affiliate commission recorded",
+            {
+              contractId: contract.id,
+              paymentId: storedPayment.id,
+              commissionId,
+            },
+          );
+        }
+
+        // -----------------------------------------------------
+        // 4. Existing Nova subscription projection.
+        // -----------------------------------------------------
 
         await projectContractToNovaAccess({
           contract,
@@ -448,8 +699,14 @@ export async function POST(
           paidAt,
         });
 
+        // -----------------------------------------------------
+        // 5. Existing contract state update.
+        // -----------------------------------------------------
+
         await supabaseAdmin
-          .from("dreamscape_subscription_contracts")
+          .from(
+            "dreamscape_subscription_contracts",
+          )
           .update({
             status: "active",
             provider_status: "active",
@@ -457,9 +714,14 @@ export async function POST(
             failed_charge_count: 0,
             cancel_at_period_end: false,
             cancellation_mode: null,
-            updated_at: new Date().toISOString(),
+            updated_at:
+              new Date().toISOString(),
           })
           .eq("id", contract.id);
+
+        // -----------------------------------------------------
+        // 6. Existing subscription/payment email.
+        // -----------------------------------------------------
 
         await sendDreamscapeSubscriptionEmail({
           contractId: contract.id,
@@ -467,12 +729,23 @@ export async function POST(
             ? "payment_received"
             : "subscription_started",
           origin: new URL(request.url).origin,
-          eventKey: `charge:${objectId || paidAt.toISOString()}`,
+          eventKey:
+            `charge:${
+              objectId ||
+              paidAt.toISOString()
+            }`,
         }).catch((emailError) =>
-          console.error("Dreamscape payment email failed", emailError),
+          console.error(
+            "Dreamscape payment email failed",
+            emailError,
+          ),
         );
       }
     }
+
+    // =========================================================
+    // EVENT JOURNAL COMPLETE
+    // =========================================================
 
     if (eventRow?.id) {
       await supabaseAdmin
@@ -480,7 +753,8 @@ export async function POST(
         .update({
           contract_id: contract.id,
           processing_status: "processed",
-          processed_at: new Date().toISOString(),
+          processed_at:
+            new Date().toISOString(),
         })
         .eq("id", eventRow.id);
     }
@@ -492,7 +766,9 @@ export async function POST(
     });
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : String(error);
+      error instanceof Error
+        ? error.message
+        : String(error);
 
     if (eventRow?.id) {
       await supabaseAdmin
@@ -500,16 +776,25 @@ export async function POST(
         .update({
           processing_status: "failed",
           error_message: message,
-          processed_at: new Date().toISOString(),
+          processed_at:
+            new Date().toISOString(),
         })
         .eq("id", eventRow.id);
     }
 
-    console.error("Dreamscape HitPay webhook failed", error);
+    console.error(
+      "Dreamscape HitPay webhook failed",
+      error,
+    );
 
     return NextResponse.json(
-      { ok: false, error: message },
-      { status: 500 },
+      {
+        ok: false,
+        error: message,
+      },
+      {
+        status: 500,
+      },
     );
   }
 }
