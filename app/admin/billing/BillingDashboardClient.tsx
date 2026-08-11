@@ -218,6 +218,12 @@ export default function BillingDashboardClient() {
             {loading ? "Refreshing…" : "Refresh"}
           </button>
           <Link
+            href="/admin/billing/finance"
+            className="inline-flex min-h-11 items-center rounded-full border border-[#c9b27d] bg-[#fff9eb] px-5 text-xs font-bold text-[#6c5420]"
+          >
+            Finance & reconciliation
+          </Link>
+          <Link
             href="/admin/billing/accounts"
             className="inline-flex min-h-11 items-center rounded-full bg-[#15233b] px-5 text-xs font-bold text-white"
           >

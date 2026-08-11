@@ -632,8 +632,10 @@ export async function POST(
                   objectId || null,
                 provider_subscription_id:
                   contract.provider_subscription_id,
+                plan_id: plan.id,
                 amount,
                 currency,
+                refund_amount: 0,
                 status: "succeeded",
                 paid_at: paidAt.toISOString(),
                 raw_payload: payload,
@@ -692,6 +694,22 @@ export async function POST(
           effectivePlanId && String(effectivePlanId) !== plan.id
             ? await loadPlan(String(effectivePlanId))
             : plan;
+
+        // Phase 6: snapshot the plan actually paid for on the immutable
+        // payment row. This keeps historical finance reporting correct even
+        // after later upgrades or downgrades change contract.plan_id.
+        const { error: paymentPlanSnapshotError } = await supabaseAdmin
+          .from("dreamscape_subscription_payments")
+          .update({
+            plan_id: effectivePlan.id,
+          })
+          .eq("id", storedPayment.id);
+
+        if (paymentPlanSnapshotError) {
+          throw new Error(
+            `Dreamscape payment plan snapshot failed: ${paymentPlanSnapshotError.message}`,
+          );
+        }
 
         await projectContractToNovaAccess({
           contract: {
@@ -763,7 +781,7 @@ export async function POST(
       const { data: storedPayment, error: paymentError } =
         await supabaseAdmin
           .from("dreamscape_subscription_payments")
-          .select("id,raw_payload")
+          .select("id,raw_payload,amount")
           .eq("provider", "hitpay")
           .eq("provider_charge_id", objectId)
           .maybeSingle();
@@ -792,6 +810,10 @@ export async function POST(
       await supabaseAdmin
         .from("dreamscape_subscription_payments")
         .update({
+          refund_amount: Math.min(
+            Math.max(refundedAmount, 0),
+            Math.max(Number(storedPayment.amount || 0), 0),
+          ),
           raw_payload: payload,
         })
         .eq("id", storedPayment.id);

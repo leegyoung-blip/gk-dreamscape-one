@@ -187,6 +187,9 @@ export default async function AffiliateFinanceAdminPage({
         <Link href="/admin/affiliates">
           ← Affiliate applications
         </Link>
+        <Link href="/admin/billing/finance">
+          Billing finance →
+        </Link>
       </div>
 
       <header className={styles.adminHeader}>
