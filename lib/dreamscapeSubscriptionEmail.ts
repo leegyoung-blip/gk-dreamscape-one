@@ -70,7 +70,7 @@ async function loadContract(contractId: string) {
   const { data, error } = await supabaseAdmin
     .from("dreamscape_subscription_contracts")
     .select(
-      "id,reference,parent_name,parent_email,learner_name,learner_email,status,current_period_end,next_billing_at,grace_until,management_token,management_link_enabled,last_successful_charge_at,first_paid_at,plan_id",
+      "id,reference,parent_name,parent_email,learner_name,learner_email,status,current_period_end,next_billing_at,grace_until,management_token,management_link_enabled,last_successful_charge_at,first_paid_at,updated_at,plan_id",
     )
     .eq("id", contractId)
     .single();
