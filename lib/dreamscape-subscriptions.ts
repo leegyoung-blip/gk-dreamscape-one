@@ -34,6 +34,14 @@ export type DreamscapeContractRow = {
   provider_subscription_id: string | null;
   provider_status: string | null;
   status: string;
+  current_period_start?: string | null;
+  current_period_end?: string | null;
+  next_billing_at?: string | null;
+  grace_until?: string | null;
+  cancel_at_period_end?: boolean;
+  cancellation_requested_at?: string | null;
+  cancellation_mode?: string | null;
+  failed_charge_count?: number;
 };
 
 export function normaliseEmail(value: unknown) {
@@ -222,6 +230,27 @@ export async function ensureDreamscapeStudentProfile(
   }
 }
 
+export function extractNestedString(
+  payload: Record<string, unknown>,
+  path: string[],
+) {
+  let current: unknown = payload;
+
+  for (const key of path) {
+    if (
+      !current ||
+      typeof current !== "object" ||
+      Array.isArray(current)
+    ) {
+      return "";
+    }
+
+    current = (current as Record<string, unknown>)[key];
+  }
+
+  return typeof current === "string" ? current.trim() : "";
+}
+
 export function extractString(
   payload: Record<string, unknown>,
   keys: string[],
@@ -401,4 +430,26 @@ export async function suspendNovaAccess(input: {
       updated_at: new Date().toISOString(),
     })
     .eq("id", input.contract.id);
+}
+
+
+export async function keepNovaAccessUntilPeriodEnd(input: {
+  contract: DreamscapeContractRow;
+  periodEnd: Date;
+}) {
+  if (!input.contract.learner_user_id) return;
+
+  await supabaseAdmin
+    .from("nova_subscriptions")
+    .update({
+      status: "active",
+      access_until: input.periodEnd.toISOString(),
+      cancel_at_period_end: true,
+      cancellation_requested_at: new Date().toISOString(),
+      billing_status: "cancel_at_period_end",
+      current_period_end: input.periodEnd.toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", input.contract.learner_user_id)
+    .eq("dreamscape_contract_id", input.contract.id);
 }

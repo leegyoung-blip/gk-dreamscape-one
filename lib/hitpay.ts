@@ -327,6 +327,32 @@ export async function createHitPayRecurringBilling(input: {
   );
 }
 
+
+export async function updateHitPayRecurringBilling(input: {
+  environment: HitPayEnvironment;
+  recurringBillingId: string;
+  planId?: string;
+  startDate?: string;
+  sendEmail?: boolean;
+}) {
+  return hitPayJsonRequest<HitPayRecurringBillingResponse>(
+    `/v1/recurring-billing/${encodeURIComponent(
+      input.recurringBillingId,
+    )}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        ...(input.planId ? { plan_id: input.planId } : {}),
+        ...(input.startDate ? { start_date: input.startDate } : {}),
+        ...(typeof input.sendEmail === "boolean"
+          ? { send_email: input.sendEmail ? "true" : "false" }
+          : {}),
+      }),
+    },
+    input.environment,
+  );
+}
+
 export async function getHitPayRecurringBilling(
   environment: HitPayEnvironment,
   recurringBillingId: string,

@@ -72,6 +72,34 @@ type EnrolmentForm = {
   invoice_description: string;
 };
 
+
+type GkpDreamscapeAddon = {
+  id: string;
+  student_id: string;
+  account_id: string;
+  student_code: string;
+  student_name: string;
+  learner_email: string;
+  dreamscape_user_id: string | null;
+  plan_code: "core" | "complete";
+  monthly_fee: number | string;
+  status: "active" | "paused" | "ended";
+  starts_on: string;
+  ends_on: string | null;
+  first_month_free: boolean;
+  complimentary_through_period: string | null;
+  free_month_used_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type DreamscapeAddonForm = {
+  plan_code: "none" | "core" | "complete";
+  learner_email: string;
+  starts_on: string;
+  first_month_free: boolean;
+};
+
 const DEFAULT_ACCOUNT_FORM: AccountForm = {
   payer_name: "",
   billing_email: "",
@@ -122,6 +150,9 @@ export default function BillingAccountsClient() {
   const [students, setStudents] = useState<BillingStudent[]>([]);
   const [programmes, setProgrammes] = useState<BillingProgramme[]>([]);
   const [enrolments, setEnrolments] = useState<BillingEnrolment[]>([]);
+  const [dreamscapeAddons, setDreamscapeAddons] = useState<
+    GkpDreamscapeAddon[]
+  >([]);
 
   const [selectedAccountId, setSelectedAccountId] = useState("");
   const [search, setSearch] = useState("");
@@ -147,6 +178,18 @@ export default function BillingAccountsClient() {
   const [enrolmentForm, setEnrolmentForm] =
     useState<EnrolmentForm>(DEFAULT_ENROLMENT_FORM);
 
+  const [dreamscapeModalOpen, setDreamscapeModalOpen] =
+    useState(false);
+  const [dreamscapeStudentId, setDreamscapeStudentId] =
+    useState("");
+  const [dreamscapeAddonForm, setDreamscapeAddonForm] =
+    useState<DreamscapeAddonForm>({
+      plan_code: "none",
+      learner_email: "",
+      starts_on: singaporeToday(),
+      first_month_free: true,
+    });
+
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
 
@@ -162,6 +205,7 @@ export default function BillingAccountsClient() {
         programmesResult,
         enrolmentsResult,
         settingsResult,
+        dreamscapeAddonsResult,
       ] = await Promise.all([
         supabase
           .from("gkp_billing_account_overview")
@@ -192,6 +236,7 @@ export default function BillingAccountsClient() {
           .select("default_family_due_day")
           .eq("id", true)
           .maybeSingle(),
+        supabase.rpc("gkp_get_gkp_dreamscape_addons"),
       ]);
 
       const firstError =
@@ -200,7 +245,8 @@ export default function BillingAccountsClient() {
         studentsResult.error ||
         programmesResult.error ||
         enrolmentsResult.error ||
-        settingsResult.error;
+        settingsResult.error ||
+        dreamscapeAddonsResult.error;
 
       if (firstError) {
         setLoadError(firstError.message);
@@ -228,6 +274,9 @@ export default function BillingAccountsClient() {
       setStudents(loadedStudents);
       setProgrammes(loadedProgrammes);
       setEnrolments(loadedEnrolments);
+      setDreamscapeAddons(
+        (dreamscapeAddonsResult.data || []) as GkpDreamscapeAddon[],
+      );
 
       setSelectedAccountId((currentAccountId) => {
         const candidateId =
@@ -388,6 +437,96 @@ export default function BillingAccountsClient() {
     });
     setFormError("");
     setStudentModalOpen(true);
+  }
+
+  function openDreamscapeAddon(student: BillingStudent) {
+    const addon = dreamscapeAddons.find(
+      (item) => item.student_id === student.id,
+    );
+
+    setDreamscapeStudentId(student.id);
+    setDreamscapeAddonForm({
+      plan_code:
+        addon?.status === "active"
+          ? addon.plan_code
+          : "none",
+      learner_email: addon?.learner_email || "",
+      starts_on: addon?.starts_on || singaporeToday(),
+      first_month_free:
+        addon?.free_month_used_at
+          ? false
+          : addon?.first_month_free ?? true,
+    });
+    setFormError("");
+    setDreamscapeModalOpen(true);
+  }
+
+  async function saveDreamscapeAddon(event: FormEvent) {
+    event.preventDefault();
+
+    if (!dreamscapeStudentId) return;
+
+    setSaving(true);
+    setFormError("");
+    setNotice("");
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("Please sign in again.");
+      }
+
+      const response = await fetch(
+        "/api/billing/dreamscape/gkp-addon",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            studentId: dreamscapeStudentId,
+            planCode: dreamscapeAddonForm.plan_code,
+            learnerEmail:
+              dreamscapeAddonForm.learner_email,
+            startsOn: dreamscapeAddonForm.starts_on,
+            firstMonthFree:
+              dreamscapeAddonForm.first_month_free,
+          }),
+        },
+      );
+
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string; status?: string }
+        | null;
+
+      if (!response.ok) {
+        throw new Error(
+          payload?.error ||
+            "Dreamscape access could not be updated.",
+        );
+      }
+
+      setNotice(
+        dreamscapeAddonForm.plan_code === "none"
+          ? "GKP Dreamscape add-on ended."
+          : "GKP Dreamscape add-on saved and learner access updated.",
+      );
+
+      setDreamscapeModalOpen(false);
+      await loadRecords(selectedAccountId);
+    } catch (caught) {
+      setFormError(
+        caught instanceof Error
+          ? caught.message
+          : "Dreamscape access could not be updated.",
+      );
+    }
+
+    setSaving(false);
   }
 
   function openCreateEnrolment(student: BillingStudent) {
@@ -781,7 +920,7 @@ export default function BillingAccountsClient() {
           detail="Ready for invoice generation"
         />
         <SummaryCard
-          label="Four-lesson base"
+          label="Monthly estimate"
           value={formatCurrency(
             accountOverviews.reduce(
               (sum, account) =>
@@ -1066,8 +1205,14 @@ export default function BillingAccountsClient() {
                           student={student}
                           enrolments={studentEnrolments}
                           programmeMap={programmeMap}
+                          dreamscapeAddon={dreamscapeAddons.find(
+                            (item) => item.student_id === student.id,
+                          ) || null}
                           canAddEnrolment={activeProgrammeCount > 0}
                           onEditStudent={() => openEditStudent(student)}
+                          onManageDreamscape={() =>
+                            openDreamscapeAddon(student)
+                          }
                           onAddEnrolment={() =>
                             openCreateEnrolment(student)
                           }
@@ -1090,6 +1235,102 @@ export default function BillingAccountsClient() {
           )}
         </section>
       </div>
+
+      <BillingModal
+        open={dreamscapeModalOpen}
+        onClose={() => !saving && setDreamscapeModalOpen(false)}
+        eyebrow="GKP student benefit"
+        title="Dreamscape Access"
+        description="Add Dreamscape to this student’s normal GKP tuition billing. The learner account is linked by Dreamscape email."
+        footer={
+          <ModalFooter
+            saving={saving}
+            submitLabel="Save Dreamscape Access"
+            formId="dreamscape-addon-form"
+            onCancel={() => setDreamscapeModalOpen(false)}
+          />
+        }
+      >
+        <form
+          id="dreamscape-addon-form"
+          onSubmit={saveDreamscapeAddon}
+          className="grid gap-5"
+        >
+          {formError && <Alert tone="error">{formError}</Alert>}
+
+          <SelectField
+            label="Dreamscape plan"
+            value={dreamscapeAddonForm.plan_code}
+            onChange={(value) =>
+              setDreamscapeAddonForm((current) => ({
+                ...current,
+                plan_code:
+                  value as DreamscapeAddonForm["plan_code"],
+              }))
+            }
+            options={[
+              ["none", "No GKP Dreamscape add-on"],
+              ["core", "Core — $9.90/month"],
+              ["complete", "Full — $14.90/month"],
+            ]}
+          />
+
+          {dreamscapeAddonForm.plan_code !== "none" && (
+            <>
+              <TextField
+                label="Learner Dreamscape email"
+                type="email"
+                value={dreamscapeAddonForm.learner_email}
+                onChange={(value) =>
+                  setDreamscapeAddonForm((current) => ({
+                    ...current,
+                    learner_email: value,
+                  }))
+                }
+                required
+              />
+
+              <TextField
+                label="Access start date"
+                type="date"
+                value={dreamscapeAddonForm.starts_on}
+                onChange={(value) =>
+                  setDreamscapeAddonForm((current) => ({
+                    ...current,
+                    starts_on: value,
+                  }))
+                }
+                required
+              />
+
+              <label className="flex items-start gap-3 rounded-2xl border border-[#ddd2bf] bg-[#fbfaf7] p-4 text-sm leading-6 text-[#625b50]">
+                <input
+                  type="checkbox"
+                  checked={dreamscapeAddonForm.first_month_free}
+                  onChange={(event) =>
+                    setDreamscapeAddonForm((current) => ({
+                      ...current,
+                      first_month_free: event.target.checked,
+                    }))
+                  }
+                  className="mt-1 h-4 w-4"
+                />
+                <span>
+                  Apply the complimentary first calendar month for this
+                  GKP student. If the student has already used the free
+                  month, the server will not grant it again.
+                </span>
+              </label>
+
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-800">
+                Access activates on the selected start date. The monthly
+                fee is inserted automatically when GKP invoice drafts are
+                generated after any complimentary month.
+              </div>
+            </>
+          )}
+        </form>
+      </BillingModal>
 
       <BillingModal
         open={accountModalOpen}
@@ -1702,8 +1943,10 @@ function StudentCard({
   student,
   enrolments,
   programmeMap,
+  dreamscapeAddon,
   canAddEnrolment,
   onEditStudent,
+  onManageDreamscape,
   onAddEnrolment,
   onEditEnrolment,
   onChangeStatus,
@@ -1711,8 +1954,10 @@ function StudentCard({
   student: BillingStudent;
   enrolments: BillingEnrolment[];
   programmeMap: Map<string, BillingProgramme>;
+  dreamscapeAddon: GkpDreamscapeAddon | null;
   canAddEnrolment: boolean;
   onEditStudent: () => void;
+  onManageDreamscape: () => void;
   onAddEnrolment: () => void;
   onEditEnrolment: (enrolment: BillingEnrolment) => void;
   onChangeStatus: (
@@ -1764,6 +2009,24 @@ function StudentCard({
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
+            onClick={onManageDreamscape}
+            className={`min-h-10 rounded-full border px-4 text-xs font-bold ${
+              dreamscapeAddon?.status === "active"
+                ? "border-violet-200 bg-violet-50 text-violet-700"
+                : "border-[#d7c9ae] bg-white text-[#15233b]"
+            }`}
+          >
+            {dreamscapeAddon?.status === "active"
+              ? `Dreamscape ${
+                  dreamscapeAddon.plan_code === "complete"
+                    ? "Full"
+                    : "Core"
+                }`
+              : "+ Dreamscape"}
+          </button>
+
+          <button
+            type="button"
             onClick={onEditStudent}
             className="min-h-10 rounded-full border border-[#d7c9ae] bg-white px-4 text-xs font-bold"
           >
@@ -1780,7 +2043,7 @@ function StudentCard({
         </div>
       </header>
 
-      <div className="grid gap-3 border-b border-[#e9e2d7] bg-white/60 px-5 py-4 sm:grid-cols-3">
+      <div className="grid gap-3 border-b border-[#e9e2d7] bg-white/60 px-5 py-4 sm:grid-cols-2 xl:grid-cols-4">
         <InfoCell
           label="Joined"
           value={formatDate(student.joined_on)}
@@ -1794,8 +2057,22 @@ function StudentCard({
           )}
         />
         <InfoCell
-          label="Four-lesson estimate"
+          label="Class estimate"
           value={formatCurrency(activeFourLessonEstimate)}
+        />
+        <InfoCell
+          label="Dreamscape"
+          value={
+            dreamscapeAddon?.status === "active"
+              ? `${
+                  dreamscapeAddon.plan_code === "complete"
+                    ? "Full"
+                    : "Core"
+                } · ${formatCurrency(
+                  numberValue(dreamscapeAddon.monthly_fee),
+                )}/month`
+              : "Not added"
+          }
         />
       </div>
 

@@ -9,7 +9,9 @@ import {
 import {
   addBillingPeriod,
   extractDate,
+  extractNestedString,
   extractString,
+  keepNovaAccessUntilPeriodEnd,
   projectContractToNovaAccess,
   suspendNovaAccess,
   type DreamscapeContractRow,
@@ -97,6 +99,52 @@ async function findContract(
       .maybeSingle();
 
     if (data) return data as DreamscapeContractRow;
+  }
+
+  if (eventObject === "charge") {
+    const customerEmail =
+      extractNestedString(payload, ["customer", "email"])
+        .toLowerCase();
+
+    const amount = Number(payload.amount || 0);
+    const currency = String(payload.currency || "")
+      .trim()
+      .toUpperCase();
+
+    if (customerEmail) {
+      const { data: candidates } = await supabaseAdmin
+        .from("dreamscape_subscription_contracts")
+        .select(
+          "*,dreamscape_subscription_plans!inner(amount,currency)",
+        )
+        .eq("parent_email", customerEmail)
+        .in("status", [
+          "setup_pending",
+          "active",
+          "payment_issue",
+          "cancel_at_period_end",
+        ])
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      const matching = (candidates || []).filter((row) => {
+        const plan = Array.isArray(
+          row.dreamscape_subscription_plans,
+        )
+          ? row.dreamscape_subscription_plans[0]
+          : row.dreamscape_subscription_plans;
+
+        return (
+          Math.abs(Number(plan?.amount || 0) - amount) < 0.001 &&
+          String(plan?.currency || "")
+            .toUpperCase() === currency
+        );
+      });
+
+      if (matching.length === 1) {
+        return matching[0] as DreamscapeContractRow;
+      }
+    }
   }
 
   return null;
@@ -240,6 +288,37 @@ export async function POST(
           providerPayload: payload,
         });
       } else if (
+        ["cancelled", "canceled"].includes(providerStatus) &&
+        Boolean(contract.cancel_at_period_end) &&
+        contract.current_period_end
+      ) {
+        const periodEnd = new Date(contract.current_period_end);
+
+        if (
+          Number.isFinite(periodEnd.getTime()) &&
+          periodEnd.getTime() > Date.now()
+        ) {
+          await keepNovaAccessUntilPeriodEnd({
+            contract,
+            periodEnd,
+          });
+
+          await supabaseAdmin
+            .from("dreamscape_subscription_contracts")
+            .update({
+              status: "cancel_at_period_end",
+              provider_status: providerStatus,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", contract.id);
+        } else {
+          await suspendNovaAccess({
+            contract,
+            reason: `HitPay subscription ${providerStatus}`,
+            providerStatus,
+          });
+        }
+      } else if (
         ["inactive", "paused", "cancelled", "canceled", "expired"].includes(
           providerStatus,
         )
@@ -349,6 +428,19 @@ export async function POST(
           providerPayload: payload,
           paidAt,
         });
+
+        await supabaseAdmin
+          .from("dreamscape_subscription_contracts")
+          .update({
+            status: "active",
+            provider_status: "active",
+            grace_until: null,
+            failed_charge_count: 0,
+            cancel_at_period_end: false,
+            cancellation_mode: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", contract.id);
       }
     }
 

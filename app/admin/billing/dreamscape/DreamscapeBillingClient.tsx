@@ -98,6 +98,18 @@ export default function DreamscapeBillingClient() {
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [selectedContractId, setSelectedContractId] = useState("");
+  const [paymentHistory, setPaymentHistory] = useState<
+    Array<{
+      id: string;
+      provider_charge_id: string | null;
+      amount: number | string;
+      currency: string;
+      status: string;
+      paid_at: string | null;
+      created_at: string;
+    }>
+  >([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -243,6 +255,132 @@ export default function DreamscapeBillingClient() {
 
     setWorking(false);
   }
+
+  async function loadPaymentHistory(contractId: string) {
+    if (!contractId) {
+      setPaymentHistory([]);
+      return;
+    }
+
+    const { data, error: historyError } = await supabase.rpc(
+      "gkp_get_dreamscape_subscription_payments",
+      { p_contract_id: contractId },
+    );
+
+    if (historyError) {
+      setError(historyError.message);
+      return;
+    }
+
+    setPaymentHistory((data || []) as typeof paymentHistory);
+  }
+
+  async function runSubscriptionAction(
+    contract: Contract,
+    action:
+      | "refresh"
+      | "cancel_period_end"
+      | "cancel_immediate"
+      | "reactivate",
+  ) {
+    if (
+      action === "cancel_period_end" &&
+      !window.confirm(
+        `Stop future renewals for ${contract.learner_name}? ` +
+          "The learner will keep access through the current paid period.",
+      )
+    ) {
+      return;
+    }
+
+    if (
+      action === "cancel_immediate" &&
+      !window.confirm(
+        `Cancel ${contract.learner_name}'s subscription immediately? ` +
+          "This removes paid Dreamscape access now.",
+      )
+    ) {
+      return;
+    }
+
+    if (
+      action === "reactivate" &&
+      !window.confirm(
+        `Reactivate the HitPay subscription for ${contract.learner_name}?`,
+      )
+    ) {
+      return;
+    }
+
+    setWorking(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("Please sign in again.");
+      }
+
+      const response = await fetch(
+        "/api/billing/dreamscape/subscriptions/action",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contractId: contract.id,
+            action,
+          }),
+        },
+      );
+
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string; status?: string; accessUntil?: string }
+        | null;
+
+      if (!response.ok) {
+        throw new Error(
+          payload?.error ||
+            "The subscription action could not be completed.",
+        );
+      }
+
+      const actionLabel =
+        action === "refresh"
+          ? "Subscription refreshed"
+          : action === "cancel_period_end"
+            ? "Future renewals stopped; paid access retained to period end"
+            : action === "cancel_immediate"
+              ? "Subscription cancelled immediately"
+              : "Subscription reactivation requested";
+
+      setMessage(`${actionLabel}.`);
+      await load();
+
+      if (selectedContractId === contract.id) {
+        await loadPaymentHistory(contract.id);
+      }
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The subscription action could not be completed.",
+      );
+    }
+
+    setWorking(false);
+  }
+
+  const selectedContract =
+    contracts.find(
+      (contract) => contract.id === selectedContractId,
+    ) || null;
 
   const filteredContracts = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -516,13 +654,18 @@ export default function DreamscapeBillingClient() {
                   <th className="px-4 py-3">Access until</th>
                   <th className="px-4 py-3">Next billing</th>
                   <th className="px-4 py-3">Provider</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredContracts.map((contract) => (
                   <tr
                     key={contract.id}
-                    className="border-b border-[#f0ece4] last:border-b-0"
+                    className={`border-b border-[#f0ece4] last:border-b-0 ${
+                      selectedContractId === contract.id
+                        ? "bg-[#fbfaf7]"
+                        : ""
+                    }`}
                   >
                     <td className="px-4 py-4">
                       <strong className="block text-sm text-[#15233b]">
@@ -565,6 +708,87 @@ export default function DreamscapeBillingClient() {
                         {contract.provider_subscription_id || "Not attached"}
                       </span>
                     </td>
+                    <td className="px-4 py-4">
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <button
+                          type="button"
+                          disabled={working}
+                          onClick={() => {
+                            setSelectedContractId(contract.id);
+                            void loadPaymentHistory(contract.id);
+                          }}
+                          className="rounded-full border border-[#d7c9ae] bg-white px-3 py-2 text-[10px] font-bold"
+                        >
+                          Details
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={working}
+                          onClick={() =>
+                            void runSubscriptionAction(
+                              contract,
+                              "refresh",
+                            )
+                          }
+                          className="rounded-full border border-sky-200 bg-sky-50 px-3 py-2 text-[10px] font-bold text-sky-700"
+                        >
+                          Refresh
+                        </button>
+
+                        {["active", "payment_issue"].includes(
+                          contract.status,
+                        ) && (
+                          <>
+                            <button
+                              type="button"
+                              disabled={working}
+                              onClick={() =>
+                                void runSubscriptionAction(
+                                  contract,
+                                  "cancel_period_end",
+                                )
+                              }
+                              className="rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-800"
+                            >
+                              Cancel at period end
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={working}
+                              onClick={() =>
+                                void runSubscriptionAction(
+                                  contract,
+                                  "cancel_immediate",
+                                )
+                              }
+                              className="rounded-full border border-red-200 bg-red-50 px-3 py-2 text-[10px] font-bold text-red-700"
+                            >
+                              Cancel now
+                            </button>
+                          </>
+                        )}
+
+                        {["cancelled", "suspended", "expired"].includes(
+                          contract.status,
+                        ) && (
+                          <button
+                            type="button"
+                            disabled={working}
+                            onClick={() =>
+                              void runSubscriptionAction(
+                                contract,
+                                "reactivate",
+                              )
+                            }
+                            className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-[10px] font-bold text-emerald-700"
+                          >
+                            Reactivate
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -572,6 +796,119 @@ export default function DreamscapeBillingClient() {
           </div>
         )}
       </section>
+
+      {selectedContract && (
+        <section className="mt-6 rounded-[28px] border border-[#ded5c4] bg-white p-6 shadow-[0_20px_60px_rgba(21,35,59,0.05)]">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#8a8378]">
+                Subscriber detail
+              </p>
+              <h2 className="mt-2 text-xl font-semibold text-[#15233b]">
+                {selectedContract.learner_name}
+              </h2>
+              <p className="mt-1 text-sm text-[#81796d]">
+                {selectedContract.learner_email} · payer{" "}
+                {selectedContract.parent_email}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedContractId("");
+                setPaymentHistory([]);
+              }}
+              className="min-h-10 rounded-full border border-[#d7c9ae] bg-white px-4 text-xs font-bold"
+            >
+              Close
+            </button>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <StatusBox
+              label="Plan"
+              value={selectedContract.display_name}
+              detail={`${selectedContract.billing_cycle} · ${money(
+                selectedContract.amount,
+                selectedContract.currency,
+              )}`}
+            />
+            <StatusBox
+              label="Paid through"
+              value={date(selectedContract.current_period_end)}
+              detail={`Next billing ${date(
+                selectedContract.next_billing_at,
+              )}`}
+            />
+            <StatusBox
+              label="Billing status"
+              value={selectedContract.status
+                .replaceAll("_", " ")
+                .toUpperCase()}
+              detail={`Provider: ${
+                selectedContract.provider_status || "—"
+              }`}
+            />
+            <StatusBox
+              label="Payment recovery"
+              value={
+                selectedContract.grace_until
+                  ? `UNTIL ${date(selectedContract.grace_until)}`
+                  : "NO ACTIVE GRACE"
+              }
+              detail={`${Number(
+                selectedContract.failed_charge_count || 0,
+              )} recorded issue(s)`}
+            />
+          </div>
+
+          <div className="mt-6 overflow-x-auto rounded-2xl border border-[#ebe5da]">
+            <table className="w-full min-w-[680px] border-collapse text-left">
+              <thead>
+                <tr className="border-b border-[#ebe5da] bg-[#fbfaf7] text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
+                  <th className="px-4 py-3">Paid</th>
+                  <th className="px-4 py-3">Amount</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">HitPay charge</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paymentHistory.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="px-4 py-7 text-center text-sm text-[#81796d]"
+                    >
+                      No successful recurring charges recorded yet.
+                    </td>
+                  </tr>
+                ) : (
+                  paymentHistory.map((payment) => (
+                    <tr
+                      key={payment.id}
+                      className="border-b border-[#f0ece4] last:border-b-0"
+                    >
+                      <td className="px-4 py-4 text-sm">
+                        {date(payment.paid_at || payment.created_at)}
+                      </td>
+                      <td className="px-4 py-4 text-sm font-bold">
+                        {money(payment.amount, payment.currency)}
+                      </td>
+                      <td className="px-4 py-4">
+                        <StatusPill status={payment.status} />
+                      </td>
+                      <td className="px-4 py-4 text-xs text-[#81796d]">
+                        {payment.provider_charge_id || "—"}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
     </BillingAdminShell>
   );
 }
