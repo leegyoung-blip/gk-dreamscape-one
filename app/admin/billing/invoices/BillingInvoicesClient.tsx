@@ -179,6 +179,10 @@ export default function BillingInvoicesClient() {
   const [manualItemModalOpen, setManualItemModalOpen] = useState(false);
   const [manualItemForm, setManualItemForm] =
     useState<ManualItemForm>(DEFAULT_MANUAL_ITEM_FORM);
+  const [invoiceDateForm, setInvoiceDateForm] = useState({
+    invoice_date: "",
+    due_date: "",
+  });
   const [formError, setFormError] = useState("");
 
   const periodStart = monthStart(billingMonth);
@@ -391,6 +395,27 @@ export default function BillingInvoicesClient() {
     selectedInvoice?.status === "draft" ||
     selectedInvoice?.status === "review";
 
+  const invoiceEmailAlreadySent = useMemo(
+    () =>
+      emailHistory.some(
+        (email) =>
+          email.status === "sent" &&
+          ["invoice_issued", "invoice_resent"].includes(email.email_type),
+      ),
+    [emailHistory],
+  );
+
+  useEffect(() => {
+    setInvoiceDateForm({
+      invoice_date: selectedInvoice?.invoice_date || "",
+      due_date: selectedInvoice?.due_date || "",
+    });
+  }, [
+    selectedInvoice?.id,
+    selectedInvoice?.invoice_date,
+    selectedInvoice?.due_date,
+  ]);
+
   const uniqueScheduleOptions = useMemo(() => {
     const seen = new Set<string>();
 
@@ -578,7 +603,7 @@ export default function BillingInvoicesClient() {
     return payload;
   }
 
-  async function resendSelectedInvoiceEmail() {
+  async function sendSelectedInvoiceEmail() {
     if (!selectedInvoice) return;
 
     setWorking(true);
@@ -588,11 +613,11 @@ export default function BillingInvoicesClient() {
     try {
       const result = await sendInvoiceEmailRequest({
         invoiceId: selectedInvoice.id,
-        mode: "resend",
+        mode: invoiceEmailAlreadySent ? "resend" : "issued",
       });
 
       setNotice(
-        `Invoice email resent to ${
+        `${invoiceEmailAlreadySent ? "Invoice email resent" : "Invoice email sent"} to ${
           Array.isArray(result.recipients)
             ? result.recipients.join(", ")
             : selectedInvoice.billing_email
@@ -601,8 +626,43 @@ export default function BillingInvoicesClient() {
       await loadEmailHistory(selectedInvoice.id);
     } catch (error) {
       setLoadError(
-        errorMessage(error, "The invoice email could not be resent."),
+        errorMessage(error, "The billing email could not be sent."),
       );
+    }
+
+    setWorking(false);
+  }
+
+  async function saveInvoiceDates() {
+    if (!selectedInvoice || !editableInvoice) return;
+
+    if (!invoiceDateForm.invoice_date || !invoiceDateForm.due_date) {
+      setLoadError("Invoice issue date and due date are required.");
+      return;
+    }
+
+    if (invoiceDateForm.due_date < invoiceDateForm.invoice_date) {
+      setLoadError("The due date cannot be earlier than the invoice issue date.");
+      return;
+    }
+
+    setWorking(true);
+    setLoadError("");
+    setNotice("");
+
+    const { error } = await supabase.rpc("gkp_update_invoice_dates", {
+      p_invoice_id: selectedInvoice.id,
+      p_invoice_date: invoiceDateForm.invoice_date,
+      p_due_date: invoiceDateForm.due_date,
+    });
+
+    if (error) {
+      setLoadError(error.message);
+    } else {
+      setNotice(
+        `${selectedInvoice.invoice_number} invoice and due dates updated.`,
+      );
+      await loadMonth(selectedInvoice.id);
     }
 
     setWorking(false);
@@ -622,26 +682,9 @@ export default function BillingInvoicesClient() {
     if (error) {
       setLoadError(error.message);
     } else {
-      try {
-        const emailResult = await sendInvoiceEmailRequest({
-          invoiceId: selectedInvoice.id,
-          mode: "issued",
-        });
-
-        setNotice(
-          emailResult.skipped
-            ? `${selectedInvoice.invoice_number} issued. Its issue email had already been sent.`
-            : `${selectedInvoice.invoice_number} issued and emailed to the parent.`,
-        );
-      } catch (emailError) {
-        setLoadError(
-          `${selectedInvoice.invoice_number} was issued, but the email could not be sent: ${errorMessage(
-            emailError,
-            "Unknown email error",
-          )}`,
-        );
-      }
-
+      setNotice(
+        `${selectedInvoice.invoice_number} issued. The secure parent link is now active. No email was sent.`,
+      );
       await loadMonth(selectedInvoice.id);
     }
 
@@ -670,35 +713,9 @@ export default function BillingInvoicesClient() {
       setLoadError(error.message);
     } else {
       const issuedCount = Number(data || 0);
-
-      try {
-        const emailResult = await sendInvoiceEmailRequest({
-          batchId: batch.id,
-          mode: "issued",
-        });
-
-        setNotice(
-          `${issuedCount} invoices issued. ${Number(emailResult.sent || 0)} email${
-            Number(emailResult.sent || 0) === 1 ? "" : "s"
-          } sent${
-            Number(emailResult.skipped || 0) > 0
-              ? `; ${Number(emailResult.skipped || 0)} already sent`
-              : ""
-          }${
-            Number(emailResult.failed || 0) > 0
-              ? `; ${Number(emailResult.failed || 0)} failed`
-              : ""
-          }.`,
-        );
-      } catch (emailError) {
-        setLoadError(
-          `${issuedCount} invoices were issued, but the batch email send failed: ${errorMessage(
-            emailError,
-            "Unknown email error",
-          )}`,
-        );
-      }
-
+      setNotice(
+        `${issuedCount} invoices issued. Secure parent links are active. No emails were sent.`,
+      );
       await loadMonth(selectedInvoiceId);
     }
 
@@ -1298,9 +1315,63 @@ export default function BillingInvoicesClient() {
                     </p>
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
+                  <div className="grid gap-3 lg:min-w-[410px]">
+                    {editableInvoice && (
+                      <div className="grid gap-3 rounded-2xl border border-[#dfd5c4] bg-[#fbfaf7] p-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                        <label className="grid gap-1.5">
+                          <span className="text-[10px] font-black uppercase tracking-[0.12em] text-[#83796b]">
+                            Invoice issue date
+                          </span>
+                          <input
+                            type="date"
+                            value={invoiceDateForm.invoice_date}
+                            onChange={(event) =>
+                              setInvoiceDateForm((current) => ({
+                                ...current,
+                                invoice_date: event.target.value,
+                              }))
+                            }
+                            className="min-h-10 rounded-xl border border-[#d9cfbd] bg-white px-3 text-xs font-bold text-[#15233b]"
+                          />
+                        </label>
+
+                        <label className="grid gap-1.5">
+                          <span className="text-[10px] font-black uppercase tracking-[0.12em] text-[#83796b]">
+                            Due date
+                          </span>
+                          <input
+                            type="date"
+                            value={invoiceDateForm.due_date}
+                            onChange={(event) =>
+                              setInvoiceDateForm((current) => ({
+                                ...current,
+                                due_date: event.target.value,
+                              }))
+                            }
+                            className="min-h-10 rounded-xl border border-[#d9cfbd] bg-white px-3 text-xs font-bold text-[#15233b]"
+                          />
+                        </label>
+
+                        <button
+                          type="button"
+                          onClick={() => void saveInvoiceDates()}
+                          disabled={working}
+                          className="min-h-10 rounded-xl border border-[#d7c9ae] bg-white px-4 text-xs font-bold"
+                        >
+                          Save dates
+                        </button>
+
+                        <p className="text-[10px] leading-4 text-[#8a8378] sm:col-span-3">
+                          Set these after the final draft generation. Regenerating the month’s drafts may restore automatically calculated dates.
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-2">
                     <Link
                       href={`/admin/billing/invoices/${selectedInvoice.id}/preview`}
+                      target="_blank"
+                      rel="noreferrer"
                       className="inline-flex min-h-10 items-center rounded-full border border-[#d7c9ae] bg-white px-4 text-xs font-bold"
                     >
                       Preview invoice
@@ -1368,11 +1439,13 @@ export default function BillingInvoicesClient() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => void resendSelectedInvoiceEmail()}
+                              onClick={() => void sendSelectedInvoiceEmail()}
                               disabled={working}
                               className="min-h-10 rounded-full border border-emerald-200 bg-emerald-50 px-4 text-xs font-bold text-emerald-700"
                             >
-                              Resend email
+                              {invoiceEmailAlreadySent
+                                ? "Resend email"
+                                : "Send email"}
                             </button>
                           </>
                         )}
@@ -1422,6 +1495,7 @@ export default function BillingInvoicesClient() {
                         Delete invoice
                       </button>
                     )}
+                    </div>
                   </div>
                 </div>
 
