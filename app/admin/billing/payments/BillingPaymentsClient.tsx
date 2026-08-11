@@ -46,6 +46,38 @@ type ProviderEvent = {
   received_at: string;
 };
 
+
+type PendingQrRequest = {
+  id: string;
+  invoice_id: string;
+  environment: string;
+  provider_request_id: string;
+  provider_status: string;
+  provider_observed_status: string;
+  requested_amount: number | string;
+  currency: string;
+  qr_expires_at: string | null;
+  reuse_until: string | null;
+  is_current: boolean;
+  provider_status_checked_at: string | null;
+  cancelled_at: string | null;
+  created_at: string;
+  invoice_number: string;
+  account_code: string;
+  payer_name: string;
+  billing_email: string;
+  invoice_status: string;
+  invoice_balance_due: number;
+};
+
+type HitPayAdminRequestsResult = {
+  error?: string;
+  active?: PendingQrRequest[];
+  closed?: PendingQrRequest[];
+  success?: boolean;
+  status?: string;
+};
+
 const DEFAULT_MANUAL_PAYMENT: ManualPaymentForm = {
   invoice_id: "",
   amount: "",
@@ -63,12 +95,58 @@ const DEFAULT_REFUND: RefundForm = {
   external_refund_completed: false,
 };
 
+async function callHitPayAdminRequests(
+  method: "GET" | "DELETE",
+  billingRequestId?: string,
+): Promise<HitPayAdminRequestsResult> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.access_token) {
+    throw new Error("Please sign in again.");
+  }
+
+  const response = await fetch(
+    "/api/billing/hitpay/admin/payment-requests",
+    {
+      method,
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        ...(method === "DELETE"
+          ? { "Content-Type": "application/json" }
+          : {}),
+      },
+      body:
+        method === "DELETE"
+          ? JSON.stringify({ billingRequestId })
+          : undefined,
+      cache: "no-store",
+    },
+  );
+
+  const payload = (await response.json().catch(() => null)) as
+    | HitPayAdminRequestsResult
+    | null;
+
+  if (!response.ok) {
+    throw new Error(
+      payload?.error || `QR request action failed (HTTP ${response.status}).`,
+    );
+  }
+
+  return payload || {};
+}
+
 export default function BillingPaymentsClient() {
   const [payments, setPayments] = useState<BillingPaymentOverview[]>([]);
   const [refunds, setRefunds] = useState<BillingRefund[]>([]);
   const [openInvoices, setOpenInvoices] = useState<BillingInvoiceOverview[]>([]);
   const [reviewEvents, setReviewEvents] = useState<ProviderEvent[]>([]);
-  const [pendingRequests, setPendingRequests] = useState(0);
+  const [pendingQrRequests, setPendingQrRequests] = useState<PendingQrRequest[]>([]);
+  const [closedQrRequests, setClosedQrRequests] = useState<PendingQrRequest[]>([]);
+  const [showClosedQrRequests, setShowClosedQrRequests] = useState(false);
+  const [cancellingRequestId, setCancellingRequestId] = useState("");
 
   const [search, setSearch] = useState("");
   const [providerFilter, setProviderFilter] = useState("all");
@@ -96,8 +174,8 @@ export default function BillingPaymentsClient() {
       paymentResult,
       refundResult,
       invoiceResult,
-      requestResult,
       eventResult,
+      qrRequestResult,
     ] = await Promise.all([
       supabase
         .from("gkp_billing_payment_admin_overview")
@@ -115,10 +193,6 @@ export default function BillingPaymentsClient() {
         .gt("balance_due", 0)
         .order("due_date", { ascending: true }),
       supabase
-        .from("gkp_billing_payment_requests")
-        .select("id", { count: "exact", head: true })
-        .eq("provider_status", "pending"),
-      supabase
         .from("gkp_billing_provider_events")
         .select(
           "id,provider,environment,event_type,invoice_id,provider_request_id,provider_payment_id,processing_status,error_message,received_at",
@@ -126,13 +200,20 @@ export default function BillingPaymentsClient() {
         .or("invoice_id.is.null,processing_status.neq.processed")
         .order("received_at", { ascending: false })
         .limit(20),
+      callHitPayAdminRequests("GET").catch(
+        (error): HitPayAdminRequestsResult => ({
+          error:
+            error instanceof Error
+              ? error.message
+              : "Could not load pending PayNow QR requests.",
+        }),
+      ),
     ]);
 
     const firstError =
       paymentResult.error ||
       refundResult.error ||
       invoiceResult.error ||
-      requestResult.error ||
       eventResult.error;
 
     if (firstError) {
@@ -146,8 +227,21 @@ export default function BillingPaymentsClient() {
     setOpenInvoices(
       (invoiceResult.data || []) as BillingInvoiceOverview[],
     );
-    setPendingRequests(requestResult.count || 0);
     setReviewEvents((eventResult.data || []) as ProviderEvent[]);
+
+    if (qrRequestResult.error) {
+      setLoadError(qrRequestResult.error);
+      setPendingQrRequests([]);
+      setClosedQrRequests([]);
+    } else {
+      setPendingQrRequests(
+        (qrRequestResult.active || []) as PendingQrRequest[],
+      );
+      setClosedQrRequests(
+        (qrRequestResult.closed || []) as PendingQrRequest[],
+      );
+    }
+
     setLoading(false);
   }, []);
 
@@ -356,6 +450,41 @@ export default function BillingPaymentsClient() {
     setWorking(false);
   }
 
+  async function cancelQrRequest(qrRequest: PendingQrRequest) {
+    const confirmed = window.confirm(
+      `Cancel the PayNow QR request for ${qrRequest.invoice_number}?\n\n` +
+        `This first checks HitPay to make sure the request has not been completed. ` +
+        `If it is still incomplete, the HitPay request will be cancelled and the invoice safety lock will be released.`,
+    );
+
+    if (!confirmed) return;
+
+    setCancellingRequestId(qrRequest.id);
+    setLoadError("");
+    setNotice("");
+
+    try {
+      const result = await callHitPayAdminRequests(
+        "DELETE",
+        qrRequest.id,
+      );
+
+      setNotice(
+        result.status === "canceled"
+          ? `${qrRequest.invoice_number} PayNow QR request cancelled. You can now return or void the invoice immediately.`
+          : `${qrRequest.invoice_number} QR request closed with status ${result.status || "closed"}.`,
+      );
+
+      await loadPayments();
+    } catch (error) {
+      setLoadError(
+        errorMessage(error, "The PayNow QR request could not be cancelled."),
+      );
+    } finally {
+      setCancellingRequestId("");
+    }
+  }
+
   return (
     <BillingAdminShell
       eyebrow="Billing administration"
@@ -393,7 +522,7 @@ export default function BillingPaymentsClient() {
         <Metric
           label="Needs attention"
           value={String(reviewEvents.length + overpaidInvoiceCount)}
-          detail={`${pendingRequests} pending QR request${pendingRequests === 1 ? "" : "s"}`}
+          detail={`${pendingQrRequests.length} pending QR request${pendingQrRequests.length === 1 ? "" : "s"}`}
           danger={reviewEvents.length + overpaidInvoiceCount > 0}
         />
       </div>
@@ -423,6 +552,177 @@ export default function BillingPaymentsClient() {
           </div>
         </section>
       )}
+
+      <section className="mt-6 rounded-[2rem] border border-[#ded5c4] bg-white shadow-[0_20px_60px_rgba(21,35,59,0.05)]">
+        <div className="flex flex-col gap-3 border-b border-[#ebe5da] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#8a8378]">
+              PayNow request management
+            </p>
+            <h2 className="mt-1 text-lg font-semibold text-[#15233b]">
+              Pending PayNow QR Requests
+            </h2>
+            <p className="mt-1 text-xs leading-5 text-[#81796d]">
+              Cancel an unused QR here before returning or voiding its invoice. The system verifies HitPay first and never cancels a completed payment.
+            </p>
+          </div>
+
+          {closedQrRequests.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowClosedQrRequests((current) => !current)}
+              className="min-h-10 rounded-full border border-[#d7c9ae] bg-white px-4 text-xs font-bold text-[#554d40]"
+            >
+              {showClosedQrRequests
+                ? "Hide closed requests"
+                : `Show cancelled / expired (${closedQrRequests.length})`}
+            </button>
+          )}
+        </div>
+
+        {pendingQrRequests.length === 0 ? (
+          <div className="p-8 text-sm text-[#81796d]">
+            No active pending PayNow QR requests.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[920px] border-collapse text-left">
+              <thead>
+                <tr className="border-b border-[#ebe5da] bg-[#fbfaf7] text-[10px] font-black uppercase tracking-[0.13em] text-[#8a8378]">
+                  <th className="px-5 py-4">Invoice</th>
+                  <th className="px-4 py-4">Parent</th>
+                  <th className="px-4 py-4">Amount</th>
+                  <th className="px-4 py-4">Created</th>
+                  <th className="px-4 py-4">HitPay status</th>
+                  <th className="px-5 py-4 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingQrRequests.map((request) => {
+                  const observedStatus =
+                    request.provider_observed_status || request.provider_status;
+                  const providerCompleted = observedStatus === "completed";
+
+                  return (
+                    <tr
+                      key={request.id}
+                      className="border-b border-[#f0ece4] last:border-b-0"
+                    >
+                      <td className="px-5 py-4 align-top">
+                        <Link
+                          href={`/admin/billing/invoices/${request.invoice_id}/preview`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-black text-[#15233b] underline decoration-[#d3b775] underline-offset-4"
+                        >
+                          {request.invoice_number}
+                        </Link>
+                        <span className="mt-1 block text-[11px] text-[#8a8378]">
+                          {request.environment}
+                          {request.is_current ? " · current" : " · older request"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <strong className="block text-sm">
+                          {request.payer_name}
+                        </strong>
+                        <span className="mt-1 block text-xs text-[#8a8378]">
+                          {request.account_code || request.billing_email}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 align-top font-black text-[#15233b]">
+                        {formatCurrency(
+                          numberValue(request.requested_amount),
+                          request.currency,
+                        )}
+                      </td>
+                      <td className="px-4 py-4 align-top text-xs text-[#81796d]">
+                        {formatDateTime(request.created_at)}
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <QrStatusPill status={observedStatus} />
+                        {providerCompleted && (
+                          <span className="mt-2 block max-w-[210px] text-[10px] leading-4 text-amber-700">
+                            HitPay reports completed. Cancellation is blocked while the payment webhook finishes.
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-5 py-4 text-right align-top">
+                        <button
+                          type="button"
+                          onClick={() => void cancelQrRequest(request)}
+                          disabled={
+                            cancellingRequestId === request.id ||
+                            providerCompleted
+                          }
+                          className="min-h-10 rounded-full border border-red-200 bg-red-50 px-4 text-xs font-bold text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {cancellingRequestId === request.id
+                            ? "Cancelling…"
+                            : "Cancel QR Request"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {showClosedQrRequests && closedQrRequests.length > 0 && (
+          <div className="border-t border-[#ebe5da]">
+            <div className="px-5 py-4 sm:px-6">
+              <p className="text-[10px] font-black uppercase tracking-[0.13em] text-[#8a8378]">
+                Recent cancelled / expired requests
+              </p>
+              <p className="mt-1 text-xs text-[#81796d]">
+                Kept as audit history; they no longer count as pending and do not block invoice changes.
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] border-collapse text-left">
+                <thead>
+                  <tr className="border-y border-[#ebe5da] bg-[#fbfaf7] text-[10px] font-black uppercase tracking-[0.13em] text-[#8a8378]">
+                    <th className="px-5 py-4">Invoice</th>
+                    <th className="px-4 py-4">Parent</th>
+                    <th className="px-4 py-4">Amount</th>
+                    <th className="px-4 py-4">Created</th>
+                    <th className="px-5 py-4">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {closedQrRequests.map((request) => (
+                    <tr
+                      key={request.id}
+                      className="border-b border-[#f0ece4] last:border-b-0"
+                    >
+                      <td className="px-5 py-4 text-sm font-bold">
+                        {request.invoice_number}
+                      </td>
+                      <td className="px-4 py-4 text-sm">
+                        {request.payer_name}
+                      </td>
+                      <td className="px-4 py-4 text-sm font-bold">
+                        {formatCurrency(
+                          numberValue(request.requested_amount),
+                          request.currency,
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-xs text-[#81796d]">
+                        {formatDateTime(request.created_at)}
+                      </td>
+                      <td className="px-5 py-4">
+                        <QrStatusPill status={request.provider_status} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </section>
 
       <section className="mt-6 rounded-[2rem] border border-[#ded5c4] bg-white shadow-[0_20px_60px_rgba(21,35,59,0.05)]">
         <div className="border-b border-[#ebe5da] p-5 sm:p-6">
@@ -860,6 +1160,30 @@ function WarningCard({ title, text }: { title: string; text: string }) {
       <strong className="text-sm text-amber-950">{title}</strong>
       <p className="mt-1 text-xs leading-5 text-amber-900/75">{text}</p>
     </div>
+  );
+}
+
+function QrStatusPill({ status }: { status: string }) {
+  const normalized = String(status || "unknown").toLowerCase();
+  const classes =
+    normalized === "pending"
+      ? "border-sky-200 bg-sky-50 text-sky-700"
+      : normalized === "completed"
+        ? "border-amber-200 bg-amber-50 text-amber-700"
+        : normalized === "canceled"
+          ? "border-slate-200 bg-slate-100 text-slate-600"
+          : normalized === "expired" || normalized === "inactive"
+            ? "border-slate-200 bg-slate-50 text-slate-600"
+            : normalized === "failed"
+              ? "border-red-200 bg-red-50 text-red-700"
+              : "border-[#ded5c4] bg-[#fbfaf7] text-[#81796d]";
+
+  return (
+    <span
+      className={`inline-flex rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.07em] ${classes}`}
+    >
+      {normalized.replaceAll("_", " ")}
+    </span>
   );
 }
 

@@ -136,6 +136,78 @@ export async function createHitPayPayNowRequest(input: {
   };
 }
 
+
+export async function getHitPayPaymentRequest(
+  environment: HitPayEnvironment,
+  requestId: string,
+) {
+  const config = getHitPayApiConfig(environment);
+
+  const response = await fetch(
+    `${config.baseUrl}/v1/payment-requests/${encodeURIComponent(requestId)}`,
+    {
+      method: "GET",
+      headers: {
+        "X-BUSINESS-API-KEY": config.apiKey,
+      },
+      cache: "no-store",
+    },
+  );
+
+  const payload = (await response.json().catch(() => null)) as
+    | HitPayPaymentRequestResponse
+    | Record<string, unknown>
+    | null;
+
+  if (!response.ok) {
+    const message =
+      payload && typeof payload === "object" && "message" in payload
+        ? String(payload.message)
+        : `HitPay returned HTTP ${response.status}`;
+
+    const error = new Error(message) as Error & { status?: number };
+    error.status = response.status;
+    throw error;
+  }
+
+  return payload as HitPayPaymentRequestResponse;
+}
+
+export async function deleteHitPayPaymentRequest(
+  environment: HitPayEnvironment,
+  requestId: string,
+) {
+  const config = getHitPayApiConfig(environment);
+
+  const response = await fetch(
+    `${config.baseUrl}/v1/payment-requests/${encodeURIComponent(requestId)}`,
+    {
+      method: "DELETE",
+      headers: {
+        "X-BUSINESS-API-KEY": config.apiKey,
+      },
+      cache: "no-store",
+    },
+  );
+
+  const payload = (await response.json().catch(() => null)) as
+    | Record<string, unknown>
+    | null;
+
+  if (!response.ok) {
+    const message =
+      payload && typeof payload === "object" && "message" in payload
+        ? String(payload.message)
+        : `HitPay returned HTTP ${response.status}`;
+
+    const error = new Error(message) as Error & { status?: number };
+    error.status = response.status;
+    throw error;
+  }
+
+  return payload || { success: true };
+}
+
 export async function hitPayQrDataUrl(qrPayload: string) {
   return QRCode.toDataURL(qrPayload, {
     errorCorrectionLevel: "M",
