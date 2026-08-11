@@ -277,26 +277,13 @@ const gkpEmailHref =
 const gkpWhatsAppHref =
   "https://wa.me/6583888949?text=Hello%20Guru%20Kids%20Pro%2C%20I%20would%20like%20to%20enquire%20about%20Dreamscape%20Student%20Access%20for%20GKP%20students.";
 
-const checkoutLinks = {
-  core: {
-    monthly:
-      process.env.NEXT_PUBLIC_SHOPIFY_CORE_MONTHLY_URL ??
-      "/cart?plan=core-monthly",
-    annual:
-      process.env.NEXT_PUBLIC_SHOPIFY_CORE_ANNUAL_URL ??
-      "/cart?plan=core-annual",
-  },
-  full: {
-    monthly:
-      process.env.NEXT_PUBLIC_SHOPIFY_FULL_MONTHLY_URL ??
-      process.env.NEXT_PUBLIC_SHOPIFY_COMPLETE_MONTHLY_URL ??
-      "/cart?plan=full-monthly",
-    annual:
-      process.env.NEXT_PUBLIC_SHOPIFY_FULL_ANNUAL_URL ??
-      process.env.NEXT_PUBLIC_SHOPIFY_COMPLETE_ANNUAL_URL ??
-      "/cart?plan=full-annual",
-  },
-} as const;
+function dreamscapeSubscriptionHref(
+  planKey: "core" | "full",
+  billingCycle: "monthly" | "annual",
+) {
+  const plan = planKey === "full" ? "complete" : "core";
+  return `/dreamscape/subscribe?plan=${plan}&cycle=${billingCycle}`;
+}
 
 function money(value: number) {
   return value.toFixed(value % 1 === 0 ? 0 : 2);
@@ -376,14 +363,14 @@ export default function PricingPage() {
     };
   }, []);
 
-  const canOpenShopifyCheckout =
+  const canOpenSubscriptionCheckout =
     !publicPreviewActive ||
     (checkoutRole !== null && STAFF_CHECKOUT_ROLES.has(checkoutRole));
 
   function handleSubscriptionClick(checkoutHref: string) {
     if (checkoutAccessLoading) return;
 
-    if (canOpenShopifyCheckout) {
+    if (canOpenSubscriptionCheckout) {
       window.location.assign(checkoutHref);
       return;
     }
@@ -668,7 +655,10 @@ export default function PricingPage() {
             const checkoutHref =
               plan.key === "nova"
                 ? null
-                : checkoutLinks[plan.key][regularBillingCycle];
+                : dreamscapeSubscriptionHref(
+                    plan.key,
+                    regularBillingCycle,
+                  );
 
             return (
               <article
@@ -1907,9 +1897,7 @@ export default function PricingPage() {
               }}
             >
               Free activity zones are open now. Public Student Access
-              subscriptions open on 1 October. Authorised staff accounts can
-              continue testing the existing Shopify checkout links during the
-              preview.
+              subscriptions open on 1 October. Authorised staff accounts can continue testing the new Dreamscape recurring subscription flow during the preview.
             </p>
 
             <div
@@ -1974,8 +1962,7 @@ export default function PricingPage() {
                 lineHeight: 1.6,
               }}
             >
-              Staff testing access remains available to authorised admin,
-              teacher and curriculum lead accounts.
+              Staff testing access remains available to authorised admin, teacher and curriculum lead accounts.
             </p>
           </div>
         </div>

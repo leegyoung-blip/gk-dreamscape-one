@@ -208,6 +208,147 @@ export async function deleteHitPayPaymentRequest(
   return payload || { success: true };
 }
 
+
+export type HitPaySubscriptionPlanResponse = {
+  id: string;
+  name?: string;
+  description?: string | null;
+  cycle?: string;
+  currency?: string;
+  amount?: number | string;
+  reference?: string | null;
+  [key: string]: unknown;
+};
+
+export type HitPayRecurringBillingResponse = {
+  id: string;
+  url?: string | null;
+  status?: string | null;
+  reference?: string | null;
+  customer_id?: string | null;
+  customer_email?: string | null;
+  start_date?: string | null;
+  [key: string]: unknown;
+};
+
+async function hitPayJsonRequest<T>(
+  path: string,
+  init: RequestInit,
+  environment = getHitPayEnvironment(),
+): Promise<T> {
+  const config = getHitPayApiConfig(environment);
+
+  const response = await fetch(`${config.baseUrl}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      "X-BUSINESS-API-KEY": config.apiKey,
+      "X-Requested-With": "XMLHttpRequest",
+      ...(init.headers || {}),
+    },
+    cache: "no-store",
+  });
+
+  const payload = (await response.json().catch(() => null)) as
+    | T
+    | Record<string, unknown>
+    | null;
+
+  if (!response.ok) {
+    const message =
+      payload &&
+      typeof payload === "object" &&
+      "message" in payload
+        ? String(payload.message)
+        : `HitPay returned HTTP ${response.status}`;
+
+    throw new Error(message);
+  }
+
+  return (payload || {}) as T;
+}
+
+export async function createHitPaySubscriptionPlan(input: {
+  name: string;
+  description: string;
+  amount: number;
+  currency: string;
+  cycle: "monthly" | "yearly";
+  reference: string;
+  environment?: HitPayEnvironment;
+}) {
+  return hitPayJsonRequest<HitPaySubscriptionPlanResponse>(
+    "/v1/subscription-plan",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        name: input.name,
+        description: input.description,
+        amount: Number(input.amount.toFixed(2)),
+        currency: input.currency.toUpperCase(),
+        cycle: input.cycle,
+        reference: input.reference,
+        // 100 is HitPay's documented API maximum and keeps the
+        // subscription long-running while still allowing cancellation.
+        times_to_be_charged: 100,
+      }),
+    },
+    input.environment,
+  );
+}
+
+export async function createHitPayRecurringBilling(input: {
+  planId: string;
+  customerEmail: string;
+  customerName: string;
+  startDate: string;
+  redirectUrl: string;
+  reference: string;
+  sendEmail: boolean;
+  environment?: HitPayEnvironment;
+}) {
+  return hitPayJsonRequest<HitPayRecurringBillingResponse>(
+    "/v1/recurring-billing",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        plan_id: input.planId,
+        customer_email: input.customerEmail,
+        customer_name: input.customerName,
+        start_date: input.startDate,
+        redirect_url: input.redirectUrl,
+        reference: input.reference,
+        payment_methods: ["card"],
+        send_email: input.sendEmail ? "true" : "false",
+        times_to_be_charged: 100,
+      }),
+    },
+    input.environment,
+  );
+}
+
+export async function getHitPayRecurringBilling(
+  environment: HitPayEnvironment,
+  recurringBillingId: string,
+) {
+  return hitPayJsonRequest<HitPayRecurringBillingResponse>(
+    `/v1/recurring-billing/${encodeURIComponent(recurringBillingId)}`,
+    { method: "GET" },
+    environment,
+  );
+}
+
+export async function cancelHitPayRecurringBilling(
+  environment: HitPayEnvironment,
+  recurringBillingId: string,
+) {
+  return hitPayJsonRequest<Record<string, unknown>>(
+    `/v1/recurring-billing/${encodeURIComponent(recurringBillingId)}`,
+    { method: "DELETE" },
+    environment,
+  );
+}
+
 export async function hitPayQrDataUrl(qrPayload: string) {
   return QRCode.toDataURL(qrPayload, {
     errorCorrectionLevel: "M",

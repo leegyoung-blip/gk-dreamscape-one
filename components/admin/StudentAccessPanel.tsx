@@ -163,16 +163,32 @@ function sourceLabel(
     .trim()
     .toLowerCase();
 
-  if (source === "shopify") {
-    return "Shopify";
+  if (source === "hitpay") {
+    return "HitPay";
+  }
+
+  if (source === "gkp_billing") {
+    return "GKP Billing";
   }
 
   if (source === "manual") {
     return "Manual";
   }
 
+  if (source === "hitpay + manual") {
+    return "HitPay + Manual";
+  }
+
+  if (source === "gkp_billing + manual") {
+    return "GKP Billing + Manual";
+  }
+
+  if (source === "shopify") {
+    return "Legacy Shopify";
+  }
+
   if (source === "shopify + manual") {
-    return "Shopify + Manual";
+    return "Legacy Shopify + Manual";
   }
 
   if (source === "subscription") {
@@ -518,10 +534,10 @@ export default function StudentAccessPanel() {
 
             <p className="mt-3 max-w-4xl text-sm leading-6 text-white/58">
               View each learner&apos;s effective
-              Core and Science access. Shopify
-              subscriptions remain automatic;
+              Core and Science access. Paid
+              Dreamscape subscriptions remain automatic;
               the controls here only manage the
-              existing manual Core and Science
+              separate manual Core and Science
               unlocks.
             </p>
           </div>
@@ -704,6 +720,9 @@ export default function StudentAccessPanel() {
                             source={
                               row.access_source
                             }
+                            subscriptionSource={
+                              row.subscription_source
+                            }
                           />
                         </div>
 
@@ -831,7 +850,7 @@ export default function StudentAccessPanel() {
                           paid access. Turning a
                           manual switch off does
                           not cancel an active
-                          Shopify plan.
+                          paid subscription.
                         </p>
                       </div>
 
@@ -927,11 +946,26 @@ function AccessBadge({
 
 function SourceBadge({
   source,
+  subscriptionSource,
 }: {
   source: string;
+  subscriptionSource: string | null;
 }) {
-  const label =
-    sourceLabel(source);
+  const normalisedSource = String(source || "").toLowerCase();
+  const paidSource = String(subscriptionSource || "")
+    .trim()
+    .toLowerCase();
+
+  const resolvedSource =
+    normalisedSource === "subscription"
+      ? paidSource || "subscription"
+      : normalisedSource === "subscription + manual"
+        ? paidSource
+          ? `${paidSource} + manual`
+          : "subscription + manual"
+        : source;
+
+  const label = sourceLabel(resolvedSource);
 
   return (
     <span className="rounded-full border border-emerald-200/18 bg-emerald-300/[0.07] px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.1em] text-emerald-100">
