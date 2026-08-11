@@ -3,6 +3,36 @@ import QRCode from "qrcode";
 
 export type HitPayEnvironment = "sandbox" | "production";
 
+const HITPAY_REQUEST_TIMEOUT_MS = 15_000;
+
+async function hitPayFetch(
+  input: string | URL | Request,
+  init: RequestInit = {},
+) {
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => controller.abort(),
+    HITPAY_REQUEST_TIMEOUT_MS,
+  );
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(
+        `HitPay request timed out after ${HITPAY_REQUEST_TIMEOUT_MS / 1000} seconds.`,
+      );
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export type HitPayPaymentRequestResponse = {
   id: string;
   amount: string;
@@ -81,7 +111,7 @@ export async function createHitPayPayNowRequest(input: {
 }) {
   const config = getHitPayApiConfig();
 
-  const response = await fetch(`${config.baseUrl}/v1/payment-requests`, {
+  const response = await hitPayFetch(`${config.baseUrl}/v1/payment-requests`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -143,7 +173,7 @@ export async function getHitPayPaymentRequest(
 ) {
   const config = getHitPayApiConfig(environment);
 
-  const response = await fetch(
+  const response = await hitPayFetch(
     `${config.baseUrl}/v1/payment-requests/${encodeURIComponent(requestId)}`,
     {
       method: "GET",
@@ -179,7 +209,7 @@ export async function deleteHitPayPaymentRequest(
 ) {
   const config = getHitPayApiConfig(environment);
 
-  const response = await fetch(
+  const response = await hitPayFetch(
     `${config.baseUrl}/v1/payment-requests/${encodeURIComponent(requestId)}`,
     {
       method: "DELETE",
@@ -238,7 +268,7 @@ async function hitPayJsonRequest<T>(
 ): Promise<T> {
   const config = getHitPayApiConfig(environment);
 
-  const response = await fetch(`${config.baseUrl}${path}`, {
+  const response = await hitPayFetch(`${config.baseUrl}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",

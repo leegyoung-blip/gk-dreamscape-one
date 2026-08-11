@@ -224,6 +224,12 @@ export default function BillingDashboardClient() {
             Finance & reconciliation
           </Link>
           <Link
+            href="/admin/billing/system-health"
+            className="inline-flex min-h-11 items-center rounded-full border border-sky-200 bg-sky-50 px-5 text-xs font-bold text-sky-700"
+          >
+            System health
+          </Link>
+          <Link
             href="/admin/billing/accounts"
             className="inline-flex min-h-11 items-center rounded-full bg-[#15233b] px-5 text-xs font-bold text-white"
           >
