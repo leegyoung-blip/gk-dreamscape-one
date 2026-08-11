@@ -24,7 +24,9 @@ type SubscriptionAction =
   | "refresh"
   | "cancel_period_end"
   | "cancel_immediate"
-  | "reactivate";
+  | "reactivate"
+  | "change_plan"
+  | "cancel_plan_change";
 
 function json(body: unknown, status = 200) {
   return NextResponse.json(body, {
@@ -83,6 +85,17 @@ async function requireBillingStaff(request: Request) {
   return user;
 }
 
+async function loadPlan(planId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("dreamscape_subscription_plans")
+    .select("*")
+    .eq("id", planId)
+    .single();
+
+  if (error) throw error;
+  return data as DreamscapePlanRow;
+}
+
 async function loadContract(contractId: string) {
   const { data: contract, error } = await supabaseAdmin
     .from("dreamscape_subscription_contracts")
@@ -92,20 +105,14 @@ async function loadContract(contractId: string) {
 
   if (error) throw error;
 
-  const { data: plan, error: planError } = await supabaseAdmin
-    .from("dreamscape_subscription_plans")
-    .select("*")
-    .eq("id", contract.plan_id)
-    .single();
-
-  if (planError) throw planError;
+  const plan = await loadPlan(contract.plan_id);
 
   return {
     contract: contract as DreamscapeContractRow & {
       plan_id: string;
       provider_environment: string | null;
     },
-    plan: plan as DreamscapePlanRow,
+    plan,
   };
 }
 
@@ -135,13 +142,35 @@ function requireProviderSubscription(
   };
 }
 
+async function beginPlanChange(input: {
+  contract: DreamscapeContractRow;
+  targetPlanId: string;
+  actorUserId: string;
+}) {
+  const { data, error } = await supabaseAdmin.rpc(
+    "gkp_begin_dreamscape_plan_change",
+    {
+      p_contract_id: input.contract.id,
+      p_target_plan_id: input.targetPlanId,
+      p_requested_by: input.actorUserId,
+      p_source: "admin",
+    },
+  );
+
+  if (error) throw error;
+  if (!data) throw new Error("The plan-change transition could not be created.");
+
+  return String(data);
+}
+
 export async function POST(request: Request) {
   try {
-    await requireBillingStaff(request);
+    const user = await requireBillingStaff(request);
 
     const body = (await request.json()) as {
       contractId?: string;
       action?: SubscriptionAction;
+      targetPlanId?: string;
     };
 
     const contractId = String(body.contractId || "").trim();
@@ -157,15 +186,146 @@ export async function POST(request: Request) {
     const { contract, plan } = await loadContract(contractId);
     const provider = requireProviderSubscription(contract);
 
+    if (action === "change_plan") {
+      const targetPlanId = String(body.targetPlanId || "").trim();
+
+      if (!targetPlanId) {
+        return json({ error: "Choose the new Dreamscape plan." }, 400);
+      }
+
+      const targetPlan = await loadPlan(targetPlanId);
+
+      if (
+        targetPlan.audience !== "public" ||
+        targetPlan.provider !== "hitpay" ||
+        !targetPlan.is_available ||
+        targetPlan.is_coming_soon ||
+        !targetPlan.hitpay_plan_id
+      ) {
+        return json(
+          { error: "The selected Dreamscape plan is not currently available." },
+          409,
+        );
+      }
+
+      if (
+        targetPlan.hitpay_environment &&
+        targetPlan.hitpay_environment !== provider.environment
+      ) {
+        return json(
+          { error: "The selected plan is mapped to a different HitPay environment." },
+          409,
+        );
+      }
+
+      let transitionId: string | null = null;
+
+      try {
+        transitionId = await beginPlanChange({
+          contract,
+          targetPlanId,
+          actorUserId: user.id,
+        });
+
+        const providerResult = await updateHitPayRecurringBilling({
+          environment: provider.environment,
+          recurringBillingId: provider.id,
+          planId: targetPlan.hitpay_plan_id,
+          sendEmail: true,
+        });
+
+        const { error: confirmError } = await supabaseAdmin.rpc(
+          "gkp_confirm_dreamscape_plan_change",
+          {
+            p_transition_id: transitionId,
+            p_provider_response: providerResult,
+          },
+        );
+
+        if (confirmError) {
+          // The provider accepted the new plan but local confirmation failed.
+          // Revert HitPay to the current plan before surfacing the error.
+          if (plan.hitpay_plan_id) {
+            await updateHitPayRecurringBilling({
+              environment: provider.environment,
+              recurringBillingId: provider.id,
+              planId: plan.hitpay_plan_id,
+              sendEmail: false,
+            }).catch((revertError) =>
+              console.error("Could not revert HitPay plan after local confirmation failure", revertError),
+            );
+          }
+
+          await supabaseAdmin.rpc("gkp_fail_dreamscape_plan_change", {
+            p_transition_id: transitionId,
+            p_error: confirmError.message,
+          });
+
+          throw confirmError;
+        }
+
+        return json({
+          ok: true,
+          status: "scheduled",
+          transitionId,
+          currentPlan: plan.display_name,
+          nextPlan: targetPlan.display_name,
+          effectiveAt: contract.current_period_end,
+        });
+      } catch (error) {
+        if (transitionId) {
+          try {
+            await supabaseAdmin.rpc("gkp_fail_dreamscape_plan_change", {
+              p_transition_id: transitionId,
+              p_error:
+                error instanceof Error ? error.message : String(error),
+            });
+          } catch {
+            // Preserve the original provider/local error.
+          }
+        }
+        throw error;
+      }
+    }
+
+    if (action === "cancel_plan_change") {
+      if (!contract.pending_plan_id || !contract.pending_transition_id) {
+        return json({ error: "This subscription has no pending plan change." }, 409);
+      }
+
+      if (!plan.hitpay_plan_id) {
+        return json({ error: "The current Dreamscape plan is not mapped to HitPay." }, 409);
+      }
+
+      // Put HitPay back onto the current paid plan first.
+      await updateHitPayRecurringBilling({
+        environment: provider.environment,
+        recurringBillingId: provider.id,
+        planId: plan.hitpay_plan_id,
+        sendEmail: false,
+      });
+
+      const { error: cancelError } = await supabaseAdmin.rpc(
+        "gkp_cancel_dreamscape_plan_change",
+        {
+          p_contract_id: contract.id,
+          p_requested_by: user.id,
+          p_reason: "Cancelled by billing staff before effective date",
+        },
+      );
+
+      if (cancelError) throw cancelError;
+
+      return json({ ok: true, status: "plan_change_cancelled" });
+    }
+
     if (action === "refresh") {
       const providerResult = await getHitPayRecurringBilling(
         provider.environment,
         provider.id,
       );
 
-      const providerStatus = String(
-        providerResult.status || "",
-      )
+      const providerStatus = String(providerResult.status || "")
         .trim()
         .toLowerCase();
 
@@ -204,6 +364,19 @@ export async function POST(request: Request) {
       });
     }
 
+    if (
+      ["cancel_period_end", "cancel_immediate", "reactivate"].includes(action) &&
+      contract.pending_plan_id
+    ) {
+      return json(
+        {
+          error:
+            "This subscription has a pending plan change. Cancel the pending plan change first, then perform the subscription action.",
+        },
+        409,
+      );
+    }
+
     if (action === "cancel_period_end") {
       const periodEnd = contract.current_period_end
         ? new Date(contract.current_period_end)
@@ -223,12 +396,8 @@ export async function POST(request: Request) {
         );
       }
 
-      const cancellationRequestedAt =
-        new Date().toISOString();
+      const cancellationRequestedAt = new Date().toISOString();
 
-      // Set the paid-through cancellation state BEFORE calling HitPay.
-      // This prevents a fast provider webhook from being interpreted as
-      // an immediate cancellation.
       const { error: localStateError } = await supabaseAdmin
         .from("dreamscape_subscription_contracts")
         .update({
@@ -258,9 +427,6 @@ export async function POST(request: Request) {
           provider.id,
         );
       } catch (providerError) {
-        // Provider cancellation did not complete, so restore the local
-        // subscription to Active rather than falsely presenting it as
-        // scheduled for cancellation.
         await supabaseAdmin
           .from("dreamscape_subscription_contracts")
           .update({

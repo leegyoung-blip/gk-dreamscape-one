@@ -49,6 +49,17 @@ type Contract = {
   cancel_at_period_end: boolean;
   created_at: string;
   updated_at: string;
+  plan_id: string;
+  pending_plan_id: string | null;
+  pending_plan_key: string | null;
+  pending_display_name: string | null;
+  pending_plan_code: string | null;
+  pending_billing_cycle: string | null;
+  pending_amount: number | string | null;
+  plan_change_status: string | null;
+  plan_change_effective_at: string | null;
+  plan_change_requested_at: string | null;
+  previous_plan_id: string | null;
 };
 
 type Metrics = {
@@ -96,6 +107,36 @@ type SubscriptionEmailLog = {
   created_at: string;
 };
 
+type PlanChangeHistory = {
+  id: string;
+  status: string;
+  request_source: string;
+  requested_at: string;
+  effective_at: string;
+  applied_at: string | null;
+  cancelled_at: string | null;
+  from_plan_name: string | null;
+  from_plan_key: string | null;
+  to_plan_name: string | null;
+  to_plan_key: string | null;
+  payment_id: string | null;
+  failure_message: string | null;
+};
+
+type DualBillingConflict = {
+  learner_email: string;
+  contract_id: string;
+  contract_reference: string;
+  contract_status: string;
+  current_period_end: string | null;
+  addon_id: string;
+  student_id: string;
+  addon_status: string;
+  addon_plan_code: string;
+  addon_starts_on: string;
+  addon_ends_on: string | null;
+};
+
 function money(value: number | string, currency = "SGD") {
   return new Intl.NumberFormat("en-SG", {
     style: "currency",
@@ -129,6 +170,9 @@ export default function DreamscapeBillingClient() {
   const [selectedContractId, setSelectedContractId] = useState("");
   const [addonWarnings, setAddonWarnings] = useState<AddonWarning[]>([]);
   const [emailHistory, setEmailHistory] = useState<SubscriptionEmailLog[]>([]);
+  const [planChangeHistory, setPlanChangeHistory] = useState<PlanChangeHistory[]>([]);
+  const [dualConflicts, setDualConflicts] = useState<DualBillingConflict[]>([]);
+  const [targetPlanId, setTargetPlanId] = useState("");
   const [paymentHistory, setPaymentHistory] = useState<
     Array<{
       id: string;
@@ -151,6 +195,7 @@ export default function DreamscapeBillingClient() {
       metricsResult,
       settingsResult,
       warningResult,
+      conflictResult,
     ] = await Promise.all([
         supabase.rpc("gkp_get_dreamscape_subscription_plans"),
         supabase.rpc(
@@ -160,6 +205,7 @@ export default function DreamscapeBillingClient() {
         supabase.rpc("gkp_get_dreamscape_subscription_metrics"),
         supabase.rpc("gkp_get_dreamscape_billing_settings"),
         supabase.rpc("gkp_get_gkp_dreamscape_addon_warnings"),
+        supabase.rpc("gkp_get_dreamscape_dual_billing_conflicts"),
       ]);
 
     const firstError =
@@ -167,7 +213,8 @@ export default function DreamscapeBillingClient() {
       contractsResult.error ||
       metricsResult.error ||
       settingsResult.error ||
-      warningResult.error;
+      warningResult.error ||
+      conflictResult.error;
 
     if (firstError) {
       setError(firstError.message);
@@ -184,6 +231,7 @@ export default function DreamscapeBillingClient() {
       ((settingsResult.data || [])[0] || null) as Settings | null,
     );
     setAddonWarnings((warningResult.data || []) as AddonWarning[]);
+    setDualConflicts((conflictResult.data || []) as DualBillingConflict[]);
     setLoading(false);
   }, []);
 
@@ -265,7 +313,7 @@ export default function DreamscapeBillingClient() {
       next &&
       !window.confirm(
         "Enable public Dreamscape subscription checkout? " +
-          "Only do this after the four HitPay plans and webhook have been tested.",
+          "Only do this after the available monthly HitPay plans and webhook have been tested.",
       )
     ) {
       return;
@@ -300,7 +348,7 @@ export default function DreamscapeBillingClient() {
       return;
     }
 
-    const [paymentResult, emailResult] = await Promise.all([
+    const [paymentResult, emailResult, planChangeResult] = await Promise.all([
       supabase.rpc(
         "gkp_get_dreamscape_subscription_payments",
         { p_contract_id: contractId },
@@ -309,9 +357,14 @@ export default function DreamscapeBillingClient() {
         "gkp_get_dreamscape_subscription_email_history",
         { p_contract_id: contractId },
       ),
+      supabase.rpc(
+        "gkp_get_dreamscape_plan_change_history",
+        { p_contract_id: contractId },
+      ),
     ]);
 
-    const firstError = paymentResult.error || emailResult.error;
+    const firstError =
+      paymentResult.error || emailResult.error || planChangeResult.error;
 
     if (firstError) {
       setError(firstError.message);
@@ -320,6 +373,7 @@ export default function DreamscapeBillingClient() {
 
     setPaymentHistory((paymentResult.data || []) as typeof paymentHistory);
     setEmailHistory((emailResult.data || []) as SubscriptionEmailLog[]);
+    setPlanChangeHistory((planChangeResult.data || []) as PlanChangeHistory[]);
   }
 
   async function runSubscriptionAction(
@@ -418,6 +472,89 @@ export default function DreamscapeBillingClient() {
         caught instanceof Error
           ? caught.message
           : "The subscription action could not be completed.",
+      );
+    }
+
+    setWorking(false);
+  }
+
+  async function runPlanChange(
+    contract: Contract,
+    action: "change_plan" | "cancel_plan_change",
+  ) {
+    if (action === "change_plan" && !targetPlanId) {
+      setError("Choose the target plan first.");
+      return;
+    }
+
+    const targetPlan = plans.find((item) => item.id === targetPlanId);
+
+    if (
+      action === "change_plan" &&
+      !window.confirm(
+        `Schedule ${contract.learner_name} to move from ${contract.display_name} to ${targetPlan?.display_name || "the selected plan"} at the next billing cycle?`,
+      )
+    ) {
+      return;
+    }
+
+    if (
+      action === "cancel_plan_change" &&
+      !window.confirm("Cancel the pending plan change and keep the current plan?")
+    ) {
+      return;
+    }
+
+    setWorking(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) throw new Error("Please sign in again.");
+
+      const response = await fetch(
+        "/api/billing/dreamscape/subscriptions/action",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contractId: contract.id,
+            action,
+            ...(action === "change_plan"
+              ? { targetPlanId }
+              : {}),
+          }),
+        },
+      );
+
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string; nextPlan?: string; effectiveAt?: string }
+        | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "The plan change could not be completed.");
+      }
+
+      setMessage(
+        action === "change_plan"
+          ? `Plan change scheduled for ${date(payload?.effectiveAt || contract.current_period_end)}.`
+          : "Pending plan change cancelled.",
+      );
+      setTargetPlanId("");
+      await load();
+      await loadPaymentHistory(contract.id);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The plan change could not be completed.",
       );
     }
 
@@ -651,10 +788,37 @@ export default function DreamscapeBillingClient() {
           <StatusBox
             label="Plan mapping"
             value={allPublicPlansSynced ? "READY" : "NOT SYNCED"}
-            detail="All four public monthly/annual plans must have HitPay IDs."
+            detail="All currently available public monthly plans must have HitPay IDs. Annual plans remain disabled for now."
           />
         </div>
       </section>
+
+      {dualConflicts.length > 0 && (
+        <section className="mt-6 rounded-[28px] border border-red-200 bg-red-50 p-6 shadow-[0_20px_60px_rgba(21,35,59,0.05)]">
+          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-red-700">
+            Billing conflict
+          </p>
+          <h2 className="mt-2 text-xl font-semibold text-[#15233b]">
+            {dualConflicts.length} learner{dualConflicts.length === 1 ? "" : "s"} have overlapping GKP and public Dreamscape access
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-red-900/75">
+            Phase 5 blocks new duplicate checkouts. These are pre-existing overlaps and must be resolved before final sign-off.
+          </p>
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            {dualConflicts.map((item) => (
+              <div key={`${item.contract_id}:${item.addon_id}`} className="rounded-2xl border border-red-200 bg-white p-4">
+                <strong className="text-sm text-[#15233b]">{item.learner_email}</strong>
+                <p className="mt-1 text-xs text-[#81796d]">
+                  Public {item.contract_reference} · {item.contract_status}
+                </p>
+                <p className="mt-1 text-xs text-red-700">
+                  GKP add-on: {item.addon_plan_code} · {item.addon_status}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {addonWarnings.length > 0 && (
         <section className="mt-6 rounded-[28px] border border-amber-200 bg-amber-50 p-6 shadow-[0_20px_60px_rgba(21,35,59,0.05)]">
@@ -824,6 +988,11 @@ export default function DreamscapeBillingClient() {
                     </td>
                     <td className="px-4 py-4 text-sm">
                       {contract.display_name}
+                      {contract.pending_display_name && (
+                        <span className="mt-1 block text-[10px] font-bold text-violet-700">
+                          → {contract.pending_display_name} on {date(contract.plan_change_effective_at)}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-4">
                       <StatusPill status={contract.status} />
@@ -967,6 +1136,8 @@ export default function DreamscapeBillingClient() {
                 setSelectedContractId("");
                 setPaymentHistory([]);
                 setEmailHistory([]);
+                setPlanChangeHistory([]);
+                setTargetPlanId("");
               }}
               className="min-h-10 rounded-full border border-[#d7c9ae] bg-white px-4 text-xs font-bold"
             >
@@ -1012,6 +1183,77 @@ export default function DreamscapeBillingClient() {
             />
           </div>
 
+          <div className="mt-6 rounded-2xl border border-violet-200 bg-violet-50/60 p-5">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-violet-700">
+                  Plan transition
+                </p>
+                {selectedContract.pending_display_name ? (
+                  <>
+                    <h3 className="mt-2 text-base font-semibold text-[#15233b]">
+                      {selectedContract.display_name} → {selectedContract.pending_display_name}
+                    </h3>
+                    <p className="mt-1 text-xs leading-5 text-[#81796d]">
+                      The current plan stays active through {date(selectedContract.plan_change_effective_at)}. The new Nova entitlement is applied only after the successful new-cycle charge.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="mt-2 text-base font-semibold text-[#15233b]">Schedule a next-cycle plan change</h3>
+                    <p className="mt-1 text-xs leading-5 text-[#81796d]">
+                      No proration and no early access switch. HitPay changes the recurring plan for the next billing cycle.
+                    </p>
+                  </>
+                )}
+              </div>
+
+              {selectedContract.pending_plan_id ? (
+                <button
+                  type="button"
+                  disabled={working}
+                  onClick={() => void runPlanChange(selectedContract, "cancel_plan_change")}
+                  className="min-h-11 rounded-full border border-red-200 bg-white px-5 text-xs font-black text-red-700"
+                >
+                  Cancel pending change
+                </button>
+              ) : (
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <select
+                    value={targetPlanId}
+                    onChange={(event) => setTargetPlanId(event.target.value)}
+                    className="min-h-11 rounded-xl border border-violet-200 bg-white px-4 text-sm"
+                  >
+                    <option value="">Choose new plan</option>
+                    {plans
+                      .filter(
+                        (item) =>
+                          item.id !== selectedContract.plan_id &&
+                          item.audience === "public" &&
+                          item.provider === "hitpay" &&
+                          item.is_available &&
+                          !item.is_coming_soon &&
+                          Boolean(item.hitpay_plan_id),
+                      )
+                      .map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.display_name} · {money(item.amount, item.currency)} / {item.billing_cycle}
+                        </option>
+                      ))}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={working || !targetPlanId || selectedContract.status !== "active"}
+                    onClick={() => void runPlanChange(selectedContract, "change_plan")}
+                    className="min-h-11 rounded-full border border-violet-200 bg-violet-600 px-5 text-xs font-black text-white disabled:opacity-45"
+                  >
+                    Schedule change
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="mt-6 overflow-x-auto rounded-2xl border border-[#ebe5da]">
             <table className="w-full min-w-[680px] border-collapse text-left">
               <thead>
@@ -1050,6 +1292,38 @@ export default function DreamscapeBillingClient() {
                       <td className="px-4 py-4 text-xs text-[#81796d]">
                         {payment.provider_charge_id || "—"}
                       </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-6 overflow-x-auto rounded-2xl border border-[#ebe5da]">
+            <div className="border-b border-[#ebe5da] bg-[#fbfaf7] px-4 py-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
+                Plan change history
+              </p>
+            </div>
+            <table className="w-full min-w-[760px] border-collapse text-left">
+              <thead>
+                <tr className="border-b border-[#ebe5da] text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
+                  <th className="px-4 py-3">Requested</th>
+                  <th className="px-4 py-3">Change</th>
+                  <th className="px-4 py-3">Effective</th>
+                  <th className="px-4 py-3">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {planChangeHistory.length === 0 ? (
+                  <tr><td colSpan={4} className="px-4 py-7 text-center text-sm text-[#81796d]">No plan changes recorded.</td></tr>
+                ) : (
+                  planChangeHistory.map((item) => (
+                    <tr key={item.id} className="border-b border-[#f0ece4] last:border-b-0">
+                      <td className="px-4 py-4 text-xs">{date(item.requested_at)} · {item.request_source}</td>
+                      <td className="px-4 py-4 text-xs font-bold">{item.from_plan_name || "—"} → {item.to_plan_name || "—"}</td>
+                      <td className="px-4 py-4 text-xs">{date(item.effective_at)}</td>
+                      <td className="px-4 py-4"><StatusPill status={item.status} />{item.failure_message && <span className="mt-1 block text-[10px] text-red-600">{item.failure_message}</span>}</td>
                     </tr>
                   ))
                 )}

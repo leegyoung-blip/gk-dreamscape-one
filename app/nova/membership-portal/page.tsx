@@ -3,12 +3,11 @@
 import Link from "next/link";
 import { useState } from "react";
 
-const STUDENT_CHECKOUT_URL =
-  "https://gurukidspro.com/products/dreamscape-one-student-access";
+const STUDENT_ACCESS_URL = "/pricing";
 
-// TEMPORARY: Keep this false to stop users from opening Shopify.
-// Change it back to true when General Student Access sales are ready.
-const SHOPIFY_CHECKOUT_ENABLED = false;
+// The pricing page is now the entry point for public Dreamscape subscriptions.
+// Server-side billing settings still decide whether checkout itself is open.
+const PUBLIC_ACCESS_LINK_ENABLED = true;
 
 const STUDENT_COVER_IMAGE = "/nova/membership/student-access-cover.png";
 
@@ -24,13 +23,13 @@ export default function NovaMembershipPortalPage() {
   >("idle");
   const [activationError, setActivationError] = useState("");
 
-  function openStudentShopifyPage() {
-    if (!SHOPIFY_CHECKOUT_ENABLED) {
+  function openGeneralStudentAccessPage() {
+    if (!PUBLIC_ACCESS_LINK_ENABLED) {
       setShowCheckoutPausedNotice(true);
       return;
     }
 
-    window.open(STUDENT_CHECKOUT_URL, "_blank", "noopener,noreferrer");
+    window.location.href = STUDENT_ACCESS_URL;
   }
 
   function openGkpActivationForm() {
@@ -229,7 +228,7 @@ export default function NovaMembershipPortalPage() {
                   textShadow: "0 0 24px rgba(255,209,138,0.18)",
                 }}
               >
-                Included
+                GKP Rates
               </p>
 
               <p
@@ -240,8 +239,7 @@ export default function NovaMembershipPortalPage() {
                   lineHeight: 1.6,
                 }}
               >
-                Student Access is included for active Guru Kids Pro students.
-                Activate it using the email linked to your Dreamscape account.
+                Active Guru Kids Pro students can activate GKP-priced Dreamscape access. The existing billing system verifies the learner first so a separate public subscription is not created by mistake.
               </p>
 
               <ul
@@ -254,10 +252,10 @@ export default function NovaMembershipPortalPage() {
                 }}
               >
                 {[
-                  "Included for active GKP students",
-                  "Manual verification by admin",
-                  "Access after approval",
-                  "Usually verified within 1–3 working days",
+                  "GKP student access rates",
+                  "First complimentary period where eligible",
+                  "Verified against the GKP student record",
+                  "Protected from duplicate public billing",
                 ].map((feature) => (
                   <li
                     key={feature}
@@ -321,7 +319,7 @@ export default function NovaMembershipPortalPage() {
             onMouseEnter={() => setStudentHovered(true)}
             onMouseLeave={() => setStudentHovered(false)}
             onTouchStart={() => setStudentHovered((current) => !current)}
-            onClick={openStudentShopifyPage}
+            onClick={openGeneralStudentAccessPage}
             style={{
               position: "relative",
               minHeight: "540px",
@@ -332,7 +330,7 @@ export default function NovaMembershipPortalPage() {
                 "linear-gradient(180deg, rgba(22,89,145,0.96), rgba(6,32,80,0.98))",
               boxShadow:
                 "0 0 38px rgba(83,215,255,0.22), 0 26px 74px rgba(0,0,0,0.42)",
-              cursor: SHOPIFY_CHECKOUT_ENABLED ? "pointer" : "not-allowed",
+              cursor: PUBLIC_ACCESS_LINK_ENABLED ? "pointer" : "not-allowed",
             }}
           >
             <img
@@ -412,7 +410,7 @@ export default function NovaMembershipPortalPage() {
                   WebkitBackdropFilter: "blur(8px)",
                 }}
               >
-                {SHOPIFY_CHECKOUT_ENABLED ? "$1 first month" : "Coming soon"}
+                {PUBLIC_ACCESS_LINK_ENABLED ? "Monthly plans" : "Coming soon"}
               </div>
             </div>
 
@@ -516,8 +514,8 @@ export default function NovaMembershipPortalPage() {
                     boxShadow: "0 14px 28px rgba(83,215,255,0.2)",
                   }}
                 >
-                  {SHOPIFY_CHECKOUT_ENABLED
-                    ? "Start General Student Access ›"
+                  {PUBLIC_ACCESS_LINK_ENABLED
+                    ? "View Student Access Plans ›"
                     : "General Access Coming Soon"}
                 </div>
               </div>
@@ -561,7 +559,7 @@ export default function NovaMembershipPortalPage() {
                     letterSpacing: "-0.03em",
                   }}
                 >
-                  {SHOPIFY_CHECKOUT_ENABLED ? "$1 first month" : "Coming soon"}
+                  {PUBLIC_ACCESS_LINK_ENABLED ? "Monthly plans" : "Coming soon"}
                 </h3>
 
                 <p
@@ -572,8 +570,8 @@ export default function NovaMembershipPortalPage() {
                     lineHeight: 1.45,
                   }}
                 >
-                  {SHOPIFY_CHECKOUT_ENABLED
-                    ? "Then $19.90/month. Use code DREAM1 at checkout."
+                  {PUBLIC_ACCESS_LINK_ENABLED
+                    ? "Choose from the currently available public Dreamscape monthly plans."
                     : "Online registration is temporarily unavailable."}
                 </p>
               </div>
@@ -594,16 +592,9 @@ export default function NovaMembershipPortalPage() {
           }}
         >
           <strong style={{ color: "white" }}>Note:</strong> Active Guru Kids Pro
-          students can still activate included access for verification.{" "}
-          {SHOPIFY_CHECKOUT_ENABLED ? (
-            <>
-              General Student Access users can apply code{" "}
-              <strong style={{ color: "#7ee8ff" }}>DREAM1</strong> at checkout
-              to receive the first month at $1.
-            </>
-          ) : (
-            "General Student Access registration is temporarily unavailable."
-          )}
+          students should use the GKP activation path first. Public Student Access now
+          goes through the Dreamscape pricing and subscription flow, which checks for
+          existing GKP or public access before creating a new subscription.
         </section>
       </div>
 
@@ -686,7 +677,7 @@ export default function NovaMembershipPortalPage() {
                 letterSpacing: "-0.04em",
               }}
             >
-              Registration is coming soon
+              Registration is temporarily unavailable
             </h2>
 
             <p
@@ -698,8 +689,7 @@ export default function NovaMembershipPortalPage() {
                 lineHeight: 1.6,
               }}
             >
-              Online checkout is temporarily unavailable while we prepare the
-              General Student Access launch.
+              Public checkout is currently disabled. Please return to the pricing page later or contact Guru Kids Pro.
             </p>
 
             <button

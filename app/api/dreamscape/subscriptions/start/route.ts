@@ -15,11 +15,11 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Annual infrastructure remains in the database, but annual plans are not
+// publicly offered at this stage. Phase 5 keeps checkout explicitly monthly.
 const ALLOWED_PLAN_KEYS = new Set([
   "core_monthly",
-  "core_annual",
   "complete_monthly",
-  "complete_annual",
 ]);
 
 function json(body: unknown, status = 200) {
@@ -45,7 +45,6 @@ export async function POST(request: Request) {
       website?: string;
     };
 
-    // Honeypot.
     if (String(body.website || "").trim()) {
       return json({ error: "Unable to start subscription." }, 400);
     }
@@ -75,20 +74,39 @@ export async function POST(request: Request) {
 
     if (!guardianAuthorised) {
       return json(
+        { error: "Parent/guardian authorisation must be confirmed." },
+        400,
+      );
+    }
+
+    const { data: conflict, error: conflictError } =
+      await supabaseAdmin.rpc(
+        "gkp_check_dreamscape_checkout_conflict",
+        { p_learner_email: learnerEmail },
+      );
+
+    if (conflictError) throw conflictError;
+
+    if (conflict?.blocked) {
+      const source = String(conflict.source || "");
+
+      return json(
         {
           error:
-            "Parent/guardian authorisation must be confirmed.",
+            source === "gkp"
+              ? "This learner already has Guru Kids Pro Dreamscape access. Please contact Guru Kids Pro before starting a separate public subscription."
+              : "This learner already has a Dreamscape subscription or subscription setup in progress.",
+          code: "EXISTING_DREAMSCAPE_ACCESS",
+          source,
         },
-        400,
+        409,
       );
     }
 
     const { data: settings, error: settingsError } =
       await supabaseAdmin
         .from("dreamscape_billing_settings")
-        .select(
-          "public_checkout_enabled,hitpay_send_receipts",
-        )
+        .select("public_checkout_enabled,hitpay_send_receipts")
         .eq("id", true)
         .maybeSingle();
 
@@ -97,8 +115,7 @@ export async function POST(request: Request) {
     if (!settings?.public_checkout_enabled) {
       return json(
         {
-          error:
-            "Dreamscape public subscriptions are not open yet.",
+          error: "Dreamscape public subscriptions are not open yet.",
           code: "PUBLIC_CHECKOUT_DISABLED",
         },
         403,
@@ -112,6 +129,7 @@ export async function POST(request: Request) {
         .eq("plan_key", planKey)
         .eq("audience", "public")
         .eq("provider", "hitpay")
+        .eq("billing_cycle", "monthly")
         .eq("is_available", true)
         .eq("is_coming_soon", false)
         .maybeSingle();

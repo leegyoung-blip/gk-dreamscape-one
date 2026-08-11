@@ -666,9 +666,39 @@ export async function POST(
           );
         }
 
+        // Phase 5: a scheduled plan change becomes the CURRENT plan only
+        // when the first successful charge for the target plan is received.
+        // Until this point contract.plan_id remains the old paid plan, so Nova
+        // never receives upgraded/downgraded access early.
+        const { data: effectivePlanId, error: transitionError } =
+          await supabaseAdmin.rpc(
+            "gkp_apply_dreamscape_plan_change",
+            {
+              p_contract_id: contract.id,
+              p_payment_id: storedPayment.id,
+              p_amount: amount,
+              p_currency: currency,
+              p_paid_at: paidAt.toISOString(),
+            },
+          );
+
+        if (transitionError) {
+          throw new Error(
+            `Dreamscape plan transition failed: ${transitionError.message}`,
+          );
+        }
+
+        const effectivePlan =
+          effectivePlanId && String(effectivePlanId) !== plan.id
+            ? await loadPlan(String(effectivePlanId))
+            : plan;
+
         await projectContractToNovaAccess({
-          contract,
-          plan,
+          contract: {
+            ...contract,
+            plan_id: effectivePlan.id,
+          },
+          plan: effectivePlan,
           providerPayload: payload,
           paidAt,
         });

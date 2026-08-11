@@ -43,6 +43,13 @@ export type DreamscapeContractRow = {
   cancellation_mode?: string | null;
   failed_charge_count?: number;
   first_paid_at?: string | null;
+  previous_plan_id?: string | null;
+  pending_plan_id?: string | null;
+  plan_change_status?: string | null;
+  plan_change_effective_at?: string | null;
+  plan_change_requested_at?: string | null;
+  plan_change_source?: string | null;
+  pending_transition_id?: string | null;
   updated_at?: string | null;
 };
 
