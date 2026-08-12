@@ -434,7 +434,7 @@ export default function RoverGarageClient() {
   if (!userId) {
     return (
       <main style={pageBackground}>
-        <header style={topHeader}>
+        <header style={topHeader(isMobile)}>
           <button
             type="button"
             onClick={() => router.push("/learning-missions/core")}
@@ -463,7 +463,7 @@ export default function RoverGarageClient() {
 
   return (
     <main style={pageBackground}>
-      <header style={topHeader}>
+      <header style={topHeader(isMobile)}>
         <button
           type="button"
           onClick={() => router.push("/learning-missions/core")}
@@ -472,19 +472,27 @@ export default function RoverGarageClient() {
           ← Core Missions
         </button>
 
-        <div style={{ textAlign: "center" }}>
+        <div style={headerIdentity(isMobile)}>
           <p style={headerEyebrow}>SKYFORGE HANGAR</p>
           <h1 style={headerTitle}>My Rover</h1>
         </div>
 
-        <div style={headerRight}>
+        <div style={headerRight(isMobile)}>
           <div style={balancePill("dt")}>
-            <span style={{ color: "#ffd76a" }}>DT</span>
-            {tokenBalance.toLocaleString("en-SG")}
+            <span style={pillIcon("dt")}>◇</span>
+            {!isMobile && <span style={pillLabel}>PROFILE ASSETS</span>}
+            <strong style={pillValue("dt")}>
+              {tokenBalance.toLocaleString("en-SG")} DT
+            </strong>
+            <span style={pillChevron}>⌄</span>
           </div>
           <div style={balancePill("dg")}>
-            <span style={{ color: "#e9d5ff" }}>DG</span>
-            {dreamGemBalance.toLocaleString("en-SG")}
+            <span style={pillIcon("dg")}>◆</span>
+            {!isMobile && <span style={pillLabel}>DREAM GEMS</span>}
+            <strong style={pillValue("dg")}>
+              {dreamGemBalance.toLocaleString("en-SG")} DG
+            </strong>
+            <span style={pillChevron}>⌄</span>
           </div>
           <button
             type="button"
@@ -964,42 +972,69 @@ const pageBackground: CSSProperties = {
   minHeight: "100dvh",
   width: "100%",
   backgroundImage: `
-    linear-gradient(180deg, rgba(2,8,19,0.58), rgba(2,8,19,0.94)),
-    url("/activities/learning-missions/core/skyforge-hangar-bg.png")
+    radial-gradient(circle at 14% 8%, rgba(38, 193, 255, 0.16), transparent 29%),
+    radial-gradient(circle at 88% 17%, rgba(155, 92, 255, 0.14), transparent 27%),
+    linear-gradient(115deg, transparent 0 47%, rgba(88, 216, 255, 0.035) 47% 47.15%, transparent 47.15% 100%),
+    repeating-linear-gradient(90deg, rgba(126,232,255,0.026) 0 1px, transparent 1px 96px),
+    repeating-linear-gradient(0deg, rgba(126,232,255,0.018) 0 1px, transparent 1px 96px),
+    linear-gradient(180deg, #09172b 0%, #050d1d 48%, #020711 100%)
   `,
-  backgroundSize: "cover",
+  backgroundSize: "cover, cover, cover, auto, auto, cover",
   backgroundPosition: "center",
   backgroundAttachment: "fixed",
+  backgroundColor: "#020711",
   color: "white",
   fontFamily: "Arial, Helvetica, sans-serif",
 };
 
-const topHeader: CSSProperties = {
-  position: "sticky",
-  top: 0,
-  zIndex: 30,
-  minHeight: "68px",
-  padding: "10px 18px",
-  display: "grid",
-  gridTemplateColumns: "1fr auto 1fr",
-  alignItems: "center",
-  gap: "12px",
-  borderBottom: "1px solid rgba(126,232,255,0.16)",
-  background: "rgba(2,8,19,0.78)",
-  backdropFilter: "blur(18px)",
-};
+function topHeader(isMobile: boolean): CSSProperties {
+  return {
+    position: "sticky",
+    top: 0,
+    zIndex: 30,
+    minHeight: isMobile ? "112px" : "72px",
+    padding: isMobile ? "9px 12px 10px" : "10px 20px",
+    display: "grid",
+    gridTemplateColumns: isMobile ? "1fr auto" : "1fr auto 1fr",
+    gridTemplateRows: isMobile ? "auto auto" : "auto",
+    alignItems: "center",
+    gap: isMobile ? "8px 10px" : "14px",
+    borderBottom: "1px solid rgba(126,232,255,0.14)",
+    background: "rgba(3,11,25,0.9)",
+    boxShadow: "0 12px 35px rgba(0,0,0,0.22)",
+    backdropFilter: "blur(18px)",
+  };
+}
 
 const headerButton: CSSProperties = {
   justifySelf: "start",
-  minHeight: "40px",
+  minHeight: "44px",
   borderRadius: "999px",
-  border: "1px solid rgba(126,232,255,0.3)",
-  background: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(126,232,255,0.38)",
+  background: "rgba(4,16,35,0.82)",
   color: "white",
-  padding: "0 15px",
+  padding: "0 19px",
   cursor: "pointer",
-  fontWeight: 700,
+  fontSize: "12px",
+  fontWeight: 900,
+  letterSpacing: "0.06em",
+  textTransform: "uppercase",
+  whiteSpace: "nowrap",
 };
+
+function headerIdentity(isMobile: boolean): CSSProperties {
+  return {
+    textAlign: "center",
+    minWidth: 0,
+    ...(isMobile
+      ? {
+          gridColumn: "2",
+          gridRow: "1",
+          justifySelf: "end",
+        }
+      : {}),
+  };
+}
 
 const headerEyebrow: CSSProperties = {
   margin: 0,
@@ -1015,40 +1050,104 @@ const headerTitle: CSSProperties = {
   lineHeight: 1,
 };
 
-const headerRight: CSSProperties = {
-  justifySelf: "end",
-  display: "flex",
-  alignItems: "center",
-  gap: "8px",
-};
+function headerRight(isMobile: boolean): CSSProperties {
+  return {
+    justifySelf: "end",
+    display: "flex",
+    alignItems: "center",
+    gap: "9px",
+    minWidth: 0,
+    ...(isMobile
+      ? {
+          gridColumn: "1 / -1",
+          gridRow: "2",
+          justifySelf: "stretch",
+          width: "100%",
+          overflowX: "auto",
+          paddingBottom: "1px",
+          scrollbarWidth: "none",
+        }
+      : {}),
+  };
+}
 
 function balancePill(kind: "dt" | "dg"): CSSProperties {
   const isDreamGem = kind === "dg";
 
   return {
-    minHeight: "40px",
+    minHeight: "44px",
     borderRadius: "999px",
     border: isDreamGem
-      ? "1px solid rgba(216,180,254,0.32)"
-      : "1px solid rgba(255,215,106,0.28)",
+      ? "1px solid rgba(216,180,254,0.52)"
+      : "1px solid rgba(89,220,255,0.48)",
     background: isDreamGem
-      ? "rgba(192,132,252,0.09)"
-      : "rgba(255,215,106,0.08)",
-    padding: "0 14px",
+      ? "linear-gradient(135deg, rgba(99,54,137,0.34), rgba(20,10,42,0.88))"
+      : "linear-gradient(135deg, rgba(5,42,62,0.88), rgba(2,14,31,0.9))",
+    padding: "0 13px 0 9px",
     display: "flex",
     alignItems: "center",
-    gap: "7px",
+    gap: "9px",
     fontWeight: 900,
     whiteSpace: "nowrap",
+    boxShadow: isDreamGem
+      ? "inset 0 0 18px rgba(192,132,252,0.09)"
+      : "inset 0 0 18px rgba(53,197,255,0.08)",
   };
 }
+
+function pillIcon(kind: "dt" | "dg"): CSSProperties {
+  const isDreamGem = kind === "dg";
+
+  return {
+    width: "26px",
+    height: "26px",
+    flexShrink: 0,
+    borderRadius: "999px",
+    border: isDreamGem
+      ? "1px solid rgba(233,213,255,0.58)"
+      : "1px solid rgba(126,232,255,0.58)",
+    background: isDreamGem
+      ? "rgba(192,132,252,0.18)"
+      : "rgba(53,197,255,0.14)",
+    color: isDreamGem ? "#f0ddff" : "#98efff",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "12px",
+    lineHeight: 1,
+    boxShadow: isDreamGem
+      ? "0 0 14px rgba(192,132,252,0.2)"
+      : "0 0 14px rgba(53,197,255,0.18)",
+  };
+}
+
+const pillLabel: CSSProperties = {
+  color: "rgba(255,255,255,0.92)",
+  fontSize: "11px",
+  fontWeight: 900,
+  letterSpacing: "0.06em",
+};
+
+function pillValue(kind: "dt" | "dg"): CSSProperties {
+  return {
+    color: kind === "dg" ? "#ead6ff" : "#78e7ff",
+    fontSize: "12px",
+    letterSpacing: "0.03em",
+  };
+}
+
+const pillChevron: CSSProperties = {
+  color: "rgba(255,255,255,0.78)",
+  fontSize: "11px",
+  transform: "translateY(-1px)",
+};
 
 const accountHeaderButton: CSSProperties = {
   ...headerButton,
   border: "1px solid rgba(126,232,255,0.45)",
-  background: "rgba(2,8,19,0.58)",
+  background: "rgba(4,16,35,0.88)",
   backdropFilter: "blur(16px)",
-  letterSpacing: "0.04em",
+  letterSpacing: "0.06em",
   whiteSpace: "nowrap",
 };
 
