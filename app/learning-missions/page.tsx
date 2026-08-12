@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { getLearningEntitlements, roleHasStaffLearningAccess } from "@/lib/learning-access";
+import {
+  getLearningEntitlements,
+  roleHasStaffLearningAccess,
+} from "@/lib/learning-access";
 import { supabase } from "@/lib/supabase";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
@@ -153,6 +156,7 @@ function formatDreamGemSource(source: string | null) {
 
 type MissionZone = {
   id: string;
+  number: string;
   title: string;
   description: string;
   position: CSSProperties;
@@ -185,7 +189,8 @@ function getZoneHref(zoneId: string) {
   if (zoneId === "core-missions") return "/learning-missions/core";
   if (zoneId === "think-missions") return "/learning-missions/think";
   if (zoneId === "science-missions") return "/learning-missions/science";
-  if (zoneId === "progress-rewards") return "/learning-missions/progress-rewards";
+  if (zoneId === "progress-rewards")
+    return "/learning-missions/progress-rewards";
 
   return null;
 }
@@ -193,6 +198,7 @@ function getZoneHref(zoneId: string) {
 const missionZones: MissionZone[] = [
   {
     id: "knowledge-arena",
+    number: "1",
     title: "Knowledge Arena",
     description:
       "Enter fast topic challenges through the central launch hatch, earn points, and collect Dreamscape Tokens.",
@@ -207,6 +213,7 @@ const missionZones: MissionZone[] = [
   },
   {
     id: "core-missions",
+    number: "2",
     title: "Core Missions",
     description:
       "Complete English and Math missions to prepare Nova’s Skyforge Rover and earn eligible Dream Gem rewards.",
@@ -222,6 +229,7 @@ const missionZones: MissionZone[] = [
   },
   {
     id: "science-missions",
+    number: "3",
     title: "Science Missions",
     description:
       "Explore Primary 1 to Primary 6 Science through concept, practice, investigation and mastery missions.",
@@ -237,6 +245,7 @@ const missionZones: MissionZone[] = [
   },
   {
     id: "think-missions",
+    number: "4",
     title: "Think Missions",
     description:
       "Train reasoning, logic, pattern spotting and HAP-style thinking while earning eligible Dream Gem rewards.",
@@ -252,6 +261,7 @@ const missionZones: MissionZone[] = [
   },
   {
     id: "progress-rewards",
+    number: "5",
     title: "Teaching Dashboard",
     description:
       "Parents and teachers can review student mission progress, completed levels, scores, and learning activity.",
@@ -272,55 +282,47 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   {
     eyebrow: "Welcome",
     title: "Let me show you around the Mission Centre.",
-    text:
-      "This is where you choose different challenges, prepare Nova’s equipment, earn rewards, and review your progress. I’ll show you what each zone is for.",
+    text: "This is where you choose different challenges, prepare Nova’s equipment, earn rewards, and review your progress. I’ll show you what each zone is for.",
   },
   {
     eyebrow: "Your Rewards",
     title: "Look for both Dream Tokens and Dream Gems.",
-    text:
-      "Dream Tokens, or DT, are the standard currency used only inside Dreamscape. Dream Gems, or DG, are premium learning rewards earned through eligible paid activities. Core Missions and Think Missions can award DG to eligible Student Access users. On a full screen, both balances appear at the top. On tablet or mobile, open the Menu beneath the Back button to view them. Selected Gems can later be redeemed for tangible or premium rewards.",
+    text: "Dream Tokens, or DT, are the standard currency used only inside Dreamscape. Dream Gems, or DG, are premium learning rewards earned through eligible paid activities. Core Missions and Think Missions can award DG to eligible Student Access users. On a full screen, both balances appear at the top. On tablet or mobile, open the Menu beneath the Back button to view them. Selected Gems can later be redeemed for tangible or premium rewards.",
   },
   {
     eyebrow: "Stop 1 of 5",
     title: "Warm up in the Knowledge Arena.",
-    text:
-      "Enter quick topic challenges, test what you know, earn points, and collect Dreamscape Tokens. This zone is available to everyone.",
+    text: "Enter quick topic challenges, test what you know, earn points, and collect Dreamscape Tokens. This zone is available to everyone.",
     zoneId: "knowledge-arena",
   },
   {
     eyebrow: "Stop 2 of 5",
     title: "Build strong foundations in Core Missions.",
-    text:
-      "Complete English and Math missions to prepare and upgrade Nova’s Skyforge Rover. Eligible Student Access users can also earn Dream Gems here.",
+    text: "Complete English and Math missions to prepare and upgrade Nova’s Skyforge Rover. Eligible Student Access users can also earn Dream Gems here.",
     zoneId: "core-missions",
   },
   {
     eyebrow: "Stop 3 of 5",
     title: "Explore the new Science Missions.",
-    text:
-      "Open the Primary 1 to Primary 6 Science curriculum, choose a topic, and enter concept, practice, investigation, or mastery missions. Access follows the Science or Complete plan linked to the learner’s account.",
+    text: "Open the Primary 1 to Primary 6 Science curriculum, choose a topic, and enter concept, practice, investigation, or mastery missions. Access follows the Science or Complete plan linked to the learner’s account.",
     zoneId: "science-missions",
   },
   {
     eyebrow: "Stop 4 of 5",
     title: "Think Missions are currently locked.",
-    text:
-      "The reasoning, logic, pattern, and HAP-style mission zone is currently unavailable and will remain here for a future update.",
+    text: "The reasoning, logic, pattern, and HAP-style mission zone is currently unavailable and will remain here for a future update.",
     zoneId: "think-missions",
   },
   {
     eyebrow: "Stop 5 of 5",
     title: "Review progress in the Teaching Dashboard.",
-    text:
-      "Parents and teachers can use the Teaching Dashboard to review student mission progress, completed levels, scores, and learning activity.",
+    text: "Parents and teachers can use the Teaching Dashboard to review student mission progress, completed levels, scores, and learning activity.",
     zoneId: "progress-rewards",
   },
   {
     eyebrow: "You’re ready",
     title: "Choose your first mission.",
-    text:
-      "Start with the Knowledge Arena or enter an unlocked mission zone. You can restart this walkthrough anytime using the Nova Guide button beneath Nova.",
+    text: "Start with the Knowledge Arena or enter an unlocked mission zone. You can restart this walkthrough anytime using the Nova Guide button beneath Nova.",
   },
 ];
 
@@ -348,8 +350,8 @@ export default function LearningMissionsPage() {
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
   const [walkthroughStep, setWalkthroughStep] = useState(0);
 
-  const [userMissionAccess, setUserMissionAccess] =
-    useState<UserMissionAccess>({
+  const [userMissionAccess, setUserMissionAccess] = useState<UserMissionAccess>(
+    {
       userId: null,
       email: null,
       role: null,
@@ -357,7 +359,8 @@ export default function LearningMissionsPage() {
       hasStudentRewardsAccess: false,
       canAccessCore: false,
       canAccessScience: false,
-    });
+    },
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -432,10 +435,7 @@ export default function LearningMissionsPage() {
         ? []
         : ((subscriptionResult.data || []) as NovaSubscriptionRow[]);
 
-      const entitlements = getLearningEntitlements(
-        role,
-        subscriptionRows,
-      );
+      const entitlements = getLearningEntitlements(role, subscriptionRows);
 
       const manuallyUnlockedZones = new Set(
         zoneAccessResult.error
@@ -454,10 +454,7 @@ export default function LearningMissionsPage() {
       setDreamGemBalance(
         profileResult.error
           ? 0
-          : Math.max(
-              0,
-              Number(profileResult.data?.dream_gem_balance || 0),
-            ),
+          : Math.max(0, Number(profileResult.data?.dream_gem_balance || 0)),
       );
 
       setUserMissionAccess({
@@ -465,9 +462,7 @@ export default function LearningMissionsPage() {
         email: user.email ?? null,
         role,
         hasFullAccess:
-          canAccessCore ||
-          canAccessScience ||
-          entitlements.anyPaidAccess,
+          canAccessCore || canAccessScience || entitlements.anyPaidAccess,
         hasStudentRewardsAccess,
         canAccessCore,
         canAccessScience,
@@ -592,7 +587,8 @@ export default function LearningMissionsPage() {
       if (propertiesResult.error || propertyHoldingsResult.error) {
         console.warn(
           "Could not load property assets:",
-          propertiesResult.error?.message || propertyHoldingsResult.error?.message,
+          propertiesResult.error?.message ||
+            propertyHoldingsResult.error?.message,
         );
       }
 
@@ -748,15 +744,14 @@ export default function LearningMissionsPage() {
     };
   }
 
-
   const walkthroughStartScrollY = useRef(0);
 
   const activeWalkthroughZoneId = walkthroughOpen
-    ? WALKTHROUGH_STEPS[walkthroughStep]?.zoneId ?? null
+    ? (WALKTHROUGH_STEPS[walkthroughStep]?.zoneId ?? null)
     : null;
 
   const activeWalkthroughZone = activeWalkthroughZoneId
-    ? missionZones.find((zone) => zone.id === activeWalkthroughZoneId) ?? null
+    ? (missionZones.find((zone) => zone.id === activeWalkthroughZoneId) ?? null)
     : null;
 
   const displayedDesktopZone = activeWalkthroughZone ?? hoveredZone;
@@ -908,8 +903,8 @@ export default function LearningMissionsPage() {
                 fontWeight: 300,
               }}
             >
-              Choose one of five mission zones to train skills, prepare Nova’s gear and
-              earn Dream Tokens and eligible Dream Gems.
+              Choose one of five mission zones to train skills, prepare Nova’s
+              gear and earn Dream Tokens and eligible Dream Gems.
             </p>
 
             {lockedZoneMessage && (
@@ -937,6 +932,7 @@ export default function LearningMissionsPage() {
               key={zone.id}
               zone={zone}
               isLocked={isZoneLocked(zone)}
+              isActive={displayedDesktopZone?.id === zone.id}
               isWalkthroughActive={Boolean(activeWalkthroughZoneId)}
               isHighlighted={activeWalkthroughZoneId === zone.id}
               onEnter={() => {
@@ -1033,8 +1029,8 @@ export default function LearningMissionsPage() {
                 fontWeight: 300,
               }}
             >
-              Choose one of five mission zones to train skills, prepare Nova’s gear and
-              earn Dream Tokens and eligible Dream Gems.
+              Choose one of five mission zones to train skills, prepare Nova’s
+              gear and earn Dream Tokens and eligible Dream Gems.
             </p>
 
             {lockedZoneMessage && (
@@ -1077,7 +1073,6 @@ export default function LearningMissionsPage() {
           </div>
         </section>
       )}
-
 
       {!walkthroughOpen && (
         <div
@@ -1194,7 +1189,6 @@ function FloatingMissionControls({
     return () => document.removeEventListener("keydown", closeOnEscape);
   }, [profileAssetsOpen, dreamGemsOpen, compactMenuOpen]);
 
-
   return (
     <>
       {(profileAssetsOpen || dreamGemsOpen || compactMenuOpen) && (
@@ -1286,7 +1280,9 @@ function FloatingMissionControls({
               fontFamily: "inherit",
             }}
           >
-            <span aria-hidden="true" style={{ fontSize: "16px" }}>☰</span>
+            <span aria-hidden="true" style={{ fontSize: "16px" }}>
+              ☰
+            </span>
             Menu
           </button>
 
@@ -1297,9 +1293,7 @@ function FloatingMissionControls({
                 position: "absolute",
                 top: "calc(100% + 9px)",
                 left: 0,
-                width: isMobile
-                  ? "min(330px, calc(100vw - 24px))"
-                  : "350px",
+                width: isMobile ? "min(330px, calc(100vw - 24px))" : "350px",
                 borderRadius: "20px",
                 border: "1px solid rgba(126,232,255,0.3)",
                 background:
@@ -1348,7 +1342,9 @@ function FloatingMissionControls({
                   fontFamily: "inherit",
                 }}
               >
-                <span aria-hidden="true" style={{ color: "#8ee8ff" }}>◈</span>
+                <span aria-hidden="true" style={{ color: "#8ee8ff" }}>
+                  ◈
+                </span>
                 <span>Profile Assets</span>
                 <strong style={{ color: "#53d7ff", whiteSpace: "nowrap" }}>
                   {profileAssetsLoading
@@ -1373,7 +1369,9 @@ function FloatingMissionControls({
                   fontFamily: "inherit",
                 }}
               >
-                <span aria-hidden="true" style={{ color: "#e9d5ff" }}>◆</span>
+                <span aria-hidden="true" style={{ color: "#e9d5ff" }}>
+                  ◆
+                </span>
                 <span>Dream Gems</span>
                 <strong style={{ color: "#e9d5ff", whiteSpace: "nowrap" }}>
                   {dreamGemsLoading
@@ -1385,7 +1383,6 @@ function FloatingMissionControls({
           )}
         </div>
       )}
-
 
       <div
         style={{
@@ -1498,7 +1495,9 @@ function FloatingMissionControls({
               style={{
                 color: "#8ee8ff",
                 fontSize: "13px",
-                transform: profileAssetsOpen ? "rotate(180deg)" : "rotate(0deg)",
+                transform: profileAssetsOpen
+                  ? "rotate(180deg)"
+                  : "rotate(0deg)",
                 transition: "transform 180ms ease",
               }}
             >
@@ -1511,7 +1510,11 @@ function FloatingMissionControls({
               role="menu"
               style={{
                 position: isCompact ? "fixed" : "absolute",
-                top: isCompact ? (isMobile ? "112px" : "132px") : "calc(100% + 10px)",
+                top: isCompact
+                  ? isMobile
+                    ? "112px"
+                    : "132px"
+                  : "calc(100% + 10px)",
                 right: isCompact ? "auto" : 0,
                 left: isCompact ? (isMobile ? "12px" : "22px") : "auto",
                 width: isCompact ? "min(380px, calc(100vw - 24px))" : "380px",
@@ -1846,9 +1849,7 @@ function FloatingMissionControls({
                 letterSpacing: "0.04em",
               }}
             >
-              {dreamGemsLoading
-                ? "..."
-                : formatDreamGemAmount(dreamGemBalance)}
+              {dreamGemsLoading ? "..." : formatDreamGemAmount(dreamGemBalance)}
             </strong>
             <span
               aria-hidden="true"
@@ -1868,7 +1869,11 @@ function FloatingMissionControls({
               role="menu"
               style={{
                 position: isCompact ? "fixed" : "absolute",
-                top: isCompact ? (isMobile ? "112px" : "132px") : "calc(100% + 10px)",
+                top: isCompact
+                  ? isMobile
+                    ? "112px"
+                    : "132px"
+                  : "calc(100% + 10px)",
                 right: isCompact ? "auto" : 0,
                 left: isCompact ? (isMobile ? "12px" : "22px") : "auto",
                 width: isCompact ? "min(390px, calc(100vw - 24px))" : "390px",
@@ -1949,9 +1954,9 @@ function FloatingMissionControls({
                   }}
                 >
                   Dream Gems are premium learning rewards earned through
-                  verified class attendance and eligible Core or Think
-                  Missions. They may be redeemed for selected tangible or
-                  premium rewards, but never exchanged for cash.
+                  verified class attendance and eligible Core or Think Missions.
+                  They may be redeemed for selected tangible or premium rewards,
+                  but never exchanged for cash.
                 </p>
               </div>
 
@@ -2013,8 +2018,7 @@ function FloatingMissionControls({
                         marginTop: "13px",
                         minHeight: "46px",
                         borderRadius: "13px",
-                        background:
-                          "linear-gradient(135deg, #c084fc, #7c3aed)",
+                        background: "linear-gradient(135deg, #c084fc, #7c3aed)",
                         color: "white",
                         textDecoration: "none",
                         display: "flex",
@@ -2166,7 +2170,6 @@ function FloatingMissionControls({
   );
 }
 
-
 const compactMenuItemStyle: CSSProperties = {
   minHeight: "52px",
   borderRadius: "14px",
@@ -2187,6 +2190,7 @@ const compactMenuItemStyle: CSSProperties = {
 function MissionHotspot({
   zone,
   isLocked,
+  isActive,
   isWalkthroughActive,
   isHighlighted,
   onEnter,
@@ -2195,6 +2199,7 @@ function MissionHotspot({
 }: {
   zone: MissionZone;
   isLocked: boolean;
+  isActive: boolean;
   isWalkthroughActive: boolean;
   isHighlighted: boolean;
   onEnter: () => void;
@@ -2203,27 +2208,84 @@ function MissionHotspot({
 }) {
   return (
     <button
+      id={`mission-zone-${zone.id}`}
       type="button"
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
+      onFocus={onEnter}
+      onBlur={onLeave}
       onClick={onClick}
       style={{
         position: "absolute",
         zIndex: isHighlighted ? 92 : 25,
-        ...zone.position,
-        border: "1px solid transparent",
-        background: "transparent",
-        boxShadow: "none",
-        borderRadius: "28px",
+        ...getMissionMarkerPosition(zone.id),
+        width: "60px",
+        height: "60px",
+        padding: 0,
+        border: isActive
+          ? `1px solid ${zone.accent}`
+          : isLocked
+            ? "1px solid rgba(255,215,106,0.72)"
+            : `1px solid ${zone.accent}cc`,
+        background: isActive
+          ? `linear-gradient(145deg, ${zone.accent}dd, rgba(19,69,120,0.98))`
+          : isLocked
+            ? "rgba(53,38,36,0.92)"
+            : "rgba(4,24,53,0.92)",
+        color: isLocked ? "#ffd76a" : "white",
+        boxShadow: isActive
+          ? `0 0 0 6px ${zone.accent}1f, 0 0 42px ${zone.accent}aa, 0 20px 46px rgba(0,0,0,0.48)`
+          : `0 0 0 4px rgba(2,8,19,0.48), 0 0 24px ${
+              isLocked ? "rgba(255,215,106,0.28)" : `${zone.accent}55`
+            }, 0 16px 36px rgba(0,0,0,0.42)`,
+        borderRadius: "12px",
         cursor: onClick ? "pointer" : "default",
         outline: "none",
-        opacity: 1,
-        pointerEvents:
-          isWalkthroughActive && !isHighlighted ? "none" : "auto",
+        fontFamily: "inherit",
+        fontSize: "25px",
+        fontWeight: 900,
+        opacity:
+          isWalkthroughActive && !isHighlighted ? 0.14 : isLocked ? 0.78 : 1,
+        filter:
+          isWalkthroughActive && !isHighlighted
+            ? "saturate(0.3) brightness(0.45)"
+            : isLocked && !isHighlighted
+              ? "saturate(0.65)"
+              : "none",
+        transform: isActive
+          ? "translate(-50%, -50%) scale(1.1)"
+          : "translate(-50%, -50%)",
+        transition:
+          "transform 220ms ease, opacity 220ms ease, filter 220ms ease, border-color 220ms ease, background 220ms ease, box-shadow 220ms ease",
+        pointerEvents: isWalkthroughActive && !isHighlighted ? "none" : "auto",
       }}
-      aria-label={isLocked ? `${zone.title} locked` : zone.title}
-    />
+      aria-label={
+        isLocked
+          ? `Area ${zone.number}: ${zone.title}, locked`
+          : `Area ${zone.number}: ${zone.title}`
+      }
+      aria-disabled={isLocked}
+    >
+      {zone.number}
+    </button>
   );
+}
+
+function getMissionMarkerPosition(zoneId: string): CSSProperties {
+  switch (zoneId) {
+    case "knowledge-arena":
+      return { left: "52%", top: "57%" };
+    case "core-missions":
+      return { left: "52%", top: "21%" };
+    case "science-missions":
+      return { left: "85%", top: "27%" };
+    case "think-missions":
+      return { left: "82%", top: "70%" };
+    case "progress-rewards":
+      return { left: "15%", top: "70%" };
+    default:
+      return { left: "50%", top: "50%" };
+  }
 }
 
 function MissionCard({
@@ -2289,8 +2351,8 @@ function MissionCard({
         {zone.comingSoon
           ? "Locked · Coming Soon"
           : isLocked
-          ? "Locked Zone"
-          : "Learning Zone"}
+            ? "Locked Zone"
+            : "Learning Zone"}
       </p>
 
       <h2
@@ -2321,8 +2383,8 @@ function MissionCard({
           color: isLocked
             ? "#ffd76a"
             : onClick
-            ? zone.accent
-            : "rgba(255,255,255,0.45)",
+              ? zone.accent
+              : "rgba(255,255,255,0.45)",
           fontSize: "14px",
           fontWeight: 700,
         }}
@@ -2330,10 +2392,10 @@ function MissionCard({
         {zone.comingSoon
           ? "LOCKED · Coming Soon"
           : isLocked
-          ? "Locked"
-          : onClick
-          ? "Enter Mission ›"
-          : "Coming Soon"}
+            ? "Locked"
+            : onClick
+              ? "Enter Mission ›"
+              : "Coming Soon"}
       </div>
     </button>
   );
@@ -2350,9 +2412,7 @@ function ZoneHoverPopup({
 }) {
   const popupPosition = getPopupPosition(zone.id);
   const popupTransform =
-    typeof popupPosition.transform === "string"
-      ? popupPosition.transform
-      : "";
+    typeof popupPosition.transform === "string" ? popupPosition.transform : "";
   const popupPositionWithoutTransform = {
     ...popupPosition,
     transform: undefined,
@@ -2381,9 +2441,9 @@ function ZoneHoverPopup({
         padding: "22px 24px",
         pointerEvents: "none",
         color: "white",
-        transform: `${popupTransform}${
-          isHighlighted ? " scale(1.035)" : ""
-        }`.trim() || undefined,
+        transform:
+          `${popupTransform}${isHighlighted ? " scale(1.035)" : ""}`.trim() ||
+          undefined,
         transition:
           "border-color 220ms ease, box-shadow 220ms ease, transform 220ms ease",
       }}
@@ -2401,8 +2461,8 @@ function ZoneHoverPopup({
         {zone.comingSoon
           ? "Locked · Coming Soon"
           : isLocked
-          ? "Locked Zone"
-          : "Learning Zone"}
+            ? "Locked Zone"
+            : "Learning Zone"}
       </p>
 
       <h2
@@ -2518,12 +2578,10 @@ function MissionGuidedWalkthrough({
   const isThinkMissionStep = step.zoneId === "think-missions";
   const isTeachingDashboardStep = step.zoneId === "progress-rewards";
 
-  const shouldCenterDesktopGuide =
-    isDesktop && isThinkMissionStep;
+  const shouldCenterDesktopGuide = isDesktop && isThinkMissionStep;
 
   const shouldTopMobileGuide =
-    isMobile &&
-    (isThinkMissionStep || isTeachingDashboardStep);
+    isMobile && (isThinkMissionStep || isTeachingDashboardStep);
 
   const [typedLength, setTypedLength] = useState(0);
 
@@ -2603,11 +2661,7 @@ function MissionGuidedWalkthrough({
                   ? "auto"
                   : "8px"
                 : "auto",
-          left: shouldCenterDesktopGuide
-            ? "50%"
-            : isDesktop
-              ? "auto"
-              : "50%",
+          left: shouldCenterDesktopGuide ? "50%" : isDesktop ? "auto" : "50%",
           transform: shouldCenterDesktopGuide
             ? "translate(-50%, -50%)"
             : isDesktop
@@ -2619,7 +2673,11 @@ function MissionGuidedWalkthrough({
             : isMobile
               ? "calc(100vw - 16px)"
               : "min(720px, calc(100vw - 36px))",
-          maxHeight: isDesktop ? "none" : isMobile ? "58dvh" : "min(430px, 52dvh)",
+          maxHeight: isDesktop
+            ? "none"
+            : isMobile
+              ? "58dvh"
+              : "min(430px, 52dvh)",
           overflowY: isDesktop ? "visible" : "auto",
           borderRadius: isMobile ? "20px" : "26px",
           border: "1px solid rgba(142,232,255,0.42)",
@@ -2786,7 +2844,11 @@ function MissionGuidedWalkthrough({
                 fontWeight: 850,
               }}
             >
-              {isLastStep ? "Start Exploring" : isFirstStep ? "Show Me" : "Next"}
+              {isLastStep
+                ? "Start Exploring"
+                : isFirstStep
+                  ? "Show Me"
+                  : "Next"}
             </button>
           </div>
         </div>

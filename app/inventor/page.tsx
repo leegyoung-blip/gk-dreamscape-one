@@ -168,7 +168,11 @@ function hasActiveNovaSubscription(rows: NovaSubscriptionRow[]) {
   const now = Date.now();
 
   return rows.some((row) => {
-    if (String(row.status || "").trim().toLowerCase() !== "active") {
+    if (
+      String(row.status || "")
+        .trim()
+        .toLowerCase() !== "active"
+    ) {
       return false;
     }
 
@@ -180,12 +184,12 @@ function hasActiveNovaSubscription(rows: NovaSubscriptionRow[]) {
 }
 
 function roleHasStudentRewardsAccess(role: string | null) {
-  const cleanRole = String(role || "").trim().toLowerCase();
+  const cleanRole = String(role || "")
+    .trim()
+    .toLowerCase();
 
   return (
-    cleanRole === "admin" ||
-    cleanRole === "student" ||
-    cleanRole === "teacher"
+    cleanRole === "admin" || cleanRole === "student" || cleanRole === "teacher"
   );
 }
 
@@ -198,6 +202,12 @@ type Zone = {
   icon: string;
   adminOnly?: boolean;
   statusLabel?: string;
+};
+
+type WideZonePosition = {
+  top: string;
+  left: string;
+  panelSide: "left" | "right";
 };
 
 type WalkthroughStep = {
@@ -222,7 +232,8 @@ const zones: Zone[] = [
     id: "learning-missions",
     number: "2",
     title: "Learning Missions",
-    description: "Complete English, Math, and writing missions while earning rewards.",
+    description:
+      "Complete English, Math, and writing missions while earning rewards.",
     href: "/learning-missions",
     icon: "✦",
   },
@@ -241,11 +252,39 @@ const zones: Zone[] = [
     id: "membership-portal",
     number: "4",
     title: "Membership Portal",
-    description: "View Nova’s World access plans, benefits, and learning upgrades.",
+    description:
+      "View Nova’s World access plans, benefits, and learning upgrades.",
     href: "/nova/membership-portal",
     icon: "✦",
   },
 ];
+
+// Widescreen-only positions over the Nova World background. Tablet, split
+// screen and mobile layouts continue to use the stacked zone cards below.
+// A newly defined fifth zone can be added to `zones` and positioned here
+// without changing either renderer.
+const WIDE_ZONE_POSITIONS: Record<string, WideZonePosition> = {
+  "thinking-skills-lab": {
+    top: "24%",
+    left: "53%",
+    panelSide: "right",
+  },
+  "learning-missions": {
+    top: "39%",
+    left: "72%",
+    panelSide: "left",
+  },
+  "nova-home": {
+    top: "67%",
+    left: "56%",
+    panelSide: "right",
+  },
+  "membership-portal": {
+    top: "61%",
+    left: "78%",
+    panelSide: "left",
+  },
+};
 
 const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   {
@@ -256,8 +295,7 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   {
     eyebrow: "Your Rewards",
     title: "DT for play. DG for rewards.",
-    text:
-      "Spend Dream Tokens inside Dreamscape. Earn Dream Gems from eligible classes and missions.",
+    text: "Spend Dream Tokens inside Dreamscape. Earn Dream Gems from eligible classes and missions.",
   },
   {
     eyebrow: "Stop 1 of 4",
@@ -355,15 +393,16 @@ export default function NovaWorldPage() {
 
       // This RPC returns the referral count and awards any newly reached
       // one-time referral objective bonus before the balance is loaded.
-      const { data: objectiveData, error: objectiveError } =
-        await supabase.rpc("get_referral_objective_status");
+      const { data: objectiveData, error: objectiveError } = await supabase.rpc(
+        "get_referral_objective_status",
+      );
 
       if (!isMounted) return;
 
       if (objectiveError) {
         console.warn(
           "Could not load referral objectives:",
-          objectiveError.message
+          objectiveError.message,
         );
         setReferralCount(0);
         setClaimedMilestones([]);
@@ -371,7 +410,7 @@ export default function NovaWorldPage() {
         const status = objectiveData as ReferralObjectiveStatus | null;
         const safeReferralCount = Math.max(
           0,
-          Number(status?.referral_count ?? 0)
+          Number(status?.referral_count ?? 0),
         );
 
         const safeMilestones = Array.isArray(status?.claimed_milestones)
@@ -379,7 +418,7 @@ export default function NovaWorldPage() {
               .map((value) => Number(value))
               .filter(
                 (value): value is ReferralMilestone =>
-                  value === 1 || value === 5 || value === 15
+                  value === 1 || value === 5 || value === 15,
               )
           : [];
 
@@ -463,7 +502,11 @@ export default function NovaWorldPage() {
         ? String(profileResult.data.role)
         : null;
 
-      setIsAdmin(String(role || "").trim().toLowerCase() === "admin");
+      setIsAdmin(
+        String(role || "")
+          .trim()
+          .toLowerCase() === "admin",
+      );
 
       const subscriptionRows = subscriptionResult.error
         ? []
@@ -555,7 +598,8 @@ export default function NovaWorldPage() {
       if (propertiesResult.error || propertyHoldingsResult.error) {
         console.warn(
           "Could not load property assets:",
-          propertiesResult.error?.message || propertyHoldingsResult.error?.message,
+          propertiesResult.error?.message ||
+            propertyHoldingsResult.error?.message,
         );
       }
 
@@ -607,24 +651,18 @@ export default function NovaWorldPage() {
     window.addEventListener("dream-gems-updated", refreshReferralPanel);
     window.addEventListener(
       "dream-referral-objectives-updated",
-      refreshReferralPanel
+      refreshReferralPanel,
     );
 
     return () => {
       isMounted = false;
       subscription.unsubscribe();
       window.removeEventListener("focus", refreshReferralPanel);
-      window.removeEventListener(
-        "dream-tokens-updated",
-        refreshReferralPanel
-      );
-      window.removeEventListener(
-        "dream-gems-updated",
-        refreshReferralPanel
-      );
+      window.removeEventListener("dream-tokens-updated", refreshReferralPanel);
+      window.removeEventListener("dream-gems-updated", refreshReferralPanel);
       window.removeEventListener(
         "dream-referral-objectives-updated",
-        refreshReferralPanel
+        refreshReferralPanel,
       );
     };
   }, []);
@@ -758,7 +796,11 @@ export default function NovaWorldPage() {
           width: isDesktop
             ? "min(420px, 42vw)"
             : "min(640px, calc(100% - 36px))",
-          margin: isDesktop ? 0 : isMobile ? "128px auto 26px" : "118px auto 28px",
+          margin: isDesktop
+            ? 0
+            : isMobile
+              ? "128px auto 26px"
+              : "118px auto 28px",
           padding: isDesktop ? 0 : "0 2px",
         }}
       >
@@ -783,8 +825,8 @@ export default function NovaWorldPage() {
             fontSize: isMobile
               ? "clamp(46px, 15vw, 64px)"
               : isTablet
-              ? "clamp(58px, 9vw, 76px)"
-              : "76px",
+                ? "clamp(58px, 9vw, 76px)"
+                : "76px",
             fontWeight: 400,
             lineHeight: 1.03,
             letterSpacing: "0.01em",
@@ -839,55 +881,82 @@ export default function NovaWorldPage() {
         </div>
       </section>
 
-      <section
-        style={{
-          position: isDesktop ? "absolute" : "relative",
-          top: isDesktop ? "142px" : "auto",
-          left: isDesktop ? "50%" : "auto",
-          transform: isDesktop ? "translateX(-50%)" : "none",
-          zIndex: walkthroughOpen ? 90 : 20,
-          width: isDesktop
-            ? "min(470px, calc(100% - 48px))"
-            : isTablet
+      {isDesktop ? (
+        <section
+          aria-label="Nova World locations"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: walkthroughOpen ? 90 : 20,
+            pointerEvents: "none",
+          }}
+        >
+          {zones.map((zone, index) => (
+            <WideZoneHotspot
+              key={zone.id}
+              zone={zone}
+              position={
+                WIDE_ZONE_POSITIONS[zone.id] ?? {
+                  top: `${24 + index * 12}%`,
+                  left: `${54 + (index % 2) * 20}%`,
+                  panelSide: index % 2 === 0 ? "right" : "left",
+                }
+              }
+              isAdmin={isAdmin}
+              onClick={
+                zone.id === "membership-portal"
+                  ? () => setShowMembershipPortal(true)
+                  : undefined
+              }
+              walkthroughActive={walkthroughOpen}
+              walkthroughHighlighted={
+                walkthroughOpen &&
+                WALKTHROUGH_STEPS[walkthroughStep]?.zoneNumber === zone.number
+              }
+            />
+          ))}
+        </section>
+      ) : (
+        <section
+          style={{
+            position: "relative",
+            zIndex: walkthroughOpen ? 90 : 20,
+            width: isTablet
               ? walkthroughOpen
                 ? "min(320px, calc(100% - 48px))"
                 : "min(680px, calc(100% - 36px))"
               : "min(680px, calc(100% - 28px))",
-          margin: isDesktop
-            ? 0
-            : isTablet && walkthroughOpen
-              ? "0 24px 0 auto"
-              : "0 auto",
-          display: "grid",
-          gridTemplateColumns: "1fr",
-          gap: isMobile ? "12px" : "14px",
-          paddingBottom: isDesktop ? 0 : "24px",
-        }}
-      >
-        {zones.map((zone) => (
-          <ZoneCard
-            key={zone.id}
-            zone={zone}
-            screenMode={screenMode}
-            isAdmin={isAdmin}
-            onClick={
-              zone.id === "membership-portal"
-                ? () => setShowMembershipPortal(true)
-                : undefined
-            }
-            walkthroughActive={walkthroughOpen}
-            walkthroughHighlighted={
-              walkthroughOpen &&
-              WALKTHROUGH_STEPS[walkthroughStep]?.zoneNumber === zone.number
-            }
-          />
-        ))}
-      </section>
+            margin: isTablet && walkthroughOpen ? "0 24px 0 auto" : "0 auto",
+            display: "grid",
+            gridTemplateColumns: "1fr",
+            gap: isMobile ? "12px" : "14px",
+            paddingBottom: "24px",
+          }}
+        >
+          {zones.map((zone) => (
+            <ZoneCard
+              key={zone.id}
+              zone={zone}
+              screenMode={screenMode}
+              isAdmin={isAdmin}
+              onClick={
+                zone.id === "membership-portal"
+                  ? () => setShowMembershipPortal(true)
+                  : undefined
+              }
+              walkthroughActive={walkthroughOpen}
+              walkthroughHighlighted={
+                walkthroughOpen &&
+                WALKTHROUGH_STEPS[walkthroughStep]?.zoneNumber === zone.number
+              }
+            />
+          ))}
+        </section>
+      )}
 
       {showMembershipPortal && (
         <MembershipPortalPopup onClose={() => setShowMembershipPortal(false)} />
       )}
-
 
       <div
         style={{
@@ -1099,7 +1168,9 @@ function FloatingControls({
               fontFamily: "inherit",
             }}
           >
-            <span aria-hidden="true" style={{ fontSize: "16px" }}>☰</span>
+            <span aria-hidden="true" style={{ fontSize: "16px" }}>
+              ☰
+            </span>
             Menu
           </button>
 
@@ -1110,9 +1181,7 @@ function FloatingControls({
                 position: "absolute",
                 top: "calc(100% + 9px)",
                 right: 0,
-                width: isMobile
-                  ? "min(330px, calc(100vw - 24px))"
-                  : "350px",
+                width: isMobile ? "min(330px, calc(100vw - 24px))" : "350px",
                 borderRadius: "20px",
                 border: "1px solid rgba(126,232,255,0.3)",
                 background:
@@ -1141,7 +1210,9 @@ function FloatingControls({
                   fontFamily: "inherit",
                 }}
               >
-                <span aria-hidden="true" style={{ color: "#8ee8ff" }}>◈</span>
+                <span aria-hidden="true" style={{ color: "#8ee8ff" }}>
+                  ◈
+                </span>
                 <span>Profile Assets</span>
                 <strong style={{ color: "#53d7ff", whiteSpace: "nowrap" }}>
                   {profileAssetsLoading
@@ -1166,7 +1237,9 @@ function FloatingControls({
                   fontFamily: "inherit",
                 }}
               >
-                <span aria-hidden="true" style={{ color: "#e9d5ff" }}>◆</span>
+                <span aria-hidden="true" style={{ color: "#e9d5ff" }}>
+                  ◆
+                </span>
                 <span>Dream Gems</span>
                 <strong style={{ color: "#e9d5ff", whiteSpace: "nowrap" }}>
                   {dreamGemsLoading
@@ -1327,7 +1400,9 @@ function FloatingControls({
               style={{
                 color: "#8ee8ff",
                 fontSize: "13px",
-                transform: profileAssetsOpen ? "rotate(180deg)" : "rotate(0deg)",
+                transform: profileAssetsOpen
+                  ? "rotate(180deg)"
+                  : "rotate(0deg)",
                 transition: "transform 180ms ease",
               }}
             >
@@ -1340,7 +1415,11 @@ function FloatingControls({
               role="menu"
               style={{
                 position: isCompact ? "fixed" : "absolute",
-                top: isCompact ? (isMobile ? "112px" : "132px") : "calc(100% + 10px)",
+                top: isCompact
+                  ? isMobile
+                    ? "112px"
+                    : "132px"
+                  : "calc(100% + 10px)",
                 right: isCompact ? (isMobile ? "12px" : "18px") : 0,
                 left: "auto",
                 width: isCompact ? "min(380px, calc(100vw - 24px))" : "380px",
@@ -1675,9 +1754,7 @@ function FloatingControls({
                 letterSpacing: "0.04em",
               }}
             >
-              {dreamGemsLoading
-                ? "..."
-                : formatDreamGemAmount(dreamGemBalance)}
+              {dreamGemsLoading ? "..." : formatDreamGemAmount(dreamGemBalance)}
             </strong>
             <span
               aria-hidden="true"
@@ -1697,7 +1774,11 @@ function FloatingControls({
               role="menu"
               style={{
                 position: isCompact ? "fixed" : "absolute",
-                top: isCompact ? (isMobile ? "112px" : "132px") : "calc(100% + 10px)",
+                top: isCompact
+                  ? isMobile
+                    ? "112px"
+                    : "132px"
+                  : "calc(100% + 10px)",
                 right: isCompact ? (isMobile ? "12px" : "18px") : 0,
                 left: "auto",
                 width: isCompact ? "min(390px, calc(100vw - 24px))" : "390px",
@@ -1842,8 +1923,7 @@ function FloatingControls({
                         marginTop: "13px",
                         minHeight: "46px",
                         borderRadius: "13px",
-                        background:
-                          "linear-gradient(135deg, #c084fc, #7c3aed)",
+                        background: "linear-gradient(135deg, #c084fc, #7c3aed)",
                         color: "white",
                         textDecoration: "none",
                         display: "flex",
@@ -2003,7 +2083,6 @@ function FloatingControls({
   );
 }
 
-
 const compactMenuItemStyle: CSSProperties = {
   minHeight: "52px",
   borderRadius: "14px",
@@ -2038,17 +2117,17 @@ function ReferralObjectivesPanel({
   const [isOpen, setIsOpen] = useState(false);
 
   const completedCount = REFERRAL_OBJECTIVES.filter((objective) =>
-    claimedMilestones.includes(objective.milestone)
+    claimedMilestones.includes(objective.milestone),
   ).length;
 
   const nextMilestone =
     REFERRAL_OBJECTIVES.find(
-      (objective) => !claimedMilestones.includes(objective.milestone)
+      (objective) => !claimedMilestones.includes(objective.milestone),
     )?.milestone ?? 15;
 
   const overallProgress = Math.min(
     100,
-    Math.max(0, (referralCount / nextMilestone) * 100)
+    Math.max(0, (referralCount / nextMilestone) * 100),
   );
 
   return (
@@ -2232,12 +2311,9 @@ function ReferralObjectivesPanel({
               <div style={{ display: "grid", gap: "9px" }}>
                 {REFERRAL_OBJECTIVES.map((objective) => {
                   const isCompleted = claimedMilestones.includes(
-                    objective.milestone
+                    objective.milestone,
                   );
-                  const progress = Math.min(
-                    referralCount,
-                    objective.milestone
-                  );
+                  const progress = Math.min(referralCount, objective.milestone);
 
                   const rowStyle: CSSProperties = {
                     minHeight: "66px",
@@ -2387,6 +2463,265 @@ function ReferralObjectivesPanel({
   );
 }
 
+function WideZoneHotspot({
+  zone,
+  position,
+  onClick,
+  walkthroughActive,
+  walkthroughHighlighted,
+  isAdmin,
+}: {
+  zone: Zone;
+  position: WideZonePosition;
+  onClick?: () => void;
+  walkthroughActive: boolean;
+  walkthroughHighlighted: boolean;
+  isAdmin: boolean;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const isAdminOnly = Boolean(zone.adminOnly);
+  const isLocked = isAdminOnly && !isAdmin;
+  const expanded = hovered || focused || walkthroughHighlighted;
+  const openToRight = position.panelSide === "right";
+
+  const hotspotContent = (
+    <>
+      <span
+        aria-hidden="true"
+        style={{
+          position: "relative",
+          zIndex: 2,
+          width: "58px",
+          height: "58px",
+          borderRadius: "12px",
+          border: expanded
+            ? "1px solid rgba(151,239,255,0.96)"
+            : isLocked
+              ? "1px solid rgba(255,209,138,0.64)"
+              : "1px solid rgba(126,232,255,0.72)",
+          background: expanded
+            ? "linear-gradient(145deg,rgba(31,151,197,0.96),rgba(24,79,133,0.98))"
+            : isLocked
+              ? "rgba(50,34,38,0.9)"
+              : "rgba(4,24,53,0.9)",
+          color: isLocked ? "#ffd18a" : "#ffffff",
+          display: "grid",
+          placeItems: "center",
+          fontSize: "24px",
+          fontWeight: 900,
+          boxShadow: expanded
+            ? "0 0 0 5px rgba(83,215,255,0.13), 0 0 36px rgba(83,215,255,0.65), 0 20px 44px rgba(0,0,0,0.48)"
+            : "0 0 0 4px rgba(3,12,28,0.5), 0 0 22px rgba(83,215,255,0.28), 0 16px 34px rgba(0,0,0,0.42)",
+          transform: expanded ? "scale(1.08)" : "scale(1)",
+          transition:
+            "transform 220ms ease, border-color 220ms ease, background 220ms ease, box-shadow 220ms ease",
+        }}
+      >
+        {zone.number}
+      </span>
+
+      <span
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: openToRight ? "74px" : "auto",
+          right: openToRight ? "auto" : "74px",
+          zIndex: 1,
+          width: "320px",
+          minHeight: "150px",
+          borderRadius: "18px",
+          border: isLocked
+            ? "1px solid rgba(255,209,138,0.34)"
+            : "1px solid rgba(126,232,255,0.48)",
+          background: isLocked
+            ? "linear-gradient(145deg,rgba(43,29,36,0.96),rgba(9,15,32,0.98))"
+            : "linear-gradient(145deg,rgba(4,24,52,0.97),rgba(4,14,34,0.99))",
+          padding: "18px 20px",
+          display: "block",
+          color: "white",
+          textAlign: "left",
+          boxShadow:
+            "0 28px 72px rgba(0,0,0,0.5), 0 0 30px rgba(83,215,255,0.14)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          opacity: expanded ? 1 : 0,
+          visibility: expanded ? "visible" : "hidden",
+          transform: expanded
+            ? "translateY(-50%) translateX(0)"
+            : `translateY(-50%) translateX(${openToRight ? "-10px" : "10px"})`,
+          pointerEvents: expanded ? "auto" : "none",
+          transition:
+            "opacity 180ms ease, transform 220ms ease, visibility 180ms ease",
+        }}
+      >
+        <span
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+          }}
+        >
+          <span
+            style={{
+              color: isLocked ? "#ffd18a" : "#8ee8ff",
+              fontSize: "10px",
+              fontWeight: 900,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+            }}
+          >
+            Area {zone.number}
+          </span>
+          <span style={{ color: isLocked ? "#ffd18a" : "#8ee8ff" }}>
+            {isLocked ? "Locked" : zone.icon}
+          </span>
+        </span>
+
+        <span
+          style={{
+            display: "flex",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "8px",
+            marginTop: "9px",
+          }}
+        >
+          <strong
+            style={{
+              fontSize: "17px",
+              lineHeight: 1.3,
+              letterSpacing: "0.055em",
+              textTransform: "uppercase",
+            }}
+          >
+            {zone.title}
+          </strong>
+          {zone.statusLabel && (
+            <span
+              style={{
+                borderRadius: "999px",
+                border: "1px solid rgba(255,209,138,0.34)",
+                background: "rgba(255,186,94,0.12)",
+                padding: "4px 8px",
+                color: "#ffd18a",
+                fontSize: "8px",
+                fontWeight: 900,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+              }}
+            >
+              {zone.statusLabel}
+            </span>
+          )}
+        </span>
+
+        <span
+          style={{
+            display: "block",
+            marginTop: "9px",
+            color: isLocked
+              ? "rgba(255,224,178,0.7)"
+              : "rgba(255,255,255,0.68)",
+            fontSize: "12px",
+            lineHeight: 1.55,
+          }}
+        >
+          {zone.description}
+        </span>
+
+        <span
+          style={{
+            display: "block",
+            marginTop: "13px",
+            color: isLocked ? "#ffd18a" : "#8ee8ff",
+            fontSize: "10px",
+            fontWeight: 900,
+            letterSpacing: "0.13em",
+            textTransform: "uppercase",
+          }}
+        >
+          {isLocked ? "Coming soon" : "Enter location →"}
+        </span>
+      </span>
+    </>
+  );
+
+  const actionStyle: CSSProperties = {
+    position: "relative",
+    width: "58px",
+    height: "58px",
+    display: "block",
+    border: 0,
+    padding: 0,
+    background: "transparent",
+    color: "white",
+    fontFamily: "inherit",
+    textDecoration: "none",
+    appearance: "none",
+    cursor: walkthroughActive
+      ? "default"
+      : isLocked
+        ? "not-allowed"
+        : "pointer",
+    pointerEvents: walkthroughActive ? "none" : "auto",
+  };
+
+  const actionProps = {
+    id: `nova-zone-${zone.number}`,
+    style: actionStyle,
+    "aria-label": isLocked
+      ? `${zone.title} is coming soon`
+      : `Area ${zone.number}: ${zone.title}`,
+    "aria-disabled": isLocked ? true : undefined,
+    onMouseEnter: () => setHovered(true),
+    onMouseLeave: () => setHovered(false),
+    onFocus: () => setFocused(true),
+    onBlur: () => setFocused(false),
+  };
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: position.top,
+        left: position.left,
+        zIndex: walkthroughHighlighted ? 5 : expanded ? 4 : 1,
+        width: "58px",
+        height: "58px",
+        transform: "translate(-50%,-50%)",
+        opacity:
+          walkthroughActive && !walkthroughHighlighted
+            ? 0.16
+            : isLocked
+              ? 0.76
+              : 1,
+        filter:
+          walkthroughActive && !walkthroughHighlighted
+            ? "saturate(0.35) brightness(0.45)"
+            : "none",
+        transition: "opacity 220ms ease, filter 220ms ease",
+        pointerEvents: "auto",
+      }}
+    >
+      {isLocked ? (
+        <button type="button" {...actionProps}>
+          {hotspotContent}
+        </button>
+      ) : onClick ? (
+        <button type="button" onClick={onClick} {...actionProps}>
+          {hotspotContent}
+        </button>
+      ) : (
+        <Link href={zone.href} {...actionProps}>
+          {hotspotContent}
+        </Link>
+      )}
+    </div>
+  );
+}
+
 function ZoneCard({
   zone,
   onClick,
@@ -2464,7 +2799,11 @@ function ZoneCard({
       isEmphasised && !isLocked ? "translateY(-4px) scale(1.012)" : "none",
     transition:
       "transform 260ms ease, box-shadow 260ms ease, border-color 260ms ease, opacity 260ms ease, filter 260ms ease, background 260ms ease",
-    cursor: walkthroughActive ? "default" : isLocked ? "not-allowed" : "pointer",
+    cursor: walkthroughActive
+      ? "default"
+      : isLocked
+        ? "not-allowed"
+        : "pointer",
     pointerEvents: walkthroughActive ? "none" : "auto",
     appearance: "none",
   };
@@ -2625,7 +2964,13 @@ function ZoneCard({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          fontSize: isLocked ? (isMobile ? "16px" : "18px") : isMobile ? "22px" : "26px",
+          fontSize: isLocked
+            ? isMobile
+              ? "16px"
+              : "18px"
+            : isMobile
+              ? "22px"
+              : "26px",
           color: isLocked ? "#ffd18a" : "rgba(255,255,255,0.78)",
         }}
       >
@@ -3321,9 +3666,7 @@ function GuidedWalkthrough({
           right: isMobile ? "12px" : "auto",
           bottom: isMobile ? "12px" : "26px",
           zIndex: 100,
-          width: isMobile
-            ? "auto"
-            : "min(520px, calc(100vw - 72px))",
+          width: isMobile ? "auto" : "min(520px, calc(100vw - 72px))",
           maxHeight: isMobile ? "52dvh" : "none",
           overflowY: isMobile ? "auto" : "visible",
           borderRadius: isMobile ? "20px" : "26px",
@@ -3451,9 +3794,7 @@ function GuidedWalkthrough({
                   height: "7px",
                   borderRadius: "999px",
                   background:
-                    index === stepIndex
-                      ? "#8ee8ff"
-                      : "rgba(255,255,255,0.2)",
+                    index === stepIndex ? "#8ee8ff" : "rgba(255,255,255,0.2)",
                   transition: "width 180ms ease, background 180ms ease",
                 }}
               />
@@ -3496,7 +3837,11 @@ function GuidedWalkthrough({
                 fontWeight: 850,
               }}
             >
-              {isLastStep ? "Start Exploring" : isFirstStep ? "Show Me" : "Next"}
+              {isLastStep
+                ? "Start Exploring"
+                : isFirstStep
+                  ? "Show Me"
+                  : "Next"}
             </button>
           </div>
         </div>

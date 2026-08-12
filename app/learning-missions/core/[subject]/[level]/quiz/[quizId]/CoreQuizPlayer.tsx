@@ -671,73 +671,81 @@ export default function CoreQuizPlayer({
 
   if (stage === "intro") {
     return (
-      <main style={pageShell}>
-        <header style={topHeader(isMobile)}>
+      <main style={scienceQuizPage}>
+        <header style={scienceQuizHeader(isMobile)}>
           <button type="button" onClick={returnToQuizList} style={backButton}>
             ← Quiz List
           </button>
-          {!isMobile && (
-            <div style={{ textAlign: "center" }}>
-              <p style={headerEyebrow}>CORE MISSIONS</p>
-              <p style={headerSubtitle}>
-                {SUBJECT_LABELS[subject]} · Primary {level}
-              </p>
-            </div>
-          )}
           <BalanceDisplay
-            compact={isMobile}
+            compact
             tokenBalance={tokenBalance}
             gemBalance={dreamGemBalance}
           />
         </header>
 
-        <section style={introWrap}>
-          <div style={introCard}>
-            <p style={eyebrow}>{payload.quiz.topic_title}</p>
-            <h1 style={introTitle}>{payload.quiz.title}</h1>
-            <p style={introDescription}>{payload.quiz.description}</p>
-
-            <div style={introStats(isMobile)}>
-              <IntroStat
-                label="Questions"
-                value={String(payload.quiz.question_count)}
-              />
-              <IntroStat
-                label="Time"
-                value={`${payload.quiz.estimated_minutes} min`}
-              />
-              <IntroStat
-                label="Difficulty"
-                value={`${payload.quiz.difficulty}/5`}
-              />
-              <IntroStat
-                label="Feedback"
-                value={
-                  payload.quiz.feedback_mode === "immediate"
-                    ? "After each answer"
-                    : payload.quiz.feedback_mode === "end_of_quiz"
-                      ? "At the end"
-                      : "Score only"
-                }
-              />
-            </div>
-
-            {payload.resumed && (
-              <div style={noticeBox}>
-                Your unfinished attempt was restored. Previously saved responses
-                are still here.
+        <section style={scienceQuizWrap(isMobile)}>
+          <div style={scienceQuizPanel(isMobile)}>
+            <article style={scienceIntroCard(isMobile)}>
+              <div style={scienceQuestionBadgeRow}>
+                <span style={scienceQuestionTypeBadge}>
+                  {SUBJECT_LABELS[subject]} · Primary {level}
+                </span>
+                <span style={scienceSkillBadge}>
+                  {payload.quiz.topic_title}
+                </span>
               </div>
-            )}
 
-            <p style={termsText}>
-              All rewards are subject to terms and conditions.
-            </p>
+              <h1 style={scienceIntroTitle(isMobile)}>{payload.quiz.title}</h1>
+              <p style={scienceIntroDescription}>
+                {payload.quiz.description ||
+                  `Complete this ${SUBJECT_LABELS[subject]} Core Mission.`}
+              </p>
 
-            <div style={buttonRow(isMobile)}>
+              <div style={scienceIntroStats(isMobile)}>
+                <IntroStat
+                  label="Questions"
+                  value={String(payload.quiz.question_count)}
+                />
+                <IntroStat
+                  label="Time"
+                  value={`${payload.quiz.estimated_minutes} min`}
+                />
+                <IntroStat
+                  label="Difficulty"
+                  value={`${payload.quiz.difficulty}/5`}
+                />
+                <IntroStat
+                  label="Feedback"
+                  value={
+                    payload.quiz.feedback_mode === "immediate"
+                      ? "After each answer"
+                      : payload.quiz.feedback_mode === "end_of_quiz"
+                        ? "At the end"
+                        : "Score only"
+                  }
+                />
+              </div>
+
+              {payload.resumed && (
+                <div style={noticeBox}>
+                  Your unfinished attempt was restored. Previously saved
+                  responses are still here.
+                </div>
+              )}
+
+              <p style={termsText}>
+                All rewards are subject to terms and conditions.
+              </p>
+            </article>
+
+            <div style={scienceActionRow(isMobile)}>
               <button
                 type="button"
                 onClick={returnToQuizList}
-                style={ghostButton}
+                style={{
+                  ...sciencePreviousButton,
+                  width: isMobile ? "100%" : "auto",
+                }}
               >
                 Not Now
               </button>
@@ -748,7 +756,10 @@ export default function CoreQuizPlayer({
                   questionOpenedAtRef.current = Date.now();
                   setStage("playing");
                 }}
-                style={primaryButton}
+                style={{
+                  ...scienceNextButton,
+                  width: isMobile ? "100%" : "auto",
+                }}
               >
                 {payload.resumed ? "Resume Quiz" : "Start Quiz"}
               </button>
@@ -1565,72 +1576,90 @@ function ResultsScreen({
   onRover: () => void;
 }) {
   return (
-    <main style={resultsPage}>
-      <header style={topHeader(isMobile)}>
+    <main style={scienceQuizPage}>
+      <header style={scienceQuizHeader(isMobile)}>
         <button type="button" onClick={onQuizList} style={backButton}>
           ← Quiz List
         </button>
-        {!isMobile && (
-          <div style={{ textAlign: "center" }}>
-            <p style={headerEyebrow}>CORE MISSION RESULT</p>
-            <p style={headerSubtitle}>{payload.quiz.title}</p>
-          </div>
-        )}
-        <div />
+        <BalanceDisplay
+          compact
+          tokenBalance={result.token_balance}
+          gemBalance={result.gem_balance}
+        />
       </header>
 
-      <section style={resultsContainer}>
-        <div style={resultsHero}>
-          <p style={eyebrow}>
-            {result.pending_manual_review
-              ? "SUBMITTED FOR REVIEW"
-              : "CORE MISSION COMPLETE"}
-          </p>
-          <h1 style={resultsTitle}>{payload.quiz.title}</h1>
+      <section style={scienceResultsWrap(isMobile)}>
+        <div style={scienceQuizPanel(isMobile)}>
+          <article style={scienceResultHero(isMobile)}>
+            <div style={scienceQuestionBadgeRow}>
+              <span style={scienceQuestionTypeBadge}>
+                {result.pending_manual_review
+                  ? "Submitted for Review"
+                  : "Core Mission Complete"}
+              </span>
+              <span style={scienceSkillBadge}>{payload.quiz.topic_title}</span>
+            </div>
 
-          {result.pending_manual_review ? (
-            <p style={resultsMessage}>
-              Your response was saved. A teacher must review one or more answers
-              before the final score and rewards are confirmed.
+            <h1 style={scienceResultTitle(isMobile)}>{payload.quiz.title}</h1>
+
+            <div style={scienceScoreRow(isMobile)}>
+              <div style={scienceScoreBlock}>
+                <p style={scienceScoreLabel}>Mission score</p>
+                <p style={scienceScoreValue(isMobile)}>
+                  {Math.round(result.percentage)}%
+                </p>
+              </div>
+
+              <p style={scienceResultMessage}>
+                {result.pending_manual_review
+                  ? "Your response was saved. A teacher must review one or more answers before the final score and rewards are confirmed."
+                  : result.first_completion
+                    ? `First completion saved. You earned ${result.tokens_earned} DT and ${result.gems_earned} DG.`
+                    : "Replay saved. Replays do not award additional DT, DG or rover progress."}
+              </p>
+            </div>
+
+            <div style={resultStats(isMobile)}>
+              <ResultStat
+                label="Correct"
+                value={`${result.correct_count}/${result.total_questions}`}
+              />
+              <ResultStat
+                label="DT Earned"
+                value={`+${result.tokens_earned}`}
+              />
+              <ResultStat label="DG Earned" value={`+${result.gems_earned}`} />
+              <ResultStat
+                label="DT Balance"
+                value={String(result.token_balance)}
+              />
+              <ResultStat
+                label="DG Balance"
+                value={String(result.gem_balance)}
+              />
+            </div>
+
+            <p style={termsText}>
+              All rewards are subject to terms and conditions.
             </p>
-          ) : (
-            <p style={resultsMessage}>
-              {result.first_completion
-                ? `First completion saved. You earned ${result.tokens_earned} DT and ${result.gems_earned} DG.`
-                : "Replay saved. Replays do not award additional DT, DG or rover progress."}
-            </p>
-          )}
+          </article>
 
-          <div style={resultStats(isMobile)}>
-            <ResultStat
-              label="Correct"
-              value={`${result.correct_count}/${result.total_questions}`}
-            />
-            <ResultStat
-              label="Score"
-              value={`${Math.round(result.percentage)}%`}
-            />
-            <ResultStat label="DT Earned" value={`+${result.tokens_earned}`} />
-            <ResultStat label="DG Earned" value={`+${result.gems_earned}`} />
-            <ResultStat
-              label="DT Balance"
-              value={String(result.token_balance)}
-            />
-            <ResultStat label="DG Balance" value={String(result.gem_balance)} />
-          </div>
-
-          <p style={termsText}>
-            All rewards are subject to terms and conditions.
-          </p>
-
-          <div style={buttonRow(isMobile)}>
-            <button type="button" onClick={onQuizList} style={ghostButton}>
+          <div style={scienceResultActions(isMobile)}>
+            <button
+              type="button"
+              onClick={onQuizList}
+              style={sciencePreviousButton}
+            >
               Choose Another Quiz
             </button>
-            <button type="button" onClick={onReplay} style={ghostButton}>
+            <button
+              type="button"
+              onClick={onReplay}
+              style={sciencePreviousButton}
+            >
               Replay
             </button>
-            <button type="button" onClick={onRover} style={primaryButton}>
+            <button type="button" onClick={onRover} style={scienceNextButton}>
               View My Rover
             </button>
           </div>
@@ -1638,9 +1667,10 @@ function ResultsScreen({
 
         {payload.quiz.feedback_mode !== "none" &&
           result.question_results.length > 0 && (
-            <div style={reviewCard}>
-              <h2 style={{ margin: 0 }}>Question Review</h2>
-              <p style={{ ...mutedText, marginTop: "6px" }}>
+            <div style={scienceReviewPanel(isMobile)}>
+              <p style={scienceQuestionEyebrow}>Answer review</p>
+              <h2 style={scienceReviewTitle}>Review every question</h2>
+              <p style={{ ...mutedText, margin: "8px 0 0" }}>
                 Open a question to review your response and explanation.
               </p>
 
@@ -1774,22 +1804,6 @@ const pageShell: CSSProperties = {
   `,
   backgroundSize: "cover",
   backgroundPosition: "center",
-};
-
-const pageShellFixed: CSSProperties = {
-  position: "fixed",
-  inset: 0,
-  overflow: "hidden",
-  color: "white",
-  fontFamily: "Arial, Helvetica, sans-serif",
-  backgroundImage: `
-    linear-gradient(180deg, rgba(2,8,19,0.42), rgba(2,8,19,0.78)),
-    url("/activities/learning-missions/core/skyforge-hangar-bg.png")
-  `,
-  backgroundSize: "cover",
-  backgroundPosition: "center",
-  display: "flex",
-  flexDirection: "column",
 };
 
 const scienceQuizPage: CSSProperties = {
@@ -2024,40 +2038,150 @@ const scienceNextButton: CSSProperties = {
   fontWeight: 900,
 };
 
-const resultsPage: CSSProperties = {
-  ...pageShellFixed,
-  position: "relative",
-  minHeight: "100dvh",
-  overflow: "auto",
-};
-
-function topHeader(isMobile: boolean): CSSProperties {
+function scienceIntroCard(isMobile: boolean): CSSProperties {
   return {
-    minHeight: isMobile ? "58px" : "68px",
-    padding: isMobile ? "8px 10px" : "10px 18px",
-    display: "grid",
-    gridTemplateColumns: isMobile ? "1fr auto" : "1fr auto 1fr",
-    alignItems: "center",
-    gap: "10px",
-    width: "100%",
-    position: "absolute",
-    inset: "0 0 auto 0",
-    zIndex: 5,
+    borderRadius: isMobile ? "22px" : "30px",
+    border: "1px solid rgba(126,232,255,0.13)",
+    background: "linear-gradient(145deg,rgba(3,14,34,0.94),rgba(3,17,38,0.86))",
+    padding: isMobile ? "22px" : "36px",
   };
 }
 
-const headerEyebrow: CSSProperties = {
-  margin: 0,
-  color: "#7ee8ff",
-  fontSize: "10px",
-  letterSpacing: "0.2em",
-  fontWeight: 900,
+function scienceIntroTitle(isMobile: boolean): CSSProperties {
+  return {
+    margin: isMobile ? "26px 0 0" : "32px 0 0",
+    color: "#ffffff",
+    fontSize: isMobile ? "36px" : "clamp(44px,5vw,64px)",
+    lineHeight: 1.04,
+    letterSpacing: "-0.045em",
+    fontWeight: 900,
+  };
+}
+
+const scienceIntroDescription: CSSProperties = {
+  maxWidth: "760px",
+  margin: "16px 0 0",
+  color: "rgba(255,255,255,0.58)",
+  fontSize: "16px",
+  lineHeight: 1.65,
 };
 
-const headerSubtitle: CSSProperties = {
-  margin: "3px 0 0",
-  fontSize: "13px",
-  color: "rgba(255,255,255,0.68)",
+function scienceIntroStats(isMobile: boolean): CSSProperties {
+  return {
+    marginTop: "28px",
+    display: "grid",
+    gridTemplateColumns: isMobile
+      ? "repeat(2,minmax(0,1fr))"
+      : "repeat(4,minmax(0,1fr))",
+    gap: "10px",
+  };
+}
+
+function scienceResultsWrap(isMobile: boolean): CSSProperties {
+  return {
+    width: "min(1056px,100%)",
+    margin: "0 auto",
+    padding: isMobile ? "18px 12px 36px" : "28px 16px 56px",
+  };
+}
+
+function scienceResultHero(isMobile: boolean): CSSProperties {
+  return {
+    borderRadius: isMobile ? "22px" : "30px",
+    border: "1px solid rgba(126,232,255,0.13)",
+    background: "linear-gradient(145deg,rgba(3,14,34,0.94),rgba(3,17,38,0.86))",
+    padding: isMobile ? "22px" : "34px",
+  };
+}
+
+function scienceResultTitle(isMobile: boolean): CSSProperties {
+  return {
+    margin: isMobile ? "24px 0 0" : "28px 0 0",
+    color: "#ffffff",
+    fontSize: isMobile ? "34px" : "clamp(40px,4.5vw,58px)",
+    lineHeight: 1.05,
+    letterSpacing: "-0.04em",
+    fontWeight: 900,
+  };
+}
+
+function scienceScoreRow(isMobile: boolean): CSSProperties {
+  return {
+    marginTop: "24px",
+    display: "grid",
+    gridTemplateColumns: isMobile ? "1fr" : "220px minmax(0,1fr)",
+    alignItems: "stretch",
+    gap: "12px",
+  };
+}
+
+const scienceScoreBlock: CSSProperties = {
+  borderRadius: "18px",
+  border: "1px solid rgba(156,245,255,0.2)",
+  background: "rgba(83,215,255,0.075)",
+  padding: "18px",
+};
+
+const scienceScoreLabel: CSSProperties = {
+  margin: 0,
+  color: "#9cf5ff",
+  fontSize: "10px",
+  letterSpacing: "0.15em",
+  fontWeight: 900,
+  textTransform: "uppercase",
+};
+
+function scienceScoreValue(isMobile: boolean): CSSProperties {
+  return {
+    margin: "8px 0 0",
+    fontSize: isMobile ? "48px" : "58px",
+    lineHeight: 1,
+    letterSpacing: "-0.05em",
+    fontWeight: 900,
+  };
+}
+
+const scienceResultMessage: CSSProperties = {
+  margin: 0,
+  borderRadius: "18px",
+  border: "1px solid rgba(255,255,255,0.1)",
+  background: "rgba(255,255,255,0.035)",
+  padding: "20px",
+  display: "flex",
+  alignItems: "center",
+  color: "rgba(255,255,255,0.65)",
+  fontSize: "14px",
+  lineHeight: 1.65,
+};
+
+function scienceResultActions(isMobile: boolean): CSSProperties {
+  return {
+    marginTop: "20px",
+    display: "flex",
+    flexDirection: isMobile ? "column" : "row",
+    justifyContent: "flex-end",
+    gap: "10px",
+  };
+}
+
+function scienceReviewPanel(isMobile: boolean): CSSProperties {
+  return {
+    marginTop: "18px",
+    borderRadius: isMobile ? "24px" : "32px",
+    border: "1px solid rgba(255,255,255,0.11)",
+    background:
+      "linear-gradient(145deg,rgba(255,255,255,0.055),rgba(255,255,255,0.03))",
+    padding: isMobile ? "20px" : "30px",
+    boxShadow: "0 24px 64px rgba(0,0,0,0.25)",
+    backdropFilter: "blur(18px)",
+  };
+}
+
+const scienceReviewTitle: CSSProperties = {
+  margin: "8px 0 0",
+  fontSize: "clamp(26px,3vw,36px)",
+  lineHeight: 1.1,
+  fontWeight: 900,
 };
 
 const backButton: CSSProperties = {
@@ -2104,63 +2228,17 @@ const compactBalancePill: CSSProperties = {
   fontSize: "10px",
 };
 
-const introWrap: CSSProperties = {
-  minHeight: "100dvh",
+const introStatCard: CSSProperties = {
+  minHeight: "100px",
+  borderRadius: "16px",
+  border: "1px solid rgba(255,255,255,0.1)",
+  background: "rgba(255,255,255,0.04)",
+  padding: "14px 10px",
   display: "flex",
+  flexDirection: "column",
   alignItems: "center",
   justifyContent: "center",
-  padding: "82px 18px 24px",
-};
-
-const introCard: CSSProperties = {
-  width: "min(900px,100%)",
-  borderRadius: "26px",
-  border: "1px solid rgba(126,232,255,0.38)",
-  background: "linear-gradient(145deg, rgba(5,18,42,0.83), rgba(8,26,58,0.95))",
-  padding: "clamp(22px,4vw,42px)",
   textAlign: "center",
-  boxShadow: "0 26px 70px rgba(0,0,0,0.38)",
-};
-
-const eyebrow: CSSProperties = {
-  margin: 0,
-  color: "#7ee8ff",
-  fontSize: "11px",
-  letterSpacing: "0.18em",
-  fontWeight: 900,
-  textTransform: "uppercase",
-};
-
-const introTitle: CSSProperties = {
-  margin: "8px 0 0",
-  fontSize: "clamp(34px,6vw,62px)",
-  lineHeight: 1.04,
-};
-
-const introDescription: CSSProperties = {
-  margin: "12px auto 0",
-  maxWidth: "680px",
-  color: "rgba(255,255,255,0.7)",
-  fontSize: "clamp(14px,2vw,18px)",
-  lineHeight: 1.55,
-};
-
-function introStats(isMobile: boolean): CSSProperties {
-  return {
-    marginTop: "22px",
-    display: "grid",
-    gridTemplateColumns: isMobile
-      ? "repeat(2,minmax(0,1fr))"
-      : "repeat(4,minmax(0,1fr))",
-    gap: "8px",
-  };
-}
-
-const introStatCard: CSSProperties = {
-  borderRadius: "14px",
-  border: "1px solid rgba(126,232,255,0.22)",
-  background: "rgba(255,255,255,0.06)",
-  padding: "13px 9px",
 };
 
 const noticeBox: CSSProperties = {
@@ -2441,48 +2519,28 @@ const errorBanner: CSSProperties = {
   lineHeight: 1.45,
 };
 
-const resultsContainer: CSSProperties = {
-  width: "min(1050px,calc(100% - 24px))",
-  margin: "0 auto",
-  padding: "88px 0 28px",
-};
-
-const resultsHero: CSSProperties = {
-  borderRadius: "24px",
-  border: "1px solid rgba(126,232,255,0.4)",
-  background: "linear-gradient(145deg, rgba(5,18,42,0.86), rgba(8,26,58,0.97))",
-  padding: "clamp(20px,4vw,38px)",
-  textAlign: "center",
-};
-
-const resultsTitle: CSSProperties = {
-  margin: "8px 0 0",
-  fontSize: "clamp(32px,5vw,54px)",
-};
-
-const resultsMessage: CSSProperties = {
-  margin: "11px auto 0",
-  maxWidth: "720px",
-  color: "rgba(255,255,255,0.7)",
-  lineHeight: 1.55,
-};
-
 function resultStats(isMobile: boolean): CSSProperties {
   return {
     marginTop: "20px",
     display: "grid",
     gridTemplateColumns: isMobile
       ? "repeat(2,minmax(0,1fr))"
-      : "repeat(3,minmax(0,1fr))",
-    gap: "8px",
+      : "repeat(5,minmax(0,1fr))",
+    gap: "10px",
   };
 }
 
 const resultStatCard: CSSProperties = {
-  borderRadius: "13px",
-  border: "1px solid rgba(126,232,255,0.22)",
-  background: "rgba(255,255,255,0.06)",
-  padding: "12px 8px",
+  minHeight: "92px",
+  borderRadius: "16px",
+  border: "1px solid rgba(255,255,255,0.1)",
+  background: "rgba(255,255,255,0.04)",
+  padding: "14px 10px",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  textAlign: "center",
 };
 
 const resultStatLabel: CSSProperties = {
@@ -2498,14 +2556,6 @@ const resultStatValue: CSSProperties = {
   margin: "6px 0 0",
   fontSize: "clamp(19px,2.7vw,28px)",
   fontWeight: 900,
-};
-
-const reviewCard: CSSProperties = {
-  marginTop: "14px",
-  borderRadius: "22px",
-  border: "1px solid rgba(126,232,255,0.3)",
-  background: "rgba(5,18,42,0.92)",
-  padding: "clamp(16px,3vw,26px)",
 };
 
 const reviewList: CSSProperties = {
