@@ -227,11 +227,11 @@ const zones: Zone[] = [
     icon: "✦",
   },
   {
-    id: "inventor-hub",
+    id: "nova-home",
     number: "3",
-    title: "Inventor Hub",
+    title: "Nova’s Home",
     description:
-      "Coming soon. Admins can enter for preview, testing, and development.",
+      "Build and customise Nova’s connected home areas with Dream Tokens.",
     href: "/inventor/hub",
     icon: "⌂",
     adminOnly: true,
@@ -273,8 +273,8 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   },
   {
     eyebrow: "Stop 3 of 4",
-    title: "Inventor Hub is coming soon.",
-    text: "This zone is being prepared. Admins can enter for preview and testing.",
+    title: "Build Nova’s Home.",
+    text: "Use Dream Tokens to shape Nova’s connected home areas. Admins can preview this zone while it is in development.",
     zoneNumber: "3",
   },
   {
@@ -804,7 +804,7 @@ export default function NovaWorldPage() {
             textShadow: "0 12px 30px rgba(0,0,0,0.45)",
           }}
         >
-          Think, learn, earn, and unlock creations.
+          Think, learn, earn, and build Nova’s world.
         </p>
 
         <div

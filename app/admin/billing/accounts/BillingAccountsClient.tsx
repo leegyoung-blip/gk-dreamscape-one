@@ -97,8 +97,16 @@ type DreamscapeAddonForm = {
   plan_code: "none" | "core" | "complete";
   learner_email: string;
   starts_on: string;
-  first_month_free: boolean;
+  waive_start_month: boolean;
 };
+
+function calendarMonthStart(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return "";
+  }
+
+  return `${value.slice(0, 7)}-01`;
+}
 
 const DEFAULT_ACCOUNT_FORM: AccountForm = {
   payer_name: "",
@@ -187,7 +195,7 @@ export default function BillingAccountsClient() {
       plan_code: "none",
       learner_email: "",
       starts_on: singaporeToday(),
-      first_month_free: true,
+      waive_start_month: false,
     });
 
   const [saving, setSaving] = useState(false);
@@ -452,10 +460,12 @@ export default function BillingAccountsClient() {
           : "none",
       learner_email: addon?.learner_email || "",
       starts_on: addon?.starts_on || singaporeToday(),
-      first_month_free:
-        addon?.free_month_used_at
-          ? false
-          : addon?.first_month_free ?? true,
+      waive_start_month: Boolean(
+        addon?.status === "active" &&
+          addon.complimentary_through_period &&
+          addon.complimentary_through_period ===
+            calendarMonthStart(addon.starts_on),
+      ),
     });
     setFormError("");
     setDreamscapeModalOpen(true);
@@ -493,8 +503,8 @@ export default function BillingAccountsClient() {
             learnerEmail:
               dreamscapeAddonForm.learner_email,
             startsOn: dreamscapeAddonForm.starts_on,
-            firstMonthFree:
-              dreamscapeAddonForm.first_month_free,
+            waiveStartMonth:
+              dreamscapeAddonForm.waive_start_month,
           }),
         },
       );
@@ -1306,26 +1316,28 @@ export default function BillingAccountsClient() {
               <label className="flex items-start gap-3 rounded-2xl border border-[#ddd2bf] bg-[#fbfaf7] p-4 text-sm leading-6 text-[#625b50]">
                 <input
                   type="checkbox"
-                  checked={dreamscapeAddonForm.first_month_free}
+                  checked={dreamscapeAddonForm.waive_start_month}
                   onChange={(event) =>
                     setDreamscapeAddonForm((current) => ({
                       ...current,
-                      first_month_free: event.target.checked,
+                      waive_start_month: event.target.checked,
                     }))
                   }
                   className="mt-1 h-4 w-4"
                 />
                 <span>
-                  Apply the complimentary first calendar month for this
-                  GKP student. If the student has already used the free
-                  month, the server will not grant it again.
+                  Waive the Dreamscape fee for the student&apos;s start
+                  month. Leave this unchecked to charge the full monthly
+                  fee, regardless of the access start date.
                 </span>
               </label>
 
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-800">
-                Access activates on the selected start date. The monthly
-                fee is inserted automatically when GKP invoice drafts are
-                generated after any complimentary month.
+                Access begins on the selected start date. The full monthly
+                Dreamscape fee is added to that calendar month&apos;s GKP
+                bill regardless of the start date. There is no daily
+                proration. Tick the waiver above only when you want to
+                waive the start month, such as for a late-month activation.
               </div>
             </>
           )}

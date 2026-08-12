@@ -6,6 +6,7 @@ export type LearningPlanCode =
 export type NovaSubscriptionAccessRow = {
   status: string | null;
   access_until: string | null;
+  access_started_at?: string | null;
   plan_code?: string | null;
 };
 
@@ -63,8 +64,32 @@ export function isActiveSubscription(
   }
 
   /*
+   * Access must not begin before access_started_at.
+   *
+   * Public Dreamscape subscriptions already store their
+   * paid-period start here, so public access follows the
+   * paid subscription period.
+   *
+   * GKP add-ons store the staff-selected starts_on date
+   * here, so a future-dated add-on cannot unlock early.
+   */
+  if (row.access_started_at) {
+    const accessStartedAt =
+      new Date(row.access_started_at).getTime();
+
+    if (
+      !Number.isFinite(accessStartedAt) ||
+      accessStartedAt > now
+    ) {
+      return false;
+    }
+  }
+
+  /*
    * An active subscription without an access-until date
    * remains active until its status changes.
+   *
+   * This is the normal model for active GKP add-ons.
    */
   if (!row.access_until) {
     return true;

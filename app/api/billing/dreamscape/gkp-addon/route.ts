@@ -28,12 +28,6 @@ function json(body: unknown, status = 200) {
   });
 }
 
-/**
- * Supabase/PostgREST errors are not always JavaScript Error instances.
- * String(error) can therefore become "[object Object]".
- *
- * This converts the useful Supabase fields into a readable message.
- */
 function readableError(error: unknown) {
   if (error instanceof Error) {
     return error.message;
@@ -94,7 +88,9 @@ async function requireBillingStaff(request: Request) {
     process.env.SUPABASE_PUBLISHABLE_KEY;
 
   if (!url || !key) {
-    throw new Error("SUPABASE_AUTH_CONFIG_MISSING");
+    throw new Error(
+      "SUPABASE_AUTH_CONFIG_MISSING",
+    );
   }
 
   const client = createClient(url, key, {
@@ -121,7 +117,9 @@ async function requireBillingStaff(request: Request) {
   const {
     data: allowed,
     error: permissionError,
-  } = await client.rpc("gkp_is_billing_staff");
+  } = await client.rpc(
+    "gkp_is_billing_staff",
+  );
 
   if (permissionError) {
     throw permissionError;
@@ -145,16 +143,15 @@ function monthStart(value: string) {
     );
   }
 
-  const formatter = new Intl.DateTimeFormat(
-    "en-CA",
-    {
+  const formatter =
+    new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Singapore",
       year: "numeric",
       month: "2-digit",
-    },
-  );
+    });
 
-  const parts = formatter.formatToParts(date);
+  const parts =
+    formatter.formatToParts(date);
 
   const map = Object.fromEntries(
     parts.map((part) => [
@@ -166,30 +163,50 @@ function monthStart(value: string) {
   return `${map.year}-${map.month}-01`;
 }
 
-export async function POST(request: Request) {
-  let step = "authorising billing staff";
+function singaporeStartInstant(value: string) {
+  const date = new Date(
+    `${value}T00:00:00+08:00`,
+  );
+
+  if (!Number.isFinite(date.getTime())) {
+    throw new Error(
+      "Invalid Dreamscape access start date.",
+    );
+  }
+
+  return date;
+}
+
+export async function POST(
+  request: Request,
+) {
+  let step =
+    "authorising billing staff";
 
   try {
-    // =========================================================
-    // 1. AUTHORISE STAFF
-    // =========================================================
-
     const staff =
       await requireBillingStaff(request);
 
-    // =========================================================
-    // 2. READ REQUEST
-    // =========================================================
-
     step = "reading request";
 
-    const body = (await request.json()) as {
-      studentId?: string;
-      planCode?: AddonPlan;
-      learnerEmail?: string;
-      startsOn?: string;
-      firstMonthFree?: boolean;
-    };
+    const body =
+      (await request.json()) as {
+        studentId?: string;
+        planCode?: AddonPlan;
+        learnerEmail?: string;
+        startsOn?: string;
+
+        /*
+         * New name used by the updated Billing Accounts UI.
+         */
+        waiveStartMonth?: boolean;
+
+        /*
+         * Backward-compatible fallback for an older deployed
+         * Billing Accounts client.
+         */
+        firstMonthFree?: boolean;
+      };
 
     const studentId = String(
       body.studentId || "",
@@ -199,7 +216,9 @@ export async function POST(request: Request) {
       body.planCode || "none";
 
     const learnerEmail =
-      normaliseEmail(body.learnerEmail);
+      normaliseEmail(
+        body.learnerEmail,
+      );
 
     const startsOn = String(
       body.startsOn || "",
@@ -208,15 +227,12 @@ export async function POST(request: Request) {
     if (!studentId) {
       return json(
         {
-          error: "studentId is required.",
+          error:
+            "studentId is required.",
         },
         400,
       );
     }
-
-    // =========================================================
-    // 3. LOAD GKP STUDENT
-    // =========================================================
 
     step = "loading GKP student";
 
@@ -238,15 +254,12 @@ export async function POST(request: Request) {
     if (!student) {
       return json(
         {
-          error: "GKP student not found.",
+          error:
+            "GKP student not found.",
         },
         404,
       );
     }
-
-    // =========================================================
-    // 4. LOAD EXISTING DREAMSCAPE ADD-ON
-    // =========================================================
 
     step =
       "loading existing Dreamscape add-on";
@@ -255,7 +268,9 @@ export async function POST(request: Request) {
       data: existingAddon,
       error: addonError,
     } = await supabaseAdmin
-      .from("gkp_dreamscape_student_addons")
+      .from(
+        "gkp_dreamscape_student_addons",
+      )
       .select("*")
       .eq("student_id", studentId)
       .maybeSingle();
@@ -263,10 +278,6 @@ export async function POST(request: Request) {
     if (addonError) {
       throw addonError;
     }
-
-    // =========================================================
-    // 5. END EXISTING ADD-ON
-    // =========================================================
 
     if (planCode === "none") {
       if (!existingAddon) {
@@ -290,7 +301,8 @@ export async function POST(request: Request) {
         )
         .update({
           status: "ended",
-          ends_on: endedAt.slice(0, 10),
+          ends_on:
+            endedAt.slice(0, 10),
           updated_by: staff.id,
           updated_at: endedAt,
         })
@@ -321,7 +333,10 @@ export async function POST(request: Request) {
             updated_at: endedAt,
           })
           .eq("user_id", userId)
-          .eq("source", "gkp_billing");
+          .eq(
+            "source",
+            "gkp_billing",
+          );
 
         if (revokeError) {
           throw revokeError;
@@ -333,10 +348,6 @@ export async function POST(request: Request) {
         status: "ended",
       });
     }
-
-    // =========================================================
-    // 6. VALIDATE PLAN
-    // =========================================================
 
     if (
       !["core", "complete"].includes(
@@ -352,7 +363,10 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!learnerEmail || !startsOn) {
+    if (
+      !learnerEmail ||
+      !startsOn
+    ) {
       return json(
         {
           error:
@@ -362,12 +376,16 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validate date before any writes.
-    monthStart(startsOn);
+    /*
+     * Validate the selected date before any database writes.
+     */
+    const accessStartedAt =
+      singaporeStartInstant(
+        startsOn,
+      );
 
-    // =========================================================
-    // 7. VERIFY ACTIVE GKP ENROLMENT
-    // =========================================================
+    const startBillingMonth =
+      monthStart(startsOn);
 
     step =
       "checking active GKP enrolment";
@@ -400,10 +418,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // =========================================================
-    // 8. FIND OR CREATE DREAMSCAPE LEARNER
-    // =========================================================
-
     step =
       "finding or inviting Dreamscape learner";
 
@@ -415,10 +429,6 @@ export async function POST(request: Request) {
           student.full_name,
       });
 
-    // =========================================================
-    // 9. ENSURE STUDENT PROFILE
-    // =========================================================
-
     step =
       "preparing Dreamscape student profile";
 
@@ -427,10 +437,6 @@ export async function POST(request: Request) {
       student.preferred_name ||
         student.full_name,
     );
-
-    // =========================================================
-    // 10. BLOCK PUBLIC/GKP DOUBLE BILLING
-    // =========================================================
 
     step =
       "checking for public Dreamscape subscription";
@@ -443,7 +449,10 @@ export async function POST(request: Request) {
         "dreamscape_subscription_contracts",
       )
       .select("id,status")
-      .eq("learner_user_id", learner.id)
+      .eq(
+        "learner_user_id",
+        learner.id,
+      )
       .in("status", [
         "active",
         "payment_issue",
@@ -467,34 +476,49 @@ export async function POST(request: Request) {
       );
     }
 
-    // =========================================================
-    // 11. CALCULATE GKP PRICE + FREE MONTH
-    // =========================================================
-
+    /*
+     * GKP BILLING RULE
+     * ----------------
+     *
+     * Core = $9.90 per calendar month
+     * Full = $14.90 per calendar month
+     *
+     * There is NO daily proration.
+     *
+     * If starts_on falls anywhere inside a calendar month,
+     * that calendar month is billed at the full monthly rate.
+     *
+     * Staff may optionally waive the start month. The existing
+     * database column complimentary_through_period is retained
+     * for compatibility with the invoice-generation SQL:
+     *
+     *   null          -> bill the full start month
+     *   YYYY-MM-01    -> skip that one start month
+     *
+     * Billing then resumes automatically the following month.
+     */
     const monthlyFee =
       planCode === "complete"
         ? 14.9
         : 9.9;
 
-    const freeAlreadyUsed = Boolean(
-      existingAddon?.free_month_used_at,
-    );
-
-    const applyFreeMonth =
-      Boolean(body.firstMonthFree) &&
-      !freeAlreadyUsed;
+    const waiveStartMonth =
+      Boolean(
+        body.waiveStartMonth ??
+          body.firstMonthFree ??
+          false,
+      );
 
     const complimentaryThroughPeriod =
-      applyFreeMonth
-        ? monthStart(startsOn)
+      waiveStartMonth
+        ? startBillingMonth
         : null;
-
-    // =========================================================
-    // 12. SAVE GKP DREAMSCAPE ADD-ON
-    // =========================================================
 
     step =
       "saving GKP Dreamscape add-on";
+
+    const nowIso =
+      new Date().toISOString();
 
     const {
       data: addon,
@@ -507,42 +531,53 @@ export async function POST(request: Request) {
         {
           student_id: studentId,
           plan_code: planCode,
-          monthly_fee: monthlyFee,
+          monthly_fee:
+            monthlyFee,
           status: "active",
-          learner_email: learnerEmail,
-          dreamscape_user_id: learner.id,
+          learner_email:
+            learnerEmail,
+          dreamscape_user_id:
+            learner.id,
           starts_on: startsOn,
           ends_on: null,
 
+          /*
+           * Legacy column names retained for database compatibility.
+           * Semantically these now represent an optional start-month
+           * billing waiver rather than an automatic free first month.
+           */
           first_month_free:
-            applyFreeMonth ||
-            Boolean(
-              existingAddon?.first_month_free,
-            ),
+            waiveStartMonth,
 
           complimentary_through_period:
-            complimentaryThroughPeriod ||
-            existingAddon
-              ?.complimentary_through_period ||
-            null,
+            complimentaryThroughPeriod,
 
+          /*
+           * Keep an audit timestamp when a waiver has been granted.
+           * When no waiver is selected, retain any previous historical
+           * timestamp but do not let it control billing.
+           */
           free_month_used_at:
-            applyFreeMonth
-              ? new Date().toISOString()
+            waiveStartMonth
+              ? nowIso
               : existingAddon
                   ?.free_month_used_at ||
                 null,
 
           created_by:
-            existingAddon?.created_by ||
+            existingAddon
+              ?.created_by ||
             staff.id,
 
-          updated_by: staff.id,
+          updated_by:
+            staff.id,
+
           updated_at:
-            new Date().toISOString(),
+            nowIso,
         },
         {
-          onConflict: "student_id",
+          onConflict:
+            "student_id",
         },
       )
       .select("*")
@@ -552,19 +587,18 @@ export async function POST(request: Request) {
       throw saveError;
     }
 
-    // =========================================================
-    // 13. LINK GKP STUDENT TO DREAMSCAPE USER
-    // =========================================================
-
     step =
       "linking GKP student to Dreamscape account";
 
     const {
       error: studentLinkError,
     } = await supabaseAdmin
-      .from("gkp_billing_students")
+      .from(
+        "gkp_billing_students",
+      )
       .update({
-        dreamscape_user_id: learner.id,
+        dreamscape_user_id:
+          learner.id,
         updated_at:
           new Date().toISOString(),
       })
@@ -574,26 +608,20 @@ export async function POST(request: Request) {
       throw studentLinkError;
     }
 
-    // =========================================================
-    // 14. ACTIVATE NOVA SUBSCRIPTION ACCESS
-    // =========================================================
-
+    /*
+     * The subscription row is allowed to exist immediately,
+     * but central entitlement logic now checks access_started_at.
+     *
+     * Therefore:
+     *
+     * starts_on = 18 Aug
+     * 12-17 Aug -> no learner entitlement
+     * 18 Aug+    -> Core/Full entitlement automatically works
+     *
+     * No cron job or manual activation is required.
+     */
     step =
       "updating Nova subscription access";
-
-    const accessStartedAt = new Date(
-      `${startsOn}T00:00:00+08:00`,
-    );
-
-    if (
-      !Number.isFinite(
-        accessStartedAt.getTime(),
-      )
-    ) {
-      throw new Error(
-        "Invalid Dreamscape access start date.",
-      );
-    }
 
     const {
       error: accessError,
@@ -601,16 +629,21 @@ export async function POST(request: Request) {
       .from("nova_subscriptions")
       .upsert(
         {
-          user_id: learner.id,
+          user_id:
+            learner.id,
 
           plan: planCode,
-          plan_code: planCode,
+          plan_code:
+            planCode,
 
           status: "active",
           access_until: null,
 
-          billing_cycle: "monthly",
-          source: "gkp_billing",
+          billing_cycle:
+            "monthly",
+
+          source:
+            "gkp_billing",
 
           learner_email:
             learnerEmail,
@@ -624,28 +657,43 @@ export async function POST(request: Request) {
           access_started_at:
             accessStartedAt.toISOString(),
 
-          cancel_at_period_end: false,
-          cancellation_requested_at: null,
+          cancel_at_period_end:
+            false,
+
+          cancellation_requested_at:
+            null,
 
           revoked_at: null,
           revoke_reason: null,
 
-          dreamscape_contract_id: null,
+          dreamscape_contract_id:
+            null,
 
           billing_provider:
             "gkp_billing",
 
-          provider_subscription_id: null,
+          provider_subscription_id:
+            null,
 
-          billing_status: "active",
+          billing_status:
+            "active",
 
-          current_period_start: null,
-          current_period_end: null,
-          next_billing_at: null,
+          current_period_start:
+            null,
+
+          current_period_end:
+            null,
+
+          next_billing_at:
+            null,
+
           grace_until: null,
 
-          last_payment_at: null,
-          last_payment_amount: null,
+          last_payment_at:
+            null,
+
+          last_payment_amount:
+            null,
 
           updated_at:
             new Date().toISOString(),
@@ -659,14 +707,16 @@ export async function POST(request: Request) {
       throw accessError;
     }
 
-    // =========================================================
-    // 15. SUCCESS
-    // =========================================================
-
     return json({
       ok: true,
       status: "active",
       addon,
+      accessStartsOn:
+        accessStartedAt.toISOString(),
+      startMonthBilling:
+        waiveStartMonth
+          ? "waived"
+          : "full_month",
     });
   } catch (error) {
     const message =
