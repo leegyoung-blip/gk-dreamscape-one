@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -176,9 +170,7 @@ const CORE_RPCS: Record<
   {
     getPayload: "get_english_quiz_payload" | "get_math_quiz_payload";
     saveAnswer: "save_english_quiz_answer" | "save_math_quiz_answer";
-    submitAttempt:
-      | "submit_english_quiz_attempt"
-      | "submit_math_quiz_attempt";
+    submitAttempt: "submit_english_quiz_attempt" | "submit_math_quiz_attempt";
   }
 > = {
   english: {
@@ -214,7 +206,6 @@ function useResponsiveMode() {
   return mode;
 }
 
-
 function asOptions(content: JsonObject) {
   const options = Array.isArray(content.options) ? content.options : [];
   return options
@@ -235,7 +226,9 @@ function responseIsComplete(question: QuizQuestion, response?: JsonObject) {
     case "listening_comprehension":
       return Boolean(response.option_id);
     case "multiple_select":
-      return Array.isArray(response.option_ids) && response.option_ids.length > 0;
+      return (
+        Array.isArray(response.option_ids) && response.option_ids.length > 0
+      );
     case "short_text":
     case "open_cloze":
     case "editing":
@@ -255,7 +248,9 @@ function responseIsComplete(question: QuizQuestion, response?: JsonObject) {
         ? question.content.left
         : [];
       const matches = response.matches ?? {};
-      return left.length > 0 && left.every((item: any) => matches[String(item.id)]);
+      return (
+        left.length > 0 && left.every((item: any) => matches[String(item.id)])
+      );
     }
     case "word_bank":
     case "dropdown_cloze": {
@@ -293,6 +288,27 @@ function friendlyCorrectResponse(value: JsonObject | string | null) {
   return JSON.stringify(value);
 }
 
+function formatCoreQuestionType(type: QuestionType) {
+  const labels: Record<QuestionType, string> = {
+    multiple_choice: "Multiple Choice",
+    multiple_select: "Multiple Select",
+    true_false: "True or False",
+    short_text: "Short Answer",
+    long_text: "Extended Response",
+    sentence_reordering: "Put in Order",
+    matching: "Matching",
+    word_bank: "Word Bank",
+    dropdown_cloze: "Dropdown Cloze",
+    open_cloze: "Open Cloze",
+    editing: "Editing",
+    picture_description: "Picture Description",
+    listening_comprehension: "Listening Comprehension",
+    oral_recording: "Oral Response",
+  };
+
+  return labels[type];
+}
+
 export default function CoreQuizPlayer({
   subject,
   level,
@@ -305,16 +321,10 @@ export default function CoreQuizPlayer({
   const router = useRouter();
   const screenMode = useResponsiveMode();
   const isMobile = screenMode === "mobile";
-  const isCompact = screenMode !== "desktop";
   const rpcNames = CORE_RPCS[subject];
 
-  const {
-    status,
-    userId,
-    tokenBalance,
-    dreamGemBalance,
-    refreshBalances,
-  } = useCoreMissionAccess();
+  const { status, userId, tokenBalance, dreamGemBalance, refreshBalances } =
+    useCoreMissionAccess();
 
   const [stage, setStage] = useState<QuizStage>("loading");
   const [payload, setPayload] = useState<QuizPayload | null>(null);
@@ -325,7 +335,6 @@ export default function CoreQuizPlayer({
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
-  const [showNavigator, setShowNavigator] = useState(false);
   const [expandedResultId, setExpandedResultId] = useState<string | null>(null);
 
   const questionOpenedAtRef = useRef<number>(Date.now());
@@ -337,10 +346,9 @@ export default function CoreQuizPlayer({
     setStage("loading");
     setError(null);
 
-    const { data, error: loadError } = await supabase.rpc(
-      rpcNames.getPayload,
-      { p_quiz_id: quizId },
-    );
+    const { data, error: loadError } = await supabase.rpc(rpcNames.getPayload, {
+      p_quiz_id: quizId,
+    });
 
     if (loadError || !data) {
       console.warn("Could not load Core quiz payload:", loadError);
@@ -403,7 +411,9 @@ export default function CoreQuizPlayer({
   }, [loadQuiz]);
 
   const currentQuestion = payload?.questions[questionIndex] ?? null;
-  const currentResponse = currentQuestion ? answers[currentQuestion.id] : undefined;
+  const currentResponse = currentQuestion
+    ? answers[currentQuestion.id]
+    : undefined;
   const currentFeedback = currentQuestion
     ? feedbackByQuestion[currentQuestion.id]
     : undefined;
@@ -447,20 +457,18 @@ export default function CoreQuizPlayer({
       1,
       Math.round((Date.now() - questionOpenedAtRef.current) / 1000),
     );
-    const cumulativeSeconds = (timeByQuestion[currentQuestion.id] ?? 0) + seconds;
+    const cumulativeSeconds =
+      (timeByQuestion[currentQuestion.id] ?? 0) + seconds;
 
     setActionBusy(true);
     setError(null);
 
-    const { data, error: saveError } = await supabase.rpc(
-      rpcNames.saveAnswer,
-      {
-        p_attempt_id: payload.attempt_id,
-        p_question_id: currentQuestion.id,
-        p_response_data: currentResponse,
-        p_time_spent_seconds: cumulativeSeconds,
-      },
-    );
+    const { data, error: saveError } = await supabase.rpc(rpcNames.saveAnswer, {
+      p_attempt_id: payload.attempt_id,
+      p_question_id: currentQuestion.id,
+      p_response_data: currentResponse,
+      p_time_spent_seconds: cumulativeSeconds,
+    });
 
     setActionBusy(false);
 
@@ -494,7 +502,6 @@ export default function CoreQuizPlayer({
     recordCurrentQuestionTime();
     setQuestionIndex(nextIndex);
     questionOpenedAtRef.current = Date.now();
-    setShowNavigator(false);
     setError(null);
   }
 
@@ -546,7 +553,10 @@ export default function CoreQuizPlayer({
     }
 
     const currentQuestionSeconds = currentQuestion
-      ? Math.max(1, Math.round((Date.now() - questionOpenedAtRef.current) / 1000))
+      ? Math.max(
+          1,
+          Math.round((Date.now() - questionOpenedAtRef.current) / 1000),
+        )
       : 0;
     const finalTimeMap: TimeMap = currentQuestion
       ? {
@@ -619,10 +629,17 @@ export default function CoreQuizPlayer({
           <h1 style={{ margin: 0 }}>Core Missions Locked</h1>
           <p style={mutedText}>Log in with an account that has Core access.</p>
           <div style={buttonRow(isMobile)}>
-            <a href="/login" style={{ ...primaryButton, textDecoration: "none" }}>
+            <a
+              href="/login"
+              style={{ ...primaryButton, textDecoration: "none" }}
+            >
               Log In
             </a>
-            <button type="button" onClick={() => router.push("/learning-missions")} style={ghostButton}>
+            <button
+              type="button"
+              onClick={() => router.push("/learning-missions")}
+              style={ghostButton}
+            >
               Exit
             </button>
           </div>
@@ -640,7 +657,11 @@ export default function CoreQuizPlayer({
           </button>
           <h1 style={{ margin: "22px 0 0" }}>Quiz unavailable</h1>
           <p style={mutedText}>{error || "This quiz could not be loaded."}</p>
-          <button type="button" onClick={() => void loadQuiz()} style={primaryButton}>
+          <button
+            type="button"
+            onClick={() => void loadQuiz()}
+            style={primaryButton}
+          >
             Try Again
           </button>
         </div>
@@ -677,9 +698,18 @@ export default function CoreQuizPlayer({
             <p style={introDescription}>{payload.quiz.description}</p>
 
             <div style={introStats(isMobile)}>
-              <IntroStat label="Questions" value={String(payload.quiz.question_count)} />
-              <IntroStat label="Time" value={`${payload.quiz.estimated_minutes} min`} />
-              <IntroStat label="Difficulty" value={`${payload.quiz.difficulty}/5`} />
+              <IntroStat
+                label="Questions"
+                value={String(payload.quiz.question_count)}
+              />
+              <IntroStat
+                label="Time"
+                value={`${payload.quiz.estimated_minutes} min`}
+              />
+              <IntroStat
+                label="Difficulty"
+                value={`${payload.quiz.difficulty}/5`}
+              />
               <IntroStat
                 label="Feedback"
                 value={
@@ -694,14 +724,21 @@ export default function CoreQuizPlayer({
 
             {payload.resumed && (
               <div style={noticeBox}>
-                Your unfinished attempt was restored. Previously saved responses are still here.
+                Your unfinished attempt was restored. Previously saved responses
+                are still here.
               </div>
             )}
 
-            <p style={termsText}>All rewards are subject to terms and conditions.</p>
+            <p style={termsText}>
+              All rewards are subject to terms and conditions.
+            </p>
 
             <div style={buttonRow(isMobile)}>
-              <button type="button" onClick={returnToQuizList} style={ghostButton}>
+              <button
+                type="button"
+                onClick={returnToQuizList}
+                style={ghostButton}
+              >
                 Not Now
               </button>
               <button
@@ -762,108 +799,49 @@ export default function CoreQuizPlayer({
         : "Next Question";
 
   return (
-    <main style={pageShellFixed}>
-      <header style={quizHeader(isMobile)}>
+    <main style={scienceQuizPage}>
+      <header style={scienceQuizHeader(isMobile)}>
         <button type="button" onClick={returnToQuizList} style={backButton}>
           ← Quiz List
         </button>
 
-        <div style={{ minWidth: 0, textAlign: "center" }}>
-          <p style={quizHeaderTitle}>{payload.quiz.title}</p>
-          <p style={quizHeaderMeta}>
-            Question {questionIndex + 1} of {payload.questions.length}
-          </p>
-        </div>
-
-        <div style={headerRight}>
-          {!isMobile && (
-            <BalanceDisplay
-              compact
-              tokenBalance={tokenBalance}
-              gemBalance={dreamGemBalance}
-            />
-          )}
-          <button
-            type="button"
-            onClick={() => setShowNavigator((current) => !current)}
-            style={navigatorButton}
-          >
-            {answeredCount}/{payload.questions.length}
-          </button>
-        </div>
+        <BalanceDisplay
+          compact
+          tokenBalance={tokenBalance}
+          gemBalance={dreamGemBalance}
+        />
       </header>
 
-      <div style={progressTrack}>
-        <div
-          style={{
-            ...progressFill,
-            width: `${((questionIndex + 1) / payload.questions.length) * 100}%`,
-          }}
-        />
-      </div>
-
-      {showNavigator && (
-        <QuestionNavigator
-          questions={payload.questions}
-          currentIndex={questionIndex}
-          answers={answers}
-          feedback={feedbackByQuestion}
-          onChoose={(index) => void moveToQuestion(index)}
-        />
-      )}
-
-      <section style={quizContent(isMobile, isCompact)}>
-        <article style={questionCard}>
-          <div style={questionScroll}>
-            <p style={skillText}>{currentQuestion.skill || payload.quiz.topic_title}</p>
-            {currentQuestion.instruction && (
-              <p style={instructionText}>{currentQuestion.instruction}</p>
-            )}
-
-            <QuestionMediaRenderer
-              stimulus={currentQuestion.stimulus}
-              assets={currentQuestion.assets}
-            />
-
-            <h1 style={questionPrompt(isMobile)}>{currentQuestion.prompt}</h1>
-
-            <QuestionResponse
-              question={currentQuestion}
-              response={currentResponse ?? {}}
-              disabled={isImmediateLocked || actionBusy}
-              attemptId={payload.attempt_id}
-              userId={userId}
-              onChange={updateResponse}
-            />
-
-            {currentFeedback && (
-              <ImmediateFeedbackCard feedback={currentFeedback} />
-            )}
-
-            {error && <div style={errorBanner}>{error}</div>}
-          </div>
-        </article>
-
-        {!isCompact && (
-          <aside style={sidePanel}>
-            <div>
-              <p style={sideEyebrow}>MISSION PROGRESS</p>
-              <p style={sideBigNumber}>
-                {answeredCount}/{payload.questions.length}
+      <section style={scienceQuizWrap(isMobile)}>
+        <div style={scienceQuizPanel(isMobile)}>
+          <div style={scienceProgressHeader(isMobile)}>
+            <div style={{ minWidth: 0 }}>
+              <p style={scienceQuestionEyebrow}>
+                Question {questionIndex + 1} of {payload.questions.length}
               </p>
-              <p style={sideLabel}>questions answered</p>
+              <p style={scienceQuestionMeta}>
+                {payload.quiz.title} · {answeredCount}/
+                {payload.questions.length} answered
+              </p>
             </div>
 
-            <div style={questionMiniGrid}>
+            <div style={scienceQuestionNav(isMobile)}>
               {payload.questions.map((question, index) => {
-                const complete = responseIsComplete(question, answers[question.id]);
-                const checked = Boolean(feedbackByQuestion[question.id]?.locked);
+                const complete = responseIsComplete(
+                  question,
+                  answers[question.id],
+                );
+                const checked = Boolean(
+                  feedbackByQuestion[question.id]?.locked,
+                );
+
                 return (
                   <button
                     key={question.id}
                     type="button"
                     onClick={() => void moveToQuestion(index)}
-                    style={miniQuestionButton(
+                    aria-label={`Open question ${index + 1}`}
+                    style={scienceQuestionButton(
                       index === questionIndex,
                       complete,
                       checked,
@@ -874,68 +852,99 @@ export default function CoreQuizPlayer({
                 );
               })}
             </div>
+          </div>
 
-            <div style={{ marginTop: "auto" }}>
-              <button
-                type="button"
-                disabled={actionBusy || !responseIsComplete(currentQuestion, currentResponse)}
-                onClick={() => void handlePrimaryQuestionAction()}
-                style={{
-                  ...primaryButton,
-                  width: "100%",
-                  opacity:
-                    actionBusy || !responseIsComplete(currentQuestion, currentResponse)
-                      ? 0.45
-                      : 1,
-                }}
-              >
-                {actionBusy ? "Saving..." : primaryActionLabel}
-              </button>
+          <div style={scienceProgressTrack}>
+            <div
+              style={{
+                ...scienceProgressFill,
+                width: `${((questionIndex + 1) / payload.questions.length) * 100}%`,
+              }}
+            />
+          </div>
 
-              {questionIndex > 0 && (
-                <button
-                  type="button"
-                  onClick={() => void moveToQuestion(questionIndex - 1)}
-                  style={{ ...ghostButton, width: "100%", marginTop: "8px" }}
-                >
-                  Previous Question
-                </button>
-              )}
+          <article style={scienceQuestionCard(isMobile)}>
+            <div style={scienceQuestionBadgeRow}>
+              <span style={scienceQuestionTypeBadge}>
+                {formatCoreQuestionType(currentQuestion.question_type)}
+              </span>
+              <span style={scienceSkillBadge}>
+                {currentQuestion.skill || payload.quiz.topic_title}
+              </span>
             </div>
-          </aside>
-        )}
 
-        {isCompact && (
-          <div style={compactActionBar}>
+            <h1 style={scienceQuestionPrompt(isMobile)}>
+              {currentQuestion.prompt}
+            </h1>
+
+            {currentQuestion.instruction && (
+              <p style={scienceInstructionText}>
+                {currentQuestion.instruction}
+              </p>
+            )}
+
+            <QuestionMediaRenderer
+              stimulus={currentQuestion.stimulus}
+              assets={currentQuestion.assets}
+            />
+
+            <div style={scienceResponseWrap}>
+              <QuestionResponse
+                question={currentQuestion}
+                response={currentResponse ?? {}}
+                disabled={isImmediateLocked || actionBusy}
+                attemptId={payload.attempt_id}
+                userId={userId}
+                onChange={updateResponse}
+              />
+            </div>
+
+            {currentFeedback && (
+              <ImmediateFeedbackCard feedback={currentFeedback} />
+            )}
+
+            {error && <div style={errorBanner}>{error}</div>}
+          </article>
+
+          <div style={scienceActionRow(isMobile)}>
             <button
               type="button"
-              disabled={questionIndex <= 0}
+              disabled={questionIndex <= 0 || actionBusy}
               onClick={() => void moveToQuestion(questionIndex - 1)}
               style={{
-                ...ghostButton,
-                minWidth: isMobile ? "94px" : "140px",
-                opacity: questionIndex <= 0 ? 0.4 : 1,
+                ...sciencePreviousButton,
+                width: isMobile ? "100%" : "auto",
+                opacity: questionIndex <= 0 || actionBusy ? 0.35 : 1,
               }}
             >
-              Previous
+              ← Previous
             </button>
+
             <button
               type="button"
-              disabled={actionBusy || !responseIsComplete(currentQuestion, currentResponse)}
+              disabled={
+                actionBusy ||
+                !responseIsComplete(currentQuestion, currentResponse)
+              }
               onClick={() => void handlePrimaryQuestionAction()}
               style={{
-                ...primaryButton,
-                flex: 1,
+                ...scienceNextButton,
+                width: isMobile ? "100%" : "auto",
                 opacity:
-                  actionBusy || !responseIsComplete(currentQuestion, currentResponse)
-                    ? 0.45
+                  actionBusy ||
+                  !responseIsComplete(currentQuestion, currentResponse)
+                    ? 0.35
                     : 1,
               }}
             >
-              {actionBusy ? "Saving..." : primaryActionLabel}
+              {actionBusy
+                ? "Saving..."
+                : `${primaryActionLabel}${
+                    primaryActionLabel === "Next Question" ? " →" : ""
+                  }`}
             </button>
           </div>
-        )}
+        </div>
       </section>
     </main>
   );
@@ -1106,7 +1115,9 @@ function QuestionResponse({
       );
 
     default:
-      return <div style={errorBanner}>This question type is not supported yet.</div>;
+      return (
+        <div style={errorBanner}>This question type is not supported yet.</div>
+      );
   }
 }
 
@@ -1185,13 +1196,17 @@ function SentenceReordering({
   const selectedTokens = selectedIds
     .map((id: string) => tokens.find((token: any) => token.id === id))
     .filter(Boolean);
-  const remaining = tokens.filter((token: any) => !selectedIds.includes(token.id));
+  const remaining = tokens.filter(
+    (token: any) => !selectedIds.includes(token.id),
+  );
 
   return (
     <div>
       <div style={reorderAnswerBox}>
         {selectedTokens.length === 0 ? (
-          <span style={{ opacity: 0.45 }}>Tap the words in the correct order.</span>
+          <span style={{ opacity: 0.45 }}>
+            Tap the words in the correct order.
+          </span>
         ) : (
           selectedTokens.map((token: any, index: number) => (
             <button
@@ -1200,7 +1215,9 @@ function SentenceReordering({
               disabled={disabled}
               onClick={() =>
                 onChange({
-                  token_ids: selectedIds.filter((_: string, itemIndex: number) => itemIndex !== index),
+                  token_ids: selectedIds.filter(
+                    (_: string, itemIndex: number) => itemIndex !== index,
+                  ),
                 })
               }
               style={wordChip(true)}
@@ -1224,7 +1241,11 @@ function SentenceReordering({
         ))}
       </div>
       {selectedIds.length > 0 && !disabled && (
-        <button type="button" onClick={() => onChange({ token_ids: [] })} style={smallTextButton}>
+        <button
+          type="button"
+          onClick={() => onChange({ token_ids: [] })}
+          style={smallTextButton}
+        >
           Clear sentence
         </button>
       )}
@@ -1267,7 +1288,10 @@ function MatchingQuestion({
             >
               <option value="">Choose</option>
               {right.map((choice: any, choiceIndex: number) => (
-                <option key={String(choice?.id ?? choiceIndex + 1)} value={String(choice?.id ?? choiceIndex + 1)}>
+                <option
+                  key={String(choice?.id ?? choiceIndex + 1)}
+                  value={String(choice?.id ?? choiceIndex + 1)}
+                >
                   {String(choice?.text ?? "")}
                 </option>
               ))}
@@ -1322,10 +1346,15 @@ function ClozeQuestion({
             >
               <option value="">Choose</option>
               {blankOptions.map((option: any, optionIndex: number) => {
-                const optionValue = String(option?.id ?? option?.text ?? option);
+                const optionValue = String(
+                  option?.id ?? option?.text ?? option,
+                );
                 const optionText = String(option?.text ?? option);
                 return (
-                  <option key={`${optionValue}-${optionIndex}`} value={optionValue}>
+                  <option
+                    key={`${optionValue}-${optionIndex}`}
+                    value={optionValue}
+                  >
                     {optionText}
                   </option>
                 );
@@ -1430,7 +1459,9 @@ function OralRecorder({
 
     if (error) {
       console.warn("Oral response upload failed:", error);
-      setRecordingError("The recording could not be uploaded. Please try again.");
+      setRecordingError(
+        "The recording could not be uploaded. Please try again.",
+      );
       return;
     }
 
@@ -1453,7 +1484,11 @@ function OralRecorder({
             Duration: {Number(response.duration_seconds ?? 0)} seconds
           </p>
           {!disabled && (
-            <button type="button" onClick={() => onChange({})} style={smallTextButton}>
+            <button
+              type="button"
+              onClick={() => onChange({})}
+              style={smallTextButton}
+            >
               Record again
             </button>
           )}
@@ -1497,46 +1532,15 @@ function ImmediateFeedbackCard({ feedback }: { feedback: ImmediateFeedback }) {
         {feedback.is_correct ? "Correct!" : "Not quite."}
       </p>
       {feedback.explanation && (
-        <p style={{ margin: "6px 0 0", lineHeight: 1.5 }}>{feedback.explanation}</p>
+        <p style={{ margin: "6px 0 0", lineHeight: 1.5 }}>
+          {feedback.explanation}
+        </p>
       )}
       {!feedback.is_correct && feedback.correct_response && (
         <p style={{ margin: "6px 0 0", opacity: 0.82 }}>
           Correct answer: {friendlyCorrectResponse(feedback.correct_response)}
         </p>
       )}
-    </div>
-  );
-}
-
-function QuestionNavigator({
-  questions,
-  currentIndex,
-  answers,
-  feedback,
-  onChoose,
-}: {
-  questions: QuizQuestion[];
-  currentIndex: number;
-  answers: AnswerMap;
-  feedback: FeedbackMap;
-  onChoose: (index: number) => void;
-}) {
-  return (
-    <div style={navigatorPopover}>
-      {questions.map((question, index) => (
-        <button
-          key={question.id}
-          type="button"
-          onClick={() => onChoose(index)}
-          style={miniQuestionButton(
-            index === currentIndex,
-            responseIsComplete(question, answers[question.id]),
-            Boolean(feedback[question.id]?.locked),
-          )}
-        >
-          {index + 1}
-        </button>
-      ))}
     </div>
   );
 }
@@ -1586,7 +1590,8 @@ function ResultsScreen({
 
           {result.pending_manual_review ? (
             <p style={resultsMessage}>
-              Your response was saved. A teacher must review one or more answers before the final score and rewards are confirmed.
+              Your response was saved. A teacher must review one or more answers
+              before the final score and rewards are confirmed.
             </p>
           ) : (
             <p style={resultsMessage}>
@@ -1601,14 +1606,22 @@ function ResultsScreen({
               label="Correct"
               value={`${result.correct_count}/${result.total_questions}`}
             />
-            <ResultStat label="Score" value={`${Math.round(result.percentage)}%`} />
+            <ResultStat
+              label="Score"
+              value={`${Math.round(result.percentage)}%`}
+            />
             <ResultStat label="DT Earned" value={`+${result.tokens_earned}`} />
             <ResultStat label="DG Earned" value={`+${result.gems_earned}`} />
-            <ResultStat label="DT Balance" value={String(result.token_balance)} />
+            <ResultStat
+              label="DT Balance"
+              value={String(result.token_balance)}
+            />
             <ResultStat label="DG Balance" value={String(result.gem_balance)} />
           </div>
 
-          <p style={termsText}>All rewards are subject to terms and conditions.</p>
+          <p style={termsText}>
+            All rewards are subject to terms and conditions.
+          </p>
 
           <div style={buttonRow(isMobile)}>
             <button type="button" onClick={onQuizList} style={ghostButton}>
@@ -1623,67 +1636,80 @@ function ResultsScreen({
           </div>
         </div>
 
-        {payload.quiz.feedback_mode !== "none" && result.question_results.length > 0 && (
-          <div style={reviewCard}>
-            <h2 style={{ margin: 0 }}>Question Review</h2>
-            <p style={{ ...mutedText, marginTop: "6px" }}>
-              Open a question to review your response and explanation.
-            </p>
+        {payload.quiz.feedback_mode !== "none" &&
+          result.question_results.length > 0 && (
+            <div style={reviewCard}>
+              <h2 style={{ margin: 0 }}>Question Review</h2>
+              <p style={{ ...mutedText, marginTop: "6px" }}>
+                Open a question to review your response and explanation.
+              </p>
 
-            <div style={reviewList}>
-              {result.question_results.map((item) => {
-                const expanded = expandedResultId === item.question_id;
-                return (
-                  <div key={item.question_id} style={reviewItem}>
-                    <button
-                      type="button"
-                      onClick={() => setExpandedResultId(expanded ? null : item.question_id)}
-                      style={reviewItemButton}
-                    >
-                      <span style={reviewStatus(item.is_correct, item.pending_manual_review)}>
-                        {item.pending_manual_review
-                          ? "…"
-                          : item.is_correct
-                            ? "✓"
-                            : "×"}
-                      </span>
-                      <span style={{ flex: 1, textAlign: "left" }}>
-                        <strong>Question {item.question_order}</strong>
-                        <span style={reviewPrompt}>{item.prompt}</span>
-                      </span>
-                      <span>{expanded ? "−" : "+"}</span>
-                    </button>
+              <div style={reviewList}>
+                {result.question_results.map((item) => {
+                  const expanded = expandedResultId === item.question_id;
+                  return (
+                    <div key={item.question_id} style={reviewItem}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedResultId(
+                            expanded ? null : item.question_id,
+                          )
+                        }
+                        style={reviewItemButton}
+                      >
+                        <span
+                          style={reviewStatus(
+                            item.is_correct,
+                            item.pending_manual_review,
+                          )}
+                        >
+                          {item.pending_manual_review
+                            ? "…"
+                            : item.is_correct
+                              ? "✓"
+                              : "×"}
+                        </span>
+                        <span style={{ flex: 1, textAlign: "left" }}>
+                          <strong>Question {item.question_order}</strong>
+                          <span style={reviewPrompt}>{item.prompt}</span>
+                        </span>
+                        <span>{expanded ? "−" : "+"}</span>
+                      </button>
 
-                    {expanded && (
-                      <div style={reviewDetails}>
-                        <p style={reviewLine}>
-                          <strong>Your response:</strong>{" "}
-                          {friendlyCorrectResponse(item.response_data)}
-                        </p>
-                        {!item.pending_manual_review && item.correct_response && (
+                      {expanded && (
+                        <div style={reviewDetails}>
                           <p style={reviewLine}>
-                            <strong>Correct response:</strong>{" "}
-                            {friendlyCorrectResponse(item.correct_response)}
+                            <strong>Your response:</strong>{" "}
+                            {friendlyCorrectResponse(item.response_data)}
                           </p>
-                        )}
-                        {item.explanation && (
+                          {!item.pending_manual_review &&
+                            item.correct_response && (
+                              <p style={reviewLine}>
+                                <strong>Correct response:</strong>{" "}
+                                {friendlyCorrectResponse(item.correct_response)}
+                              </p>
+                            )}
+                          {item.explanation && (
+                            <p style={reviewLine}>
+                              <strong>Explanation:</strong> {item.explanation}
+                            </p>
+                          )}
                           <p style={reviewLine}>
-                            <strong>Explanation:</strong> {item.explanation}
+                            <strong>Marks:</strong>{" "}
+                            {item.marks_awarded == null
+                              ? "Pending"
+                              : item.marks_awarded}
+                            /{item.maximum_marks}
                           </p>
-                        )}
-                        <p style={reviewLine}>
-                          <strong>Marks:</strong>{" "}
-                          {item.marks_awarded == null ? "Pending" : item.marks_awarded}/
-                          {item.maximum_marks}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        )}
+          )}
       </section>
     </main>
   );
@@ -1766,6 +1792,238 @@ const pageShellFixed: CSSProperties = {
   flexDirection: "column",
 };
 
+const scienceQuizPage: CSSProperties = {
+  minHeight: "100dvh",
+  overflowX: "hidden",
+  color: "white",
+  fontFamily: "Arial, Helvetica, sans-serif",
+  backgroundColor: "#030d1d",
+  backgroundImage: `
+    radial-gradient(circle at 52% -12%, rgba(64,224,208,0.17), transparent 36%),
+    radial-gradient(circle at 88% 18%, rgba(53,125,255,0.11), transparent 30%),
+    linear-gradient(rgba(126,232,255,0.038) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(126,232,255,0.038) 1px, transparent 1px),
+    linear-gradient(180deg, #07162c 0%, #020915 100%)
+  `,
+  backgroundSize: "auto, auto, 48px 48px, 48px 48px, auto",
+  backgroundPosition: "center top, center top, center, center, center",
+};
+
+function scienceQuizHeader(isMobile: boolean): CSSProperties {
+  return {
+    width: "min(1366px,100%)",
+    margin: "0 auto",
+    padding: isMobile ? "16px 14px 0" : "26px 20px 0",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "12px",
+  };
+}
+
+function scienceQuizWrap(isMobile: boolean): CSSProperties {
+  return {
+    width: "min(1056px,100%)",
+    margin: "0 auto",
+    padding: isMobile ? "18px 12px 32px" : "28px 16px 48px",
+  };
+}
+
+function scienceQuizPanel(isMobile: boolean): CSSProperties {
+  return {
+    borderRadius: isMobile ? "24px" : "36px",
+    border: "1px solid rgba(255,255,255,0.11)",
+    background:
+      "linear-gradient(145deg,rgba(255,255,255,0.065),rgba(255,255,255,0.035))",
+    padding: isMobile ? "16px" : "32px",
+    boxShadow: "0 30px 80px rgba(0,0,0,0.36)",
+    backdropFilter: "blur(18px)",
+  };
+}
+
+function scienceProgressHeader(isMobile: boolean): CSSProperties {
+  return {
+    display: "flex",
+    flexDirection: isMobile ? "column" : "row",
+    alignItems: isMobile ? "stretch" : "center",
+    justifyContent: "space-between",
+    gap: isMobile ? "14px" : "20px",
+  };
+}
+
+const scienceQuestionEyebrow: CSSProperties = {
+  margin: 0,
+  color: "#9cf5ff",
+  fontSize: "10px",
+  letterSpacing: "0.17em",
+  fontWeight: 900,
+  textTransform: "uppercase",
+};
+
+const scienceQuestionMeta: CSSProperties = {
+  margin: "6px 0 0",
+  color: "rgba(255,255,255,0.43)",
+  fontSize: "12px",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+function scienceQuestionNav(isMobile: boolean): CSSProperties {
+  return {
+    display: "flex",
+    flexWrap: isMobile ? "nowrap" : "wrap",
+    justifyContent: isMobile ? "flex-start" : "flex-end",
+    gap: "8px",
+    maxWidth: isMobile ? "100%" : "56%",
+    overflowX: isMobile ? "auto" : "visible",
+    paddingBottom: isMobile ? "3px" : 0,
+  };
+}
+
+function scienceQuestionButton(
+  active: boolean,
+  complete: boolean,
+  checked: boolean,
+): CSSProperties {
+  return {
+    width: "36px",
+    height: "36px",
+    flex: "0 0 36px",
+    borderRadius: "999px",
+    border: active
+      ? "1px solid rgba(156,245,255,0.7)"
+      : checked || complete
+        ? "1px solid rgba(96,240,208,0.32)"
+        : "1px solid rgba(255,255,255,0.11)",
+    background: active
+      ? "#9cf5ff"
+      : checked || complete
+        ? "rgba(96,240,208,0.12)"
+        : "rgba(255,255,255,0.045)",
+    color: active
+      ? "#071223"
+      : checked || complete
+        ? "#b8ffeb"
+        : "rgba(255,255,255,0.48)",
+    cursor: "pointer",
+    fontSize: "12px",
+    fontWeight: 900,
+  };
+}
+
+const scienceProgressTrack: CSSProperties = {
+  height: "8px",
+  marginTop: "20px",
+  overflow: "hidden",
+  borderRadius: "999px",
+  background: "rgba(255,255,255,0.065)",
+};
+
+const scienceProgressFill: CSSProperties = {
+  height: "100%",
+  borderRadius: "999px",
+  background: "linear-gradient(90deg,#53d7ff,#60f0d0)",
+  transition: "width 180ms ease",
+};
+
+function scienceQuestionCard(isMobile: boolean): CSSProperties {
+  return {
+    minHeight: isMobile ? "360px" : "375px",
+    marginTop: isMobile ? "18px" : "24px",
+    borderRadius: isMobile ? "22px" : "30px",
+    border: "1px solid rgba(126,232,255,0.13)",
+    background: "linear-gradient(145deg,rgba(3,14,34,0.94),rgba(3,17,38,0.86))",
+    padding: isMobile ? "20px" : "32px",
+    overflow: "hidden",
+  };
+}
+
+const scienceQuestionBadgeRow: CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "10px",
+};
+
+const scienceQuestionTypeBadge: CSSProperties = {
+  borderRadius: "999px",
+  border: "1px solid rgba(255,255,255,0.11)",
+  background: "rgba(255,255,255,0.04)",
+  padding: "7px 13px",
+  color: "rgba(255,255,255,0.52)",
+  fontSize: "10px",
+  letterSpacing: "0.12em",
+  fontWeight: 900,
+  textTransform: "uppercase",
+};
+
+const scienceSkillBadge: CSSProperties = {
+  color: "rgba(190,241,255,0.58)",
+  fontSize: "10px",
+  letterSpacing: "0.12em",
+  fontWeight: 900,
+  textTransform: "uppercase",
+};
+
+function scienceQuestionPrompt(isMobile: boolean): CSSProperties {
+  return {
+    margin: isMobile ? "24px 0 0" : "28px 0 0",
+    color: "#ffffff",
+    fontSize: isMobile ? "26px" : "clamp(30px,3.1vw,40px)",
+    lineHeight: 1.16,
+    letterSpacing: "-0.025em",
+    fontWeight: 900,
+  };
+}
+
+const scienceInstructionText: CSSProperties = {
+  margin: "13px 0 0",
+  color: "rgba(255,255,255,0.53)",
+  fontSize: "14px",
+  lineHeight: 1.6,
+};
+
+const scienceResponseWrap: CSSProperties = {
+  marginTop: "28px",
+};
+
+function scienceActionRow(isMobile: boolean): CSSProperties {
+  return {
+    marginTop: "20px",
+    display: "flex",
+    flexDirection: isMobile ? "column-reverse" : "row",
+    alignItems: "stretch",
+    justifyContent: "space-between",
+    gap: "12px",
+  };
+}
+
+const sciencePreviousButton: CSSProperties = {
+  minHeight: "50px",
+  borderRadius: "16px",
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(255,255,255,0.045)",
+  color: "white",
+  padding: "0 24px",
+  cursor: "pointer",
+  fontSize: "14px",
+  fontWeight: 900,
+};
+
+const scienceNextButton: CSSProperties = {
+  minHeight: "50px",
+  borderRadius: "16px",
+  border: "1px solid rgba(255,255,255,0.28)",
+  background: "#ffffff",
+  color: "#071223",
+  padding: "0 28px",
+  cursor: "pointer",
+  fontSize: "14px",
+  fontWeight: 900,
+};
+
 const resultsPage: CSSProperties = {
   ...pageShellFixed,
   position: "relative",
@@ -1788,18 +2046,6 @@ function topHeader(isMobile: boolean): CSSProperties {
   };
 }
 
-function quizHeader(isMobile: boolean): CSSProperties {
-  return {
-    minHeight: isMobile ? "58px" : "66px",
-    padding: isMobile ? "8px 10px" : "10px 18px",
-    display: "grid",
-    gridTemplateColumns: "1fr minmax(0,1.4fr) 1fr",
-    alignItems: "center",
-    gap: "8px",
-    flexShrink: 0,
-  };
-}
-
 const headerEyebrow: CSSProperties = {
   margin: 0,
   color: "#7ee8ff",
@@ -1812,28 +2058,6 @@ const headerSubtitle: CSSProperties = {
   margin: "3px 0 0",
   fontSize: "13px",
   color: "rgba(255,255,255,0.68)",
-};
-
-const quizHeaderTitle: CSSProperties = {
-  margin: 0,
-  fontSize: "clamp(12px,1.8vw,17px)",
-  fontWeight: 900,
-  whiteSpace: "nowrap",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-};
-
-const quizHeaderMeta: CSSProperties = {
-  margin: "3px 0 0",
-  fontSize: "10px",
-  color: "rgba(255,255,255,0.58)",
-};
-
-const headerRight: CSSProperties = {
-  justifySelf: "end",
-  display: "flex",
-  alignItems: "center",
-  gap: "8px",
 };
 
 const backButton: CSSProperties = {
@@ -1998,7 +2222,8 @@ const lockedCard: CSSProperties = {
   width: "min(620px,100%)",
   borderRadius: "22px",
   border: "1px solid rgba(255,215,106,0.4)",
-  background: "linear-gradient(180deg, rgba(90,62,16,0.56), rgba(30,20,8,0.84))",
+  background:
+    "linear-gradient(180deg, rgba(90,62,16,0.56), rgba(30,20,8,0.84))",
   padding: "28px",
   textAlign: "center",
 };
@@ -2008,184 +2233,13 @@ const mutedText: CSSProperties = {
   lineHeight: 1.5,
 };
 
-const progressTrack: CSSProperties = {
-  height: "4px",
-  background: "rgba(255,255,255,0.08)",
-  flexShrink: 0,
-};
-
-const progressFill: CSSProperties = {
-  height: "100%",
-  borderRadius: "999px",
-  background: "linear-gradient(90deg,#7ee8ff,#60f0d0)",
-  transition: "width 180ms ease",
-};
-
-function quizContent(isMobile: boolean, isCompact: boolean): CSSProperties {
-  return {
-    flex: 1,
-    minHeight: 0,
-    padding: isMobile ? "8px" : "12px",
-    display: "grid",
-    gridTemplateColumns: isCompact ? "1fr" : "minmax(0,1fr) 260px",
-    gridTemplateRows: isCompact ? "minmax(0,1fr) auto" : "1fr",
-    gap: "10px",
-    overflow: "hidden",
-  };
-}
-
-const questionCard: CSSProperties = {
-  minHeight: 0,
-  borderRadius: "20px",
-  border: "1px solid rgba(126,232,255,0.3)",
-  background: "linear-gradient(145deg, rgba(7,28,62,0.88), rgba(5,18,42,0.96))",
-  overflow: "hidden",
-};
-
-const questionScroll: CSSProperties = {
-  height: "100%",
-  overflowY: "auto",
-  padding: "clamp(14px,2.3vw,28px)",
-};
-
-const skillText: CSSProperties = {
-  margin: 0,
-  color: "#7ee8ff",
-  fontSize: "10px",
-  letterSpacing: "0.16em",
-  fontWeight: 900,
-  textTransform: "uppercase",
-};
-
-const instructionText: CSSProperties = {
-  margin: "8px 0 0",
-  color: "#ffe6a8",
-  fontSize: "13px",
-  fontWeight: 800,
-};
-
-function questionPrompt(isMobile: boolean): CSSProperties {
-  return {
-    margin: "18px 0 16px",
-    fontSize: isMobile ? "22px" : "clamp(25px,3.2vw,38px)",
-    lineHeight: 1.3,
-  };
-}
-
-const compactActionBar: CSSProperties = {
-  minHeight: "54px",
-  borderRadius: "16px",
-  border: "1px solid rgba(126,232,255,0.24)",
-  background: "rgba(5,18,42,0.94)",
-  padding: "7px",
-  display: "flex",
-  gap: "7px",
-};
-
-const sidePanel: CSSProperties = {
-  minHeight: 0,
-  borderRadius: "20px",
-  border: "1px solid rgba(126,232,255,0.25)",
-  background: "linear-gradient(180deg, rgba(17,82,136,0.78), rgba(7,27,68,0.94))",
-  padding: "14px",
-  display: "flex",
-  flexDirection: "column",
-  overflow: "hidden",
-};
-
-const sideEyebrow: CSSProperties = {
-  margin: 0,
-  color: "#7ee8ff",
-  fontSize: "9px",
-  letterSpacing: "0.14em",
-  fontWeight: 900,
-};
-
-const sideBigNumber: CSSProperties = {
-  margin: "6px 0 0",
-  fontSize: "34px",
-  fontWeight: 900,
-};
-
-const sideLabel: CSSProperties = {
-  margin: "2px 0 0",
-  color: "rgba(255,255,255,0.56)",
-  fontSize: "11px",
-};
-
-const questionMiniGrid: CSSProperties = {
-  marginTop: "14px",
-  display: "grid",
-  gridTemplateColumns: "repeat(5,minmax(0,1fr))",
-  gap: "6px",
-  overflowY: "auto",
-};
-
-function miniQuestionButton(
-  current: boolean,
-  complete: boolean,
-  checked: boolean,
-): CSSProperties {
-  return {
-    aspectRatio: "1",
-    minWidth: "30px",
-    borderRadius: "9px",
-    border: current
-      ? "1px solid rgba(255,215,106,0.9)"
-      : checked
-        ? "1px solid rgba(96,240,208,0.65)"
-        : "1px solid rgba(126,232,255,0.22)",
-    background: current
-      ? "rgba(255,215,106,0.2)"
-      : checked
-        ? "rgba(96,240,208,0.18)"
-        : complete
-          ? "rgba(53,197,255,0.16)"
-          : "rgba(255,255,255,0.055)",
-    color: "white",
-    cursor: "pointer",
-    fontWeight: 900,
-  };
-}
-
-const navigatorButton: CSSProperties = {
-  minWidth: "48px",
-  minHeight: "34px",
-  borderRadius: "999px",
-  border: "1px solid rgba(126,232,255,0.3)",
-  background: "rgba(255,255,255,0.065)",
-  color: "white",
-  cursor: "pointer",
-  fontWeight: 900,
-};
-
-const navigatorPopover: CSSProperties = {
-  position: "absolute",
-  zIndex: 20,
-  top: "62px",
-  right: "10px",
-  width: "min(330px,calc(100vw - 20px))",
-  maxHeight: "50vh",
-  overflowY: "auto",
-  borderRadius: "16px",
-  border: "1px solid rgba(126,232,255,0.32)",
-  background: "rgba(5,18,42,0.97)",
-  padding: "10px",
-  display: "grid",
-  gridTemplateColumns: "repeat(6,minmax(0,1fr))",
-  gap: "7px",
-  boxShadow: "0 20px 50px rgba(0,0,0,0.42)",
-};
-
 function optionGrid(optionCount: number): CSSProperties {
   return {
     display: "grid",
-    // Four choices must always form a balanced 2 × 2 grid. The old auto-fit
-    // layout could produce three choices on the first row and one below.
     gridTemplateColumns:
-      optionCount === 4 || optionCount === 2
-        ? "repeat(2,minmax(0,1fr))"
-        : "repeat(auto-fit,minmax(240px,1fr))",
+      optionCount === 1
+        ? "1fr"
+        : "repeat(auto-fit,minmax(min(100%,320px),1fr))",
     gap: "12px",
     alignItems: "stretch",
   };
@@ -2193,16 +2247,16 @@ function optionGrid(optionCount: number): CSSProperties {
 
 function optionButton(selected: boolean, disabled: boolean): CSSProperties {
   return {
-    minHeight: "70px",
+    minHeight: "72px",
     borderRadius: "14px",
     border: selected
-      ? "1px solid rgba(126,232,255,0.95)"
-      : "1px solid rgba(126,232,255,0.24)",
+      ? "1px solid rgba(156,245,255,0.88)"
+      : "1px solid rgba(255,255,255,0.13)",
     background: selected
-      ? "linear-gradient(135deg,rgba(53,197,255,0.34),rgba(76,109,255,0.32))"
-      : "rgba(255,255,255,0.065)",
+      ? "linear-gradient(135deg,rgba(83,215,255,0.22),rgba(96,240,208,0.14))"
+      : "rgba(255,255,255,0.045)",
     color: "white",
-    padding: "10px 12px",
+    padding: "12px 16px",
     width: "100%",
     minWidth: 0,
     display: "grid",
@@ -2216,10 +2270,12 @@ function optionButton(selected: boolean, disabled: boolean): CSSProperties {
 }
 
 const optionLabel: CSSProperties = {
-  width: "32px",
-  height: "32px",
-  borderRadius: "999px",
-  background: "rgba(255,255,255,0.13)",
+  width: "34px",
+  height: "34px",
+  borderRadius: "12px",
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(2,10,25,0.34)",
+  color: "#c9f8ff",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -2362,7 +2418,6 @@ const recorderCard: CSSProperties = {
   textAlign: "center",
 };
 
-
 function feedbackCard(correct: boolean): CSSProperties {
   return {
     marginTop: "14px",
@@ -2479,7 +2534,10 @@ const reviewItemButton: CSSProperties = {
   cursor: "pointer",
 };
 
-function reviewStatus(correct: boolean | null, pending: boolean): CSSProperties {
+function reviewStatus(
+  correct: boolean | null,
+  pending: boolean,
+): CSSProperties {
   return {
     width: "30px",
     height: "30px",
