@@ -23,10 +23,64 @@ type SummaryRow = {
   completed_at: string;
 };
 
-type GarageCustomCategory =
-  | "color"
-  | "trail"
-  | "decal";
+type RoverBuildStat = {
+  label: string;
+  value: number;
+};
+
+const roverBuildStatsByStage: Record<number, RoverBuildStat[]> = {
+  0: [
+    { label: "Speed", value: 2 },
+    { label: "Handling", value: 2 },
+    { label: "Balance", value: 2 },
+    { label: "Jump", value: 1 },
+  ],
+  1: [
+    { label: "Speed", value: 3 },
+    { label: "Handling", value: 2 },
+    { label: "Balance", value: 2 },
+    { label: "Jump", value: 1 },
+  ],
+  2: [
+    { label: "Speed", value: 3 },
+    { label: "Handling", value: 4 },
+    { label: "Balance", value: 3 },
+    { label: "Jump", value: 1 },
+  ],
+  3: [
+    { label: "Speed", value: 5 },
+    { label: "Handling", value: 4 },
+    { label: "Balance", value: 3 },
+    { label: "Jump", value: 2 },
+  ],
+  4: [
+    { label: "Speed", value: 4 },
+    { label: "Handling", value: 4 },
+    { label: "Balance", value: 5 },
+    { label: "Jump", value: 2 },
+  ],
+  5: [
+    { label: "Speed", value: 4 },
+    { label: "Handling", value: 5 },
+    { label: "Balance", value: 4 },
+    { label: "Jump", value: 5 },
+  ],
+};
+
+function getRoverBuildStats(stage: number): RoverBuildStat[] {
+  const configuredStats = roverBuildStatsByStage[stage];
+
+  if (configuredStats) return configuredStats;
+
+  return [
+    { label: "Speed", value: Math.min(5, 2 + Math.ceil(stage / 2)) },
+    { label: "Handling", value: Math.min(5, 2 + Math.floor(stage / 2)) },
+    { label: "Balance", value: Math.min(5, 2 + Math.floor((stage + 1) / 3)) },
+    { label: "Jump", value: Math.min(5, 1 + Math.floor(stage / 2)) },
+  ];
+}
+
+type GarageCustomCategory = "color" | "trail" | "decal";
 
 type GarageCustomOption = {
   key: string;
@@ -48,15 +102,13 @@ const garageCustomisationGroups: {
   {
     id: "color",
     title: "Rover Colour",
-    description:
-      "The standard rover artwork is used with no colour overlay.",
+    description: "The standard rover artwork is used with no colour overlay.",
     options: [
       {
         key: "color-none",
         category: "color",
         name: "No Tint",
-        description:
-          "Use the original rover colours with no added tint.",
+        description: "Use the original rover colours with no added tint.",
         previewColor: "transparent",
         isDefault: true,
       },
@@ -64,40 +116,35 @@ const garageCustomisationGroups: {
         key: "color-sky",
         category: "color",
         name: "Sky Blue",
-        description:
-          "A blue Skyforge finish.",
+        description: "A blue Skyforge finish.",
         previewColor: "#8ee8ff",
       },
       {
         key: "color-crimson",
         category: "color",
         name: "Crimson",
-        description:
-          "A bold red expedition finish.",
+        description: "A bold red expedition finish.",
         previewColor: "#ff7184",
       },
       {
         key: "color-emerald",
         category: "color",
         name: "Emerald",
-        description:
-          "A bright green exploration finish.",
+        description: "A bright green exploration finish.",
         previewColor: "#73efb6",
       },
       {
         key: "color-violet",
         category: "color",
         name: "Violet",
-        description:
-          "A futuristic purple energy finish.",
+        description: "A futuristic purple energy finish.",
         previewColor: "#b28cff",
       },
       {
         key: "color-gold",
         category: "color",
         name: "Solar Gold",
-        description:
-          "A premium gold Skyforge finish.",
+        description: "A premium gold Skyforge finish.",
         previewColor: "#ffd76a",
       },
     ],
@@ -105,15 +152,13 @@ const garageCustomisationGroups: {
   {
     id: "trail",
     title: "Energy Trail",
-    description:
-      "The rover currently runs without a cosmetic energy trail.",
+    description: "The rover currently runs without a cosmetic energy trail.",
     options: [
       {
         key: "trail-none",
         category: "trail",
         name: "No Energy Trail",
-        description:
-          "No cosmetic trail is shown behind the rover.",
+        description: "No cosmetic trail is shown behind the rover.",
         previewColor: "transparent",
         isDefault: true,
       },
@@ -121,16 +166,14 @@ const garageCustomisationGroups: {
         key: "trail-plasma",
         category: "trail",
         name: "Plasma Trail",
-        description:
-          "A bright cyan trail behind the rover.",
+        description: "A bright cyan trail behind the rover.",
         previewColor: "#6ef4ff",
       },
       {
         key: "trail-spark",
         category: "trail",
         name: "Spark Trail",
-        description:
-          "A charged yellow energy trail.",
+        description: "A charged yellow energy trail.",
         previewColor: "#ffe57c",
         secondaryColor: "#ff8fcf",
       },
@@ -138,8 +181,7 @@ const garageCustomisationGroups: {
         key: "trail-starlight",
         category: "trail",
         name: "Starlight Trail",
-        description:
-          "A violet and blue light trail.",
+        description: "A violet and blue light trail.",
         previewColor: "#a978ff",
         secondaryColor: "#6edaff",
       },
@@ -148,15 +190,13 @@ const garageCustomisationGroups: {
   {
     id: "decal",
     title: "Body Decal",
-    description:
-      "The standard rover body is shown without an emblem.",
+    description: "The standard rover body is shown without an emblem.",
     options: [
       {
         key: "decal-none",
         category: "decal",
         name: "No Decal",
-        description:
-          "Keep the rover body clean and unmarked.",
+        description: "Keep the rover body clean and unmarked.",
         previewColor: "transparent",
         icon: "—",
         isDefault: true,
@@ -165,8 +205,7 @@ const garageCustomisationGroups: {
         key: "decal-star",
         category: "decal",
         name: "Sky Star",
-        description:
-          "A bright explorer star emblem.",
+        description: "A bright explorer star emblem.",
         previewColor: "#ffd76a",
         icon: "★",
       },
@@ -174,8 +213,7 @@ const garageCustomisationGroups: {
         key: "decal-bolt",
         category: "decal",
         name: "Energy Bolt",
-        description:
-          "A lightning emblem for the rover body.",
+        description: "A lightning emblem for the rover body.",
         previewColor: "#6ef4ff",
         icon: "ϟ",
       },
@@ -183,8 +221,7 @@ const garageCustomisationGroups: {
         key: "decal-crest",
         category: "decal",
         name: "Explorer Crest",
-        description:
-          "Nova's expedition crest.",
+        description: "Nova's expedition crest.",
         previewColor: "#66f0d0",
         icon: "◇",
       },
@@ -219,78 +256,55 @@ export default function RoverGarageClient() {
   const isMobile = screenMode === "mobile";
   const isCompact = screenMode !== "desktop";
 
-  const [tab, setTab] =
-    useState<GarageTab>("upgrades");
+  const [tab, setTab] = useState<GarageTab>("upgrades");
 
-  const [loading, setLoading] =
-    useState(true);
+  const [loading, setLoading] = useState(true);
 
-  const [userId, setUserId] =
-    useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
-  const [tokenBalance, setTokenBalance] =
-    useState(0);
+  const [tokenBalance, setTokenBalance] = useState(0);
 
-  const [
-    completedMissionCount,
-    setCompletedMissionCount,
-  ] = useState(0);
+  const [dreamGemBalance, setDreamGemBalance] = useState(0);
 
-  const [
-    selectedUpgradeStage,
-    setSelectedUpgradeStage,
-  ] = useState<number | null>(null);
+  const [completedMissionCount, setCompletedMissionCount] = useState(0);
 
-  const [rank, setRank] =
-    useState<number | null>(null);
+  const [selectedUpgradeStage, setSelectedUpgradeStage] = useState<
+    number | null
+  >(null);
 
-  const [bestScore, setBestScore] =
-    useState<number | null>(null);
+  const [rank, setRank] = useState<number | null>(null);
 
-  const [bestTimeMs, setBestTimeMs] =
-    useState<number | null>(null);
+  const [bestScore, setBestScore] = useState<number | null>(null);
 
-  const [orbsCollected, setOrbsCollected] =
-    useState<number | null>(null);
+  const [bestTimeMs, setBestTimeMs] = useState<number | null>(null);
+
+  const [orbsCollected, setOrbsCollected] = useState<number | null>(null);
 
   const progress = useMemo(
-    () =>
-      getCoreRoverProgress(
-        completedMissionCount,
-      ),
+    () => getCoreRoverProgress(completedMissionCount),
     [completedMissionCount],
   );
 
   const displayedUpgrade = useMemo(() => {
     const requestedStage =
-      selectedUpgradeStage ??
-      progress.currentUpgrade.stage;
+      selectedUpgradeStage ?? progress.currentUpgrade.stage;
 
-    const requestedUpgrade =
-      coreUpgradeTrack.find(
-        (upgrade) =>
-          upgrade.stage ===
-          requestedStage,
-      );
+    const requestedUpgrade = coreUpgradeTrack.find(
+      (upgrade) => upgrade.stage === requestedStage,
+    );
 
     if (
       requestedUpgrade &&
-      completedMissionCount >=
-        requestedUpgrade.missionsRequired
+      completedMissionCount >= requestedUpgrade.missionsRequired
     ) {
       return requestedUpgrade;
     }
 
     return progress.currentUpgrade;
-  }, [
-    completedMissionCount,
-    progress.currentUpgrade,
-    selectedUpgradeStage,
-  ]);
+  }, [completedMissionCount, progress.currentUpgrade, selectedUpgradeStage]);
 
   const viewingCurrentBuild =
-    displayedUpgrade.stage ===
-    progress.currentUpgrade.stage;
+    displayedUpgrade.stage === progress.currentUpgrade.stage;
 
   const loadGarage = useCallback(async () => {
     setLoading(true);
@@ -307,39 +321,30 @@ export default function RoverGarageClient() {
 
     setUserId(user.id);
 
-    const [
-      tokensResult,
-      attemptsResult,
-      summaryResult,
-    ] = await Promise.all([
-      supabase
-        .from(
-          "dream_token_transactions",
-        )
-        .select("amount")
-        .eq("user_id", user.id)
-        .eq(
-          "token_kind",
-          "virtual",
-        ),
+    const [tokensResult, profileResult, attemptsResult, summaryResult] =
+      await Promise.all([
+        supabase
+          .from("dream_token_transactions")
+          .select("amount")
+          .eq("user_id", user.id)
+          .eq("token_kind", "virtual"),
 
-      supabase
-        .from(
-          "core_mission_attempts",
-        )
-        .select(
-          "quiz_id, tokens_earned",
-        )
-        .eq("user_id", user.id)
-        .gt("tokens_earned", 0),
+        supabase
+          .from("profiles")
+          .select("dream_gem_balance")
+          .eq("id", user.id)
+          .maybeSingle(),
 
-      supabase.rpc(
-        "get_my_rover_challenge_summary",
-        {
+        supabase
+          .from("core_mission_attempts")
+          .select("quiz_id, tokens_earned")
+          .eq("user_id", user.id)
+          .gt("tokens_earned", 0),
+
+        supabase.rpc("get_my_rover_challenge_summary", {
           p_course_id: COURSE_ID,
-        },
-      ),
-    ]);
+        }),
+      ]);
 
     if (tokensResult.error) {
       console.warn("Could not load DT balance:", tokensResult.error.message);
@@ -347,19 +352,28 @@ export default function RoverGarageClient() {
       setTokenBalance(
         tokensResult.data?.reduce(
           (sum, row) => sum + Number(row.amount || 0),
-          0
-        ) || 0
+          0,
+        ) || 0,
+      );
+    }
+
+    if (profileResult.error) {
+      console.warn("Could not load DG balance:", profileResult.error.message);
+      setDreamGemBalance(0);
+    } else {
+      setDreamGemBalance(
+        Math.max(0, Number(profileResult.data?.dream_gem_balance || 0)),
       );
     }
 
     if (attemptsResult.error) {
       console.warn(
         "Could not load rover progress:",
-        attemptsResult.error.message
+        attemptsResult.error.message,
       );
     } else {
       const completed = new Set(
-        (attemptsResult.data ?? []).map((row) => row.quiz_id)
+        (attemptsResult.data ?? []).map((row) => row.quiz_id),
       );
       setCompletedMissionCount(completed.size);
     }
@@ -367,7 +381,7 @@ export default function RoverGarageClient() {
     if (summaryResult.error) {
       console.warn(
         "Could not load rover rank summary:",
-        summaryResult.error.message
+        summaryResult.error.message,
       );
       setRank(null);
       setBestScore(null);
@@ -396,14 +410,16 @@ export default function RoverGarageClient() {
   useEffect(() => {
     void loadGarage();
 
-    function handleTokenUpdate() {
+    function handleBalanceUpdate() {
       void loadGarage();
     }
 
-    window.addEventListener("dream-tokens-updated", handleTokenUpdate);
+    window.addEventListener("dream-tokens-updated", handleBalanceUpdate);
+    window.addEventListener("dream-gems-updated", handleBalanceUpdate);
 
     return () => {
-      window.removeEventListener("dream-tokens-updated", handleTokenUpdate);
+      window.removeEventListener("dream-tokens-updated", handleBalanceUpdate);
+      window.removeEventListener("dream-gems-updated", handleBalanceUpdate);
     };
   }, [loadGarage]);
 
@@ -433,7 +449,10 @@ export default function RoverGarageClient() {
             <p style={{ opacity: 0.7, lineHeight: 1.5 }}>
               Log in to view your rover, upgrades and custom build.
             </p>
-            <a href="/login" style={{ ...primaryButton, textDecoration: "none" }}>
+            <a
+              href="/login"
+              style={{ ...primaryButton, textDecoration: "none" }}
+            >
               Log In
             </a>
           </div>
@@ -459,18 +478,20 @@ export default function RoverGarageClient() {
         </div>
 
         <div style={headerRight}>
-          <div style={balancePill}>
+          <div style={balancePill("dt")}>
             <span style={{ color: "#ffd76a" }}>DT</span>
-            {tokenBalance}
+            {tokenBalance.toLocaleString("en-SG")}
+          </div>
+          <div style={balancePill("dg")}>
+            <span style={{ color: "#e9d5ff" }}>DG</span>
+            {dreamGemBalance.toLocaleString("en-SG")}
           </div>
           <button
             type="button"
-            onClick={() =>
-              router.push("/learning-missions/core/rover-challenge")
-            }
-            style={challengeHeaderButton}
+            onClick={() => router.push("/profile")}
+            style={accountHeaderButton}
           >
-            Rover Challenge ›
+            My Account
           </button>
         </div>
       </header>
@@ -486,8 +507,7 @@ export default function RoverGarageClient() {
                     : "VIEWING UNLOCKED BUILD"}
                 </p>
                 <h2 style={currentBuildTitle}>
-                  Stage {displayedUpgrade.stage} ·{" "}
-                  {displayedUpgrade.name}
+                  Stage {displayedUpgrade.stage} · {displayedUpgrade.name}
                 </h2>
               </div>
               <div style={rankPill(rank)}>
@@ -496,23 +516,22 @@ export default function RoverGarageClient() {
             </div>
 
             <RoverPreview
-              imageSrc={
-                displayedUpgrade.imageSrc
-              }
+              imageSrc={displayedUpgrade.imageSrc}
               isMobile={isMobile}
             />
 
-            <p style={upgradeDescription}>
-              {displayedUpgrade.description}
-            </p>
+            <p style={upgradeDescription}>{displayedUpgrade.description}</p>
+
+            <RoverBuildStats
+              stage={displayedUpgrade.stage}
+              accent={displayedUpgrade.accent}
+            />
 
             {!viewingCurrentBuild && (
               <button
                 type="button"
                 onClick={() =>
-                  setSelectedUpgradeStage(
-                    progress.currentUpgrade.stage,
-                  )
+                  setSelectedUpgradeStage(progress.currentUpgrade.stage)
                 }
                 style={returnCurrentButton}
               >
@@ -594,21 +613,12 @@ export default function RoverGarageClient() {
 
           {tab === "upgrades" ? (
             <UpgradeTrack
-              completedMissionCount={
-                completedMissionCount
-              }
-              selectedStage={
-                displayedUpgrade.stage
-              }
-              onSelectStage={
-                setSelectedUpgradeStage
-              }
+              completedMissionCount={completedMissionCount}
+              selectedStage={displayedUpgrade.stage}
+              onSelectStage={setSelectedUpgradeStage}
             />
           ) : (
-            <CustomBuildPanel
-              tokenBalance={tokenBalance}
-              isMobile={isMobile}
-            />
+            <CustomBuildPanel tokenBalance={tokenBalance} isMobile={isMobile} />
           )}
         </div>
       </section>
@@ -641,6 +651,43 @@ function RoverPreview({
   );
 }
 
+function RoverBuildStats({ stage, accent }: { stage: number; accent: string }) {
+  const stats = getRoverBuildStats(stage);
+
+  return (
+    <section
+      aria-label={`Stage ${stage} rover build statistics`}
+      style={buildStatsPanel}
+    >
+      <div style={buildStatsHeadingRow}>
+        <p style={smallEyebrow}>BUILD STATS</p>
+        <span style={buildStatsScale}>1–5</span>
+      </div>
+
+      <div style={buildStatsGrid}>
+        {stats.map((stat) => (
+          <div key={stat.label} style={buildStatRow}>
+            <div style={buildStatLabelRow}>
+              <span>{stat.label}</span>
+              <strong style={{ color: accent }}>{stat.value}/5</strong>
+            </div>
+            <div style={buildStatTrack}>
+              <div
+                style={{
+                  ...buildStatFill,
+                  width: `${stat.value * 20}%`,
+                  background: `linear-gradient(90deg, ${accent}, #35c5ff)`,
+                  boxShadow: `0 0 12px ${accent}55`,
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function UpgradeTrack({
   completedMissionCount,
   selectedStage,
@@ -648,139 +695,101 @@ function UpgradeTrack({
 }: {
   completedMissionCount: number;
   selectedStage: number;
-  onSelectStage: (
-    stage: number,
-  ) => void;
+  onSelectStage: (stage: number) => void;
 }) {
   return (
     <div style={scrollPanel}>
       <div style={panelHeading}>
-        <p style={smallEyebrow}>
-          MISSION UNLOCKS
-        </p>
+        <p style={smallEyebrow}>MISSION UNLOCKS</p>
 
-        <h2 style={{ margin: "7px 0 0" }}>
-          Rover Upgrade Track
-        </h2>
+        <h2 style={{ margin: "7px 0 0" }}>Rover Upgrade Track</h2>
 
         <p style={panelDescription}>
-          Complete new Core Mission quizzes
-          to unlock performance upgrades.
-          Select any previously unlocked
-          build to view it. Replays do not
-          add progress.
+          Complete new Core Mission quizzes to unlock performance upgrades.
+          Select any previously unlocked build to view it. Replays do not add
+          progress.
         </p>
       </div>
 
       <div style={upgradeList}>
-        {coreUpgradeTrack.map(
-          (upgrade, index) => {
-            const unlocked =
-              completedMissionCount >=
-              upgrade.missionsRequired;
+        {coreUpgradeTrack.map((upgrade, index) => {
+          const unlocked = completedMissionCount >= upgrade.missionsRequired;
 
-            const current =
-              unlocked &&
-              (index ===
-                coreUpgradeTrack.length -
-                  1 ||
-                completedMissionCount <
-                  coreUpgradeTrack[
-                    index + 1
-                  ].missionsRequired);
+          const current =
+            unlocked &&
+            (index === coreUpgradeTrack.length - 1 ||
+              completedMissionCount <
+                coreUpgradeTrack[index + 1].missionsRequired);
 
-            const selected =
-              selectedStage ===
-              upgrade.stage;
+          const selected = selectedStage === upgrade.stage;
 
-            return (
-              <button
-                key={upgrade.stage}
-                type="button"
-                disabled={!unlocked}
-                onClick={() => {
-                  if (unlocked) {
-                    onSelectStage(
-                      upgrade.stage,
-                    );
-                  }
+          return (
+            <button
+              key={upgrade.stage}
+              type="button"
+              disabled={!unlocked}
+              onClick={() => {
+                if (unlocked) {
+                  onSelectStage(upgrade.stage);
+                }
+              }}
+              aria-pressed={selected}
+              style={upgradeRow(unlocked, current, selected, upgrade.accent)}
+            >
+              <div style={stageNumber(unlocked, upgrade.accent)}>
+                {upgrade.stage}
+              </div>
+
+              <img
+                src={upgrade.imageSrc}
+                alt={upgrade.name}
+                draggable={false}
+                style={{
+                  width: "110px",
+                  height: "76px",
+                  objectFit: "contain",
+                  opacity: unlocked ? 1 : 0.35,
                 }}
-                aria-pressed={selected}
-                style={upgradeRow(
-                  unlocked,
-                  current,
-                  selected,
-                  upgrade.accent,
-                )}
+              />
+
+              <div
+                style={{
+                  minWidth: 0,
+                  flex: 1,
+                  textAlign: "left",
+                }}
               >
-                <div
-                  style={stageNumber(
+                <p
+                  style={upgradeStatus(
                     unlocked,
+                    current,
+                    selected,
                     upgrade.accent,
                   )}
                 >
-                  {upgrade.stage}
-                </div>
+                  {current
+                    ? "CURRENT BUILD"
+                    : selected
+                      ? "VIEWING"
+                      : unlocked
+                        ? "UNLOCKED · SELECT"
+                        : `${upgrade.missionsRequired} MISSIONS`}
+                </p>
 
-                <img
-                  src={upgrade.imageSrc}
-                  alt={upgrade.name}
-                  draggable={false}
+                <h3
                   style={{
-                    width: "110px",
-                    height: "76px",
-                    objectFit: "contain",
-                    opacity: unlocked
-                      ? 1
-                      : 0.35,
-                  }}
-                />
-
-                <div
-                  style={{
-                    minWidth: 0,
-                    flex: 1,
-                    textAlign: "left",
+                    margin: "5px 0 0",
+                    fontSize: "18px",
                   }}
                 >
-                  <p
-                    style={upgradeStatus(
-                      unlocked,
-                      current,
-                      selected,
-                      upgrade.accent,
-                    )}
-                  >
-                    {current
-                      ? "CURRENT BUILD"
-                      : selected
-                        ? "VIEWING"
-                        : unlocked
-                          ? "UNLOCKED · SELECT"
-                          : `${upgrade.missionsRequired} MISSIONS`}
-                  </p>
+                  {upgrade.name}
+                </h3>
 
-                  <h3
-                    style={{
-                      margin: "5px 0 0",
-                      fontSize: "18px",
-                    }}
-                  >
-                    {upgrade.name}
-                  </h3>
-
-                  <p
-                    style={
-                      upgradeRowDescription
-                    }
-                  >
-                    {upgrade.description}
-                  </p>
-                </div>
-              </button>
-            );
-          },
-        )}
+                <p style={upgradeRowDescription}>{upgrade.description}</p>
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -796,19 +805,13 @@ function CustomBuildPanel({
   return (
     <div style={scrollPanel}>
       <div style={panelHeading}>
-        <p style={smallEyebrow}>
-          COSMETIC CUSTOMISATION
-        </p>
+        <p style={smallEyebrow}>COSMETIC CUSTOMISATION</p>
 
-        <h2 style={{ margin: "7px 0 0" }}>
-          Custom Build
-        </h2>
+        <h2 style={{ margin: "7px 0 0" }}>Custom Build</h2>
 
         <p style={panelDescription}>
-          The standard build currently uses
-          no tint, no energy trail and no
-          decal. Additional cosmetic options
-          are locked for now. Balance:{" "}
+          The standard build currently uses no tint, no energy trail and no
+          decal. Additional cosmetic options are locked for now. Balance:{" "}
           <strong>{tokenBalance} DT</strong>
         </p>
       </div>
@@ -819,112 +822,75 @@ function CustomBuildPanel({
           gap: "18px",
         }}
       >
-        {garageCustomisationGroups.map(
-          (group) => (
-            <section key={group.id}>
-              <h3
-                style={{
-                  margin: 0,
-                  fontSize: "19px",
-                }}
-              >
-                {group.title}
-              </h3>
+        {garageCustomisationGroups.map((group) => (
+          <section key={group.id}>
+            <h3
+              style={{
+                margin: 0,
+                fontSize: "19px",
+              }}
+            >
+              {group.title}
+            </h3>
 
-              <p
-                style={{
-                  margin: "5px 0 10px",
-                  opacity: 0.58,
-                  fontSize: "13px",
-                }}
-              >
-                {group.description}
-              </p>
+            <p
+              style={{
+                margin: "5px 0 10px",
+                opacity: 0.58,
+                fontSize: "13px",
+              }}
+            >
+              {group.description}
+            </p>
 
-              <div
-                style={customGrid(
-                  isMobile,
-                )}
-              >
-                {group.options.map(
-                  (item) => (
-                    <div
-                      key={item.key}
-                      style={customCard(
-                        Boolean(
-                          item.isDefault,
-                        ),
-                        item.previewColor,
-                      )}
-                    >
-                      <CustomSwatch
-                        item={item}
-                      />
+            <div style={customGrid(isMobile)}>
+              {group.options.map((item) => (
+                <div
+                  key={item.key}
+                  style={customCard(Boolean(item.isDefault), item.previewColor)}
+                >
+                  <CustomSwatch item={item} />
 
-                      <div
-                        style={{
-                          minWidth: 0,
-                        }}
-                      >
-                        <p
-                          style={customName}
-                        >
-                          {item.name}
-                        </p>
+                  <div
+                    style={{
+                      minWidth: 0,
+                    }}
+                  >
+                    <p style={customName}>{item.name}</p>
 
-                        <p
-                          style={
-                            customDescription
-                          }
-                        >
-                          {item.description}
-                        </p>
-                      </div>
+                    <p style={customDescription}>{item.description}</p>
+                  </div>
 
-                      <button
-                        type="button"
-                        disabled
-                        style={customActionButton(
-                          Boolean(
-                            item.isDefault,
-                          ),
-                        )}
-                      >
-                        {item.isDefault
-                          ? "Default"
-                          : "Locked"}
-                      </button>
-                    </div>
-                  ),
-                )}
-              </div>
-            </section>
-          ),
-        )}
+                  <button
+                    type="button"
+                    disabled
+                    style={customActionButton(Boolean(item.isDefault))}
+                  >
+                    {item.isDefault ? "Default" : "Locked"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        ))}
       </div>
     </div>
   );
 }
 
-function CustomSwatch({
-  item,
-}: {
-  item: GarageCustomOption;
-}) {
+function CustomSwatch({ item }: { item: GarageCustomOption }) {
   if (item.category === "decal") {
     return (
       <div
         style={{
           ...swatch,
           color:
-            item.previewColor ===
-            "transparent"
+            item.previewColor === "transparent"
               ? "rgba(255,255,255,0.55)"
               : item.previewColor,
           fontSize: "28px",
           textShadow:
-            item.previewColor ===
-            "transparent"
+            item.previewColor === "transparent"
               ? "none"
               : `0 0 14px ${item.previewColor}`,
         }}
@@ -934,10 +900,7 @@ function CustomSwatch({
     );
   }
 
-  if (
-    item.category === "trail" &&
-    !item.isDefault
-  ) {
+  if (item.category === "trail" && !item.isDefault) {
     return (
       <div style={swatch}>
         <div
@@ -947,10 +910,7 @@ function CustomSwatch({
             borderRadius: "999px",
             background: `linear-gradient(90deg, transparent, ${
               item.previewColor
-            }, ${
-              item.secondaryColor ||
-              item.previewColor
-            })`,
+            }, ${item.secondaryColor || item.previewColor})`,
             boxShadow: `0 0 16px ${item.previewColor}`,
           }}
         />
@@ -966,18 +926,13 @@ function CustomSwatch({
           height: "30px",
           borderRadius: "999px",
           background:
-            item.previewColor ===
-            "transparent"
+            item.previewColor === "transparent"
               ? "rgba(255,255,255,0.025)"
-              : `linear-gradient(135deg, ${
-                  item.previewColor
-                }, ${
-                  item.secondaryColor ||
-                  item.previewColor
+              : `linear-gradient(135deg, ${item.previewColor}, ${
+                  item.secondaryColor || item.previewColor
                 })`,
           border:
-            item.previewColor ===
-            "transparent"
+            item.previewColor === "transparent"
               ? "1px dashed rgba(255,255,255,0.32)"
               : "1px solid rgba(255,255,255,0.25)",
         }}
@@ -1067,22 +1022,34 @@ const headerRight: CSSProperties = {
   gap: "8px",
 };
 
-const balancePill: CSSProperties = {
-  minHeight: "40px",
-  borderRadius: "999px",
-  border: "1px solid rgba(255,215,106,0.28)",
-  background: "rgba(255,215,106,0.08)",
-  padding: "0 14px",
-  display: "flex",
-  alignItems: "center",
-  gap: "7px",
-  fontWeight: 900,
-};
+function balancePill(kind: "dt" | "dg"): CSSProperties {
+  const isDreamGem = kind === "dg";
 
-const challengeHeaderButton: CSSProperties = {
+  return {
+    minHeight: "40px",
+    borderRadius: "999px",
+    border: isDreamGem
+      ? "1px solid rgba(216,180,254,0.32)"
+      : "1px solid rgba(255,215,106,0.28)",
+    background: isDreamGem
+      ? "rgba(192,132,252,0.09)"
+      : "rgba(255,215,106,0.08)",
+    padding: "0 14px",
+    display: "flex",
+    alignItems: "center",
+    gap: "7px",
+    fontWeight: 900,
+    whiteSpace: "nowrap",
+  };
+}
+
+const accountHeaderButton: CSSProperties = {
   ...headerButton,
   border: "1px solid rgba(126,232,255,0.45)",
-  background: "linear-gradient(135deg, #35c5ff, #4c6dff)",
+  background: "rgba(2,8,19,0.58)",
+  backdropFilter: "blur(16px)",
+  letterSpacing: "0.04em",
+  whiteSpace: "nowrap",
 };
 
 function garageShell(isMobile: boolean): CSSProperties {
@@ -1091,7 +1058,9 @@ function garageShell(isMobile: boolean): CSSProperties {
     margin: "0 auto",
     padding: isMobile ? "12px" : "22px",
     display: "grid",
-    gridTemplateColumns: isMobile ? "1fr" : "minmax(360px,0.92fr) minmax(0,1.25fr)",
+    gridTemplateColumns: isMobile
+      ? "1fr"
+      : "minmax(360px,0.92fr) minmax(0,1.25fr)",
     gap: "18px",
     alignItems: "start",
   };
@@ -1200,21 +1169,74 @@ const upgradeDescription: CSSProperties = {
   lineHeight: 1.5,
 };
 
+const buildStatsPanel: CSSProperties = {
+  marginTop: "14px",
+  borderRadius: "16px",
+  border: "1px solid rgba(126,232,255,0.16)",
+  background: "rgba(255,255,255,0.035)",
+  padding: "13px",
+};
+
+const buildStatsHeadingRow: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "10px",
+};
+
+const buildStatsScale: CSSProperties = {
+  color: "rgba(255,255,255,0.4)",
+  fontSize: "9px",
+  letterSpacing: "0.1em",
+  fontWeight: 800,
+};
+
+const buildStatsGrid: CSSProperties = {
+  marginTop: "10px",
+  display: "grid",
+  gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+  gap: "11px 14px",
+};
+
+const buildStatRow: CSSProperties = {
+  minWidth: 0,
+};
+
+const buildStatLabelRow: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "8px",
+  color: "rgba(255,255,255,0.68)",
+  fontSize: "11px",
+};
+
+const buildStatTrack: CSSProperties = {
+  marginTop: "6px",
+  height: "7px",
+  borderRadius: "999px",
+  background: "rgba(255,255,255,0.08)",
+  overflow: "hidden",
+};
+
+const buildStatFill: CSSProperties = {
+  height: "100%",
+  borderRadius: "999px",
+  transition: "width 220ms ease",
+};
+
 const returnCurrentButton: CSSProperties = {
   marginTop: "11px",
   minHeight: "38px",
   borderRadius: "11px",
-  border:
-    "1px solid rgba(126,232,255,0.28)",
-  background:
-    "rgba(126,232,255,0.08)",
+  border: "1px solid rgba(126,232,255,0.28)",
+  background: "rgba(126,232,255,0.08)",
   color: "#c9f9ff",
   padding: "0 14px",
   fontSize: "12px",
   fontWeight: 800,
   cursor: "pointer",
 };
-
 
 const progressTrack: CSSProperties = {
   marginTop: "15px",
@@ -1291,8 +1313,7 @@ const controlColumn: CSSProperties = {
   minWidth: 0,
   borderRadius: "26px",
   border: "1px solid rgba(126,232,255,0.2)",
-  background:
-    "linear-gradient(145deg, rgba(5,18,42,0.88), rgba(8,26,58,0.94))",
+  background: "linear-gradient(145deg, rgba(5,18,42,0.88), rgba(8,26,58,0.94))",
   boxShadow: "0 24px 70px rgba(0,0,0,0.3)",
   overflow: "hidden",
 };
@@ -1369,12 +1390,8 @@ function upgradeRow(
     opacity: unlocked ? 1 : 0.58,
     color: "white",
     fontFamily: "inherit",
-    cursor: unlocked
-      ? "pointer"
-      : "not-allowed",
-    boxShadow: selected
-      ? `0 0 22px ${accent}22`
-      : "none",
+    cursor: unlocked ? "pointer" : "not-allowed",
+    boxShadow: selected ? `0 0 22px ${accent}22` : "none",
     transition:
       "border 160ms ease, background 160ms ease, box-shadow 160ms ease",
   };
@@ -1427,21 +1444,13 @@ const upgradeRowDescription: CSSProperties = {
 function customGrid(isMobile: boolean): CSSProperties {
   return {
     display: "grid",
-    gridTemplateColumns: isMobile
-      ? "1fr"
-      : "repeat(2,minmax(0,1fr))",
+    gridTemplateColumns: isMobile ? "1fr" : "repeat(2,minmax(0,1fr))",
     gap: "9px",
   };
 }
 
-function customCard(
-  isDefault: boolean,
-  accent: string,
-): CSSProperties {
-  const effectiveAccent =
-    accent === "transparent"
-      ? "#7ee8ff"
-      : accent;
+function customCard(isDefault: boolean, accent: string): CSSProperties {
+  const effectiveAccent = accent === "transparent" ? "#7ee8ff" : accent;
 
   return {
     borderRadius: "15px",
@@ -1453,8 +1462,7 @@ function customCard(
       : "rgba(255,255,255,0.025)",
     padding: "10px",
     display: "grid",
-    gridTemplateColumns:
-      "50px minmax(0,1fr) auto",
+    gridTemplateColumns: "50px minmax(0,1fr) auto",
     gap: "10px",
     alignItems: "center",
     opacity: isDefault ? 1 : 0.48,
@@ -1485,9 +1493,7 @@ const customDescription: CSSProperties = {
   lineHeight: 1.35,
 };
 
-function customActionButton(
-  isDefault: boolean,
-): CSSProperties {
+function customActionButton(isDefault: boolean): CSSProperties {
   return {
     minWidth: "78px",
     minHeight: "36px",
@@ -1495,12 +1501,8 @@ function customActionButton(
     border: isDefault
       ? "1px solid rgba(134,239,172,0.36)"
       : "1px solid rgba(255,255,255,0.1)",
-    background: isDefault
-      ? "rgba(34,197,94,0.15)"
-      : "rgba(255,255,255,0.04)",
-    color: isDefault
-      ? "#86efac"
-      : "rgba(255,255,255,0.42)",
+    background: isDefault ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.04)",
+    color: isDefault ? "#86efac" : "rgba(255,255,255,0.42)",
     padding: "0 10px",
     fontSize: "11px",
     fontWeight: 900,
