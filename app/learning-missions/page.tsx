@@ -2515,46 +2515,10 @@ function ZoneHoverPopup({
 }
 
 function getPopupPosition(zoneId: string): CSSProperties {
-  switch (zoneId) {
-    case "knowledge-arena":
-      return {
-        left: "53%",
-        bottom: "20%",
-        transform: "translateX(-50%)",
-      };
-
-    case "core-missions":
-      return {
-        left: "50%",
-        top: "7%",
-        transform: "translateX(-50%)",
-      };
-
-    case "science-missions":
-      return {
-        right: "3%",
-        top: "13%",
-      };
-
-    case "think-missions":
-      return {
-        right: "3%",
-        bottom: "9%",
-      };
-
-    case "progress-rewards":
-      return {
-        left: "3%",
-        bottom: "9%",
-      };
-
-    default:
-      return {
-        left: "50%",
-        top: "50%",
-        transform: "translate(-50%, -50%)",
-      };
-  }
+  return {
+    ...getMissionMarkerPosition(zoneId),
+    transform: "translate(-50%, calc(-100% - 46px))",
+  };
 }
 
 function MissionGuidedWalkthrough({
