@@ -2515,9 +2515,14 @@ function ZoneHoverPopup({
 }
 
 function getPopupPosition(zoneId: string): CSSProperties {
+  const shouldOpenBelow =
+    zoneId === "core-missions" || zoneId === "science-missions";
+
   return {
     ...getMissionMarkerPosition(zoneId),
-    transform: "translate(-50%, calc(-100% - 46px))",
+    transform: shouldOpenBelow
+      ? "translate(-50%, 46px)"
+      : "translate(-50%, calc(-100% - 46px))",
   };
 }
 
