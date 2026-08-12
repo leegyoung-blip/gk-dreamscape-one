@@ -208,9 +208,9 @@ export default function RoverChallengeClient() {
       setLeaderboardLoading(true);
       setLeaderboardMessage("");
 
-      const { data, error } =
-        await supabase.rpc(
-          "get_rover_challenge_leaderboard",
+        const { data, error } =
+          await supabase.rpc(
+          "get_rover_challenge_visible_leaderboard",
           {
             p_course_id: COURSE_ID,
             p_limit: 10,
@@ -585,10 +585,10 @@ export default function RoverChallengeClient() {
 
       <header className="relative z-20 mx-auto flex w-full max-w-[1600px] items-center justify-between px-4 py-4 sm:px-8">
         <Link
-          href="/learning-missions"
+          href="/learning-missions/core/rover"
           className="rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-sm text-white/75 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/10 hover:text-white"
         >
-          ← Learning Missions
+          ← Back to My Rover
         </Link>
 
         <div className="hidden text-right sm:block">
@@ -606,7 +606,7 @@ export default function RoverChallengeClient() {
         <div className="mx-auto mb-5 flex w-full max-w-[1600px] flex-col gap-2 px-4 sm:flex-row sm:items-end sm:justify-between sm:px-8">
           <div>
             <p className="mb-2 text-xs font-semibold tracking-[0.28em] text-cyan-300">
-              TEST COURSE 01
+              SKYFORGE COURSE 01
             </p>
 
             <h1 className="text-2xl font-bold tracking-tight sm:text-4xl">
@@ -625,10 +625,6 @@ export default function RoverChallengeClient() {
           <div className="mt-3 flex items-center gap-2 sm:mt-0">
             <div className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1.5 text-xs font-semibold text-emerald-200">
               SYSTEM ONLINE
-            </div>
-
-            <div className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-xs text-white/55">
-              Test Build
             </div>
           </div>
         </div>
