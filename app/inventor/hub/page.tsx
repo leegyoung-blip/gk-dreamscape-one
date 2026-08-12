@@ -1,164 +1,534 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
-type HomeArea = {
-  id: "area-1" | "area-2" | "area-3";
-  number: 1 | 2 | 3;
-  title: string;
-  shortLabel: string;
-  description: string;
-  image: string;
-  dtCost: number;
-  prerequisiteAreaId: HomeArea["id"] | null;
-  ownedInPhase1: boolean;
+type ZoneKey =
+  | "bed-zone"
+  | "desk-zone"
+  | "display-zone"
+  | "extra-zone";
+
+type ZoneVisual = {
+  key: ZoneKey;
+  fallbackTitle: string;
+  fallbackSubtitle: string;
+  maskImage: string;
+  accent: string;
 };
 
-const HOME_AREAS: HomeArea[] = [
+type ZoneCatalogRow = {
+  zone_key: string;
+  title: string;
+  subtitle: string | null;
+  dt_cost: number;
+  sort_order: number;
+};
+
+type ZoneUnlockRow = {
+  zone_key: string;
+};
+
+type PurchaseResult = {
+  zone_key: string;
+  cost_paid: number;
+  new_balance: number;
+  already_owned: boolean;
+};
+
+type ZoneView = ZoneVisual & {
+  title: string;
+  subtitle: string;
+  dtCost: number;
+};
+
+type MaskPixels = {
+  width: number;
+  height: number;
+  alpha: Uint8ClampedArray;
+};
+
+const AREA_IMAGE = "/activities/nova-home/area-1/area-1-furnished.png";
+
+const ZONE_VISUALS: ZoneVisual[] = [
   {
-    id: "area-1",
-    number: 1,
-    title: "Area 1",
-    shortLabel: "Starter Area",
-    description:
-      "Nova’s first home space. This is the area we will fully design in Phase 2.",
-    image: "/activities/nova-home/area-1-placeholder.png",
-    dtCost: 0,
-    prerequisiteAreaId: null,
-    ownedInPhase1: true,
+    key: "bed-zone",
+    fallbackTitle: "Sleep Zone",
+    fallbackSubtitle: "Unlock Nova's bed and rest corner.",
+    maskImage: "/activities/nova-home/area-1/zone-bed-locked.png",
+    accent: "#6ee7ff",
   },
   {
-    id: "area-2",
-    number: 2,
-    title: "Area 2",
-    shortLabel: "Home Expansion",
-    description:
-      "A connected expansion that will unlock after Area 1 and be purchased with Dream Tokens.",
-    image: "/activities/nova-home/area-2-placeholder.png",
-    dtCost: 1500,
-    prerequisiteAreaId: "area-1",
-    ownedInPhase1: false,
+    key: "desk-zone",
+    fallbackTitle: "Workstation",
+    fallbackSubtitle: "Unlock Nova's desk, chair, and main computer.",
+    maskImage: "/activities/nova-home/area-1/zone-desk-locked.png",
+    accent: "#7dd3fc",
   },
   {
-    id: "area-3",
-    number: 3,
-    title: "Area 3",
-    shortLabel: "Final Expansion",
-    description:
-      "The third connected space. It remains locked until the previous expansion has been acquired.",
-    image: "/activities/nova-home/area-3-placeholder.png",
-    dtCost: 3000,
-    prerequisiteAreaId: "area-2",
-    ownedInPhase1: false,
+    key: "display-zone",
+    fallbackTitle: "Display Shelf",
+    fallbackSubtitle: "Unlock books, models, trophies, and collectibles.",
+    maskImage: "/activities/nova-home/area-1/zone-display-locked.png",
+    accent: "#a5b4fc",
   },
+  {
+    key: "extra-zone",
+    fallbackTitle: "Comfort & Decor",
+    fallbackSubtitle: "Unlock the rug, wall art, plant, speaker, and extra details.",
+    maskImage: "/activities/nova-home/area-1/zone-extra-locked.png",
+    accent: "#c4b5fd",
+  },
+];
+
+const HIT_TEST_ORDER: ZoneKey[] = [
+  "display-zone",
+  "desk-zone",
+  "bed-zone",
+  "extra-zone",
 ];
 
 function formatDT(value: number) {
   return `${Math.round(Number(value || 0)).toLocaleString("en-SG")} DT`;
 }
 
+function normaliseRole(value: string | null | undefined) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function getPurchaseResult(data: unknown): PurchaseResult | null {
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || typeof row !== "object") return null;
+
+  const result = row as Record<string, unknown>;
+  const zoneKey = String(result.zone_key || "");
+  const costPaid = Number(result.cost_paid);
+  const newBalance = Number(result.new_balance);
+  const alreadyOwned = Boolean(result.already_owned);
+
+  if (!zoneKey || !Number.isFinite(costPaid) || !Number.isFinite(newBalance)) {
+    return null;
+  }
+
+  return {
+    zone_key: zoneKey,
+    cost_paid: costPaid,
+    new_balance: newBalance,
+    already_owned: alreadyOwned,
+  };
+}
+
 export default function NovaHomePage() {
   const router = useRouter();
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const maskPixelsRef = useRef<Map<ZoneKey, MaskPixels>>(new Map());
+
   const [authChecked, setAuthChecked] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [dreamTokenBalance, setDreamTokenBalance] = useState(0);
   const [balanceLoading, setBalanceLoading] = useState(true);
-  const [selectedAreaId, setSelectedAreaId] =
-    useState<HomeArea["id"]>("area-1");
-  const [showInfo, setShowInfo] = useState(false);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [maskLoading, setMaskLoading] = useState(true);
+  const [catalogRows, setCatalogRows] = useState<ZoneCatalogRow[]>([]);
+  const [unlockedZones, setUnlockedZones] = useState<Set<ZoneKey>>(
+    () => new Set(),
+  );
+  const [hoveredZoneKey, setHoveredZoneKey] = useState<ZoneKey | null>(null);
+  const [selectedZoneKey, setSelectedZoneKey] = useState<ZoneKey | null>(null);
+  const [purchasingZoneKey, setPurchasingZoneKey] = useState<ZoneKey | null>(
+    null,
+  );
+  const [message, setMessage] = useState("");
+  const [setupError, setSetupError] = useState("");
 
-  const selectedArea = useMemo(
-    () => HOME_AREAS.find((area) => area.id === selectedAreaId) ?? HOME_AREAS[0],
-    [selectedAreaId],
+  const zones = useMemo<ZoneView[]>(() => {
+    const catalog = new Map(
+      catalogRows.map((row) => [row.zone_key, row] as const),
+    );
+
+    return ZONE_VISUALS.map((visual) => {
+      const row = catalog.get(visual.key);
+
+      return {
+        ...visual,
+        title: row?.title || visual.fallbackTitle,
+        subtitle: row?.subtitle || visual.fallbackSubtitle,
+        dtCost: Number(row?.dt_cost ?? 0),
+      };
+    });
+  }, [catalogRows]);
+
+  const zoneMap = useMemo(
+    () => new Map(zones.map((zone) => [zone.key, zone] as const)),
+    [zones],
   );
 
-  useEffect(() => {
-    let mounted = true;
+  const activeZoneKey = selectedZoneKey || hoveredZoneKey;
+  const activeZone = activeZoneKey ? zoneMap.get(activeZoneKey) ?? null : null;
+  const activeZoneUnlocked = activeZoneKey
+    ? unlockedZones.has(activeZoneKey)
+    : false;
+  const unlockedCount = unlockedZones.size;
+  const allZonesUnlocked = unlockedCount >= ZONE_VISUALS.length;
 
-    async function loadAdminPreview() {
-      setBalanceLoading(true);
+  const loadNovaHome = useCallback(async () => {
+    setBalanceLoading(true);
+    setCatalogLoading(true);
+    setSetupError("");
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      if (!mounted) return;
+    if (!user) {
+      setUserEmail(null);
+      setIsAdmin(false);
+      setAuthChecked(true);
+      setBalanceLoading(false);
+      setCatalogLoading(false);
+      router.replace("/login");
+      return;
+    }
 
-      if (!user) {
-        setAuthChecked(true);
-        setIsAdmin(false);
-        router.replace("/login");
-        return;
-      }
+    setUserEmail(user.email ?? null);
 
-      setUserEmail(user.email ?? null);
-
-      const [profileResult, balanceResult] = await Promise.all([
+    const [profileResult, balanceResult, catalogResult, unlockResult] =
+      await Promise.all([
         supabase.from("profiles").select("role").eq("id", user.id).maybeSingle(),
         supabase
           .from("dream_token_transactions")
           .select("amount")
           .eq("user_id", user.id)
           .eq("token_kind", "virtual"),
+        supabase
+          .from("nova_home_zone_catalog")
+          .select("zone_key,title,subtitle,dt_cost,sort_order")
+          .eq("area_key", "area-1")
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true }),
+        supabase
+          .from("nova_home_zone_unlocks")
+          .select("zone_key")
+          .eq("user_id", user.id),
       ]);
 
-      if (!mounted) return;
+    const admin = normaliseRole(profileResult.data?.role) === "admin";
+    setIsAdmin(admin);
+    setAuthChecked(true);
 
-      const role = String(profileResult.data?.role || "")
-        .trim()
-        .toLowerCase();
-      const admin = role === "admin";
-
-      setIsAdmin(admin);
-      setAuthChecked(true);
-
-      if (!admin) {
-        router.replace("/inventor");
-        return;
-      }
-
-      if (balanceResult.error) {
-        console.warn(
-          "Could not load Dream Token balance for Nova's Home:",
-          balanceResult.error.message,
-        );
-        setDreamTokenBalance(0);
-      } else {
-        const total = (balanceResult.data || []).reduce(
-          (sum, row) => sum + Number(row.amount || 0),
-          0,
-        );
-        setDreamTokenBalance(total);
-      }
-
+    if (!admin) {
       setBalanceLoading(false);
+      setCatalogLoading(false);
+      router.replace("/inventor");
+      return;
     }
 
-    loadAdminPreview();
+    if (profileResult.error) {
+      console.warn(
+        "Could not load Nova Home role:",
+        profileResult.error.message,
+      );
+    }
+
+    if (balanceResult.error) {
+      console.warn(
+        "Could not load Dream Token balance:",
+        balanceResult.error.message,
+      );
+      setDreamTokenBalance(0);
+    } else {
+      const total = (balanceResult.data || []).reduce(
+        (sum, row) => sum + Number(row.amount || 0),
+        0,
+      );
+      setDreamTokenBalance(total);
+    }
+
+    if (catalogResult.error) {
+      console.warn(
+        "Could not load Nova Home zone catalog:",
+        catalogResult.error.message,
+      );
+      setCatalogRows([]);
+      setSetupError(
+        "Nova Home zone tables are not ready yet. Run the Nova Home SQL migration before testing purchases.",
+      );
+    } else {
+      const rows = (catalogResult.data || []).map((row) => ({
+        zone_key: String(row.zone_key),
+        title: String(row.title || ""),
+        subtitle: row.subtitle ? String(row.subtitle) : null,
+        dt_cost: Number(row.dt_cost || 0),
+        sort_order: Number(row.sort_order || 0),
+      }));
+      setCatalogRows(rows);
+
+      const requiredKeys = new Set(ZONE_VISUALS.map((zone) => zone.key));
+      const receivedKeys = new Set(rows.map((row) => row.zone_key));
+      const missing = [...requiredKeys].filter((key) => !receivedKeys.has(key));
+
+      if (missing.length > 0) {
+        setSetupError(
+          `Nova Home catalog is missing: ${missing.join(", ")}. Re-run the seed section of the SQL migration.`,
+        );
+      }
+    }
+
+    if (unlockResult.error) {
+      console.warn(
+        "Could not load Nova Home unlocks:",
+        unlockResult.error.message,
+      );
+      setUnlockedZones(new Set());
+    } else {
+      const validZoneKeys = new Set<ZoneKey>(
+        ZONE_VISUALS.map((zone) => zone.key),
+      );
+      const owned = new Set<ZoneKey>();
+
+      ((unlockResult.data || []) as ZoneUnlockRow[]).forEach((row) => {
+        const key = String(row.zone_key) as ZoneKey;
+        if (validZoneKeys.has(key)) owned.add(key);
+      });
+
+      setUnlockedZones(owned);
+    }
+
+    setBalanceLoading(false);
+    setCatalogLoading(false);
+  }, [router]);
+
+  useEffect(() => {
+    loadNovaHome();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(() => {
-      loadAdminPreview();
+      loadNovaHome();
     });
 
-    function refreshBalance() {
-      loadAdminPreview();
+    function refreshFromWalletEvent() {
+      loadNovaHome();
     }
 
-    window.addEventListener("focus", refreshBalance);
-    window.addEventListener("dream-tokens-updated", refreshBalance);
+    window.addEventListener("focus", refreshFromWalletEvent);
+    window.addEventListener("dream-tokens-updated", refreshFromWalletEvent);
 
     return () => {
-      mounted = false;
       subscription.unsubscribe();
-      window.removeEventListener("focus", refreshBalance);
-      window.removeEventListener("dream-tokens-updated", refreshBalance);
+      window.removeEventListener("focus", refreshFromWalletEvent);
+      window.removeEventListener(
+        "dream-tokens-updated",
+        refreshFromWalletEvent,
+      );
     };
-  }, [router]);
+  }, [loadNovaHome]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMasks() {
+      setMaskLoading(true);
+      const loaded = new Map<ZoneKey, MaskPixels>();
+
+      await Promise.all(
+        ZONE_VISUALS.map(
+          (zone) =>
+            new Promise<void>((resolve) => {
+              const image = new Image();
+              image.decoding = "async";
+              image.onload = () => {
+                if (cancelled) {
+                  resolve();
+                  return;
+                }
+
+                const canvas = document.createElement("canvas");
+                canvas.width = image.naturalWidth;
+                canvas.height = image.naturalHeight;
+                const context = canvas.getContext("2d", {
+                  willReadFrequently: true,
+                });
+
+                if (!context) {
+                  resolve();
+                  return;
+                }
+
+                context.clearRect(0, 0, canvas.width, canvas.height);
+                context.drawImage(image, 0, 0);
+                const imageData = context.getImageData(
+                  0,
+                  0,
+                  canvas.width,
+                  canvas.height,
+                );
+                const alpha = new Uint8ClampedArray(
+                  canvas.width * canvas.height,
+                );
+
+                for (let pixel = 0; pixel < alpha.length; pixel += 1) {
+                  alpha[pixel] = imageData.data[pixel * 4 + 3];
+                }
+
+                loaded.set(zone.key, {
+                  width: canvas.width,
+                  height: canvas.height,
+                  alpha,
+                });
+
+                resolve();
+              };
+              image.onerror = () => resolve();
+              image.src = zone.maskImage;
+            }),
+        ),
+      );
+
+      if (cancelled) return;
+      maskPixelsRef.current = loaded;
+      setMaskLoading(false);
+    }
+
+    loadMasks();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const getZoneAtClientPoint = useCallback(
+    (clientX: number, clientY: number): ZoneKey | null => {
+      const stage = stageRef.current;
+      if (!stage) return null;
+
+      const rect = stage.getBoundingClientRect();
+      if (
+        clientX < rect.left ||
+        clientX > rect.right ||
+        clientY < rect.top ||
+        clientY > rect.bottom ||
+        rect.width <= 0 ||
+        rect.height <= 0
+      ) {
+        return null;
+      }
+
+      const xRatio = (clientX - rect.left) / rect.width;
+      const yRatio = (clientY - rect.top) / rect.height;
+
+      for (const key of HIT_TEST_ORDER) {
+        const mask = maskPixelsRef.current.get(key);
+        if (!mask) continue;
+
+        const x = Math.min(
+          mask.width - 1,
+          Math.max(0, Math.floor(xRatio * mask.width)),
+        );
+        const y = Math.min(
+          mask.height - 1,
+          Math.max(0, Math.floor(yRatio * mask.height)),
+        );
+        const alpha = mask.alpha[y * mask.width + x];
+
+        if (alpha > 18) return key;
+      }
+
+      return null;
+    },
+    [],
+  );
+
+  function handlePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    if (maskLoading || purchasingZoneKey) return;
+    const key = getZoneAtClientPoint(event.clientX, event.clientY);
+    setHoveredZoneKey(key);
+  }
+
+  function handlePointerLeave() {
+    setHoveredZoneKey(null);
+  }
+
+  function handleZoneTap(event: ReactPointerEvent<HTMLDivElement>) {
+    if (maskLoading || purchasingZoneKey) return;
+
+    const key = getZoneAtClientPoint(event.clientX, event.clientY);
+    if (!key) {
+      setSelectedZoneKey(null);
+      return;
+    }
+
+    setSelectedZoneKey(key);
+    setMessage("");
+  }
+
+  async function purchaseZone(zoneKey: ZoneKey) {
+    const zone = zoneMap.get(zoneKey);
+    if (!zone || purchasingZoneKey || setupError) return;
+
+    if (unlockedZones.has(zoneKey)) {
+      setMessage(`${zone.title} is already unlocked.`);
+      return;
+    }
+
+    if (dreamTokenBalance < zone.dtCost) {
+      setMessage(
+        `You need ${formatDT(zone.dtCost - dreamTokenBalance)} more to unlock ${zone.title}.`,
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Unlock ${zone.title} for ${formatDT(zone.dtCost)}?`,
+    );
+    if (!confirmed) return;
+
+    setPurchasingZoneKey(zoneKey);
+    setMessage("");
+
+    const { data, error } = await supabase.rpc("purchase_nova_home_zone", {
+      p_zone_key: zoneKey,
+    });
+
+    setPurchasingZoneKey(null);
+
+    if (error) {
+      setMessage(error.message || "The zone could not be unlocked.");
+      return;
+    }
+
+    const result = getPurchaseResult(data);
+    if (!result) {
+      setMessage("The purchase completed, but the result could not be read.");
+      await loadNovaHome();
+      return;
+    }
+
+    setUnlockedZones((current) => {
+      const next = new Set(current);
+      next.add(zoneKey);
+      return next;
+    });
+    setDreamTokenBalance(Math.max(0, result.new_balance));
+    setSelectedZoneKey(null);
+    setHoveredZoneKey(null);
+    setMessage(
+      result.already_owned
+        ? `${zone.title} was already unlocked.`
+        : `${zone.title} unlocked for ${formatDT(result.cost_paid)}.`,
+    );
+
+    window.dispatchEvent(new Event("dream-tokens-updated"));
+  }
 
   if (!authChecked || !isAdmin) {
     return (
@@ -174,21 +544,21 @@ export default function NovaHomePage() {
   }
 
   return (
-    <main className="min-h-[100dvh] bg-[#020713] text-white">
-      <div className="fixed inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(39,145,190,0.16),transparent_38%),linear-gradient(180deg,#04101d_0%,#020713_72%)]" />
+    <main className="relative min-h-[100dvh] overflow-x-hidden bg-[#020713] text-white">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(39,145,190,0.16),transparent_38%),linear-gradient(180deg,#04101d_0%,#020713_72%)]" />
 
-      <header className="relative z-20 flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
+      <header className="relative z-30 flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
         <button
           type="button"
           onClick={() => router.push("/inventor")}
-          className="flex h-11 items-center gap-2 rounded-full border border-cyan-200/35 bg-slate-950/65 px-4 text-xs font-black uppercase tracking-[0.1em] text-white shadow-[0_14px_34px_rgba(0,0,0,0.28)] backdrop-blur-xl hover:bg-cyan-300/10"
+          className="flex h-11 items-center gap-2 rounded-full border border-cyan-200/35 bg-slate-950/65 px-4 text-xs font-black uppercase tracking-[0.1em] text-white shadow-[0_14px_34px_rgba(0,0,0,0.28)] backdrop-blur-xl transition hover:bg-cyan-300/10"
         >
           <span aria-hidden="true">←</span>
           Nova’s World
         </button>
 
         <div className="flex items-center gap-2">
-          <div className="rounded-full border border-cyan-200/30 bg-slate-950/70 px-4 py-2 text-right shadow-[0_14px_34px_rgba(0,0,0,0.28)] backdrop-blur-xl">
+          <div className="rounded-full border border-cyan-200/30 bg-slate-950/72 px-4 py-2 text-right shadow-[0_14px_34px_rgba(0,0,0,0.28)] backdrop-blur-xl">
             <p className="text-[9px] font-black uppercase tracking-[0.15em] text-cyan-200/55">
               Dream Tokens
             </p>
@@ -197,238 +567,265 @@ export default function NovaHomePage() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowInfo(true)}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-white/[0.05] text-lg font-black text-white backdrop-blur-xl hover:bg-white/[0.1]"
-            aria-label="About Nova's Home preview"
-          >
-            i
-          </button>
+          <div className="rounded-full border border-white/12 bg-white/[0.045] px-4 py-2 text-right backdrop-blur-xl">
+            <p className="text-[9px] font-black uppercase tracking-[0.15em] text-white/38">
+              Area 1
+            </p>
+            <p className="mt-0.5 text-sm font-black text-white">
+              {unlockedCount}/4 unlocked
+            </p>
+          </div>
         </div>
       </header>
 
-      <section className="relative z-10 mx-auto w-full max-w-[1500px] px-4 pb-12 sm:px-6 lg:px-8">
-        <div className="pt-4 text-center sm:pt-6">
+      <section className="relative z-10 mx-auto w-full max-w-[1600px] px-3 pb-10 sm:px-6 lg:px-8">
+        <div className="pb-5 pt-2 text-center sm:pb-7 sm:pt-4">
           <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-300 sm:text-xs">
             Admin Development Preview
           </p>
-          <h1 className="mt-3 font-serif text-4xl font-medium tracking-[-0.04em] text-white sm:text-6xl lg:text-7xl">
+          <h1 className="mt-2 font-serif text-4xl font-medium tracking-[-0.04em] sm:text-5xl lg:text-6xl">
             Nova’s Home
           </h1>
-          <p className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-white/62 sm:text-base">
-            Build Nova’s connected home over time. Area 1 is the starting space;
-            future areas expand the same home and become meaningful Dream Token sinks.
+          <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-white/58 sm:text-base">
+            Hover over a darkened part of Nova’s room to see its Dream Token
+            unlock price. Tap or click a zone to purchase it.
           </p>
         </div>
 
-        <div className="mt-8 overflow-hidden rounded-[28px] border border-cyan-200/18 bg-white/[0.035] shadow-[0_30px_90px_rgba(0,0,0,0.42)] sm:mt-10">
-          <div className="relative aspect-[16/9] min-h-[360px] w-full bg-[#06101c] sm:min-h-[500px] lg:min-h-[620px]">
+        {setupError && (
+          <div className="mx-auto mb-4 max-w-4xl rounded-[18px] border border-amber-200/28 bg-amber-300/[0.08] px-4 py-3 text-sm leading-6 text-amber-50/88">
+            {setupError}
+          </div>
+        )}
+
+        <div className="mx-auto w-full max-w-[1535px]">
+          <div
+            ref={stageRef}
+            onPointerMove={handlePointerMove}
+            onPointerLeave={handlePointerLeave}
+            onPointerUp={handleZoneTap}
+            className={`relative isolate w-full touch-manipulation select-none overflow-hidden rounded-[22px] border border-cyan-200/18 bg-black shadow-[0_32px_100px_rgba(0,0,0,0.58)] sm:rounded-[28px] ${
+              activeZoneKey ? "cursor-pointer" : "cursor-default"
+            }`}
+            style={{ aspectRatio: "1535 / 1024" }}
+            aria-label="Interactive Nova Home Area 1"
+          >
             <img
-              key={selectedArea.image}
-              src={selectedArea.image}
-              alt={`${selectedArea.title} isometric placeholder`}
-              className="absolute inset-0 h-full w-full object-cover"
+              src={AREA_IMAGE}
+              alt="Nova's fully furnished starter room"
+              className="pointer-events-none absolute inset-0 h-full w-full"
               draggable={false}
             />
 
-            <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/65" />
+            {zones.map((zone) => {
+              if (unlockedZones.has(zone.key)) return null;
+              const hovered = hoveredZoneKey === zone.key;
+              const selected = selectedZoneKey === zone.key;
 
-            <div className="absolute left-4 top-4 rounded-full border border-white/15 bg-slate-950/68 px-3 py-2 text-[10px] font-black uppercase tracking-[0.13em] text-white/78 backdrop-blur-xl sm:left-6 sm:top-6 sm:px-4 sm:text-xs">
-              Isometric placeholder · Phase 1
+              return (
+                <img
+                  key={zone.key}
+                  src={zone.maskImage}
+                  alt=""
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 h-full w-full transition duration-150"
+                  draggable={false}
+                  style={{
+                    opacity: hovered || selected ? 0.62 : 1,
+                    filter:
+                      hovered || selected
+                        ? `drop-shadow(0 0 8px ${zone.accent}) drop-shadow(0 0 18px rgba(83,215,255,0.45))`
+                        : "none",
+                  }}
+                />
+              );
+            })}
+
+            <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2 sm:left-5 sm:top-5">
+              <span className="rounded-full border border-white/14 bg-slate-950/70 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.13em] text-white/72 backdrop-blur-xl sm:text-[10px]">
+                Area 1 · Starter Quarters
+              </span>
+              {allZonesUnlocked && (
+                <span className="rounded-full border border-emerald-200/24 bg-emerald-300/10 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.13em] text-emerald-100 backdrop-blur-xl sm:text-[10px]">
+                  Fully Unlocked
+                </span>
+              )}
             </div>
 
-            {!selectedArea.ownedInPhase1 && (
-              <div className="absolute inset-0 flex items-center justify-center bg-slate-950/28 backdrop-blur-[1px]">
-                <div className="rounded-[24px] border border-amber-200/32 bg-slate-950/78 px-6 py-5 text-center shadow-[0_24px_70px_rgba(0,0,0,0.48)] backdrop-blur-xl">
-                  <div className="text-3xl">🔒</div>
-                  <p className="mt-3 text-xs font-black uppercase tracking-[0.16em] text-amber-100/70">
-                    Expansion Locked
-                  </p>
-                  <p className="mt-2 text-3xl font-black text-white">
-                    {formatDT(selectedArea.dtCost)}
-                  </p>
-                  <p className="mx-auto mt-2 max-w-xs text-xs leading-5 text-white/48">
-                    Purchase wiring will be connected to a secure ownership ledger after the visual review.
-                  </p>
+            {maskLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-slate-950/34 backdrop-blur-[1px]">
+                <div className="rounded-full border border-cyan-200/24 bg-slate-950/78 px-4 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100 backdrop-blur-xl">
+                  Loading room zones...
                 </div>
               </div>
             )}
 
-            <div className="absolute bottom-0 left-0 right-0 flex flex-col gap-3 p-4 sm:flex-row sm:items-end sm:justify-between sm:p-6">
-              <div className="max-w-xl rounded-[20px] border border-white/12 bg-slate-950/62 p-4 backdrop-blur-xl sm:p-5">
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full border border-cyan-200/25 bg-cyan-300/10 px-3 py-1 text-[9px] font-black uppercase tracking-[0.13em] text-cyan-100">
-                    {selectedArea.ownedInPhase1 ? "Owned" : "Preview Locked"}
-                  </span>
-                  <span className="text-[10px] font-black uppercase tracking-[0.13em] text-white/36">
-                    {selectedArea.shortLabel}
-                  </span>
-                </div>
-                <h2 className="mt-3 text-2xl font-black sm:text-3xl">
-                  {selectedArea.title}
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-white/62">
-                  {selectedArea.description}
-                </p>
-              </div>
-
-              {!selectedArea.ownedInPhase1 && (
-                <button
-                  type="button"
-                  disabled
-                  className="min-h-12 rounded-full border border-white/12 bg-white/[0.06] px-6 text-xs font-black uppercase tracking-[0.12em] text-white/34"
+            {!maskLoading && activeZone && (
+              <div className="pointer-events-none absolute bottom-3 left-1/2 w-[min(440px,calc(100%-24px))] -translate-x-1/2 sm:bottom-5">
+                <div
+                  className={`rounded-[20px] border px-4 py-3 shadow-[0_24px_60px_rgba(0,0,0,0.46)] backdrop-blur-xl sm:px-5 sm:py-4 ${
+                    activeZoneUnlocked
+                      ? "border-emerald-200/25 bg-emerald-950/80"
+                      : "border-cyan-200/30 bg-slate-950/84"
+                  }`}
                 >
-                  Unlock for {formatDT(selectedArea.dtCost)}
-                </button>
-              )}
-            </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-[9px] font-black uppercase tracking-[0.15em] text-cyan-200/58">
+                        {activeZoneUnlocked ? "Unlocked" : "Unlock Zone"}
+                      </p>
+                      <h2 className="mt-1 truncate text-base font-black text-white sm:text-lg">
+                        {activeZone.title}
+                      </h2>
+                      <p className="mt-1 hidden text-xs leading-5 text-white/50 sm:block">
+                        {activeZone.subtitle}
+                      </p>
+                    </div>
+
+                    <div className="shrink-0 text-right">
+                      {activeZoneUnlocked ? (
+                        <span className="inline-flex rounded-full border border-emerald-200/24 bg-emerald-300/10 px-3 py-2 text-xs font-black text-emerald-100">
+                          ✓ Owned
+                        </span>
+                      ) : (
+                        <>
+                          <p className="text-xl font-black text-cyan-100 sm:text-2xl">
+                            {catalogLoading
+                              ? "..."
+                              : formatDT(activeZone.dtCost)}
+                          </p>
+                          <p className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-white/34">
+                            Click to select
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="mt-8 rounded-[28px] border border-white/10 bg-white/[0.025] p-4 sm:p-6">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200/60">
-                Home Expansion Path
-              </p>
-              <h2 className="mt-2 text-2xl font-black sm:text-3xl">
-                Three connected areas
-              </h2>
-            </div>
-            <p className="max-w-xl text-xs leading-5 text-white/46 sm:text-right">
-              Area 2 connects directly to Area 1. Area 3 continues from Area 2, so the home grows as one continuous environment rather than separate rooms in a menu.
-            </p>
-          </div>
+        <div className="mx-auto mt-5 grid max-w-[1535px] grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+          {zones.map((zone) => {
+            const unlocked = unlockedZones.has(zone.key);
+            const selected = selectedZoneKey === zone.key;
+            const affordable = dreamTokenBalance >= zone.dtCost;
 
-          <div className="mt-6 grid grid-cols-1 gap-0 lg:grid-cols-[1fr_64px_1fr_64px_1fr] lg:items-stretch">
-            {HOME_AREAS.map((area, index) => {
-              const active = selectedAreaId === area.id;
-              const affordable = dreamTokenBalance >= area.dtCost;
-
-              return (
-                <div key={area.id} className="contents">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedAreaId(area.id)}
-                    className={`group overflow-hidden rounded-[22px] border text-left transition ${
-                      active
-                        ? "border-cyan-200/65 bg-cyan-300/[0.08] shadow-[0_0_32px_rgba(83,215,255,0.16)]"
-                        : area.ownedInPhase1
-                          ? "border-white/12 bg-white/[0.035] hover:border-cyan-200/32"
-                          : "border-amber-200/18 bg-amber-300/[0.025] hover:border-amber-200/32"
+            return (
+              <button
+                key={zone.key}
+                type="button"
+                onClick={() => {
+                  setSelectedZoneKey(zone.key);
+                  setMessage("");
+                }}
+                className={`rounded-[16px] border px-3 py-3 text-left transition sm:rounded-[18px] sm:px-4 ${
+                  selected
+                    ? "border-cyan-200/58 bg-cyan-300/[0.09] shadow-[0_0_24px_rgba(83,215,255,0.12)]"
+                    : unlocked
+                      ? "border-emerald-200/16 bg-emerald-300/[0.045]"
+                      : "border-white/10 bg-white/[0.025] hover:border-cyan-200/24"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-black text-white sm:text-sm">
+                      {zone.title}
+                    </p>
+                    <p className="mt-1 text-[9px] font-bold uppercase tracking-[0.11em] text-white/34">
+                      {unlocked
+                        ? "Unlocked"
+                        : affordable
+                          ? "Ready to unlock"
+                          : "Save more DT"}
+                    </p>
+                  </div>
+                  <strong
+                    className={`shrink-0 text-[10px] sm:text-xs ${
+                      unlocked
+                        ? "text-emerald-200"
+                        : affordable
+                          ? "text-cyan-200"
+                          : "text-white/34"
                     }`}
                   >
-                    <div className="relative aspect-[16/10] overflow-hidden bg-[#06101c]">
-                      <img
-                        src={area.image}
-                        alt=""
-                        className={`h-full w-full object-cover transition duration-300 group-hover:scale-[1.02] ${
-                          area.ownedInPhase1 ? "" : "brightness-[0.58] saturate-[0.7]"
-                        }`}
-                        draggable={false}
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/76 via-transparent to-transparent" />
+                    {unlocked ? "✓" : formatDT(zone.dtCost)}
+                  </strong>
+                </div>
+              </button>
+            );
+          })}
+        </div>
 
-                      <div className="absolute left-3 top-3 flex h-8 w-8 items-center justify-center rounded-full border border-white/18 bg-slate-950/70 text-xs font-black">
-                        {area.number}
-                      </div>
+        {selectedZoneKey && zoneMap.get(selectedZoneKey) && (
+          <div className="mx-auto mt-4 max-w-2xl rounded-[22px] border border-cyan-200/18 bg-slate-950/72 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:p-5">
+            {(() => {
+              const zone = zoneMap.get(selectedZoneKey)!;
+              const unlocked = unlockedZones.has(zone.key);
+              const affordable = dreamTokenBalance >= zone.dtCost;
+              const purchasing = purchasingZoneKey === zone.key;
 
-                      {!area.ownedInPhase1 && (
-                        <div className="absolute right-3 top-3 rounded-full border border-amber-200/28 bg-slate-950/72 px-3 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100">
-                          🔒 {formatDT(area.dtCost)}
-                        </div>
-                      )}
+              return (
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-200/52">
+                      {unlocked ? "Zone Owned" : "Selected Upgrade"}
+                    </p>
+                    <h2 className="mt-1 text-xl font-black">{zone.title}</h2>
+                    <p className="mt-1 text-xs leading-5 text-white/48">
+                      {zone.subtitle}
+                    </p>
+                  </div>
+
+                  {unlocked ? (
+                    <div className="shrink-0 rounded-full border border-emerald-200/22 bg-emerald-300/10 px-5 py-3 text-xs font-black uppercase tracking-[0.1em] text-emerald-100">
+                      ✓ Unlocked
                     </div>
-
-                    <div className="p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-[9px] font-black uppercase tracking-[0.15em] text-white/36">
-                            {area.shortLabel}
-                          </p>
-                          <h3 className="mt-1 text-lg font-black text-white">
-                            {area.title}
-                          </h3>
-                        </div>
-
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.1em] ${
-                            area.ownedInPhase1
-                              ? "border border-emerald-200/24 bg-emerald-300/10 text-emerald-100"
-                              : affordable
-                                ? "border border-cyan-200/24 bg-cyan-300/10 text-cyan-100"
-                                : "border border-white/10 bg-white/[0.04] text-white/36"
-                          }`}
-                        >
-                          {area.ownedInPhase1
-                            ? "Owned"
-                            : affordable
-                              ? "Affordable"
-                              : "Save DT"}
-                        </span>
-                      </div>
-                    </div>
-                  </button>
-
-                  {index < HOME_AREAS.length - 1 && (
-                    <div className="flex min-h-12 items-center justify-center lg:min-h-0">
-                      <div className="relative flex h-12 w-12 items-center justify-center lg:h-full lg:w-16">
-                        <span className="absolute h-8 w-px bg-gradient-to-b from-cyan-200/5 via-cyan-200/46 to-cyan-200/5 lg:h-px lg:w-12 lg:bg-gradient-to-r" />
-                        <span className="relative flex h-7 w-7 rotate-90 items-center justify-center rounded-full border border-cyan-200/24 bg-[#071525] text-sm text-cyan-100/72 lg:rotate-0">
-                          →
-                        </span>
-                      </div>
-                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={
+                        purchasing ||
+                        catalogLoading ||
+                        Boolean(setupError) ||
+                        !affordable
+                      }
+                      onClick={() => purchaseZone(zone.key)}
+                      className={`min-h-12 shrink-0 rounded-full px-6 text-xs font-black uppercase tracking-[0.1em] transition ${
+                        affordable && !setupError
+                          ? "bg-cyan-300 text-slate-950 hover:bg-cyan-200 disabled:opacity-55"
+                          : "cursor-not-allowed border border-white/10 bg-white/[0.04] text-white/32"
+                      }`}
+                    >
+                      {purchasing
+                        ? "Unlocking..."
+                        : affordable
+                          ? `Unlock · ${formatDT(zone.dtCost)}`
+                          : `Need ${formatDT(zone.dtCost - dreamTokenBalance)}`}
+                    </button>
                   )}
                 </div>
               );
-            })}
+            })()}
           </div>
-        </div>
+        )}
 
-        <div className="mt-6 flex flex-col gap-3 rounded-[22px] border border-cyan-200/12 bg-cyan-300/[0.035] p-4 text-xs leading-5 text-white/52 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        {message && (
+          <div className="mx-auto mt-4 max-w-2xl rounded-[18px] border border-white/12 bg-white/[0.04] px-4 py-3 text-center text-xs leading-5 text-white/68">
+            {message}
+          </div>
+        )}
+
+        <div className="mx-auto mt-5 flex max-w-[1535px] flex-col gap-2 rounded-[18px] border border-white/8 bg-white/[0.02] px-4 py-3 text-[10px] leading-5 text-white/34 sm:flex-row sm:items-center sm:justify-between sm:text-xs">
           <p>
-            <strong className="text-cyan-100">Phase 1 boundary:</strong> visual shell, admin gate, connected expansion order, placeholder isometric assets, and DT pricing structure.
+            The Area 2 doorway remains part of the room artwork and will be wired
+            to the next home expansion later.
           </p>
-          <p className="shrink-0 text-white/36">
-            Signed in as {userEmail || "admin"}
-          </p>
+          <p className="shrink-0">Signed in as {userEmail || "admin"}</p>
         </div>
       </section>
-
-      {showInfo && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-md"
-          onClick={() => setShowInfo(false)}
-        >
-          <section
-            className="relative w-full max-w-xl rounded-[28px] border border-cyan-200/30 bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950 p-6 text-white shadow-[0_30px_90px_rgba(0,0,0,0.62)] sm:p-8"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setShowInfo(false)}
-              className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border border-white/12 bg-white/[0.05] text-xl"
-            >
-              ×
-            </button>
-
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200/65">
-              Phase 1 Preview
-            </p>
-            <h2 className="mt-3 text-3xl font-black">Nova’s Home foundation</h2>
-            <div className="mt-5 grid gap-3 text-sm leading-6 text-white/65">
-              <p>Area 1 is owned from the start.</p>
-              <p>Area 2 requires Area 1 and will cost Dream Tokens.</p>
-              <p>Area 3 requires Area 2 and will cost more Dream Tokens.</p>
-              <p>
-                Real purchase/debit logic is intentionally not active until a secure Nova-home ownership record and server-side purchase function are added.
-              </p>
-            </div>
-          </section>
-        </div>
-      )}
     </main>
   );
 }
