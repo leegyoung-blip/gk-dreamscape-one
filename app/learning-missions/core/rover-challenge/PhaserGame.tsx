@@ -158,6 +158,9 @@ class RoverMatterScene extends Phaser.Scene {
 
   private readonly jumpCooldownMs = 420;
   private readonly airborneTiltDelayMs = 150;
+  private readonly airborneLevelingDelayMs = 220;
+  private readonly airborneLevelingRate = 3.8;
+  private readonly airborneAngularDampingRate = 6.5;
 
   constructor({
     roverStage,
@@ -2204,28 +2207,85 @@ class RoverMatterScene extends Phaser.Scene {
     }
 
     /*
-     * While airborne, retain gentle air tilt but prevent unrealistic
-     * full rotations.
+     * At boost speed the rover can leave a hill while still carrying
+     * the hill's pitch and collision-generated angular velocity. A
+     * short delay preserves the natural take-off angle, then a gentle
+     * spring brings the chassis back toward level for a predictable
+     * landing. The hard limit is only a final safety net.
      */
     const maximumAirRotation =
-      Phaser.Math.DegToRad(52);
+      Phaser.Math.DegToRad(34);
+
+    const boundedRotation =
+      Phaser.Math.Clamp(
+        currentRotation,
+        -maximumAirRotation,
+        maximumAirRotation,
+      );
 
     if (
-      Math.abs(currentRotation) >
-      maximumAirRotation
+      boundedRotation !==
+      currentRotation
     ) {
       this.roverBody.setRotation(
-        Phaser.Math.Clamp(
-          currentRotation,
-          -maximumAirRotation,
-          maximumAirRotation,
-        ),
-      );
-
-      this.roverBody.setAngularVelocity(
-        body.angularVelocity * 0.18,
+        boundedRotation,
       );
     }
+
+    if (
+      this.airborneTime <
+      this.airborneLevelingDelayMs
+    ) {
+      if (
+        boundedRotation !==
+        currentRotation
+      ) {
+        this.roverBody.setAngularVelocity(
+          body.angularVelocity * 0.2,
+        );
+      }
+
+      return;
+    }
+
+    const seconds = delta / 1000;
+
+    const levelingSmoothing =
+      1 -
+      Math.exp(
+        -this.airborneLevelingRate *
+          seconds,
+      );
+
+    const angularDamping =
+      Math.exp(
+        -this.airborneAngularDampingRate *
+          seconds,
+      );
+
+    const levelledRotation =
+      Phaser.Math.Linear(
+        boundedRotation,
+        0,
+        levelingSmoothing,
+      );
+
+    this.roverBody.setRotation(
+      Phaser.Math.Clamp(
+        levelledRotation,
+        -maximumAirRotation,
+        maximumAirRotation,
+      ),
+    );
+
+    this.roverBody.setAngularVelocity(
+      Phaser.Math.Clamp(
+        body.angularVelocity *
+          angularDamping,
+        -0.018,
+        0.018,
+      ),
+    );
   }
 
   private getTerrainAngleAtX(

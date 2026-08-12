@@ -602,8 +602,8 @@ export default function RoverChallengeClient() {
         </div>
       </header>
 
-      <section className="relative z-10 px-3 sm:px-5">
-        <div className="mx-auto mb-5 flex w-full max-w-[1600px] flex-col gap-2 px-1 sm:flex-row sm:items-end sm:justify-between sm:px-3">
+      <section className="relative z-10">
+        <div className="mx-auto mb-5 flex w-full max-w-[1600px] flex-col gap-2 px-4 sm:flex-row sm:items-end sm:justify-between sm:px-8">
           <div>
             <p className="mb-2 text-xs font-semibold tracking-[0.28em] text-cyan-300">
               TEST COURSE 01
@@ -642,16 +642,7 @@ export default function RoverChallengeClient() {
                     ? "relative"
                     : "fixed inset-0 z-[1000]"
                 } h-[100dvh] w-screen overflow-hidden bg-[#050713]`
-              : "relative mx-auto overflow-hidden rounded-[24px] border border-white/10 bg-black shadow-[0_30px_100px_rgba(0,0,0,0.45)]"
-          }
-          style={
-            isGameFullscreen
-              ? undefined
-              : {
-                  width:
-                    "min(100%, calc((100dvh - 170px) * 16 / 9))",
-                  aspectRatio: "16 / 9",
-                }
+              : "relative aspect-video w-full overflow-hidden bg-black shadow-[0_30px_100px_rgba(0,0,0,0.45)]"
           }
         >
           <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-px bg-gradient-to-r from-transparent via-cyan-300/70 to-transparent" />
@@ -701,7 +692,7 @@ export default function RoverChallengeClient() {
           </button>
         </div>
 
-        <div className="mx-auto w-full max-w-[1600px] px-1 pb-10 pt-4 sm:px-3">
+        <div className="mx-auto w-full max-w-[1600px] px-4 pb-10 pt-4 sm:px-8">
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <InfoCard
             label="Course"
