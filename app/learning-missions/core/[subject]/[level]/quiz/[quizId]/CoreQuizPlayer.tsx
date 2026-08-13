@@ -35,6 +35,14 @@ type QuestionType =
 
 type JsonObject = Record<string, any>;
 
+type QuizOption = {
+  id: string;
+  text: string;
+  image_url: string | null;
+  image_alt: string | null;
+  show_text_with_image: boolean;
+};
+
 type QuestionAsset = {
   id: string;
   asset_type: "image" | "svg" | "audio" | "video";
@@ -206,15 +214,20 @@ function useResponsiveMode() {
   return mode;
 }
 
-function asOptions(content: JsonObject) {
+function asOptions(content: JsonObject): QuizOption[] {
   const options = Array.isArray(content.options) ? content.options : [];
   return options
     .map((option: any, index: number) => ({
       id: String(option?.id ?? index + 1),
       text: String(option?.text ?? ""),
       image_url: option?.image_url ? String(option.image_url) : null,
+      image_alt: option?.image_alt ? String(option.image_alt) : null,
+      show_text_with_image: option?.show_text_with_image === true,
     }))
-    .filter((option: { id: string; text: string }) => option.text.length > 0);
+    .filter(
+      (option: QuizOption) =>
+        option.text.trim().length > 0 || Boolean(option.image_url),
+    );
 }
 
 function responseIsComplete(question: QuizQuestion, response?: JsonObject) {
@@ -1001,8 +1014,20 @@ function QuestionResponse({
         options.length > 0
           ? options
           : [
-              { id: "true", text: "True", image_url: null },
-              { id: "false", text: "False", image_url: null },
+              {
+                id: "true",
+                text: "True",
+                image_url: null,
+                image_alt: null,
+                show_text_with_image: false,
+              },
+              {
+                id: "false",
+                text: "False",
+                image_url: null,
+                image_alt: null,
+                show_text_with_image: false,
+              },
             ];
       return (
         <OptionGrid optionCount={trueFalseOptions.length}>
@@ -1149,12 +1174,16 @@ function OptionButton({
   disabled,
   onClick,
 }: {
-  option: { id: string; text: string; image_url: string | null };
+  option: QuizOption;
   label: string;
   selected: boolean;
   disabled: boolean;
   onClick: () => void;
 }) {
+  const showText =
+    option.text.trim().length > 0 &&
+    (!option.image_url || option.show_text_with_image);
+
   return (
     <button
       type="button"
@@ -1167,7 +1196,7 @@ function OptionButton({
         {option.image_url && (
           <img
             src={option.image_url}
-            alt=""
+            alt={option.image_alt || `Image for option ${label}`}
             style={{
               display: "block",
               width: "100%",
@@ -1178,7 +1207,7 @@ function OptionButton({
             }}
           />
         )}
-        <span style={optionText}>{option.text}</span>
+        {showText && <span style={optionText}>{option.text}</span>}
       </span>
     </button>
   );
