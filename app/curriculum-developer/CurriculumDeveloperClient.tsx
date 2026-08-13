@@ -9,6 +9,7 @@ import DashboardView from "./components/DashboardView";
 import QuizBuilderView from "./components/QuizBuilderView";
 import ReviewQueueView from "./components/ReviewQueueView";
 import EditHistoryView from "./components/EditHistoryView";
+import AssetDeploymentView from "./components/AssetDeploymentView";
 import type {
   CoreQuiz,
   CoreSkill,
@@ -17,7 +18,7 @@ import type {
   CurriculumAuditEntry,
 } from "./types";
 
-type Section = "dashboard" | "builder" | "review" | "history";
+type Section = "dashboard" | "builder" | "review" | "history" | "deployment";
 
 const QUIZ_PAGE_SIZE = 500;
 
@@ -277,6 +278,15 @@ export default function CurriculumDeveloperClient() {
             onClick={() => setSection("history")}
           />
 
+          {role === "admin" && (
+            <NavButton
+              active={section === "deployment"}
+              label="Asset Deployment"
+              icon="⇧"
+              onClick={() => setSection("deployment")}
+            />
+          )}
+
           <div className="curriculum-sidebar-note" style={sidebarNote}>
             Admins and curriculum leads can create, edit and publish English and
             Mathematics quizzes. Published edits go live immediately.
@@ -284,7 +294,9 @@ export default function CurriculumDeveloperClient() {
         </aside>
 
         <section className="curriculum-workspace" style={workspace}>
-          {loading ? (
+          {section === "deployment" ? (
+            <AssetDeploymentView />
+          ) : loading ? (
             <PageMessage text="Loading curriculum content..." embedded />
           ) : loadError ? (
             <div style={errorBanner}>{loadError}</div>
