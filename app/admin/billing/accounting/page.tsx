@@ -105,6 +105,55 @@ type DreamscapeSummary = {
   public_net_collected: number | string;
 };
 
+type AccountingPeriodStatus = {
+  billing_period: string;
+  status: "open" | "closed";
+  closed_at: string | null;
+  closed_by: string | null;
+  close_notes: string | null;
+  close_snapshot: Record<string, unknown> | null;
+  reopened_at: string | null;
+  reopened_by: string | null;
+  reopen_reason: string | null;
+  close_version: number | string;
+  post_close_adjustment_count: number | string;
+};
+
+type PostCloseAdjustment = {
+  source_type: string;
+  record_id: string;
+  invoice_id: string;
+  invoice_number: string;
+  occurred_at: string;
+  description: string;
+  amount: number | string;
+  currency: string;
+};
+
+type DepositLiability = {
+  deposits_billed: number | string;
+  confirmed_deposits_received: number | string;
+  uncertain_part_paid_deposits: number | string;
+  deposit_returns_tagged: number | string;
+  confirmed_deposit_liability: number | string;
+  deposit_invoice_count: number | string;
+  tagged_return_count: number | string;
+};
+
+type RefundReviewRow = {
+  refund_id: string;
+  payment_id: string;
+  invoice_id: string;
+  invoice_number: string;
+  payer_name: string;
+  refund_amount: number | string;
+  currency: string;
+  refunded_at: string;
+  reason: string | null;
+  has_deposit_line: boolean;
+  deposit_return_tagged: boolean;
+};
+
 type LedgerRow = {
   id: string;
   date: string;
@@ -159,6 +208,19 @@ export default function AccountingPage() {
   const [dreamscapeSummary, setDreamscapeSummary] =
     useState<DreamscapeSummary | null>(null);
 
+  const [periodStatus, setPeriodStatus] =
+    useState<AccountingPeriodStatus | null>(null);
+  const [postCloseAdjustments, setPostCloseAdjustments] =
+    useState<PostCloseAdjustment[]>([]);
+  const [depositLiability, setDepositLiability] =
+    useState<DepositLiability | null>(null);
+  const [refundReview, setRefundReview] =
+    useState<RefundReviewRow[]>([]);
+
+  const [periodWorking, setPeriodWorking] = useState(false);
+  const [taggingRefundId, setTaggingRefundId] = useState("");
+  const [notice, setNotice] = useState("");
+
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [search, setSearch] = useState("");
@@ -180,6 +242,10 @@ export default function AccountingPage() {
       receivableResult,
       depositResult,
       dreamscapeResult,
+      periodStatusResult,
+      postCloseResult,
+      depositLiabilityResult,
+      refundReviewResult,
     ] = await Promise.all([
       supabase
         .from("gkp_billing_invoice_admin_overview")
@@ -218,6 +284,22 @@ export default function AccountingPage() {
       supabase.rpc("gkp_get_accounting_dreamscape_summary", {
         p_month: monthDate,
       }),
+
+      supabase.rpc("gkp_get_accounting_period_status", {
+        p_month: monthDate,
+      }),
+
+      supabase.rpc("gkp_get_accounting_post_close_adjustments", {
+        p_month: monthDate,
+      }),
+
+      supabase.rpc("gkp_get_accounting_deposit_liability", {
+        p_as_of: asOfDate,
+      }),
+
+      supabase.rpc("gkp_get_accounting_refund_review", {
+        p_month: monthDate,
+      }),
     ]);
 
     const firstError =
@@ -228,7 +310,11 @@ export default function AccountingPage() {
       programmeResult.error ||
       receivableResult.error ||
       depositResult.error ||
-      dreamscapeResult.error;
+      dreamscapeResult.error ||
+      periodStatusResult.error ||
+      postCloseResult.error ||
+      depositLiabilityResult.error ||
+      refundReviewResult.error;
 
     if (firstError) {
       setLoadError(firstError.message);
@@ -251,6 +337,22 @@ export default function AccountingPage() {
     const dreamscapeRows =
       (dreamscapeResult.data || []) as DreamscapeSummary[];
     setDreamscapeSummary(dreamscapeRows[0] || null);
+
+    const statusRows =
+      (periodStatusResult.data || []) as AccountingPeriodStatus[];
+    setPeriodStatus(statusRows[0] || null);
+
+    setPostCloseAdjustments(
+      (postCloseResult.data || []) as PostCloseAdjustment[],
+    );
+
+    const liabilityRows =
+      (depositLiabilityResult.data || []) as DepositLiability[];
+    setDepositLiability(liabilityRows[0] || null);
+
+    setRefundReview(
+      (refundReviewResult.data || []) as RefundReviewRow[],
+    );
 
     setLoading(false);
   }, [period]);
@@ -498,6 +600,463 @@ export default function AccountingPage() {
     });
   }, [ledger, ledgerType, search]);
 
+  async function closePeriod() {
+    const notes =
+      window.prompt(
+        `Close ${periodLabel(period)} for accounting?\n\nOptional close notes:`,
+        "",
+      ) ?? "";
+
+    const confirmed = window.confirm(
+      `Close ${periodLabel(period)}?\n\nThis stores an accounting snapshot. Operational billing is not frozen, but later changes will be flagged as post-close adjustments.`,
+    );
+
+    if (!confirmed) return;
+
+    setPeriodWorking(true);
+    setLoadError("");
+    setNotice("");
+
+    const { error } = await supabase.rpc(
+      "gkp_close_accounting_period",
+      {
+        p_month: `${period}-01`,
+        p_notes: notes.trim() || null,
+      },
+    );
+
+    if (error) {
+      setLoadError(error.message);
+    } else {
+      setNotice(
+        `${periodLabel(period)} accounting period closed. The current report snapshot has been stored.`,
+      );
+      await loadAccounting();
+    }
+
+    setPeriodWorking(false);
+  }
+
+  async function reopenPeriod() {
+    const reason = window.prompt(
+      `Why are you reopening ${periodLabel(period)}?`,
+      "",
+    );
+
+    if (!reason) return;
+
+    setPeriodWorking(true);
+    setLoadError("");
+    setNotice("");
+
+    const { error } = await supabase.rpc(
+      "gkp_reopen_accounting_period",
+      {
+        p_month: `${period}-01`,
+        p_reason: reason,
+      },
+    );
+
+    if (error) {
+      setLoadError(error.message);
+    } else {
+      setNotice(
+        `${periodLabel(period)} reopened. The previous close snapshot remains in the audit history.`,
+      );
+      await loadAccounting();
+    }
+
+    setPeriodWorking(false);
+  }
+
+  async function toggleDepositReturn(
+    row: RefundReviewRow,
+  ) {
+    setTaggingRefundId(row.refund_id);
+    setLoadError("");
+    setNotice("");
+
+    try {
+      if (row.deposit_return_tagged) {
+        const reason = window.prompt(
+          `Reverse the deposit-return tag for ${row.invoice_number}?\n\nReason:`,
+          "",
+        );
+
+        if (!reason) return;
+
+        const { error } = await supabase.rpc(
+          "gkp_reverse_accounting_deposit_return",
+          {
+            p_refund_id: row.refund_id,
+            p_reason: reason,
+          },
+        );
+
+        if (error) throw error;
+
+        setNotice(
+          `${row.invoice_number} refund is no longer classified as a refundable-deposit return.`,
+        );
+      } else {
+        const confirmed = window.confirm(
+          `Tag the ${formatCurrency(
+            numberValue(row.refund_amount),
+            row.currency,
+          )} refund on ${row.invoice_number} as a refundable-deposit return?\n\nOnly do this when the refund actually returned the student's refundable deposit.`,
+        );
+
+        if (!confirmed) return;
+
+        const { error } = await supabase.rpc(
+          "gkp_tag_accounting_deposit_return",
+          {
+            p_refund_id: row.refund_id,
+            p_notes: row.reason || null,
+          },
+        );
+
+        if (error) throw error;
+
+        setNotice(
+          `${row.invoice_number} refund tagged as a refundable-deposit return.`,
+        );
+      }
+
+      await loadAccounting();
+    } catch (error) {
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : "Deposit-return tagging failed.",
+      );
+    } finally {
+      setTaggingRefundId("");
+    }
+  }
+
+  function exportLedgerCsv() {
+    downloadCsv(
+      `GKP-${period}-transaction-ledger.csv`,
+      [
+        [
+          "Date",
+          "Type",
+          "Invoice",
+          "Family",
+          "Students",
+          "Description",
+          "Provider",
+          "Debit",
+          "Payment",
+          "Refund",
+          "Currency",
+          "Status",
+          "Reference",
+        ],
+        ...ledger.map((row) => [
+          row.date,
+          row.type,
+          row.invoiceNumber,
+          row.payer,
+          row.students,
+          row.description,
+          row.provider,
+          row.debit,
+          row.credit,
+          row.refund,
+          row.currency,
+          row.status,
+          row.reference,
+        ]),
+      ],
+    );
+  }
+
+  function exportReceivablesCsv() {
+    downloadCsv(
+      `GKP-${period}-receivables.csv`,
+      [
+        [
+          "Invoice",
+          "Account",
+          "Parent",
+          "Billing Period",
+          "Invoice Date",
+          "Due Date",
+          "Currency",
+          "Invoice Total",
+          "Paid As Of",
+          "Outstanding As Of",
+          "Days Overdue",
+          "Ageing Bucket",
+        ],
+        ...receivables.map((row) => [
+          row.invoice_number,
+          row.account_code,
+          row.payer_name,
+          row.billing_period || "",
+          row.invoice_date,
+          row.due_date,
+          row.currency,
+          numberValue(row.invoice_total),
+          numberValue(row.net_paid_as_of),
+          numberValue(row.outstanding_as_of),
+          numberValue(row.days_overdue),
+          AGEING_LABELS[row.ageing_bucket],
+        ]),
+      ],
+    );
+  }
+
+  function exportAccountingPack() {
+    const sheets: WorkbookSheet[] = [
+      {
+        name: "Summary",
+        rows: [
+          ["Guru Kids Pro Accounting Pack", periodLabel(period)],
+          ["Generated At", new Date().toLocaleString("en-SG")],
+          ["Period Status", periodStatus?.status || "open"],
+          ["Gross Invoiced", grossInvoiced],
+          ["Classified Net Revenue", netClassifiedRevenue],
+          ["Net Cash Collected", netCollected],
+          ["Refunds", refunded],
+          ["Receivables At Month-End", receivablesTotal],
+          [
+            "Confirmed Deposit Liability",
+            numberValue(depositLiability?.confirmed_deposit_liability),
+          ],
+          [
+            "Post-Close Adjustments",
+            numberValue(periodStatus?.post_close_adjustment_count),
+          ],
+        ],
+      },
+      {
+        name: "Revenue",
+        rows: [
+          [
+            "Category",
+            "Class",
+            "Gross",
+            "Reductions",
+            "Classified Amount",
+            "Lines",
+          ],
+          ...categories.map((row) => [
+            row.category_label,
+            row.accounting_class,
+            numberValue(row.gross_amount),
+            numberValue(row.reductions),
+            numberValue(row.classified_amount),
+            numberValue(row.line_count),
+          ]),
+        ],
+      },
+      {
+        name: "Programme Revenue",
+        rows: [
+          [
+            "Programme Code",
+            "Programme",
+            "Invoices",
+            "Students",
+            "Gross",
+            "Discounts",
+            "Net",
+          ],
+          ...programmeRevenue.map((row) => [
+            row.programme_code,
+            row.programme_name,
+            numberValue(row.invoice_count),
+            numberValue(row.student_count),
+            numberValue(row.gross_amount),
+            numberValue(row.discounts),
+            numberValue(row.net_amount),
+          ]),
+        ],
+      },
+      {
+        name: "Receivables",
+        rows: [
+          [
+            "Invoice",
+            "Account",
+            "Parent",
+            "Due Date",
+            "Invoice Total",
+            "Paid As Of",
+            "Outstanding",
+            "Ageing",
+          ],
+          ...receivables.map((row) => [
+            row.invoice_number,
+            row.account_code,
+            row.payer_name,
+            row.due_date,
+            numberValue(row.invoice_total),
+            numberValue(row.net_paid_as_of),
+            numberValue(row.outstanding_as_of),
+            AGEING_LABELS[row.ageing_bucket],
+          ]),
+        ],
+      },
+      {
+        name: "Payments",
+        rows: [
+          [
+            "Paid At",
+            "Invoice",
+            "Parent",
+            "Students",
+            "Provider",
+            "Payment Method",
+            "Status",
+            "Gross",
+            "Refund Total",
+            "Net",
+            "Currency",
+            "Reference",
+          ],
+          ...periodPayments.map((row) => [
+            row.paid_at || row.created_at || "",
+            row.invoice_number || "",
+            row.payer_name || row.account_code || "",
+            row.student_names || "",
+            row.provider || "",
+            row.payment_method || "",
+            row.payment_status || "",
+            numberValue(row.gross_amount),
+            numberValue(row.refund_total),
+            numberValue(row.net_amount),
+            row.currency || "SGD",
+            row.provider_reference || row.provider_payment_id || "",
+          ]),
+        ],
+      },
+      {
+        name: "Refunds",
+        rows: [
+          [
+            "Refunded At",
+            "Refund ID",
+            "Payment ID",
+            "Amount",
+            "Reason",
+            "Provider Refund ID",
+          ],
+          ...periodRefunds.map((row) => [
+            row.refunded_at || row.created_at || "",
+            row.id,
+            row.payment_id,
+            numberValue(row.amount),
+            row.reason || "",
+            row.provider_refund_id || "",
+          ]),
+        ],
+      },
+      {
+        name: "Dreamscape",
+        rows: [
+          ["GKP Add-ons Billed", numberValue(dreamscapeSummary?.gkp_addon_billed)],
+          ["GKP Add-on Lines", numberValue(dreamscapeSummary?.gkp_addon_line_count)],
+          [
+            "Public Gross Collected",
+            numberValue(dreamscapeSummary?.public_gross_collected),
+          ],
+          ["Public Refunds", numberValue(dreamscapeSummary?.public_refunds)],
+          [
+            "Public Net Collected",
+            numberValue(dreamscapeSummary?.public_net_collected),
+          ],
+        ],
+      },
+      {
+        name: "Deposits",
+        rows: [
+          ["Deposits Billed", numberValue(depositLiability?.deposits_billed)],
+          [
+            "Confirmed Deposits Received",
+            numberValue(depositLiability?.confirmed_deposits_received),
+          ],
+          [
+            "Uncertain Part-Paid Deposits",
+            numberValue(depositLiability?.uncertain_part_paid_deposits),
+          ],
+          [
+            "Deposit Returns Tagged",
+            numberValue(depositLiability?.deposit_returns_tagged),
+          ],
+          [
+            "Confirmed Deposit Liability",
+            numberValue(depositLiability?.confirmed_deposit_liability),
+          ],
+        ],
+      },
+      {
+        name: "Ledger",
+        rows: [
+          [
+            "Date",
+            "Type",
+            "Invoice",
+            "Family",
+            "Students",
+            "Description",
+            "Provider",
+            "Debit",
+            "Payment",
+            "Refund",
+            "Currency",
+            "Status",
+            "Reference",
+          ],
+          ...ledger.map((row) => [
+            row.date,
+            row.type,
+            row.invoiceNumber,
+            row.payer,
+            row.students,
+            row.description,
+            row.provider,
+            row.debit,
+            row.credit,
+            row.refund,
+            row.currency,
+            row.status,
+            row.reference,
+          ]),
+        ],
+      },
+      {
+        name: "Post-Close Changes",
+        rows: [
+          [
+            "Type",
+            "Invoice",
+            "Occurred At",
+            "Description",
+            "Amount",
+            "Currency",
+          ],
+          ...postCloseAdjustments.map((row) => [
+            row.source_type,
+            row.invoice_number,
+            row.occurred_at,
+            row.description,
+            numberValue(row.amount),
+            row.currency,
+          ]),
+        ],
+      },
+    ];
+
+    downloadExcelXmlWorkbook(
+      `GKP-${period}-accounting-pack.xls`,
+      sheets,
+    );
+  }
+
   return (
     <BillingAdminShell
       eyebrow="Financial reporting"
@@ -526,6 +1085,33 @@ export default function AccountingPage() {
           >
             {loading ? "Refreshing…" : "Refresh"}
           </button>
+
+          <button
+            type="button"
+            onClick={exportAccountingPack}
+            disabled={loading}
+            className="min-h-11 rounded-full bg-[#15233b] px-4 text-xs font-bold text-white disabled:opacity-50"
+          >
+            Excel Accounting Pack
+          </button>
+
+          <button
+            type="button"
+            onClick={exportLedgerCsv}
+            disabled={loading}
+            className="min-h-11 rounded-full border border-[#d7c9ae] bg-white px-4 text-xs font-bold text-[#554d40] disabled:opacity-50"
+          >
+            Ledger CSV
+          </button>
+
+          <button
+            type="button"
+            onClick={exportReceivablesCsv}
+            disabled={loading}
+            className="min-h-11 rounded-full border border-[#d7c9ae] bg-white px-4 text-xs font-bold text-[#554d40] disabled:opacity-50"
+          >
+            Receivables CSV
+          </button>
         </>
       }
     >
@@ -534,6 +1120,77 @@ export default function AccountingPage() {
           {loadError}
         </div>
       )}
+
+      {notice && (
+        <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+          {notice}
+        </div>
+      )}
+
+      <section className="mb-6 rounded-[2rem] border border-[#ded5c4] bg-white p-5 shadow-[0_20px_60px_rgba(21,35,59,0.05)] sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#8a8378]">
+              Accounting period
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <h2 className="text-lg font-semibold text-[#15233b]">
+                {periodLabel(period)}
+              </h2>
+              <PeriodStatusPill
+                value={periodStatus?.status || "open"}
+              />
+            </div>
+            <p className="mt-2 max-w-3xl text-xs leading-5 text-[#81796d]">
+              Closing stores a month-end accounting snapshot. It does not block
+              operational billing. Payments, refunds or invoice changes after
+              close appear automatically as post-close adjustments.
+            </p>
+
+            {periodStatus?.closed_at && (
+              <p className="mt-2 text-xs text-[#81796d]">
+                Last closed {formatDateTime(periodStatus.closed_at)}
+                {" · "}version {numberValue(periodStatus.close_version)}
+                {periodStatus.close_notes
+                  ? ` · ${periodStatus.close_notes}`
+                  : ""}
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {(periodStatus?.status || "open") === "closed" ? (
+              <button
+                type="button"
+                onClick={() => void reopenPeriod()}
+                disabled={periodWorking}
+                className="min-h-10 rounded-full border border-amber-300 bg-amber-50 px-4 text-xs font-bold text-amber-800 disabled:opacity-50"
+              >
+                {periodWorking ? "Working…" : "Reopen Period"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void closePeriod()}
+                disabled={periodWorking || loading}
+                className="min-h-10 rounded-full border border-emerald-300 bg-emerald-50 px-4 text-xs font-bold text-emerald-800 disabled:opacity-50"
+              >
+                {periodWorking ? "Closing…" : "Close Accounting Period"}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {numberValue(periodStatus?.post_close_adjustment_count) > 0 && (
+          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-900">
+            {numberValue(periodStatus?.post_close_adjustment_count)} post-close
+            change{numberValue(periodStatus?.post_close_adjustment_count) === 1
+              ? ""
+              : "s"} detected. Review the Post-Close Adjustments section before
+            relying on the original close snapshot.
+          </div>
+        )}
+      </section>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Metric
@@ -921,52 +1578,206 @@ export default function AccountingPage() {
             Refundable deposits
           </p>
           <h2 className="mt-1 text-lg font-semibold text-[#15233b]">
-            Deposit tracking
+            Confirmed deposit liability
           </h2>
 
           <div className="mt-5 grid gap-3">
             <DetailLine
-              label="Deposits invoiced to date"
+              label="Deposits billed"
               value={formatCurrency(
-                numberValue(depositSummary?.deposits_invoiced),
+                numberValue(depositLiability?.deposits_billed),
               )}
             />
             <DetailLine
-              label="On fully settled invoices"
+              label="Confirmed received"
               value={formatCurrency(
                 numberValue(
-                  depositSummary?.deposits_on_fully_settled_invoices,
+                  depositLiability?.confirmed_deposits_received,
+                ),
+              )}
+            />
+            <DetailLine
+              label="Deposit returns tagged"
+              value={formatCurrency(
+                numberValue(depositLiability?.deposit_returns_tagged),
+              )}
+            />
+            <DetailLine
+              label="Confirmed liability"
+              value={formatCurrency(
+                numberValue(
+                  depositLiability?.confirmed_deposit_liability,
                 ),
               )}
               strong
             />
             <DetailLine
-              label="On part-paid invoices"
+              label="Part-paid / allocation uncertain"
               value={formatCurrency(
                 numberValue(
-                  depositSummary?.deposits_on_part_paid_invoices,
-                ),
-              )}
-            />
-            <DetailLine
-              label="On unpaid invoices"
-              value={formatCurrency(
-                numberValue(
-                  depositSummary?.deposits_on_unpaid_invoices,
+                  depositLiability?.uncertain_part_paid_deposits,
                 ),
               )}
             />
           </div>
 
-          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-[11px] leading-5 text-amber-900">
-            Deposits are correctly classified as liabilities rather than
-            revenue. Exact outstanding deposit liability after a specific
-            deposit return cannot yet be inferred from a generic invoice-level
-            refund. Deposit-return tagging will be added with the accounting
-            export/close workflow.
-          </div>
+          <p className="mt-4 text-[11px] leading-5 text-[#81796d]">
+            A refund only reduces deposit liability after you explicitly tag it
+            as a deposit return. This prevents ordinary tuition refunds from
+            accidentally reducing the refundable-deposit balance.
+          </p>
         </section>
       </div>
+
+      {refundReview.some((row) => row.has_deposit_line) && (
+        <section className="mt-6 rounded-[2rem] border border-[#ded5c4] bg-white shadow-[0_20px_60px_rgba(21,35,59,0.05)]">
+          <div className="border-b border-[#ebe5da] p-5 sm:p-6">
+            <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#8a8378]">
+              Deposit returns
+            </p>
+            <h2 className="mt-1 text-lg font-semibold text-[#15233b]">
+              Refund classification
+            </h2>
+            <p className="mt-1 text-xs leading-5 text-[#81796d]">
+              Tag only refunds that actually returned the student's refundable
+              deposit.
+            </p>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] border-collapse text-left">
+              <thead>
+                <tr className="border-b border-[#ebe5da] bg-[#fbfaf7] text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
+                  <th className="px-5 py-4">Refund</th>
+                  <th className="px-4 py-4">Invoice</th>
+                  <th className="px-4 py-4">Parent</th>
+                  <th className="px-4 py-4">Amount</th>
+                  <th className="px-4 py-4">Reason</th>
+                  <th className="px-5 py-4 text-right">Classification</th>
+                </tr>
+              </thead>
+              <tbody>
+                {refundReview
+                  .filter((row) => row.has_deposit_line)
+                  .map((row) => (
+                    <tr
+                      key={row.refund_id}
+                      className="border-b border-[#f0ece4] last:border-b-0"
+                    >
+                      <td className="px-5 py-4 text-xs text-[#81796d]">
+                        {formatDateTime(row.refunded_at)}
+                      </td>
+                      <td className="px-4 py-4">
+                        <Link
+                          href={`/admin/billing/invoices/${row.invoice_id}/preview`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-black text-[#15233b] underline decoration-[#d3b775] underline-offset-4"
+                        >
+                          {row.invoice_number}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-4 text-sm">
+                        {row.payer_name}
+                      </td>
+                      <td className="px-4 py-4 font-black">
+                        {formatCurrency(
+                          numberValue(row.refund_amount),
+                          row.currency,
+                        )}
+                      </td>
+                      <td className="max-w-[260px] px-4 py-4 text-xs text-[#81796d]">
+                        {row.reason || "—"}
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        <button
+                          type="button"
+                          onClick={() => void toggleDepositReturn(row)}
+                          disabled={taggingRefundId === row.refund_id}
+                          className={`min-h-9 rounded-full border px-3 text-[11px] font-bold disabled:opacity-50 ${
+                            row.deposit_return_tagged
+                              ? "border-violet-200 bg-violet-50 text-violet-700"
+                              : "border-[#d7c9ae] bg-white text-[#554d40]"
+                          }`}
+                        >
+                          {taggingRefundId === row.refund_id
+                            ? "Saving…"
+                            : row.deposit_return_tagged
+                              ? "Deposit Return ✓"
+                              : "Tag Deposit Return"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {postCloseAdjustments.length > 0 && (
+        <section className="mt-6 rounded-[2rem] border border-amber-200 bg-white shadow-[0_20px_60px_rgba(21,35,59,0.05)]">
+          <div className="border-b border-amber-100 p-5 sm:p-6">
+            <p className="text-[10px] font-black uppercase tracking-[0.15em] text-amber-700">
+              Closed period
+            </p>
+            <h2 className="mt-1 text-lg font-semibold text-[#15233b]">
+              Post-Close Adjustments
+            </h2>
+            <p className="mt-1 text-xs leading-5 text-[#81796d]">
+              These changes happened after the accounting snapshot was closed.
+            </p>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] border-collapse text-left">
+              <thead>
+                <tr className="border-b border-[#ebe5da] bg-amber-50/60 text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
+                  <th className="px-5 py-4">Occurred</th>
+                  <th className="px-4 py-4">Type</th>
+                  <th className="px-4 py-4">Invoice</th>
+                  <th className="px-4 py-4">Description</th>
+                  <th className="px-5 py-4">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {postCloseAdjustments.map((row) => (
+                  <tr
+                    key={`${row.source_type}:${row.record_id}`}
+                    className="border-b border-[#f0ece4] last:border-b-0"
+                  >
+                    <td className="px-5 py-4 text-xs text-[#81796d]">
+                      {formatDateTime(row.occurred_at)}
+                    </td>
+                    <td className="px-4 py-4 text-xs font-bold capitalize">
+                      {row.source_type.replaceAll("_", " ")}
+                    </td>
+                    <td className="px-4 py-4">
+                      <Link
+                        href={`/admin/billing/invoices/${row.invoice_id}/preview`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-black text-[#15233b] underline decoration-[#d3b775] underline-offset-4"
+                      >
+                        {row.invoice_number}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-4 text-sm text-[#665f55]">
+                      {row.description}
+                    </td>
+                    <td className="px-5 py-4 font-black">
+                      {formatCurrency(
+                        numberValue(row.amount),
+                        row.currency,
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <section className="mt-6 rounded-[2rem] border border-[#ded5c4] bg-white shadow-[0_20px_60px_rgba(21,35,59,0.05)]">
         <div className="border-b border-[#ebe5da] p-5 sm:p-6">
@@ -1105,11 +1916,11 @@ export default function AccountingPage() {
         )}
       </section>
 
-      <div className="mt-6 rounded-[2rem] border border-cyan-200 bg-cyan-50 p-5 text-sm leading-6 text-cyan-950">
-        <strong>Accounting Phase 3 next:</strong> accountant-ready CSV/Excel
-        exports, one-click monthly accounting pack, period close/lock,
-        post-close adjustment reporting, and explicit refundable-deposit return
-        tagging.
+      <div className="mt-6 rounded-[2rem] border border-emerald-200 bg-emerald-50 p-5 text-sm leading-6 text-emerald-950">
+        <strong>Accounting reporting build complete:</strong> revenue
+        classification, historical receivables, deposit liability, CSV exports,
+        Excel accounting pack, accounting period close/reopen and post-close
+        adjustment reporting are now integrated.
       </div>
     </BillingAdminShell>
   );
@@ -1229,6 +2040,183 @@ function TypePill({
       {type}
     </span>
   );
+}
+
+function PeriodStatusPill({
+  value,
+}: {
+  value: "open" | "closed";
+}) {
+  return (
+    <span
+      className={`inline-flex rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.08em] ${
+        value === "closed"
+          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+          : "border-sky-200 bg-sky-50 text-sky-700"
+      }`}
+    >
+      {value}
+    </span>
+  );
+}
+
+type WorkbookCell = string | number | boolean | null | undefined;
+
+type WorkbookSheet = {
+  name: string;
+  rows: WorkbookCell[][];
+};
+
+function csvCell(value: WorkbookCell) {
+  const text = value === null || value === undefined ? "" : String(value);
+
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
+function downloadCsv(
+  filename: string,
+  rows: WorkbookCell[][],
+) {
+  const content = rows
+    .map((row) => row.map(csvCell).join(","))
+    .join("\r\n");
+
+  downloadBlob(
+    filename,
+    new Blob(
+      ["\uFEFF", content],
+      {
+        type: "text/csv;charset=utf-8",
+      },
+    ),
+  );
+}
+
+function xmlEscape(value: WorkbookCell) {
+  return String(
+    value === null || value === undefined ? "" : value,
+  )
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+function excelCell(value: WorkbookCell) {
+  const isNumber =
+    typeof value === "number" &&
+    Number.isFinite(value);
+
+  const type = isNumber
+    ? "Number"
+    : typeof value === "boolean"
+      ? "Boolean"
+      : "String";
+
+  const displayValue =
+    typeof value === "boolean"
+      ? value
+        ? "1"
+        : "0"
+      : value;
+
+  return `<Cell><Data ss:Type="${type}">${xmlEscape(
+    displayValue,
+  )}</Data></Cell>`;
+}
+
+function safeWorksheetName(value: string) {
+  return value
+    .replace(/[\\/?*:[\]]/g, " ")
+    .trim()
+    .slice(0, 31) || "Sheet";
+}
+
+function downloadExcelXmlWorkbook(
+  filename: string,
+  sheets: WorkbookSheet[],
+) {
+  const worksheetXml = sheets
+    .map(
+      (sheet) => `
+      <Worksheet ss:Name="${xmlEscape(
+        safeWorksheetName(sheet.name),
+      )}">
+        <Table>
+          ${sheet.rows
+            .map(
+              (row) =>
+                `<Row>${row.map(excelCell).join("")}</Row>`,
+            )
+            .join("")}
+        </Table>
+      </Worksheet>`,
+    )
+    .join("");
+
+  const xml = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook
+  xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+  xmlns:o="urn:schemas-microsoft-com:office:office"
+  xmlns:x="urn:schemas-microsoft-com:office:excel"
+  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+  xmlns:html="http://www.w3.org/TR/REC-html40">
+  <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
+    <Author>Guru Kids Pro Billing</Author>
+    <Created>${new Date().toISOString()}</Created>
+  </DocumentProperties>
+  ${worksheetXml}
+</Workbook>`;
+
+  downloadBlob(
+    filename,
+    new Blob(
+      ["\uFEFF", xml],
+      {
+        type: "application/vnd.ms-excel;charset=utf-8",
+      },
+    ),
+  );
+}
+
+function downloadBlob(
+  filename: string,
+  blob: Blob,
+) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+
+  window.setTimeout(
+    () => URL.revokeObjectURL(url),
+    0,
+  );
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "—";
+
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-SG", {
+    timeZone: "Asia/Singapore",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(parsed);
 }
 
 function numberValue(value: unknown) {

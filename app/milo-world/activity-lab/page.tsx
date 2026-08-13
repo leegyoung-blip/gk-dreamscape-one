@@ -35,6 +35,7 @@ type ActivityCardData = {
 
 const DAILY_CODE_MAX_ATTEMPTS = 6;
 const DAILY_CODE_REWARDS = [60, 50, 40, 30, 20, 10] as const;
+const DAILY_CODE_CLUE_COST = 5;
 const KEYBOARD_ROWS = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
 const WORD_LIST_URL = "/milo-world/activities/five-letter-words.json";
 
@@ -568,6 +569,7 @@ export default function ActivityLabPage() {
   const [attempts, setAttempts] = useState<DailyPuzzleAttempt[]>([]);
   const [solvedToday, setSolvedToday] = useState(false);
   const [clueBought, setClueBought] = useState(false);
+  const [buyingClue, setBuyingClue] = useState(false);
   const [letterBought, setLetterBought] = useState(false);
   const [revealedLetter, setRevealedLetter] = useState("");
   const [puzzleAnswer, setPuzzleAnswer] = useState("");
@@ -851,29 +853,49 @@ export default function ActivityLabPage() {
   }
 
   async function buyClue() {
-    if (!puzzle || clueBought || solvedToday || !userId) return;
+    if (!puzzle || clueBought || buyingClue || solvedToday || !userId) return;
 
-    if (dreamTokens < 1) {
-      setPuzzleMessage("You need at least 1 DT to unlock the extra clue.");
+    if (dreamTokens < DAILY_CODE_CLUE_COST) {
+      setPuzzleMessage(
+        `You need at least ${DAILY_CODE_CLUE_COST} DT to unlock today’s clue.`,
+      );
       return;
     }
 
-    const spent = await addTokenTransaction(
-      -1,
-      `Bought clue for Mastery Code ${puzzle.date_sg}`,
-    );
+    setBuyingClue(true);
 
-    if (!spent) return;
+    try {
+      const spent = await addTokenTransaction(
+        -DAILY_CODE_CLUE_COST,
+        `Bought clue for Mastery Code ${puzzle.date_sg}`,
+      );
 
-    const saved = await savePuzzleProgress({
-      nextAttempts: attempts,
-      solved: solvedToday,
-      nextClueBought: true,
-    });
+      if (!spent) return;
 
-    if (saved) {
-      setClueBought(true);
-      setPuzzleMessage("Extra clue unlocked.");
+      const saved = await savePuzzleProgress({
+        nextAttempts: attempts,
+        solved: solvedToday,
+        nextClueBought: true,
+      });
+
+      if (saved) {
+        setClueBought(true);
+        setPuzzleMessage("Today’s clue has been unlocked.");
+        return;
+      }
+
+      const refunded = await addTokenTransaction(
+        DAILY_CODE_CLUE_COST,
+        `Refunded failed clue purchase for Mastery Code ${puzzle.date_sg}`,
+      );
+
+      setPuzzleMessage(
+        refunded
+          ? `The clue could not be unlocked. Your ${DAILY_CODE_CLUE_COST} DT were returned.`
+          : "The clue could not be unlocked and the automatic refund failed. Please contact support.",
+      );
+    } finally {
+      setBuyingClue(false);
     }
   }
 
@@ -1547,24 +1569,60 @@ export default function ActivityLabPage() {
                   textTransform: "uppercase",
                 }}
               >
-                Today’s clue
+                {clueBought ? "Today’s clue" : "Clue locked"}
               </span>
-              <p
-                style={{
-                  margin: mobile ? "2px 0 0" : "5px 0 0",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: mobile ? "nowrap" : "normal",
-                  color: "rgba(255,255,255,0.72)",
-                  fontSize: mobile ? "9px" : dense ? "11px" : "12px",
-                  lineHeight: 1.4,
-                }}
-              >
-                {puzzle?.base_clue ||
-                  (loading ? "Loading today’s code..." : "No clue available.")}
-              </p>
 
-              {(clueBought || letterBought) && (
+              {clueBought ? (
+                <>
+                  <p
+                    style={{
+                      margin: mobile ? "2px 0 0" : "5px 0 0",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: mobile ? "nowrap" : "normal",
+                      color: "rgba(255,255,255,0.72)",
+                      fontSize: mobile ? "9px" : dense ? "11px" : "12px",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {puzzle?.base_clue || "No clue is available."}
+                  </p>
+
+                  {puzzle?.clue_text && (
+                    <p
+                      style={{
+                        margin: "5px 0 0",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: mobile ? "nowrap" : "normal",
+                        color: "#9bf5ff",
+                        fontSize: mobile ? "8px" : "10px",
+                        lineHeight: 1.35,
+                      }}
+                    >
+                      {puzzle.clue_text}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p
+                  style={{
+                    margin: mobile ? "2px 0 0" : "5px 0 0",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: mobile ? "nowrap" : "normal",
+                    color: "rgba(255,255,255,0.58)",
+                    fontSize: mobile ? "9px" : dense ? "11px" : "12px",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {loading
+                    ? "Loading today’s code..."
+                    : `Buy today’s clue for ${DAILY_CODE_CLUE_COST} DT to reveal it.`}
+                </p>
+              )}
+
+              {letterBought && revealedLetter && (
                 <p
                   style={{
                     margin: "5px 0 0",
@@ -1576,13 +1634,7 @@ export default function ActivityLabPage() {
                     lineHeight: 1.35,
                   }}
                 >
-                  {clueBought && puzzle?.clue_text
-                    ? `Extra clue: ${puzzle.clue_text}`
-                    : ""}
-                  {clueBought && letterBought ? " · " : ""}
-                  {letterBought && revealedLetter
-                    ? `Letter: ${revealedLetter}`
-                    : ""}
+                  Letter: {revealedLetter}
                 </p>
               )}
             </div>
@@ -1590,12 +1642,22 @@ export default function ActivityLabPage() {
             <button
               type="button"
               onClick={buyClue}
-              disabled={!puzzle || clueBought || solvedToday || !userId}
+              disabled={
+                !puzzle || clueBought || buyingClue || solvedToday || !userId
+              }
               style={utilityButtonStyle(
-                !puzzle || clueBought || solvedToday || !userId,
+                !puzzle ||
+                  clueBought ||
+                  buyingClue ||
+                  solvedToday ||
+                  !userId,
               )}
             >
-              {clueBought ? "Clue Unlocked" : "Buy Clue · 1 DT"}
+              {clueBought
+                ? "Clue Unlocked"
+                : buyingClue
+                  ? "Unlocking Clue..."
+                  : `Buy Clue · ${DAILY_CODE_CLUE_COST} DT`}
             </button>
 
             <button
