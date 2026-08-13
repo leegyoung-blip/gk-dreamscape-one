@@ -94,10 +94,33 @@ async function accessToken() {
   return token;
 }
 
+class RequestError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "RequestError";
+    this.status = status;
+  }
+}
+
+function isNonRetryableRequest(error: unknown) {
+  return (
+    error instanceof RequestError &&
+    error.status >= 400 &&
+    error.status < 500 &&
+    error.status !== 408 &&
+    error.status !== 429
+  );
+}
+
 async function responseJson(response: Response) {
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(String(body.error || `Request failed with HTTP ${response.status}.`));
+    throw new RequestError(
+      String(body.error || `Request failed with HTTP ${response.status}.`),
+      response.status,
+    );
   }
   return body;
 }
@@ -207,6 +230,8 @@ export default function AssetDeploymentView() {
   ) {
     let lastError: unknown;
     for (let attempt = 1; attempt <= 5; attempt++) {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 30_000);
       try {
         const form = new FormData();
         form.set("file", file);
@@ -218,14 +243,21 @@ export default function AssetDeploymentView() {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
           body: form,
+          signal: controller.signal,
         });
         await responseJson(response);
         return;
       } catch (error) {
-        lastError = error;
+        if (isNonRetryableRequest(error)) throw error;
+        lastError =
+          error instanceof DOMException && error.name === "AbortError"
+            ? new Error("The upload request timed out after 30 seconds.")
+            : error;
         if (attempt < 5) {
           await new Promise((resolve) => setTimeout(resolve, Math.min(8000, 700 * 2 ** (attempt - 1))));
         }
+      } finally {
+        window.clearTimeout(timeout);
       }
     }
     throw lastError instanceof Error ? lastError : new Error("Upload failed.");
@@ -257,7 +289,8 @@ export default function AssetDeploymentView() {
           await uploadOne(token, asset, file);
           completedThisRun++;
           setUploaded((value) => Math.min(totalAssets, value + 1));
-        } catch {
+        } catch (error) {
+          if (isNonRetryableRequest(error)) throw error;
           failures.push(path);
         }
       }
