@@ -637,19 +637,7 @@ export async function reconcileGkpHitPayPayment(
       "gkp_billing_payment_requests",
     )
     .select(
-      [
-        "id",
-        "invoice_id",
-        "provider",
-        "environment",
-        "provider_request_id",
-        "provider_status",
-        "requested_amount",
-        "currency",
-        "payment_method",
-        "is_current",
-        "completed_at",
-      ].join(","),
+      "id,invoice_id,provider,environment,provider_request_id,provider_status,requested_amount,currency,payment_method,is_current,completed_at",
     )
     .eq("provider", "hitpay")
     .eq(
@@ -681,20 +669,7 @@ export async function reconcileGkpHitPayPayment(
   } = await supabaseAdmin
     .from("gkp_billing_invoices")
     .select(
-      [
-        "id",
-        "invoice_number",
-        "account_id",
-        "status",
-        "currency",
-        "total_amount",
-        "amount_paid",
-        "balance_due",
-        "hitpay_payment_request_id",
-        "hitpay_payment_status",
-        "hitpay_payment_environment",
-        "hitpay_last_webhook_at",
-      ].join(","),
+      "id,invoice_number,account_id,status,currency,total_amount,amount_paid,balance_due,hitpay_payment_request_id,hitpay_payment_status,hitpay_payment_environment,hitpay_last_webhook_at",
     )
     .eq(
       "id",
