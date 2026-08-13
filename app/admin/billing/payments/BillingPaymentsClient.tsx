@@ -78,6 +78,34 @@ type HitPayAdminRequestsResult = {
   status?: string;
 };
 
+type HitPayReconcileResult = {
+  ok?: boolean;
+  status?:
+    | "reconciled"
+    | "already_reconciled"
+    | "provider_not_completed"
+    | "needs_attention";
+  invoiceId?: string;
+  invoiceNumber?: string;
+  providerRequestId?: string;
+  providerPaymentId?: string | null;
+  amount?: number | null;
+  currency?: string;
+  providerStatus?: string;
+  reason?: string;
+  error?: string;
+};
+
+type HitPayBatchReconcileResult = {
+  ok?: boolean;
+  scanned?: number;
+  reconciled?: number;
+  alreadyReconciled?: number;
+  pending?: number;
+  needsAttention?: number;
+  error?: string;
+};
+
 const DEFAULT_MANUAL_PAYMENT: ManualPaymentForm = {
   invoice_id: "",
   amount: "",
@@ -138,6 +166,85 @@ async function callHitPayAdminRequests(
   return payload || {};
 }
 
+async function callHitPayReconcile(
+  paymentRequestId: string,
+): Promise<HitPayReconcileResult> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.access_token) {
+    throw new Error("Please sign in again.");
+  }
+
+  const response = await fetch(
+    "/api/billing/hitpay/reconcile",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        paymentRequestId,
+      }),
+      cache: "no-store",
+    },
+  );
+
+  const payload = (await response.json().catch(() => null)) as
+    | HitPayReconcileResult
+    | null;
+
+  if (!response.ok) {
+    throw new Error(
+      payload?.error ||
+        payload?.reason ||
+        `HitPay reconciliation failed (HTTP ${response.status}).`,
+    );
+  }
+
+  return payload || {};
+}
+
+async function callHitPayBatchReconcile(): Promise<HitPayBatchReconcileResult> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.access_token) {
+    throw new Error("Please sign in again.");
+  }
+
+  const response = await fetch(
+    "/api/billing/hitpay/reconcile-pending",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        limit: 50,
+      }),
+      cache: "no-store",
+    },
+  );
+
+  const payload = (await response.json().catch(() => null)) as
+    | HitPayBatchReconcileResult
+    | null;
+
+  if (!response.ok) {
+    throw new Error(
+      payload?.error ||
+        `HitPay reconciliation scan failed (HTTP ${response.status}).`,
+    );
+  }
+
+  return payload || {};
+}
+
 export default function BillingPaymentsClient() {
   const [payments, setPayments] = useState<BillingPaymentOverview[]>([]);
   const [refunds, setRefunds] = useState<BillingRefund[]>([]);
@@ -147,6 +254,8 @@ export default function BillingPaymentsClient() {
   const [closedQrRequests, setClosedQrRequests] = useState<PendingQrRequest[]>([]);
   const [showClosedQrRequests, setShowClosedQrRequests] = useState(false);
   const [cancellingRequestId, setCancellingRequestId] = useState("");
+  const [reconcilingRequestId, setReconcilingRequestId] = useState("");
+  const [reconcilingAll, setReconcilingAll] = useState(false);
 
   const [search, setSearch] = useState("");
   const [providerFilter, setProviderFilter] = useState("all");
@@ -450,6 +559,117 @@ export default function BillingPaymentsClient() {
     setWorking(false);
   }
 
+  async function refreshWithReconciliation() {
+    setReconcilingAll(true);
+    setLoadError("");
+    setNotice("");
+
+    try {
+      const result =
+        await callHitPayBatchReconcile();
+
+      await loadPayments();
+
+      const recovered =
+        result.reconciled || 0;
+      const alreadyRecorded =
+        result.alreadyReconciled || 0;
+      const pending =
+        result.pending || 0;
+      const attention =
+        result.needsAttention || 0;
+
+      if (recovered > 0) {
+        setNotice(
+          `HitPay reconciliation recovered ${recovered} payment${
+            recovered === 1 ? "" : "s"
+          }. ${alreadyRecorded} already recorded, ${pending} still pending, ${attention} need attention.`,
+        );
+      } else if (attention > 0) {
+        setNotice(
+          `HitPay reconciliation finished. ${alreadyRecorded} already recorded, ${pending} still pending, ${attention} need attention.`,
+        );
+      } else {
+        setNotice(
+          `HitPay reconciliation finished. No missing completed payments were found. ${pending} request${
+            pending === 1 ? " is" : "s are"
+          } still pending.`,
+        );
+      }
+    } catch (error) {
+      setLoadError(
+        errorMessage(
+          error,
+          "Could not reconcile recent HitPay payment requests.",
+        ),
+      );
+
+      /*
+       * Still refresh the local dashboard even if HitPay is
+       * temporarily unavailable.
+       */
+      await loadPayments();
+    } finally {
+      setReconcilingAll(false);
+    }
+  }
+
+  async function reconcileQrRequest(
+    qrRequest: PendingQrRequest,
+  ) {
+    setReconcilingRequestId(
+      qrRequest.id,
+    );
+    setLoadError("");
+    setNotice("");
+
+    try {
+      const result =
+        await callHitPayReconcile(
+          qrRequest.provider_request_id,
+        );
+
+      if (
+        result.status ===
+        "reconciled"
+      ) {
+        setNotice(
+          `${qrRequest.invoice_number} payment reconciled from HitPay and the invoice balance was recalculated.`,
+        );
+      } else if (
+        result.status ===
+        "already_reconciled"
+      ) {
+        setNotice(
+          `${qrRequest.invoice_number} payment was already recorded. No duplicate payment was created.`,
+        );
+      } else if (
+        result.status ===
+        "provider_not_completed"
+      ) {
+        setNotice(
+          `${qrRequest.invoice_number} is still ${result.providerStatus || "pending"} at HitPay. No payment was recorded.`,
+        );
+      } else {
+        setLoadError(
+          result.reason ||
+            `${qrRequest.invoice_number} requires payment review.`,
+        );
+      }
+
+      await loadPayments();
+    } catch (error) {
+      setLoadError(
+        errorMessage(
+          error,
+          "The HitPay payment could not be reconciled.",
+        ),
+      );
+    } finally {
+      setReconcilingRequestId("");
+    }
+  }
+
   async function cancelQrRequest(qrRequest: PendingQrRequest) {
     const confirmed = window.confirm(
       `Cancel the PayNow QR request for ${qrRequest.invoice_number}?\n\n` +
@@ -494,12 +714,23 @@ export default function BillingPaymentsClient() {
         <>
           <button
             type="button"
-            onClick={() => void loadPayments()}
-            disabled={loading}
-            className="min-h-11 rounded-full border border-[#d7c9ae] bg-white px-4 text-xs font-bold text-[#554d40]"
+            onClick={() => void refreshWithReconciliation()}
+            disabled={loading || reconcilingAll}
+            className="min-h-11 rounded-full border border-[#d7c9ae] bg-white px-4 text-xs font-bold text-[#554d40] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {loading ? "Refreshing…" : "Refresh"}
+            {reconcilingAll
+              ? "Checking HitPay…"
+              : loading
+                ? "Refreshing…"
+                : "Refresh"}
           </button>
+
+          <Link
+            href="/admin/billing/reconciliation"
+            className="inline-flex min-h-11 items-center rounded-full border border-[#d7c9ae] bg-white px-4 text-xs font-bold text-[#554d40]"
+          >
+            Reconciliation
+          </Link>
           <button
             type="button"
             onClick={openManualPayment}
@@ -642,25 +873,41 @@ export default function BillingPaymentsClient() {
                       <td className="px-4 py-4 align-top">
                         <QrStatusPill status={observedStatus} />
                         {providerCompleted && (
-                          <span className="mt-2 block max-w-[210px] text-[10px] leading-4 text-amber-700">
-                            HitPay reports completed. Cancellation is blocked while the payment webhook finishes.
+                          <span className="mt-2 block max-w-[230px] text-[10px] leading-4 text-amber-700">
+                            HitPay reports completed. If the local receipt is missing, reconcile it here. The provider payment ID prevents duplicate recording.
                           </span>
                         )}
                       </td>
                       <td className="px-5 py-4 text-right align-top">
-                        <button
-                          type="button"
-                          onClick={() => void cancelQrRequest(request)}
-                          disabled={
-                            cancellingRequestId === request.id ||
-                            providerCompleted
-                          }
-                          className="min-h-10 rounded-full border border-red-200 bg-red-50 px-4 text-xs font-bold text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {cancellingRequestId === request.id
-                            ? "Cancelling…"
-                            : "Cancel QR Request"}
-                        </button>
+                        {providerCompleted ? (
+                          <button
+                            type="button"
+                            onClick={() => void reconcileQrRequest(request)}
+                            disabled={
+                              reconcilingRequestId === request.id ||
+                              reconcilingAll
+                            }
+                            className="min-h-10 rounded-full border border-emerald-200 bg-emerald-50 px-4 text-xs font-bold text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {reconcilingRequestId === request.id
+                              ? "Reconciling…"
+                              : "Reconcile Payment"}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => void cancelQrRequest(request)}
+                            disabled={
+                              cancellingRequestId === request.id ||
+                              reconcilingAll
+                            }
+                            className="min-h-10 rounded-full border border-red-200 bg-red-50 px-4 text-xs font-bold text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {cancellingRequestId === request.id
+                              ? "Cancelling…"
+                              : "Cancel QR Request"}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );

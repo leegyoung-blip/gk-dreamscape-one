@@ -7,6 +7,7 @@ import {
 export type GkpHitPayReconciliationSource =
   | "admin_refresh"
   | "manual_reconcile"
+  | "public_status_poll"
   | "webhook";
 
 export type GkpHitPayReconciliationStatus =
