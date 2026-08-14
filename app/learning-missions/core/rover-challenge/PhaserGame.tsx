@@ -176,7 +176,7 @@ class RoverMatterScene extends Phaser.Scene {
     this.brakingRate = gameStats.brakingRate;
 
     // Every rover gets a 35% stronger jump while preserving the upgrade curve.
-    this.jumpVelocity = gameStats.jumpVelocity * 1.35;
+    this.jumpVelocity = gameStats.jumpVelocity * 1.7;
 
     this.maximumBoostEnergy = gameStats.boostCapacity;
 
@@ -888,7 +888,7 @@ class RoverMatterScene extends Phaser.Scene {
 
       const sprite = this.add
         .image(trap.x, spriteY, "dreamkeeper-dynamite")
-        .setDisplaySize(112, 76)
+        .setDisplaySize(80, 54)
         .setRotation(terrainAngle)
         .setDepth(24);
 
