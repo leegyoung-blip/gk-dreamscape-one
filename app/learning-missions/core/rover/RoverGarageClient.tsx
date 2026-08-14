@@ -8,10 +8,11 @@ import {
   coreUpgradeTrack,
   getCoreRoverProgress,
 } from "@/lib/coreRoverProgress";
+import type { RoverLevelAccess } from "../rover-challenge/levels";
 
 const COURSE_ID = "skyforge-test-track-01";
 
-type GarageTab = "upgrades" | "custom";
+type GarageTab = "courses" | "upgrades" | "custom";
 type ScreenMode = "desktop" | "tablet" | "mobile";
 
 type SummaryRow = {
@@ -21,6 +22,11 @@ type SummaryRow = {
   orbs_collected: number;
   rover_stage: number;
   completed_at: string;
+};
+
+type LeaderboardRow = SummaryRow & {
+  user_id: string;
+  username: string;
 };
 
 type RoverBuildStat = {
@@ -256,7 +262,7 @@ export default function RoverGarageClient() {
   const isMobile = screenMode === "mobile";
   const isCompact = screenMode !== "desktop";
 
-  const [tab, setTab] = useState<GarageTab>("upgrades");
+  const [tab, setTab] = useState<GarageTab>("courses");
 
   const [loading, setLoading] = useState(true);
 
@@ -279,6 +285,12 @@ export default function RoverGarageClient() {
   const [bestTimeMs, setBestTimeMs] = useState<number | null>(null);
 
   const [orbsCollected, setOrbsCollected] = useState<number | null>(null);
+
+  const [levelAccess, setLevelAccess] = useState<RoverLevelAccess[]>([]);
+
+  const [leaderboardRows, setLeaderboardRows] = useState<LeaderboardRow[]>([]);
+
+  const [courseLoadMessage, setCourseLoadMessage] = useState("");
 
   const progress = useMemo(
     () => getCoreRoverProgress(completedMissionCount),
@@ -321,7 +333,14 @@ export default function RoverGarageClient() {
 
     setUserId(user.id);
 
-    const [tokensResult, profileResult, attemptsResult, summaryResult] =
+    const [
+      tokensResult,
+      profileResult,
+      attemptsResult,
+      summaryResult,
+      accessResult,
+      leaderboardResult,
+    ] =
       await Promise.all([
         supabase
           .from("dream_token_transactions")
@@ -343,6 +362,13 @@ export default function RoverGarageClient() {
 
         supabase.rpc("get_my_rover_challenge_summary", {
           p_course_id: COURSE_ID,
+        }),
+
+        supabase.rpc("get_rover_level_access"),
+
+        supabase.rpc("get_rover_challenge_visible_leaderboard", {
+          p_course_id: COURSE_ID,
+          p_limit: 10,
         }),
       ]);
 
@@ -402,6 +428,29 @@ export default function RoverGarageClient() {
         setBestTimeMs(null);
         setOrbsCollected(null);
       }
+    }
+
+    if (accessResult.error) {
+      console.warn("Could not load rover courses:", accessResult.error.message);
+      setLevelAccess([]);
+      setCourseLoadMessage(
+        "Course access is unavailable. Run the Phase 1 rover-level migration.",
+      );
+    } else {
+      setLevelAccess((accessResult.data ?? []) as RoverLevelAccess[]);
+      setCourseLoadMessage("");
+    }
+
+    if (leaderboardResult.error) {
+      console.warn(
+        "Could not load rover leaderboard:",
+        leaderboardResult.error.message,
+      );
+      setLeaderboardRows([]);
+    } else {
+      setLeaderboardRows(
+        (leaderboardResult.data ?? []) as LeaderboardRow[],
+      );
     }
 
     setLoading(false);
@@ -592,7 +641,7 @@ export default function RoverGarageClient() {
             <button
               type="button"
               onClick={() =>
-                router.push("/learning-missions/core/rover-challenge")
+                router.push("/learning-missions/core/rover-challenge/1")
               }
               style={largeChallengeButton}
             >
@@ -603,6 +652,13 @@ export default function RoverGarageClient() {
 
         <div style={controlColumn}>
           <div style={tabBar}>
+            <button
+              type="button"
+              onClick={() => setTab("courses")}
+              style={tabButton(tab === "courses")}
+            >
+              Rover Courses
+            </button>
             <button
               type="button"
               onClick={() => setTab("upgrades")}
@@ -619,7 +675,18 @@ export default function RoverGarageClient() {
             </button>
           </div>
 
-          {tab === "upgrades" ? (
+          {tab === "courses" ? (
+            <RoverCoursesPanel
+              access={levelAccess}
+              leaderboardRows={leaderboardRows}
+              loadMessage={courseLoadMessage}
+              currentStage={progress.currentUpgrade.stage}
+              userId={userId}
+              onOpenLevel={(level) =>
+                router.push(`/learning-missions/core/rover-challenge/${level}`)
+              }
+            />
+          ) : tab === "upgrades" ? (
             <UpgradeTrack
               completedMissionCount={completedMissionCount}
               selectedStage={displayedUpgrade.stage}
@@ -631,6 +698,159 @@ export default function RoverGarageClient() {
         </div>
       </section>
     </main>
+  );
+}
+
+function RoverCoursesPanel({
+  access,
+  leaderboardRows,
+  loadMessage,
+  currentStage,
+  userId,
+  onOpenLevel,
+}: {
+  access: RoverLevelAccess[];
+  leaderboardRows: LeaderboardRow[];
+  loadMessage: string;
+  currentStage: number;
+  userId: string;
+  onOpenLevel: (level: number) => void;
+}) {
+  const levelOne = access.find((row) => Number(row.level_id) === 1);
+  const levelTwo = access.find((row) => Number(row.level_id) === 2);
+
+  return (
+    <div style={coursesPanel}>
+      <div>
+        <p style={smallEyebrow}>COURSE SELECT</p>
+        <h2 style={{ margin: "7px 0 0" }}>Rover Challenge</h2>
+        <p style={coursesIntro}>
+          Complete a level to unlock the next route. Older levels stay open for
+          replay and keep their own personal bests.
+        </p>
+      </div>
+
+      {loadMessage && <div style={courseNotice}>{loadMessage}</div>}
+
+      <div style={courseGrid}>
+        <CourseCard
+          number={1}
+          title="Skyforge Test Track"
+          description="Master the controls, clear both gaps and reach all three checkpoints."
+          access={levelOne}
+          currentStage={currentStage}
+          phaseTwo={false}
+          onOpen={() => onOpenLevel(1)}
+        />
+        <CourseCard
+          number={2}
+          title="Dreamkeeper Divide"
+          description="A branching course with upper and lower paths. Gameplay arrives in Phase 2."
+          access={levelTwo}
+          currentStage={currentStage}
+          phaseTwo
+          onOpen={() => onOpenLevel(2)}
+        />
+      </div>
+
+      <div style={leaderboardPanel}>
+        <div style={leaderboardHeadingRow}>
+          <div>
+            <p style={smallEyebrow}>LEVEL 1</p>
+            <h3 style={{ margin: "5px 0 0" }}>Top Explorers</h3>
+          </div>
+          <span style={leaderboardCoursePill}>Skyforge Test Track</span>
+        </div>
+
+        {leaderboardRows.length === 0 ? (
+          <p style={emptyLeaderboard}>
+            No completed runs yet. Finish Level 1 to set the first score.
+          </p>
+        ) : (
+          <div style={leaderboardList}>
+            {leaderboardRows.map((row) => {
+              const isCurrentUser = row.user_id === userId;
+              return (
+                <div
+                  key={`${row.user_id}-${row.rank}`}
+                  style={leaderboardRow(isCurrentUser)}
+                >
+                  <strong style={leaderboardRank}>#{row.rank}</strong>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={leaderboardName}>
+                      {row.username || "Explorer"}
+                      {isCurrentUser ? " · You" : ""}
+                    </p>
+                    <p style={leaderboardMeta}>
+                      Stage {row.rover_stage} · {row.orbs_collected}/8 orbs · {formatMilliseconds(Number(row.best_time_ms))}
+                    </p>
+                  </div>
+                  <strong style={leaderboardScore}>
+                    {Number(row.best_score).toLocaleString()}
+                  </strong>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CourseCard({
+  number,
+  title,
+  description,
+  access,
+  currentStage,
+  phaseTwo,
+  onOpen,
+}: {
+  number: number;
+  title: string;
+  description: string;
+  access?: RoverLevelAccess;
+  currentStage: number;
+  phaseTwo: boolean;
+  onOpen: () => void;
+}) {
+  const unlocked = Boolean(access?.unlocked);
+  const stageReady = Boolean(access?.stage_ready);
+  const completed = Boolean(access?.completed);
+  const canOpen = unlocked && stageReady;
+  const status = completed
+    ? "COMPLETED · REPLAY AVAILABLE"
+    : !unlocked
+      ? "LOCKED · COMPLETE LEVEL 1"
+      : !stageReady
+        ? `ROVER STAGE ${access?.minimum_rover_stage ?? 3} REQUIRED · CURRENT ${currentStage}`
+        : phaseTwo
+          ? "UNLOCKED · PHASE 2 MAP PREVIEW"
+          : "READY TO DRIVE";
+
+  return (
+    <article style={courseCard(canOpen, completed)}>
+      <div style={courseNumber(canOpen)}>{number}</div>
+      <div style={{ minWidth: 0 }}>
+        <p style={courseStatus(canOpen)}>{status}</p>
+        <h3 style={courseTitle}>{title}</h3>
+        <p style={courseDescription}>{description}</p>
+        {access?.best_score != null && (
+          <p style={courseBest}>
+            Best {Number(access.best_score).toLocaleString()} points · {formatMilliseconds(Number(access.best_time_ms))}
+          </p>
+        )}
+      </div>
+      <button
+        type="button"
+        disabled={!canOpen}
+        onClick={onOpen}
+        style={courseButton(canOpen)}
+      >
+        {completed ? "Replay" : phaseTwo ? "Preview" : "Start"}
+      </button>
+    </article>
   );
 }
 
@@ -1420,7 +1640,7 @@ const controlColumn: CSSProperties = {
 const tabBar: CSSProperties = {
   padding: "12px",
   display: "grid",
-  gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+  gridTemplateColumns: "repeat(3,minmax(0,1fr))",
   gap: "8px",
   borderBottom: "1px solid rgba(126,232,255,0.12)",
 };
@@ -1608,6 +1828,199 @@ function customActionButton(isDefault: boolean): CSSProperties {
     cursor: "default",
   };
 }
+
+const coursesPanel: CSSProperties = {
+  borderRadius: "22px",
+  border: "1px solid rgba(126,232,255,0.18)",
+  background: "rgba(5,18,42,0.72)",
+  padding: "22px",
+  display: "grid",
+  gap: "18px",
+};
+
+const coursesIntro: CSSProperties = {
+  margin: "9px 0 0",
+  color: "rgba(255,255,255,0.55)",
+  fontSize: "13px",
+  lineHeight: 1.55,
+};
+
+const courseNotice: CSSProperties = {
+  borderRadius: "12px",
+  border: "1px solid rgba(255,190,102,0.3)",
+  background: "rgba(255,160,66,0.08)",
+  color: "#ffd9a0",
+  padding: "12px 14px",
+  fontSize: "12px",
+};
+
+const courseGrid: CSSProperties = {
+  display: "grid",
+  gap: "12px",
+};
+
+function courseCard(canOpen: boolean, completed: boolean): CSSProperties {
+  return {
+    borderRadius: "17px",
+    border: `1px solid ${
+      completed
+        ? "rgba(102,240,208,0.34)"
+        : canOpen
+          ? "rgba(126,232,255,0.3)"
+          : "rgba(255,255,255,0.09)"
+    }`,
+    background: canOpen
+      ? "linear-gradient(135deg,rgba(24,72,107,0.36),rgba(16,28,65,0.62))"
+      : "rgba(255,255,255,0.025)",
+    padding: "15px",
+    display: "grid",
+    gridTemplateColumns: "46px minmax(0,1fr) auto",
+    alignItems: "center",
+    gap: "14px",
+    opacity: canOpen ? 1 : 0.62,
+  };
+}
+
+function courseNumber(canOpen: boolean): CSSProperties {
+  return {
+    width: "46px",
+    height: "46px",
+    borderRadius: "12px",
+    border: `1px solid ${canOpen ? "rgba(126,232,255,0.55)" : "rgba(255,255,255,0.12)"}`,
+    background: canOpen ? "rgba(53,197,255,0.13)" : "rgba(255,255,255,0.03)",
+    color: canOpen ? "#9af2ff" : "rgba(255,255,255,0.45)",
+    display: "grid",
+    placeItems: "center",
+    fontSize: "20px",
+    fontWeight: 950,
+  };
+}
+
+function courseStatus(canOpen: boolean): CSSProperties {
+  return {
+    margin: 0,
+    color: canOpen ? "#77efdc" : "rgba(255,255,255,0.38)",
+    fontSize: "9px",
+    fontWeight: 900,
+    letterSpacing: "0.13em",
+  };
+}
+
+const courseTitle: CSSProperties = {
+  margin: "5px 0 0",
+  fontSize: "16px",
+};
+
+const courseDescription: CSSProperties = {
+  margin: "5px 0 0",
+  color: "rgba(255,255,255,0.5)",
+  fontSize: "11px",
+  lineHeight: 1.45,
+};
+
+const courseBest: CSSProperties = {
+  margin: "7px 0 0",
+  color: "#8ee8ff",
+  fontSize: "10px",
+  fontWeight: 800,
+};
+
+function courseButton(enabled: boolean): CSSProperties {
+  return {
+    minWidth: "78px",
+    minHeight: "40px",
+    borderRadius: "11px",
+    border: enabled
+      ? "1px solid rgba(126,232,255,0.42)"
+      : "1px solid rgba(255,255,255,0.08)",
+    background: enabled
+      ? "linear-gradient(135deg,#35c5ff,#5c6cff)"
+      : "rgba(255,255,255,0.03)",
+    color: enabled ? "white" : "rgba(255,255,255,0.3)",
+    padding: "0 13px",
+    fontWeight: 900,
+    cursor: enabled ? "pointer" : "not-allowed",
+  };
+}
+
+const leaderboardPanel: CSSProperties = {
+  borderTop: "1px solid rgba(255,255,255,0.08)",
+  paddingTop: "18px",
+};
+
+const leaderboardHeadingRow: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "12px",
+};
+
+const leaderboardCoursePill: CSSProperties = {
+  borderRadius: "999px",
+  border: "1px solid rgba(126,232,255,0.22)",
+  color: "rgba(174,240,255,0.7)",
+  padding: "7px 10px",
+  fontSize: "9px",
+  fontWeight: 800,
+};
+
+const leaderboardList: CSSProperties = {
+  marginTop: "12px",
+  display: "grid",
+  gap: "7px",
+};
+
+function leaderboardRow(isCurrentUser: boolean): CSSProperties {
+  return {
+    borderRadius: "12px",
+    border: isCurrentUser
+      ? "1px solid rgba(102,240,208,0.34)"
+      : "1px solid rgba(255,255,255,0.07)",
+    background: isCurrentUser
+      ? "rgba(28,130,111,0.12)"
+      : "rgba(255,255,255,0.025)",
+    padding: "10px 12px",
+    display: "grid",
+    gridTemplateColumns: "38px minmax(0,1fr) auto",
+    alignItems: "center",
+    gap: "9px",
+  };
+}
+
+const leaderboardRank: CSSProperties = {
+  color: "#8ee8ff",
+  fontSize: "14px",
+};
+
+const leaderboardName: CSSProperties = {
+  margin: 0,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  fontSize: "12px",
+  fontWeight: 850,
+};
+
+const leaderboardMeta: CSSProperties = {
+  margin: "3px 0 0",
+  color: "rgba(255,255,255,0.42)",
+  fontSize: "9px",
+};
+
+const leaderboardScore: CSSProperties = {
+  color: "#ffffff",
+  fontSize: "13px",
+};
+
+const emptyLeaderboard: CSSProperties = {
+  margin: "12px 0 0",
+  borderRadius: "12px",
+  background: "rgba(255,255,255,0.025)",
+  padding: "16px",
+  color: "rgba(255,255,255,0.45)",
+  fontSize: "11px",
+  textAlign: "center",
+};
 
 const loadingFill: CSSProperties = {
   minHeight: "100dvh",

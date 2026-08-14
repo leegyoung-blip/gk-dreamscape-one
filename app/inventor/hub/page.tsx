@@ -181,6 +181,23 @@ const WARDROBE_CATEGORIES: {
   { key: "accessory", label: "Accessories", shortLabel: "Accessory", icon: "◇" },
 ];
 
+const WARDROBE_COLLECTION_LABELS: Record<string, string> = {
+  "nova-weekend-denim": "Everyday Set",
+  "nova-cozy-home-set": "Everyday Set",
+  "nova-art-club-overalls": "Everyday Set",
+  "nova-garden-day-dress": "Everyday Set",
+  "nova-campus-varsity-jacket": "Everyday Set",
+  "nova-striped-weekend-sweater": "Everyday Set",
+  "nova-pleated-casual-skirt": "Everyday Set",
+  "nova-relaxed-cargo-shorts": "Everyday Set",
+  "nova-canvas-high-tops": "Everyday Set",
+  "nova-explorer-ankle-boots": "Everyday Set",
+};
+
+function getWardrobeCollectionLabel(itemKey: string) {
+  return WARDROBE_COLLECTION_LABELS[itemKey] ?? "Core Set";
+}
+
 function formatDT(value: number) {
   return `${Math.round(Number(value || 0)).toLocaleString("en-SG")} DT`;
 }
@@ -1543,14 +1560,14 @@ function WardrobeBay({
                 Sleep Zone Activity
               </p>
               <span className="rounded-full border border-cyan-200/16 bg-cyan-300/[0.06] px-2 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100/70">
-                Phase 1
+                Phase 1 · Collection 2
               </span>
             </div>
             <h2 className="mt-1 font-serif text-2xl font-medium tracking-[-0.035em] sm:text-3xl">
               Wardrobe Bay
             </h2>
             <p className="mt-1 max-w-2xl text-[10px] leading-4 text-white/46 sm:text-xs sm:leading-5">
-              Preview Nova’s looks, buy wardrobe pieces with DT, and save what Nova is wearing.
+              Preview Nova’s looks, buy wardrobe pieces with DT, and save what Nova is wearing. New everyday wardrobe pieces are now included.
             </p>
           </div>
 
@@ -1625,7 +1642,12 @@ function WardrobeBay({
                 <div className="pointer-events-none absolute bottom-2 left-2 right-2 z-40 rounded-[16px] border border-white/10 bg-slate-950/76 px-3 py-2 backdrop-blur-xl sm:bottom-3 sm:left-3 sm:right-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate text-xs font-black text-white">{selectedItem.title}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-xs font-black text-white">{selectedItem.title}</p>
+                        <span className="rounded-full border border-white/10 bg-white/[0.045] px-2 py-0.5 text-[7px] font-black uppercase tracking-[0.09em] text-white/55">
+                          {getWardrobeCollectionLabel(selectedItem.item_key)}
+                        </span>
+                      </div>
                       <p className="mt-0.5 truncate text-[9px] text-white/40">
                         {isEquipped ? "Currently equipped" : "Previewing selection"}
                       </p>
@@ -1754,9 +1776,14 @@ function WardrobeBay({
                           </span>
                         </div>
 
-                        <p className="mt-2 truncate text-xs font-black text-white">
-                          {item.title}
-                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                          <p className="min-w-0 truncate text-xs font-black text-white">
+                            {item.title}
+                          </p>
+                          <span className="rounded-full border border-white/8 bg-white/[0.035] px-2 py-0.5 text-[7px] font-black uppercase tracking-[0.08em] text-white/42">
+                            {getWardrobeCollectionLabel(item.item_key)}
+                          </span>
+                        </div>
                         <p className="mt-1 max-h-8 overflow-hidden text-[9px] leading-4 text-white/38">
                           {item.description || "Nova wardrobe item."}
                         </p>
@@ -1775,6 +1802,9 @@ function WardrobeBay({
                       <h3 className="text-sm font-black text-white sm:text-base">{selectedItem.title}</h3>
                       <span className="rounded-full border border-white/8 bg-white/[0.035] px-2 py-1 text-[7px] font-black uppercase tracking-[0.1em] text-white/38">
                         {selectedCategoryMeta.shortLabel}
+                      </span>
+                      <span className="rounded-full border border-white/8 bg-white/[0.035] px-2 py-1 text-[7px] font-black uppercase tracking-[0.1em] text-white/38">
+                        {getWardrobeCollectionLabel(selectedItem.item_key)}
                       </span>
                     </div>
                     <p className="mt-1 max-w-2xl text-[9px] leading-4 text-white/42 sm:text-[10px]">

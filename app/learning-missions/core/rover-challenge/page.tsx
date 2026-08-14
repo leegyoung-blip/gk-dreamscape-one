@@ -1,11 +1,5 @@
-import RoverChallengeClient from "./RoverChallengeClient";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Rover Challenge | Dreamscape One",
-  description:
-    "Drive your upgraded rover across the terrain and compete for the highest score.",
-};
-
-export default function RoverChallengePage() {
-  return <RoverChallengeClient />;
+export default function RoverChallengeIndexPage() {
+  redirect("/learning-missions/core/rover-challenge/1");
 }

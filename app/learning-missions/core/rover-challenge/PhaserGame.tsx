@@ -3,15 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
 import type { CoreRoverGameStats } from "@/lib/coreRoverProgress";
+import type { RoverLevelConfig } from "./levels";
 
 const GAME_WIDTH = 1600;
 const GAME_HEIGHT = 900;
-
-const WORLD_WIDTH = 6500;
-const WORLD_HEIGHT = 1200;
-
-const ROVER_START_X = 360;
-const ROVER_START_Y = 500;
 
 const ROVER_BODY_WIDTH = 300;
 const ROVER_BODY_HEIGHT = 188;
@@ -35,15 +30,8 @@ const WHEEL_OFFSET_Y = 15;
  */
 const ROVER_BODY_VISUAL_OFFSET_Y = -30;
 
-const COURSE_ID = "skyforge-test-track-01";
-
-const FINISH_X = 6120;
-const COURSE_TIME_LIMIT_SECONDS = 90;
-
-const TOTAL_COLLECTIBLES = 8;
-const TOTAL_CHECKPOINTS = 3;
-
 export type PhaserGameProps = {
+  levelConfig: RoverLevelConfig;
   roverStage: number;
   roverName: string;
   gameStats: CoreRoverGameStats;
@@ -132,8 +120,8 @@ class RoverMatterScene extends Phaser.Scene {
   private hasStarted = false;
   private hasFinished = false;
 
-  private latestCheckpointX = ROVER_START_X;
-  private latestCheckpointY = ROVER_START_Y;
+  private latestCheckpointX = 0;
+  private latestCheckpointY = 0;
 
   private activeTerrainContacts = new Set<string>();
   private maximumAirborneDownwardVelocity = 0;
@@ -144,6 +132,7 @@ class RoverMatterScene extends Phaser.Scene {
 
   private roverStage = 0;
   private roverName = "Basic Rover Frame";
+  private levelConfig: RoverLevelConfig;
 
   private normalMaximumSpeed = 5.5;
   private boostedMaximumSpeed = 7.0;
@@ -159,11 +148,12 @@ class RoverMatterScene extends Phaser.Scene {
   private readonly airborneLevelingRate = 3.8;
   private readonly airborneAngularDampingRate = 6.5;
 
-  constructor({ roverStage, roverName, gameStats }: PhaserGameProps) {
+  constructor({ levelConfig, roverStage, roverName, gameStats }: PhaserGameProps) {
     super({
       key: "RoverMatterScene",
     });
 
+    this.levelConfig = levelConfig;
     this.roverStage = roverStage;
     this.roverName = roverName;
 
@@ -191,10 +181,10 @@ class RoverMatterScene extends Phaser.Scene {
   preload() {
     this.load.image(
       "skyforge-background",
-      "/games/rover/skyforge-course-background.png",
+      this.levelConfig.assets.background,
     );
 
-    this.load.image("energy-orb", "/games/rover/energy-orb.png");
+    this.load.image("energy-orb", this.levelConfig.assets.orb);
 
     this.load.image("rover-body", "/games/rover/rover-body.png");
 
@@ -214,8 +204,8 @@ class RoverMatterScene extends Phaser.Scene {
     this.matter.world.setBounds(
       0,
       0,
-      WORLD_WIDTH,
-      WORLD_HEIGHT,
+      this.levelConfig.worldWidth,
+      this.levelConfig.worldHeight,
       64,
       true,
       true,
@@ -302,8 +292,8 @@ class RoverMatterScene extends Phaser.Scene {
     this.hasStarted = false;
     this.hasFinished = false;
 
-    this.latestCheckpointX = ROVER_START_X;
-    this.latestCheckpointY = ROVER_START_Y;
+    this.latestCheckpointX = this.levelConfig.start.x;
+    this.latestCheckpointY = this.levelConfig.start.y;
 
     this.activeTerrainContacts.clear();
     this.maximumAirborneDownwardVelocity = 0;
@@ -418,45 +408,14 @@ class RoverMatterScene extends Phaser.Scene {
      * overlapping Matter bodies. This creates smooth hills and valleys
      * instead of long straight ramps with sharp joins.
      */
-    this.createSmoothTerrainSection([
-      { x: 0, y: 645 },
-      { x: 360, y: 645 },
-      { x: 700, y: 635 },
-      { x: 1050, y: 585 },
-      { x: 1350, y: 560 },
-      { x: 1650, y: 610 },
-      { x: 1950, y: 650 },
-      { x: 2200, y: 635 },
-      { x: 2300, y: 610 },
-    ]);
-
-    // First jump gap: x 2300–2580 (280 px).
-    this.createSmoothTerrainSection([
-      { x: 2580, y: 650 },
-      { x: 2750, y: 645 },
-      { x: 3050, y: 585 },
-      { x: 3350, y: 535 },
-      { x: 3650, y: 550 },
-      { x: 3950, y: 610 },
-      { x: 4250, y: 650 },
-      { x: 4400, y: 625 },
-    ]);
-
-    // Second jump gap: x 4400–4720 (320 px).
-    this.createSmoothTerrainSection([
-      { x: 4720, y: 655 },
-      { x: 4900, y: 640 },
-      { x: 5200, y: 590 },
-      { x: 5500, y: 560 },
-      { x: 5800, y: 570 },
-      { x: 6100, y: 600 },
-      { x: 6350, y: 630 },
-      { x: 6500, y: 640 },
-    ]);
+    this.levelConfig.terrainSections.forEach((section) => {
+      this.createSmoothTerrainSection(section);
+    });
 
     this.createStartingPlatform();
-    this.createGapWarning(2440, 535);
-    this.createGapWarning(4560, 545);
+    this.levelConfig.gapWarnings.forEach(({ x, y }) => {
+      this.createGapWarning(x, y);
+    });
   }
 
   private createSmoothTerrainSection(
@@ -489,9 +448,9 @@ class RoverMatterScene extends Phaser.Scene {
 
     const finalPoint = sampledPoints[sampledPoints.length - 1];
 
-    fill.lineTo(finalPoint.x, WORLD_HEIGHT);
+    fill.lineTo(finalPoint.x, this.levelConfig.worldHeight);
 
-    fill.lineTo(sampledPoints[0].x, WORLD_HEIGHT);
+    fill.lineTo(sampledPoints[0].x, this.levelConfig.worldHeight);
 
     fill.closePath();
     fill.fillPath();
@@ -641,11 +600,21 @@ class RoverMatterScene extends Phaser.Scene {
   }
 
   private createStartingPlatform() {
-    this.add.ellipse(ROVER_START_X, 631, 360, 54, 0x3ce7ff, 0.07);
+    const startX = this.levelConfig.start.x;
+    const groundY = this.levelConfig.terrainSections[0]?.[0]?.y ?? 645;
 
-    this.add.ellipse(ROVER_START_X, 627, 280, 28, 0x80efff, 0.1);
+    this.add.ellipse(startX, groundY - 14, 360, 54, 0x3ce7ff, 0.07);
 
-    const outline = this.add.ellipse(ROVER_START_X, 625, 320, 38, 0x000000, 0);
+    this.add.ellipse(startX, groundY - 18, 280, 28, 0x80efff, 0.1);
+
+    const outline = this.add.ellipse(
+      startX,
+      groundY - 20,
+      320,
+      38,
+      0x000000,
+      0,
+    );
 
     outline.setStrokeStyle(2, 0x5eeaff, 0.3);
   }
@@ -673,8 +642,8 @@ class RoverMatterScene extends Phaser.Scene {
   }
 
   private createStartGate() {
-    const startX = 140;
-    const groundY = 645;
+    const startX = Math.max(100, this.levelConfig.start.x - 220);
+    const groundY = this.levelConfig.terrainSections[0]?.[0]?.y ?? 645;
 
     this.add.rectangle(startX, groundY - 105, 18, 210, 0x263354, 1);
 
@@ -696,16 +665,16 @@ class RoverMatterScene extends Phaser.Scene {
   }
 
   private createFinishGate() {
-    const groundY = 610;
+    const { x: finishX, y: groundY } = this.levelConfig.finish;
 
-    this.add.rectangle(FINISH_X - 110, groundY - 120, 24, 240, 0x263354, 1);
+    this.add.rectangle(finishX - 110, groundY - 120, 24, 240, 0x263354, 1);
 
-    this.add.rectangle(FINISH_X + 110, groundY - 120, 24, 240, 0x263354, 1);
+    this.add.rectangle(finishX + 110, groundY - 120, 24, 240, 0x263354, 1);
 
-    this.add.rectangle(FINISH_X, groundY - 230, 244, 24, 0x304267, 1);
+    this.add.rectangle(finishX, groundY - 230, 244, 24, 0x304267, 1);
 
     const finishGlow = this.add.rectangle(
-      FINISH_X,
+      finishX,
       groundY - 227,
       190,
       6,
@@ -716,7 +685,7 @@ class RoverMatterScene extends Phaser.Scene {
     finishGlow.setBlendMode(Phaser.BlendModes.ADD);
 
     this.add
-      .text(FINISH_X, groundY - 270, "FINISH", {
+      .text(finishX, groundY - 270, "FINISH", {
         fontFamily: "Arial, sans-serif",
         fontSize: "22px",
         fontStyle: "bold",
@@ -727,18 +696,7 @@ class RoverMatterScene extends Phaser.Scene {
   }
 
   private createCollectibles() {
-    const positions = [
-      { x: 900, y: 500 },
-      { x: 1370, y: 470 },
-      { x: 2050, y: 535 },
-      { x: 2740, y: 530 },
-      { x: 3500, y: 415 },
-      { x: 4200, y: 520 },
-      { x: 4950, y: 500 },
-      { x: 5670, y: 450 },
-    ];
-
-    positions.forEach((position, index) => {
+    this.levelConfig.collectibles.forEach((position, index) => {
       const glow = this.add.circle(position.x, position.y, 35, 0x65f7ff, 0.12);
 
       glow.setBlendMode(Phaser.BlendModes.ADD);
@@ -768,28 +726,7 @@ class RoverMatterScene extends Phaser.Scene {
   }
 
   private createCheckpoints() {
-    const checkpointData = [
-      {
-        x: 1950,
-        y: 565,
-        respawnX: 1900,
-        respawnY: 500,
-      },
-      {
-        x: 3710,
-        y: 455,
-        respawnX: 3650,
-        respawnY: 410,
-      },
-      {
-        x: 5250,
-        y: 510,
-        respawnX: 5180,
-        respawnY: 440,
-      },
-    ];
-
-    checkpointData.forEach((checkpoint, index) => {
+    this.levelConfig.checkpoints.forEach((checkpoint, index) => {
       this.add.rectangle(checkpoint.x, checkpoint.y, 12, 135, 0x3a4d72, 1);
 
       const glow = this.add.circle(
@@ -841,8 +778,8 @@ class RoverMatterScene extends Phaser.Scene {
      * detailed body PNG so it can be shifted upward independently.
      */
     const roverBody = this.matter.add.image(
-      ROVER_START_X,
-      ROVER_START_Y,
+      this.levelConfig.start.x,
+      this.levelConfig.start.y,
       "rover-body",
     );
 
@@ -863,8 +800,8 @@ class RoverMatterScene extends Phaser.Scene {
     this.roverBody = roverBody;
 
     this.roverBodyVisual = this.add.image(
-      ROVER_START_X,
-      ROVER_START_Y + ROVER_BODY_VISUAL_OFFSET_Y,
+      this.levelConfig.start.x,
+      this.levelConfig.start.y + ROVER_BODY_VISUAL_OFFSET_Y,
       "rover-body",
     );
 
@@ -877,8 +814,8 @@ class RoverMatterScene extends Phaser.Scene {
     this.roverBodyVisual.setDepth(20);
 
     this.leftWheelVisual = this.add.image(
-      ROVER_START_X + LEFT_WHEEL_OFFSET_X,
-      ROVER_START_Y + WHEEL_OFFSET_Y,
+      this.levelConfig.start.x + LEFT_WHEEL_OFFSET_X,
+      this.levelConfig.start.y + WHEEL_OFFSET_Y,
       "rover-wheel",
     );
 
@@ -891,8 +828,8 @@ class RoverMatterScene extends Phaser.Scene {
     this.leftWheelVisual.setDepth(21);
 
     this.rightWheelVisual = this.add.image(
-      ROVER_START_X + RIGHT_WHEEL_OFFSET_X,
-      ROVER_START_Y + WHEEL_OFFSET_Y,
+      this.levelConfig.start.x + RIGHT_WHEEL_OFFSET_X,
+      this.levelConfig.start.y + WHEEL_OFFSET_Y,
       "rover-wheel",
     );
 
@@ -969,20 +906,30 @@ class RoverMatterScene extends Phaser.Scene {
       .setDepth(101);
 
     this.collectibleText = this.add
-      .text(70, 178, `ENERGY ORBS  0 / ${TOTAL_COLLECTIBLES}`, {
-        fontFamily: "Arial, sans-serif",
-        fontSize: "12px",
-        color: "#89edf8",
-      })
+      .text(
+        70,
+        178,
+        `ENERGY ORBS  0 / ${this.levelConfig.collectibles.length}`,
+        {
+          fontFamily: "Arial, sans-serif",
+          fontSize: "12px",
+          color: "#89edf8",
+        },
+      )
       .setScrollFactor(0)
       .setDepth(101);
 
     this.checkpointText = this.add
-      .text(70, 201, `CHECKPOINTS  0 / ${TOTAL_CHECKPOINTS}`, {
-        fontFamily: "Arial, sans-serif",
-        fontSize: "12px",
-        color: "#89edf8",
-      })
+      .text(
+        70,
+        201,
+        `CHECKPOINTS  0 / ${this.levelConfig.checkpoints.length}`,
+        {
+          fontFamily: "Arial, sans-serif",
+          fontSize: "12px",
+          color: "#89edf8",
+        },
+      )
       .setScrollFactor(0)
       .setDepth(101);
 
@@ -1270,7 +1217,12 @@ class RoverMatterScene extends Phaser.Scene {
       return;
     }
 
-    this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+    this.cameras.main.setBounds(
+      0,
+      0,
+      this.levelConfig.worldWidth,
+      this.levelConfig.worldHeight,
+    );
 
     this.cameras.main.startFollow(this.roverBody, true, 0.075, 0.075, -280, 80);
 
@@ -1897,7 +1849,9 @@ class RoverMatterScene extends Phaser.Scene {
 
     this.distanceScore = Math.max(
       this.distanceScore,
-      Math.floor(Math.max(0, this.roverBody.x - ROVER_START_X) / 4),
+      Math.floor(
+        Math.max(0, this.roverBody.x - this.levelConfig.start.x) / 4,
+      ),
     );
 
     this.score = Math.max(
@@ -1936,7 +1890,7 @@ class RoverMatterScene extends Phaser.Scene {
 
     const distance = Math.max(
       0,
-      Math.round((this.roverBody.x - ROVER_START_X) / 4),
+      Math.round((this.roverBody.x - this.levelConfig.start.x) / 4),
     );
 
     const boostPercentage = Math.round(
@@ -1986,7 +1940,7 @@ class RoverMatterScene extends Phaser.Scene {
       return;
     }
 
-    if (this.roverBody.x < FINISH_X) {
+    if (this.roverBody.x < this.levelConfig.finish.x) {
       return;
     }
 
@@ -2001,7 +1955,9 @@ class RoverMatterScene extends Phaser.Scene {
 
     this.timeBonus = Math.max(
       0,
-      Math.round((COURSE_TIME_LIMIT_SECONDS - this.elapsedSeconds) * 15),
+      Math.round(
+        (this.levelConfig.timeLimitSeconds - this.elapsedSeconds) * 15,
+      ),
     );
 
     this.updateScore();
@@ -2020,7 +1976,8 @@ class RoverMatterScene extends Phaser.Scene {
     window.dispatchEvent(
       new CustomEvent("rover-course-complete", {
         detail: {
-          courseId: COURSE_ID,
+          levelId: this.levelConfig.id,
+          courseId: this.levelConfig.courseId,
           roverStage: this.roverStage,
           score: this.score,
           completionTimeMs: Math.max(1, Math.round(this.elapsedSeconds * 1000)),
@@ -2120,7 +2077,7 @@ class RoverMatterScene extends Phaser.Scene {
       return;
     }
 
-    if (this.roverBody.y > 1030) {
+    if (this.roverBody.y > this.levelConfig.worldHeight - 170) {
       this.crashPenalty += 150;
 
       this.showStatusMessage("COURSE FALL  -150", "#ffb0b0");
@@ -2189,6 +2146,7 @@ class RoverMatterScene extends Phaser.Scene {
 }
 
 export default function PhaserGame({
+  levelConfig,
   roverStage,
   roverName,
   gameStats,
@@ -2223,6 +2181,7 @@ export default function PhaserGame({
     gameRef.current = null;
 
     const scene = new RoverMatterScene({
+      levelConfig,
       roverStage,
       roverName,
       gameStats,
@@ -2293,7 +2252,7 @@ export default function PhaserGame({
       gameRef.current?.destroy(true);
       gameRef.current = null;
     };
-  }, [gameVersion, roverStage, roverName, gameStats]);
+  }, [gameVersion, levelConfig, roverStage, roverName, gameStats]);
 
   return (
     <div
