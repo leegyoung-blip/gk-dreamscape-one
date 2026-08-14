@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import AssetDeploymentView from "./AssetDeploymentView";
+import QuizImportView from "./QuizImportView";
 import type {
   CoreSubject,
   CurriculumInventoryPayload,
@@ -297,10 +298,7 @@ export default function CurriculumOperationsView({
           onClosePreview={clearPreview}
         />
       ) : tab === "import" ? (
-        <ComingSoonPanel
-          title="Quiz Import activates in Phase 3"
-          text="The next phase will validate CSV files, preview additions and updates, and import approved quizzes without treating omitted rows as deletions."
-        />
+        <QuizImportView role={role} />
       ) : tab === "assets" && role === "admin" ? (
         <AssetDeploymentView />
       ) : (
@@ -893,15 +891,6 @@ function HistoryRow({
 function archiveConfirmationPhrase(scopeType: ScopeType, count: number) {
   const noun = scopeType === "topic" ? "TOPIC" : "QUIZ";
   return count === 1 ? `ARCHIVE ${noun}` : `ARCHIVE ${count} ${noun}S`;
-}
-
-function ComingSoonPanel({ title, text }: { title: string; text: string }) {
-  return (
-    <div style={emptyCard}>
-      <h2 style={sectionTitle}>{title}</h2>
-      <p style={description}>{text}</p>
-    </div>
-  );
 }
 
 function TabButton({

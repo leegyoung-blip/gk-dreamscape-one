@@ -166,7 +166,7 @@ const ROOM_ZONE_KEYS: ZoneKey[] = [
   "extra-zone",
 ];
 
-const NOVA_CHARACTER_IMAGE = "/nova/nova-character.png";
+const NOVA_CHARACTER_IMAGE = "/activities/nova-home/wardrobe/nova/nova-base-body.png";
 
 const WARDROBE_CATEGORIES: {
   key: WardrobeCategory;
