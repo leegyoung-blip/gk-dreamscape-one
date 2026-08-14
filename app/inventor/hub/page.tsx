@@ -159,6 +159,7 @@ function getPurchaseResult(data: unknown): PurchaseResult | null {
 export default function NovaHomePage() {
   const router = useRouter();
   const stageRef = useRef<HTMLDivElement | null>(null);
+  const roomViewportRef = useRef<HTMLDivElement | null>(null);
   const maskPixelsRef = useRef<Map<ZoneKey, MaskPixels>>(new Map());
 
   const [currentArea, setCurrentArea] = useState<AreaKey>("area-1");
@@ -181,6 +182,7 @@ export default function NovaHomePage() {
   );
   const [message, setMessage] = useState("");
   const [setupError, setSetupError] = useState("");
+  const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
 
   const zones = useMemo<ZoneView[]>(() => {
     const catalog = new Map<string, ZoneCatalogRow>(
@@ -439,6 +441,50 @@ export default function NovaHomePage() {
     };
   }, []);
 
+
+  useEffect(() => {
+    const viewport = roomViewportRef.current;
+    if (!viewport) return;
+
+    const ROOM_RATIO = 1535 / 1024;
+
+    function fitStageToViewport() {
+      const element = roomViewportRef.current;
+      if (!element) return;
+
+      const rect = element.getBoundingClientRect();
+      const availableWidth = Math.max(0, rect.width);
+      const availableHeight = Math.max(0, rect.height);
+
+      if (availableWidth <= 0 || availableHeight <= 0) return;
+
+      const width = Math.min(availableWidth, availableHeight * ROOM_RATIO);
+      const height = width / ROOM_RATIO;
+
+      setStageSize((current) => {
+        if (
+          Math.abs(current.width - width) < 0.5 &&
+          Math.abs(current.height - height) < 0.5
+        ) {
+          return current;
+        }
+
+        return { width, height };
+      });
+    }
+
+    fitStageToViewport();
+
+    const observer = new ResizeObserver(fitStageToViewport);
+    observer.observe(viewport);
+    window.addEventListener("resize", fitStageToViewport);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", fitStageToViewport);
+    };
+  }, [currentArea, setupError]);
+
   const getZoneAtClientPoint = useCallback(
     (clientX: number, clientY: number): ZoneKey | null => {
       const stage = stageRef.current;
@@ -601,10 +647,10 @@ export default function NovaHomePage() {
   }
 
   return (
-    <main className="relative min-h-[100dvh] overflow-x-hidden bg-[#020713] text-white">
+    <main className="fixed inset-x-0 top-0 flex h-[100dvh] w-full flex-col overflow-hidden bg-[#020713] text-white">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(39,145,190,0.16),transparent_38%),linear-gradient(180deg,#04101d_0%,#020713_72%)]" />
 
-      <header className="relative z-30 border-b border-white/[0.06] bg-slate-950/42 px-3 py-3 backdrop-blur-xl sm:px-5 lg:px-7">
+      <header className="relative z-30 shrink-0 border-b border-white/[0.06] bg-slate-950/42 px-3 py-2 backdrop-blur-xl sm:px-5 lg:px-7">
         <div className="mx-auto grid w-full max-w-[1800px] gap-3 md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center">
           <div className="flex items-center gap-2">
             <button
@@ -623,14 +669,14 @@ export default function NovaHomePage() {
 
           <div className="min-w-0 md:px-3">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <h1 className="font-serif text-2xl font-medium tracking-[-0.035em] text-white sm:text-3xl">
+              <h1 className="font-serif text-xl font-medium tracking-[-0.035em] text-white sm:text-2xl xl:text-3xl">
                 Nova’s Home
               </h1>
               <span className="text-[9px] font-black uppercase tracking-[0.17em] text-cyan-300/75 sm:text-[10px]">
                 Admin Preview
               </span>
             </div>
-            <p className="mt-1 max-w-3xl text-[11px] leading-5 text-white/50 sm:text-xs">
+            <p className="mt-0.5 max-w-3xl text-[10px] leading-4 text-white/50 sm:text-[11px] xl:text-xs">
               {currentArea === "area-1"
                 ? "Choose a darkened room zone, view its DT price, and unlock it to reveal the furnishing beneath."
                 : "Area 2 is unlocked. This is the next connected expansion of Nova’s Home."}
@@ -678,17 +724,17 @@ export default function NovaHomePage() {
         </div>
       </header>
 
-      <section className="relative z-10 mx-auto w-full max-w-[1800px] px-3 pb-6 pt-3 sm:px-5 lg:px-7">
+      <section className="relative z-10 mx-auto flex min-h-0 w-full max-w-[1800px] flex-1 flex-col overflow-hidden px-3 py-2 sm:px-5 lg:px-7">
         {setupError && (
-          <div className="mb-3 rounded-[16px] border border-amber-200/28 bg-amber-300/[0.08] px-4 py-3 text-sm leading-6 text-amber-50/88">
+          <div className="mb-2 shrink-0 rounded-[14px] border border-amber-200/28 bg-amber-300/[0.08] px-4 py-2 text-xs leading-5 text-amber-50/88">
             {setupError}
           </div>
         )}
 
         {currentArea === "area-1" ? (
-          <div className="grid items-start gap-3 md:grid-cols-[205px_minmax(0,1fr)] lg:grid-cols-[230px_minmax(0,1fr)]">
-            <aside className="grid grid-cols-2 gap-2 md:sticky md:top-3 md:grid-cols-1">
-              <div className="col-span-2 mb-1 md:col-span-1">
+          <div className="grid min-h-0 flex-1 items-stretch gap-3 md:grid-cols-[190px_minmax(0,1fr)] lg:grid-cols-[215px_minmax(0,1fr)] xl:grid-cols-[230px_minmax(0,1fr)]">
+            <aside className="grid min-h-0 grid-cols-5 content-start gap-1.5 md:grid-cols-1 md:grid-rows-[auto_repeat(5,minmax(0,1fr))] md:gap-2">
+              <div className="col-span-5 mb-0.5 md:col-span-1">
                 <p className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-200/55">
                   Area 1 · Starter Quarters
                 </p>
@@ -709,7 +755,7 @@ export default function NovaHomePage() {
                     onMouseEnter={() => setHoveredZoneKey(zone.key)}
                     onMouseLeave={() => setHoveredZoneKey(null)}
                     onClick={() => selectZone(zone.key)}
-                    className={`group rounded-[16px] border px-3 py-3 text-left transition ${
+                    className={`group min-h-0 rounded-[14px] border px-2 py-2 text-left transition md:px-3 md:py-2 ${
                       selected
                         ? "border-cyan-200/52 bg-cyan-300/[0.1] shadow-[0_0_24px_rgba(83,215,255,0.11)]"
                         : unlocked
@@ -764,7 +810,10 @@ export default function NovaHomePage() {
               })}
             </aside>
 
-            <div className="min-w-0">
+            <div
+              ref={roomViewportRef}
+              className="flex min-h-0 min-w-0 items-start justify-center overflow-hidden"
+            >
               <div
                 ref={stageRef}
                 onPointerMove={handlePointerMove}
@@ -773,7 +822,13 @@ export default function NovaHomePage() {
                 className={`relative isolate w-full touch-manipulation select-none overflow-hidden rounded-[20px] border border-cyan-200/18 bg-black shadow-[0_28px_90px_rgba(0,0,0,0.56)] sm:rounded-[24px] ${
                   activeZoneKey ? "cursor-pointer" : "cursor-default"
                 }`}
-                style={{ aspectRatio: "1535 / 1024" }}
+                style={{
+                  width: stageSize.width > 0 ? `${stageSize.width}px` : "100%",
+                  height: stageSize.height > 0 ? `${stageSize.height}px` : "auto",
+                  aspectRatio: "1535 / 1024",
+                  maxWidth: "100%",
+                  maxHeight: "100%",
+                }}
                 aria-label="Interactive Nova Home Area 1"
               >
                 <img
@@ -926,20 +981,19 @@ export default function NovaHomePage() {
                   </div>
                 )}
               </div>
-
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-1 text-[9px] leading-4 text-white/28 sm:text-[10px]">
-                <p>
-                  Hover uses the exact alpha shape of each Photoshop lock PNG.
-                </p>
-                <p className="shrink-0">{userEmail || "admin"}</p>
-              </div>
             </div>
           </div>
         ) : (
-          <div className="mx-auto w-full max-w-[1535px]">
+          <div ref={roomViewportRef} className="flex min-h-0 flex-1 items-start justify-center overflow-hidden">
             <div
               className="relative isolate overflow-hidden rounded-[24px] border border-emerald-200/18 bg-[radial-gradient(circle_at_50%_35%,rgba(30,150,190,0.17),transparent_45%),linear-gradient(145deg,#07172a,#020713)] shadow-[0_30px_100px_rgba(0,0,0,0.56)]"
-              style={{ aspectRatio: "1535 / 1024" }}
+              style={{
+                width: stageSize.width > 0 ? `${stageSize.width}px` : "100%",
+                height: stageSize.height > 0 ? `${stageSize.height}px` : "auto",
+                aspectRatio: "1535 / 1024",
+                maxWidth: "100%",
+                maxHeight: "100%",
+              }}
             >
               {!area2ImageFailed && (
                 <img

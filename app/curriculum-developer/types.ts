@@ -182,26 +182,150 @@ export type QuizFormState = {
   randomiseOptions: boolean;
 };
 
+export type CurriculumAuditEntityType =
+  | "quiz"
+  | "question"
+  | "stimulus"
+  | "asset"
+  | "topic"
+  | "skill"
+  | "operation"
+  | "import_batch";
+
+export type CurriculumAuditAction =
+  | "created"
+  | "updated"
+  | "submitted"
+  | "changes_requested"
+  | "approved"
+  | "published"
+  | "unpublished"
+  | "archived"
+  | "restored"
+  | "deleted"
+  | "reordered"
+  | "imported"
+  | "previewed";
+
 export type CurriculumAuditEntry = {
   id: string;
   user_id: string;
-  entity_type: "quiz" | "question" | "stimulus" | "asset";
+  entity_type: CurriculumAuditEntityType;
   entity_id: string;
   quiz_id: string | null;
   subject: CoreSubject | null;
-  action:
-    | "created"
-    | "updated"
-    | "submitted"
-    | "changes_requested"
-    | "approved"
-    | "published"
-    | "unpublished"
-    | "archived"
-    | "deleted"
-    | "reordered";
+  action: CurriculumAuditAction;
   before_data: JsonObject | null;
   after_data: JsonObject | null;
   notes: string | null;
   created_at: string;
+};
+
+export type CurriculumInventorySummary = {
+  topic_count: number;
+  active_topic_count: number;
+  inactive_topic_count: number;
+  quiz_count: number;
+  published_quiz_count: number;
+  archived_quiz_count: number;
+  question_count: number;
+  asset_count: number;
+  attempt_count: number;
+};
+
+export type CurriculumInventoryTopic = {
+  id: string;
+  subject: CoreSubject;
+  primary_level: number;
+  slug: string;
+  title: string;
+  short_title: string;
+  sort_order: number;
+  is_assessment_topic: boolean;
+  is_active: boolean;
+  skill_count: number;
+  active_skill_count: number;
+  quiz_count: number;
+  published_quiz_count: number;
+  archived_quiz_count: number;
+  draft_quiz_count: number;
+  review_quiz_count: number;
+  question_count: number;
+  published_question_count: number;
+  question_link_count: number;
+  linked_question_count: number;
+  stimulus_count: number;
+  asset_count: number;
+  attempt_count: number;
+};
+
+export type CurriculumInventoryPayload = {
+  generated_at: string;
+  filters: {
+    subject: CoreSubject | null;
+    primary_level: number | null;
+    include_inactive: boolean;
+  };
+  summary: CurriculumInventorySummary;
+  topics: CurriculumInventoryTopic[];
+};
+
+export type CurriculumOperationPreview = {
+  generated_at: string;
+  subject: CoreSubject;
+  scope_type: "topic" | "quiz";
+  requested_target_count: number;
+  resolved_target_count: number;
+  topic_ids: string[];
+  quiz_ids: string[];
+  summary: {
+    topic_count: number;
+    skill_count: number;
+    quiz_count: number;
+    published_quiz_count: number;
+    archived_quiz_count: number;
+    question_link_count: number;
+    question_count: number;
+    asset_count: number;
+    attempt_count: number;
+    answer_count: number;
+    reward_claim_count: number;
+  };
+  has_student_history: boolean;
+  hard_delete_safe: false;
+  recommended_action: "archive";
+  warnings: string[];
+  topics: Array<{
+    id: string;
+    primary_level: number;
+    slug: string;
+    title: string;
+    is_active: boolean;
+  }>;
+  quizzes: Array<{
+    id: string;
+    topic_id: string;
+    code: string;
+    title: string;
+    status: QuizStatus;
+    is_published: boolean;
+    question_count: number;
+    attempt_count: number;
+  }>;
+};
+
+export type CurriculumOperation = {
+  id: string;
+  operation_type: "archive" | "restore" | "import" | "asset_deployment";
+  scope_type: "quiz" | "topic" | "selection" | "batch";
+  subject: "english" | "math" | "science";
+  primary_level: number | null;
+  target_ids: string[];
+  status: "previewed" | "pending" | "running" | "completed" | "failed" | "cancelled";
+  preview_data: JsonObject;
+  result_data: JsonObject;
+  requested_by: string;
+  created_at: string;
+  completed_at: string | null;
+  error_message: string | null;
 };

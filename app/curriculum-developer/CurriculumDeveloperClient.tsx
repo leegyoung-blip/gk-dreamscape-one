@@ -9,7 +9,7 @@ import DashboardView from "./components/DashboardView";
 import QuizBuilderView from "./components/QuizBuilderView";
 import ReviewQueueView from "./components/ReviewQueueView";
 import EditHistoryView from "./components/EditHistoryView";
-import AssetDeploymentView from "./components/AssetDeploymentView";
+import CurriculumOperationsView from "./components/CurriculumOperationsView";
 import type {
   CoreQuiz,
   CoreSkill,
@@ -18,7 +18,7 @@ import type {
   CurriculumAuditEntry,
 } from "./types";
 
-type Section = "dashboard" | "builder" | "review" | "history" | "deployment";
+type Section = "dashboard" | "builder" | "review" | "history" | "operations";
 
 const QUIZ_PAGE_SIZE = 500;
 
@@ -278,24 +278,22 @@ export default function CurriculumDeveloperClient() {
             onClick={() => setSection("history")}
           />
 
-          {role === "admin" && (
-            <NavButton
-              active={section === "deployment"}
-              label="Asset Deployment"
-              icon="⇧"
-              onClick={() => setSection("deployment")}
-            />
-          )}
+          <NavButton
+            active={section === "operations"}
+            label="Curriculum Operations"
+            icon="⇧"
+            onClick={() => setSection("operations")}
+          />
 
           <div className="curriculum-sidebar-note" style={sidebarNote}>
-            Admins and curriculum leads can create, edit and publish English and
-            Mathematics quizzes. Published edits go live immediately.
+            Admins and curriculum leads can create and review curriculum.
+            Bulk archive and deployment actions remain restricted and audited.
           </div>
         </aside>
 
         <section className="curriculum-workspace" style={workspace}>
-          {section === "deployment" ? (
-            <AssetDeploymentView />
+          {section === "operations" ? (
+            <CurriculumOperationsView role={role} />
           ) : loading ? (
             <PageMessage text="Loading curriculum content..." embedded />
           ) : loadError ? (
