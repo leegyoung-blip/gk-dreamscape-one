@@ -10,6 +10,8 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import WardrobeFittedLayer from "@/components/nova-home/WardrobeFittedLayer";
+import { NOVA_WARDROBE_RIG } from "@/lib/novaHome/wardrobeRig";
 
 type AreaKey = "area-1" | "area-2";
 
@@ -84,6 +86,11 @@ type WardrobeCatalogRow = {
   accent_hex: string;
   layer_order: number;
   sort_order: number;
+  fit_mode: "auto" | "manual";
+  fit_scale: number;
+  fit_offset_x_pct: number;
+  fit_offset_y_pct: number;
+  fit_rotation_deg: number;
 };
 
 type WardrobeOwnershipRow = {
@@ -772,7 +779,7 @@ export default function NovaHomePage() {
       supabase
         .from("nova_home_wardrobe_catalog")
         .select(
-          "item_key,character_key,category,title,description,dt_cost,is_starter,thumbnail_image,layer_image,accent_hex,layer_order,sort_order",
+          "item_key,character_key,category,title,description,dt_cost,is_starter,thumbnail_image,layer_image,accent_hex,layer_order,sort_order,fit_mode,fit_scale,fit_offset_x_pct,fit_offset_y_pct,fit_rotation_deg",
         )
         .eq("is_active", true)
         .order("sort_order", { ascending: true }),
@@ -817,7 +824,9 @@ export default function NovaHomePage() {
       console.warn("Could not load wardrobe catalog:", catalogResult.error.message);
       setWardrobeCatalog([]);
       setWardrobeSetupError(
-        "Wardrobe Bay tables are not ready. Run SQL 303 before testing this activity.",
+        catalogResult.error.message.includes("fit_")
+          ? "Wardrobe Rig fields are not ready. Run SQL 307 before testing Phase 1."
+          : "Wardrobe Bay tables are not ready. Run SQL 303 before testing this activity.",
       );
     } else {
       const rows = (catalogResult.data || []).map((row) => ({
@@ -833,6 +842,11 @@ export default function NovaHomePage() {
         accent_hex: String(row.accent_hex || "#6ee7ff"),
         layer_order: Number(row.layer_order || 50),
         sort_order: Number(row.sort_order || 0),
+        fit_mode: String(row.fit_mode || "auto") as "auto" | "manual",
+        fit_scale: Number(row.fit_scale ?? 1),
+        fit_offset_x_pct: Number(row.fit_offset_x_pct ?? 0),
+        fit_offset_y_pct: Number(row.fit_offset_y_pct ?? 0),
+        fit_rotation_deg: Number(row.fit_rotation_deg ?? 0),
       }));
       setWardrobeCatalog(rows);
 
@@ -1688,7 +1702,7 @@ function WardrobeBay({
     }
 
     previewEquipped.push({
-      character_key: "nova",
+      character_key: activeCharacter,
       category: selectedItem.category,
       item_key: selectedItem.item_key,
     });
@@ -1729,14 +1743,14 @@ function WardrobeBay({
                 Sleep Zone Activity
               </p>
               <span className="rounded-full border border-cyan-200/16 bg-cyan-300/[0.06] px-2 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100/70">
-                Phase 2 · Step 1
+                Wardrobe Rig · Phase 1
               </span>
             </div>
             <h2 className="mt-1 font-serif text-2xl font-medium tracking-[-0.035em] sm:text-3xl">
               Wardrobe Bay
             </h2>
             <p className="mt-1 max-w-2xl text-[10px] leading-4 text-white/46 sm:text-xs sm:leading-5">
-              Switch between Nova and Milo. Milo is a one-time 1,000 DT character unlock; his clothing collection arrives in Step 2.
+              Nova clothing now uses body anchors and alpha-aware auto-fit instead of relying on identical PNG placement. Milo unlock remains available; Milo fitting is added in Rig Phase 3.
             </p>
           </div>
 
@@ -1803,25 +1817,24 @@ function WardrobeBay({
               <div className="pointer-events-none absolute inset-x-[12%] bottom-[8%] h-[22%] rounded-[50%] bg-cyan-300/[0.08] blur-2xl" />
               <div className="relative flex h-full max-h-[560px] w-full max-w-[430px] items-end justify-center">
                 {activeCharacter === "nova" ? (
-                  <>
+                  <div className="relative aspect-square w-[min(92%,430px)] shrink-0">
                     <img
                       src={NOVA_CHARACTER_IMAGE}
                       alt="Nova wardrobe preview"
-                      className="pointer-events-none relative z-10 max-h-[95%] max-w-full object-contain drop-shadow-[0_28px_44px_rgba(0,0,0,0.55)]"
+                      className="pointer-events-none absolute inset-0 z-10 h-full w-full object-contain drop-shadow-[0_28px_44px_rgba(0,0,0,0.55)]"
                       draggable={false}
                     />
                     {previewLayers.map((item) => (
-                      <img
+                      <WardrobeFittedLayer
                         key={item.item_key}
-                        src={item.layer_image || ""}
-                        alt=""
-                        aria-hidden="true"
-                        className="pointer-events-none absolute inset-0 z-20 h-full w-full object-contain"
-                        draggable={false}
-                        style={{ zIndex: 20 + item.layer_order }}
+                        item={item}
+                        rig={NOVA_WARDROBE_RIG}
                       />
                     ))}
-                  </>
+                    <div className="pointer-events-none absolute bottom-[1.5%] left-1/2 z-[90] -translate-x-1/2 rounded-full border border-cyan-200/18 bg-slate-950/70 px-2.5 py-1 text-[7px] font-black uppercase tracking-[0.1em] text-cyan-100/55 backdrop-blur-md">
+                      Auto-fit rig v1
+                    </div>
+                  </div>
                 ) : (
                   <div className="relative z-20 mb-auto mt-auto w-[min(360px,90%)] rounded-[24px] border border-amber-200/24 bg-slate-950/76 p-5 text-center shadow-[0_28px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl">
                     <div className={`mx-auto flex h-24 w-24 items-center justify-center rounded-full border text-4xl font-black ${
@@ -1834,7 +1847,7 @@ function WardrobeBay({
                     <h3 className="mt-4 text-xl font-black text-white">Milo</h3>
                     <p className="mt-2 text-[11px] leading-5 text-white/48">
                       {miloUnlocked
-                        ? "Milo is permanently unlocked. His wardrobe artwork and clothing collection arrive in Step 2."
+                        ? "Milo is permanently unlocked. His own base rig and fitted wardrobe are added in Wardrobe Rig Phase 3."
                         : miloCatalog?.description || "Bring Milo into Nova's Home as a permanent customisable character."}
                     </p>
                     {!miloUnlocked ? (

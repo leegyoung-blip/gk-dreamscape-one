@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import {
@@ -90,7 +90,15 @@ const SUPPORTED_TYPES: Array<{ value: ScienceQuestionType; label: string }> = [
   { value: "sorting", label: "Sorting" },
 ];
 
-export default function ScienceBuilderView({ role }: { role: CurriculumRole }) {
+export default function ScienceBuilderView({
+  role,
+  initialQuizId = null,
+  onQuizChange,
+}: {
+  role: CurriculumRole;
+  initialQuizId?: string | null;
+  onQuizChange?: (quizId: string | null) => void;
+}) {
   const [tab, setTab] = useState<BuilderTab>("quizzes");
   const [levels, setLevels] = useState<ScienceLevelRow[]>([]);
   const [topics, setTopics] = useState<ScienceTopicRow[]>([]);
@@ -110,14 +118,19 @@ export default function ScienceBuilderView({ role }: { role: CurriculumRole }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const inventoryRequest = useRef(0);
+  const selectedQuizLevel = useRef<number | null>(null);
 
   const loadInventory = useCallback(async () => {
+    const request = inventoryRequest.current + 1;
+    inventoryRequest.current = request;
     setLoading(true);
     setError(null);
     const { data: levelRows, error: levelError } = await supabase
       .from("science_levels")
       .select("*")
       .order("sort_order");
+    if (request !== inventoryRequest.current) return;
     if (levelError) {
       setError(levelError.message);
       setLoading(false);
@@ -139,6 +152,7 @@ export default function ScienceBuilderView({ role }: { role: CurriculumRole }) {
       .select("*")
       .eq("level_id", levelId)
       .order("sort_order");
+    if (request !== inventoryRequest.current) return;
     if (topicError) {
       setError(topicError.message);
       setLoading(false);
@@ -157,37 +171,66 @@ export default function ScienceBuilderView({ role }: { role: CurriculumRole }) {
       .select("*")
       .in("topic_id", ids)
       .order("sequence_no");
+    if (request !== inventoryRequest.current) return;
     if (quizError) setError(quizError.message);
     else setQuizzes((quizRows || []) as ScienceQuizRow[]);
     setLoading(false);
   }, [level]);
 
-  const loadEditor = useCallback(async (quizId: string) => {
-    setBusy(true);
-    setError(null);
-    const { data, error: rpcError } = await supabase.rpc(
-      "science_get_quiz_editor",
-      { p_quiz_id: quizId },
-    );
-    if (rpcError) setError(rpcError.message);
-    else {
-      const loaded = data as ScienceQuizEditorPayload;
-      if (loaded.error || !loaded.quiz)
-        setError("Quiz not found or access denied.");
+  const loadEditor = useCallback(
+    async (quizId: string) => {
+      setBusy(true);
+      setError(null);
+      const { data, error: rpcError } = await supabase.rpc(
+        "science_get_quiz_editor",
+        { p_quiz_id: quizId },
+      );
+      if (rpcError) setError(rpcError.message);
       else {
-        setPayload(loaded);
-        setSelectedQuizId(quizId);
+        const loaded = data as ScienceQuizEditorPayload;
+        if (loaded.error || !loaded.quiz)
+          setError("Quiz not found or access denied.");
+        else {
+          setPayload(loaded);
+          setSelectedQuizId(quizId);
+          onQuizChange?.(quizId);
+          const levelMatch = /^p([1-6])$/i.exec(loaded.quiz.level_slug);
+          if (levelMatch) {
+            selectedQuizLevel.current = Number(levelMatch[1]);
+            setLevel(selectedQuizLevel.current);
+          }
+
+          const url = new URL(window.location.href);
+          url.searchParams.set("section", "operations");
+          url.searchParams.set("operationsTab", "science");
+          url.searchParams.set("quizId", quizId);
+          window.history.replaceState(
+            {},
+            "",
+            `${url.pathname}${url.search}${url.hash}`,
+          );
+        }
       }
-    }
-    setBusy(false);
-  }, []);
+      setBusy(false);
+    },
+    [onQuizChange],
+  );
 
   useEffect(() => {
     setTopicId("all");
-    setSelectedQuizId(null);
-    setPayload(null);
+    setSelectedQuizId((current) =>
+      selectedQuizLevel.current === level ? current : null,
+    );
+    setPayload((current) =>
+      selectedQuizLevel.current === level ? current : null,
+    );
+    if (selectedQuizLevel.current !== level) selectedQuizLevel.current = null;
     void loadInventory();
   }, [level, loadInventory]);
+
+  useEffect(() => {
+    if (initialQuizId) void loadEditor(initialQuizId);
+  }, [initialQuizId, loadEditor]);
 
   const visible = useMemo(
     () =>
@@ -202,6 +245,18 @@ export default function ScienceBuilderView({ role }: { role: CurriculumRole }) {
     [quizzes, search, status, topicId],
   );
   const questions = payload?.questions || [];
+
+  function changeLevel(nextLevel: number) {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("quizId");
+    window.history.replaceState(
+      {},
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+    onQuizChange?.(null);
+    setLevel(nextLevel);
+  }
 
   function newQuiz() {
     const chosenTopic = topicId !== "all" ? topicId : topics[0]?.id || "";
@@ -451,7 +506,7 @@ export default function ScienceBuilderView({ role }: { role: CurriculumRole }) {
                 <select
                   style={input}
                   value={level}
-                  onChange={(e) => setLevel(Number(e.target.value))}
+                  onChange={(e) => changeLevel(Number(e.target.value))}
                 >
                   {[1, 2, 3, 4, 5, 6].map((n) => (
                     <option key={n} value={n}>

@@ -65,7 +65,8 @@ type TouchButton = {
   label: Phaser.GameObjects.Text;
 };
 
-type TrapItem = RoverTrap & {
+type TrapItem = Omit<RoverTrap, "y"> & {
+  y: number;
   armed: boolean;
   sprite: Phaser.GameObjects.Image;
   glow: Phaser.GameObjects.Arc;
@@ -174,7 +175,8 @@ class RoverMatterScene extends Phaser.Scene {
 
     this.brakingRate = gameStats.brakingRate;
 
-    this.jumpVelocity = gameStats.jumpVelocity;
+    // Every rover gets a 35% stronger jump while preserving the upgrade curve.
+    this.jumpVelocity = gameStats.jumpVelocity * 1.35;
 
     this.maximumBoostEnergy = gameStats.boostCapacity;
 
@@ -872,13 +874,22 @@ class RoverMatterScene extends Phaser.Scene {
     }
 
     (this.levelConfig.traps ?? []).forEach((trap) => {
-      const glow = this.add.circle(trap.x, trap.y, 48, 0xff5c72, 0.12);
+      // trap.y is used only as a route hint when multiple terrain surfaces
+      // overlap at the same x-position. The exact sprite position still
+      // comes from the sampled terrain surface below.
+      const terrainPose = this.getTerrainPoseAtX(trap.x, trap.y);
+      const surfaceY = terrainPose?.y ?? trap.y ?? this.levelConfig.start.y;
+      const spriteY = surfaceY - 32;
+      const terrainAngle = terrainPose?.angle ?? 0;
+
+      const glow = this.add.circle(trap.x, spriteY, 48, 0xff5c72, 0.12);
       glow.setBlendMode(Phaser.BlendModes.ADD);
       glow.setDepth(17);
 
       const sprite = this.add
-        .image(trap.x, trap.y, "dreamkeeper-dynamite")
+        .image(trap.x, spriteY, "dreamkeeper-dynamite")
         .setDisplaySize(112, 76)
+        .setRotation(terrainAngle)
         .setDepth(24);
 
       this.tweens.add({
@@ -893,6 +904,7 @@ class RoverMatterScene extends Phaser.Scene {
 
       this.traps.push({
         ...trap,
+        y: spriteY,
         armed: true,
         sprite,
         glow,
@@ -1784,6 +1796,57 @@ class RoverMatterScene extends Phaser.Scene {
     }
 
     return closest?.angle ?? null;
+  }
+
+  private getTerrainPoseAtX(x: number, preferredSurfaceY?: number) {
+    const candidates: Array<{ y: number; angle: number }> = [];
+
+    for (const section of this.terrainSections) {
+      if (section.length < 2) {
+        continue;
+      }
+
+      const firstPoint = section[0];
+      const lastPoint = section[section.length - 1];
+
+      if (x < firstPoint.x || x > lastPoint.x) {
+        continue;
+      }
+
+      for (let index = 0; index < section.length - 1; index += 1) {
+        const current = section[index];
+        const next = section[index + 1];
+
+        if (x < current.x || x > next.x) {
+          continue;
+        }
+
+        const span = Math.max(0.001, next.x - current.x);
+        const ratio = Phaser.Math.Clamp((x - current.x) / span, 0, 1);
+
+        candidates.push({
+          y: Phaser.Math.Linear(current.y, next.y, ratio),
+          angle: Math.atan2(next.y - current.y, next.x - current.x),
+        });
+
+        break;
+      }
+    }
+
+    if (candidates.length === 0) {
+      return null;
+    }
+
+    if (preferredSurfaceY === undefined) {
+      return candidates[0];
+    }
+
+    return candidates.reduce((closest, candidate) =>
+      Math.abs(candidate.y - preferredSurfaceY) <
+      Math.abs(closest.y - preferredSurfaceY)
+        ? candidate
+        : closest,
+    );
   }
 
   private updateRoverVisuals(delta: number) {

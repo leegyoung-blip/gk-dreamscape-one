@@ -77,10 +77,20 @@ function mergeInventories(
 
 export default function CurriculumOperationsView({
   role,
+  initialTab = "inventory",
+  initialScienceQuizId = null,
+  onTabChange,
+  onScienceQuizChange,
 }: {
   role: CurriculumRole;
+  initialTab?: OperationsTab;
+  initialScienceQuizId?: string | null;
+  onTabChange?: (tab: OperationsTab) => void;
+  onScienceQuizChange?: (quizId: string | null) => void;
 }) {
-  const [tab, setTab] = useState<OperationsTab>("inventory");
+  const [tab, setTab] = useState<OperationsTab>(
+    initialTab === "assets" && role !== "admin" ? "inventory" : initialTab,
+  );
   const [subject, setSubject] = useState<SubjectFilter>("all");
   const [level, setLevel] = useState<LevelFilter>("all");
   const [search, setSearch] = useState("");
@@ -188,6 +198,22 @@ export default function CurriculumOperationsView({
     if (tab === "inventory") void loadInventory();
     if (tab === "history") void loadHistory();
   }, [loadHistory, loadInventory, tab]);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("section", "operations");
+    url.searchParams.set("operationsTab", tab);
+    if (tab !== "science") {
+      url.searchParams.delete("quizId");
+      onScienceQuizChange?.(null);
+    }
+    window.history.replaceState(
+      {},
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+    onTabChange?.(tab);
+  }, [onScienceQuizChange, onTabChange, tab]);
 
   useEffect(() => {
     setSelectedTopicIds([]);
@@ -393,7 +419,11 @@ export default function CurriculumOperationsView({
           onClosePreview={clearPreview}
         />
       ) : tab === "science" ? (
-        <ScienceBuilderView role={role} />
+        <ScienceBuilderView
+          role={role}
+          initialQuizId={initialScienceQuizId}
+          onQuizChange={onScienceQuizChange}
+        />
       ) : tab === "import" ? (
         <QuizImportView role={role} />
       ) : tab === "assets" && role === "admin" ? (

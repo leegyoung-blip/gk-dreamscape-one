@@ -19,6 +19,7 @@ import type {
 } from "./types";
 
 type Section = "dashboard" | "builder" | "review" | "history" | "operations";
+type OperationsTab = "inventory" | "science" | "import" | "assets" | "history";
 
 const QUIZ_PAGE_SIZE = 500;
 
@@ -73,6 +74,9 @@ export default function CurriculumDeveloperClient() {
   const router = useRouter();
   const { status, role, error: accessError } = useCurriculumDeveloperAccess();
   const [section, setSection] = useState<Section>("dashboard");
+  const [operationsTab, setOperationsTab] =
+    useState<OperationsTab>("inventory");
+  const [scienceQuizId, setScienceQuizId] = useState<string | null>(null);
   const [topics, setTopics] = useState<CoreTopic[]>([]);
   const [skills, setSkills] = useState<CoreSkill[]>([]);
   const [quizzes, setQuizzes] = useState<CoreQuiz[]>([]);
@@ -190,9 +194,51 @@ export default function CurriculumDeveloperClient() {
     void loadContent();
   }, [loadContent]);
 
+  useEffect(() => {
+    const parameters = new URLSearchParams(window.location.search);
+    const requestedSection = parameters.get("section");
+    const requestedOperationsTab = parameters.get("operationsTab");
+    const requestedScienceQuizId = parameters.get("quizId");
+
+    if (requestedSection === "operations") {
+      setSection("operations");
+      if (
+        requestedOperationsTab === "inventory" ||
+        requestedOperationsTab === "science" ||
+        requestedOperationsTab === "import" ||
+        requestedOperationsTab === "assets" ||
+        requestedOperationsTab === "history"
+      ) {
+        setOperationsTab(requestedOperationsTab);
+      }
+      setScienceQuizId(requestedScienceQuizId);
+    }
+  }, []);
+
+  function selectSection(nextSection: Section) {
+    setSection(nextSection);
+    const url = new URL(window.location.href);
+
+    if (nextSection === "operations") {
+      url.searchParams.set("section", "operations");
+      url.searchParams.set("operationsTab", operationsTab);
+    } else {
+      url.searchParams.delete("section");
+      url.searchParams.delete("operationsTab");
+      url.searchParams.delete("quizId");
+      setScienceQuizId(null);
+    }
+
+    window.history.replaceState(
+      {},
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+  }
+
   function openQuiz(quizId: string) {
     setSelectedQuizId(quizId);
-    setSection("builder");
+    selectSection("builder");
   }
 
   if (status === "checking") {
@@ -241,27 +287,27 @@ export default function CurriculumDeveloperClient() {
 
       <div className="curriculum-layout" style={appGrid}>
         <aside className="curriculum-sidebar" style={sidebar}>
-          <p className="curriculum-sidebar-eyebrow" style={sidebarEyebrow}>CONTENT WORKSPACE</p>
+          <p className="curriculum-sidebar-eyebrow" style={sidebarEyebrow}>
+            CONTENT WORKSPACE
+          </p>
           <NavButton
             active={section === "dashboard"}
             label="Dashboard"
             icon="▦"
-            onClick={() => setSection("dashboard")}
+            onClick={() => selectSection("dashboard")}
           />
           <NavButton
             active={section === "builder"}
             label="Quiz Builder"
             icon="✎"
-            onClick={() => setSection("builder")}
+            onClick={() => selectSection("builder")}
           />
 
           <NavButton
             active={false}
             label="Learning Skills"
             icon="◎"
-            onClick={() =>
-              router.push("/curriculum-developer/learning-skills")
-            }
+            onClick={() => router.push("/curriculum-developer/learning-skills")}
           />
 
           <NavButton
@@ -269,31 +315,37 @@ export default function CurriculumDeveloperClient() {
             label="Review Queue"
             icon="✓"
             badge={quizzes.filter((quiz) => quiz.status === "in_review").length}
-            onClick={() => setSection("review")}
+            onClick={() => selectSection("review")}
           />
           <NavButton
             active={section === "history"}
             label="Edit History"
             icon="↺"
-            onClick={() => setSection("history")}
+            onClick={() => selectSection("history")}
           />
 
           <NavButton
             active={section === "operations"}
             label="Curriculum Operations"
             icon="⇧"
-            onClick={() => setSection("operations")}
+            onClick={() => selectSection("operations")}
           />
 
           <div className="curriculum-sidebar-note" style={sidebarNote}>
-            Admins and curriculum leads can create and review curriculum.
-            Bulk archive and deployment actions remain restricted and audited.
+            Admins and curriculum leads can create and review curriculum. Bulk
+            archive and deployment actions remain restricted and audited.
           </div>
         </aside>
 
         <section className="curriculum-workspace" style={workspace}>
           {section === "operations" ? (
-            <CurriculumOperationsView role={role} />
+            <CurriculumOperationsView
+              role={role}
+              initialTab={operationsTab}
+              initialScienceQuizId={scienceQuizId}
+              onTabChange={setOperationsTab}
+              onScienceQuizChange={setScienceQuizId}
+            />
           ) : loading ? (
             <PageMessage text="Loading curriculum content..." embedded />
           ) : loadError ? (
@@ -304,7 +356,7 @@ export default function CurriculumDeveloperClient() {
               quizzes={quizzes}
               onCreateQuiz={() => {
                 setSelectedQuizId(null);
-                setSection("builder");
+                selectSection("builder");
               }}
               onOpenQuiz={openQuiz}
             />
@@ -366,7 +418,9 @@ export default function CurriculumDeveloperClient() {
           font-size: 14px !important;
         }
 
-        #curriculum-developer-root .curriculum-workspace .curriculum-page-description {
+        #curriculum-developer-root
+          .curriculum-workspace
+          .curriculum-page-description {
           font-size: 17px !important;
           line-height: 1.6 !important;
         }
@@ -384,7 +438,7 @@ export default function CurriculumDeveloperClient() {
             min-height: 0 !important;
             grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
             border-right: 0 !important;
-            border-bottom: 1px solid rgba(126,232,255,0.18) !important;
+            border-bottom: 1px solid rgba(126, 232, 255, 0.18) !important;
           }
 
           .curriculum-sidebar-eyebrow,
@@ -447,7 +501,9 @@ function NavButton({
           : "rgba(126,232,255,0.12)",
       }}
     >
-      <span className="curriculum-nav-icon" style={navIcon}>{icon}</span>
+      <span className="curriculum-nav-icon" style={navIcon}>
+        {icon}
+      </span>
       <span>{label}</span>
       {Boolean(badge) && <span style={navBadge}>{badge}</span>}
     </button>
@@ -463,7 +519,11 @@ function PageMessage({
 }) {
   const content = <div style={messageCard}>{text}</div>;
   if (embedded) return content;
-  return <main id="curriculum-developer-root" style={pageShell}>{content}</main>;
+  return (
+    <main id="curriculum-developer-root" style={pageShell}>
+      {content}
+    </main>
+  );
 }
 
 const pageShell: CSSProperties = {
@@ -635,7 +695,8 @@ const primaryButton: CSSProperties = {
   minHeight: "46px",
   borderRadius: "12px",
   border: "1px solid rgba(126,232,255,0.38)",
-  background: "linear-gradient(135deg,rgba(34,211,238,0.3),rgba(59,130,246,0.28))",
+  background:
+    "linear-gradient(135deg,rgba(34,211,238,0.3),rgba(59,130,246,0.28))",
   color: "white",
   padding: "0 17px",
   cursor: "pointer",
