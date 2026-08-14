@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import AssetDeploymentView from "./AssetDeploymentView";
 import QuizImportView from "./QuizImportView";
 import type {
-  CoreSubject,
+  CurriculumSubject,
   CurriculumInventoryPayload,
   CurriculumInventoryTopic,
   CurriculumOperation,
@@ -15,7 +15,7 @@ import type {
 } from "../types";
 
 type OperationsTab = "inventory" | "import" | "assets" | "history";
-type SubjectFilter = "all" | CoreSubject;
+type SubjectFilter = "all" | CurriculumSubject;
 type LevelFilter = "all" | "1" | "2" | "3" | "4" | "5" | "6";
 type ScopeType = "topic" | "quiz";
 type OperationRow = CurriculumOperation & {
@@ -33,6 +33,45 @@ const emptySummary: CurriculumInventoryPayload["summary"] = {
   asset_count: 0,
   attempt_count: 0,
 };
+
+function mergeInventories(
+  core: CurriculumInventoryPayload,
+  science: CurriculumInventoryPayload,
+  primaryLevel: number | null,
+): CurriculumInventoryPayload {
+  return {
+    generated_at: new Date().toISOString(),
+    filters: {
+      subject: null,
+      primary_level: primaryLevel,
+      include_inactive: true,
+    },
+    summary: {
+      topic_count: core.summary.topic_count + science.summary.topic_count,
+      active_topic_count:
+        core.summary.active_topic_count + science.summary.active_topic_count,
+      inactive_topic_count:
+        core.summary.inactive_topic_count + science.summary.inactive_topic_count,
+      quiz_count: core.summary.quiz_count + science.summary.quiz_count,
+      published_quiz_count:
+        core.summary.published_quiz_count +
+        science.summary.published_quiz_count,
+      archived_quiz_count:
+        core.summary.archived_quiz_count + science.summary.archived_quiz_count,
+      question_count:
+        core.summary.question_count + science.summary.question_count,
+      asset_count: core.summary.asset_count + science.summary.asset_count,
+      attempt_count: core.summary.attempt_count + science.summary.attempt_count,
+    },
+    topics: [...core.topics, ...science.topics].sort(
+      (left, right) =>
+        left.subject.localeCompare(right.subject) ||
+        left.primary_level - right.primary_level ||
+        left.sort_order - right.sort_order ||
+        left.title.localeCompare(right.title),
+    ),
+  };
+}
 
 export default function CurriculumOperationsView({
   role,
@@ -60,22 +99,64 @@ export default function CurriculumOperationsView({
   const loadInventory = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const { data, error: inventoryError } = await supabase.rpc(
-      "curriculum_get_operations_inventory",
-      {
-        p_subject: subject === "all" ? null : subject,
-        p_primary_level: level === "all" ? null : Number(level),
-        p_include_inactive: true,
-      },
-    );
+    const primaryLevel = level === "all" ? null : Number(level);
+    const parameters = {
+      p_primary_level: primaryLevel,
+      p_include_inactive: true,
+    };
 
-    if (inventoryError) {
-      setInventory(null);
-      setError(
-        `${inventoryError.message}. Run the Phase 1 and Phase 2 SQL files in order.`,
+    if (subject === "all") {
+      const [coreResult, scienceResult] = await Promise.all([
+        supabase.rpc("curriculum_get_operations_inventory", {
+          ...parameters,
+          p_subject: null,
+        }),
+        supabase.rpc("curriculum_get_science_operations_inventory", parameters),
+      ]);
+
+      if (coreResult.error || scienceResult.error) {
+        setInventory(null);
+        setError(
+          `${coreResult.error?.message || scienceResult.error?.message}. Run the Phase 1–4B SQL files in order.`,
+        );
+      } else {
+        setInventory(
+          mergeInventories(
+            coreResult.data as unknown as CurriculumInventoryPayload,
+            scienceResult.data as unknown as CurriculumInventoryPayload,
+            primaryLevel,
+          ),
+        );
+      }
+    } else if (subject === "science") {
+      const { data, error: inventoryError } = await supabase.rpc(
+        "curriculum_get_science_operations_inventory",
+        parameters,
       );
+
+      if (inventoryError) {
+        setInventory(null);
+        setError(`${inventoryError.message}. Run the Phase 4B SQL file.`);
+      } else {
+        setInventory(data as unknown as CurriculumInventoryPayload);
+      }
     } else {
-      setInventory(data as unknown as CurriculumInventoryPayload);
+      const { data, error: inventoryError } = await supabase.rpc(
+        "curriculum_get_operations_inventory",
+        {
+          ...parameters,
+          p_subject: subject,
+        },
+      );
+
+      if (inventoryError) {
+        setInventory(null);
+        setError(
+          `${inventoryError.message}. Run the Phase 1 and Phase 2 SQL files in order.`,
+        );
+      } else {
+        setInventory(data as unknown as CurriculumInventoryPayload);
+      }
     }
     setLoading(false);
   }, [level, subject]);
@@ -129,7 +210,7 @@ export default function CurriculumOperationsView({
   }
 
   async function requestPreview(
-    previewSubject: CoreSubject,
+    previewSubject: CurriculumSubject,
     scopeType: ScopeType,
     targetIds: string[],
   ) {
@@ -141,8 +222,12 @@ export default function CurriculumOperationsView({
     setError(null);
     setNotice(null);
 
+    const previewFunction =
+      previewSubject === "science"
+        ? "curriculum_preview_science_operation_scope"
+        : "curriculum_preview_operation_scope";
     const { data, error: previewError } = await supabase.rpc(
-      "curriculum_preview_operation_scope",
+      previewFunction,
       {
         p_subject: previewSubject,
         p_scope_type: scopeType,
@@ -161,8 +246,12 @@ export default function CurriculumOperationsView({
     setBusy(true);
     setError(null);
     setNotice(null);
+    const archiveFunction =
+      preview.subject === "science"
+        ? "curriculum_archive_science_scope"
+        : "curriculum_archive_scope";
     const { data, error: archiveError } = await supabase.rpc(
-      "curriculum_archive_scope",
+      archiveFunction,
       {
         p_subject: preview.subject,
         p_scope_type: preview.scope_type,
@@ -215,8 +304,15 @@ export default function CurriculumOperationsView({
     setError(null);
     setNotice(null);
 
+    const sourceOperation = operations.find(
+      (operation) => operation.id === operationId,
+    );
+    const restoreFunction =
+      sourceOperation?.subject === "science"
+        ? "curriculum_restore_science_archive_operation"
+        : "curriculum_restore_archive_operation";
     const { data, error: restoreError } = await supabase.rpc(
-      "curriculum_restore_archive_operation",
+      restoreFunction,
       {
         p_archive_operation_id: operationId,
         p_confirmation: typedPhrase,
@@ -375,7 +471,7 @@ function InventoryPanel({
   onSearchChange: (value: string) => void;
   onRefresh: () => Promise<void>;
   onPreview: (
-    subject: CoreSubject,
+    subject: CurriculumSubject,
     scopeType: ScopeType,
     targetIds: string[],
   ) => Promise<void>;
@@ -393,9 +489,9 @@ function InventoryPanel({
   return (
     <div style={panelStack}>
       <div style={phaseBanner}>
-        <strong>Phase 2 safe archive:</strong> records and student history are
-        retained. Admin actions require a preview and an exact confirmation phrase.
-        Curriculum leads have read-only preview access.
+        <strong>Safe archive for English, Mathematics and Science:</strong> records
+        and student history are retained. Admin actions require a preview and an
+        exact confirmation phrase. Curriculum leads have read-only preview access.
       </div>
 
       <div style={filters}>
@@ -411,6 +507,7 @@ function InventoryPanel({
             <option value="all">All subjects</option>
             <option value="english">English</option>
             <option value="math">Mathematics</option>
+            <option value="science">Science</option>
           </select>
         </label>
         <label style={fieldLabel}>
@@ -483,7 +580,11 @@ function InventoryPanel({
               type="button"
               disabled={selectedTopicIds.length === 0 || busy}
               onClick={() =>
-                void onPreview(subject as CoreSubject, "topic", selectedTopicIds)
+                void onPreview(
+                  subject as CurriculumSubject,
+                  "topic",
+                  selectedTopicIds,
+                )
               }
               style={primaryButton}
             >
@@ -495,7 +596,7 @@ function InventoryPanel({
 
       {role === "admin" && subject === "all" && (
         <div style={hintBanner}>
-          Choose English or Mathematics to enable multi-topic selection. One
+          Choose English, Mathematics or Science to enable multi-topic selection. One
           archive operation cannot mix subjects.
         </div>
       )}

@@ -87,7 +87,7 @@ export function canAttemptScienceQuiz(role: string | null | undefined) {
 export function canEditScience(role: string | null | undefined) {
   const cleanRole = normaliseRole(role);
 
-  return cleanRole === "admin" || cleanRole === "curriculum-lead";
+  return cleanRole === "admin" || cleanRole === "curriculum_lead";
 }
 
 export { normaliseRole };

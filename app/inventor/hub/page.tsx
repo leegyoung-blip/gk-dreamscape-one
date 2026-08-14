@@ -49,11 +49,31 @@ type PurchaseResult = {
   already_owned: boolean;
 };
 
+type WardrobeCharacter = "nova" | "milo";
 type WardrobeCategory = "outfit" | "top" | "bottom" | "shoes" | "accessory";
+
+type CharacterCatalogRow = {
+  character_key: WardrobeCharacter;
+  title: string;
+  description: string | null;
+  dt_cost: number;
+  is_starter: boolean;
+};
+
+type CharacterUnlockRow = {
+  character_key: WardrobeCharacter;
+};
+
+type CharacterPurchaseResult = {
+  character_key: WardrobeCharacter;
+  cost_paid: number;
+  new_balance: number;
+  already_owned: boolean;
+};
 
 type WardrobeCatalogRow = {
   item_key: string;
-  character_key: "nova" | "milo";
+  character_key: WardrobeCharacter;
   category: WardrobeCategory;
   title: string;
   description: string | null;
@@ -71,7 +91,7 @@ type WardrobeOwnershipRow = {
 };
 
 type WardrobeEquippedRow = {
-  character_key: "nova" | "milo";
+  character_key: WardrobeCharacter;
   category: WardrobeCategory;
   item_key: string;
 };
@@ -85,7 +105,7 @@ type WardrobePurchaseResult = {
 
 type WardrobeEquipResult = {
   item_key: string;
-  character_key: "nova" | "milo";
+  character_key: WardrobeCharacter;
   category: WardrobeCategory;
 };
 
@@ -228,6 +248,32 @@ function getPurchaseResult(data: unknown): PurchaseResult | null {
   };
 }
 
+function getCharacterPurchaseResult(data: unknown): CharacterPurchaseResult | null {
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || typeof row !== "object") return null;
+
+  const result = row as Record<string, unknown>;
+  const characterKey = String(result.character_key || "") as WardrobeCharacter;
+  const costPaid = Number(result.cost_paid);
+  const newBalance = Number(result.new_balance);
+  const alreadyOwned = Boolean(result.already_owned);
+
+  if (
+    (characterKey !== "nova" && characterKey !== "milo") ||
+    !Number.isFinite(costPaid) ||
+    !Number.isFinite(newBalance)
+  ) {
+    return null;
+  }
+
+  return {
+    character_key: characterKey,
+    cost_paid: costPaid,
+    new_balance: newBalance,
+    already_owned: alreadyOwned,
+  };
+}
+
 function getWardrobePurchaseResult(data: unknown): WardrobePurchaseResult | null {
   const row = Array.isArray(data) ? data[0] : data;
   if (!row || typeof row !== "object") return null;
@@ -313,6 +359,10 @@ export default function NovaHomePage() {
   const [wardrobePurchasingItemKey, setWardrobePurchasingItemKey] = useState<string | null>(null);
   const [wardrobeEquippingItemKey, setWardrobeEquippingItemKey] = useState<string | null>(null);
   const [wardrobeMessage, setWardrobeMessage] = useState("");
+  const [wardrobeCharacter, setWardrobeCharacter] = useState<WardrobeCharacter>("nova");
+  const [characterCatalog, setCharacterCatalog] = useState<CharacterCatalogRow[]>([]);
+  const [unlockedCharacters, setUnlockedCharacters] = useState<Set<WardrobeCharacter>>(() => new Set(["nova"]));
+  const [purchasingCharacter, setPurchasingCharacter] = useState<WardrobeCharacter | null>(null);
 
   const zones = useMemo<ZoneView[]>(() => {
     const catalog = new Map<string, ZoneCatalogRow>(
@@ -709,13 +759,21 @@ export default function NovaHomePage() {
       return;
     }
 
-    const [catalogResult, ownershipResult, equippedResult] = await Promise.all([
+    const [characterCatalogResult, characterUnlockResult, catalogResult, ownershipResult, equippedResult] = await Promise.all([
+      supabase
+        .from("nova_home_character_catalog")
+        .select("character_key,title,description,dt_cost,is_starter")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true }),
+      supabase
+        .from("nova_home_character_unlocks")
+        .select("character_key")
+        .eq("user_id", user.id),
       supabase
         .from("nova_home_wardrobe_catalog")
         .select(
           "item_key,character_key,category,title,description,dt_cost,is_starter,thumbnail_image,layer_image,accent_hex,layer_order,sort_order",
         )
-        .eq("character_key", "nova")
         .eq("is_active", true)
         .order("sort_order", { ascending: true }),
       supabase
@@ -725,9 +783,35 @@ export default function NovaHomePage() {
       supabase
         .from("nova_home_wardrobe_equipped")
         .select("character_key,category,item_key")
-        .eq("user_id", user.id)
-        .eq("character_key", "nova"),
+        .eq("user_id", user.id),
     ]);
+
+    if (characterCatalogResult.error || characterUnlockResult.error) {
+      console.warn(
+        "Could not load character unlock data:",
+        characterCatalogResult.error?.message || characterUnlockResult.error?.message,
+      );
+      setCharacterCatalog([]);
+      setUnlockedCharacters(new Set<WardrobeCharacter>(["nova"]));
+      setWardrobeSetupError(
+        "Milo unlock is not ready. Run SQL 306 before testing Step 1.",
+      );
+    } else {
+      setCharacterCatalog(
+        (characterCatalogResult.data || []).map((row) => ({
+          character_key: String(row.character_key) as WardrobeCharacter,
+          title: String(row.title || row.character_key),
+          description: row.description ? String(row.description) : null,
+          dt_cost: Number(row.dt_cost || 0),
+          is_starter: Boolean(row.is_starter),
+        })),
+      );
+      const nextUnlocked = new Set<WardrobeCharacter>(["nova"]);
+      ((characterUnlockResult.data || []) as CharacterUnlockRow[]).forEach((row) => {
+        if (row.character_key === "milo") nextUnlocked.add("milo");
+      });
+      setUnlockedCharacters(nextUnlocked);
+    }
 
     if (catalogResult.error) {
       console.warn("Could not load wardrobe catalog:", catalogResult.error.message);
@@ -738,7 +822,7 @@ export default function NovaHomePage() {
     } else {
       const rows = (catalogResult.data || []).map((row) => ({
         item_key: String(row.item_key),
-        character_key: String(row.character_key) as "nova" | "milo",
+        character_key: String(row.character_key) as WardrobeCharacter,
         category: String(row.category) as WardrobeCategory,
         title: String(row.title || "Wardrobe Item"),
         description: row.description ? String(row.description) : null,
@@ -753,38 +837,31 @@ export default function NovaHomePage() {
       setWardrobeCatalog(rows);
 
       if (!wardrobeSelectedItemKey && rows.length > 0) {
+        const novaRows = rows.filter((item) => item.character_key === "nova");
         setWardrobeSelectedItemKey(
-          rows.find((item) => item.category === "outfit")?.item_key ?? rows[0].item_key,
+          novaRows.find((item) => item.category === "outfit")?.item_key ?? novaRows[0]?.item_key ?? null,
         );
       }
     }
 
     if (ownershipResult.error) {
-      console.warn(
-        "Could not load wardrobe ownership:",
-        ownershipResult.error.message,
-      );
+      console.warn("Could not load wardrobe ownership:", ownershipResult.error.message);
       setWardrobeOwned(new Set());
     } else {
       setWardrobeOwned(
         new Set(
-          ((ownershipResult.data || []) as WardrobeOwnershipRow[]).map((row) =>
-            String(row.item_key),
-          ),
+          ((ownershipResult.data || []) as WardrobeOwnershipRow[]).map((row) => String(row.item_key)),
         ),
       );
     }
 
     if (equippedResult.error) {
-      console.warn(
-        "Could not load equipped wardrobe items:",
-        equippedResult.error.message,
-      );
+      console.warn("Could not load equipped wardrobe items:", equippedResult.error.message);
       setWardrobeEquipped([]);
     } else {
       setWardrobeEquipped(
         ((equippedResult.data || []) as WardrobeEquippedRow[]).map((row) => ({
-          character_key: String(row.character_key) as "nova" | "milo",
+          character_key: String(row.character_key) as WardrobeCharacter,
           category: String(row.category) as WardrobeCategory,
           item_key: String(row.item_key),
         })),
@@ -794,16 +871,87 @@ export default function NovaHomePage() {
     setWardrobeLoading(false);
   }, [router, wardrobeSelectedItemKey]);
 
+  function changeWardrobeCharacter(character: WardrobeCharacter) {
+    setWardrobeCharacter(character);
+    setWardrobeCategory("outfit");
+    setWardrobeMessage("");
+    const rows = wardrobeCatalog.filter((item) => item.character_key === character);
+    setWardrobeSelectedItemKey(
+      rows.find((item) => item.category === "outfit")?.item_key ?? rows[0]?.item_key ?? null,
+    );
+  }
+
+  async function purchaseCharacterUnlock(character: WardrobeCharacter) {
+    if (character !== "milo" || purchasingCharacter || wardrobeSetupError) return;
+
+    const characterRow = characterCatalog.find((entry) => entry.character_key === character);
+    if (!characterRow) {
+      setWardrobeMessage("Milo unlock data is not ready. Run SQL 306 first.");
+      return;
+    }
+
+    if (unlockedCharacters.has(character) || characterRow.is_starter) {
+      changeWardrobeCharacter(character);
+      return;
+    }
+
+    if (dreamTokenBalance < characterRow.dt_cost) {
+      setWardrobeMessage(
+        `You need ${formatDT(characterRow.dt_cost - dreamTokenBalance)} more to unlock Milo.`,
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Unlock Milo permanently for ${formatDT(characterRow.dt_cost)}?`,
+    );
+    if (!confirmed) return;
+
+    setPurchasingCharacter(character);
+    setWardrobeMessage("");
+
+    const { data, error } = await supabase.rpc("purchase_nova_home_character_unlock", {
+      p_character_key: character,
+    });
+
+    setPurchasingCharacter(null);
+
+    if (error) {
+      setWardrobeMessage(error.message || "Milo could not be unlocked.");
+      return;
+    }
+
+    const result = getCharacterPurchaseResult(data);
+    if (!result) {
+      setWardrobeMessage("Milo was unlocked, but the purchase result could not be read.");
+      await loadWardrobe();
+      return;
+    }
+
+    setDreamTokenBalance(Math.max(0, result.new_balance));
+    setUnlockedCharacters((current) => new Set<WardrobeCharacter>([...current, "milo"]));
+    setWardrobeCharacter("milo");
+    setWardrobeSelectedItemKey(null);
+    setWardrobeCategory("outfit");
+    setWardrobeMessage(
+      result.already_owned
+        ? "Milo was already unlocked. His wardrobe arrives in Step 2."
+        : `Milo unlocked permanently for ${formatDT(result.cost_paid)}. His wardrobe arrives in Step 2.`,
+    );
+    window.dispatchEvent(new Event("dream-tokens-updated"));
+  }
+
   function openWardrobe() {
     if (!unlockedZones.has("bed-zone")) return;
     setWardrobeOpen(true);
     setWardrobeMessage("");
+    setWardrobeCharacter("nova");
     setWardrobeCategory("outfit");
     void loadWardrobe();
   }
 
   function closeWardrobe() {
-    if (wardrobePurchasingItemKey || wardrobeEquippingItemKey) return;
+    if (wardrobePurchasingItemKey || wardrobeEquippingItemKey || purchasingCharacter) return;
     setWardrobeOpen(false);
     setWardrobeMessage("");
   }
@@ -1421,6 +1569,10 @@ export default function NovaHomePage() {
           catalog={wardrobeCatalog}
           ownedItems={wardrobeOwned}
           equippedItems={wardrobeEquipped}
+          characterCatalog={characterCatalog}
+          unlockedCharacters={unlockedCharacters}
+          activeCharacter={wardrobeCharacter}
+          purchasingCharacter={purchasingCharacter}
           activeCategory={wardrobeCategory}
           selectedItemKey={wardrobeSelectedItemKey}
           dreamTokenBalance={dreamTokenBalance}
@@ -1430,9 +1582,11 @@ export default function NovaHomePage() {
           purchasingItemKey={wardrobePurchasingItemKey}
           equippingItemKey={wardrobeEquippingItemKey}
           onClose={closeWardrobe}
+          onCharacterChange={changeWardrobeCharacter}
+          onPurchaseCharacter={(character) => void purchaseCharacterUnlock(character)}
           onCategoryChange={(category) => {
             setWardrobeCategory(category);
-            const first = wardrobeCatalog.find((item) => item.category === category);
+            const first = wardrobeCatalog.find((item) => item.character_key === wardrobeCharacter && item.category === category);
             setWardrobeSelectedItemKey(first?.item_key ?? null);
             setWardrobeMessage("");
           }}
@@ -1453,6 +1607,10 @@ function WardrobeBay({
   catalog,
   ownedItems,
   equippedItems,
+  characterCatalog,
+  unlockedCharacters,
+  activeCharacter,
+  purchasingCharacter,
   activeCategory,
   selectedItemKey,
   dreamTokenBalance,
@@ -1462,6 +1620,8 @@ function WardrobeBay({
   purchasingItemKey,
   equippingItemKey,
   onClose,
+  onCharacterChange,
+  onPurchaseCharacter,
   onCategoryChange,
   onSelectItem,
   onPurchase,
@@ -1470,6 +1630,10 @@ function WardrobeBay({
   catalog: WardrobeCatalogRow[];
   ownedItems: Set<string>;
   equippedItems: WardrobeEquippedRow[];
+  characterCatalog: CharacterCatalogRow[];
+  unlockedCharacters: Set<WardrobeCharacter>;
+  activeCharacter: WardrobeCharacter;
+  purchasingCharacter: WardrobeCharacter | null;
   activeCategory: WardrobeCategory;
   selectedItemKey: string | null;
   dreamTokenBalance: number;
@@ -1479,21 +1643,24 @@ function WardrobeBay({
   purchasingItemKey: string | null;
   equippingItemKey: string | null;
   onClose: () => void;
+  onCharacterChange: (character: WardrobeCharacter) => void;
+  onPurchaseCharacter: (character: WardrobeCharacter) => void;
   onCategoryChange: (category: WardrobeCategory) => void;
   onSelectItem: (itemKey: string) => void;
   onPurchase: (itemKey: string) => void;
   onEquip: (itemKey: string) => void;
 }) {
-  const visibleItems = catalog.filter((item) => item.category === activeCategory);
+  const visibleItems = catalog.filter((item) => item.character_key === activeCharacter && item.category === activeCategory);
   const selectedItem =
-    catalog.find((item) => item.item_key === selectedItemKey) ?? visibleItems[0] ?? null;
+    catalog.find((item) => item.item_key === selectedItemKey && item.character_key === activeCharacter) ?? visibleItems[0] ?? null;
 
-  const baseClothingEquipped = equippedItems.some((entry) =>
+  const characterEquipped = equippedItems.filter((entry) => entry.character_key === activeCharacter);
+  const baseClothingEquipped = characterEquipped.some((entry) =>
     ["outfit", "top", "bottom", "shoes"].includes(entry.category),
   );
 
-  const effectiveEquipped = [...equippedItems];
-  if (!baseClothingEquipped) {
+  const effectiveEquipped = [...characterEquipped];
+  if (!baseClothingEquipped && activeCharacter === "nova") {
     const classic = catalog.find((item) => item.item_key === "nova-classic");
     if (classic) {
       effectiveEquipped.push({
@@ -1540,7 +1707,9 @@ function WardrobeBay({
     ? effectiveEquipped.some((entry) => entry.item_key === selectedItem.item_key)
     : false;
 
-  const busy = Boolean(purchasingItemKey || equippingItemKey);
+  const busy = Boolean(purchasingItemKey || equippingItemKey || purchasingCharacter);
+  const miloCatalog = characterCatalog.find((entry) => entry.character_key === "milo");
+  const miloUnlocked = unlockedCharacters.has("milo") || Boolean(miloCatalog?.is_starter);
   const selectedCategoryMeta =
     WARDROBE_CATEGORIES.find((entry) => entry.key === activeCategory) ??
     WARDROBE_CATEGORIES[0];
@@ -1560,14 +1729,14 @@ function WardrobeBay({
                 Sleep Zone Activity
               </p>
               <span className="rounded-full border border-cyan-200/16 bg-cyan-300/[0.06] px-2 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100/70">
-                Phase 1 · Collection 2
+                Phase 2 · Step 1
               </span>
             </div>
             <h2 className="mt-1 font-serif text-2xl font-medium tracking-[-0.035em] sm:text-3xl">
               Wardrobe Bay
             </h2>
             <p className="mt-1 max-w-2xl text-[10px] leading-4 text-white/46 sm:text-xs sm:leading-5">
-              Preview Nova’s looks, buy wardrobe pieces with DT, and save what Nova is wearing. New everyday wardrobe pieces are now included.
+              Switch between Nova and Milo. Milo is a one-time 1,000 DT character unlock; his clothing collection arrives in Step 2.
             </p>
           </div>
 
@@ -1595,7 +1764,12 @@ function WardrobeBay({
             <div className="grid grid-cols-2 gap-2 border-b border-white/[0.06] p-2 sm:p-3">
               <button
                 type="button"
-                className="rounded-[14px] border border-cyan-200/34 bg-cyan-300/[0.11] px-3 py-2 text-left"
+                onClick={() => onCharacterChange("nova")}
+                className={`rounded-[14px] border px-3 py-2 text-left transition ${
+                  activeCharacter === "nova"
+                    ? "border-cyan-200/34 bg-cyan-300/[0.11]"
+                    : "border-white/9 bg-white/[0.025] hover:bg-white/[0.05]"
+                }`}
               >
                 <span className="block text-[8px] font-black uppercase tracking-[0.14em] text-cyan-200/58">
                   Character
@@ -1604,14 +1778,23 @@ function WardrobeBay({
               </button>
               <button
                 type="button"
-                onClick={() => window.alert("Milo becomes unlockable in Wardrobe Phase 2.")}
-                className="rounded-[14px] border border-white/9 bg-white/[0.025] px-3 py-2 text-left opacity-65"
+                onClick={() => onCharacterChange("milo")}
+                className={`rounded-[14px] border px-3 py-2 text-left transition ${
+                  activeCharacter === "milo"
+                    ? miloUnlocked
+                      ? "border-emerald-200/30 bg-emerald-300/[0.09]"
+                      : "border-amber-200/30 bg-amber-300/[0.08]"
+                    : "border-white/9 bg-white/[0.025] hover:bg-white/[0.05]"
+                }`}
               >
                 <span className="block text-[8px] font-black uppercase tracking-[0.14em] text-white/34">
                   Character
                 </span>
-                <strong className="mt-0.5 flex items-center gap-2 text-sm text-white/70">
-                  Milo <span className="text-[10px] text-amber-200/70">🔒 Phase 2</span>
+                <strong className="mt-0.5 flex items-center gap-2 text-sm text-white/82">
+                  Milo
+                  <span className={`text-[9px] ${miloUnlocked ? "text-emerald-200/75" : "text-amber-200/75"}`}>
+                    {miloUnlocked ? "✓ Unlocked" : `🔒 ${formatDT(miloCatalog?.dt_cost ?? 1000)}`}
+                  </span>
                 </strong>
               </button>
             </div>
@@ -1619,23 +1802,65 @@ function WardrobeBay({
             <div className="relative flex min-h-0 items-end justify-center overflow-hidden bg-[radial-gradient(circle_at_50%_42%,rgba(83,215,255,0.16),transparent_34%),linear-gradient(180deg,rgba(5,21,39,0.26),rgba(2,7,19,0.64))] px-4 pt-4">
               <div className="pointer-events-none absolute inset-x-[12%] bottom-[8%] h-[22%] rounded-[50%] bg-cyan-300/[0.08] blur-2xl" />
               <div className="relative flex h-full max-h-[560px] w-full max-w-[430px] items-end justify-center">
-                <img
-                  src={NOVA_CHARACTER_IMAGE}
-                  alt="Nova wardrobe preview"
-                  className="pointer-events-none relative z-10 max-h-[95%] max-w-full object-contain drop-shadow-[0_28px_44px_rgba(0,0,0,0.55)]"
-                  draggable={false}
-                />
-                {previewLayers.map((item) => (
-                  <img
-                    key={item.item_key}
-                    src={item.layer_image || ""}
-                    alt=""
-                    aria-hidden="true"
-                    className="pointer-events-none absolute inset-0 z-20 h-full w-full object-contain"
-                    draggable={false}
-                    style={{ zIndex: 20 + item.layer_order }}
-                  />
-                ))}
+                {activeCharacter === "nova" ? (
+                  <>
+                    <img
+                      src={NOVA_CHARACTER_IMAGE}
+                      alt="Nova wardrobe preview"
+                      className="pointer-events-none relative z-10 max-h-[95%] max-w-full object-contain drop-shadow-[0_28px_44px_rgba(0,0,0,0.55)]"
+                      draggable={false}
+                    />
+                    {previewLayers.map((item) => (
+                      <img
+                        key={item.item_key}
+                        src={item.layer_image || ""}
+                        alt=""
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-0 z-20 h-full w-full object-contain"
+                        draggable={false}
+                        style={{ zIndex: 20 + item.layer_order }}
+                      />
+                    ))}
+                  </>
+                ) : (
+                  <div className="relative z-20 mb-auto mt-auto w-[min(360px,90%)] rounded-[24px] border border-amber-200/24 bg-slate-950/76 p-5 text-center shadow-[0_28px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl">
+                    <div className={`mx-auto flex h-24 w-24 items-center justify-center rounded-full border text-4xl font-black ${
+                      miloUnlocked
+                        ? "border-emerald-200/30 bg-emerald-300/[0.1] text-emerald-100"
+                        : "border-amber-200/30 bg-amber-300/[0.1] text-amber-100"
+                    }`}>
+                      M
+                    </div>
+                    <h3 className="mt-4 text-xl font-black text-white">Milo</h3>
+                    <p className="mt-2 text-[11px] leading-5 text-white/48">
+                      {miloUnlocked
+                        ? "Milo is permanently unlocked. His wardrobe artwork and clothing collection arrive in Step 2."
+                        : miloCatalog?.description || "Bring Milo into Nova's Home as a permanent customisable character."}
+                    </p>
+                    {!miloUnlocked ? (
+                      <button
+                        type="button"
+                        onClick={() => onPurchaseCharacter("milo")}
+                        disabled={Boolean(purchasingCharacter) || dreamTokenBalance < (miloCatalog?.dt_cost ?? 1000)}
+                        className={`mt-4 min-h-11 w-full rounded-full px-5 text-[10px] font-black uppercase tracking-[0.1em] transition disabled:cursor-not-allowed disabled:opacity-45 ${
+                          dreamTokenBalance >= (miloCatalog?.dt_cost ?? 1000)
+                            ? "bg-amber-300 text-slate-950 hover:bg-amber-200"
+                            : "border border-white/10 bg-white/[0.04] text-white/34"
+                        }`}
+                      >
+                        {purchasingCharacter === "milo"
+                          ? "Unlocking Milo..."
+                          : dreamTokenBalance >= (miloCatalog?.dt_cost ?? 1000)
+                            ? `Unlock Permanently · ${formatDT(miloCatalog?.dt_cost ?? 1000)}`
+                            : `Need ${formatDT((miloCatalog?.dt_cost ?? 1000) - dreamTokenBalance)}`}
+                      </button>
+                    ) : (
+                      <div className="mt-4 rounded-full border border-emerald-200/22 bg-emerald-300/[0.08] px-4 py-3 text-[9px] font-black uppercase tracking-[0.1em] text-emerald-100">
+                        ✓ Permanently Unlocked
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {selectedItem && (
@@ -1717,6 +1942,19 @@ function WardrobeBay({
                 <div className="flex h-full min-h-[220px] items-center justify-center">
                   <div className="rounded-full border border-cyan-200/20 bg-cyan-300/[0.07] px-4 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100/72">
                     Loading wardrobe...
+                  </div>
+                </div>
+              ) : activeCharacter === "milo" ? (
+                <div className="flex h-full min-h-[220px] items-center justify-center px-6 text-center">
+                  <div>
+                    <p className="text-sm font-black text-white/70">
+                      {miloUnlocked ? "Milo wardrobe coming in Step 2" : "Unlock Milo to use his wardrobe"}
+                    </p>
+                    <p className="mt-2 text-[10px] leading-5 text-white/36">
+                      {miloUnlocked
+                        ? "The permanent character unlock is active. Clothing and Milo artwork will be added next."
+                        : `Milo is a one-time ${formatDT(miloCatalog?.dt_cost ?? 1000)} unlock.`}
+                    </p>
                   </div>
                 </div>
               ) : visibleItems.length === 0 ? (
@@ -1852,7 +2090,7 @@ function WardrobeBay({
                   </div>
                 </div>
               ) : (
-                <p className="text-center text-[10px] text-white/36">Select a wardrobe item.</p>
+                <p className="text-center text-[10px] text-white/36">{activeCharacter === "milo" ? (miloUnlocked ? "Milo is unlocked. His wardrobe arrives in Step 2." : "Unlock Milo from the character preview to continue.") : "Select a wardrobe item."}</p>
               )}
             </div>
           </div>

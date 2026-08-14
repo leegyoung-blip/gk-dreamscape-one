@@ -1,5 +1,6 @@
 export type CurriculumRole = "admin" | "curriculum_lead";
 export type CoreSubject = "english" | "math";
+export type CurriculumSubject = CoreSubject | "science";
 export type QuizStatus =
   | "draft"
   | "in_review"
@@ -235,7 +236,7 @@ export type CurriculumInventorySummary = {
 
 export type CurriculumInventoryTopic = {
   id: string;
-  subject: CoreSubject;
+  subject: CurriculumSubject;
   primary_level: number;
   slug: string;
   title: string;
@@ -262,7 +263,7 @@ export type CurriculumInventoryTopic = {
 export type CurriculumInventoryPayload = {
   generated_at: string;
   filters: {
-    subject: CoreSubject | null;
+    subject: CurriculumSubject | null;
     primary_level: number | null;
     include_inactive: boolean;
   };
@@ -272,7 +273,7 @@ export type CurriculumInventoryPayload = {
 
 export type CurriculumOperationPreview = {
   generated_at: string;
-  subject: CoreSubject;
+  subject: CurriculumSubject;
   scope_type: "topic" | "quiz";
   requested_target_count: number;
   resolved_target_count: number;
@@ -318,7 +319,7 @@ export type CurriculumOperation = {
   id: string;
   operation_type: "archive" | "restore" | "import" | "asset_deployment";
   scope_type: "quiz" | "topic" | "selection" | "batch";
-  subject: "english" | "math" | "science";
+  subject: CurriculumSubject;
   primary_level: number | null;
   target_ids: string[];
   status: "previewed" | "pending" | "running" | "completed" | "failed" | "cancelled";
