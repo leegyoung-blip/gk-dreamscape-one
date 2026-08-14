@@ -10,6 +10,25 @@ export type RoverCheckpoint = CoursePoint & {
   respawnY: number;
 };
 
+export type RoverTerrainSection = {
+  points: CoursePoint[];
+  kind?: "ground" | "platform";
+  collisionThickness?: number;
+};
+
+export type RoverTrap = CoursePoint & {
+  id: string;
+  blastRadius: number;
+  penalty: number;
+  rearmMs: number;
+};
+
+export type RoverRouteLabel = CoursePoint & {
+  title: string;
+  subtitle: string;
+  color: string;
+};
+
 export type RoverLevelConfig = {
   id: RoverLevelId;
   courseId: string;
@@ -23,13 +42,17 @@ export type RoverLevelConfig = {
   start: CoursePoint;
   finish: CoursePoint;
   timeLimitSeconds: number;
-  terrainSections: CoursePoint[][];
+  terrainSections: Array<CoursePoint[] | RoverTerrainSection>;
   gapWarnings: CoursePoint[];
   collectibles: CoursePoint[];
   checkpoints: RoverCheckpoint[];
+  traps?: RoverTrap[];
+  routeLabels?: RoverRouteLabel[];
   assets: {
     background: string;
     orb: string;
+    dynamite?: string;
+    explosion?: string;
   };
 };
 

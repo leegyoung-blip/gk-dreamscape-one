@@ -29,6 +29,8 @@ type LeaderboardRow = SummaryRow & {
   username: string;
 };
 
+type LeaderboardsByLevel = Record<1 | 2, LeaderboardRow[]>;
+
 type RoverBuildStat = {
   label: string;
   value: number;
@@ -288,7 +290,10 @@ export default function RoverGarageClient() {
 
   const [levelAccess, setLevelAccess] = useState<RoverLevelAccess[]>([]);
 
-  const [leaderboardRows, setLeaderboardRows] = useState<LeaderboardRow[]>([]);
+  const [leaderboards, setLeaderboards] = useState<LeaderboardsByLevel>({
+    1: [],
+    2: [],
+  });
 
   const [courseLoadMessage, setCourseLoadMessage] = useState("");
 
@@ -339,7 +344,8 @@ export default function RoverGarageClient() {
       attemptsResult,
       summaryResult,
       accessResult,
-      leaderboardResult,
+      levelOneLeaderboardResult,
+      levelTwoLeaderboardResult,
     ] =
       await Promise.all([
         supabase
@@ -368,6 +374,11 @@ export default function RoverGarageClient() {
 
         supabase.rpc("get_rover_challenge_visible_leaderboard", {
           p_course_id: COURSE_ID,
+          p_limit: 10,
+        }),
+
+        supabase.rpc("get_rover_challenge_visible_leaderboard", {
+          p_course_id: "dreamkeeper-divide-02",
           p_limit: 10,
         }),
       ]);
@@ -441,16 +452,18 @@ export default function RoverGarageClient() {
       setCourseLoadMessage("");
     }
 
-    if (leaderboardResult.error) {
+    if (levelOneLeaderboardResult.error || levelTwoLeaderboardResult.error) {
       console.warn(
         "Could not load rover leaderboard:",
-        leaderboardResult.error.message,
+        levelOneLeaderboardResult.error?.message ||
+          levelTwoLeaderboardResult.error?.message,
       );
-      setLeaderboardRows([]);
+      setLeaderboards({ 1: [], 2: [] });
     } else {
-      setLeaderboardRows(
-        (leaderboardResult.data ?? []) as LeaderboardRow[],
-      );
+      setLeaderboards({
+        1: (levelOneLeaderboardResult.data ?? []) as LeaderboardRow[],
+        2: (levelTwoLeaderboardResult.data ?? []) as LeaderboardRow[],
+      });
     }
 
     setLoading(false);
@@ -678,7 +691,7 @@ export default function RoverGarageClient() {
           {tab === "courses" ? (
             <RoverCoursesPanel
               access={levelAccess}
-              leaderboardRows={leaderboardRows}
+              leaderboards={leaderboards}
               loadMessage={courseLoadMessage}
               currentStage={progress.currentUpgrade.stage}
               userId={userId}
@@ -703,21 +716,26 @@ export default function RoverGarageClient() {
 
 function RoverCoursesPanel({
   access,
-  leaderboardRows,
+  leaderboards,
   loadMessage,
   currentStage,
   userId,
   onOpenLevel,
 }: {
   access: RoverLevelAccess[];
-  leaderboardRows: LeaderboardRow[];
+  leaderboards: LeaderboardsByLevel;
   loadMessage: string;
   currentStage: number;
   userId: string;
   onOpenLevel: (level: number) => void;
 }) {
+  const [leaderboardLevel, setLeaderboardLevel] = useState<1 | 2>(1);
   const levelOne = access.find((row) => Number(row.level_id) === 1);
   const levelTwo = access.find((row) => Number(row.level_id) === 2);
+  const leaderboardRows = leaderboards[leaderboardLevel];
+  const leaderboardCourse =
+    leaderboardLevel === 1 ? "Skyforge Test Track" : "Dreamkeeper Divide";
+  const leaderboardOrbTotal = 8;
 
   return (
     <div style={coursesPanel}>
@@ -739,16 +757,14 @@ function RoverCoursesPanel({
           description="Master the controls, clear both gaps and reach all three checkpoints."
           access={levelOne}
           currentStage={currentStage}
-          phaseTwo={false}
           onOpen={() => onOpenLevel(1)}
         />
         <CourseCard
           number={2}
           title="Dreamkeeper Divide"
-          description="A branching course with upper and lower paths. Gameplay arrives in Phase 2."
+          description="Choose the faster upper jump or the longer lower road, then survive the Dreamkeeper's dynamite traps."
           access={levelTwo}
           currentStage={currentStage}
-          phaseTwo
           onOpen={() => onOpenLevel(2)}
         />
       </div>
@@ -756,15 +772,33 @@ function RoverCoursesPanel({
       <div style={leaderboardPanel}>
         <div style={leaderboardHeadingRow}>
           <div>
-            <p style={smallEyebrow}>LEVEL 1</p>
+            <p style={smallEyebrow}>LEVEL {leaderboardLevel}</p>
             <h3 style={{ margin: "5px 0 0" }}>Top Explorers</h3>
           </div>
-          <span style={leaderboardCoursePill}>Skyforge Test Track</span>
+          <span style={leaderboardCoursePill}>{leaderboardCourse}</span>
+        </div>
+
+        <div style={leaderboardLevelTabs}>
+          <button
+            type="button"
+            onClick={() => setLeaderboardLevel(1)}
+            style={leaderboardLevelButton(leaderboardLevel === 1)}
+          >
+            Level 1
+          </button>
+          <button
+            type="button"
+            onClick={() => setLeaderboardLevel(2)}
+            style={leaderboardLevelButton(leaderboardLevel === 2)}
+          >
+            Level 2
+          </button>
         </div>
 
         {leaderboardRows.length === 0 ? (
           <p style={emptyLeaderboard}>
-            No completed runs yet. Finish Level 1 to set the first score.
+            No completed runs yet. Finish Level {leaderboardLevel} to set the
+            first score.
           </p>
         ) : (
           <div style={leaderboardList}>
@@ -782,7 +816,9 @@ function RoverCoursesPanel({
                       {isCurrentUser ? " · You" : ""}
                     </p>
                     <p style={leaderboardMeta}>
-                      Stage {row.rover_stage} · {row.orbs_collected}/8 orbs · {formatMilliseconds(Number(row.best_time_ms))}
+                      Stage {row.rover_stage} · {row.orbs_collected}/
+                      {leaderboardOrbTotal} orbs ·{" "}
+                      {formatMilliseconds(Number(row.best_time_ms))}
                     </p>
                   </div>
                   <strong style={leaderboardScore}>
@@ -804,7 +840,6 @@ function CourseCard({
   description,
   access,
   currentStage,
-  phaseTwo,
   onOpen,
 }: {
   number: number;
@@ -812,7 +847,6 @@ function CourseCard({
   description: string;
   access?: RoverLevelAccess;
   currentStage: number;
-  phaseTwo: boolean;
   onOpen: () => void;
 }) {
   const unlocked = Boolean(access?.unlocked);
@@ -825,9 +859,7 @@ function CourseCard({
       ? "LOCKED · COMPLETE LEVEL 1"
       : !stageReady
         ? `ROVER STAGE ${access?.minimum_rover_stage ?? 3} REQUIRED · CURRENT ${currentStage}`
-        : phaseTwo
-          ? "UNLOCKED · PHASE 2 MAP PREVIEW"
-          : "READY TO DRIVE";
+        : "READY TO DRIVE";
 
   return (
     <article style={courseCard(canOpen, completed)}>
@@ -848,7 +880,7 @@ function CourseCard({
         onClick={onOpen}
         style={courseButton(canOpen)}
       >
-        {completed ? "Replay" : phaseTwo ? "Preview" : "Start"}
+        {completed ? "Replay" : "Start"}
       </button>
     </article>
   );
@@ -1963,6 +1995,30 @@ const leaderboardCoursePill: CSSProperties = {
   fontSize: "9px",
   fontWeight: 800,
 };
+
+const leaderboardLevelTabs: CSSProperties = {
+  marginTop: "12px",
+  display: "grid",
+  gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+  gap: "7px",
+};
+
+function leaderboardLevelButton(active: boolean): CSSProperties {
+  return {
+    minHeight: "36px",
+    borderRadius: "10px",
+    border: active
+      ? "1px solid rgba(126,232,255,0.48)"
+      : "1px solid rgba(255,255,255,0.08)",
+    background: active
+      ? "rgba(53,197,255,0.16)"
+      : "rgba(255,255,255,0.025)",
+    color: active ? "#c8f8ff" : "rgba(255,255,255,0.46)",
+    fontSize: "11px",
+    fontWeight: 850,
+    cursor: "pointer",
+  };
+}
 
 const leaderboardList: CSSProperties = {
   marginTop: "12px",

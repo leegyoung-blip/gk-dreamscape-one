@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
 import type { CoreRoverGameStats } from "@/lib/coreRoverProgress";
 import type { RoverLevelConfig } from "./levels";
+import type { RoverTrap } from "./levels/types";
 
 const GAME_WIDTH = 1600;
 const GAME_HEIGHT = 900;
@@ -64,6 +65,12 @@ type TouchButton = {
   label: Phaser.GameObjects.Text;
 };
 
+type TrapItem = RoverTrap & {
+  armed: boolean;
+  sprite: Phaser.GameObjects.Image;
+  glow: Phaser.GameObjects.Arc;
+};
+
 class RoverMatterScene extends Phaser.Scene {
   private backgroundTile?: Phaser.GameObjects.TileSprite;
   private roverBody?: Phaser.Physics.Matter.Image;
@@ -99,6 +106,8 @@ class RoverMatterScene extends Phaser.Scene {
 
   private collectibles: CollectibleItem[] = [];
   private checkpoints: CheckpointItem[] = [];
+  private traps: TrapItem[] = [];
+  private trapCollisionLocked = false;
 
   private boostEnergy = 60;
   private maximumBoostEnergy = 60;
@@ -186,6 +195,14 @@ class RoverMatterScene extends Phaser.Scene {
 
     this.load.image("energy-orb", this.levelConfig.assets.orb);
 
+    if (this.levelConfig.assets.dynamite) {
+      this.load.image("dreamkeeper-dynamite", this.levelConfig.assets.dynamite);
+    }
+
+    if (this.levelConfig.assets.explosion) {
+      this.load.image("dreamkeeper-explosion", this.levelConfig.assets.explosion);
+    }
+
     this.load.image("rover-body", "/games/rover/rover-body.png");
 
     this.load.image("rover-wheel", "/games/rover/rover-wheel.png");
@@ -220,10 +237,12 @@ class RoverMatterScene extends Phaser.Scene {
     }
 
     this.createTerrain();
+    this.createRouteLabels();
     this.createStartGate();
     this.createFinishGate();
     this.createCollectibles();
     this.createCheckpoints();
+    this.createTraps();
     this.createRover();
     this.createControls();
     this.createInterface();
@@ -259,6 +278,7 @@ class RoverMatterScene extends Phaser.Scene {
     this.updateAirborneVelocity();
     this.updateCollectibles(delta);
     this.updateCheckpoints();
+    this.updateTraps();
     this.updateScore();
     this.updateInterface();
     this.checkFinish();
@@ -269,7 +289,9 @@ class RoverMatterScene extends Phaser.Scene {
   private resetGameValues() {
     this.collectibles = [];
     this.checkpoints = [];
+    this.traps = [];
     this.terrainSections = [];
+    this.trapCollisionLocked = false;
 
     this.touchLeft = false;
     this.touchRight = false;
@@ -321,6 +343,20 @@ class RoverMatterScene extends Phaser.Scene {
 
     if (!this.textures.exists("energy-orb")) {
       missingAssets.push("public/games/rover/energy-orb.png");
+    }
+
+    if (
+      (this.levelConfig.traps?.length ?? 0) > 0 &&
+      !this.textures.exists("dreamkeeper-dynamite")
+    ) {
+      missingAssets.push("public/games/rover/dreamkeeper-dynamite.png");
+    }
+
+    if (
+      (this.levelConfig.traps?.length ?? 0) > 0 &&
+      !this.textures.exists("dreamkeeper-explosion")
+    ) {
+      missingAssets.push("public/games/rover/dreamkeeper-explosion.png");
     }
 
     if (missingAssets.length === 0) {
@@ -409,7 +445,17 @@ class RoverMatterScene extends Phaser.Scene {
      * instead of long straight ramps with sharp joins.
      */
     this.levelConfig.terrainSections.forEach((section) => {
-      this.createSmoothTerrainSection(section);
+      if (Array.isArray(section)) {
+        this.createSmoothTerrainSection(section, "ground", 220);
+        return;
+      }
+
+      this.createSmoothTerrainSection(
+        section.points,
+        section.kind ?? "ground",
+        section.collisionThickness ??
+          (section.kind === "platform" ? 44 : 220),
+      );
     });
 
     this.createStartingPlatform();
@@ -420,6 +466,8 @@ class RoverMatterScene extends Phaser.Scene {
 
   private createSmoothTerrainSection(
     controlPoints: Array<{ x: number; y: number }>,
+    kind: "ground" | "platform",
+    terrainThickness: number,
   ) {
     const sampledPoints = this.sampleCatmullRom(controlPoints, 12);
 
@@ -446,11 +494,18 @@ class RoverMatterScene extends Phaser.Scene {
       fill.lineTo(sampledPoints[index].x, sampledPoints[index].y);
     }
 
-    const finalPoint = sampledPoints[sampledPoints.length - 1];
-
-    fill.lineTo(finalPoint.x, this.levelConfig.worldHeight);
-
-    fill.lineTo(sampledPoints[0].x, this.levelConfig.worldHeight);
+    if (kind === "platform") {
+      for (let index = sampledPoints.length - 1; index >= 0; index -= 1) {
+        fill.lineTo(
+          sampledPoints[index].x,
+          sampledPoints[index].y + terrainThickness,
+        );
+      }
+    } else {
+      const finalPoint = sampledPoints[sampledPoints.length - 1];
+      fill.lineTo(finalPoint.x, this.levelConfig.worldHeight);
+      fill.lineTo(sampledPoints[0].x, this.levelConfig.worldHeight);
+    }
 
     fill.closePath();
     fill.fillPath();
@@ -488,7 +543,6 @@ class RoverMatterScene extends Phaser.Scene {
      * Collision surface. Short overlapping rectangles closely follow
      * the sampled curve, avoiding sharp corners that trap the rover.
      */
-    const terrainThickness = 220;
     const collisionOverlap = 14;
 
     for (let index = 0; index < sampledPoints.length - 1; index += 1) {
@@ -601,7 +655,7 @@ class RoverMatterScene extends Phaser.Scene {
 
   private createStartingPlatform() {
     const startX = this.levelConfig.start.x;
-    const groundY = this.levelConfig.terrainSections[0]?.[0]?.y ?? 645;
+    const groundY = this.getStartingGroundY();
 
     this.add.ellipse(startX, groundY - 14, 360, 54, 0x3ce7ff, 0.07);
 
@@ -643,7 +697,7 @@ class RoverMatterScene extends Phaser.Scene {
 
   private createStartGate() {
     const startX = Math.max(100, this.levelConfig.start.x - 220);
-    const groundY = this.levelConfig.terrainSections[0]?.[0]?.y ?? 645;
+    const groundY = this.getStartingGroundY();
 
     this.add.rectangle(startX, groundY - 105, 18, 210, 0x263354, 1);
 
@@ -662,6 +716,15 @@ class RoverMatterScene extends Phaser.Scene {
         letterSpacing: 4,
       })
       .setOrigin(0.5);
+  }
+
+  private getStartingGroundY() {
+    const firstSection = this.levelConfig.terrainSections[0];
+    const firstPoint = Array.isArray(firstSection)
+      ? firstSection[0]
+      : firstSection?.points[0];
+
+    return firstPoint?.y ?? 645;
   }
 
   private createFinishGate() {
@@ -768,6 +831,149 @@ class RoverMatterScene extends Phaser.Scene {
         glow,
         label,
       });
+    });
+  }
+
+  private createRouteLabels() {
+    (this.levelConfig.routeLabels ?? []).forEach((marker) => {
+      this.add
+        .text(marker.x, marker.y, marker.title, {
+          fontFamily: "Arial, sans-serif",
+          fontSize: "20px",
+          fontStyle: "bold",
+          color: marker.color,
+          letterSpacing: 4,
+          align: "center",
+        })
+        .setOrigin(0.5)
+        .setDepth(30);
+
+      this.add
+        .text(marker.x, marker.y + 30, marker.subtitle, {
+          fontFamily: "Arial, sans-serif",
+          fontSize: "11px",
+          fontStyle: "bold",
+          color: marker.color,
+          letterSpacing: 2,
+          align: "center",
+        })
+        .setOrigin(0.5)
+        .setAlpha(0.72)
+        .setDepth(30);
+    });
+  }
+
+  private createTraps() {
+    if (
+      !this.levelConfig.assets.dynamite ||
+      !this.levelConfig.assets.explosion
+    ) {
+      return;
+    }
+
+    (this.levelConfig.traps ?? []).forEach((trap) => {
+      const glow = this.add.circle(trap.x, trap.y, 48, 0xff5c72, 0.12);
+      glow.setBlendMode(Phaser.BlendModes.ADD);
+      glow.setDepth(17);
+
+      const sprite = this.add
+        .image(trap.x, trap.y, "dreamkeeper-dynamite")
+        .setDisplaySize(112, 76)
+        .setDepth(24);
+
+      this.tweens.add({
+        targets: glow,
+        alpha: { from: 0.08, to: 0.22 },
+        scale: { from: 0.88, to: 1.12 },
+        duration: 680,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+
+      this.traps.push({
+        ...trap,
+        armed: true,
+        sprite,
+        glow,
+      });
+    });
+  }
+
+  private updateTraps() {
+    if (!this.roverBody || this.hasFinished || this.trapCollisionLocked) {
+      return;
+    }
+
+    const triggeredTrap = this.traps.find(
+      (trap) =>
+        trap.armed &&
+        Phaser.Math.Distance.Between(
+          this.roverBody!.x,
+          this.roverBody!.y,
+          trap.x,
+          trap.y,
+        ) <= trap.blastRadius,
+    );
+
+    if (triggeredTrap) {
+      this.triggerTrap(triggeredTrap);
+    }
+  }
+
+  private triggerTrap(trap: TrapItem) {
+    if (!this.roverBody || !trap.armed) {
+      return;
+    }
+
+    trap.armed = false;
+    this.trapCollisionLocked = true;
+    trap.sprite.setVisible(false);
+    trap.glow.setVisible(false);
+    this.crashPenalty += trap.penalty;
+
+    const explosion = this.add
+      .image(trap.x, trap.y - 8, "dreamkeeper-explosion")
+      .setDisplaySize(80, 80)
+      .setDepth(80)
+      .setBlendMode(Phaser.BlendModes.ADD);
+
+    this.tweens.add({
+      targets: explosion,
+      displayWidth: 250,
+      displayHeight: 250,
+      alpha: 0,
+      duration: 520,
+      ease: "Cubic.easeOut",
+      onComplete: () => explosion.destroy(),
+    });
+
+    this.cameras.main.shake(260, 0.012);
+    this.cameras.main.flash(120, 255, 108, 70);
+    this.showStatusMessage(
+      `DREAMKEEPER TRAP  -${trap.penalty}`,
+      "#ffb18b",
+    );
+
+    this.roverBody.setVelocity(-4.5, -5.5);
+    this.roverBody.setAngularVelocity(0);
+
+    this.time.delayedCall(360, () => {
+      this.respawnVehicle();
+      this.trapCollisionLocked = false;
+    });
+
+    this.time.delayedCall(trap.rearmMs, () => {
+      if (!this.hasFinished) {
+        trap.armed = true;
+        trap.sprite.setVisible(true).setAlpha(0);
+        trap.glow.setVisible(true);
+        this.tweens.add({
+          targets: trap.sprite,
+          alpha: 1,
+          duration: 260,
+        });
+      }
     });
   }
 
@@ -934,13 +1140,20 @@ class RoverMatterScene extends Phaser.Scene {
       .setDepth(101);
 
     this.objectiveText = this.add
-      .text(70, 227, "OBJECTIVE  REACH THE FINISH GATE", {
-        fontFamily: "Arial, sans-serif",
-        fontSize: "11px",
-        fontStyle: "bold",
-        color: "#8defff",
-        letterSpacing: 1,
-      })
+      .text(
+        70,
+        227,
+        (this.levelConfig.traps?.length ?? 0) > 0
+          ? "OBJECTIVE  REACH FINISH · AVOID TRAPS"
+          : "OBJECTIVE  REACH THE FINISH GATE",
+        {
+          fontFamily: "Arial, sans-serif",
+          fontSize: "11px",
+          fontStyle: "bold",
+          color: "#8defff",
+          letterSpacing: 1,
+        },
+      )
       .setScrollFactor(0)
       .setDepth(101);
 
@@ -965,13 +1178,18 @@ class RoverMatterScene extends Phaser.Scene {
     timerPanel.setOrigin(0, 0);
 
     this.add
-      .text(GAME_WIDTH / 2, 62, "COURSE TIME", {
-        fontFamily: "Arial, sans-serif",
-        fontSize: "12px",
-        fontStyle: "bold",
-        color: "#91a4c9",
-        letterSpacing: 3,
-      })
+      .text(
+        GAME_WIDTH / 2,
+        62,
+        `LEVEL ${this.levelConfig.id} · ${this.levelConfig.title.toUpperCase()}`,
+        {
+          fontFamily: "Arial, sans-serif",
+          fontSize: "10px",
+          fontStyle: "bold",
+          color: "#91a4c9",
+          letterSpacing: 2,
+        },
+      )
       .setOrigin(0.5, 0)
       .setScrollFactor(0)
       .setDepth(101);
@@ -1508,6 +1726,16 @@ class RoverMatterScene extends Phaser.Scene {
   }
 
   private getTerrainAngleAtX(x: number) {
+    const targetSurfaceY =
+      (this.roverBody?.y ?? this.levelConfig.start.y) +
+      ROVER_COLLISION_HEIGHT / 2;
+    let closest:
+      | {
+          angle: number;
+          distance: number;
+        }
+      | undefined;
+
     for (const section of this.terrainSections) {
       if (section.length < 2) {
         continue;
@@ -1532,7 +1760,19 @@ class RoverMatterScene extends Phaser.Scene {
         const next = section[middle + 1];
 
         if (x >= current.x && x <= next.x) {
-          return Math.atan2(next.y - current.y, next.x - current.x);
+          const span = Math.max(0.001, next.x - current.x);
+          const ratio = Phaser.Math.Clamp((x - current.x) / span, 0, 1);
+          const surfaceY = Phaser.Math.Linear(current.y, next.y, ratio);
+          const candidate = {
+            angle: Math.atan2(next.y - current.y, next.x - current.x),
+            distance: Math.abs(surfaceY - targetSurfaceY),
+          };
+
+          if (!closest || candidate.distance < closest.distance) {
+            closest = candidate;
+          }
+
+          break;
         }
 
         if (x < current.x) {
@@ -1543,7 +1783,7 @@ class RoverMatterScene extends Phaser.Scene {
       }
     }
 
-    return null;
+    return closest?.angle ?? null;
   }
 
   private updateRoverVisuals(delta: number) {
