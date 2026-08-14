@@ -95,18 +95,7 @@ export type ScienceEditorQuestion = {
   explanation: string | null;
 };
 
-export type ScienceEditorQuiz = {
-  id: string;
-  topic_id: string;
-  slug: string;
-  title: string;
-  description: string | null;
-  mission_type: ScienceMissionType;
-  sequence_no: number;
-  difficulty: number;
-  estimated_minutes: number;
-  question_target: number;
-  status: ScienceQuizStatus;
+export type ScienceEditorQuiz = ScienceQuizRow & {
   topic_slug: string;
   topic_title: string;
   level_slug: string;

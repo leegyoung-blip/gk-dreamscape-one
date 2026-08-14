@@ -322,7 +322,13 @@ export type CurriculumOperation = {
   subject: CurriculumSubject;
   primary_level: number | null;
   target_ids: string[];
-  status: "previewed" | "pending" | "running" | "completed" | "failed" | "cancelled";
+  status:
+    | "previewed"
+    | "pending"
+    | "running"
+    | "completed"
+    | "failed"
+    | "cancelled";
   preview_data: JsonObject;
   result_data: JsonObject;
   requested_by: string;

@@ -5,6 +5,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import AssetDeploymentView from "./AssetDeploymentView";
 import QuizImportView from "./QuizImportView";
+import ScienceBuilderView from "./ScienceBuilderView";
 import type {
   CurriculumSubject,
   CurriculumInventoryPayload,
@@ -14,7 +15,7 @@ import type {
   CurriculumRole,
 } from "../types";
 
-type OperationsTab = "inventory" | "import" | "assets" | "history";
+type OperationsTab = "inventory" | "science" | "import" | "assets" | "history";
 type SubjectFilter = "all" | CurriculumSubject;
 type LevelFilter = "all" | "1" | "2" | "3" | "4" | "5" | "6";
 type ScopeType = "topic" | "quiz";
@@ -51,7 +52,8 @@ function mergeInventories(
       active_topic_count:
         core.summary.active_topic_count + science.summary.active_topic_count,
       inactive_topic_count:
-        core.summary.inactive_topic_count + science.summary.inactive_topic_count,
+        core.summary.inactive_topic_count +
+        science.summary.inactive_topic_count,
       quiz_count: core.summary.quiz_count + science.summary.quiz_count,
       published_quiz_count:
         core.summary.published_quiz_count +
@@ -82,11 +84,13 @@ export default function CurriculumOperationsView({
   const [subject, setSubject] = useState<SubjectFilter>("all");
   const [level, setLevel] = useState<LevelFilter>("all");
   const [search, setSearch] = useState("");
-  const [inventory, setInventory] =
-    useState<CurriculumInventoryPayload | null>(null);
+  const [inventory, setInventory] = useState<CurriculumInventoryPayload | null>(
+    null,
+  );
   const [operations, setOperations] = useState<OperationRow[]>([]);
-  const [preview, setPreview] =
-    useState<CurriculumOperationPreview | null>(null);
+  const [preview, setPreview] = useState<CurriculumOperationPreview | null>(
+    null,
+  );
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
   const [selectedQuizIds, setSelectedQuizIds] = useState<string[]>([]);
   const [confirmation, setConfirmation] = useState("");
@@ -226,14 +230,11 @@ export default function CurriculumOperationsView({
       previewSubject === "science"
         ? "curriculum_preview_science_operation_scope"
         : "curriculum_preview_operation_scope";
-    const { data, error: previewError } = await supabase.rpc(
-      previewFunction,
-      {
-        p_subject: previewSubject,
-        p_scope_type: scopeType,
-        p_target_ids: targetIds,
-      },
-    );
+    const { data, error: previewError } = await supabase.rpc(previewFunction, {
+      p_subject: previewSubject,
+      p_scope_type: scopeType,
+      p_target_ids: targetIds,
+    });
 
     if (previewError) setError(previewError.message);
     else setPreview(data as unknown as CurriculumOperationPreview);
@@ -250,18 +251,13 @@ export default function CurriculumOperationsView({
       preview.subject === "science"
         ? "curriculum_archive_science_scope"
         : "curriculum_archive_scope";
-    const { data, error: archiveError } = await supabase.rpc(
-      archiveFunction,
-      {
-        p_subject: preview.subject,
-        p_scope_type: preview.scope_type,
-        p_target_ids:
-          preview.scope_type === "topic"
-            ? preview.topic_ids
-            : preview.quiz_ids,
-        p_confirmation: confirmation,
-      },
-    );
+    const { data, error: archiveError } = await supabase.rpc(archiveFunction, {
+      p_subject: preview.subject,
+      p_scope_type: preview.scope_type,
+      p_target_ids:
+        preview.scope_type === "topic" ? preview.topic_ids : preview.quiz_ids,
+      p_confirmation: confirmation,
+    });
 
     if (archiveError) {
       setError(archiveError.message);
@@ -311,13 +307,10 @@ export default function CurriculumOperationsView({
       sourceOperation?.subject === "science"
         ? "curriculum_restore_science_archive_operation"
         : "curriculum_restore_archive_operation";
-    const { data, error: restoreError } = await supabase.rpc(
-      restoreFunction,
-      {
-        p_archive_operation_id: operationId,
-        p_confirmation: typedPhrase,
-      },
-    );
+    const { data, error: restoreError } = await supabase.rpc(restoreFunction, {
+      p_archive_operation_id: operationId,
+      p_confirmation: typedPhrase,
+    });
 
     if (restoreError) {
       setError(restoreError.message);
@@ -344,8 +337,14 @@ export default function CurriculumOperationsView({
       </div>
 
       <div style={tabBar}>
-        <TabButton active={tab === "inventory"} onClick={() => setTab("inventory")}>
+        <TabButton
+          active={tab === "inventory"}
+          onClick={() => setTab("inventory")}
+        >
           Quiz Management
+        </TabButton>
+        <TabButton active={tab === "science"} onClick={() => setTab("science")}>
+          Science Builder
         </TabButton>
         <TabButton active={tab === "import"} onClick={() => setTab("import")}>
           Quiz Import
@@ -393,6 +392,8 @@ export default function CurriculumOperationsView({
           onArchive={archivePreview}
           onClosePreview={clearPreview}
         />
+      ) : tab === "science" ? (
+        <ScienceBuilderView role={role} />
       ) : tab === "import" ? (
         <QuizImportView role={role} />
       ) : tab === "assets" && role === "admin" ? (
@@ -489,9 +490,10 @@ function InventoryPanel({
   return (
     <div style={panelStack}>
       <div style={phaseBanner}>
-        <strong>Safe archive for English, Mathematics and Science:</strong> records
-        and student history are retained. Admin actions require a preview and an
-        exact confirmation phrase. Curriculum leads have read-only preview access.
+        <strong>Safe archive for English, Mathematics and Science:</strong>{" "}
+        records and student history are retained. Admin actions require a
+        preview and an exact confirmation phrase. Curriculum leads have
+        read-only preview access.
       </div>
 
       <div style={filters}>
@@ -514,7 +516,9 @@ function InventoryPanel({
           Level
           <select
             value={level}
-            onChange={(event) => onLevelChange(event.target.value as LevelFilter)}
+            onChange={(event) =>
+              onLevelChange(event.target.value as LevelFilter)
+            }
             style={field}
           >
             <option value="all">All levels</option>
@@ -534,16 +538,36 @@ function InventoryPanel({
             style={field}
           />
         </label>
-        <button type="button" onClick={() => void onRefresh()} style={secondaryButton}>
+        <button
+          type="button"
+          onClick={() => void onRefresh()}
+          style={secondaryButton}
+        >
           Refresh
         </button>
       </div>
 
       <div style={summaryGrid}>
-        <SummaryCard label="Topics" value={summary.topic_count} detail={`${summary.inactive_topic_count} inactive`} />
-        <SummaryCard label="Quizzes" value={summary.quiz_count} detail={`${summary.published_quiz_count} published`} />
-        <SummaryCard label="Questions" value={summary.question_count} detail={`${summary.asset_count} assets`} />
-        <SummaryCard label="Student attempts" value={summary.attempt_count} detail="Always preserved" />
+        <SummaryCard
+          label="Topics"
+          value={summary.topic_count}
+          detail={`${summary.inactive_topic_count} inactive`}
+        />
+        <SummaryCard
+          label="Quizzes"
+          value={summary.quiz_count}
+          detail={`${summary.published_quiz_count} published`}
+        />
+        <SummaryCard
+          label="Questions"
+          value={summary.question_count}
+          detail={`${summary.asset_count} assets`}
+        />
+        <SummaryCard
+          label="Student attempts"
+          value={summary.attempt_count}
+          detail="Always preserved"
+        />
       </div>
 
       {preview && (
@@ -570,10 +594,18 @@ function InventoryPanel({
         </div>
         {canSelect && (
           <div style={buttonRow}>
-            <button type="button" onClick={onSelectVisible} style={secondaryButton}>
+            <button
+              type="button"
+              onClick={onSelectVisible}
+              style={secondaryButton}
+            >
               Select all shown
             </button>
-            <button type="button" onClick={onClearSelection} style={secondaryButton}>
+            <button
+              type="button"
+              onClick={onClearSelection}
+              style={secondaryButton}
+            >
               Clear
             </button>
             <button
@@ -596,8 +628,8 @@ function InventoryPanel({
 
       {role === "admin" && subject === "all" && (
         <div style={hintBanner}>
-          Choose English, Mathematics or Science to enable multi-topic selection. One
-          archive operation cannot mix subjects.
+          Choose English, Mathematics or Science to enable multi-topic
+          selection. One archive operation cannot mix subjects.
         </div>
       )}
 
@@ -672,7 +704,11 @@ function TopicRow({
         <Metric label="Published" value={topic.published_quiz_count} />
         <Metric label="Questions" value={topic.question_count} />
         <Metric label="Assets" value={topic.asset_count} />
-        <Metric label="Attempts" value={topic.attempt_count} warning={topic.attempt_count > 0} />
+        <Metric
+          label="Attempts"
+          value={topic.attempt_count}
+          warning={topic.attempt_count > 0}
+        />
       </div>
 
       <button
@@ -744,9 +780,21 @@ function PreviewPanel({
         <Metric label="Quizzes" value={s.quiz_count} />
         <Metric label="Questions" value={s.question_count} />
         <Metric label="Assets" value={s.asset_count} />
-        <Metric label="Attempts" value={s.attempt_count} warning={s.attempt_count > 0} />
-        <Metric label="Answers" value={s.answer_count} warning={s.answer_count > 0} />
-        <Metric label="Rewards" value={s.reward_claim_count} warning={s.reward_claim_count > 0} />
+        <Metric
+          label="Attempts"
+          value={s.attempt_count}
+          warning={s.attempt_count > 0}
+        />
+        <Metric
+          label="Answers"
+          value={s.answer_count}
+          warning={s.answer_count > 0}
+        />
+        <Metric
+          label="Rewards"
+          value={s.reward_claim_count}
+          warning={s.reward_claim_count > 0}
+        />
       </div>
 
       {preview.warnings.map((warning) => (
@@ -785,7 +833,8 @@ function PreviewPanel({
                 <span style={{ flex: 1 }}>
                   <strong>{quiz.title}</strong>
                   <span style={quizMeta}>
-                    {quiz.code} · {quiz.question_count} question(s) · {quiz.attempt_count} attempt(s)
+                    {quiz.code} · {quiz.question_count} question(s) ·{" "}
+                    {quiz.attempt_count} attempt(s)
                   </span>
                 </span>
                 <span style={quiz.is_published ? activeTag : inactiveTag}>
@@ -806,7 +855,8 @@ function PreviewPanel({
       {role === "admin" ? (
         <div style={confirmationCard}>
           <label style={{ ...fieldLabel, flex: 1 }}>
-            Type <strong style={{ color: "white" }}>{requiredPhrase}</strong> to confirm
+            Type <strong style={{ color: "white" }}>{requiredPhrase}</strong> to
+            confirm
             <input
               value={confirmation}
               onChange={(event) => onConfirmationChange(event.target.value)}
@@ -820,7 +870,9 @@ function PreviewPanel({
             onClick={() => void onArchive()}
             style={dangerButton}
           >
-            {busy ? "Archiving..." : `Archive ${targetCount} ${preview.scope_type}(s)`}
+            {busy
+              ? "Archiving..."
+              : `Archive ${targetCount} ${preview.scope_type}(s)`}
           </button>
         </div>
       ) : (
@@ -866,16 +918,23 @@ function HistoryPanel({
         <div>
           <h2 style={sectionTitle}>Deployment History</h2>
           <p style={smallText}>
-            Archive and restore operations are recorded with before/after snapshots.
+            Archive and restore operations are recorded with before/after
+            snapshots.
           </p>
         </div>
-        <button type="button" onClick={() => void onRefresh()} style={secondaryButton}>
+        <button
+          type="button"
+          onClick={() => void onRefresh()}
+          style={secondaryButton}
+        >
           Refresh
         </button>
       </div>
 
       {operations.length === 0 ? (
-        <div style={emptyCard}>No Curriculum Operations have been applied yet.</div>
+        <div style={emptyCard}>
+          No Curriculum Operations have been applied yet.
+        </div>
       ) : (
         <div style={topicList}>
           {operations.map((operation) => {
@@ -931,7 +990,9 @@ function HistoryRow({
           <div style={topicTags}>
             <span style={subjectTag}>{operation.subject}</span>
             <span style={levelTag}>{operation.scope_type}</span>
-            <span style={operation.status === "completed" ? activeTag : inactiveTag}>
+            <span
+              style={operation.status === "completed" ? activeTag : inactiveTag}
+            >
               {operation.status}
             </span>
             {alreadyRestored && <span style={restoredTag}>Restored</span>}
@@ -940,7 +1001,8 @@ function HistoryRow({
             {operation.operation_type.replaceAll("_", " ")}
           </h3>
           <p style={smallText}>
-            {operation.target_ids.length} target(s) · {resultCount} changed record(s) · {operation.id.slice(0, 8).toUpperCase()}
+            {operation.target_ids.length} target(s) · {resultCount} changed
+            record(s) · {operation.id.slice(0, 8).toUpperCase()}
           </p>
           <time style={smallText}>
             {new Date(operation.created_at).toLocaleString()}
@@ -1019,7 +1081,15 @@ function TabButton({
   );
 }
 
-function SummaryCard({ label, value, detail }: { label: string; value: number; detail: string }) {
+function SummaryCard({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: number;
+  detail: string;
+}) {
   return (
     <div style={summaryCard}>
       <span style={summaryLabel}>{label}</span>
@@ -1029,7 +1099,15 @@ function SummaryCard({ label, value, detail }: { label: string; value: number; d
   );
 }
 
-function Metric({ label, value, warning = false }: { label: string; value: number; warning?: boolean }) {
+function Metric({
+  label,
+  value,
+  warning = false,
+}: {
+  label: string;
+  value: number;
+  warning?: boolean;
+}) {
   return (
     <div style={metric}>
       <span style={metricLabel}>{label}</span>
@@ -1041,57 +1119,339 @@ function Metric({ label, value, warning = false }: { label: string; value: numbe
 }
 
 const shell: CSSProperties = { display: "grid", gap: "22px" };
-const eyebrow: CSSProperties = { margin: 0, color: "#7ee8ff", fontSize: "12px", fontWeight: 900, letterSpacing: "0.16em" };
-const title: CSSProperties = { margin: "7px 0 0", fontSize: "clamp(30px,4vw,48px)", lineHeight: 1.06 };
-const description: CSSProperties = { margin: "12px 0 0", color: "rgba(255,255,255,0.64)", lineHeight: 1.65, maxWidth: "880px" };
+const eyebrow: CSSProperties = {
+  margin: 0,
+  color: "#7ee8ff",
+  fontSize: "12px",
+  fontWeight: 900,
+  letterSpacing: "0.16em",
+};
+const title: CSSProperties = {
+  margin: "7px 0 0",
+  fontSize: "clamp(30px,4vw,48px)",
+  lineHeight: 1.06,
+};
+const description: CSSProperties = {
+  margin: "12px 0 0",
+  color: "rgba(255,255,255,0.64)",
+  lineHeight: 1.65,
+  maxWidth: "880px",
+};
 const tabBar: CSSProperties = { display: "flex", flexWrap: "wrap", gap: "9px" };
-const tabButton: CSSProperties = { minHeight: "44px", borderRadius: "12px", border: "1px solid rgba(126,232,255,0.16)", background: "rgba(255,255,255,0.035)", padding: "0 15px", cursor: "pointer", fontWeight: 850 };
+const tabButton: CSSProperties = {
+  minHeight: "44px",
+  borderRadius: "12px",
+  border: "1px solid rgba(126,232,255,0.16)",
+  background: "rgba(255,255,255,0.035)",
+  padding: "0 15px",
+  cursor: "pointer",
+  fontWeight: 850,
+};
 const panelStack: CSSProperties = { display: "grid", gap: "18px" };
-const phaseBanner: CSSProperties = { borderRadius: "13px", border: "1px solid rgba(126,232,255,0.28)", background: "rgba(45,212,191,0.08)", color: "#d8fffa", padding: "14px 16px", lineHeight: 1.55 };
-const hintBanner: CSSProperties = { borderRadius: "12px", border: "1px solid rgba(126,232,255,0.2)", background: "rgba(83,215,255,0.07)", color: "#c9f7ff", padding: "12px 14px", lineHeight: 1.5 };
-const filters: CSSProperties = { display: "flex", alignItems: "end", flexWrap: "wrap", gap: "12px", borderRadius: "16px", border: "1px solid rgba(126,232,255,0.14)", background: "rgba(255,255,255,0.025)", padding: "16px" };
-const fieldLabel: CSSProperties = { display: "grid", gap: "7px", color: "rgba(255,255,255,0.68)", fontSize: "12px", fontWeight: 850, flex: "0 1 180px" };
-const field: CSSProperties = { width: "100%", minHeight: "44px", boxSizing: "border-box", borderRadius: "11px", border: "1px solid rgba(126,232,255,0.2)", background: "#0d1a31", color: "white", padding: "0 12px", outline: "none" };
-const buttonRow: CSSProperties = { display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px" };
-const secondaryButton: CSSProperties = { minHeight: "44px", borderRadius: "11px", border: "1px solid rgba(126,232,255,0.3)", background: "rgba(83,215,255,0.09)", color: "white", padding: "0 14px", cursor: "pointer", fontWeight: 850 };
-const primaryButton: CSSProperties = { ...secondaryButton, borderColor: "rgba(52,211,153,0.45)", background: "rgba(52,211,153,0.16)" };
-const dangerButton: CSSProperties = { ...secondaryButton, borderColor: "rgba(248,113,113,0.55)", background: "rgba(239,68,68,0.18)", color: "#fff0f0", alignSelf: "end" };
-const summaryGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: "12px" };
-const summaryCard: CSSProperties = { minHeight: "120px", borderRadius: "16px", border: "1px solid rgba(126,232,255,0.16)", background: "rgba(13,29,57,0.78)", padding: "17px", display: "grid", alignContent: "center", gap: "5px" };
-const summaryLabel: CSSProperties = { color: "#7ee8ff", fontSize: "12px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.1em" };
+const phaseBanner: CSSProperties = {
+  borderRadius: "13px",
+  border: "1px solid rgba(126,232,255,0.28)",
+  background: "rgba(45,212,191,0.08)",
+  color: "#d8fffa",
+  padding: "14px 16px",
+  lineHeight: 1.55,
+};
+const hintBanner: CSSProperties = {
+  borderRadius: "12px",
+  border: "1px solid rgba(126,232,255,0.2)",
+  background: "rgba(83,215,255,0.07)",
+  color: "#c9f7ff",
+  padding: "12px 14px",
+  lineHeight: 1.5,
+};
+const filters: CSSProperties = {
+  display: "flex",
+  alignItems: "end",
+  flexWrap: "wrap",
+  gap: "12px",
+  borderRadius: "16px",
+  border: "1px solid rgba(126,232,255,0.14)",
+  background: "rgba(255,255,255,0.025)",
+  padding: "16px",
+};
+const fieldLabel: CSSProperties = {
+  display: "grid",
+  gap: "7px",
+  color: "rgba(255,255,255,0.68)",
+  fontSize: "12px",
+  fontWeight: 850,
+  flex: "0 1 180px",
+};
+const field: CSSProperties = {
+  width: "100%",
+  minHeight: "44px",
+  boxSizing: "border-box",
+  borderRadius: "11px",
+  border: "1px solid rgba(126,232,255,0.2)",
+  background: "#0d1a31",
+  color: "white",
+  padding: "0 12px",
+  outline: "none",
+};
+const buttonRow: CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  alignItems: "center",
+  gap: "8px",
+};
+const secondaryButton: CSSProperties = {
+  minHeight: "44px",
+  borderRadius: "11px",
+  border: "1px solid rgba(126,232,255,0.3)",
+  background: "rgba(83,215,255,0.09)",
+  color: "white",
+  padding: "0 14px",
+  cursor: "pointer",
+  fontWeight: 850,
+};
+const primaryButton: CSSProperties = {
+  ...secondaryButton,
+  borderColor: "rgba(52,211,153,0.45)",
+  background: "rgba(52,211,153,0.16)",
+};
+const dangerButton: CSSProperties = {
+  ...secondaryButton,
+  borderColor: "rgba(248,113,113,0.55)",
+  background: "rgba(239,68,68,0.18)",
+  color: "#fff0f0",
+  alignSelf: "end",
+};
+const summaryGrid: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))",
+  gap: "12px",
+};
+const summaryCard: CSSProperties = {
+  minHeight: "120px",
+  borderRadius: "16px",
+  border: "1px solid rgba(126,232,255,0.16)",
+  background: "rgba(13,29,57,0.78)",
+  padding: "17px",
+  display: "grid",
+  alignContent: "center",
+  gap: "5px",
+};
+const summaryLabel: CSSProperties = {
+  color: "#7ee8ff",
+  fontSize: "12px",
+  fontWeight: 900,
+  textTransform: "uppercase",
+  letterSpacing: "0.1em",
+};
 const summaryValue: CSSProperties = { fontSize: "30px", lineHeight: 1.15 };
-const listHeader: CSSProperties = { display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "12px" };
+const listHeader: CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "12px",
+};
 const sectionTitle: CSSProperties = { margin: 0, fontSize: "22px" };
-const smallText: CSSProperties = { margin: "4px 0 0", color: "rgba(255,255,255,0.54)", fontSize: "13px", lineHeight: 1.45 };
+const smallText: CSSProperties = {
+  margin: "4px 0 0",
+  color: "rgba(255,255,255,0.54)",
+  fontSize: "13px",
+  lineHeight: 1.45,
+};
 const topicList: CSSProperties = { display: "grid", gap: "10px" };
-const topicCard: CSSProperties = { borderRadius: "16px", border: "1px solid rgba(126,232,255,0.14)", background: "rgba(13,29,57,0.68)", padding: "16px", display: "grid", gridTemplateColumns: "auto minmax(210px,1.2fr) minmax(360px,2fr) auto", alignItems: "center", gap: "16px" };
+const topicCard: CSSProperties = {
+  borderRadius: "16px",
+  border: "1px solid rgba(126,232,255,0.14)",
+  background: "rgba(13,29,57,0.68)",
+  padding: "16px",
+  display: "grid",
+  gridTemplateColumns: "auto minmax(210px,1.2fr) minmax(360px,2fr) auto",
+  alignItems: "center",
+  gap: "16px",
+};
 const topicIdentity: CSSProperties = { minWidth: 0 };
-const topicTags: CSSProperties = { display: "flex", gap: "6px", flexWrap: "wrap" };
-const subjectTag: CSSProperties = { borderRadius: "999px", background: "rgba(126,232,255,0.13)", color: "#aef2ff", padding: "4px 8px", fontSize: "11px", fontWeight: 900, textTransform: "uppercase" };
-const levelTag: CSSProperties = { ...subjectTag, background: "rgba(167,139,250,0.13)", color: "#d8caff" };
-const activeTag: CSSProperties = { ...subjectTag, background: "rgba(52,211,153,0.13)", color: "#9fffd4" };
-const inactiveTag: CSSProperties = { ...subjectTag, background: "rgba(248,113,113,0.13)", color: "#fecaca" };
-const restoredTag: CSSProperties = { ...subjectTag, background: "rgba(250,204,21,0.12)", color: "#fde68a" };
-const topicTitle: CSSProperties = { margin: "8px 0 0", fontSize: "17px", textTransform: "capitalize" };
-const slugText: CSSProperties = { ...smallText, overflow: "hidden", textOverflow: "ellipsis" };
-const metrics: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(6,minmax(58px,1fr))", gap: "7px" };
-const metric: CSSProperties = { borderRadius: "10px", background: "rgba(255,255,255,0.035)", padding: "9px", display: "grid", gap: "3px", textAlign: "center" };
-const metricLabel: CSSProperties = { color: "rgba(255,255,255,0.48)", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em" };
-const previewCard: CSSProperties = { borderRadius: "18px", border: "1px solid rgba(255,215,106,0.35)", background: "rgba(255,215,106,0.055)", padding: "18px", display: "grid", gap: "14px" };
-const previewHeader: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "start", gap: "14px" };
-const previewGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(100px,1fr))", gap: "8px" };
+const topicTags: CSSProperties = {
+  display: "flex",
+  gap: "6px",
+  flexWrap: "wrap",
+};
+const subjectTag: CSSProperties = {
+  borderRadius: "999px",
+  background: "rgba(126,232,255,0.13)",
+  color: "#aef2ff",
+  padding: "4px 8px",
+  fontSize: "11px",
+  fontWeight: 900,
+  textTransform: "uppercase",
+};
+const levelTag: CSSProperties = {
+  ...subjectTag,
+  background: "rgba(167,139,250,0.13)",
+  color: "#d8caff",
+};
+const activeTag: CSSProperties = {
+  ...subjectTag,
+  background: "rgba(52,211,153,0.13)",
+  color: "#9fffd4",
+};
+const inactiveTag: CSSProperties = {
+  ...subjectTag,
+  background: "rgba(248,113,113,0.13)",
+  color: "#fecaca",
+};
+const restoredTag: CSSProperties = {
+  ...subjectTag,
+  background: "rgba(250,204,21,0.12)",
+  color: "#fde68a",
+};
+const topicTitle: CSSProperties = {
+  margin: "8px 0 0",
+  fontSize: "17px",
+  textTransform: "capitalize",
+};
+const slugText: CSSProperties = {
+  ...smallText,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+const metrics: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(6,minmax(58px,1fr))",
+  gap: "7px",
+};
+const metric: CSSProperties = {
+  borderRadius: "10px",
+  background: "rgba(255,255,255,0.035)",
+  padding: "9px",
+  display: "grid",
+  gap: "3px",
+  textAlign: "center",
+};
+const metricLabel: CSSProperties = {
+  color: "rgba(255,255,255,0.48)",
+  fontSize: "10px",
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+};
+const previewCard: CSSProperties = {
+  borderRadius: "18px",
+  border: "1px solid rgba(255,215,106,0.35)",
+  background: "rgba(255,215,106,0.055)",
+  padding: "18px",
+  display: "grid",
+  gap: "14px",
+};
+const previewHeader: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "start",
+  gap: "14px",
+};
+const previewGrid: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit,minmax(100px,1fr))",
+  gap: "8px",
+};
 const closeButton: CSSProperties = { ...secondaryButton, minHeight: "38px" };
-const warningBanner: CSSProperties = { borderRadius: "11px", border: "1px solid rgba(251,191,36,0.3)", background: "rgba(251,191,36,0.09)", color: "#ffe6a8", padding: "12px", lineHeight: 1.5 };
-const safeText: CSSProperties = { margin: 0, color: "rgba(255,255,255,0.75)", lineHeight: 1.55 };
-const confirmationCard: CSSProperties = { display: "flex", alignItems: "end", flexWrap: "wrap", gap: "12px", borderRadius: "14px", border: "1px solid rgba(248,113,113,0.3)", background: "rgba(239,68,68,0.07)", padding: "14px" };
-const quizSelectionCard: CSSProperties = { display: "grid", gap: "12px", borderRadius: "14px", border: "1px solid rgba(126,232,255,0.15)", background: "rgba(5,15,33,0.45)", padding: "14px" };
-const quizList: CSSProperties = { display: "grid", gap: "6px", maxHeight: "330px", overflowY: "auto" };
-const quizRow: CSSProperties = { display: "flex", alignItems: "center", gap: "10px", borderRadius: "10px", background: "rgba(255,255,255,0.035)", padding: "10px", cursor: "pointer" };
-const quizMeta: CSSProperties = { display: "block", marginTop: "3px", color: "rgba(255,255,255,0.5)", fontSize: "12px" };
-const checkbox: CSSProperties = { width: "18px", height: "18px", accentColor: "#53d7ff", cursor: "pointer" };
-const emptyCard: CSSProperties = { borderRadius: "17px", border: "1px dashed rgba(126,232,255,0.2)", background: "rgba(255,255,255,0.025)", color: "rgba(255,255,255,0.66)", padding: "28px", lineHeight: 1.6 };
-const historyCard: CSSProperties = { borderRadius: "16px", border: "1px solid rgba(126,232,255,0.14)", background: "rgba(13,29,57,0.68)", padding: "16px", display: "grid", gap: "13px" };
-const historyTopRow: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" };
-const restoreCard: CSSProperties = { display: "grid", gap: "10px", borderRadius: "12px", border: "1px solid rgba(52,211,153,0.25)", background: "rgba(52,211,153,0.06)", padding: "13px" };
-const errorBanner: CSSProperties = { borderRadius: "12px", border: "1px solid rgba(248,113,113,0.42)", background: "rgba(239,68,68,0.13)", color: "#fecaca", padding: "14px" };
-const successBanner: CSSProperties = { borderRadius: "12px", border: "1px solid rgba(52,211,153,0.38)", background: "rgba(52,211,153,0.11)", color: "#b8f8dc", padding: "14px" };
+const warningBanner: CSSProperties = {
+  borderRadius: "11px",
+  border: "1px solid rgba(251,191,36,0.3)",
+  background: "rgba(251,191,36,0.09)",
+  color: "#ffe6a8",
+  padding: "12px",
+  lineHeight: 1.5,
+};
+const safeText: CSSProperties = {
+  margin: 0,
+  color: "rgba(255,255,255,0.75)",
+  lineHeight: 1.55,
+};
+const confirmationCard: CSSProperties = {
+  display: "flex",
+  alignItems: "end",
+  flexWrap: "wrap",
+  gap: "12px",
+  borderRadius: "14px",
+  border: "1px solid rgba(248,113,113,0.3)",
+  background: "rgba(239,68,68,0.07)",
+  padding: "14px",
+};
+const quizSelectionCard: CSSProperties = {
+  display: "grid",
+  gap: "12px",
+  borderRadius: "14px",
+  border: "1px solid rgba(126,232,255,0.15)",
+  background: "rgba(5,15,33,0.45)",
+  padding: "14px",
+};
+const quizList: CSSProperties = {
+  display: "grid",
+  gap: "6px",
+  maxHeight: "330px",
+  overflowY: "auto",
+};
+const quizRow: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+  borderRadius: "10px",
+  background: "rgba(255,255,255,0.035)",
+  padding: "10px",
+  cursor: "pointer",
+};
+const quizMeta: CSSProperties = {
+  display: "block",
+  marginTop: "3px",
+  color: "rgba(255,255,255,0.5)",
+  fontSize: "12px",
+};
+const checkbox: CSSProperties = {
+  width: "18px",
+  height: "18px",
+  accentColor: "#53d7ff",
+  cursor: "pointer",
+};
+const emptyCard: CSSProperties = {
+  borderRadius: "17px",
+  border: "1px dashed rgba(126,232,255,0.2)",
+  background: "rgba(255,255,255,0.025)",
+  color: "rgba(255,255,255,0.66)",
+  padding: "28px",
+  lineHeight: 1.6,
+};
+const historyCard: CSSProperties = {
+  borderRadius: "16px",
+  border: "1px solid rgba(126,232,255,0.14)",
+  background: "rgba(13,29,57,0.68)",
+  padding: "16px",
+  display: "grid",
+  gap: "13px",
+};
+const historyTopRow: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "12px",
+};
+const restoreCard: CSSProperties = {
+  display: "grid",
+  gap: "10px",
+  borderRadius: "12px",
+  border: "1px solid rgba(52,211,153,0.25)",
+  background: "rgba(52,211,153,0.06)",
+  padding: "13px",
+};
+const errorBanner: CSSProperties = {
+  borderRadius: "12px",
+  border: "1px solid rgba(248,113,113,0.42)",
+  background: "rgba(239,68,68,0.13)",
+  color: "#fecaca",
+  padding: "14px",
+};
+const successBanner: CSSProperties = {
+  borderRadius: "12px",
+  border: "1px solid rgba(52,211,153,0.38)",
+  background: "rgba(52,211,153,0.11)",
+  color: "#b8f8dc",
+  padding: "14px",
+};
