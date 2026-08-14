@@ -11,6 +11,7 @@ import {
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import WardrobeFittedLayer from "@/components/nova-home/WardrobeFittedLayer";
+import WardrobeRigOverlay from "@/components/nova-home/WardrobeRigOverlay";
 import { NOVA_WARDROBE_RIG } from "@/lib/novaHome/wardrobeRig";
 
 type AreaKey = "area-1" | "area-2";
@@ -86,6 +87,14 @@ type WardrobeCatalogRow = {
   accent_hex: string;
   layer_order: number;
   sort_order: number;
+  fit_mode: "auto" | "manual";
+  fit_scale: number;
+  fit_offset_x_pct: number;
+  fit_offset_y_pct: number;
+  fit_rotation_deg: number;
+};
+
+type WardrobeFitDraft = {
   fit_mode: "auto" | "manual";
   fit_scale: number;
   fit_offset_x_pct: number;
@@ -365,6 +374,7 @@ export default function NovaHomePage() {
   const [wardrobeSelectedItemKey, setWardrobeSelectedItemKey] = useState<string | null>(null);
   const [wardrobePurchasingItemKey, setWardrobePurchasingItemKey] = useState<string | null>(null);
   const [wardrobeEquippingItemKey, setWardrobeEquippingItemKey] = useState<string | null>(null);
+  const [wardrobeSavingFitItemKey, setWardrobeSavingFitItemKey] = useState<string | null>(null);
   const [wardrobeMessage, setWardrobeMessage] = useState("");
   const [wardrobeCharacter, setWardrobeCharacter] = useState<WardrobeCharacter>("nova");
   const [characterCatalog, setCharacterCatalog] = useState<CharacterCatalogRow[]>([]);
@@ -965,7 +975,7 @@ export default function NovaHomePage() {
   }
 
   function closeWardrobe() {
-    if (wardrobePurchasingItemKey || wardrobeEquippingItemKey || purchasingCharacter) return;
+    if (wardrobePurchasingItemKey || wardrobeEquippingItemKey || wardrobeSavingFitItemKey || purchasingCharacter) return;
     setWardrobeOpen(false);
     setWardrobeMessage("");
   }
@@ -1097,6 +1107,70 @@ export default function NovaHomePage() {
           ? `${item.title} purchased for ${formatDT(result.cost_paid)} and equipped.`
           : `${item.title} purchased for ${formatDT(result.cost_paid)}.`,
     );
+  }
+
+  async function saveWardrobeFit(
+    itemKey: string,
+    fit: WardrobeFitDraft,
+  ): Promise<boolean> {
+    const item = wardrobeCatalog.find((entry) => entry.item_key === itemKey);
+    if (!item || !isAdmin || wardrobeSavingFitItemKey || wardrobeSetupError) return false;
+
+    if (item.character_key !== "nova") {
+      setWardrobeMessage("Milo fitting is added in Wardrobe Rig Phase 3.");
+      return false;
+    }
+
+    setWardrobeSavingFitItemKey(itemKey);
+    setWardrobeMessage("");
+
+    const { data, error } = await supabase.rpc(
+      "admin_save_nova_home_wardrobe_fit",
+      {
+        p_item_key: itemKey,
+        p_fit_mode: fit.fit_mode,
+        p_fit_scale: fit.fit_scale,
+        p_fit_offset_x_pct: fit.fit_offset_x_pct,
+        p_fit_offset_y_pct: fit.fit_offset_y_pct,
+        p_fit_rotation_deg: fit.fit_rotation_deg,
+      },
+    );
+
+    setWardrobeSavingFitItemKey(null);
+
+    if (error) {
+      setWardrobeMessage(error.message || "The wardrobe fit could not be saved.");
+      return false;
+    }
+
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row || typeof row !== "object") {
+      setWardrobeMessage("The fit was saved, but the returned values could not be read.");
+      await loadWardrobe();
+      return false;
+    }
+
+    const result = row as Record<string, unknown>;
+    const saved: WardrobeFitDraft = {
+      fit_mode: String(result.fit_mode || fit.fit_mode) === "auto" ? "auto" : "manual",
+      fit_scale: Number(result.fit_scale ?? fit.fit_scale),
+      fit_offset_x_pct: Number(result.fit_offset_x_pct ?? fit.fit_offset_x_pct),
+      fit_offset_y_pct: Number(result.fit_offset_y_pct ?? fit.fit_offset_y_pct),
+      fit_rotation_deg: Number(result.fit_rotation_deg ?? fit.fit_rotation_deg),
+    };
+
+    setWardrobeCatalog((current) =>
+      current.map((entry) =>
+        entry.item_key === itemKey ? { ...entry, ...saved } : entry,
+      ),
+    );
+
+    setWardrobeMessage(
+      saved.fit_mode === "auto"
+        ? `${item.title} reset to automatic rig fitting.`
+        : `${item.title} fit saved.`,
+    );
+    return true;
   }
 
   async function purchaseZone(zoneKey: ZoneKey) {
@@ -1595,6 +1669,8 @@ export default function NovaHomePage() {
           message={wardrobeMessage}
           purchasingItemKey={wardrobePurchasingItemKey}
           equippingItemKey={wardrobeEquippingItemKey}
+          savingFitItemKey={wardrobeSavingFitItemKey}
+          isAdmin={isAdmin}
           onClose={closeWardrobe}
           onCharacterChange={changeWardrobeCharacter}
           onPurchaseCharacter={(character) => void purchaseCharacterUnlock(character)}
@@ -1610,6 +1686,7 @@ export default function NovaHomePage() {
           }}
           onPurchase={purchaseWardrobeItem}
           onEquip={(itemKey) => void equipWardrobeItem(itemKey)}
+          onSaveFit={saveWardrobeFit}
         />
       )}
     </main>
@@ -1633,6 +1710,8 @@ function WardrobeBay({
   message,
   purchasingItemKey,
   equippingItemKey,
+  savingFitItemKey,
+  isAdmin,
   onClose,
   onCharacterChange,
   onPurchaseCharacter,
@@ -1640,6 +1719,7 @@ function WardrobeBay({
   onSelectItem,
   onPurchase,
   onEquip,
+  onSaveFit,
 }: {
   catalog: WardrobeCatalogRow[];
   ownedItems: Set<string>;
@@ -1656,6 +1736,8 @@ function WardrobeBay({
   message: string;
   purchasingItemKey: string | null;
   equippingItemKey: string | null;
+  savingFitItemKey: string | null;
+  isAdmin: boolean;
   onClose: () => void;
   onCharacterChange: (character: WardrobeCharacter) => void;
   onPurchaseCharacter: (character: WardrobeCharacter) => void;
@@ -1663,10 +1745,63 @@ function WardrobeBay({
   onSelectItem: (itemKey: string) => void;
   onPurchase: (itemKey: string) => void;
   onEquip: (itemKey: string) => void;
+  onSaveFit: (itemKey: string, fit: WardrobeFitDraft) => Promise<boolean>;
 }) {
   const visibleItems = catalog.filter((item) => item.character_key === activeCharacter && item.category === activeCategory);
   const selectedItem =
     catalog.find((item) => item.item_key === selectedItemKey && item.character_key === activeCharacter) ?? visibleItems[0] ?? null;
+
+  const [calibrationMode, setCalibrationMode] = useState(false);
+  const [showRigAnchors, setShowRigAnchors] = useState(true);
+  const [fitDraft, setFitDraft] = useState<WardrobeFitDraft>({
+    fit_mode: "auto",
+    fit_scale: 1,
+    fit_offset_x_pct: 0,
+    fit_offset_y_pct: 0,
+    fit_rotation_deg: 0,
+  });
+  const [calibrationDrag, setCalibrationDrag] = useState<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    startOffsetX: number;
+    startOffsetY: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (activeCharacter !== "nova") {
+      setCalibrationMode(false);
+      setCalibrationDrag(null);
+    }
+  }, [activeCharacter]);
+
+  useEffect(() => {
+    if (!selectedItem || selectedItem.character_key !== "nova") {
+      setFitDraft({
+        fit_mode: "auto",
+        fit_scale: 1,
+        fit_offset_x_pct: 0,
+        fit_offset_y_pct: 0,
+        fit_rotation_deg: 0,
+      });
+      return;
+    }
+
+    setFitDraft({
+      fit_mode: selectedItem.fit_mode || "auto",
+      fit_scale: Number(selectedItem.fit_scale ?? 1),
+      fit_offset_x_pct: Number(selectedItem.fit_offset_x_pct ?? 0),
+      fit_offset_y_pct: Number(selectedItem.fit_offset_y_pct ?? 0),
+      fit_rotation_deg: Number(selectedItem.fit_rotation_deg ?? 0),
+    });
+  }, [
+    selectedItem?.item_key,
+    selectedItem?.fit_mode,
+    selectedItem?.fit_scale,
+    selectedItem?.fit_offset_x_pct,
+    selectedItem?.fit_offset_y_pct,
+    selectedItem?.fit_rotation_deg,
+  ]);
 
   const characterEquipped = equippedItems.filter((entry) => entry.character_key === activeCharacter);
   const baseClothingEquipped = characterEquipped.some((entry) =>
@@ -1713,6 +1848,14 @@ function WardrobeBay({
     .filter((item): item is WardrobeCatalogRow => Boolean(item?.layer_image))
     .sort((a, b) => a.layer_order - b.layer_order);
 
+  const calibratedPreviewLayers = previewLayers.map((item) =>
+    calibrationMode &&
+    activeCharacter === "nova" &&
+    selectedItem?.item_key === item.item_key
+      ? { ...item, ...fitDraft }
+      : item,
+  );
+
   const isOwned = selectedItem
     ? selectedItem.is_starter || ownedItems.has(selectedItem.item_key)
     : false;
@@ -1721,12 +1864,57 @@ function WardrobeBay({
     ? effectiveEquipped.some((entry) => entry.item_key === selectedItem.item_key)
     : false;
 
-  const busy = Boolean(purchasingItemKey || equippingItemKey || purchasingCharacter);
+  const busy = Boolean(purchasingItemKey || equippingItemKey || savingFitItemKey || purchasingCharacter);
   const miloCatalog = characterCatalog.find((entry) => entry.character_key === "milo");
   const miloUnlocked = unlockedCharacters.has("milo") || Boolean(miloCatalog?.is_starter);
   const selectedCategoryMeta =
     WARDROBE_CATEGORIES.find((entry) => entry.key === activeCategory) ??
     WARDROBE_CATEGORIES[0];
+  const calibrationAvailable =
+    isAdmin &&
+    activeCharacter === "nova" &&
+    Boolean(selectedItem?.layer_image);
+  const fitChanged = Boolean(
+    selectedItem &&
+      (Math.abs(fitDraft.fit_scale - Number(selectedItem.fit_scale ?? 1)) > 0.0001 ||
+        Math.abs(fitDraft.fit_offset_x_pct - Number(selectedItem.fit_offset_x_pct ?? 0)) > 0.0001 ||
+        Math.abs(fitDraft.fit_offset_y_pct - Number(selectedItem.fit_offset_y_pct ?? 0)) > 0.0001 ||
+        Math.abs(fitDraft.fit_rotation_deg - Number(selectedItem.fit_rotation_deg ?? 0)) > 0.0001),
+  );
+
+  function startCalibrationDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!calibrationMode || activeCharacter !== "nova" || !selectedItem) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setCalibrationDrag({
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startOffsetX: fitDraft.fit_offset_x_pct,
+      startOffsetY: fitDraft.fit_offset_y_pct,
+    });
+  }
+
+  function moveCalibrationDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!calibrationDrag || calibrationDrag.pointerId !== event.pointerId) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const dxPct = ((event.clientX - calibrationDrag.startX) / rect.width) * 100;
+    const dyPct = ((event.clientY - calibrationDrag.startY) / rect.height) * 100;
+    setFitDraft((current) => ({
+      ...current,
+      fit_mode: "manual",
+      fit_offset_x_pct: Math.min(50, Math.max(-50, calibrationDrag.startOffsetX + dxPct)),
+      fit_offset_y_pct: Math.min(50, Math.max(-50, calibrationDrag.startOffsetY + dyPct)),
+    }));
+  }
+
+  function endCalibrationDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!calibrationDrag || calibrationDrag.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    setCalibrationDrag(null);
+  }
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center overflow-hidden bg-[#01040b]/88 p-2 backdrop-blur-md sm:p-4">
@@ -1743,18 +1931,33 @@ function WardrobeBay({
                 Sleep Zone Activity
               </p>
               <span className="rounded-full border border-cyan-200/16 bg-cyan-300/[0.06] px-2 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100/70">
-                Wardrobe Rig · Phase 1
+                Wardrobe Rig · Phase 2
               </span>
             </div>
             <h2 className="mt-1 font-serif text-2xl font-medium tracking-[-0.035em] sm:text-3xl">
               Wardrobe Bay
             </h2>
             <p className="mt-1 max-w-2xl text-[10px] leading-4 text-white/46 sm:text-xs sm:leading-5">
-              Nova clothing now uses body anchors and alpha-aware auto-fit instead of relying on identical PNG placement. Milo unlock remains available; Milo fitting is added in Rig Phase 3.
+              Nova clothing uses body anchors and alpha-aware auto-fit. Admin calibration can now fine-tune each item and save the fit without editing code. Milo fitting is added in Rig Phase 3.
             </p>
           </div>
 
           <div className="flex items-center gap-2 sm:justify-end">
+            {isAdmin && (
+              <button
+                type="button"
+                disabled={!calibrationAvailable}
+                onClick={() => setCalibrationMode((current) => !current)}
+                className={`min-h-10 rounded-full border px-4 text-[9px] font-black uppercase tracking-[0.1em] transition disabled:cursor-not-allowed disabled:opacity-35 ${
+                  calibrationMode
+                    ? "border-amber-200/35 bg-amber-300/[0.12] text-amber-100"
+                    : "border-cyan-200/20 bg-cyan-300/[0.06] text-cyan-100/72 hover:bg-cyan-300/[0.1]"
+                }`}
+                title={calibrationAvailable ? "Toggle admin fitting controls" : "Select a Nova wardrobe item to calibrate"}
+              >
+                {calibrationMode ? "Exit Calibrator" : "Admin Calibrate"}
+              </button>
+            )}
             <div className="rounded-full border border-cyan-200/25 bg-slate-950/70 px-4 py-2 text-right">
               <p className="text-[8px] font-black uppercase tracking-[0.14em] text-cyan-200/55">
                 Dream Tokens
@@ -1817,22 +2020,46 @@ function WardrobeBay({
               <div className="pointer-events-none absolute inset-x-[12%] bottom-[8%] h-[22%] rounded-[50%] bg-cyan-300/[0.08] blur-2xl" />
               <div className="relative flex h-full max-h-[560px] w-full max-w-[430px] items-end justify-center">
                 {activeCharacter === "nova" ? (
-                  <div className="relative aspect-square w-[min(92%,430px)] shrink-0">
+                  <div
+                    className={`relative aspect-square w-[min(92%,430px)] shrink-0 ${
+                      calibrationMode
+                        ? calibrationDrag
+                          ? "cursor-grabbing"
+                          : "cursor-grab"
+                        : ""
+                    }`}
+                    style={{ touchAction: calibrationMode ? "none" : undefined }}
+                    onPointerDown={startCalibrationDrag}
+                    onPointerMove={moveCalibrationDrag}
+                    onPointerUp={endCalibrationDrag}
+                    onPointerCancel={endCalibrationDrag}
+                  >
                     <img
                       src={NOVA_CHARACTER_IMAGE}
                       alt="Nova wardrobe preview"
                       className="pointer-events-none absolute inset-0 z-10 h-full w-full object-contain drop-shadow-[0_28px_44px_rgba(0,0,0,0.55)]"
                       draggable={false}
                     />
-                    {previewLayers.map((item) => (
+                    {calibratedPreviewLayers.map((item) => (
                       <WardrobeFittedLayer
                         key={item.item_key}
                         item={item}
                         rig={NOVA_WARDROBE_RIG}
                       />
                     ))}
-                    <div className="pointer-events-none absolute bottom-[1.5%] left-1/2 z-[90] -translate-x-1/2 rounded-full border border-cyan-200/18 bg-slate-950/70 px-2.5 py-1 text-[7px] font-black uppercase tracking-[0.1em] text-cyan-100/55 backdrop-blur-md">
-                      Auto-fit rig v1
+                    {calibrationMode && selectedItem && activeCharacter === "nova" && (
+                      <WardrobeRigOverlay
+                        rig={NOVA_WARDROBE_RIG}
+                        category={selectedItem.category}
+                        showAnchors={showRigAnchors}
+                      />
+                    )}
+                    <div className={`pointer-events-none absolute bottom-[1.5%] left-1/2 z-[90] -translate-x-1/2 rounded-full border px-2.5 py-1 text-[7px] font-black uppercase tracking-[0.1em] backdrop-blur-md ${
+                      calibrationMode
+                        ? "border-amber-200/24 bg-amber-950/72 text-amber-100/72"
+                        : "border-cyan-200/18 bg-slate-950/70 text-cyan-100/55"
+                    }`}>
+                      {calibrationMode ? "Admin calibrator · live preview" : "Auto-fit rig v2"}
                     </div>
                   </div>
                 ) : (
@@ -2034,6 +2261,15 @@ function WardrobeBay({
                           <span className="rounded-full border border-white/8 bg-white/[0.035] px-2 py-0.5 text-[7px] font-black uppercase tracking-[0.08em] text-white/42">
                             {getWardrobeCollectionLabel(item.item_key)}
                           </span>
+                          {calibrationMode && (
+                            <span className={`rounded-full border px-2 py-0.5 text-[7px] font-black uppercase tracking-[0.08em] ${
+                              item.fit_mode === "manual"
+                                ? "border-amber-200/18 bg-amber-300/[0.08] text-amber-100/70"
+                                : "border-cyan-200/14 bg-cyan-300/[0.05] text-cyan-100/55"
+                            }`}>
+                              {item.fit_mode}
+                            </span>
+                          )}
                         </div>
                         <p className="mt-1 max-h-8 overflow-hidden text-[9px] leading-4 text-white/38">
                           {item.description || "Nova wardrobe item."}
@@ -2046,7 +2282,129 @@ function WardrobeBay({
             </div>
 
             <div className="border-t border-white/[0.07] bg-slate-950/48 p-3 sm:p-4">
-              {selectedItem ? (
+              {calibrationMode && selectedItem && activeCharacter === "nova" ? (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-sm font-black text-white sm:text-base">{selectedItem.title}</h3>
+                        <span className={`rounded-full border px-2 py-1 text-[7px] font-black uppercase tracking-[0.1em] ${
+                          selectedItem.fit_mode === "manual"
+                            ? "border-amber-200/22 bg-amber-300/[0.08] text-amber-100/75"
+                            : "border-cyan-200/18 bg-cyan-300/[0.06] text-cyan-100/65"
+                        }`}>
+                          Saved: {selectedItem.fit_mode}
+                        </span>
+                        {fitChanged && (
+                          <span className="rounded-full border border-fuchsia-200/18 bg-fuchsia-300/[0.07] px-2 py-1 text-[7px] font-black uppercase tracking-[0.1em] text-fuchsia-100/70">
+                            Unsaved preview
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-[9px] leading-4 text-white/40">
+                        Drag directly on Nova to reposition the selected PNG, or use the controls below for precise scale, offset, and rotation. Then save.
+                      </p>
+                    </div>
+                    <label className="flex cursor-pointer items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-2 text-[8px] font-black uppercase tracking-[0.08em] text-white/58">
+                      <input
+                        type="checkbox"
+                        checked={showRigAnchors}
+                        onChange={(event) => setShowRigAnchors(event.target.checked)}
+                        className="accent-cyan-300"
+                      />
+                      Show anchors
+                    </label>
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                    <CalibrationNumberControl
+                      label="Scale"
+                      value={fitDraft.fit_scale}
+                      min={0.35}
+                      max={2.5}
+                      step={0.01}
+                      onChange={(value) => setFitDraft((current) => ({ ...current, fit_mode: "manual", fit_scale: value }))}
+                    />
+                    <CalibrationNumberControl
+                      label="X offset"
+                      value={fitDraft.fit_offset_x_pct}
+                      min={-50}
+                      max={50}
+                      step={0.25}
+                      suffix="%"
+                      onChange={(value) => setFitDraft((current) => ({ ...current, fit_mode: "manual", fit_offset_x_pct: value }))}
+                    />
+                    <CalibrationNumberControl
+                      label="Y offset"
+                      value={fitDraft.fit_offset_y_pct}
+                      min={-50}
+                      max={50}
+                      step={0.25}
+                      suffix="%"
+                      onChange={(value) => setFitDraft((current) => ({ ...current, fit_mode: "manual", fit_offset_y_pct: value }))}
+                    />
+                    <CalibrationNumberControl
+                      label="Rotation"
+                      value={fitDraft.fit_rotation_deg}
+                      min={-45}
+                      max={45}
+                      step={0.5}
+                      suffix="°"
+                      onChange={(value) => setFitDraft((current) => ({ ...current, fit_mode: "manual", fit_rotation_deg: value }))}
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={Boolean(savingFitItemKey)}
+                        onClick={() => {
+                          const reset: WardrobeFitDraft = {
+                            fit_mode: "auto",
+                            fit_scale: 1,
+                            fit_offset_x_pct: 0,
+                            fit_offset_y_pct: 0,
+                            fit_rotation_deg: 0,
+                          };
+                          setFitDraft(reset);
+                          void onSaveFit(selectedItem.item_key, reset);
+                        }}
+                        className="min-h-10 rounded-full border border-white/12 bg-white/[0.04] px-4 text-[9px] font-black uppercase tracking-[0.09em] text-white/62 transition hover:bg-white/[0.075] disabled:opacity-40"
+                      >
+                        Reset to Auto Fit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFitDraft({
+                            fit_mode: selectedItem.fit_mode || "auto",
+                            fit_scale: Number(selectedItem.fit_scale ?? 1),
+                            fit_offset_x_pct: Number(selectedItem.fit_offset_x_pct ?? 0),
+                            fit_offset_y_pct: Number(selectedItem.fit_offset_y_pct ?? 0),
+                            fit_rotation_deg: Number(selectedItem.fit_rotation_deg ?? 0),
+                          })
+                        }
+                        disabled={!fitChanged || Boolean(savingFitItemKey)}
+                        className="min-h-10 rounded-full border border-white/12 bg-white/[0.04] px-4 text-[9px] font-black uppercase tracking-[0.09em] text-white/62 transition hover:bg-white/[0.075] disabled:opacity-35"
+                      >
+                        Undo Preview
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={Boolean(savingFitItemKey)}
+                      onClick={() => void onSaveFit(selectedItem.item_key, { ...fitDraft, fit_mode: "manual" })}
+                      className="min-h-10 rounded-full bg-amber-300 px-5 text-[9px] font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      {savingFitItemKey === selectedItem.item_key ? "Saving Fit..." : "Save Fit"}
+                    </button>
+                  </div>
+                  {message && (
+                    <p className="text-[9px] font-bold leading-4 text-amber-100/82 sm:text-[10px]">{message}</p>
+                  )}
+                </div>
+              ) : selectedItem ? (
                 <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -2112,3 +2470,74 @@ function WardrobeBay({
     </div>
   );
 }
+
+function CalibrationNumberControl({
+  label,
+  value,
+  min,
+  max,
+  step,
+  suffix = "",
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  suffix?: string;
+  onChange: (value: number) => void;
+}) {
+  const safeValue = Number.isFinite(value) ? value : 0;
+
+  function commit(next: number) {
+    if (!Number.isFinite(next)) return;
+    onChange(Math.min(max, Math.max(min, next)));
+  }
+
+  return (
+    <div className="rounded-[14px] border border-white/9 bg-white/[0.025] p-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[8px] font-black uppercase tracking-[0.1em] text-white/42">{label}</span>
+        <span className="text-[9px] font-black text-cyan-100/72">
+          {Number(safeValue.toFixed(2))}{suffix}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={safeValue}
+        onChange={(event) => commit(Number(event.target.value))}
+        className="mt-2 w-full accent-cyan-300"
+      />
+      <div className="mt-1.5 grid grid-cols-[32px_minmax(0,1fr)_32px] gap-1.5">
+        <button
+          type="button"
+          onClick={() => commit(safeValue - step)}
+          className="h-7 rounded-lg border border-white/10 bg-white/[0.035] text-sm font-black text-white/60 hover:bg-white/[0.07]"
+        >
+          −
+        </button>
+        <input
+          type="number"
+          min={min}
+          max={max}
+          step={step}
+          value={Number(safeValue.toFixed(2))}
+          onChange={(event) => commit(Number(event.target.value))}
+          className="h-7 min-w-0 rounded-lg border border-white/10 bg-slate-950/65 px-2 text-center text-[9px] font-bold text-white/72 outline-none focus:border-cyan-200/35"
+        />
+        <button
+          type="button"
+          onClick={() => commit(safeValue + step)}
+          className="h-7 rounded-lg border border-white/10 bg-white/[0.035] text-sm font-black text-white/60 hover:bg-white/[0.07]"
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
