@@ -49,6 +49,46 @@ type PurchaseResult = {
   already_owned: boolean;
 };
 
+type WardrobeCategory = "outfit" | "top" | "bottom" | "shoes" | "accessory";
+
+type WardrobeCatalogRow = {
+  item_key: string;
+  character_key: "nova" | "milo";
+  category: WardrobeCategory;
+  title: string;
+  description: string | null;
+  dt_cost: number;
+  is_starter: boolean;
+  thumbnail_image: string | null;
+  layer_image: string | null;
+  accent_hex: string;
+  layer_order: number;
+  sort_order: number;
+};
+
+type WardrobeOwnershipRow = {
+  item_key: string;
+};
+
+type WardrobeEquippedRow = {
+  character_key: "nova" | "milo";
+  category: WardrobeCategory;
+  item_key: string;
+};
+
+type WardrobePurchaseResult = {
+  item_key: string;
+  cost_paid: number;
+  new_balance: number;
+  already_owned: boolean;
+};
+
+type WardrobeEquipResult = {
+  item_key: string;
+  character_key: "nova" | "milo";
+  category: WardrobeCategory;
+};
+
 type ZoneView = ZoneVisual & {
   title: string;
   subtitle: string;
@@ -126,6 +166,21 @@ const ROOM_ZONE_KEYS: ZoneKey[] = [
   "extra-zone",
 ];
 
+const NOVA_CHARACTER_IMAGE = "/nova/nova-character.png";
+
+const WARDROBE_CATEGORIES: {
+  key: WardrobeCategory;
+  label: string;
+  shortLabel: string;
+  icon: string;
+}[] = [
+  { key: "outfit", label: "Outfits", shortLabel: "Outfit", icon: "✦" },
+  { key: "top", label: "Tops", shortLabel: "Top", icon: "▰" },
+  { key: "bottom", label: "Bottoms", shortLabel: "Bottom", icon: "▱" },
+  { key: "shoes", label: "Shoes", shortLabel: "Shoes", icon: "⌁" },
+  { key: "accessory", label: "Accessories", shortLabel: "Accessory", icon: "◇" },
+];
+
 function formatDT(value: number) {
   return `${Math.round(Number(value || 0)).toLocaleString("en-SG")} DT`;
 }
@@ -156,6 +211,52 @@ function getPurchaseResult(data: unknown): PurchaseResult | null {
   };
 }
 
+function getWardrobePurchaseResult(data: unknown): WardrobePurchaseResult | null {
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || typeof row !== "object") return null;
+
+  const result = row as Record<string, unknown>;
+  const itemKey = String(result.item_key || "");
+  const costPaid = Number(result.cost_paid);
+  const newBalance = Number(result.new_balance);
+  const alreadyOwned = Boolean(result.already_owned);
+
+  if (!itemKey || !Number.isFinite(costPaid) || !Number.isFinite(newBalance)) {
+    return null;
+  }
+
+  return {
+    item_key: itemKey,
+    cost_paid: costPaid,
+    new_balance: newBalance,
+    already_owned: alreadyOwned,
+  };
+}
+
+function getWardrobeEquipResult(data: unknown): WardrobeEquipResult | null {
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || typeof row !== "object") return null;
+
+  const result = row as Record<string, unknown>;
+  const itemKey = String(result.item_key || "");
+  const characterKey = String(result.character_key || "");
+  const category = String(result.category || "");
+
+  if (
+    !itemKey ||
+    (characterKey !== "nova" && characterKey !== "milo") ||
+    !["outfit", "top", "bottom", "shoes", "accessory"].includes(category)
+  ) {
+    return null;
+  }
+
+  return {
+    item_key: itemKey,
+    character_key: characterKey,
+    category: category as WardrobeCategory,
+  };
+}
+
 export default function NovaHomePage() {
   const router = useRouter();
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -183,6 +284,18 @@ export default function NovaHomePage() {
   const [message, setMessage] = useState("");
   const [setupError, setSetupError] = useState("");
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
+
+  const [wardrobeOpen, setWardrobeOpen] = useState(false);
+  const [wardrobeLoading, setWardrobeLoading] = useState(false);
+  const [wardrobeSetupError, setWardrobeSetupError] = useState("");
+  const [wardrobeCatalog, setWardrobeCatalog] = useState<WardrobeCatalogRow[]>([]);
+  const [wardrobeOwned, setWardrobeOwned] = useState<Set<string>>(() => new Set());
+  const [wardrobeEquipped, setWardrobeEquipped] = useState<WardrobeEquippedRow[]>([]);
+  const [wardrobeCategory, setWardrobeCategory] = useState<WardrobeCategory>("outfit");
+  const [wardrobeSelectedItemKey, setWardrobeSelectedItemKey] = useState<string | null>(null);
+  const [wardrobePurchasingItemKey, setWardrobePurchasingItemKey] = useState<string | null>(null);
+  const [wardrobeEquippingItemKey, setWardrobeEquippingItemKey] = useState<string | null>(null);
+  const [wardrobeMessage, setWardrobeMessage] = useState("");
 
   const zones = useMemo<ZoneView[]>(() => {
     const catalog = new Map<string, ZoneCatalogRow>(
@@ -565,6 +678,248 @@ export default function NovaHomePage() {
     setCurrentArea("area-2");
   }
 
+  const loadWardrobe = useCallback(async () => {
+    setWardrobeLoading(true);
+    setWardrobeSetupError("");
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setWardrobeLoading(false);
+      router.push("/login");
+      return;
+    }
+
+    const [catalogResult, ownershipResult, equippedResult] = await Promise.all([
+      supabase
+        .from("nova_home_wardrobe_catalog")
+        .select(
+          "item_key,character_key,category,title,description,dt_cost,is_starter,thumbnail_image,layer_image,accent_hex,layer_order,sort_order",
+        )
+        .eq("character_key", "nova")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true }),
+      supabase
+        .from("nova_home_wardrobe_ownership")
+        .select("item_key")
+        .eq("user_id", user.id),
+      supabase
+        .from("nova_home_wardrobe_equipped")
+        .select("character_key,category,item_key")
+        .eq("user_id", user.id)
+        .eq("character_key", "nova"),
+    ]);
+
+    if (catalogResult.error) {
+      console.warn("Could not load wardrobe catalog:", catalogResult.error.message);
+      setWardrobeCatalog([]);
+      setWardrobeSetupError(
+        "Wardrobe Bay tables are not ready. Run SQL 303 before testing this activity.",
+      );
+    } else {
+      const rows = (catalogResult.data || []).map((row) => ({
+        item_key: String(row.item_key),
+        character_key: String(row.character_key) as "nova" | "milo",
+        category: String(row.category) as WardrobeCategory,
+        title: String(row.title || "Wardrobe Item"),
+        description: row.description ? String(row.description) : null,
+        dt_cost: Number(row.dt_cost || 0),
+        is_starter: Boolean(row.is_starter),
+        thumbnail_image: row.thumbnail_image ? String(row.thumbnail_image) : null,
+        layer_image: row.layer_image ? String(row.layer_image) : null,
+        accent_hex: String(row.accent_hex || "#6ee7ff"),
+        layer_order: Number(row.layer_order || 50),
+        sort_order: Number(row.sort_order || 0),
+      }));
+      setWardrobeCatalog(rows);
+
+      if (!wardrobeSelectedItemKey && rows.length > 0) {
+        setWardrobeSelectedItemKey(
+          rows.find((item) => item.category === "outfit")?.item_key ?? rows[0].item_key,
+        );
+      }
+    }
+
+    if (ownershipResult.error) {
+      console.warn(
+        "Could not load wardrobe ownership:",
+        ownershipResult.error.message,
+      );
+      setWardrobeOwned(new Set());
+    } else {
+      setWardrobeOwned(
+        new Set(
+          ((ownershipResult.data || []) as WardrobeOwnershipRow[]).map((row) =>
+            String(row.item_key),
+          ),
+        ),
+      );
+    }
+
+    if (equippedResult.error) {
+      console.warn(
+        "Could not load equipped wardrobe items:",
+        equippedResult.error.message,
+      );
+      setWardrobeEquipped([]);
+    } else {
+      setWardrobeEquipped(
+        ((equippedResult.data || []) as WardrobeEquippedRow[]).map((row) => ({
+          character_key: String(row.character_key) as "nova" | "milo",
+          category: String(row.category) as WardrobeCategory,
+          item_key: String(row.item_key),
+        })),
+      );
+    }
+
+    setWardrobeLoading(false);
+  }, [router, wardrobeSelectedItemKey]);
+
+  function openWardrobe() {
+    if (!unlockedZones.has("bed-zone")) return;
+    setWardrobeOpen(true);
+    setWardrobeMessage("");
+    setWardrobeCategory("outfit");
+    void loadWardrobe();
+  }
+
+  function closeWardrobe() {
+    if (wardrobePurchasingItemKey || wardrobeEquippingItemKey) return;
+    setWardrobeOpen(false);
+    setWardrobeMessage("");
+  }
+
+  async function equipWardrobeItem(
+    itemKey: string,
+    quiet = false,
+    forceOwned = false,
+  ) {
+    const item = wardrobeCatalog.find((entry) => entry.item_key === itemKey);
+    if (!item || wardrobeEquippingItemKey || wardrobeSetupError) return false;
+
+    const owned = forceOwned || item.is_starter || wardrobeOwned.has(item.item_key);
+    if (!owned) {
+      if (!quiet) setWardrobeMessage("Buy this wardrobe item before equipping it.");
+      return false;
+    }
+
+    setWardrobeEquippingItemKey(itemKey);
+    if (!quiet) setWardrobeMessage("");
+
+    const { data, error } = await supabase.rpc("equip_nova_home_wardrobe_item", {
+      p_item_key: itemKey,
+    });
+
+    setWardrobeEquippingItemKey(null);
+
+    if (error) {
+      setWardrobeMessage(error.message || "This wardrobe item could not be equipped.");
+      return false;
+    }
+
+    const result = getWardrobeEquipResult(data);
+    if (!result) {
+      setWardrobeMessage("The outfit changed, but the equipped state could not be read.");
+      await loadWardrobe();
+      return false;
+    }
+
+    setWardrobeEquipped((current) => {
+      let next = current.filter((entry) => {
+        if (entry.character_key !== result.character_key) return true;
+        if (result.category === "outfit") {
+          return !["outfit", "top", "bottom", "shoes"].includes(entry.category);
+        }
+        if (["top", "bottom", "shoes"].includes(result.category)) {
+          if (entry.category === "outfit") return false;
+          return entry.category !== result.category;
+        }
+        return entry.category !== result.category;
+      });
+
+      next = [
+        ...next,
+        {
+          item_key: result.item_key,
+          character_key: result.character_key,
+          category: result.category,
+        },
+      ];
+      return next;
+    });
+
+    if (!quiet) setWardrobeMessage(`${item.title} equipped.`);
+    return true;
+  }
+
+  async function purchaseWardrobeItem(itemKey: string) {
+    const item = wardrobeCatalog.find((entry) => entry.item_key === itemKey);
+    if (!item || wardrobePurchasingItemKey || wardrobeSetupError) return;
+
+    if (item.is_starter || wardrobeOwned.has(item.item_key)) {
+      await equipWardrobeItem(item.item_key);
+      return;
+    }
+
+    if (dreamTokenBalance < item.dt_cost) {
+      setWardrobeMessage(
+        `You need ${formatDT(item.dt_cost - dreamTokenBalance)} more for ${item.title}.`,
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Buy ${item.title} for ${formatDT(item.dt_cost)} and wear it now?`,
+    );
+    if (!confirmed) return;
+
+    setWardrobePurchasingItemKey(itemKey);
+    setWardrobeMessage("");
+
+    const { data, error } = await supabase.rpc(
+      "purchase_nova_home_wardrobe_item",
+      { p_item_key: itemKey },
+    );
+
+    setWardrobePurchasingItemKey(null);
+
+    if (error) {
+      setWardrobeMessage(error.message || "The wardrobe item could not be purchased.");
+      return;
+    }
+
+    const result = getWardrobePurchaseResult(data);
+    if (!result) {
+      setWardrobeMessage("The purchase completed, but the result could not be read.");
+      await loadWardrobe();
+      return;
+    }
+
+    setDreamTokenBalance(Math.max(0, result.new_balance));
+    if (!item.is_starter) {
+      setWardrobeOwned((current) => {
+        const next = new Set(current);
+        next.add(item.item_key);
+        return next;
+      });
+    }
+
+    window.dispatchEvent(new Event("dream-tokens-updated"));
+
+    const equipped = await equipWardrobeItem(item.item_key, true, true);
+    setWardrobeMessage(
+      result.already_owned
+        ? equipped
+          ? `${item.title} was already owned and is now equipped.`
+          : `${item.title} was already owned.`
+        : equipped
+          ? `${item.title} purchased for ${formatDT(result.cost_paid)} and equipped.`
+          : `${item.title} purchased for ${formatDT(result.cost_paid)}.`,
+    );
+  }
+
   async function purchaseZone(zoneKey: ZoneKey) {
     const zone = zoneMap.get(zoneKey);
     if (!zone || purchasingZoneKey || setupError) return;
@@ -784,7 +1139,9 @@ export default function NovaHomePage() {
                           {unlocked
                             ? zone.isAreaExit
                               ? "Enter Area 2"
-                              : "Unlocked"
+                              : zone.key === "bed-zone"
+                                ? "Wardrobe Bay"
+                                : "Unlocked"
                             : affordable
                               ? "Available"
                               : "Save more DT"}
@@ -927,6 +1284,14 @@ export default function NovaHomePage() {
                               >
                                 Enter Area 2 →
                               </button>
+                            ) : activeZone.key === "bed-zone" ? (
+                              <button
+                                type="button"
+                                onClick={openWardrobe}
+                                className="min-h-11 w-full rounded-full bg-cyan-300 px-5 text-[11px] font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-cyan-200 sm:w-auto"
+                              >
+                                Open Wardrobe Bay →
+                              </button>
                             ) : (
                               <span className="inline-flex min-h-11 items-center rounded-full border border-emerald-200/24 bg-emerald-300/10 px-5 text-[11px] font-black uppercase tracking-[0.1em] text-emerald-100">
                                 ✓ Unlocked
@@ -1033,6 +1398,436 @@ export default function NovaHomePage() {
           </div>
         )}
       </section>
+
+      {wardrobeOpen && (
+        <WardrobeBay
+          catalog={wardrobeCatalog}
+          ownedItems={wardrobeOwned}
+          equippedItems={wardrobeEquipped}
+          activeCategory={wardrobeCategory}
+          selectedItemKey={wardrobeSelectedItemKey}
+          dreamTokenBalance={dreamTokenBalance}
+          loading={wardrobeLoading}
+          setupError={wardrobeSetupError}
+          message={wardrobeMessage}
+          purchasingItemKey={wardrobePurchasingItemKey}
+          equippingItemKey={wardrobeEquippingItemKey}
+          onClose={closeWardrobe}
+          onCategoryChange={(category) => {
+            setWardrobeCategory(category);
+            const first = wardrobeCatalog.find((item) => item.category === category);
+            setWardrobeSelectedItemKey(first?.item_key ?? null);
+            setWardrobeMessage("");
+          }}
+          onSelectItem={(itemKey) => {
+            setWardrobeSelectedItemKey(itemKey);
+            setWardrobeMessage("");
+          }}
+          onPurchase={purchaseWardrobeItem}
+          onEquip={(itemKey) => void equipWardrobeItem(itemKey)}
+        />
+      )}
     </main>
+  );
+}
+
+
+function WardrobeBay({
+  catalog,
+  ownedItems,
+  equippedItems,
+  activeCategory,
+  selectedItemKey,
+  dreamTokenBalance,
+  loading,
+  setupError,
+  message,
+  purchasingItemKey,
+  equippingItemKey,
+  onClose,
+  onCategoryChange,
+  onSelectItem,
+  onPurchase,
+  onEquip,
+}: {
+  catalog: WardrobeCatalogRow[];
+  ownedItems: Set<string>;
+  equippedItems: WardrobeEquippedRow[];
+  activeCategory: WardrobeCategory;
+  selectedItemKey: string | null;
+  dreamTokenBalance: number;
+  loading: boolean;
+  setupError: string;
+  message: string;
+  purchasingItemKey: string | null;
+  equippingItemKey: string | null;
+  onClose: () => void;
+  onCategoryChange: (category: WardrobeCategory) => void;
+  onSelectItem: (itemKey: string) => void;
+  onPurchase: (itemKey: string) => void;
+  onEquip: (itemKey: string) => void;
+}) {
+  const visibleItems = catalog.filter((item) => item.category === activeCategory);
+  const selectedItem =
+    catalog.find((item) => item.item_key === selectedItemKey) ?? visibleItems[0] ?? null;
+
+  const baseClothingEquipped = equippedItems.some((entry) =>
+    ["outfit", "top", "bottom", "shoes"].includes(entry.category),
+  );
+
+  const effectiveEquipped = [...equippedItems];
+  if (!baseClothingEquipped) {
+    const classic = catalog.find((item) => item.item_key === "nova-classic");
+    if (classic) {
+      effectiveEquipped.push({
+        character_key: "nova",
+        category: "outfit",
+        item_key: classic.item_key,
+      });
+    }
+  }
+
+  let previewEquipped = [...effectiveEquipped];
+  if (selectedItem) {
+    if (selectedItem.category === "outfit") {
+      previewEquipped = previewEquipped.filter(
+        (entry) => !["outfit", "top", "bottom", "shoes"].includes(entry.category),
+      );
+    } else if (["top", "bottom", "shoes"].includes(selectedItem.category)) {
+      previewEquipped = previewEquipped.filter(
+        (entry) => entry.category !== "outfit" && entry.category !== selectedItem.category,
+      );
+    } else {
+      previewEquipped = previewEquipped.filter(
+        (entry) => entry.category !== selectedItem.category,
+      );
+    }
+
+    previewEquipped.push({
+      character_key: "nova",
+      category: selectedItem.category,
+      item_key: selectedItem.item_key,
+    });
+  }
+
+  const previewLayers = previewEquipped
+    .map((entry) => catalog.find((item) => item.item_key === entry.item_key))
+    .filter((item): item is WardrobeCatalogRow => Boolean(item?.layer_image))
+    .sort((a, b) => a.layer_order - b.layer_order);
+
+  const isOwned = selectedItem
+    ? selectedItem.is_starter || ownedItems.has(selectedItem.item_key)
+    : false;
+
+  const isEquipped = selectedItem
+    ? effectiveEquipped.some((entry) => entry.item_key === selectedItem.item_key)
+    : false;
+
+  const busy = Boolean(purchasingItemKey || equippingItemKey);
+  const selectedCategoryMeta =
+    WARDROBE_CATEGORIES.find((entry) => entry.key === activeCategory) ??
+    WARDROBE_CATEGORIES[0];
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center overflow-hidden bg-[#01040b]/88 p-2 backdrop-blur-md sm:p-4">
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-label="Nova Wardrobe Bay"
+        className="relative grid h-[min(900px,calc(100dvh-16px))] w-[min(1500px,calc(100vw-16px))] grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[24px] border border-cyan-200/28 bg-[radial-gradient(circle_at_22%_25%,rgba(34,211,238,0.15),transparent_34%),linear-gradient(145deg,rgba(5,24,43,0.99),rgba(2,7,19,0.99))] text-white shadow-[0_40px_140px_rgba(0,0,0,0.78)] sm:h-[min(900px,calc(100dvh-32px))] sm:w-[min(1500px,calc(100vw-32px))] sm:rounded-[30px]"
+      >
+        <header className="grid shrink-0 gap-3 border-b border-white/[0.07] px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-200/65">
+                Sleep Zone Activity
+              </p>
+              <span className="rounded-full border border-cyan-200/16 bg-cyan-300/[0.06] px-2 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100/70">
+                Phase 1
+              </span>
+            </div>
+            <h2 className="mt-1 font-serif text-2xl font-medium tracking-[-0.035em] sm:text-3xl">
+              Wardrobe Bay
+            </h2>
+            <p className="mt-1 max-w-2xl text-[10px] leading-4 text-white/46 sm:text-xs sm:leading-5">
+              Preview Nova’s looks, buy wardrobe pieces with DT, and save what Nova is wearing.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 sm:justify-end">
+            <div className="rounded-full border border-cyan-200/25 bg-slate-950/70 px-4 py-2 text-right">
+              <p className="text-[8px] font-black uppercase tracking-[0.14em] text-cyan-200/55">
+                Dream Tokens
+              </p>
+              <p className="text-sm font-black text-cyan-50">{formatDT(dreamTokenBalance)}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={busy}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-white/[0.055] text-xl text-white/80 transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Close Wardrobe Bay"
+            >
+              ×
+            </button>
+          </div>
+        </header>
+
+        <div className="grid min-h-0 gap-2 p-2 sm:gap-3 sm:p-3 lg:grid-cols-[minmax(300px,0.78fr)_minmax(0,1.22fr)]">
+          <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-[20px] border border-cyan-200/13 bg-slate-950/38 sm:rounded-[24px]">
+            <div className="grid grid-cols-2 gap-2 border-b border-white/[0.06] p-2 sm:p-3">
+              <button
+                type="button"
+                className="rounded-[14px] border border-cyan-200/34 bg-cyan-300/[0.11] px-3 py-2 text-left"
+              >
+                <span className="block text-[8px] font-black uppercase tracking-[0.14em] text-cyan-200/58">
+                  Character
+                </span>
+                <strong className="mt-0.5 block text-sm text-white">Nova</strong>
+              </button>
+              <button
+                type="button"
+                onClick={() => window.alert("Milo becomes unlockable in Wardrobe Phase 2.")}
+                className="rounded-[14px] border border-white/9 bg-white/[0.025] px-3 py-2 text-left opacity-65"
+              >
+                <span className="block text-[8px] font-black uppercase tracking-[0.14em] text-white/34">
+                  Character
+                </span>
+                <strong className="mt-0.5 flex items-center gap-2 text-sm text-white/70">
+                  Milo <span className="text-[10px] text-amber-200/70">🔒 Phase 2</span>
+                </strong>
+              </button>
+            </div>
+
+            <div className="relative flex min-h-0 items-end justify-center overflow-hidden bg-[radial-gradient(circle_at_50%_42%,rgba(83,215,255,0.16),transparent_34%),linear-gradient(180deg,rgba(5,21,39,0.26),rgba(2,7,19,0.64))] px-4 pt-4">
+              <div className="pointer-events-none absolute inset-x-[12%] bottom-[8%] h-[22%] rounded-[50%] bg-cyan-300/[0.08] blur-2xl" />
+              <div className="relative flex h-full max-h-[560px] w-full max-w-[430px] items-end justify-center">
+                <img
+                  src={NOVA_CHARACTER_IMAGE}
+                  alt="Nova wardrobe preview"
+                  className="pointer-events-none relative z-10 max-h-[95%] max-w-full object-contain drop-shadow-[0_28px_44px_rgba(0,0,0,0.55)]"
+                  draggable={false}
+                />
+                {previewLayers.map((item) => (
+                  <img
+                    key={item.item_key}
+                    src={item.layer_image || ""}
+                    alt=""
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 z-20 h-full w-full object-contain"
+                    draggable={false}
+                    style={{ zIndex: 20 + item.layer_order }}
+                  />
+                ))}
+              </div>
+
+              {selectedItem && (
+                <div className="pointer-events-none absolute bottom-2 left-2 right-2 z-40 rounded-[16px] border border-white/10 bg-slate-950/76 px-3 py-2 backdrop-blur-xl sm:bottom-3 sm:left-3 sm:right-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-black text-white">{selectedItem.title}</p>
+                      <p className="mt-0.5 truncate text-[9px] text-white/40">
+                        {isEquipped ? "Currently equipped" : "Previewing selection"}
+                      </p>
+                    </div>
+                    <span
+                      className="h-3 w-3 shrink-0 rounded-full shadow-[0_0_16px_currentColor]"
+                      style={{ background: selectedItem.accent_hex, color: selectedItem.accent_hex }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-white/[0.06] p-2 sm:p-3">
+              <p className="text-[8px] font-black uppercase tracking-[0.15em] text-white/34">
+                Equipped Look
+              </p>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {effectiveEquipped.map((entry) => {
+                  const item = catalog.find((candidate) => candidate.item_key === entry.item_key);
+                  if (!item) return null;
+                  return (
+                    <span
+                      key={`${entry.category}-${entry.item_key}`}
+                      className="rounded-full border border-white/10 bg-white/[0.045] px-2 py-1 text-[8px] font-bold text-white/58"
+                    >
+                      {item.title}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-[20px] border border-white/[0.08] bg-white/[0.025] sm:rounded-[24px]">
+            <div className="border-b border-white/[0.06] p-2 sm:p-3">
+              <div className="grid grid-cols-5 gap-1.5">
+                {WARDROBE_CATEGORIES.map((category) => {
+                  const active = activeCategory === category.key;
+                  return (
+                    <button
+                      key={category.key}
+                      type="button"
+                      onClick={() => onCategoryChange(category.key)}
+                      className={`rounded-[12px] border px-1.5 py-2 text-center transition sm:px-2 ${
+                        active
+                          ? "border-cyan-200/38 bg-cyan-300/[0.11] text-cyan-50"
+                          : "border-white/[0.07] bg-white/[0.025] text-white/45 hover:bg-white/[0.055]"
+                      }`}
+                    >
+                      <span className="block text-sm">{category.icon}</span>
+                      <span className="mt-0.5 block truncate text-[8px] font-black uppercase tracking-[0.08em] sm:text-[9px]">
+                        {category.shortLabel}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="min-h-0 overflow-y-auto p-2 [scrollbar-width:thin] sm:p-3">
+              {setupError ? (
+                <div className="rounded-[18px] border border-amber-200/28 bg-amber-300/[0.08] p-4 text-xs leading-5 text-amber-50/88">
+                  {setupError}
+                </div>
+              ) : loading ? (
+                <div className="flex h-full min-h-[220px] items-center justify-center">
+                  <div className="rounded-full border border-cyan-200/20 bg-cyan-300/[0.07] px-4 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100/72">
+                    Loading wardrobe...
+                  </div>
+                </div>
+              ) : visibleItems.length === 0 ? (
+                <div className="flex h-full min-h-[220px] items-center justify-center text-center text-xs text-white/38">
+                  No {selectedCategoryMeta.label.toLowerCase()} have been added yet.
+                </div>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  {visibleItems.map((item) => {
+                    const owned = item.is_starter || ownedItems.has(item.item_key);
+                    const equipped = effectiveEquipped.some(
+                      (entry) => entry.item_key === item.item_key,
+                    );
+                    const selected = selectedItem?.item_key === item.item_key;
+
+                    return (
+                      <button
+                        key={item.item_key}
+                        type="button"
+                        onClick={() => onSelectItem(item.item_key)}
+                        className={`group relative min-h-[118px] overflow-hidden rounded-[16px] border p-3 text-left transition ${
+                          selected
+                            ? "border-cyan-200/48 bg-cyan-300/[0.09] shadow-[0_0_24px_rgba(83,215,255,0.09)]"
+                            : "border-white/[0.075] bg-slate-950/34 hover:border-white/16 hover:bg-white/[0.04]"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] border border-white/10 text-sm font-black"
+                            style={{
+                              background: `${item.accent_hex}18`,
+                              color: item.accent_hex,
+                              borderColor: `${item.accent_hex}45`,
+                            }}
+                          >
+                            {item.thumbnail_image ? (
+                              <img
+                                src={item.thumbnail_image}
+                                alt=""
+                                className="h-full w-full object-contain"
+                              />
+                            ) : (
+                              selectedCategoryMeta.icon
+                            )}
+                          </div>
+
+                          <span
+                            className={`rounded-full px-2 py-1 text-[7px] font-black uppercase tracking-[0.09em] ${
+                              equipped
+                                ? "bg-emerald-300/12 text-emerald-200"
+                                : owned
+                                  ? "bg-cyan-300/9 text-cyan-200/75"
+                                  : "bg-white/[0.045] text-white/40"
+                            }`}
+                          >
+                            {equipped ? "Equipped" : owned ? "Owned" : formatDT(item.dt_cost)}
+                          </span>
+                        </div>
+
+                        <p className="mt-2 truncate text-xs font-black text-white">
+                          {item.title}
+                        </p>
+                        <p className="mt-1 max-h-8 overflow-hidden text-[9px] leading-4 text-white/38">
+                          {item.description || "Nova wardrobe item."}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-white/[0.07] bg-slate-950/48 p-3 sm:p-4">
+              {selectedItem ? (
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-sm font-black text-white sm:text-base">{selectedItem.title}</h3>
+                      <span className="rounded-full border border-white/8 bg-white/[0.035] px-2 py-1 text-[7px] font-black uppercase tracking-[0.1em] text-white/38">
+                        {selectedCategoryMeta.shortLabel}
+                      </span>
+                    </div>
+                    <p className="mt-1 max-w-2xl text-[9px] leading-4 text-white/42 sm:text-[10px]">
+                      {selectedItem.description}
+                    </p>
+                    {message && (
+                      <p className="mt-1.5 text-[9px] font-bold leading-4 text-amber-100/82 sm:text-[10px]">
+                        {message}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="shrink-0 sm:min-w-[190px]">
+                    {isEquipped ? (
+                      <span className="flex min-h-11 w-full items-center justify-center rounded-full border border-emerald-200/22 bg-emerald-300/[0.08] px-5 text-[10px] font-black uppercase tracking-[0.1em] text-emerald-100">
+                        ✓ Equipped
+                      </span>
+                    ) : isOwned ? (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => onEquip(selectedItem.item_key)}
+                        className="min-h-11 w-full rounded-full bg-cyan-300 px-5 text-[10px] font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {equippingItemKey === selectedItem.item_key ? "Equipping..." : "Wear This"}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={busy || dreamTokenBalance < selectedItem.dt_cost}
+                        onClick={() => onPurchase(selectedItem.item_key)}
+                        className={`min-h-11 w-full rounded-full px-5 text-[10px] font-black uppercase tracking-[0.1em] transition disabled:cursor-not-allowed disabled:opacity-45 ${
+                          dreamTokenBalance >= selectedItem.dt_cost
+                            ? "bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+                            : "border border-white/10 bg-white/[0.04] text-white/34"
+                        }`}
+                      >
+                        {purchasingItemKey === selectedItem.item_key
+                          ? "Buying..."
+                          : dreamTokenBalance >= selectedItem.dt_cost
+                            ? `Buy & Wear · ${formatDT(selectedItem.dt_cost)}`
+                            : `Need ${formatDT(selectedItem.dt_cost - dreamTokenBalance)}`}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-center text-[10px] text-white/36">Select a wardrobe item.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
   );
 }
