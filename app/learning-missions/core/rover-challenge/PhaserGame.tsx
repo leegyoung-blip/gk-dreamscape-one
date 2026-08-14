@@ -430,9 +430,9 @@ class RoverMatterScene extends Phaser.Scene {
       { x: 2300, y: 610 },
     ]);
 
-    // First jump gap: x 2300–2520.
+    // First jump gap: x 2300–2580 (280 px).
     this.createSmoothTerrainSection([
-      { x: 2520, y: 650 },
+      { x: 2580, y: 650 },
       { x: 2750, y: 645 },
       { x: 3050, y: 585 },
       { x: 3350, y: 535 },
@@ -442,9 +442,9 @@ class RoverMatterScene extends Phaser.Scene {
       { x: 4400, y: 625 },
     ]);
 
-    // Second jump gap: x 4400–4650.
+    // Second jump gap: x 4400–4720 (320 px).
     this.createSmoothTerrainSection([
-      { x: 4650, y: 655 },
+      { x: 4720, y: 655 },
       { x: 4900, y: 640 },
       { x: 5200, y: 590 },
       { x: 5500, y: 560 },
@@ -455,8 +455,8 @@ class RoverMatterScene extends Phaser.Scene {
     ]);
 
     this.createStartingPlatform();
-    this.createGapWarning(2410, 535);
-    this.createGapWarning(4525, 545);
+    this.createGapWarning(2440, 535);
+    this.createGapWarning(4560, 545);
   }
 
   private createSmoothTerrainSection(
@@ -1361,7 +1361,14 @@ class RoverMatterScene extends Phaser.Scene {
      * Only provide gentle air tilt after the rover has
      * genuinely left the terrain.
      */
-    if (this.isProbablyAirborne() && direction !== 0) {
+    const travellingAtHighSpeed =
+      Math.abs(body.velocity.x) >= this.normalMaximumSpeed * 0.9;
+
+    if (
+      this.isProbablyAirborne() &&
+      direction !== 0 &&
+      !travellingAtHighSpeed
+    ) {
       const targetAngularVelocity = direction * this.airTiltStrength;
 
       const nextAngularVelocity = Phaser.Math.Linear(
@@ -1474,6 +1481,22 @@ class RoverMatterScene extends Phaser.Scene {
 
       this.roverBody.setAngularVelocity(
         Phaser.Math.Linear(body.angularVelocity, 0, alignmentSmoothing),
+      );
+
+      return;
+    }
+
+    const travellingAtHighSpeed =
+      Math.abs(body.velocity.x) >= this.normalMaximumSpeed * 0.9;
+
+    if (travellingAtHighSpeed) {
+      const highSpeedLeveling = 1 - Math.exp(-12 * (delta / 1000));
+
+      this.roverBody.setRotation(
+        Phaser.Math.Linear(currentRotation, 0, highSpeedLeveling),
+      );
+      this.roverBody.setAngularVelocity(
+        Phaser.Math.Linear(body.angularVelocity, 0, highSpeedLeveling),
       );
 
       return;
