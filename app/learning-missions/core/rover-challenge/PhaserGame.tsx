@@ -32,7 +32,7 @@ const WHEEL_OFFSET_Y = 15;
 const ROVER_BODY_VISUAL_OFFSET_Y = -30;
 
 export type PhaserGameProps = {
-  levelConfig: RoverLevelConfig;
+  levelConfig: RoverLevelWithPulseGates;
   roverStage: number;
   roverName: string;
   gameStats: CoreRoverGameStats;
@@ -72,6 +72,34 @@ type TrapItem = Omit<RoverTrap, "y"> & {
   glow: Phaser.GameObjects.Arc;
 };
 
+export type PulseGateConfig = {
+  id: string;
+  x: number;
+  /** Approximate terrain y used to select the intended route surface. */
+  y?: number;
+  /** Beam height in world pixels. Corridor gates use ~500; bypass gates can be shorter. */
+  height?: number;
+  activeMs: number;
+  safeMs: number;
+  phaseOffsetMs?: number;
+  penalty: number;
+};
+
+type RoverLevelWithPulseGates = RoverLevelConfig & {
+  pulseGates?: PulseGateConfig[];
+};
+
+type PulseGateItem = PulseGateConfig & {
+  surfaceY: number;
+  topY: number;
+  active: boolean;
+  glowBeam: Phaser.GameObjects.Rectangle;
+  beam: Phaser.GameObjects.Rectangle;
+  topNode: Phaser.GameObjects.Arc;
+  baseNode: Phaser.GameObjects.Arc;
+  statusText: Phaser.GameObjects.Text;
+};
+
 class RoverMatterScene extends Phaser.Scene {
   private backgroundTile?: Phaser.GameObjects.TileSprite;
   private roverBody?: Phaser.Physics.Matter.Image;
@@ -108,6 +136,7 @@ class RoverMatterScene extends Phaser.Scene {
   private collectibles: CollectibleItem[] = [];
   private checkpoints: CheckpointItem[] = [];
   private traps: TrapItem[] = [];
+  private pulseGates: PulseGateItem[] = [];
   private trapCollisionLocked = false;
 
   private boostEnergy = 60;
@@ -142,7 +171,7 @@ class RoverMatterScene extends Phaser.Scene {
 
   private roverStage = 0;
   private roverName = "Basic Rover Frame";
-  private levelConfig: RoverLevelConfig;
+  private levelConfig: RoverLevelWithPulseGates;
 
   private normalMaximumSpeed = 5.5;
   private boostedMaximumSpeed = 7.0;
@@ -175,7 +204,7 @@ class RoverMatterScene extends Phaser.Scene {
 
     this.brakingRate = gameStats.brakingRate;
 
-    // Every rover gets a 35% stronger jump while preserving the upgrade curve.
+    // Every rover gets a 70% stronger jump while preserving the upgrade curve.
     this.jumpVelocity = gameStats.jumpVelocity * 1.7;
 
     this.maximumBoostEnergy = gameStats.boostCapacity;
@@ -245,6 +274,7 @@ class RoverMatterScene extends Phaser.Scene {
     this.createCollectibles();
     this.createCheckpoints();
     this.createTraps();
+    this.createPulseGates();
     this.createRover();
     this.createControls();
     this.createInterface();
@@ -281,6 +311,7 @@ class RoverMatterScene extends Phaser.Scene {
     this.updateCollectibles(delta);
     this.updateCheckpoints();
     this.updateTraps();
+    this.updatePulseGates();
     this.updateScore();
     this.updateInterface();
     this.checkFinish();
@@ -292,6 +323,7 @@ class RoverMatterScene extends Phaser.Scene {
     this.collectibles = [];
     this.checkpoints = [];
     this.traps = [];
+    this.pulseGates = [];
     this.terrainSections = [];
     this.trapCollisionLocked = false;
 
@@ -340,7 +372,7 @@ class RoverMatterScene extends Phaser.Scene {
     }
 
     if (!this.textures.exists("skyforge-background")) {
-      missingAssets.push("public/games/rover/skyforge-course-background.png");
+      missingAssets.push(`public${this.levelConfig.assets.background}`);
     }
 
     if (!this.textures.exists("energy-orb")) {
@@ -879,10 +911,10 @@ class RoverMatterScene extends Phaser.Scene {
       // comes from the sampled terrain surface below.
       const terrainPose = this.getTerrainPoseAtX(trap.x, trap.y);
       const surfaceY = terrainPose?.y ?? trap.y ?? this.levelConfig.start.y;
-      const spriteY = surfaceY - 32;
+      const spriteY = surfaceY - 24;
       const terrainAngle = terrainPose?.angle ?? 0;
 
-      const glow = this.add.circle(trap.x, spriteY, 48, 0xff5c72, 0.12);
+      const glow = this.add.circle(trap.x, spriteY, 36, 0xff5c72, 0.11);
       glow.setBlendMode(Phaser.BlendModes.ADD);
       glow.setDepth(17);
 
@@ -986,6 +1018,169 @@ class RoverMatterScene extends Phaser.Scene {
           duration: 260,
         });
       }
+    });
+  }
+
+  private createPulseGates() {
+    (this.levelConfig.pulseGates ?? []).forEach((gate) => {
+      const terrainPose = this.getTerrainPoseAtX(gate.x, gate.y);
+      const surfaceY = terrainPose?.y ?? gate.y ?? this.levelConfig.start.y;
+      const height = Math.max(180, gate.height ?? 500);
+      const topY = Math.max(70, surfaceY - height);
+      const resolvedHeight = Math.max(120, surfaceY - topY);
+      const centreY = topY + resolvedHeight / 2;
+
+      const glowBeam = this.add
+        .rectangle(gate.x, centreY, 44, resolvedHeight, 0xff477a, 0.08)
+        .setDepth(21)
+        .setBlendMode(Phaser.BlendModes.ADD);
+
+      const beam = this.add
+        .rectangle(gate.x, centreY, 12, resolvedHeight, 0xff628d, 0.92)
+        .setDepth(23)
+        .setBlendMode(Phaser.BlendModes.ADD);
+
+      const topNode = this.add
+        .circle(gate.x, topY, 23, 0x52142c, 1)
+        .setStrokeStyle(3, 0xff759b, 0.9)
+        .setDepth(24);
+
+      const baseNode = this.add
+        .circle(gate.x, surfaceY - 6, 25, 0x52142c, 1)
+        .setStrokeStyle(3, 0xff759b, 0.9)
+        .setDepth(24);
+
+      this.add
+        .circle(gate.x, topY, 8, 0xff759b, 1)
+        .setDepth(25)
+        .setBlendMode(Phaser.BlendModes.ADD);
+
+      this.add
+        .circle(gate.x, surfaceY - 6, 9, 0xff759b, 1)
+        .setDepth(25)
+        .setBlendMode(Phaser.BlendModes.ADD);
+
+      const statusText = this.add
+        .text(gate.x + 38, topY + 18, "PULSE GATE\nACTIVE", {
+          fontFamily: "Arial, sans-serif",
+          fontSize: "11px",
+          fontStyle: "bold",
+          color: "#ff9ab6",
+          letterSpacing: 2,
+          lineSpacing: 4,
+        })
+        .setOrigin(0, 0.5)
+        .setDepth(30);
+
+      this.pulseGates.push({
+        ...gate,
+        surfaceY,
+        topY,
+        active: true,
+        glowBeam,
+        beam,
+        topNode,
+        baseNode,
+        statusText,
+      });
+    });
+  }
+
+  private updatePulseGates() {
+    if (!this.roverBody || this.hasFinished) {
+      return;
+    }
+
+    const now = this.time.now;
+
+    for (const gate of this.pulseGates) {
+      const cycleLength = Math.max(1, gate.activeMs + gate.safeMs);
+      const cycleTime = (now + (gate.phaseOffsetMs ?? 0)) % cycleLength;
+      const active = cycleTime < gate.activeMs;
+
+      if (active !== gate.active) {
+        gate.active = active;
+
+        if (active) {
+          gate.beam.setFillStyle(0xff628d, 1);
+          gate.glowBeam.setFillStyle(0xff477a, 0.1);
+          gate.topNode
+            .setFillStyle(0x52142c, 1)
+            .setStrokeStyle(3, 0xff759b, 0.9);
+          gate.baseNode
+            .setFillStyle(0x52142c, 1)
+            .setStrokeStyle(3, 0xff759b, 0.9);
+          gate.statusText.setText("PULSE GATE\nACTIVE").setColor("#ff9ab6");
+        } else {
+          gate.beam.setFillStyle(0x66eaff, 0.12);
+          gate.glowBeam.setFillStyle(0x66eaff, 0.025);
+          gate.topNode
+            .setFillStyle(0x102c3a, 1)
+            .setStrokeStyle(2, 0x66eaff, 0.34);
+          gate.baseNode
+            .setFillStyle(0x102c3a, 1)
+            .setStrokeStyle(2, 0x66eaff, 0.34);
+          gate.statusText.setText("PULSE GATE\nOPEN").setColor("#84efff");
+        }
+      }
+
+      const pulse = 0.78 + Math.sin(now * 0.018 + gate.x * 0.004) * 0.16;
+      gate.beam.setAlpha(active ? pulse : 0.12);
+      gate.glowBeam.setAlpha(active ? 0.08 + pulse * 0.08 : 0.025);
+
+      if (!active || this.trapCollisionLocked) {
+        continue;
+      }
+
+      const roverLeft = this.roverBody.x - ROVER_COLLISION_WIDTH / 2;
+      const roverRight = this.roverBody.x + ROVER_COLLISION_WIDTH / 2;
+      const roverTop = this.roverBody.y - ROVER_COLLISION_HEIGHT / 2;
+      const roverBottom = this.roverBody.y + ROVER_COLLISION_HEIGHT / 2;
+
+      const crossesBeam = roverRight >= gate.x - 8 && roverLeft <= gate.x + 8;
+      const overlapsBeamVertically =
+        roverBottom >= gate.topY && roverTop <= gate.surfaceY + 18;
+
+      if (crossesBeam && overlapsBeamVertically) {
+        this.triggerPulseGate(gate);
+        break;
+      }
+    }
+  }
+
+  private triggerPulseGate(gate: PulseGateItem) {
+    if (!this.roverBody || this.trapCollisionLocked) {
+      return;
+    }
+
+    this.trapCollisionLocked = true;
+    this.crashPenalty += gate.penalty;
+
+    const shock = this.add
+      .circle(this.roverBody.x, this.roverBody.y, 42, 0xff5f94, 0.22)
+      .setStrokeStyle(5, 0x8beeff, 0.8)
+      .setDepth(82)
+      .setBlendMode(Phaser.BlendModes.ADD);
+
+    this.tweens.add({
+      targets: shock,
+      scale: 4.2,
+      alpha: 0,
+      duration: 440,
+      ease: "Cubic.easeOut",
+      onComplete: () => shock.destroy(),
+    });
+
+    this.cameras.main.shake(240, 0.01);
+    this.cameras.main.flash(120, 255, 76, 126);
+    this.showStatusMessage(`PULSE GATE  -${gate.penalty}`, "#ff9ab6");
+
+    this.roverBody.setVelocity(-5.2, -4.8);
+    this.roverBody.setAngularVelocity(0);
+
+    this.time.delayedCall(420, () => {
+      this.respawnVehicle();
+      this.trapCollisionLocked = false;
     });
   }
 
@@ -1155,9 +1350,13 @@ class RoverMatterScene extends Phaser.Scene {
       .text(
         70,
         227,
-        (this.levelConfig.traps?.length ?? 0) > 0
-          ? "OBJECTIVE  REACH FINISH · AVOID TRAPS"
-          : "OBJECTIVE  REACH THE FINISH GATE",
+        (this.levelConfig.pulseGates?.length ?? 0) > 0
+          ? (this.levelConfig.traps?.length ?? 0) > 0
+            ? "OBJECTIVE  TIME GATES · AVOID TRAPS · FINISH"
+            : "OBJECTIVE  TIME PULSE GATES · REACH FINISH"
+          : (this.levelConfig.traps?.length ?? 0) > 0
+            ? "OBJECTIVE  REACH FINISH · AVOID TRAPS"
+            : "OBJECTIVE  REACH THE FINISH GATE",
         {
           fontFamily: "Arial, sans-serif",
           fontSize: "11px",

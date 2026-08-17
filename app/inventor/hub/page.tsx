@@ -55,6 +55,8 @@ type PurchaseResult = {
 
 type WardrobeCharacter = "nova" | "milo";
 type WardrobeCategory = "outfit" | "top" | "bottom" | "shoes" | "accessory";
+type WardrobeAccessorySlot = "head" | "face" | "ears" | "wrist" | "companion" | "effect" | null;
+type WardrobeEquipSlot = "outfit" | "top" | "bottom" | "shoes" | "head" | "face" | "ears" | "wrist" | "companion" | "effect";
 
 type CharacterCatalogRow = {
   character_key: WardrobeCharacter;
@@ -98,6 +100,7 @@ type WardrobeCatalogRow = {
   fit_skew_x_deg: number;
   fit_skew_y_deg: number;
   fit_stretch_mode: "contain" | "stretch";
+  accessory_slot: WardrobeAccessorySlot;
 };
 
 type WardrobeFitDraft = {
@@ -120,6 +123,7 @@ type WardrobeOwnershipRow = {
 type WardrobeEquippedRow = {
   character_key: WardrobeCharacter;
   category: WardrobeCategory;
+  equip_slot: WardrobeEquipSlot;
   item_key: string;
 };
 
@@ -134,6 +138,7 @@ type WardrobeEquipResult = {
   item_key: string;
   character_key: WardrobeCharacter;
   category: WardrobeCategory;
+  equip_slot: WardrobeEquipSlot;
 };
 
 type ZoneView = ZoneVisual & {
@@ -226,6 +231,16 @@ const WARDROBE_CATEGORIES: {
 ];
 
 const WARDROBE_COLLECTION_LABELS: Record<string, string> = {
+  "nova-accessory-star-hair-clip": "Accessory Set",
+  "nova-accessory-sky-shades": "Accessory Set",
+  "nova-accessory-visor": "Accessory Set",
+  "nova-accessory-starlink-headset": "Accessory Set",
+  "nova-accessory-crystal-tiara": "Premium Accessory",
+  "nova-accessory-moonlight-earrings": "Accessory Set",
+  "nova-accessory-wrist-band": "Accessory Set",
+  "nova-accessory-explorer-smartwatch": "Accessory Set",
+  "nova-accessory-mini-star-bot": "Companion",
+  "nova-accessory-cosmic-aura": "Premium Effect",
   "nova-classic": "Core Set",
   "nova-home-explorer": "Core Set",
   "nova-cosmic-explorer": "Premium Set",
@@ -240,6 +255,27 @@ const WARDROBE_COLLECTION_LABELS: Record<string, string> = {
 
 function getWardrobeCollectionLabel(itemKey: string) {
   return WARDROBE_COLLECTION_LABELS[itemKey] ?? "Core Set";
+}
+
+const WARDROBE_ACCESSORY_SLOT_LABELS: Record<Exclude<WardrobeAccessorySlot, null>, string> = {
+  head: "Head",
+  face: "Face",
+  ears: "Ears",
+  wrist: "Wrist",
+  companion: "Companion",
+  effect: "Effect",
+};
+
+function getAccessorySlotLabel(slot: WardrobeAccessorySlot) {
+  if (!slot) return "Accessory";
+  return WARDROBE_ACCESSORY_SLOT_LABELS[slot] ?? "Accessory";
+}
+
+function getWardrobeEquipSlotForItem(item: Pick<WardrobeCatalogRow, "category" | "accessory_slot">): WardrobeEquipSlot {
+  if (item.category === "accessory") {
+    return (item.accessory_slot ?? "head") as WardrobeEquipSlot;
+  }
+  return item.category as WardrobeEquipSlot;
 }
 
 function formatDT(value: number) {
@@ -328,6 +364,7 @@ function getWardrobeEquipResult(data: unknown): WardrobeEquipResult | null {
   const itemKey = String(result.item_key || "");
   const characterKey = String(result.character_key || "");
   const category = String(result.category || "");
+  const equipSlot = String(result.equip_slot || "");
 
   if (
     !itemKey ||
@@ -337,10 +374,17 @@ function getWardrobeEquipResult(data: unknown): WardrobeEquipResult | null {
     return null;
   }
 
+  const normalisedEquipSlot = (["outfit", "top", "bottom", "shoes", "head", "face", "ears", "wrist", "companion", "effect"].includes(equipSlot)
+    ? equipSlot
+    : category === "accessory"
+      ? "head"
+      : category) as WardrobeEquipSlot;
+
   return {
     item_key: itemKey,
     character_key: characterKey,
     category: category as WardrobeCategory,
+    equip_slot: normalisedEquipSlot,
   };
 }
 
@@ -797,7 +841,7 @@ export default function NovaHomePage() {
       supabase
         .from("nova_home_wardrobe_catalog")
         .select(
-          "item_key,character_key,category,title,description,dt_cost,is_starter,thumbnail_image,layer_image,accent_hex,layer_order,sort_order,fit_mode,fit_scale,fit_scale_x,fit_scale_y,fit_offset_x_pct,fit_offset_y_pct,fit_rotation_deg,fit_skew_x_deg,fit_skew_y_deg,fit_stretch_mode",
+          "item_key,character_key,category,accessory_slot,title,description,dt_cost,is_starter,thumbnail_image,layer_image,accent_hex,layer_order,sort_order,fit_mode,fit_scale,fit_scale_x,fit_scale_y,fit_offset_x_pct,fit_offset_y_pct,fit_rotation_deg,fit_skew_x_deg,fit_skew_y_deg,fit_stretch_mode",
         )
         .eq("is_active", true)
         .order("sort_order", { ascending: true }),
@@ -807,7 +851,7 @@ export default function NovaHomePage() {
         .eq("user_id", user.id),
       supabase
         .from("nova_home_wardrobe_equipped")
-        .select("character_key,category,item_key")
+        .select("character_key,category,equip_slot,item_key")
         .eq("user_id", user.id),
     ]);
 
@@ -852,6 +896,11 @@ export default function NovaHomePage() {
           item_key: String(row.item_key),
           character_key: String(row.character_key) as WardrobeCharacter,
           category: String(row.category) as WardrobeCategory,
+          accessory_slot: ["head", "face", "ears", "wrist", "companion", "effect"].includes(
+            String(row.accessory_slot || ""),
+          )
+            ? (String(row.accessory_slot) as Exclude<WardrobeAccessorySlot, null>)
+            : null,
           title: String(row.title || "Wardrobe Item"),
           description: row.description ? String(row.description) : null,
           dt_cost: Number(row.dt_cost || 0),
@@ -902,9 +951,14 @@ export default function NovaHomePage() {
       setWardrobeEquipped([]);
     } else {
       setWardrobeEquipped(
-        ((equippedResult.data || []) as WardrobeEquippedRow[]).map((row) => ({
+        ((equippedResult.data || []) as Array<Record<string, unknown>>).map((row) => ({
           character_key: String(row.character_key) as WardrobeCharacter,
           category: String(row.category) as WardrobeCategory,
+          equip_slot: (["outfit", "top", "bottom", "shoes", "head", "face", "ears", "wrist", "companion", "effect"].includes(String(row.equip_slot || ""))
+            ? String(row.equip_slot)
+            : String(row.category) === "accessory"
+              ? "head"
+              : String(row.category)) as WardrobeEquipSlot,
           item_key: String(row.item_key),
         })),
       );
@@ -1034,16 +1088,17 @@ export default function NovaHomePage() {
     }
 
     setWardrobeEquipped((current) => {
+      const targetSlot = result.equip_slot || getWardrobeEquipSlotForItem(item);
       let next = current.filter((entry) => {
         if (entry.character_key !== result.character_key) return true;
         if (result.category === "outfit") {
-          return !["outfit", "top", "bottom", "shoes"].includes(entry.category);
+          return !["outfit", "top", "bottom", "shoes"].includes(entry.equip_slot);
         }
         if (["top", "bottom", "shoes"].includes(result.category)) {
-          if (entry.category === "outfit") return false;
-          return entry.category !== result.category;
+          if (entry.equip_slot === "outfit") return false;
+          return entry.equip_slot !== targetSlot;
         }
-        return entry.category !== result.category;
+        return entry.equip_slot !== targetSlot;
       });
 
       next = [
@@ -1052,6 +1107,7 @@ export default function NovaHomePage() {
           item_key: result.item_key,
           character_key: result.character_key,
           category: result.category,
+          equip_slot: targetSlot,
         },
       ];
       return next;
@@ -1876,6 +1932,7 @@ function WardrobeBay({
       effectiveEquipped.push({
         character_key: "nova",
         category: "outfit",
+        equip_slot: "outfit",
         item_key: classic.item_key,
       });
     }
@@ -1885,17 +1942,24 @@ function WardrobeBay({
   if (selectedItem) {
     if (selectedItem.category === "outfit") {
       previewEquipped = previewEquipped.filter(
-        (entry) => !["outfit", "top", "bottom", "shoes"].includes(entry.category),
+        (entry) => !["outfit", "top", "bottom", "shoes"].includes(entry.equip_slot),
+      );
+    } else if (selectedItem.category === "accessory") {
+      const selectedSlot = getWardrobeEquipSlotForItem(selectedItem);
+      previewEquipped = previewEquipped.filter(
+        (entry) => !(entry.category === "accessory" && entry.equip_slot === selectedSlot),
       );
     } else {
+      const selectedSlot = getWardrobeEquipSlotForItem(selectedItem);
       previewEquipped = previewEquipped.filter(
-        (entry) => entry.category !== selectedItem.category,
+        (entry) => entry.equip_slot !== selectedSlot,
       );
     }
 
     previewEquipped.push({
       character_key: activeCharacter,
       category: selectedItem.category,
+      equip_slot: getWardrobeEquipSlotForItem(selectedItem),
       item_key: selectedItem.item_key,
     });
   }
@@ -1926,6 +1990,13 @@ function WardrobeBay({
     selectedItem.category === "accessory"
       ? { ...item, ...fitDraft, fit_opacity: calibrationOpacity }
       : item,
+  );
+
+  const previewBackdropAccessories = calibratedPreviewAccessories.filter(
+    (item) => item.accessory_slot === "effect",
+  );
+  const previewForegroundAccessories = calibratedPreviewAccessories.filter(
+    (item) => item.accessory_slot !== "effect",
   );
 
   const isOwned = selectedItem
@@ -2112,6 +2183,13 @@ function WardrobeBay({
                     onPointerUp={endCalibrationDrag}
                     onPointerCancel={endCalibrationDrag}
                   >
+                    {previewBackdropAccessories.map((item) => (
+                      <WardrobeFittedLayer
+                        key={item.item_key}
+                        item={item}
+                        rig={NOVA_WARDROBE_RIG}
+                      />
+                    ))}
                     {previewOutfitItem?.layer_image ? (
                       <img
                         src={previewOutfitItem.layer_image}
@@ -2127,7 +2205,7 @@ function WardrobeBay({
                         draggable={false}
                       />
                     )}
-                    {calibratedPreviewAccessories.map((item) => (
+                    {previewForegroundAccessories.map((item) => (
                       <WardrobeFittedLayer
                         key={item.item_key}
                         item={item}
@@ -2329,6 +2407,11 @@ function WardrobeBay({
                           <span className="rounded-full border border-white/8 bg-white/[0.035] px-2 py-0.5 text-[7px] font-black uppercase tracking-[0.08em] text-white/42">
                             {getWardrobeCollectionLabel(item.item_key)}
                           </span>
+                          {item.category === "accessory" && item.accessory_slot && (
+                            <span className="rounded-full border border-cyan-200/12 bg-cyan-300/[0.05] px-2 py-0.5 text-[7px] font-black uppercase tracking-[0.08em] text-cyan-100/60">
+                              {getAccessorySlotLabel(item.accessory_slot)}
+                            </span>
+                          )}
                           {calibrationMode && (
                             <span className={`rounded-full border px-2 py-0.5 text-[7px] font-black uppercase tracking-[0.08em] ${
                               item.fit_mode === "manual"
@@ -2563,6 +2646,11 @@ function WardrobeBay({
                       <span className="rounded-full border border-white/8 bg-white/[0.035] px-2 py-1 text-[7px] font-black uppercase tracking-[0.1em] text-white/38">
                         {getWardrobeCollectionLabel(selectedItem.item_key)}
                       </span>
+                      {selectedItem.category === "accessory" && selectedItem.accessory_slot && (
+                        <span className="rounded-full border border-cyan-200/12 bg-cyan-300/[0.05] px-2 py-1 text-[7px] font-black uppercase tracking-[0.1em] text-cyan-100/60">
+                          {getAccessorySlotLabel(selectedItem.accessory_slot)} Slot
+                        </span>
+                      )}
                     </div>
                     <p className="mt-1 max-w-2xl text-[9px] leading-4 text-white/42 sm:text-[10px]">
                       {selectedItem.description}

@@ -5,16 +5,23 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const STORAGE_BUCKET = "core-question-assets";
+const STORAGE_BUCKETS = {
+  math: "core-question-assets",
+  science: "quiz-assets",
+} as const;
+
+type DeploymentSubject = keyof typeof STORAGE_BUCKETS;
+
 const MAX_MAPPINGS_PER_REQUEST = 250;
 
 type DeploymentMapping = {
   mapping_id: string;
   question_id: string;
-  question_code: string;
+  question_code?: string;
   quiz_code?: string;
   image_role: "prompt" | "option";
   option_index?: number | string | null;
+  option_key?: string | null;
   storage_bucket: string;
   storage_path: string;
   public_url?: string;
@@ -24,11 +31,23 @@ type DeploymentMapping = {
   qc_status?: string;
 };
 
-type QuestionRow = {
+type MathQuestionRow = {
   id: string;
   code: string;
   primary_level: number;
   content: Record<string, unknown> | null;
+};
+
+type ScienceQuestionRow = {
+  id: string;
+  question_image: string | null;
+};
+
+type ScienceOptionRow = {
+  id: string;
+  question_id: string;
+  option_key: string;
+  asset_path: string | null;
 };
 
 function json(body: unknown, status = 200) {
@@ -40,69 +59,201 @@ function json(body: unknown, status = 200) {
 
 function chunk<T>(items: T[], size: number) {
   const output: T[][] = [];
-  for (let index = 0; index < items.length; index += size) {
+
+  for (
+    let index = 0;
+    index < items.length;
+    index += size
+  ) {
     output.push(items.slice(index, index + size));
   }
+
   return output;
 }
 
-function mappingKey(questionId: string, storagePath: string) {
+function isDeploymentSubject(
+  value: string,
+): value is DeploymentSubject {
+  return value === "math" || value === "science";
+}
+
+function mappingKey(
+  questionId: string,
+  storagePath: string,
+) {
   return `${questionId}::${storagePath}`;
+}
+
+function mappingLabel(mapping: DeploymentMapping) {
+  return (
+    String(mapping.question_code || "").trim() ||
+    String(mapping.mapping_id || "").trim() ||
+    mapping.question_id
+  );
 }
 
 function optionIndex(mapping: DeploymentMapping) {
   const value = Number(mapping.option_index);
-  return Number.isInteger(value) && value >= 0 ? value : null;
+
+  return Number.isInteger(value) && value >= 0
+    ? value
+    : null;
 }
 
-function validateMappings(
-  mappings: DeploymentMapping[],
-  subject: string,
+function scienceOptionKey(
+  mapping: DeploymentMapping,
+) {
+  const value = String(
+    mapping.option_key || "",
+  )
+    .trim()
+    .toUpperCase();
+
+  return /^[A-Z]$/.test(value) ? value : null;
+}
+
+function publicAssetUrl(
+  supabaseUrl: string,
+  bucket: string,
+  storagePath: string,
+) {
+  return (
+    `${supabaseUrl}/storage/v1/object/public/` +
+    `${bucket}/${storagePath}`
+  );
+}
+
+function validateCommonMapping(
+  mapping: DeploymentMapping,
+  subject: DeploymentSubject,
   level: number,
 ) {
-  const expectedCodePrefix = `${subject.toUpperCase()}-P${level}-`;
+  if (
+    !mapping.mapping_id ||
+    !mapping.question_id ||
+    !mapping.storage_path
+  ) {
+    throw new Error(
+      "A mapping is missing its mapping, question or storage identifier.",
+    );
+  }
+
+  if (
+    !["prompt", "option"].includes(
+      mapping.image_role,
+    )
+  ) {
+    throw new Error(
+      `Unsupported image role in ${mapping.mapping_id}.`,
+    );
+  }
+
+  const expectedBucket =
+    STORAGE_BUCKETS[subject];
+
+  if (
+    mapping.storage_bucket !== expectedBucket
+  ) {
+    throw new Error(
+      `Unsupported bucket in ${mapping.mapping_id}. ` +
+        `Expected ${expectedBucket}.`,
+    );
+  }
+
+  if (
+    !mapping.storage_path.startsWith(
+      `${subject}/p${level}/`,
+    ) ||
+    mapping.storage_path.includes("..") ||
+    mapping.storage_path.startsWith("/")
+  ) {
+    throw new Error(
+      `Invalid storage path in ${mapping.mapping_id}.`,
+    );
+  }
+
+  if (
+    mapping.qc_status &&
+    mapping.qc_status !== "PASS"
+  ) {
+    throw new Error(
+      `Mapping ${mapping.mapping_id} has not passed QC.`,
+    );
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Mathematics — preserve existing deployment behaviour                       */
+/* -------------------------------------------------------------------------- */
+
+function validateMathMappings(
+  mappings: DeploymentMapping[],
+  level: number,
+) {
+  const expectedCodePrefix =
+    `MATH-P${level}-`;
+
   for (const mapping of mappings) {
-    if (!mapping.question_id || !mapping.question_code || !mapping.storage_path) {
-      throw new Error("A mapping is missing its question or storage identifier.");
+    validateCommonMapping(
+      mapping,
+      "math",
+      level,
+    );
+
+    if (!mapping.question_code) {
+      throw new Error(
+        `Math mapping ${mapping.mapping_id} is missing question_code.`,
+      );
     }
-    if (!mapping.question_code.startsWith(expectedCodePrefix)) {
-      throw new Error(`Question ${mapping.question_code} does not belong to ${subject.toUpperCase()} P${level}.`);
+
+    if (
+      !mapping.question_code.startsWith(
+        expectedCodePrefix,
+      )
+    ) {
+      throw new Error(
+        `Question ${mapping.question_code} does not belong to Mathematics P${level}.`,
+      );
     }
-    if (!['prompt', 'option'].includes(mapping.image_role)) {
-      throw new Error(`Unsupported image role in ${mapping.mapping_id}.`);
-    }
-    if (mapping.image_role === "option" && optionIndex(mapping) === null) {
-      throw new Error(`Invalid option index in ${mapping.mapping_id}.`);
-    }
-    if (mapping.storage_bucket !== STORAGE_BUCKET) {
-      throw new Error(`Unsupported bucket in ${mapping.mapping_id}.`);
-    }
-    if (!mapping.storage_path.startsWith(`${subject}/p${level}/`) || mapping.storage_path.includes("..")) {
-      throw new Error(`Invalid storage path in ${mapping.mapping_id}.`);
-    }
-    if (mapping.qc_status && mapping.qc_status !== "PASS") {
-      throw new Error(`Mapping ${mapping.mapping_id} has not passed QC.`);
+
+    if (
+      mapping.image_role === "option" &&
+      optionIndex(mapping) === null
+    ) {
+      throw new Error(
+        `Invalid option index in ${mapping.mapping_id}.`,
+      );
     }
   }
 }
 
-async function loadQuestions(
+async function loadMathQuestions(
   admin: ReturnType<typeof createAdminClient>,
   ids: string[],
 ) {
-  const rows: QuestionRow[] = [];
+  const rows: MathQuestionRow[] = [];
+
   for (const idChunk of chunk(ids, 100)) {
     const { data, error } = await admin
       .from("math_questions")
-      .select("id,code,primary_level,content")
+      .select(
+        "id,code,primary_level,content",
+      )
       .in("id", idChunk);
-    if (error) throw new Error(error.message);
-    rows.push(...((data || []) as QuestionRow[]));
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    rows.push(
+      ...((data || []) as MathQuestionRow[]),
+    );
   }
+
   return rows;
 }
 
-async function applyMappings({
+async function applyMathMappings({
   admin,
   mappings,
   questions,
@@ -111,12 +262,22 @@ async function applyMappings({
 }: {
   admin: ReturnType<typeof createAdminClient>;
   mappings: DeploymentMapping[];
-  questions: QuestionRow[];
+  questions: MathQuestionRow[];
   batch: string;
   supabaseUrl: string;
 }) {
-  const promptMappings = mappings.filter((item) => item.image_role === "prompt");
-  const questionIds = [...new Set(promptMappings.map((item) => item.question_id))];
+  const promptMappings = mappings.filter(
+    (item) => item.image_role === "prompt",
+  );
+
+  const questionIds = [
+    ...new Set(
+      promptMappings.map(
+        (item) => item.question_id,
+      ),
+    ),
+  ];
+
   const existingRows: Array<{
     id: string;
     question_id: string;
@@ -124,151 +285,376 @@ async function applyMappings({
     storage_path: string;
   }> = [];
 
-  for (const idChunk of chunk(questionIds, 100)) {
-    if (!idChunk.length) continue;
+  for (const idChunk of chunk(
+    questionIds,
+    100,
+  )) {
+    if (!idChunk.length) {
+      continue;
+    }
+
     const { data, error } = await admin
       .from("math_question_assets")
-      .select("id,question_id,storage_bucket,storage_path")
-      .eq("storage_bucket", STORAGE_BUCKET)
+      .select(
+        "id,question_id,storage_bucket,storage_path",
+      )
+      .eq(
+        "storage_bucket",
+        STORAGE_BUCKETS.math,
+      )
       .in("question_id", idChunk);
-    if (error) throw new Error(error.message);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
     existingRows.push(...(data || []));
   }
 
   const existingByKey = new Map(
-    existingRows.map((row) => [mappingKey(row.question_id, row.storage_path), row]),
+    existingRows.map((row) => [
+      mappingKey(
+        row.question_id,
+        row.storage_path,
+      ),
+      row,
+    ]),
   );
 
-  const assetRows = promptMappings.map((mapping) => {
-    const existing = existingByKey.get(
-      mappingKey(mapping.question_id, mapping.storage_path),
-    );
-    return {
-      id: existing?.id || crypto.randomUUID(),
-      question_id: mapping.question_id,
-      asset_type: mapping.storage_path.toLowerCase().endsWith(".svg") ? "svg" : "image",
-      storage_bucket: STORAGE_BUCKET,
-      storage_path: mapping.storage_path,
-      alt_text: mapping.alt_text || "Question image",
-      caption: null,
-      width: Number.isFinite(Number(mapping.width)) ? Number(mapping.width) : null,
-      height: Number.isFinite(Number(mapping.height)) ? Number(mapping.height) : null,
-      metadata: {
-        migration_batch: batch,
-        object_fit: "contain",
-      },
-      sort_order: 1,
-    };
-  });
+  const assetRows = promptMappings.map(
+    (mapping) => {
+      const existing = existingByKey.get(
+        mappingKey(
+          mapping.question_id,
+          mapping.storage_path,
+        ),
+      );
 
-  for (const rows of chunk(assetRows, 100)) {
-    if (!rows.length) continue;
-    const { error } = await admin.from("math_question_assets").upsert(rows);
-    if (error) throw new Error(error.message);
+      return {
+        id:
+          existing?.id ||
+          crypto.randomUUID(),
+        question_id: mapping.question_id,
+        asset_type: mapping.storage_path
+          .toLowerCase()
+          .endsWith(".svg")
+          ? "svg"
+          : "image",
+        storage_bucket:
+          STORAGE_BUCKETS.math,
+        storage_path:
+          mapping.storage_path,
+        alt_text:
+          mapping.alt_text ||
+          "Question image",
+        caption: null,
+        width: Number.isFinite(
+          Number(mapping.width),
+        )
+          ? Number(mapping.width)
+          : null,
+        height: Number.isFinite(
+          Number(mapping.height),
+        )
+          ? Number(mapping.height)
+          : null,
+        metadata: {
+          migration_batch: batch,
+          object_fit: "contain",
+        },
+        sort_order: 1,
+      };
+    },
+  );
+
+  for (const rows of chunk(
+    assetRows,
+    100,
+  )) {
+    if (!rows.length) {
+      continue;
+    }
+
+    const { error } = await admin
+      .from("math_question_assets")
+      .upsert(rows);
+
+    if (error) {
+      throw new Error(error.message);
+    }
   }
 
-  const optionsByQuestion = new Map<string, DeploymentMapping[]>();
-  for (const mapping of mappings.filter((item) => item.image_role === "option")) {
-    const list = optionsByQuestion.get(mapping.question_id) || [];
+  const optionsByQuestion =
+    new Map<
+      string,
+      DeploymentMapping[]
+    >();
+
+  for (const mapping of mappings.filter(
+    (item) =>
+      item.image_role === "option",
+  )) {
+    const list =
+      optionsByQuestion.get(
+        mapping.question_id,
+      ) || [];
+
     list.push(mapping);
-    optionsByQuestion.set(mapping.question_id, list);
+
+    optionsByQuestion.set(
+      mapping.question_id,
+      list,
+    );
   }
 
-  const questionById = new Map(questions.map((question) => [question.id, question]));
+  const questionById = new Map(
+    questions.map((question) => [
+      question.id,
+      question,
+    ]),
+  );
+
   let optionCount = 0;
 
-  for (const entries of chunk([...optionsByQuestion.entries()], 8)) {
+  for (const entries of chunk(
+    [...optionsByQuestion.entries()],
+    8,
+  )) {
     await Promise.all(
-      entries.map(async ([questionId, optionMappings]) => {
-        const question = questionById.get(questionId);
-        if (!question) throw new Error(`Question ${questionId} was not found.`);
-        const content = { ...(question.content || {}) } as Record<string, unknown>;
-        const rawOptions = Array.isArray(content.options) ? content.options : [];
-        const options: Array<Record<string, unknown>> = rawOptions.map(
-          (value, index): Record<string, unknown> => {
-            if (value && typeof value === "object" && !Array.isArray(value)) {
-              return { ...(value as Record<string, unknown>) };
-            }
-            return { id: String(index), text: String(value ?? "") };
-          },
-        );
+      entries.map(
+        async ([
+          questionId,
+          optionMappings,
+        ]) => {
+          const question =
+            questionById.get(questionId);
 
-        for (const mapping of optionMappings) {
-          const index = optionIndex(mapping);
-          if (index === null || !options[index]) {
-            throw new Error(`Option ${mapping.option_index} is missing from ${question.code}.`);
+          if (!question) {
+            throw new Error(
+              `Question ${questionId} was not found.`,
+            );
           }
-          const publicUrl = `${supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKET}/${mapping.storage_path}`;
-          options[index] = {
-            ...options[index],
-            image_url: publicUrl,
-            image_bucket: STORAGE_BUCKET,
-            image_path: mapping.storage_path,
-            image_alt: mapping.alt_text || "Answer option image",
-            show_text_with_image: false,
-          };
-          optionCount++;
-        }
 
-        const { error } = await admin
-          .from("math_questions")
-          .update({ content: { ...content, options } })
-          .eq("id", questionId);
-        if (error) throw new Error(error.message);
-      }),
+          const content = {
+            ...(question.content || {}),
+          } as Record<string, unknown>;
+
+          const rawOptions =
+            Array.isArray(content.options)
+              ? content.options
+              : [];
+
+          const options: Array<
+            Record<string, unknown>
+          > = rawOptions.map(
+            (
+              value,
+              index,
+            ): Record<string, unknown> => {
+              if (
+                value &&
+                typeof value === "object" &&
+                !Array.isArray(value)
+              ) {
+                return {
+                  ...(value as Record<
+                    string,
+                    unknown
+                  >),
+                };
+              }
+
+              return {
+                id: String(index),
+                text: String(value ?? ""),
+              };
+            },
+          );
+
+          for (
+            const mapping of optionMappings
+          ) {
+            const index =
+              optionIndex(mapping);
+
+            if (
+              index === null ||
+              !options[index]
+            ) {
+              throw new Error(
+                `Option ${mapping.option_index} is missing from ${question.code}.`,
+              );
+            }
+
+            const publicUrl =
+              publicAssetUrl(
+                supabaseUrl,
+                STORAGE_BUCKETS.math,
+                mapping.storage_path,
+              );
+
+            options[index] = {
+              ...options[index],
+              image_url: publicUrl,
+              image_bucket:
+                STORAGE_BUCKETS.math,
+              image_path:
+                mapping.storage_path,
+              image_alt:
+                mapping.alt_text ||
+                "Answer option image",
+              show_text_with_image: false,
+            };
+
+            optionCount++;
+          }
+
+          const { error } = await admin
+            .from("math_questions")
+            .update({
+              content: {
+                ...content,
+                options,
+              },
+            })
+            .eq("id", questionId);
+
+          if (error) {
+            throw new Error(
+              error.message,
+            );
+          }
+        },
+      ),
     );
   }
 
-  return { prompt_applied: promptMappings.length, option_applied: optionCount };
+  return {
+    prompt_applied:
+      promptMappings.length,
+    option_applied: optionCount,
+  };
 }
 
-async function verifyMappings({
+async function verifyMathMappings({
   admin,
   mappings,
   questions,
 }: {
   admin: ReturnType<typeof createAdminClient>;
   mappings: DeploymentMapping[];
-  questions: QuestionRow[];
+  questions: MathQuestionRow[];
 }) {
   const failures: string[] = [];
-  const promptMappings = mappings.filter((item) => item.image_role === "prompt");
-  const promptQuestionIds = [...new Set(promptMappings.map((item) => item.question_id))];
+
+  const promptMappings = mappings.filter(
+    (item) => item.image_role === "prompt",
+  );
+
+  const promptQuestionIds = [
+    ...new Set(
+      promptMappings.map(
+        (item) => item.question_id,
+      ),
+    ),
+  ];
+
   const existing = new Set<string>();
 
-  for (const idChunk of chunk(promptQuestionIds, 100)) {
-    if (!idChunk.length) continue;
+  for (const idChunk of chunk(
+    promptQuestionIds,
+    100,
+  )) {
+    if (!idChunk.length) {
+      continue;
+    }
+
     const { data, error } = await admin
       .from("math_question_assets")
-      .select("question_id,storage_path")
-      .eq("storage_bucket", STORAGE_BUCKET)
+      .select(
+        "question_id,storage_path",
+      )
+      .eq(
+        "storage_bucket",
+        STORAGE_BUCKETS.math,
+      )
       .in("question_id", idChunk);
-    if (error) throw new Error(error.message);
-    for (const row of data || []) existing.add(mappingKey(row.question_id, row.storage_path));
-  }
 
-  let promptVerified = 0;
-  for (const mapping of promptMappings) {
-    if (existing.has(mappingKey(mapping.question_id, mapping.storage_path))) {
-      promptVerified++;
-    } else {
-      failures.push(`${mapping.question_code}: prompt mapping missing`);
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    for (const row of data || []) {
+      existing.add(
+        mappingKey(
+          row.question_id,
+          row.storage_path,
+        ),
+      );
     }
   }
 
-  const questionById = new Map(questions.map((question) => [question.id, question]));
+  let promptVerified = 0;
+
+  for (const mapping of promptMappings) {
+    if (
+      existing.has(
+        mappingKey(
+          mapping.question_id,
+          mapping.storage_path,
+        ),
+      )
+    ) {
+      promptVerified++;
+    } else {
+      failures.push(
+        `${mappingLabel(mapping)}: prompt mapping missing`,
+      );
+    }
+  }
+
+  const questionById = new Map(
+    questions.map((question) => [
+      question.id,
+      question,
+    ]),
+  );
+
   let optionVerified = 0;
-  for (const mapping of mappings.filter((item) => item.image_role === "option")) {
-    const question = questionById.get(mapping.question_id);
-    const options = Array.isArray(question?.content?.options)
-      ? (question?.content?.options as Array<Record<string, unknown>>)
+
+  for (const mapping of mappings.filter(
+    (item) =>
+      item.image_role === "option",
+  )) {
+    const question = questionById.get(
+      mapping.question_id,
+    );
+
+    const options = Array.isArray(
+      question?.content?.options,
+    )
+      ? (question?.content?.options as Array<
+          Record<string, unknown>
+        >)
       : [];
+
     const index = optionIndex(mapping);
-    const option = index === null ? null : options[index];
-    if (option && option.image_path === mapping.storage_path) {
+
+    const option =
+      index === null
+        ? null
+        : options[index];
+
+    if (
+      option &&
+      option.image_path ===
+        mapping.storage_path
+    ) {
       optionVerified++;
     } else {
-      failures.push(`${mapping.question_code}: option ${mapping.option_index} mapping missing`);
+      failures.push(
+        `${mappingLabel(mapping)}: option ${mapping.option_index} mapping missing`,
+      );
     }
   }
 
@@ -279,63 +665,902 @@ async function verifyMappings({
   };
 }
 
+/* -------------------------------------------------------------------------- */
+/* Science                                                                    */
+/* -------------------------------------------------------------------------- */
+
+function validateScienceMappings(
+  mappings: DeploymentMapping[],
+  level: number,
+) {
+  const seenTargets =
+    new Set<string>();
+
+  for (const mapping of mappings) {
+    validateCommonMapping(
+      mapping,
+      "science",
+      level,
+    );
+
+    let target: string;
+
+    if (mapping.image_role === "prompt") {
+      target =
+        `${mapping.question_id}::prompt`;
+    } else {
+      const key =
+        scienceOptionKey(mapping);
+
+      if (!key) {
+        throw new Error(
+          `Science option mapping ${mapping.mapping_id} must include option_key such as A, B, C or D.`,
+        );
+      }
+
+      target =
+        `${mapping.question_id}::option::${key}`;
+    }
+
+    if (seenTargets.has(target)) {
+      throw new Error(
+        `Duplicate Science mapping target detected for ${mappingLabel(mapping)}.`,
+      );
+    }
+
+    seenTargets.add(target);
+  }
+}
+
+async function loadScienceQuestions(
+  admin: ReturnType<typeof createAdminClient>,
+  ids: string[],
+) {
+  const rows: ScienceQuestionRow[] = [];
+
+  for (const idChunk of chunk(ids, 100)) {
+    const { data, error } = await admin
+      .from("science_questions")
+      .select("id,question_image")
+      .in("id", idChunk);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    rows.push(
+      ...((data || []) as ScienceQuestionRow[]),
+    );
+  }
+
+  return rows;
+}
+
+async function loadScienceOptions(
+  admin: ReturnType<typeof createAdminClient>,
+  ids: string[],
+) {
+  const rows: ScienceOptionRow[] = [];
+
+  for (const idChunk of chunk(ids, 100)) {
+    const { data, error } = await admin
+      .from(
+        "science_question_options",
+      )
+      .select(
+        "id,question_id,option_key,asset_path",
+      )
+      .in("question_id", idChunk);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    rows.push(
+      ...((data || []) as ScienceOptionRow[]),
+    );
+  }
+
+  return rows;
+}
+
+async function loadScienceQuestionLevels(
+  admin: ReturnType<typeof createAdminClient>,
+  questionIds: string[],
+) {
+  const links: Array<{
+    question_id: string;
+    quiz_id: string;
+  }> = [];
+
+  for (const idChunk of chunk(
+    questionIds,
+    100,
+  )) {
+    const { data, error } = await admin
+      .from("science_quiz_questions")
+      .select("question_id,quiz_id")
+      .in("question_id", idChunk);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    links.push(...(data || []));
+  }
+
+  const quizIds = [
+    ...new Set(
+      links.map((row) => row.quiz_id),
+    ),
+  ];
+
+  const quizzes: Array<{
+    id: string;
+    topic_id: string;
+  }> = [];
+
+  for (const idChunk of chunk(
+    quizIds,
+    100,
+  )) {
+    if (!idChunk.length) {
+      continue;
+    }
+
+    const { data, error } = await admin
+      .from("science_quizzes")
+      .select("id,topic_id")
+      .in("id", idChunk);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    quizzes.push(...(data || []));
+  }
+
+  const topicIds = [
+    ...new Set(
+      quizzes.map(
+        (row) => row.topic_id,
+      ),
+    ),
+  ];
+
+  const topics: Array<{
+    id: string;
+    level_id: string;
+  }> = [];
+
+  for (const idChunk of chunk(
+    topicIds,
+    100,
+  )) {
+    if (!idChunk.length) {
+      continue;
+    }
+
+    const { data, error } = await admin
+      .from("science_topics")
+      .select("id,level_id")
+      .in("id", idChunk);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    topics.push(...(data || []));
+  }
+
+  const levelIds = [
+    ...new Set(
+      topics.map(
+        (row) => row.level_id,
+      ),
+    ),
+  ];
+
+  const levels: Array<{
+    id: string;
+    level_number: number;
+  }> = [];
+
+  for (const idChunk of chunk(
+    levelIds,
+    100,
+  )) {
+    if (!idChunk.length) {
+      continue;
+    }
+
+    const { data, error } = await admin
+      .from("science_levels")
+      .select("id,level_number")
+      .in("id", idChunk);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    levels.push(
+      ...((data || []) as Array<{
+        id: string;
+        level_number: number;
+      }>),
+    );
+  }
+
+  const quizById = new Map(
+    quizzes.map((row) => [
+      row.id,
+      row,
+    ]),
+  );
+
+  const topicById = new Map(
+    topics.map((row) => [
+      row.id,
+      row,
+    ]),
+  );
+
+  const levelById = new Map(
+    levels.map((row) => [
+      row.id,
+      Number(row.level_number),
+    ]),
+  );
+
+  const questionLevels =
+    new Map<string, Set<number>>();
+
+  for (const link of links) {
+    const quiz =
+      quizById.get(link.quiz_id);
+
+    const topic = quiz
+      ? topicById.get(quiz.topic_id)
+      : null;
+
+    const levelNumber = topic
+      ? levelById.get(topic.level_id)
+      : null;
+
+    if (!levelNumber) {
+      continue;
+    }
+
+    const set =
+      questionLevels.get(
+        link.question_id,
+      ) || new Set<number>();
+
+    set.add(levelNumber);
+
+    questionLevels.set(
+      link.question_id,
+      set,
+    );
+  }
+
+  return questionLevels;
+}
+
+async function validateScienceTargets({
+  admin,
+  mappings,
+  level,
+}: {
+  admin: ReturnType<typeof createAdminClient>;
+  mappings: DeploymentMapping[];
+  level: number;
+}) {
+  const questionIds = [
+    ...new Set(
+      mappings.map(
+        (item) => item.question_id,
+      ),
+    ),
+  ];
+
+  const [
+    questions,
+    options,
+    questionLevels,
+  ] = await Promise.all([
+    loadScienceQuestions(
+      admin,
+      questionIds,
+    ),
+    loadScienceOptions(
+      admin,
+      questionIds,
+    ),
+    loadScienceQuestionLevels(
+      admin,
+      questionIds,
+    ),
+  ]);
+
+  const questionById = new Map(
+    questions.map((question) => [
+      question.id,
+      question,
+    ]),
+  );
+
+  const optionByTarget = new Map(
+    options.map((option) => [
+      `${option.question_id}::${String(
+        option.option_key,
+      )
+        .trim()
+        .toUpperCase()}`,
+      option,
+    ]),
+  );
+
+  for (const mapping of mappings) {
+    if (
+      !questionById.has(
+        mapping.question_id,
+      )
+    ) {
+      throw new Error(
+        `Science question ${mappingLabel(mapping)} was not found.`,
+      );
+    }
+
+    const levels =
+      questionLevels.get(
+        mapping.question_id,
+      ) || new Set<number>();
+
+    if (!levels.has(level)) {
+      throw new Error(
+        `Science question ${mappingLabel(mapping)} is not linked to Primary ${level}.`,
+      );
+    }
+
+    if (levels.size > 1) {
+      throw new Error(
+        `Science question ${mappingLabel(mapping)} is linked to multiple Primary levels and cannot be deployed automatically.`,
+      );
+    }
+
+    if (
+      mapping.image_role === "option"
+    ) {
+      const key =
+        scienceOptionKey(mapping)!;
+
+      const option =
+        optionByTarget.get(
+          `${mapping.question_id}::${key}`,
+        );
+
+      if (!option) {
+        throw new Error(
+          `Option ${key} is missing from Science question ${mappingLabel(mapping)}.`,
+        );
+      }
+    }
+  }
+
+  return {
+    questions,
+    options,
+  };
+}
+
+async function applyScienceMappings({
+  admin,
+  mappings,
+  options,
+  supabaseUrl,
+}: {
+  admin: ReturnType<typeof createAdminClient>;
+  mappings: DeploymentMapping[];
+  options: ScienceOptionRow[];
+  supabaseUrl: string;
+}) {
+  const optionByTarget = new Map(
+    options.map((option) => [
+      `${option.question_id}::${String(
+        option.option_key,
+      )
+        .trim()
+        .toUpperCase()}`,
+      option,
+    ]),
+  );
+
+  let promptApplied = 0;
+  let optionApplied = 0;
+
+  for (const mapping of mappings.filter(
+    (item) =>
+      item.image_role === "prompt",
+  )) {
+    const publicUrl =
+      publicAssetUrl(
+        supabaseUrl,
+        STORAGE_BUCKETS.science,
+        mapping.storage_path,
+      );
+
+    const { error } = await admin
+      .from("science_questions")
+      .update({
+        question_image: publicUrl,
+      })
+      .eq("id", mapping.question_id);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    promptApplied++;
+  }
+
+  for (const mapping of mappings.filter(
+    (item) =>
+      item.image_role === "option",
+  )) {
+    const key =
+      scienceOptionKey(mapping)!;
+
+    const option =
+      optionByTarget.get(
+        `${mapping.question_id}::${key}`,
+      );
+
+    if (!option) {
+      throw new Error(
+        `Option ${key} is missing from Science question ${mappingLabel(mapping)}.`,
+      );
+    }
+
+    const publicUrl =
+      publicAssetUrl(
+        supabaseUrl,
+        STORAGE_BUCKETS.science,
+        mapping.storage_path,
+      );
+
+    const { error } = await admin
+      .from(
+        "science_question_options",
+      )
+      .update({
+        asset_path: publicUrl,
+      })
+      .eq("id", option.id);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    optionApplied++;
+  }
+
+  return {
+    prompt_applied: promptApplied,
+    option_applied: optionApplied,
+  };
+}
+
+async function verifyScienceMappings({
+  admin,
+  mappings,
+  supabaseUrl,
+}: {
+  admin: ReturnType<typeof createAdminClient>;
+  mappings: DeploymentMapping[];
+  supabaseUrl: string;
+}) {
+  const failures: string[] = [];
+
+  const questionIds = [
+    ...new Set(
+      mappings.map(
+        (item) => item.question_id,
+      ),
+    ),
+  ];
+
+  const [questions, options] =
+    await Promise.all([
+      loadScienceQuestions(
+        admin,
+        questionIds,
+      ),
+      loadScienceOptions(
+        admin,
+        questionIds,
+      ),
+    ]);
+
+  const questionById = new Map(
+    questions.map((question) => [
+      question.id,
+      question,
+    ]),
+  );
+
+  const optionByTarget = new Map(
+    options.map((option) => [
+      `${option.question_id}::${String(
+        option.option_key,
+      )
+        .trim()
+        .toUpperCase()}`,
+      option,
+    ]),
+  );
+
+  let promptVerified = 0;
+  let optionVerified = 0;
+
+  for (const mapping of mappings) {
+    const expectedUrl =
+      publicAssetUrl(
+        supabaseUrl,
+        STORAGE_BUCKETS.science,
+        mapping.storage_path,
+      );
+
+    if (
+      mapping.image_role === "prompt"
+    ) {
+      const question =
+        questionById.get(
+          mapping.question_id,
+        );
+
+      if (
+        question?.question_image ===
+        expectedUrl
+      ) {
+        promptVerified++;
+      } else {
+        failures.push(
+          `${mappingLabel(mapping)}: Science prompt mapping missing`,
+        );
+      }
+
+      continue;
+    }
+
+    const key =
+      scienceOptionKey(mapping)!;
+
+    const option =
+      optionByTarget.get(
+        `${mapping.question_id}::${key}`,
+      );
+
+    if (
+      option?.asset_path ===
+      expectedUrl
+    ) {
+      optionVerified++;
+    } else {
+      failures.push(
+        `${mappingLabel(mapping)}: Science option ${key} mapping missing`,
+      );
+    }
+  }
+
+  return {
+    prompt_verified: promptVerified,
+    option_verified: optionVerified,
+    failures,
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Route                                                                      */
+/* -------------------------------------------------------------------------- */
+
 export async function POST(request: Request) {
-  const access = await checkCurriculumDeveloperFromRequest(request);
+  const access =
+    await checkCurriculumDeveloperFromRequest(
+      request,
+    );
+
   if (!access.isCurriculumDeveloper) {
-    return json({ error: access.error }, 403);
+    return json(
+      { error: access.error },
+      403,
+    );
   }
 
   try {
-    const body = (await request.json()) as {
-      action?: "apply" | "verify";
-      subject?: string;
-      level?: number;
-      batch?: string;
-      bucket?: string;
-      mappings?: DeploymentMapping[];
-    };
+    const body =
+      (await request.json()) as {
+        action?: "apply" | "verify";
+        subject?: string;
+        level?: number;
+        batch?: string;
+        bucket?: string;
+        mappings?: DeploymentMapping[];
+      };
 
     const action = body.action;
-    const subject = String(body.subject || "").toLowerCase();
+
+    const subjectValue = String(
+      body.subject || "",
+    )
+      .trim()
+      .toLowerCase();
+
     const level = Number(body.level);
-    const batch = String(body.batch || "").trim();
-    const bucket = String(body.bucket || "").trim();
-    const mappings = Array.isArray(body.mappings) ? body.mappings : [];
 
-    if (!['apply', 'verify'].includes(String(action))) return json({ error: "Invalid mapping action." }, 400);
-    if (subject !== "math") return json({ error: "This first release supports Mathematics packages. Science can be enabled after its mapping schema is confirmed." }, 400);
-    if (!Number.isInteger(level) || level < 1 || level > 6) return json({ error: "Invalid primary level." }, 400);
-    if (!/^p[1-6]-math-[a-z0-9-]+$/i.test(batch)) return json({ error: "Invalid deployment batch." }, 400);
-    if (bucket !== STORAGE_BUCKET) return json({ error: "Unsupported storage bucket." }, 400);
-    if (!mappings.length || mappings.length > MAX_MAPPINGS_PER_REQUEST) return json({ error: `Each request must contain 1 to ${MAX_MAPPINGS_PER_REQUEST} mappings.` }, 400);
+    const batch = String(
+      body.batch || "",
+    ).trim();
 
-    validateMappings(mappings, subject, level);
+    const bucket = String(
+      body.bucket || "",
+    ).trim();
 
-    const admin = createAdminClient();
-    const questionIds = [...new Set(mappings.map((item) => item.question_id))];
-    const questions = await loadQuestions(admin, questionIds);
-    const questionById = new Map(questions.map((question) => [question.id, question]));
+    const mappings = Array.isArray(
+      body.mappings,
+    )
+      ? body.mappings
+      : [];
 
-    for (const mapping of mappings) {
-      const question = questionById.get(mapping.question_id);
-      if (!question) throw new Error(`Question ${mapping.question_code} was not found.`);
-      if (question.code !== mapping.question_code) throw new Error(`Question code mismatch for ${mapping.question_id}.`);
-      if (Number(question.primary_level) !== level) throw new Error(`${question.code} is not a P${level} question.`);
+    if (
+      !["apply", "verify"].includes(
+        String(action),
+      )
+    ) {
+      return json(
+        {
+          error:
+            "Invalid mapping action.",
+        },
+        400,
+      );
     }
 
-    const supabaseUrl = String(process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
-    if (!supabaseUrl) throw new Error("NEXT_PUBLIC_SUPABASE_URL is not configured.");
+    if (
+      !isDeploymentSubject(
+        subjectValue,
+      )
+    ) {
+      return json(
+        {
+          error:
+            "Unsupported deployment subject.",
+        },
+        400,
+      );
+    }
+
+    const subject = subjectValue;
+
+    const expectedBucket =
+      STORAGE_BUCKETS[subject];
+
+    if (
+      !Number.isInteger(level) ||
+      level < 1 ||
+      level > 6
+    ) {
+      return json(
+        {
+          error:
+            "Invalid primary level.",
+        },
+        400,
+      );
+    }
+
+    const batchPattern =
+      new RegExp(
+        `^p${level}-${subject}-[a-z0-9-]+$`,
+        "i",
+      );
+
+    if (!batchPattern.test(batch)) {
+      return json(
+        {
+          error:
+            `Invalid ${subject} deployment batch.`,
+        },
+        400,
+      );
+    }
+
+    if (bucket !== expectedBucket) {
+      return json(
+        {
+          error:
+            `Unsupported storage bucket for ${subject}. ` +
+            `Expected ${expectedBucket}.`,
+        },
+        400,
+      );
+    }
+
+    if (
+      !mappings.length ||
+      mappings.length >
+        MAX_MAPPINGS_PER_REQUEST
+    ) {
+      return json(
+        {
+          error:
+            `Each request must contain 1 to ` +
+            `${MAX_MAPPINGS_PER_REQUEST} mappings.`,
+        },
+        400,
+      );
+    }
+
+    const admin =
+      createAdminClient();
+
+    const supabaseUrl = String(
+      process.env
+        .NEXT_PUBLIC_SUPABASE_URL ||
+        "",
+    ).replace(/\/$/, "");
+
+    if (!supabaseUrl) {
+      throw new Error(
+        "NEXT_PUBLIC_SUPABASE_URL is not configured.",
+      );
+    }
+
+    if (subject === "math") {
+      validateMathMappings(
+        mappings,
+        level,
+      );
+
+      const questionIds = [
+        ...new Set(
+          mappings.map(
+            (item) =>
+              item.question_id,
+          ),
+        ),
+      ];
+
+      const questions =
+        await loadMathQuestions(
+          admin,
+          questionIds,
+        );
+
+      const questionById =
+        new Map(
+          questions.map(
+            (question) => [
+              question.id,
+              question,
+            ],
+          ),
+        );
+
+      for (const mapping of mappings) {
+        const question =
+          questionById.get(
+            mapping.question_id,
+          );
+
+        if (!question) {
+          throw new Error(
+            `Question ${mappingLabel(mapping)} was not found.`,
+          );
+        }
+
+        if (
+          question.code !==
+          mapping.question_code
+        ) {
+          throw new Error(
+            `Question code mismatch for ${mapping.question_id}.`,
+          );
+        }
+
+        if (
+          Number(
+            question.primary_level,
+          ) !== level
+        ) {
+          throw new Error(
+            `${question.code} is not a P${level} question.`,
+          );
+        }
+      }
+
+      if (action === "apply") {
+        const result =
+          await applyMathMappings({
+            admin,
+            mappings,
+            questions,
+            batch,
+            supabaseUrl,
+          });
+
+        return json({
+          ok: true,
+          subject,
+          ...result,
+        });
+      }
+
+      const result =
+        await verifyMathMappings({
+          admin,
+          mappings,
+          questions,
+        });
+
+      return json({
+        ok:
+          result.failures.length ===
+          0,
+        subject,
+        ...result,
+      });
+    }
+
+    validateScienceMappings(
+      mappings,
+      level,
+    );
+
+    const { options } =
+      await validateScienceTargets({
+        admin,
+        mappings,
+        level,
+      });
 
     if (action === "apply") {
-      const result = await applyMappings({ admin, mappings, questions, batch, supabaseUrl });
-      return json({ ok: true, ...result });
+      const result =
+        await applyScienceMappings({
+          admin,
+          mappings,
+          options,
+          supabaseUrl,
+        });
+
+      return json({
+        ok: true,
+        subject,
+        ...result,
+      });
     }
 
-    const result = await verifyMappings({ admin, mappings, questions });
-    return json({ ok: result.failures.length === 0, ...result });
+    const result =
+      await verifyScienceMappings({
+        admin,
+        mappings,
+        supabaseUrl,
+      });
+
+    return json({
+      ok:
+        result.failures.length === 0,
+      subject,
+      ...result,
+    });
   } catch (error) {
     return json(
-      { error: error instanceof Error ? error.message : "Mapping operation failed." },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Mapping operation failed.",
+      },
       500,
     );
   }

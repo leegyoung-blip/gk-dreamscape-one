@@ -1,4 +1,4 @@
-export type RoverLevelId = 1 | 2;
+export type RoverLevelId = 1 | 2 | 3;
 
 export type CoursePoint = {
   x: number;
@@ -21,6 +21,15 @@ export type RoverTrap = CoursePoint & {
   blastRadius: number;
   penalty: number;
   rearmMs: number;
+};
+
+export type RoverPulseGate = CoursePoint & {
+  id: string;
+  height: number;
+  activeMs: number;
+  safeMs: number;
+  phaseOffsetMs?: number;
+  penalty: number;
 };
 
 export type RoverRouteLabel = CoursePoint & {
@@ -47,6 +56,7 @@ export type RoverLevelConfig = {
   collectibles: CoursePoint[];
   checkpoints: RoverCheckpoint[];
   traps?: RoverTrap[];
+  pulseGates?: RoverPulseGate[];
   routeLabels?: RoverRouteLabel[];
   assets: {
     background: string;
