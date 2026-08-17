@@ -2167,10 +2167,10 @@ function WardrobeBay({
 
             <div className="relative flex min-h-0 items-start justify-center overflow-hidden bg-[radial-gradient(circle_at_50%_36%,rgba(83,215,255,0.16),transparent_34%),linear-gradient(180deg,rgba(5,21,39,0.26),rgba(2,7,19,0.64))] px-4 pt-2">
               <div className="pointer-events-none absolute inset-x-[12%] bottom-[8%] h-[22%] rounded-[50%] bg-cyan-300/[0.08] blur-2xl" />
-              <div className="relative flex h-full max-h-[560px] w-full max-w-[430px] items-start justify-center pt-1">
+              <div className="relative flex h-full max-h-[680px] w-full max-w-[560px] items-start justify-center pt-0">
                 {activeCharacter === "nova" ? (
                   <div
-                    className={`relative aspect-square w-[min(88%,405px)] shrink-0 ${
+                    className={`relative aspect-square w-[min(100%,535px)] shrink-0 ${
                       calibrationMode
                         ? calibrationDrag
                           ? "cursor-grabbing"
