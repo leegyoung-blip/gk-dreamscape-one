@@ -218,7 +218,7 @@ const ROOM_ZONE_KEYS: ZoneKey[] = [
   "extra-zone",
 ];
 
-const NOVA_CHARACTER_IMAGE = "/activities/nova-home/wardrobe/nova/nova-base-body.png";
+const NOVA_CHARACTER_IMAGE = "/activities/nova-home/wardrobe/nova/nova-outfit-classic.png";
 
 const WARDROBE_CATEGORIES: {
   key: WardrobeCategory;
@@ -1117,6 +1117,46 @@ export default function NovaHomePage() {
     return true;
   }
 
+  async function unequipWardrobeAccessory(itemKey: string) {
+    const item = wardrobeCatalog.find((entry) => entry.item_key === itemKey);
+    if (
+      !item ||
+      item.category !== "accessory" ||
+      wardrobeEquippingItemKey ||
+      wardrobeSetupError
+    ) {
+      return false;
+    }
+
+    setWardrobeEquippingItemKey(itemKey);
+    setWardrobeMessage("");
+
+    const { error } = await supabase.rpc("unequip_nova_home_wardrobe_accessory", {
+      p_item_key: itemKey,
+    });
+
+    setWardrobeEquippingItemKey(null);
+
+    if (error) {
+      setWardrobeMessage(error.message || "This accessory could not be unequipped.");
+      return false;
+    }
+
+    const targetSlot = getWardrobeEquipSlotForItem(item);
+    setWardrobeEquipped((current) =>
+      current.filter(
+        (entry) =>
+          !(
+            entry.character_key === item.character_key &&
+            entry.category === "accessory" &&
+            entry.equip_slot === targetSlot
+          ),
+      ),
+    );
+    setWardrobeMessage(`${item.title} unequipped.`);
+    return true;
+  }
+
   async function purchaseWardrobeItem(itemKey: string) {
     const item = wardrobeCatalog.find((entry) => entry.item_key === itemKey);
     if (!item || wardrobePurchasingItemKey || wardrobeSetupError) return;
@@ -1770,6 +1810,7 @@ export default function NovaHomePage() {
           }}
           onPurchase={purchaseWardrobeItem}
           onEquip={(itemKey) => void equipWardrobeItem(itemKey)}
+          onUnequip={(itemKey) => void unequipWardrobeAccessory(itemKey)}
           onSaveFit={saveWardrobeFit}
         />
       )}
@@ -1803,6 +1844,7 @@ function WardrobeBay({
   onSelectItem,
   onPurchase,
   onEquip,
+  onUnequip,
   onSaveFit,
 }: {
   catalog: WardrobeCatalogRow[];
@@ -1829,6 +1871,7 @@ function WardrobeBay({
   onSelectItem: (itemKey: string) => void;
   onPurchase: (itemKey: string) => void;
   onEquip: (itemKey: string) => void;
+  onUnequip: (itemKey: string) => void;
   onSaveFit: (itemKey: string, fit: WardrobeFitDraft) => Promise<boolean>;
 }) {
   const visibleItems = catalog.filter((item) => item.character_key === activeCharacter && item.category === activeCategory);
@@ -2497,7 +2540,7 @@ function WardrobeBay({
                     <CalibrationNumberControl
                       label="Overall"
                       value={fitDraft.fit_scale}
-                      min={0.35}
+                      min={0.05}
                       max={2.5}
                       step={0.01}
                       onChange={(value) => setFitDraft((current) => ({ ...current, fit_mode: "manual", fit_scale: value }))}
@@ -2663,7 +2706,16 @@ function WardrobeBay({
                   </div>
 
                   <div className="shrink-0 sm:min-w-[190px]">
-                    {isEquipped ? (
+                    {isEquipped && selectedItem.category === "accessory" ? (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => onUnequip(selectedItem.item_key)}
+                        className="min-h-11 w-full rounded-full border border-rose-200/22 bg-rose-300/[0.08] px-5 text-[10px] font-black uppercase tracking-[0.1em] text-rose-100 transition hover:bg-rose-300/[0.14] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {equippingItemKey === selectedItem.item_key ? "Unequipping..." : "Unequip Accessory"}
+                      </button>
+                    ) : isEquipped ? (
                       <span className="flex min-h-11 w-full items-center justify-center rounded-full border border-emerald-200/22 bg-emerald-300/[0.08] px-5 text-[10px] font-black uppercase tracking-[0.1em] text-emerald-100">
                         ✓ Equipped
                       </span>
