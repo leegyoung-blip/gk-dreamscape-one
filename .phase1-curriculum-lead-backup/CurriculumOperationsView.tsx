@@ -268,7 +268,7 @@ export default function CurriculumOperationsView({
   }
 
   async function archivePreview() {
-    if (!preview || (role !== "admin" && role !== "curriculum_lead")) return;
+    if (!preview || role !== "admin") return;
 
     setBusy(true);
     setError(null);
@@ -321,7 +321,7 @@ export default function CurriculumOperationsView({
   }
 
   async function restoreOperation(operationId: string, typedPhrase: string) {
-    if (role !== "admin" && role !== "curriculum_lead") return;
+    if (role !== "admin") return;
     setBusy(true);
     setError(null);
     setNotice(null);
@@ -515,7 +515,7 @@ function InventoryPanel({
   onClosePreview: () => void;
 }) {
   const summary = inventory?.summary || emptySummary;
-  const canSelect = (role === "admin" || role === "curriculum_lead") && subject !== "all";
+  const canSelect = role === "admin" && subject !== "all";
 
   return (
     <div style={panelStack}>
@@ -706,7 +706,7 @@ function TopicRow({
 }) {
   return (
     <article className="curriculum-operations-topic-row" style={topicCard}>
-      {(role === "admin" || role === "curriculum_lead") && (
+      {role === "admin" && (
         <input
           type="checkbox"
           aria-label={`Select ${topic.title}`}
@@ -970,7 +970,7 @@ function HistoryPanel({
           {operations.map((operation) => {
             const alreadyRestored = restoredArchiveIds.has(operation.id);
             const canRestore =
-              (role === "admin" || role === "curriculum_lead") &&
+              role === "admin" &&
               operation.operation_type === "archive" &&
               operation.status === "completed" &&
               !alreadyRestored;

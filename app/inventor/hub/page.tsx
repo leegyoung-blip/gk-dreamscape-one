@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import WardrobeFittedLayer from "@/components/nova-home/WardrobeFittedLayer";
 import WardrobeRigOverlay from "@/components/nova-home/WardrobeRigOverlay";
+import WardrobeTransformHandles from "@/components/nova-home/WardrobeTransformHandles";
 import { NOVA_WARDROBE_RIG } from "@/lib/novaHome/wardrobeRig";
 
 type AreaKey = "area-1" | "area-2";
@@ -55,6 +56,14 @@ type PurchaseResult = {
 type WardrobeCharacter = "nova" | "milo";
 type WardrobeCategory = "outfit" | "top" | "bottom" | "shoes" | "accessory";
 
+function getRigStretchLabel(category: WardrobeCategory) {
+  if (category === "top") return "Stretch shoulders → waist";
+  if (category === "bottom") return "Stretch waist → ankles";
+  if (category === "shoes") return "Stretch ankles → toes";
+  if (category === "outfit") return "Stretch neck → feet";
+  return "Stretch to target box";
+}
+
 type CharacterCatalogRow = {
   character_key: WardrobeCharacter;
   title: string;
@@ -89,17 +98,27 @@ type WardrobeCatalogRow = {
   sort_order: number;
   fit_mode: "auto" | "manual";
   fit_scale: number;
+  fit_scale_x: number;
+  fit_scale_y: number;
   fit_offset_x_pct: number;
   fit_offset_y_pct: number;
   fit_rotation_deg: number;
+  fit_skew_x_deg: number;
+  fit_skew_y_deg: number;
+  fit_stretch_mode: "contain" | "stretch";
 };
 
 type WardrobeFitDraft = {
   fit_mode: "auto" | "manual";
   fit_scale: number;
+  fit_scale_x: number;
+  fit_scale_y: number;
   fit_offset_x_pct: number;
   fit_offset_y_pct: number;
   fit_rotation_deg: number;
+  fit_skew_x_deg: number;
+  fit_skew_y_deg: number;
+  fit_stretch_mode: "contain" | "stretch";
 };
 
 type WardrobeOwnershipRow = {
@@ -789,7 +808,7 @@ export default function NovaHomePage() {
       supabase
         .from("nova_home_wardrobe_catalog")
         .select(
-          "item_key,character_key,category,title,description,dt_cost,is_starter,thumbnail_image,layer_image,accent_hex,layer_order,sort_order,fit_mode,fit_scale,fit_offset_x_pct,fit_offset_y_pct,fit_rotation_deg",
+          "item_key,character_key,category,title,description,dt_cost,is_starter,thumbnail_image,layer_image,accent_hex,layer_order,sort_order,fit_mode,fit_scale,fit_scale_x,fit_scale_y,fit_offset_x_pct,fit_offset_y_pct,fit_rotation_deg,fit_skew_x_deg,fit_skew_y_deg,fit_stretch_mode",
         )
         .eq("is_active", true)
         .order("sort_order", { ascending: true }),
@@ -835,11 +854,11 @@ export default function NovaHomePage() {
       setWardrobeCatalog([]);
       setWardrobeSetupError(
         catalogResult.error.message.includes("fit_")
-          ? "Wardrobe Rig fields are not ready. Run SQL 307 before testing Phase 1."
+          ? "Advanced Wardrobe Rig fields are not ready. Run SQL 309 before testing Phase 2B."
           : "Wardrobe Bay tables are not ready. Run SQL 303 before testing this activity.",
       );
     } else {
-      const rows = (catalogResult.data || []).map((row) => ({
+      const rows = (catalogResult.data || []).map((row): WardrobeCatalogRow => ({
         item_key: String(row.item_key),
         character_key: String(row.character_key) as WardrobeCharacter,
         category: String(row.category) as WardrobeCategory,
@@ -854,9 +873,14 @@ export default function NovaHomePage() {
         sort_order: Number(row.sort_order || 0),
         fit_mode: String(row.fit_mode || "auto") as "auto" | "manual",
         fit_scale: Number(row.fit_scale ?? 1),
+        fit_scale_x: Number(row.fit_scale_x ?? 1),
+        fit_scale_y: Number(row.fit_scale_y ?? 1),
         fit_offset_x_pct: Number(row.fit_offset_x_pct ?? 0),
         fit_offset_y_pct: Number(row.fit_offset_y_pct ?? 0),
         fit_rotation_deg: Number(row.fit_rotation_deg ?? 0),
+        fit_skew_x_deg: Number(row.fit_skew_x_deg ?? 0),
+        fit_skew_y_deg: Number(row.fit_skew_y_deg ?? 0),
+        fit_stretch_mode: String(row.fit_stretch_mode || "contain") === "stretch" ? "stretch" : "contain",
       }));
       setWardrobeCatalog(rows);
 
@@ -1125,14 +1149,19 @@ export default function NovaHomePage() {
     setWardrobeMessage("");
 
     const { data, error } = await supabase.rpc(
-      "admin_save_nova_home_wardrobe_fit",
+      "admin_save_nova_home_wardrobe_fit_v2",
       {
         p_item_key: itemKey,
         p_fit_mode: fit.fit_mode,
         p_fit_scale: fit.fit_scale,
+        p_fit_scale_x: fit.fit_scale_x,
+        p_fit_scale_y: fit.fit_scale_y,
         p_fit_offset_x_pct: fit.fit_offset_x_pct,
         p_fit_offset_y_pct: fit.fit_offset_y_pct,
         p_fit_rotation_deg: fit.fit_rotation_deg,
+        p_fit_skew_x_deg: fit.fit_skew_x_deg,
+        p_fit_skew_y_deg: fit.fit_skew_y_deg,
+        p_fit_stretch_mode: fit.fit_stretch_mode,
       },
     );
 
@@ -1154,9 +1183,14 @@ export default function NovaHomePage() {
     const saved: WardrobeFitDraft = {
       fit_mode: String(result.fit_mode || fit.fit_mode) === "auto" ? "auto" : "manual",
       fit_scale: Number(result.fit_scale ?? fit.fit_scale),
+      fit_scale_x: Number(result.fit_scale_x ?? fit.fit_scale_x),
+      fit_scale_y: Number(result.fit_scale_y ?? fit.fit_scale_y),
       fit_offset_x_pct: Number(result.fit_offset_x_pct ?? fit.fit_offset_x_pct),
       fit_offset_y_pct: Number(result.fit_offset_y_pct ?? fit.fit_offset_y_pct),
       fit_rotation_deg: Number(result.fit_rotation_deg ?? fit.fit_rotation_deg),
+      fit_skew_x_deg: Number(result.fit_skew_x_deg ?? fit.fit_skew_x_deg),
+      fit_skew_y_deg: Number(result.fit_skew_y_deg ?? fit.fit_skew_y_deg),
+      fit_stretch_mode: String(result.fit_stretch_mode || fit.fit_stretch_mode) === "stretch" ? "stretch" : "contain",
     };
 
     setWardrobeCatalog((current) =>
@@ -1753,12 +1787,18 @@ function WardrobeBay({
 
   const [calibrationMode, setCalibrationMode] = useState(false);
   const [showRigAnchors, setShowRigAnchors] = useState(true);
+  const [calibrationOpacity, setCalibrationOpacity] = useState(1);
   const [fitDraft, setFitDraft] = useState<WardrobeFitDraft>({
     fit_mode: "auto",
     fit_scale: 1,
+    fit_scale_x: 1,
+    fit_scale_y: 1,
     fit_offset_x_pct: 0,
     fit_offset_y_pct: 0,
     fit_rotation_deg: 0,
+    fit_skew_x_deg: 0,
+    fit_skew_y_deg: 0,
+    fit_stretch_mode: "contain",
   });
   const [calibrationDrag, setCalibrationDrag] = useState<{
     pointerId: number;
@@ -1776,13 +1816,23 @@ function WardrobeBay({
   }, [activeCharacter]);
 
   useEffect(() => {
+    if (!calibrationMode) setCalibrationOpacity(1);
+  }, [calibrationMode]);
+
+  useEffect(() => {
+    setCalibrationOpacity(1);
     if (!selectedItem || selectedItem.character_key !== "nova") {
       setFitDraft({
         fit_mode: "auto",
         fit_scale: 1,
+        fit_scale_x: 1,
+        fit_scale_y: 1,
         fit_offset_x_pct: 0,
         fit_offset_y_pct: 0,
         fit_rotation_deg: 0,
+        fit_skew_x_deg: 0,
+        fit_skew_y_deg: 0,
+        fit_stretch_mode: "contain",
       });
       return;
     }
@@ -1790,17 +1840,27 @@ function WardrobeBay({
     setFitDraft({
       fit_mode: selectedItem.fit_mode || "auto",
       fit_scale: Number(selectedItem.fit_scale ?? 1),
+      fit_scale_x: Number(selectedItem.fit_scale_x ?? 1),
+      fit_scale_y: Number(selectedItem.fit_scale_y ?? 1),
       fit_offset_x_pct: Number(selectedItem.fit_offset_x_pct ?? 0),
       fit_offset_y_pct: Number(selectedItem.fit_offset_y_pct ?? 0),
       fit_rotation_deg: Number(selectedItem.fit_rotation_deg ?? 0),
+      fit_skew_x_deg: Number(selectedItem.fit_skew_x_deg ?? 0),
+      fit_skew_y_deg: Number(selectedItem.fit_skew_y_deg ?? 0),
+      fit_stretch_mode: selectedItem.fit_stretch_mode === "stretch" ? "stretch" : "contain",
     });
   }, [
     selectedItem?.item_key,
     selectedItem?.fit_mode,
     selectedItem?.fit_scale,
+    selectedItem?.fit_scale_x,
+    selectedItem?.fit_scale_y,
     selectedItem?.fit_offset_x_pct,
     selectedItem?.fit_offset_y_pct,
     selectedItem?.fit_rotation_deg,
+    selectedItem?.fit_skew_x_deg,
+    selectedItem?.fit_skew_y_deg,
+    selectedItem?.fit_stretch_mode,
   ]);
 
   const characterEquipped = equippedItems.filter((entry) => entry.character_key === activeCharacter);
@@ -1852,7 +1912,7 @@ function WardrobeBay({
     calibrationMode &&
     activeCharacter === "nova" &&
     selectedItem?.item_key === item.item_key
-      ? { ...item, ...fitDraft }
+      ? { ...item, ...fitDraft, fit_opacity: calibrationOpacity }
       : item,
   );
 
@@ -1877,9 +1937,14 @@ function WardrobeBay({
   const fitChanged = Boolean(
     selectedItem &&
       (Math.abs(fitDraft.fit_scale - Number(selectedItem.fit_scale ?? 1)) > 0.0001 ||
+        Math.abs(fitDraft.fit_scale_x - Number(selectedItem.fit_scale_x ?? 1)) > 0.0001 ||
+        Math.abs(fitDraft.fit_scale_y - Number(selectedItem.fit_scale_y ?? 1)) > 0.0001 ||
         Math.abs(fitDraft.fit_offset_x_pct - Number(selectedItem.fit_offset_x_pct ?? 0)) > 0.0001 ||
         Math.abs(fitDraft.fit_offset_y_pct - Number(selectedItem.fit_offset_y_pct ?? 0)) > 0.0001 ||
-        Math.abs(fitDraft.fit_rotation_deg - Number(selectedItem.fit_rotation_deg ?? 0)) > 0.0001),
+        Math.abs(fitDraft.fit_rotation_deg - Number(selectedItem.fit_rotation_deg ?? 0)) > 0.0001 ||
+        Math.abs(fitDraft.fit_skew_x_deg - Number(selectedItem.fit_skew_x_deg ?? 0)) > 0.0001 ||
+        Math.abs(fitDraft.fit_skew_y_deg - Number(selectedItem.fit_skew_y_deg ?? 0)) > 0.0001 ||
+        fitDraft.fit_stretch_mode !== (selectedItem.fit_stretch_mode === "stretch" ? "stretch" : "contain")),
   );
 
   function startCalibrationDrag(event: ReactPointerEvent<HTMLDivElement>) {
@@ -1931,14 +1996,14 @@ function WardrobeBay({
                 Sleep Zone Activity
               </p>
               <span className="rounded-full border border-cyan-200/16 bg-cyan-300/[0.06] px-2 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100/70">
-                Wardrobe Rig · Phase 2
+                Wardrobe Rig · Phase 2B
               </span>
             </div>
             <h2 className="mt-1 font-serif text-2xl font-medium tracking-[-0.035em] sm:text-3xl">
               Wardrobe Bay
             </h2>
             <p className="mt-1 max-w-2xl text-[10px] leading-4 text-white/46 sm:text-xs sm:leading-5">
-              Nova clothing uses body anchors and alpha-aware auto-fit. Admin calibration can now fine-tune each item and save the fit without editing code. Milo fitting is added in Rig Phase 3.
+              Nova clothing uses body anchors and alpha-aware auto-fit. The calibrator now supports independent width/height stretch, skew, opacity, transform handles, and category-aware anchor stretching. Milo fitting follows after this is locked.
             </p>
           </div>
 
@@ -2016,12 +2081,12 @@ function WardrobeBay({
               </button>
             </div>
 
-            <div className="relative flex min-h-0 items-end justify-center overflow-hidden bg-[radial-gradient(circle_at_50%_42%,rgba(83,215,255,0.16),transparent_34%),linear-gradient(180deg,rgba(5,21,39,0.26),rgba(2,7,19,0.64))] px-4 pt-4">
+            <div className="relative flex min-h-0 items-start justify-center overflow-hidden bg-[radial-gradient(circle_at_50%_36%,rgba(83,215,255,0.16),transparent_34%),linear-gradient(180deg,rgba(5,21,39,0.26),rgba(2,7,19,0.64))] px-4 pt-2">
               <div className="pointer-events-none absolute inset-x-[12%] bottom-[8%] h-[22%] rounded-[50%] bg-cyan-300/[0.08] blur-2xl" />
-              <div className="relative flex h-full max-h-[560px] w-full max-w-[430px] items-end justify-center">
+              <div className="relative flex h-full max-h-[560px] w-full max-w-[430px] items-start justify-center pt-1">
                 {activeCharacter === "nova" ? (
                   <div
-                    className={`relative aspect-square w-[min(92%,430px)] shrink-0 ${
+                    className={`relative aspect-square w-[min(88%,405px)] shrink-0 ${
                       calibrationMode
                         ? calibrationDrag
                           ? "cursor-grabbing"
@@ -2048,19 +2113,21 @@ function WardrobeBay({
                       />
                     ))}
                     {calibrationMode && selectedItem && activeCharacter === "nova" && (
-                      <WardrobeRigOverlay
-                        rig={NOVA_WARDROBE_RIG}
-                        category={selectedItem.category}
-                        showAnchors={showRigAnchors}
-                      />
+                      <>
+                        <WardrobeRigOverlay
+                          rig={NOVA_WARDROBE_RIG}
+                          category={selectedItem.category}
+                          showAnchors={showRigAnchors}
+                        />
+                        <WardrobeTransformHandles
+                          rig={NOVA_WARDROBE_RIG}
+                          category={selectedItem.category}
+                          fit={fitDraft}
+                          onChange={setFitDraft}
+                        />
+                      </>
                     )}
-                    <div className={`pointer-events-none absolute bottom-[1.5%] left-1/2 z-[90] -translate-x-1/2 rounded-full border px-2.5 py-1 text-[7px] font-black uppercase tracking-[0.1em] backdrop-blur-md ${
-                      calibrationMode
-                        ? "border-amber-200/24 bg-amber-950/72 text-amber-100/72"
-                        : "border-cyan-200/18 bg-slate-950/70 text-cyan-100/55"
-                    }`}>
-                      {calibrationMode ? "Admin calibrator · live preview" : "Auto-fit rig v2"}
-                    </div>
+
                   </div>
                 ) : (
                   <div className="relative z-20 mb-auto mt-auto w-[min(360px,90%)] rounded-[24px] border border-amber-200/24 bg-slate-950/76 p-5 text-center shadow-[0_28px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl">
@@ -2103,27 +2170,6 @@ function WardrobeBay({
                 )}
               </div>
 
-              {selectedItem && (
-                <div className="pointer-events-none absolute bottom-2 left-2 right-2 z-40 rounded-[16px] border border-white/10 bg-slate-950/76 px-3 py-2 backdrop-blur-xl sm:bottom-3 sm:left-3 sm:right-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="truncate text-xs font-black text-white">{selectedItem.title}</p>
-                        <span className="rounded-full border border-white/10 bg-white/[0.045] px-2 py-0.5 text-[7px] font-black uppercase tracking-[0.09em] text-white/55">
-                          {getWardrobeCollectionLabel(selectedItem.item_key)}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 truncate text-[9px] text-white/40">
-                        {isEquipped ? "Currently equipped" : "Previewing selection"}
-                      </p>
-                    </div>
-                    <span
-                      className="h-3 w-3 shrink-0 rounded-full shadow-[0_0_16px_currentColor]"
-                      style={{ background: selectedItem.accent_hex, color: selectedItem.accent_hex }}
-                    />
-                  </div>
-                </div>
-              )}
             </div>
 
             <div className="border-t border-white/[0.06] p-2 sm:p-3">
@@ -2284,8 +2330,8 @@ function WardrobeBay({
             <div className="border-t border-white/[0.07] bg-slate-950/48 p-3 sm:p-4">
               {calibrationMode && selectedItem && activeCharacter === "nova" ? (
                 <div className="space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="text-sm font-black text-white sm:text-base">{selectedItem.title}</h3>
                         <span className={`rounded-full border px-2 py-1 text-[7px] font-black uppercase tracking-[0.1em] ${
@@ -2302,28 +2348,70 @@ function WardrobeBay({
                         )}
                       </div>
                       <p className="mt-1 text-[9px] leading-4 text-white/40">
-                        Drag directly on Nova to reposition the selected PNG, or use the controls below for precise scale, offset, and rotation. Then save.
+                        Drag the garment to move it. Pull the amber side/corner handles to stretch width or height; use the round handle above it to rotate. Fine-tune skew below; Preview opacity only helps you see Nova underneath and is not saved.
                       </p>
                     </div>
-                    <label className="flex cursor-pointer items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-2 text-[8px] font-black uppercase tracking-[0.08em] text-white/58">
-                      <input
-                        type="checkbox"
-                        checked={showRigAnchors}
-                        onChange={(event) => setShowRigAnchors(event.target.checked)}
-                        className="accent-cyan-300"
-                      />
-                      Show anchors
-                    </label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex overflow-hidden rounded-full border border-white/10 bg-white/[0.03]">
+                        <button
+                          type="button"
+                          onClick={() => setFitDraft((current) => ({ ...current, fit_mode: "manual", fit_stretch_mode: "contain" }))}
+                          className={`px-3 py-2 text-[7px] font-black uppercase tracking-[0.08em] transition ${
+                            fitDraft.fit_stretch_mode === "contain"
+                              ? "bg-cyan-300/15 text-cyan-100"
+                              : "text-white/42 hover:bg-white/[0.05]"
+                          }`}
+                        >
+                          Preserve proportions
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFitDraft((current) => ({ ...current, fit_mode: "manual", fit_stretch_mode: "stretch", fit_scale: 1, fit_scale_x: 1, fit_scale_y: 1 }))}
+                          className={`border-l border-white/10 px-3 py-2 text-[7px] font-black uppercase tracking-[0.08em] transition ${
+                            fitDraft.fit_stretch_mode === "stretch"
+                              ? "bg-amber-300/14 text-amber-100"
+                              : "text-white/42 hover:bg-white/[0.05]"
+                          }`}
+                        >
+                          {getRigStretchLabel(selectedItem.category)}
+                        </button>
+                      </div>
+                      <label className="flex cursor-pointer items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-2 text-[8px] font-black uppercase tracking-[0.08em] text-white/58">
+                        <input
+                          type="checkbox"
+                          checked={showRigAnchors}
+                          onChange={(event) => setShowRigAnchors(event.target.checked)}
+                          className="accent-cyan-300"
+                        />
+                        Anchors
+                      </label>
+                    </div>
                   </div>
 
-                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-5">
                     <CalibrationNumberControl
-                      label="Scale"
+                      label="Overall"
                       value={fitDraft.fit_scale}
                       min={0.35}
                       max={2.5}
                       step={0.01}
                       onChange={(value) => setFitDraft((current) => ({ ...current, fit_mode: "manual", fit_scale: value }))}
+                    />
+                    <CalibrationNumberControl
+                      label="Width stretch"
+                      value={fitDraft.fit_scale_x}
+                      min={0.2}
+                      max={4}
+                      step={0.01}
+                      onChange={(value) => setFitDraft((current) => ({ ...current, fit_mode: "manual", fit_scale_x: value }))}
+                    />
+                    <CalibrationNumberControl
+                      label="Height stretch"
+                      value={fitDraft.fit_scale_y}
+                      min={0.2}
+                      max={4}
+                      step={0.01}
+                      onChange={(value) => setFitDraft((current) => ({ ...current, fit_mode: "manual", fit_scale_y: value }))}
                     />
                     <CalibrationNumberControl
                       label="X offset"
@@ -2346,11 +2434,37 @@ function WardrobeBay({
                     <CalibrationNumberControl
                       label="Rotation"
                       value={fitDraft.fit_rotation_deg}
-                      min={-45}
-                      max={45}
+                      min={-60}
+                      max={60}
                       step={0.5}
                       suffix="°"
                       onChange={(value) => setFitDraft((current) => ({ ...current, fit_mode: "manual", fit_rotation_deg: value }))}
+                    />
+                    <CalibrationNumberControl
+                      label="Skew X"
+                      value={fitDraft.fit_skew_x_deg}
+                      min={-35}
+                      max={35}
+                      step={0.5}
+                      suffix="°"
+                      onChange={(value) => setFitDraft((current) => ({ ...current, fit_mode: "manual", fit_skew_x_deg: value }))}
+                    />
+                    <CalibrationNumberControl
+                      label="Skew Y"
+                      value={fitDraft.fit_skew_y_deg}
+                      min={-35}
+                      max={35}
+                      step={0.5}
+                      suffix="°"
+                      onChange={(value) => setFitDraft((current) => ({ ...current, fit_mode: "manual", fit_skew_y_deg: value }))}
+                    />
+                    <CalibrationNumberControl
+                      label="Preview opacity"
+                      value={calibrationOpacity}
+                      min={0.15}
+                      max={1}
+                      step={0.05}
+                      onChange={setCalibrationOpacity}
                     />
                   </div>
 
@@ -2363,11 +2477,17 @@ function WardrobeBay({
                           const reset: WardrobeFitDraft = {
                             fit_mode: "auto",
                             fit_scale: 1,
+                            fit_scale_x: 1,
+                            fit_scale_y: 1,
                             fit_offset_x_pct: 0,
                             fit_offset_y_pct: 0,
                             fit_rotation_deg: 0,
+                            fit_skew_x_deg: 0,
+                            fit_skew_y_deg: 0,
+                            fit_stretch_mode: "contain",
                           };
                           setFitDraft(reset);
+                          setCalibrationOpacity(1);
                           void onSaveFit(selectedItem.item_key, reset);
                         }}
                         className="min-h-10 rounded-full border border-white/12 bg-white/[0.04] px-4 text-[9px] font-black uppercase tracking-[0.09em] text-white/62 transition hover:bg-white/[0.075] disabled:opacity-40"
@@ -2376,15 +2496,21 @@ function WardrobeBay({
                       </button>
                       <button
                         type="button"
-                        onClick={() =>
+                        onClick={() => {
+                          setCalibrationOpacity(1);
                           setFitDraft({
                             fit_mode: selectedItem.fit_mode || "auto",
                             fit_scale: Number(selectedItem.fit_scale ?? 1),
+                            fit_scale_x: Number(selectedItem.fit_scale_x ?? 1),
+                            fit_scale_y: Number(selectedItem.fit_scale_y ?? 1),
                             fit_offset_x_pct: Number(selectedItem.fit_offset_x_pct ?? 0),
                             fit_offset_y_pct: Number(selectedItem.fit_offset_y_pct ?? 0),
                             fit_rotation_deg: Number(selectedItem.fit_rotation_deg ?? 0),
-                          })
-                        }
+                            fit_skew_x_deg: Number(selectedItem.fit_skew_x_deg ?? 0),
+                            fit_skew_y_deg: Number(selectedItem.fit_skew_y_deg ?? 0),
+                            fit_stretch_mode: selectedItem.fit_stretch_mode === "stretch" ? "stretch" : "contain",
+                          });
+                        }}
                         disabled={!fitChanged || Boolean(savingFitItemKey)}
                         className="min-h-10 rounded-full border border-white/12 bg-white/[0.04] px-4 text-[9px] font-black uppercase tracking-[0.09em] text-white/62 transition hover:bg-white/[0.075] disabled:opacity-35"
                       >

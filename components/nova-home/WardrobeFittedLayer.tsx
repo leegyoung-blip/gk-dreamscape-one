@@ -23,9 +23,15 @@ type FittedWardrobeItem = {
   layer_order: number;
   fit_mode?: string | null;
   fit_scale?: number | null;
+  fit_scale_x?: number | null;
+  fit_scale_y?: number | null;
   fit_offset_x_pct?: number | null;
   fit_offset_y_pct?: number | null;
   fit_rotation_deg?: number | null;
+  fit_skew_x_deg?: number | null;
+  fit_skew_y_deg?: number | null;
+  fit_opacity?: number | null;
+  fit_stretch_mode?: "contain" | "stretch" | string | null;
 };
 
 const alphaBoundsCache = new Map<string, AlphaBounds>();
@@ -60,7 +66,6 @@ function detectAlphaBounds(src: string): Promise<AlphaBounds> {
         let maxX = -1;
         let maxY = -1;
 
-        // Alpha threshold of 8 ignores tiny antialiasing halos around transparent PNGs.
         for (let y = 0; y < canvas.height; y += 1) {
           const rowOffset = y * canvas.width * 4;
           for (let x = 0; x < canvas.width; x += 1) {
@@ -154,42 +159,63 @@ export default function WardrobeFittedLayer({
     if (!bounds || !src) return null;
 
     const target = getRigTargetBox(rig, item.category);
-    const fitScale = Number(item.fit_scale ?? 1) || 1;
+    const uniformScale = Number(item.fit_scale ?? 1) || 1;
+    const scaleX = Number(item.fit_scale_x ?? 1) || 1;
+    const scaleY = Number(item.fit_scale_y ?? 1) || 1;
     const offsetX = (Number(item.fit_offset_x_pct ?? 0) || 0) / 100;
     const offsetY = (Number(item.fit_offset_y_pct ?? 0) || 0) / 100;
     const rotation = Number(item.fit_rotation_deg ?? 0) || 0;
+    const skewX = Number(item.fit_skew_x_deg ?? 0) || 0;
+    const skewY = Number(item.fit_skew_y_deg ?? 0) || 0;
+    const opacity = Math.min(1, Math.max(0.05, Number(item.fit_opacity ?? 1) || 1));
+    const stretchMode = item.fit_stretch_mode === "stretch" ? "stretch" : "contain";
 
-    // Fit the actual visible alpha content into the rig target box instead of
-    // fitting the full transparent PNG canvas. This is what lets differently
-    // padded source images still land on Nova's shoulders / waist / ankles.
-    const sourceToStage =
-      Math.min(target.width / bounds.width, target.height / bounds.height) * fitScale;
+    const containScale = Math.min(target.width / bounds.width, target.height / bounds.height);
+    const baseScaleX = stretchMode === "stretch" ? target.width / bounds.width : containScale;
+    const baseScaleY = stretchMode === "stretch" ? target.height / bounds.height : containScale;
+    const sourceToStageX = baseScaleX * uniformScale * scaleX;
+    const sourceToStageY = baseScaleY * uniformScale * scaleY;
 
-    const renderedImageWidth = bounds.imageWidth * sourceToStage;
-    const renderedImageHeight = bounds.imageHeight * sourceToStage;
+    const renderedImageWidth = bounds.imageWidth * sourceToStageX;
+    const renderedImageHeight = bounds.imageHeight * sourceToStageY;
     const targetCenterX = target.x + target.width / 2 + offsetX;
     const targetCenterY = target.y + target.height / 2 + offsetY;
     const alphaCenterX = bounds.x + bounds.width / 2;
     const alphaCenterY = bounds.y + bounds.height / 2;
 
-    const left = targetCenterX - alphaCenterX * sourceToStage;
-    const top = targetCenterY - alphaCenterY * sourceToStage;
+    const left = targetCenterX - alphaCenterX * sourceToStageX;
+    const top = targetCenterY - alphaCenterY * sourceToStageY;
 
     return {
       left: `${left * 100}%`,
       top: `${top * 100}%`,
       width: `${renderedImageWidth * 100}%`,
       height: `${renderedImageHeight * 100}%`,
-      transform: `rotate(${rotation}deg)`,
+      transform: `rotate(${rotation}deg) skewX(${skewX}deg) skewY(${skewY}deg)`,
       transformOrigin: "center center",
+      opacity,
       zIndex: 20 + item.layer_order,
     } as const;
-  }, [bounds, item.category, item.fit_offset_x_pct, item.fit_offset_y_pct, item.fit_rotation_deg, item.fit_scale, item.layer_order, rig, src]);
+  }, [
+    bounds,
+    item.category,
+    item.fit_offset_x_pct,
+    item.fit_offset_y_pct,
+    item.fit_opacity,
+    item.fit_rotation_deg,
+    item.fit_scale,
+    item.fit_scale_x,
+    item.fit_scale_y,
+    item.fit_skew_x_deg,
+    item.fit_skew_y_deg,
+    item.fit_stretch_mode,
+    item.layer_order,
+    rig,
+    src,
+  ]);
 
   if (!src) return null;
 
-  // First frame uses the old safe full-canvas placement while alpha bounds are
-  // being inspected, then snaps into the rig-calculated position.
   if (!style) {
     return (
       <img
@@ -207,7 +233,7 @@ export default function WardrobeFittedLayer({
       src={src}
       alt=""
       aria-hidden="true"
-      className="pointer-events-none absolute max-w-none select-none object-fill transition-[left,top,width,height,transform] duration-150"
+      className="pointer-events-none absolute max-w-none select-none object-fill transition-[left,top,width,height,transform,opacity] duration-100"
       draggable={false}
       style={style}
     />

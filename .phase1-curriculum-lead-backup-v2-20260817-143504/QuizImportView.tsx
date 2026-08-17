@@ -182,7 +182,7 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
   const requiredConfirmation = batch ? `IMPORT ${batch.row_count} ROWS` : "";
   const summary = batch?.summary || {};
   const canApply =
-    (role === "admin" || role === "curriculum_lead") &&
+    role === "admin" &&
     batch?.status === "ready" &&
     batch.error_row_count === 0;
 
@@ -298,7 +298,7 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
   }
 
   async function applyBatch() {
-    if (!batch || (role !== "admin" && role !== "curriculum_lead")) return;
+    if (!batch || role !== "admin") return;
     setBusy(true);
     setError(null);
     setNotice(null);
@@ -563,7 +563,7 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
 
           {role !== "admin" && batch.status === "ready" && (
             <div style={infoBanner}>
-              Validation is complete. An admin or curriculum lead may apply this import.
+              Validation is complete. An admin must apply this import.
             </div>
           )}
         </section>
