@@ -375,7 +375,7 @@ export default function CurriculumOperationsView({
         <TabButton active={tab === "import"} onClick={() => setTab("import")}>
           Quiz Import
         </TabButton>
-        {(role === "admin" || role === "curriculum_lead") && (
+        {role === "admin" && (
           <TabButton active={tab === "assets"} onClick={() => setTab("assets")}>
             Asset Deployment
           </TabButton>
@@ -426,7 +426,7 @@ export default function CurriculumOperationsView({
         />
       ) : tab === "import" ? (
         <QuizImportView role={role} />
-      ) : tab === "assets" && (role === "admin" || role === "curriculum_lead") ? (
+      ) : tab === "assets" && role === "admin" ? (
         <AssetDeploymentView />
       ) : (
         <HistoryPanel

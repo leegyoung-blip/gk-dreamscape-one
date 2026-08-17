@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { checkCurriculumDeveloperFromRequest } from "@/lib/checkAdmin";
+import { checkAdminFromRequest } from "@/lib/checkAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -32,10 +32,8 @@ function validPath(path: string, subject: string, level: number) {
 }
 
 export async function POST(request: Request) {
-  const access = await checkCurriculumDeveloperFromRequest(request);
-  if (!access.isCurriculumDeveloper) {
-    return json({ error: access.error }, 403);
-  }
+  const access = await checkAdminFromRequest(request);
+  if (!access.isAdmin) return json({ error: access.error }, 403);
 
   try {
     const form = await request.formData();

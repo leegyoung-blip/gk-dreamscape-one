@@ -373,14 +373,14 @@ export default function AssetDeploymentView() {
 
   return (
     <div>
-      <p style={eyebrow}>CURRICULUM DEPLOYMENT TOOL</p>
+      <p style={eyebrow}>ADMIN DEPLOYMENT TOOL</p>
       <h1 style={title}>Quiz Image Deployment</h1>
       <p className="curriculum-page-description" style={description}>
         Validate, upload and connect generated Mathematics quiz images without using PowerShell or exposing the Supabase service-role key.
       </p>
 
       <div style={securityNote}>
-        <strong>Curriculum developers only.</strong> Admin and curriculum_lead accounts may deploy assets through protected server routes. Deployment packages with missing files or QC failures are blocked automatically.
+        <strong>Admin only.</strong> Uploads pass through protected server routes. Deployment packages with missing files or QC failures are blocked automatically.
       </div>
 
       <section style={card}>
