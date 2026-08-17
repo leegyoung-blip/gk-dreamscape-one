@@ -108,20 +108,21 @@ export const levelThree: RoverLevelConfig = {
 
     /*
      * OPTIONAL HIGH BYPASS
-     * The short Pulse Gate at x 6120 ends below this platform, so a player
-     * who makes the climb can pass above that gate and the lower-route traps.
+     * Raised substantially higher so the rover can clearly travel under it
+     * on the lower route. The right end also finishes higher instead of
+     * dropping too close to the lower road.
      */
     {
       kind: "platform",
       collisionThickness: 44,
       points: [
-        { x: 5300, y: 520 },
-        { x: 5450, y: 455 },
-        { x: 5630, y: 390 },
-        { x: 5860, y: 355 },
-        { x: 6100, y: 365 },
-        { x: 6320, y: 390 },
-        { x: 6480, y: 420 },
+        { x: 5300, y: 455 },
+        { x: 5460, y: 365 },
+        { x: 5650, y: 285 },
+        { x: 5880, y: 235 },
+        { x: 6120, y: 240 },
+        { x: 6360, y: 255 },
+        { x: 6560, y: 275 },
       ],
     },
 
@@ -223,18 +224,6 @@ export const levelThree: RoverLevelConfig = {
     },
   ],
 
-  /*
-   * The new Level 3 mechanic.
-   *
-   * activeMs: time the barrier is dangerous.
-   * safeMs: time the barrier is open.
-   * phaseOffsetMs: prevents every gate changing state together.
-   * y: route/surface hint; PhaserGame snaps the gate to sampled terrain.
-   *
-   * The first three gates are tall enough that jumping is not a solution.
-   * The ambush gate is deliberately shorter so the optional high bypass
-   * travels above it while the lower route must time the opening.
-   */
   pulseGates: [
     {
       id: "corridor-1",
@@ -298,11 +287,6 @@ export const levelThree: RoverLevelConfig = {
     },
   ],
 
-  /*
-   * Level 3 keeps the smaller Level 2 dynamite balancing.
-   * Radius is intentionally close to the obstacle, not the old oversized
-   * activation zone.
-   */
   traps: [
     {
       id: "ambush-lower-1",
