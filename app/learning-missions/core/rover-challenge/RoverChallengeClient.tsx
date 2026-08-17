@@ -172,11 +172,18 @@ export default function RoverChallengeClient({
       }
 
       const saved = ((data ?? []) as SubmitLevelRow[])[0];
-      setNextLevelUnlocked(Boolean(saved?.unlocked_next_level));
+      const hasNextLevel = result.levelId < 3;
+
+      setNextLevelUnlocked(
+        Boolean(saved?.accepted && (saved.unlocked_next_level || hasNextLevel)),
+      );
+
       setSaveMessage(
         saved?.improved
           ? `New personal best: ${saved.best_score.toLocaleString()} points.`
-          : "Completion saved. You can replay this level at any time.",
+          : hasNextLevel
+            ? `Level ${result.levelId} completion saved. The next level is now available.`
+            : "Completion saved. You can replay this level at any time.",
       );
     },
     [userId],
@@ -391,8 +398,13 @@ function LevelGate({
           ) : (
             <Link className="rounded-xl bg-cyan-300 px-5 py-3 font-bold text-[#071126]" href="/learning-missions/core/rover">Back to My Rover</Link>
           )}
-          {level.id === 2 && (
-            <Link className="rounded-xl border border-white/20 px-5 py-3 font-bold text-white" href="/learning-missions/core/rover-challenge/1">Replay Level 1</Link>
+          {level.prerequisiteLevel !== null && (
+            <Link
+              className="rounded-xl border border-white/20 px-5 py-3 font-bold text-white"
+              href={`/learning-missions/core/rover-challenge/${level.prerequisiteLevel}`}
+            >
+              Replay Level {level.prerequisiteLevel}
+            </Link>
           )}
         </div>
       </section>
@@ -425,8 +437,13 @@ function CompletionOverlay({
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <button type="button" onClick={onReplay} className="rounded-xl border border-white/20 px-5 py-3 font-bold hover:bg-white/10">Replay</button>
           <Link href="/learning-missions/core/rover" className="rounded-xl border border-white/20 px-5 py-3 font-bold hover:bg-white/10">Back to My Rover</Link>
-          {result.levelId === 1 && nextLevelUnlocked && (
-            <Link href="/learning-missions/core/rover-challenge/2" className="rounded-xl bg-cyan-300 px-5 py-3 font-black text-[#071126] hover:bg-cyan-200">Next Level →</Link>
+          {result.levelId < 3 && nextLevelUnlocked && (
+            <Link
+              href={`/learning-missions/core/rover-challenge/${result.levelId + 1}`}
+              className="rounded-xl bg-cyan-300 px-5 py-3 font-black text-[#071126] hover:bg-cyan-200"
+            >
+              Continue to Level {result.levelId + 1} →
+            </Link>
           )}
         </div>
       </section>

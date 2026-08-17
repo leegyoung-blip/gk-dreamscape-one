@@ -1,30 +1,13 @@
 import type { RoverLevelConfig } from "./types";
 
-type PulseGateConfig = {
-  id: string;
-  x: number;
-  /** Approximate terrain y used to select the intended route surface. */
-  y?: number;
-  /** Beam height in world pixels. */
-  height?: number;
-  activeMs: number;
-  safeMs: number;
-  phaseOffsetMs?: number;
-  penalty: number;
-};
-
-type LevelThreeConfig = RoverLevelConfig & {
-  pulseGates: PulseGateConfig[];
-};
-
-export const levelThree: LevelThreeConfig = {
+export const levelThree: RoverLevelConfig = {
   id: 3,
   courseId: "dreamkeeper-gauntlet-03",
   title: "Dreamkeeper's Gauntlet",
   shortDescription:
     "Time the pulse gates, cross the broken road and survive the Dreamkeeper's final ambush.",
   status: "playable",
-  minimumRoverStage: 4,
+  minimumRoverStage: 3,
   prerequisiteLevel: 2,
 
   worldWidth: 9000,
