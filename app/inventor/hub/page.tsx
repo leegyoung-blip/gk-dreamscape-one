@@ -13,7 +13,7 @@ import { supabase } from "@/lib/supabase";
 import WardrobeFittedLayer from "@/components/nova-home/WardrobeFittedLayer";
 import WardrobeRigOverlay from "@/components/nova-home/WardrobeRigOverlay";
 import WardrobeTransformHandles from "@/components/nova-home/WardrobeTransformHandles";
-import { NOVA_WARDROBE_RIG } from "@/lib/novaHome/wardrobeRig";
+import { NOVA_WARDROBE_RIG, getRigStretchLabel } from "@/lib/novaHome/wardrobeRig";
 
 type AreaKey = "area-1" | "area-2";
 
@@ -55,14 +55,6 @@ type PurchaseResult = {
 
 type WardrobeCharacter = "nova" | "milo";
 type WardrobeCategory = "outfit" | "top" | "bottom" | "shoes" | "accessory";
-
-function getRigStretchLabel(category: WardrobeCategory) {
-  if (category === "top") return "Stretch shoulders → waist";
-  if (category === "bottom") return "Stretch waist → ankles";
-  if (category === "shoes") return "Stretch ankles → toes";
-  if (category === "outfit") return "Stretch neck → feet";
-  return "Stretch to target box";
-}
 
 type CharacterCatalogRow = {
   character_key: WardrobeCharacter;
@@ -230,23 +222,20 @@ const WARDROBE_CATEGORIES: {
   icon: string;
 }[] = [
   { key: "outfit", label: "Outfits", shortLabel: "Outfit", icon: "✦" },
-  { key: "top", label: "Tops", shortLabel: "Top", icon: "▰" },
-  { key: "bottom", label: "Bottoms", shortLabel: "Bottom", icon: "▱" },
-  { key: "shoes", label: "Shoes", shortLabel: "Shoes", icon: "⌁" },
   { key: "accessory", label: "Accessories", shortLabel: "Accessory", icon: "◇" },
 ];
 
 const WARDROBE_COLLECTION_LABELS: Record<string, string> = {
+  "nova-classic": "Core Set",
+  "nova-home-explorer": "Core Set",
+  "nova-cosmic-explorer": "Premium Set",
   "nova-weekend-denim": "Everyday Set",
   "nova-cozy-home-set": "Everyday Set",
   "nova-art-club-overalls": "Everyday Set",
   "nova-garden-day-dress": "Everyday Set",
-  "nova-campus-varsity-jacket": "Everyday Set",
-  "nova-striped-weekend-sweater": "Everyday Set",
-  "nova-pleated-casual-skirt": "Everyday Set",
-  "nova-relaxed-cargo-shorts": "Everyday Set",
-  "nova-canvas-high-tops": "Everyday Set",
-  "nova-explorer-ankle-boots": "Everyday Set",
+  "nova-sports-day": "Everyday Set",
+  "nova-star-party-dress": "Premium Set",
+  "nova-moonlight-gala": "Premium Set",
 };
 
 function getWardrobeCollectionLabel(itemKey: string) {
@@ -858,30 +847,35 @@ export default function NovaHomePage() {
           : "Wardrobe Bay tables are not ready. Run SQL 303 before testing this activity.",
       );
     } else {
-      const rows = (catalogResult.data || []).map((row): WardrobeCatalogRow => ({
-        item_key: String(row.item_key),
-        character_key: String(row.character_key) as WardrobeCharacter,
-        category: String(row.category) as WardrobeCategory,
-        title: String(row.title || "Wardrobe Item"),
-        description: row.description ? String(row.description) : null,
-        dt_cost: Number(row.dt_cost || 0),
-        is_starter: Boolean(row.is_starter),
-        thumbnail_image: row.thumbnail_image ? String(row.thumbnail_image) : null,
-        layer_image: row.layer_image ? String(row.layer_image) : null,
-        accent_hex: String(row.accent_hex || "#6ee7ff"),
-        layer_order: Number(row.layer_order || 50),
-        sort_order: Number(row.sort_order || 0),
-        fit_mode: String(row.fit_mode || "auto") as "auto" | "manual",
-        fit_scale: Number(row.fit_scale ?? 1),
-        fit_scale_x: Number(row.fit_scale_x ?? 1),
-        fit_scale_y: Number(row.fit_scale_y ?? 1),
-        fit_offset_x_pct: Number(row.fit_offset_x_pct ?? 0),
-        fit_offset_y_pct: Number(row.fit_offset_y_pct ?? 0),
-        fit_rotation_deg: Number(row.fit_rotation_deg ?? 0),
-        fit_skew_x_deg: Number(row.fit_skew_x_deg ?? 0),
-        fit_skew_y_deg: Number(row.fit_skew_y_deg ?? 0),
-        fit_stretch_mode: String(row.fit_stretch_mode || "contain") === "stretch" ? "stretch" : "contain",
-      }));
+      const rows: WardrobeCatalogRow[] = (catalogResult.data || []).map(
+        (row): WardrobeCatalogRow => ({
+          item_key: String(row.item_key),
+          character_key: String(row.character_key) as WardrobeCharacter,
+          category: String(row.category) as WardrobeCategory,
+          title: String(row.title || "Wardrobe Item"),
+          description: row.description ? String(row.description) : null,
+          dt_cost: Number(row.dt_cost || 0),
+          is_starter: Boolean(row.is_starter),
+          thumbnail_image: row.thumbnail_image ? String(row.thumbnail_image) : null,
+          layer_image: row.layer_image ? String(row.layer_image) : null,
+          accent_hex: String(row.accent_hex || "#6ee7ff"),
+          layer_order: Number(row.layer_order || 50),
+          sort_order: Number(row.sort_order || 0),
+          fit_mode: String(row.fit_mode || "auto") === "manual" ? "manual" : "auto",
+          fit_scale: Number(row.fit_scale ?? 1),
+          fit_scale_x: Number(row.fit_scale_x ?? 1),
+          fit_scale_y: Number(row.fit_scale_y ?? 1),
+          fit_offset_x_pct: Number(row.fit_offset_x_pct ?? 0),
+          fit_offset_y_pct: Number(row.fit_offset_y_pct ?? 0),
+          fit_rotation_deg: Number(row.fit_rotation_deg ?? 0),
+          fit_skew_x_deg: Number(row.fit_skew_x_deg ?? 0),
+          fit_skew_y_deg: Number(row.fit_skew_y_deg ?? 0),
+          fit_stretch_mode:
+            String(row.fit_stretch_mode || "contain") === "stretch"
+              ? "stretch"
+              : "contain",
+        }),
+      );
       setWardrobeCatalog(rows);
 
       if (!wardrobeSelectedItemKey && rows.length > 0) {
@@ -1820,6 +1814,13 @@ function WardrobeBay({
   }, [calibrationMode]);
 
   useEffect(() => {
+    if (activeCharacter !== "nova" || selectedItem?.category !== "accessory") {
+      setCalibrationMode(false);
+      setCalibrationOpacity(1);
+    }
+  }, [activeCharacter, selectedItem?.category]);
+
+  useEffect(() => {
     setCalibrationOpacity(1);
     if (!selectedItem || selectedItem.character_key !== "nova") {
       setFitDraft({
@@ -1886,10 +1887,6 @@ function WardrobeBay({
       previewEquipped = previewEquipped.filter(
         (entry) => !["outfit", "top", "bottom", "shoes"].includes(entry.category),
       );
-    } else if (["top", "bottom", "shoes"].includes(selectedItem.category)) {
-      previewEquipped = previewEquipped.filter(
-        (entry) => entry.category !== "outfit" && entry.category !== selectedItem.category,
-      );
     } else {
       previewEquipped = previewEquipped.filter(
         (entry) => entry.category !== selectedItem.category,
@@ -1903,15 +1900,30 @@ function WardrobeBay({
     });
   }
 
-  const previewLayers = previewEquipped
+  const previewOutfitEntry =
+    previewEquipped.find((entry) => entry.category === "outfit") ??
+    effectiveEquipped.find((entry) => entry.category === "outfit") ??
+    null;
+
+  const previewOutfitItem =
+    (previewOutfitEntry
+      ? catalog.find((item) => item.item_key === previewOutfitEntry.item_key)
+      : null) ??
+    (activeCharacter === "nova"
+      ? catalog.find((item) => item.character_key === "nova" && item.item_key === "nova-classic") ?? null
+      : null);
+
+  const previewAccessoryLayers = previewEquipped
+    .filter((entry) => entry.category === "accessory")
     .map((entry) => catalog.find((item) => item.item_key === entry.item_key))
     .filter((item): item is WardrobeCatalogRow => Boolean(item?.layer_image))
     .sort((a, b) => a.layer_order - b.layer_order);
 
-  const calibratedPreviewLayers = previewLayers.map((item) =>
+  const calibratedPreviewAccessories = previewAccessoryLayers.map((item) =>
     calibrationMode &&
     activeCharacter === "nova" &&
-    selectedItem?.item_key === item.item_key
+    selectedItem?.item_key === item.item_key &&
+    selectedItem.category === "accessory"
       ? { ...item, ...fitDraft, fit_opacity: calibrationOpacity }
       : item,
   );
@@ -1933,6 +1945,7 @@ function WardrobeBay({
   const calibrationAvailable =
     isAdmin &&
     activeCharacter === "nova" &&
+    selectedItem?.category === "accessory" &&
     Boolean(selectedItem?.layer_image);
   const fitChanged = Boolean(
     selectedItem &&
@@ -2003,7 +2016,7 @@ function WardrobeBay({
               Wardrobe Bay
             </h2>
             <p className="mt-1 max-w-2xl text-[10px] leading-4 text-white/46 sm:text-xs sm:leading-5">
-              Nova clothing uses body anchors and alpha-aware auto-fit. The calibrator now supports independent width/height stretch, skew, opacity, transform handles, and category-aware anchor stretching. Milo fitting follows after this is locked.
+              Nova now uses full ready-made outfit renders for cleaner switching and fewer fitting issues. The calibrator is preserved for transparent accessory overlays only, so future glasses, visors, headsets, and props can still be aligned precisely.
             </p>
           </div>
 
@@ -2099,20 +2112,29 @@ function WardrobeBay({
                     onPointerUp={endCalibrationDrag}
                     onPointerCancel={endCalibrationDrag}
                   >
-                    <img
-                      src={NOVA_CHARACTER_IMAGE}
-                      alt="Nova wardrobe preview"
-                      className="pointer-events-none absolute inset-0 z-10 h-full w-full object-contain drop-shadow-[0_28px_44px_rgba(0,0,0,0.55)]"
-                      draggable={false}
-                    />
-                    {calibratedPreviewLayers.map((item) => (
+                    {previewOutfitItem?.layer_image ? (
+                      <img
+                        src={previewOutfitItem.layer_image}
+                        alt={previewOutfitItem.title}
+                        className="pointer-events-none absolute inset-0 z-10 h-full w-full object-contain object-bottom drop-shadow-[0_28px_44px_rgba(0,0,0,0.55)]"
+                        draggable={false}
+                      />
+                    ) : (
+                      <img
+                        src={NOVA_CHARACTER_IMAGE}
+                        alt="Nova wardrobe preview"
+                        className="pointer-events-none absolute inset-0 z-10 h-full w-full object-contain object-bottom drop-shadow-[0_28px_44px_rgba(0,0,0,0.55)]"
+                        draggable={false}
+                      />
+                    )}
+                    {calibratedPreviewAccessories.map((item) => (
                       <WardrobeFittedLayer
                         key={item.item_key}
                         item={item}
                         rig={NOVA_WARDROBE_RIG}
                       />
                     ))}
-                    {calibrationMode && selectedItem && activeCharacter === "nova" && (
+                    {calibrationMode && selectedItem && activeCharacter === "nova" && selectedItem.category === "accessory" && (
                       <>
                         <WardrobeRigOverlay
                           rig={NOVA_WARDROBE_RIG}
@@ -2328,7 +2350,7 @@ function WardrobeBay({
             </div>
 
             <div className="border-t border-white/[0.07] bg-slate-950/48 p-3 sm:p-4">
-              {calibrationMode && selectedItem && activeCharacter === "nova" ? (
+              {calibrationMode && selectedItem && activeCharacter === "nova" && selectedItem.category === "accessory" ? (
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">

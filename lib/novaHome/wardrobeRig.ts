@@ -129,3 +129,11 @@ export function getRigTargetBox(
   // save an item-specific correction without changing this base rig.
   return boxFromEdges(0.28, 0.08, 0.72, 0.62);
 }
+
+export function getRigStretchLabel(category: WardrobeRigCategory) {
+  if (category === "top") return "Stretch shoulders → waist";
+  if (category === "bottom") return "Stretch waist → ankles";
+  if (category === "shoes") return "Stretch ankles → toes";
+  if (category === "outfit") return "Stretch neck → feet";
+  return "Stretch to target box";
+}

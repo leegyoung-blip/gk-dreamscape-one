@@ -9,13 +9,26 @@ export const levelTwo: RoverLevelConfig = {
   status: "playable",
   minimumRoverStage: 3,
   prerequisiteLevel: 1,
+
   worldWidth: 7800,
   worldHeight: 1200,
-  start: { x: 360, y: 500 },
-  finish: { x: 7420, y: 610 },
+
+  start: {
+    x: 360,
+    y: 500,
+  },
+
+  finish: {
+    x: 7420,
+    y: 610,
+  },
+
   timeLimitSeconds: 115,
 
   terrainSections: [
+    /*
+     * MAIN / LOW ROUTE
+     */
     {
       kind: "ground",
       points: [
@@ -27,6 +40,10 @@ export const levelTwo: RoverLevelConfig = {
         { x: 1750, y: 570 },
         { x: 1950, y: 600 },
         { x: 2150, y: 660 },
+
+        /*
+         * Low route drops underneath the high route.
+         */
         { x: 2450, y: 760 },
         { x: 2800, y: 790 },
         { x: 3200, y: 770 },
@@ -35,6 +52,10 @@ export const levelTwo: RoverLevelConfig = {
         { x: 4400, y: 640 },
       ],
     },
+
+    /*
+     * HIGH ROUTE — FIRST PLATFORM
+     */
     {
       kind: "platform",
       collisionThickness: 44,
@@ -46,16 +67,32 @@ export const levelTwo: RoverLevelConfig = {
         { x: 3000, y: 330 },
       ],
     },
+
+    /*
+     * HIGH ROUTE — SECOND PLATFORM
+     *
+     * IMPORTANT:
+     * This section now stays high instead of dropping down toward
+     * the lower road.
+     *
+     * The lower route remains around y 735 → 640 underneath it,
+     * leaving enough space for the rover to drive below.
+     */
     {
       kind: "platform",
       collisionThickness: 44,
       points: [
         { x: 3350, y: 380 },
-        { x: 3650, y: 410 },
-        { x: 3970, y: 510 },
-        { x: 4400, y: 580 },
+        { x: 3650, y: 405 },
+        { x: 3950, y: 390 },
+        { x: 4200, y: 360 },
+        { x: 4400, y: 345 },
       ],
     },
+
+    /*
+     * ROUTES REJOIN
+     */
     {
       kind: "ground",
       points: [
@@ -65,6 +102,10 @@ export const levelTwo: RoverLevelConfig = {
         { x: 5200, y: 545 },
       ],
     },
+
+    /*
+     * FINAL SECTION
+     */
     {
       kind: "ground",
       points: [
@@ -81,25 +122,70 @@ export const levelTwo: RoverLevelConfig = {
   ],
 
   gapWarnings: [
-    { x: 3175, y: 250 },
-    { x: 5380, y: 505 },
+    {
+      x: 3175,
+      y: 250,
+    },
+    {
+      x: 5380,
+      y: 505,
+    },
   ],
 
   collectibles: [
-    { x: 820, y: 505 },
-    { x: 1320, y: 455 },
-    { x: 1820, y: 525 },
-    { x: 2130, y: 505 },
-    { x: 4580, y: 505 },
-    { x: 5720, y: 510 },
-    { x: 6180, y: 455 },
-    { x: 7000, y: 490 },
+    {
+      x: 820,
+      y: 505,
+    },
+    {
+      x: 1320,
+      y: 455,
+    },
+    {
+      x: 1820,
+      y: 525,
+    },
+    {
+      x: 2130,
+      y: 505,
+    },
+    {
+      x: 4580,
+      y: 505,
+    },
+    {
+      x: 5720,
+      y: 510,
+    },
+    {
+      x: 6180,
+      y: 455,
+    },
+    {
+      x: 7000,
+      y: 490,
+    },
   ],
 
   checkpoints: [
-    { x: 1810, y: 550, respawnX: 1720, respawnY: 500 },
-    { x: 4650, y: 510, respawnX: 4520, respawnY: 480 },
-    { x: 5900, y: 520, respawnX: 5730, respawnY: 475 },
+    {
+      x: 1810,
+      y: 550,
+      respawnX: 1720,
+      respawnY: 500,
+    },
+    {
+      x: 4650,
+      y: 510,
+      respawnX: 4520,
+      respawnY: 480,
+    },
+    {
+      x: 5900,
+      y: 520,
+      respawnX: 5730,
+      respawnY: 475,
+    },
   ],
 
   routeLabels: [
@@ -120,13 +206,13 @@ export const levelTwo: RoverLevelConfig = {
   ],
 
   /*
-   * y is an approximate route/surface hint. PhaserGame.tsx uses it only
-   * to choose the correct terrain when an upper and lower route overlap
-   * at the same x-coordinate. The dynamite is then snapped to the exact
-   * sampled terrain surface and rotated to match that surface.
+   * The y value acts as a route hint.
    *
-   * This keeps RoverTrap unchanged and removes the terrainSectionIndex
-   * TypeScript errors from both files.
+   * PhaserGame.tsx uses it to identify whether the dynamite belongs
+   * to the upper or lower road when multiple terrain surfaces exist
+   * at the same x-coordinate.
+   *
+   * It then snaps the dynamite onto the actual road surface.
    */
   traps: [
     {
@@ -148,8 +234,8 @@ export const levelTwo: RoverLevelConfig = {
     {
       id: "upper-1",
       x: 3670,
-      y: 415,
-      blastRadius: 65,
+      y: 405,
+      blastRadius: 62,
       penalty: 250,
       rearmMs: 3000,
     },
@@ -157,7 +243,7 @@ export const levelTwo: RoverLevelConfig = {
       id: "final-1",
       x: 6350,
       y: 560,
-      blastRadius: 65,
+      blastRadius: 70,
       penalty: 300,
       rearmMs: 3400,
     },
