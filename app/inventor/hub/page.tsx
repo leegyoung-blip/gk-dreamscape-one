@@ -11,6 +11,7 @@ import {
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import WardrobeFittedLayer from "@/components/nova-home/WardrobeFittedLayer";
+import RugRushGame from "@/components/nova-home/RugRushGame";
 import { MILO_WARDROBE_RIG, NOVA_WARDROBE_RIG } from "@/lib/novaHome/wardrobeRig";
 import { createWardrobeSnapshotPng, downloadBlob } from "@/lib/novaHome/wardrobeSnapshot";
 
@@ -151,6 +152,63 @@ type MaskPixels = {
   height: number;
   alpha: Uint8ClampedArray;
 };
+
+type NovaHomeGuideStep = {
+  eyebrow: string;
+  title: string;
+  text: string;
+  targetZoneKey?: ZoneKey;
+};
+
+const NOVA_HOME_GUIDE_STORAGE_KEY = "nova-home-guide-completed-v1";
+
+const NOVA_HOME_GUIDE_STEPS: NovaHomeGuideStep[] = [
+  {
+    eyebrow: "Welcome Home",
+    title: "This is Nova’s Home.",
+    text: "This is your play-and-customise space. Spend Dream Tokens on room upgrades, outfits, accessories, and other fun additions as Nova’s Home grows.",
+  },
+  {
+    eyebrow: "Room Upgrades",
+    title: "Turn the dark zones into your room.",
+    text: "Darkened furnishings are still locked. Hover or tap a room zone to see its DT price, then unlock it when you are ready. The dark overlay disappears after purchase.",
+  },
+  {
+    eyebrow: "Sleep Zone",
+    title: "Your character wardrobe lives here.",
+    text: "Unlock the Sleep Zone to enter Wardrobe Bay. This is where you can change Nova’s full outfit and customise her accessories.",
+    targetZoneKey: "bed-zone",
+  },
+  {
+    eyebrow: "Nova & Milo",
+    title: "Build a look that feels like yours.",
+    text: "Wardrobe Bay lets you customise Nova, or unlock Milo for 1,000 DT. Choose a full outfit, equip accessories, then drag and scale accessories until they sit where you want them.",
+    targetZoneKey: "bed-zone",
+  },
+  {
+    eyebrow: "Save Your Character",
+    title: "Keep the look you created.",
+    text: "Inside Wardrobe Bay, use Save Look to keep your current setup. You can also Download PNG to export your customised Nova or Milo with a transparent background.",
+    targetZoneKey: "bed-zone",
+  },
+  {
+    eyebrow: "Spend at Your Pace",
+    title: "The rest of Area 1 is yours to build.",
+    text: "Unlock the Workstation, Display Shelf, and Comfort & Decor whenever you want. Comfort & Decor also opens Rug Rush, a quick 10-second cleaning challenge on Nova’s rug.",
+    targetZoneKey: "desk-zone",
+  },
+  {
+    eyebrow: "Future Expansion",
+    title: "Area 2 is coming soon.",
+    text: "The connected doorway stays visible so you can see where Nova’s Home will grow next. Area 2 is not for sale yet, so you do not need to save DT for the door.",
+    targetZoneKey: "door-zone",
+  },
+  {
+    eyebrow: "You’re Ready",
+    title: "Make Nova’s Home your own.",
+    text: "Start with any Area 1 upgrade you like. Tap Nova Guide again whenever you want a quick reminder of how the home works.",
+  },
+];
 
 const AREA_1_IMAGE = "/activities/nova-home/area-1/area-1-furnished.png";
 const AREA_2_PLACEHOLDER_IMAGE = "/activities/nova-home/area-2-placeholder.png";
@@ -434,6 +492,9 @@ export default function NovaHomePage() {
   const [characterCatalog, setCharacterCatalog] = useState<CharacterCatalogRow[]>([]);
   const [unlockedCharacters, setUnlockedCharacters] = useState<Set<WardrobeCharacter>>(() => new Set(["nova"]));
   const [purchasingCharacter, setPurchasingCharacter] = useState<WardrobeCharacter | null>(null);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [guideStep, setGuideStep] = useState(0);
+  const [rugRushOpen, setRugRushOpen] = useState(false);
 
   const zones = useMemo<ZoneView[]>(() => {
     const catalog = new Map<string, ZoneCatalogRow>(
@@ -463,6 +524,57 @@ export default function NovaHomePage() {
     unlockedZones.has(key),
   ).length;
   const area2Unlocked = false;
+  const guideTargetZoneKey = guideOpen
+    ? NOVA_HOME_GUIDE_STEPS[guideStep]?.targetZoneKey ?? null
+    : null;
+
+  useEffect(() => {
+    if (!authChecked || wardrobeOpen || rugRushOpen) return;
+
+    try {
+      const completed = window.localStorage.getItem(NOVA_HOME_GUIDE_STORAGE_KEY);
+      if (!completed) {
+        setGuideStep(0);
+        setGuideOpen(true);
+      }
+    } catch {
+      setGuideStep(0);
+      setGuideOpen(true);
+    }
+  }, [authChecked, wardrobeOpen, rugRushOpen]);
+
+  function startNovaHomeGuide() {
+    setCurrentArea("area-1");
+    setSelectedZoneKey(null);
+    setHoveredZoneKey(null);
+    setMessage("");
+    setGuideStep(0);
+    setGuideOpen(true);
+  }
+
+  function closeNovaHomeGuide() {
+    try {
+      window.localStorage.setItem(NOVA_HOME_GUIDE_STORAGE_KEY, "true");
+    } catch {
+      // The guide still closes when local storage is unavailable.
+    }
+
+    setGuideOpen(false);
+  }
+
+  function openRugRush() {
+    if (!unlockedZones.has("extra-zone")) return;
+    setGuideOpen(false);
+    setSelectedZoneKey("extra-zone");
+    setHoveredZoneKey("extra-zone");
+    setMessage("");
+    setRugRushOpen(true);
+  }
+
+  function closeRugRush() {
+    setRugRushOpen(false);
+    setHoveredZoneKey(null);
+  }
 
   const loadNovaHome = useCallback(async () => {
     setBalanceLoading(true);
@@ -1450,6 +1562,7 @@ export default function NovaHomePage() {
                 const unlocked = !zone.isAreaExit && unlockedZones.has(zone.key);
                 const selected = selectedZoneKey === zone.key;
                 const affordable = !zone.isAreaExit && dreamTokenBalance >= zone.dtCost;
+                const guideHighlighted = guideTargetZoneKey === zone.key;
 
                 return (
                   <button
@@ -1459,13 +1572,17 @@ export default function NovaHomePage() {
                     onMouseLeave={() => setHoveredZoneKey(null)}
                     onClick={() => selectZone(zone.key)}
                     className={`group min-h-0 rounded-[14px] border px-2 py-2 text-left transition md:px-3 md:py-2 ${
-                      selected
-                        ? "border-cyan-200/52 bg-cyan-300/[0.1] shadow-[0_0_24px_rgba(83,215,255,0.11)]"
-                        : unlocked
-                          ? "border-emerald-200/15 bg-emerald-300/[0.045]"
-                          : zone.isAreaExit
-                            ? "border-amber-200/16 bg-amber-300/[0.035] hover:border-amber-200/30"
-                            : "border-white/9 bg-white/[0.025] hover:border-cyan-200/24 hover:bg-cyan-300/[0.045]"
+                      guideHighlighted
+                        ? zone.isAreaExit
+                          ? "relative z-[95] border-amber-200/70 bg-amber-300/[0.13] shadow-[0_0_0_3px_rgba(251,191,36,0.13),0_0_32px_rgba(251,191,36,0.26)]"
+                          : "relative z-[95] border-cyan-200/75 bg-cyan-300/[0.14] shadow-[0_0_0_3px_rgba(83,215,255,0.13),0_0_34px_rgba(83,215,255,0.28)]"
+                        : selected
+                          ? "border-cyan-200/52 bg-cyan-300/[0.1] shadow-[0_0_24px_rgba(83,215,255,0.11)]"
+                          : unlocked
+                            ? "border-emerald-200/15 bg-emerald-300/[0.045]"
+                            : zone.isAreaExit
+                              ? "border-amber-200/16 bg-amber-300/[0.035] hover:border-amber-200/30"
+                              : "border-white/9 bg-white/[0.025] hover:border-cyan-200/24 hover:bg-cyan-300/[0.045]"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -1489,7 +1606,9 @@ export default function NovaHomePage() {
                             : unlocked
                               ? zone.key === "bed-zone"
                                 ? "Wardrobe Bay"
-                                : "Unlocked"
+                                : zone.key === "extra-zone"
+                                  ? "Rug Rush"
+                                  : "Unlocked"
                               : affordable
                                 ? "Available"
                                 : "Save more DT"}
@@ -1548,6 +1667,7 @@ export default function NovaHomePage() {
 
                   const hovered = hoveredZoneKey === zone.key;
                   const selected = selectedZoneKey === zone.key;
+                  const guideHighlighted = guideTargetZoneKey === zone.key;
 
                   return (
                     <img
@@ -1558,10 +1678,10 @@ export default function NovaHomePage() {
                       className="pointer-events-none absolute inset-0 h-full w-full transition duration-150"
                       draggable={false}
                       style={{
-                        opacity: hovered || selected ? 0.6 : 1,
+                        opacity: guideHighlighted ? 0.48 : hovered || selected ? 0.6 : 1,
                         filter:
-                          hovered || selected
-                            ? `drop-shadow(0 0 7px ${zone.accent}) drop-shadow(0 0 16px rgba(83,215,255,0.34))`
+                          guideHighlighted || hovered || selected
+                            ? `drop-shadow(0 0 8px ${zone.accent}) drop-shadow(0 0 20px rgba(83,215,255,0.42))`
                             : "none",
                       }}
                     />
@@ -1633,6 +1753,14 @@ export default function NovaHomePage() {
                                 className="min-h-11 w-full rounded-full bg-cyan-300 px-5 text-[11px] font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-cyan-200 sm:w-auto"
                               >
                                 Open Wardrobe Bay →
+                              </button>
+                            ) : activeZone.key === "extra-zone" ? (
+                              <button
+                                type="button"
+                                onClick={openRugRush}
+                                className="min-h-11 w-full rounded-full bg-cyan-300 px-5 text-[11px] font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-cyan-200 sm:w-auto"
+                              >
+                                Play Rug Rush →
                               </button>
                             ) : (
                               <span className="inline-flex min-h-11 items-center rounded-full border border-emerald-200/24 bg-emerald-300/10 px-5 text-[11px] font-black uppercase tracking-[0.1em] text-emerald-100">
@@ -1739,6 +1867,34 @@ export default function NovaHomePage() {
         )}
       </section>
 
+      {!wardrobeOpen && !rugRushOpen && (
+        <div className="pointer-events-none fixed bottom-2 right-2 z-40 flex flex-col items-center sm:bottom-3 sm:right-4 lg:right-5">
+          <img
+            src="/nova/nova-character.png"
+            alt="Nova"
+            className="pointer-events-none h-[108px] w-auto drop-shadow-[0_20px_28px_rgba(0,0,0,0.56)] sm:h-[138px] xl:h-[168px]"
+            draggable={false}
+          />
+          <button
+            type="button"
+            onClick={startNovaHomeGuide}
+            className="pointer-events-auto -mt-1 flex min-h-10 items-center justify-center gap-2 rounded-full border border-cyan-200/55 bg-cyan-950/88 px-4 text-[10px] font-black uppercase tracking-[0.11em] text-white shadow-[0_16px_36px_rgba(0,0,0,0.34),0_0_22px_rgba(83,215,255,0.15)] backdrop-blur-xl transition hover:bg-cyan-900/90 sm:min-h-11 sm:px-5 sm:text-[11px]"
+          >
+            <span aria-hidden="true">✦</span>
+            Nova Guide
+          </button>
+        </div>
+      )}
+
+      <NovaHomeGuide
+        open={guideOpen && !wardrobeOpen && !rugRushOpen}
+        stepIndex={guideStep}
+        onStepChange={setGuideStep}
+        onClose={closeNovaHomeGuide}
+      />
+
+      {rugRushOpen && <RugRushGame onClose={closeRugRush} />}
+
       {wardrobeOpen && (
         <WardrobeBay
           catalog={wardrobeCatalog}
@@ -1781,6 +1937,130 @@ export default function NovaHomePage() {
   );
 }
 
+
+function NovaHomeGuide({
+  open,
+  stepIndex,
+  onStepChange,
+  onClose,
+}: {
+  open: boolean;
+  stepIndex: number;
+  onStepChange: (step: number) => void;
+  onClose: () => void;
+}) {
+  const step = NOVA_HOME_GUIDE_STEPS[stepIndex] ?? NOVA_HOME_GUIDE_STEPS[0];
+  const isFirst = stepIndex <= 0;
+  const isLast = stepIndex >= NOVA_HOME_GUIDE_STEPS.length - 1;
+
+  useEffect(() => {
+    if (!open) return;
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[90]">
+      <div className="pointer-events-none absolute inset-0 bg-slate-950/58 backdrop-blur-[1px]" />
+
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_74%_76%,rgba(32,174,220,0.13),transparent_32%)]" />
+
+      <div className="absolute inset-x-3 bottom-3 z-[100] flex justify-center sm:inset-x-auto sm:bottom-5 sm:right-5 sm:w-[min(470px,calc(100vw-40px))]">
+        <div className="relative w-full overflow-hidden rounded-[26px] border border-cyan-200/32 bg-[linear-gradient(145deg,rgba(4,30,49,0.98),rgba(2,10,24,0.99))] p-4 shadow-[0_32px_90px_rgba(0,0,0,0.65),0_0_34px_rgba(83,215,255,0.13)] backdrop-blur-2xl sm:p-5">
+          <div className="pointer-events-none absolute -right-14 -top-16 h-44 w-44 rounded-full bg-cyan-300/10 blur-3xl" />
+
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close Nova Guide"
+            className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.045] text-lg text-white/68 transition hover:bg-white/[0.09]"
+          >
+            ×
+          </button>
+
+          <div className="relative flex items-start gap-3 pr-9 sm:gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-end justify-center overflow-hidden rounded-[18px] border border-cyan-200/24 bg-cyan-300/[0.07] sm:h-16 sm:w-16">
+              <img
+                src="/nova/nova-character.png"
+                alt="Nova"
+                className="h-[72px] w-auto translate-y-2 object-contain sm:h-[82px]"
+                draggable={false}
+              />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <p className="text-[8px] font-black uppercase tracking-[0.17em] text-cyan-200/62 sm:text-[9px]">
+                {step.eyebrow}
+              </p>
+              <h2 className="mt-1 font-serif text-xl font-medium tracking-[-0.02em] text-white sm:text-2xl">
+                {step.title}
+              </h2>
+              <p className="mt-2 text-[11px] leading-5 text-white/58 sm:text-xs sm:leading-6">
+                {step.text}
+              </p>
+            </div>
+          </div>
+
+          {step.targetZoneKey && (
+            <div className="relative mt-3 rounded-[14px] border border-cyan-200/13 bg-cyan-300/[0.045] px-3 py-2 text-[9px] font-bold uppercase tracking-[0.11em] text-cyan-100/64">
+              ✦ The matching room zone is highlighted behind this guide.
+            </div>
+          )}
+
+          <div className="relative mt-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5" aria-label="Guide progress">
+              {NOVA_HOME_GUIDE_STEPS.map((_, index) => (
+                <span
+                  key={index}
+                  className={`h-1.5 rounded-full transition-all ${
+                    index === stepIndex
+                      ? "w-5 bg-cyan-300"
+                      : index < stepIndex
+                        ? "w-2 bg-cyan-200/42"
+                        : "w-2 bg-white/14"
+                  }`}
+                />
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+              {!isFirst && (
+                <button
+                  type="button"
+                  onClick={() => onStepChange(Math.max(0, stepIndex - 1))}
+                  className="min-h-10 rounded-full border border-white/11 bg-white/[0.04] px-4 text-[9px] font-black uppercase tracking-[0.1em] text-white/62 transition hover:bg-white/[0.075]"
+                >
+                  Back
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (isLast) {
+                    onClose();
+                    return;
+                  }
+                  onStepChange(Math.min(NOVA_HOME_GUIDE_STEPS.length - 1, stepIndex + 1));
+                }}
+                className="min-h-10 rounded-full bg-cyan-300 px-5 text-[9px] font-black uppercase tracking-[0.11em] text-slate-950 transition hover:bg-cyan-200"
+              >
+                {isLast ? "Start Exploring" : "Next"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function WardrobeBay({
   catalog,

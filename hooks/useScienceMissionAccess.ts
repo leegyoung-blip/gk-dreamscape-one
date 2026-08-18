@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import {
@@ -32,6 +33,14 @@ type LearningProfileStatus = {
   age_band?: string | null;
 };
 
+type RefreshAccessOptions = {
+  /**
+   * Only the initial page-entry access check should show
+   * the checking screen.
+   */
+  showChecking?: boolean;
+};
+
 export function useScienceMissionAccess() {
   const [status, setStatus] =
     useState<ScienceAccessStatus>(
@@ -49,20 +58,60 @@ export function useScienceMissionAccess() {
       null,
     );
 
-  const refreshAccess =
-    useCallback(async () => {
-      setStatus("checking");
+  /*
+   * Prevent older async checks from overwriting the result
+   * of a newer check.
+   */
+  const accessRequestIdRef = useRef(0);
+
+  const refreshAccess = useCallback(
+    async (
+      options: RefreshAccessOptions = {},
+    ) => {
+      const {
+        showChecking = false,
+      } = options;
+
+      const requestId =
+        ++accessRequestIdRef.current;
+
+      /*
+       * CRITICAL:
+       *
+       * Background access checks must not temporarily
+       * switch the page to "checking", because doing that
+       * can unmount an active quiz.
+       */
+      if (showChecking) {
+        setStatus("checking");
+      }
 
       const {
         data: { user },
         error: userError,
       } = await supabase.auth.getUser();
 
+      if (
+        requestId !==
+        accessRequestIdRef.current
+      ) {
+        return;
+      }
+
       if (userError) {
         console.warn(
           "Could not check the current user:",
           userError.message,
         );
+
+        /*
+         * A temporary background authentication/network
+         * failure is not enough reason to destroy an
+         * active learner session.
+         */
+        if (!showChecking) {
+          return;
+        }
       }
 
       if (!user) {
@@ -75,9 +124,8 @@ export function useScienceMissionAccess() {
       setUserId(user.id);
 
       /*
-       * IMPORTANT:
        * Resolve staff role BEFORE applying the learner
-       * date-of-birth gate.
+       * date-of-birth/profile gate.
        */
       const profileResult =
         await supabase
@@ -85,6 +133,13 @@ export function useScienceMissionAccess() {
           .select("role,tier")
           .eq("id", user.id)
           .maybeSingle();
+
+      if (
+        requestId !==
+        accessRequestIdRef.current
+      ) {
+        return;
+      }
 
       if (
         profileResult.error ||
@@ -95,7 +150,14 @@ export function useScienceMissionAccess() {
           profileResult.error?.message,
         );
 
-        setStatus("locked");
+        /*
+         * Initial entry remains fail-closed.
+         * Background revalidation remains non-destructive.
+         */
+        if (showChecking) {
+          setStatus("locked");
+        }
+
         return;
       }
 
@@ -123,13 +185,23 @@ export function useScienceMissionAccess() {
         "get_my_learning_profile_status",
       );
 
+      if (
+        requestId !==
+        accessRequestIdRef.current
+      ) {
+        return;
+      }
+
       if (learningProfileError) {
         console.warn(
           "Could not check the learner profile:",
           learningProfileError.message,
         );
 
-        setStatus("locked");
+        if (showChecking) {
+          setStatus("locked");
+        }
+
         return;
       }
 
@@ -169,6 +241,13 @@ export function useScienceMissionAccess() {
           .maybeSingle(),
       ]);
 
+      if (
+        requestId !==
+        accessRequestIdRef.current
+      ) {
+        return;
+      }
+
       if (subscriptionResult.error) {
         console.warn(
           "Could not check Science subscription:",
@@ -199,21 +278,60 @@ export function useScienceMissionAccess() {
             ?.is_unlocked,
         );
 
-      setStatus(
+      /*
+       * A successfully-loaded entitlement source can prove
+       * access even if the other source had an error.
+       */
+      if (
         entitlements.science ||
-          manuallyUnlocked
-          ? "allowed"
-          : "locked",
-      );
-    }, []);
+        manuallyUnlocked
+      ) {
+        setStatus("allowed");
+        return;
+      }
 
+      /*
+       * Do not revoke a live Science session because one
+       * of the background entitlement queries temporarily
+       * failed.
+       */
+      if (
+        !showChecking &&
+        (subscriptionResult.error ||
+          manualAccessResult.error)
+      ) {
+        return;
+      }
+
+      /*
+       * Both access sources loaded successfully and neither
+       * grants Science access.
+       */
+      setStatus("locked");
+    },
+    [],
+  );
+
+  /*
+   * Initial entry.
+   */
   useEffect(() => {
-    void refreshAccess();
+    void refreshAccess({
+      showChecking: true,
+    });
   }, [refreshAccess]);
 
   useEffect(() => {
     function handleAccessUpdate() {
-      void refreshAccess();
+      void refreshAccess({
+        showChecking: false,
+      });
+    }
+
+    function handleWindowFocus() {
+      void refreshAccess({
+        showChecking: false,
+      });
     }
 
     window.addEventListener(
@@ -223,7 +341,7 @@ export function useScienceMissionAccess() {
 
     window.addEventListener(
       "focus",
-      handleAccessUpdate,
+      handleWindowFocus,
     );
 
     return () => {
@@ -234,8 +352,14 @@ export function useScienceMissionAccess() {
 
       window.removeEventListener(
         "focus",
-        handleAccessUpdate,
+        handleWindowFocus,
       );
+
+      /*
+       * Ignore any async access request that finishes after
+       * this hook has unmounted.
+       */
+      accessRequestIdRef.current += 1;
     };
   }, [refreshAccess]);
 

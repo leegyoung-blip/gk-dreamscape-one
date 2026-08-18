@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import {
@@ -32,6 +33,17 @@ type LearningProfileStatus = {
   age_band?: string | null;
 };
 
+type RefreshAccessOptions = {
+  /**
+   * Only use true for the very first access check when
+   * entering the page.
+   *
+   * Background checks should stay silent so quizzes and
+   * games are not unmounted/reset.
+   */
+  showChecking?: boolean;
+};
+
 export function useCoreMissionAccess() {
   const [status, setStatus] =
     useState<CoreAccessStatus>("checking");
@@ -53,14 +65,53 @@ export function useCoreMissionAccess() {
       null,
     );
 
+  /*
+   * These request IDs prevent an older async request from
+   * finishing later and overwriting the result of a newer
+   * request.
+   */
+  const accessRequestIdRef = useRef(0);
+  const balanceRequestIdRef = useRef(0);
+
   const refreshBalances = useCallback(
     async (activeUserId?: string) => {
-      const resolvedUserId =
-        activeUserId ??
-        (await supabase.auth.getUser())
-          .data.user?.id;
+      const requestId =
+        ++balanceRequestIdRef.current;
+
+      let resolvedUserId = activeUserId;
 
       if (!resolvedUserId) {
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
+
+        if (
+          requestId !==
+          balanceRequestIdRef.current
+        ) {
+          return;
+        }
+
+        if (error) {
+          console.warn(
+            "Could not resolve user while refreshing balances:",
+            error.message,
+          );
+          return;
+        }
+
+        resolvedUserId = user?.id;
+      }
+
+      if (!resolvedUserId) {
+        if (
+          requestId !==
+          balanceRequestIdRef.current
+        ) {
+          return;
+        }
+
         setTokenBalance(0);
         setDreamGemBalance(0);
         return;
@@ -71,10 +122,18 @@ export function useCoreMissionAccess() {
         profileResult,
       ] = await Promise.all([
         supabase
-          .from("dream_token_transactions")
+          .from(
+            "dream_token_transactions",
+          )
           .select("amount")
-          .eq("user_id", resolvedUserId)
-          .eq("token_kind", "virtual"),
+          .eq(
+            "user_id",
+            resolvedUserId,
+          )
+          .eq(
+            "token_kind",
+            "virtual",
+          ),
 
         supabase
           .from("profiles")
@@ -82,6 +141,17 @@ export function useCoreMissionAccess() {
           .eq("id", resolvedUserId)
           .maybeSingle(),
       ]);
+
+      /*
+       * Ignore this response if another balance refresh
+       * started after it.
+       */
+      if (
+        requestId !==
+        balanceRequestIdRef.current
+      ) {
+        return;
+      }
 
       if (!tokenResult.error) {
         setTokenBalance(
@@ -119,20 +189,58 @@ export function useCoreMissionAccess() {
     [],
   );
 
-  const refreshAccess =
-    useCallback(async () => {
-      setStatus("checking");
+  const refreshAccess = useCallback(
+    async (
+      options: RefreshAccessOptions = {},
+    ) => {
+      const {
+        showChecking = false,
+      } = options;
+
+      const requestId =
+        ++accessRequestIdRef.current;
+
+      /*
+       * CRITICAL:
+       *
+       * Only the initial page-entry check should put the
+       * interface into "checking".
+       *
+       * Focus changes, screenshots, auth token refreshes,
+       * etc. must never temporarily remove the quiz/game
+       * from the React tree.
+       */
+      if (showChecking) {
+        setStatus("checking");
+      }
 
       const {
         data: { user },
         error: userError,
       } = await supabase.auth.getUser();
 
+      if (
+        requestId !==
+        accessRequestIdRef.current
+      ) {
+        return;
+      }
+
       if (userError) {
         console.warn(
           "Could not check the current user:",
           userError.message,
         );
+
+        /*
+         * A background network/auth read failure is not
+         * proof that access has been revoked.
+         *
+         * Keep the current UI alive and try again later.
+         */
+        if (!showChecking) {
+          return;
+        }
       }
 
       if (!user) {
@@ -146,15 +254,15 @@ export function useCoreMissionAccess() {
 
       setUserId(user.id);
 
-      await refreshBalances(user.id);
+      /*
+       * Balances are independent UI data.
+       * Refreshing them must not affect access state.
+       */
+      void refreshBalances(user.id);
 
       /*
-       * IMPORTANT:
-       * Resolve the account role BEFORE applying the
-       * learner DOB/profile gate.
-       *
-       * Admin, Teacher and Curriculum Lead accounts are
-       * staff accounts, not learner accounts.
+       * Resolve account role BEFORE applying learner
+       * profile requirements.
        */
       const profileResult =
         await supabase
@@ -162,6 +270,13 @@ export function useCoreMissionAccess() {
           .select("role,tier")
           .eq("id", user.id)
           .maybeSingle();
+
+      if (
+        requestId !==
+        accessRequestIdRef.current
+      ) {
+        return;
+      }
 
       if (
         profileResult.error ||
@@ -172,7 +287,14 @@ export function useCoreMissionAccess() {
           profileResult.error?.message,
         );
 
-        setStatus("locked");
+        /*
+         * Do not eject somebody from a live quiz merely
+         * because a background Supabase request failed.
+         */
+        if (showChecking) {
+          setStatus("locked");
+        }
+
         return;
       }
 
@@ -182,8 +304,8 @@ export function useCoreMissionAccess() {
         null;
 
       /*
-       * Staff receive full Core access and do not need
-       * a learner date of birth.
+       * Staff receive full Core access and do not need a
+       * learner DOB/profile.
        */
       if (
         roleHasStaffLearningAccess(role)
@@ -193,10 +315,6 @@ export function useCoreMissionAccess() {
         return;
       }
 
-      /*
-       * Learner profile completion remains mandatory for
-       * all non-staff accounts.
-       */
       const {
         data: learningProfileData,
         error: learningProfileError,
@@ -204,13 +322,27 @@ export function useCoreMissionAccess() {
         "get_my_learning_profile_status",
       );
 
+      if (
+        requestId !==
+        accessRequestIdRef.current
+      ) {
+        return;
+      }
+
       if (learningProfileError) {
         console.warn(
           "Could not check the learner profile:",
           learningProfileError.message,
         );
 
-        setStatus("locked");
+        /*
+         * Preserve an already-running learning session
+         * during a transient background failure.
+         */
+        if (showChecking) {
+          setStatus("locked");
+        }
+
         return;
       }
 
@@ -250,6 +382,13 @@ export function useCoreMissionAccess() {
           .maybeSingle(),
       ]);
 
+      if (
+        requestId !==
+        accessRequestIdRef.current
+      ) {
+        return;
+      }
+
       if (subscriptionResult.error) {
         console.warn(
           "Could not check Core subscription:",
@@ -280,16 +419,52 @@ export function useCoreMissionAccess() {
             ?.is_unlocked,
         );
 
-      setStatus(
+      /*
+       * If either successfully-loaded source proves access,
+       * allow immediately.
+       */
+      if (
         entitlements.core ||
-          manuallyUnlocked
-          ? "allowed"
-          : "locked",
-      );
-    }, [refreshBalances]);
+        manuallyUnlocked
+      ) {
+        setStatus("allowed");
+        return;
+      }
 
+      /*
+       * During a silent/background recheck, an error from
+       * either entitlement source means we do not have
+       * enough reliable information to revoke access.
+       *
+       * Keep the existing state.
+       */
+      if (
+        !showChecking &&
+        (subscriptionResult.error ||
+          manualAccessResult.error)
+      ) {
+        return;
+      }
+
+      /*
+       * Both access sources loaded successfully and neither
+       * grants Core access.
+       */
+      setStatus("locked");
+    },
+    [refreshBalances],
+  );
+
+  /*
+   * Initial page-entry check.
+   *
+   * This is the ONLY normal access check that deliberately
+   * shows the "checking" state.
+   */
   useEffect(() => {
-    void refreshAccess();
+    void refreshAccess({
+      showChecking: true,
+    });
   }, [refreshAccess]);
 
   useEffect(() => {
@@ -297,8 +472,25 @@ export function useCoreMissionAccess() {
       void refreshBalances();
     }
 
+    /*
+     * Profile changes should be reflected immediately,
+     * but without destroying the current page first.
+     */
     function handleAccessUpdate() {
-      void refreshAccess();
+      void refreshAccess({
+        showChecking: false,
+      });
+    }
+
+    /*
+     * Returning to the browser can still trigger a useful
+     * security revalidation, but it is now completely
+     * silent unless access has genuinely changed.
+     */
+    function handleWindowFocus() {
+      void refreshAccess({
+        showChecking: false,
+      });
     }
 
     window.addEventListener(
@@ -318,7 +510,7 @@ export function useCoreMissionAccess() {
 
     window.addEventListener(
       "focus",
-      handleAccessUpdate,
+      handleWindowFocus,
     );
 
     return () => {
@@ -339,8 +531,14 @@ export function useCoreMissionAccess() {
 
       window.removeEventListener(
         "focus",
-        handleAccessUpdate,
+        handleWindowFocus,
       );
+
+      /*
+       * Invalidate any outstanding request after unmount.
+       */
+      accessRequestIdRef.current += 1;
+      balanceRequestIdRef.current += 1;
     };
   }, [
     refreshAccess,

@@ -196,6 +196,8 @@ class RoverMatterScene extends Phaser.Scene {
   private groundAlignmentRate = 8.5;
   private jumpVelocity = 0;
   private airTiltStrength = 0.006;
+  private crashPenaltyMultiplier = 1;
+  private trapPenaltyMultiplier = 1;
 
   private readonly jumpCooldownMs = 420;
   private readonly airborneTiltDelayMs = 150;
@@ -220,8 +222,9 @@ class RoverMatterScene extends Phaser.Scene {
 
     this.brakingRate = gameStats.brakingRate;
 
-    // Every rover gets a 70% stronger jump while preserving the upgrade curve.
-    this.jumpVelocity = gameStats.jumpVelocity * 1.7;
+    // Jump velocity is now stored as the final tuned value for each rover stage.
+    // Keeping one source of truth prevents later stages from becoming overpowered.
+    this.jumpVelocity = gameStats.jumpVelocity;
 
     this.maximumBoostEnergy = gameStats.boostCapacity;
 
@@ -230,6 +233,10 @@ class RoverMatterScene extends Phaser.Scene {
     this.boostRechargeRate = gameStats.boostRechargeRate;
 
     this.airTiltStrength = gameStats.airTiltStrength;
+
+    this.crashPenaltyMultiplier = gameStats.crashPenaltyMultiplier ?? 1;
+
+    this.trapPenaltyMultiplier = gameStats.trapPenaltyMultiplier ?? 1;
 
     this.boostEnergy = gameStats.boostCapacity;
   }
@@ -1083,6 +1090,14 @@ class RoverMatterScene extends Phaser.Scene {
     });
   }
 
+  private getCrashPenalty(basePenalty: number) {
+    return Math.max(0, Math.round(basePenalty * this.crashPenaltyMultiplier));
+  }
+
+  private getTrapPenalty(basePenalty: number) {
+    return Math.max(0, Math.round(basePenalty * this.trapPenaltyMultiplier));
+  }
+
   private updateTraps() {
     if (!this.roverBody || this.hasFinished || this.trapCollisionLocked) {
       return;
@@ -1113,7 +1128,9 @@ class RoverMatterScene extends Phaser.Scene {
     this.trapCollisionLocked = true;
     trap.sprite.setVisible(false);
     trap.glow.setVisible(false);
-    this.crashPenalty += trap.penalty;
+
+    const appliedPenalty = this.getTrapPenalty(trap.penalty);
+    this.crashPenalty += appliedPenalty;
 
     const explosion = this.add
       .image(trap.x, trap.y - 8, "dreamkeeper-explosion")
@@ -1134,7 +1151,7 @@ class RoverMatterScene extends Phaser.Scene {
     this.cameras.main.shake(260, 0.012);
     this.cameras.main.flash(120, 255, 108, 70);
     this.showStatusMessage(
-      `DREAMKEEPER TRAP  -${trap.penalty}`,
+      `DREAMKEEPER TRAP  -${appliedPenalty}`,
       "#ffb18b",
     );
 
@@ -1293,7 +1310,9 @@ class RoverMatterScene extends Phaser.Scene {
     }
 
     this.trapCollisionLocked = true;
-    this.crashPenalty += gate.penalty;
+
+    const appliedPenalty = this.getTrapPenalty(gate.penalty);
+    this.crashPenalty += appliedPenalty;
 
     const shock = this.add
       .circle(this.roverBody.x, this.roverBody.y, 42, 0xff5f94, 0.22)
@@ -1312,7 +1331,7 @@ class RoverMatterScene extends Phaser.Scene {
 
     this.cameras.main.shake(240, 0.01);
     this.cameras.main.flash(120, 255, 76, 126);
-    this.showStatusMessage(`PULSE GATE  -${gate.penalty}`, "#ff9ab6");
+    this.showStatusMessage(`PULSE GATE  -${appliedPenalty}`, "#ff9ab6");
 
     this.roverBody.setVelocity(-5.2, -4.8);
     this.roverBody.setAngularVelocity(0);
@@ -2336,9 +2355,13 @@ class RoverMatterScene extends Phaser.Scene {
     this.maximumAirborneDownwardVelocity = 0;
 
     if (landingVelocity >= 13.5) {
-      this.crashPenalty += 250;
+      const appliedPenalty = this.getCrashPenalty(250);
+      this.crashPenalty += appliedPenalty;
 
-      this.showStatusMessage("CRASH LANDING  -250", "#ff9f9f");
+      this.showStatusMessage(
+        `CRASH LANDING  -${appliedPenalty}`,
+        "#ff9f9f",
+      );
 
       this.time.delayedCall(180, () => {
         this.respawnVehicle();
@@ -2348,9 +2371,13 @@ class RoverMatterScene extends Phaser.Scene {
     }
 
     if (landingVelocity >= 8.5) {
-      this.crashPenalty += 100;
+      const appliedPenalty = this.getCrashPenalty(100);
+      this.crashPenalty += appliedPenalty;
 
-      this.showStatusMessage("HARD LANDING  -100", "#ffc582");
+      this.showStatusMessage(
+        `HARD LANDING  -${appliedPenalty}`,
+        "#ffc582",
+      );
     }
   }
 
@@ -2723,9 +2750,13 @@ class RoverMatterScene extends Phaser.Scene {
     }
 
     if (this.roverBody.y > this.levelConfig.worldHeight - 170) {
-      this.crashPenalty += 150;
+      const appliedPenalty = this.getCrashPenalty(150);
+      this.crashPenalty += appliedPenalty;
 
-      this.showStatusMessage("COURSE FALL  -150", "#ffb0b0");
+      this.showStatusMessage(
+        `COURSE FALL  -${appliedPenalty}`,
+        "#ffb0b0",
+      );
 
       this.respawnVehicle();
     }
@@ -2758,9 +2789,13 @@ class RoverMatterScene extends Phaser.Scene {
     }
 
     if (this.overturnedTime >= 1500) {
-      this.crashPenalty += 200;
+      const appliedPenalty = this.getCrashPenalty(200);
+      this.crashPenalty += appliedPenalty;
 
-      this.showStatusMessage("ROVER OVERTURNED  -200", "#ffb0b0");
+      this.showStatusMessage(
+        `ROVER OVERTURNED  -${appliedPenalty}`,
+        "#ffb0b0",
+      );
 
       this.respawnVehicle();
     }
