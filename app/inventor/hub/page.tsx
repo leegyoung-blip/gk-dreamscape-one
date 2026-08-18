@@ -11,7 +11,7 @@ import {
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import WardrobeFittedLayer from "@/components/nova-home/WardrobeFittedLayer";
-import RugRushGame from "@/components/nova-home/RugRushGame";
+import RugRushGame, { type RugRushCompletion } from "@/components/nova-home/RugRushGame";
 import { MILO_WARDROBE_RIG, NOVA_WARDROBE_RIG } from "@/lib/novaHome/wardrobeRig";
 import { createWardrobeSnapshotPng, downloadBlob } from "@/lib/novaHome/wardrobeSnapshot";
 
@@ -212,6 +212,17 @@ const NOVA_HOME_GUIDE_STEPS: NovaHomeGuideStep[] = [
 
 const AREA_1_IMAGE = "/activities/nova-home/area-1/area-1-furnished.png";
 const AREA_2_PLACEHOLDER_IMAGE = "/activities/nova-home/area-2-placeholder.png";
+
+const RUG_RUSH_SPARKLES = [
+  { left: 31, top: 63, size: 14, delay: 0 },
+  { left: 39, top: 72, size: 10, delay: 120 },
+  { left: 47, top: 61, size: 12, delay: 240 },
+  { left: 54, top: 76, size: 15, delay: 360 },
+  { left: 61, top: 66, size: 9, delay: 480 },
+  { left: 44, top: 81, size: 11, delay: 600 },
+  { left: 57, top: 84, size: 8, delay: 720 },
+  { left: 35, top: 79, size: 9, delay: 840 },
+] as const;
 
 const ZONE_VISUALS: ZoneVisual[] = [
   {
@@ -454,6 +465,7 @@ export default function NovaHomePage() {
   const stageRef = useRef<HTMLDivElement | null>(null);
   const roomViewportRef = useRef<HTMLDivElement | null>(null);
   const maskPixelsRef = useRef<Map<ZoneKey, MaskPixels>>(new Map());
+  const rugRushSparkleTimerRef = useRef<number | null>(null);
 
   const [currentArea, setCurrentArea] = useState<AreaKey>("area-1");
   const [area2ImageFailed, setArea2ImageFailed] = useState(false);
@@ -495,6 +507,8 @@ export default function NovaHomePage() {
   const [guideOpen, setGuideOpen] = useState(false);
   const [guideStep, setGuideStep] = useState(0);
   const [rugRushOpen, setRugRushOpen] = useState(false);
+  const [rugRushLastResult, setRugRushLastResult] = useState<RugRushCompletion | null>(null);
+  const [rugRushSparkle, setRugRushSparkle] = useState(false);
 
   const zones = useMemo<ZoneView[]>(() => {
     const catalog = new Map<string, ZoneCatalogRow>(
@@ -543,6 +557,14 @@ export default function NovaHomePage() {
     }
   }, [authChecked, wardrobeOpen, rugRushOpen]);
 
+  useEffect(() => {
+    return () => {
+      if (rugRushSparkleTimerRef.current !== null) {
+        window.clearTimeout(rugRushSparkleTimerRef.current);
+      }
+    };
+  }, []);
+
   function startNovaHomeGuide() {
     setCurrentArea("area-1");
     setSelectedZoneKey(null);
@@ -564,6 +586,12 @@ export default function NovaHomePage() {
 
   function openRugRush() {
     if (!unlockedZones.has("extra-zone")) return;
+    if (rugRushSparkleTimerRef.current !== null) {
+      window.clearTimeout(rugRushSparkleTimerRef.current);
+      rugRushSparkleTimerRef.current = null;
+    }
+    setRugRushSparkle(false);
+    setRugRushLastResult(null);
     setGuideOpen(false);
     setSelectedZoneKey("extra-zone");
     setHoveredZoneKey("extra-zone");
@@ -571,9 +599,26 @@ export default function NovaHomePage() {
     setRugRushOpen(true);
   }
 
+  function handleRugRushComplete(result: RugRushCompletion) {
+    setRugRushLastResult(result);
+  }
+
   function closeRugRush() {
     setRugRushOpen(false);
     setHoveredZoneKey(null);
+
+    if (rugRushLastResult && rugRushLastResult.cleanPercent >= 80) {
+      setSelectedZoneKey("extra-zone");
+      setRugRushSparkle(true);
+      if (rugRushSparkleTimerRef.current !== null) {
+        window.clearTimeout(rugRushSparkleTimerRef.current);
+      }
+      rugRushSparkleTimerRef.current = window.setTimeout(() => {
+        setRugRushSparkle(false);
+        setSelectedZoneKey((current) => (current === "extra-zone" ? null : current));
+        rugRushSparkleTimerRef.current = null;
+      }, rugRushLastResult.perfect ? 6500 : 4500);
+    }
   }
 
   const loadNovaHome = useCallback(async () => {
@@ -1688,6 +1733,48 @@ export default function NovaHomePage() {
                   );
                 })}
 
+                {rugRushSparkle && currentArea === "area-1" && (
+                  <div className="pointer-events-none absolute inset-0 z-[12] overflow-hidden">
+                    <div
+                      className={`absolute rounded-full border ${rugRushLastResult?.perfect ? "border-amber-100/45 shadow-[0_0_36px_rgba(251,191,36,0.20)]" : "border-cyan-100/35 shadow-[0_0_32px_rgba(103,232,249,0.18)]"}`}
+                      style={{
+                        left: "27%",
+                        top: "57%",
+                        width: "38%",
+                        height: "29%",
+                        transform: "rotate(-1deg)",
+                        background: rugRushLastResult?.perfect
+                          ? "radial-gradient(circle at 50% 50%, rgba(251,191,36,0.08), transparent 72%)"
+                          : "radial-gradient(circle at 50% 50%, rgba(103,232,249,0.07), transparent 72%)",
+                      }}
+                    />
+                    {RUG_RUSH_SPARKLES.map((sparkle, index) => (
+                      <span
+                        key={`${sparkle.left}-${sparkle.top}`}
+                        className={`absolute animate-pulse font-black ${rugRushLastResult?.perfect ? "text-amber-100" : "text-cyan-100"}`}
+                        style={{
+                          left: `${sparkle.left}%`,
+                          top: `${sparkle.top}%`,
+                          fontSize: `${sparkle.size}px`,
+                          animationDelay: `${sparkle.delay}ms`,
+                          filter: rugRushLastResult?.perfect
+                            ? "drop-shadow(0 0 7px rgba(251,191,36,0.8))"
+                            : "drop-shadow(0 0 7px rgba(103,232,249,0.8))",
+                        }}
+                        aria-hidden="true"
+                      >
+                        ✦
+                      </span>
+                    ))}
+                    <div
+                      className={`absolute rounded-full border px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.14em] backdrop-blur-md ${rugRushLastResult?.perfect ? "border-amber-100/25 bg-amber-950/65 text-amber-100" : "border-cyan-100/22 bg-cyan-950/65 text-cyan-100"}`}
+                      style={{ left: "42%", top: "70%", transform: "translate(-50%, -50%)" }}
+                    >
+                      {rugRushLastResult?.perfect ? "Perfectly Clean ✦" : "Rug Cleaned ✦"}
+                    </div>
+                  </div>
+                )}
+
                 {maskLoading && (
                   <div className="absolute inset-0 flex items-center justify-center bg-slate-950/34 backdrop-blur-[1px]">
                     <div className="rounded-full border border-cyan-200/24 bg-slate-950/78 px-4 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100 backdrop-blur-xl">
@@ -1893,7 +1980,12 @@ export default function NovaHomePage() {
         onClose={closeNovaHomeGuide}
       />
 
-      {rugRushOpen && <RugRushGame onClose={closeRugRush} />}
+      {rugRushOpen && (
+        <RugRushGame
+          onClose={closeRugRush}
+          onRoundComplete={handleRugRushComplete}
+        />
+      )}
 
       {wardrobeOpen && (
         <WardrobeBay

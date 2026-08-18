@@ -44,6 +44,34 @@ type RecordResultRow = RugRushStats & {
   is_new_best_percent: boolean;
 };
 
+export type RugRushCompletion = {
+  score: number;
+  cleanPercent: number;
+  perfect: boolean;
+  messType: MessTypeKey;
+};
+
+type CleaningParticle = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  size: number;
+  age: number;
+  life: number;
+  spin: number;
+  rotation: number;
+};
+
+type ScorePopup = {
+  x: number;
+  y: number;
+  text: string;
+  age: number;
+  life: number;
+  multiplier: number;
+};
+
 const CANVAS_WIDTH = 900;
 const CANVAS_HEIGHT = 560;
 const ROUND_DURATION_MS = 10_000;
@@ -510,8 +538,39 @@ function resultLabel(percent: number) {
   return "Keep Scrubbing!";
 }
 
-export default function RugRushGame({ onClose }: { onClose: () => void }) {
+function comboLabel(multiplier: number) {
+  if (multiplier >= 2) return "RUG RUSH!";
+  if (multiplier >= 1.75) return "SUPER SCRUB!";
+  if (multiplier >= 1.5) return "GREAT CLEAN!";
+  if (multiplier >= 1.25) return "NICE!";
+  return "CLEAN STREAK";
+}
+
+function novaReaction(percent: number) {
+  if (percent >= PERFECT_CLEAN_PERCENT) {
+    return "Perfect! I can practically see the stars reflecting off it!";
+  }
+  if (percent >= 95) {
+    return "So close! One more lightning-fast scrub and that rug is perfect.";
+  }
+  if (percent >= 80) {
+    return "Whoa — that looks way better! You really made the rug shine.";
+  }
+  if (percent >= 60) {
+    return "Nice save! We got most of the mess before time ran out.";
+  }
+  return "That was a tough one. Let’s go again and chase the clean spots faster!";
+}
+
+export default function RugRushGame({
+  onClose,
+  onRoundComplete,
+}: {
+  onClose: () => void;
+  onRoundComplete?: (result: RugRushCompletion) => void;
+}) {
   const displayCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const effectsCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const surfaceHostRef = useRef<HTMLDivElement | null>(null);
   const rugCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const dirtCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -533,6 +592,13 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
   const currentMessRef = useRef<MessDefinition>(MESS_TYPES[0]);
   const lastMessKeyRef = useRef<MessTypeKey | null>(null);
   const lastScrubAtRef = useRef(0);
+  const particlesRef = useRef<CleaningParticle[]>([]);
+  const scorePopupsRef = useRef<ScorePopup[]>([]);
+  const lastFeedbackAtRef = useRef(0);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const lastCountdownToneRef = useRef<number | null>(null);
+  const lastFinalSecondToneRef = useRef<number | null>(null);
+  const lastScrubSoundAtRef = useRef(0);
 
   const [phase, setPhase] = useState<GamePhase>("intro");
   const [countdown, setCountdown] = useState(3);
@@ -551,6 +617,7 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
   const [newBestScore, setNewBestScore] = useState(false);
   const [newBestPercent, setNewBestPercent] = useState(false);
   const [roundBonus, setRoundBonus] = useState(0);
+  const [soundEnabled, setSoundEnabled] = useState(true);
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 700px) and (orientation: portrait)");
@@ -621,6 +688,82 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
     };
   }, []);
 
+  const ensureAudioContext = useCallback(() => {
+    if (!soundEnabled || typeof window === "undefined") return null;
+    if (audioContextRef.current) return audioContextRef.current;
+
+    const AudioContextCtor =
+      window.AudioContext ??
+      (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextCtor) return null;
+
+    const context = new AudioContextCtor();
+    audioContextRef.current = context;
+    return context;
+  }, [soundEnabled]);
+
+  const playTone = useCallback(
+    (frequency: number, durationMs: number, volume = 0.035, type: OscillatorType = "sine") => {
+      if (!soundEnabled) return;
+      const context = ensureAudioContext();
+      if (!context) return;
+      if (context.state === "suspended") void context.resume();
+
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = type;
+      oscillator.frequency.value = frequency;
+      gain.gain.setValueAtTime(volume, context.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + durationMs / 1000);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start();
+      oscillator.stop(context.currentTime + durationMs / 1000);
+    },
+    [ensureAudioContext, soundEnabled],
+  );
+
+  const spawnCleaningFeedback = useCallback(
+    (point: Point, gainedPoints: number, multiplier: number) => {
+      if (gainedPoints <= 0) return;
+      const now = performance.now();
+
+      for (let index = 0; index < 5; index += 1) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 26 + Math.random() * 55;
+        particlesRef.current.push({
+          x: point.x + (Math.random() - 0.5) * 18,
+          y: point.y + (Math.random() - 0.5) * 18,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed - 22,
+          size: 2.4 + Math.random() * 3.8,
+          age: 0,
+          life: 380 + Math.random() * 260,
+          spin: (Math.random() - 0.5) * 5,
+          rotation: Math.random() * Math.PI,
+        });
+      }
+
+      if (now - lastFeedbackAtRef.current > 115) {
+        scorePopupsRef.current.push({
+          x: point.x,
+          y: point.y - 18,
+          text: `+${gainedPoints.toLocaleString()}`,
+          age: 0,
+          life: 620,
+          multiplier,
+        });
+        lastFeedbackAtRef.current = now;
+      }
+
+      if (soundEnabled && now - lastScrubSoundAtRef.current > 170) {
+        lastScrubSoundAtRef.current = now;
+        playTone(185 + Math.min(140, multiplier * 42), 42, 0.012, "triangle");
+      }
+    },
+    [playTone, soundEnabled],
+  );
+
   const renderFrame = useCallback((highlightRemaining = false) => {
     const display = displayCanvasRef.current;
     const rug = rugCanvasRef.current;
@@ -640,6 +783,7 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
         percent: cleanPercentRef.current,
         nextScore: scoreRef.current,
         multiplier: comboMultiplierRef.current,
+        gainedPoints: 0,
       };
     }
 
@@ -649,6 +793,7 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
         percent: cleanPercentRef.current,
         nextScore: scoreRef.current,
         multiplier: comboMultiplierRef.current,
+        gainedPoints: 0,
       };
     }
 
@@ -657,6 +802,7 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
     const initialMass = Math.max(1, initialDirtMassRef.current);
     const removedMass = Math.max(0, previousDirtMassRef.current - remainingMass);
     previousDirtMassRef.current = remainingMass;
+    let gainedPoints = 0;
 
     const percent = clamp((1 - remainingMass / initialMass) * 100, 0, 100);
     cleanPercentRef.current = percent;
@@ -676,7 +822,8 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
       maxComboRef.current = Math.max(maxComboRef.current, multiplier);
 
       const basePoints = Math.max(1, Math.round((removedMass / initialMass) * 10_000));
-      scoreRef.current += Math.round(basePoints * multiplier);
+      gainedPoints = Math.round(basePoints * multiplier);
+      scoreRef.current += gainedPoints;
     } else if (lastCleanAtRef.current > 0 && now - lastCleanAtRef.current > 620) {
       comboHitsRef.current = 0;
       comboMultiplierRef.current = 1;
@@ -691,6 +838,7 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
       percent,
       nextScore: scoreRef.current,
       multiplier: comboMultiplierRef.current,
+      gainedPoints,
     };
   }, []);
 
@@ -744,6 +892,14 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
     lastCleanAtRef.current = 0;
     lastMeasureAtRef.current = 0;
     lastScrubAtRef.current = 0;
+    particlesRef.current = [];
+    scorePopupsRef.current = [];
+    lastFeedbackAtRef.current = 0;
+    lastCountdownToneRef.current = null;
+    lastFinalSecondToneRef.current = null;
+    lastScrubSoundAtRef.current = 0;
+    const effectsCanvas = effectsCanvasRef.current;
+    effectsCanvas?.getContext("2d")?.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
     activePointerIdRef.current = null;
     lastPointRef.current = null;
     finishedRef.current = false;
@@ -763,11 +919,84 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     const display = displayCanvasRef.current;
+    const effects = effectsCanvasRef.current;
     if (!display) return;
     display.width = CANVAS_WIDTH;
     display.height = CANVAS_HEIGHT;
+    if (effects) {
+      effects.width = CANVAS_WIDTH;
+      effects.height = CANVAS_HEIGHT;
+    }
     prepareRound();
   }, [prepareRound]);
+
+  useEffect(() => {
+    const canvas = effectsCanvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    let frameId = 0;
+    let previous = performance.now();
+
+    const animate = (now: number) => {
+      const delta = Math.min(34, now - previous);
+      previous = now;
+      context.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+      particlesRef.current = particlesRef.current.filter((particle) => {
+        particle.age += delta;
+        if (particle.age >= particle.life) return false;
+        const seconds = delta / 1000;
+        particle.x += particle.vx * seconds;
+        particle.y += particle.vy * seconds;
+        particle.vy += 55 * seconds;
+        particle.rotation += particle.spin * seconds;
+        const alpha = 1 - particle.age / particle.life;
+
+        context.save();
+        context.globalAlpha = alpha * 0.9;
+        context.translate(particle.x, particle.y);
+        context.rotate(particle.rotation);
+        context.fillStyle = "rgba(178, 246, 255, 0.96)";
+        context.beginPath();
+        context.moveTo(0, -particle.size);
+        context.lineTo(particle.size * 0.48, 0);
+        context.lineTo(0, particle.size);
+        context.lineTo(-particle.size * 0.48, 0);
+        context.closePath();
+        context.fill();
+        context.restore();
+        return true;
+      });
+
+      scorePopupsRef.current = scorePopupsRef.current.filter((popup) => {
+        popup.age += delta;
+        if (popup.age >= popup.life) return false;
+        const progress = popup.age / popup.life;
+        const alpha = 1 - progress;
+        const lift = progress * 38;
+
+        context.save();
+        context.globalAlpha = alpha;
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.font = `900 ${popup.multiplier >= 1.75 ? 24 : 20}px ui-sans-serif, system-ui, sans-serif`;
+        context.lineWidth = 5;
+        context.strokeStyle = "rgba(2, 9, 20, 0.78)";
+        context.strokeText(popup.text, popup.x, popup.y - lift);
+        context.fillStyle = popup.multiplier >= 1.5 ? "#fff0a8" : "#c9f8ff";
+        context.fillText(popup.text, popup.x, popup.y - lift);
+        context.restore();
+        return true;
+      });
+
+      frameId = window.requestAnimationFrame(animate);
+    };
+
+    frameId = window.requestAnimationFrame(animate);
+    return () => window.cancelAnimationFrame(frameId);
+  }, []);
 
   const recordResult = useCallback(async (finalScore: number, percent: number) => {
     setSaveStatus("saving");
@@ -820,8 +1049,28 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
     setScore(finalScore);
     setRoundBonus(bonus);
     setPhase("result");
+
+    const perfect = measured.percent >= PERFECT_CLEAN_PERCENT;
+    onRoundComplete?.({
+      score: finalScore,
+      cleanPercent: measured.percent,
+      perfect,
+      messType: currentMessRef.current.key,
+    });
+
+    if (perfect) {
+      playTone(660, 120, 0.045, "sine");
+      window.setTimeout(() => playTone(880, 160, 0.04, "sine"), 95);
+      window.setTimeout(() => playTone(1100, 220, 0.035, "sine"), 200);
+    } else if (measured.percent >= 80) {
+      playTone(520, 110, 0.035, "sine");
+      window.setTimeout(() => playTone(760, 160, 0.03, "sine"), 100);
+    } else {
+      playTone(330, 130, 0.025, "triangle");
+    }
+
     void recordResult(finalScore, measured.percent);
-  }, [measureProgress, recordResult]);
+  }, [measureProgress, onRoundComplete, playTone, recordResult]);
 
   useEffect(() => {
     if (phase !== "countdown") return;
@@ -841,10 +1090,14 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
       }
 
       setCountdown(next);
+      if (lastCountdownToneRef.current !== next) {
+        lastCountdownToneRef.current = next;
+        playTone(390 + (3 - next) * 70, 90, 0.028, "square");
+      }
     }, 60);
 
     return () => window.clearInterval(timer);
-  }, [phase]);
+  }, [phase, playTone]);
 
   useEffect(() => {
     if (phase !== "playing") return;
@@ -867,14 +1120,21 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
       }
 
       // In the final three seconds, gently pulse the remaining dirt so players can spot missed corners.
-      if (remaining <= 3000) renderFrame(true);
+      if (remaining <= 3000) {
+        renderFrame(true);
+        const second = Math.max(1, Math.ceil(remaining / 1000));
+        if (lastFinalSecondToneRef.current !== second) {
+          lastFinalSecondToneRef.current = second;
+          playTone(second === 1 ? 760 : 560, second === 1 ? 130 : 85, 0.034, "square");
+        }
+      }
 
       frameId = window.requestAnimationFrame(tick);
     };
 
     frameId = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(frameId);
-  }, [finishRound, phase, renderFrame]);
+  }, [finishRound, phase, playTone, renderFrame]);
 
   useEffect(() => {
     function handleEscape(event: KeyboardEvent) {
@@ -885,8 +1145,20 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
     return () => document.removeEventListener("keydown", handleEscape);
   }, [onClose]);
 
+  useEffect(() => {
+    return () => {
+      const context = audioContextRef.current;
+      audioContextRef.current = null;
+      if (context && context.state !== "closed") void context.close();
+    };
+  }, []);
+
   function startRound() {
     prepareRound();
+    lastCountdownToneRef.current = null;
+    lastFinalSecondToneRef.current = null;
+    ensureAudioContext();
+    playTone(320, 70, 0.02, "square");
     setPhase("countdown");
   }
 
@@ -963,7 +1235,10 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
     eraseLayer(extraToughDirt, 0.28);
 
     renderFrame(timeLeftMs <= 3000);
-    measureProgress();
+    const measured = measureProgress();
+    if (measured.gainedPoints > 0) {
+      spawnCleaningFeedback(to, measured.gainedPoints, measured.multiplier);
+    }
   }
 
   function handlePointerDown(event: ReactPointerEvent<HTMLCanvasElement>) {
@@ -1012,14 +1287,24 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
             <h2 className="mt-1 text-xl font-black text-white sm:text-2xl">Rug Rush</h2>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.055] text-xl text-white/80 transition hover:bg-white/[0.1]"
-            aria-label="Close Rug Rush"
-          >
-            ×
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSoundEnabled((enabled) => !enabled)}
+              className="flex h-10 items-center justify-center rounded-full border border-white/12 bg-white/[0.055] px-3 text-[9px] font-black uppercase tracking-[0.1em] text-white/72 transition hover:bg-white/[0.1]"
+              aria-label={soundEnabled ? "Turn Rug Rush sound off" : "Turn Rug Rush sound on"}
+            >
+              {soundEnabled ? "Sound On" : "Sound Off"}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-white/[0.055] text-xl text-white/80 transition hover:bg-white/[0.1]"
+              aria-label="Close Rug Rush"
+            >
+              ×
+            </button>
+          </div>
         </header>
 
         <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden p-2 sm:gap-3 sm:p-3">
@@ -1049,6 +1334,12 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
                 aria-label="Rug Rush cleaning surface"
               />
 
+              <canvas
+                ref={effectsCanvasRef}
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 z-10 h-full w-full"
+              />
+
               {phase === "playing" && brushPoint && (
                 <div
                   className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-1/2"
@@ -1059,15 +1350,22 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
                 >
                   <div className="relative h-16 w-16 sm:h-20 sm:w-20">
                     <div className="absolute inset-0 rounded-full border-2 border-cyan-100/70 bg-cyan-200/[0.08] shadow-[0_0_22px_rgba(103,232,249,0.48),inset_0_0_14px_rgba(103,232,249,0.18)]" />
+                    <div className="absolute inset-[9%] animate-spin rounded-full border border-dashed border-cyan-100/48 [animation-duration:900ms]" />
                     <div className="absolute inset-[20%] rounded-full border border-white/40 bg-slate-950/50" />
                     <div className="absolute left-1/2 top-1/2 h-[2px] w-[46%] -translate-x-1/2 -translate-y-1/2 bg-cyan-100/70" />
+                    <span className="absolute -right-1 top-1 text-[10px] text-cyan-100 drop-shadow-[0_0_8px_rgba(103,232,249,0.8)]">✦</span>
+                    <span className="absolute -left-1 bottom-2 text-[8px] text-white/80">✦</span>
                   </div>
                 </div>
               )}
 
               {phase === "playing" && comboMultiplier > 1 && (
-                <div className="pointer-events-none absolute left-3 top-3 z-20 rounded-full border border-cyan-200/24 bg-slate-950/78 px-3 py-1.5 text-sm font-black text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.18)] sm:text-base">
-                  CLEAN STREAK ×{comboMultiplier.toFixed(2).replace(/\.00$/, "")}
+                <div
+                  key={comboMultiplier}
+                  className="pointer-events-none absolute left-3 top-3 z-20 rounded-[16px] border border-cyan-200/28 bg-slate-950/84 px-3 py-2 shadow-[0_0_28px_rgba(34,211,238,0.24)] animate-pulse"
+                >
+                  <p className="text-[8px] font-black uppercase tracking-[0.16em] text-cyan-100/62">{comboLabel(comboMultiplier)}</p>
+                  <p className="mt-0.5 text-lg font-black leading-none text-cyan-100 sm:text-xl">×{comboMultiplier.toFixed(2).replace(/\.00$/, "")}</p>
                 </div>
               )}
 
@@ -1118,7 +1416,7 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
               )}
 
               {phase === "result" && (
-                <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/62 p-3 backdrop-blur-[2px] sm:p-4">
+                <div className="absolute inset-0 z-30 flex items-center justify-center overflow-y-auto bg-slate-950/62 p-3 backdrop-blur-[2px] sm:p-4">
                   <div className="w-[min(570px,94%)] rounded-[22px] border border-cyan-200/24 bg-slate-950/92 p-4 text-center shadow-[0_24px_60px_rgba(0,0,0,0.58)] sm:rounded-[24px] sm:p-6">
                     <div className="flex items-center justify-center gap-2">
                       <p className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-200/62">Time!</p>
@@ -1136,6 +1434,19 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
                         New Personal Best!
                       </div>
                     )}
+
+                    <div className="mx-auto mt-3 flex max-w-md items-center gap-3 rounded-[16px] border border-cyan-200/14 bg-cyan-300/[0.045] px-3 py-2 text-left">
+                      <img
+                        src="/nova/nova-character.png"
+                        alt="Nova"
+                        className="h-14 w-auto shrink-0 drop-shadow-[0_10px_14px_rgba(0,0,0,0.45)] sm:h-16"
+                        draggable={false}
+                      />
+                      <div>
+                        <p className="text-[8px] font-black uppercase tracking-[0.14em] text-cyan-100/55">Nova says</p>
+                        <p className="mt-0.5 text-[10px] font-bold leading-4 text-white/70 sm:text-[11px]">{novaReaction(cleanPercent)}</p>
+                      </div>
+                    </div>
 
                     <div className="mt-3 grid grid-cols-3 gap-2">
                       <ResultStat label="Cleaned" value={`${cleanPercent.toFixed(1)}%`} accent />
@@ -1180,7 +1491,16 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
               )}
 
               {phase === "playing" && timeLeftMs <= 3000 && (
-                <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-amber-200/24 bg-slate-950/78 px-4 py-2 text-xl font-black text-amber-100 shadow-[0_0_22px_rgba(251,191,36,0.18)] sm:text-2xl">{roundedSeconds}</div>
+                <>
+                  <div className="pointer-events-none absolute inset-0 z-[15] bg-[radial-gradient(circle_at_center,transparent_52%,rgba(251,191,36,0.12)_100%)]" />
+                  <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+                    <div key={roundedSeconds} className="animate-pulse text-center">
+                      <div className="text-[74px] font-black leading-none text-amber-100/85 drop-shadow-[0_0_30px_rgba(251,191,36,0.45)] sm:text-[96px]">{roundedSeconds}</div>
+                      <div className="mt-1 text-[9px] font-black uppercase tracking-[0.2em] text-amber-100/70">{roundedSeconds === 1 ? "Finish!" : "Keep Scrubbing!"}</div>
+                    </div>
+                  </div>
+                  <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-amber-200/24 bg-slate-950/78 px-4 py-2 text-xl font-black text-amber-100 shadow-[0_0_22px_rgba(251,191,36,0.18)] sm:text-2xl">{roundedSeconds}</div>
+                </>
               )}
             </div>
           </div>
