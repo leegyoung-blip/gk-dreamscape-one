@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useCoreMissionAccess } from "@/hooks/useCoreMissionAccess";
 import QuestionMediaRenderer from "@/components/core-media/QuestionMediaRenderer";
+import GroupedWordBankCloze from "./GroupedWordBankCloze";
 
 type CoreSubject = "english" | "math";
 type ScreenMode = "desktop" | "tablet" | "mobile";
@@ -298,6 +299,26 @@ function friendlyCorrectResponse(value: JsonObject | string | null) {
   }
   if (Array.isArray(value.order)) return value.order.join(" → ");
 
+  if (
+    value.values &&
+    typeof value.values === "object" &&
+    !Array.isArray(value.values)
+  ) {
+    return Object.entries(value.values)
+      .sort(([left], [right]) => {
+        const leftNumber = Number(left);
+        const rightNumber = Number(right);
+
+        if (Number.isFinite(leftNumber) && Number.isFinite(rightNumber)) {
+          return leftNumber - rightNumber;
+        }
+
+        return left.localeCompare(right);
+      })
+      .map(([, answer]) => String(answer))
+      .join(" / ");
+  }
+
   return JSON.stringify(value);
 }
 
@@ -445,6 +466,36 @@ export default function CoreQuizPlayer({
     );
   }, [answers, payload]);
 
+  const isGroupedWordBankQuiz = useMemo(() => {
+    if (
+      subject !== "english" ||
+      !payload ||
+      payload.questions.length === 0
+    ) {
+      return false;
+    }
+
+    const firstPassage = String(
+      payload.questions[0]?.content?.cloze_passage ?? "",
+    );
+
+    if (!firstPassage.trim()) {
+      return false;
+    }
+
+    return payload.questions.every((question) => {
+      const content = question.content ?? {};
+
+      return (
+        question.question_type === "word_bank" &&
+        content.layout === "drag_drop_grouped" &&
+        String(content.cloze_passage ?? "") === firstPassage &&
+        String(content.blank_id ?? "").trim().length > 0 &&
+        Array.isArray(content.word_bank)
+      );
+    });
+  }, [payload, subject]);
+
   function recordCurrentQuestionTime() {
     if (!currentQuestion) return;
     const seconds = Math.max(
@@ -565,19 +616,23 @@ export default function CoreQuizPlayer({
       return;
     }
 
-    const currentQuestionSeconds = currentQuestion
-      ? Math.max(
-          1,
-          Math.round((Date.now() - questionOpenedAtRef.current) / 1000),
-        )
-      : 0;
-    const finalTimeMap: TimeMap = currentQuestion
-      ? {
-          ...timeByQuestion,
-          [currentQuestion.id]:
-            (timeByQuestion[currentQuestion.id] ?? 0) + currentQuestionSeconds,
-        }
-      : timeByQuestion;
+    const currentQuestionSeconds =
+      !isGroupedWordBankQuiz && currentQuestion
+        ? Math.max(
+            1,
+            Math.round((Date.now() - questionOpenedAtRef.current) / 1000),
+          )
+        : 0;
+
+    const finalTimeMap: TimeMap =
+      !isGroupedWordBankQuiz && currentQuestion
+        ? {
+            ...timeByQuestion,
+            [currentQuestion.id]:
+              (timeByQuestion[currentQuestion.id] ?? 0) +
+              currentQuestionSeconds,
+          }
+        : timeByQuestion;
 
     setTimeByQuestion(finalTimeMap);
     setActionBusy(true);
@@ -589,10 +644,16 @@ export default function CoreQuizPlayer({
       Math.round((Date.now() - quizStartedAtRef.current) / 1000),
     );
 
+    const groupedAverageSeconds = isGroupedWordBankQuiz
+      ? Math.max(1, Math.round(finalDuration / payload.questions.length))
+      : null;
+
     const responseArray = payload.questions.map((question) => ({
       question_id: question.id,
       response_data: answers[question.id],
-      time_spent_seconds: finalTimeMap[question.id] ?? null,
+      time_spent_seconds: isGroupedWordBankQuiz
+        ? groupedAverageSeconds
+        : finalTimeMap[question.id] ?? null,
     }));
 
     const { data, error: submitError } = await supabase.rpc(
@@ -811,6 +872,29 @@ export default function CoreQuizPlayer({
       <main style={pageShell}>
         <CenteredCard message="No question was found." />
       </main>
+    );
+  }
+
+  if (isGroupedWordBankQuiz) {
+    return (
+      <GroupedWordBankCloze
+        title={payload.quiz.title}
+        topicTitle={payload.quiz.topic_title}
+        level={level}
+        questions={payload.questions}
+        answers={answers}
+        tokenBalance={tokenBalance}
+        gemBalance={dreamGemBalance}
+        isMobile={isMobile}
+        busy={actionBusy}
+        error={error}
+        onAnswersChange={(nextAnswers) => {
+          setAnswers(nextAnswers);
+          setError(null);
+        }}
+        onSubmit={() => void submitQuiz()}
+        onExit={returnToQuizList}
+      />
     );
   }
 

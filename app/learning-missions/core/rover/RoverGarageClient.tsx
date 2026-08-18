@@ -8,7 +8,10 @@ import {
   coreUpgradeTrack,
   getCoreRoverProgress,
 } from "@/lib/coreRoverProgress";
-import type { RoverLevelAccess } from "../rover-challenge/levels";
+import type {
+  RoverLevelAccess,
+  RoverLevelId,
+} from "../rover-challenge/levels";
 
 const COURSE_ID = "skyforge-test-track-01";
 
@@ -29,7 +32,59 @@ type LeaderboardRow = SummaryRow & {
   username: string;
 };
 
-type LeaderboardsByLevel = Record<1 | 2, LeaderboardRow[]>;
+type LeaderboardsByLevel = Record<RoverLevelId, LeaderboardRow[]>;
+
+type PurchaseUnlockRow = {
+  success: boolean;
+  unlocked_level_id: number;
+  course_id: string;
+  gem_cost: number;
+  new_balance: number;
+  transaction_id: string;
+};
+
+type RoverCourseMeta = {
+  id: RoverLevelId;
+  courseId: string;
+  title: string;
+  description: string;
+  orbTotal: number;
+};
+
+const ROVER_COURSES: RoverCourseMeta[] = [
+  {
+    id: 1,
+    courseId: "skyforge-test-track-01",
+    title: "Skyforge Test Track",
+    description:
+      "Master the controls, clear both gaps and reach all three checkpoints.",
+    orbTotal: 8,
+  },
+  {
+    id: 2,
+    courseId: "dreamkeeper-divide-02",
+    title: "Dreamkeeper Divide",
+    description:
+      "Choose the faster upper jump or the longer lower road, then survive the Dreamkeeper's dynamite traps.",
+    orbTotal: 8,
+  },
+  {
+    id: 3,
+    courseId: "dreamkeeper-gauntlet-03",
+    title: "Dreamkeeper's Gauntlet",
+    description:
+      "Time the pulse gates, cross the broken road and survive the Dreamkeeper's final ambush.",
+    orbTotal: 8,
+  },
+  {
+    id: 4,
+    courseId: "fracture-run-04",
+    title: "Fracture Run",
+    description:
+      "Keep moving across unstable roads as the Dreamkeeper tears the course apart.",
+    orbTotal: 9,
+  },
+];
 
 type RoverBuildStat = {
   label: string;
@@ -293,9 +348,14 @@ export default function RoverGarageClient() {
   const [leaderboards, setLeaderboards] = useState<LeaderboardsByLevel>({
     1: [],
     2: [],
+    3: [],
+    4: [],
   });
 
   const [courseLoadMessage, setCourseLoadMessage] = useState("");
+  const [courseActionMessage, setCourseActionMessage] = useState("");
+  const [purchasingLevel, setPurchasingLevel] =
+    useState<RoverLevelId | null>(null);
 
   const progress = useMemo(
     () => getCoreRoverProgress(completedMissionCount),
@@ -346,42 +406,53 @@ export default function RoverGarageClient() {
       accessResult,
       levelOneLeaderboardResult,
       levelTwoLeaderboardResult,
-    ] =
-      await Promise.all([
-        supabase
-          .from("dream_token_transactions")
-          .select("amount")
-          .eq("user_id", user.id)
-          .eq("token_kind", "virtual"),
+      levelThreeLeaderboardResult,
+      levelFourLeaderboardResult,
+    ] = await Promise.all([
+      supabase
+        .from("dream_token_transactions")
+        .select("amount")
+        .eq("user_id", user.id)
+        .eq("token_kind", "virtual"),
 
-        supabase
-          .from("profiles")
-          .select("dream_gem_balance")
-          .eq("id", user.id)
-          .maybeSingle(),
+      supabase
+        .from("profiles")
+        .select("dream_gem_balance")
+        .eq("id", user.id)
+        .maybeSingle(),
 
-        supabase
-          .from("core_mission_attempts")
-          .select("quiz_id, tokens_earned")
-          .eq("user_id", user.id)
-          .gt("tokens_earned", 0),
+      supabase
+        .from("core_mission_attempts")
+        .select("quiz_id, tokens_earned")
+        .eq("user_id", user.id)
+        .gt("tokens_earned", 0),
 
-        supabase.rpc("get_my_rover_challenge_summary", {
-          p_course_id: COURSE_ID,
-        }),
+      supabase.rpc("get_my_rover_challenge_summary", {
+        p_course_id: COURSE_ID,
+      }),
 
-        supabase.rpc("get_rover_level_access"),
+      supabase.rpc("get_rover_level_access"),
 
-        supabase.rpc("get_rover_challenge_visible_leaderboard", {
-          p_course_id: COURSE_ID,
-          p_limit: 10,
-        }),
+      supabase.rpc("get_rover_challenge_visible_leaderboard", {
+        p_course_id: "skyforge-test-track-01",
+        p_limit: 10,
+      }),
 
-        supabase.rpc("get_rover_challenge_visible_leaderboard", {
-          p_course_id: "dreamkeeper-divide-02",
-          p_limit: 10,
-        }),
-      ]);
+      supabase.rpc("get_rover_challenge_visible_leaderboard", {
+        p_course_id: "dreamkeeper-divide-02",
+        p_limit: 10,
+      }),
+
+      supabase.rpc("get_rover_challenge_visible_leaderboard", {
+        p_course_id: "dreamkeeper-gauntlet-03",
+        p_limit: 10,
+      }),
+
+      supabase.rpc("get_rover_challenge_visible_leaderboard", {
+        p_course_id: "fracture-run-04",
+        p_limit: 10,
+      }),
+    ]);
 
     if (tokensResult.error) {
       console.warn("Could not load DT balance:", tokensResult.error.message);
@@ -452,22 +523,92 @@ export default function RoverGarageClient() {
       setCourseLoadMessage("");
     }
 
-    if (levelOneLeaderboardResult.error || levelTwoLeaderboardResult.error) {
-      console.warn(
-        "Could not load rover leaderboard:",
-        levelOneLeaderboardResult.error?.message ||
-          levelTwoLeaderboardResult.error?.message,
-      );
-      setLeaderboards({ 1: [], 2: [] });
+    const leaderboardError =
+      levelOneLeaderboardResult.error ||
+      levelTwoLeaderboardResult.error ||
+      levelThreeLeaderboardResult.error ||
+      levelFourLeaderboardResult.error;
+
+    if (leaderboardError) {
+      console.warn("Could not load rover leaderboard:", leaderboardError.message);
+      setLeaderboards({ 1: [], 2: [], 3: [], 4: [] });
     } else {
       setLeaderboards({
         1: (levelOneLeaderboardResult.data ?? []) as LeaderboardRow[],
         2: (levelTwoLeaderboardResult.data ?? []) as LeaderboardRow[],
+        3: (levelThreeLeaderboardResult.data ?? []) as LeaderboardRow[],
+        4: (levelFourLeaderboardResult.data ?? []) as LeaderboardRow[],
       });
     }
 
     setLoading(false);
   }, []);
+
+  const purchaseEarlyUnlock = useCallback(
+    async (levelId: RoverLevelId) => {
+      const access = levelAccess.find(
+        (row) => Number(row.level_id) === Number(levelId),
+      );
+
+      if (!access?.can_early_unlock || access.early_unlock_price <= 0) {
+        return;
+      }
+
+      if (dreamGemBalance < access.early_unlock_price) {
+        setCourseActionMessage(
+          `You need ${access.early_unlock_price - dreamGemBalance} more Dream Gems to unlock Level ${levelId}.`,
+        );
+        return;
+      }
+
+      const confirmed = window.confirm(
+        [
+          `Unlock Level ${levelId} — ${access.title} early?`,
+          "",
+          `Cost: ${access.early_unlock_price} Dream Gems`,
+          `Balance: ${dreamGemBalance} → ${dreamGemBalance - access.early_unlock_price}`,
+          "",
+          "This permanent unlock bypasses the normal Rover Stage requirement. The previous Rover Level must still be completed first.",
+        ].join("\n"),
+      );
+
+      if (!confirmed) return;
+
+      setPurchasingLevel(levelId);
+      setCourseActionMessage("");
+
+      const { data, error } = await supabase.rpc(
+        "purchase_rover_level_unlock",
+        {
+          p_level_id: levelId,
+        },
+      );
+
+      setPurchasingLevel(null);
+
+      if (error) {
+        setCourseActionMessage(
+          error.message || "The Rover Level could not be unlocked.",
+        );
+        return;
+      }
+
+      const result = ((data ?? []) as PurchaseUnlockRow[])[0];
+
+      if (result?.success) {
+        setDreamGemBalance(Number(result.new_balance));
+        setCourseActionMessage(
+          `Level ${levelId} unlocked permanently for ${result.gem_cost} Dream Gems.`,
+        );
+        window.dispatchEvent(new Event("dream-gems-updated"));
+        window.dispatchEvent(new Event("rover-level-progress-updated"));
+        await loadGarage();
+      } else {
+        setCourseActionMessage(`Level ${levelId} could not be unlocked.`);
+      }
+    },
+    [dreamGemBalance, levelAccess, loadGarage],
+  );
 
   useEffect(() => {
     void loadGarage();
@@ -693,10 +834,16 @@ export default function RoverGarageClient() {
               access={levelAccess}
               leaderboards={leaderboards}
               loadMessage={courseLoadMessage}
+              actionMessage={courseActionMessage}
               currentStage={progress.currentUpgrade.stage}
+              dreamGemBalance={dreamGemBalance}
+              purchasingLevel={purchasingLevel}
               userId={userId}
               onOpenLevel={(level) =>
                 router.push(`/learning-missions/core/rover-challenge/${level}`)
+              }
+              onPurchaseEarlyUnlock={(level) =>
+                void purchaseEarlyUnlock(level)
               }
             />
           ) : tab === "upgrades" ? (
@@ -718,24 +865,32 @@ function RoverCoursesPanel({
   access,
   leaderboards,
   loadMessage,
+  actionMessage,
   currentStage,
+  dreamGemBalance,
+  purchasingLevel,
   userId,
   onOpenLevel,
+  onPurchaseEarlyUnlock,
 }: {
   access: RoverLevelAccess[];
   leaderboards: LeaderboardsByLevel;
   loadMessage: string;
+  actionMessage: string;
   currentStage: number;
+  dreamGemBalance: number;
+  purchasingLevel: RoverLevelId | null;
   userId: string;
-  onOpenLevel: (level: number) => void;
+  onOpenLevel: (level: RoverLevelId) => void;
+  onPurchaseEarlyUnlock: (level: RoverLevelId) => void;
 }) {
-  const [leaderboardLevel, setLeaderboardLevel] = useState<1 | 2>(1);
-  const levelOne = access.find((row) => Number(row.level_id) === 1);
-  const levelTwo = access.find((row) => Number(row.level_id) === 2);
+  const [leaderboardLevel, setLeaderboardLevel] =
+    useState<RoverLevelId>(1);
+
   const leaderboardRows = leaderboards[leaderboardLevel];
-  const leaderboardCourse =
-    leaderboardLevel === 1 ? "Skyforge Test Track" : "Dreamkeeper Divide";
-  const leaderboardOrbTotal = 8;
+  const selectedLeaderboardCourse =
+    ROVER_COURSES.find((course) => course.id === leaderboardLevel) ??
+    ROVER_COURSES[0];
 
   return (
     <div style={coursesPanel}>
@@ -743,30 +898,35 @@ function RoverCoursesPanel({
         <p style={smallEyebrow}>COURSE SELECT</p>
         <h2 style={{ margin: "7px 0 0" }}>Rover Challenge</h2>
         <p style={coursesIntro}>
-          Complete a level to unlock the next route. Older levels stay open for
-          replay and keep their own personal bests.
+          Every current Rover Level is shown here. Complete levels in order.
+          If your Rover Stage is behind schedule, Dream Gems can permanently
+          unlock the next eligible level early. Admin accounts can enter every
+          level immediately.
         </p>
       </div>
 
       {loadMessage && <div style={courseNotice}>{loadMessage}</div>}
+      {actionMessage && <div style={courseNotice}>{actionMessage}</div>}
 
       <div style={courseGrid}>
-        <CourseCard
-          number={1}
-          title="Skyforge Test Track"
-          description="Master the controls, clear both gaps and reach all three checkpoints."
-          access={levelOne}
-          currentStage={currentStage}
-          onOpen={() => onOpenLevel(1)}
-        />
-        <CourseCard
-          number={2}
-          title="Dreamkeeper Divide"
-          description="Choose the faster upper jump or the longer lower road, then survive the Dreamkeeper's dynamite traps."
-          access={levelTwo}
-          currentStage={currentStage}
-          onOpen={() => onOpenLevel(2)}
-        />
+        {ROVER_COURSES.map((course) => (
+          <CourseCard
+            key={course.id}
+            number={course.id}
+            title={course.title}
+            description={course.description}
+            access={access.find(
+              (row) => Number(row.level_id) === Number(course.id),
+            )}
+            currentStage={currentStage}
+            dreamGemBalance={dreamGemBalance}
+            purchasing={purchasingLevel === course.id}
+            onOpen={() => onOpenLevel(course.id)}
+            onPurchaseEarlyUnlock={() =>
+              onPurchaseEarlyUnlock(course.id)
+            }
+          />
+        ))}
       </div>
 
       <div style={leaderboardPanel}>
@@ -775,24 +935,29 @@ function RoverCoursesPanel({
             <p style={smallEyebrow}>LEVEL {leaderboardLevel}</p>
             <h3 style={{ margin: "5px 0 0" }}>Top Explorers</h3>
           </div>
-          <span style={leaderboardCoursePill}>{leaderboardCourse}</span>
+          <span style={leaderboardCoursePill}>
+            {selectedLeaderboardCourse.title}
+          </span>
         </div>
 
-        <div style={leaderboardLevelTabs}>
-          <button
-            type="button"
-            onClick={() => setLeaderboardLevel(1)}
-            style={leaderboardLevelButton(leaderboardLevel === 1)}
-          >
-            Level 1
-          </button>
-          <button
-            type="button"
-            onClick={() => setLeaderboardLevel(2)}
-            style={leaderboardLevelButton(leaderboardLevel === 2)}
-          >
-            Level 2
-          </button>
+        <div
+          style={{
+            ...leaderboardLevelTabs,
+            gridTemplateColumns: "repeat(4,minmax(0,1fr))",
+          }}
+        >
+          {ROVER_COURSES.map((course) => (
+            <button
+              key={course.id}
+              type="button"
+              onClick={() => setLeaderboardLevel(course.id)}
+              style={leaderboardLevelButton(
+                leaderboardLevel === course.id,
+              )}
+            >
+              Level {course.id}
+            </button>
+          ))}
         </div>
 
         {leaderboardRows.length === 0 ? (
@@ -804,23 +969,27 @@ function RoverCoursesPanel({
           <div style={leaderboardList}>
             {leaderboardRows.map((row) => {
               const isCurrentUser = row.user_id === userId;
+
               return (
                 <div
                   key={`${row.user_id}-${row.rank}`}
                   style={leaderboardRow(isCurrentUser)}
                 >
                   <strong style={leaderboardRank}>#{row.rank}</strong>
+
                   <div style={{ minWidth: 0 }}>
                     <p style={leaderboardName}>
                       {row.username || "Explorer"}
                       {isCurrentUser ? " · You" : ""}
                     </p>
+
                     <p style={leaderboardMeta}>
                       Stage {row.rover_stage} · {row.orbs_collected}/
-                      {leaderboardOrbTotal} orbs ·{" "}
+                      {selectedLeaderboardCourse.orbTotal} orbs ·{" "}
                       {formatMilliseconds(Number(row.best_time_ms))}
                     </p>
                   </div>
+
                   <strong style={leaderboardScore}>
                     {Number(row.best_score).toLocaleString()}
                   </strong>
@@ -840,48 +1009,120 @@ function CourseCard({
   description,
   access,
   currentStage,
+  dreamGemBalance,
+  purchasing,
   onOpen,
+  onPurchaseEarlyUnlock,
 }: {
-  number: number;
+  number: RoverLevelId;
   title: string;
   description: string;
   access?: RoverLevelAccess;
   currentStage: number;
+  dreamGemBalance: number;
+  purchasing: boolean;
   onOpen: () => void;
+  onPurchaseEarlyUnlock: () => void;
 }) {
   const unlocked = Boolean(access?.unlocked);
-  const stageReady = Boolean(access?.stage_ready);
   const completed = Boolean(access?.completed);
-  const canOpen = unlocked && stageReady;
-  const status = completed
-    ? "COMPLETED · REPLAY AVAILABLE"
-    : !unlocked
-      ? "LOCKED · COMPLETE LEVEL 1"
-      : !stageReady
-        ? `ROVER STAGE ${access?.minimum_rover_stage ?? 3} REQUIRED · CURRENT ${currentStage}`
-        : "READY TO DRIVE";
+  const adminAccess = Boolean(access?.admin_access);
+  const earlyUnlockPurchased = Boolean(access?.early_unlock_purchased);
+  const canEarlyUnlock = Boolean(access?.can_early_unlock);
+  const earlyUnlockPrice = Number(access?.early_unlock_price ?? 0);
+  const hasEnoughGems =
+    canEarlyUnlock && dreamGemBalance >= earlyUnlockPrice;
+
+  // get_rover_level_access() is authoritative. Admin and purchased early
+  // unlocks intentionally bypass stage_ready, so do not re-check it here.
+  const canOpen = unlocked;
+
+  let status = "ACCESS DATA UNAVAILABLE";
+
+  if (access) {
+    if (adminAccess) {
+      status = completed
+        ? "COMPLETED · ADMIN REPLAY"
+        : "ADMIN ACCESS · READY TO DRIVE";
+    } else if (completed) {
+      status = "COMPLETED · REPLAY AVAILABLE";
+    } else if (earlyUnlockPurchased) {
+      status = "EARLY UNLOCK · PERMANENT";
+    } else if (!access.prerequisite_completed) {
+      status = `LOCKED · COMPLETE LEVEL ${access.prerequisite_level}`;
+    } else if (canEarlyUnlock) {
+      status = `ROVER STAGE ${access.minimum_rover_stage} NORMALLY REQUIRED · EARLY UNLOCK AVAILABLE`;
+    } else if (canOpen) {
+      status = "READY TO DRIVE";
+    } else {
+      status = `ROVER STAGE ${access.minimum_rover_stage} REQUIRED · CURRENT ${currentStage}`;
+    }
+  }
+
+  const highlighted = canOpen || canEarlyUnlock;
 
   return (
-    <article style={courseCard(canOpen, completed)}>
-      <div style={courseNumber(canOpen)}>{number}</div>
+    <article style={courseCard(highlighted, completed)}>
+      <div style={courseNumber(highlighted)}>{number}</div>
+
       <div style={{ minWidth: 0 }}>
-        <p style={courseStatus(canOpen)}>{status}</p>
+        <p style={courseStatus(highlighted)}>{status}</p>
         <h3 style={courseTitle}>{title}</h3>
         <p style={courseDescription}>{description}</p>
+
         {access?.best_score != null && (
           <p style={courseBest}>
-            Best {Number(access.best_score).toLocaleString()} points · {formatMilliseconds(Number(access.best_time_ms))}
+            Best {Number(access.best_score).toLocaleString()} points ·{" "}
+            {formatMilliseconds(Number(access.best_time_ms))}
+          </p>
+        )}
+
+        {canEarlyUnlock && (
+          <p
+            style={{
+              ...courseBest,
+              color: hasEnoughGems ? "#e7d2ff" : "#ffc9b5",
+            }}
+          >
+            Early unlock: ◆ {earlyUnlockPrice} DG · Balance:{" "}
+            {dreamGemBalance} DG
           </p>
         )}
       </div>
-      <button
-        type="button"
-        disabled={!canOpen}
-        onClick={onOpen}
-        style={courseButton(canOpen)}
-      >
-        {completed ? "Replay" : "Start"}
-      </button>
+
+      {canOpen ? (
+        <button
+          type="button"
+          onClick={onOpen}
+          style={courseButton(true, "play")}
+        >
+          {completed ? "Replay" : "Play"}
+        </button>
+      ) : canEarlyUnlock ? (
+        <button
+          type="button"
+          disabled={!hasEnoughGems || purchasing}
+          onClick={onPurchaseEarlyUnlock}
+          style={courseButton(
+            hasEnoughGems && !purchasing,
+            "gem",
+          )}
+        >
+          {purchasing
+            ? "Unlocking..."
+            : hasEnoughGems
+              ? `${earlyUnlockPrice} DG`
+              : "Need DG"}
+        </button>
+      ) : (
+        <button
+          type="button"
+          disabled
+          style={courseButton(false, "locked")}
+        >
+          Locked
+        </button>
+      )}
     </article>
   );
 }
@@ -1957,17 +2198,25 @@ const courseBest: CSSProperties = {
   fontWeight: 800,
 };
 
-function courseButton(enabled: boolean): CSSProperties {
+function courseButton(
+  enabled: boolean,
+  kind: "play" | "gem" | "locked" = "play",
+): CSSProperties {
+  const activeBackground =
+    kind === "gem"
+      ? "linear-gradient(135deg,#9b6dff,#d27cff)"
+      : "linear-gradient(135deg,#35c5ff,#5c6cff)";
+
   return {
-    minWidth: "78px",
+    minWidth: kind === "gem" ? "96px" : "78px",
     minHeight: "40px",
     borderRadius: "11px",
     border: enabled
-      ? "1px solid rgba(126,232,255,0.42)"
+      ? kind === "gem"
+        ? "1px solid rgba(225,200,255,0.52)"
+        : "1px solid rgba(126,232,255,0.42)"
       : "1px solid rgba(255,255,255,0.08)",
-    background: enabled
-      ? "linear-gradient(135deg,#35c5ff,#5c6cff)"
-      : "rgba(255,255,255,0.03)",
+    background: enabled ? activeBackground : "rgba(255,255,255,0.03)",
     color: enabled ? "white" : "rgba(255,255,255,0.3)",
     padding: "0 13px",
     fontWeight: 900,

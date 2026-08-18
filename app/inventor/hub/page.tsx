@@ -191,10 +191,10 @@ const ZONE_VISUALS: ZoneVisual[] = [
   },
   {
     key: "door-zone",
-    fallbackTitle: "Area 2 Expansion",
+    fallbackTitle: "Area 2",
     fallbackSubtitle:
-      "Unlock Nova's connecting doorway and continue into Area 2.",
-    fallbackCost: 1500,
+      "A new connected expansion of Nova's Home is coming soon.",
+    fallbackCost: 0,
     maskImage: "/activities/nova-home/area-1/zone-door-locked.png",
     accent: "#fbbf24",
     isAreaExit: true,
@@ -287,10 +287,6 @@ function getWardrobeEquipSlotForItem(item: Pick<WardrobeCatalogRow, "category" |
 
 function formatDT(value: number) {
   return `${Math.round(Number(value || 0)).toLocaleString("en-SG")} DT`;
-}
-
-function normaliseRole(value: string | null | undefined) {
-  return String(value || "").trim().toLowerCase();
 }
 
 function getPurchaseResult(data: unknown): PurchaseResult | null {
@@ -404,8 +400,6 @@ export default function NovaHomePage() {
   const [currentArea, setCurrentArea] = useState<AreaKey>("area-1");
   const [area2ImageFailed, setArea2ImageFailed] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [dreamTokenBalance, setDreamTokenBalance] = useState(0);
   const [balanceLoading, setBalanceLoading] = useState(true);
   const [catalogLoading, setCatalogLoading] = useState(true);
@@ -451,9 +445,9 @@ export default function NovaHomePage() {
 
       return {
         ...visual,
-        title: row?.title || visual.fallbackTitle,
-        subtitle: row?.subtitle || visual.fallbackSubtitle,
-        dtCost: Number(row?.dt_cost ?? visual.fallbackCost),
+        title: visual.isAreaExit ? visual.fallbackTitle : row?.title || visual.fallbackTitle,
+        subtitle: visual.isAreaExit ? visual.fallbackSubtitle : row?.subtitle || visual.fallbackSubtitle,
+        dtCost: visual.isAreaExit ? 0 : Number(row?.dt_cost ?? visual.fallbackCost),
       };
     });
   }, [catalogRows]);
@@ -468,7 +462,7 @@ export default function NovaHomePage() {
   const roomUnlockedCount = ROOM_ZONE_KEYS.filter((key) =>
     unlockedZones.has(key),
   ).length;
-  const area2Unlocked = unlockedZones.has("door-zone");
+  const area2Unlocked = false;
 
   const loadNovaHome = useCallback(async () => {
     setBalanceLoading(true);
@@ -480,8 +474,6 @@ export default function NovaHomePage() {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      setUserEmail(null);
-      setIsAdmin(false);
       setAuthChecked(true);
       setBalanceLoading(false);
       setCatalogLoading(false);
@@ -489,11 +481,8 @@ export default function NovaHomePage() {
       return;
     }
 
-    setUserEmail(user.email ?? null);
-
-    const [profileResult, balanceResult, catalogResult, unlockResult] =
+    const [balanceResult, catalogResult, unlockResult] =
       await Promise.all([
-        supabase.from("profiles").select("role").eq("id", user.id).maybeSingle(),
         supabase
           .from("dream_token_transactions")
           .select("amount")
@@ -511,20 +500,7 @@ export default function NovaHomePage() {
           .eq("user_id", user.id),
       ]);
 
-    const admin = normaliseRole(profileResult.data?.role) === "admin";
-    setIsAdmin(admin);
     setAuthChecked(true);
-
-    if (!admin) {
-      setBalanceLoading(false);
-      setCatalogLoading(false);
-      router.replace("/inventor");
-      return;
-    }
-
-    if (profileResult.error) {
-      console.warn("Could not load Nova Home role:", profileResult.error.message);
-    }
 
     if (balanceResult.error) {
       console.warn(
@@ -585,7 +561,7 @@ export default function NovaHomePage() {
 
       ((unlockResult.data || []) as ZoneUnlockRow[]).forEach((row) => {
         const key = String(row.zone_key) as ZoneKey;
-        if (validZoneKeys.has(key)) owned.add(key);
+        if (validZoneKeys.has(key) && key !== "door-zone") owned.add(key);
       });
 
       setUnlockedZones(owned);
@@ -812,14 +788,6 @@ export default function NovaHomePage() {
     setSelectedZoneKey(zoneKey);
     setHoveredZoneKey(zoneKey);
     setMessage("");
-  }
-
-  function enterArea2() {
-    if (!area2Unlocked) return;
-    setSelectedZoneKey(null);
-    setHoveredZoneKey(null);
-    setMessage("");
-    setCurrentArea("area-2");
   }
 
   const loadWardrobe = useCallback(async () => {
@@ -1314,8 +1282,12 @@ export default function NovaHomePage() {
     const zone = zoneMap.get(zoneKey);
     if (!zone || purchasingZoneKey || setupError) return;
 
+    if (zone.isAreaExit) {
+      setMessage("Area 2 is coming soon.");
+      return;
+    }
+
     if (unlockedZones.has(zoneKey)) {
-      if (zone.isAreaExit) enterArea2();
       return;
     }
 
@@ -1368,23 +1340,15 @@ export default function NovaHomePage() {
 
     window.dispatchEvent(new Event("dream-tokens-updated"));
 
-    if (zone.isAreaExit) {
-      window.setTimeout(() => {
-        setCurrentArea("area-2");
-        setSelectedZoneKey(null);
-        setHoveredZoneKey(null);
-        setMessage("");
-      }, 650);
-    }
   }
 
-  if (!authChecked || !isAdmin) {
+  if (!authChecked) {
     return (
       <main className="flex min-h-[100dvh] items-center justify-center bg-[#020713] px-6 text-white">
         <div className="text-center">
           <div className="mx-auto h-10 w-10 animate-pulse rounded-full border border-cyan-300/50 bg-cyan-300/10 shadow-[0_0_28px_rgba(83,215,255,0.28)]" />
           <p className="mt-4 text-xs font-black uppercase tracking-[0.18em] text-cyan-200/70">
-            Checking Nova Home access
+            Loading Nova Home
           </p>
         </div>
       </main>
@@ -1418,13 +1382,13 @@ export default function NovaHomePage() {
                 Nova’s Home
               </h1>
               <span className="text-[9px] font-black uppercase tracking-[0.17em] text-cyan-300/75 sm:text-[10px]">
-                Admin Preview
+                Customise & Play
               </span>
             </div>
             <p className="mt-0.5 max-w-3xl text-[10px] leading-4 text-white/50 sm:text-[11px] xl:text-xs">
               {currentArea === "area-1"
                 ? "Choose a darkened room zone, view its DT price, and unlock it to reveal the furnishing beneath."
-                : "Area 2 is unlocked. This is the next connected expansion of Nova’s Home."}
+                : "Area 2 is coming soon."}
             </p>
           </div>
 
@@ -1448,21 +1412,15 @@ export default function NovaHomePage() {
             </div>
 
             <div
-              className={`rounded-full border px-4 py-2 text-right ${
-                area2Unlocked
-                  ? "border-emerald-200/20 bg-emerald-300/[0.07]"
-                  : "border-amber-200/18 bg-amber-300/[0.05]"
-              }`}
+              className="rounded-full border border-amber-200/18 bg-amber-300/[0.05] px-4 py-2 text-right"
             >
               <p className="text-[8px] font-black uppercase tracking-[0.15em] text-white/38">
                 Area 2
               </p>
               <p
-                className={`mt-0.5 text-sm font-black ${
-                  area2Unlocked ? "text-emerald-100" : "text-amber-100/75"
-                }`}
+                className="mt-0.5 text-sm font-black text-amber-100/75"
               >
-                {area2Unlocked ? "Unlocked" : "Locked"}
+                Coming Soon
               </p>
             </div>
           </div>
@@ -1484,14 +1442,14 @@ export default function NovaHomePage() {
                   Area 1 · Starter Quarters
                 </p>
                 <p className="mt-1 text-[11px] leading-5 text-white/40">
-                  Select a zone to inspect or unlock it.
+                  Select a room zone to inspect or unlock it. Area 2 is coming soon.
                 </p>
               </div>
 
               {zones.map((zone) => {
-                const unlocked = unlockedZones.has(zone.key);
+                const unlocked = !zone.isAreaExit && unlockedZones.has(zone.key);
                 const selected = selectedZoneKey === zone.key;
-                const affordable = dreamTokenBalance >= zone.dtCost;
+                const affordable = !zone.isAreaExit && dreamTokenBalance >= zone.dtCost;
 
                 return (
                   <button
@@ -1517,24 +1475,24 @@ export default function NovaHomePage() {
                         </p>
                         <p
                           className={`mt-1 text-[9px] font-bold uppercase tracking-[0.1em] ${
-                            unlocked
-                              ? "text-emerald-200/65"
-                              : affordable
-                                ? zone.isAreaExit
-                                  ? "text-amber-200/65"
-                                  : "text-cyan-200/58"
-                                : "text-white/28"
+                            zone.isAreaExit
+                              ? "text-amber-200/65"
+                              : unlocked
+                                ? "text-emerald-200/65"
+                                : affordable
+                                  ? "text-cyan-200/58"
+                                  : "text-white/28"
                           }`}
                         >
-                          {unlocked
-                            ? zone.isAreaExit
-                              ? "Enter Area 2"
-                              : zone.key === "bed-zone"
+                          {zone.isAreaExit
+                            ? "Coming Soon"
+                            : unlocked
+                              ? zone.key === "bed-zone"
                                 ? "Wardrobe Bay"
                                 : "Unlocked"
-                            : affordable
-                              ? "Available"
-                              : "Save more DT"}
+                              : affordable
+                                ? "Available"
+                                : "Save more DT"}
                         </p>
                       </div>
 
@@ -1549,7 +1507,7 @@ export default function NovaHomePage() {
                                 : "text-white/30"
                         }`}
                       >
-                        {unlocked ? "✓" : formatDT(zone.dtCost)}
+                        {zone.isAreaExit ? "Soon" : unlocked ? "✓" : formatDT(zone.dtCost)}
                       </strong>
                     </div>
                   </button>
@@ -1586,7 +1544,7 @@ export default function NovaHomePage() {
                 />
 
                 {zones.map((zone) => {
-                  if (unlockedZones.has(zone.key)) return null;
+                  if (!zone.isAreaExit && unlockedZones.has(zone.key)) return null;
 
                   const hovered = hoveredZoneKey === zone.key;
                   const selected = selectedZoneKey === zone.key;
@@ -1624,7 +1582,7 @@ export default function NovaHomePage() {
                       onPointerMove={(event) => event.stopPropagation()}
                       onPointerUp={(event) => event.stopPropagation()}
                       className={`pointer-events-auto rounded-[20px] border px-4 py-3 shadow-[0_24px_62px_rgba(0,0,0,0.52)] backdrop-blur-xl sm:px-5 sm:py-4 ${
-                        unlockedZones.has(activeZone.key)
+                        (!activeZone.isAreaExit && unlockedZones.has(activeZone.key))
                           ? "border-emerald-200/24 bg-emerald-950/88"
                           : activeZone.isAreaExit
                             ? "border-amber-200/28 bg-slate-950/90"
@@ -1640,12 +1598,10 @@ export default function NovaHomePage() {
                                 : "text-cyan-200/58"
                             }`}
                           >
-                            {unlockedZones.has(activeZone.key)
-                              ? activeZone.isAreaExit
-                                ? "Expansion Unlocked"
-                                : "Zone Unlocked"
-                              : activeZone.isAreaExit
-                                ? "Home Expansion"
+                            {activeZone.isAreaExit
+                              ? "Coming Soon"
+                              : unlockedZones.has(activeZone.key)
+                                ? "Zone Unlocked"
                                 : "Room Upgrade"}
                           </p>
 
@@ -1665,16 +1621,12 @@ export default function NovaHomePage() {
                         </div>
 
                         <div className="shrink-0 sm:min-w-[185px] sm:text-right">
-                          {unlockedZones.has(activeZone.key) ? (
-                            activeZone.isAreaExit ? (
-                              <button
-                                type="button"
-                                onClick={enterArea2}
-                                className="min-h-11 w-full rounded-full bg-emerald-300 px-5 text-[11px] font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-emerald-200 sm:w-auto"
-                              >
-                                Enter Area 2 →
-                              </button>
-                            ) : activeZone.key === "bed-zone" ? (
+                          {activeZone.isAreaExit ? (
+                            <span className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-amber-200/24 bg-amber-300/10 px-5 text-[11px] font-black uppercase tracking-[0.1em] text-amber-100 sm:w-auto">
+                              Coming Soon
+                            </span>
+                          ) : unlockedZones.has(activeZone.key) ? (
+                            activeZone.key === "bed-zone" ? (
                               <button
                                 type="button"
                                 onClick={openWardrobe}
@@ -1765,15 +1717,13 @@ export default function NovaHomePage() {
               <div className="absolute inset-x-0 bottom-0 p-5 sm:p-8">
                 <div className="max-w-xl rounded-[22px] border border-emerald-200/22 bg-slate-950/82 p-5 backdrop-blur-xl sm:p-6">
                   <p className="text-[9px] font-black uppercase tracking-[0.17em] text-emerald-200/72">
-                    Connected Expansion
+                    Future Expansion
                   </p>
                   <h2 className="mt-2 text-2xl font-black sm:text-3xl">
-                    Area 2 Unlocked
+                    Area 2 · Coming Soon
                   </h2>
                   <p className="mt-2 text-xs leading-6 text-white/52 sm:text-sm">
-                    The doorway purchase now carries the player into Area 2. We
-                    can replace this placeholder with the final Area 2 artwork
-                    and upgrade system when we build that room.
+                    Area 2 is not available yet. This connected room will open in a future Nova Home update.
                   </p>
                   <button
                     type="button"

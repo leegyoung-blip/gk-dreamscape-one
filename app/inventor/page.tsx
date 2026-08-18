@@ -234,8 +234,6 @@ const zones: Zone[] = [
       "Build and customise Nova’s connected home areas with Dream Tokens.",
     href: "/inventor/hub",
     icon: "⌂",
-    adminOnly: true,
-    statusLabel: "Coming Soon",
   },
   {
     id: "membership-portal",
