@@ -13,7 +13,7 @@ import { supabase } from "@/lib/supabase";
 import WardrobeFittedLayer from "@/components/nova-home/WardrobeFittedLayer";
 import WardrobeRigOverlay from "@/components/nova-home/WardrobeRigOverlay";
 import WardrobeTransformHandles from "@/components/nova-home/WardrobeTransformHandles";
-import { NOVA_WARDROBE_RIG, getRigStretchLabel } from "@/lib/novaHome/wardrobeRig";
+import { MILO_WARDROBE_RIG, NOVA_WARDROBE_RIG, getRigStretchLabel } from "@/lib/novaHome/wardrobeRig";
 
 type AreaKey = "area-1" | "area-2";
 
@@ -1242,11 +1242,6 @@ export default function NovaHomePage() {
     const item = wardrobeCatalog.find((entry) => entry.item_key === itemKey);
     if (!item || !isAdmin || wardrobeSavingFitItemKey || wardrobeSetupError) return false;
 
-    if (item.character_key !== "nova") {
-      setWardrobeMessage("Accessory calibration is currently available for Nova accessories only.");
-      return false;
-    }
-
     setWardrobeSavingFitItemKey(itemKey);
     setWardrobeMessage("");
 
@@ -1914,10 +1909,9 @@ function WardrobeBay({
   } | null>(null);
 
   useEffect(() => {
-    if (activeCharacter !== "nova") {
-      setCalibrationMode(false);
-      setCalibrationDrag(null);
-    }
+    setCalibrationMode(false);
+    setCalibrationDrag(null);
+    setCalibrationOpacity(1);
   }, [activeCharacter]);
 
   useEffect(() => {
@@ -1925,7 +1919,7 @@ function WardrobeBay({
   }, [calibrationMode]);
 
   useEffect(() => {
-    if (activeCharacter !== "nova" || selectedItem?.category !== "accessory") {
+    if (selectedItem?.category !== "accessory") {
       setCalibrationMode(false);
       setCalibrationOpacity(1);
     }
@@ -1933,7 +1927,7 @@ function WardrobeBay({
 
   useEffect(() => {
     setCalibrationOpacity(1);
-    if (!selectedItem || selectedItem.character_key !== "nova") {
+    if (!selectedItem || selectedItem.character_key !== activeCharacter) {
       setFitDraft({
         fit_mode: "auto",
         fit_scale: 1,
@@ -2045,7 +2039,6 @@ function WardrobeBay({
 
   const calibratedPreviewAccessories = previewAccessoryLayers.map((item) =>
     calibrationMode &&
-    activeCharacter === "nova" &&
     selectedItem?.item_key === item.item_key &&
     selectedItem.category === "accessory"
       ? { ...item, ...fitDraft, fit_opacity: calibrationOpacity }
@@ -2073,9 +2066,11 @@ function WardrobeBay({
   const selectedCategoryMeta =
     WARDROBE_CATEGORIES.find((entry) => entry.key === activeCategory) ??
     WARDROBE_CATEGORIES[0];
+  const activeWardrobeRig = activeCharacter === "milo" ? MILO_WARDROBE_RIG : NOVA_WARDROBE_RIG;
   const calibrationAvailable =
     isAdmin &&
-    activeCharacter === "nova" &&
+    (activeCharacter === "nova" || miloUnlocked) &&
+    selectedItem?.character_key === activeCharacter &&
     selectedItem?.category === "accessory" &&
     Boolean(selectedItem?.layer_image);
   const fitChanged = Boolean(
@@ -2092,7 +2087,7 @@ function WardrobeBay({
   );
 
   function startCalibrationDrag(event: ReactPointerEvent<HTMLDivElement>) {
-    if (!calibrationMode || activeCharacter !== "nova" || !selectedItem) return;
+    if (!calibrationMode || !selectedItem || selectedItem.category !== "accessory") return;
     event.currentTarget.setPointerCapture(event.pointerId);
     setCalibrationDrag({
       pointerId: event.pointerId,
@@ -2162,7 +2157,7 @@ function WardrobeBay({
                     ? "border-amber-200/35 bg-amber-300/[0.12] text-amber-100"
                     : "border-cyan-200/20 bg-cyan-300/[0.06] text-cyan-100/72 hover:bg-cyan-300/[0.1]"
                 }`}
-                title={calibrationAvailable ? "Toggle admin fitting controls" : "Select a Nova wardrobe item to calibrate"}
+                title={calibrationAvailable ? "Toggle admin fitting controls" : "Select a Nova or Milo accessory to calibrate"}
               >
                 {calibrationMode ? "Exit Calibrator" : "Admin Calibrate"}
               </button>
@@ -2247,7 +2242,7 @@ function WardrobeBay({
                       <WardrobeFittedLayer
                         key={item.item_key}
                         item={item}
-                        rig={NOVA_WARDROBE_RIG}
+                        rig={activeWardrobeRig}
                       />
                     ))}
                     {previewOutfitItem?.layer_image ? (
@@ -2273,18 +2268,18 @@ function WardrobeBay({
                       <WardrobeFittedLayer
                         key={item.item_key}
                         item={item}
-                        rig={NOVA_WARDROBE_RIG}
+                        rig={activeWardrobeRig}
                       />
                     ))}
-                    {calibrationMode && selectedItem && activeCharacter === "nova" && selectedItem.category === "accessory" && (
+                    {calibrationMode && selectedItem && selectedItem.category === "accessory" && (
                       <>
                         <WardrobeRigOverlay
-                          rig={NOVA_WARDROBE_RIG}
+                          rig={activeWardrobeRig}
                           category={selectedItem.category}
                           showAnchors={showRigAnchors}
                         />
                         <WardrobeTransformHandles
-                          rig={NOVA_WARDROBE_RIG}
+                          rig={activeWardrobeRig}
                           category={selectedItem.category}
                           fit={fitDraft}
                           onChange={setFitDraft}
@@ -2481,7 +2476,7 @@ function WardrobeBay({
             </div>
 
             <div className="border-t border-white/[0.07] bg-slate-950/48 p-3 sm:p-4">
-              {calibrationMode && selectedItem && activeCharacter === "nova" && selectedItem.category === "accessory" ? (
+              {calibrationMode && selectedItem && selectedItem.category === "accessory" ? (
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">

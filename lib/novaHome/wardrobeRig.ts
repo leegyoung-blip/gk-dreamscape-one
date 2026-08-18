@@ -64,6 +64,28 @@ export const NOVA_WARDROBE_RIG: WardrobeRig = {
   },
 };
 
+
+export const MILO_WARDROBE_RIG: WardrobeRig = {
+  characterKey: "milo",
+  version: 1,
+  anchors: {
+    headTop: { x: 0.5, y: 0.02 },
+    neck: { x: 0.5, y: 0.245 },
+    leftShoulder: { x: 0.392, y: 0.305 },
+    rightShoulder: { x: 0.608, y: 0.305 },
+    leftWrist: { x: 0.33, y: 0.565 },
+    rightWrist: { x: 0.67, y: 0.565 },
+    waist: { x: 0.5, y: 0.51 },
+    leftHip: { x: 0.445, y: 0.555 },
+    rightHip: { x: 0.555, y: 0.555 },
+    leftKnee: { x: 0.438, y: 0.70 },
+    rightKnee: { x: 0.562, y: 0.70 },
+    leftAnkle: { x: 0.425, y: 0.89 },
+    rightAnkle: { x: 0.575, y: 0.89 },
+    leftToe: { x: 0.39, y: 0.965 },
+    rightToe: { x: 0.61, y: 0.965 },
+  },
+};
 function clamp01(value: number) {
   return Math.min(1, Math.max(0, value));
 }
