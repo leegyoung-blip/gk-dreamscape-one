@@ -6,62 +6,34 @@ import { supabase } from "@/lib/supabase";
 import type { CurriculumRole, JsonObject } from "../types";
 
 const REQUIRED_HEADERS = [
+  "image_flag",
+  "image_reference",
   "primary_level",
-  "school_level",
-  "level_id",
-  "topic_sort_order",
-  "topic_id",
   "topic_slug",
   "topic_title",
-  "topic_summary",
-  "topic_status",
-  "planned_quiz_count",
-  "quiz_sequence_no",
   "quiz_id",
-  "quiz_slug",
+  "quiz_code",
   "quiz_title",
-  "quiz_description",
-  "mission_type",
-  "quiz_difficulty",
-  "estimated_minutes",
-  "question_target",
-  "pass_percentage",
-  "mastery_percentage",
-  "quiz_status",
-  "quiz_published_at",
-  "quiz_updated_at",
-  "question_sort_order",
-  "marks_override",
+  "quiz_type",
+  "quiz_order",
+  "quiz_question_count",
   "question_id",
+  "question_code",
+  "question_order",
+  "question_type",
+  "difficulty",
+  "marks",
   "instruction",
   "prompt",
-  "question_type",
-  "question_image",
-  "default_marks",
-  "question_difficulty",
-  "content_tags",
-  "process_skills",
-  "question_metadata_json",
-  "question_status",
-  "question_updated_at",
-  "option_a_text",
-  "option_a_asset_path",
-  "option_b_text",
-  "option_b_asset_path",
-  "option_c_text",
-  "option_c_asset_path",
-  "option_d_text",
-  "option_d_asset_path",
-  "options_json",
-  "correct_option_keys",
-  "correct_order_keys",
-  "answer_data_json",
+  "option_a",
+  "option_b",
+  "option_c",
+  "option_d",
+  "correct_option",
+  "correct_answer",
   "explanation",
-  "marking_scheme_json",
-  "incorrect_feedback_default",
-  "incorrect_feedback_json",
-  "misconception_tags",
-  "has_placeholder_content",
+  "skill",
+  "skill_tags",
 ] as const;
 
 type ImportStatus =
@@ -100,9 +72,9 @@ type ImportRow = {
   id: string;
   row_number: number;
   topic_slug: string | null;
-  quiz_slug: string | null;
+  quiz_code: string | null;
   quiz_action: "create" | "update" | null;
-  question_id: string | null;
+  question_code: string | null;
   question_action: "create" | "update" | null;
   validation_status: "pending" | "valid" | "warning" | "error";
   messages: ImportMessage[];
@@ -134,7 +106,7 @@ export default function ScienceQuizImportView({
       .order("created_at", { ascending: false })
       .limit(20);
     if (loadError)
-      setError(`${loadError.message}. Run the Phase 4C SQL migration first.`);
+      setError(`${loadError.message}. Run the Science universal 28-column import SQL migration first.`);
     else setRecent((data || []) as unknown as ImportBatch[]);
   }, []);
 
@@ -158,7 +130,7 @@ export default function ScienceQuizImportView({
     let query = supabase
       .from("science_curriculum_import_rows")
       .select(
-        "id,row_number,topic_slug,quiz_slug,quiz_action,question_id,question_action,validation_status,messages",
+        "id,row_number,topic_slug,quiz_code,quiz_action,question_code,question_action,validation_status,messages",
       )
       .eq("batch_id", batchId)
       .order("row_number")
@@ -176,7 +148,7 @@ export default function ScienceQuizImportView({
   }, [loadRecent]);
 
   const requiredConfirmation = batch
-    ? `IMPORT ${batch.row_count} SCIENCE ROWS`
+    ? `IMPORT ${batch.row_count} ROWS`
     : "";
   const messageCount = useMemo(
     () => rows.reduce((sum, row) => sum + row.messages.length, 0),
@@ -206,7 +178,7 @@ export default function ScienceQuizImportView({
         throw new Error("One batch can contain at most 5,000 rows.");
       const fileLevels = [
         ...new Set(
-          parsed.map((row) => Number((row.data as JsonObject).primary_level)),
+          parsed.map((row) => Number(row.primary_level)),
         ),
       ];
       if (fileLevels.length !== 1 || fileLevels[0] !== level) {
@@ -216,7 +188,7 @@ export default function ScienceQuizImportView({
       }
       const hash = await sha256(buffer);
       const { data: created, error: createError } = await supabase.rpc(
-        "curriculum_create_science_import_batch",
+        "science_curriculum_create_import_batch",
         {
           p_primary_level: level,
           p_file_name: selectedFile.name,
@@ -229,7 +201,7 @@ export default function ScienceQuizImportView({
       for (let start = 0; start < parsed.length; start += 100) {
         const chunk = parsed.slice(start, start + 100);
         const { error: uploadError } = await supabase.rpc(
-          "curriculum_upload_science_import_rows",
+          "science_curriculum_upload_import_rows",
           { p_batch_id: batchId, p_rows: chunk },
         );
         if (uploadError) throw uploadError;
@@ -242,7 +214,7 @@ export default function ScienceQuizImportView({
       }
       setProgress(88);
       const { error: validationError } = await supabase.rpc(
-        "curriculum_validate_science_import_batch",
+        "science_curriculum_validate_import_batch",
         { p_batch_id: batchId },
       );
       if (validationError) throw validationError;
@@ -265,7 +237,7 @@ export default function ScienceQuizImportView({
     setError(null);
     setNotice(null);
     const { error: rpcError } = await supabase.rpc(
-      "curriculum_validate_science_import_batch",
+      "science_curriculum_validate_import_batch",
       { p_batch_id: batch.id },
     );
     if (rpcError) setError(rpcError.message);
@@ -278,12 +250,12 @@ export default function ScienceQuizImportView({
   }
 
   async function applyBatch() {
-    if (!batch || role !== "admin") return;
+    if (!batch || (role !== "admin" && role !== "curriculum_lead")) return;
     setBusy(true);
     setError(null);
     setNotice(null);
     const { data, error: rpcError } = await supabase.rpc(
-      "curriculum_apply_science_import_batch",
+      "science_curriculum_apply_import_batch",
       { p_batch_id: batch.id, p_confirmation: confirmation },
     );
     if (rpcError) setError(rpcError.message);
@@ -308,10 +280,17 @@ export default function ScienceQuizImportView({
           <p style={eyebrow}>SCIENCE CSV IMPORT</p>
           <h2 style={heading}>Validate before changing live curriculum</h2>
           <p style={muted}>
-            Accepts the existing 56-column P1–P6 Science export. Missing CSV
-            rows never delete quizzes or questions. New quizzes are created as
-            drafts.
+            Accepts only the universal 28-column Dreamscape quiz CSV used by
+            English and Mathematics. Header names and column order must match
+            exactly. Missing CSV rows never delete quizzes or questions.
           </p>
+          <a
+            href="/curriculum/templates/dreamscape-science-quiz-import-28-column-template.csv"
+            download="dreamscape-science-quiz-import-28-column-template.csv"
+            style={templateLink}
+          >
+            Download Science 28-column template
+          </a>
         </div>
         <div style={grid}>
           <label style={label}>
@@ -437,9 +416,9 @@ export default function ScienceQuizImportView({
                     <td style={td}>
                       {item.topic_slug}
                       <br />
-                      <small>{item.quiz_slug}</small>
+                      <small>{item.quiz_code}</small>
                     </td>
-                    <td style={td}>{item.question_id?.slice(0, 8) || "new"}</td>
+                    <td style={td}>{item.question_code || "new"}</td>
                     <td style={td}>
                       <Badge status={item.validation_status} />
                       <br />
@@ -466,7 +445,7 @@ export default function ScienceQuizImportView({
               </tbody>
             </table>
           </div>
-          {batch.status === "ready" && role === "admin" && (
+          {batch.status === "ready" && (role === "admin" || role === "curriculum_lead") && (
             <div style={confirmBox}>
               <label style={{ ...label, flex: 1 }}>
                 Type <strong>{requiredConfirmation}</strong>
@@ -487,9 +466,9 @@ export default function ScienceQuizImportView({
               </button>
             </div>
           )}
-          {batch.status === "ready" && role !== "admin" && (
+          {batch.status === "ready" && role !== "admin" && role !== "curriculum_lead" && (
             <div style={warningBox}>
-              Validation passed. An administrator must apply this batch.
+              Validation passed. An admin or curriculum lead must apply this batch.
             </div>
           )}
         </section>
@@ -537,28 +516,65 @@ export default function ScienceQuizImportView({
 }
 
 function parseScienceCsv(text: string): JsonObject[] {
-  const matrix = parseCsvMatrix(text.replace(/^\uFEFF/, ""));
-  if (!matrix.length) throw new Error("The CSV is empty.");
+  const matrix = parseCsvMatrix(text.replace(/^\\uFEFF/, ""));
+
+  if (!matrix.length) {
+    throw new Error("The CSV is empty.");
+  }
+
   const headers = matrix[0].map((value) => value.trim());
+
+  if (headers.length !== REQUIRED_HEADERS.length) {
+    throw new Error(
+      `Science uses exactly 28 columns. This file has ${headers.length}.`,
+    );
+  }
+
+  for (let index = 0; index < REQUIRED_HEADERS.length; index += 1) {
+    const expected = REQUIRED_HEADERS[index];
+    const actual = headers[index] || "";
+
+    if (actual !== expected) {
+      throw new Error(
+        `Science uses the same exact 28-column order as English and Mathematics. Column ${index + 1} must be "${expected}", but this file has "${actual || "(blank)"}".`,
+      );
+    }
+  }
+
   const duplicates = headers.filter(
     (header, index) => headers.indexOf(header) !== index,
   );
-  if (duplicates.length)
+
+  if (duplicates.length) {
     throw new Error(`Duplicate CSV header: ${duplicates[0]}`);
-  const missing = REQUIRED_HEADERS.filter(
-    (header) => !headers.includes(header),
-  );
-  if (missing.length)
-    throw new Error(`Missing required CSV column(s): ${missing.join(", ")}`);
-  const rows: JsonObject[] = [];
-  for (let index = 1; index < matrix.length; index += 1) {
-    if (matrix[index].every((value) => !value.trim())) continue;
-    const data: JsonObject = {};
-    headers.forEach((header, column) => {
-      data[header] = matrix[index][column] ?? "";
-    });
-    rows.push({ row_number: index + 1, data });
   }
+
+  const rows: JsonObject[] = [];
+
+  for (let index = 1; index < matrix.length; index += 1) {
+    const values = matrix[index];
+
+    if (values.every((value) => !value.trim())) {
+      continue;
+    }
+
+    if (values.length !== REQUIRED_HEADERS.length) {
+      throw new Error(
+        `Row ${index + 1} has ${values.length} columns. Every non-empty Science CSV row must contain exactly 28 columns.`,
+      );
+    }
+
+    const row: JsonObject = {
+      row_number: index + 1,
+    };
+
+    REQUIRED_HEADERS.forEach((header, column) => {
+      row[header] = values[column] ?? "";
+    });
+
+    rows.push(row);
+  }
+
   return rows;
 }
 
@@ -640,6 +656,21 @@ const card: CSSProperties = {
   border: "1px solid rgba(126,232,255,.16)",
   borderRadius: 18,
   background: "rgba(13,29,57,.72)",
+};
+const templateLink: CSSProperties = {
+  display: "inline-flex",
+  width: "fit-content",
+  minHeight: 40,
+  alignItems: "center",
+  marginTop: 12,
+  padding: "0 14px",
+  borderRadius: 10,
+  border: "1px solid rgba(126,232,255,.3)",
+  background: "rgba(83,215,255,.09)",
+  color: "#bfefff",
+  fontSize: 12,
+  fontWeight: 850,
+  textDecoration: "none",
 };
 const grid: CSSProperties = {
   display: "grid",
