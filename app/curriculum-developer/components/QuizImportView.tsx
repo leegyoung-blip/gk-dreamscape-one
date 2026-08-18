@@ -3,57 +3,29 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
-import type { CoreSubject, CurriculumRole, JsonObject } from "../types";
+import { parseUniversalQuizCsv } from "@/lib/curriculum/quizCsv28";
+import type { CurriculumRole, JsonObject } from "../types";
 
-const REQUIRED_HEADERS = [
-  "image_flag",
-  "image_reference",
-  "primary_level",
-  "topic_slug",
-  "topic_title",
-  "quiz_id",
-  "quiz_code",
-  "quiz_title",
-  "quiz_type",
-  "quiz_order",
-  "quiz_question_count",
-  "question_id",
-  "question_code",
-  "question_order",
-  "question_type",
-  "difficulty",
-  "marks",
-  "instruction",
-  "prompt",
-  "option_a",
-  "option_b",
-  "option_c",
-  "option_d",
-  "correct_option",
-  "correct_answer",
-  "explanation",
-  "skill",
-  "skill_tags",
-] as const;
+type ImportSubject = "english" | "math" | "science";
 
 const TEMPLATE_LINKS = [
   {
     title: "English & Mathematics",
-    subtitle: "28-column Core quiz CSV",
+    columns: 28,
+    subtitle: "Core quiz CSV",
     description:
-      "Use this format for the current English and Mathematics browser importer.",
+      "Use this format for English and Mathematics quiz imports.",
     href: "/curriculum/templates/dreamscape-quiz-import-28-column-template.csv",
     fileName: "dreamscape-quiz-import-28-column-template.csv",
-    status: "Supported now",
   },
   {
     title: "Science",
-    subtitle: "56-column Science quiz CSV",
+    columns: 28,
+    subtitle: "Universal quiz CSV",
     description:
-      "Reference format for Science curriculum records, question types, answers and option asset paths.",
-    href: "/curriculum/templates/dreamscape-science-quiz-import-56-column-template.csv",
-    fileName: "dreamscape-science-quiz-import-56-column-template.csv",
-    status: "Science import format",
+      "Use the same 28-column authoring format as English and Mathematics. Images remain in Asset Deployment.",
+    href: "/curriculum/templates/dreamscape-science-quiz-import-28-column-template.csv",
+    fileName: "dreamscape-science-quiz-import-28-column-template.csv",
   },
 ] as const;
 
@@ -78,11 +50,12 @@ type ImportSummary = {
   updated_question_count?: number;
   applied_quiz_count?: number;
   applied_question_count?: number;
+  format?: string;
 };
 
 type ImportBatch = {
   id: string;
-  subject: CoreSubject;
+  subject: ImportSubject;
   primary_level: number;
   file_name: string;
   source_hash: string;
@@ -119,13 +92,15 @@ type ImportRow = {
   messages: ImportMessage[];
 };
 
-type ParsedCsv = {
-  rows: JsonObject[];
-  imageRowCount: number;
-};
+
+const BATCH_SELECT =
+  "id,subject,primary_level,file_name,source_hash,allow_published_updates,status,row_count,valid_row_count,warning_row_count,error_row_count,summary,operation_id,created_at,validated_at,completed_at,error_message";
+
+const ROW_SELECT =
+  "id,row_number,raw_data,topic_slug,quiz_code,quiz_action,question_code,question_action,validation_status,messages";
 
 export default function QuizImportView({ role }: { role: CurriculumRole }) {
-  const [subject, setSubject] = useState<CoreSubject>("math");
+  const [subject, setSubject] = useState<ImportSubject>("math");
   const [level, setLevel] = useState(1);
   const [allowPublishedUpdates, setAllowPublishedUpdates] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -138,63 +113,86 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
+  const isScience = subject === "science";
+  const batchTable = isScience
+    ? "science_curriculum_import_batches"
+    : "curriculum_import_batches";
+  const rowTable = isScience
+    ? "science_curriculum_import_rows"
+    : "curriculum_import_rows";
+
   const loadRecentBatches = useCallback(async () => {
-    const { data, error: loadError } = await supabase
-      .from("curriculum_import_batches")
-      .select(
-        "id,subject,primary_level,file_name,source_hash,allow_published_updates,status,row_count,valid_row_count,warning_row_count,error_row_count,summary,operation_id,created_at,validated_at,completed_at,error_message",
-      )
+    const table =
+      subject === "science"
+        ? "science_curriculum_import_batches"
+        : "curriculum_import_batches";
+
+    let query = supabase
+      .from(table)
+      .select(BATCH_SELECT)
       .order("created_at", { ascending: false })
       .limit(20);
 
-    if (loadError) {
-      setError(
-        `${loadError.message}. Run the Curriculum Operations Quiz Import SQL migration first.`,
-      );
-      setRecentBatches([]);
-    } else {
-      setRecentBatches((data || []) as unknown as ImportBatch[]);
+    if (subject !== "science") {
+      query = query.eq("subject", subject);
     }
-  }, []);
 
-  const loadBatch = useCallback(async (batchId: string) => {
-    const { data, error: batchError } = await supabase
-      .from("curriculum_import_batches")
-      .select(
-        "id,subject,primary_level,file_name,source_hash,allow_published_updates,status,row_count,valid_row_count,warning_row_count,error_row_count,summary,operation_id,created_at,validated_at,completed_at,error_message",
-      )
-      .eq("id", batchId)
-      .single();
+    const { data, error: loadError } = await query;
 
-    if (batchError) {
-      setError(batchError.message);
+    if (loadError) {
+      const phase =
+        subject === "science"
+          ? "Run the Phase 3B Science Quiz Import SQL migration first."
+          : "Run the Curriculum Operations Quiz Import SQL migration first.";
+
+      setError(`${loadError.message}. ${phase}`);
+      setRecentBatches([]);
       return;
     }
 
-    const loaded = data as unknown as ImportBatch;
-    setBatch(loaded);
-    setSubject(loaded.subject);
-    setLevel(loaded.primary_level);
-    setAllowPublishedUpdates(loaded.allow_published_updates);
-    setConfirmation("");
+    setRecentBatches((data || []) as unknown as ImportBatch[]);
+  }, [subject]);
 
-    let rowQuery = supabase
-      .from("curriculum_import_rows")
-      .select(
-        "id,row_number,raw_data,topic_slug,quiz_code,quiz_action,question_code,question_action,validation_status,messages",
-      )
-      .eq("batch_id", batchId)
-      .order("row_number", { ascending: true })
-      .limit(200);
+  const loadBatch = useCallback(
+    async (batchId: string) => {
+      const { data, error: batchError } = await supabase
+        .from(batchTable)
+        .select(BATCH_SELECT)
+        .eq("id", batchId)
+        .single();
 
-    if (loaded.error_row_count > 0 || loaded.warning_row_count > 0) {
-      rowQuery = rowQuery.in("validation_status", ["error", "warning"]);
-    }
+      if (batchError) {
+        setError(batchError.message);
+        return;
+      }
 
-    const { data: rows, error: rowsError } = await rowQuery;
-    if (rowsError) setError(rowsError.message);
-    else setPreviewRows((rows || []) as unknown as ImportRow[]);
-  }, []);
+      const loaded = data as unknown as ImportBatch;
+      setBatch(loaded);
+      setLevel(loaded.primary_level);
+      setAllowPublishedUpdates(loaded.allow_published_updates);
+      setConfirmation("");
+
+      let rowQuery = supabase
+        .from(rowTable)
+        .select(ROW_SELECT)
+        .eq("batch_id", batchId)
+        .order("row_number", { ascending: true })
+        .limit(200);
+
+      if (loaded.error_row_count > 0 || loaded.warning_row_count > 0) {
+        rowQuery = rowQuery.in("validation_status", ["error", "warning"]);
+      }
+
+      const { data: rows, error: rowsError } = await rowQuery;
+
+      if (rowsError) {
+        setError(rowsError.message);
+      } else {
+        setPreviewRows((rows || []) as unknown as ImportRow[]);
+      }
+    },
+    [batchTable, rowTable],
+  );
 
   useEffect(() => {
     void loadRecentBatches();
@@ -212,6 +210,17 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
     () => previewRows.reduce((total, row) => total + row.messages.length, 0),
     [previewRows],
   );
+
+  function changeSubject(nextSubject: ImportSubject) {
+    setSubject(nextSubject);
+    setSelectedFile(null);
+    setBatch(null);
+    setPreviewRows([]);
+    setConfirmation("");
+    setProgress(0);
+    setError(null);
+    setNotice(null);
+  }
 
   function resetImporter() {
     setSelectedFile(null);
@@ -245,7 +254,9 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
       const buffer = await selectedFile.arrayBuffer();
       const hash = await sha256(buffer);
       const text = new TextDecoder("utf-8").decode(buffer);
-      const parsed = parseQuizCsv(text);
+      const parsed = parseUniversalQuizCsv(text, {
+        includeImageReference: subject === "science",
+      });
 
       if (parsed.rows.length === 0) {
         throw new Error("The CSV has no data rows.");
@@ -257,15 +268,28 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
 
       setProgress(5);
 
+      const createRpc = isScience
+        ? "science_curriculum_create_import_batch"
+        : "curriculum_create_import_batch";
+
+      const createArgs = isScience
+        ? {
+            p_primary_level: level,
+            p_file_name: selectedFile.name,
+            p_source_hash: hash,
+            p_allow_published_updates: allowPublishedUpdates,
+          }
+        : {
+            p_subject: subject,
+            p_primary_level: level,
+            p_file_name: selectedFile.name,
+            p_source_hash: hash,
+            p_allow_published_updates: allowPublishedUpdates,
+          };
+
       const { data: created, error: createError } = await supabase.rpc(
-        "curriculum_create_import_batch",
-        {
-          p_subject: subject,
-          p_primary_level: level,
-          p_file_name: selectedFile.name,
-          p_source_hash: hash,
-          p_allow_published_updates: allowPublishedUpdates,
-        },
+        createRpc,
+        createArgs,
       );
 
       if (createError) throw createError;
@@ -274,18 +298,19 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
         (created as unknown as { batch_id: string }).batch_id,
       );
 
+      const uploadRpc = isScience
+        ? "science_curriculum_upload_import_rows"
+        : "curriculum_upload_import_rows";
+
       const chunkSize = 100;
 
       for (let start = 0; start < parsed.rows.length; start += chunkSize) {
         const chunk = parsed.rows.slice(start, start + chunkSize);
 
-        const { error: uploadError } = await supabase.rpc(
-          "curriculum_upload_import_rows",
-          {
-            p_batch_id: batchId,
-            p_rows: chunk,
-          },
-        );
+        const { error: uploadError } = await supabase.rpc(uploadRpc, {
+          p_batch_id: batchId,
+          p_rows: chunk,
+        });
 
         if (uploadError) throw uploadError;
 
@@ -301,12 +326,13 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
 
       setProgress(85);
 
-      const { error: validationError } = await supabase.rpc(
-        "curriculum_validate_import_batch",
-        {
-          p_batch_id: batchId,
-        },
-      );
+      const validateRpc = isScience
+        ? "science_curriculum_validate_import_batch"
+        : "curriculum_validate_import_batch";
+
+      const { error: validationError } = await supabase.rpc(validateRpc, {
+        p_batch_id: batchId,
+      });
 
       if (validationError) throw validationError;
 
@@ -314,8 +340,12 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
       await loadBatch(batchId);
       await loadRecentBatches();
 
+      const assetMessage = isScience
+        ? "Science image files and mappings remain in Asset Deployment."
+        : "Inline image bytes were not uploaded; existing asset mappings were preserved.";
+
       setNotice(
-        `CSV uploaded and validated. ${parsed.rows.length.toLocaleString()} rows were staged. ${parsed.imageRowCount.toLocaleString()} image-related rows kept their existing asset mappings and did not upload inline image bytes.`,
+        `CSV uploaded and validated. ${parsed.rows.length.toLocaleString()} rows were staged. ${parsed.imageRowCount.toLocaleString()} image-related row(s) were detected. ${assetMessage}`,
       );
     } catch (uploadError) {
       setError(errorMessage(uploadError));
@@ -331,12 +361,14 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
     setError(null);
     setNotice(null);
 
-    const { error: validationError } = await supabase.rpc(
-      "curriculum_validate_import_batch",
-      {
-        p_batch_id: batch.id,
-      },
-    );
+    const rpc =
+      subject === "science"
+        ? "science_curriculum_validate_import_batch"
+        : "curriculum_validate_import_batch";
+
+    const { error: validationError } = await supabase.rpc(rpc, {
+      p_batch_id: batch.id,
+    });
 
     if (validationError) {
       setError(validationError.message);
@@ -356,13 +388,15 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
     setError(null);
     setNotice(null);
 
-    const { data, error: applyError } = await supabase.rpc(
-      "curriculum_apply_import_batch",
-      {
-        p_batch_id: batch.id,
-        p_confirmation: confirmation,
-      },
-    );
+    const rpc =
+      subject === "science"
+        ? "science_curriculum_apply_import_batch"
+        : "curriculum_apply_import_batch";
+
+    const { data, error: applyError } = await supabase.rpc(rpc, {
+      p_batch_id: batch.id,
+      p_confirmation: confirmation,
+    });
 
     if (applyError) {
       setError(applyError.message);
@@ -390,7 +424,7 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
       <div style={safeBanner}>
         <strong>Preview-first import:</strong> CSV rows are staged and checked
         before any curriculum record changes. Missing rows never delete or unlink
-        existing questions. Image bytes stay in Asset Deployment.
+        existing questions. Image binaries remain in Asset Deployment.
       </div>
 
       {error && <div style={errorBanner}>{error}</div>}
@@ -401,8 +435,7 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
           <p style={eyebrow}>CSV TEMPLATES</p>
           <h2 style={heading}>Download the correct quiz CSV structure</h2>
           <p style={muted}>
-            Start from the matching template instead of creating column names
-            manually. Keep the header names and column order unchanged.
+            English, Mathematics and Science all use the same 28-column authoring contract.
           </p>
         </div>
 
@@ -411,11 +444,12 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
             <article key={template.href} style={templateCard}>
               <div>
                 <div style={templateTopRow}>
-                  <span style={templatePill}>{template.status}</span>
+                  <span style={templatePill}>Supported</span>
                   <strong style={templateColumnCount}>
-                    {template.subtitle.startsWith("28") ? "28 columns" : "56 columns"}
+                    {template.columns} columns
                   </strong>
                 </div>
+
                 <h3 style={templateTitle}>{template.title}</h3>
                 <p style={templateSubtitle}>{template.subtitle}</p>
                 <p style={templateDescription}>{template.description}</p>
@@ -433,10 +467,11 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
         </div>
 
         <div style={scienceTemplateNote}>
-          <strong>Science note:</strong> the 56-column file is the standard
-          Science curriculum template for the next Science quiz-import phase.
-          The live browser importer below currently accepts the 28-column
-          English/Mathematics format only.
+          <strong>Science image rule:</strong> the 28-column CSV contains
+          <code style={inlineCode}> image_flag </code>
+          so authors can identify image-dependent rows, but it does not carry
+          prompt/option asset paths. Upload and map those through Asset
+          Deployment so CSV edits cannot accidentally overwrite live images.
         </div>
       </section>
 
@@ -444,7 +479,9 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
         <div style={sectionHeader}>
           <div>
             <p style={eyebrow}>NEW CSV IMPORT</p>
-            <h2 style={heading}>Upload a 28-column English/Mathematics CSV</h2>
+            <h2 style={heading}>
+              Upload a {isScience ? "28-column Science" : "28-column Core"} CSV
+            </h2>
           </div>
 
           {batch && (
@@ -458,20 +495,37 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
           )}
         </div>
 
+        <div style={subjectSwitch}>
+          {(
+            [
+              ["math", "Mathematics"],
+              ["english", "English"],
+              ["science", "Science"],
+            ] as const
+          ).map(([value, labelText]) => (
+            <button
+              key={value}
+              type="button"
+              disabled={busy || Boolean(batch)}
+              onClick={() => changeSubject(value)}
+              style={{
+                ...subjectButton,
+                ...(subject === value ? subjectButtonActive : {}),
+              }}
+            >
+              {labelText}
+            </button>
+          ))}
+        </div>
+
         <div style={formGrid}>
           <label style={label}>
             Subject
-            <select
-              value={subject}
-              disabled={busy || Boolean(batch)}
-              onChange={(event) =>
-                setSubject(event.target.value as CoreSubject)
-              }
+            <input
+              value={subjectLabel(subject)}
+              disabled
               style={input}
-            >
-              <option value="math">Mathematics</option>
-              <option value="english">English</option>
-            </select>
+            />
           </label>
 
           <label style={label}>
@@ -504,6 +558,13 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
           </label>
         </div>
 
+        <div style={formatHint}>
+          <strong>{isScience ? "Science" : "Core"} format:</strong>{" "}
+          {isScience
+            ? "28 columns · same headers as Core · Science database translation happens automatically · image mappings separate"
+            : "28 columns · current English/Mathematics format"}
+        </div>
+
         <label style={publishedToggle}>
           <input
             type="checkbox"
@@ -518,9 +579,9 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
           <span>
             <strong>Allow updates to already-published quizzes</strong>
             <small style={smallBlock}>
-              Leave this off for new quiz imports. Turn it on only when the CSV
-              intentionally corrects live quiz content; validation will mark
-              every affected row with a warning.
+              Leave this off for normal imports. Turn it on only when the CSV
+              intentionally corrects live content; affected rows will be
+              marked with warnings before apply.
             </small>
           </span>
         </label>
@@ -552,7 +613,7 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
               <p style={eyebrow}>VALIDATION PREVIEW</p>
               <h2 style={heading}>{batch.file_name}</h2>
               <p style={muted}>
-                {batch.subject.toUpperCase()} P{batch.primary_level} · Batch{" "}
+                {subjectLabel(batch.subject)} P{batch.primary_level} · Batch{" "}
                 {batch.id.slice(0, 8).toUpperCase()}
               </p>
             </div>
@@ -593,7 +654,7 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
           {batch.status === "blocked" && (
             <div style={errorBanner}>
               This batch cannot be applied. Correct the CSV errors, then start a
-              new import. Nothing has been written to the quiz tables.
+              new import. Nothing has been written to the live quiz tables.
             </div>
           )}
 
@@ -605,8 +666,10 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
 
           {batch.status === "completed" && (
             <div style={successBanner}>
-              Import completed. Missing CSV rows were not deleted and existing
-              image mappings were preserved.
+              Import completed. Missing CSV rows were not treated as deletions.
+              {batch.subject === "science"
+                ? " Existing Science image mappings were preserved for options that remain in the question."
+                : " Existing image mappings were preserved."}
             </div>
           )}
 
@@ -636,8 +699,10 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
               <thead>
                 <tr>
                   <th style={th}>Row</th>
-                  <th style={th}>Quiz</th>
-                  <th style={th}>Question</th>
+                  <th style={th}>{batch.subject === "science" ? "Quiz slug" : "Quiz"}</th>
+                  <th style={th}>
+                    {batch.subject === "science" ? "Question ID" : "Question"}
+                  </th>
                   <th style={th}>Action</th>
                   <th style={th}>Status and messages</th>
                 </tr>
@@ -649,7 +714,9 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
                     <td style={td}>{row.row_number}</td>
                     <td style={td}>{row.quiz_code || "—"}</td>
                     <td style={td}>
-                      <strong>{row.question_code || "—"}</strong>
+                      <strong>
+                        {formatQuestionReference(row.question_code)}
+                      </strong>
                       <span style={promptText}>
                         {String(row.raw_data.prompt || "")}
                       </span>
@@ -727,7 +794,9 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
         <div style={sectionHeader}>
           <div>
             <p style={eyebrow}>RECENT IMPORT BATCHES</p>
-            <h2 style={heading}>Import history</h2>
+            <h2 style={heading}>
+              {subjectLabel(subject)} import history
+            </h2>
           </div>
 
           <button
@@ -750,7 +819,7 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
               <span>
                 <strong>{item.file_name}</strong>
                 <small style={smallBlock}>
-                  {item.subject.toUpperCase()} P{item.primary_level} ·{" "}
+                  {subjectLabel(item.subject)} P{item.primary_level} ·{" "}
                   {item.row_count.toLocaleString()} rows ·{" "}
                   {new Date(item.created_at).toLocaleString()}
                 </small>
@@ -761,124 +830,14 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
           ))}
 
           {recentBatches.length === 0 && (
-            <div style={emptyCard}>No CSV import batches yet.</div>
+            <div style={emptyCard}>
+              No {subjectLabel(subject)} CSV import batches yet.
+            </div>
           )}
         </div>
       </section>
     </div>
   );
-}
-
-function parseQuizCsv(text: string): ParsedCsv {
-  const matrix = parseCsvMatrix(text.replace(/^\uFEFF/, ""));
-
-  if (matrix.length === 0) {
-    throw new Error("The CSV is empty.");
-  }
-
-  const headers = matrix[0].map((value) => value.trim());
-
-  const duplicateHeaders = headers.filter(
-    (header, index) => headers.indexOf(header) !== index,
-  );
-
-  if (duplicateHeaders.length > 0) {
-    throw new Error(`Duplicate CSV header: ${duplicateHeaders[0]}`);
-  }
-
-  const missing = REQUIRED_HEADERS.filter(
-    (header) => !headers.includes(header),
-  );
-
-  if (missing.length > 0) {
-    throw new Error(
-      `Missing required CSV column(s): ${missing.join(", ")}`,
-    );
-  }
-
-  const rows: JsonObject[] = [];
-  let imageRowCount = 0;
-
-  for (let rowIndex = 1; rowIndex < matrix.length; rowIndex += 1) {
-    const values = matrix[rowIndex];
-
-    if (values.every((value) => value.trim() === "")) {
-      continue;
-    }
-
-    const row: JsonObject = {
-      row_number: rowIndex + 1,
-    };
-
-    headers.forEach((header, columnIndex) => {
-      if (header === "image_reference") return;
-      row[header] = values[columnIndex] ?? "";
-    });
-
-    if (
-      ["HAS_IMAGE", "LIKELY_NEEDS_IMAGE"].includes(
-        String(row.image_flag),
-      )
-    ) {
-      imageRowCount += 1;
-    }
-
-    rows.push(row);
-  }
-
-  return {
-    rows,
-    imageRowCount,
-  };
-}
-
-function parseCsvMatrix(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let quoted = false;
-
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    const next = text[index + 1];
-
-    if (quoted) {
-      if (char === '"' && next === '"') {
-        field += '"';
-        index += 1;
-      } else if (char === '"') {
-        quoted = false;
-      } else {
-        field += char;
-      }
-      continue;
-    }
-
-    if (char === '"' && field.length === 0) {
-      quoted = true;
-    } else if (char === ",") {
-      row.push(field);
-      field = "";
-    } else if (char === "\n") {
-      row.push(field.replace(/\r$/, ""));
-      rows.push(row);
-      row = [];
-      field = "";
-    } else {
-      field += char;
-    }
-  }
-
-  if (quoted) {
-    throw new Error("The CSV contains an unclosed quoted field.");
-  }
-
-  if (field.length > 0 || row.length > 0) {
-    row.push(field.replace(/\r$/, ""));
-    rows.push(row);
-  }
-
-  return rows;
 }
 
 async function sha256(buffer: ArrayBuffer) {
@@ -897,6 +856,18 @@ function errorMessage(value: unknown) {
   }
 
   return "The import could not be completed.";
+}
+
+function subjectLabel(subject: ImportSubject) {
+  if (subject === "science") return "Science";
+  if (subject === "english") return "English";
+  return "Mathematics";
+}
+
+function formatQuestionReference(value: string | null) {
+  if (!value) return "—";
+  if (value.startsWith("NEW@")) return "New question";
+  return value.length > 18 ? `${value.slice(0, 8)}…${value.slice(-4)}` : value;
 }
 
 function SummaryCard({
@@ -1097,6 +1068,33 @@ const scienceTemplateNote: CSSProperties = {
   lineHeight: 1.5,
 };
 
+const inlineCode: CSSProperties = {
+  color: "#fff",
+  fontWeight: 800,
+};
+
+const subjectSwitch: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(3,minmax(0,1fr))",
+  gap: "8px",
+};
+
+const subjectButton: CSSProperties = {
+  minHeight: "43px",
+  borderRadius: "11px",
+  border: "1px solid rgba(126,232,255,0.14)",
+  background: "rgba(255,255,255,0.025)",
+  color: "rgba(255,255,255,0.6)",
+  cursor: "pointer",
+  fontWeight: 850,
+};
+
+const subjectButtonActive: CSSProperties = {
+  borderColor: "rgba(126,232,255,0.42)",
+  background: "rgba(83,215,255,0.13)",
+  color: "white",
+};
+
 const formGrid: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))",
@@ -1126,6 +1124,15 @@ const input: CSSProperties = {
 const fileInput: CSSProperties = {
   ...input,
   padding: "10px 12px",
+};
+
+const formatHint: CSSProperties = {
+  borderRadius: "11px",
+  background: "rgba(83,215,255,0.055)",
+  color: "rgba(255,255,255,0.62)",
+  padding: "11px 12px",
+  fontSize: "12px",
+  lineHeight: 1.5,
 };
 
 const checkbox: CSSProperties = {
