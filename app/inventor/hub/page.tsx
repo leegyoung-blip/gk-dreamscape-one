@@ -251,6 +251,14 @@ const WARDROBE_COLLECTION_LABELS: Record<string, string> = {
   "nova-sports-day": "Everyday Set",
   "nova-star-party-dress": "Premium Set",
   "nova-moonlight-gala": "Premium Set",
+  "milo-classic": "Core Set",
+  "milo-home-explorer": "Core Set",
+  "milo-skyline-streetwear": "Everyday Set",
+  "milo-trail-scout": "Explorer Set",
+  "milo-game-night-set": "Everyday Set",
+  "milo-creative-workshop": "Workshop Set",
+  "milo-sports-sprint": "Everyday Set",
+  "milo-night-gala": "Premium Set",
 };
 
 function getWardrobeCollectionLabel(itemKey: string) {
@@ -1027,12 +1035,16 @@ export default function NovaHomePage() {
     setDreamTokenBalance(Math.max(0, result.new_balance));
     setUnlockedCharacters((current) => new Set<WardrobeCharacter>([...current, "milo"]));
     setWardrobeCharacter("milo");
-    setWardrobeSelectedItemKey(null);
     setWardrobeCategory("outfit");
+    const firstMiloOutfit =
+      wardrobeCatalog.find((item) => item.item_key === "milo-classic") ??
+      wardrobeCatalog.find((item) => item.character_key === "milo" && item.category === "outfit") ??
+      null;
+    setWardrobeSelectedItemKey(firstMiloOutfit?.item_key ?? null);
     setWardrobeMessage(
       result.already_owned
-        ? "Milo was already unlocked. His wardrobe arrives in Step 2."
-        : `Milo unlocked permanently for ${formatDT(result.cost_paid)}. His wardrobe arrives in Step 2.`,
+        ? "Milo was already unlocked. Choose an outfit for him."
+        : `Milo unlocked permanently for ${formatDT(result.cost_paid)}. Choose an outfit for him.`,
     );
     window.dispatchEvent(new Event("dream-tokens-updated"));
   }
@@ -1231,7 +1243,7 @@ export default function NovaHomePage() {
     if (!item || !isAdmin || wardrobeSavingFitItemKey || wardrobeSetupError) return false;
 
     if (item.character_key !== "nova") {
-      setWardrobeMessage("Milo fitting is added in Wardrobe Rig Phase 3.");
+      setWardrobeMessage("Accessory calibration is currently available for Nova accessories only.");
       return false;
     }
 
@@ -1969,11 +1981,14 @@ function WardrobeBay({
   );
 
   const effectiveEquipped = [...characterEquipped];
-  if (!baseClothingEquipped && activeCharacter === "nova") {
-    const classic = catalog.find((item) => item.item_key === "nova-classic");
+  if (!baseClothingEquipped) {
+    const defaultOutfitKey = activeCharacter === "nova" ? "nova-classic" : "milo-classic";
+    const classic = catalog.find(
+      (item) => item.character_key === activeCharacter && item.item_key === defaultOutfitKey,
+    );
     if (classic) {
       effectiveEquipped.push({
-        character_key: "nova",
+        character_key: activeCharacter,
         category: "outfit",
         equip_slot: "outfit",
         item_key: classic.item_key,
@@ -2012,13 +2027,15 @@ function WardrobeBay({
     effectiveEquipped.find((entry) => entry.category === "outfit") ??
     null;
 
+  const defaultPreviewOutfitKey = activeCharacter === "nova" ? "nova-classic" : "milo-classic";
   const previewOutfitItem =
     (previewOutfitEntry
       ? catalog.find((item) => item.item_key === previewOutfitEntry.item_key)
       : null) ??
-    (activeCharacter === "nova"
-      ? catalog.find((item) => item.character_key === "nova" && item.item_key === "nova-classic") ?? null
-      : null);
+    catalog.find(
+      (item) => item.character_key === activeCharacter && item.item_key === defaultPreviewOutfitKey,
+    ) ??
+    null;
 
   const previewAccessoryLayers = previewEquipped
     .filter((entry) => entry.category === "accessory")
@@ -2130,7 +2147,7 @@ function WardrobeBay({
               Wardrobe Bay
             </h2>
             <p className="mt-1 max-w-2xl text-[10px] leading-4 text-white/46 sm:text-xs sm:leading-5">
-              Nova now uses full ready-made outfit renders for cleaner switching and fewer fitting issues. The calibrator is preserved for transparent accessory overlays only, so future glasses, visors, headsets, and props can still be aligned precisely.
+              Nova and Milo now use full ready-made outfit renders for clean switching and reliable proportions. Nova accessory overlays keep the precision calibrator for glasses, visors, companions, effects, and future add-ons.
             </p>
           </div>
 
@@ -2211,7 +2228,7 @@ function WardrobeBay({
             <div className="relative flex min-h-0 items-start justify-center overflow-hidden bg-[radial-gradient(circle_at_50%_36%,rgba(83,215,255,0.16),transparent_34%),linear-gradient(180deg,rgba(5,21,39,0.26),rgba(2,7,19,0.64))] px-4 pt-2">
               <div className="pointer-events-none absolute inset-x-[12%] bottom-[8%] h-[22%] rounded-[50%] bg-cyan-300/[0.08] blur-2xl" />
               <div className="relative flex h-full max-h-[680px] w-full max-w-[560px] items-start justify-center pt-0">
-                {activeCharacter === "nova" ? (
+                {activeCharacter === "nova" || miloUnlocked ? (
                   <div
                     className={`relative aspect-square w-[min(100%,535px)] shrink-0 ${
                       calibrationMode
@@ -2240,13 +2257,17 @@ function WardrobeBay({
                         className="pointer-events-none absolute inset-0 z-10 h-full w-full object-contain object-bottom drop-shadow-[0_28px_44px_rgba(0,0,0,0.55)]"
                         draggable={false}
                       />
-                    ) : (
+                    ) : activeCharacter === "nova" ? (
                       <img
                         src={NOVA_CHARACTER_IMAGE}
                         alt="Nova wardrobe preview"
                         className="pointer-events-none absolute inset-0 z-10 h-full w-full object-contain object-bottom drop-shadow-[0_28px_44px_rgba(0,0,0,0.55)]"
                         draggable={false}
                       />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center text-center text-[10px] font-black uppercase tracking-[0.12em] text-white/35">
+                        Milo outfit loading...
+                      </div>
                     )}
                     {previewForegroundAccessories.map((item) => (
                       <WardrobeFittedLayer
@@ -2274,21 +2295,14 @@ function WardrobeBay({
                   </div>
                 ) : (
                   <div className="relative z-20 mb-auto mt-auto w-[min(360px,90%)] rounded-[24px] border border-amber-200/24 bg-slate-950/76 p-5 text-center shadow-[0_28px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl">
-                    <div className={`mx-auto flex h-24 w-24 items-center justify-center rounded-full border text-4xl font-black ${
-                      miloUnlocked
-                        ? "border-emerald-200/30 bg-emerald-300/[0.1] text-emerald-100"
-                        : "border-amber-200/30 bg-amber-300/[0.1] text-amber-100"
-                    }`}>
+                    <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full border border-amber-200/30 bg-amber-300/[0.1] text-4xl font-black text-amber-100">
                       M
                     </div>
                     <h3 className="mt-4 text-xl font-black text-white">Milo</h3>
                     <p className="mt-2 text-[11px] leading-5 text-white/48">
-                      {miloUnlocked
-                        ? "Milo is permanently unlocked. His own base rig and fitted wardrobe are added in Wardrobe Rig Phase 3."
-                        : miloCatalog?.description || "Bring Milo into Nova's Home as a permanent customisable character."}
+                      {miloCatalog?.description || "Bring Milo into Nova's Home as a permanent customisable character."}
                     </p>
-                    {!miloUnlocked ? (
-                      <button
+                    <button
                         type="button"
                         onClick={() => onPurchaseCharacter("milo")}
                         disabled={Boolean(purchasingCharacter) || dreamTokenBalance < (miloCatalog?.dt_cost ?? 1000)}
@@ -2304,11 +2318,6 @@ function WardrobeBay({
                             ? `Unlock Permanently · ${formatDT(miloCatalog?.dt_cost ?? 1000)}`
                             : `Need ${formatDT((miloCatalog?.dt_cost ?? 1000) - dreamTokenBalance)}`}
                       </button>
-                    ) : (
-                      <div className="mt-4 rounded-full border border-emerald-200/22 bg-emerald-300/[0.08] px-4 py-3 text-[9px] font-black uppercase tracking-[0.1em] text-emerald-100">
-                        ✓ Permanently Unlocked
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -2338,7 +2347,7 @@ function WardrobeBay({
 
           <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-[20px] border border-white/[0.08] bg-white/[0.025] sm:rounded-[24px]">
             <div className="border-b border-white/[0.06] p-2 sm:p-3">
-              <div className="grid grid-cols-5 gap-1.5">
+              <div className="grid grid-cols-2 gap-1.5">
                 {WARDROBE_CATEGORIES.map((category) => {
                   const active = activeCategory === category.key;
                   return (
@@ -2373,16 +2382,12 @@ function WardrobeBay({
                     Loading wardrobe...
                   </div>
                 </div>
-              ) : activeCharacter === "milo" ? (
+              ) : activeCharacter === "milo" && !miloUnlocked ? (
                 <div className="flex h-full min-h-[220px] items-center justify-center px-6 text-center">
                   <div>
-                    <p className="text-sm font-black text-white/70">
-                      {miloUnlocked ? "Milo wardrobe coming in Step 2" : "Unlock Milo to use his wardrobe"}
-                    </p>
+                    <p className="text-sm font-black text-white/70">Unlock Milo to use his wardrobe</p>
                     <p className="mt-2 text-[10px] leading-5 text-white/36">
-                      {miloUnlocked
-                        ? "The permanent character unlock is active. Clothing and Milo artwork will be added next."
-                        : `Milo is a one-time ${formatDT(miloCatalog?.dt_cost ?? 1000)} unlock.`}
+                      Milo is a one-time {formatDT(miloCatalog?.dt_cost ?? 1000)} unlock.
                     </p>
                   </div>
                 </div>
@@ -2749,7 +2754,9 @@ function WardrobeBay({
                   </div>
                 </div>
               ) : (
-                <p className="text-center text-[10px] text-white/36">{activeCharacter === "milo" ? (miloUnlocked ? "Milo is unlocked. His wardrobe arrives in Step 2." : "Unlock Milo from the character preview to continue.") : "Select a wardrobe item."}</p>
+                <p className="text-center text-[10px] text-white/36">{activeCharacter === "milo" && !miloUnlocked
+                    ? "Unlock Milo from the character preview to continue."
+                    : "Select a wardrobe item."}</p>
               )}
             </div>
           </div>
