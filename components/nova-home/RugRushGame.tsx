@@ -7,6 +7,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { supabase } from "@/lib/supabase";
 
 type GamePhase = "intro" | "countdown" | "playing" | "result";
 
@@ -15,11 +16,119 @@ type Point = {
   y: number;
 };
 
+type MessTypeKey = "dusty-day" | "muddy-shoes" | "snack-attack" | "big-spill";
+
+type MessDefinition = {
+  key: MessTypeKey;
+  title: string;
+  subtitle: string;
+  cleaningPower: number;
+  patchCount: [number, number];
+  patchRadiusX: [number, number];
+  patchRadiusY: [number, number];
+  footprintPairs: [number, number];
+  crumbCount: [number, number];
+  palette: string[];
+};
+
+type RugRushStats = {
+  best_score: number;
+  best_clean_percent: number;
+  rounds_played: number;
+  perfect_cleans: number;
+  last_played_at: string | null;
+};
+
+type RecordResultRow = RugRushStats & {
+  is_new_best_score: boolean;
+  is_new_best_percent: boolean;
+};
+
 const CANVAS_WIDTH = 900;
 const CANVAS_HEIGHT = 560;
 const ROUND_DURATION_MS = 10_000;
 const BRUSH_RADIUS = 42;
 const SAMPLE_STEP = 2;
+
+const MESS_TYPES: MessDefinition[] = [
+  {
+    key: "dusty-day",
+    title: "Dusty Day",
+    subtitle: "A fine layer of space dust has settled everywhere.",
+    cleaningPower: 0.34,
+    patchCount: [24, 31],
+    patchRadiusX: [34, 82],
+    patchRadiusY: [22, 54],
+    footprintPairs: [2, 4],
+    crumbCount: [42, 66],
+    palette: [
+      "rgba(99, 103, 106, 0.68)",
+      "rgba(116, 107, 92, 0.60)",
+      "rgba(86, 91, 96, 0.62)",
+      "rgba(134, 126, 106, 0.54)",
+    ],
+  },
+  {
+    key: "muddy-shoes",
+    title: "Muddy Shoes",
+    subtitle: "Someone tracked muddy footprints right across Nova's rug.",
+    cleaningPower: 0.29,
+    patchCount: [11, 16],
+    patchRadiusX: [38, 78],
+    patchRadiusY: [24, 56],
+    footprintPairs: [8, 11],
+    crumbCount: [18, 34],
+    palette: [
+      "rgba(91, 62, 42, 0.86)",
+      "rgba(111, 73, 45, 0.78)",
+      "rgba(77, 57, 44, 0.78)",
+      "rgba(132, 88, 52, 0.70)",
+    ],
+  },
+  {
+    key: "snack-attack",
+    title: "Snack Attack",
+    subtitle: "Crumbs and little greasy marks are scattered all over the floor.",
+    cleaningPower: 0.31,
+    patchCount: [9, 14],
+    patchRadiusX: [24, 54],
+    patchRadiusY: [18, 40],
+    footprintPairs: [1, 3],
+    crumbCount: [155, 215],
+    palette: [
+      "rgba(133, 88, 48, 0.70)",
+      "rgba(150, 111, 62, 0.66)",
+      "rgba(106, 76, 49, 0.62)",
+      "rgba(160, 126, 72, 0.58)",
+    ],
+  },
+  {
+    key: "big-spill",
+    title: "Big Spill",
+    subtitle: "A few huge stains need fast, repeated scrubbing.",
+    cleaningPower: 0.245,
+    patchCount: [5, 8],
+    patchRadiusX: [82, 148],
+    patchRadiusY: [52, 104],
+    footprintPairs: [2, 4],
+    crumbCount: [12, 25],
+    palette: [
+      "rgba(119, 72, 50, 0.84)",
+      "rgba(92, 62, 49, 0.82)",
+      "rgba(139, 83, 53, 0.76)",
+      "rgba(82, 70, 62, 0.76)",
+    ],
+  },
+];
+
+function randomInt([min, max]: [number, number]) {
+  return min + Math.floor(Math.random() * (max - min + 1));
+}
+
+function chooseMessType(previous?: MessTypeKey | null) {
+  const choices = previous ? MESS_TYPES.filter((mess) => mess.key !== previous) : MESS_TYPES;
+  return choices[Math.floor(Math.random() * choices.length)] ?? MESS_TYPES[0];
+}
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -230,25 +339,18 @@ function drawFootprint(
   context.restore();
 }
 
-function drawMess(context: CanvasRenderingContext2D) {
+function drawMess(context: CanvasRenderingContext2D, mess: MessDefinition) {
   context.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   context.save();
   roundedRectPath(context, 48, 40, CANVAS_WIDTH - 96, CANVAS_HEIGHT - 80, 46);
   context.clip();
 
-  const palette = [
-    "rgba(105, 77, 52, 0.77)",
-    "rgba(126, 92, 57, 0.68)",
-    "rgba(70, 77, 83, 0.70)",
-    "rgba(151, 117, 78, 0.62)",
-  ];
-
-  const patchCount = 19 + Math.floor(Math.random() * 6);
+  const patchCount = randomInt(mess.patchCount);
   for (let i = 0; i < patchCount; i += 1) {
     const x = 100 + Math.random() * (CANVAS_WIDTH - 200);
     const y = 88 + Math.random() * (CANVAS_HEIGHT - 176);
-    const radiusX = 34 + Math.random() * 72;
-    const radiusY = 22 + Math.random() * 48;
+    const radiusX = mess.patchRadiusX[0] + Math.random() * (mess.patchRadiusX[1] - mess.patchRadiusX[0]);
+    const radiusY = mess.patchRadiusY[0] + Math.random() * (mess.patchRadiusY[1] - mess.patchRadiusY[0]);
     const rotation = Math.random() * Math.PI;
 
     context.save();
@@ -256,8 +358,8 @@ function drawMess(context: CanvasRenderingContext2D) {
     context.rotate(rotation);
 
     const stain = context.createRadialGradient(0, 0, 3, 0, 0, Math.max(radiusX, radiusY));
-    stain.addColorStop(0, palette[Math.floor(Math.random() * palette.length)]);
-    stain.addColorStop(0.62, "rgba(86, 63, 43, 0.55)");
+    stain.addColorStop(0, mess.palette[Math.floor(Math.random() * mess.palette.length)]);
+    stain.addColorStop(0.58, mess.key === "dusty-day" ? "rgba(104, 100, 88, 0.46)" : "rgba(86, 63, 43, 0.58)");
     stain.addColorStop(1, "rgba(90, 70, 50, 0)");
 
     context.fillStyle = stain;
@@ -265,10 +367,20 @@ function drawMess(context: CanvasRenderingContext2D) {
     context.ellipse(0, 0, radiusX, radiusY, 0, 0, Math.PI * 2);
     context.fill();
 
+    if (mess.key === "big-spill") {
+      context.globalAlpha = 0.33;
+      context.strokeStyle = mess.palette[i % mess.palette.length];
+      context.lineWidth = 8 + Math.random() * 10;
+      context.beginPath();
+      context.arc(0, 0, Math.min(radiusX, radiusY) * 0.56, 0, Math.PI * 2);
+      context.stroke();
+      context.globalAlpha = 1;
+    }
+
     context.restore();
   }
 
-  const footprintPairs = 5 + Math.floor(Math.random() * 2);
+  const footprintPairs = randomInt(mess.footprintPairs);
   for (let i = 0; i < footprintPairs; i += 1) {
     const baseX = 130 + Math.random() * (CANVAS_WIDTH - 260);
     const baseY = 120 + Math.random() * (CANVAS_HEIGHT - 240);
@@ -279,12 +391,12 @@ function drawMess(context: CanvasRenderingContext2D) {
     drawFootprint(context, baseX + stepX, baseY + stepY, direction - 0.3, 0.72 + Math.random() * 0.28);
   }
 
-  const crumbCount = 76 + Math.floor(Math.random() * 30);
+  const crumbCount = randomInt(mess.crumbCount);
   for (let i = 0; i < crumbCount; i += 1) {
     const x = 76 + Math.random() * (CANVAS_WIDTH - 152);
     const y = 68 + Math.random() * (CANVAS_HEIGHT - 136);
-    const radius = 2 + Math.random() * 6;
-    context.fillStyle = i % 3 === 0 ? "rgba(214, 168, 95, 0.9)" : "rgba(128, 91, 57, 0.82)";
+    const radius = mess.key === "snack-attack" ? 2.5 + Math.random() * 6.5 : 2 + Math.random() * 5;
+    context.fillStyle = i % 3 === 0 ? "rgba(222, 170, 91, 0.92)" : "rgba(126, 88, 54, 0.84)";
     context.beginPath();
     context.arc(x, y, radius, 0, Math.PI * 2);
     context.fill();
@@ -341,19 +453,37 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
   const dirtCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const gameStartedAtRef = useRef(0);
   const initialDirtMassRef = useRef(1);
+  const previousDirtMassRef = useRef(1);
+  const cleanPercentRef = useRef(0);
+  const scoreRef = useRef(0);
+  const comboHitsRef = useRef(0);
+  const comboMultiplierRef = useRef(1);
+  const maxComboRef = useRef(1);
+  const lastCleanAtRef = useRef(0);
   const activePointerIdRef = useRef<number | null>(null);
   const lastPointRef = useRef<Point | null>(null);
   const lastMeasureAtRef = useRef(0);
   const finishedRef = useRef(false);
+  const currentMessRef = useRef<MessDefinition>(MESS_TYPES[0]);
+  const lastMessKeyRef = useRef<MessTypeKey | null>(null);
 
   const [phase, setPhase] = useState<GamePhase>("intro");
   const [countdown, setCountdown] = useState(3);
   const [timeLeftMs, setTimeLeftMs] = useState(ROUND_DURATION_MS);
   const [cleanPercent, setCleanPercent] = useState(0);
   const [score, setScore] = useState(0);
+  const [comboMultiplier, setComboMultiplier] = useState(1);
+  const [maxCombo, setMaxCombo] = useState(1);
+  const [currentMess, setCurrentMess] = useState<MessDefinition>(MESS_TYPES[0]);
   const [brushPoint, setBrushPoint] = useState<Point | null>(null);
   const [surfaceSize, setSurfaceSize] = useState({ width: 1, height: 1 });
   const [phonePortrait, setPhonePortrait] = useState(false);
+  const [stats, setStats] = useState<RugRushStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [newBestScore, setNewBestScore] = useState(false);
+  const [newBestPercent, setNewBestPercent] = useState(false);
+  const [roundBonus, setRoundBonus] = useState(0);
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 700px) and (orientation: portrait)");
@@ -361,6 +491,43 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
     sync();
     media.addEventListener?.("change", sync);
     return () => media.removeEventListener?.("change", sync);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadStats() {
+      setStatsLoading(true);
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) {
+        if (!cancelled) setStatsLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("nova_home_rug_rush_stats")
+        .select("best_score,best_clean_percent,rounds_played,perfect_cleans,last_played_at")
+        .eq("user_id", userData.user.id)
+        .maybeSingle();
+
+      if (!cancelled) {
+        if (!error && data) {
+          setStats({
+            best_score: Number(data.best_score ?? 0),
+            best_clean_percent: Number(data.best_clean_percent ?? 0),
+            rounds_played: Number(data.rounds_played ?? 0),
+            perfect_cleans: Number(data.perfect_cleans ?? 0),
+            last_played_at: data.last_played_at ? String(data.last_played_at) : null,
+          });
+        }
+        setStatsLoading(false);
+      }
+    }
+
+    void loadStats();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -397,27 +564,73 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
 
   const measureProgress = useCallback((force = false) => {
     const dirt = dirtCanvasRef.current;
-    if (!dirt) return { percent: cleanPercent, nextScore: score };
+    if (!dirt) {
+      return {
+        percent: cleanPercentRef.current,
+        nextScore: scoreRef.current,
+        multiplier: comboMultiplierRef.current,
+      };
+    }
 
     const now = performance.now();
-    if (!force && now - lastMeasureAtRef.current < 80) {
-      return { percent: cleanPercent, nextScore: score };
+    if (!force && now - lastMeasureAtRef.current < 78) {
+      return {
+        percent: cleanPercentRef.current,
+        nextScore: scoreRef.current,
+        multiplier: comboMultiplierRef.current,
+      };
     }
 
     lastMeasureAtRef.current = now;
     const remainingMass = measureDirtMass(dirt);
     const initialMass = Math.max(1, initialDirtMassRef.current);
+    const removedMass = Math.max(0, previousDirtMassRef.current - remainingMass);
+    previousDirtMassRef.current = remainingMass;
+
     const percent = clamp((1 - remainingMass / initialMass) * 100, 0, 100);
-    const nextScore = Math.round(percent * 100);
+    cleanPercentRef.current = percent;
+
+    const meaningfulRemoval = removedMass >= initialMass * 0.00012;
+    if (meaningfulRemoval) {
+      if (lastCleanAtRef.current > 0 && now - lastCleanAtRef.current <= 430) {
+        comboHitsRef.current += 1;
+      } else {
+        comboHitsRef.current = 1;
+      }
+      lastCleanAtRef.current = now;
+
+      const tier = Math.min(4, Math.floor((comboHitsRef.current - 1) / 4));
+      const multiplier = 1 + tier * 0.25;
+      comboMultiplierRef.current = multiplier;
+      maxComboRef.current = Math.max(maxComboRef.current, multiplier);
+
+      const basePoints = Math.max(1, Math.round((removedMass / initialMass) * 10_000));
+      scoreRef.current += Math.round(basePoints * multiplier);
+    } else if (lastCleanAtRef.current > 0 && now - lastCleanAtRef.current > 620) {
+      comboHitsRef.current = 0;
+      comboMultiplierRef.current = 1;
+    }
 
     setCleanPercent(percent);
-    setScore(nextScore);
-    return { percent, nextScore };
-  }, [cleanPercent, score]);
+    setScore(scoreRef.current);
+    setComboMultiplier(comboMultiplierRef.current);
+    setMaxCombo(maxComboRef.current);
+
+    return {
+      percent,
+      nextScore: scoreRef.current,
+      multiplier: comboMultiplierRef.current,
+    };
+  }, []);
 
   const prepareRound = useCallback(() => {
     const display = displayCanvasRef.current;
     if (!display) return;
+
+    const mess = chooseMessType(lastMessKeyRef.current);
+    lastMessKeyRef.current = mess.key;
+    currentMessRef.current = mess;
+    setCurrentMess(mess);
 
     const rug = document.createElement("canvas");
     rug.width = CANVAS_WIDTH;
@@ -431,11 +644,18 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
     dirt.height = CANVAS_HEIGHT;
     const dirtContext = dirt.getContext("2d", { willReadFrequently: true });
     if (!dirtContext) return;
-    drawMess(dirtContext);
+    drawMess(dirtContext, mess);
 
     rugCanvasRef.current = rug;
     dirtCanvasRef.current = dirt;
     initialDirtMassRef.current = Math.max(1, measureDirtMass(dirt));
+    previousDirtMassRef.current = initialDirtMassRef.current;
+    cleanPercentRef.current = 0;
+    scoreRef.current = 0;
+    comboHitsRef.current = 0;
+    comboMultiplierRef.current = 1;
+    maxComboRef.current = 1;
+    lastCleanAtRef.current = 0;
     lastMeasureAtRef.current = 0;
     activePointerIdRef.current = null;
     lastPointRef.current = null;
@@ -444,7 +664,13 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
     setBrushPoint(null);
     setCleanPercent(0);
     setScore(0);
+    setComboMultiplier(1);
+    setMaxCombo(1);
+    setRoundBonus(0);
     setTimeLeftMs(ROUND_DURATION_MS);
+    setSaveStatus("idle");
+    setNewBestScore(false);
+    setNewBestPercent(false);
     renderFrame();
   }, [renderFrame]);
 
@@ -456,6 +682,38 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
     prepareRound();
   }, [prepareRound]);
 
+  const recordResult = useCallback(async (finalScore: number, percent: number) => {
+    setSaveStatus("saving");
+
+    const { data, error } = await supabase.rpc("record_nova_home_rug_rush_result", {
+      p_score: finalScore,
+      p_clean_percent: Number(percent.toFixed(2)),
+    });
+
+    if (error) {
+      console.error("Could not save Rug Rush result", error);
+      setSaveStatus("error");
+      return;
+    }
+
+    const row = (Array.isArray(data) ? data[0] : data) as RecordResultRow | null;
+    if (!row) {
+      setSaveStatus("error");
+      return;
+    }
+
+    setStats({
+      best_score: Number(row.best_score ?? 0),
+      best_clean_percent: Number(row.best_clean_percent ?? 0),
+      rounds_played: Number(row.rounds_played ?? 0),
+      perfect_cleans: Number(row.perfect_cleans ?? 0),
+      last_played_at: row.last_played_at ? String(row.last_played_at) : null,
+    });
+    setNewBestScore(Boolean(row.is_new_best_score));
+    setNewBestPercent(Boolean(row.is_new_best_percent));
+    setSaveStatus("saved");
+  }, []);
+
   const finishRound = useCallback(() => {
     if (finishedRef.current) return;
     finishedRef.current = true;
@@ -463,9 +721,20 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
     lastPointRef.current = null;
     setBrushPoint(null);
     setTimeLeftMs(0);
-    measureProgress(true);
+
+    const measured = measureProgress(true);
+    let bonus = 0;
+    if (measured.percent >= 99.5) bonus = 1500;
+    else if (measured.percent >= 95) bonus = 900;
+    else if (measured.percent >= 80) bonus = 400;
+
+    const finalScore = measured.nextScore + bonus;
+    scoreRef.current = finalScore;
+    setScore(finalScore);
+    setRoundBonus(bonus);
     setPhase("result");
-  }, [measureProgress]);
+    void recordResult(finalScore, measured.percent);
+  }, [measureProgress, recordResult]);
 
   useEffect(() => {
     if (phase !== "countdown") return;
@@ -498,6 +767,12 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
       const elapsed = performance.now() - gameStartedAtRef.current;
       const remaining = Math.max(0, ROUND_DURATION_MS - elapsed);
       setTimeLeftMs(remaining);
+
+      if (lastCleanAtRef.current > 0 && performance.now() - lastCleanAtRef.current > 620 && comboMultiplierRef.current !== 1) {
+        comboHitsRef.current = 0;
+        comboMultiplierRef.current = 1;
+        setComboMultiplier(1);
+      }
 
       if (remaining <= 0) {
         finishRound();
@@ -541,12 +816,14 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
     const context = dirt.getContext("2d", { willReadFrequently: true });
     if (!context) return;
 
+    const cleaningPower = currentMessRef.current.cleaningPower;
+
     context.save();
     context.globalCompositeOperation = "destination-out";
     context.lineCap = "round";
     context.lineJoin = "round";
     context.lineWidth = BRUSH_RADIUS * 1.5;
-    context.strokeStyle = "rgba(0,0,0,0.36)";
+    context.strokeStyle = `rgba(0,0,0,${cleaningPower})`;
     context.beginPath();
     context.moveTo(from.x, from.y);
     context.lineTo(to.x, to.y);
@@ -560,8 +837,8 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
       to.y,
       BRUSH_RADIUS,
     );
-    gradient.addColorStop(0, "rgba(0,0,0,0.48)");
-    gradient.addColorStop(0.68, "rgba(0,0,0,0.22)");
+    gradient.addColorStop(0, `rgba(0,0,0,${Math.min(0.58, cleaningPower + 0.14)})`);
+    gradient.addColorStop(0.68, `rgba(0,0,0,${Math.max(0.14, cleaningPower - 0.08)})`);
     gradient.addColorStop(1, "rgba(0,0,0,0)");
     context.fillStyle = gradient;
     context.beginPath();
@@ -602,19 +879,18 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
 
   const roundedSeconds = Math.ceil(timeLeftMs / 1000);
   const stars = starCountForPercent(cleanPercent);
+  const bestScore = stats?.best_score ?? 0;
+  const bestPercent = stats?.best_clean_percent ?? 0;
 
   return (
     <div className="fixed inset-0 z-[120] flex h-[100dvh] w-[100vw] items-center justify-center overflow-hidden bg-slate-950/86 p-1.5 backdrop-blur-md sm:p-3">
       <div className="grid h-full max-h-[920px] w-full max-w-[1180px] min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[20px] border border-cyan-200/25 bg-[#03101d] shadow-[0_36px_110px_rgba(0,0,0,0.72)] sm:rounded-[30px]">
-        <header className="flex items-center justify-between gap-3 border-b border-white/[0.07] bg-slate-950/55 px-4 py-3 sm:px-6">
+        <header className="flex items-center justify-between gap-3 border-b border-white/[0.07] bg-slate-950/55 px-4 py-2.5 sm:px-6 sm:py-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-200/60">
-                Nova Home Minigame
-              </p>
-              <span className="rounded-full border border-cyan-200/18 bg-cyan-300/[0.06] px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100/70">
-                10 Seconds
-              </span>
+              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-200/60">Nova Home Minigame</p>
+              <span className="rounded-full border border-cyan-200/18 bg-cyan-300/[0.06] px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100/70">10 Seconds</span>
+              <span className="rounded-full border border-violet-200/18 bg-violet-300/[0.06] px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-violet-100/75">{currentMess.title}</span>
             </div>
             <h2 className="mt-1 text-xl font-black text-white sm:text-2xl">Rug Rush</h2>
           </div>
@@ -630,14 +906,11 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
         </header>
 
         <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden p-2 sm:gap-3 sm:p-3">
-          <div className="grid grid-cols-3 gap-2">
-            <HudCard label="Score" value={score.toLocaleString()} />
+          <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+            <HudCard label="Score" value={score.toLocaleString()} highlight={phase === "playing" && comboMultiplier > 1} />
             <HudCard label="Cleaned" value={`${cleanPercent.toFixed(0)}%`} />
-            <HudCard
-              label="Time"
-              value={phase === "intro" ? "10" : roundedSeconds.toString()}
-              urgent={phase === "playing" && timeLeftMs <= 3000}
-            />
+            <HudCard label="Combo" value={`×${comboMultiplier.toFixed(2).replace(/\.00$/, "")}`} highlight={comboMultiplier > 1} />
+            <HudCard label="Time" value={phase === "intro" ? "10" : roundedSeconds.toString()} urgent={phase === "playing" && timeLeftMs <= 3000} />
           </div>
 
           <div ref={surfaceHostRef} className="relative flex min-h-0 items-center justify-center overflow-hidden rounded-[20px] border border-cyan-200/14 bg-[radial-gradient(circle_at_50%_45%,rgba(55,190,226,0.11),transparent_50%),linear-gradient(180deg,#071a2a,#020914)] p-1.5 sm:rounded-[26px] sm:p-2">
@@ -675,22 +948,41 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
                 </div>
               )}
 
+              {phase === "playing" && comboMultiplier > 1 && (
+                <div className="pointer-events-none absolute left-3 top-3 z-20 rounded-full border border-cyan-200/24 bg-slate-950/78 px-3 py-1.5 text-sm font-black text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.18)] sm:text-base">
+                  CLEAN STREAK ×{comboMultiplier.toFixed(2).replace(/\.00$/, "")}
+                </div>
+              )}
+
               {phase === "intro" && (
-                <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/52 p-4 backdrop-blur-[2px]">
-                  <div className="w-[min(520px,92%)] rounded-[24px] border border-cyan-200/24 bg-slate-950/88 p-5 text-center shadow-[0_24px_60px_rgba(0,0,0,0.54)] sm:p-7">
+                <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/52 p-3 backdrop-blur-[2px] sm:p-4">
+                  <div className="w-[min(560px,94%)] rounded-[22px] border border-cyan-200/24 bg-slate-950/90 p-4 text-center shadow-[0_24px_60px_rgba(0,0,0,0.54)] sm:rounded-[24px] sm:p-6">
                     <p className="text-[9px] font-black uppercase tracking-[0.17em] text-cyan-200/62">Nova needs your help</p>
-                    <h3 className="mt-2 text-2xl font-black text-white sm:text-3xl">Clean the rug before time runs out!</h3>
-                    <p className="mx-auto mt-3 max-w-md text-xs leading-6 text-white/58 sm:text-sm">
-                      Drag your mouse or finger across the dirty rug. Stains need a few passes now, so scrub fast and cover every corner before the 10 seconds are up.
+                    <h3 className="mt-1.5 text-2xl font-black text-white sm:text-3xl">Clean the rug before time runs out!</h3>
+                    <p className="mx-auto mt-2.5 max-w-md text-xs leading-5 text-white/58 sm:text-sm sm:leading-6">
+                      Every round brings a different mess. Keep cleaning new dirt without stopping to build your combo and multiply your score.
                     </p>
-                    <div className="mx-auto mt-4 grid max-w-sm grid-cols-2 gap-2 text-left">
-                      <MiniRule number="1" text="Drag to scrub" />
-                      <MiniRule number="2" text="Stains need repeat passes" />
+
+                    <div className="mt-3 rounded-[16px] border border-violet-200/16 bg-violet-300/[0.055] px-4 py-3 text-left">
+                      <p className="text-[8px] font-black uppercase tracking-[0.15em] text-violet-100/55">This round</p>
+                      <p className="mt-0.5 text-sm font-black text-white">{currentMess.title}</p>
+                      <p className="mt-0.5 text-[10px] leading-4 text-white/48 sm:text-xs">{currentMess.subtitle}</p>
                     </div>
+
+                    <div className="mx-auto mt-3 grid max-w-md grid-cols-2 gap-2 text-left">
+                      <MiniRule number="1" text="Scrub fresh dirt to score" />
+                      <MiniRule number="2" text="Keep moving for up to ×2" />
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <StatPill label="Best Score" value={statsLoading ? "…" : bestScore.toLocaleString()} />
+                      <StatPill label="Best Clean" value={statsLoading ? "…" : `${bestPercent.toFixed(1)}%`} />
+                    </div>
+
                     <button
                       type="button"
                       onClick={startRound}
-                      className="mt-5 min-h-12 w-full rounded-full bg-cyan-300 px-6 text-xs font-black uppercase tracking-[0.12em] text-slate-950 transition hover:bg-cyan-200"
+                      className="mt-4 min-h-11 w-full rounded-full bg-cyan-300 px-6 text-xs font-black uppercase tracking-[0.12em] text-slate-950 transition hover:bg-cyan-200"
                     >
                       Start Rug Rush
                     </button>
@@ -701,37 +993,56 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
               {phase === "countdown" && (
                 <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/44 backdrop-blur-[1px]">
                   <div className="text-center">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/68">Get Ready</p>
-                    <div className="mt-1 text-[88px] font-black leading-none text-white drop-shadow-[0_0_28px_rgba(103,232,249,0.6)] sm:text-[120px]">
-                      {countdown}
-                    </div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-violet-100/72">{currentMess.title}</p>
+                    <p className="mt-1 text-[9px] font-black uppercase tracking-[0.2em] text-cyan-100/60">Get Ready</p>
+                    <div className="mt-1 text-[88px] font-black leading-none text-white drop-shadow-[0_0_28px_rgba(103,232,249,0.6)] sm:text-[120px]">{countdown}</div>
                   </div>
                 </div>
               )}
 
               {phase === "result" && (
-                <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-[2px]">
-                  <div className="w-[min(520px,92%)] rounded-[24px] border border-cyan-200/24 bg-slate-950/90 p-5 text-center shadow-[0_24px_60px_rgba(0,0,0,0.58)] sm:p-7">
-                    <p className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-200/62">Time!</p>
+                <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/62 p-3 backdrop-blur-[2px] sm:p-4">
+                  <div className="w-[min(570px,94%)] rounded-[22px] border border-cyan-200/24 bg-slate-950/92 p-4 text-center shadow-[0_24px_60px_rgba(0,0,0,0.58)] sm:rounded-[24px] sm:p-6">
+                    <div className="flex items-center justify-center gap-2">
+                      <p className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-200/62">Time!</p>
+                      <span className="rounded-full border border-violet-200/16 bg-violet-300/[0.055] px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-violet-100/72">{currentMess.title}</span>
+                    </div>
                     <h3 className="mt-1 text-2xl font-black text-white sm:text-3xl">{resultLabel(cleanPercent)}</h3>
-                    <div className="mt-3 text-3xl tracking-[0.18em] text-amber-200 sm:text-4xl" aria-label={`${stars} stars`}>
+                    <div className="mt-2 text-3xl tracking-[0.18em] text-amber-200 sm:text-4xl" aria-label={`${stars} stars`}>
                       {Array.from({ length: 3 }).map((_, index) => (
                         <span key={index} className={index < stars ? "opacity-100" : "opacity-20"}>★</span>
                       ))}
                     </div>
 
-                    <div className="mt-4 grid grid-cols-2 gap-2">
-                      <div className="rounded-[16px] border border-white/9 bg-white/[0.035] p-3">
-                        <p className="text-[8px] font-black uppercase tracking-[0.14em] text-white/38">Cleaned</p>
-                        <p className="mt-1 text-2xl font-black text-cyan-100">{cleanPercent.toFixed(1)}%</p>
+                    {(newBestScore || newBestPercent) && (
+                      <div className="mx-auto mt-2 inline-flex rounded-full border border-amber-200/30 bg-amber-300/[0.10] px-4 py-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-amber-100">
+                        New Personal Best!
                       </div>
-                      <div className="rounded-[16px] border border-white/9 bg-white/[0.035] p-3">
-                        <p className="text-[8px] font-black uppercase tracking-[0.14em] text-white/38">Score</p>
-                        <p className="mt-1 text-2xl font-black text-white">{score.toLocaleString()}</p>
-                      </div>
+                    )}
+
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      <ResultStat label="Cleaned" value={`${cleanPercent.toFixed(1)}%`} accent />
+                      <ResultStat label="Score" value={score.toLocaleString()} />
+                      <ResultStat label="Best Combo" value={`×${maxCombo.toFixed(2).replace(/\.00$/, "")}`} />
                     </div>
 
-                    <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    {roundBonus > 0 && (
+                      <p className="mt-2 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100/74">Clean bonus +{roundBonus.toLocaleString()}</p>
+                    )}
+
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      <StatPill label="Personal Best" value={(stats?.best_score ?? Math.max(bestScore, score)).toLocaleString()} />
+                      <StatPill label="Rounds" value={(stats?.rounds_played ?? 0).toLocaleString()} />
+                      <StatPill label="Perfects" value={(stats?.perfect_cleans ?? 0).toLocaleString()} />
+                    </div>
+
+                    <p className={`mt-2 min-h-4 text-[9px] font-bold ${saveStatus === "error" ? "text-rose-200/80" : "text-white/38"}`}>
+                      {saveStatus === "saving" && "Saving your result…"}
+                      {saveStatus === "saved" && "Personal best and Rug Rush stats saved."}
+                      {saveStatus === "error" && "Result finished, but the score could not be saved."}
+                    </p>
+
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
                       <button
                         type="button"
                         onClick={startRound}
@@ -752,9 +1063,7 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
               )}
 
               {phase === "playing" && timeLeftMs <= 3000 && (
-                <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-amber-200/24 bg-slate-950/78 px-4 py-2 text-xl font-black text-amber-100 shadow-[0_0_22px_rgba(251,191,36,0.18)] sm:text-2xl">
-                  {roundedSeconds}
-                </div>
+                <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-amber-200/24 bg-slate-950/78 px-4 py-2 text-xl font-black text-amber-100 shadow-[0_0_22px_rgba(251,191,36,0.18)] sm:text-2xl">{roundedSeconds}</div>
               )}
             </div>
           </div>
@@ -772,9 +1081,7 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
             </div>
             <p className="mt-2 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200/60">Rug Rush plays in landscape</p>
             <h3 className="mt-2 text-2xl font-black text-white">Turn your phone sideways</h3>
-            <p className="mt-3 text-sm leading-6 text-white/56">
-              Rotate your phone to landscape so Nova&apos;s whole rug stays visible while you scrub.
-            </p>
+            <p className="mt-3 text-sm leading-6 text-white/56">Rotate your phone to landscape so Nova&apos;s whole rug stays visible while you scrub.</p>
             <div className="mt-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-cyan-100/70">
               <span>↻</span>
               <span>Rotate to continue</span>
@@ -790,21 +1097,25 @@ function HudCard({
   label,
   value,
   urgent = false,
+  highlight = false,
 }: {
   label: string;
   value: string;
   urgent?: boolean;
+  highlight?: boolean;
 }) {
   return (
     <div
-      className={`rounded-[14px] border px-3 py-2 text-center sm:rounded-[18px] sm:px-4 sm:py-3 ${
+      className={`rounded-[14px] border px-2 py-2 text-center sm:rounded-[18px] sm:px-4 sm:py-3 ${
         urgent
           ? "border-amber-200/28 bg-amber-300/[0.08]"
-          : "border-white/[0.08] bg-white/[0.025]"
+          : highlight
+            ? "border-cyan-200/24 bg-cyan-300/[0.075]"
+            : "border-white/[0.08] bg-white/[0.025]"
       }`}
     >
-      <p className="text-[8px] font-black uppercase tracking-[0.14em] text-white/38">{label}</p>
-      <p className={`mt-0.5 text-lg font-black sm:text-xl ${urgent ? "text-amber-100" : "text-white"}`}>{value}</p>
+      <p className="text-[7px] font-black uppercase tracking-[0.12em] text-white/38 sm:text-[8px] sm:tracking-[0.14em]">{label}</p>
+      <p className={`mt-0.5 text-base font-black sm:text-xl ${urgent ? "text-amber-100" : highlight ? "text-cyan-100" : "text-white"}`}>{value}</p>
     </div>
   );
 }
@@ -817,3 +1128,22 @@ function MiniRule({ number, text }: { number: string; text: string }) {
     </div>
   );
 }
+
+function StatPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[13px] border border-white/[0.075] bg-white/[0.025] px-2.5 py-2 text-center">
+      <p className="text-[7px] font-black uppercase tracking-[0.12em] text-white/34 sm:text-[8px]">{label}</p>
+      <p className="mt-0.5 text-sm font-black text-white/82 sm:text-base">{value}</p>
+    </div>
+  );
+}
+
+function ResultStat({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className="rounded-[15px] border border-white/9 bg-white/[0.035] p-2.5 sm:p-3">
+      <p className="text-[7px] font-black uppercase tracking-[0.12em] text-white/38 sm:text-[8px] sm:tracking-[0.14em]">{label}</p>
+      <p className={`mt-1 text-lg font-black sm:text-2xl ${accent ? "text-cyan-100" : "text-white"}`}>{value}</p>
+    </div>
+  );
+}
+
