@@ -11,9 +11,8 @@ import {
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import WardrobeFittedLayer from "@/components/nova-home/WardrobeFittedLayer";
-import WardrobeRigOverlay from "@/components/nova-home/WardrobeRigOverlay";
-import WardrobeTransformHandles from "@/components/nova-home/WardrobeTransformHandles";
-import { MILO_WARDROBE_RIG, NOVA_WARDROBE_RIG, getRigStretchLabel } from "@/lib/novaHome/wardrobeRig";
+import { MILO_WARDROBE_RIG, NOVA_WARDROBE_RIG } from "@/lib/novaHome/wardrobeRig";
+import { createWardrobeSnapshotPng, downloadBlob } from "@/lib/novaHome/wardrobeSnapshot";
 
 type AreaKey = "area-1" | "area-2";
 
@@ -103,17 +102,17 @@ type WardrobeCatalogRow = {
   accessory_slot: WardrobeAccessorySlot;
 };
 
-type WardrobeFitDraft = {
-  fit_mode: "auto" | "manual";
-  fit_scale: number;
-  fit_scale_x: number;
-  fit_scale_y: number;
-  fit_offset_x_pct: number;
-  fit_offset_y_pct: number;
-  fit_rotation_deg: number;
-  fit_skew_x_deg: number;
-  fit_skew_y_deg: number;
-  fit_stretch_mode: "contain" | "stretch";
+type WardrobeUserAccessoryFitRow = {
+  item_key: string;
+  scale: number;
+  offset_x_pct: number;
+  offset_y_pct: number;
+};
+
+type WardrobeUserPlacementDraft = {
+  scale: number;
+  offset_x_pct: number;
+  offset_y_pct: number;
 };
 
 type WardrobeOwnershipRow = {
@@ -434,7 +433,8 @@ export default function NovaHomePage() {
   const [wardrobeSelectedItemKey, setWardrobeSelectedItemKey] = useState<string | null>(null);
   const [wardrobePurchasingItemKey, setWardrobePurchasingItemKey] = useState<string | null>(null);
   const [wardrobeEquippingItemKey, setWardrobeEquippingItemKey] = useState<string | null>(null);
-  const [wardrobeSavingFitItemKey, setWardrobeSavingFitItemKey] = useState<string | null>(null);
+  const [wardrobeSavingPlacementItemKey, setWardrobeSavingPlacementItemKey] = useState<string | null>(null);
+  const [wardrobeUserAccessoryFits, setWardrobeUserAccessoryFits] = useState<Record<string, WardrobeUserAccessoryFitRow>>({});
   const [wardrobeMessage, setWardrobeMessage] = useState("");
   const [wardrobeCharacter, setWardrobeCharacter] = useState<WardrobeCharacter>("nova");
   const [characterCatalog, setCharacterCatalog] = useState<CharacterCatalogRow[]>([]);
@@ -836,7 +836,7 @@ export default function NovaHomePage() {
       return;
     }
 
-    const [characterCatalogResult, characterUnlockResult, catalogResult, ownershipResult, equippedResult] = await Promise.all([
+    const [characterCatalogResult, characterUnlockResult, catalogResult, ownershipResult, equippedResult, userAccessoryFitResult] = await Promise.all([
       supabase
         .from("nova_home_character_catalog")
         .select("character_key,title,description,dt_cost,is_starter")
@@ -860,6 +860,10 @@ export default function NovaHomePage() {
       supabase
         .from("nova_home_wardrobe_equipped")
         .select("character_key,category,equip_slot,item_key")
+        .eq("user_id", user.id),
+      supabase
+        .from("nova_home_wardrobe_user_accessory_fit")
+        .select("item_key,scale,offset_x_pct,offset_y_pct")
         .eq("user_id", user.id),
     ]);
 
@@ -972,6 +976,27 @@ export default function NovaHomePage() {
       );
     }
 
+    if (userAccessoryFitResult.error) {
+      console.warn("Could not load personal accessory placement:", userAccessoryFitResult.error.message);
+      setWardrobeUserAccessoryFits({});
+      setWardrobeSetupError((current) =>
+        current || "Personal accessory placement is not ready. Run SQL 315 before testing this phase.",
+      );
+    } else {
+      const nextFits: Record<string, WardrobeUserAccessoryFitRow> = {};
+      ((userAccessoryFitResult.data || []) as Array<Record<string, unknown>>).forEach((row) => {
+        const itemKey = String(row.item_key || "");
+        if (!itemKey) return;
+        nextFits[itemKey] = {
+          item_key: itemKey,
+          scale: Number(row.scale ?? 1),
+          offset_x_pct: Number(row.offset_x_pct ?? 0),
+          offset_y_pct: Number(row.offset_y_pct ?? 0),
+        };
+      });
+      setWardrobeUserAccessoryFits(nextFits);
+    }
+
     setWardrobeLoading(false);
   }, [router, wardrobeSelectedItemKey]);
 
@@ -1059,7 +1084,7 @@ export default function NovaHomePage() {
   }
 
   function closeWardrobe() {
-    if (wardrobePurchasingItemKey || wardrobeEquippingItemKey || wardrobeSavingFitItemKey || purchasingCharacter) return;
+    if (wardrobePurchasingItemKey || wardrobeEquippingItemKey || wardrobeSavingPlacementItemKey || purchasingCharacter) return;
     setWardrobeOpen(false);
     setWardrobeMessage("");
   }
@@ -1235,72 +1260,53 @@ export default function NovaHomePage() {
     );
   }
 
-  async function saveWardrobeFit(
+  async function saveUserAccessoryPlacement(
     itemKey: string,
-    fit: WardrobeFitDraft,
+    placement: WardrobeUserPlacementDraft,
   ): Promise<boolean> {
     const item = wardrobeCatalog.find((entry) => entry.item_key === itemKey);
-    if (!item || !isAdmin || wardrobeSavingFitItemKey || wardrobeSetupError) return false;
+    if (!item || item.category !== "accessory" || wardrobeSavingPlacementItemKey || wardrobeSetupError) return false;
 
-    setWardrobeSavingFitItemKey(itemKey);
+    setWardrobeSavingPlacementItemKey(itemKey);
     setWardrobeMessage("");
 
     const { data, error } = await supabase.rpc(
-      "admin_save_nova_home_wardrobe_fit_v2",
+      "save_nova_home_user_accessory_fit",
       {
         p_item_key: itemKey,
-        p_fit_mode: fit.fit_mode,
-        p_fit_scale: fit.fit_scale,
-        p_fit_scale_x: fit.fit_scale_x,
-        p_fit_scale_y: fit.fit_scale_y,
-        p_fit_offset_x_pct: fit.fit_offset_x_pct,
-        p_fit_offset_y_pct: fit.fit_offset_y_pct,
-        p_fit_rotation_deg: fit.fit_rotation_deg,
-        p_fit_skew_x_deg: fit.fit_skew_x_deg,
-        p_fit_skew_y_deg: fit.fit_skew_y_deg,
-        p_fit_stretch_mode: fit.fit_stretch_mode,
+        p_scale: placement.scale,
+        p_offset_x_pct: placement.offset_x_pct,
+        p_offset_y_pct: placement.offset_y_pct,
       },
     );
 
-    setWardrobeSavingFitItemKey(null);
+    setWardrobeSavingPlacementItemKey(null);
 
     if (error) {
-      setWardrobeMessage(error.message || "The wardrobe fit could not be saved.");
+      setWardrobeMessage(error.message || "Your accessory placement could not be saved.");
       return false;
     }
 
     const row = Array.isArray(data) ? data[0] : data;
     if (!row || typeof row !== "object") {
-      setWardrobeMessage("The fit was saved, but the returned values could not be read.");
+      setWardrobeMessage("The placement was saved, but the saved values could not be read.");
       await loadWardrobe();
       return false;
     }
 
     const result = row as Record<string, unknown>;
-    const saved: WardrobeFitDraft = {
-      fit_mode: String(result.fit_mode || fit.fit_mode) === "auto" ? "auto" : "manual",
-      fit_scale: Number(result.fit_scale ?? fit.fit_scale),
-      fit_scale_x: Number(result.fit_scale_x ?? fit.fit_scale_x),
-      fit_scale_y: Number(result.fit_scale_y ?? fit.fit_scale_y),
-      fit_offset_x_pct: Number(result.fit_offset_x_pct ?? fit.fit_offset_x_pct),
-      fit_offset_y_pct: Number(result.fit_offset_y_pct ?? fit.fit_offset_y_pct),
-      fit_rotation_deg: Number(result.fit_rotation_deg ?? fit.fit_rotation_deg),
-      fit_skew_x_deg: Number(result.fit_skew_x_deg ?? fit.fit_skew_x_deg),
-      fit_skew_y_deg: Number(result.fit_skew_y_deg ?? fit.fit_skew_y_deg),
-      fit_stretch_mode: String(result.fit_stretch_mode || fit.fit_stretch_mode) === "stretch" ? "stretch" : "contain",
+    const saved: WardrobeUserAccessoryFitRow = {
+      item_key: String(result.item_key || itemKey),
+      scale: Number(result.scale ?? placement.scale),
+      offset_x_pct: Number(result.offset_x_pct ?? placement.offset_x_pct),
+      offset_y_pct: Number(result.offset_y_pct ?? placement.offset_y_pct),
     };
 
-    setWardrobeCatalog((current) =>
-      current.map((entry) =>
-        entry.item_key === itemKey ? { ...entry, ...saved } : entry,
-      ),
-    );
-
-    setWardrobeMessage(
-      saved.fit_mode === "auto"
-        ? `${item.title} reset to automatic rig fitting.`
-        : `${item.title} fit saved.`,
-    );
+    setWardrobeUserAccessoryFits((current) => ({
+      ...current,
+      [itemKey]: saved,
+    }));
+    setWardrobeMessage(`${item.title} placement saved.`);
     return true;
   }
 
@@ -1800,8 +1806,8 @@ export default function NovaHomePage() {
           message={wardrobeMessage}
           purchasingItemKey={wardrobePurchasingItemKey}
           equippingItemKey={wardrobeEquippingItemKey}
-          savingFitItemKey={wardrobeSavingFitItemKey}
-          isAdmin={isAdmin}
+          savingPlacementItemKey={wardrobeSavingPlacementItemKey}
+          userAccessoryFits={wardrobeUserAccessoryFits}
           onClose={closeWardrobe}
           onCharacterChange={changeWardrobeCharacter}
           onPurchaseCharacter={(character) => void purchaseCharacterUnlock(character)}
@@ -1818,7 +1824,7 @@ export default function NovaHomePage() {
           onPurchase={purchaseWardrobeItem}
           onEquip={(itemKey) => void equipWardrobeItem(itemKey)}
           onUnequip={(itemKey) => void unequipWardrobeAccessory(itemKey)}
-          onSaveFit={saveWardrobeFit}
+          onSavePlacement={saveUserAccessoryPlacement}
         />
       )}
     </main>
@@ -1842,8 +1848,8 @@ function WardrobeBay({
   message,
   purchasingItemKey,
   equippingItemKey,
-  savingFitItemKey,
-  isAdmin,
+  savingPlacementItemKey,
+  userAccessoryFits,
   onClose,
   onCharacterChange,
   onPurchaseCharacter,
@@ -1852,7 +1858,7 @@ function WardrobeBay({
   onPurchase,
   onEquip,
   onUnequip,
-  onSaveFit,
+  onSavePlacement,
 }: {
   catalog: WardrobeCatalogRow[];
   ownedItems: Set<string>;
@@ -1869,8 +1875,8 @@ function WardrobeBay({
   message: string;
   purchasingItemKey: string | null;
   equippingItemKey: string | null;
-  savingFitItemKey: string | null;
-  isAdmin: boolean;
+  savingPlacementItemKey: string | null;
+  userAccessoryFits: Record<string, WardrobeUserAccessoryFitRow>;
   onClose: () => void;
   onCharacterChange: (character: WardrobeCharacter) => void;
   onPurchaseCharacter: (character: WardrobeCharacter) => void;
@@ -1879,95 +1885,54 @@ function WardrobeBay({
   onPurchase: (itemKey: string) => void;
   onEquip: (itemKey: string) => void;
   onUnequip: (itemKey: string) => void;
-  onSaveFit: (itemKey: string, fit: WardrobeFitDraft) => Promise<boolean>;
+  onSavePlacement: (itemKey: string, placement: WardrobeUserPlacementDraft) => Promise<boolean>;
 }) {
   const visibleItems = catalog.filter((item) => item.character_key === activeCharacter && item.category === activeCategory);
   const selectedItem =
     catalog.find((item) => item.item_key === selectedItemKey && item.character_key === activeCharacter) ?? visibleItems[0] ?? null;
 
-  const [calibrationMode, setCalibrationMode] = useState(false);
-  const [showRigAnchors, setShowRigAnchors] = useState(true);
-  const [calibrationOpacity, setCalibrationOpacity] = useState(1);
-  const [fitDraft, setFitDraft] = useState<WardrobeFitDraft>({
-    fit_mode: "auto",
-    fit_scale: 1,
-    fit_scale_x: 1,
-    fit_scale_y: 1,
-    fit_offset_x_pct: 0,
-    fit_offset_y_pct: 0,
-    fit_rotation_deg: 0,
-    fit_skew_x_deg: 0,
-    fit_skew_y_deg: 0,
-    fit_stretch_mode: "contain",
+  const [adjustmentMode, setAdjustmentMode] = useState(false);
+  const [placementDraft, setPlacementDraft] = useState<WardrobeUserPlacementDraft>({
+    scale: 1,
+    offset_x_pct: 0,
+    offset_y_pct: 0,
   });
-  const [calibrationDrag, setCalibrationDrag] = useState<{
+  const [placementDrag, setPlacementDrag] = useState<{
     pointerId: number;
     startX: number;
     startY: number;
     startOffsetX: number;
     startOffsetY: number;
   } | null>(null);
+  const [savingLook, setSavingLook] = useState(false);
+  const [exportingPng, setExportingPng] = useState(false);
+  const [lookActionMessage, setLookActionMessage] = useState("");
 
   useEffect(() => {
-    setCalibrationMode(false);
-    setCalibrationDrag(null);
-    setCalibrationOpacity(1);
+    setAdjustmentMode(false);
+    setPlacementDrag(null);
   }, [activeCharacter]);
 
   useEffect(() => {
-    if (!calibrationMode) setCalibrationOpacity(1);
-  }, [calibrationMode]);
-
-  useEffect(() => {
     if (selectedItem?.category !== "accessory") {
-      setCalibrationMode(false);
-      setCalibrationOpacity(1);
+      setAdjustmentMode(false);
+      setPlacementDrag(null);
     }
-  }, [activeCharacter, selectedItem?.category]);
+  }, [selectedItem?.category]);
 
   useEffect(() => {
-    setCalibrationOpacity(1);
-    if (!selectedItem || selectedItem.character_key !== activeCharacter) {
-      setFitDraft({
-        fit_mode: "auto",
-        fit_scale: 1,
-        fit_scale_x: 1,
-        fit_scale_y: 1,
-        fit_offset_x_pct: 0,
-        fit_offset_y_pct: 0,
-        fit_rotation_deg: 0,
-        fit_skew_x_deg: 0,
-        fit_skew_y_deg: 0,
-        fit_stretch_mode: "contain",
-      });
+    if (!selectedItem || selectedItem.category !== "accessory") {
+      setPlacementDraft({ scale: 1, offset_x_pct: 0, offset_y_pct: 0 });
       return;
     }
 
-    setFitDraft({
-      fit_mode: selectedItem.fit_mode || "auto",
-      fit_scale: Number(selectedItem.fit_scale ?? 1),
-      fit_scale_x: Number(selectedItem.fit_scale_x ?? 1),
-      fit_scale_y: Number(selectedItem.fit_scale_y ?? 1),
-      fit_offset_x_pct: Number(selectedItem.fit_offset_x_pct ?? 0),
-      fit_offset_y_pct: Number(selectedItem.fit_offset_y_pct ?? 0),
-      fit_rotation_deg: Number(selectedItem.fit_rotation_deg ?? 0),
-      fit_skew_x_deg: Number(selectedItem.fit_skew_x_deg ?? 0),
-      fit_skew_y_deg: Number(selectedItem.fit_skew_y_deg ?? 0),
-      fit_stretch_mode: selectedItem.fit_stretch_mode === "stretch" ? "stretch" : "contain",
+    const saved = userAccessoryFits[selectedItem.item_key];
+    setPlacementDraft({
+      scale: Number(saved?.scale ?? 1),
+      offset_x_pct: Number(saved?.offset_x_pct ?? 0),
+      offset_y_pct: Number(saved?.offset_y_pct ?? 0),
     });
-  }, [
-    selectedItem?.item_key,
-    selectedItem?.fit_mode,
-    selectedItem?.fit_scale,
-    selectedItem?.fit_scale_x,
-    selectedItem?.fit_scale_y,
-    selectedItem?.fit_offset_x_pct,
-    selectedItem?.fit_offset_y_pct,
-    selectedItem?.fit_rotation_deg,
-    selectedItem?.fit_skew_x_deg,
-    selectedItem?.fit_skew_y_deg,
-    selectedItem?.fit_stretch_mode,
-  ]);
+  }, [selectedItem?.item_key, selectedItem?.category, userAccessoryFits]);
 
   const characterEquipped = equippedItems.filter((entry) => entry.character_key === activeCharacter);
   const baseClothingEquipped = characterEquipped.some((entry) =>
@@ -1989,6 +1954,16 @@ function WardrobeBay({
       });
     }
   }
+
+  const currentOutfitEntry =
+    effectiveEquipped.find((entry) => entry.category === "outfit") ?? null;
+  const currentOutfitItem = currentOutfitEntry
+    ? catalog.find((item) => item.item_key === currentOutfitEntry.item_key) ?? null
+    : null;
+  const currentAccessoryItems = effectiveEquipped
+    .filter((entry) => entry.category === "accessory")
+    .map((entry) => catalog.find((item) => item.item_key === entry.item_key))
+    .filter((item): item is WardrobeCatalogRow => Boolean(item?.layer_image));
 
   let previewEquipped = [...effectiveEquipped];
   if (selectedItem) {
@@ -2037,18 +2012,31 @@ function WardrobeBay({
     .filter((item): item is WardrobeCatalogRow => Boolean(item?.layer_image))
     .sort((a, b) => a.layer_order - b.layer_order);
 
-  const calibratedPreviewAccessories = previewAccessoryLayers.map((item) =>
-    calibrationMode &&
-    selectedItem?.item_key === item.item_key &&
-    selectedItem.category === "accessory"
-      ? { ...item, ...fitDraft, fit_opacity: calibrationOpacity }
-      : item,
-  );
+  const placedPreviewAccessories = previewAccessoryLayers.map((item) => {
+    const savedPlacement = userAccessoryFits[item.item_key];
+    const activePlacement =
+      adjustmentMode &&
+      selectedItem?.item_key === item.item_key &&
+      selectedItem.category === "accessory"
+        ? placementDraft
+        : {
+            scale: Number(savedPlacement?.scale ?? 1),
+            offset_x_pct: Number(savedPlacement?.offset_x_pct ?? 0),
+            offset_y_pct: Number(savedPlacement?.offset_y_pct ?? 0),
+          };
 
-  const previewBackdropAccessories = calibratedPreviewAccessories.filter(
+    return {
+      ...item,
+      fit_scale: Number(item.fit_scale ?? 1) * activePlacement.scale,
+      fit_offset_x_pct: Number(item.fit_offset_x_pct ?? 0) + activePlacement.offset_x_pct,
+      fit_offset_y_pct: Number(item.fit_offset_y_pct ?? 0) + activePlacement.offset_y_pct,
+    };
+  });
+
+  const previewBackdropAccessories = placedPreviewAccessories.filter(
     (item) => item.accessory_slot === "effect",
   );
-  const previewForegroundAccessories = calibratedPreviewAccessories.filter(
+  const previewForegroundAccessories = placedPreviewAccessories.filter(
     (item) => item.accessory_slot !== "effect",
   );
 
@@ -2060,64 +2048,154 @@ function WardrobeBay({
     ? effectiveEquipped.some((entry) => entry.item_key === selectedItem.item_key)
     : false;
 
-  const busy = Boolean(purchasingItemKey || equippingItemKey || savingFitItemKey || purchasingCharacter);
+  const busy = Boolean(purchasingItemKey || equippingItemKey || savingPlacementItemKey || purchasingCharacter);
   const miloCatalog = characterCatalog.find((entry) => entry.character_key === "milo");
   const miloUnlocked = unlockedCharacters.has("milo") || Boolean(miloCatalog?.is_starter);
   const selectedCategoryMeta =
     WARDROBE_CATEGORIES.find((entry) => entry.key === activeCategory) ??
     WARDROBE_CATEGORIES[0];
   const activeWardrobeRig = activeCharacter === "milo" ? MILO_WARDROBE_RIG : NOVA_WARDROBE_RIG;
-  const calibrationAvailable =
-    isAdmin &&
+  const adjustmentAvailable =
     (activeCharacter === "nova" || miloUnlocked) &&
     selectedItem?.character_key === activeCharacter &&
     selectedItem?.category === "accessory" &&
     Boolean(selectedItem?.layer_image);
-  const fitChanged = Boolean(
-    selectedItem &&
-      (Math.abs(fitDraft.fit_scale - Number(selectedItem.fit_scale ?? 1)) > 0.0001 ||
-        Math.abs(fitDraft.fit_scale_x - Number(selectedItem.fit_scale_x ?? 1)) > 0.0001 ||
-        Math.abs(fitDraft.fit_scale_y - Number(selectedItem.fit_scale_y ?? 1)) > 0.0001 ||
-        Math.abs(fitDraft.fit_offset_x_pct - Number(selectedItem.fit_offset_x_pct ?? 0)) > 0.0001 ||
-        Math.abs(fitDraft.fit_offset_y_pct - Number(selectedItem.fit_offset_y_pct ?? 0)) > 0.0001 ||
-        Math.abs(fitDraft.fit_rotation_deg - Number(selectedItem.fit_rotation_deg ?? 0)) > 0.0001 ||
-        Math.abs(fitDraft.fit_skew_x_deg - Number(selectedItem.fit_skew_x_deg ?? 0)) > 0.0001 ||
-        Math.abs(fitDraft.fit_skew_y_deg - Number(selectedItem.fit_skew_y_deg ?? 0)) > 0.0001 ||
-        fitDraft.fit_stretch_mode !== (selectedItem.fit_stretch_mode === "stretch" ? "stretch" : "contain")),
+  const selectedSavedPlacement = selectedItem?.category === "accessory"
+    ? userAccessoryFits[selectedItem.item_key]
+    : undefined;
+  const savedPlacement: WardrobeUserPlacementDraft = {
+    scale: Number(selectedSavedPlacement?.scale ?? 1),
+    offset_x_pct: Number(selectedSavedPlacement?.offset_x_pct ?? 0),
+    offset_y_pct: Number(selectedSavedPlacement?.offset_y_pct ?? 0),
+  };
+  const placementChanged = Boolean(
+    selectedItem?.category === "accessory" &&
+      (Math.abs(placementDraft.scale - savedPlacement.scale) > 0.0001 ||
+        Math.abs(placementDraft.offset_x_pct - savedPlacement.offset_x_pct) > 0.0001 ||
+        Math.abs(placementDraft.offset_y_pct - savedPlacement.offset_y_pct) > 0.0001),
   );
 
-  function startCalibrationDrag(event: ReactPointerEvent<HTMLDivElement>) {
-    if (!calibrationMode || !selectedItem || selectedItem.category !== "accessory") return;
+  function startPlacementDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!adjustmentMode || !selectedItem || selectedItem.category !== "accessory") return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    setCalibrationDrag({
+    setPlacementDrag({
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
-      startOffsetX: fitDraft.fit_offset_x_pct,
-      startOffsetY: fitDraft.fit_offset_y_pct,
+      startOffsetX: placementDraft.offset_x_pct,
+      startOffsetY: placementDraft.offset_y_pct,
     });
   }
 
-  function moveCalibrationDrag(event: ReactPointerEvent<HTMLDivElement>) {
-    if (!calibrationDrag || calibrationDrag.pointerId !== event.pointerId) return;
+  function movePlacementDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!placementDrag || placementDrag.pointerId !== event.pointerId) return;
     const rect = event.currentTarget.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return;
-    const dxPct = ((event.clientX - calibrationDrag.startX) / rect.width) * 100;
-    const dyPct = ((event.clientY - calibrationDrag.startY) / rect.height) * 100;
-    setFitDraft((current) => ({
+    const dxPct = ((event.clientX - placementDrag.startX) / rect.width) * 100;
+    const dyPct = ((event.clientY - placementDrag.startY) / rect.height) * 100;
+    setPlacementDraft((current) => ({
       ...current,
-      fit_mode: "manual",
-      fit_offset_x_pct: Math.min(50, Math.max(-50, calibrationDrag.startOffsetX + dxPct)),
-      fit_offset_y_pct: Math.min(50, Math.max(-50, calibrationDrag.startOffsetY + dyPct)),
+      offset_x_pct: Math.min(60, Math.max(-60, placementDrag.startOffsetX + dxPct)),
+      offset_y_pct: Math.min(60, Math.max(-60, placementDrag.startOffsetY + dyPct)),
     }));
   }
 
-  function endCalibrationDrag(event: ReactPointerEvent<HTMLDivElement>) {
-    if (!calibrationDrag || calibrationDrag.pointerId !== event.pointerId) return;
+  function endPlacementDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!placementDrag || placementDrag.pointerId !== event.pointerId) return;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    setCalibrationDrag(null);
+    setPlacementDrag(null);
+  }
+
+  async function saveCurrentLook() {
+    if (savingLook || exportingPng) return;
+    setSavingLook(true);
+    setLookActionMessage("");
+
+    if (
+      adjustmentMode &&
+      placementChanged &&
+      selectedItem?.category === "accessory" &&
+      isEquipped
+    ) {
+      const placementSaved = await onSavePlacement(selectedItem.item_key, placementDraft);
+      if (!placementSaved) {
+        setSavingLook(false);
+        setLookActionMessage("Save the accessory placement before saving this look.");
+        return;
+      }
+    }
+
+    const { data, error } = await supabase.rpc("save_nova_home_current_look", {
+      p_character_key: activeCharacter,
+    });
+
+    setSavingLook(false);
+
+    if (error) {
+      setLookActionMessage(error.message || "Your look could not be saved.");
+      return;
+    }
+
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row || typeof row !== "object") {
+      setLookActionMessage("Your look was saved.");
+      return;
+    }
+
+    setLookActionMessage(`${activeCharacter === "nova" ? "Nova" : "Milo"} look saved.`);
+  }
+
+  async function downloadCurrentLookPng() {
+    if (exportingPng || savingLook) return;
+    if (!currentOutfitItem?.layer_image) {
+      setLookActionMessage("Equip an outfit before downloading your character PNG.");
+      return;
+    }
+
+    setExportingPng(true);
+    setLookActionMessage("");
+
+    try {
+      const rig = activeCharacter === "milo" ? MILO_WARDROBE_RIG : NOVA_WARDROBE_RIG;
+      const placements = Object.fromEntries(
+        currentAccessoryItems.map((item) => {
+          const useLiveDraft =
+            adjustmentMode &&
+            selectedItem?.item_key === item.item_key &&
+            selectedItem.category === "accessory" &&
+            isEquipped;
+          const placement = useLiveDraft
+            ? placementDraft
+            : {
+                scale: Number(userAccessoryFits[item.item_key]?.scale ?? 1),
+                offset_x_pct: Number(userAccessoryFits[item.item_key]?.offset_x_pct ?? 0),
+                offset_y_pct: Number(userAccessoryFits[item.item_key]?.offset_y_pct ?? 0),
+              };
+          return [item.item_key, placement];
+        }),
+      );
+
+      const blob = await createWardrobeSnapshotPng({
+        outfit: currentOutfitItem,
+        accessories: currentAccessoryItems,
+        placements,
+        rig,
+        size: 2048,
+      });
+
+      const dateStamp = new Date().toISOString().slice(0, 10);
+      downloadBlob(blob, `dreamscape-${activeCharacter}-look-${dateStamp}.png`);
+      setLookActionMessage("Transparent PNG created from your equipped look.");
+    } catch (error) {
+      console.error("Wardrobe PNG export failed:", error);
+      setLookActionMessage(
+        error instanceof Error ? error.message : "The PNG could not be created.",
+      );
+    } finally {
+      setExportingPng(false);
+    }
   }
 
   return (
@@ -2135,33 +2213,49 @@ function WardrobeBay({
                 Sleep Zone Activity
               </p>
               <span className="rounded-full border border-cyan-200/16 bg-cyan-300/[0.06] px-2 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100/70">
-                Wardrobe Rig · Phase 2B
+                Character Snapshot · Phase 2
               </span>
             </div>
             <h2 className="mt-1 font-serif text-2xl font-medium tracking-[-0.035em] sm:text-3xl">
               Wardrobe Bay
             </h2>
             <p className="mt-1 max-w-2xl text-[10px] leading-4 text-white/46 sm:text-xs sm:leading-5">
-              Nova and Milo now use full ready-made outfit renders for clean switching and reliable proportions. Nova accessory overlays keep the precision calibrator for glasses, visors, companions, effects, and future add-ons.
+              Choose a full outfit, position your accessories, then save the finished look or export your equipped character as a transparent PNG.
             </p>
           </div>
 
           <div className="flex items-center gap-2 sm:justify-end">
-            {isAdmin && (
-              <button
-                type="button"
-                disabled={!calibrationAvailable}
-                onClick={() => setCalibrationMode((current) => !current)}
-                className={`min-h-10 rounded-full border px-4 text-[9px] font-black uppercase tracking-[0.1em] transition disabled:cursor-not-allowed disabled:opacity-35 ${
-                  calibrationMode
-                    ? "border-amber-200/35 bg-amber-300/[0.12] text-amber-100"
-                    : "border-cyan-200/20 bg-cyan-300/[0.06] text-cyan-100/72 hover:bg-cyan-300/[0.1]"
-                }`}
-                title={calibrationAvailable ? "Toggle admin fitting controls" : "Select a Nova or Milo accessory to calibrate"}
-              >
-                {calibrationMode ? "Exit Calibrator" : "Admin Calibrate"}
-              </button>
-            )}
+            <button
+              type="button"
+              disabled={!adjustmentAvailable}
+              onClick={() => setAdjustmentMode((current) => !current)}
+              className={`min-h-10 rounded-full border px-4 text-[9px] font-black uppercase tracking-[0.1em] transition disabled:cursor-not-allowed disabled:opacity-35 ${
+                adjustmentMode
+                  ? "border-amber-200/35 bg-amber-300/[0.12] text-amber-100"
+                  : "border-cyan-200/20 bg-cyan-300/[0.06] text-cyan-100/72 hover:bg-cyan-300/[0.1]"
+              }`}
+              title={adjustmentAvailable ? "Move and resize the selected accessory" : "Select an accessory first"}
+            >
+              {adjustmentMode ? "Done Adjusting" : "Adjust Accessory"}
+            </button>
+            <button
+              type="button"
+              disabled={busy || savingLook || exportingPng || (activeCharacter === "milo" && !miloUnlocked)}
+              onClick={() => void saveCurrentLook()}
+              className="min-h-10 rounded-full border border-emerald-200/22 bg-emerald-300/[0.07] px-4 text-[9px] font-black uppercase tracking-[0.1em] text-emerald-100/80 transition hover:bg-emerald-300/[0.12] disabled:cursor-not-allowed disabled:opacity-35"
+              title="Save your currently equipped outfit, accessories, and placements"
+            >
+              {savingLook ? "Saving..." : "Save Look"}
+            </button>
+            <button
+              type="button"
+              disabled={busy || savingLook || exportingPng || (activeCharacter === "milo" && !miloUnlocked)}
+              onClick={() => void downloadCurrentLookPng()}
+              className="min-h-10 rounded-full border border-violet-200/22 bg-violet-300/[0.07] px-4 text-[9px] font-black uppercase tracking-[0.1em] text-violet-100/82 transition hover:bg-violet-300/[0.12] disabled:cursor-not-allowed disabled:opacity-35"
+              title="Download your equipped character on a transparent background"
+            >
+              {exportingPng ? "Creating PNG..." : "Download PNG"}
+            </button>
             <div className="rounded-full border border-cyan-200/25 bg-slate-950/70 px-4 py-2 text-right">
               <p className="text-[8px] font-black uppercase tracking-[0.14em] text-cyan-200/55">
                 Dream Tokens
@@ -2179,6 +2273,12 @@ function WardrobeBay({
             </button>
           </div>
         </header>
+
+        {lookActionMessage && (
+          <div className="border-b border-white/[0.05] bg-cyan-300/[0.035] px-4 py-2 text-center text-[9px] font-bold text-cyan-100/76 sm:px-6 sm:text-[10px]">
+            {lookActionMessage}
+          </div>
+        )}
 
         <div className="grid min-h-0 gap-2 p-2 sm:gap-3 sm:p-3 lg:grid-cols-[minmax(300px,0.78fr)_minmax(0,1.22fr)]">
           <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-[20px] border border-cyan-200/13 bg-slate-950/38 sm:rounded-[24px]">
@@ -2226,17 +2326,17 @@ function WardrobeBay({
                 {activeCharacter === "nova" || miloUnlocked ? (
                   <div
                     className={`relative aspect-square w-[min(100%,535px)] shrink-0 ${
-                      calibrationMode
-                        ? calibrationDrag
+                      adjustmentMode
+                        ? placementDrag
                           ? "cursor-grabbing"
                           : "cursor-grab"
                         : ""
                     }`}
-                    style={{ touchAction: calibrationMode ? "none" : undefined }}
-                    onPointerDown={startCalibrationDrag}
-                    onPointerMove={moveCalibrationDrag}
-                    onPointerUp={endCalibrationDrag}
-                    onPointerCancel={endCalibrationDrag}
+                    style={{ touchAction: adjustmentMode ? "none" : undefined }}
+                    onPointerDown={startPlacementDrag}
+                    onPointerMove={movePlacementDrag}
+                    onPointerUp={endPlacementDrag}
+                    onPointerCancel={endPlacementDrag}
                   >
                     {previewBackdropAccessories.map((item) => (
                       <WardrobeFittedLayer
@@ -2271,21 +2371,6 @@ function WardrobeBay({
                         rig={activeWardrobeRig}
                       />
                     ))}
-                    {calibrationMode && selectedItem && selectedItem.category === "accessory" && (
-                      <>
-                        <WardrobeRigOverlay
-                          rig={activeWardrobeRig}
-                          category={selectedItem.category}
-                          showAnchors={showRigAnchors}
-                        />
-                        <WardrobeTransformHandles
-                          rig={activeWardrobeRig}
-                          category={selectedItem.category}
-                          fit={fitDraft}
-                          onChange={setFitDraft}
-                        />
-                      </>
-                    )}
 
                   </div>
                 ) : (
@@ -2455,15 +2540,6 @@ function WardrobeBay({
                               {getAccessorySlotLabel(item.accessory_slot)}
                             </span>
                           )}
-                          {calibrationMode && (
-                            <span className={`rounded-full border px-2 py-0.5 text-[7px] font-black uppercase tracking-[0.08em] ${
-                              item.fit_mode === "manual"
-                                ? "border-amber-200/18 bg-amber-300/[0.08] text-amber-100/70"
-                                : "border-cyan-200/14 bg-cyan-300/[0.05] text-cyan-100/55"
-                            }`}>
-                              {item.fit_mode}
-                            </span>
-                          )}
                         </div>
                         <p className="mt-1 max-h-8 overflow-hidden text-[9px] leading-4 text-white/38">
                           {item.description || "Nova wardrobe item."}
@@ -2476,202 +2552,101 @@ function WardrobeBay({
             </div>
 
             <div className="border-t border-white/[0.07] bg-slate-950/48 p-3 sm:p-4">
-              {calibrationMode && selectedItem && selectedItem.category === "accessory" ? (
+              {adjustmentMode && selectedItem && selectedItem.category === "accessory" ? (
                 <div className="space-y-3">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-sm font-black text-white sm:text-base">{selectedItem.title}</h3>
-                        <span className={`rounded-full border px-2 py-1 text-[7px] font-black uppercase tracking-[0.1em] ${
-                          selectedItem.fit_mode === "manual"
-                            ? "border-amber-200/22 bg-amber-300/[0.08] text-amber-100/75"
-                            : "border-cyan-200/18 bg-cyan-300/[0.06] text-cyan-100/65"
-                        }`}>
-                          Saved: {selectedItem.fit_mode}
-                        </span>
-                        {fitChanged && (
+                        <h3 className="text-sm font-black text-white sm:text-base">Adjust {selectedItem.title}</h3>
+                        {placementChanged && (
                           <span className="rounded-full border border-fuchsia-200/18 bg-fuchsia-300/[0.07] px-2 py-1 text-[7px] font-black uppercase tracking-[0.1em] text-fuchsia-100/70">
-                            Unsaved preview
+                            Unsaved changes
                           </span>
                         )}
                       </div>
-                      <p className="mt-1 text-[9px] leading-4 text-white/40">
-                        Drag the garment to move it. Pull the amber side/corner handles to stretch width or height; use the round handle above it to rotate. Fine-tune skew below; Preview opacity only helps you see Nova underneath and is not saved.
+                      <p className="mt-1 text-[9px] leading-4 text-white/44 sm:text-[10px]">
+                        Drag anywhere on the character preview to move this accessory. Resize it with the scale control, then save the placement to your account.
                       </p>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="flex overflow-hidden rounded-full border border-white/10 bg-white/[0.03]">
-                        <button
-                          type="button"
-                          onClick={() => setFitDraft((current) => ({ ...current, fit_mode: "manual", fit_stretch_mode: "contain" }))}
-                          className={`px-3 py-2 text-[7px] font-black uppercase tracking-[0.08em] transition ${
-                            fitDraft.fit_stretch_mode === "contain"
-                              ? "bg-cyan-300/15 text-cyan-100"
-                              : "text-white/42 hover:bg-white/[0.05]"
-                          }`}
-                        >
-                          Preserve proportions
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setFitDraft((current) => ({ ...current, fit_mode: "manual", fit_stretch_mode: "stretch", fit_scale: 1, fit_scale_x: 1, fit_scale_y: 1 }))}
-                          className={`border-l border-white/10 px-3 py-2 text-[7px] font-black uppercase tracking-[0.08em] transition ${
-                            fitDraft.fit_stretch_mode === "stretch"
-                              ? "bg-amber-300/14 text-amber-100"
-                              : "text-white/42 hover:bg-white/[0.05]"
-                          }`}
-                        >
-                          {getRigStretchLabel(selectedItem.category)}
-                        </button>
-                      </div>
-                      <label className="flex cursor-pointer items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-2 text-[8px] font-black uppercase tracking-[0.08em] text-white/58">
-                        <input
-                          type="checkbox"
-                          checked={showRigAnchors}
-                          onChange={(event) => setShowRigAnchors(event.target.checked)}
-                          className="accent-cyan-300"
-                        />
-                        Anchors
-                      </label>
-                    </div>
+                    <span className="rounded-full border border-cyan-200/14 bg-cyan-300/[0.05] px-3 py-2 text-[8px] font-black uppercase tracking-[0.09em] text-cyan-100/65">
+                      {selectedItem.accessory_slot ? `${getAccessorySlotLabel(selectedItem.accessory_slot)} slot` : "Accessory"}
+                    </span>
                   </div>
 
-                  <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-5">
+                  <div className="grid gap-2 sm:grid-cols-[minmax(220px,1fr)_auto_auto_auto_auto] sm:items-end">
                     <CalibrationNumberControl
-                      label="Overall"
-                      value={fitDraft.fit_scale}
+                      label="Accessory size"
+                      value={placementDraft.scale}
                       min={0.05}
-                      max={2.5}
+                      max={3}
                       step={0.01}
-                      onChange={(value) => setFitDraft((current) => ({ ...current, fit_mode: "manual", fit_scale: value }))}
+                      onChange={(value) => setPlacementDraft((current) => ({ ...current, scale: value }))}
                     />
-                    <CalibrationNumberControl
-                      label="Width stretch"
-                      value={fitDraft.fit_scale_x}
-                      min={0.2}
-                      max={4}
-                      step={0.01}
-                      onChange={(value) => setFitDraft((current) => ({ ...current, fit_mode: "manual", fit_scale_x: value }))}
-                    />
-                    <CalibrationNumberControl
-                      label="Height stretch"
-                      value={fitDraft.fit_scale_y}
-                      min={0.2}
-                      max={4}
-                      step={0.01}
-                      onChange={(value) => setFitDraft((current) => ({ ...current, fit_mode: "manual", fit_scale_y: value }))}
-                    />
-                    <CalibrationNumberControl
-                      label="X offset"
-                      value={fitDraft.fit_offset_x_pct}
-                      min={-50}
-                      max={50}
-                      step={0.25}
-                      suffix="%"
-                      onChange={(value) => setFitDraft((current) => ({ ...current, fit_mode: "manual", fit_offset_x_pct: value }))}
-                    />
-                    <CalibrationNumberControl
-                      label="Y offset"
-                      value={fitDraft.fit_offset_y_pct}
-                      min={-50}
-                      max={50}
-                      step={0.25}
-                      suffix="%"
-                      onChange={(value) => setFitDraft((current) => ({ ...current, fit_mode: "manual", fit_offset_y_pct: value }))}
-                    />
-                    <CalibrationNumberControl
-                      label="Rotation"
-                      value={fitDraft.fit_rotation_deg}
-                      min={-60}
-                      max={60}
-                      step={0.5}
-                      suffix="°"
-                      onChange={(value) => setFitDraft((current) => ({ ...current, fit_mode: "manual", fit_rotation_deg: value }))}
-                    />
-                    <CalibrationNumberControl
-                      label="Skew X"
-                      value={fitDraft.fit_skew_x_deg}
-                      min={-35}
-                      max={35}
-                      step={0.5}
-                      suffix="°"
-                      onChange={(value) => setFitDraft((current) => ({ ...current, fit_mode: "manual", fit_skew_x_deg: value }))}
-                    />
-                    <CalibrationNumberControl
-                      label="Skew Y"
-                      value={fitDraft.fit_skew_y_deg}
-                      min={-35}
-                      max={35}
-                      step={0.5}
-                      suffix="°"
-                      onChange={(value) => setFitDraft((current) => ({ ...current, fit_mode: "manual", fit_skew_y_deg: value }))}
-                    />
-                    <CalibrationNumberControl
-                      label="Preview opacity"
-                      value={calibrationOpacity}
-                      min={0.15}
-                      max={1}
-                      step={0.05}
-                      onChange={setCalibrationOpacity}
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setPlacementDraft((current) => ({ ...current, offset_x_pct: Math.max(-60, current.offset_x_pct - 1) }))}
+                      className="min-h-11 rounded-xl border border-white/10 bg-white/[0.04] px-4 text-sm font-black text-white/70 hover:bg-white/[0.08]"
+                      aria-label="Move accessory left"
+                    >
+                      ←
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPlacementDraft((current) => ({ ...current, offset_x_pct: Math.min(60, current.offset_x_pct + 1) }))}
+                      className="min-h-11 rounded-xl border border-white/10 bg-white/[0.04] px-4 text-sm font-black text-white/70 hover:bg-white/[0.08]"
+                      aria-label="Move accessory right"
+                    >
+                      →
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPlacementDraft((current) => ({ ...current, offset_y_pct: Math.max(-60, current.offset_y_pct - 1) }))}
+                      className="min-h-11 rounded-xl border border-white/10 bg-white/[0.04] px-4 text-sm font-black text-white/70 hover:bg-white/[0.08]"
+                      aria-label="Move accessory up"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPlacementDraft((current) => ({ ...current, offset_y_pct: Math.min(60, current.offset_y_pct + 1) }))}
+                      className="min-h-11 rounded-xl border border-white/10 bg-white/[0.04] px-4 text-sm font-black text-white/70 hover:bg-white/[0.08]"
+                      aria-label="Move accessory down"
+                    >
+                      ↓
+                    </button>
                   </div>
 
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
-                        disabled={Boolean(savingFitItemKey)}
-                        onClick={() => {
-                          const reset: WardrobeFitDraft = {
-                            fit_mode: "auto",
-                            fit_scale: 1,
-                            fit_scale_x: 1,
-                            fit_scale_y: 1,
-                            fit_offset_x_pct: 0,
-                            fit_offset_y_pct: 0,
-                            fit_rotation_deg: 0,
-                            fit_skew_x_deg: 0,
-                            fit_skew_y_deg: 0,
-                            fit_stretch_mode: "contain",
-                          };
-                          setFitDraft(reset);
-                          setCalibrationOpacity(1);
-                          void onSaveFit(selectedItem.item_key, reset);
-                        }}
+                        onClick={() => setPlacementDraft({ scale: 1, offset_x_pct: 0, offset_y_pct: 0 })}
+                        disabled={Boolean(savingPlacementItemKey)}
                         className="min-h-10 rounded-full border border-white/12 bg-white/[0.04] px-4 text-[9px] font-black uppercase tracking-[0.09em] text-white/62 transition hover:bg-white/[0.075] disabled:opacity-40"
                       >
-                        Reset to Auto Fit
+                        Reset Position
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          setCalibrationOpacity(1);
-                          setFitDraft({
-                            fit_mode: selectedItem.fit_mode || "auto",
-                            fit_scale: Number(selectedItem.fit_scale ?? 1),
-                            fit_scale_x: Number(selectedItem.fit_scale_x ?? 1),
-                            fit_scale_y: Number(selectedItem.fit_scale_y ?? 1),
-                            fit_offset_x_pct: Number(selectedItem.fit_offset_x_pct ?? 0),
-                            fit_offset_y_pct: Number(selectedItem.fit_offset_y_pct ?? 0),
-                            fit_rotation_deg: Number(selectedItem.fit_rotation_deg ?? 0),
-                            fit_skew_x_deg: Number(selectedItem.fit_skew_x_deg ?? 0),
-                            fit_skew_y_deg: Number(selectedItem.fit_skew_y_deg ?? 0),
-                            fit_stretch_mode: selectedItem.fit_stretch_mode === "stretch" ? "stretch" : "contain",
-                          });
-                        }}
-                        disabled={!fitChanged || Boolean(savingFitItemKey)}
+                        onClick={() => setPlacementDraft(savedPlacement)}
+                        disabled={!placementChanged || Boolean(savingPlacementItemKey)}
                         className="min-h-10 rounded-full border border-white/12 bg-white/[0.04] px-4 text-[9px] font-black uppercase tracking-[0.09em] text-white/62 transition hover:bg-white/[0.075] disabled:opacity-35"
                       >
-                        Undo Preview
+                        Undo Changes
                       </button>
                     </div>
                     <button
                       type="button"
-                      disabled={Boolean(savingFitItemKey)}
-                      onClick={() => void onSaveFit(selectedItem.item_key, { ...fitDraft, fit_mode: "manual" })}
+                      disabled={!isOwned || Boolean(savingPlacementItemKey)}
+                      onClick={() => void onSavePlacement(selectedItem.item_key, placementDraft)}
                       className="min-h-10 rounded-full bg-amber-300 px-5 text-[9px] font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-45"
+                      title={isOwned ? "Save your accessory placement" : "Buy this accessory before saving its placement"}
                     >
-                      {savingFitItemKey === selectedItem.item_key ? "Saving Fit..." : "Save Fit"}
+                      {savingPlacementItemKey === selectedItem.item_key
+                        ? "Saving..."
+                        : isOwned
+                          ? "Save Placement"
+                          : "Buy to Save"}
                     </button>
                   </div>
                   {message && (
