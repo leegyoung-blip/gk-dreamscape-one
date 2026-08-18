@@ -1,4 +1,4 @@
-export type RoverLevelId = 1 | 2 | 3;
+export type RoverLevelId = 1 | 2 | 3 | 4;
 
 export type CoursePoint = {
   x: number;
@@ -14,6 +14,9 @@ export type RoverTerrainSection = {
   points: CoursePoint[];
   kind?: "ground" | "platform";
   collisionThickness?: number;
+  unstable?: boolean;
+  collapseDelayMs?: number;
+  collapseTriggerRadius?: number;
 };
 
 export type RoverTrap = CoursePoint & {

@@ -9,7 +9,7 @@ import {
   type RoverLevelId,
 } from "../rover-challenge/levels";
 
-const LEVEL_IDS: RoverLevelId[] = [1, 2, 3];
+const LEVEL_IDS: RoverLevelId[] = [1, 2, 3, 4];
 
 export default function RoverChallengeProgressDock() {
   const router = useRouter();
@@ -41,7 +41,7 @@ export default function RoverChallengeProgressDock() {
     if (error) {
       console.warn("Could not load rover level progression:", error.message);
       setRows([]);
-      setMessage("Run the Level 3 rover progression SQL in Supabase.");
+      setMessage("Run the latest Rover Level 4 progression SQL in Supabase.");
     } else {
       setRows((data ?? []) as RoverLevelAccess[]);
     }

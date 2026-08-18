@@ -100,6 +100,21 @@ type PulseGateItem = PulseGateConfig & {
   statusText: Phaser.GameObjects.Text;
 };
 
+type CollapsibleTerrainItem = {
+  sampledPoints: Array<{ x: number; y: number }>;
+  terrainThickness: number;
+  collapseDelayMs: number;
+  collapseTriggerRadius: number;
+  triggered: boolean;
+  collapsed: boolean;
+  bodies: MatterJS.BodyType[];
+  fill: Phaser.GameObjects.Graphics;
+  surfaceGlow: Phaser.GameObjects.Graphics;
+  surface: Phaser.GameObjects.Graphics;
+  warningGlow: Phaser.GameObjects.Graphics;
+  collapseTimer?: Phaser.Time.TimerEvent;
+};
+
 class RoverMatterScene extends Phaser.Scene {
   private backgroundTile?: Phaser.GameObjects.TileSprite;
   private roverBody?: Phaser.Physics.Matter.Image;
@@ -137,6 +152,7 @@ class RoverMatterScene extends Phaser.Scene {
   private checkpoints: CheckpointItem[] = [];
   private traps: TrapItem[] = [];
   private pulseGates: PulseGateItem[] = [];
+  private collapsibleTerrain: CollapsibleTerrainItem[] = [];
   private trapCollisionLocked = false;
 
   private boostEnergy = 60;
@@ -312,6 +328,7 @@ class RoverMatterScene extends Phaser.Scene {
     this.updateCheckpoints();
     this.updateTraps();
     this.updatePulseGates();
+    this.updateCollapsibleTerrain();
     this.updateScore();
     this.updateInterface();
     this.checkFinish();
@@ -324,6 +341,7 @@ class RoverMatterScene extends Phaser.Scene {
     this.checkpoints = [];
     this.traps = [];
     this.pulseGates = [];
+    this.collapsibleTerrain = [];
     this.terrainSections = [];
     this.trapCollisionLocked = false;
 
@@ -372,7 +390,7 @@ class RoverMatterScene extends Phaser.Scene {
     }
 
     if (!this.textures.exists("skyforge-background")) {
-      missingAssets.push(`public${this.levelConfig.assets.background}`);
+      missingAssets.push("public/games/rover/skyforge-course-background.png");
     }
 
     if (!this.textures.exists("energy-orb")) {
@@ -475,8 +493,9 @@ class RoverMatterScene extends Phaser.Scene {
   private createTerrain() {
     /*
      * Each section is a Catmull-Rom curve sampled into many small,
-     * overlapping Matter bodies. This creates smooth hills and valleys
-     * instead of long straight ramps with sharp joins.
+     * overlapping Matter bodies. Level 4 can mark a section as unstable;
+     * those sections warn, lose collision, and visually drop away shortly
+     * after the rover reaches them.
      */
     this.levelConfig.terrainSections.forEach((section) => {
       if (Array.isArray(section)) {
@@ -489,6 +508,11 @@ class RoverMatterScene extends Phaser.Scene {
         section.kind ?? "ground",
         section.collisionThickness ??
           (section.kind === "platform" ? 44 : 220),
+        {
+          unstable: Boolean(section.unstable),
+          collapseDelayMs: section.collapseDelayMs ?? 900,
+          collapseTriggerRadius: section.collapseTriggerRadius ?? 175,
+        },
       );
     });
 
@@ -502,6 +526,11 @@ class RoverMatterScene extends Phaser.Scene {
     controlPoints: Array<{ x: number; y: number }>,
     kind: "ground" | "platform",
     terrainThickness: number,
+    options?: {
+      unstable?: boolean;
+      collapseDelayMs?: number;
+      collapseTriggerRadius?: number;
+    },
   ) {
     const sampledPoints = this.sampleCatmullRom(controlPoints, 12);
 
@@ -509,18 +538,11 @@ class RoverMatterScene extends Phaser.Scene {
       return;
     }
 
-    /*
-     * Keep the sampled surface so the rover can align itself to the
-     * exact local hill angle while it is touching the terrain.
-     */
     this.terrainSections.push(sampledPoints);
 
-    /*
-     * Filled terrain artwork.
-     */
     const fill = this.add.graphics();
     fill.setDepth(10);
-    fill.fillStyle(0x101629, 1);
+    fill.fillStyle(options?.unstable ? 0x171827 : 0x101629, 1);
     fill.beginPath();
     fill.moveTo(sampledPoints[0].x, sampledPoints[0].y);
 
@@ -544,73 +566,84 @@ class RoverMatterScene extends Phaser.Scene {
     fill.closePath();
     fill.fillPath();
 
-    /*
-     * Glowing upper surface.
-     */
     const surfaceGlow = this.add.graphics();
     surfaceGlow.setDepth(11);
-    surfaceGlow.lineStyle(20, 0x2b7898, 0.1);
-
+    surfaceGlow.lineStyle(20, options?.unstable ? 0xff6f45 : 0x2b7898, options?.unstable ? 0.14 : 0.1);
     surfaceGlow.beginPath();
     surfaceGlow.moveTo(sampledPoints[0].x, sampledPoints[0].y + 7);
-
     for (let index = 1; index < sampledPoints.length; index += 1) {
       surfaceGlow.lineTo(sampledPoints[index].x, sampledPoints[index].y + 7);
     }
-
     surfaceGlow.strokePath();
 
     const surface = this.add.graphics();
     surface.setDepth(12);
-    surface.lineStyle(8, 0x62eaff, 0.38);
-
+    surface.lineStyle(8, options?.unstable ? 0xff8a5c : 0x62eaff, options?.unstable ? 0.72 : 0.38);
     surface.beginPath();
     surface.moveTo(sampledPoints[0].x, sampledPoints[0].y);
-
     for (let index = 1; index < sampledPoints.length; index += 1) {
       surface.lineTo(sampledPoints[index].x, sampledPoints[index].y);
     }
-
     surface.strokePath();
 
-    /*
-     * Collision surface. Short overlapping rectangles closely follow
-     * the sampled curve, avoiding sharp corners that trap the rover.
-     */
+    const warningGlow = this.add.graphics();
+    warningGlow.setDepth(13);
+    warningGlow.lineStyle(5, 0xffc06a, 0.78);
+    warningGlow.beginPath();
+    warningGlow.moveTo(sampledPoints[0].x, sampledPoints[0].y - 4);
+    for (let index = 1; index < sampledPoints.length; index += 1) {
+      warningGlow.lineTo(sampledPoints[index].x, sampledPoints[index].y - 4);
+    }
+    warningGlow.strokePath();
+    warningGlow.setAlpha(options?.unstable ? 0.22 : 0);
+
+    const bodies = this.createTerrainCollisionBodies(
+      sampledPoints,
+      terrainThickness,
+    );
+
+    if (options?.unstable) {
+      this.collapsibleTerrain.push({
+        sampledPoints,
+        terrainThickness,
+        collapseDelayMs: options.collapseDelayMs ?? 900,
+        collapseTriggerRadius: options.collapseTriggerRadius ?? 175,
+        triggered: false,
+        collapsed: false,
+        bodies,
+        fill,
+        surfaceGlow,
+        surface,
+        warningGlow,
+      });
+    }
+  }
+
+  private createTerrainCollisionBodies(
+    sampledPoints: Array<{ x: number; y: number }>,
+    terrainThickness: number,
+  ) {
+    const bodies: MatterJS.BodyType[] = [];
     const collisionOverlap = 14;
 
     for (let index = 0; index < sampledPoints.length - 1; index += 1) {
       const current = sampledPoints[index];
       const next = sampledPoints[index + 1];
-
       const deltaX = next.x - current.x;
       const deltaY = next.y - current.y;
       const length = Math.hypot(deltaX, deltaY);
 
-      if (length <= 0.01) {
-        continue;
-      }
+      if (length <= 0.01) continue;
 
       const angle = Math.atan2(deltaY, deltaX);
-
-      /*
-       * This is the segment's downward-facing normal in screen space.
-       * Moving the body's centre down by half its thickness puts the
-       * collision body's top edge directly on the visible curve.
-       */
       const normalX = -deltaY / length;
-
       const normalY = deltaX / length;
-
       const midpointX = (current.x + next.x) / 2;
-
       const midpointY = (current.y + next.y) / 2;
-
       const bodyX = midpointX + normalX * (terrainThickness / 2);
-
       const bodyY = midpointY + normalY * (terrainThickness / 2);
 
-      this.matter.add.rectangle(
+      const body = this.matter.add.rectangle(
         bodyX,
         bodyY,
         length + collisionOverlap,
@@ -624,6 +657,112 @@ class RoverMatterScene extends Phaser.Scene {
           label: "terrain",
         },
       );
+      bodies.push(body);
+    }
+
+    return bodies;
+  }
+
+  private updateCollapsibleTerrain() {
+    if (!this.roverBody || this.hasFinished) return;
+
+    const roverSurfaceY = this.roverBody.y + ROVER_COLLISION_HEIGHT / 2;
+
+    for (const item of this.collapsibleTerrain) {
+      if (item.triggered || item.collapsed) continue;
+
+      const first = item.sampledPoints[0];
+      const last = item.sampledPoints[item.sampledPoints.length - 1];
+      const minX = first.x - item.collapseTriggerRadius;
+      const maxX = last.x + item.collapseTriggerRadius;
+
+      if (this.roverBody.x < minX || this.roverBody.x > maxX) continue;
+
+      const surfaceY = this.getSurfaceYForSectionAtX(
+        item.sampledPoints,
+        Phaser.Math.Clamp(this.roverBody.x, first.x, last.x),
+      );
+
+      if (surfaceY === null || Math.abs(roverSurfaceY - surfaceY) > 165) continue;
+
+      this.triggerTerrainCollapse(item);
+    }
+  }
+
+  private getSurfaceYForSectionAtX(
+    section: Array<{ x: number; y: number }>,
+    x: number,
+  ) {
+    for (let index = 0; index < section.length - 1; index += 1) {
+      const current = section[index];
+      const next = section[index + 1];
+      if (x < current.x || x > next.x) continue;
+      const span = Math.max(0.001, next.x - current.x);
+      const ratio = Phaser.Math.Clamp((x - current.x) / span, 0, 1);
+      return Phaser.Math.Linear(current.y, next.y, ratio);
+    }
+    return null;
+  }
+
+  private triggerTerrainCollapse(item: CollapsibleTerrainItem) {
+    item.triggered = true;
+    this.showStatusMessage("FRACTURE!  KEEP MOVING", "#ffb06f");
+
+    this.tweens.add({
+      targets: item.warningGlow,
+      alpha: { from: 0.25, to: 1 },
+      duration: 120,
+      yoyo: true,
+      repeat: Math.max(2, Math.floor(item.collapseDelayMs / 240)),
+    });
+
+    item.collapseTimer = this.time.delayedCall(item.collapseDelayMs, () => {
+      if (this.hasFinished) return;
+
+      item.collapsed = true;
+      item.bodies.forEach((body) => this.matter.world.remove(body));
+      item.bodies = [];
+      this.activeTerrainContacts.clear();
+
+      this.tweens.add({
+        targets: [item.fill, item.surfaceGlow, item.surface, item.warningGlow],
+        y: "+=150",
+        alpha: 0,
+        duration: 460,
+        ease: "Quad.easeIn",
+      });
+
+      this.cameras.main.shake(180, 0.006);
+    });
+  }
+
+  private resetCollapsibleTerrain() {
+    for (const item of this.collapsibleTerrain) {
+      item.collapseTimer?.remove(false);
+      item.collapseTimer = undefined;
+
+      if (item.bodies.length === 0) {
+        item.bodies = this.createTerrainCollisionBodies(
+          item.sampledPoints,
+          item.terrainThickness,
+        );
+      }
+
+      item.triggered = false;
+      item.collapsed = false;
+
+      for (const graphic of [
+        item.fill,
+        item.surfaceGlow,
+        item.surface,
+        item.warningGlow,
+      ]) {
+        this.tweens.killTweensOf(graphic);
+        graphic.setY(0);
+        graphic.setAlpha(1);
+      }
+
+      item.warningGlow.setAlpha(0.22);
     }
   }
 
@@ -1350,13 +1489,17 @@ class RoverMatterScene extends Phaser.Scene {
       .text(
         70,
         227,
-        (this.levelConfig.pulseGates?.length ?? 0) > 0
-          ? (this.levelConfig.traps?.length ?? 0) > 0
-            ? "OBJECTIVE  TIME GATES · AVOID TRAPS · FINISH"
-            : "OBJECTIVE  TIME PULSE GATES · REACH FINISH"
-          : (this.levelConfig.traps?.length ?? 0) > 0
-            ? "OBJECTIVE  REACH FINISH · AVOID TRAPS"
-            : "OBJECTIVE  REACH THE FINISH GATE",
+        this.levelConfig.terrainSections.some(
+          (section) => !Array.isArray(section) && section.unstable,
+        )
+          ? "OBJECTIVE  KEEP MOVING · SURVIVE FRACTURES · FINISH"
+          : (this.levelConfig.pulseGates?.length ?? 0) > 0
+            ? (this.levelConfig.traps?.length ?? 0) > 0
+              ? "OBJECTIVE  TIME GATES · AVOID TRAPS · FINISH"
+              : "OBJECTIVE  TIME PULSE GATES · REACH FINISH"
+            : (this.levelConfig.traps?.length ?? 0) > 0
+              ? "OBJECTIVE  REACH FINISH · AVOID TRAPS"
+              : "OBJECTIVE  REACH THE FINISH GATE",
         {
           fontFamily: "Arial, sans-serif",
           fontSize: "11px",
@@ -2631,6 +2774,7 @@ class RoverMatterScene extends Phaser.Scene {
     this.cameras.main.flash(180, 90, 120, 160);
 
     this.activeTerrainContacts.clear();
+    this.resetCollapsibleTerrain();
     this.maximumAirborneDownwardVelocity = 0;
     this.airborneTime = 0;
     this.overturnedTime = 0;

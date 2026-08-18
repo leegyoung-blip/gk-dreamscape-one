@@ -172,7 +172,7 @@ export default function RoverChallengeClient({
       }
 
       const saved = ((data ?? []) as SubmitLevelRow[])[0];
-      const hasNextLevel = result.levelId < 3;
+      const hasNextLevel = result.levelId < 4;
 
       setNextLevelUnlocked(
         Boolean(saved?.accepted && (saved.unlocked_next_level || hasNextLevel)),
@@ -437,7 +437,7 @@ function CompletionOverlay({
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <button type="button" onClick={onReplay} className="rounded-xl border border-white/20 px-5 py-3 font-bold hover:bg-white/10">Replay</button>
           <Link href="/learning-missions/core/rover" className="rounded-xl border border-white/20 px-5 py-3 font-bold hover:bg-white/10">Back to My Rover</Link>
-          {result.levelId < 3 && nextLevelUnlocked && (
+          {result.levelId < 4 && nextLevelUnlocked && (
             <Link
               href={`/learning-missions/core/rover-challenge/${result.levelId + 1}`}
               className="rounded-xl bg-cyan-300 px-5 py-3 font-black text-[#071126] hover:bg-cyan-200"
