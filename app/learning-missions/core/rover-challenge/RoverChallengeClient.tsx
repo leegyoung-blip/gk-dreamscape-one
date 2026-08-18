@@ -36,6 +36,15 @@ type SubmitLevelRow = {
   unlocked_next_level: boolean;
 };
 
+type PurchaseUnlockRow = {
+  success: boolean;
+  unlocked_level_id: number;
+  course_id: string;
+  gem_cost: number;
+  new_balance: number;
+  transaction_id: string;
+};
+
 type PhaserGameProps = {
   levelConfig: RoverLevelConfig;
   roverStage: number;
@@ -75,6 +84,8 @@ export default function RoverChallengeClient({
   const [saveMessage, setSaveMessage] = useState("");
   const [nextLevelUnlocked, setNextLevelUnlocked] = useState(false);
   const [isNativeFullscreen, setIsNativeFullscreen] = useState(false);
+  const [unlockingEarly, setUnlockingEarly] = useState(false);
+  const [unlockMessage, setUnlockMessage] = useState("");
 
   const submittedRunRef = useRef<string | null>(null);
   const gameAreaRef = useRef<HTMLDivElement | null>(null);
@@ -121,7 +132,7 @@ export default function RoverChallengeClient({
       console.warn("Could not load rover level access:", accessResult.error.message);
       setAccess(null);
       setLoadError(
-        "Level access could not be checked. Run the Phase 1 Supabase migration first.",
+        "Level access could not be checked. Run the Rover Level Access System SQL in Supabase.",
       );
     } else {
       const rows = (accessResult.data ?? []) as RoverLevelAccess[];
@@ -173,21 +184,82 @@ export default function RoverChallengeClient({
 
       const saved = ((data ?? []) as SubmitLevelRow[])[0];
       const hasNextLevel = result.levelId < 4;
+      const nextIsReady = Boolean(saved?.accepted && saved.unlocked_next_level);
 
-      setNextLevelUnlocked(
-        Boolean(saved?.accepted && (saved.unlocked_next_level || hasNextLevel)),
-      );
+      setNextLevelUnlocked(nextIsReady);
 
       setSaveMessage(
         saved?.improved
           ? `New personal best: ${saved.best_score.toLocaleString()} points.`
           : hasNextLevel
-            ? `Level ${result.levelId} completion saved. The next level is now available.`
+            ? nextIsReady
+              ? `Level ${result.levelId} completion saved. Level ${result.levelId + 1} is ready.`
+              : `Level ${result.levelId} completion saved. Level ${result.levelId + 1} is now eligible for normal progression or a Dream Gem early unlock.`
             : "Completion saved. You can replay this level at any time.",
       );
+
+      window.dispatchEvent(new Event("rover-level-progress-updated"));
     },
     [userId],
   );
+
+  const purchaseEarlyUnlock = useCallback(async () => {
+    if (!access?.can_early_unlock || access.early_unlock_price <= 0) {
+      return;
+    }
+
+    const price = access.early_unlock_price;
+    const balance = access.dream_gem_balance;
+
+    if (balance < price) {
+      setUnlockMessage(
+        `You need ${price - balance} more Dream Gems to unlock Level ${levelId}.`,
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      [
+        `Unlock Level ${levelId} — ${levelConfig.title} early?`,
+        "",
+        `Cost: ${price} Dream Gems`,
+        `Balance: ${balance} → ${balance - price}`,
+        "",
+        "This permanently bypasses the normal rover-stage requirement for this level. Previous Rover Levels must still be completed in order.",
+      ].join("\n"),
+    );
+
+    if (!confirmed) return;
+
+    setUnlockingEarly(true);
+    setUnlockMessage("");
+
+    const { data, error } = await supabase.rpc(
+      "purchase_rover_level_unlock",
+      {
+        p_level_id: levelId,
+      },
+    );
+
+    setUnlockingEarly(false);
+
+    if (error) {
+      setUnlockMessage(error.message || "The level could not be unlocked.");
+      return;
+    }
+
+    const result = ((data ?? []) as PurchaseUnlockRow[])[0];
+
+    setUnlockMessage(
+      result?.success
+        ? `Level ${levelId} unlocked permanently for ${result.gem_cost} Dream Gems.`
+        : "The level could not be unlocked.",
+    );
+
+    window.dispatchEvent(new Event("dream-gems-updated"));
+    window.dispatchEvent(new Event("rover-level-progress-updated"));
+    await loadPlayerState();
+  }, [access, levelConfig.title, levelId, loadPlayerState]);
 
   useEffect(() => {
     void loadPlayerState();
@@ -281,13 +353,13 @@ export default function RoverChallengeClient({
     setCompletion(null);
     setSaveMessage("");
     setNextLevelUnlocked(false);
+    setUnlockMessage("");
     submittedRunRef.current = null;
     window.dispatchEvent(new Event("rover-restart-requested"));
   };
 
   const canPlay =
-    Boolean(userId && access?.unlocked && access.stage_ready) &&
-    levelConfig.status === "playable";
+    Boolean(userId && access?.unlocked) && levelConfig.status === "playable";
 
   return (
     <main className="fixed inset-0 h-[100dvh] w-screen overflow-hidden bg-[#050713] text-white">
@@ -308,6 +380,9 @@ export default function RoverChallengeClient({
             currentStage={currentUpgrade.stage}
             signedIn={Boolean(userId)}
             error={loadError}
+            unlockingEarly={unlockingEarly}
+            unlockMessage={unlockMessage}
+            onUnlockEarly={() => void purchaseEarlyUnlock()}
           />
         )}
 
@@ -362,12 +437,18 @@ function LevelGate({
   currentStage,
   signedIn,
   error,
+  unlockingEarly,
+  unlockMessage,
+  onUnlockEarly,
 }: {
   level: RoverLevelConfig;
   access: RoverLevelAccess | null;
   currentStage: number;
   signedIn: boolean;
   error: string;
+  unlockingEarly: boolean;
+  unlockMessage: string;
+  onUnlockEarly: () => void;
 }) {
   let title = `Level ${level.id} is locked`;
   let message = `Complete Level ${level.prerequisiteLevel} first to unlock this course.`;
@@ -378,29 +459,97 @@ function LevelGate({
   } else if (error) {
     title = "Level access unavailable";
     message = error;
-  } else if (access?.unlocked && !access.stage_ready) {
+  } else if (access?.admin_access) {
+    title = `${level.title} · Admin access`;
+    message = "Admins can enter every Rover Level without quiz, rover-stage or prerequisite checks.";
+  } else if (!access?.prerequisite_completed) {
+    title = `Complete Level ${level.prerequisiteLevel} first`;
+    message = "Dream Gems can bypass the rover-stage schedule, but they do not skip Rover Levels themselves.";
+  } else if (access?.can_early_unlock) {
+    title = `Stage ${level.minimumRoverStage} normally required`;
+    message = `Your current rover is Stage ${currentStage}. Keep completing Core Missions, or permanently unlock this level early for ${access.early_unlock_price} Dream Gems.`;
+  } else if (!access?.unlocked && !access?.stage_ready) {
     title = `Stage ${level.minimumRoverStage} rover required`;
-    message = `Your current rover is Stage ${currentStage}. Complete more Core Missions to upgrade before entering this course.`;
-  } else if (access?.unlocked && access.stage_ready && level.status === "phase-2") {
+    message = `Your current rover is Stage ${currentStage}. Complete more Core Missions to unlock this level normally.`;
+  } else if (level.status === "phase-2") {
     title = `${level.title} unlocked`;
-    message = "Your progression gate is ready. The branching map and Dreamkeeper traps arrive in Phase 2.";
+    message = "This Rover Level is unlocked but is not yet playable.";
   }
+
+  const price = access?.early_unlock_price ?? 0;
+  const balance = access?.dream_gem_balance ?? 0;
+  const canAfford = balance >= price;
 
   return (
     <div className="grid h-full place-items-center bg-[radial-gradient(circle_at_50%_20%,#173354_0%,#081225_45%,#050713_100%)] px-5">
       <section className="w-full max-w-xl rounded-3xl border border-cyan-200/25 bg-[#071126]/90 p-8 text-center shadow-[0_30px_100px_rgba(0,0,0,0.55)] backdrop-blur-xl">
-        <p className="text-xs font-bold tracking-[0.28em] text-cyan-300">ROVER CHALLENGE · LEVEL {level.id}</p>
+        <p className="text-xs font-bold tracking-[0.28em] text-cyan-300">
+          ROVER CHALLENGE · LEVEL {level.id}
+        </p>
         <h1 className="mt-4 text-3xl font-black sm:text-4xl">{title}</h1>
-        <p className="mx-auto mt-4 max-w-md leading-7 text-slate-300">{message}</p>
+        <p className="mx-auto mt-4 max-w-md leading-7 text-slate-300">
+          {message}
+        </p>
+
+        {access?.can_early_unlock && (
+          <div className="mx-auto mt-6 max-w-sm rounded-2xl border border-fuchsia-200/20 bg-fuchsia-400/[0.06] p-4">
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="font-bold text-fuchsia-100">Early unlock</span>
+              <span className="font-black text-fuchsia-200">◆ {price} DG</span>
+            </div>
+            <div className="mt-2 flex items-center justify-between gap-3 text-xs text-white/55">
+              <span>Your Dream Gems</span>
+              <span>◆ {balance} DG</span>
+            </div>
+            {canAfford ? (
+              <p className="mt-3 text-xs leading-5 text-white/50">
+                Permanent for this account. No Dream Gem payment is needed again for this level.
+              </p>
+            ) : (
+              <p className="mt-3 text-xs font-bold text-amber-200">
+                You need {price - balance} more Dream Gems.
+              </p>
+            )}
+          </div>
+        )}
+
+        {unlockMessage && (
+          <p className="mx-auto mt-4 max-w-md rounded-xl border border-fuchsia-200/15 bg-fuchsia-400/[0.06] px-4 py-3 text-sm text-fuchsia-100">
+            {unlockMessage}
+          </p>
+        )}
+
         <div className="mt-7 flex flex-wrap justify-center gap-3">
           {!signedIn ? (
-            <Link className="rounded-xl bg-cyan-300 px-5 py-3 font-bold text-[#071126]" href="/login">Log In</Link>
+            <Link
+              className="rounded-xl bg-cyan-300 px-5 py-3 font-bold text-[#071126]"
+              href="/login"
+            >
+              Log In
+            </Link>
           ) : (
-            <Link className="rounded-xl bg-cyan-300 px-5 py-3 font-bold text-[#071126]" href="/learning-missions/core/rover">Back to My Rover</Link>
+            <Link
+              className="rounded-xl border border-white/20 px-5 py-3 font-bold text-white hover:bg-white/10"
+              href="/learning-missions/core/rover"
+            >
+              Back to My Rover
+            </Link>
           )}
+
+          {access?.can_early_unlock && (
+            <button
+              type="button"
+              disabled={!canAfford || unlockingEarly}
+              onClick={onUnlockEarly}
+              className="rounded-xl bg-fuchsia-300 px-5 py-3 font-black text-[#16051f] transition hover:bg-fuchsia-200 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {unlockingEarly ? "Unlocking..." : `Unlock for ${price} DG`}
+            </button>
+          )}
+
           {level.prerequisiteLevel !== null && (
             <Link
-              className="rounded-xl border border-white/20 px-5 py-3 font-bold text-white"
+              className="rounded-xl border border-white/20 px-5 py-3 font-bold text-white hover:bg-white/10"
               href={`/learning-missions/core/rover-challenge/${level.prerequisiteLevel}`}
             >
               Replay Level {level.prerequisiteLevel}
@@ -437,12 +586,18 @@ function CompletionOverlay({
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <button type="button" onClick={onReplay} className="rounded-xl border border-white/20 px-5 py-3 font-bold hover:bg-white/10">Replay</button>
           <Link href="/learning-missions/core/rover" className="rounded-xl border border-white/20 px-5 py-3 font-bold hover:bg-white/10">Back to My Rover</Link>
-          {result.levelId < 4 && nextLevelUnlocked && (
+          {result.levelId < 4 && (
             <Link
               href={`/learning-missions/core/rover-challenge/${result.levelId + 1}`}
-              className="rounded-xl bg-cyan-300 px-5 py-3 font-black text-[#071126] hover:bg-cyan-200"
+              className={
+                nextLevelUnlocked
+                  ? "rounded-xl bg-cyan-300 px-5 py-3 font-black text-[#071126] hover:bg-cyan-200"
+                  : "rounded-xl bg-fuchsia-300 px-5 py-3 font-black text-[#16051f] hover:bg-fuchsia-200"
+              }
             >
-              Continue to Level {result.levelId + 1} →
+              {nextLevelUnlocked
+                ? `Continue to Level ${result.levelId + 1} →`
+                : `View Level ${result.levelId + 1} Unlock →`}
             </Link>
           )}
         </div>

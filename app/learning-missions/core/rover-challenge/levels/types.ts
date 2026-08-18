@@ -82,4 +82,20 @@ export type RoverLevelAccess = {
   best_score: number | null;
   best_time_ms: number | null;
   completed_at: string | null;
+
+  // Rover Level access system
+  admin_access: boolean;
+  prerequisite_completed: boolean;
+  early_unlock_purchased: boolean;
+  early_unlock_price: number;
+  can_early_unlock: boolean;
+  dream_gem_balance: number;
+  access_reason:
+    | "admin"
+    | "completed"
+    | "starter"
+    | "dream_gems"
+    | "progression"
+    | "prerequisite"
+    | "stage";
 };
