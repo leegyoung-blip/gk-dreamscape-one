@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { useCoreMissionAccess } from "@/hooks/useCoreMissionAccess";
 import QuestionMediaRenderer from "@/components/core-media/QuestionMediaRenderer";
 import GroupedWordBankCloze from "./GroupedWordBankCloze";
+import GroupedComprehension from "./GroupedComprehension";
 
 type CoreSubject = "english" | "math";
 type ScreenMode = "desktop" | "tablet" | "mobile";
@@ -169,20 +170,6 @@ type AnswerMap = Record<string, JsonObject>;
 type FeedbackMap = Record<string, ImmediateFeedback>;
 type TimeMap = Record<string, number>;
 
-type CoreQuizCheckpoint = {
-  version: 1;
-  attempt_id: string;
-  quiz_id: string;
-  question_index: number;
-  stage: "intro" | "playing";
-  answers: AnswerMap;
-  feedback_by_question: FeedbackMap;
-  time_by_question: TimeMap;
-  current_question_elapsed_seconds: number;
-  quiz_elapsed_seconds: number;
-  saved_at: number;
-};
-
 const SUBJECT_LABELS: Record<CoreSubject, string> = {
   english: "English",
   math: "Mathematics",
@@ -207,68 +194,6 @@ const CORE_RPCS: Record<
     submitAttempt: "submit_math_quiz_attempt",
   },
 };
-
-function getCheckpointKey(
-  subject: CoreSubject,
-  level: number,
-  quizId: string,
-  attemptId: string,
-) {
-  return `dreamscape-core-quiz:v1:${subject}:p${level}:${quizId}:${attemptId}`;
-}
-
-function readCheckpoint(
-  subject: CoreSubject,
-  level: number,
-  quizId: string,
-  attemptId: string,
-): CoreQuizCheckpoint | null {
-  if (typeof window === "undefined") return null;
-
-  try {
-    const raw = window.sessionStorage.getItem(
-      getCheckpointKey(subject, level, quizId, attemptId),
-    );
-
-    if (!raw) return null;
-
-    const parsed = JSON.parse(raw) as Partial<CoreQuizCheckpoint>;
-
-    if (
-      parsed.version !== 1 ||
-      parsed.attempt_id !== attemptId ||
-      parsed.quiz_id !== quizId ||
-      (parsed.stage !== "intro" && parsed.stage !== "playing") ||
-      !parsed.answers ||
-      !parsed.feedback_by_question ||
-      !parsed.time_by_question
-    ) {
-      return null;
-    }
-
-    return parsed as CoreQuizCheckpoint;
-  } catch (error) {
-    console.warn("Could not restore Core quiz checkpoint:", error);
-    return null;
-  }
-}
-
-function removeCheckpoint(
-  subject: CoreSubject,
-  level: number,
-  quizId: string,
-  attemptId: string,
-) {
-  if (typeof window === "undefined") return;
-
-  try {
-    window.sessionStorage.removeItem(
-      getCheckpointKey(subject, level, quizId, attemptId),
-    );
-  } catch (error) {
-    console.warn("Could not clear Core quiz checkpoint:", error);
-  }
-}
 
 function useResponsiveMode() {
   const [mode, setMode] = useState<ScreenMode>("desktop");
@@ -432,7 +357,6 @@ export default function CoreQuizPlayer({
   const screenMode = useResponsiveMode();
   const isMobile = screenMode === "mobile";
   const rpcNames = CORE_RPCS[subject];
-  const quizIdentity = `${subject}:p${level}:${quizId}`;
 
   const { status, userId, tokenBalance, dreamGemBalance, refreshBalances } =
     useCoreMissionAccess();
@@ -451,251 +375,75 @@ export default function CoreQuizPlayer({
   const questionOpenedAtRef = useRef<number>(Date.now());
   const quizStartedAtRef = useRef<number>(Date.now());
 
-  /*
-   * Time already accumulated before the current component
-   * mount. This lets a session checkpoint restore quiz
-   * duration without counting time spent away from the
-   * quiz route.
-   */
-  const quizElapsedBeforeRef = useRef(0);
-
-  /*
-   * A Core quiz should load once for its actual quiz
-   * identity. Access/auth revalidation must never reload it.
-   */
-  const loadedQuizIdentityRef = useRef<string | null>(null);
-  const loadRequestIdRef = useRef(0);
-
-  const loadQuiz = useCallback(
-    async (options: { force?: boolean } = {}) => {
-      const { force = false } = options;
-
-      /*
-       * This is the central Phase 2 protection.
-       *
-       * Even if access status changes and the effect below
-       * runs again, the same quiz is not fetched or reset.
-       */
-      if (!force && loadedQuizIdentityRef.current === quizIdentity) {
-        return;
-      }
-
-      loadedQuizIdentityRef.current = quizIdentity;
-
-      const requestId = ++loadRequestIdRef.current;
-
-      setStage("loading");
-      setError(null);
-      setActionBusy(false);
-      setExpandedResultId(null);
-
-      const { data, error: loadError } = await supabase.rpc(
-        rpcNames.getPayload,
-        {
-          p_quiz_id: quizId,
-        },
-      );
-
-      /*
-       * Ignore an old load if a newer load/replay started.
-       */
-      if (requestId !== loadRequestIdRef.current) {
-        return;
-      }
-
-      if (loadError || !data) {
-        loadedQuizIdentityRef.current = null;
-
-        console.warn("Could not load Core quiz payload:", loadError);
-        setError(
-          loadError?.message ||
-            "This quiz could not be loaded. Check that it is published and has the correct number of questions.",
-        );
-        setStage("error");
-        return;
-      }
-
-      const nextPayload = data as QuizPayload;
-
-      if (
-        nextPayload.quiz.subject !== subject ||
-        Number(nextPayload.quiz.primary_level) !== level
-      ) {
-        loadedQuizIdentityRef.current = null;
-        setError("This quiz does not belong to the selected subject and level.");
-        setStage("error");
-        return;
-      }
-
-      if (nextPayload.questions.length !== nextPayload.quiz.question_count) {
-        loadedQuizIdentityRef.current = null;
-        setError("This quiz is incomplete and cannot be started yet.");
-        setStage("error");
-        return;
-      }
-
-      /*
-       * Restore everything the server already knows about
-       * this unfinished attempt.
-       */
-      const serverAnswers: AnswerMap = {};
-      const serverFeedback: FeedbackMap = {};
-
-      for (const saved of nextPayload.saved_answers ?? []) {
-        serverAnswers[saved.question_id] = saved.response_data ?? {};
-
-        if (saved.locked) {
-          serverFeedback[saved.question_id] = {
-            saved: true,
-            locked: true,
-            pending_manual_review: saved.pending_manual_review,
-            is_correct: saved.is_correct,
-            marks_awarded: saved.marks_awarded,
-            maximum_marks: Number(saved.maximum_marks ?? 0),
-            explanation: saved.explanation,
-            correct_response: saved.correct_response,
-          };
-        }
-      }
-
-      /*
-       * The server protects persisted answers. The browser
-       * checkpoint additionally protects the exact current
-       * question and any answer the learner selected/typed
-       * but had not yet sent to Supabase.
-       */
-      const checkpoint = readCheckpoint(
-        subject,
-        level,
-        quizId,
-        nextPayload.attempt_id,
-      );
-
-      const restoredAnswers: AnswerMap = checkpoint
-        ? {
-            ...serverAnswers,
-            ...checkpoint.answers,
-          }
-        : serverAnswers;
-
-      /*
-       * Locked/server feedback is authoritative, so place
-       * it after checkpoint feedback.
-       */
-      const restoredFeedback: FeedbackMap = checkpoint
-        ? {
-            ...checkpoint.feedback_by_question,
-            ...serverFeedback,
-          }
-        : serverFeedback;
-
-      const restoredTime: TimeMap = checkpoint
-        ? {
-            ...checkpoint.time_by_question,
-          }
-        : {};
-
-      let restoredQuestionIndex = 0;
-
-      if (checkpoint) {
-        restoredQuestionIndex = Math.min(
-          Math.max(0, Number(checkpoint.question_index) || 0),
-          Math.max(0, nextPayload.questions.length - 1),
-        );
-
-        const checkpointQuestion =
-          nextPayload.questions[restoredQuestionIndex];
-
-        if (
-          checkpointQuestion &&
-          Number(checkpoint.current_question_elapsed_seconds) > 0
-        ) {
-          restoredTime[checkpointQuestion.id] =
-            (restoredTime[checkpointQuestion.id] ?? 0) +
-            Math.max(
-              0,
-              Number(checkpoint.current_question_elapsed_seconds) || 0,
-            );
-        }
-
-        quizElapsedBeforeRef.current = Math.max(
-          0,
-          Number(checkpoint.quiz_elapsed_seconds) || 0,
-        );
-      } else {
-        /*
-         * If Supabase says this is an unfinished attempt but
-         * there is no browser checkpoint (for example the
-         * user returned on another device), continue from
-         * the first question that is not already complete.
-         */
-        const firstIncompleteIndex = nextPayload.questions.findIndex(
-          (question) =>
-            !responseIsComplete(question, serverAnswers[question.id]),
-        );
-
-        if (nextPayload.resumed) {
-          restoredQuestionIndex =
-            firstIncompleteIndex >= 0
-              ? firstIncompleteIndex
-              : Math.max(0, nextPayload.questions.length - 1);
-        }
-
-        quizElapsedBeforeRef.current = 0;
-      }
-
-      setPayload(nextPayload);
-      setAnswers(restoredAnswers);
-      setFeedbackByQuestion(restoredFeedback);
-      setTimeByQuestion(restoredTime);
-      setQuestionIndex(restoredQuestionIndex);
-      setResult(null);
-
-      quizStartedAtRef.current = Date.now();
-      questionOpenedAtRef.current = Date.now();
-
-      /*
-       * A browser-session checkpoint means the learner was
-       * already inside the quiz. Return directly to that
-       * question instead of showing the intro again.
-       *
-       * A server-only resumed attempt still shows the intro
-       * with the existing "Resume Quiz" message/button.
-       */
-      setStage(checkpoint?.stage === "playing" ? "playing" : "intro");
-    },
-    [
-      level,
-      quizId,
-      quizIdentity,
-      rpcNames.getPayload,
-      subject,
-    ],
-  );
-
-  /*
-   * Wait until access is genuinely allowed, then load this
-   * quiz once.
-   *
-   * status is intentionally NOT a dependency of loadQuiz.
-   * A later access/auth refresh therefore cannot rebuild
-   * the quiz loader or reset the attempt.
-   */
-  useEffect(() => {
+  const loadQuiz = useCallback(async () => {
     if (status !== "allowed") return;
 
-    void loadQuiz();
-  }, [status, loadQuiz]);
+    setStage("loading");
+    setError(null);
 
-  /*
-   * Invalidate an in-flight payload request when this
-   * player unmounts.
-   */
+    const { data, error: loadError } = await supabase.rpc(rpcNames.getPayload, {
+      p_quiz_id: quizId,
+    });
+
+    if (loadError || !data) {
+      console.warn("Could not load Core quiz payload:", loadError);
+      setError(
+        loadError?.message ||
+          "This quiz could not be loaded. Check that it is published and has the correct number of questions.",
+      );
+      setStage("error");
+      return;
+    }
+
+    const nextPayload = data as QuizPayload;
+
+    if (
+      nextPayload.quiz.subject !== subject ||
+      Number(nextPayload.quiz.primary_level) !== level
+    ) {
+      setError("This quiz does not belong to the selected subject and level.");
+      setStage("error");
+      return;
+    }
+
+    if (nextPayload.questions.length !== nextPayload.quiz.question_count) {
+      setError("This quiz is incomplete and cannot be started yet.");
+      setStage("error");
+      return;
+    }
+
+    const restoredAnswers: AnswerMap = {};
+    const restoredFeedback: FeedbackMap = {};
+    for (const saved of nextPayload.saved_answers ?? []) {
+      restoredAnswers[saved.question_id] = saved.response_data ?? {};
+      if (saved.locked) {
+        restoredFeedback[saved.question_id] = {
+          saved: true,
+          locked: true,
+          pending_manual_review: saved.pending_manual_review,
+          is_correct: saved.is_correct,
+          marks_awarded: saved.marks_awarded,
+          maximum_marks: Number(saved.maximum_marks ?? 0),
+          explanation: saved.explanation,
+          correct_response: saved.correct_response,
+        };
+      }
+    }
+
+    setPayload(nextPayload);
+    setAnswers(restoredAnswers);
+    setFeedbackByQuestion(restoredFeedback);
+    setTimeByQuestion({});
+    setQuestionIndex(0);
+    setResult(null);
+    quizStartedAtRef.current = Date.now();
+    questionOpenedAtRef.current = Date.now();
+    setStage("intro");
+  }, [level, quizId, status, subject, rpcNames.getPayload]);
+
   useEffect(() => {
-    return () => {
-      loadRequestIdRef.current += 1;
-    };
-  }, []);
+    void loadQuiz();
+  }, [loadQuiz]);
 
   const currentQuestion = payload?.questions[questionIndex] ?? null;
   const currentResponse = currentQuestion
@@ -704,111 +452,6 @@ export default function CoreQuizPlayer({
   const currentFeedback = currentQuestion
     ? feedbackByQuestion[currentQuestion.id]
     : undefined;
-
-  /*
-   * Save the exact in-progress browser state.
-   *
-   * sessionStorage survives:
-   * - component remounts
-   * - route changes and returning in the same tab
-   * - normal page refreshes
-   *
-   * It does not create a permanent cross-device record;
-   * Supabase remains the authoritative persisted attempt.
-   */
-  const persistCheckpoint = useCallback(() => {
-    if (!payload) return;
-    if (payload.quiz.id !== quizId) return;
-    if (stage !== "intro" && stage !== "playing") return;
-    if (typeof window === "undefined") return;
-
-    const checkpointQuestion = payload.questions[questionIndex] ?? null;
-
-    const currentQuestionElapsedSeconds =
-      stage === "playing" && checkpointQuestion
-        ? Math.max(
-            0,
-            Math.round((Date.now() - questionOpenedAtRef.current) / 1000),
-          )
-        : 0;
-
-    const currentQuizElapsedSeconds =
-      stage === "playing"
-        ? quizElapsedBeforeRef.current +
-          Math.max(
-            0,
-            Math.round((Date.now() - quizStartedAtRef.current) / 1000),
-          )
-        : quizElapsedBeforeRef.current;
-
-    const checkpoint: CoreQuizCheckpoint = {
-      version: 1,
-      attempt_id: payload.attempt_id,
-      quiz_id: quizId,
-      question_index: questionIndex,
-      stage,
-      answers,
-      feedback_by_question: feedbackByQuestion,
-      time_by_question: timeByQuestion,
-      current_question_elapsed_seconds: currentQuestionElapsedSeconds,
-      quiz_elapsed_seconds: currentQuizElapsedSeconds,
-      saved_at: Date.now(),
-    };
-
-    try {
-      window.sessionStorage.setItem(
-        getCheckpointKey(subject, level, quizId, payload.attempt_id),
-        JSON.stringify(checkpoint),
-      );
-    } catch (checkpointError) {
-      console.warn("Could not save Core quiz checkpoint:", checkpointError);
-    }
-  }, [
-    answers,
-    feedbackByQuestion,
-    level,
-    payload,
-    questionIndex,
-    quizId,
-    stage,
-    subject,
-    timeByQuestion,
-  ]);
-
-  /*
-   * Persist immediately whenever meaningful quiz state
-   * changes.
-   */
-  useEffect(() => {
-    persistCheckpoint();
-  }, [persistCheckpoint]);
-
-  /*
-   * Also capture elapsed time when the document is hidden
-   * or the page is being left. This is deliberately only a
-   * checkpoint write — it never changes the quiz stage and
-   * never causes a reload.
-   */
-  useEffect(() => {
-    function handlePageHide() {
-      persistCheckpoint();
-    }
-
-    function handleVisibilityChange() {
-      if (document.visibilityState === "hidden") {
-        persistCheckpoint();
-      }
-    }
-
-    window.addEventListener("pagehide", handlePageHide);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      window.removeEventListener("pagehide", handlePageHide);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      persistCheckpoint();
-    };
-  }, [persistCheckpoint]);
 
   const answeredCount = useMemo(() => {
     if (!payload) return 0;
@@ -850,6 +493,36 @@ export default function CoreQuizPlayer({
         String(content.cloze_passage ?? "") === firstPassage &&
         String(content.blank_id ?? "").trim().length > 0 &&
         Array.isArray(content.word_bank)
+      );
+    });
+  }, [payload, subject]);
+
+  const isSplitComprehensionQuiz = useMemo(() => {
+    if (
+      subject !== "english" ||
+      !payload ||
+      payload.questions.length === 0
+    ) {
+      return false;
+    }
+
+    const firstPassage = String(
+      payload.questions[0]?.content?.comprehension_passage ?? "",
+    ).trim();
+
+    if (!firstPassage) {
+      return false;
+    }
+
+    return payload.questions.every((question) => {
+      const content = question.content ?? {};
+
+      return (
+        question.question_type === "multiple_choice" &&
+        content.layout === "split_comprehension" &&
+        String(content.comprehension_passage ?? "").trim() === firstPassage &&
+        Array.isArray(content.options) &&
+        content.options.length >= 2
       );
     });
   }, [payload, subject]);
@@ -999,8 +672,7 @@ export default function CoreQuizPlayer({
 
     const finalDuration = Math.max(
       1,
-      quizElapsedBeforeRef.current +
-        Math.round((Date.now() - quizStartedAtRef.current) / 1000),
+      Math.round((Date.now() - quizStartedAtRef.current) / 1000),
     );
 
     const groupedAverageSeconds = isGroupedWordBankQuiz
@@ -1034,13 +706,6 @@ export default function CoreQuizPlayer({
     }
 
     const nextResult = data as SubmitResult;
-
-    /*
-     * This attempt is complete. Its browser checkpoint is
-     * no longer needed and must not be restored on replay.
-     */
-    removeCheckpoint(subject, level, quizId, payload.attempt_id);
-
     setResult(nextResult);
     setStage("results");
 
@@ -1054,20 +719,7 @@ export default function CoreQuizPlayer({
     router.push(`/learning-missions/core/${subject}/p${level}`);
   }
 
-  async function replayQuiz() {
-    if (payload) {
-      removeCheckpoint(subject, level, quizId, payload.attempt_id);
-    }
-
-    quizElapsedBeforeRef.current = 0;
-    loadedQuizIdentityRef.current = null;
-    setResult(null);
-    setExpandedResultId(null);
-
-    await loadQuiz({ force: true });
-  }
-
-  if ((status === "checking" && !payload) || stage === "loading") {
+  if (status === "checking" || stage === "loading") {
     return (
       <main style={pageShell}>
         <CenteredCard message="Preparing Core Mission..." />
@@ -1075,39 +727,19 @@ export default function CoreQuizPlayer({
     );
   }
 
-  if (
-    status === "locked" ||
-    status === "signed_out" ||
-    status === "profile_required"
-  ) {
-    const accessTitle =
-      status === "signed_out"
-        ? "Log in to continue"
-        : status === "profile_required"
-          ? "Learner Profile Required"
-          : "Core Missions Locked";
-
-    const accessMessage =
-      status === "signed_out"
-        ? "Log in with the learner account linked to Core Missions."
-        : status === "profile_required"
-          ? "Complete the learner profile before continuing with Core Missions."
-          : "This account does not currently have Core Missions access.";
-
+  if (status === "locked") {
     return (
       <main style={pageShell}>
         <div style={lockedCard}>
-          <h1 style={{ margin: 0 }}>{accessTitle}</h1>
-          <p style={mutedText}>{accessMessage}</p>
+          <h1 style={{ margin: 0 }}>Core Missions Locked</h1>
+          <p style={mutedText}>Log in with an account that has Core access.</p>
           <div style={buttonRow(isMobile)}>
-            {status === "signed_out" && (
-              <a
-                href="/login"
-                style={{ ...primaryButton, textDecoration: "none" }}
-              >
-                Log In
-              </a>
-            )}
+            <a
+              href="/login"
+              style={{ ...primaryButton, textDecoration: "none" }}
+            >
+              Log In
+            </a>
             <button
               type="button"
               onClick={() => router.push("/learning-missions")}
@@ -1132,7 +764,7 @@ export default function CoreQuizPlayer({
           <p style={mutedText}>{error || "This quiz could not be loaded."}</p>
           <button
             type="button"
-            onClick={() => void loadQuiz({ force: true })}
+            onClick={() => void loadQuiz()}
             style={primaryButton}
           >
             Try Again
@@ -1260,7 +892,7 @@ export default function CoreQuizPlayer({
         expandedResultId={expandedResultId}
         setExpandedResultId={setExpandedResultId}
         onQuizList={returnToQuizList}
-        onReplay={() => void replayQuiz()}
+        onReplay={() => window.location.reload()}
         onRover={() => router.push("/learning-missions/core/rover")}
       />
     );
@@ -1292,6 +924,42 @@ export default function CoreQuizPlayer({
           setError(null);
         }}
         onSubmit={() => void submitQuiz()}
+        onExit={returnToQuizList}
+      />
+    );
+  }
+
+  if (isSplitComprehensionQuiz) {
+    return (
+      <GroupedComprehension
+        title={payload.quiz.title}
+        topicTitle={payload.quiz.topic_title}
+        level={level}
+        questions={payload.questions}
+        questionIndex={questionIndex}
+        answers={answers}
+        feedbackByQuestion={feedbackByQuestion}
+        tokenBalance={tokenBalance}
+        gemBalance={dreamGemBalance}
+        isMobile={isMobile}
+        busy={actionBusy}
+        error={error}
+        onAnswerChange={(questionId, response) => {
+          const feedback = feedbackByQuestion[questionId];
+
+          if (feedback?.locked) return;
+
+          setAnswers((current) => ({
+            ...current,
+            [questionId]: response,
+          }));
+          setError(null);
+        }}
+        onQuestionChange={(index) => {
+          if (actionBusy) return;
+          void moveToQuestion(index);
+        }}
+        onPrimaryAction={() => void handlePrimaryQuestionAction()}
         onExit={returnToQuizList}
       />
     );

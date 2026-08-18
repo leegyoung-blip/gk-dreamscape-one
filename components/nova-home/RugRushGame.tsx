@@ -47,15 +47,16 @@ type RecordResultRow = RugRushStats & {
 const CANVAS_WIDTH = 900;
 const CANVAS_HEIGHT = 560;
 const ROUND_DURATION_MS = 10_000;
-const BRUSH_RADIUS = 42;
+const BRUSH_RADIUS = 34;
 const SAMPLE_STEP = 2;
+const PERFECT_CLEAN_PERCENT = 99.5;
 
 const MESS_TYPES: MessDefinition[] = [
   {
     key: "dusty-day",
     title: "Dusty Day",
     subtitle: "A fine layer of space dust has settled everywhere.",
-    cleaningPower: 0.34,
+    cleaningPower: 0.22,
     patchCount: [24, 31],
     patchRadiusX: [34, 82],
     patchRadiusY: [22, 54],
@@ -72,7 +73,7 @@ const MESS_TYPES: MessDefinition[] = [
     key: "muddy-shoes",
     title: "Muddy Shoes",
     subtitle: "Someone tracked muddy footprints right across Nova's rug.",
-    cleaningPower: 0.29,
+    cleaningPower: 0.19,
     patchCount: [11, 16],
     patchRadiusX: [38, 78],
     patchRadiusY: [24, 56],
@@ -89,7 +90,7 @@ const MESS_TYPES: MessDefinition[] = [
     key: "snack-attack",
     title: "Snack Attack",
     subtitle: "Crumbs and little greasy marks are scattered all over the floor.",
-    cleaningPower: 0.31,
+    cleaningPower: 0.205,
     patchCount: [9, 14],
     patchRadiusX: [24, 54],
     patchRadiusY: [18, 40],
@@ -106,7 +107,7 @@ const MESS_TYPES: MessDefinition[] = [
     key: "big-spill",
     title: "Big Spill",
     subtitle: "A few huge stains need fast, repeated scrubbing.",
-    cleaningPower: 0.245,
+    cleaningPower: 0.17,
     patchCount: [5, 8],
     patchRadiusX: [82, 148],
     patchRadiusY: [52, 104],
@@ -339,82 +340,141 @@ function drawFootprint(
   context.restore();
 }
 
-function drawMess(context: CanvasRenderingContext2D, mess: MessDefinition) {
-  context.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-  context.save();
-  roundedRectPath(context, 48, 40, CANVAS_WIDTH - 96, CANVAS_HEIGHT - 80, 46);
-  context.clip();
+function drawMess(
+  normalContext: CanvasRenderingContext2D,
+  toughContext: CanvasRenderingContext2D,
+  extraToughContext: CanvasRenderingContext2D,
+  mess: MessDefinition,
+) {
+  [normalContext, toughContext, extraToughContext].forEach((context) => {
+    context.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    context.save();
+    roundedRectPath(context, 48, 40, CANVAS_WIDTH - 96, CANVAS_HEIGHT - 80, 46);
+    context.clip();
+  });
 
   const patchCount = randomInt(mess.patchCount);
   for (let i = 0; i < patchCount; i += 1) {
-    const x = 100 + Math.random() * (CANVAS_WIDTH - 200);
-    const y = 88 + Math.random() * (CANVAS_HEIGHT - 176);
+    const edgeBias = i < Math.ceil(patchCount * 0.28);
+    const x = edgeBias
+      ? (Math.random() < 0.5 ? 76 + Math.random() * 76 : CANVAS_WIDTH - 152 + Math.random() * 76)
+      : 100 + Math.random() * (CANVAS_WIDTH - 200);
+    const y = edgeBias
+      ? (Math.random() < 0.5 ? 68 + Math.random() * 70 : CANVAS_HEIGHT - 138 + Math.random() * 70)
+      : 88 + Math.random() * (CANVAS_HEIGHT - 176);
     const radiusX = mess.patchRadiusX[0] + Math.random() * (mess.patchRadiusX[1] - mess.patchRadiusX[0]);
     const radiusY = mess.patchRadiusY[0] + Math.random() * (mess.patchRadiusY[1] - mess.patchRadiusY[0]);
     const rotation = Math.random() * Math.PI;
+    const paletteColour = mess.palette[Math.floor(Math.random() * mess.palette.length)];
 
-    context.save();
-    context.translate(x, y);
-    context.rotate(rotation);
-
-    const stain = context.createRadialGradient(0, 0, 3, 0, 0, Math.max(radiusX, radiusY));
-    stain.addColorStop(0, mess.palette[Math.floor(Math.random() * mess.palette.length)]);
+    normalContext.save();
+    normalContext.translate(x, y);
+    normalContext.rotate(rotation);
+    const stain = normalContext.createRadialGradient(0, 0, 3, 0, 0, Math.max(radiusX, radiusY));
+    stain.addColorStop(0, paletteColour);
     stain.addColorStop(0.58, mess.key === "dusty-day" ? "rgba(104, 100, 88, 0.46)" : "rgba(86, 63, 43, 0.58)");
     stain.addColorStop(1, "rgba(90, 70, 50, 0)");
+    normalContext.fillStyle = stain;
+    normalContext.beginPath();
+    normalContext.ellipse(0, 0, radiusX, radiusY, 0, 0, Math.PI * 2);
+    normalContext.fill();
+    normalContext.restore();
 
-    context.fillStyle = stain;
-    context.beginPath();
-    context.ellipse(0, 0, radiusX, radiusY, 0, 0, Math.PI * 2);
-    context.fill();
+    // Every stain has a smaller stubborn centre that needs repeated passes.
+    toughContext.save();
+    toughContext.translate(x, y);
+    toughContext.rotate(rotation);
+    const coreRadiusX = radiusX * (mess.key === "dusty-day" ? 0.30 : 0.42);
+    const coreRadiusY = radiusY * (mess.key === "dusty-day" ? 0.30 : 0.42);
+    const coreGradient = toughContext.createRadialGradient(0, 0, 2, 0, 0, Math.max(coreRadiusX, coreRadiusY));
+    coreGradient.addColorStop(0, mess.key === "dusty-day" ? "rgba(83, 81, 75, 0.58)" : "rgba(73, 48, 34, 0.82)");
+    coreGradient.addColorStop(0.72, mess.key === "dusty-day" ? "rgba(95, 91, 82, 0.38)" : "rgba(90, 58, 38, 0.56)");
+    coreGradient.addColorStop(1, "rgba(70, 48, 34, 0)");
+    toughContext.fillStyle = coreGradient;
+    toughContext.beginPath();
+    toughContext.ellipse(0, 0, coreRadiusX, coreRadiusY, 0, 0, Math.PI * 2);
+    toughContext.fill();
+    toughContext.restore();
 
     if (mess.key === "big-spill") {
-      context.globalAlpha = 0.33;
-      context.strokeStyle = mess.palette[i % mess.palette.length];
-      context.lineWidth = 8 + Math.random() * 10;
-      context.beginPath();
-      context.arc(0, 0, Math.min(radiusX, radiusY) * 0.56, 0, Math.PI * 2);
-      context.stroke();
-      context.globalAlpha = 1;
+      // Big Spill gets an extra-resistance centre so the player must genuinely scrub it.
+      extraToughContext.save();
+      extraToughContext.translate(x, y);
+      extraToughContext.rotate(rotation);
+      const hardX = radiusX * 0.22;
+      const hardY = radiusY * 0.22;
+      const hardCore = extraToughContext.createRadialGradient(0, 0, 1, 0, 0, Math.max(hardX, hardY));
+      hardCore.addColorStop(0, "rgba(67, 43, 31, 0.94)");
+      hardCore.addColorStop(0.66, "rgba(82, 50, 33, 0.72)");
+      hardCore.addColorStop(1, "rgba(82, 50, 33, 0)");
+      extraToughContext.fillStyle = hardCore;
+      extraToughContext.beginPath();
+      extraToughContext.ellipse(0, 0, hardX, hardY, 0, 0, Math.PI * 2);
+      extraToughContext.fill();
+      extraToughContext.restore();
     }
-
-    context.restore();
   }
 
+  // Footprints live on the tougher layer, so a single sweep will not erase them.
   const footprintPairs = randomInt(mess.footprintPairs);
   for (let i = 0; i < footprintPairs; i += 1) {
-    const baseX = 130 + Math.random() * (CANVAS_WIDTH - 260);
-    const baseY = 120 + Math.random() * (CANVAS_HEIGHT - 240);
+    const baseX = 112 + Math.random() * (CANVAS_WIDTH - 224);
+    const baseY = 104 + Math.random() * (CANVAS_HEIGHT - 208);
     const direction = Math.random() * Math.PI * 2;
     const stepX = Math.cos(direction) * 58;
     const stepY = Math.sin(direction) * 58;
-    drawFootprint(context, baseX, baseY, direction + 0.3, 0.72 + Math.random() * 0.28);
-    drawFootprint(context, baseX + stepX, baseY + stepY, direction - 0.3, 0.72 + Math.random() * 0.28);
+    drawFootprint(toughContext, baseX, baseY, direction + 0.3, 0.72 + Math.random() * 0.28);
+    drawFootprint(toughContext, baseX + stepX, baseY + stepY, direction - 0.3, 0.72 + Math.random() * 0.28);
   }
 
   const crumbCount = randomInt(mess.crumbCount);
   for (let i = 0; i < crumbCount; i += 1) {
-    const x = 76 + Math.random() * (CANVAS_WIDTH - 152);
-    const y = 68 + Math.random() * (CANVAS_HEIGHT - 136);
+    // About one third of crumbs are deliberately close to the rug edge so the last few percent need accuracy.
+    const edgeCrumb = i < Math.ceil(crumbCount * 0.34);
+    const x = edgeCrumb
+      ? (Math.random() < 0.5 ? 62 + Math.random() * 56 : CANVAS_WIDTH - 118 + Math.random() * 56)
+      : 76 + Math.random() * (CANVAS_WIDTH - 152);
+    const y = edgeCrumb
+      ? (Math.random() < 0.5 ? 58 + Math.random() * 48 : CANVAS_HEIGHT - 106 + Math.random() * 48)
+      : 68 + Math.random() * (CANVAS_HEIGHT - 136);
     const radius = mess.key === "snack-attack" ? 2.5 + Math.random() * 6.5 : 2 + Math.random() * 5;
-    context.fillStyle = i % 3 === 0 ? "rgba(222, 170, 91, 0.92)" : "rgba(126, 88, 54, 0.84)";
-    context.beginPath();
-    context.arc(x, y, radius, 0, Math.PI * 2);
-    context.fill();
+    normalContext.fillStyle = i % 3 === 0 ? "rgba(222, 170, 91, 0.92)" : "rgba(126, 88, 54, 0.84)";
+    normalContext.beginPath();
+    normalContext.arc(x, y, radius, 0, Math.PI * 2);
+    normalContext.fill();
   }
 
-  context.restore();
+  [normalContext, toughContext, extraToughContext].forEach((context) => context.restore());
 }
 
 function compositeFrame(
   display: HTMLCanvasElement,
   rug: HTMLCanvasElement,
   dirt: HTMLCanvasElement,
+  toughDirt: HTMLCanvasElement,
+  extraToughDirt: HTMLCanvasElement,
+  highlightRemaining = false,
 ) {
   const context = display.getContext("2d");
   if (!context) return;
   context.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   context.drawImage(rug, 0, 0);
-  context.drawImage(dirt, 0, 0);
+
+  if (highlightRemaining) {
+    const pulse = (Math.sin(performance.now() / 115) + 1) / 2;
+    context.save();
+    context.filter = `brightness(${1.08 + pulse * 0.16}) saturate(${1.08 + pulse * 0.18})`;
+    context.shadowColor = `rgba(251,191,36,${0.16 + pulse * 0.16})`;
+    context.shadowBlur = 5 + pulse * 8;
+    context.drawImage(dirt, 0, 0);
+    context.drawImage(toughDirt, 0, 0);
+    context.drawImage(extraToughDirt, 0, 0);
+    context.restore();
+  } else {
+    context.drawImage(dirt, 0, 0);
+    context.drawImage(toughDirt, 0, 0);
+    context.drawImage(extraToughDirt, 0, 0);
+  }
 }
 
 function measureDirtMass(canvas: HTMLCanvasElement) {
@@ -432,17 +492,21 @@ function measureDirtMass(canvas: HTMLCanvasElement) {
   return mass;
 }
 
+function measureTotalDirtMass(canvases: Array<HTMLCanvasElement | null>) {
+  return canvases.reduce((total, canvas) => total + (canvas ? measureDirtMass(canvas) : 0), 0);
+}
+
 function starCountForPercent(percent: number) {
-  if (percent >= 95) return 3;
   if (percent >= 80) return 3;
-  if (percent >= 50) return 2;
+  if (percent >= 60) return 2;
   return 1;
 }
 
 function resultLabel(percent: number) {
-  if (percent >= 95) return "Perfect Clean!";
+  if (percent >= PERFECT_CLEAN_PERCENT) return "Perfect Clean!";
+  if (percent >= 95) return "Almost Perfect!";
   if (percent >= 80) return "Sparkling Work!";
-  if (percent >= 50) return "Much Better!";
+  if (percent >= 60) return "Much Better!";
   return "Keep Scrubbing!";
 }
 
@@ -451,6 +515,8 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
   const surfaceHostRef = useRef<HTMLDivElement | null>(null);
   const rugCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const dirtCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const toughDirtCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const extraToughDirtCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const gameStartedAtRef = useRef(0);
   const initialDirtMassRef = useRef(1);
   const previousDirtMassRef = useRef(1);
@@ -466,6 +532,7 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
   const finishedRef = useRef(false);
   const currentMessRef = useRef<MessDefinition>(MESS_TYPES[0]);
   const lastMessKeyRef = useRef<MessTypeKey | null>(null);
+  const lastScrubAtRef = useRef(0);
 
   const [phase, setPhase] = useState<GamePhase>("intro");
   const [countdown, setCountdown] = useState(3);
@@ -554,17 +621,21 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
     };
   }, []);
 
-  const renderFrame = useCallback(() => {
+  const renderFrame = useCallback((highlightRemaining = false) => {
     const display = displayCanvasRef.current;
     const rug = rugCanvasRef.current;
     const dirt = dirtCanvasRef.current;
-    if (!display || !rug || !dirt) return;
-    compositeFrame(display, rug, dirt);
+    const toughDirt = toughDirtCanvasRef.current;
+    const extraToughDirt = extraToughDirtCanvasRef.current;
+    if (!display || !rug || !dirt || !toughDirt || !extraToughDirt) return;
+    compositeFrame(display, rug, dirt, toughDirt, extraToughDirt, highlightRemaining);
   }, []);
 
   const measureProgress = useCallback((force = false) => {
     const dirt = dirtCanvasRef.current;
-    if (!dirt) {
+    const toughDirt = toughDirtCanvasRef.current;
+    const extraToughDirt = extraToughDirtCanvasRef.current;
+    if (!dirt || !toughDirt || !extraToughDirt) {
       return {
         percent: cleanPercentRef.current,
         nextScore: scoreRef.current,
@@ -582,7 +653,7 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
     }
 
     lastMeasureAtRef.current = now;
-    const remainingMass = measureDirtMass(dirt);
+    const remainingMass = measureTotalDirtMass([dirt, toughDirt, extraToughDirt]);
     const initialMass = Math.max(1, initialDirtMassRef.current);
     const removedMass = Math.max(0, previousDirtMassRef.current - remainingMass);
     previousDirtMassRef.current = remainingMass;
@@ -644,11 +715,26 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
     dirt.height = CANVAS_HEIGHT;
     const dirtContext = dirt.getContext("2d", { willReadFrequently: true });
     if (!dirtContext) return;
-    drawMess(dirtContext, mess);
+
+    const toughDirt = document.createElement("canvas");
+    toughDirt.width = CANVAS_WIDTH;
+    toughDirt.height = CANVAS_HEIGHT;
+    const toughDirtContext = toughDirt.getContext("2d", { willReadFrequently: true });
+    if (!toughDirtContext) return;
+
+    const extraToughDirt = document.createElement("canvas");
+    extraToughDirt.width = CANVAS_WIDTH;
+    extraToughDirt.height = CANVAS_HEIGHT;
+    const extraToughDirtContext = extraToughDirt.getContext("2d", { willReadFrequently: true });
+    if (!extraToughDirtContext) return;
+
+    drawMess(dirtContext, toughDirtContext, extraToughDirtContext, mess);
 
     rugCanvasRef.current = rug;
     dirtCanvasRef.current = dirt;
-    initialDirtMassRef.current = Math.max(1, measureDirtMass(dirt));
+    toughDirtCanvasRef.current = toughDirt;
+    extraToughDirtCanvasRef.current = extraToughDirt;
+    initialDirtMassRef.current = Math.max(1, measureTotalDirtMass([dirt, toughDirt, extraToughDirt]));
     previousDirtMassRef.current = initialDirtMassRef.current;
     cleanPercentRef.current = 0;
     scoreRef.current = 0;
@@ -657,6 +743,7 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
     maxComboRef.current = 1;
     lastCleanAtRef.current = 0;
     lastMeasureAtRef.current = 0;
+    lastScrubAtRef.current = 0;
     activePointerIdRef.current = null;
     lastPointRef.current = null;
     finishedRef.current = false;
@@ -724,7 +811,7 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
 
     const measured = measureProgress(true);
     let bonus = 0;
-    if (measured.percent >= 99.5) bonus = 1500;
+    if (measured.percent >= PERFECT_CLEAN_PERCENT) bonus = 1500;
     else if (measured.percent >= 95) bonus = 900;
     else if (measured.percent >= 80) bonus = 400;
 
@@ -779,12 +866,15 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
         return;
       }
 
+      // In the final three seconds, gently pulse the remaining dirt so players can spot missed corners.
+      if (remaining <= 3000) renderFrame(true);
+
       frameId = window.requestAnimationFrame(tick);
     };
 
     frameId = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(frameId);
-  }, [finishRound, phase]);
+  }, [finishRound, phase, renderFrame]);
 
   useEffect(() => {
     function handleEscape(event: KeyboardEvent) {
@@ -812,41 +902,67 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
 
   function cleanBetween(from: Point, to: Point) {
     const dirt = dirtCanvasRef.current;
-    if (!dirt) return;
-    const context = dirt.getContext("2d", { willReadFrequently: true });
-    if (!context) return;
+    const toughDirt = toughDirtCanvasRef.current;
+    const extraToughDirt = extraToughDirtCanvasRef.current;
+    if (!dirt || !toughDirt || !extraToughDirt) return;
 
-    const cleaningPower = currentMessRef.current.cleaningPower;
+    const now = performance.now();
+    const distance = Math.hypot(to.x - from.x, to.y - from.y);
+    const elapsedMs = lastScrubAtRef.current > 0 ? Math.max(16, now - lastScrubAtRef.current) : 32;
+    lastScrubAtRef.current = now;
+    const speedPxPerSecond = (distance / elapsedMs) * 1000;
 
-    context.save();
-    context.globalCompositeOperation = "destination-out";
-    context.lineCap = "round";
-    context.lineJoin = "round";
-    context.lineWidth = BRUSH_RADIUS * 1.5;
-    context.strokeStyle = `rgba(0,0,0,${cleaningPower})`;
-    context.beginPath();
-    context.moveTo(from.x, from.y);
-    context.lineTo(to.x, to.y);
-    context.stroke();
+    // Rug Rush rewards actual scrubbing rather than one huge frantic sweep.
+    // Normal hand movement stays strong; very fast swipes lose cleaning power.
+    let speedFactor = 1;
+    if (speedPxPerSecond > 1700) speedFactor = 0.34;
+    else if (speedPxPerSecond > 1250) speedFactor = 0.48;
+    else if (speedPxPerSecond > 900) speedFactor = 0.64;
+    else if (speedPxPerSecond > 650) speedFactor = 0.82;
+    else if (speedPxPerSecond < 55 && distance > 0) speedFactor = 0.9;
 
-    const gradient = context.createRadialGradient(
-      to.x,
-      to.y,
-      BRUSH_RADIUS * 0.18,
-      to.x,
-      to.y,
-      BRUSH_RADIUS,
-    );
-    gradient.addColorStop(0, `rgba(0,0,0,${Math.min(0.58, cleaningPower + 0.14)})`);
-    gradient.addColorStop(0.68, `rgba(0,0,0,${Math.max(0.14, cleaningPower - 0.08)})`);
-    gradient.addColorStop(1, "rgba(0,0,0,0)");
-    context.fillStyle = gradient;
-    context.beginPath();
-    context.arc(to.x, to.y, BRUSH_RADIUS, 0, Math.PI * 2);
-    context.fill();
-    context.restore();
+    const basePower = currentMessRef.current.cleaningPower * speedFactor;
 
-    renderFrame();
+    const eraseLayer = (canvas: HTMLCanvasElement, resistanceMultiplier: number) => {
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      if (!context) return;
+      const cleaningPower = clamp(basePower * resistanceMultiplier, 0.025, 0.32);
+
+      context.save();
+      context.globalCompositeOperation = "destination-out";
+      context.lineCap = "round";
+      context.lineJoin = "round";
+      context.lineWidth = BRUSH_RADIUS * 1.32;
+      context.strokeStyle = `rgba(0,0,0,${cleaningPower})`;
+      context.beginPath();
+      context.moveTo(from.x, from.y);
+      context.lineTo(to.x, to.y);
+      context.stroke();
+
+      const gradient = context.createRadialGradient(
+        to.x,
+        to.y,
+        BRUSH_RADIUS * 0.14,
+        to.x,
+        to.y,
+        BRUSH_RADIUS,
+      );
+      gradient.addColorStop(0, `rgba(0,0,0,${Math.min(0.40, cleaningPower + 0.075)})`);
+      gradient.addColorStop(0.62, `rgba(0,0,0,${Math.max(0.025, cleaningPower - 0.04)})`);
+      gradient.addColorStop(1, "rgba(0,0,0,0)");
+      context.fillStyle = gradient;
+      context.beginPath();
+      context.arc(to.x, to.y, BRUSH_RADIUS, 0, Math.PI * 2);
+      context.fill();
+      context.restore();
+    };
+
+    // Easy dirt, tougher footprints/stain centres, then the hardest spill cores.
+    eraseLayer(dirt, 1);
+    eraseLayer(toughDirt, 0.52);
+    eraseLayer(extraToughDirt, 0.28);
+
+    renderFrame(timeLeftMs <= 3000);
     measureProgress();
   }
 
@@ -874,6 +990,7 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
     if (activePointerIdRef.current === event.pointerId) {
       activePointerIdRef.current = null;
       lastPointRef.current = null;
+      lastScrubAtRef.current = 0;
     }
   }
 
@@ -960,7 +1077,7 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
                     <p className="text-[9px] font-black uppercase tracking-[0.17em] text-cyan-200/62">Nova needs your help</p>
                     <h3 className="mt-1.5 text-2xl font-black text-white sm:text-3xl">Clean the rug before time runs out!</h3>
                     <p className="mx-auto mt-2.5 max-w-md text-xs leading-5 text-white/58 sm:text-sm sm:leading-6">
-                      Every round brings a different mess. Keep cleaning new dirt without stopping to build your combo and multiply your score.
+                      Every round brings a different mess. Scrub back and forth over stubborn marks, keep your movement controlled, and build a combo while you remove new dirt.
                     </p>
 
                     <div className="mt-3 rounded-[16px] border border-violet-200/16 bg-violet-300/[0.055] px-4 py-3 text-left">
@@ -970,8 +1087,8 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
                     </div>
 
                     <div className="mx-auto mt-3 grid max-w-md grid-cols-2 gap-2 text-left">
-                      <MiniRule number="1" text="Scrub fresh dirt to score" />
-                      <MiniRule number="2" text="Keep moving for up to ×2" />
+                      <MiniRule number="1" text="Scrub back and forth — don’t just swipe" />
+                      <MiniRule number="2" text="99.5%+ earns a Perfect Clean" />
                     </div>
 
                     <div className="mt-3 grid grid-cols-2 gap-2">

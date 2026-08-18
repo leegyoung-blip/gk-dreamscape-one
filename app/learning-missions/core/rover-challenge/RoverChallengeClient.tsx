@@ -8,7 +8,6 @@ import {
   coreUpgradeTrack,
   type CoreRoverGameStats,
   type CoreRoverUpgrade,
-  getCoreRoverProgress,
 } from "@/lib/coreRoverProgress";
 import {
   getRoverLevel,
@@ -45,6 +44,12 @@ type PurchaseUnlockRow = {
   transaction_id: string;
 };
 
+type RoverLoadoutRow = {
+  selected_stage: number;
+  max_unlocked_stage: number;
+  admin_access: boolean;
+};
+
 type PhaserGameProps = {
   levelConfig: RoverLevelConfig;
   roverStage: number;
@@ -76,6 +81,7 @@ export default function RoverChallengeClient({
   const [currentUpgrade, setCurrentUpgrade] = useState<CoreRoverUpgrade>(
     coreUpgradeTrack[0],
   );
+  const [highestUnlockedStage, setHighestUnlockedStage] = useState(0);
   const [access, setAccess] = useState<RoverLevelAccess | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -158,12 +164,8 @@ export default function RoverChallengeClient({
 
       setUserId(user.id);
 
-      const [attemptsResult, accessResult] = await Promise.all([
-        supabase
-          .from("core_mission_attempts")
-          .select("quiz_id, tokens_earned")
-          .eq("user_id", user.id)
-          .gt("tokens_earned", 0),
+      const [loadoutResult, accessResult] = await Promise.all([
+        supabase.rpc("get_my_core_rover_loadout"),
         supabase.rpc("get_rover_level_access"),
       ]);
 
@@ -171,32 +173,36 @@ export default function RoverChallengeClient({
         return;
       }
 
-      if (attemptsResult.error) {
+      if (loadoutResult.error) {
         console.warn(
-          "Could not load rover stage:",
-          attemptsResult.error.message,
+          "Could not load equipped rover:",
+          loadoutResult.error.message,
         );
 
         /*
-         * On first entry we can safely use the base rover as a fallback.
-         * During a live run, preserve the already-loaded rover instead of
-         * changing game props because a background query briefly failed.
+         * Fail safely to the base rover if the new loadout migration has not
+         * been installed yet. A silent/background refresh never needs to
+         * restart the current Phaser run.
          */
         if (showLoading) {
           setCurrentUpgrade(coreUpgradeTrack[0]);
+          setHighestUnlockedStage(0);
         }
       } else {
-        const completedQuizIds = new Set(
-          (attemptsResult.data ?? []).map(
-            (attempt) => attempt.quiz_id,
-          ),
+        const loadout = ((loadoutResult.data ?? []) as RoverLoadoutRow[])[0];
+
+        const selectedStage = Number(loadout?.selected_stage ?? 0);
+        const maxUnlockedStage = Number(
+          loadout?.max_unlocked_stage ?? selectedStage,
         );
 
-        setCurrentUpgrade(
-          getCoreRoverProgress(
-            completedQuizIds.size,
-          ).currentUpgrade,
-        );
+        const selectedUpgrade =
+          coreUpgradeTrack.find(
+            (upgrade) => upgrade.stage === selectedStage,
+          ) ?? coreUpgradeTrack[0];
+
+        setCurrentUpgrade(selectedUpgrade);
+        setHighestUnlockedStage(maxUnlockedStage);
       }
 
       if (accessResult.error) {
@@ -400,9 +406,24 @@ export default function RoverChallengeClient({
       },
     );
 
+    const handleLoadoutUpdate = () => {
+      void loadPlayerState({
+        showLoading: false,
+      });
+    };
+
+    window.addEventListener(
+      "rover-loadout-updated",
+      handleLoadoutUpdate,
+    );
+
     return () => {
       playerStateRequestIdRef.current += 1;
       subscription.unsubscribe();
+      window.removeEventListener(
+        "rover-loadout-updated",
+        handleLoadoutUpdate,
+      );
     };
   }, [loadPlayerState]);
 
@@ -514,7 +535,7 @@ export default function RoverChallengeClient({
           <LevelGate
             level={levelConfig}
             access={access}
-            currentStage={currentUpgrade.stage}
+            currentStage={highestUnlockedStage}
             signedIn={Boolean(userId)}
             error={loadError}
             unlockingEarly={unlockingEarly}

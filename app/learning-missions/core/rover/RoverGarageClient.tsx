@@ -43,6 +43,12 @@ type PurchaseUnlockRow = {
   transaction_id: string;
 };
 
+type RoverLoadoutRow = {
+  selected_stage: number;
+  max_unlocked_stage: number;
+  admin_access: boolean;
+};
+
 type RoverCourseMeta = {
   id: RoverLevelId;
   courseId: string;
@@ -331,9 +337,19 @@ export default function RoverGarageClient() {
 
   const [completedMissionCount, setCompletedMissionCount] = useState(0);
 
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  const [equippedStage, setEquippedStage] = useState(0);
+
   const [selectedUpgradeStage, setSelectedUpgradeStage] = useState<
     number | null
   >(null);
+
+  const [savingRoverStage, setSavingRoverStage] = useState<number | null>(
+    null,
+  );
+
+  const [loadoutMessage, setLoadoutMessage] = useState("");
 
   const [rank, setRank] = useState<number | null>(null);
 
@@ -364,7 +380,7 @@ export default function RoverGarageClient() {
 
   const displayedUpgrade = useMemo(() => {
     const requestedStage =
-      selectedUpgradeStage ?? progress.currentUpgrade.stage;
+      selectedUpgradeStage ?? equippedStage ?? progress.currentUpgrade.stage;
 
     const requestedUpgrade = coreUpgradeTrack.find(
       (upgrade) => upgrade.stage === requestedStage,
@@ -372,16 +388,30 @@ export default function RoverGarageClient() {
 
     if (
       requestedUpgrade &&
-      completedMissionCount >= requestedUpgrade.missionsRequired
+      (isAdmin ||
+        completedMissionCount >= requestedUpgrade.missionsRequired)
     ) {
       return requestedUpgrade;
     }
 
-    return progress.currentUpgrade;
-  }, [completedMissionCount, progress.currentUpgrade, selectedUpgradeStage]);
+    const equippedUpgrade = coreUpgradeTrack.find(
+      (upgrade) => upgrade.stage === equippedStage,
+    );
 
-  const viewingCurrentBuild =
-    displayedUpgrade.stage === progress.currentUpgrade.stage;
+    if (equippedUpgrade) {
+      return equippedUpgrade;
+    }
+
+    return progress.currentUpgrade;
+  }, [
+    completedMissionCount,
+    equippedStage,
+    isAdmin,
+    progress.currentUpgrade,
+    selectedUpgradeStage,
+  ]);
+
+  const viewingEquippedBuild = displayedUpgrade.stage === equippedStage;
 
   const loadGarage = useCallback(async () => {
     setLoading(true);
@@ -402,6 +432,7 @@ export default function RoverGarageClient() {
       tokensResult,
       profileResult,
       attemptsResult,
+      loadoutResult,
       summaryResult,
       accessResult,
       levelOneLeaderboardResult,
@@ -417,7 +448,7 @@ export default function RoverGarageClient() {
 
       supabase
         .from("profiles")
-        .select("dream_gem_balance")
+        .select("dream_gem_balance,role,tier")
         .eq("id", user.id)
         .maybeSingle(),
 
@@ -426,6 +457,8 @@ export default function RoverGarageClient() {
         .select("quiz_id, tokens_earned")
         .eq("user_id", user.id)
         .gt("tokens_earned", 0),
+
+      supabase.rpc("get_my_core_rover_loadout"),
 
       supabase.rpc("get_my_rover_challenge_summary", {
         p_course_id: COURSE_ID,
@@ -465,6 +498,15 @@ export default function RoverGarageClient() {
       );
     }
 
+    const resolvedRole = String(
+      profileResult.data?.role ?? profileResult.data?.tier ?? "",
+    )
+      .trim()
+      .toLowerCase();
+
+    const resolvedAdmin = resolvedRole === "admin";
+    setIsAdmin(resolvedAdmin);
+
     if (profileResult.error) {
       console.warn("Could not load DG balance:", profileResult.error.message);
       setDreamGemBalance(0);
@@ -473,6 +515,8 @@ export default function RoverGarageClient() {
         Math.max(0, Number(profileResult.data?.dream_gem_balance || 0)),
       );
     }
+
+    let resolvedCompletedMissionCount = 0;
 
     if (attemptsResult.error) {
       console.warn(
@@ -483,7 +527,37 @@ export default function RoverGarageClient() {
       const completed = new Set(
         (attemptsResult.data ?? []).map((row) => row.quiz_id),
       );
-      setCompletedMissionCount(completed.size);
+
+      resolvedCompletedMissionCount = completed.size;
+      setCompletedMissionCount(resolvedCompletedMissionCount);
+    }
+
+    const fallbackStage = resolvedAdmin
+      ? coreUpgradeTrack[coreUpgradeTrack.length - 1].stage
+      : getCoreRoverProgress(resolvedCompletedMissionCount).currentUpgrade
+          .stage;
+
+    if (loadoutResult.error) {
+      console.warn(
+        "Could not load equipped rover:",
+        loadoutResult.error.message,
+      );
+
+      setEquippedStage(fallbackStage);
+      setSelectedUpgradeStage(fallbackStage);
+      setLoadoutMessage(
+        "Equipped rover could not be loaded. Run the Rover Loadout SQL in Supabase.",
+      );
+    } else {
+      const loadout = ((loadoutResult.data ?? []) as RoverLoadoutRow[])[0];
+      const resolvedStage = Number(
+        loadout?.selected_stage ?? fallbackStage,
+      );
+
+      setEquippedStage(resolvedStage);
+      setSelectedUpgradeStage(resolvedStage);
+      setIsAdmin(Boolean(loadout?.admin_access ?? resolvedAdmin));
+      setLoadoutMessage("");
     }
 
     if (summaryResult.error) {
@@ -543,6 +617,71 @@ export default function RoverGarageClient() {
 
     setLoading(false);
   }, []);
+
+  const selectAndEquipRover = useCallback(
+    async (stage: number) => {
+      const upgrade = coreUpgradeTrack.find(
+        (item) => item.stage === stage,
+      );
+
+      if (!upgrade) return;
+
+      const unlocked =
+        isAdmin ||
+        completedMissionCount >= upgrade.missionsRequired;
+
+      if (!unlocked || savingRoverStage !== null) {
+        return;
+      }
+
+      const previousEquippedStage = equippedStage;
+
+      /*
+       * Selection in Rover Upgrades now means EQUIP.
+       * Update the preview immediately, then persist the same stage through
+       * the validated Supabase RPC.
+       */
+      setSelectedUpgradeStage(stage);
+      setSavingRoverStage(stage);
+      setLoadoutMessage("");
+
+      const { data, error } = await supabase.rpc(
+        "set_my_core_rover_stage",
+        {
+          p_stage: stage,
+        },
+      );
+
+      setSavingRoverStage(null);
+
+      if (error) {
+        console.warn("Could not equip rover:", error.message);
+        setSelectedUpgradeStage(previousEquippedStage);
+        setLoadoutMessage(
+          error.message || "This rover could not be equipped.",
+        );
+        return;
+      }
+
+      const loadout = ((data ?? []) as RoverLoadoutRow[])[0];
+      const savedStage = Number(loadout?.selected_stage ?? stage);
+
+      setEquippedStage(savedStage);
+      setSelectedUpgradeStage(savedStage);
+      setIsAdmin(Boolean(loadout?.admin_access ?? isAdmin));
+      setLoadoutMessage(
+        `${upgrade.name} equipped. Rover Challenge will use this build.`,
+      );
+
+      window.dispatchEvent(new Event("rover-loadout-updated"));
+    },
+    [
+      completedMissionCount,
+      equippedStage,
+      isAdmin,
+      savingRoverStage,
+    ],
+  );
 
   const purchaseEarlyUnlock = useCallback(
     async (levelId: RoverLevelId) => {
@@ -713,9 +852,9 @@ export default function RoverGarageClient() {
             <div style={previewTopRow}>
               <div>
                 <p style={smallEyebrow}>
-                  {viewingCurrentBuild
-                    ? "CURRENT BUILD"
-                    : "VIEWING UNLOCKED BUILD"}
+                  {viewingEquippedBuild
+                    ? "EQUIPPED BUILD"
+                    : "VIEWING ROVER BUILD"}
                 </p>
                 <h2 style={currentBuildTitle}>
                   Stage {displayedUpgrade.stage} · {displayedUpgrade.name}
@@ -738,23 +877,15 @@ export default function RoverGarageClient() {
               accent={displayedUpgrade.accent}
             />
 
-            {!viewingCurrentBuild && (
-              <button
-                type="button"
-                onClick={() =>
-                  setSelectedUpgradeStage(progress.currentUpgrade.stage)
-                }
-                style={returnCurrentButton}
-              >
-                Return to Current Build
-              </button>
+            {loadoutMessage && (
+              <div style={courseNotice}>{loadoutMessage}</div>
             )}
 
             <div style={progressTrack}>
               <div
                 style={{
                   ...progressFill,
-                  width: `${progress.progressPercentage}%`,
+                  width: `${isAdmin ? 100 : progress.progressPercentage}%`,
                   background: `linear-gradient(90deg, ${progress.currentUpgrade.accent}, #35c5ff)`,
                 }}
               />
@@ -762,12 +893,16 @@ export default function RoverGarageClient() {
 
             <div style={progressBottomRow}>
               <p style={progressText}>
-                {completedMissionCount} counted Core Missions
+                {isAdmin
+                  ? "Admin access · all rover stages unlocked"
+                  : `${completedMissionCount} counted Core Missions`}
               </p>
               <p style={progressText}>
-                {progress.nextUpgrade
-                  ? `${progress.missionsToNext} to ${progress.nextUpgrade.shortName}`
-                  : "All stages unlocked"}
+                {isAdmin
+                  ? `Equipped: Stage ${equippedStage}`
+                  : progress.nextUpgrade
+                    ? `${progress.missionsToNext} to ${progress.nextUpgrade.shortName}`
+                    : "All stages unlocked"}
               </p>
             </div>
 
@@ -835,7 +970,11 @@ export default function RoverGarageClient() {
               leaderboards={leaderboards}
               loadMessage={courseLoadMessage}
               actionMessage={courseActionMessage}
-              currentStage={progress.currentUpgrade.stage}
+              currentStage={
+                isAdmin
+                  ? coreUpgradeTrack[coreUpgradeTrack.length - 1].stage
+                  : progress.currentUpgrade.stage
+              }
               dreamGemBalance={dreamGemBalance}
               purchasingLevel={purchasingLevel}
               userId={userId}
@@ -849,8 +988,11 @@ export default function RoverGarageClient() {
           ) : tab === "upgrades" ? (
             <UpgradeTrack
               completedMissionCount={completedMissionCount}
+              isAdmin={isAdmin}
+              equippedStage={equippedStage}
               selectedStage={displayedUpgrade.stage}
-              onSelectStage={setSelectedUpgradeStage}
+              savingStage={savingRoverStage}
+              onSelectStage={(stage) => void selectAndEquipRover(stage)}
             />
           ) : (
             <CustomBuildPanel tokenBalance={tokenBalance} isMobile={isMobile} />
@@ -1191,11 +1333,17 @@ function RoverBuildStats({ stage, accent }: { stage: number; accent: string }) {
 
 function UpgradeTrack({
   completedMissionCount,
+  isAdmin,
+  equippedStage,
   selectedStage,
+  savingStage,
   onSelectStage,
 }: {
   completedMissionCount: number;
+  isAdmin: boolean;
+  equippedStage: number;
   selectedStage: number;
+  savingStage: number | null;
   onSelectStage: (stage: number) => void;
 }) {
   return (
@@ -1207,35 +1355,34 @@ function UpgradeTrack({
 
         <p style={panelDescription}>
           Complete new Core Mission quizzes to unlock performance upgrades.
-          Select any previously unlocked build to view it. Replays do not add
-          progress.
+          Selecting an available rover equips it immediately, and that exact
+          build is used in Rover Challenge. Admin accounts can equip every
+          stage. Replays do not add progress.
         </p>
       </div>
 
       <div style={upgradeList}>
-        {coreUpgradeTrack.map((upgrade, index) => {
-          const unlocked = completedMissionCount >= upgrade.missionsRequired;
+        {coreUpgradeTrack.map((upgrade) => {
+          const unlocked =
+            isAdmin ||
+            completedMissionCount >= upgrade.missionsRequired;
 
-          const current =
-            unlocked &&
-            (index === coreUpgradeTrack.length - 1 ||
-              completedMissionCount <
-                coreUpgradeTrack[index + 1].missionsRequired);
-
+          const equipped = equippedStage === upgrade.stage;
           const selected = selectedStage === upgrade.stage;
+          const saving = savingStage === upgrade.stage;
 
           return (
             <button
               key={upgrade.stage}
               type="button"
-              disabled={!unlocked}
+              disabled={!unlocked || savingStage !== null}
               onClick={() => {
-                if (unlocked) {
+                if (unlocked && savingStage === null) {
                   onSelectStage(upgrade.stage);
                 }
               }}
-              aria-pressed={selected}
-              style={upgradeRow(unlocked, current, selected, upgrade.accent)}
+              aria-pressed={equipped}
+              style={upgradeRow(unlocked, equipped, selected, upgrade.accent)}
             >
               <div style={stageNumber(unlocked, upgrade.accent)}>
                 {upgrade.stage}
@@ -1263,18 +1410,22 @@ function UpgradeTrack({
                 <p
                   style={upgradeStatus(
                     unlocked,
-                    current,
+                    equipped,
                     selected,
                     upgrade.accent,
                   )}
                 >
-                  {current
-                    ? "CURRENT BUILD"
-                    : selected
-                      ? "VIEWING"
-                      : unlocked
-                        ? "UNLOCKED · SELECT"
-                        : `${upgrade.missionsRequired} MISSIONS`}
+                  {equipped
+                    ? "EQUIPPED · USED IN CHALLENGE"
+                    : saving
+                      ? "EQUIPPING..."
+                      : selected
+                        ? "SELECTED"
+                        : unlocked
+                          ? isAdmin
+                            ? "ADMIN UNLOCKED · SELECT TO EQUIP"
+                            : "UNLOCKED · SELECT TO EQUIP"
+                          : `${upgrade.missionsRequired} MISSIONS`}
                 </p>
 
                 <h3
@@ -1817,19 +1968,6 @@ const buildStatFill: CSSProperties = {
   transition: "width 220ms ease",
 };
 
-const returnCurrentButton: CSSProperties = {
-  marginTop: "11px",
-  minHeight: "38px",
-  borderRadius: "11px",
-  border: "1px solid rgba(126,232,255,0.28)",
-  background: "rgba(126,232,255,0.08)",
-  color: "#c9f9ff",
-  padding: "0 14px",
-  fontSize: "12px",
-  fontWeight: 800,
-  cursor: "pointer",
-};
-
 const progressTrack: CSSProperties = {
   marginTop: "15px",
   height: "12px",
@@ -1956,7 +2094,7 @@ const upgradeList: CSSProperties = {
 
 function upgradeRow(
   unlocked: boolean,
-  current: boolean,
+  equipped: boolean,
   selected: boolean,
   accent: string,
 ): CSSProperties {
@@ -1965,14 +2103,14 @@ function upgradeRow(
     borderRadius: "16px",
     border: selected
       ? `1px solid ${accent}`
-      : current
+      : equipped
         ? `1px solid ${accent}88`
         : unlocked
           ? "1px solid rgba(134,239,172,0.22)"
           : "1px solid rgba(255,255,255,0.08)",
     background: selected
       ? `linear-gradient(135deg, ${accent}26, rgba(255,255,255,0.06))`
-      : current
+      : equipped
         ? `linear-gradient(135deg, ${accent}18, rgba(255,255,255,0.04))`
         : "rgba(255,255,255,0.035)",
     padding: "11px",
@@ -2007,13 +2145,13 @@ function stageNumber(unlocked: boolean, accent: string): CSSProperties {
 
 function upgradeStatus(
   unlocked: boolean,
-  current: boolean,
+  equipped: boolean,
   selected: boolean,
   accent: string,
 ): CSSProperties {
   return {
     margin: 0,
-    color: current
+    color: equipped
       ? accent
       : selected
         ? "#7ee8ff"
