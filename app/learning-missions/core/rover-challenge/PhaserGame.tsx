@@ -2832,18 +2832,53 @@ export default function PhaserGame({
   roverName,
   gameStats,
 }: PhaserGameProps) {
-  const gameContainerRef = useRef<HTMLDivElement | null>(null);
+  const gameContainerRef =
+    useRef<HTMLDivElement | null>(null);
 
-  const gameRef = useRef<Phaser.Game | null>(null);
+  const gameRef =
+    useRef<Phaser.Game | null>(null);
 
-  const [gameVersion, setGameVersion] = useState(0);
+  /*
+   * Keep the newest props available for an intentional replay without
+   * allowing ordinary React prop refreshes to destroy the current run.
+   *
+   * The old implementation placed levelConfig, roverStage, roverName and
+   * gameStats in the Phaser creation effect dependency list. Any refreshed
+   * object identity could therefore destroy Phaser.Game and create a new one.
+   */
+  const latestGamePropsRef =
+    useRef<PhaserGameProps>({
+      levelConfig,
+      roverStage,
+      roverName,
+      gameStats,
+    });
+
+  latestGamePropsRef.current = {
+    levelConfig,
+    roverStage,
+    roverName,
+    gameStats,
+  };
+
+  const [gameVersion, setGameVersion] =
+    useState(0);
 
   useEffect(() => {
     const handleRestartRequest = () => {
-      setGameVersion((current) => current + 1);
+      /*
+       * This is the ONLY normal in-page event that deliberately recreates
+       * Phaser. It is used by the R key and the Replay button.
+       */
+      setGameVersion(
+        (current) => current + 1,
+      );
     };
 
-    window.addEventListener("rover-restart-requested", handleRestartRequest);
+    window.addEventListener(
+      "rover-restart-requested",
+      handleRestartRequest,
+    );
 
     return () => {
       window.removeEventListener(
@@ -2854,27 +2889,47 @@ export default function PhaserGame({
   }, []);
 
   useEffect(() => {
-    if (!gameContainerRef.current) {
+    const container =
+      gameContainerRef.current;
+
+    if (!container) {
       return;
     }
+
+    /*
+     * A new game is created only when this component first mounts or when
+     * gameVersion changes because the player intentionally requested Replay.
+     *
+     * Auth refreshes, focus changes, screenshots, balance refreshes and
+     * progression revalidation do not change gameVersion and therefore cannot
+     * restart the current run.
+     */
+    const currentProps =
+      latestGamePropsRef.current;
 
     gameRef.current?.destroy(true);
     gameRef.current = null;
 
-    const scene = new RoverMatterScene({
-      levelConfig,
-      roverStage,
-      roverName,
-      gameStats,
-    });
+    const scene =
+      new RoverMatterScene({
+        levelConfig:
+          currentProps.levelConfig,
+        roverStage:
+          currentProps.roverStage,
+        roverName:
+          currentProps.roverName,
+        gameStats:
+          currentProps.gameStats,
+      });
 
-    const config: Phaser.Types.Core.GameConfig = {
+    const config:
+      Phaser.Types.Core.GameConfig = {
       type: Phaser.AUTO,
 
       width: GAME_WIDTH,
       height: GAME_HEIGHT,
 
-      parent: gameContainerRef.current,
+      parent: container,
 
       backgroundColor: "#070a18",
 
@@ -2900,7 +2955,8 @@ export default function PhaserGame({
       scale: {
         mode: Phaser.Scale.FIT,
 
-        autoCenter: Phaser.Scale.CENTER_BOTH,
+        autoCenter:
+          Phaser.Scale.CENTER_BOTH,
 
         width: GAME_WIDTH,
         height: GAME_HEIGHT,
@@ -2915,25 +2971,48 @@ export default function PhaserGame({
       scene: [scene],
     };
 
-    const game = new Phaser.Game(config);
+    const game =
+      new Phaser.Game(config);
+
     gameRef.current = game;
 
-    const resizeObserver = new ResizeObserver(() => {
-      window.requestAnimationFrame(() => {
-        if (gameRef.current === game) {
-          game.scale.refresh();
-        }
+    /*
+     * Resize only the Phaser scale manager. Resizing the browser, entering
+     * fullscreen or returning from a screenshot must never recreate the game.
+     */
+    const resizeObserver =
+      new ResizeObserver(() => {
+        window.requestAnimationFrame(
+          () => {
+            if (
+              gameRef.current === game
+            ) {
+              game.scale.refresh();
+            }
+          },
+        );
       });
-    });
 
-    resizeObserver.observe(gameContainerRef.current);
+    resizeObserver.observe(container);
 
     return () => {
       resizeObserver.disconnect();
-      gameRef.current?.destroy(true);
-      gameRef.current = null;
+
+      /*
+       * This cleanup now runs only for:
+       * - intentional Replay (gameVersion change), or
+       * - genuine React unmount/route navigation.
+       */
+      if (
+        gameRef.current === game
+      ) {
+        game.destroy(true);
+        gameRef.current = null;
+      } else {
+        game.destroy(true);
+      }
     };
-  }, [gameVersion, levelConfig, roverStage, roverName, gameStats]);
+  }, [gameVersion]);
 
   return (
     <div

@@ -90,57 +90,152 @@ export default function RoverChallengeClient({
   const submittedRunRef = useRef<string | null>(null);
   const gameAreaRef = useRef<HTMLDivElement | null>(null);
 
-  const loadPlayerState = useCallback(async () => {
-    setLoading(true);
-    setLoadError("");
+  /*
+   * Only the newest player-state request is allowed to update React state.
+   * This prevents an older Supabase request from finishing after a newer
+   * auth refresh and replacing the current access/progression result.
+   */
+  const playerStateRequestIdRef = useRef(0);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  const loadPlayerState = useCallback(
+    async ({
+      showLoading = false,
+    }: {
+      showLoading?: boolean;
+    } = {}) => {
+      const requestId = ++playerStateRequestIdRef.current;
 
-    if (!user) {
-      setUserId(null);
-      setAccess(null);
+      /*
+       * CRITICAL:
+       *
+       * The full-screen loading gate is only used before the Phaser game
+       * has mounted for the first time.
+       *
+       * Token refreshes and other background auth events revalidate silently.
+       * They must never replace <PhaserGame /> with <LoadingScreen />, because
+       * doing so destroys the live Phaser.Game instance and restarts the run.
+       */
+      if (showLoading) {
+        setLoading(true);
+        setLoadError("");
+      }
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (requestId !== playerStateRequestIdRef.current) {
+        return;
+      }
+
+      if (userError) {
+        console.warn(
+          "Could not check the current Rover Challenge user:",
+          userError.message,
+        );
+
+        /*
+         * A temporary background auth/network error is not proof that the
+         * learner has lost access. Keep an already-running game mounted.
+         */
+        if (showLoading) {
+          setLoadError(
+            "Rover Challenge access could not be checked. Please try again.",
+          );
+        }
+
+        setLoading(false);
+        return;
+      }
+
+      if (!user) {
+        setUserId(null);
+        setAccess(null);
+        setLoading(false);
+        return;
+      }
+
+      setUserId(user.id);
+
+      const [attemptsResult, accessResult] = await Promise.all([
+        supabase
+          .from("core_mission_attempts")
+          .select("quiz_id, tokens_earned")
+          .eq("user_id", user.id)
+          .gt("tokens_earned", 0),
+        supabase.rpc("get_rover_level_access"),
+      ]);
+
+      if (requestId !== playerStateRequestIdRef.current) {
+        return;
+      }
+
+      if (attemptsResult.error) {
+        console.warn(
+          "Could not load rover stage:",
+          attemptsResult.error.message,
+        );
+
+        /*
+         * On first entry we can safely use the base rover as a fallback.
+         * During a live run, preserve the already-loaded rover instead of
+         * changing game props because a background query briefly failed.
+         */
+        if (showLoading) {
+          setCurrentUpgrade(coreUpgradeTrack[0]);
+        }
+      } else {
+        const completedQuizIds = new Set(
+          (attemptsResult.data ?? []).map(
+            (attempt) => attempt.quiz_id,
+          ),
+        );
+
+        setCurrentUpgrade(
+          getCoreRoverProgress(
+            completedQuizIds.size,
+          ).currentUpgrade,
+        );
+      }
+
+      if (accessResult.error) {
+        console.warn(
+          "Could not load rover level access:",
+          accessResult.error.message,
+        );
+
+        /*
+         * Initial entry remains fail-closed.
+         *
+         * Background revalidation is non-destructive: a temporary Supabase
+         * error must not remove <PhaserGame /> from the React tree.
+         */
+        if (showLoading) {
+          setAccess(null);
+          setLoadError(
+            "Level access could not be checked. Run the Rover Level Access System SQL in Supabase.",
+          );
+        }
+      } else {
+        const rows =
+          (accessResult.data ??
+            []) as RoverLevelAccess[];
+
+        setAccess(
+          rows.find(
+            (row) =>
+              Number(row.level_id) === levelId,
+          ) ?? null,
+        );
+
+        setLoadError("");
+      }
+
       setLoading(false);
-      return;
-    }
-
-    setUserId(user.id);
-
-    const [attemptsResult, accessResult] = await Promise.all([
-      supabase
-        .from("core_mission_attempts")
-        .select("quiz_id, tokens_earned")
-        .eq("user_id", user.id)
-        .gt("tokens_earned", 0),
-      supabase.rpc("get_rover_level_access"),
-    ]);
-
-    if (attemptsResult.error) {
-      console.warn("Could not load rover stage:", attemptsResult.error.message);
-      setCurrentUpgrade(coreUpgradeTrack[0]);
-    } else {
-      const completedQuizIds = new Set(
-        (attemptsResult.data ?? []).map((attempt) => attempt.quiz_id),
-      );
-      setCurrentUpgrade(
-        getCoreRoverProgress(completedQuizIds.size).currentUpgrade,
-      );
-    }
-
-    if (accessResult.error) {
-      console.warn("Could not load rover level access:", accessResult.error.message);
-      setAccess(null);
-      setLoadError(
-        "Level access could not be checked. Run the Rover Level Access System SQL in Supabase.",
-      );
-    } else {
-      const rows = (accessResult.data ?? []) as RoverLevelAccess[];
-      setAccess(rows.find((row) => Number(row.level_id) === levelId) ?? null);
-    }
-
-    setLoading(false);
-  }, [levelId]);
+    },
+    [levelId],
+  );
 
   const saveCompletedRun = useCallback(
     async (result: RoverCourseCompleteDetail) => {
@@ -262,11 +357,53 @@ export default function RoverChallengeClient({
   }, [access, levelConfig.title, levelId, loadPlayerState]);
 
   useEffect(() => {
-    void loadPlayerState();
+    /*
+     * Initial route entry may show the access loading screen.
+     */
+    void loadPlayerState({
+      showLoading: true,
+    });
+
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => void loadPlayerState());
-    return () => subscription.unsubscribe();
+    } = supabase.auth.onAuthStateChange(
+      (event) => {
+        /*
+         * The initial route load above already resolves the current session.
+         * Ignoring INITIAL_SESSION avoids an unnecessary duplicate request.
+         */
+        if (event === "INITIAL_SESSION") {
+          return;
+        }
+
+        /*
+         * A real sign-out should end access immediately.
+         */
+        if (event === "SIGNED_OUT") {
+          playerStateRequestIdRef.current += 1;
+          setUserId(null);
+          setAccess(null);
+          setLoading(false);
+          return;
+        }
+
+        /*
+         * TOKEN_REFRESHED, SIGNED_IN and USER_UPDATED can occur while the
+         * player is halfway through a course. Revalidate silently outside
+         * the Supabase auth callback so Phaser stays mounted.
+         */
+        window.setTimeout(() => {
+          void loadPlayerState({
+            showLoading: false,
+          });
+        }, 0);
+      },
+    );
+
+    return () => {
+      playerStateRequestIdRef.current += 1;
+      subscription.unsubscribe();
+    };
   }, [loadPlayerState]);
 
   useEffect(() => {

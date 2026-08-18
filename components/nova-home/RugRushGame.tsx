@@ -18,7 +18,7 @@ type Point = {
 const CANVAS_WIDTH = 900;
 const CANVAS_HEIGHT = 560;
 const ROUND_DURATION_MS = 10_000;
-const BRUSH_RADIUS = 52;
+const BRUSH_RADIUS = 42;
 const SAMPLE_STEP = 2;
 
 function clamp(value: number, min: number, max: number) {
@@ -46,75 +46,157 @@ function roundedRectPath(
 function drawRugBase(context: CanvasRenderingContext2D) {
   context.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-  const outer = context.createLinearGradient(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-  outer.addColorStop(0, "#0b2743");
-  outer.addColorStop(0.55, "#0d3351");
-  outer.addColorStop(1, "#081c34");
+  // Deep shadow beneath the rug.
+  context.save();
+  context.shadowColor = "rgba(0, 0, 0, 0.58)";
+  context.shadowBlur = 28;
+  context.shadowOffsetY = 16;
+  roundedRectPath(context, 38, 30, CANVAS_WIDTH - 76, CANVAS_HEIGHT - 60, 66);
+  context.fillStyle = "#061320";
+  context.fill();
+  context.restore();
 
-  roundedRectPath(context, 36, 28, CANVAS_WIDTH - 72, CANVAS_HEIGHT - 56, 54);
-  context.fillStyle = outer;
+  // Main woven navy surface.
+  const base = context.createLinearGradient(70, 40, CANVAS_WIDTH - 80, CANVAS_HEIGHT - 48);
+  base.addColorStop(0, "#11375a");
+  base.addColorStop(0.42, "#0d2d4a");
+  base.addColorStop(1, "#071d35");
+  roundedRectPath(context, 38, 28, CANVAS_WIDTH - 76, CANVAS_HEIGHT - 64, 64);
+  context.fillStyle = base;
   context.fill();
 
   context.save();
-  roundedRectPath(context, 48, 40, CANVAS_WIDTH - 96, CANVAS_HEIGHT - 80, 46);
+  roundedRectPath(context, 50, 40, CANVAS_WIDTH - 100, CANVAS_HEIGHT - 88, 54);
   context.clip();
 
-  const innerGlow = context.createRadialGradient(
+  // Subtle woven texture.
+  context.globalAlpha = 0.12;
+  context.lineWidth = 1;
+  for (let y = 48; y < CANVAS_HEIGHT - 42; y += 8) {
+    context.strokeStyle = y % 16 === 0 ? "#8cecff" : "#183e60";
+    context.beginPath();
+    context.moveTo(44, y);
+    context.lineTo(CANVAS_WIDTH - 44, y + 4);
+    context.stroke();
+  }
+  for (let x = 52; x < CANVAS_WIDTH - 48; x += 10) {
+    context.strokeStyle = x % 20 === 0 ? "#7bdff6" : "#102f4d";
+    context.beginPath();
+    context.moveTo(x, 40);
+    context.lineTo(x + 4, CANVAS_HEIGHT - 40);
+    context.stroke();
+  }
+
+  // Soft centre glow.
+  context.globalAlpha = 1;
+  const glow = context.createRadialGradient(
     CANVAS_WIDTH * 0.5,
-    CANVAS_HEIGHT * 0.42,
-    30,
+    CANVAS_HEIGHT * 0.49,
+    22,
     CANVAS_WIDTH * 0.5,
-    CANVAS_HEIGHT * 0.42,
-    CANVAS_WIDTH * 0.52,
+    CANVAS_HEIGHT * 0.49,
+    320,
   );
-  innerGlow.addColorStop(0, "rgba(48, 182, 220, 0.34)");
-  innerGlow.addColorStop(0.52, "rgba(23, 107, 151, 0.14)");
-  innerGlow.addColorStop(1, "rgba(4, 17, 32, 0.05)");
-  context.fillStyle = innerGlow;
-  context.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+  glow.addColorStop(0, "rgba(45, 202, 229, 0.22)");
+  glow.addColorStop(0.48, "rgba(28, 133, 176, 0.09)");
+  glow.addColorStop(1, "rgba(0, 0, 0, 0)");
+  context.fillStyle = glow;
+  context.fillRect(50, 40, CANVAS_WIDTH - 100, CANVAS_HEIGHT - 88);
 
-  context.globalAlpha = 0.22;
-  context.strokeStyle = "#76e6ff";
-  context.lineWidth = 2;
-
-  for (let y = 78; y < CANVAS_HEIGHT - 70; y += 54) {
-    context.beginPath();
-    for (let x = 82; x < CANVAS_WIDTH - 70; x += 42) {
-      const wave = Math.sin((x + y) * 0.018) * 8;
-      if (x === 82) context.moveTo(x, y + wave);
-      else context.lineTo(x, y + wave);
-    }
-    context.stroke();
-  }
-
-  context.globalAlpha = 0.14;
-  context.strokeStyle = "#b7f5ff";
-  context.lineWidth = 1.5;
-  for (let x = 90; x < CANVAS_WIDTH - 70; x += 58) {
-    context.beginPath();
-    context.moveTo(x, 58);
-    context.lineTo(x + 52, CANVAS_HEIGHT - 58);
-    context.stroke();
-  }
-
-  context.globalAlpha = 0.24;
-  context.strokeStyle = "#61d6f5";
+  // Elegant inset frame.
+  context.strokeStyle = "rgba(113, 226, 248, 0.48)";
   context.lineWidth = 5;
-  roundedRectPath(context, 66, 58, CANVAS_WIDTH - 132, CANVAS_HEIGHT - 116, 36);
+  roundedRectPath(context, 68, 58, CANVAS_WIDTH - 136, CANVAS_HEIGHT - 124, 43);
   context.stroke();
 
-  context.restore();
+  context.strokeStyle = "rgba(176, 245, 255, 0.16)";
+  context.lineWidth = 2;
+  roundedRectPath(context, 82, 72, CANVAS_WIDTH - 164, CANVAS_HEIGHT - 152, 36);
+  context.stroke();
 
+  // Nova-inspired orbital arcs.
   context.save();
-  context.shadowColor = "rgba(75, 220, 255, 0.42)";
-  context.shadowBlur = 18;
-  context.strokeStyle = "rgba(120, 236, 255, 0.55)";
+  context.translate(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+  context.strokeStyle = "rgba(92, 220, 246, 0.16)";
+  context.lineWidth = 3;
+  context.beginPath();
+  context.ellipse(0, 0, 250, 112, -0.12, 0, Math.PI * 2);
+  context.stroke();
+  context.beginPath();
+  context.ellipse(0, 0, 206, 82, 0.16, 0, Math.PI * 2);
+  context.stroke();
+
+  // Central eight-point Nova star / compass mark.
+  const outerRadius = 76;
+  const innerRadius = 31;
+  context.beginPath();
+  for (let i = 0; i < 16; i += 1) {
+    const radius = i % 2 === 0 ? outerRadius : innerRadius;
+    const angle = -Math.PI / 2 + (i * Math.PI) / 8;
+    const x = Math.cos(angle) * radius;
+    const y = Math.sin(angle) * radius;
+    if (i === 0) context.moveTo(x, y);
+    else context.lineTo(x, y);
+  }
+  context.closePath();
+  const starFill = context.createRadialGradient(0, 0, 8, 0, 0, outerRadius);
+  starFill.addColorStop(0, "rgba(155, 244, 255, 0.32)");
+  starFill.addColorStop(0.5, "rgba(56, 199, 228, 0.22)");
+  starFill.addColorStop(1, "rgba(20, 100, 142, 0.08)");
+  context.fillStyle = starFill;
+  context.fill();
+  context.strokeStyle = "rgba(147, 239, 255, 0.44)";
+  context.lineWidth = 2.5;
+  context.stroke();
+
+  context.beginPath();
+  context.arc(0, 0, 17, 0, Math.PI * 2);
+  context.fillStyle = "rgba(163, 244, 255, 0.26)";
+  context.fill();
+  context.strokeStyle = "rgba(196, 250, 255, 0.55)";
+  context.lineWidth = 2;
+  context.stroke();
+
+  // Small constellation dots around the centre.
+  const dots = [
+    [-292, -112, 4],
+    [-250, 126, 3],
+    [-165, -146, 3],
+    [175, -140, 4],
+    [262, -88, 3],
+    [294, 116, 4],
+    [194, 145, 3],
+    [-304, 72, 2.5],
+  ] as const;
+  context.fillStyle = "rgba(157, 239, 255, 0.55)";
+  dots.forEach(([x, y, radius]) => {
+    context.beginPath();
+    context.arc(x, y, radius, 0, Math.PI * 2);
+    context.fill();
+  });
+  context.restore();
+
+  context.restore();
+
+  // Cyan edge piping and short tassel marks.
+  context.save();
+  context.shadowColor = "rgba(71, 221, 249, 0.35)";
+  context.shadowBlur = 16;
+  context.strokeStyle = "rgba(111, 230, 250, 0.58)";
   context.lineWidth = 4;
-  roundedRectPath(context, 36, 28, CANVAS_WIDTH - 72, CANVAS_HEIGHT - 56, 54);
+  roundedRectPath(context, 38, 28, CANVAS_WIDTH - 76, CANVAS_HEIGHT - 64, 64);
   context.stroke();
   context.restore();
-}
 
+  context.strokeStyle = "rgba(89, 199, 225, 0.34)";
+  context.lineWidth = 3;
+  for (let x = 120; x <= CANVAS_WIDTH - 120; x += 55) {
+    context.beginPath();
+    context.moveTo(x, CANVAS_HEIGHT - 34);
+    context.lineTo(x + (x % 2 === 0 ? 5 : -5), CANVAS_HEIGHT - 20);
+    context.stroke();
+  }
+}
 function drawFootprint(
   context: CanvasRenderingContext2D,
   x: number,
@@ -161,12 +243,12 @@ function drawMess(context: CanvasRenderingContext2D) {
     "rgba(151, 117, 78, 0.62)",
   ];
 
-  const patchCount = 12 + Math.floor(Math.random() * 5);
+  const patchCount = 19 + Math.floor(Math.random() * 6);
   for (let i = 0; i < patchCount; i += 1) {
     const x = 100 + Math.random() * (CANVAS_WIDTH - 200);
     const y = 88 + Math.random() * (CANVAS_HEIGHT - 176);
-    const radiusX = 28 + Math.random() * 62;
-    const radiusY = 18 + Math.random() * 42;
+    const radiusX = 34 + Math.random() * 72;
+    const radiusY = 22 + Math.random() * 48;
     const rotation = Math.random() * Math.PI;
 
     context.save();
@@ -175,7 +257,7 @@ function drawMess(context: CanvasRenderingContext2D) {
 
     const stain = context.createRadialGradient(0, 0, 3, 0, 0, Math.max(radiusX, radiusY));
     stain.addColorStop(0, palette[Math.floor(Math.random() * palette.length)]);
-    stain.addColorStop(0.6, "rgba(90, 70, 50, 0.44)");
+    stain.addColorStop(0.62, "rgba(86, 63, 43, 0.55)");
     stain.addColorStop(1, "rgba(90, 70, 50, 0)");
 
     context.fillStyle = stain;
@@ -186,7 +268,7 @@ function drawMess(context: CanvasRenderingContext2D) {
     context.restore();
   }
 
-  const footprintPairs = 3 + Math.floor(Math.random() * 2);
+  const footprintPairs = 5 + Math.floor(Math.random() * 2);
   for (let i = 0; i < footprintPairs; i += 1) {
     const baseX = 130 + Math.random() * (CANVAS_WIDTH - 260);
     const baseY = 120 + Math.random() * (CANVAS_HEIGHT - 240);
@@ -197,7 +279,7 @@ function drawMess(context: CanvasRenderingContext2D) {
     drawFootprint(context, baseX + stepX, baseY + stepY, direction - 0.3, 0.72 + Math.random() * 0.28);
   }
 
-  const crumbCount = 46 + Math.floor(Math.random() * 22);
+  const crumbCount = 76 + Math.floor(Math.random() * 30);
   for (let i = 0; i < crumbCount; i += 1) {
     const x = 76 + Math.random() * (CANVAS_WIDTH - 152);
     const y = 68 + Math.random() * (CANVAS_HEIGHT - 136);
@@ -254,6 +336,7 @@ function resultLabel(percent: number) {
 
 export default function RugRushGame({ onClose }: { onClose: () => void }) {
   const displayCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const surfaceHostRef = useRef<HTMLDivElement | null>(null);
   const rugCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const dirtCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const gameStartedAtRef = useRef(0);
@@ -269,6 +352,40 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
   const [cleanPercent, setCleanPercent] = useState(0);
   const [score, setScore] = useState(0);
   const [brushPoint, setBrushPoint] = useState<Point | null>(null);
+  const [surfaceSize, setSurfaceSize] = useState({ width: 1, height: 1 });
+  const [phonePortrait, setPhonePortrait] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 700px) and (orientation: portrait)");
+    const sync = () => setPhonePortrait(media.matches);
+    sync();
+    media.addEventListener?.("change", sync);
+    return () => media.removeEventListener?.("change", sync);
+  }, []);
+
+  useEffect(() => {
+    const host = surfaceHostRef.current;
+    if (!host) return;
+
+    const fit = () => {
+      const width = Math.max(1, host.clientWidth);
+      const height = Math.max(1, host.clientHeight);
+      const scale = Math.min(width / CANVAS_WIDTH, height / CANVAS_HEIGHT);
+      setSurfaceSize({
+        width: Math.max(1, Math.floor(CANVAS_WIDTH * scale)),
+        height: Math.max(1, Math.floor(CANVAS_HEIGHT * scale)),
+      });
+    };
+
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(host);
+    window.addEventListener("orientationchange", fit);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("orientationchange", fit);
+    };
+  }, []);
 
   const renderFrame = useCallback(() => {
     const display = displayCanvasRef.current;
@@ -428,8 +545,8 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
     context.globalCompositeOperation = "destination-out";
     context.lineCap = "round";
     context.lineJoin = "round";
-    context.lineWidth = BRUSH_RADIUS * 1.72;
-    context.strokeStyle = "rgba(0,0,0,0.44)";
+    context.lineWidth = BRUSH_RADIUS * 1.5;
+    context.strokeStyle = "rgba(0,0,0,0.36)";
     context.beginPath();
     context.moveTo(from.x, from.y);
     context.lineTo(to.x, to.y);
@@ -443,8 +560,8 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
       to.y,
       BRUSH_RADIUS,
     );
-    gradient.addColorStop(0, "rgba(0,0,0,0.58)");
-    gradient.addColorStop(0.7, "rgba(0,0,0,0.28)");
+    gradient.addColorStop(0, "rgba(0,0,0,0.48)");
+    gradient.addColorStop(0.68, "rgba(0,0,0,0.22)");
     gradient.addColorStop(1, "rgba(0,0,0,0)");
     context.fillStyle = gradient;
     context.beginPath();
@@ -487,8 +604,8 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
   const stars = starCountForPercent(cleanPercent);
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/86 p-2 backdrop-blur-md sm:p-4">
-      <div className="grid h-[min(760px,96dvh)] w-[min(1120px,98vw)] min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[24px] border border-cyan-200/25 bg-[#03101d] shadow-[0_36px_110px_rgba(0,0,0,0.72)] sm:rounded-[30px]">
+    <div className="fixed inset-0 z-[120] flex h-[100dvh] w-[100vw] items-center justify-center overflow-hidden bg-slate-950/86 p-1.5 backdrop-blur-md sm:p-3">
+      <div className="grid h-full max-h-[920px] w-full max-w-[1180px] min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[20px] border border-cyan-200/25 bg-[#03101d] shadow-[0_36px_110px_rgba(0,0,0,0.72)] sm:rounded-[30px]">
         <header className="flex items-center justify-between gap-3 border-b border-white/[0.07] bg-slate-950/55 px-4 py-3 sm:px-6">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -512,7 +629,7 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
           </button>
         </header>
 
-        <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 p-2 sm:gap-3 sm:p-4">
+        <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden p-2 sm:gap-3 sm:p-3">
           <div className="grid grid-cols-3 gap-2">
             <HudCard label="Score" value={score.toLocaleString()} />
             <HudCard label="Cleaned" value={`${cleanPercent.toFixed(0)}%`} />
@@ -523,8 +640,11 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
             />
           </div>
 
-          <div className="relative flex min-h-0 items-center justify-center overflow-hidden rounded-[20px] border border-cyan-200/14 bg-[radial-gradient(circle_at_50%_45%,rgba(55,190,226,0.11),transparent_50%),linear-gradient(180deg,#071a2a,#020914)] p-2 sm:rounded-[26px] sm:p-4">
-            <div className="relative aspect-[900/560] w-full max-w-[900px] overflow-hidden rounded-[24px] shadow-[0_28px_64px_rgba(0,0,0,0.48)]">
+          <div ref={surfaceHostRef} className="relative flex min-h-0 items-center justify-center overflow-hidden rounded-[20px] border border-cyan-200/14 bg-[radial-gradient(circle_at_50%_45%,rgba(55,190,226,0.11),transparent_50%),linear-gradient(180deg,#071a2a,#020914)] p-1.5 sm:rounded-[26px] sm:p-2">
+            <div
+              className="relative shrink-0 overflow-hidden rounded-[18px] shadow-[0_28px_64px_rgba(0,0,0,0.48)] sm:rounded-[24px]"
+              style={{ width: `${surfaceSize.width}px`, height: `${surfaceSize.height}px` }}
+            >
               <canvas
                 ref={displayCanvasRef}
                 className={`h-full w-full select-none ${phase === "playing" ? "cursor-none" : "cursor-default"}`}
@@ -561,11 +681,11 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
                     <p className="text-[9px] font-black uppercase tracking-[0.17em] text-cyan-200/62">Nova needs your help</p>
                     <h3 className="mt-2 text-2xl font-black text-white sm:text-3xl">Clean the rug before time runs out!</h3>
                     <p className="mx-auto mt-3 max-w-md text-xs leading-6 text-white/58 sm:text-sm">
-                      Drag your mouse or finger across the dirty rug. Scrub quickly and clean as much as you can in 10 seconds.
+                      Drag your mouse or finger across the dirty rug. Stains need a few passes now, so scrub fast and cover every corner before the 10 seconds are up.
                     </p>
                     <div className="mx-auto mt-4 grid max-w-sm grid-cols-2 gap-2 text-left">
                       <MiniRule number="1" text="Drag to scrub" />
-                      <MiniRule number="2" text="Chase 100%" />
+                      <MiniRule number="2" text="Stains need repeat passes" />
                     </div>
                     <button
                       type="button"
@@ -640,6 +760,28 @@ export default function RugRushGame({ onClose }: { onClose: () => void }) {
           </div>
         </div>
       </div>
+
+      {phonePortrait && (
+        <div className="absolute inset-0 z-[220] flex items-center justify-center bg-[#020914]/96 p-6 text-center backdrop-blur-xl">
+          <div className="w-full max-w-sm rounded-[28px] border border-cyan-200/20 bg-slate-950/88 p-7 shadow-[0_28px_80px_rgba(0,0,0,0.65)]">
+            <div className="mx-auto flex h-24 w-24 items-center justify-center">
+              <div className="relative h-16 w-10 rotate-90 rounded-[12px] border-[3px] border-cyan-100/75 bg-cyan-300/[0.06] shadow-[0_0_28px_rgba(103,232,249,0.22)]">
+                <div className="absolute left-1/2 top-1.5 h-1 w-4 -translate-x-1/2 rounded-full bg-cyan-100/45" />
+                <div className="absolute bottom-1.5 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-cyan-100/55" />
+              </div>
+            </div>
+            <p className="mt-2 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200/60">Rug Rush plays in landscape</p>
+            <h3 className="mt-2 text-2xl font-black text-white">Turn your phone sideways</h3>
+            <p className="mt-3 text-sm leading-6 text-white/56">
+              Rotate your phone to landscape so Nova&apos;s whole rug stays visible while you scrub.
+            </p>
+            <div className="mt-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-cyan-100/70">
+              <span>↻</span>
+              <span>Rotate to continue</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
