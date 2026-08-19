@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   description:
     "Dreamscape One is a gamified education platform by Guru Kids Pro for curriculum learning, thinking skills, financial literacy and real-world decision-making.",
   alternates: {
-    canonical: "https://dreamscape.gurukidspro.com/about",
+    canonical: "https://dreamscape-one.com/about",
   },
   robots: {
     index: true,
