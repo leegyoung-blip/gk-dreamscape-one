@@ -511,11 +511,12 @@ function compositeFrame(
   toughDirt: HTMLCanvasElement,
   extraToughDirt: HTMLCanvasElement,
   highlightRemaining = false,
+  includeRug = true,
 ) {
   const context = display.getContext("2d");
   if (!context) return;
   context.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-  context.drawImage(rug, 0, 0);
+  if (includeRug) context.drawImage(rug, 0, 0);
 
   if (highlightRemaining) {
     const pulse = (Math.sin(performance.now() / 115) + 1) / 2;
@@ -848,8 +849,23 @@ export default function RugRushGame({
     const toughDirt = toughDirtCanvasRef.current;
     const extraToughDirt = extraToughDirtCanvasRef.current;
     if (!display || !rug || !dirt || !toughDirt || !extraToughDirt) return;
-    compositeFrame(display, rug, dirt, toughDirt, extraToughDirt, highlightRemaining);
-  }, []);
+
+    // Mobile Safari has been intermittently rasterising the rug bitmap inside
+    // the canvas at an incorrect source scale. The gameplay surface itself is
+    // correctly sized, but the rug then appears like a magnified corner.
+    // On compact landscape phones we therefore keep the canvas transparent and
+    // render the rug as a fitted DOM image beneath it. Dirt/effects remain on
+    // the 900x560 canvas, so gameplay coordinates do not change.
+    compositeFrame(
+      display,
+      rug,
+      dirt,
+      toughDirt,
+      extraToughDirt,
+      highlightRemaining,
+      !compactLandscape,
+    );
+  }, [compactLandscape]);
 
   const measureProgress = useCallback((force = false) => {
     const dirt = dirtCanvasRef.current;
@@ -1488,10 +1504,26 @@ export default function RugRushGame({
               : { width: `${surfaceSize.width}px`, height: `${surfaceSize.height}px` }
           }
         >
+          {compactLandscape && (
+            <img
+              src={rugImage || DEFAULT_RUG_IMAGE}
+              alt={rugTitle}
+              aria-hidden="true"
+              draggable={false}
+              className="pointer-events-none absolute z-0 object-fill select-none"
+              style={{
+                left: `${(34 / CANVAS_WIDTH) * 100}%`,
+                top: `${(24 / CANVAS_HEIGHT) * 100}%`,
+                width: `${((CANVAS_WIDTH - 68) / CANVAS_WIDTH) * 100}%`,
+                height: `${((CANVAS_HEIGHT - 48) / CANVAS_HEIGHT) * 100}%`,
+              }}
+            />
+          )}
+
           <canvas
             ref={displayCanvasRef}
-            className={`h-full w-full select-none ${phase === "playing" ? "cursor-none" : "cursor-default"}`}
-            style={{ touchAction: "none", WebkitTouchCallout: "none" }}
+            className={`relative z-[1] h-full w-full select-none ${phase === "playing" ? "cursor-none" : "cursor-default"}`}
+            style={{ touchAction: "none" }}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={releasePointer}
