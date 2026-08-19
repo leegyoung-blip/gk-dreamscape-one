@@ -50,6 +50,11 @@ type ImportSummary = {
   updated_question_count?: number;
   applied_quiz_count?: number;
   applied_question_count?: number;
+  publication_completed?: boolean;
+  published_quiz_count?: number;
+  already_published_count?: number;
+  publication_operation_id?: string;
+  published_at?: string;
   format?: string;
 };
 
@@ -92,6 +97,19 @@ type ImportRow = {
   messages: ImportMessage[];
 };
 
+type PublishPreview = {
+  ok: boolean;
+  batch_id: string;
+  subject: ImportSubject;
+  primary_level: number;
+  batch_status: string;
+  imported_quiz_count: number;
+  publishable_quiz_count: number;
+  already_published_count: number;
+  archived_quiz_count: number;
+  confirmation: string | null;
+};
+
 
 const BATCH_SELECT =
   "id,subject,primary_level,file_name,source_hash,allow_published_updates,status,row_count,valid_row_count,warning_row_count,error_row_count,summary,operation_id,created_at,validated_at,completed_at,error_message";
@@ -108,6 +126,8 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
   const [previewRows, setPreviewRows] = useState<ImportRow[]>([]);
   const [recentBatches, setRecentBatches] = useState<ImportBatch[]>([]);
   const [confirmation, setConfirmation] = useState("");
+  const [publishPreview, setPublishPreview] = useState<PublishPreview | null>(null);
+  const [publishConfirmation, setPublishConfirmation] = useState("");
   const [progress, setProgress] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -171,6 +191,8 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
       setLevel(loaded.primary_level);
       setAllowPublishedUpdates(loaded.allow_published_updates);
       setConfirmation("");
+      setPublishPreview(null);
+      setPublishConfirmation("");
 
       let rowQuery = supabase
         .from(rowTable)
@@ -190,6 +212,22 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
       } else {
         setPreviewRows((rows || []) as unknown as ImportRow[]);
       }
+
+      if (loaded.status === "completed") {
+        const { data: publicationData, error: publicationError } =
+          await supabase.rpc("curriculum_preview_import_batch_publish", {
+            p_subject: loaded.subject,
+            p_batch_id: loaded.id,
+          });
+
+        if (publicationError) {
+          setError(
+            `${publicationError.message}. Run 09_curriculum_operations_batch_publish_imported_quizzes.sql in Supabase if the batch-publication migration has not been installed yet.`,
+          );
+        } else {
+          setPublishPreview(publicationData as unknown as PublishPreview);
+        }
+      }
     },
     [batchTable, rowTable],
   );
@@ -205,6 +243,13 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
     canOperate &&
     batch?.status === "ready" &&
     batch.error_row_count === 0;
+  const publishRequiredConfirmation = publishPreview?.confirmation || "";
+  const canPublishBatch =
+    canOperate &&
+    batch?.status === "completed" &&
+    Boolean(publishPreview) &&
+    (publishPreview?.publishable_quiz_count || 0) > 0 &&
+    (publishPreview?.archived_quiz_count || 0) === 0;
 
   const displayedMessageCount = useMemo(
     () => previewRows.reduce((total, row) => total + row.messages.length, 0),
@@ -217,6 +262,8 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
     setBatch(null);
     setPreviewRows([]);
     setConfirmation("");
+    setPublishPreview(null);
+    setPublishConfirmation("");
     setProgress(0);
     setError(null);
     setNotice(null);
@@ -227,6 +274,8 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
     setBatch(null);
     setPreviewRows([]);
     setConfirmation("");
+    setPublishPreview(null);
+    setPublishConfirmation("");
     setProgress(0);
     setError(null);
     setNotice(null);
@@ -249,6 +298,8 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
     setNotice(null);
     setBatch(null);
     setPreviewRows([]);
+    setPublishPreview(null);
+    setPublishConfirmation("");
 
     try {
       const buffer = await selectedFile.arrayBuffer();
@@ -417,6 +468,52 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
     }
 
     setBusy(false);
+  }
+
+  async function publishImportedBatch() {
+    if (!batch || !publishPreview || !canPublishBatch) return;
+
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const { data, error: publishError } = await supabase.rpc(
+        "curriculum_publish_import_batch",
+        {
+          p_subject: batch.subject,
+          p_batch_id: batch.id,
+          p_confirmation: publishConfirmation,
+        },
+      );
+
+      if (publishError) throw publishError;
+
+      const result = data as unknown as {
+        operation_id: string | null;
+        imported_quiz_count: number;
+        published_quiz_count: number;
+        already_published_count: number;
+        message?: string;
+      };
+
+      const operationText = result.operation_id
+        ? ` Operation ${result.operation_id.slice(0, 8).toUpperCase()} is recorded in Deployment History.`
+        : "";
+
+      setNotice(
+        result.message ||
+          `Batch publication completed: ${result.published_quiz_count.toLocaleString()} quiz(es) published and ${result.already_published_count.toLocaleString()} already-published quiz(es) skipped.${operationText}`,
+      );
+
+      setPublishConfirmation("");
+      await loadBatch(batch.id);
+      await loadRecentBatches();
+    } catch (publishError) {
+      setError(errorMessage(publishError));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -673,6 +770,86 @@ export default function QuizImportView({ role }: { role: CurriculumRole }) {
             </div>
           )}
 
+          {batch.status === "completed" && publishPreview && (
+            <div style={publishCard}>
+              <div>
+                <p style={publishEyebrow}>BATCH PUBLICATION</p>
+                <h3 style={publishHeading}>Publish imported quizzes together</h3>
+                <p style={muted}>
+                  Publishes every quiz from this completed import batch that is
+                  still unpublished. Already-published quizzes are skipped. The
+                  whole publication is transactional, so one failure stops the
+                  entire batch.
+                </p>
+              </div>
+
+              <div style={publishStats}>
+                <PublishStat
+                  label="In batch"
+                  value={publishPreview.imported_quiz_count}
+                />
+                <PublishStat
+                  label="Waiting to publish"
+                  value={publishPreview.publishable_quiz_count}
+                />
+                <PublishStat
+                  label="Already published"
+                  value={publishPreview.already_published_count}
+                />
+                <PublishStat
+                  label="Archived"
+                  value={publishPreview.archived_quiz_count}
+                  danger={publishPreview.archived_quiz_count > 0}
+                />
+              </div>
+
+              {publishPreview.archived_quiz_count > 0 ? (
+                <div style={errorBanner}>
+                  This batch contains archived quiz(es). Restore them first. No
+                  quiz from this batch will be batch-published while an archived
+                  target remains.
+                </div>
+              ) : publishPreview.publishable_quiz_count === 0 ? (
+                <div style={successBanner}>
+                  All quizzes from this import batch are already published.
+                </div>
+              ) : (
+                <div style={publishConfirmationCard}>
+                  <label style={{ ...label, flex: "1 1 320px" }}>
+                    Type{" "}
+                    <strong style={{ color: "white" }}>
+                      {publishRequiredConfirmation}
+                    </strong>{" "}
+                    to publish this batch
+                    <input
+                      value={publishConfirmation}
+                      onChange={(event) =>
+                        setPublishConfirmation(event.target.value)
+                      }
+                      autoComplete="off"
+                      style={input}
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    disabled={
+                      busy ||
+                      !canPublishBatch ||
+                      publishConfirmation !== publishRequiredConfirmation
+                    }
+                    onClick={() => void publishImportedBatch()}
+                    style={publishButton}
+                  >
+                    {busy
+                      ? "Publishing batch…"
+                      : `Publish ${publishPreview.publishable_quiz_count.toLocaleString()} imported ${publishPreview.publishable_quiz_count === 1 ? "quiz" : "quizzes"}`}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={sectionHeader}>
             <div>
               <h3 style={subheading}>Row messages</h3>
@@ -900,6 +1077,30 @@ function SummaryCard({
   );
 }
 
+function PublishStat({
+  label,
+  value,
+  danger = false,
+}: {
+  label: string;
+  value: number;
+  danger?: boolean;
+}) {
+  return (
+    <div style={publishStat}>
+      <span style={summaryLabel}>{label}</span>
+      <strong
+        style={{
+          ...summaryValue,
+          color: danger ? "#fecaca" : "white",
+        }}
+      >
+        {value.toLocaleString()}
+      </strong>
+    </div>
+  );
+}
+
 function StatusBadge({ status }: { status: ImportStatus }) {
   return <span style={statusStyle(status)}>{status}</span>;
 }
@@ -948,6 +1149,45 @@ const card: CSSProperties = {
   border: "1px solid rgba(126,232,255,0.16)",
   background: "rgba(13,29,57,0.72)",
   padding: "18px",
+};
+
+const publishCard: CSSProperties = {
+  display: "grid",
+  gap: "14px",
+  borderRadius: "16px",
+  border: "1px solid rgba(52,211,153,0.3)",
+  background: "rgba(52,211,153,0.055)",
+  padding: "16px",
+};
+
+const publishEyebrow: CSSProperties = {
+  margin: 0,
+  color: "#86efac",
+  fontSize: "10px",
+  fontWeight: 950,
+  letterSpacing: "0.15em",
+};
+
+const publishHeading: CSSProperties = {
+  margin: "5px 0 0",
+  fontSize: "19px",
+};
+
+const publishStats: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))",
+  gap: "8px",
+};
+
+const publishStat: CSSProperties = {
+  display: "grid",
+  gap: "5px",
+  minHeight: "76px",
+  alignContent: "center",
+  borderRadius: "12px",
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(0,0,0,0.12)",
+  padding: "11px",
 };
 
 const sectionHeader: CSSProperties = {
@@ -1358,3 +1598,27 @@ const emptyCard: CSSProperties = {
   color: "rgba(255,255,255,0.55)",
   padding: "20px",
 };
+
+const publishConfirmationCard: CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  alignItems: "end",
+  gap: "12px",
+  borderRadius: "14px",
+  border: "1px solid rgba(52,211,153,0.24)",
+  background: "rgba(52,211,153,0.045)",
+  padding: "14px",
+};
+
+const publishButton: CSSProperties = {
+  minHeight: "46px",
+  borderRadius: "12px",
+  border: "1px solid rgba(110,231,183,0.46)",
+  background: "linear-gradient(135deg,rgba(52,211,153,0.95),rgba(45,212,191,0.9))",
+  color: "#03140f",
+  padding: "0 18px",
+  cursor: "pointer",
+  fontSize: "12px",
+  fontWeight: 950,
+};
+

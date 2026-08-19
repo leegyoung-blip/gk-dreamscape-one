@@ -85,6 +85,12 @@ const SUBJECT_BUCKETS: Record<
   science: "quiz-assets",
 };
 
+const SAMPLE_PACKAGE_URL =
+  "/curriculum/templates/Sample_Math_Asset_Deployment_Package.zip";
+
+const SAMPLE_PACKAGE_FILENAME =
+  "Sample_Math_Asset_Deployment_Package.zip";
+
 function normalisePath(value: string) {
   return value
     .replace(/\\/g, "/")
@@ -583,20 +589,24 @@ export default function AssetDeploymentView() {
           new FormData();
 
         form.set("file", file);
+
         form.set(
           "bucket",
           asset.storage_bucket,
         );
+
         form.set(
           "storage_path",
           normalisePath(
             asset.storage_path,
           ),
         );
+
         form.set(
           "subject",
           packageState!.subject,
         );
+
         form.set(
           "level",
           String(
@@ -961,6 +971,71 @@ export default function AssetDeploymentView() {
         blocked automatically.
       </div>
 
+      {/* SAMPLE PACKAGE */}
+      <section style={sampleCard}>
+        <div style={sampleLayout}>
+          <div style={sampleIcon}>
+            ↓
+          </div>
+
+          <div style={sampleContent}>
+            <p style={sampleEyebrow}>
+              SAMPLE DEPLOYMENT PACKAGE
+            </p>
+
+            <h2 style={sampleTitle}>
+              New to mass image deployment?
+            </h2>
+
+            <p style={sampleText}>
+              Download the Mathematics sample
+              package to see the correct folder
+              structure, deployment manifest,
+              prompt-image mappings and
+              answer-option mappings.
+            </p>
+
+            <div style={sampleFeatureRow}>
+              <span style={samplePill}>
+                Deployment_Manifest.json
+              </span>
+
+              <span style={samplePill}>
+                Prompt image
+              </span>
+
+              <span style={samplePill}>
+                Option images
+              </span>
+
+              <span style={samplePill}>
+                README guide
+              </span>
+            </div>
+
+            <div style={sampleButtonRow}>
+              <a
+                href={SAMPLE_PACKAGE_URL}
+                download={
+                  SAMPLE_PACKAGE_FILENAME
+                }
+                style={downloadButton}
+              >
+                Download Mathematics sample
+                package
+              </a>
+            </div>
+
+            <p style={sampleWarning}>
+              Template only — replace the
+              sample question IDs, question
+              codes, quiz codes, filenames
+              and mappings before deploying.
+            </p>
+          </div>
+        </div>
+      </section>
+
       <section style={card}>
         <div style={stepHeader}>
           <span style={stepNumber}>
@@ -1271,6 +1346,123 @@ const securityNote: CSSProperties = {
   marginBottom: "18px",
   lineHeight: 1.55,
 };
+
+/* SAMPLE PACKAGE */
+
+const sampleCard: CSSProperties = {
+  border:
+    "1px solid rgba(126,232,255,0.28)",
+  background:
+    "linear-gradient(135deg, rgba(34,211,238,0.10), rgba(59,130,246,0.08))",
+  borderRadius: "18px",
+  padding: "20px",
+  marginBottom: "16px",
+  boxShadow:
+    "0 16px 40px rgba(0,0,0,0.14)",
+};
+
+const sampleLayout: CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  gap: "16px",
+};
+
+const sampleIcon: CSSProperties = {
+  width: "46px",
+  height: "46px",
+  flex: "0 0 46px",
+  display: "grid",
+  placeItems: "center",
+  borderRadius: "13px",
+  background:
+    "linear-gradient(135deg,#22d3ee,#3b82f6)",
+  color: "#031326",
+  fontSize: "25px",
+  fontWeight: 900,
+  boxShadow:
+    "0 8px 24px rgba(34,211,238,0.18)",
+};
+
+const sampleContent: CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+};
+
+const sampleEyebrow: CSSProperties = {
+  margin: "1px 0 0",
+  color: "#7ee8ff",
+  fontSize: "11px",
+  fontWeight: 900,
+  letterSpacing: "0.14em",
+};
+
+const sampleTitle: CSSProperties = {
+  margin: "7px 0 0",
+  fontSize: "21px",
+  lineHeight: 1.25,
+};
+
+const sampleText: CSSProperties = {
+  margin: "7px 0 0",
+  color:
+    "rgba(255,255,255,0.64)",
+  lineHeight: 1.55,
+  maxWidth: "820px",
+};
+
+const sampleFeatureRow: CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "7px",
+  marginTop: "14px",
+};
+
+const samplePill: CSSProperties = {
+  border:
+    "1px solid rgba(126,232,255,0.18)",
+  background:
+    "rgba(126,232,255,0.06)",
+  color:
+    "rgba(220,248,255,0.86)",
+  borderRadius: "999px",
+  padding: "6px 9px",
+  fontSize: "11px",
+  fontWeight: 700,
+};
+
+const sampleButtonRow: CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "10px",
+  marginTop: "16px",
+};
+
+const downloadButton: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: "46px",
+  borderRadius: "11px",
+  border:
+    "1px solid rgba(126,232,255,0.42)",
+  background:
+    "linear-gradient(135deg,#22d3ee,#3b82f6)",
+  color: "#031326",
+  padding: "0 17px",
+  fontWeight: 900,
+  cursor: "pointer",
+  textDecoration: "none",
+};
+
+const sampleWarning: CSSProperties = {
+  margin: "12px 0 0",
+  color:
+    "rgba(255,215,106,0.82)",
+  fontSize: "12px",
+  lineHeight: 1.5,
+};
+
+/* DEPLOYMENT */
 
 const card: CSSProperties = {
   border:

@@ -510,6 +510,13 @@ export default function NovaHomePage() {
   const [rugRushLastResult, setRugRushLastResult] = useState<RugRushCompletion | null>(null);
   const [rugRushSparkle, setRugRushSparkle] = useState(false);
 
+  const [responsiveReady, setResponsiveReady] = useState(false);
+  const [landscapeRequired, setLandscapeRequired] = useState(false);
+  const [portraitOrientation, setPortraitOrientation] = useState(false);
+  const [phoneLandscapeLayout, setPhoneLandscapeLayout] = useState(false);
+  const [mobileZoneMenuOpen, setMobileZoneMenuOpen] = useState(false);
+  const [mobileZonePanelOpen, setMobileZonePanelOpen] = useState(false);
+
   const zones = useMemo<ZoneView[]>(() => {
     const catalog = new Map<string, ZoneCatalogRow>(
       catalogRows.map((row) => [row.zone_key, row]),
@@ -537,10 +544,49 @@ export default function NovaHomePage() {
   const roomUnlockedCount = ROOM_ZONE_KEYS.filter((key) =>
     unlockedZones.has(key),
   ).length;
-  const area2Unlocked = false;
   const guideTargetZoneKey = guideOpen
     ? NOVA_HOME_GUIDE_STEPS[guideStep]?.targetZoneKey ?? null
     : null;
+
+  useEffect(() => {
+    function updateResponsiveMode() {
+      const ua = navigator.userAgent || "";
+      const platform = navigator.platform || "";
+      const touchPoints = Number(navigator.maxTouchPoints || 0);
+      const appleTouchTablet = platform === "MacIntel" && touchPoints > 1;
+      const touchPhoneOrTablet =
+        /Android|iPhone|iPad|iPod/i.test(ua) || appleTouchTablet;
+
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      const portrait = touchPhoneOrTablet && height > width;
+      const screenShortSide = Math.min(
+        Number(window.screen?.width || width),
+        Number(window.screen?.height || height),
+      );
+      const phoneClass = touchPhoneOrTablet && screenShortSide <= 600;
+      const shortLandscapePhone = phoneClass && width >= height;
+
+      setLandscapeRequired(touchPhoneOrTablet);
+      setPortraitOrientation(portrait);
+      setPhoneLandscapeLayout(shortLandscapePhone);
+      setResponsiveReady(true);
+
+      if (!shortLandscapePhone) {
+        setMobileZoneMenuOpen(false);
+        setMobileZonePanelOpen(false);
+      }
+    }
+
+    updateResponsiveMode();
+    window.addEventListener("resize", updateResponsiveMode);
+    window.addEventListener("orientationchange", updateResponsiveMode);
+
+    return () => {
+      window.removeEventListener("resize", updateResponsiveMode);
+      window.removeEventListener("orientationchange", updateResponsiveMode);
+    };
+  }, []);
 
   useEffect(() => {
     if (!authChecked || wardrobeOpen || rugRushOpen) return;
@@ -569,6 +615,8 @@ export default function NovaHomePage() {
     setCurrentArea("area-1");
     setSelectedZoneKey(null);
     setHoveredZoneKey(null);
+    setMobileZoneMenuOpen(false);
+    setMobileZonePanelOpen(false);
     setMessage("");
     setGuideStep(0);
     setGuideOpen(true);
@@ -593,6 +641,8 @@ export default function NovaHomePage() {
     setRugRushSparkle(false);
     setRugRushLastResult(null);
     setGuideOpen(false);
+    setMobileZoneMenuOpen(false);
+    setMobileZonePanelOpen(false);
     setSelectedZoneKey("extra-zone");
     setHoveredZoneKey("extra-zone");
     setMessage("");
@@ -873,7 +923,7 @@ export default function NovaHomePage() {
       observer.disconnect();
       window.removeEventListener("resize", fitStageToViewport);
     };
-  }, [currentArea, setupError]);
+  }, [currentArea, setupError, authChecked, responsiveReady, phoneLandscapeLayout]);
 
   const getZoneAtClientPoint = useCallback(
     (clientX: number, clientY: number): ZoneKey | null => {
@@ -933,17 +983,20 @@ export default function NovaHomePage() {
     const key = getZoneAtClientPoint(event.clientX, event.clientY);
     if (!key) {
       setSelectedZoneKey(null);
+      setMobileZonePanelOpen(false);
       setMessage("");
       return;
     }
 
     setSelectedZoneKey(key);
+    setMobileZonePanelOpen(true);
     setMessage("");
   }
 
   function selectZone(zoneKey: ZoneKey) {
     setSelectedZoneKey(zoneKey);
     setHoveredZoneKey(zoneKey);
+    setMobileZonePanelOpen(true);
     setMessage("");
   }
 
@@ -1201,6 +1254,8 @@ export default function NovaHomePage() {
 
   function openWardrobe() {
     if (!unlockedZones.has("bed-zone")) return;
+    setMobileZoneMenuOpen(false);
+    setMobileZonePanelOpen(false);
     setWardrobeOpen(true);
     setWardrobeMessage("");
     setWardrobeCharacter("nova");
@@ -1499,7 +1554,223 @@ export default function NovaHomePage() {
 
   }
 
-  if (!authChecked) {
+  function renderZoneActionContent(zone: ZoneView, compact = false) {
+    const unlocked = !zone.isAreaExit && unlockedZones.has(zone.key);
+    const affordable = !zone.isAreaExit && dreamTokenBalance >= zone.dtCost;
+
+    return (
+      <div className={compact ? "space-y-2.5" : "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"}>
+        <div className="min-w-0">
+          <p
+            className={`${compact ? "text-[7px]" : "text-[9px]"} font-black uppercase tracking-[0.15em] ${
+              zone.isAreaExit ? "text-amber-200/65" : "text-cyan-200/58"
+            }`}
+          >
+            {zone.isAreaExit
+              ? "Coming Soon"
+              : unlocked
+                ? "Zone Unlocked"
+                : "Room Upgrade"}
+          </p>
+          <h2 className={`${compact ? "mt-0.5 text-sm" : "mt-1 text-base sm:text-lg"} font-black text-white`}>
+            {zone.title}
+          </h2>
+          <p className={`${compact ? "mt-1 text-[9px] leading-4" : "mt-1 max-w-md text-[11px] leading-5 sm:text-xs"} text-white/50`}>
+            {zone.subtitle}
+          </p>
+          {message && selectedZoneKey === zone.key && (
+            <p className={`${compact ? "mt-1.5 text-[8px] leading-4" : "mt-2 text-[10px] leading-5 sm:text-xs"} font-bold text-amber-100/85`}>
+              {message}
+            </p>
+          )}
+        </div>
+
+        <div className={compact ? "w-full" : "shrink-0 sm:min-w-[185px] sm:text-right"}>
+          {zone.isAreaExit ? (
+            <span className={`inline-flex ${compact ? "min-h-9 w-full text-[9px]" : "min-h-11 w-full text-[11px] sm:w-auto"} items-center justify-center rounded-full border border-amber-200/24 bg-amber-300/10 px-5 font-black uppercase tracking-[0.1em] text-amber-100`}>
+              Coming Soon
+            </span>
+          ) : unlocked ? (
+            zone.key === "bed-zone" ? (
+              <button
+                type="button"
+                onClick={openWardrobe}
+                className={`${compact ? "min-h-9 text-[9px]" : "min-h-11 text-[11px]"} w-full rounded-full bg-cyan-300 px-5 font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-cyan-200 sm:w-auto`}
+              >
+                Open Wardrobe Bay →
+              </button>
+            ) : zone.key === "extra-zone" ? (
+              <button
+                type="button"
+                onClick={openRugRush}
+                className={`${compact ? "min-h-9 text-[9px]" : "min-h-11 text-[11px]"} w-full rounded-full bg-cyan-300 px-5 font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-cyan-200 sm:w-auto`}
+              >
+                Play Rug Rush →
+              </button>
+            ) : (
+              <span className={`inline-flex ${compact ? "min-h-9 w-full justify-center text-[9px]" : "min-h-11 text-[11px]"} items-center rounded-full border border-emerald-200/24 bg-emerald-300/10 px-5 font-black uppercase tracking-[0.1em] text-emerald-100`}>
+                ✓ Unlocked
+              </span>
+            )
+          ) : selectedZoneKey === zone.key ? (
+            <button
+              type="button"
+              disabled={
+                purchasingZoneKey === zone.key ||
+                catalogLoading ||
+                Boolean(setupError) ||
+                dreamTokenBalance < zone.dtCost
+              }
+              onClick={() => purchaseZone(zone.key)}
+              className={`${compact ? "min-h-9 text-[9px]" : "min-h-11 text-[11px]"} w-full rounded-full px-5 font-black uppercase tracking-[0.1em] transition sm:w-auto ${
+                affordable && !setupError
+                  ? "bg-cyan-300 text-slate-950 hover:bg-cyan-200 disabled:opacity-55"
+                  : "cursor-not-allowed border border-white/10 bg-white/[0.04] text-white/32"
+              }`}
+            >
+              {purchasingZoneKey === zone.key
+                ? "Unlocking..."
+                : affordable
+                  ? `Unlock · ${formatDT(zone.dtCost)}`
+                  : `Need ${formatDT(zone.dtCost - dreamTokenBalance)}`}
+            </button>
+          ) : (
+            <div className={compact ? "text-left" : ""}>
+              <p className={`${compact ? "text-base" : "text-xl sm:text-2xl"} font-black text-cyan-100`}>
+                {catalogLoading ? "..." : formatDT(zone.dtCost)}
+              </p>
+              <p className="mt-1 text-[8px] font-bold uppercase tracking-[0.12em] text-white/34">
+                Select zone to unlock
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function renderArea1Stage(showInlineZonePanel: boolean) {
+    return (
+      <div
+        ref={stageRef}
+        onPointerMove={handlePointerMove}
+        onPointerLeave={handlePointerLeave}
+        onPointerUp={handleZoneTap}
+        className={`relative isolate w-full touch-manipulation select-none overflow-hidden rounded-[20px] border border-cyan-200/18 bg-black shadow-[0_28px_90px_rgba(0,0,0,0.56)] sm:rounded-[24px] ${
+          activeZoneKey ? "cursor-pointer" : "cursor-default"
+        }`}
+        style={{
+          width: stageSize.width > 0 ? `${stageSize.width}px` : "100%",
+          height: stageSize.height > 0 ? `${stageSize.height}px` : "auto",
+          aspectRatio: "1535 / 1024",
+          maxWidth: "100%",
+          maxHeight: "100%",
+        }}
+        aria-label="Interactive Nova Home Area 1"
+      >
+        <img
+          src={AREA_1_IMAGE}
+          alt="Nova's fully furnished starter room"
+          className="pointer-events-none absolute inset-0 h-full w-full"
+          draggable={false}
+        />
+
+        {zones.map((zone) => {
+          if (!zone.isAreaExit && unlockedZones.has(zone.key)) return null;
+
+          const hovered = hoveredZoneKey === zone.key;
+          const selected = selectedZoneKey === zone.key;
+          const guideHighlighted = guideTargetZoneKey === zone.key;
+
+          return (
+            <img
+              key={zone.key}
+              src={zone.maskImage}
+              alt=""
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 h-full w-full transition duration-150"
+              draggable={false}
+              style={{
+                opacity: guideHighlighted ? 0.48 : hovered || selected ? 0.6 : 1,
+                filter:
+                  guideHighlighted || hovered || selected
+                    ? `drop-shadow(0 0 8px ${zone.accent}) drop-shadow(0 0 20px rgba(83,215,255,0.42))`
+                    : "none",
+              }}
+            />
+          );
+        })}
+
+        {rugRushSparkle && currentArea === "area-1" && (
+          <div className="pointer-events-none absolute inset-0 z-[12] overflow-hidden">
+            <div
+              className={`absolute rounded-full border ${rugRushLastResult?.perfect ? "border-amber-100/45 shadow-[0_0_36px_rgba(251,191,36,0.20)]" : "border-cyan-100/35 shadow-[0_0_32px_rgba(103,232,249,0.18)]"}`}
+              style={{
+                left: "27%",
+                top: "57%",
+                width: "38%",
+                height: "29%",
+                transform: "rotate(-1deg)",
+                background: rugRushLastResult?.perfect
+                  ? "radial-gradient(circle at 50% 50%, rgba(251,191,36,0.08), transparent 72%)"
+                  : "radial-gradient(circle at 50% 50%, rgba(103,232,249,0.07), transparent 72%)",
+              }}
+            />
+            {RUG_RUSH_SPARKLES.map((sparkle) => (
+              <span
+                key={`${sparkle.left}-${sparkle.top}`}
+                className={`absolute animate-pulse font-black ${rugRushLastResult?.perfect ? "text-amber-100" : "text-cyan-100"}`}
+                style={{
+                  left: `${sparkle.left}%`,
+                  top: `${sparkle.top}%`,
+                  fontSize: `${sparkle.size}px`,
+                  animationDelay: `${sparkle.delay}ms`,
+                  filter: rugRushLastResult?.perfect
+                    ? "drop-shadow(0 0 7px rgba(251,191,36,0.8))"
+                    : "drop-shadow(0 0 7px rgba(103,232,249,0.8))",
+                }}
+                aria-hidden="true"
+              >
+                ✦
+              </span>
+            ))}
+            <div
+              className={`absolute rounded-full border px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.14em] backdrop-blur-md ${rugRushLastResult?.perfect ? "border-amber-100/25 bg-amber-950/65 text-amber-100" : "border-cyan-100/22 bg-cyan-950/65 text-cyan-100"}`}
+              style={{ left: "42%", top: "70%", transform: "translate(-50%, -50%)" }}
+            >
+              {rugRushLastResult?.perfect ? "Perfectly Clean ✦" : "Rug Cleaned ✦"}
+            </div>
+          </div>
+        )}
+
+        {maskLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-950/34 backdrop-blur-[1px]">
+            <div className="rounded-full border border-cyan-200/24 bg-slate-950/78 px-4 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100 backdrop-blur-xl">
+              Loading room zones...
+            </div>
+          </div>
+        )}
+
+        {showInlineZonePanel && !maskLoading && activeZone && (
+          <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 w-[min(620px,calc(100%-20px))] -translate-x-1/2 sm:bottom-4">
+            <div
+              onPointerMove={(event) => event.stopPropagation()}
+              onPointerUp={(event) => event.stopPropagation()}
+              className={`pointer-events-auto rounded-[20px] border px-4 py-3 shadow-[0_24px_62px_rgba(0,0,0,0.52)] backdrop-blur-xl sm:px-5 sm:py-4 ${
+                activeZone.isAreaExit
+                  ? "border-amber-200/28 bg-slate-950/90"
+                  : "border-cyan-200/30 bg-slate-950/90"
+              }`}
+            >
+              {renderZoneActionContent(activeZone)}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (!authChecked || !responsiveReady) {
     return (
       <main className="flex min-h-[100dvh] items-center justify-center bg-[#020713] px-6 text-white">
         <div className="text-center">
@@ -1516,136 +1787,141 @@ export default function NovaHomePage() {
     <main className="fixed inset-x-0 top-0 flex h-[100dvh] w-full flex-col overflow-hidden bg-[#020713] text-white">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(39,145,190,0.16),transparent_38%),linear-gradient(180deg,#04101d_0%,#020713_72%)]" />
 
-      <header className="relative z-30 shrink-0 border-b border-white/[0.06] bg-slate-950/42 px-3 py-2 backdrop-blur-xl sm:px-5 lg:px-7">
-        <div className="mx-auto grid w-full max-w-[1800px] gap-3 md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() =>
-                currentArea === "area-2"
-                  ? setCurrentArea("area-1")
-                  : router.push("/inventor")
-              }
-              className="flex h-11 items-center gap-2 rounded-full border border-cyan-200/35 bg-slate-950/65 px-4 text-xs font-black uppercase tracking-[0.1em] text-white shadow-[0_14px_34px_rgba(0,0,0,0.28)] transition hover:bg-cyan-300/10"
-            >
-              <span aria-hidden="true">←</span>
-              {currentArea === "area-2" ? "Area 1" : "Nova’s World"}
-            </button>
-          </div>
+      {phoneLandscapeLayout ? (
+        <>
+          <header className="relative z-50 flex h-[48px] shrink-0 items-center justify-between gap-2 border-b border-white/[0.07] bg-slate-950/78 px-2 backdrop-blur-xl">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => router.push("/inventor")}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-cyan-200/25 bg-white/[0.035] text-base font-black text-white/80"
+                aria-label="Back to Nova's World"
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileZonePanelOpen(false);
+                  setMobileZoneMenuOpen((open) => !open);
+                }}
+                className="flex h-9 items-center gap-1.5 rounded-full border border-cyan-200/30 bg-cyan-300/[0.075] px-3 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-50"
+              >
+                <span aria-hidden="true">☰</span>
+                Zones
+              </button>
+            </div>
 
-          <div className="min-w-0 md:px-3">
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <h1 className="font-serif text-xl font-medium tracking-[-0.035em] text-white sm:text-2xl xl:text-3xl">
+            <div className="min-w-0 flex-1 text-center">
+              <h1 className="truncate font-serif text-[17px] font-medium tracking-[-0.03em] text-white">
                 Nova’s Home
               </h1>
-              <span className="text-[9px] font-black uppercase tracking-[0.17em] text-cyan-300/75 sm:text-[10px]">
-                Customise & Play
-              </span>
-            </div>
-            <p className="mt-0.5 max-w-3xl text-[10px] leading-4 text-white/50 sm:text-[11px] xl:text-xs">
-              {currentArea === "area-1"
-                ? "Choose a darkened room zone, view its DT price, and unlock it to reveal the furnishing beneath."
-                : "Area 2 is coming soon."}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 md:justify-end">
-            <div className="rounded-full border border-cyan-200/30 bg-slate-950/72 px-4 py-2 text-right shadow-[0_14px_34px_rgba(0,0,0,0.28)]">
-              <p className="text-[8px] font-black uppercase tracking-[0.15em] text-cyan-200/55">
-                Dream Tokens
-              </p>
-              <p className="mt-0.5 text-sm font-black text-cyan-50">
-                {balanceLoading ? "Loading..." : formatDT(dreamTokenBalance)}
+              <p className="truncate text-[7px] font-black uppercase tracking-[0.13em] text-cyan-200/48">
+                Area 1 · {roomUnlockedCount}/4 furnished
               </p>
             </div>
 
-            <div className="rounded-full border border-white/12 bg-white/[0.045] px-4 py-2 text-right">
-              <p className="text-[8px] font-black uppercase tracking-[0.15em] text-white/38">
-                Starter Quarters
-              </p>
-              <p className="mt-0.5 text-sm font-black text-white">
-                {roomUnlockedCount}/4 furnished
-              </p>
-            </div>
-
-            <div
-              className="rounded-full border border-amber-200/18 bg-amber-300/[0.05] px-4 py-2 text-right"
-            >
-              <p className="text-[8px] font-black uppercase tracking-[0.15em] text-white/38">
-                Area 2
-              </p>
-              <p
-                className="mt-0.5 text-sm font-black text-amber-100/75"
-              >
-                Coming Soon
-              </p>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <section className="relative z-10 mx-auto flex min-h-0 w-full max-w-[1800px] flex-1 flex-col overflow-hidden px-3 py-2 sm:px-5 lg:px-7">
-        {setupError && (
-          <div className="mb-2 shrink-0 rounded-[14px] border border-amber-200/28 bg-amber-300/[0.08] px-4 py-2 text-xs leading-5 text-amber-50/88">
-            {setupError}
-          </div>
-        )}
-
-        {currentArea === "area-1" ? (
-          <div className="grid min-h-0 flex-1 items-stretch gap-3 md:grid-cols-[190px_minmax(0,1fr)] lg:grid-cols-[215px_minmax(0,1fr)] xl:grid-cols-[230px_minmax(0,1fr)]">
-            <aside className="grid min-h-0 grid-cols-5 content-start gap-1.5 md:grid-cols-1 md:grid-rows-[auto_repeat(5,minmax(0,1fr))] md:gap-2">
-              <div className="col-span-5 mb-0.5 md:col-span-1">
-                <p className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-200/55">
-                  Area 1 · Starter Quarters
-                </p>
-                <p className="mt-1 text-[11px] leading-5 text-white/40">
-                  Select a room zone to inspect or unlock it. Area 2 is coming soon.
+            <div className="flex shrink-0 items-center gap-1.5">
+              <div className="rounded-full border border-cyan-200/24 bg-slate-950/72 px-3 py-1.5 text-right">
+                <p className="text-[6px] font-black uppercase tracking-[0.12em] text-cyan-200/45">DT</p>
+                <p className="text-[10px] font-black text-cyan-50">
+                  {balanceLoading ? "…" : Math.round(dreamTokenBalance).toLocaleString("en-SG")}
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={startNovaHomeGuide}
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-cyan-200/30 bg-cyan-950/78 text-sm text-cyan-100"
+                aria-label="Open Nova Guide"
+              >
+                ✦
+              </button>
+            </div>
+          </header>
 
+          <section className="relative z-10 flex min-h-0 flex-1 overflow-hidden p-1.5">
+            {setupError && (
+              <div className="absolute left-1/2 top-1.5 z-30 max-w-[62vw] -translate-x-1/2 rounded-full border border-amber-200/25 bg-amber-950/90 px-3 py-1.5 text-[8px] font-bold text-amber-50 shadow-xl">
+                {setupError}
+              </div>
+            )}
+
+            <div
+              ref={roomViewportRef}
+              className="flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden"
+            >
+              {renderArea1Stage(false)}
+            </div>
+
+            {!mobileZoneMenuOpen && !mobileZonePanelOpen && (
+              <div className="pointer-events-none absolute inset-x-0 bottom-2 flex justify-center">
+                <div className="rounded-full border border-white/9 bg-slate-950/68 px-3 py-1 text-[7px] font-bold uppercase tracking-[0.11em] text-white/45 backdrop-blur-md">
+                  Tap a dark room zone to inspect it
+                </div>
+              </div>
+            )}
+          </section>
+
+          {(mobileZoneMenuOpen || mobileZonePanelOpen) && (
+            <button
+              type="button"
+              aria-label="Close Nova Home side menu"
+              onClick={() => {
+                setMobileZoneMenuOpen(false);
+                setMobileZonePanelOpen(false);
+              }}
+              className="fixed inset-0 z-[54] bg-black/38"
+            />
+          )}
+
+          <aside
+            className={`fixed bottom-0 left-0 top-[48px] z-[55] w-[min(310px,46vw)] border-r border-cyan-200/16 bg-[linear-gradient(160deg,rgba(3,18,34,0.985),rgba(2,7,19,0.99))] p-2.5 shadow-[20px_0_55px_rgba(0,0,0,0.48)] backdrop-blur-xl transition-transform duration-200 ${
+              mobileZoneMenuOpen ? "translate-x-0" : "-translate-x-[105%]"
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-[7px] font-black uppercase tracking-[0.15em] text-cyan-200/52">Area 1</p>
+                <h2 className="text-sm font-black text-white">Room Zones</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileZoneMenuOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-sm text-white/60"
+                aria-label="Close zones"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mt-2 grid max-h-[calc(100dvh-108px)] gap-1.5 overflow-y-auto pr-0.5">
               {zones.map((zone) => {
                 const unlocked = !zone.isAreaExit && unlockedZones.has(zone.key);
                 const selected = selectedZoneKey === zone.key;
                 const affordable = !zone.isAreaExit && dreamTokenBalance >= zone.dtCost;
-                const guideHighlighted = guideTargetZoneKey === zone.key;
-
                 return (
                   <button
                     key={zone.key}
                     type="button"
-                    onMouseEnter={() => setHoveredZoneKey(zone.key)}
-                    onMouseLeave={() => setHoveredZoneKey(null)}
-                    onClick={() => selectZone(zone.key)}
-                    className={`group min-h-0 rounded-[14px] border px-2 py-2 text-left transition md:px-3 md:py-2 ${
-                      guideHighlighted
-                        ? zone.isAreaExit
-                          ? "relative z-[95] border-amber-200/70 bg-amber-300/[0.13] shadow-[0_0_0_3px_rgba(251,191,36,0.13),0_0_32px_rgba(251,191,36,0.26)]"
-                          : "relative z-[95] border-cyan-200/75 bg-cyan-300/[0.14] shadow-[0_0_0_3px_rgba(83,215,255,0.13),0_0_34px_rgba(83,215,255,0.28)]"
-                        : selected
-                          ? "border-cyan-200/52 bg-cyan-300/[0.1] shadow-[0_0_24px_rgba(83,215,255,0.11)]"
+                    onClick={() => {
+                      selectZone(zone.key);
+                      setMobileZoneMenuOpen(false);
+                      setMobileZonePanelOpen(true);
+                    }}
+                    className={`rounded-[12px] border px-2.5 py-2 text-left transition ${
+                      selected
+                        ? "border-cyan-200/48 bg-cyan-300/[0.1]"
+                        : zone.isAreaExit
+                          ? "border-amber-200/14 bg-amber-300/[0.035]"
                           : unlocked
-                            ? "border-emerald-200/15 bg-emerald-300/[0.045]"
-                            : zone.isAreaExit
-                              ? "border-amber-200/16 bg-amber-300/[0.035] hover:border-amber-200/30"
-                              : "border-white/9 bg-white/[0.025] hover:border-cyan-200/24 hover:bg-cyan-300/[0.045]"
+                            ? "border-emerald-200/12 bg-emerald-300/[0.04]"
+                            : "border-white/8 bg-white/[0.025]"
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="truncate text-xs font-black text-white sm:text-sm">
-                          {zone.title}
-                        </p>
-                        <p
-                          className={`mt-1 text-[9px] font-bold uppercase tracking-[0.1em] ${
-                            zone.isAreaExit
-                              ? "text-amber-200/65"
-                              : unlocked
-                                ? "text-emerald-200/65"
-                                : affordable
-                                  ? "text-cyan-200/58"
-                                  : "text-white/28"
-                          }`}
-                        >
+                        <p className="truncate text-[10px] font-black text-white">{zone.title}</p>
+                        <p className={`mt-0.5 text-[7px] font-bold uppercase tracking-[0.09em] ${zone.isAreaExit ? "text-amber-200/60" : unlocked ? "text-emerald-200/60" : affordable ? "text-cyan-200/55" : "text-white/28"}`}>
                           {zone.isAreaExit
                             ? "Coming Soon"
                             : unlocked
@@ -1659,318 +1935,226 @@ export default function NovaHomePage() {
                                 : "Save more DT"}
                         </p>
                       </div>
-
-                      <strong
-                        className={`shrink-0 text-[10px] ${
-                          unlocked
-                            ? "text-emerald-200"
-                            : zone.isAreaExit
-                              ? "text-amber-200"
-                              : affordable
-                                ? "text-cyan-200"
-                                : "text-white/30"
-                        }`}
-                      >
-                        {zone.isAreaExit ? "Soon" : unlocked ? "✓" : formatDT(zone.dtCost)}
+                      <strong className={`shrink-0 text-[8px] ${zone.isAreaExit ? "text-amber-200" : unlocked ? "text-emerald-200" : affordable ? "text-cyan-200" : "text-white/30"}`}>
+                        {zone.isAreaExit ? "SOON" : unlocked ? "✓" : formatDT(zone.dtCost)}
                       </strong>
                     </div>
                   </button>
                 );
               })}
-            </aside>
-
-            <div
-              ref={roomViewportRef}
-              className="flex min-h-0 min-w-0 items-start justify-center overflow-hidden"
-            >
-              <div
-                ref={stageRef}
-                onPointerMove={handlePointerMove}
-                onPointerLeave={handlePointerLeave}
-                onPointerUp={handleZoneTap}
-                className={`relative isolate w-full touch-manipulation select-none overflow-hidden rounded-[20px] border border-cyan-200/18 bg-black shadow-[0_28px_90px_rgba(0,0,0,0.56)] sm:rounded-[24px] ${
-                  activeZoneKey ? "cursor-pointer" : "cursor-default"
-                }`}
-                style={{
-                  width: stageSize.width > 0 ? `${stageSize.width}px` : "100%",
-                  height: stageSize.height > 0 ? `${stageSize.height}px` : "auto",
-                  aspectRatio: "1535 / 1024",
-                  maxWidth: "100%",
-                  maxHeight: "100%",
-                }}
-                aria-label="Interactive Nova Home Area 1"
-              >
-                <img
-                  src={AREA_1_IMAGE}
-                  alt="Nova's fully furnished starter room"
-                  className="pointer-events-none absolute inset-0 h-full w-full"
-                  draggable={false}
-                />
-
-                {zones.map((zone) => {
-                  if (!zone.isAreaExit && unlockedZones.has(zone.key)) return null;
-
-                  const hovered = hoveredZoneKey === zone.key;
-                  const selected = selectedZoneKey === zone.key;
-                  const guideHighlighted = guideTargetZoneKey === zone.key;
-
-                  return (
-                    <img
-                      key={zone.key}
-                      src={zone.maskImage}
-                      alt=""
-                      aria-hidden="true"
-                      className="pointer-events-none absolute inset-0 h-full w-full transition duration-150"
-                      draggable={false}
-                      style={{
-                        opacity: guideHighlighted ? 0.48 : hovered || selected ? 0.6 : 1,
-                        filter:
-                          guideHighlighted || hovered || selected
-                            ? `drop-shadow(0 0 8px ${zone.accent}) drop-shadow(0 0 20px rgba(83,215,255,0.42))`
-                            : "none",
-                      }}
-                    />
-                  );
-                })}
-
-                {rugRushSparkle && currentArea === "area-1" && (
-                  <div className="pointer-events-none absolute inset-0 z-[12] overflow-hidden">
-                    <div
-                      className={`absolute rounded-full border ${rugRushLastResult?.perfect ? "border-amber-100/45 shadow-[0_0_36px_rgba(251,191,36,0.20)]" : "border-cyan-100/35 shadow-[0_0_32px_rgba(103,232,249,0.18)]"}`}
-                      style={{
-                        left: "27%",
-                        top: "57%",
-                        width: "38%",
-                        height: "29%",
-                        transform: "rotate(-1deg)",
-                        background: rugRushLastResult?.perfect
-                          ? "radial-gradient(circle at 50% 50%, rgba(251,191,36,0.08), transparent 72%)"
-                          : "radial-gradient(circle at 50% 50%, rgba(103,232,249,0.07), transparent 72%)",
-                      }}
-                    />
-                    {RUG_RUSH_SPARKLES.map((sparkle, index) => (
-                      <span
-                        key={`${sparkle.left}-${sparkle.top}`}
-                        className={`absolute animate-pulse font-black ${rugRushLastResult?.perfect ? "text-amber-100" : "text-cyan-100"}`}
-                        style={{
-                          left: `${sparkle.left}%`,
-                          top: `${sparkle.top}%`,
-                          fontSize: `${sparkle.size}px`,
-                          animationDelay: `${sparkle.delay}ms`,
-                          filter: rugRushLastResult?.perfect
-                            ? "drop-shadow(0 0 7px rgba(251,191,36,0.8))"
-                            : "drop-shadow(0 0 7px rgba(103,232,249,0.8))",
-                        }}
-                        aria-hidden="true"
-                      >
-                        ✦
-                      </span>
-                    ))}
-                    <div
-                      className={`absolute rounded-full border px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.14em] backdrop-blur-md ${rugRushLastResult?.perfect ? "border-amber-100/25 bg-amber-950/65 text-amber-100" : "border-cyan-100/22 bg-cyan-950/65 text-cyan-100"}`}
-                      style={{ left: "42%", top: "70%", transform: "translate(-50%, -50%)" }}
-                    >
-                      {rugRushLastResult?.perfect ? "Perfectly Clean ✦" : "Rug Cleaned ✦"}
-                    </div>
-                  </div>
-                )}
-
-                {maskLoading && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-slate-950/34 backdrop-blur-[1px]">
-                    <div className="rounded-full border border-cyan-200/24 bg-slate-950/78 px-4 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100 backdrop-blur-xl">
-                      Loading room zones...
-                    </div>
-                  </div>
-                )}
-
-                {!maskLoading && activeZone && (
-                  <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 w-[min(620px,calc(100%-20px))] -translate-x-1/2 sm:bottom-4">
-                    <div
-                      onPointerMove={(event) => event.stopPropagation()}
-                      onPointerUp={(event) => event.stopPropagation()}
-                      className={`pointer-events-auto rounded-[20px] border px-4 py-3 shadow-[0_24px_62px_rgba(0,0,0,0.52)] backdrop-blur-xl sm:px-5 sm:py-4 ${
-                        (!activeZone.isAreaExit && unlockedZones.has(activeZone.key))
-                          ? "border-emerald-200/24 bg-emerald-950/88"
-                          : activeZone.isAreaExit
-                            ? "border-amber-200/28 bg-slate-950/90"
-                            : "border-cyan-200/30 bg-slate-950/90"
-                      }`}
-                    >
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="min-w-0">
-                          <p
-                            className={`text-[9px] font-black uppercase tracking-[0.15em] ${
-                              activeZone.isAreaExit
-                                ? "text-amber-200/65"
-                                : "text-cyan-200/58"
-                            }`}
-                          >
-                            {activeZone.isAreaExit
-                              ? "Coming Soon"
-                              : unlockedZones.has(activeZone.key)
-                                ? "Zone Unlocked"
-                                : "Room Upgrade"}
-                          </p>
-
-                          <h2 className="mt-1 text-base font-black text-white sm:text-lg">
-                            {activeZone.title}
-                          </h2>
-
-                          <p className="mt-1 max-w-md text-[11px] leading-5 text-white/50 sm:text-xs">
-                            {activeZone.subtitle}
-                          </p>
-
-                          {message && selectedZoneKey === activeZone.key && (
-                            <p className="mt-2 text-[10px] font-bold leading-5 text-amber-100/85 sm:text-xs">
-                              {message}
-                            </p>
-                          )}
-                        </div>
-
-                        <div className="shrink-0 sm:min-w-[185px] sm:text-right">
-                          {activeZone.isAreaExit ? (
-                            <span className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-amber-200/24 bg-amber-300/10 px-5 text-[11px] font-black uppercase tracking-[0.1em] text-amber-100 sm:w-auto">
-                              Coming Soon
-                            </span>
-                          ) : unlockedZones.has(activeZone.key) ? (
-                            activeZone.key === "bed-zone" ? (
-                              <button
-                                type="button"
-                                onClick={openWardrobe}
-                                className="min-h-11 w-full rounded-full bg-cyan-300 px-5 text-[11px] font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-cyan-200 sm:w-auto"
-                              >
-                                Open Wardrobe Bay →
-                              </button>
-                            ) : activeZone.key === "extra-zone" ? (
-                              <button
-                                type="button"
-                                onClick={openRugRush}
-                                className="min-h-11 w-full rounded-full bg-cyan-300 px-5 text-[11px] font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-cyan-200 sm:w-auto"
-                              >
-                                Play Rug Rush →
-                              </button>
-                            ) : (
-                              <span className="inline-flex min-h-11 items-center rounded-full border border-emerald-200/24 bg-emerald-300/10 px-5 text-[11px] font-black uppercase tracking-[0.1em] text-emerald-100">
-                                ✓ Unlocked
-                              </span>
-                            )
-                          ) : selectedZoneKey === activeZone.key ? (
-                            <button
-                              type="button"
-                              disabled={
-                                purchasingZoneKey === activeZone.key ||
-                                catalogLoading ||
-                                Boolean(setupError) ||
-                                dreamTokenBalance < activeZone.dtCost
-                              }
-                              onClick={() => purchaseZone(activeZone.key)}
-                              className={`min-h-11 w-full rounded-full px-5 text-[11px] font-black uppercase tracking-[0.1em] transition sm:w-auto ${
-                                dreamTokenBalance >= activeZone.dtCost &&
-                                !setupError
-                                  ? activeZone.isAreaExit
-                                    ? "bg-amber-300 text-slate-950 hover:bg-amber-200 disabled:opacity-55"
-                                    : "bg-cyan-300 text-slate-950 hover:bg-cyan-200 disabled:opacity-55"
-                                  : "cursor-not-allowed border border-white/10 bg-white/[0.04] text-white/32"
-                              }`}
-                            >
-                              {purchasingZoneKey === activeZone.key
-                                ? "Unlocking..."
-                                : dreamTokenBalance >= activeZone.dtCost
-                                  ? `Unlock · ${formatDT(activeZone.dtCost)}`
-                                  : `Need ${formatDT(activeZone.dtCost - dreamTokenBalance)}`}
-                            </button>
-                          ) : (
-                            <div>
-                              <p
-                                className={`text-xl font-black sm:text-2xl ${
-                                  activeZone.isAreaExit
-                                    ? "text-amber-100"
-                                    : "text-cyan-100"
-                                }`}
-                              >
-                                {catalogLoading
-                                  ? "..."
-                                  : formatDT(activeZone.dtCost)}
-                              </p>
-                              <p className="mt-1 text-[9px] font-bold uppercase tracking-[0.12em] text-white/34">
-                                Click zone to unlock
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
-          </div>
-        ) : (
-          <div ref={roomViewportRef} className="flex min-h-0 flex-1 items-start justify-center overflow-hidden">
-            <div
-              className="relative isolate overflow-hidden rounded-[24px] border border-emerald-200/18 bg-[radial-gradient(circle_at_50%_35%,rgba(30,150,190,0.17),transparent_45%),linear-gradient(145deg,#07172a,#020713)] shadow-[0_30px_100px_rgba(0,0,0,0.56)]"
-              style={{
-                width: stageSize.width > 0 ? `${stageSize.width}px` : "100%",
-                height: stageSize.height > 0 ? `${stageSize.height}px` : "auto",
-                aspectRatio: "1535 / 1024",
-                maxWidth: "100%",
-                maxHeight: "100%",
-              }}
-            >
-              {!area2ImageFailed && (
-                <img
-                  src={AREA_2_PLACEHOLDER_IMAGE}
-                  alt="Nova Home Area 2 placeholder"
-                  className="absolute inset-0 h-full w-full object-cover"
-                  draggable={false}
-                  onError={() => setArea2ImageFailed(true)}
-                />
-              )}
+          </aside>
 
-              <div className="absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/42" />
+          <aside
+            className={`fixed bottom-0 right-0 top-[48px] z-[55] w-[min(320px,47vw)] border-l border-cyan-200/16 bg-[linear-gradient(200deg,rgba(3,18,34,0.985),rgba(2,7,19,0.99))] p-3 shadow-[-20px_0_55px_rgba(0,0,0,0.48)] backdrop-blur-xl transition-transform duration-200 ${
+              mobileZonePanelOpen && activeZone ? "translate-x-0" : "translate-x-[105%]"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-[7px] font-black uppercase tracking-[0.14em] text-cyan-200/48">Room Action</p>
+                <p className="mt-0.5 truncate text-[10px] font-black text-white/65">Tap the room to switch zones</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileZonePanelOpen(false)}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-sm text-white/60"
+                aria-label="Close room action"
+              >
+                ×
+              </button>
+            </div>
+            {activeZone && <div className="mt-3">{renderZoneActionContent(activeZone, true)}</div>}
+          </aside>
+        </>
+      ) : (
+        <>
+          <header className="relative z-30 shrink-0 border-b border-white/[0.06] bg-slate-950/42 px-3 py-2 backdrop-blur-xl sm:px-5 lg:px-7">
+            <div className="mx-auto grid w-full max-w-[1800px] gap-3 md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    currentArea === "area-2"
+                      ? setCurrentArea("area-1")
+                      : router.push("/inventor")
+                  }
+                  className="flex h-11 items-center gap-2 rounded-full border border-cyan-200/35 bg-slate-950/65 px-4 text-xs font-black uppercase tracking-[0.1em] text-white shadow-[0_14px_34px_rgba(0,0,0,0.28)] transition hover:bg-cyan-300/10"
+                >
+                  <span aria-hidden="true">←</span>
+                  {currentArea === "area-2" ? "Area 1" : "Nova’s World"}
+                </button>
+              </div>
 
-              <div className="absolute inset-x-0 bottom-0 p-5 sm:p-8">
-                <div className="max-w-xl rounded-[22px] border border-emerald-200/22 bg-slate-950/82 p-5 backdrop-blur-xl sm:p-6">
-                  <p className="text-[9px] font-black uppercase tracking-[0.17em] text-emerald-200/72">
-                    Future Expansion
+              <div className="min-w-0 md:px-3">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <h1 className="font-serif text-xl font-medium tracking-[-0.035em] text-white sm:text-2xl xl:text-3xl">
+                    Nova’s Home
+                  </h1>
+                  <span className="text-[9px] font-black uppercase tracking-[0.17em] text-cyan-300/75 sm:text-[10px]">
+                    Customise & Play
+                  </span>
+                </div>
+                <p className="mt-0.5 max-w-3xl text-[10px] leading-4 text-white/50 sm:text-[11px] xl:text-xs">
+                  {currentArea === "area-1"
+                    ? "Choose a darkened room zone, view its DT price, and unlock it to reveal the furnishing beneath."
+                    : "Area 2 is coming soon."}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                <div className="rounded-full border border-cyan-200/30 bg-slate-950/72 px-4 py-2 text-right shadow-[0_14px_34px_rgba(0,0,0,0.28)]">
+                  <p className="text-[8px] font-black uppercase tracking-[0.15em] text-cyan-200/55">Dream Tokens</p>
+                  <p className="mt-0.5 text-sm font-black text-cyan-50">
+                    {balanceLoading ? "Loading..." : formatDT(dreamTokenBalance)}
                   </p>
-                  <h2 className="mt-2 text-2xl font-black sm:text-3xl">
-                    Area 2 · Coming Soon
-                  </h2>
-                  <p className="mt-2 text-xs leading-6 text-white/52 sm:text-sm">
-                    Area 2 is not available yet. This connected room will open in a future Nova Home update.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setCurrentArea("area-1")}
-                    className="mt-4 min-h-11 rounded-full border border-emerald-200/24 bg-emerald-300/10 px-5 text-[11px] font-black uppercase tracking-[0.1em] text-emerald-100 hover:bg-emerald-300/16"
-                  >
-                    ← Return to Area 1
-                  </button>
+                </div>
+
+                <div className="rounded-full border border-white/12 bg-white/[0.045] px-4 py-2 text-right">
+                  <p className="text-[8px] font-black uppercase tracking-[0.15em] text-white/38">Starter Quarters</p>
+                  <p className="mt-0.5 text-sm font-black text-white">{roomUnlockedCount}/4 furnished</p>
+                </div>
+
+                <div className="rounded-full border border-amber-200/18 bg-amber-300/[0.05] px-4 py-2 text-right">
+                  <p className="text-[8px] font-black uppercase tracking-[0.15em] text-white/38">Area 2</p>
+                  <p className="mt-0.5 text-sm font-black text-amber-100/75">Coming Soon</p>
                 </div>
               </div>
             </div>
-          </div>
-        )}
-      </section>
+          </header>
 
-      {!wardrobeOpen && !rugRushOpen && (
-        <div className="pointer-events-none fixed bottom-2 right-2 z-40 flex flex-col items-center sm:bottom-3 sm:right-4 lg:right-5">
-          <img
-            src="/nova/nova-character.png"
-            alt="Nova"
-            className="pointer-events-none h-[108px] w-auto drop-shadow-[0_20px_28px_rgba(0,0,0,0.56)] sm:h-[138px] xl:h-[168px]"
-            draggable={false}
-          />
-          <button
-            type="button"
-            onClick={startNovaHomeGuide}
-            className="pointer-events-auto -mt-1 flex min-h-10 items-center justify-center gap-2 rounded-full border border-cyan-200/55 bg-cyan-950/88 px-4 text-[10px] font-black uppercase tracking-[0.11em] text-white shadow-[0_16px_36px_rgba(0,0,0,0.34),0_0_22px_rgba(83,215,255,0.15)] backdrop-blur-xl transition hover:bg-cyan-900/90 sm:min-h-11 sm:px-5 sm:text-[11px]"
-          >
-            <span aria-hidden="true">✦</span>
-            Nova Guide
-          </button>
-        </div>
+          <section className="relative z-10 mx-auto flex min-h-0 w-full max-w-[1800px] flex-1 flex-col overflow-hidden px-3 py-2 sm:px-5 lg:px-7">
+            {setupError && (
+              <div className="mb-2 shrink-0 rounded-[14px] border border-amber-200/28 bg-amber-300/[0.08] px-4 py-2 text-xs leading-5 text-amber-50/88">
+                {setupError}
+              </div>
+            )}
+
+            {currentArea === "area-1" ? (
+              <div className="grid min-h-0 flex-1 items-stretch gap-3 md:grid-cols-[190px_minmax(0,1fr)] lg:grid-cols-[215px_minmax(0,1fr)] xl:grid-cols-[230px_minmax(0,1fr)]">
+                <aside className="grid min-h-0 grid-cols-5 content-start gap-1.5 md:grid-cols-1 md:grid-rows-[auto_repeat(5,minmax(0,1fr))] md:gap-2">
+                  <div className="col-span-5 mb-0.5 md:col-span-1">
+                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-200/55">Area 1 · Starter Quarters</p>
+                    <p className="mt-1 text-[11px] leading-5 text-white/40">Select a room zone to inspect or unlock it. Area 2 is coming soon.</p>
+                  </div>
+
+                  {zones.map((zone) => {
+                    const unlocked = !zone.isAreaExit && unlockedZones.has(zone.key);
+                    const selected = selectedZoneKey === zone.key;
+                    const affordable = !zone.isAreaExit && dreamTokenBalance >= zone.dtCost;
+                    const guideHighlighted = guideTargetZoneKey === zone.key;
+
+                    return (
+                      <button
+                        key={zone.key}
+                        type="button"
+                        onMouseEnter={() => setHoveredZoneKey(zone.key)}
+                        onMouseLeave={() => setHoveredZoneKey(null)}
+                        onClick={() => selectZone(zone.key)}
+                        className={`group min-h-0 rounded-[14px] border px-2 py-2 text-left transition md:px-3 md:py-2 ${
+                          guideHighlighted
+                            ? zone.isAreaExit
+                              ? "relative z-[95] border-amber-200/70 bg-amber-300/[0.13] shadow-[0_0_0_3px_rgba(251,191,36,0.13),0_0_32px_rgba(251,191,36,0.26)]"
+                              : "relative z-[95] border-cyan-200/75 bg-cyan-300/[0.14] shadow-[0_0_0_3px_rgba(83,215,255,0.13),0_0_34px_rgba(83,215,255,0.28)]"
+                            : selected
+                              ? "border-cyan-200/52 bg-cyan-300/[0.1] shadow-[0_0_24px_rgba(83,215,255,0.11)]"
+                              : unlocked
+                                ? "border-emerald-200/15 bg-emerald-300/[0.045]"
+                                : zone.isAreaExit
+                                  ? "border-amber-200/16 bg-amber-300/[0.035] hover:border-amber-200/30"
+                                  : "border-white/9 bg-white/[0.025] hover:border-cyan-200/24 hover:bg-cyan-300/[0.045]"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-black text-white sm:text-sm">{zone.title}</p>
+                            <p className={`mt-1 text-[9px] font-bold uppercase tracking-[0.1em] ${zone.isAreaExit ? "text-amber-200/65" : unlocked ? "text-emerald-200/65" : affordable ? "text-cyan-200/58" : "text-white/28"}`}>
+                              {zone.isAreaExit
+                                ? "Coming Soon"
+                                : unlocked
+                                  ? zone.key === "bed-zone"
+                                    ? "Wardrobe Bay"
+                                    : zone.key === "extra-zone"
+                                      ? "Rug Rush"
+                                      : "Unlocked"
+                                  : affordable
+                                    ? "Available"
+                                    : "Save more DT"}
+                            </p>
+                          </div>
+                          <strong className={`shrink-0 text-[10px] ${unlocked ? "text-emerald-200" : zone.isAreaExit ? "text-amber-200" : affordable ? "text-cyan-200" : "text-white/30"}`}>
+                            {zone.isAreaExit ? "Soon" : unlocked ? "✓" : formatDT(zone.dtCost)}
+                          </strong>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </aside>
+
+                <div ref={roomViewportRef} className="flex min-h-0 min-w-0 items-start justify-center overflow-hidden">
+                  {renderArea1Stage(true)}
+                </div>
+              </div>
+            ) : (
+              <div ref={roomViewportRef} className="flex min-h-0 flex-1 items-start justify-center overflow-hidden">
+                <div
+                  className="relative isolate overflow-hidden rounded-[24px] border border-emerald-200/18 bg-[radial-gradient(circle_at_50%_35%,rgba(30,150,190,0.17),transparent_45%),linear-gradient(145deg,#07172a,#020713)] shadow-[0_30px_100px_rgba(0,0,0,0.56)]"
+                  style={{
+                    width: stageSize.width > 0 ? `${stageSize.width}px` : "100%",
+                    height: stageSize.height > 0 ? `${stageSize.height}px` : "auto",
+                    aspectRatio: "1535 / 1024",
+                    maxWidth: "100%",
+                    maxHeight: "100%",
+                  }}
+                >
+                  {!area2ImageFailed && (
+                    <img
+                      src={AREA_2_PLACEHOLDER_IMAGE}
+                      alt="Nova Home Area 2 placeholder"
+                      className="absolute inset-0 h-full w-full object-cover"
+                      draggable={false}
+                      onError={() => setArea2ImageFailed(true)}
+                    />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/42" />
+                  <div className="absolute inset-x-0 bottom-0 p-5 sm:p-8">
+                    <div className="max-w-xl rounded-[22px] border border-emerald-200/22 bg-slate-950/82 p-5 backdrop-blur-xl sm:p-6">
+                      <p className="text-[9px] font-black uppercase tracking-[0.17em] text-emerald-200/72">Future Expansion</p>
+                      <h2 className="mt-2 text-2xl font-black sm:text-3xl">Area 2 · Coming Soon</h2>
+                      <p className="mt-2 text-xs leading-6 text-white/52 sm:text-sm">Area 2 is not available yet. This connected room will open in a future Nova Home update.</p>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentArea("area-1")}
+                        className="mt-4 min-h-11 rounded-full border border-emerald-200/24 bg-emerald-300/10 px-5 text-[11px] font-black uppercase tracking-[0.1em] text-emerald-100 hover:bg-emerald-300/16"
+                      >
+                        ← Return to Area 1
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+
+          {!wardrobeOpen && !rugRushOpen && (
+            <div className="pointer-events-none fixed bottom-2 right-2 z-40 flex flex-col items-center sm:bottom-3 sm:right-4 lg:right-5">
+              <img
+                src="/nova/nova-character.png"
+                alt="Nova"
+                className="pointer-events-none h-[108px] w-auto drop-shadow-[0_20px_28px_rgba(0,0,0,0.56)] sm:h-[138px] xl:h-[168px]"
+                draggable={false}
+              />
+              <button
+                type="button"
+                onClick={startNovaHomeGuide}
+                className="pointer-events-auto -mt-1 flex min-h-10 items-center justify-center gap-2 rounded-full border border-cyan-200/55 bg-cyan-950/88 px-4 text-[10px] font-black uppercase tracking-[0.11em] text-white shadow-[0_16px_36px_rgba(0,0,0,0.34),0_0_22px_rgba(83,215,255,0.15)] backdrop-blur-xl transition hover:bg-cyan-900/90 sm:min-h-11 sm:px-5 sm:text-[11px]"
+              >
+                <span aria-hidden="true">✦</span>
+                Nova Guide
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       <NovaHomeGuide
@@ -1978,6 +2162,7 @@ export default function NovaHomePage() {
         stepIndex={guideStep}
         onStepChange={setGuideStep}
         onClose={closeNovaHomeGuide}
+        compact={phoneLandscapeLayout}
       />
 
       {rugRushOpen && (
@@ -2023,7 +2208,26 @@ export default function NovaHomePage() {
           onEquip={(itemKey) => void equipWardrobeItem(itemKey)}
           onUnequip={(itemKey) => void unequipWardrobeAccessory(itemKey)}
           onSavePlacement={saveUserAccessoryPlacement}
+          compactMobile={phoneLandscapeLayout}
         />
+      )}
+
+      {landscapeRequired && portraitOrientation && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[radial-gradient(circle_at_50%_35%,rgba(36,183,226,0.16),transparent_36%),linear-gradient(180deg,#04101d,#020713)] px-6 text-center">
+          <div className="max-w-sm">
+            <div className="mx-auto flex h-20 w-14 rotate-90 items-center justify-center rounded-[16px] border-2 border-cyan-200/52 bg-cyan-300/[0.07] shadow-[0_0_38px_rgba(83,215,255,0.18)]">
+              <div className="h-1.5 w-1.5 rounded-full bg-cyan-200/60" />
+            </div>
+            <p className="mt-7 text-[9px] font-black uppercase tracking-[0.2em] text-cyan-200/58">Nova’s Home</p>
+            <h2 className="mt-2 font-serif text-3xl font-medium tracking-[-0.03em] text-white">Turn your device sideways</h2>
+            <p className="mx-auto mt-3 max-w-xs text-sm leading-6 text-white/52">
+              Nova’s Home and its activities are designed for landscape play on phones and tablets.
+            </p>
+            <div className="mx-auto mt-5 inline-flex items-center gap-2 rounded-full border border-cyan-200/18 bg-cyan-300/[0.05] px-4 py-2 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100/72">
+              ↻ Rotate to landscape to continue
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );
@@ -2035,11 +2239,13 @@ function NovaHomeGuide({
   stepIndex,
   onStepChange,
   onClose,
+  compact = false,
 }: {
   open: boolean;
   stepIndex: number;
   onStepChange: (step: number) => void;
   onClose: () => void;
+  compact?: boolean;
 }) {
   const step = NOVA_HOME_GUIDE_STEPS[stepIndex] ?? NOVA_HOME_GUIDE_STEPS[0];
   const isFirst = stepIndex <= 0;
@@ -2057,6 +2263,74 @@ function NovaHomeGuide({
   }, [open, onClose]);
 
   if (!open) return null;
+
+  if (compact) {
+    return (
+      <div className="pointer-events-none fixed inset-0 z-[90]">
+        <div className="pointer-events-auto absolute bottom-2 right-2 w-[min(430px,66vw)] overflow-hidden rounded-[18px] border border-cyan-200/30 bg-[linear-gradient(145deg,rgba(4,30,49,0.98),rgba(2,10,24,0.99))] p-3 shadow-[0_24px_70px_rgba(0,0,0,0.62),0_0_26px_rgba(83,215,255,0.12)] backdrop-blur-2xl">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close Nova Guide"
+            className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white/[0.045] text-sm text-white/65"
+          >
+            ×
+          </button>
+
+          <div className="flex items-start gap-2.5 pr-7">
+            <div className="flex h-11 w-11 shrink-0 items-end justify-center overflow-hidden rounded-[13px] border border-cyan-200/20 bg-cyan-300/[0.06]">
+              <img
+                src="/nova/nova-character.png"
+                alt="Nova"
+                className="h-[58px] w-auto translate-y-1.5 object-contain"
+                draggable={false}
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[6px] font-black uppercase tracking-[0.16em] text-cyan-200/58">{step.eyebrow}</p>
+              <h2 className="mt-0.5 truncate font-serif text-base font-medium tracking-[-0.02em] text-white">{step.title}</h2>
+              <p className="mt-1 text-[9px] leading-4 text-white/56">{step.text}</p>
+            </div>
+          </div>
+
+          <div className="mt-2.5 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1" aria-label="Guide progress">
+              {NOVA_HOME_GUIDE_STEPS.map((_, index) => (
+                <span
+                  key={index}
+                  className={`h-1 rounded-full transition-all ${index === stepIndex ? "w-4 bg-cyan-300" : index < stepIndex ? "w-1.5 bg-cyan-200/40" : "w-1.5 bg-white/14"}`}
+                />
+              ))}
+            </div>
+            <div className="flex items-center gap-1.5">
+              {!isFirst && (
+                <button
+                  type="button"
+                  onClick={() => onStepChange(Math.max(0, stepIndex - 1))}
+                  className="min-h-8 rounded-full border border-white/10 bg-white/[0.035] px-3 text-[7px] font-black uppercase tracking-[0.09em] text-white/60"
+                >
+                  Back
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  if (isLast) {
+                    onClose();
+                    return;
+                  }
+                  onStepChange(Math.min(NOVA_HOME_GUIDE_STEPS.length - 1, stepIndex + 1));
+                }}
+                className="min-h-8 rounded-full bg-cyan-300 px-4 text-[7px] font-black uppercase tracking-[0.1em] text-slate-950"
+              >
+                {isLast ? "Explore" : "Next"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[90]">
@@ -2181,6 +2455,7 @@ function WardrobeBay({
   onEquip,
   onUnequip,
   onSavePlacement,
+  compactMobile,
 }: {
   catalog: WardrobeCatalogRow[];
   ownedItems: Set<string>;
@@ -2208,6 +2483,7 @@ function WardrobeBay({
   onEquip: (itemKey: string) => void;
   onUnequip: (itemKey: string) => void;
   onSavePlacement: (itemKey: string, placement: WardrobeUserPlacementDraft) => Promise<boolean>;
+  compactMobile: boolean;
 }) {
   const visibleItems = catalog.filter((item) => item.character_key === activeCharacter && item.category === activeCategory);
   const selectedItem =
@@ -2518,6 +2794,467 @@ function WardrobeBay({
     } finally {
       setExportingPng(false);
     }
+  }
+
+
+  if (compactMobile) {
+    const selectedPriceLabel = selectedItem
+      ? selectedItem.is_starter || ownedItems.has(selectedItem.item_key)
+        ? isEquipped
+          ? "Equipped"
+          : "Owned"
+        : formatDT(selectedItem.dt_cost)
+      : "";
+
+    const mobilePrimaryAction = selectedItem ? (
+      isEquipped && selectedItem.category === "accessory" ? (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onUnequip(selectedItem.item_key)}
+          className="min-h-10 rounded-full border border-rose-200/24 bg-rose-300/[0.09] px-4 text-[9px] font-black uppercase tracking-[0.09em] text-rose-100 disabled:opacity-45"
+        >
+          {equippingItemKey === selectedItem.item_key ? "Unequipping..." : "Unequip"}
+        </button>
+      ) : isEquipped ? (
+        <span className="flex min-h-10 items-center rounded-full border border-emerald-200/22 bg-emerald-300/[0.08] px-4 text-[9px] font-black uppercase tracking-[0.09em] text-emerald-100">
+          ✓ Equipped
+        </span>
+      ) : isOwned ? (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onEquip(selectedItem.item_key)}
+          className="min-h-10 rounded-full bg-cyan-300 px-4 text-[9px] font-black uppercase tracking-[0.09em] text-slate-950 disabled:opacity-45"
+        >
+          {equippingItemKey === selectedItem.item_key ? "Equipping..." : "Wear This"}
+        </button>
+      ) : (
+        <button
+          type="button"
+          disabled={busy || dreamTokenBalance < selectedItem.dt_cost}
+          onClick={() => onPurchase(selectedItem.item_key)}
+          className={`min-h-10 rounded-full px-4 text-[9px] font-black uppercase tracking-[0.09em] disabled:opacity-45 ${
+            dreamTokenBalance >= selectedItem.dt_cost
+              ? "bg-cyan-300 text-slate-950"
+              : "border border-white/10 bg-white/[0.04] text-white/35"
+          }`}
+        >
+          {purchasingItemKey === selectedItem.item_key
+            ? "Buying..."
+            : dreamTokenBalance >= selectedItem.dt_cost
+              ? `Buy · ${formatDT(selectedItem.dt_cost)}`
+              : `Need ${formatDT(selectedItem.dt_cost - dreamTokenBalance)}`}
+        </button>
+      )
+    ) : null;
+
+    return (
+      <div className="fixed inset-0 z-[120] overflow-hidden bg-[#01040b] text-white">
+        <section
+          role="dialog"
+          aria-modal="true"
+          aria-label="Nova Wardrobe Bay"
+          className="grid h-[100dvh] w-full grid-rows-[44px_minmax(0,1fr)_58px] overflow-hidden bg-[radial-gradient(circle_at_50%_30%,rgba(34,211,238,0.13),transparent_38%),linear-gradient(145deg,#061526,#020713)]"
+        >
+          <header className="relative z-30 flex min-w-0 items-center gap-2 border-b border-white/[0.07] bg-slate-950/80 px-2 backdrop-blur-xl">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={busy}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/11 bg-white/[0.045] text-base font-black text-white/74 disabled:opacity-40"
+              aria-label="Close Wardrobe Bay"
+            >
+              ←
+            </button>
+
+            <div className="min-w-0">
+              <p className="truncate text-[7px] font-black uppercase tracking-[0.15em] text-cyan-200/55">Sleep Zone</p>
+              <h2 className="truncate text-sm font-black text-white">Wardrobe Bay</h2>
+            </div>
+
+            <div className="ml-auto flex min-w-0 items-center gap-1.5">
+              <button
+                type="button"
+                disabled={busy || savingLook || exportingPng || (activeCharacter === "milo" && !miloUnlocked)}
+                onClick={() => void saveCurrentLook()}
+                className="min-h-8 rounded-full border border-emerald-200/20 bg-emerald-300/[0.07] px-3 text-[7px] font-black uppercase tracking-[0.08em] text-emerald-100/82 disabled:opacity-35"
+                title="Save Look"
+              >
+                {savingLook ? "Saving..." : "Save Look"}
+              </button>
+              <button
+                type="button"
+                disabled={busy || savingLook || exportingPng || (activeCharacter === "milo" && !miloUnlocked)}
+                onClick={() => void downloadCurrentLookPng()}
+                className="min-h-8 rounded-full border border-violet-200/20 bg-violet-300/[0.07] px-3 text-[7px] font-black uppercase tracking-[0.08em] text-violet-100/82 disabled:opacity-35"
+                title="Download transparent PNG"
+              >
+                {exportingPng ? "Creating..." : "PNG"}
+              </button>
+              <div className="rounded-full border border-cyan-200/18 bg-cyan-300/[0.05] px-2.5 py-1.5 text-right">
+                <p className="text-[6px] font-black uppercase tracking-[0.11em] text-cyan-200/48">DT</p>
+                <p className="text-[10px] font-black text-cyan-50">{formatDT(dreamTokenBalance)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={busy}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/11 bg-white/[0.045] text-lg text-white/72 disabled:opacity-40"
+                aria-label="Close Wardrobe Bay"
+              >
+                ×
+              </button>
+            </div>
+          </header>
+
+          <div className="grid min-h-0 grid-cols-[78px_minmax(0,1fr)_188px] overflow-hidden">
+            <aside className="flex min-h-0 flex-col border-r border-white/[0.07] bg-slate-950/54 p-1.5">
+              <p className="px-1 pb-1 text-[6px] font-black uppercase tracking-[0.13em] text-white/26">Character</p>
+              <div className="grid gap-1">
+                <button
+                  type="button"
+                  onClick={() => onCharacterChange("nova")}
+                  className={`rounded-[11px] border px-1 py-2 text-center ${
+                    activeCharacter === "nova"
+                      ? "border-cyan-200/38 bg-cyan-300/[0.11] text-cyan-50"
+                      : "border-white/[0.07] bg-white/[0.025] text-white/46"
+                  }`}
+                >
+                  <span className="block text-base">✦</span>
+                  <span className="mt-0.5 block text-[7px] font-black uppercase tracking-[0.07em]">Nova</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onCharacterChange("milo")}
+                  className={`rounded-[11px] border px-1 py-2 text-center ${
+                    activeCharacter === "milo"
+                      ? miloUnlocked
+                        ? "border-emerald-200/34 bg-emerald-300/[0.09] text-emerald-50"
+                        : "border-amber-200/34 bg-amber-300/[0.08] text-amber-50"
+                      : "border-white/[0.07] bg-white/[0.025] text-white/46"
+                  }`}
+                >
+                  <span className="block text-base">{miloUnlocked ? "◆" : "🔒"}</span>
+                  <span className="mt-0.5 block text-[7px] font-black uppercase tracking-[0.07em]">Milo</span>
+                </button>
+              </div>
+
+              <div className="my-1.5 h-px bg-white/[0.07]" />
+              <p className="px-1 pb-1 text-[6px] font-black uppercase tracking-[0.13em] text-white/26">Browse</p>
+              <div className="grid gap-1">
+                {WARDROBE_CATEGORIES.map((category) => {
+                  const active = activeCategory === category.key;
+                  return (
+                    <button
+                      key={category.key}
+                      type="button"
+                      onClick={() => onCategoryChange(category.key)}
+                      className={`rounded-[11px] border px-1 py-2 text-center ${
+                        active
+                          ? "border-cyan-200/36 bg-cyan-300/[0.1] text-cyan-50"
+                          : "border-white/[0.07] bg-white/[0.025] text-white/44"
+                      }`}
+                    >
+                      <span className="block text-base">{category.icon}</span>
+                      <span className="mt-0.5 block text-[7px] font-black uppercase tracking-[0.06em]">
+                        {category.shortLabel}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-auto rounded-[10px] border border-white/[0.06] bg-white/[0.025] px-1.5 py-2 text-center">
+                <p className="text-[6px] font-black uppercase tracking-[0.08em] text-white/28">Equipped</p>
+                <p className="mt-0.5 text-[8px] font-black text-white/58">{effectiveEquipped.length} items</p>
+              </div>
+            </aside>
+
+            <div className="relative flex min-h-0 min-w-0 items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_50%_42%,rgba(83,215,255,0.17),transparent_33%),linear-gradient(180deg,rgba(4,17,31,0.28),rgba(2,7,19,0.64))]">
+              <div className="pointer-events-none absolute inset-x-[17%] bottom-[7%] h-[20%] rounded-[50%] bg-cyan-300/[0.08] blur-2xl" />
+
+              <div className="absolute left-2 top-2 z-30 max-w-[60%] rounded-full border border-white/[0.08] bg-slate-950/58 px-2.5 py-1 backdrop-blur">
+                <p className="truncate text-[7px] font-black uppercase tracking-[0.08em] text-white/48">
+                  {activeCharacter === "nova" ? "Nova" : "Milo"} · {selectedCategoryMeta.label}
+                </p>
+              </div>
+
+              {adjustmentMode && selectedItem?.category === "accessory" && (
+                <div className="pointer-events-none absolute right-2 top-2 z-30 rounded-full border border-amber-200/24 bg-amber-300/[0.1] px-2.5 py-1 text-[7px] font-black uppercase tracking-[0.08em] text-amber-100 backdrop-blur">
+                  Drag to move
+                </div>
+              )}
+
+              {(lookActionMessage || message) && (
+                <div className="pointer-events-none absolute bottom-2 left-1/2 z-40 max-w-[90%] -translate-x-1/2 rounded-full border border-cyan-200/16 bg-slate-950/78 px-3 py-1.5 text-center text-[7px] font-bold text-cyan-100/78 backdrop-blur">
+                  {lookActionMessage || message}
+                </div>
+              )}
+
+              {activeCharacter === "nova" || miloUnlocked ? (
+                <div
+                  className={`relative aspect-square shrink-0 ${
+                    adjustmentMode
+                      ? placementDrag
+                        ? "cursor-grabbing"
+                        : "cursor-grab"
+                      : ""
+                  }`}
+                  style={{
+                    width: "min(100%, calc(100dvh - 116px))",
+                    touchAction: adjustmentMode ? "none" : undefined,
+                  }}
+                  onPointerDown={startPlacementDrag}
+                  onPointerMove={movePlacementDrag}
+                  onPointerUp={endPlacementDrag}
+                  onPointerCancel={endPlacementDrag}
+                >
+                  {previewBackdropAccessories.map((item) => (
+                    <WardrobeFittedLayer
+                      key={item.item_key}
+                      item={item}
+                      rig={activeWardrobeRig}
+                    />
+                  ))}
+                  {previewOutfitItem?.layer_image ? (
+                    <img
+                      src={previewOutfitItem.layer_image}
+                      alt={previewOutfitItem.title}
+                      className="pointer-events-none absolute inset-0 z-10 h-full w-full object-contain object-bottom drop-shadow-[0_18px_30px_rgba(0,0,0,0.55)]"
+                      draggable={false}
+                    />
+                  ) : activeCharacter === "nova" ? (
+                    <img
+                      src={NOVA_CHARACTER_IMAGE}
+                      alt="Nova wardrobe preview"
+                      className="pointer-events-none absolute inset-0 z-10 h-full w-full object-contain object-bottom drop-shadow-[0_18px_30px_rgba(0,0,0,0.55)]"
+                      draggable={false}
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-center text-[8px] font-black uppercase tracking-[0.1em] text-white/34">
+                      Milo outfit loading...
+                    </div>
+                  )}
+                  {previewForegroundAccessories.map((item) => (
+                    <WardrobeFittedLayer
+                      key={item.item_key}
+                      item={item}
+                      rig={activeWardrobeRig}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="w-[min(290px,82%)] rounded-[18px] border border-amber-200/22 bg-slate-950/72 p-3 text-center shadow-[0_18px_42px_rgba(0,0,0,0.4)] backdrop-blur">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-amber-200/28 bg-amber-300/[0.1] text-xl font-black text-amber-100">M</div>
+                  <h3 className="mt-2 text-sm font-black text-white">Unlock Milo</h3>
+                  <p className="mt-1 text-[8px] leading-4 text-white/42">
+                    Add Milo permanently to Wardrobe Bay for {formatDT(miloCatalog?.dt_cost ?? 1000)}.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onPurchaseCharacter("milo")}
+                    disabled={Boolean(purchasingCharacter) || dreamTokenBalance < (miloCatalog?.dt_cost ?? 1000)}
+                    className={`mt-2 min-h-9 w-full rounded-full px-4 text-[8px] font-black uppercase tracking-[0.08em] disabled:opacity-45 ${
+                      dreamTokenBalance >= (miloCatalog?.dt_cost ?? 1000)
+                        ? "bg-amber-300 text-slate-950"
+                        : "border border-white/10 bg-white/[0.04] text-white/34"
+                    }`}
+                  >
+                    {purchasingCharacter === "milo"
+                      ? "Unlocking..."
+                      : dreamTokenBalance >= (miloCatalog?.dt_cost ?? 1000)
+                        ? `Unlock · ${formatDT(miloCatalog?.dt_cost ?? 1000)}`
+                        : `Need ${formatDT((miloCatalog?.dt_cost ?? 1000) - dreamTokenBalance)}`}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <aside className="grid min-h-0 grid-rows-[34px_minmax(0,1fr)] border-l border-white/[0.07] bg-slate-950/46">
+              <div className="flex items-center justify-between border-b border-white/[0.06] px-2">
+                <div className="min-w-0">
+                  <p className="truncate text-[7px] font-black uppercase tracking-[0.1em] text-cyan-200/52">
+                    {selectedCategoryMeta.label}
+                  </p>
+                </div>
+                <span className="text-[7px] font-black text-white/28">{visibleItems.length}</span>
+              </div>
+
+              <div className="min-h-0 overflow-y-auto p-1.5 [scrollbar-width:thin]">
+                {setupError ? (
+                  <div className="rounded-[12px] border border-amber-200/22 bg-amber-300/[0.07] p-2 text-[8px] leading-4 text-amber-50/84">
+                    {setupError}
+                  </div>
+                ) : loading ? (
+                  <div className="flex h-full items-center justify-center text-center text-[7px] font-black uppercase tracking-[0.1em] text-cyan-100/48">
+                    Loading wardrobe...
+                  </div>
+                ) : activeCharacter === "milo" && !miloUnlocked ? (
+                  <div className="flex h-full items-center justify-center px-2 text-center text-[8px] leading-4 text-white/35">
+                    Unlock Milo from the centre panel to use his wardrobe.
+                  </div>
+                ) : visibleItems.length === 0 ? (
+                  <div className="flex h-full items-center justify-center px-2 text-center text-[8px] text-white/34">
+                    No {selectedCategoryMeta.label.toLowerCase()} yet.
+                  </div>
+                ) : (
+                  <div className="grid gap-1.5">
+                    {visibleItems.map((item) => {
+                      const owned = item.is_starter || ownedItems.has(item.item_key);
+                      const equipped = effectiveEquipped.some((entry) => entry.item_key === item.item_key);
+                      const selected = selectedItem?.item_key === item.item_key;
+
+                      return (
+                        <button
+                          key={item.item_key}
+                          type="button"
+                          onClick={() => onSelectItem(item.item_key)}
+                          className={`grid min-h-[58px] grid-cols-[46px_minmax(0,1fr)] items-center gap-2 rounded-[12px] border p-1.5 text-left ${
+                            selected
+                              ? "border-cyan-200/42 bg-cyan-300/[0.09]"
+                              : "border-white/[0.07] bg-white/[0.025]"
+                          }`}
+                        >
+                          <div
+                            className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-[10px] border"
+                            style={{
+                              background: `${item.accent_hex}16`,
+                              borderColor: `${item.accent_hex}38`,
+                              color: item.accent_hex,
+                            }}
+                          >
+                            {item.thumbnail_image ? (
+                              <img src={item.thumbnail_image} alt="" className="h-full w-full object-contain" />
+                            ) : (
+                              <span className="text-sm">{selectedCategoryMeta.icon}</span>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-[8px] font-black text-white/82">{item.title}</p>
+                            <div className="mt-1 flex items-center gap-1">
+                              <span className={`truncate text-[6px] font-black uppercase tracking-[0.06em] ${
+                                equipped ? "text-emerald-200" : owned ? "text-cyan-200/70" : "text-white/34"
+                              }`}>
+                                {equipped ? "Equipped" : owned ? "Owned" : formatDT(item.dt_cost)}
+                              </span>
+                              {item.category === "accessory" && item.accessory_slot && (
+                                <span className="truncate text-[6px] font-black uppercase tracking-[0.05em] text-white/25">
+                                  · {getAccessorySlotLabel(item.accessory_slot)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </aside>
+          </div>
+
+          <footer className="relative z-30 flex min-w-0 items-center gap-2 border-t border-white/[0.07] bg-slate-950/86 px-2 backdrop-blur-xl">
+            {adjustmentMode && selectedItem?.category === "accessory" ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setAdjustmentMode(false)}
+                  className="min-h-9 rounded-full border border-white/11 bg-white/[0.04] px-3 text-[7px] font-black uppercase tracking-[0.08em] text-white/58"
+                >
+                  Done
+                </button>
+
+                <div className="flex min-w-0 items-center gap-1 rounded-full border border-amber-200/16 bg-amber-300/[0.055] px-1.5 py-1">
+                  <button
+                    type="button"
+                    onClick={() => setPlacementDraft((current) => ({ ...current, scale: Math.max(0.05, Number((current.scale - 0.05).toFixed(2))) }))}
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.045] text-sm font-black text-white/72"
+                    aria-label="Make accessory smaller"
+                  >
+                    −
+                  </button>
+                  <div className="min-w-[70px] text-center">
+                    <p className="text-[6px] font-black uppercase tracking-[0.08em] text-amber-100/44">Size</p>
+                    <p className="text-[8px] font-black text-amber-50">{placementDraft.scale.toFixed(2)}×</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPlacementDraft((current) => ({ ...current, scale: Math.min(3, Number((current.scale + 0.05).toFixed(2))) }))}
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.045] text-sm font-black text-white/72"
+                    aria-label="Make accessory larger"
+                  >
+                    +
+                  </button>
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[8px] font-black text-white/78">{selectedItem.title}</p>
+                  <p className="truncate text-[6px] font-bold text-white/30">Drag on the character to move it</p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setPlacementDraft({ scale: 1, offset_x_pct: 0, offset_y_pct: 0 })}
+                  disabled={Boolean(savingPlacementItemKey)}
+                  className="min-h-9 rounded-full border border-white/11 bg-white/[0.04] px-3 text-[7px] font-black uppercase tracking-[0.07em] text-white/58 disabled:opacity-35"
+                >
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPlacementDraft(savedPlacement)}
+                  disabled={!placementChanged || Boolean(savingPlacementItemKey)}
+                  className="min-h-9 rounded-full border border-white/11 bg-white/[0.04] px-3 text-[7px] font-black uppercase tracking-[0.07em] text-white/58 disabled:opacity-30"
+                >
+                  Undo
+                </button>
+                <button
+                  type="button"
+                  disabled={!isOwned || Boolean(savingPlacementItemKey)}
+                  onClick={() => void onSavePlacement(selectedItem.item_key, placementDraft)}
+                  className="min-h-9 rounded-full bg-amber-300 px-4 text-[7px] font-black uppercase tracking-[0.08em] text-slate-950 disabled:opacity-40"
+                >
+                  {savingPlacementItemKey === selectedItem.item_key ? "Saving..." : "Save Placement"}
+                </button>
+              </>
+            ) : selectedItem ? (
+              <>
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <p className="truncate text-[9px] font-black text-white/86">{selectedItem.title}</p>
+                    <span className="shrink-0 rounded-full border border-white/[0.07] bg-white/[0.03] px-1.5 py-0.5 text-[6px] font-black uppercase tracking-[0.06em] text-white/35">
+                      {selectedPriceLabel}
+                    </span>
+                  </div>
+                  <p className="truncate text-[7px] text-white/34">
+                    {selectedItem.category === "accessory" && selectedItem.accessory_slot
+                      ? `${getAccessorySlotLabel(selectedItem.accessory_slot)} accessory`
+                      : selectedItem.description || selectedCategoryMeta.label}
+                  </p>
+                </div>
+
+                {selectedItem.category === "accessory" && adjustmentAvailable && (
+                  <button
+                    type="button"
+                    onClick={() => setAdjustmentMode(true)}
+                    className="min-h-10 rounded-full border border-amber-200/22 bg-amber-300/[0.08] px-4 text-[8px] font-black uppercase tracking-[0.08em] text-amber-100"
+                  >
+                    Adjust
+                  </button>
+                )}
+
+                {mobilePrimaryAction}
+              </>
+            ) : (
+              <p className="text-[8px] font-bold text-white/38">
+                Choose an outfit or accessory from the right.
+              </p>
+            )}
+          </footer>
+        </section>
+      </div>
+    );
   }
 
   return (
