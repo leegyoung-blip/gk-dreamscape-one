@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useNovaHomeActivityLayout } from "@/components/nova-home/NovaHomeActivityShell";
 
 export type RugCurrency = "DT" | "DG";
 
@@ -132,6 +133,7 @@ export default function RugCollectionPanel({
   onClose,
 }: Props) {
   const [activeTab, setActiveTab] = useState<CatalogTab>("rugs");
+  const { compactLandscape } = useNovaHomeActivityLayout();
 
   useEffect(() => {
     if (open) setActiveTab("rugs");
@@ -225,8 +227,176 @@ export default function RugCollectionPanel({
       : cleaningToolPurchasingKey === selectKey ||
         cleaningToolEquippingKey === selectKey;
 
+  if (compactLandscape) {
+    return (
+      <div className="fixed inset-0 z-[125] flex h-[100dvh] max-h-[100dvh] w-[100vw] flex-col overflow-hidden bg-[#020713] text-white">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_25%_18%,rgba(37,192,242,0.15),transparent_34%),radial-gradient(circle_at_82%_72%,rgba(139,92,246,0.12),transparent_31%),linear-gradient(180deg,#061827,#020713)]" />
+
+        <header
+          className="relative z-10 flex h-[46px] shrink-0 items-center justify-between gap-2 border-b border-white/[0.08] bg-slate-950/82 px-2 backdrop-blur-xl"
+          style={{
+            paddingLeft: "max(8px, env(safe-area-inset-left))",
+            paddingRight: "max(8px, env(safe-area-inset-right))",
+          }}
+        >
+          <div className="min-w-0">
+            <p className="text-[7px] font-black uppercase tracking-[0.14em] text-cyan-200/58">Comfort & Decor</p>
+            <h2 className="truncate font-serif text-[18px] font-semibold leading-none tracking-[-0.03em] text-white">Nova’s Rug Collection</h2>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-1.5">
+            <div className="flex h-8 items-center gap-1.5 rounded-full border border-cyan-300/22 bg-cyan-300/[0.07] px-2">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-300 text-[8px] font-black text-slate-950">DT</span>
+              <span className="text-[10px] font-black text-white">{Math.round(dreamTokenBalance).toLocaleString("en-SG")}</span>
+            </div>
+            <div className="flex h-8 items-center gap-1.5 rounded-full border border-violet-300/22 bg-violet-300/[0.07] px-2">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-violet-300 text-[8px] font-black text-slate-950">DG</span>
+              <span className="text-[10px] font-black text-white">{Math.round(dreamGemBalance).toLocaleString("en-SG")}</span>
+            </div>
+            <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full border border-white/14 bg-white/[0.055] text-lg text-white/80" aria-label="Close Rug Collection">×</button>
+          </div>
+        </header>
+
+        <div
+          className="relative z-10 grid min-h-0 flex-1 grid-cols-[minmax(225px,0.76fr)_minmax(0,1.24fr)] gap-2 p-2"
+          style={{
+            paddingLeft: "max(8px, env(safe-area-inset-left))",
+            paddingRight: "max(8px, env(safe-area-inset-right))",
+            paddingBottom: "max(8px, env(safe-area-inset-bottom))",
+          }}
+        >
+          <section className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden rounded-[16px] border border-cyan-200/15 bg-slate-950/44 shadow-[0_20px_46px_rgba(0,0,0,0.28)]">
+            <div className="flex min-h-0 items-center justify-center overflow-hidden p-1.5">
+              {selected ? (
+                <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-[12px] border border-white/[0.07] bg-[radial-gradient(circle_at_50%_44%,rgba(73,191,226,0.12),transparent_52%),linear-gradient(180deg,#071b2c,#030a13)] p-2">
+                  <img
+                    src={selectedImage}
+                    alt={selected.title}
+                    className={`object-contain drop-shadow-[0_18px_28px_rgba(0,0,0,0.52)] ${activeTab === "tools" ? "max-h-[82%] max-w-[82%] scale-[1.08]" : "max-h-full max-w-full"}`}
+                    draggable={false}
+                  />
+                  <div className="absolute left-2 top-2 flex gap-1">
+                    <span className="rounded-full border border-cyan-200/20 bg-slate-950/80 px-2 py-1 text-[7px] font-black uppercase tracking-[0.09em] text-cyan-100">{activeTab === "rugs" ? "Rug" : "Tool"}</span>
+                    {selectedEquipped && <span className="rounded-full bg-emerald-300 px-2 py-1 text-[7px] font-black uppercase tracking-[0.08em] text-emerald-950">✓ Equipped</span>}
+                  </div>
+                  {activeTab === "tools" && selectedTool && (
+                    <div className="absolute bottom-2 right-2 rounded-full border border-amber-200/18 bg-slate-950/86 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.07em] text-amber-100">{powerLabel(selectedTool.power_multiplier)}</div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-[10px] font-bold text-white/38">Nothing available yet.</p>
+              )}
+            </div>
+
+            <div className="border-t border-white/[0.07] bg-slate-950/70 px-2.5 py-2">
+              {selected && (
+                <>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <h3 className="truncate text-[13px] font-black text-white">{selected.title}</h3>
+                        {selectedStarter && <span className="rounded-full border border-cyan-200/18 bg-cyan-300/[0.06] px-1.5 py-0.5 text-[6px] font-black uppercase tracking-[0.07em] text-cyan-100">Starter</span>}
+                      </div>
+                      <p className="mt-0.5 truncate text-[8px] text-white/48">{selected.description || (activeTab === "rugs" ? "Nova Home rug." : "Rug Rush cleaning tool.")}</p>
+                      <div className="mt-1 flex items-center gap-2">
+                        <span className={`text-[10px] font-black ${selectedCurrency === "DG" ? "text-violet-200" : "text-cyan-100"}`}>{selectedStarter ? "Free starter" : formatCurrency(selectedPrice, selectedCurrency)}</span>
+                        {activeTab === "tools" && selectedTool && <span className="text-[8px] font-black uppercase text-amber-100/78">{powerLabel(selectedTool.power_multiplier)}</span>}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={busy || selectedEquipped || (!selectedOwned && !selectedAffordable)}
+                      onClick={runSelectedAction}
+                      className={`h-8 min-w-[88px] shrink-0 rounded-full px-3 text-[8px] font-black uppercase tracking-[0.07em] ${selectedEquipped ? "border border-emerald-200/18 bg-emerald-300/[0.08] text-emerald-100" : selectedOwned ? "bg-cyan-300 text-slate-950" : selectedAffordable ? selectedCurrency === "DG" ? "bg-violet-300 text-slate-950" : "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.04] text-white/35"} disabled:opacity-50`}
+                    >
+                      {selectedActionBusy ? "..." : selectedEquipped ? "Equipped" : selectedOwned ? "Equip" : selectedAffordable ? "Buy" : "Locked"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </section>
+
+          <section className="grid min-h-0 grid-rows-[38px_minmax(0,1fr)] overflow-hidden rounded-[16px] border border-white/[0.09] bg-slate-950/40">
+            <div className="flex items-center gap-1.5 border-b border-white/[0.07] p-1.5">
+              <button type="button" onClick={() => setActiveTab("rugs")} className={`flex h-full flex-1 items-center justify-center gap-1.5 rounded-[10px] border px-2 text-[10px] font-black uppercase tracking-[0.08em] ${activeTab === "rugs" ? "border-cyan-200/45 bg-cyan-300/[0.12] text-cyan-50" : "border-white/[0.08] bg-white/[0.025] text-white/48"}`}>▱ Rugs</button>
+              <button type="button" onClick={() => setActiveTab("tools")} className={`flex h-full flex-1 items-center justify-center gap-1.5 rounded-[10px] border px-2 text-[10px] font-black uppercase tracking-[0.08em] ${activeTab === "tools" ? "border-violet-200/45 bg-violet-300/[0.12] text-violet-50" : "border-white/[0.08] bg-white/[0.025] text-white/48"}`}>✦ Cleaning Tools</button>
+            </div>
+
+            <div className="min-h-0 overflow-y-auto overscroll-contain p-1.5" style={{ WebkitOverflowScrolling: "touch" }}>
+              {loading ? (
+                <div className="grid grid-cols-3 gap-1.5">{Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-[116px] animate-pulse rounded-[12px] border border-white/[0.06] bg-white/[0.035]" />)}</div>
+              ) : activeTab === "rugs" ? (
+                <div className="grid grid-cols-3 gap-1.5">
+                  {rugCatalog.map((rug) => {
+                    const owned = rug.is_starter || rugOwnedKeys.has(rug.rug_key);
+                    const equipped = rug.rug_key === equippedRugKey;
+                    const active = selectedRug?.rug_key === rug.rug_key;
+                    const affordable = rug.currency_code === "DG" ? dreamGemBalance >= rug.price_amount : dreamTokenBalance >= rug.price_amount;
+                    const cardBusy = rugPurchasingKey === rug.rug_key || rugEquippingKey === rug.rug_key;
+                    return (
+                      <article key={rug.rug_key} onClick={() => onSelectRug(rug.rug_key)} className={`cursor-pointer overflow-hidden rounded-[12px] border ${active ? "border-cyan-200/55 bg-cyan-300/[0.08]" : "border-white/[0.08] bg-white/[0.025]"}`}>
+                        <div className="relative flex h-[74px] items-center justify-center overflow-hidden bg-slate-950/72 p-1.5">
+                          <img src={rug.thumbnail_image || rug.game_image} alt="" className="h-full w-full object-contain" draggable={false} />
+                          <div className="absolute left-1 top-1 flex gap-1">
+                            {equipped && <span className="rounded-full bg-emerald-300 px-1.5 py-0.5 text-[6px] font-black uppercase text-emerald-950">Equipped</span>}
+                            {rug.is_placeholder && <span className="rounded-full border border-amber-200/18 bg-slate-950/82 px-1.5 py-0.5 text-[6px] font-black uppercase text-amber-100">Temp</span>}
+                          </div>
+                        </div>
+                        <div className="p-1.5">
+                          <p className="truncate text-[10px] font-black text-white">{rug.title}</p>
+                          <div className="mt-1 flex items-center justify-between gap-1">
+                            <span className={`truncate text-[8px] font-black ${rug.currency_code === "DG" ? "text-violet-200" : "text-cyan-100"}`}>{rug.is_starter ? "Starter" : formatCurrency(rug.price_amount, rug.currency_code)}</span>
+                            <button type="button" disabled={busy || equipped || (!owned && !affordable)} onClick={(event) => { event.stopPropagation(); onSelectRug(rug.rug_key); if (equipped) return; if (owned) onEquipRug(rug.rug_key); else onPurchaseRug(rug.rug_key); }} className={`h-6 min-w-[48px] rounded-full px-2 text-[7px] font-black uppercase ${equipped ? "border border-emerald-200/16 bg-emerald-300/[0.07] text-emerald-100" : owned ? "bg-cyan-300 text-slate-950" : rug.currency_code === "DG" ? "bg-violet-300 text-slate-950" : "bg-cyan-300 text-slate-950"} disabled:opacity-45`}>{cardBusy ? "..." : equipped ? "On" : owned ? "Equip" : "Buy"}</button>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-1.5">
+                  {cleaningToolCatalog.map((tool) => {
+                    const owned = tool.is_starter || cleaningToolOwnedKeys.has(tool.cleaning_tool_key);
+                    const equipped = tool.cleaning_tool_key === equippedCleaningToolKey;
+                    const active = selectedTool?.cleaning_tool_key === tool.cleaning_tool_key;
+                    const affordable = tool.currency_code === "DG" ? dreamGemBalance >= tool.price_amount : dreamTokenBalance >= tool.price_amount;
+                    const cardBusy = cleaningToolPurchasingKey === tool.cleaning_tool_key || cleaningToolEquippingKey === tool.cleaning_tool_key;
+                    return (
+                      <article key={tool.cleaning_tool_key} onClick={() => onSelectCleaningTool(tool.cleaning_tool_key)} className={`cursor-pointer overflow-hidden rounded-[12px] border ${active ? "border-violet-200/55 bg-violet-300/[0.08]" : "border-white/[0.08] bg-white/[0.025]"}`}>
+                        <div className="relative flex h-[84px] items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_50%_48%,rgba(72,197,255,0.11),transparent_55%),#050d19] p-1.5">
+                          <img src={tool.thumbnail_image || tool.game_image} alt="" className={`object-contain drop-shadow-[0_12px_18px_rgba(0,0,0,0.45)] ${tool.cleaning_tool_key === "yellow-sponge" ? "h-[92%] w-[92%] scale-[1.1]" : "h-[84%] w-[92%]"}`} draggable={false} />
+                          <div className="absolute left-1 top-1 flex gap-1">
+                            {equipped && <span className="rounded-full bg-emerald-300 px-1.5 py-0.5 text-[6px] font-black uppercase text-emerald-950">Equipped</span>}
+                            {tool.is_placeholder && <span className="rounded-full border border-violet-200/18 bg-slate-950/82 px-1.5 py-0.5 text-[6px] font-black uppercase text-violet-100">Temp</span>}
+                          </div>
+                          <span className="absolute bottom-1 right-1 rounded-full border border-amber-200/15 bg-slate-950/86 px-1.5 py-0.5 text-[7px] font-black uppercase text-amber-100">{powerLabel(tool.power_multiplier)}</span>
+                        </div>
+                        <div className="p-1.5">
+                          <p className="truncate text-[10px] font-black text-white">{tool.title}</p>
+                          <div className="mt-1 flex items-center justify-between gap-1">
+                            <span className={`truncate text-[8px] font-black ${tool.currency_code === "DG" ? "text-violet-200" : "text-cyan-100"}`}>{tool.is_starter ? "Starter" : formatCurrency(tool.price_amount, tool.currency_code)}</span>
+                            <button type="button" disabled={busy || equipped || (!owned && !affordable)} onClick={(event) => { event.stopPropagation(); onSelectCleaningTool(tool.cleaning_tool_key); if (equipped) return; if (owned) onEquipCleaningTool(tool.cleaning_tool_key); else onPurchaseCleaningTool(tool.cleaning_tool_key); }} className={`h-6 min-w-[48px] rounded-full px-2 text-[7px] font-black uppercase ${equipped ? "border border-emerald-200/16 bg-emerald-300/[0.07] text-emerald-100" : owned ? "bg-cyan-300 text-slate-950" : tool.currency_code === "DG" ? "bg-violet-300 text-slate-950" : "bg-cyan-300 text-slate-950"} disabled:opacity-45`}>{cardBusy ? "..." : equipped ? "On" : owned ? "Equip" : "Buy"}</button>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+
+        {message && (
+          <div className="pointer-events-none absolute bottom-2 left-1/2 z-30 max-w-[70vw] -translate-x-1/2 rounded-full border border-amber-200/16 bg-amber-950/92 px-3 py-1.5 text-center text-[8px] font-bold text-amber-100 shadow-xl backdrop-blur-xl">{message}</div>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className="fixed inset-0 z-[125] flex min-h-0 flex-col overflow-hidden bg-[#020713] text-white">
+    <div className="fixed inset-0 z-[125] flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col overflow-hidden bg-[#020713] text-white">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_25%_18%,rgba(37,192,242,0.15),transparent_34%),radial-gradient(circle_at_82%_72%,rgba(139,92,246,0.12),transparent_31%),linear-gradient(180deg,#061827,#020713)]" />
 
       <header className="relative z-10 flex h-[66px] shrink-0 items-center justify-between gap-3 border-b border-white/[0.08] bg-slate-950/78 px-3 backdrop-blur-xl sm:h-[76px] sm:px-5 lg:px-6">

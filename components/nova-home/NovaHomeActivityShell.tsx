@@ -67,7 +67,7 @@ export default function NovaHomeActivityShell({
   const { compactLandscape, portraitTouchDevice } = useNovaHomeActivityLayout();
 
   return (
-    <div className={`fixed inset-0 z-[120] h-[100dvh] w-[100vw] overflow-hidden bg-slate-950/92 backdrop-blur-md ${compactLandscape ? "" : "flex items-center justify-center p-1.5 sm:p-3"}`}>
+    <div className={`fixed inset-0 z-[120] h-[100dvh] max-h-[100dvh] w-[100vw] overflow-hidden bg-slate-950/92 backdrop-blur-md ${compactLandscape ? "" : "flex items-center justify-center p-1.5 sm:p-3"}`}>
       {compactLandscape ? (
         <div className="grid h-full min-h-0 w-full grid-cols-[84px_minmax(0,1fr)_56px] overflow-hidden bg-[#03101d]">
           <aside className="flex min-h-0 flex-col border-r border-white/[0.07] bg-slate-950/68 p-1.5">

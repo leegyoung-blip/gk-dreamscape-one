@@ -3192,7 +3192,7 @@ export default function NovaHomePage() {
         />
       )}
 
-      {touchDeviceLayout && !portraitOrientation && !phoneFullscreenGateRequired && (
+      {touchDeviceLayout && !portraitOrientation && !phoneFullscreenGateRequired && !wardrobeOpen && !rugRushOpen && !rugCollectionOpen && (
         <div
           className="fixed z-[500] flex items-center gap-1.5"
           style={{

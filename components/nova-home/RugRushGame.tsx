@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
@@ -648,7 +649,7 @@ export default function RugRushGame({
   const [maxCombo, setMaxCombo] = useState(1);
   const [currentMess, setCurrentMess] = useState<MessDefinition>(MESS_TYPES[0]);
   const [brushPoint, setBrushPoint] = useState<Point | null>(null);
-  const [surfaceSize, setSurfaceSize] = useState({ width: 1, height: 1 });
+  const [surfaceSize, setSurfaceSize] = useState({ width: CANVAS_WIDTH, height: CANVAS_HEIGHT });
   const [stats, setStats] = useState<RugRushStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -695,29 +696,74 @@ export default function RugRushGame({
     };
   }, []);
 
-  useEffect(() => {
+  const fitSurface = useCallback(() => {
     const host = surfaceHostRef.current;
-    if (!host) return;
+    if (!host || typeof window === "undefined") return;
 
-    const fit = () => {
-      const width = Math.max(1, host.clientWidth);
-      const height = Math.max(1, host.clientHeight);
-      const scale = Math.min(width / CANVAS_WIDTH, height / CANVAS_HEIGHT);
-      setSurfaceSize({
-        width: Math.max(1, Math.floor(CANVAS_WIDTH * scale)),
-        height: Math.max(1, Math.floor(CANVAS_HEIGHT * scale)),
+    const rect = host.getBoundingClientRect();
+    const visualViewport = window.visualViewport;
+    const viewportWidth = visualViewport?.width ?? window.innerWidth;
+    const viewportHeight = visualViewport?.height ?? window.innerHeight;
+
+    // iPhone Safari/PWA can briefly report a zero-height flex child while
+    // browser chrome or the standalone viewport is settling. Never collapse
+    // the game surface to 1px; use the visual viewport as a safe fallback.
+    const hostWidth = rect.width > 12 ? rect.width : Math.max(240, viewportWidth - (compactLandscape ? 150 : 24));
+    const hostHeight = rect.height > 12 ? rect.height : Math.max(150, viewportHeight - (compactLandscape ? 8 : 140));
+    const inset = compactLandscape ? 4 : 12;
+    const availableWidth = Math.max(120, hostWidth - inset);
+    const availableHeight = Math.max(90, hostHeight - inset);
+    const scale = Math.max(0.12, Math.min(availableWidth / CANVAS_WIDTH, availableHeight / CANVAS_HEIGHT));
+
+    setSurfaceSize({
+      width: Math.max(120, Math.floor(CANVAS_WIDTH * scale)),
+      height: Math.max(75, Math.floor(CANVAS_HEIGHT * scale)),
+    });
+  }, [compactLandscape]);
+
+  useLayoutEffect(() => {
+    const host = surfaceHostRef.current;
+    if (!host || typeof window === "undefined") return;
+
+    let raf = 0;
+    let secondRaf = 0;
+    const timers: number[] = [];
+    const queueFit = () => {
+      window.cancelAnimationFrame(raf);
+      window.cancelAnimationFrame(secondRaf);
+      raf = window.requestAnimationFrame(() => {
+        fitSurface();
+        secondRaf = window.requestAnimationFrame(fitSurface);
       });
     };
 
-    fit();
-    const observer = new ResizeObserver(fit);
-    observer.observe(host);
-    window.addEventListener("orientationchange", fit);
+    queueFit();
+    timers.push(window.setTimeout(queueFit, 120));
+    timers.push(window.setTimeout(queueFit, 360));
+
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(queueFit) : null;
+    observer?.observe(host);
+
+    window.addEventListener("resize", queueFit);
+    window.addEventListener("orientationchange", queueFit);
+    document.addEventListener("fullscreenchange", queueFit);
+    document.addEventListener("webkitfullscreenchange", queueFit as EventListener);
+    window.visualViewport?.addEventListener("resize", queueFit);
+    window.visualViewport?.addEventListener("scroll", queueFit);
+
     return () => {
-      observer.disconnect();
-      window.removeEventListener("orientationchange", fit);
+      observer?.disconnect();
+      window.cancelAnimationFrame(raf);
+      window.cancelAnimationFrame(secondRaf);
+      timers.forEach((timer) => window.clearTimeout(timer));
+      window.removeEventListener("resize", queueFit);
+      window.removeEventListener("orientationchange", queueFit);
+      document.removeEventListener("fullscreenchange", queueFit);
+      document.removeEventListener("webkitfullscreenchange", queueFit as EventListener);
+      window.visualViewport?.removeEventListener("resize", queueFit);
+      window.visualViewport?.removeEventListener("scroll", queueFit);
     };
-  }, []);
+  }, [fitSurface]);
 
   const ensureAudioContext = useCallback(() => {
     if (!soundEnabled || typeof window === "undefined") return null;
@@ -1210,8 +1256,17 @@ export default function RugRushGame({
     prepareRound();
     lastCountdownToneRef.current = null;
     lastFinalSecondToneRef.current = null;
-    ensureAudioContext();
-    playTone(320, 70, 0.02, "square");
+
+    // Audio must never be allowed to block gameplay on iPhone. Safari can
+    // reject/resume WebAudio differently depending on standalone/fullscreen state.
+    try {
+      ensureAudioContext();
+      playTone(320, 70, 0.02, "square");
+    } catch (error) {
+      console.warn("Rug Rush audio could not start; continuing silently.", error);
+    }
+
+    setCountdown(3);
     setPhase("countdown");
   }
 
@@ -1297,7 +1352,12 @@ export default function RugRushGame({
 
   function handlePointerDown(event: ReactPointerEvent<HTMLCanvasElement>) {
     if (phase !== "playing") return;
-    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Older iOS Safari builds can throw here; cleaning still works without capture.
+    }
     activePointerIdRef.current = event.pointerId;
     const point = canvasPoint(event);
     lastPointRef.current = point;
@@ -1306,6 +1366,7 @@ export default function RugRushGame({
   }
 
   function handlePointerMove(event: ReactPointerEvent<HTMLCanvasElement>) {
+    if (phase === "playing") event.preventDefault();
     const point = canvasPoint(event);
     setBrushPoint(point);
 
@@ -1423,7 +1484,7 @@ export default function RugRushGame({
           <canvas
             ref={displayCanvasRef}
             className={`h-full w-full select-none ${phase === "playing" ? "cursor-none" : "cursor-default"}`}
-            style={{ touchAction: "none" }}
+            style={{ touchAction: "none", WebkitTouchCallout: "none" }}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={releasePointer}
@@ -1431,6 +1492,7 @@ export default function RugRushGame({
             onPointerLeave={(event) => {
               if (activePointerIdRef.current !== event.pointerId) setBrushPoint(null);
             }}
+            onContextMenu={(event) => event.preventDefault()}
             aria-label="Rug Rush cleaning surface"
           />
 
