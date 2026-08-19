@@ -79,6 +79,8 @@ const ROUND_DURATION_MS = 10_000;
 const BRUSH_RADIUS = 34;
 const SAMPLE_STEP = 2;
 const PERFECT_CLEAN_PERCENT = 99.5;
+const DEFAULT_RUG_IMAGE = "/activities/nova-home/rugs/nova-classic-rug.png";
+const SPONGE_IMAGE = "/activities/nova-home/rug-rush/yellow-sponge.png";
 
 const MESS_TYPES: MessDefinition[] = [
   {
@@ -180,6 +182,31 @@ function roundedRectPath(
   context.arcTo(x, y + height, x, y, safeRadius);
   context.arcTo(x, y, x + width, y, safeRadius);
   context.closePath();
+}
+
+function drawRugPng(context: CanvasRenderingContext2D, image: HTMLImageElement) {
+  context.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+  const bg = context.createRadialGradient(
+    CANVAS_WIDTH * 0.5,
+    CANVAS_HEIGHT * 0.46,
+    40,
+    CANVAS_WIDTH * 0.5,
+    CANVAS_HEIGHT * 0.5,
+    CANVAS_WIDTH * 0.65,
+  );
+  bg.addColorStop(0, "#0a2134");
+  bg.addColorStop(1, "#020812");
+  context.fillStyle = bg;
+  context.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+  context.save();
+  context.shadowColor = "rgba(0,0,0,0.62)";
+  context.shadowBlur = 22;
+  context.shadowOffsetY = 10;
+  // The supplied game rug is a true top-down PNG. Stretching it gently to the
+  // game rectangle keeps the complete rug visible while maximising cleanable area.
+  context.drawImage(image, 34, 24, CANVAS_WIDTH - 68, CANVAS_HEIGHT - 48);
+  context.restore();
 }
 
 function drawRugBase(context: CanvasRenderingContext2D) {
@@ -566,14 +593,19 @@ function novaReaction(percent: number) {
 export default function RugRushGame({
   onClose,
   onRoundComplete,
+  rugImage = DEFAULT_RUG_IMAGE,
+  rugTitle = "Nova Classic Rug",
 }: {
   onClose: () => void;
   onRoundComplete?: (result: RugRushCompletion) => void;
+  rugImage?: string;
+  rugTitle?: string;
 }) {
   const displayCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const effectsCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const surfaceHostRef = useRef<HTMLDivElement | null>(null);
   const rugCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const rugImageElementRef = useRef<HTMLImageElement | null>(null);
   const dirtCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const toughDirtCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const extraToughDirtCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -849,7 +881,11 @@ export default function RugRushGame({
     rug.height = CANVAS_HEIGHT;
     const rugContext = rug.getContext("2d");
     if (!rugContext) return;
-    drawRugBase(rugContext);
+    if (rugImageElementRef.current) {
+      drawRugPng(rugContext, rugImageElementRef.current);
+    } else {
+      drawRugBase(rugContext);
+    }
 
     const dirt = document.createElement("canvas");
     dirt.width = CANVAS_WIDTH;
@@ -920,8 +956,26 @@ export default function RugRushGame({
       effects.width = CANVAS_WIDTH;
       effects.height = CANVAS_HEIGHT;
     }
-    prepareRound();
-  }, [prepareRound]);
+
+    let cancelled = false;
+    const image = new Image();
+    image.decoding = "async";
+    image.onload = () => {
+      if (cancelled) return;
+      rugImageElementRef.current = image;
+      prepareRound();
+    };
+    image.onerror = () => {
+      if (cancelled) return;
+      rugImageElementRef.current = null;
+      prepareRound();
+    };
+    image.src = rugImage || DEFAULT_RUG_IMAGE;
+
+    return () => {
+      cancelled = true;
+    };
+  }, [prepareRound, rugImage]);
 
   useEffect(() => {
     const canvas = effectsCanvasRef.current;
@@ -1275,6 +1329,11 @@ export default function RugRushGame({
       <span className={`rounded-full border border-violet-200/18 bg-violet-300/[0.06] font-black uppercase text-violet-100/75 ${compactLandscape ? "block w-full truncate px-1.5 py-1 text-center text-[6px] tracking-[0.07em]" : "px-2.5 py-1 text-[8px] tracking-[0.12em]"}`}>
         {currentMess.title}
       </span>
+      {!compactLandscape && (
+        <span className="max-w-[220px] truncate rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-white/52">
+          {rugTitle}
+        </span>
+      )}
     </>
   );
 
@@ -1382,13 +1441,14 @@ export default function RugRushGame({
                 top: `${(brushPoint.y / CANVAS_HEIGHT) * 100}%`,
               }}
             >
-              <div className={`relative ${compactLandscape ? "h-12 w-12" : "h-16 w-16 sm:h-20 sm:w-20"}`}>
-                <div className="absolute inset-0 rounded-full border-2 border-cyan-100/70 bg-cyan-200/[0.08] shadow-[0_0_22px_rgba(103,232,249,0.48),inset_0_0_14px_rgba(103,232,249,0.18)]" />
-                <div className="absolute inset-[9%] animate-spin rounded-full border border-dashed border-cyan-100/48 [animation-duration:900ms]" />
-                <div className="absolute inset-[20%] rounded-full border border-white/40 bg-slate-950/50" />
-                <div className="absolute left-1/2 top-1/2 h-[2px] w-[46%] -translate-x-1/2 -translate-y-1/2 bg-cyan-100/70" />
-                <span className="absolute -right-1 top-1 text-[9px] text-cyan-100 drop-shadow-[0_0_8px_rgba(103,232,249,0.8)]">✦</span>
-                <span className="absolute -left-1 bottom-2 text-[7px] text-white/80">✦</span>
+              <div className={`relative ${compactLandscape ? "h-14 w-16" : "h-[74px] w-[88px] sm:h-[84px] sm:w-[100px]"}`}>
+                <div className="absolute inset-[12%] rounded-full bg-yellow-200/16 blur-md" />
+                <img
+                  src={SPONGE_IMAGE}
+                  alt=""
+                  className="relative h-full w-full object-contain drop-shadow-[0_8px_10px_rgba(0,0,0,0.46)]"
+                  draggable={false}
+                />
               </div>
             </div>
           )}
@@ -1413,6 +1473,7 @@ export default function RugRushGame({
                     <p className="mt-1 text-[8px] leading-3 text-white/52">Scrub back and forth over stubborn marks. Controlled movement cleans better than giant swipes.</p>
                     <div className="mt-1.5 rounded-[10px] border border-violet-200/14 bg-violet-300/[0.05] px-2 py-1.5">
                       <p className="truncate text-[9px] font-black text-white">{currentMess.title}</p>
+                      <p className="mt-0.5 truncate text-[6px] font-bold uppercase tracking-[0.09em] text-cyan-100/42">Rug · {rugTitle}</p>
                       <p className="mt-0.5 line-clamp-2 text-[7px] leading-2.5 text-white/44">{currentMess.subtitle}</p>
                     </div>
                   </div>
