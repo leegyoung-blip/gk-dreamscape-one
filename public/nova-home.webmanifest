@@ -1,0 +1,11 @@
+{
+  "name": "Nova's Home | Dreamscape One",
+  "short_name": "Nova Home",
+  "start_url": "/inventor/hub",
+  "scope": "/inventor/",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#020713",
+  "theme_color": "#020713"
+}

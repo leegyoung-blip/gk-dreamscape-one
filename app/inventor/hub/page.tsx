@@ -561,6 +561,8 @@ export default function NovaHomePage() {
   const roomViewportRef = useRef<HTMLDivElement | null>(null);
   const maskPixelsRef = useRef<Map<ZoneKey, MaskPixels>>(new Map());
   const rugRushSparkleTimerRef = useRef<number | null>(null);
+  const intendedFullscreenExitRef = useRef(false);
+  const wasFullscreenRef = useRef(false);
   const touchPointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
   const touchGestureRef = useRef({
     mode: "none" as "none" | "pan" | "pinch",
@@ -639,7 +641,12 @@ export default function NovaHomePage() {
   const [landscapeRequired, setLandscapeRequired] = useState(false);
   const [portraitOrientation, setPortraitOrientation] = useState(false);
   const [touchDeviceLayout, setTouchDeviceLayout] = useState(false);
+  const [phoneDeviceLayout, setPhoneDeviceLayout] = useState(false);
   const [phoneLandscapeLayout, setPhoneLandscapeLayout] = useState(false);
+  const [isIOSPhone, setIsIOSPhone] = useState(false);
+  const [isStandaloneWebApp, setIsStandaloneWebApp] = useState(false);
+  const [phoneWindowedExitAllowed, setPhoneWindowedExitAllowed] = useState(false);
+  const [fullscreenResumeRequired, setFullscreenResumeRequired] = useState(false);
   const [mobileZoneMenuOpen, setMobileZoneMenuOpen] = useState(false);
   const [mobileZonePanelOpen, setMobileZonePanelOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -678,6 +685,13 @@ export default function NovaHomePage() {
     : null;
   const touchExploreEnabled =
     touchDeviceLayout && !portraitOrientation && currentArea === "area-1";
+  const phoneImmersiveActive = isFullscreen || isStandaloneWebApp;
+  const phoneFullscreenGateRequired =
+    responsiveReady &&
+    phoneDeviceLayout &&
+    !portraitOrientation &&
+    !phoneWindowedExitAllowed &&
+    !phoneImmersiveActive;
   const touchHeaderHeight = phoneLandscapeLayout ? 48 : 62;
   const touchPreferredZoom = phoneLandscapeLayout ? 1.2 : 1.08;
 
@@ -711,11 +725,20 @@ export default function NovaHomePage() {
       );
       const phoneClass = touchPhoneOrTablet && screenShortSide <= 600;
       const shortLandscapePhone = phoneClass && width >= height;
+      const iosPhone =
+        /iPhone|iPod/i.test(ua) ||
+        (appleTouchTablet && phoneClass);
+      const standalone =
+        window.matchMedia?.("(display-mode: standalone)").matches === true ||
+        Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
 
       setLandscapeRequired(touchPhoneOrTablet);
       setPortraitOrientation(portrait);
       setTouchDeviceLayout(touchPhoneOrTablet);
+      setPhoneDeviceLayout(phoneClass);
       setPhoneLandscapeLayout(shortLandscapePhone);
+      setIsIOSPhone(iosPhone);
+      setIsStandaloneWebApp(standalone);
       setResponsiveReady(true);
 
       if (!touchPhoneOrTablet) {
@@ -753,6 +776,28 @@ export default function NovaHomePage() {
       document.removeEventListener("webkitfullscreenchange", syncFullscreenState as EventListener);
     };
   }, []);
+
+  useEffect(() => {
+    if (!responsiveReady || !phoneDeviceLayout || isStandaloneWebApp) {
+      wasFullscreenRef.current = isFullscreen;
+      return;
+    }
+
+    const wasFullscreen = wasFullscreenRef.current;
+    if (isFullscreen) {
+      setFullscreenResumeRequired(false);
+      setPhoneWindowedExitAllowed(false);
+      intendedFullscreenExitRef.current = false;
+    } else if (wasFullscreen && !intendedFullscreenExitRef.current) {
+      // Browsers do not let a page silently re-enter fullscreen after the user
+      // or OS exits it. Instead, immediately block gameplay until the user
+      // explicitly resumes fullscreen with one tap.
+      setFullscreenResumeRequired(true);
+      setPhoneWindowedExitAllowed(false);
+    }
+
+    wasFullscreenRef.current = isFullscreen;
+  }, [isFullscreen, isStandaloneWebApp, phoneDeviceLayout, responsiveReady]);
 
   const clampRoomTransform = useCallback(
     (next: { scale: number; x: number; y: number }) => {
@@ -826,6 +871,15 @@ export default function NovaHomePage() {
     const element = novaHomeRootRef.current;
     if (!element) return;
 
+    // iPhone Safari does not expose arbitrary-element fullscreen for ordinary
+    // webpages. When Nova Home is launched as a Home Screen web app, the
+    // browser chrome is already removed, so this button exits Nova Home instead.
+    if (phoneDeviceLayout && isStandaloneWebApp) {
+      setPhoneWindowedExitAllowed(true);
+      router.push("/inventor");
+      return;
+    }
+
     const documentWithWebkit = document as Document & {
       webkitFullscreenElement?: Element | null;
       webkitExitFullscreen?: () => Promise<void> | void;
@@ -839,21 +893,46 @@ export default function NovaHomePage() {
     try {
       setFullscreenMessage("");
       if (fullscreenElement) {
+        intendedFullscreenExitRef.current = true;
+        setFullscreenResumeRequired(false);
+        setPhoneWindowedExitAllowed(true);
         if (document.exitFullscreen) {
           await document.exitFullscreen();
         } else if (documentWithWebkit.webkitExitFullscreen) {
           await documentWithWebkit.webkitExitFullscreen();
         }
+        window.setTimeout(() => {
+          intendedFullscreenExitRef.current = false;
+        }, 250);
       } else if (element.requestFullscreen) {
+        intendedFullscreenExitRef.current = false;
+        setPhoneWindowedExitAllowed(false);
+        setFullscreenResumeRequired(false);
         await element.requestFullscreen({ navigationUI: "hide" });
       } else if (elementWithWebkit.webkitRequestFullscreen) {
+        intendedFullscreenExitRef.current = false;
+        setPhoneWindowedExitAllowed(false);
+        setFullscreenResumeRequired(false);
         await elementWithWebkit.webkitRequestFullscreen();
       } else {
-        setFullscreenMessage("Fullscreen is not available in this browser.");
+        setFullscreenMessage(
+          isIOSPhone
+            ? "iPhone Safari requires Nova Home to be opened from the Home Screen for browser-free play."
+            : "Fullscreen is not available in this browser.",
+        );
       }
     } catch {
-      setFullscreenMessage("Fullscreen could not be opened. Tap the button again after interacting with the page.");
+      setFullscreenMessage(
+        "Fullscreen could not be opened. Tap Resume Full Screen again after interacting with the page.",
+      );
     }
+  }
+
+  async function resumeRequiredPhoneFullscreen() {
+    intendedFullscreenExitRef.current = false;
+    setPhoneWindowedExitAllowed(false);
+    setFullscreenResumeRequired(false);
+    await toggleNovaHomeFullscreen();
   }
 
   useEffect(() => {
@@ -3113,7 +3192,7 @@ export default function NovaHomePage() {
         />
       )}
 
-      {touchDeviceLayout && !portraitOrientation && (
+      {touchDeviceLayout && !portraitOrientation && !phoneFullscreenGateRequired && (
         <div
           className="fixed z-[500] flex items-center gap-1.5"
           style={{
@@ -3131,12 +3210,12 @@ export default function NovaHomePage() {
                   ? "h-10 px-3 text-[8px]"
                   : "h-11 px-4 text-[10px]"
             }`}
-            aria-label={isFullscreen ? "Exit full screen" : "Enter full screen"}
-            title={isFullscreen ? "Exit Full Screen" : "Full Screen"}
+            aria-label={phoneImmersiveActive ? "Exit full screen" : "Enter full screen"}
+            title={phoneImmersiveActive ? "Exit Full Screen" : "Full Screen"}
           >
-            <span aria-hidden="true">{isFullscreen ? "↙" : "⛶"}</span>
+            <span aria-hidden="true">{phoneImmersiveActive ? "↙" : "⛶"}</span>
             {!wardrobeOpen && !rugRushOpen && !rugCollectionOpen && (
-              <span>{isFullscreen ? "Exit Full Screen" : "Full Screen"}</span>
+              <span>{phoneImmersiveActive ? "Exit Full Screen" : "Full Screen"}</span>
             )}
           </button>
 
@@ -3163,6 +3242,53 @@ export default function NovaHomePage() {
           }}
         >
           {fullscreenMessage}
+        </div>
+      )}
+
+      {phoneFullscreenGateRequired && (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-[radial-gradient(circle_at_50%_32%,rgba(36,183,226,0.18),transparent_34%),linear-gradient(180deg,#04101d,#020713)] px-5 text-center">
+          <div className="w-full max-w-md rounded-[26px] border border-cyan-200/18 bg-slate-950/88 p-5 shadow-[0_28px_90px_rgba(0,0,0,0.58),0_0_48px_rgba(83,215,255,0.10)] backdrop-blur-xl">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-200/25 bg-cyan-300/[0.07] text-2xl text-cyan-100 shadow-[0_0_28px_rgba(83,215,255,0.14)]">
+              ⛶
+            </div>
+            <p className="mt-4 text-[9px] font-black uppercase tracking-[0.2em] text-cyan-200/58">Nova’s Home</p>
+            <h2 className="mt-1.5 font-serif text-2xl font-medium tracking-[-0.03em] text-white">
+              {fullscreenResumeRequired ? "Resume full screen" : "Full-screen play required"}
+            </h2>
+
+            {isIOSPhone ? (
+              <>
+                <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-white/58">
+                  iPhone Safari cannot remove its browser bars for an interactive webpage. To use Nova’s Home without Safari controls, add Dreamscape One to your Home Screen once, then open Nova Home from that icon.
+                </p>
+                <div className="mx-auto mt-4 grid max-w-sm gap-2 text-left text-[11px] leading-5 text-white/72">
+                  <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2"><b className="text-cyan-100">1.</b> Tap Safari’s <b>Share</b> button.</div>
+                  <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2"><b className="text-cyan-100">2.</b> Choose <b>Add to Home Screen</b>.</div>
+                  <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2"><b className="text-cyan-100">3.</b> Keep <b>Open as Web App</b> enabled, then open the new Dreamscape icon.</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="mt-4 h-11 rounded-full border border-cyan-200/32 bg-cyan-300/[0.10] px-5 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-50"
+                >
+                  I’ve opened the Home Screen app
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-white/58">
+                  Nova’s Home uses the whole phone screen so the room and activities have enough space to play properly.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void resumeRequiredPhoneFullscreen()}
+                  className="mt-5 h-12 rounded-full border border-cyan-100/38 bg-cyan-300 px-6 text-[10px] font-black uppercase tracking-[0.12em] text-slate-950 shadow-[0_0_28px_rgba(83,215,255,0.24)]"
+                >
+                  {fullscreenResumeRequired ? "Resume Full Screen" : "Enter Full Screen"}
+                </button>
+              </>
+            )}
+          </div>
         </div>
       )}
 
