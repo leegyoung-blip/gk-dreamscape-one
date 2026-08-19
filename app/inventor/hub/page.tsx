@@ -556,10 +556,25 @@ function getWardrobeEquipResult(data: unknown): WardrobeEquipResult | null {
 
 export default function NovaHomePage() {
   const router = useRouter();
+  const novaHomeRootRef = useRef<HTMLElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const roomViewportRef = useRef<HTMLDivElement | null>(null);
   const maskPixelsRef = useRef<Map<ZoneKey, MaskPixels>>(new Map());
   const rugRushSparkleTimerRef = useRef<number | null>(null);
+  const touchPointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const touchGestureRef = useRef({
+    mode: "none" as "none" | "pan" | "pinch",
+    startScale: 1,
+    startPanX: 0,
+    startPanY: 0,
+    startPointerX: 0,
+    startPointerY: 0,
+    startDistance: 0,
+    startMidX: 0,
+    startMidY: 0,
+    moved: false,
+    hadPinch: false,
+  });
 
   const [currentArea, setCurrentArea] = useState<AreaKey>("area-1");
   const [area2ImageFailed, setArea2ImageFailed] = useState(false);
@@ -623,9 +638,13 @@ export default function NovaHomePage() {
   const [responsiveReady, setResponsiveReady] = useState(false);
   const [landscapeRequired, setLandscapeRequired] = useState(false);
   const [portraitOrientation, setPortraitOrientation] = useState(false);
+  const [touchDeviceLayout, setTouchDeviceLayout] = useState(false);
   const [phoneLandscapeLayout, setPhoneLandscapeLayout] = useState(false);
   const [mobileZoneMenuOpen, setMobileZoneMenuOpen] = useState(false);
   const [mobileZonePanelOpen, setMobileZonePanelOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fullscreenMessage, setFullscreenMessage] = useState("");
+  const [roomTransform, setRoomTransform] = useState({ scale: 1, x: 0, y: 0 });
 
   const zones = useMemo<ZoneView[]>(() => {
     const catalog = new Map<string, ZoneCatalogRow>(
@@ -657,6 +676,11 @@ export default function NovaHomePage() {
   const guideTargetZoneKey = guideOpen
     ? NOVA_HOME_GUIDE_STEPS[guideStep]?.targetZoneKey ?? null
     : null;
+  const touchExploreEnabled =
+    touchDeviceLayout && !portraitOrientation && currentArea === "area-1";
+  const touchHeaderHeight = phoneLandscapeLayout ? 48 : 62;
+  const touchPreferredZoom = phoneLandscapeLayout ? 1.2 : 1.08;
+
   const equippedRug = useMemo(
     () => rugCatalog.find((rug) => rug.rug_key === equippedRugKey) ?? rugCatalog.find((rug) => rug.rug_key === DEFAULT_RUG_KEY) ?? null,
     [equippedRugKey, rugCatalog],
@@ -690,10 +714,11 @@ export default function NovaHomePage() {
 
       setLandscapeRequired(touchPhoneOrTablet);
       setPortraitOrientation(portrait);
+      setTouchDeviceLayout(touchPhoneOrTablet);
       setPhoneLandscapeLayout(shortLandscapePhone);
       setResponsiveReady(true);
 
-      if (!shortLandscapePhone) {
+      if (!touchPhoneOrTablet) {
         setMobileZoneMenuOpen(false);
         setMobileZonePanelOpen(false);
       }
@@ -708,6 +733,134 @@ export default function NovaHomePage() {
       window.removeEventListener("orientationchange", updateResponsiveMode);
     };
   }, []);
+
+  useEffect(() => {
+    const syncFullscreenState = () => {
+      const documentWithWebkit = document as Document & {
+        webkitFullscreenElement?: Element | null;
+      };
+      setIsFullscreen(
+        Boolean(document.fullscreenElement || documentWithWebkit.webkitFullscreenElement),
+      );
+    };
+
+    syncFullscreenState();
+    document.addEventListener("fullscreenchange", syncFullscreenState);
+    document.addEventListener("webkitfullscreenchange", syncFullscreenState as EventListener);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", syncFullscreenState);
+      document.removeEventListener("webkitfullscreenchange", syncFullscreenState as EventListener);
+    };
+  }, []);
+
+  const clampRoomTransform = useCallback(
+    (next: { scale: number; x: number; y: number }) => {
+      const scale = Math.max(1, Math.min(2.8, next.scale));
+      const viewport = roomViewportRef.current;
+      if (!viewport || stageSize.width <= 0 || stageSize.height <= 0) {
+        return { scale, x: next.x, y: next.y };
+      }
+
+      const rect = viewport.getBoundingClientRect();
+      const renderedWidth = stageSize.width * scale;
+      const renderedHeight = stageSize.height * scale;
+      const maxX = Math.max(0, (renderedWidth - rect.width) / 2);
+      const maxY = Math.max(0, (renderedHeight - rect.height) / 2);
+
+      return {
+        scale,
+        x: Math.max(-maxX, Math.min(maxX, next.x)),
+        y: Math.max(-maxY, Math.min(maxY, next.y)),
+      };
+    },
+    [stageSize.height, stageSize.width],
+  );
+
+  const resetTouchRoomView = useCallback(() => {
+    if (!touchExploreEnabled) {
+      setRoomTransform({ scale: 1, x: 0, y: 0 });
+      return;
+    }
+
+    const viewportRect = roomViewportRef.current?.getBoundingClientRect();
+    const coverScale =
+      viewportRect && stageSize.width > 0 && stageSize.height > 0
+        ? Math.max(
+            viewportRect.width / stageSize.width,
+            viewportRect.height / stageSize.height,
+          )
+        : 1;
+    const initialScale = Math.min(2, Math.max(touchPreferredZoom, coverScale * 1.02));
+
+    setRoomTransform(
+      clampRoomTransform({ scale: initialScale, x: 0, y: 0 }),
+    );
+  }, [
+    clampRoomTransform,
+    stageSize.height,
+    stageSize.width,
+    touchExploreEnabled,
+    touchPreferredZoom,
+  ]);
+
+  useEffect(() => {
+    if (!touchExploreEnabled) {
+      setRoomTransform({ scale: 1, x: 0, y: 0 });
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => resetTouchRoomView());
+    return () => window.cancelAnimationFrame(frame);
+  }, [
+    currentArea,
+    isFullscreen,
+    phoneLandscapeLayout,
+    resetTouchRoomView,
+    stageSize.height,
+    stageSize.width,
+    touchExploreEnabled,
+  ]);
+
+  async function toggleNovaHomeFullscreen() {
+    const element = novaHomeRootRef.current;
+    if (!element) return;
+
+    const documentWithWebkit = document as Document & {
+      webkitFullscreenElement?: Element | null;
+      webkitExitFullscreen?: () => Promise<void> | void;
+    };
+    const elementWithWebkit = element as HTMLElement & {
+      webkitRequestFullscreen?: () => Promise<void> | void;
+    };
+    const fullscreenElement =
+      document.fullscreenElement || documentWithWebkit.webkitFullscreenElement;
+
+    try {
+      setFullscreenMessage("");
+      if (fullscreenElement) {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if (documentWithWebkit.webkitExitFullscreen) {
+          await documentWithWebkit.webkitExitFullscreen();
+        }
+      } else if (element.requestFullscreen) {
+        await element.requestFullscreen({ navigationUI: "hide" });
+      } else if (elementWithWebkit.webkitRequestFullscreen) {
+        await elementWithWebkit.webkitRequestFullscreen();
+      } else {
+        setFullscreenMessage("Fullscreen is not available in this browser.");
+      }
+    } catch {
+      setFullscreenMessage("Fullscreen could not be opened. Tap the button again after interacting with the page.");
+    }
+  }
+
+  useEffect(() => {
+    if (!fullscreenMessage) return;
+    const timer = window.setTimeout(() => setFullscreenMessage(""), 3600);
+    return () => window.clearTimeout(timer);
+  }, [fullscreenMessage]);
 
   useEffect(() => {
     if (!authChecked || wardrobeOpen || rugRushOpen || rugCollectionOpen) return;
@@ -1245,6 +1398,22 @@ export default function NovaHomePage() {
     [],
   );
 
+  function selectZoneAtClientPoint(clientX: number, clientY: number) {
+    if (maskLoading || purchasingZoneKey || currentArea !== "area-1") return;
+
+    const key = getZoneAtClientPoint(clientX, clientY);
+    if (!key) {
+      setSelectedZoneKey(null);
+      setMobileZonePanelOpen(false);
+      setMessage("");
+      return;
+    }
+
+    setSelectedZoneKey(key);
+    setMobileZonePanelOpen(true);
+    setMessage("");
+  }
+
   function handlePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
     if (maskLoading || purchasingZoneKey || currentArea !== "area-1") return;
     const key = getZoneAtClientPoint(event.clientX, event.clientY);
@@ -1256,19 +1425,157 @@ export default function NovaHomePage() {
   }
 
   function handleZoneTap(event: ReactPointerEvent<HTMLDivElement>) {
-    if (maskLoading || purchasingZoneKey || currentArea !== "area-1") return;
+    selectZoneAtClientPoint(event.clientX, event.clientY);
+  }
 
-    const key = getZoneAtClientPoint(event.clientX, event.clientY);
-    if (!key) {
-      setSelectedZoneKey(null);
-      setMobileZonePanelOpen(false);
-      setMessage("");
+  function beginTouchExplorePointer(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!touchExploreEnabled || event.pointerType === "mouse") return;
+
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    touchPointersRef.current.set(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY,
+    });
+    setHoveredZoneKey(null);
+
+    const points = Array.from(touchPointersRef.current.values());
+    const gesture = touchGestureRef.current;
+
+    if (points.length === 1) {
+      gesture.mode = "pan";
+      gesture.startScale = roomTransform.scale;
+      gesture.startPanX = roomTransform.x;
+      gesture.startPanY = roomTransform.y;
+      gesture.startPointerX = event.clientX;
+      gesture.startPointerY = event.clientY;
+      gesture.moved = false;
+      gesture.hadPinch = false;
       return;
     }
 
-    setSelectedZoneKey(key);
-    setMobileZonePanelOpen(true);
-    setMessage("");
+    const first = points[0];
+    const second = points[1];
+    gesture.mode = "pinch";
+    gesture.startScale = roomTransform.scale;
+    gesture.startPanX = roomTransform.x;
+    gesture.startPanY = roomTransform.y;
+    gesture.startDistance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
+    gesture.startMidX = (first.x + second.x) / 2;
+    gesture.startMidY = (first.y + second.y) / 2;
+    gesture.moved = true;
+    gesture.hadPinch = true;
+  }
+
+  function moveTouchExplorePointer(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!touchExploreEnabled || event.pointerType === "mouse") return;
+    if (!touchPointersRef.current.has(event.pointerId)) return;
+
+    event.preventDefault();
+    touchPointersRef.current.set(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY,
+    });
+
+    const points = Array.from(touchPointersRef.current.values());
+    const gesture = touchGestureRef.current;
+
+    if (points.length >= 2) {
+      const first = points[0];
+      const second = points[1];
+      const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
+      const midX = (first.x + second.x) / 2;
+      const midY = (first.y + second.y) / 2;
+
+      if (gesture.mode !== "pinch") {
+        gesture.mode = "pinch";
+        gesture.startScale = roomTransform.scale;
+        gesture.startPanX = roomTransform.x;
+        gesture.startPanY = roomTransform.y;
+        gesture.startDistance = distance;
+        gesture.startMidX = midX;
+        gesture.startMidY = midY;
+        gesture.hadPinch = true;
+      }
+
+      const nextScale = Math.max(
+        1,
+        Math.min(2.8, gesture.startScale * (distance / Math.max(1, gesture.startDistance))),
+      );
+      const viewportRect = roomViewportRef.current?.getBoundingClientRect();
+      const centerX = viewportRect ? viewportRect.left + viewportRect.width / 2 : window.innerWidth / 2;
+      const centerY = viewportRect ? viewportRect.top + viewportRect.height / 2 : window.innerHeight / 2;
+      const ratio = nextScale / Math.max(0.001, gesture.startScale);
+      const nextX =
+        midX - centerX - ratio * (gesture.startMidX - centerX - gesture.startPanX);
+      const nextY =
+        midY - centerY - ratio * (gesture.startMidY - centerY - gesture.startPanY);
+
+      setRoomTransform(clampRoomTransform({ scale: nextScale, x: nextX, y: nextY }));
+      gesture.moved = true;
+      gesture.hadPinch = true;
+      return;
+    }
+
+    if (points.length === 1 && gesture.mode === "pan") {
+      const dx = event.clientX - gesture.startPointerX;
+      const dy = event.clientY - gesture.startPointerY;
+      if (Math.hypot(dx, dy) > 6) gesture.moved = true;
+      setRoomTransform(
+        clampRoomTransform({
+          scale: gesture.startScale,
+          x: gesture.startPanX + dx,
+          y: gesture.startPanY + dy,
+        }),
+      );
+    }
+  }
+
+  function endTouchExplorePointer(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!touchExploreEnabled || event.pointerType === "mouse") return;
+
+    event.preventDefault();
+    const gesture = touchGestureRef.current;
+    const wasOnlyPointer = touchPointersRef.current.size === 1;
+    const shouldTap =
+      wasOnlyPointer &&
+      gesture.mode === "pan" &&
+      !gesture.moved &&
+      !gesture.hadPinch;
+
+    touchPointersRef.current.delete(event.pointerId);
+    try {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    } catch {
+      // Pointer capture can already be released by the browser.
+    }
+
+    const remaining = Array.from(touchPointersRef.current.values());
+    if (remaining.length === 1) {
+      const point = remaining[0];
+      gesture.mode = "pan";
+      gesture.startScale = roomTransform.scale;
+      gesture.startPanX = roomTransform.x;
+      gesture.startPanY = roomTransform.y;
+      gesture.startPointerX = point.x;
+      gesture.startPointerY = point.y;
+      gesture.moved = true;
+      gesture.hadPinch = true;
+    } else if (remaining.length === 0) {
+      gesture.mode = "none";
+    }
+
+    if (shouldTap) {
+      selectZoneAtClientPoint(event.clientX, event.clientY);
+    }
+  }
+
+  function cancelTouchExplorePointer(event: ReactPointerEvent<HTMLDivElement>) {
+    touchPointersRef.current.delete(event.pointerId);
+    const gesture = touchGestureRef.current;
+    gesture.mode = "none";
+    gesture.moved = true;
+    gesture.hadPinch = true;
   }
 
   function selectZone(zoneKey: ZoneKey) {
@@ -2172,22 +2479,27 @@ export default function NovaHomePage() {
     );
   }
 
-  function renderArea1Stage(showInlineZonePanel: boolean) {
+  function renderArea1Stage(showInlineZonePanel: boolean, touchExplore = false) {
     return (
       <div
         ref={stageRef}
-        onPointerMove={handlePointerMove}
-        onPointerLeave={handlePointerLeave}
-        onPointerUp={handleZoneTap}
-        className={`relative isolate w-full touch-manipulation select-none overflow-hidden rounded-[20px] border border-cyan-200/18 bg-black shadow-[0_28px_90px_rgba(0,0,0,0.56)] sm:rounded-[24px] ${
-          activeZoneKey ? "cursor-pointer" : "cursor-default"
-        }`}
+        onPointerMove={touchExplore ? undefined : handlePointerMove}
+        onPointerLeave={touchExplore ? undefined : handlePointerLeave}
+        onPointerUp={touchExplore ? undefined : handleZoneTap}
+        className={`relative isolate w-full select-none overflow-hidden rounded-[20px] border border-cyan-200/18 bg-black shadow-[0_28px_90px_rgba(0,0,0,0.56)] sm:rounded-[24px] ${
+          touchExplore ? "touch-none" : "touch-manipulation"
+        } ${activeZoneKey ? "cursor-pointer" : "cursor-default"}`}
         style={{
           width: stageSize.width > 0 ? `${stageSize.width}px` : "100%",
           height: stageSize.height > 0 ? `${stageSize.height}px` : "auto",
           aspectRatio: "1535 / 1024",
           maxWidth: "100%",
           maxHeight: "100%",
+          transform: touchExplore
+            ? `translate3d(${roomTransform.x}px, ${roomTransform.y}px, 0) scale(${roomTransform.scale})`
+            : undefined,
+          transformOrigin: "center center",
+          willChange: touchExplore ? "transform" : undefined,
         }}
         aria-label="Interactive Nova Home Area 1"
       >
@@ -2307,17 +2619,20 @@ export default function NovaHomePage() {
   }
 
   return (
-    <main className="fixed inset-x-0 top-0 flex h-[100dvh] w-full flex-col overflow-hidden bg-[#020713] text-white">
+    <main ref={novaHomeRootRef} className="fixed inset-x-0 top-0 flex h-[100dvh] w-full flex-col overflow-hidden bg-[#020713] text-white">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(39,145,190,0.16),transparent_38%),linear-gradient(180deg,#04101d_0%,#020713_72%)]" />
 
-      {phoneLandscapeLayout ? (
+      {touchDeviceLayout ? (
         <>
-          <header className="relative z-50 flex h-[48px] shrink-0 items-center justify-between gap-2 border-b border-white/[0.07] bg-slate-950/78 px-2 backdrop-blur-xl">
+          <header
+            className={`relative z-50 flex shrink-0 items-center justify-between border-b border-white/[0.07] bg-slate-950/78 backdrop-blur-xl ${phoneLandscapeLayout ? "gap-2 px-2" : "gap-3 px-4"}`}
+            style={{ height: `${touchHeaderHeight}px` }}
+          >
             <div className="flex min-w-0 items-center gap-1.5">
               <button
                 type="button"
                 onClick={() => router.push("/inventor")}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-cyan-200/25 bg-white/[0.035] text-base font-black text-white/80"
+                className={`flex shrink-0 items-center justify-center rounded-full border border-cyan-200/25 bg-white/[0.035] font-black text-white/80 ${phoneLandscapeLayout ? "h-9 w-9 text-base" : "h-11 w-11 text-xl"}`}
                 aria-label="Back to Nova's World"
               >
                 ←
@@ -2328,7 +2643,7 @@ export default function NovaHomePage() {
                   setMobileZonePanelOpen(false);
                   setMobileZoneMenuOpen((open) => !open);
                 }}
-                className="flex h-9 items-center gap-1.5 rounded-full border border-cyan-200/30 bg-cyan-300/[0.075] px-3 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-50"
+                className={`flex items-center gap-1.5 rounded-full border border-cyan-200/30 bg-cyan-300/[0.075] font-black uppercase tracking-[0.1em] text-cyan-50 ${phoneLandscapeLayout ? "h-9 px-3 text-[9px]" : "h-11 px-4 text-[11px]"}`}
               >
                 <span aria-hidden="true">☰</span>
                 Zones
@@ -2336,10 +2651,10 @@ export default function NovaHomePage() {
             </div>
 
             <div className="min-w-0 flex-1 text-center">
-              <h1 className="truncate font-serif text-[17px] font-medium tracking-[-0.03em] text-white">
+              <h1 className={`truncate font-serif font-medium tracking-[-0.03em] text-white ${phoneLandscapeLayout ? "text-[17px]" : "text-[24px]"}`}>
                 Nova’s Home
               </h1>
-              <p className="truncate text-[7px] font-black uppercase tracking-[0.13em] text-cyan-200/48">
+              <p className={`truncate font-black uppercase tracking-[0.13em] text-cyan-200/48 ${phoneLandscapeLayout ? "text-[7px]" : "text-[9px]"}`}>
                 Area 1 · {roomUnlockedCount}/4 furnished
               </p>
             </div>
@@ -2377,15 +2692,19 @@ export default function NovaHomePage() {
 
             <div
               ref={roomViewportRef}
-              className="flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden"
+              onPointerDown={beginTouchExplorePointer}
+              onPointerMove={moveTouchExplorePointer}
+              onPointerUp={endTouchExplorePointer}
+              onPointerCancel={cancelTouchExplorePointer}
+              className="flex min-h-0 min-w-0 flex-1 touch-none items-center justify-center overflow-hidden"
             >
-              {renderArea1Stage(false)}
+              {renderArea1Stage(false, true)}
             </div>
 
             {!mobileZoneMenuOpen && !mobileZonePanelOpen && (
               <div className="pointer-events-none absolute inset-x-0 bottom-2 flex justify-center">
-                <div className="rounded-full border border-white/9 bg-slate-950/68 px-3 py-1 text-[7px] font-bold uppercase tracking-[0.11em] text-white/45 backdrop-blur-md">
-                  Tap a dark room zone to inspect it
+                <div className={`rounded-full border border-white/9 bg-slate-950/68 font-bold uppercase tracking-[0.11em] text-white/52 backdrop-blur-md ${phoneLandscapeLayout ? "px-3 py-1 text-[7px]" : "px-4 py-1.5 text-[9px]"}`}>
+                  Drag to explore · Pinch to zoom · Tap a zone
                 </div>
               </div>
             )}
@@ -2404,9 +2723,10 @@ export default function NovaHomePage() {
           )}
 
           <aside
-            className={`fixed bottom-0 left-0 top-[48px] z-[55] w-[min(310px,46vw)] border-r border-cyan-200/16 bg-[linear-gradient(160deg,rgba(3,18,34,0.985),rgba(2,7,19,0.99))] p-2.5 shadow-[20px_0_55px_rgba(0,0,0,0.48)] backdrop-blur-xl transition-transform duration-200 ${
+            className={`fixed bottom-0 left-0 z-[55] border-r border-cyan-200/16 bg-[linear-gradient(160deg,rgba(3,18,34,0.985),rgba(2,7,19,0.99))] shadow-[20px_0_55px_rgba(0,0,0,0.48)] backdrop-blur-xl transition-transform duration-200 ${phoneLandscapeLayout ? "w-[min(310px,46vw)] p-2.5" : "w-[min(390px,38vw)] p-4"} ${
               mobileZoneMenuOpen ? "translate-x-0" : "-translate-x-[105%]"
             }`}
+            style={{ top: `${touchHeaderHeight}px` }}
           >
             <div className="flex items-center justify-between gap-2">
               <div>
@@ -2475,9 +2795,10 @@ export default function NovaHomePage() {
           </aside>
 
           <aside
-            className={`fixed bottom-0 right-0 top-[48px] z-[55] w-[min(320px,47vw)] border-l border-cyan-200/16 bg-[linear-gradient(200deg,rgba(3,18,34,0.985),rgba(2,7,19,0.99))] p-3 shadow-[-20px_0_55px_rgba(0,0,0,0.48)] backdrop-blur-xl transition-transform duration-200 ${
+            className={`fixed bottom-0 right-0 z-[55] border-l border-cyan-200/16 bg-[linear-gradient(200deg,rgba(3,18,34,0.985),rgba(2,7,19,0.99))] shadow-[-20px_0_55px_rgba(0,0,0,0.48)] backdrop-blur-xl transition-transform duration-200 ${phoneLandscapeLayout ? "w-[min(320px,47vw)] p-3" : "w-[min(410px,40vw)] p-5"} ${
               mobileZonePanelOpen && activeZone ? "translate-x-0" : "translate-x-[105%]"
             }`}
+            style={{ top: `${touchHeaderHeight}px` }}
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
@@ -2790,6 +3111,59 @@ export default function NovaHomePage() {
           onSavePlacement={saveUserAccessoryPlacement}
           compactMobile={phoneLandscapeLayout}
         />
+      )}
+
+      {touchDeviceLayout && !portraitOrientation && (
+        <div
+          className="fixed z-[500] flex items-center gap-1.5"
+          style={{
+            left: "max(10px, env(safe-area-inset-left))",
+            bottom: "max(10px, env(safe-area-inset-bottom))",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => void toggleNovaHomeFullscreen()}
+            className={`flex items-center justify-center gap-2 rounded-full border border-cyan-200/35 bg-slate-950/88 font-black uppercase tracking-[0.1em] text-cyan-50 shadow-[0_12px_34px_rgba(0,0,0,0.46),0_0_18px_rgba(83,215,255,0.12)] backdrop-blur-xl ${
+              wardrobeOpen || rugRushOpen || rugCollectionOpen
+                ? "h-10 w-10 p-0 text-base"
+                : phoneLandscapeLayout
+                  ? "h-10 px-3 text-[8px]"
+                  : "h-11 px-4 text-[10px]"
+            }`}
+            aria-label={isFullscreen ? "Exit full screen" : "Enter full screen"}
+            title={isFullscreen ? "Exit Full Screen" : "Full Screen"}
+          >
+            <span aria-hidden="true">{isFullscreen ? "↙" : "⛶"}</span>
+            {!wardrobeOpen && !rugRushOpen && !rugCollectionOpen && (
+              <span>{isFullscreen ? "Exit Full Screen" : "Full Screen"}</span>
+            )}
+          </button>
+
+          {currentArea === "area-1" && !wardrobeOpen && !rugRushOpen && !rugCollectionOpen && (
+            <button
+              type="button"
+              onClick={resetTouchRoomView}
+              className={`flex items-center justify-center rounded-full border border-white/12 bg-slate-950/80 font-black uppercase tracking-[0.1em] text-white/65 backdrop-blur-xl ${
+                phoneLandscapeLayout ? "h-10 px-3 text-[8px]" : "h-11 px-4 text-[10px]"
+              }`}
+            >
+              Reset View
+            </button>
+          )}
+        </div>
+      )}
+
+      {fullscreenMessage && touchDeviceLayout && !portraitOrientation && (
+        <div
+          className="fixed z-[501] rounded-full border border-amber-200/22 bg-amber-950/92 px-3 py-2 text-[9px] font-bold text-amber-50 shadow-xl backdrop-blur-xl"
+          style={{
+            left: "max(10px, env(safe-area-inset-left))",
+            bottom: "max(58px, calc(env(safe-area-inset-bottom) + 58px))",
+          }}
+        >
+          {fullscreenMessage}
+        </div>
       )}
 
       {landscapeRequired && portraitOrientation && (
