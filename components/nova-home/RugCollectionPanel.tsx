@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export type RugCurrency = "DT" | "DG";
 
@@ -18,86 +18,234 @@ export type RugCatalogItem = {
   sort_order: number;
 };
 
+export type CleaningToolCatalogItem = {
+  cleaning_tool_key: string;
+  title: string;
+  description: string | null;
+  currency_code: RugCurrency;
+  price_amount: number;
+  power_multiplier: number;
+  game_image: string;
+  thumbnail_image: string | null;
+  is_starter: boolean;
+  is_placeholder: boolean;
+  sort_order: number;
+};
+
+type CatalogTab = "rugs" | "tools";
+
 type Props = {
   open: boolean;
-  catalog: RugCatalogItem[];
-  ownedKeys: Set<string>;
-  equippedKey: string;
-  selectedKey: string | null;
+
+  rugCatalog: RugCatalogItem[];
+  rugOwnedKeys: Set<string>;
+  equippedRugKey: string;
+  selectedRugKey: string | null;
+  rugPurchasingKey: string | null;
+  rugEquippingKey: string | null;
+  onSelectRug: (rugKey: string) => void;
+  onPurchaseRug: (rugKey: string) => void;
+  onEquipRug: (rugKey: string) => void;
+
+  cleaningToolCatalog: CleaningToolCatalogItem[];
+  cleaningToolOwnedKeys: Set<string>;
+  equippedCleaningToolKey: string;
+  selectedCleaningToolKey: string | null;
+  cleaningToolPurchasingKey: string | null;
+  cleaningToolEquippingKey: string | null;
+  onSelectCleaningTool: (cleaningToolKey: string) => void;
+  onPurchaseCleaningTool: (cleaningToolKey: string) => void;
+  onEquipCleaningTool: (cleaningToolKey: string) => void;
+
   dreamTokenBalance: number;
   dreamGemBalance: number;
   loading: boolean;
   message: string;
-  purchasingKey: string | null;
-  equippingKey: string | null;
   onClose: () => void;
-  onSelect: (rugKey: string) => void;
-  onPurchase: (rugKey: string) => void;
-  onEquip: (rugKey: string) => void;
 };
 
 function formatCurrency(value: number, currency: RugCurrency) {
   return `${Math.round(Number(value || 0)).toLocaleString("en-SG")} ${currency}`;
 }
 
+function powerLabel(multiplier: number) {
+  const percentage = Math.max(0, Math.round((Number(multiplier || 1) - 1) * 100));
+  return percentage <= 0 ? "Standard Power" : `+${percentage}% Power`;
+}
+
+function CurrencyPill({
+  currency,
+  value,
+}: {
+  currency: RugCurrency;
+  value: number;
+}) {
+  const violet = currency === "DG";
+  return (
+    <div
+      className={`flex min-w-[86px] items-center gap-2 rounded-full border px-3 py-2 shadow-[0_10px_26px_rgba(0,0,0,0.24)] ${
+        violet
+          ? "border-violet-300/25 bg-violet-300/[0.08]"
+          : "border-cyan-300/25 bg-cyan-300/[0.08]"
+      }`}
+    >
+      <span
+        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-black ${
+          violet
+            ? "bg-violet-300 text-slate-950"
+            : "bg-amber-300 text-slate-950"
+        }`}
+      >
+        {currency}
+      </span>
+      <span className="text-[12px] font-black leading-none text-white sm:text-[14px]">
+        {Math.round(value).toLocaleString("en-SG")}
+      </span>
+    </div>
+  );
+}
+
 export default function RugCollectionPanel({
   open,
-  catalog,
-  ownedKeys,
-  equippedKey,
-  selectedKey,
+  rugCatalog,
+  rugOwnedKeys,
+  equippedRugKey,
+  selectedRugKey,
+  rugPurchasingKey,
+  rugEquippingKey,
+  onSelectRug,
+  onPurchaseRug,
+  onEquipRug,
+  cleaningToolCatalog,
+  cleaningToolOwnedKeys,
+  equippedCleaningToolKey,
+  selectedCleaningToolKey,
+  cleaningToolPurchasingKey,
+  cleaningToolEquippingKey,
+  onSelectCleaningTool,
+  onPurchaseCleaningTool,
+  onEquipCleaningTool,
   dreamTokenBalance,
   dreamGemBalance,
   loading,
   message,
-  purchasingKey,
-  equippingKey,
   onClose,
-  onSelect,
-  onPurchase,
-  onEquip,
 }: Props) {
-  const selected = useMemo(
-    () => catalog.find((rug) => rug.rug_key === selectedKey) ?? catalog.find((rug) => rug.rug_key === equippedKey) ?? catalog[0] ?? null,
-    [catalog, equippedKey, selectedKey],
+  const [activeTab, setActiveTab] = useState<CatalogTab>("rugs");
+
+  useEffect(() => {
+    if (open) setActiveTab("rugs");
+  }, [open]);
+
+  const selectedRug = useMemo(
+    () =>
+      rugCatalog.find((rug) => rug.rug_key === selectedRugKey) ??
+      rugCatalog.find((rug) => rug.rug_key === equippedRugKey) ??
+      rugCatalog[0] ??
+      null,
+    [rugCatalog, equippedRugKey, selectedRugKey],
+  );
+
+  const selectedTool = useMemo(
+    () =>
+      cleaningToolCatalog.find(
+        (tool) => tool.cleaning_tool_key === selectedCleaningToolKey,
+      ) ??
+      cleaningToolCatalog.find(
+        (tool) => tool.cleaning_tool_key === equippedCleaningToolKey,
+      ) ??
+      cleaningToolCatalog[0] ??
+      null,
+    [
+      cleaningToolCatalog,
+      equippedCleaningToolKey,
+      selectedCleaningToolKey,
+    ],
   );
 
   if (!open) return null;
 
+  const selected = activeTab === "rugs" ? selectedRug : selectedTool;
+  const selectedCurrency = selected?.currency_code ?? "DT";
+  const selectedPrice = selected?.price_amount ?? 0;
+  const selectedStarter = selected?.is_starter ?? false;
+  const selectedImage = selected
+    ? activeTab === "rugs"
+      ? selected.game_image
+      : selected.game_image
+    : "";
   const selectedOwned = selected
-    ? selected.is_starter || ownedKeys.has(selected.rug_key)
+    ? activeTab === "rugs"
+      ? selectedStarter || rugOwnedKeys.has((selected as RugCatalogItem).rug_key)
+      : selectedStarter ||
+        cleaningToolOwnedKeys.has(
+          (selected as CleaningToolCatalogItem).cleaning_tool_key,
+        )
     : false;
-  const selectedEquipped = selected?.rug_key === equippedKey;
-  const selectedAffordable = selected
-    ? selected.currency_code === "DT"
-      ? dreamTokenBalance >= selected.price_amount
-      : dreamGemBalance >= selected.price_amount
+  const selectedEquipped = selected
+    ? activeTab === "rugs"
+      ? (selected as RugCatalogItem).rug_key === equippedRugKey
+      : (selected as CleaningToolCatalogItem).cleaning_tool_key ===
+        equippedCleaningToolKey
     : false;
-  const busy = Boolean(purchasingKey || equippingKey);
+  const selectedAffordable =
+    selectedCurrency === "DG"
+      ? dreamGemBalance >= selectedPrice
+      : dreamTokenBalance >= selectedPrice;
+
+  const busy = Boolean(
+    rugPurchasingKey ||
+      rugEquippingKey ||
+      cleaningToolPurchasingKey ||
+      cleaningToolEquippingKey,
+  );
+
+  const selectKey = selected
+    ? activeTab === "rugs"
+      ? (selected as RugCatalogItem).rug_key
+      : (selected as CleaningToolCatalogItem).cleaning_tool_key
+    : "";
+
+  function runSelectedAction() {
+    if (!selected || !selectKey) return;
+    if (selectedEquipped) return;
+    if (activeTab === "rugs") {
+      if (selectedOwned) onEquipRug(selectKey);
+      else onPurchaseRug(selectKey);
+    } else if (selectedOwned) {
+      onEquipCleaningTool(selectKey);
+    } else {
+      onPurchaseCleaningTool(selectKey);
+    }
+  }
+
+  const selectedActionBusy =
+    activeTab === "rugs"
+      ? rugPurchasingKey === selectKey || rugEquippingKey === selectKey
+      : cleaningToolPurchasingKey === selectKey ||
+        cleaningToolEquippingKey === selectKey;
 
   return (
     <div className="fixed inset-0 z-[125] flex min-h-0 flex-col overflow-hidden bg-[#020713] text-white">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_36%_25%,rgba(48,182,225,0.15),transparent_38%),radial-gradient(circle_at_84%_74%,rgba(139,92,246,0.09),transparent_30%),linear-gradient(180deg,#061827,#020713)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_25%_18%,rgba(37,192,242,0.15),transparent_34%),radial-gradient(circle_at_82%_72%,rgba(139,92,246,0.12),transparent_31%),linear-gradient(180deg,#061827,#020713)]" />
 
-      <header className="relative z-10 flex h-[58px] shrink-0 items-center justify-between gap-2 border-b border-white/[0.07] bg-slate-950/72 px-2.5 backdrop-blur-xl sm:h-[68px] sm:px-4">
+      <header className="relative z-10 flex h-[66px] shrink-0 items-center justify-between gap-3 border-b border-white/[0.08] bg-slate-950/78 px-3 backdrop-blur-xl sm:h-[76px] sm:px-5 lg:px-6">
         <div className="min-w-0">
-          <p className="text-[7px] font-black uppercase tracking-[0.16em] text-cyan-200/50 sm:text-[8px]">Comfort & Decor</p>
-          <h2 className="truncate font-serif text-lg font-medium tracking-[-0.03em] text-white sm:text-2xl">Nova’s Rug Collection</h2>
+          <p className="text-[9px] font-black uppercase tracking-[0.15em] text-cyan-200/58 sm:text-[10px]">
+            Comfort & Decor
+          </p>
+          <h2 className="truncate font-serif text-[22px] font-semibold tracking-[-0.035em] text-white sm:text-[28px] lg:text-[32px]">
+            Nova’s Rug Collection
+          </h2>
         </div>
 
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-          <div className="rounded-full border border-cyan-200/20 bg-cyan-300/[0.05] px-2.5 py-1.5 text-right sm:px-3">
-            <p className="text-[6px] font-black uppercase tracking-[0.12em] text-cyan-200/48">DT</p>
-            <p className="text-[9px] font-black text-cyan-50 sm:text-xs">{Math.round(dreamTokenBalance).toLocaleString("en-SG")}</p>
-          </div>
-          <div className="rounded-full border border-violet-200/20 bg-violet-300/[0.05] px-2.5 py-1.5 text-right sm:px-3">
-            <p className="text-[6px] font-black uppercase tracking-[0.12em] text-violet-200/55">DG</p>
-            <p className="text-[9px] font-black text-violet-50 sm:text-xs">{Math.round(dreamGemBalance).toLocaleString("en-SG")}</p>
-          </div>
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <CurrencyPill currency="DT" value={dreamTokenBalance} />
+          <CurrencyPill currency="DG" value={dreamGemBalance} />
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/12 bg-white/[0.045] text-lg text-white/72 transition hover:bg-white/[0.09] sm:h-10 sm:w-10"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-white/[0.055] text-[24px] leading-none text-white/80 transition hover:bg-white/[0.11] sm:h-12 sm:w-12"
             aria-label="Close Rug Collection"
           >
             ×
@@ -105,122 +253,413 @@ export default function RugCollectionPanel({
         </div>
       </header>
 
-      <div className="relative z-10 grid min-h-0 flex-1 grid-cols-[minmax(0,1.05fr)_minmax(250px,0.95fr)] gap-2 p-2 sm:gap-3 sm:p-3 lg:grid-cols-[minmax(390px,0.92fr)_minmax(0,1.08fr)]">
-        <section className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden rounded-[18px] border border-cyan-200/13 bg-slate-950/36 sm:rounded-[24px]">
-          <div className="flex min-h-0 items-center justify-center overflow-hidden p-2 sm:p-4">
+      <div className="relative z-10 grid min-h-0 flex-1 grid-cols-[minmax(310px,0.88fr)_minmax(0,1.12fr)] gap-3 p-3 sm:gap-4 sm:p-4 xl:grid-cols-[minmax(430px,0.9fr)_minmax(0,1.1fr)]">
+        <section className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden rounded-[22px] border border-cyan-200/15 bg-slate-950/42 shadow-[0_26px_64px_rgba(0,0,0,0.26)] sm:rounded-[28px]">
+          <div className="flex min-h-0 items-center justify-center overflow-hidden p-3 sm:p-5">
             {selected ? (
-              <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-[14px] border border-white/[0.06] bg-[radial-gradient(circle_at_50%_45%,rgba(73,191,226,0.09),transparent_50%),linear-gradient(180deg,#071827,#030a13)] p-2 sm:rounded-[20px] sm:p-4">
+              <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-[18px] border border-white/[0.07] bg-[radial-gradient(circle_at_50%_44%,rgba(73,191,226,0.12),transparent_52%),linear-gradient(180deg,#071b2c,#030a13)] p-3 sm:rounded-[24px] sm:p-5">
                 <img
-                  src={selected.game_image}
+                  src={selectedImage}
                   alt={selected.title}
-                  className="max-h-full max-w-full object-contain drop-shadow-[0_24px_34px_rgba(0,0,0,0.5)]"
+                  className={`object-contain drop-shadow-[0_26px_40px_rgba(0,0,0,0.54)] ${
+                    activeTab === "tools"
+                      ? "max-h-[82%] max-w-[86%] scale-[1.08] sm:scale-[1.16]"
+                      : "max-h-full max-w-full"
+                  }`}
                   draggable={false}
                 />
-                {selected.is_placeholder && (
-                  <span className="absolute right-2 top-2 rounded-full border border-amber-200/20 bg-amber-300/10 px-2 py-1 text-[6px] font-black uppercase tracking-[0.12em] text-amber-100 sm:text-[7px]">
-                    Placeholder art
+
+                <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+                  <span className="rounded-full border border-cyan-200/20 bg-slate-950/78 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.11em] text-cyan-100 sm:text-[10px]">
+                    {activeTab === "rugs" ? "Rug Preview" : "Cleaning Tool"}
                   </span>
+                  {selectedEquipped && (
+                    <span className="rounded-full bg-emerald-300 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.1em] text-emerald-950 sm:text-[10px]">
+                      ✓ Equipped
+                    </span>
+                  )}
+                </div>
+
+                {activeTab === "tools" && selectedTool && (
+                  <div className="absolute bottom-3 right-3 rounded-[14px] border border-amber-200/18 bg-slate-950/84 px-3 py-2 text-right shadow-[0_10px_24px_rgba(0,0,0,0.28)]">
+                    <p className="text-[9px] font-black uppercase tracking-[0.11em] text-amber-100/64 sm:text-[10px]">
+                      Cleaning Power
+                    </p>
+                    <p className="mt-0.5 text-[18px] font-black text-amber-100 sm:text-[22px]">
+                      {powerLabel(selectedTool.power_multiplier)}
+                    </p>
+                  </div>
                 )}
               </div>
             ) : (
-              <p className="text-xs font-bold text-white/35">No rugs available.</p>
+              <p className="text-sm font-bold text-white/38">Nothing available yet.</p>
             )}
           </div>
 
-          <div className="border-t border-white/[0.06] bg-slate-950/60 p-2.5 sm:p-4">
+          <div className="border-t border-white/[0.07] bg-slate-950/66 p-4 sm:p-5">
             {selected && (
-              <div className="flex items-end justify-between gap-3">
+              <div className="flex items-end justify-between gap-4">
                 <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <h3 className="truncate text-sm font-black text-white sm:text-lg">{selected.title}</h3>
-                    {selectedEquipped && (
-                      <span className="rounded-full border border-emerald-200/18 bg-emerald-300/[0.08] px-2 py-0.5 text-[6px] font-black uppercase tracking-[0.1em] text-emerald-100 sm:text-[7px]">Equipped</span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="truncate text-[18px] font-black text-white sm:text-[22px]">
+                      {selected.title}
+                    </h3>
+                    {selectedStarter && (
+                      <span className="rounded-full border border-cyan-200/20 bg-cyan-300/[0.07] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.09em] text-cyan-100">
+                        Starter
+                      </span>
                     )}
                   </div>
-                  <p className="mt-1 line-clamp-2 max-w-xl text-[8px] leading-3 text-white/44 sm:text-[10px] sm:leading-4">
-                    {selected.description || "A rug for Nova’s Home and Rug Rush."}
+                  <p className="mt-1.5 line-clamp-2 max-w-2xl text-[11px] leading-[1.45] text-white/53 sm:text-[13px]">
+                    {selected.description ||
+                      (activeTab === "rugs"
+                        ? "A rug for Nova’s Home and Rug Rush."
+                        : "A cleaning tool for Rug Rush.")}
                   </p>
-                  <p className={`mt-1.5 text-xs font-black sm:text-sm ${selected.currency_code === "DG" ? "text-violet-200" : "text-cyan-100"}`}>
-                    {selected.is_starter ? "Starter Rug" : formatCurrency(selected.price_amount, selected.currency_code)}
-                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-3">
+                    <p
+                      className={`text-[14px] font-black sm:text-[16px] ${
+                        selectedCurrency === "DG"
+                          ? "text-violet-200"
+                          : "text-cyan-100"
+                      }`}
+                    >
+                      {selectedStarter
+                        ? "Free starter item"
+                        : formatCurrency(selectedPrice, selectedCurrency)}
+                    </p>
+                    {activeTab === "tools" && selectedTool && (
+                      <span className="rounded-full border border-amber-200/16 bg-amber-300/[0.06] px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-amber-100 sm:text-[11px]">
+                        {powerLabel(selectedTool.power_multiplier)}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                <div className="shrink-0">
-                  {selectedEquipped ? (
-                    <span className="inline-flex min-h-9 items-center rounded-full border border-emerald-200/20 bg-emerald-300/[0.08] px-4 text-[8px] font-black uppercase tracking-[0.1em] text-emerald-100 sm:min-h-10 sm:text-[9px]">✓ Equipped</span>
-                  ) : selectedOwned ? (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => onEquip(selected.rug_key)}
-                      className="min-h-9 rounded-full bg-cyan-300 px-4 text-[8px] font-black uppercase tracking-[0.1em] text-slate-950 transition hover:bg-cyan-200 disabled:opacity-45 sm:min-h-10 sm:px-5 sm:text-[9px]"
-                    >
-                      {equippingKey === selected.rug_key ? "Equipping..." : "Equip Rug"}
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled={busy || !selectedAffordable}
-                      onClick={() => onPurchase(selected.rug_key)}
-                      className={`min-h-9 rounded-full px-4 text-[8px] font-black uppercase tracking-[0.1em] transition disabled:cursor-not-allowed disabled:opacity-42 sm:min-h-10 sm:px-5 sm:text-[9px] ${selectedAffordable ? selected.currency_code === "DG" ? "bg-violet-300 text-slate-950 hover:bg-violet-200" : "bg-cyan-300 text-slate-950 hover:bg-cyan-200" : "border border-white/10 bg-white/[0.04] text-white/34"}`}
-                    >
-                      {purchasingKey === selected.rug_key
-                        ? "Purchasing..."
+                <button
+                  type="button"
+                  disabled={
+                    busy ||
+                    selectedEquipped ||
+                    (!selectedOwned && !selectedAffordable)
+                  }
+                  onClick={runSelectedAction}
+                  className={`min-h-12 min-w-[132px] shrink-0 rounded-full px-5 text-[11px] font-black uppercase tracking-[0.09em] transition sm:min-h-14 sm:min-w-[154px] sm:px-6 sm:text-[12px] ${
+                    selectedEquipped
+                      ? "border border-emerald-200/22 bg-emerald-300/[0.09] text-emerald-100"
+                      : selectedOwned
+                        ? "bg-cyan-300 text-slate-950 hover:bg-cyan-200"
                         : selectedAffordable
-                          ? `Buy · ${formatCurrency(selected.price_amount, selected.currency_code)}`
-                          : `Need ${formatCurrency(selected.price_amount - (selected.currency_code === "DT" ? dreamTokenBalance : dreamGemBalance), selected.currency_code)}`}
-                    </button>
-                  )}
-                </div>
+                          ? selectedCurrency === "DG"
+                            ? "bg-violet-300 text-slate-950 hover:bg-violet-200"
+                            : "bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+                          : "border border-white/10 bg-white/[0.04] text-white/35"
+                  } disabled:cursor-not-allowed disabled:opacity-55`}
+                >
+                  {selectedActionBusy
+                    ? "Working..."
+                    : selectedEquipped
+                      ? "✓ Equipped"
+                      : selectedOwned
+                        ? "Equip"
+                        : selectedAffordable
+                          ? `Buy · ${formatCurrency(selectedPrice, selectedCurrency)}`
+                          : `Need ${formatCurrency(
+                              selectedPrice -
+                                (selectedCurrency === "DG"
+                                  ? dreamGemBalance
+                                  : dreamTokenBalance),
+                              selectedCurrency,
+                            )}`}
+                </button>
               </div>
             )}
-            {message && <p className="mt-2 text-[8px] font-bold leading-3 text-amber-100/82 sm:text-[10px] sm:leading-4">{message}</p>}
+
+            {message && (
+              <p className="mt-3 rounded-[12px] border border-amber-200/12 bg-amber-300/[0.055] px-3 py-2 text-[11px] font-bold leading-4 text-amber-100/88 sm:text-[12px]">
+                {message}
+              </p>
+            )}
           </div>
         </section>
 
-        <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[18px] border border-white/[0.08] bg-slate-950/34 sm:rounded-[24px]">
-          <div className="border-b border-white/[0.06] px-3 py-2 sm:px-4 sm:py-3">
-            <p className="text-[7px] font-black uppercase tracking-[0.15em] text-cyan-200/50 sm:text-[8px]">Choose your rug</p>
-            <p className="mt-0.5 text-[8px] leading-3 text-white/38 sm:text-[10px] sm:leading-4">Owned rugs can be equipped instantly. The equipped rug is used automatically in Rug Rush.</p>
+        <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[22px] border border-white/[0.09] bg-slate-950/38 sm:rounded-[28px]">
+          <div className="flex items-center gap-2 border-b border-white/[0.07] p-3 sm:p-4">
+            <button
+              type="button"
+              onClick={() => setActiveTab("rugs")}
+              className={`flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[14px] border px-4 text-[12px] font-black uppercase tracking-[0.09em] transition sm:min-h-12 sm:text-[13px] ${
+                activeTab === "rugs"
+                  ? "border-cyan-200/45 bg-cyan-300/[0.12] text-cyan-50 shadow-[0_0_24px_rgba(34,211,238,0.12)]"
+                  : "border-white/[0.08] bg-white/[0.025] text-white/48 hover:bg-white/[0.055]"
+              }`}
+            >
+              <span aria-hidden="true">▱</span>
+              Rugs
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("tools")}
+              className={`flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[14px] border px-4 text-[12px] font-black uppercase tracking-[0.09em] transition sm:min-h-12 sm:text-[13px] ${
+                activeTab === "tools"
+                  ? "border-violet-200/45 bg-violet-300/[0.12] text-violet-50 shadow-[0_0_24px_rgba(139,92,246,0.14)]"
+                  : "border-white/[0.08] bg-white/[0.025] text-white/48 hover:bg-white/[0.055]"
+              }`}
+            >
+              <span aria-hidden="true">✦</span>
+              Cleaning Tools
+            </button>
           </div>
 
-          <div className="min-h-0 overflow-y-auto p-2 sm:p-3">
+          <div className="min-h-0 overflow-y-auto p-3 sm:p-4">
             {loading ? (
-              <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
+              <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
                 {Array.from({ length: 6 }).map((_, index) => (
-                  <div key={index} className="aspect-[1.25] animate-pulse rounded-[14px] border border-white/[0.06] bg-white/[0.035]" />
+                  <div
+                    key={index}
+                    className="aspect-[1.04] animate-pulse rounded-[18px] border border-white/[0.06] bg-white/[0.035]"
+                  />
                 ))}
               </div>
+            ) : activeTab === "rugs" ? (
+              <div>
+                <div className="mb-3">
+                  <p className="text-[12px] font-black uppercase tracking-[0.11em] text-cyan-100 sm:text-[13px]">
+                    Choose your rug
+                  </p>
+                  <p className="mt-1 text-[11px] leading-4 text-white/46 sm:text-[12px]">
+                    Buy and equip different rugs. Your equipped rug is used automatically in Rug Rush.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
+                  {rugCatalog.map((rug) => {
+                    const owned = rug.is_starter || rugOwnedKeys.has(rug.rug_key);
+                    const equipped = rug.rug_key === equippedRugKey;
+                    const active = selectedRug?.rug_key === rug.rug_key;
+                    const affordable =
+                      rug.currency_code === "DG"
+                        ? dreamGemBalance >= rug.price_amount
+                        : dreamTokenBalance >= rug.price_amount;
+                    const cardBusy =
+                      rugPurchasingKey === rug.rug_key ||
+                      rugEquippingKey === rug.rug_key;
+
+                    return (
+                      <article
+                        key={rug.rug_key}
+                        onClick={() => onSelectRug(rug.rug_key)}
+                        className={`group cursor-pointer overflow-hidden rounded-[18px] border text-left transition ${
+                          active
+                            ? "border-cyan-200/55 bg-cyan-300/[0.08] shadow-[0_0_26px_rgba(34,211,238,0.13)]"
+                            : "border-white/[0.08] bg-white/[0.025] hover:border-cyan-200/24 hover:bg-cyan-300/[0.035]"
+                        }`}
+                      >
+                        <div className="relative aspect-[1.28] overflow-hidden bg-slate-950/72 p-2.5">
+                          <img
+                            src={rug.thumbnail_image || rug.game_image}
+                            alt=""
+                            className="h-full w-full object-contain transition duration-200 group-hover:scale-[1.025]"
+                            draggable={false}
+                          />
+                          <div className="absolute left-2 top-2 flex flex-wrap gap-1.5">
+                            {equipped && (
+                              <span className="rounded-full bg-emerald-300 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-emerald-950">
+                                Equipped
+                              </span>
+                            )}
+                            {rug.is_placeholder && (
+                              <span className="rounded-full border border-amber-200/20 bg-slate-950/80 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-amber-100">
+                                Temp Art
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="p-3">
+                          <p className="truncate text-[13px] font-black text-white sm:text-[14px]">
+                            {rug.title}
+                          </p>
+                          <p className="mt-1 line-clamp-1 text-[10px] leading-4 text-white/44 sm:text-[11px]">
+                            {rug.description || "Nova Home rug."}
+                          </p>
+                          <div className="mt-2 flex items-center justify-between gap-2">
+                            <span
+                              className={`text-[11px] font-black ${
+                                rug.currency_code === "DG"
+                                  ? "text-violet-200"
+                                  : "text-cyan-100"
+                              }`}
+                            >
+                              {rug.is_starter
+                                ? "Starter"
+                                : formatCurrency(rug.price_amount, rug.currency_code)}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={busy || equipped || (!owned && !affordable)}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onSelectRug(rug.rug_key);
+                                if (equipped) return;
+                                if (owned) onEquipRug(rug.rug_key);
+                                else onPurchaseRug(rug.rug_key);
+                              }}
+                              className={`min-h-9 rounded-full px-3 text-[9px] font-black uppercase tracking-[0.07em] transition ${
+                                equipped
+                                  ? "border border-emerald-200/18 bg-emerald-300/[0.07] text-emerald-100"
+                                  : owned
+                                    ? "bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+                                    : rug.currency_code === "DG"
+                                      ? "bg-violet-300 text-slate-950 hover:bg-violet-200"
+                                      : "bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+                              } disabled:cursor-not-allowed disabled:opacity-45`}
+                            >
+                              {cardBusy
+                                ? "..."
+                                : equipped
+                                  ? "Equipped"
+                                  : owned
+                                    ? "Equip"
+                                    : "Buy"}
+                            </button>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </div>
             ) : (
-              <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
-                {catalog.map((rug) => {
-                  const owned = rug.is_starter || ownedKeys.has(rug.rug_key);
-                  const equipped = rug.rug_key === equippedKey;
-                  const active = selected?.rug_key === rug.rug_key;
-                  return (
-                    <button
-                      key={rug.rug_key}
-                      type="button"
-                      onClick={() => onSelect(rug.rug_key)}
-                      className={`group overflow-hidden rounded-[14px] border text-left transition ${active ? "border-cyan-200/50 bg-cyan-300/[0.08] shadow-[0_0_22px_rgba(34,211,238,0.12)]" : "border-white/[0.07] bg-white/[0.025] hover:border-cyan-200/20 hover:bg-cyan-300/[0.035]"}`}
-                    >
-                      <div className="relative aspect-[1.34] overflow-hidden bg-slate-950/70 p-1.5">
-                        <img src={rug.thumbnail_image || rug.game_image} alt="" className="h-full w-full object-contain transition duration-200 group-hover:scale-[1.025]" draggable={false} />
-                        <div className="absolute left-1.5 top-1.5 flex gap-1">
-                          {equipped && <span className="rounded-full bg-emerald-300 px-1.5 py-0.5 text-[5px] font-black uppercase tracking-[0.08em] text-emerald-950">Equipped</span>}
-                          {rug.is_placeholder && <span className="rounded-full border border-amber-200/20 bg-slate-950/74 px-1.5 py-0.5 text-[5px] font-black uppercase tracking-[0.08em] text-amber-100">Temp</span>}
+              <div>
+                <div className="mb-3 flex items-end justify-between gap-3">
+                  <div>
+                    <p className="text-[12px] font-black uppercase tracking-[0.11em] text-violet-100 sm:text-[13px]">
+                      Cleaning tools
+                    </p>
+                    <p className="mt-1 text-[11px] leading-4 text-white/46 sm:text-[12px]">
+                      Stronger tools remove dirt faster. Your equipped tool is used automatically in Rug Rush.
+                    </p>
+                  </div>
+                  <span className="hidden rounded-full border border-amber-200/15 bg-amber-300/[0.055] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-amber-100 xl:inline-flex">
+                    Better tool = faster cleaning
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {cleaningToolCatalog.map((tool) => {
+                    const owned =
+                      tool.is_starter ||
+                      cleaningToolOwnedKeys.has(tool.cleaning_tool_key);
+                    const equipped =
+                      tool.cleaning_tool_key === equippedCleaningToolKey;
+                    const active =
+                      selectedTool?.cleaning_tool_key === tool.cleaning_tool_key;
+                    const affordable =
+                      tool.currency_code === "DG"
+                        ? dreamGemBalance >= tool.price_amount
+                        : dreamTokenBalance >= tool.price_amount;
+                    const cardBusy =
+                      cleaningToolPurchasingKey === tool.cleaning_tool_key ||
+                      cleaningToolEquippingKey === tool.cleaning_tool_key;
+
+                    return (
+                      <article
+                        key={tool.cleaning_tool_key}
+                        onClick={() => onSelectCleaningTool(tool.cleaning_tool_key)}
+                        className={`group cursor-pointer overflow-hidden rounded-[20px] border transition ${
+                          active
+                            ? "border-violet-200/55 bg-violet-300/[0.085] shadow-[0_0_28px_rgba(139,92,246,0.14)]"
+                            : "border-white/[0.08] bg-white/[0.025] hover:border-violet-200/22 hover:bg-violet-300/[0.035]"
+                        }`}
+                      >
+                        <div className="relative flex aspect-[1.08] items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_50%_48%,rgba(72,197,255,0.11),transparent_55%),#050d19] p-3">
+                          <img
+                            src={tool.thumbnail_image || tool.game_image}
+                            alt=""
+                            className={`object-contain drop-shadow-[0_18px_24px_rgba(0,0,0,0.46)] transition duration-200 group-hover:scale-[1.045] ${
+                              tool.cleaning_tool_key === "yellow-sponge"
+                                ? "h-[84%] w-[84%] scale-[1.12]"
+                                : "h-[78%] w-[88%]"
+                            }`}
+                            draggable={false}
+                          />
+                          <div className="absolute left-2 top-2 flex flex-wrap gap-1.5">
+                            {equipped && (
+                              <span className="rounded-full bg-emerald-300 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-emerald-950">
+                                Equipped
+                              </span>
+                            )}
+                            {tool.is_placeholder && (
+                              <span className="rounded-full border border-violet-200/20 bg-slate-950/80 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-violet-100">
+                                Temp Art
+                              </span>
+                            )}
+                          </div>
+                          <span className="absolute bottom-2 right-2 rounded-full border border-amber-200/16 bg-slate-950/84 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.07em] text-amber-100">
+                            {powerLabel(tool.power_multiplier)}
+                          </span>
                         </div>
-                      </div>
-                      <div className="px-2 py-1.5">
-                        <p className="truncate text-[8px] font-black text-white sm:text-[9px]">{rug.title}</p>
-                        <div className="mt-0.5 flex items-center justify-between gap-1">
-                          <span className={`text-[6px] font-bold uppercase tracking-[0.08em] ${owned ? "text-emerald-200/62" : "text-white/34"}`}>{owned ? "Owned" : "Locked"}</span>
-                          <span className={`text-[7px] font-black ${rug.currency_code === "DG" ? "text-violet-200" : "text-cyan-100"}`}>{rug.is_starter ? "Free" : formatCurrency(rug.price_amount, rug.currency_code)}</span>
+
+                        <div className="p-3 sm:p-3.5">
+                          <p className="truncate text-[14px] font-black text-white sm:text-[15px]">
+                            {tool.title}
+                          </p>
+                          <p className="mt-1 line-clamp-2 min-h-[32px] text-[10px] leading-4 text-white/47 sm:text-[11px]">
+                            {tool.description || "Rug Rush cleaning tool."}
+                          </p>
+
+                          <div className="mt-2.5 flex items-center justify-between gap-2">
+                            <span
+                              className={`text-[12px] font-black ${
+                                tool.currency_code === "DG"
+                                  ? "text-violet-200"
+                                  : "text-cyan-100"
+                              }`}
+                            >
+                              {tool.is_starter
+                                ? "Starter"
+                                : formatCurrency(
+                                    tool.price_amount,
+                                    tool.currency_code,
+                                  )}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={busy || equipped || (!owned && !affordable)}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onSelectCleaningTool(tool.cleaning_tool_key);
+                                if (equipped) return;
+                                if (owned)
+                                  onEquipCleaningTool(tool.cleaning_tool_key);
+                                else
+                                  onPurchaseCleaningTool(tool.cleaning_tool_key);
+                              }}
+                              className={`min-h-10 min-w-[70px] rounded-full px-3 text-[10px] font-black uppercase tracking-[0.07em] transition ${
+                                equipped
+                                  ? "border border-emerald-200/18 bg-emerald-300/[0.07] text-emerald-100"
+                                  : owned
+                                    ? "bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+                                    : tool.currency_code === "DG"
+                                      ? "bg-violet-300 text-slate-950 hover:bg-violet-200"
+                                      : "bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+                              } disabled:cursor-not-allowed disabled:opacity-45`}
+                            >
+                              {cardBusy
+                                ? "..."
+                                : equipped
+                                  ? "Equipped"
+                                  : owned
+                                    ? "Equip"
+                                    : "Buy"}
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    </button>
-                  );
-                })}
+                      </article>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>

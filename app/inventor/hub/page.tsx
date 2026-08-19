@@ -12,7 +12,10 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import WardrobeFittedLayer from "@/components/nova-home/WardrobeFittedLayer";
 import RugRushGame, { type RugRushCompletion } from "@/components/nova-home/RugRushGame";
-import RugCollectionPanel, { type RugCatalogItem } from "@/components/nova-home/RugCollectionPanel";
+import RugCollectionPanel, {
+  type CleaningToolCatalogItem,
+  type RugCatalogItem,
+} from "@/components/nova-home/RugCollectionPanel";
 import { MILO_WARDROBE_RIG, NOVA_WARDROBE_RIG } from "@/lib/novaHome/wardrobeRig";
 import { createWardrobeSnapshotPng, downloadBlob } from "@/lib/novaHome/wardrobeSnapshot";
 
@@ -56,6 +59,15 @@ type PurchaseResult = {
 
 type RugPurchaseResult = {
   rug_key: string;
+  currency_code: "DT" | "DG";
+  cost_paid: number;
+  new_dt_balance: number;
+  new_dg_balance: number;
+  already_owned: boolean;
+};
+
+type CleaningToolPurchaseResult = {
+  cleaning_tool_key: string;
   currency_code: "DT" | "DG";
   cost_paid: number;
   new_dt_balance: number;
@@ -224,6 +236,8 @@ const AREA_1_IMAGE = "/activities/nova-home/area-1/area-1-furnished.png";
 const AREA_2_PLACEHOLDER_IMAGE = "/activities/nova-home/area-2-placeholder.png";
 const DEFAULT_RUG_KEY = "nova-classic-rug";
 const DEFAULT_RUG_GAME_IMAGE = "/activities/nova-home/rugs/nova-classic-rug.png";
+const DEFAULT_CLEANING_TOOL_KEY = "yellow-sponge";
+const DEFAULT_CLEANING_TOOL_IMAGE = "/activities/nova-home/rug-rush/yellow-sponge.png";
 
 const RUG_RUSH_SPARKLES = [
   { left: 31, top: 63, size: 14, delay: 0 },
@@ -428,6 +442,38 @@ function getRugPurchaseResult(data: unknown): RugPurchaseResult | null {
   };
 }
 
+function getCleaningToolPurchaseResult(data: unknown): CleaningToolPurchaseResult | null {
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || typeof row !== "object") return null;
+
+  const result = row as Record<string, unknown>;
+  const cleaningToolKey = String(result.cleaning_tool_key || "");
+  const currencyCode = String(result.currency_code || "");
+  const costPaid = Number(result.cost_paid);
+  const newDtBalance = Number(result.new_dt_balance);
+  const newDgBalance = Number(result.new_dg_balance);
+  const alreadyOwned = Boolean(result.already_owned);
+
+  if (
+    !cleaningToolKey ||
+    (currencyCode !== "DT" && currencyCode !== "DG") ||
+    !Number.isFinite(costPaid) ||
+    !Number.isFinite(newDtBalance) ||
+    !Number.isFinite(newDgBalance)
+  ) {
+    return null;
+  }
+
+  return {
+    cleaning_tool_key: cleaningToolKey,
+    currency_code: currencyCode,
+    cost_paid: costPaid,
+    new_dt_balance: newDtBalance,
+    new_dg_balance: newDgBalance,
+    already_owned: alreadyOwned,
+  };
+}
+
 function getCharacterPurchaseResult(data: unknown): CharacterPurchaseResult | null {
   const row = Array.isArray(data) ? data[0] : data;
   if (!row || typeof row !== "object") return null;
@@ -566,6 +612,12 @@ export default function NovaHomePage() {
   const [selectedRugKey, setSelectedRugKey] = useState<string | null>(DEFAULT_RUG_KEY);
   const [rugPurchasingKey, setRugPurchasingKey] = useState<string | null>(null);
   const [rugEquippingKey, setRugEquippingKey] = useState<string | null>(null);
+  const [cleaningToolCatalog, setCleaningToolCatalog] = useState<CleaningToolCatalogItem[]>([]);
+  const [cleaningToolOwned, setCleaningToolOwned] = useState<Set<string>>(() => new Set([DEFAULT_CLEANING_TOOL_KEY]));
+  const [equippedCleaningToolKey, setEquippedCleaningToolKey] = useState(DEFAULT_CLEANING_TOOL_KEY);
+  const [selectedCleaningToolKey, setSelectedCleaningToolKey] = useState<string | null>(DEFAULT_CLEANING_TOOL_KEY);
+  const [cleaningToolPurchasingKey, setCleaningToolPurchasingKey] = useState<string | null>(null);
+  const [cleaningToolEquippingKey, setCleaningToolEquippingKey] = useState<string | null>(null);
   const [rugMessage, setRugMessage] = useState("");
 
   const [responsiveReady, setResponsiveReady] = useState(false);
@@ -608,6 +660,13 @@ export default function NovaHomePage() {
   const equippedRug = useMemo(
     () => rugCatalog.find((rug) => rug.rug_key === equippedRugKey) ?? rugCatalog.find((rug) => rug.rug_key === DEFAULT_RUG_KEY) ?? null,
     [equippedRugKey, rugCatalog],
+  );
+  const equippedCleaningTool = useMemo(
+    () =>
+      cleaningToolCatalog.find((tool) => tool.cleaning_tool_key === equippedCleaningToolKey) ??
+      cleaningToolCatalog.find((tool) => tool.cleaning_tool_key === DEFAULT_CLEANING_TOOL_KEY) ??
+      null,
+    [cleaningToolCatalog, equippedCleaningToolKey],
   );
 
   useEffect(() => {
@@ -722,6 +781,7 @@ export default function NovaHomePage() {
     setHoveredZoneKey("extra-zone");
     setRugMessage("");
     setSelectedRugKey(equippedRugKey || DEFAULT_RUG_KEY);
+    setSelectedCleaningToolKey(equippedCleaningToolKey || DEFAULT_CLEANING_TOOL_KEY);
     setRugCollectionOpen(true);
   }
 
@@ -780,6 +840,9 @@ export default function NovaHomePage() {
       rugCatalogResult,
       rugOwnershipResult,
       rugEquippedResult,
+      cleaningToolCatalogResult,
+      cleaningToolOwnershipResult,
+      cleaningToolEquippedResult,
     ] = await Promise.all([
       supabase
         .from("dream_token_transactions")
@@ -813,6 +876,20 @@ export default function NovaHomePage() {
       supabase
         .from("nova_home_rug_equipped")
         .select("rug_key")
+        .eq("user_id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("nova_home_cleaning_tool_catalog")
+        .select("cleaning_tool_key,title,description,currency_code,price_amount,power_multiplier,game_image,thumbnail_image,is_starter,is_placeholder,sort_order")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true }),
+      supabase
+        .from("nova_home_cleaning_tool_ownership")
+        .select("cleaning_tool_key")
+        .eq("user_id", user.id),
+      supabase
+        .from("nova_home_cleaning_tool_equipped")
+        .select("cleaning_tool_key")
         .eq("user_id", user.id)
         .maybeSingle(),
     ]);
@@ -925,6 +1002,48 @@ export default function NovaHomePage() {
       const nextEquipped = validKeys.has(savedEquipped) ? savedEquipped : DEFAULT_RUG_KEY;
       setEquippedRugKey(nextEquipped);
       setSelectedRugKey((current) => current && validKeys.has(current) ? current : nextEquipped);
+    }
+
+    if (cleaningToolCatalogResult.error) {
+      console.warn("Could not load Rug Rush cleaning tool catalog:", cleaningToolCatalogResult.error.message);
+      setCleaningToolCatalog([]);
+      setRugMessage("Cleaning tools are not ready yet. Run SQL 320 in Supabase.");
+    } else {
+      const tools = (cleaningToolCatalogResult.data || []).map((row) => ({
+        cleaning_tool_key: String(row.cleaning_tool_key || ""),
+        title: String(row.title || "Cleaning Tool"),
+        description: row.description ? String(row.description) : null,
+        currency_code: String(row.currency_code || "DT") === "DG" ? "DG" as const : "DT" as const,
+        price_amount: Math.max(0, Number(row.price_amount || 0)),
+        power_multiplier: Math.max(0.5, Number(row.power_multiplier || 1)),
+        game_image: String(row.game_image || DEFAULT_CLEANING_TOOL_IMAGE),
+        thumbnail_image: row.thumbnail_image ? String(row.thumbnail_image) : null,
+        is_starter: Boolean(row.is_starter),
+        is_placeholder: Boolean(row.is_placeholder),
+        sort_order: Number(row.sort_order || 0),
+      })) satisfies CleaningToolCatalogItem[];
+      setCleaningToolCatalog(tools);
+
+      const validToolKeys = new Set(tools.map((tool) => tool.cleaning_tool_key));
+      const ownedTools = new Set<string>([DEFAULT_CLEANING_TOOL_KEY]);
+      if (!cleaningToolOwnershipResult.error) {
+        (cleaningToolOwnershipResult.data || []).forEach((row) => {
+          const key = String(row.cleaning_tool_key || "");
+          if (validToolKeys.has(key)) ownedTools.add(key);
+        });
+      }
+      setCleaningToolOwned(ownedTools);
+
+      const savedTool = cleaningToolEquippedResult.error
+        ? ""
+        : String(cleaningToolEquippedResult.data?.cleaning_tool_key || "");
+      const nextTool = validToolKeys.has(savedTool)
+        ? savedTool
+        : DEFAULT_CLEANING_TOOL_KEY;
+      setEquippedCleaningToolKey(nextTool);
+      setSelectedCleaningToolKey((current) =>
+        current && validToolKeys.has(current) ? current : nextTool,
+      );
     }
 
     setBalanceLoading(false);
@@ -1741,6 +1860,145 @@ export default function NovaHomePage() {
     );
   }
 
+  async function equipCleaningTool(
+    cleaningToolKey: string,
+    quiet = false,
+    assumeOwned = false,
+  ) {
+    const tool = cleaningToolCatalog.find(
+      (entry) => entry.cleaning_tool_key === cleaningToolKey,
+    );
+    if (!tool || cleaningToolEquippingKey) return false;
+
+    if (
+      !tool.is_starter &&
+      !assumeOwned &&
+      !cleaningToolOwned.has(cleaningToolKey)
+    ) {
+      setRugMessage("Purchase this cleaning tool before equipping it.");
+      return false;
+    }
+
+    setCleaningToolEquippingKey(cleaningToolKey);
+    if (!quiet) setRugMessage("");
+
+    const { data, error } = await supabase.rpc(
+      "equip_nova_home_cleaning_tool",
+      {
+        p_cleaning_tool_key: cleaningToolKey,
+      },
+    );
+
+    setCleaningToolEquippingKey(null);
+
+    if (error) {
+      setRugMessage(error.message || "This cleaning tool could not be equipped.");
+      return false;
+    }
+
+    const row = Array.isArray(data) ? data[0] : data;
+    const savedKey =
+      row && typeof row === "object"
+        ? String(
+            (row as Record<string, unknown>).cleaning_tool_key ||
+              cleaningToolKey,
+          )
+        : cleaningToolKey;
+
+    setEquippedCleaningToolKey(savedKey);
+    setSelectedCleaningToolKey(savedKey);
+    if (!quiet) {
+      setRugMessage(
+        `${tool.title} equipped. Rug Rush will use its ${Math.round(
+          tool.power_multiplier * 100,
+        )}% cleaning power automatically.`,
+      );
+    }
+    return true;
+  }
+
+  async function purchaseCleaningTool(cleaningToolKey: string) {
+    const tool = cleaningToolCatalog.find(
+      (entry) => entry.cleaning_tool_key === cleaningToolKey,
+    );
+    if (
+      !tool ||
+      cleaningToolPurchasingKey ||
+      cleaningToolEquippingKey
+    ) {
+      return;
+    }
+
+    if (tool.is_starter || cleaningToolOwned.has(cleaningToolKey)) {
+      await equipCleaningTool(cleaningToolKey);
+      return;
+    }
+
+    const availableBalance =
+      tool.currency_code === "DG" ? dreamGemBalance : dreamTokenBalance;
+    if (availableBalance < tool.price_amount) {
+      setRugMessage(
+        `You need ${
+          tool.currency_code === "DG"
+            ? formatDG(tool.price_amount - availableBalance)
+            : formatDT(tool.price_amount - availableBalance)
+        } more for ${tool.title}.`,
+      );
+      return;
+    }
+
+    setCleaningToolPurchasingKey(cleaningToolKey);
+    setRugMessage("");
+
+    const { data, error } = await supabase.rpc(
+      "purchase_nova_home_cleaning_tool",
+      {
+        p_cleaning_tool_key: cleaningToolKey,
+      },
+    );
+
+    setCleaningToolPurchasingKey(null);
+
+    if (error) {
+      setRugMessage(error.message || "This cleaning tool could not be purchased.");
+      return;
+    }
+
+    const result = getCleaningToolPurchaseResult(data);
+    if (!result) {
+      setRugMessage(
+        "The cleaning tool purchase completed, but the result could not be read. Refresh Nova Home.",
+      );
+      return;
+    }
+
+    setDreamTokenBalance(Math.max(0, result.new_dt_balance));
+    setDreamGemBalance(Math.max(0, result.new_dg_balance));
+    setCleaningToolOwned((current) => {
+      const next = new Set(current);
+      next.add(cleaningToolKey);
+      return next;
+    });
+
+    window.dispatchEvent(new Event("dream-tokens-updated"));
+    window.dispatchEvent(new Event("dream-gems-updated"));
+
+    const equipped = await equipCleaningTool(cleaningToolKey, true, true);
+    const paid =
+      tool.currency_code === "DG"
+        ? formatDG(result.cost_paid)
+        : formatDT(result.cost_paid);
+    setRugMessage(
+      result.already_owned
+        ? equipped
+          ? `${tool.title} was already owned and is now equipped.`
+          : `${tool.title} was already owned.`
+        : equipped
+          ? `${tool.title} purchased for ${paid} and equipped.`
+          : `${tool.title} purchased for ${paid}.`,
+    );
+  }
+
   async function purchaseZone(zoneKey: ZoneKey) {
     const zone = zoneMap.get(zoneKey);
     if (!zone || purchasingZoneKey || setupError) return;
@@ -2445,23 +2703,39 @@ export default function NovaHomePage() {
 
       <RugCollectionPanel
         open={rugCollectionOpen}
-        catalog={rugCatalog}
-        ownedKeys={rugOwned}
-        equippedKey={equippedRugKey}
-        selectedKey={selectedRugKey}
+        rugCatalog={rugCatalog}
+        rugOwnedKeys={rugOwned}
+        equippedRugKey={equippedRugKey}
+        selectedRugKey={selectedRugKey}
+        rugPurchasingKey={rugPurchasingKey}
+        rugEquippingKey={rugEquippingKey}
+        onSelectRug={(rugKey) => {
+          setSelectedRugKey(rugKey);
+          setRugMessage("");
+        }}
+        onPurchaseRug={(rugKey) => void purchaseRug(rugKey)}
+        onEquipRug={(rugKey) => void equipRug(rugKey)}
+        cleaningToolCatalog={cleaningToolCatalog}
+        cleaningToolOwnedKeys={cleaningToolOwned}
+        equippedCleaningToolKey={equippedCleaningToolKey}
+        selectedCleaningToolKey={selectedCleaningToolKey}
+        cleaningToolPurchasingKey={cleaningToolPurchasingKey}
+        cleaningToolEquippingKey={cleaningToolEquippingKey}
+        onSelectCleaningTool={(cleaningToolKey) => {
+          setSelectedCleaningToolKey(cleaningToolKey);
+          setRugMessage("");
+        }}
+        onPurchaseCleaningTool={(cleaningToolKey) =>
+          void purchaseCleaningTool(cleaningToolKey)
+        }
+        onEquipCleaningTool={(cleaningToolKey) =>
+          void equipCleaningTool(cleaningToolKey)
+        }
         dreamTokenBalance={dreamTokenBalance}
         dreamGemBalance={dreamGemBalance}
         loading={rugCollectionLoading}
         message={rugMessage}
-        purchasingKey={rugPurchasingKey}
-        equippingKey={rugEquippingKey}
         onClose={closeRugCollection}
-        onSelect={(rugKey) => {
-          setSelectedRugKey(rugKey);
-          setRugMessage("");
-        }}
-        onPurchase={(rugKey) => void purchaseRug(rugKey)}
-        onEquip={(rugKey) => void equipRug(rugKey)}
       />
 
       {rugRushOpen && (
@@ -2470,6 +2744,11 @@ export default function NovaHomePage() {
           onRoundComplete={handleRugRushComplete}
           rugImage={equippedRug?.game_image || DEFAULT_RUG_GAME_IMAGE}
           rugTitle={equippedRug?.title || "Nova Classic Rug"}
+          cleaningToolImage={
+            equippedCleaningTool?.game_image || DEFAULT_CLEANING_TOOL_IMAGE
+          }
+          cleaningToolTitle={equippedCleaningTool?.title || "Soft Sponge"}
+          cleaningPowerMultiplier={equippedCleaningTool?.power_multiplier || 1}
         />
       )}
 

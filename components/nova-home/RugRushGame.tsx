@@ -80,7 +80,7 @@ const BRUSH_RADIUS = 34;
 const SAMPLE_STEP = 2;
 const PERFECT_CLEAN_PERCENT = 99.5;
 const DEFAULT_RUG_IMAGE = "/activities/nova-home/rugs/nova-classic-rug.png";
-const SPONGE_IMAGE = "/activities/nova-home/rug-rush/yellow-sponge.png";
+const DEFAULT_CLEANING_TOOL_IMAGE = "/activities/nova-home/rug-rush/yellow-sponge.png";
 
 const MESS_TYPES: MessDefinition[] = [
   {
@@ -595,11 +595,17 @@ export default function RugRushGame({
   onRoundComplete,
   rugImage = DEFAULT_RUG_IMAGE,
   rugTitle = "Nova Classic Rug",
+  cleaningToolImage = DEFAULT_CLEANING_TOOL_IMAGE,
+  cleaningToolTitle = "Soft Sponge",
+  cleaningPowerMultiplier = 1,
 }: {
   onClose: () => void;
   onRoundComplete?: (result: RugRushCompletion) => void;
   rugImage?: string;
   rugTitle?: string;
+  cleaningToolImage?: string;
+  cleaningToolTitle?: string;
+  cleaningPowerMultiplier?: number;
 }) {
   const displayCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const effectsCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1240,7 +1246,8 @@ export default function RugRushGame({
     else if (speedPxPerSecond > 650) speedFactor = 0.82;
     else if (speedPxPerSecond < 55 && distance > 0) speedFactor = 0.9;
 
-    const basePower = currentMessRef.current.cleaningPower * speedFactor;
+    const equippedToolPower = clamp(Number(cleaningPowerMultiplier || 1), 0.75, 1.75);
+    const basePower = currentMessRef.current.cleaningPower * speedFactor * equippedToolPower;
 
     const eraseLayer = (canvas: HTMLCanvasElement, resistanceMultiplier: number) => {
       const context = canvas.getContext("2d", { willReadFrequently: true });
@@ -1444,8 +1451,9 @@ export default function RugRushGame({
               <div className={`relative ${compactLandscape ? "h-14 w-16" : "h-[74px] w-[88px] sm:h-[84px] sm:w-[100px]"}`}>
                 <div className="absolute inset-[12%] rounded-full bg-yellow-200/16 blur-md" />
                 <img
-                  src={SPONGE_IMAGE}
-                  alt=""
+                  src={cleaningToolImage}
+                  alt={cleaningToolTitle}
+                  title={cleaningToolTitle}
                   className="relative h-full w-full object-contain drop-shadow-[0_8px_10px_rgba(0,0,0,0.46)]"
                   draggable={false}
                 />
@@ -1473,6 +1481,9 @@ export default function RugRushGame({
                     <p className="mt-1 text-[8px] leading-3 text-white/52">Scrub back and forth over stubborn marks. Controlled movement cleans better than giant swipes.</p>
                     <div className="mt-1.5 rounded-[10px] border border-violet-200/14 bg-violet-300/[0.05] px-2 py-1.5">
                       <p className="truncate text-[9px] font-black text-white">{currentMess.title}</p>
+                      <p className="mt-0.5 truncate text-[7px] font-bold text-cyan-100/62">
+                        Tool · {cleaningToolTitle} · {Math.round(Math.max(0, (cleaningPowerMultiplier - 1) * 100))}% bonus power
+                      </p>
                       <p className="mt-0.5 truncate text-[6px] font-bold uppercase tracking-[0.09em] text-cyan-100/42">Rug · {rugTitle}</p>
                       <p className="mt-0.5 line-clamp-2 text-[7px] leading-2.5 text-white/44">{currentMess.subtitle}</p>
                     </div>
