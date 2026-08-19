@@ -103,7 +103,6 @@ export default function CurriculumOperationsView({
   );
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
   const [selectedQuizIds, setSelectedQuizIds] = useState<string[]>([]);
-  const [confirmation, setConfirmation] = useState("");
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [previewingId, setPreviewingId] = useState<string | null>(null);
@@ -219,7 +218,6 @@ export default function CurriculumOperationsView({
     setSelectedTopicIds([]);
     setSelectedQuizIds([]);
     setPreview(null);
-    setConfirmation("");
   }, [subject, level]);
 
   const visibleTopics = useMemo(() => {
@@ -236,7 +234,6 @@ export default function CurriculumOperationsView({
   function clearPreview() {
     setPreview(null);
     setSelectedQuizIds([]);
-    setConfirmation("");
   }
 
   async function requestPreview(
@@ -248,7 +245,6 @@ export default function CurriculumOperationsView({
     setPreviewingId(targetIds.length === 1 ? targetIds[0] : "selection");
     setPreview(null);
     setSelectedQuizIds([]);
-    setConfirmation("");
     setError(null);
     setNotice(null);
 
@@ -282,7 +278,6 @@ export default function CurriculumOperationsView({
       p_scope_type: preview.scope_type,
       p_target_ids:
         preview.scope_type === "topic" ? preview.topic_ids : preview.quiz_ids,
-      p_confirmation: confirmation,
     });
 
     if (archiveError) {
@@ -402,7 +397,6 @@ export default function CurriculumOperationsView({
           previewingId={previewingId}
           selectedTopicIds={selectedTopicIds}
           selectedQuizIds={selectedQuizIds}
-          confirmation={confirmation}
           onSubjectChange={setSubject}
           onLevelChange={setLevel}
           onSearchChange={setSearch}
@@ -414,7 +408,6 @@ export default function CurriculumOperationsView({
             setSelectedTopicIds(visibleTopics.map((topic) => topic.id))
           }
           onClearSelection={() => setSelectedTopicIds([])}
-          onConfirmationChange={setConfirmation}
           onArchive={archivePreview}
           onClosePreview={clearPreview}
         />
@@ -470,7 +463,6 @@ function InventoryPanel({
   previewingId,
   selectedTopicIds,
   selectedQuizIds,
-  confirmation,
   onSubjectChange,
   onLevelChange,
   onSearchChange,
@@ -480,7 +472,6 @@ function InventoryPanel({
   onToggleQuiz,
   onSelectVisible,
   onClearSelection,
-  onConfirmationChange,
   onArchive,
   onClosePreview,
 }: {
@@ -496,7 +487,6 @@ function InventoryPanel({
   previewingId: string | null;
   selectedTopicIds: string[];
   selectedQuizIds: string[];
-  confirmation: string;
   onSubjectChange: (value: SubjectFilter) => void;
   onLevelChange: (value: LevelFilter) => void;
   onSearchChange: (value: string) => void;
@@ -510,7 +500,6 @@ function InventoryPanel({
   onToggleQuiz: (id: string) => void;
   onSelectVisible: () => void;
   onClearSelection: () => void;
-  onConfirmationChange: (value: string) => void;
   onArchive: () => Promise<void>;
   onClosePreview: () => void;
 }) {
@@ -521,9 +510,9 @@ function InventoryPanel({
     <div style={panelStack}>
       <div style={phaseBanner}>
         <strong>Safe archive for English, Mathematics and Science:</strong>{" "}
-        records and student history are retained. Admin actions require a
-        preview and an exact confirmation phrase. Curriculum leads have
-        read-only preview access.
+        records and student history are retained. Archive actions apply
+        immediately after the impact preview. Curriculum leads have read-only
+        preview access.
       </div>
 
       <div style={filters}>
@@ -606,12 +595,10 @@ function InventoryPanel({
           preview={preview}
           busy={busy}
           selectedQuizIds={selectedQuizIds}
-          confirmation={confirmation}
           onToggleQuiz={onToggleQuiz}
           onPreviewQuizzes={() =>
             onPreview(preview.subject, "quiz", selectedQuizIds)
           }
-          onConfirmationChange={onConfirmationChange}
           onArchive={onArchive}
           onClose={onClosePreview}
         />
@@ -758,10 +745,8 @@ function PreviewPanel({
   preview,
   busy,
   selectedQuizIds,
-  confirmation,
   onToggleQuiz,
   onPreviewQuizzes,
-  onConfirmationChange,
   onArchive,
   onClose,
 }: {
@@ -769,10 +754,8 @@ function PreviewPanel({
   preview: CurriculumOperationPreview;
   busy: boolean;
   selectedQuizIds: string[];
-  confirmation: string;
   onToggleQuiz: (id: string) => void;
   onPreviewQuizzes: () => Promise<void>;
-  onConfirmationChange: (value: string) => void;
   onArchive: () => Promise<void>;
   onClose: () => void;
 }) {
@@ -781,11 +764,6 @@ function PreviewPanel({
     preview.scope_type === "topic"
       ? preview.topic_ids.length
       : preview.quiz_ids.length;
-  const requiredPhrase = archiveConfirmationPhrase(
-    preview.scope_type,
-    targetCount,
-  );
-
   return (
     <section style={previewCard}>
       <div style={previewHeader}>
@@ -883,20 +861,18 @@ function PreviewPanel({
       </p>
 
       {role === "admin" ? (
-        <div style={confirmationCard}>
-          <label style={{ ...fieldLabel, flex: 1 }}>
-            Type <strong style={{ color: "white" }}>{requiredPhrase}</strong> to
-            confirm
-            <input
-              value={confirmation}
-              onChange={(event) => onConfirmationChange(event.target.value)}
-              autoComplete="off"
-              style={field}
-            />
-          </label>
+        <div style={archiveActionCard}>
+          <div style={{ flex: "1 1 360px" }}>
+            <strong style={{ color: "white" }}>Ready to archive</strong>
+            <p style={{ ...smallText, marginTop: "5px" }}>
+              Clicking Archive applies this preview immediately. Student history
+              and curriculum records remain stored and can be restored from
+              Deployment History.
+            </p>
+          </div>
           <button
             type="button"
-            disabled={confirmation !== requiredPhrase || busy}
+            disabled={busy}
             onClick={() => void onArchive()}
             style={dangerButton}
           >
@@ -1079,11 +1055,6 @@ function HistoryRow({
       )}
     </article>
   );
-}
-
-function archiveConfirmationPhrase(scopeType: ScopeType, count: number) {
-  const noun = scopeType === "topic" ? "TOPIC" : "QUIZ";
-  return count === 1 ? `ARCHIVE ${noun}` : `ARCHIVE ${count} ${noun}S`;
 }
 
 function TabButton({
@@ -1396,7 +1367,7 @@ const safeText: CSSProperties = {
   color: "rgba(255,255,255,0.75)",
   lineHeight: 1.55,
 };
-const confirmationCard: CSSProperties = {
+const archiveActionCard: CSSProperties = {
   display: "flex",
   alignItems: "end",
   flexWrap: "wrap",

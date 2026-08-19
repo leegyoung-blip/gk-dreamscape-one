@@ -8,6 +8,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { supabase } from "@/lib/supabase";
+import NovaHomeActivityShell, { useNovaHomeActivityLayout } from "@/components/nova-home/NovaHomeActivityShell";
 
 type GamePhase = "intro" | "countdown" | "playing" | "result";
 
@@ -610,7 +611,6 @@ export default function RugRushGame({
   const [currentMess, setCurrentMess] = useState<MessDefinition>(MESS_TYPES[0]);
   const [brushPoint, setBrushPoint] = useState<Point | null>(null);
   const [surfaceSize, setSurfaceSize] = useState({ width: 1, height: 1 });
-  const [phonePortrait, setPhonePortrait] = useState(false);
   const [stats, setStats] = useState<RugRushStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -618,14 +618,7 @@ export default function RugRushGame({
   const [newBestPercent, setNewBestPercent] = useState(false);
   const [roundBonus, setRoundBonus] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(true);
-
-  useEffect(() => {
-    const media = window.matchMedia("(max-width: 700px) and (orientation: portrait)");
-    const sync = () => setPhonePortrait(media.matches);
-    sync();
-    media.addEventListener?.("change", sync);
-    return () => media.removeEventListener?.("change", sync);
-  }, []);
+  const { compactLandscape } = useNovaHomeActivityLayout();
 
   useEffect(() => {
     let cancelled = false;
@@ -1274,258 +1267,355 @@ export default function RugRushGame({
   const bestScore = stats?.best_score ?? 0;
   const bestPercent = stats?.best_clean_percent ?? 0;
 
+  const activityBadges = (
+    <>
+      <span className={`rounded-full border border-cyan-200/18 bg-cyan-300/[0.06] font-black uppercase text-cyan-100/70 ${compactLandscape ? "block w-full truncate px-1.5 py-1 text-center text-[6px] tracking-[0.08em]" : "px-2.5 py-1 text-[8px] tracking-[0.12em]"}`}>
+        10 Seconds
+      </span>
+      <span className={`rounded-full border border-violet-200/18 bg-violet-300/[0.06] font-black uppercase text-violet-100/75 ${compactLandscape ? "block w-full truncate px-1.5 py-1 text-center text-[6px] tracking-[0.07em]" : "px-2.5 py-1 text-[8px] tracking-[0.12em]"}`}>
+        {currentMess.title}
+      </span>
+    </>
+  );
+
+  const activityHud = compactLandscape ? (
+    <div className="grid h-full content-start gap-1">
+      <CompactHudCard label="Score" value={score.toLocaleString()} highlight={phase === "playing" && comboMultiplier > 1} />
+      <CompactHudCard label="Clean" value={`${cleanPercent.toFixed(0)}%`} />
+      <CompactHudCard label="Combo" value={`×${comboMultiplier.toFixed(2).replace(/\.00$/, "")}`} highlight={comboMultiplier > 1} />
+      <CompactHudCard label="Time" value={phase === "intro" ? "10" : roundedSeconds.toString()} urgent={phase === "playing" && timeLeftMs <= 3000} />
+    </div>
+  ) : (
+    <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+      <HudCard label="Score" value={score.toLocaleString()} highlight={phase === "playing" && comboMultiplier > 1} />
+      <HudCard label="Cleaned" value={`${cleanPercent.toFixed(0)}%`} />
+      <HudCard label="Combo" value={`×${comboMultiplier.toFixed(2).replace(/\.00$/, "")}`} highlight={comboMultiplier > 1} />
+      <HudCard label="Time" value={phase === "intro" ? "10" : roundedSeconds.toString()} urgent={phase === "playing" && timeLeftMs <= 3000} />
+    </div>
+  );
+
+  const activityActions = compactLandscape ? (
+    <>
+      <button
+        type="button"
+        onClick={() => setSoundEnabled((enabled) => !enabled)}
+        className="flex aspect-square w-full items-center justify-center rounded-[12px] border border-white/10 bg-white/[0.05] text-base text-white/75"
+        aria-label={soundEnabled ? "Turn Rug Rush sound off" : "Turn Rug Rush sound on"}
+        title={soundEnabled ? "Sound on" : "Sound off"}
+      >
+        {soundEnabled ? "🔊" : "🔇"}
+      </button>
+      <button
+        type="button"
+        onClick={onClose}
+        className="flex aspect-square w-full items-center justify-center rounded-[12px] border border-white/10 bg-white/[0.05] text-xl text-white/80"
+        aria-label="Close Rug Rush"
+        title="Back to Nova Home"
+      >
+        ×
+      </button>
+      <div className="mt-auto flex min-h-0 flex-1 items-end justify-center pb-1">
+        <span className="[writing-mode:vertical-rl] rotate-180 text-[6px] font-black uppercase tracking-[0.18em] text-cyan-100/25">Rug Rush</span>
+      </div>
+    </>
+  ) : (
+    <>
+      <button
+        type="button"
+        onClick={() => setSoundEnabled((enabled) => !enabled)}
+        className="flex h-10 items-center justify-center rounded-full border border-white/12 bg-white/[0.055] px-3 text-[9px] font-black uppercase tracking-[0.1em] text-white/72 transition hover:bg-white/[0.1]"
+        aria-label={soundEnabled ? "Turn Rug Rush sound off" : "Turn Rug Rush sound on"}
+      >
+        {soundEnabled ? "Sound On" : "Sound Off"}
+      </button>
+      <button
+        type="button"
+        onClick={onClose}
+        className="flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-white/[0.055] text-xl text-white/80 transition hover:bg-white/[0.1]"
+        aria-label="Close Rug Rush"
+      >
+        ×
+      </button>
+    </>
+  );
+
   return (
-    <div className="fixed inset-0 z-[120] flex h-[100dvh] w-[100vw] items-center justify-center overflow-hidden bg-slate-950/86 p-1.5 backdrop-blur-md sm:p-3">
-      <div className="grid h-full max-h-[920px] w-full max-w-[1180px] min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[20px] border border-cyan-200/25 bg-[#03101d] shadow-[0_36px_110px_rgba(0,0,0,0.72)] sm:rounded-[30px]">
-        <header className="flex items-center justify-between gap-3 border-b border-white/[0.07] bg-slate-950/55 px-4 py-2.5 sm:px-6 sm:py-3">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-200/60">Nova Home Minigame</p>
-              <span className="rounded-full border border-cyan-200/18 bg-cyan-300/[0.06] px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100/70">10 Seconds</span>
-              <span className="rounded-full border border-violet-200/18 bg-violet-300/[0.06] px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-violet-100/75">{currentMess.title}</span>
-            </div>
-            <h2 className="mt-1 text-xl font-black text-white sm:text-2xl">Rug Rush</h2>
-          </div>
+    <NovaHomeActivityShell
+      title="Rug Rush"
+      badges={activityBadges}
+      hud={activityHud}
+      actions={activityActions}
+    >
+      <div
+        ref={surfaceHostRef}
+        className={`relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden border border-cyan-200/14 bg-[radial-gradient(circle_at_50%_45%,rgba(55,190,226,0.11),transparent_50%),linear-gradient(180deg,#071a2a,#020914)] ${compactLandscape ? "rounded-[12px] p-0.5" : "rounded-[20px] p-1.5 sm:rounded-[26px] sm:p-2"}`}
+      >
+        <div
+          className={`relative shrink-0 overflow-hidden shadow-[0_28px_64px_rgba(0,0,0,0.48)] ${compactLandscape ? "rounded-[10px]" : "rounded-[18px] sm:rounded-[24px]"}`}
+          style={{ width: `${surfaceSize.width}px`, height: `${surfaceSize.height}px` }}
+        >
+          <canvas
+            ref={displayCanvasRef}
+            className={`h-full w-full select-none ${phase === "playing" ? "cursor-none" : "cursor-default"}`}
+            style={{ touchAction: "none" }}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={releasePointer}
+            onPointerCancel={releasePointer}
+            onPointerLeave={(event) => {
+              if (activePointerIdRef.current !== event.pointerId) setBrushPoint(null);
+            }}
+            aria-label="Rug Rush cleaning surface"
+          />
 
-          <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setSoundEnabled((enabled) => !enabled)}
-              className="flex h-10 items-center justify-center rounded-full border border-white/12 bg-white/[0.055] px-3 text-[9px] font-black uppercase tracking-[0.1em] text-white/72 transition hover:bg-white/[0.1]"
-              aria-label={soundEnabled ? "Turn Rug Rush sound off" : "Turn Rug Rush sound on"}
-            >
-              {soundEnabled ? "Sound On" : "Sound Off"}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-white/[0.055] text-xl text-white/80 transition hover:bg-white/[0.1]"
-              aria-label="Close Rug Rush"
-            >
-              ×
-            </button>
-          </div>
-        </header>
+          <canvas
+            ref={effectsCanvasRef}
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 z-10 h-full w-full"
+          />
 
-        <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden p-2 sm:gap-3 sm:p-3">
-          <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
-            <HudCard label="Score" value={score.toLocaleString()} highlight={phase === "playing" && comboMultiplier > 1} />
-            <HudCard label="Cleaned" value={`${cleanPercent.toFixed(0)}%`} />
-            <HudCard label="Combo" value={`×${comboMultiplier.toFixed(2).replace(/\.00$/, "")}`} highlight={comboMultiplier > 1} />
-            <HudCard label="Time" value={phase === "intro" ? "10" : roundedSeconds.toString()} urgent={phase === "playing" && timeLeftMs <= 3000} />
-          </div>
-
-          <div ref={surfaceHostRef} className="relative flex min-h-0 items-center justify-center overflow-hidden rounded-[20px] border border-cyan-200/14 bg-[radial-gradient(circle_at_50%_45%,rgba(55,190,226,0.11),transparent_50%),linear-gradient(180deg,#071a2a,#020914)] p-1.5 sm:rounded-[26px] sm:p-2">
+          {phase === "playing" && brushPoint && (
             <div
-              className="relative shrink-0 overflow-hidden rounded-[18px] shadow-[0_28px_64px_rgba(0,0,0,0.48)] sm:rounded-[24px]"
-              style={{ width: `${surfaceSize.width}px`, height: `${surfaceSize.height}px` }}
+              className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-1/2"
+              style={{
+                left: `${(brushPoint.x / CANVAS_WIDTH) * 100}%`,
+                top: `${(brushPoint.y / CANVAS_HEIGHT) * 100}%`,
+              }}
             >
-              <canvas
-                ref={displayCanvasRef}
-                className={`h-full w-full select-none ${phase === "playing" ? "cursor-none" : "cursor-default"}`}
-                style={{ touchAction: "none" }}
-                onPointerDown={handlePointerDown}
-                onPointerMove={handlePointerMove}
-                onPointerUp={releasePointer}
-                onPointerCancel={releasePointer}
-                onPointerLeave={(event) => {
-                  if (activePointerIdRef.current !== event.pointerId) setBrushPoint(null);
-                }}
-                aria-label="Rug Rush cleaning surface"
-              />
+              <div className={`relative ${compactLandscape ? "h-12 w-12" : "h-16 w-16 sm:h-20 sm:w-20"}`}>
+                <div className="absolute inset-0 rounded-full border-2 border-cyan-100/70 bg-cyan-200/[0.08] shadow-[0_0_22px_rgba(103,232,249,0.48),inset_0_0_14px_rgba(103,232,249,0.18)]" />
+                <div className="absolute inset-[9%] animate-spin rounded-full border border-dashed border-cyan-100/48 [animation-duration:900ms]" />
+                <div className="absolute inset-[20%] rounded-full border border-white/40 bg-slate-950/50" />
+                <div className="absolute left-1/2 top-1/2 h-[2px] w-[46%] -translate-x-1/2 -translate-y-1/2 bg-cyan-100/70" />
+                <span className="absolute -right-1 top-1 text-[9px] text-cyan-100 drop-shadow-[0_0_8px_rgba(103,232,249,0.8)]">✦</span>
+                <span className="absolute -left-1 bottom-2 text-[7px] text-white/80">✦</span>
+              </div>
+            </div>
+          )}
 
-              <canvas
-                ref={effectsCanvasRef}
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0 z-10 h-full w-full"
-              />
+          {phase === "playing" && comboMultiplier > 1 && (
+            <div
+              key={comboMultiplier}
+              className={`pointer-events-none absolute z-20 rounded-[14px] border border-cyan-200/28 bg-slate-950/84 shadow-[0_0_28px_rgba(34,211,238,0.24)] animate-pulse ${compactLandscape ? "left-2 top-2 px-2 py-1" : "left-3 top-3 px-3 py-2"}`}
+            >
+              <p className={`font-black uppercase tracking-[0.14em] text-cyan-100/62 ${compactLandscape ? "text-[6px]" : "text-[8px]"}`}>{comboLabel(comboMultiplier)}</p>
+              <p className={`mt-0.5 font-black leading-none text-cyan-100 ${compactLandscape ? "text-sm" : "text-lg sm:text-xl"}`}>×{comboMultiplier.toFixed(2).replace(/\.00$/, "")}</p>
+            </div>
+          )}
 
-              {phase === "playing" && brushPoint && (
-                <div
-                  className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-1/2"
-                  style={{
-                    left: `${(brushPoint.x / CANVAS_WIDTH) * 100}%`,
-                    top: `${(brushPoint.y / CANVAS_HEIGHT) * 100}%`,
-                  }}
-                >
-                  <div className="relative h-16 w-16 sm:h-20 sm:w-20">
-                    <div className="absolute inset-0 rounded-full border-2 border-cyan-100/70 bg-cyan-200/[0.08] shadow-[0_0_22px_rgba(103,232,249,0.48),inset_0_0_14px_rgba(103,232,249,0.18)]" />
-                    <div className="absolute inset-[9%] animate-spin rounded-full border border-dashed border-cyan-100/48 [animation-duration:900ms]" />
-                    <div className="absolute inset-[20%] rounded-full border border-white/40 bg-slate-950/50" />
-                    <div className="absolute left-1/2 top-1/2 h-[2px] w-[46%] -translate-x-1/2 -translate-y-1/2 bg-cyan-100/70" />
-                    <span className="absolute -right-1 top-1 text-[10px] text-cyan-100 drop-shadow-[0_0_8px_rgba(103,232,249,0.8)]">✦</span>
-                    <span className="absolute -left-1 bottom-2 text-[8px] text-white/80">✦</span>
+          {phase === "intro" && (
+            <div className={`absolute inset-0 z-30 flex items-center justify-center bg-slate-950/52 backdrop-blur-[2px] ${compactLandscape ? "p-1.5" : "p-3 sm:p-4"}`}>
+              {compactLandscape ? (
+                <div className="grid w-[min(520px,94%)] grid-cols-[1fr_0.82fr] gap-2 rounded-[16px] border border-cyan-200/22 bg-slate-950/92 p-2.5 shadow-[0_18px_48px_rgba(0,0,0,0.54)]">
+                  <div className="min-w-0 text-left">
+                    <p className="text-[6px] font-black uppercase tracking-[0.14em] text-cyan-200/58">Nova needs your help</p>
+                    <h3 className="mt-0.5 text-[16px] font-black leading-tight text-white">Clean the rug in 10 seconds!</h3>
+                    <p className="mt-1 text-[8px] leading-3 text-white/52">Scrub back and forth over stubborn marks. Controlled movement cleans better than giant swipes.</p>
+                    <div className="mt-1.5 rounded-[10px] border border-violet-200/14 bg-violet-300/[0.05] px-2 py-1.5">
+                      <p className="truncate text-[9px] font-black text-white">{currentMess.title}</p>
+                      <p className="mt-0.5 line-clamp-2 text-[7px] leading-2.5 text-white/44">{currentMess.subtitle}</p>
+                    </div>
                   </div>
-                </div>
-              )}
-
-              {phase === "playing" && comboMultiplier > 1 && (
-                <div
-                  key={comboMultiplier}
-                  className="pointer-events-none absolute left-3 top-3 z-20 rounded-[16px] border border-cyan-200/28 bg-slate-950/84 px-3 py-2 shadow-[0_0_28px_rgba(34,211,238,0.24)] animate-pulse"
-                >
-                  <p className="text-[8px] font-black uppercase tracking-[0.16em] text-cyan-100/62">{comboLabel(comboMultiplier)}</p>
-                  <p className="mt-0.5 text-lg font-black leading-none text-cyan-100 sm:text-xl">×{comboMultiplier.toFixed(2).replace(/\.00$/, "")}</p>
-                </div>
-              )}
-
-              {phase === "intro" && (
-                <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/52 p-3 backdrop-blur-[2px] sm:p-4">
-                  <div className="w-[min(560px,94%)] rounded-[22px] border border-cyan-200/24 bg-slate-950/90 p-4 text-center shadow-[0_24px_60px_rgba(0,0,0,0.54)] sm:rounded-[24px] sm:p-6">
-                    <p className="text-[9px] font-black uppercase tracking-[0.17em] text-cyan-200/62">Nova needs your help</p>
-                    <h3 className="mt-1.5 text-2xl font-black text-white sm:text-3xl">Clean the rug before time runs out!</h3>
-                    <p className="mx-auto mt-2.5 max-w-md text-xs leading-5 text-white/58 sm:text-sm sm:leading-6">
-                      Every round brings a different mess. Scrub back and forth over stubborn marks, keep your movement controlled, and build a combo while you remove new dirt.
-                    </p>
-
-                    <div className="mt-3 rounded-[16px] border border-violet-200/16 bg-violet-300/[0.055] px-4 py-3 text-left">
-                      <p className="text-[8px] font-black uppercase tracking-[0.15em] text-violet-100/55">This round</p>
-                      <p className="mt-0.5 text-sm font-black text-white">{currentMess.title}</p>
-                      <p className="mt-0.5 text-[10px] leading-4 text-white/48 sm:text-xs">{currentMess.subtitle}</p>
+                  <div className="flex min-w-0 flex-col justify-center gap-1.5">
+                    <div className="grid grid-cols-2 gap-1">
+                      <TinyStat label="Best" value={statsLoading ? "…" : bestScore.toLocaleString()} />
+                      <TinyStat label="Clean" value={statsLoading ? "…" : `${bestPercent.toFixed(1)}%`} />
                     </div>
-
-                    <div className="mx-auto mt-3 grid max-w-md grid-cols-2 gap-2 text-left">
-                      <MiniRule number="1" text="Scrub back and forth — don’t just swipe" />
-                      <MiniRule number="2" text="99.5%+ earns a Perfect Clean" />
-                    </div>
-
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <StatPill label="Best Score" value={statsLoading ? "…" : bestScore.toLocaleString()} />
-                      <StatPill label="Best Clean" value={statsLoading ? "…" : `${bestPercent.toFixed(1)}%`} />
-                    </div>
-
+                    <div className="rounded-[10px] border border-white/[0.07] bg-white/[0.025] px-2 py-1.5 text-center text-[7px] font-bold leading-2.5 text-white/52">99.5%+ = Perfect Clean</div>
                     <button
                       type="button"
                       onClick={startRound}
-                      className="mt-4 min-h-11 w-full rounded-full bg-cyan-300 px-6 text-xs font-black uppercase tracking-[0.12em] text-slate-950 transition hover:bg-cyan-200"
+                      className="min-h-9 rounded-full bg-cyan-300 px-3 text-[8px] font-black uppercase tracking-[0.09em] text-slate-950"
                     >
                       Start Rug Rush
                     </button>
                   </div>
                 </div>
-              )}
+              ) : (
+                <div className="w-[min(560px,94%)] rounded-[22px] border border-cyan-200/24 bg-slate-950/90 p-4 text-center shadow-[0_24px_60px_rgba(0,0,0,0.54)] sm:rounded-[24px] sm:p-6">
+                  <p className="text-[9px] font-black uppercase tracking-[0.17em] text-cyan-200/62">Nova needs your help</p>
+                  <h3 className="mt-1.5 text-2xl font-black text-white sm:text-3xl">Clean the rug before time runs out!</h3>
+                  <p className="mx-auto mt-2.5 max-w-md text-xs leading-5 text-white/58 sm:text-sm sm:leading-6">Every round brings a different mess. Scrub back and forth over stubborn marks, keep your movement controlled, and build a combo while you remove new dirt.</p>
 
-              {phase === "countdown" && (
-                <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/44 backdrop-blur-[1px]">
-                  <div className="text-center">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-violet-100/72">{currentMess.title}</p>
-                    <p className="mt-1 text-[9px] font-black uppercase tracking-[0.2em] text-cyan-100/60">Get Ready</p>
-                    <div className="mt-1 text-[88px] font-black leading-none text-white drop-shadow-[0_0_28px_rgba(103,232,249,0.6)] sm:text-[120px]">{countdown}</div>
+                  <div className="mt-3 rounded-[16px] border border-violet-200/16 bg-violet-300/[0.055] px-4 py-3 text-left">
+                    <p className="text-[8px] font-black uppercase tracking-[0.15em] text-violet-100/55">This round</p>
+                    <p className="mt-0.5 text-sm font-black text-white">{currentMess.title}</p>
+                    <p className="mt-0.5 text-[10px] leading-4 text-white/48 sm:text-xs">{currentMess.subtitle}</p>
                   </div>
+
+                  <div className="mx-auto mt-3 grid max-w-md grid-cols-2 gap-2 text-left">
+                    <MiniRule number="1" text="Scrub back and forth — don’t just swipe" />
+                    <MiniRule number="2" text="99.5%+ earns a Perfect Clean" />
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <StatPill label="Best Score" value={statsLoading ? "…" : bestScore.toLocaleString()} />
+                    <StatPill label="Best Clean" value={statsLoading ? "…" : `${bestPercent.toFixed(1)}%`} />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={startRound}
+                    className="mt-4 min-h-11 w-full rounded-full bg-cyan-300 px-6 text-xs font-black uppercase tracking-[0.12em] text-slate-950 transition hover:bg-cyan-200"
+                  >
+                    Start Rug Rush
+                  </button>
                 </div>
-              )}
-
-              {phase === "result" && (
-                <div className="absolute inset-0 z-30 flex items-center justify-center overflow-y-auto bg-slate-950/62 p-3 backdrop-blur-[2px] sm:p-4">
-                  <div className="w-[min(570px,94%)] rounded-[22px] border border-cyan-200/24 bg-slate-950/92 p-4 text-center shadow-[0_24px_60px_rgba(0,0,0,0.58)] sm:rounded-[24px] sm:p-6">
-                    <div className="flex items-center justify-center gap-2">
-                      <p className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-200/62">Time!</p>
-                      <span className="rounded-full border border-violet-200/16 bg-violet-300/[0.055] px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-violet-100/72">{currentMess.title}</span>
-                    </div>
-                    <h3 className="mt-1 text-2xl font-black text-white sm:text-3xl">{resultLabel(cleanPercent)}</h3>
-                    <div className="mt-2 text-3xl tracking-[0.18em] text-amber-200 sm:text-4xl" aria-label={`${stars} stars`}>
-                      {Array.from({ length: 3 }).map((_, index) => (
-                        <span key={index} className={index < stars ? "opacity-100" : "opacity-20"}>★</span>
-                      ))}
-                    </div>
-
-                    {(newBestScore || newBestPercent) && (
-                      <div className="mx-auto mt-2 inline-flex rounded-full border border-amber-200/30 bg-amber-300/[0.10] px-4 py-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-amber-100">
-                        New Personal Best!
-                      </div>
-                    )}
-
-                    <div className="mx-auto mt-3 flex max-w-md items-center gap-3 rounded-[16px] border border-cyan-200/14 bg-cyan-300/[0.045] px-3 py-2 text-left">
-                      <img
-                        src="/nova/nova-character.png"
-                        alt="Nova"
-                        className="h-14 w-auto shrink-0 drop-shadow-[0_10px_14px_rgba(0,0,0,0.45)] sm:h-16"
-                        draggable={false}
-                      />
-                      <div>
-                        <p className="text-[8px] font-black uppercase tracking-[0.14em] text-cyan-100/55">Nova says</p>
-                        <p className="mt-0.5 text-[10px] font-bold leading-4 text-white/70 sm:text-[11px]">{novaReaction(cleanPercent)}</p>
-                      </div>
-                    </div>
-
-                    <div className="mt-3 grid grid-cols-3 gap-2">
-                      <ResultStat label="Cleaned" value={`${cleanPercent.toFixed(1)}%`} accent />
-                      <ResultStat label="Score" value={score.toLocaleString()} />
-                      <ResultStat label="Best Combo" value={`×${maxCombo.toFixed(2).replace(/\.00$/, "")}`} />
-                    </div>
-
-                    {roundBonus > 0 && (
-                      <p className="mt-2 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100/74">Clean bonus +{roundBonus.toLocaleString()}</p>
-                    )}
-
-                    <div className="mt-3 grid grid-cols-3 gap-2">
-                      <StatPill label="Personal Best" value={(stats?.best_score ?? Math.max(bestScore, score)).toLocaleString()} />
-                      <StatPill label="Rounds" value={(stats?.rounds_played ?? 0).toLocaleString()} />
-                      <StatPill label="Perfects" value={(stats?.perfect_cleans ?? 0).toLocaleString()} />
-                    </div>
-
-                    <p className={`mt-2 min-h-4 text-[9px] font-bold ${saveStatus === "error" ? "text-rose-200/80" : "text-white/38"}`}>
-                      {saveStatus === "saving" && "Saving your result…"}
-                      {saveStatus === "saved" && "Personal best and Rug Rush stats saved."}
-                      {saveStatus === "error" && "Result finished, but the score could not be saved."}
-                    </p>
-
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                      <button
-                        type="button"
-                        onClick={startRound}
-                        className="min-h-11 rounded-full bg-cyan-300 px-5 text-[10px] font-black uppercase tracking-[0.11em] text-slate-950 transition hover:bg-cyan-200"
-                      >
-                        Play Again
-                      </button>
-                      <button
-                        type="button"
-                        onClick={onClose}
-                        className="min-h-11 rounded-full border border-white/12 bg-white/[0.045] px-5 text-[10px] font-black uppercase tracking-[0.11em] text-white/72 transition hover:bg-white/[0.08]"
-                      >
-                        Back to Nova Home
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {phase === "playing" && timeLeftMs <= 3000 && (
-                <>
-                  <div className="pointer-events-none absolute inset-0 z-[15] bg-[radial-gradient(circle_at_center,transparent_52%,rgba(251,191,36,0.12)_100%)]" />
-                  <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
-                    <div key={roundedSeconds} className="animate-pulse text-center">
-                      <div className="text-[74px] font-black leading-none text-amber-100/85 drop-shadow-[0_0_30px_rgba(251,191,36,0.45)] sm:text-[96px]">{roundedSeconds}</div>
-                      <div className="mt-1 text-[9px] font-black uppercase tracking-[0.2em] text-amber-100/70">{roundedSeconds === 1 ? "Finish!" : "Keep Scrubbing!"}</div>
-                    </div>
-                  </div>
-                  <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-amber-200/24 bg-slate-950/78 px-4 py-2 text-xl font-black text-amber-100 shadow-[0_0_22px_rgba(251,191,36,0.18)] sm:text-2xl">{roundedSeconds}</div>
-                </>
               )}
             </div>
-          </div>
-        </div>
-      </div>
+          )}
 
-      {phonePortrait && (
-        <div className="absolute inset-0 z-[220] flex items-center justify-center bg-[#020914]/96 p-6 text-center backdrop-blur-xl">
-          <div className="w-full max-w-sm rounded-[28px] border border-cyan-200/20 bg-slate-950/88 p-7 shadow-[0_28px_80px_rgba(0,0,0,0.65)]">
-            <div className="mx-auto flex h-24 w-24 items-center justify-center">
-              <div className="relative h-16 w-10 rotate-90 rounded-[12px] border-[3px] border-cyan-100/75 bg-cyan-300/[0.06] shadow-[0_0_28px_rgba(103,232,249,0.22)]">
-                <div className="absolute left-1/2 top-1.5 h-1 w-4 -translate-x-1/2 rounded-full bg-cyan-100/45" />
-                <div className="absolute bottom-1.5 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-cyan-100/55" />
+          {phase === "countdown" && (
+            <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/44 backdrop-blur-[1px]">
+              <div className="text-center">
+                <p className={`font-black uppercase tracking-[0.18em] text-violet-100/72 ${compactLandscape ? "text-[7px]" : "text-[10px]"}`}>{currentMess.title}</p>
+                <p className={`mt-1 font-black uppercase tracking-[0.2em] text-cyan-100/60 ${compactLandscape ? "text-[7px]" : "text-[9px]"}`}>Get Ready</p>
+                <div className={`mt-1 font-black leading-none text-white drop-shadow-[0_0_28px_rgba(103,232,249,0.6)] ${compactLandscape ? "text-[64px]" : "text-[88px] sm:text-[120px]"}`}>{countdown}</div>
               </div>
             </div>
-            <p className="mt-2 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200/60">Rug Rush plays in landscape</p>
-            <h3 className="mt-2 text-2xl font-black text-white">Turn your phone sideways</h3>
-            <p className="mt-3 text-sm leading-6 text-white/56">Rotate your phone to landscape so Nova&apos;s whole rug stays visible while you scrub.</p>
-            <div className="mt-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-cyan-100/70">
-              <span>↻</span>
-              <span>Rotate to continue</span>
+          )}
+
+          {phase === "result" && (
+            <div className={`absolute inset-0 z-30 flex items-center justify-center overflow-y-auto bg-slate-950/62 backdrop-blur-[2px] ${compactLandscape ? "p-1.5" : "p-3 sm:p-4"}`}>
+              {compactLandscape ? (
+                <div className="grid w-[min(560px,96%)] grid-cols-[0.92fr_1.08fr] gap-2 rounded-[16px] border border-cyan-200/22 bg-slate-950/94 p-2.5 shadow-[0_18px_48px_rgba(0,0,0,0.58)]">
+                  <div className="min-w-0 text-center">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <p className="text-[6px] font-black uppercase tracking-[0.15em] text-cyan-200/60">Time!</p>
+                      <span className="max-w-[100px] truncate rounded-full border border-violet-200/14 bg-violet-300/[0.05] px-1.5 py-0.5 text-[6px] font-black uppercase text-violet-100/70">{currentMess.title}</span>
+                    </div>
+                    <h3 className="mt-0.5 text-[17px] font-black leading-tight text-white">{resultLabel(cleanPercent)}</h3>
+                    <div className="mt-0.5 text-[22px] leading-none tracking-[0.11em] text-amber-200" aria-label={`${stars} stars`}>
+                      {Array.from({ length: 3 }).map((_, index) => <span key={index} className={index < stars ? "opacity-100" : "opacity-20"}>★</span>)}
+                    </div>
+                    {(newBestScore || newBestPercent) && <p className="mt-1 text-[6px] font-black uppercase tracking-[0.1em] text-amber-100">New Personal Best!</p>}
+                    <div className="mt-1.5 grid grid-cols-3 gap-1">
+                      <TinyStat label="Clean" value={`${cleanPercent.toFixed(1)}%`} accent />
+                      <TinyStat label="Score" value={score.toLocaleString()} />
+                      <TinyStat label="Combo" value={`×${maxCombo.toFixed(2).replace(/\.00$/, "")}`} />
+                    </div>
+                  </div>
+                  <div className="flex min-w-0 flex-col justify-center">
+                    <div className="flex items-center gap-2 rounded-[10px] border border-cyan-200/12 bg-cyan-300/[0.04] px-2 py-1.5 text-left">
+                      <img src="/nova/nova-character.png" alt="Nova" className="h-10 w-auto shrink-0 drop-shadow-[0_8px_12px_rgba(0,0,0,0.42)]" draggable={false} />
+                      <p className="line-clamp-3 text-[7px] font-bold leading-2.5 text-white/62">{novaReaction(cleanPercent)}</p>
+                    </div>
+                    <div className="mt-1.5 grid grid-cols-3 gap-1">
+                      <TinyStat label="Best" value={(stats?.best_score ?? Math.max(bestScore, score)).toLocaleString()} />
+                      <TinyStat label="Rounds" value={(stats?.rounds_played ?? 0).toLocaleString()} />
+                      <TinyStat label="Perfect" value={(stats?.perfect_cleans ?? 0).toLocaleString()} />
+                    </div>
+                    <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                      <button type="button" onClick={startRound} className="min-h-8 rounded-full bg-cyan-300 px-2 text-[7px] font-black uppercase tracking-[0.07em] text-slate-950">Play Again</button>
+                      <button type="button" onClick={onClose} className="min-h-8 rounded-full border border-white/10 bg-white/[0.04] px-2 text-[7px] font-black uppercase tracking-[0.07em] text-white/70">Nova Home</button>
+                    </div>
+                    <p className={`mt-1 min-h-2 text-center text-[6px] font-bold ${saveStatus === "error" ? "text-rose-200/75" : "text-white/28"}`}>
+                      {saveStatus === "saving" && "Saving…"}
+                      {saveStatus === "saved" && "Saved"}
+                      {saveStatus === "error" && "Score could not be saved"}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="w-[min(570px,94%)] rounded-[22px] border border-cyan-200/24 bg-slate-950/92 p-4 text-center shadow-[0_24px_60px_rgba(0,0,0,0.58)] sm:rounded-[24px] sm:p-6">
+                  <div className="flex items-center justify-center gap-2">
+                    <p className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-200/62">Time!</p>
+                    <span className="rounded-full border border-violet-200/16 bg-violet-300/[0.055] px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-violet-100/72">{currentMess.title}</span>
+                  </div>
+                  <h3 className="mt-1 text-2xl font-black text-white sm:text-3xl">{resultLabel(cleanPercent)}</h3>
+                  <div className="mt-2 text-3xl tracking-[0.18em] text-amber-200 sm:text-4xl" aria-label={`${stars} stars`}>
+                    {Array.from({ length: 3 }).map((_, index) => <span key={index} className={index < stars ? "opacity-100" : "opacity-20"}>★</span>)}
+                  </div>
+
+                  {(newBestScore || newBestPercent) && <div className="mx-auto mt-2 inline-flex rounded-full border border-amber-200/30 bg-amber-300/[0.10] px-4 py-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-amber-100">New Personal Best!</div>}
+
+                  <div className="mx-auto mt-3 flex max-w-md items-center gap-3 rounded-[16px] border border-cyan-200/14 bg-cyan-300/[0.045] px-3 py-2 text-left">
+                    <img src="/nova/nova-character.png" alt="Nova" className="h-14 w-auto shrink-0 drop-shadow-[0_10px_14px_rgba(0,0,0,0.45)] sm:h-16" draggable={false} />
+                    <div>
+                      <p className="text-[8px] font-black uppercase tracking-[0.14em] text-cyan-100/55">Nova says</p>
+                      <p className="mt-0.5 text-[10px] font-bold leading-4 text-white/70 sm:text-[11px]">{novaReaction(cleanPercent)}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <ResultStat label="Cleaned" value={`${cleanPercent.toFixed(1)}%`} accent />
+                    <ResultStat label="Score" value={score.toLocaleString()} />
+                    <ResultStat label="Best Combo" value={`×${maxCombo.toFixed(2).replace(/\.00$/, "")}`} />
+                  </div>
+
+                  {roundBonus > 0 && <p className="mt-2 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100/74">Clean bonus +{roundBonus.toLocaleString()}</p>}
+
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <StatPill label="Personal Best" value={(stats?.best_score ?? Math.max(bestScore, score)).toLocaleString()} />
+                    <StatPill label="Rounds" value={(stats?.rounds_played ?? 0).toLocaleString()} />
+                    <StatPill label="Perfects" value={(stats?.perfect_cleans ?? 0).toLocaleString()} />
+                  </div>
+
+                  <p className={`mt-2 min-h-4 text-[9px] font-bold ${saveStatus === "error" ? "text-rose-200/80" : "text-white/38"}`}>
+                    {saveStatus === "saving" && "Saving your result…"}
+                    {saveStatus === "saved" && "Personal best and Rug Rush stats saved."}
+                    {saveStatus === "error" && "Result finished, but the score could not be saved."}
+                  </p>
+
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <button type="button" onClick={startRound} className="min-h-11 rounded-full bg-cyan-300 px-5 text-[10px] font-black uppercase tracking-[0.11em] text-slate-950 transition hover:bg-cyan-200">Play Again</button>
+                    <button type="button" onClick={onClose} className="min-h-11 rounded-full border border-white/12 bg-white/[0.045] px-5 text-[10px] font-black uppercase tracking-[0.11em] text-white/72 transition hover:bg-white/[0.08]">Back to Nova Home</button>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
+          )}
+
+          {phase === "playing" && timeLeftMs <= 3000 && (
+            <>
+              <div className="pointer-events-none absolute inset-0 z-[15] bg-[radial-gradient(circle_at_center,transparent_52%,rgba(251,191,36,0.12)_100%)]" />
+              <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+                <div key={roundedSeconds} className="animate-pulse text-center">
+                  <div className={`font-black leading-none text-amber-100/85 drop-shadow-[0_0_30px_rgba(251,191,36,0.45)] ${compactLandscape ? "text-[50px]" : "text-[74px] sm:text-[96px]"}`}>{roundedSeconds}</div>
+                  <div className={`mt-1 font-black uppercase tracking-[0.18em] text-amber-100/70 ${compactLandscape ? "text-[6px]" : "text-[9px]"}`}>{roundedSeconds === 1 ? "Finish!" : "Keep Scrubbing!"}</div>
+                </div>
+              </div>
+              {!compactLandscape && <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-amber-200/24 bg-slate-950/78 px-4 py-2 text-xl font-black text-amber-100 shadow-[0_0_22px_rgba(251,191,36,0.18)] sm:text-2xl">{roundedSeconds}</div>}
+            </>
+          )}
         </div>
-      )}
+      </div>
+    </NovaHomeActivityShell>
+  );
+}
+
+function CompactHudCard({
+  label,
+  value,
+  urgent = false,
+  highlight = false,
+}: {
+  label: string;
+  value: string;
+  urgent?: boolean;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-[10px] border px-1 py-1.5 text-center ${
+        urgent
+          ? "border-amber-200/24 bg-amber-300/[0.08]"
+          : highlight
+            ? "border-cyan-200/22 bg-cyan-300/[0.07]"
+            : "border-white/[0.07] bg-white/[0.025]"
+      }`}
+    >
+      <p className="text-[5px] font-black uppercase tracking-[0.09em] text-white/34">{label}</p>
+      <p className={`mt-0.5 truncate text-[12px] font-black leading-none ${urgent ? "text-amber-100" : highlight ? "text-cyan-100" : "text-white"}`}>{value}</p>
+    </div>
+  );
+}
+
+function TinyStat({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className="min-w-0 rounded-[9px] border border-white/[0.07] bg-white/[0.025] px-1.5 py-1 text-center">
+      <p className="truncate text-[5px] font-black uppercase tracking-[0.08em] text-white/30">{label}</p>
+      <p className={`mt-0.5 truncate text-[9px] font-black leading-none ${accent ? "text-cyan-100" : "text-white/82"}`}>{value}</p>
     </div>
   );
 }
