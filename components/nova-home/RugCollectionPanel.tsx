@@ -258,21 +258,21 @@ export default function RugCollectionPanel({
         </header>
 
         <div
-          className="relative z-10 grid min-h-0 flex-1 grid-cols-[minmax(225px,0.76fr)_minmax(0,1.24fr)] gap-2 p-2"
+          className="relative z-10 grid min-h-0 flex-1 grid-cols-[minmax(0,1.28fr)_minmax(300px,0.72fr)] gap-2 p-2"
           style={{
             paddingLeft: "max(8px, env(safe-area-inset-left))",
             paddingRight: "max(8px, env(safe-area-inset-right))",
             paddingBottom: "max(8px, env(safe-area-inset-bottom))",
           }}
         >
-          <section className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden rounded-[16px] border border-cyan-200/15 bg-slate-950/44 shadow-[0_20px_46px_rgba(0,0,0,0.28)]">
+          <section className="grid min-h-0 grid-rows-[minmax(0,1fr)_58px] overflow-hidden rounded-[16px] border border-cyan-200/15 bg-slate-950/44 shadow-[0_20px_46px_rgba(0,0,0,0.28)]">
             <div className="flex min-h-0 items-center justify-center overflow-hidden p-1.5">
               {selected ? (
                 <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-[12px] border border-white/[0.07] bg-[radial-gradient(circle_at_50%_44%,rgba(73,191,226,0.12),transparent_52%),linear-gradient(180deg,#071b2c,#030a13)] p-2">
                   <img
                     src={selectedImage}
                     alt={selected.title}
-                    className={`object-contain drop-shadow-[0_18px_28px_rgba(0,0,0,0.52)] ${activeTab === "tools" ? "max-h-[82%] max-w-[82%] scale-[1.08]" : "max-h-full max-w-full"}`}
+                    className={`block object-contain drop-shadow-[0_18px_28px_rgba(0,0,0,0.52)] ${activeTab === "tools" ? "h-[88%] w-[88%] scale-[1.04]" : "h-full w-full max-h-full max-w-full p-1"}`}
                     draggable={false}
                   />
                   <div className="absolute left-2 top-2 flex gap-1">
@@ -288,30 +288,27 @@ export default function RugCollectionPanel({
               )}
             </div>
 
-            <div className="border-t border-white/[0.07] bg-slate-950/70 px-2.5 py-2">
+            <div className="flex min-w-0 items-center justify-between gap-2 border-t border-white/[0.07] bg-slate-950/70 px-2.5 py-1.5">
               {selected && (
                 <>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <h3 className="truncate text-[13px] font-black text-white">{selected.title}</h3>
-                        {selectedStarter && <span className="rounded-full border border-cyan-200/18 bg-cyan-300/[0.06] px-1.5 py-0.5 text-[6px] font-black uppercase tracking-[0.07em] text-cyan-100">Starter</span>}
-                      </div>
-                      <p className="mt-0.5 truncate text-[8px] text-white/48">{selected.description || (activeTab === "rugs" ? "Nova Home rug." : "Rug Rush cleaning tool.")}</p>
-                      <div className="mt-1 flex items-center gap-2">
-                        <span className={`text-[10px] font-black ${selectedCurrency === "DG" ? "text-violet-200" : "text-cyan-100"}`}>{selectedStarter ? "Free starter" : formatCurrency(selectedPrice, selectedCurrency)}</span>
-                        {activeTab === "tools" && selectedTool && <span className="text-[8px] font-black uppercase text-amber-100/78">{powerLabel(selectedTool.power_multiplier)}</span>}
-                      </div>
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <h3 className="truncate text-[13px] font-black text-white">{selected.title}</h3>
+                      {selectedStarter && <span className="shrink-0 rounded-full border border-cyan-200/18 bg-cyan-300/[0.06] px-1.5 py-0.5 text-[6px] font-black uppercase tracking-[0.07em] text-cyan-100">Starter</span>}
                     </div>
-                    <button
-                      type="button"
-                      disabled={busy || selectedEquipped || (!selectedOwned && !selectedAffordable)}
-                      onClick={runSelectedAction}
-                      className={`h-8 min-w-[88px] shrink-0 rounded-full px-3 text-[8px] font-black uppercase tracking-[0.07em] ${selectedEquipped ? "border border-emerald-200/18 bg-emerald-300/[0.08] text-emerald-100" : selectedOwned ? "bg-cyan-300 text-slate-950" : selectedAffordable ? selectedCurrency === "DG" ? "bg-violet-300 text-slate-950" : "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.04] text-white/35"} disabled:opacity-50`}
-                    >
-                      {selectedActionBusy ? "..." : selectedEquipped ? "Equipped" : selectedOwned ? "Equip" : selectedAffordable ? "Buy" : "Locked"}
-                    </button>
+                    <div className="mt-0.5 flex min-w-0 items-center gap-2">
+                      <span className={`truncate text-[10px] font-black ${selectedCurrency === "DG" ? "text-violet-200" : "text-cyan-100"}`}>{selectedStarter ? "Free starter" : formatCurrency(selectedPrice, selectedCurrency)}</span>
+                      {activeTab === "tools" && selectedTool && <span className="shrink-0 text-[8px] font-black uppercase text-amber-100/78">{powerLabel(selectedTool.power_multiplier)}</span>}
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    disabled={busy || selectedEquipped || (!selectedOwned && !selectedAffordable)}
+                    onClick={runSelectedAction}
+                    className={`h-8 min-w-[92px] shrink-0 rounded-full px-3 text-[8px] font-black uppercase tracking-[0.07em] ${selectedEquipped ? "border border-emerald-200/18 bg-emerald-300/[0.08] text-emerald-100" : selectedOwned ? "bg-cyan-300 text-slate-950" : selectedAffordable ? selectedCurrency === "DG" ? "bg-violet-300 text-slate-950" : "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.04] text-white/35"} disabled:opacity-50`}
+                  >
+                    {selectedActionBusy ? "..." : selectedEquipped ? "Equipped" : selectedOwned ? "Equip" : selectedAffordable ? "Buy" : "Locked"}
+                  </button>
                 </>
               )}
             </div>
@@ -325,9 +322,9 @@ export default function RugCollectionPanel({
 
             <div className="min-h-0 overflow-y-auto overscroll-contain p-1.5" style={{ WebkitOverflowScrolling: "touch" }}>
               {loading ? (
-                <div className="grid grid-cols-3 gap-1.5">{Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-[116px] animate-pulse rounded-[12px] border border-white/[0.06] bg-white/[0.035]" />)}</div>
+                <div className="grid grid-cols-2 gap-2">{Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-[116px] animate-pulse rounded-[12px] border border-white/[0.06] bg-white/[0.035]" />)}</div>
               ) : activeTab === "rugs" ? (
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-2 gap-2">
                   {rugCatalog.map((rug) => {
                     const owned = rug.is_starter || rugOwnedKeys.has(rug.rug_key);
                     const equipped = rug.rug_key === equippedRugKey;
@@ -336,18 +333,18 @@ export default function RugCollectionPanel({
                     const cardBusy = rugPurchasingKey === rug.rug_key || rugEquippingKey === rug.rug_key;
                     return (
                       <article key={rug.rug_key} onClick={() => onSelectRug(rug.rug_key)} className={`cursor-pointer overflow-hidden rounded-[12px] border ${active ? "border-cyan-200/55 bg-cyan-300/[0.08]" : "border-white/[0.08] bg-white/[0.025]"}`}>
-                        <div className="relative flex h-[74px] items-center justify-center overflow-hidden bg-slate-950/72 p-1.5">
+                        <div className="relative flex h-[88px] items-center justify-center overflow-hidden bg-slate-950/72 p-1.5">
                           <img src={rug.thumbnail_image || rug.game_image} alt="" className="h-full w-full object-contain" draggable={false} />
                           <div className="absolute left-1 top-1 flex gap-1">
                             {equipped && <span className="rounded-full bg-emerald-300 px-1.5 py-0.5 text-[6px] font-black uppercase text-emerald-950">Equipped</span>}
                             {rug.is_placeholder && <span className="rounded-full border border-amber-200/18 bg-slate-950/82 px-1.5 py-0.5 text-[6px] font-black uppercase text-amber-100">Temp</span>}
                           </div>
                         </div>
-                        <div className="p-1.5">
-                          <p className="truncate text-[10px] font-black text-white">{rug.title}</p>
-                          <div className="mt-1 flex items-center justify-between gap-1">
-                            <span className={`truncate text-[8px] font-black ${rug.currency_code === "DG" ? "text-violet-200" : "text-cyan-100"}`}>{rug.is_starter ? "Starter" : formatCurrency(rug.price_amount, rug.currency_code)}</span>
-                            <button type="button" disabled={busy || equipped || (!owned && !affordable)} onClick={(event) => { event.stopPropagation(); onSelectRug(rug.rug_key); if (equipped) return; if (owned) onEquipRug(rug.rug_key); else onPurchaseRug(rug.rug_key); }} className={`h-6 min-w-[48px] rounded-full px-2 text-[7px] font-black uppercase ${equipped ? "border border-emerald-200/16 bg-emerald-300/[0.07] text-emerald-100" : owned ? "bg-cyan-300 text-slate-950" : rug.currency_code === "DG" ? "bg-violet-300 text-slate-950" : "bg-cyan-300 text-slate-950"} disabled:opacity-45`}>{cardBusy ? "..." : equipped ? "On" : owned ? "Equip" : "Buy"}</button>
+                        <div className="p-2">
+                          <p className="truncate text-[11px] font-black text-white">{rug.title}</p>
+                          <div className="mt-1.5 flex items-center justify-between gap-1.5">
+                            <span className={`truncate text-[9px] font-black ${rug.currency_code === "DG" ? "text-violet-200" : "text-cyan-100"}`}>{rug.is_starter ? "Starter" : formatCurrency(rug.price_amount, rug.currency_code)}</span>
+                            <button type="button" disabled={busy || equipped || (!owned && !affordable)} onClick={(event) => { event.stopPropagation(); onSelectRug(rug.rug_key); if (equipped) return; if (owned) onEquipRug(rug.rug_key); else onPurchaseRug(rug.rug_key); }} className={`h-7 min-w-[54px] rounded-full px-2.5 text-[8px] font-black uppercase ${equipped ? "border border-emerald-200/16 bg-emerald-300/[0.07] text-emerald-100" : owned ? "bg-cyan-300 text-slate-950" : rug.currency_code === "DG" ? "bg-violet-300 text-slate-950" : "bg-cyan-300 text-slate-950"} disabled:opacity-45`}>{cardBusy ? "..." : equipped ? "On" : owned ? "Equip" : "Buy"}</button>
                           </div>
                         </div>
                       </article>
@@ -355,7 +352,7 @@ export default function RugCollectionPanel({
                   })}
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-2 gap-2">
                   {cleaningToolCatalog.map((tool) => {
                     const owned = tool.is_starter || cleaningToolOwnedKeys.has(tool.cleaning_tool_key);
                     const equipped = tool.cleaning_tool_key === equippedCleaningToolKey;
@@ -364,7 +361,7 @@ export default function RugCollectionPanel({
                     const cardBusy = cleaningToolPurchasingKey === tool.cleaning_tool_key || cleaningToolEquippingKey === tool.cleaning_tool_key;
                     return (
                       <article key={tool.cleaning_tool_key} onClick={() => onSelectCleaningTool(tool.cleaning_tool_key)} className={`cursor-pointer overflow-hidden rounded-[12px] border ${active ? "border-violet-200/55 bg-violet-300/[0.08]" : "border-white/[0.08] bg-white/[0.025]"}`}>
-                        <div className="relative flex h-[84px] items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_50%_48%,rgba(72,197,255,0.11),transparent_55%),#050d19] p-1.5">
+                        <div className="relative flex h-[92px] items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_50%_48%,rgba(72,197,255,0.11),transparent_55%),#050d19] p-1.5">
                           <img src={tool.thumbnail_image || tool.game_image} alt="" className={`object-contain drop-shadow-[0_12px_18px_rgba(0,0,0,0.45)] ${tool.cleaning_tool_key === "yellow-sponge" ? "h-[92%] w-[92%] scale-[1.1]" : "h-[84%] w-[92%]"}`} draggable={false} />
                           <div className="absolute left-1 top-1 flex gap-1">
                             {equipped && <span className="rounded-full bg-emerald-300 px-1.5 py-0.5 text-[6px] font-black uppercase text-emerald-950">Equipped</span>}
@@ -372,11 +369,11 @@ export default function RugCollectionPanel({
                           </div>
                           <span className="absolute bottom-1 right-1 rounded-full border border-amber-200/15 bg-slate-950/86 px-1.5 py-0.5 text-[7px] font-black uppercase text-amber-100">{powerLabel(tool.power_multiplier)}</span>
                         </div>
-                        <div className="p-1.5">
-                          <p className="truncate text-[10px] font-black text-white">{tool.title}</p>
-                          <div className="mt-1 flex items-center justify-between gap-1">
-                            <span className={`truncate text-[8px] font-black ${tool.currency_code === "DG" ? "text-violet-200" : "text-cyan-100"}`}>{tool.is_starter ? "Starter" : formatCurrency(tool.price_amount, tool.currency_code)}</span>
-                            <button type="button" disabled={busy || equipped || (!owned && !affordable)} onClick={(event) => { event.stopPropagation(); onSelectCleaningTool(tool.cleaning_tool_key); if (equipped) return; if (owned) onEquipCleaningTool(tool.cleaning_tool_key); else onPurchaseCleaningTool(tool.cleaning_tool_key); }} className={`h-6 min-w-[48px] rounded-full px-2 text-[7px] font-black uppercase ${equipped ? "border border-emerald-200/16 bg-emerald-300/[0.07] text-emerald-100" : owned ? "bg-cyan-300 text-slate-950" : tool.currency_code === "DG" ? "bg-violet-300 text-slate-950" : "bg-cyan-300 text-slate-950"} disabled:opacity-45`}>{cardBusy ? "..." : equipped ? "On" : owned ? "Equip" : "Buy"}</button>
+                        <div className="p-2">
+                          <p className="truncate text-[11px] font-black text-white">{tool.title}</p>
+                          <div className="mt-1.5 flex items-center justify-between gap-1.5">
+                            <span className={`truncate text-[9px] font-black ${tool.currency_code === "DG" ? "text-violet-200" : "text-cyan-100"}`}>{tool.is_starter ? "Starter" : formatCurrency(tool.price_amount, tool.currency_code)}</span>
+                            <button type="button" disabled={busy || equipped || (!owned && !affordable)} onClick={(event) => { event.stopPropagation(); onSelectCleaningTool(tool.cleaning_tool_key); if (equipped) return; if (owned) onEquipCleaningTool(tool.cleaning_tool_key); else onPurchaseCleaningTool(tool.cleaning_tool_key); }} className={`h-7 min-w-[54px] rounded-full px-2.5 text-[8px] font-black uppercase ${equipped ? "border border-emerald-200/16 bg-emerald-300/[0.07] text-emerald-100" : owned ? "bg-cyan-300 text-slate-950" : tool.currency_code === "DG" ? "bg-violet-300 text-slate-950" : "bg-cyan-300 text-slate-950"} disabled:opacity-45`}>{cardBusy ? "..." : equipped ? "On" : owned ? "Equip" : "Buy"}</button>
                           </div>
                         </div>
                       </article>

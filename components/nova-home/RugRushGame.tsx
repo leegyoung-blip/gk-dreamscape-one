@@ -1391,10 +1391,10 @@ export default function RugRushGame({
 
   const activityBadges = (
     <>
-      <span className={`rounded-full border border-cyan-200/18 bg-cyan-300/[0.06] font-black uppercase text-cyan-100/70 ${compactLandscape ? "block w-full truncate px-1.5 py-1 text-center text-[6px] tracking-[0.08em]" : "px-2.5 py-1 text-[8px] tracking-[0.12em]"}`}>
+      <span className={`rounded-full border border-cyan-200/18 bg-cyan-300/[0.06] font-black uppercase text-cyan-100/70 ${compactLandscape ? "shrink-0 truncate px-1.5 py-0.5 text-center text-[5px] tracking-[0.06em]" : "px-2.5 py-1 text-[8px] tracking-[0.12em]"}`}>
         10 Seconds
       </span>
-      <span className={`rounded-full border border-violet-200/18 bg-violet-300/[0.06] font-black uppercase text-violet-100/75 ${compactLandscape ? "block w-full truncate px-1.5 py-1 text-center text-[6px] tracking-[0.07em]" : "px-2.5 py-1 text-[8px] tracking-[0.12em]"}`}>
+      <span className={`rounded-full border border-violet-200/18 bg-violet-300/[0.06] font-black uppercase text-violet-100/75 ${compactLandscape ? "min-w-0 shrink truncate px-1.5 py-0.5 text-center text-[5px] tracking-[0.05em]" : "px-2.5 py-1 text-[8px] tracking-[0.12em]"}`}>
         {currentMess.title}
       </span>
       {!compactLandscape && (
@@ -1406,7 +1406,7 @@ export default function RugRushGame({
   );
 
   const activityHud = compactLandscape ? (
-    <div className="grid h-full content-start gap-1">
+    <div className="grid grid-cols-4 gap-1.5">
       <CompactHudCard label="Score" value={score.toLocaleString()} highlight={phase === "playing" && comboMultiplier > 1} />
       <CompactHudCard label="Clean" value={`${cleanPercent.toFixed(0)}%`} />
       <CompactHudCard label="Combo" value={`×${comboMultiplier.toFixed(2).replace(/\.00$/, "")}`} highlight={comboMultiplier > 1} />
@@ -1426,7 +1426,7 @@ export default function RugRushGame({
       <button
         type="button"
         onClick={() => setSoundEnabled((enabled) => !enabled)}
-        className="flex aspect-square w-full items-center justify-center rounded-[12px] border border-white/10 bg-white/[0.05] text-base text-white/75"
+        className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-white/10 bg-white/[0.05] text-sm text-white/75"
         aria-label={soundEnabled ? "Turn Rug Rush sound off" : "Turn Rug Rush sound on"}
         title={soundEnabled ? "Sound on" : "Sound off"}
       >
@@ -1435,25 +1435,22 @@ export default function RugRushGame({
       <button
         type="button"
         onClick={onClose}
-        className="flex aspect-square w-full items-center justify-center rounded-[12px] border border-white/10 bg-white/[0.05] text-xl text-white/80"
+        className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-white/10 bg-white/[0.05] text-lg text-white/80"
         aria-label="Close Rug Rush"
         title="Back to Nova Home"
       >
         ×
       </button>
-      <div className="mt-auto flex min-h-0 flex-1 items-end justify-center pb-1">
-        <span className="[writing-mode:vertical-rl] rotate-180 text-[6px] font-black uppercase tracking-[0.18em] text-cyan-100/25">Rug Rush</span>
-      </div>
     </>
   ) : (
     <>
       <button
         type="button"
         onClick={() => setSoundEnabled((enabled) => !enabled)}
-        className="flex h-10 items-center justify-center rounded-full border border-white/12 bg-white/[0.055] px-3 text-[9px] font-black uppercase tracking-[0.1em] text-white/72 transition hover:bg-white/[0.1]"
+        className="flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-white/[0.055] text-base text-white/78 transition hover:bg-white/[0.1]"
         aria-label={soundEnabled ? "Turn Rug Rush sound off" : "Turn Rug Rush sound on"}
       >
-        {soundEnabled ? "Sound On" : "Sound Off"}
+        {soundEnabled ? "🔊" : "🔇"}
       </button>
       <button
         type="button"
@@ -1472,6 +1469,7 @@ export default function RugRushGame({
       badges={activityBadges}
       hud={activityHud}
       actions={activityActions}
+      compactHudTop
     >
       <div
         ref={surfaceHostRef}
@@ -1479,7 +1477,16 @@ export default function RugRushGame({
       >
         <div
           className={`relative shrink-0 overflow-hidden shadow-[0_28px_64px_rgba(0,0,0,0.48)] ${compactLandscape ? "rounded-[10px]" : "rounded-[18px] sm:rounded-[24px]"}`}
-          style={{ width: `${surfaceSize.width}px`, height: `${surfaceSize.height}px` }}
+          style={
+            compactLandscape
+              ? {
+                  width: "min(100%, calc((100dvh - 66px) * 1.607142857))",
+                  maxWidth: "100%",
+                  maxHeight: "100%",
+                  aspectRatio: `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}`,
+                }
+              : { width: `${surfaceSize.width}px`, height: `${surfaceSize.height}px` }
+          }
         >
           <canvas
             ref={displayCanvasRef}
@@ -1731,7 +1738,7 @@ function CompactHudCard({
 }) {
   return (
     <div
-      className={`rounded-[10px] border px-1 py-1.5 text-center ${
+      className={`min-w-0 rounded-[10px] border px-1.5 py-1 text-center ${
         urgent
           ? "border-amber-200/24 bg-amber-300/[0.08]"
           : highlight
@@ -1739,7 +1746,7 @@ function CompactHudCard({
             : "border-white/[0.07] bg-white/[0.025]"
       }`}
     >
-      <p className="text-[5px] font-black uppercase tracking-[0.09em] text-white/34">{label}</p>
+      <p className="truncate text-[5px] font-black uppercase tracking-[0.08em] text-white/34">{label}</p>
       <p className={`mt-0.5 truncate text-[12px] font-black leading-none ${urgent ? "text-amber-100" : highlight ? "text-cyan-100" : "text-white"}`}>{value}</p>
     </div>
   );

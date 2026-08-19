@@ -53,6 +53,8 @@ type NovaHomeActivityShellProps = {
   actions?: ReactNode;
   footer?: ReactNode;
   children: ReactNode;
+  /** Mobile-landscape only: move the HUD into a horizontal top bar instead of a left rail. */
+  compactHudTop?: boolean;
 };
 
 export default function NovaHomeActivityShell({
@@ -63,31 +65,57 @@ export default function NovaHomeActivityShell({
   actions,
   footer,
   children,
+  compactHudTop = false,
 }: NovaHomeActivityShellProps) {
   const { compactLandscape, portraitTouchDevice } = useNovaHomeActivityLayout();
 
   return (
     <div className={`fixed inset-0 z-[120] h-[100dvh] max-h-[100dvh] w-[100vw] overflow-hidden bg-slate-950/92 backdrop-blur-md ${compactLandscape ? "" : "flex items-center justify-center p-1.5 sm:p-3"}`}>
       {compactLandscape ? (
-        <div className="grid h-full min-h-0 w-full grid-cols-[84px_minmax(0,1fr)_56px] overflow-hidden bg-[#03101d]">
-          <aside className="flex min-h-0 flex-col border-r border-white/[0.07] bg-slate-950/68 p-1.5">
-            <div className="shrink-0 border-b border-white/[0.06] px-1 pb-1.5">
-              <p className="truncate text-[6px] font-black uppercase tracking-[0.13em] text-cyan-200/46">{eyebrow}</p>
-              <h2 className="mt-0.5 truncate text-[13px] font-black leading-none text-white">{title}</h2>
-            </div>
-            <div className="mt-1.5 min-h-0 flex-1 overflow-hidden">{hud}</div>
-            {badges ? <div className="mt-1.5 shrink-0 space-y-1">{badges}</div> : null}
-          </aside>
+        compactHudTop ? (
+          <div className="grid h-full min-h-0 w-full grid-rows-[58px_minmax(0,1fr)] overflow-hidden bg-[#03101d]">
+            <header
+              className="flex min-w-0 items-center gap-2 border-b border-white/[0.07] bg-slate-950/72 px-2 py-1.5"
+              style={{
+                paddingLeft: "max(8px, env(safe-area-inset-left))",
+                paddingRight: "max(8px, env(safe-area-inset-right))",
+              }}
+            >
+              <div className="w-[118px] shrink-0 min-w-0">
+                <p className="truncate text-[6px] font-black uppercase tracking-[0.12em] text-cyan-200/46">{eyebrow}</p>
+                <h2 className="mt-0.5 truncate text-[15px] font-black leading-none text-white">{title}</h2>
+                {badges ? <div className="mt-1 flex min-w-0 items-center gap-1 overflow-hidden">{badges}</div> : null}
+              </div>
+              <div className="min-w-0 flex-1">{hud}</div>
+              <div className="flex shrink-0 items-center gap-1.5">{actions}</div>
+            </header>
 
-          <main className="relative min-h-0 overflow-hidden bg-[radial-gradient(circle_at_50%_45%,rgba(55,190,226,0.10),transparent_55%),linear-gradient(180deg,#071a2a,#020914)] p-1">
-            {children}
-            {footer ? <div className="pointer-events-none absolute inset-x-2 bottom-2 z-[80] flex justify-center"><div className="pointer-events-auto">{footer}</div></div> : null}
-          </main>
+            <main className="relative min-h-0 overflow-hidden bg-[radial-gradient(circle_at_50%_45%,rgba(55,190,226,0.10),transparent_55%),linear-gradient(180deg,#071a2a,#020914)] p-1">
+              {children}
+              {footer ? <div className="pointer-events-none absolute inset-x-2 bottom-2 z-[80] flex justify-center"><div className="pointer-events-auto">{footer}</div></div> : null}
+            </main>
+          </div>
+        ) : (
+          <div className="grid h-full min-h-0 w-full grid-cols-[84px_minmax(0,1fr)_56px] overflow-hidden bg-[#03101d]">
+            <aside className="flex min-h-0 flex-col border-r border-white/[0.07] bg-slate-950/68 p-1.5">
+              <div className="shrink-0 border-b border-white/[0.06] px-1 pb-1.5">
+                <p className="truncate text-[6px] font-black uppercase tracking-[0.13em] text-cyan-200/46">{eyebrow}</p>
+                <h2 className="mt-0.5 truncate text-[13px] font-black leading-none text-white">{title}</h2>
+              </div>
+              <div className="mt-1.5 min-h-0 flex-1 overflow-hidden">{hud}</div>
+              {badges ? <div className="mt-1.5 shrink-0 space-y-1">{badges}</div> : null}
+            </aside>
 
-          <aside className="flex min-h-0 flex-col items-stretch gap-1.5 border-l border-white/[0.07] bg-slate-950/68 p-1.5">
-            {actions}
-          </aside>
-        </div>
+            <main className="relative min-h-0 overflow-hidden bg-[radial-gradient(circle_at_50%_45%,rgba(55,190,226,0.10),transparent_55%),linear-gradient(180deg,#071a2a,#020914)] p-1">
+              {children}
+              {footer ? <div className="pointer-events-none absolute inset-x-2 bottom-2 z-[80] flex justify-center"><div className="pointer-events-auto">{footer}</div></div> : null}
+            </main>
+
+            <aside className="flex min-h-0 flex-col items-stretch gap-1.5 border-l border-white/[0.07] bg-slate-950/68 p-1.5">
+              {actions}
+            </aside>
+          </div>
+        )
       ) : (
         <div className={`grid h-full max-h-[920px] w-full max-w-[1180px] min-h-0 overflow-hidden rounded-[20px] border border-cyan-200/25 bg-[#03101d] shadow-[0_36px_110px_rgba(0,0,0,0.72)] sm:rounded-[30px] ${footer ? "grid-rows-[auto_auto_minmax(0,1fr)_auto]" : "grid-rows-[auto_auto_minmax(0,1fr)]"}`}>
           <header className="flex min-w-0 items-center justify-between gap-3 border-b border-white/[0.07] bg-slate-950/55 px-4 py-2.5 sm:px-6 sm:py-3">
