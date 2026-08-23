@@ -1,8 +1,7 @@
-export const AFFILIATE_TERMS_VERSION = "affiliate-terms-v3-2026-08-11";
+export const AFFILIATE_TERMS_VERSION = "affiliate-terms-v2-2026-08-03";
 export const PRIVACY_VERSION = "privacy-v1-2026-08-01";
 
 export const AFFILIATE_ROUTES = {
-  programme: "/affiliate",
   terms: "/affiliate-terms",
   privacy: "/privacy",
   login: "/login",

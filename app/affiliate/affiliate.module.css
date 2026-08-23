@@ -733,41 +733,14 @@
   text-transform: capitalize;
 }
 
-.status_submitted {
-  background: #eef2ff;
-  color: #3d57a8 !important;
-}
-
-.status_under_review {
-  background: #fff5df;
-  color: #9a6515 !important;
-}
-
-.status_information_requested {
-  background: #fff0f5;
-  color: #a92858 !important;
-}
-
-.status_approved_pending_onboarding {
-  background: #f2edff;
-  color: #6034d4 !important;
-}
-
-.status_active {
-  background: #eaf9f2;
-  color: #10704e !important;
-}
-
+.status_submitted { background: #eef2ff; color: #3d57a8 !important; }
+.status_under_review { background: #fff5df; color: #9a6515 !important; }
+.status_information_requested { background: #fff0f5; color: #a92858 !important; }
+.status_approved_pending_onboarding { background: #f2edff; color: #6034d4 !important; }
+.status_active { background: #eaf9f2; color: #10704e !important; }
 .status_rejected,
-.status_terminated {
-  background: #f2f2f4;
-  color: #676574 !important;
-}
-
-.status_suspended {
-  background: #fff0e9;
-  color: #a84b22 !important;
-}
+.status_terminated { background: #f2f2f4; color: #676574 !important; }
+.status_suspended { background: #fff0e9; color: #a84b22 !important; }
 
 .emptyCell {
   padding: 42px !important;

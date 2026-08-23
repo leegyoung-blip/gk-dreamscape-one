@@ -1,8 +1,16 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { AFFILIATE_ROUTES, AFFILIATE_TERMS_VERSION, PRIVACY_VERSION, getSiteUrl } from "@/lib/affiliate/config";
-import { sendAdminApplicationAlert, sendApplicationReceivedEmail } from "@/lib/affiliate/email";
+import {
+  AFFILIATE_ROUTES,
+  AFFILIATE_TERMS_VERSION,
+  PRIVACY_VERSION,
+  getSiteUrl,
+} from "@/lib/affiliate/config";
+import {
+  sendAdminApplicationAlert,
+  sendApplicationReceivedEmail,
+} from "@/lib/affiliate/email";
 import { affiliateApplicationSchema } from "@/lib/affiliate/validation";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -62,10 +70,20 @@ export async function submitAffiliateApplication(
   }
 
   const value = parsed.data;
-  const admin = createAdminClient();
   const email = value.email.toLowerCase();
 
-  const { data: existing } = await admin
+  let admin: ReturnType<typeof createAdminClient>;
+  try {
+    admin = createAdminClient();
+  } catch (adminClientError) {
+    console.error("Affiliate admin client could not be created", adminClientError);
+    return {
+      error:
+        "We could not submit your application right now. Please try again or email admin@gurukidspro.com.",
+    };
+  }
+
+  const { data: existing, error: existingError } = await admin
     .from("affiliate_applications")
     .select("id, status")
     .eq("email", email)
@@ -78,6 +96,14 @@ export async function submitAffiliateApplication(
     ])
     .limit(1)
     .maybeSingle();
+
+  if (existingError) {
+    console.error("Affiliate duplicate-application check failed", existingError);
+    return {
+      error:
+        "We could not verify your application status. Please try again or email admin@gurukidspro.com.",
+    };
+  }
 
   if (existing) {
     return {
@@ -98,7 +124,7 @@ export async function submitAffiliateApplication(
     }).filter(([, link]) => Boolean(link)),
   );
 
-  const { data: application, error } = await admin
+  const { data: application, error: insertError } = await admin
     .from("affiliate_applications")
     .insert({
       legal_name: value.legalName,
@@ -131,42 +157,73 @@ export async function submitAffiliateApplication(
     .select("id, application_number")
     .single();
 
-  if (error || !application) {
-    console.error("Affiliate application insert failed", error);
+  if (insertError || !application) {
+    console.error("Affiliate application insert failed", insertError);
     return {
       error:
         "We could not save your application. Please try again or email admin@gurukidspro.com.",
     };
   }
 
-  await admin.from("affiliate_terms_acceptances").insert({
-    application_id: application.id,
-    email,
-    terms_version: AFFILIATE_TERMS_VERSION,
-    privacy_version: PRIVACY_VERSION,
-    acceptance_method: "application_checkbox",
-    accepted_at: acceptedAt,
-    metadata: { source: "public_affiliate_application" },
-  });
+  const { error: acceptanceError } = await admin
+    .from("affiliate_terms_acceptances")
+    .insert({
+      application_id: application.id,
+      email,
+      terms_version: AFFILIATE_TERMS_VERSION,
+      privacy_version: PRIVACY_VERSION,
+      acceptance_method: "application_checkbox",
+      accepted_at: acceptedAt,
+      metadata: { source: "public_affiliate_application" },
+    });
 
-  const siteUrl = getSiteUrl();
-  await Promise.all([
+  // The application row already records the accepted terms/privacy versions and
+  // timestamps. Do not make the applicant resubmit a successfully saved
+  // application if the secondary acceptance-audit insert has a transient issue.
+  if (acceptanceError) {
+    console.error(
+      "Affiliate terms acceptance audit insert failed",
+      acceptanceError,
+    );
+  }
+
+  const emailTasks: Promise<unknown>[] = [
     sendApplicationReceivedEmail({
       to: email,
       name: value.displayName || value.legalName,
       applicationNumber: application.application_number,
     }),
-    sendAdminApplicationAlert({
-      applicationNumber: application.application_number,
-      legalName: value.legalName,
-      email,
-      applicantType: value.applicantType,
-      programmeRequested: value.programmeRequested,
-      adminUrl: `${siteUrl}${AFFILIATE_ROUTES.adminList}/${application.id}`,
-    }),
-  ]);
+  ];
+
+  try {
+    const siteUrl = getSiteUrl();
+    emailTasks.push(
+      sendAdminApplicationAlert({
+        applicationNumber: application.application_number,
+        legalName: value.legalName,
+        email,
+        applicantType: value.applicantType,
+        programmeRequested: value.programmeRequested,
+        adminUrl: `${siteUrl}${AFFILIATE_ROUTES.adminList}/${application.id}`,
+      }),
+    );
+  } catch (siteUrlError) {
+    console.error(
+      "Affiliate admin alert skipped because site URL is unavailable",
+      siteUrlError,
+    );
+  }
+
+  const emailResults = await Promise.allSettled(emailTasks);
+  for (const result of emailResults) {
+    if (result.status === "rejected") {
+      console.error("Affiliate application email failed", result.reason);
+    }
+  }
 
   redirect(
-    `${AFFILIATE_ROUTES.received}?ref=${encodeURIComponent(application.application_number)}`,
+    `${AFFILIATE_ROUTES.received}?ref=${encodeURIComponent(
+      application.application_number,
+    )}`,
   );
 }
