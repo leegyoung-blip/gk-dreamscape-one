@@ -50,22 +50,6 @@ const worlds: World[] = [
   },
 ];
 
-const ecosystemSteps = [
-  {
-    title: "Guru Kids Pro",
-    subtitle: "Learning and teacher support",
-    text: "The academic foundation: curriculum expertise, small-group classes, thinking-skills training, and real teacher guidance.",
-    image: "/home/ecosystem-gkp.png",
-    href: "https://gurukidspro.com",
-  },
-  {
-    title: "Dreamscape One",
-    subtitle: "Independent digital progression",
-    text: "The gamified platform: Learning Missions, progress tracking, rewards, financial literacy, and business simulations that grow with the learner.",
-    image: "/home/ecosystem-dreamscape.png",
-  },
-];
-
 const trustPoints = [
   {
     title: "AI-Assisted Development",
@@ -114,18 +98,23 @@ const productPreviews = [
 const journeySteps = [
   {
     number: "01",
-    title: "Choose what to explore",
-    text: "Start with School Learning in Nova, Life Skills in Milo, or simply explore both worlds before deciding.",
+    title: "Learn",
+    text: "Build strong foundations through structured learning designed for each stage.",
   },
   {
     number: "02",
-    title: "Learn through action",
-    text: "Complete missions, solve challenges, make decisions, and earn meaningful progress.",
+    title: "Play",
+    text: "Put learning into action through missions, games, challenges, and simulations.",
   },
   {
     number: "03",
-    title: "Track growth",
-    text: "Review scores, rewards, achievements, and the next areas to strengthen.",
+    title: "Earn",
+    text: "Collect DreamTokens, DreamGems, rewards, and achievements as you progress.",
+  },
+  {
+    number: "04",
+    title: "Progress",
+    text: "Unlock new experiences while keeping learning progress clear and meaningful.",
   },
 ];
 
@@ -683,8 +672,8 @@ function FirstVisitPopup({
 export default function Home() {
   const router = useRouter();
 
-  const [activeSection, setActiveSection] = useState<Section>("home");
   const [isMobile, setIsMobile] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isCheckingAccount, setIsCheckingAccount] = useState(true);
@@ -749,33 +738,6 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    function updateActiveSection() {
-      const aboutSection = document.getElementById("about");
-
-      if (!aboutSection) return;
-
-      const aboutTop = aboutSection.getBoundingClientRect().top;
-      const triggerPoint = window.innerHeight * 0.45;
-
-      if (aboutTop <= triggerPoint) {
-        setActiveSection("about");
-      } else {
-        setActiveSection("home");
-      }
-    }
-
-    updateActiveSection();
-
-    window.addEventListener("scroll", updateActiveSection);
-    window.addEventListener("resize", updateActiveSection);
-
-    return () => {
-      window.removeEventListener("scroll", updateActiveSection);
-      window.removeEventListener("resize", updateActiveSection);
-    };
-  }, []);
-
-  useEffect(() => {
     if (!showFirstVisitPopup) return;
 
     const originalOverflow = document.body.style.overflow;
@@ -785,6 +747,23 @@ export default function Home() {
       document.body.style.overflow = originalOverflow;
     };
   }, [showFirstVisitPopup]);
+
+  useEffect(() => {
+    if (!isMenuOpen) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setIsMenuOpen(false);
+    }
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isMenuOpen]);
 
   function saveFirstVisitChoice(interest: FirstVisitInterest) {
     window.localStorage.setItem(FIRST_VISIT_KEY, "true");
@@ -814,50 +793,21 @@ export default function Home() {
 
   function scrollToSection(section: Section) {
     const targetId = section === "home" ? "home" : "about";
-    const target = document.getElementById(targetId);
-
-    if (!target) return;
-
-    target.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
+    scrollToId(targetId);
   }
 
-  function navButtonStyle(section: Section): CSSProperties {
-    const isActive = activeSection === section;
+  function scrollToId(targetId: string) {
+    setIsMenuOpen(false);
 
-    return {
-      position: "relative",
-      height: "86px",
-      border: "none",
-      background: "transparent",
-      color: isActive ? "white" : "rgba(255,255,255,0.78)",
-      cursor: "pointer",
-      fontSize: "17px",
-      fontWeight: 400,
-      letterSpacing: "0.04em",
-      padding: 0,
-      transition: "color 250ms ease",
-    };
-  }
+    window.setTimeout(() => {
+      const target = document.getElementById(targetId);
+      if (!target) return;
 
-  function navLineStyle(section: Section): CSSProperties {
-    const isActive = activeSection === section;
-
-    return {
-      position: "absolute",
-      left: 0,
-      right: 0,
-      bottom: "14px",
-      height: "2px",
-      background: "#53d7ff",
-      boxShadow: "0 0 12px rgba(83,215,255,0.85)",
-      opacity: isActive ? 1 : 0,
-      transform: isActive ? "scaleX(1)" : "scaleX(0.2)",
-      transition: "opacity 250ms ease, transform 250ms ease",
-      transformOrigin: "center",
-    };
+      target.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 40);
   }
 
   const footerLinkStyle: CSSProperties = {
@@ -910,19 +860,21 @@ export default function Home() {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          gap: isMobile ? "12px" : "24px",
-          padding: isMobile ? "0 14px" : "0 43px",
+          gap: isMobile ? "10px" : "24px",
+          padding: isMobile ? "0 12px" : "0 43px",
           background: "rgba(2,8,19,0.92)",
           borderBottom: "1px solid rgba(255,255,255,0.14)",
           backdropFilter: "blur(18px)",
         }}
       >
         <button
-          onClick={() => scrollToSection("home")}
+          type="button"
+          onClick={() => scrollToId("home")}
+          aria-label="Go to homepage"
           style={{
             display: "flex",
             alignItems: "center",
-            gap: isMobile ? "10px" : "19px",
+            gap: isMobile ? "9px" : "19px",
             color: "white",
             background: "transparent",
             border: "none",
@@ -947,171 +899,301 @@ export default function Home() {
             }}
           />
 
-          <div
+          <span
             style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "flex-start",
+              fontSize: isMobile ? "10px" : "18px",
+              fontWeight: 400,
+              letterSpacing: isMobile ? "1.8px" : "8px",
               lineHeight: 1,
-              minWidth: 0,
+              whiteSpace: "nowrap",
             }}
           >
-            <span
-              style={{
-                fontSize: isMobile ? "12px" : "18px",
-                fontWeight: 400,
-                letterSpacing: isMobile ? "2.8px" : "10px",
-                whiteSpace: "nowrap",
-              }}
-            >
-              DREAMSCAPE ONE
-            </span>
-
-            <span
-              style={{
-                marginTop: "7px",
-                fontSize: isMobile ? "7px" : "10px",
-                fontWeight: 400,
-                letterSpacing: isMobile ? "1.4px" : "3.2px",
-                color: "rgba(255,255,255,0.58)",
-                textTransform: "uppercase",
-                whiteSpace: "nowrap",
-              }}
-            >
-              Powered by Guru Kids Pro
-            </span>
-          </div>
+            DREAMSCAPE ONE
+          </span>
         </button>
 
-        <nav
+        <div
           style={{
             display: "flex",
             alignItems: "center",
             justifyContent: "flex-end",
-            gap: isMobile ? "8px" : "34px",
+            gap: isMobile ? "7px" : "12px",
             flexShrink: 0,
           }}
         >
-          {!isMobile && (
-            <>
-              <button
-                type="button"
-                onClick={() => scrollToSection("home")}
-                style={navButtonStyle("home")}
-              >
-                Home
-                <span style={navLineStyle("home")} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => scrollToSection("about")}
-                style={navButtonStyle("about")}
-              >
-                About
-                <span style={navLineStyle("about")} />
-              </button>
-            </>
-          )}
-
-          <div
+          <button
+            type="button"
+            onClick={() => setIsMenuOpen(true)}
+            aria-label="Open navigation menu"
+            aria-expanded={isMenuOpen}
             style={{
-              marginLeft: isMobile ? 0 : "18px",
+              width: isMobile ? "38px" : "44px",
+              height: isMobile ? "38px" : "44px",
+              borderRadius: "999px",
+              border: "1px solid rgba(142,232,255,0.32)",
+              background:
+                "linear-gradient(135deg, rgba(83,215,255,0.12), rgba(197,140,255,0.12))",
               display: "flex",
+              flexDirection: "column",
               alignItems: "center",
-              gap: isMobile ? "8px" : "14px",
+              justifyContent: "center",
+              gap: "4px",
+              cursor: "pointer",
+              boxShadow: "0 10px 30px rgba(0,0,0,0.24)",
             }}
           >
-            <button
-              type="button"
-              onClick={() => router.push("/pricing")}
-              aria-label="View pricing"
-              style={{
-                minWidth: isMobile ? "38px" : "112px",
-                height: isMobile ? "38px" : "44px",
-                padding: isMobile ? 0 : "0 18px",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: "999px",
-                border: "1px solid rgba(142,232,255,0.42)",
-                background:
-                  "linear-gradient(135deg, rgba(83,215,255,0.12), rgba(197,140,255,0.12))",
-                color: "white",
-                fontSize: isMobile ? "15px" : "11px",
-                fontWeight: 900,
-                letterSpacing: isMobile ? 0 : "0.1em",
-                textTransform: "uppercase",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-                boxShadow:
-                  "0 10px 30px rgba(0,0,0,0.24), inset 0 0 16px rgba(83,215,255,0.04)",
-                backdropFilter: "blur(14px)",
-                flexShrink: 0,
-              }}
-            >
-              {isMobile ? "$" : "PRICING"}
-            </button>
+            {[0, 1, 2].map((line) => (
+              <span
+                key={line}
+                style={{
+                  width: isMobile ? "16px" : "18px",
+                  height: "1.5px",
+                  borderRadius: "999px",
+                  background: "white",
+                  display: "block",
+                }}
+              />
+            ))}
+          </button>
 
-            <button
-              type="button"
-              onClick={() => router.push(isLoggedIn ? "/profile" : "/login")}
-              style={{
-                background: "rgba(255,255,255,0.94)",
-                color: "#24124d",
-                border: "1px solid rgba(255,255,255,0.45)",
-                borderRadius: "999px",
-                padding: isMobile ? "9px 11px" : "11px 22px",
-                minWidth: isMobile ? "76px" : "138px",
-                fontSize: isMobile ? "9px" : "12px",
-                fontWeight: 800,
-                letterSpacing: isMobile ? "0.06em" : "0.1em",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-                textAlign: "center",
-                boxShadow: "0 10px 30px rgba(20,10,60,0.18)",
-                backdropFilter: "blur(14px)",
-              }}
-            >
-              {isCheckingAccount ? "..." : isLoggedIn ? "ACCOUNT" : "LOG IN"}
-            </button>
+          <button
+            type="button"
+            onClick={() => router.push(isLoggedIn ? "/profile" : "/login")}
+            style={{
+              background: "rgba(255,255,255,0.94)",
+              color: "#24124d",
+              border: "1px solid rgba(255,255,255,0.45)",
+              borderRadius: "999px",
+              padding: isMobile ? "9px 10px" : "11px 22px",
+              minWidth: isMobile ? "70px" : "138px",
+              fontSize: isMobile ? "8px" : "12px",
+              fontWeight: 800,
+              letterSpacing: isMobile ? "0.05em" : "0.1em",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              textAlign: "center",
+              boxShadow: "0 10px 30px rgba(20,10,60,0.18)",
+              backdropFilter: "blur(14px)",
+            }}
+          >
+            {isCheckingAccount ? "..." : isLoggedIn ? "ACCOUNT" : "LOG IN"}
+          </button>
 
-            <button
-              type="button"
-              onClick={() => router.push("/cart")}
-              aria-label="Cart"
+          <button
+            type="button"
+            onClick={() => router.push("/cart")}
+            aria-label="Cart"
+            style={{
+              width: isMobile ? "38px" : "44px",
+              height: isMobile ? "38px" : "44px",
+              borderRadius: "999px",
+              background: "#05050a",
+              border: "1px solid rgba(255,255,255,0.18)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
+              flexShrink: 0,
+            }}
+          >
+            <svg
+              width={isMobile ? "17" : "20"}
+              height={isMobile ? "17" : "20"}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="9" cy="21" r="1" />
+              <circle cx="20" cy="21" r="1" />
+              <path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 2-1.6L23 6H6" />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      {isMenuOpen && (
+        <>
+          <button
+            type="button"
+            aria-label="Close navigation menu"
+            onClick={() => setIsMenuOpen(false)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 70,
+              border: "none",
+              padding: 0,
+              background: "rgba(0,0,0,0.58)",
+              backdropFilter: "blur(8px)",
+              cursor: "pointer",
+            }}
+          />
+
+          <aside
+            aria-label="Dreamscape One navigation"
+            style={{
+              position: "fixed",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 80,
+              width: isMobile ? "min(88vw, 390px)" : "420px",
+              padding: isMobile ? "24px 22px 30px" : "32px 34px 40px",
+              display: "flex",
+              flexDirection: "column",
+              overflowY: "auto",
+              color: "white",
+              borderLeft: "1px solid rgba(142,232,255,0.22)",
+              background:
+                "radial-gradient(circle at 100% 0%, rgba(197,140,255,0.18), transparent 32%), radial-gradient(circle at 0% 100%, rgba(83,215,255,0.13), transparent 34%), rgba(3,10,23,0.98)",
+              boxShadow: "-24px 0 70px rgba(0,0,0,0.44)",
+            }}
+          >
+            <div
               style={{
-                width: isMobile ? "38px" : "44px",
-                height: isMobile ? "38px" : "44px",
-                borderRadius: "999px",
-                background: "#05050a",
-                border: "1px solid rgba(255,255,255,0.18)",
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-                boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
-                flexShrink: 0,
+                justifyContent: "space-between",
+                gap: "18px",
               }}
             >
-              <svg
-                width={isMobile ? "17" : "20"}
-                height={isMobile ? "17" : "20"}
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="white"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <img
+                  src="/home/dreamscape-logo.png"
+                  alt=""
+                  aria-hidden="true"
+                  style={{
+                    width: "42px",
+                    height: "42px",
+                    objectFit: "contain",
+                    borderRadius: "999px",
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 800,
+                    letterSpacing: "0.14em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Explore Dreamscape
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsMenuOpen(false)}
+                aria-label="Close navigation menu"
+                style={{
+                  width: "40px",
+                  height: "40px",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(255,255,255,0.16)",
+                  background: "rgba(255,255,255,0.06)",
+                  color: "white",
+                  fontSize: "24px",
+                  lineHeight: 1,
+                  cursor: "pointer",
+                }}
               >
-                <circle cx="9" cy="21" r="1" />
-                <circle cx="20" cy="21" r="1" />
-                <path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 2-1.6L23 6H6" />
-              </svg>
-            </button>
-          </div>
-        </nav>
-      </header>
+                ×
+              </button>
+            </div>
+
+            <nav
+              style={{
+                marginTop: isMobile ? "40px" : "56px",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              {[
+                { label: "HOME", target: "home" },
+                { label: "HOW IT WORKS", target: "how-it-works" },
+                { label: "FOR PARENTS", target: "for-parents" },
+              ].map((item) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => scrollToId(item.target)}
+                  style={{
+                    minHeight: "66px",
+                    padding: "0 4px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "18px",
+                    border: "none",
+                    borderBottom: "1px solid rgba(255,255,255,0.1)",
+                    background: "transparent",
+                    color: "white",
+                    textAlign: "left",
+                    fontSize: isMobile ? "17px" : "19px",
+                    fontWeight: 700,
+                    letterSpacing: "0.08em",
+                    cursor: "pointer",
+                  }}
+                >
+                  {item.label}
+                  <span aria-hidden="true" style={{ color: "#8ee8ff" }}>
+                    →
+                  </span>
+                </button>
+              ))}
+
+              {[
+                { label: "FOR TUITION CENTRES", href: "/education-licence" },
+                { label: "PARTNER WITH US", href: "/affiliate" },
+                { label: "PRICING", href: "/pricing" },
+              ].map((item) => (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  onClick={() => setIsMenuOpen(false)}
+                  style={{
+                    minHeight: "66px",
+                    padding: "0 4px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "18px",
+                    borderBottom: "1px solid rgba(255,255,255,0.1)",
+                    color: "white",
+                    textDecoration: "none",
+                    textAlign: "left",
+                    fontSize: isMobile ? "17px" : "19px",
+                    fontWeight: 700,
+                    letterSpacing: "0.08em",
+                  }}
+                >
+                  {item.label}
+                  <span aria-hidden="true" style={{ color: "#c58cff" }}>
+                    →
+                  </span>
+                </Link>
+              ))}
+            </nav>
+
+            <p
+              style={{
+                margin: "auto 0 0",
+                paddingTop: "34px",
+                color: "rgba(255,255,255,0.48)",
+                fontSize: "13px",
+                lineHeight: 1.6,
+              }}
+            >
+              One connected learning ecosystem for school mastery, thinking,
+              financial literacy, and entrepreneurship.
+            </p>
+          </aside>
+        </>
+      )}
 
       <section
         id="home"
@@ -1290,85 +1372,32 @@ export default function Home() {
               textAlign: "center",
             }}
           >
-            From curriculum mastery to real-world life skills.
+            A learning world that grows with them.
           </h2>
 
           <p
             style={{
-              margin: "28px 0 0",
-              maxWidth: "930px",
-              fontSize: isMobile ? "17px" : "22px",
+              margin: "24px 0 0",
+              maxWidth: "760px",
+              fontSize: isMobile ? "17px" : "20px",
               fontWeight: 300,
-              lineHeight: 1.7,
-              color: "rgba(255,255,255,0.74)",
+              lineHeight: 1.65,
+              color: "rgba(255,255,255,0.7)",
               textAlign: "center",
             }}
           >
-            Dreamscape One is a gamified learning ecosystem by Guru Kids Pro.
-            Children begin in Nova’s World with curriculum-based Learning
-            Missions, thinking challenges, and independent progress. As they
-            grow, Milo’s World introduces financial literacy, entrepreneurship,
-            and real-world decision-making through safe simulations.
+            One connected ecosystem. Two worlds designed for different stages
+            of learning and growing up.
           </p>
 
           <div
             style={{
-              marginTop: "58px",
-              width: "100%",
-              maxWidth: "1320px",
-            }}
-          >
-            <p
-              style={{
-                margin: "0 0 20px",
-                color: "rgba(255,255,255,0.86)",
-                fontSize: "18px",
-                fontWeight: 400,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                textAlign: "center",
-              }}
-            >
-              The Dreamscape One Ecosystem
-            </p>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: isMobile
-                  ? "1fr"
-                  : "minmax(0, 1fr) 52px minmax(0, 1fr)",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: isMobile ? "18px" : "0",
-              }}
-            >
-              {ecosystemSteps.map((step, index) => (
-                <div key={step.title} style={{ display: "contents" }}>
-                  <EcosystemCard
-                    title={step.title}
-                    subtitle={step.subtitle}
-                    text={step.text}
-                    image={step.image}
-                    href={step.href}
-                  />
-
-                  {index < ecosystemSteps.length - 1 && (
-                    <EcosystemArrow isMobile={isMobile} />
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div
-            style={{
-              marginTop: "62px",
+              marginTop: "52px",
               width: "100%",
               display: "grid",
               gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
               gap: isMobile ? "24px" : "52px",
-              maxWidth: "1550px",
+              maxWidth: "1320px",
               alignItems: "stretch",
               justifyContent: "center",
             }}
@@ -1376,19 +1405,22 @@ export default function Home() {
             <AboutCard
               imageSrc="/nova/nova-character.png"
               title="Nova’s World"
-              audience="Built for ages 6–12"
-              description="A gamified learning world where children strengthen English, Mathematics, and Science through Learning Missions while developing thinking skills, creativity, and learning independence."
+              audience="Ages 6–12"
+              items={["English", "Mathematics", "Science", "Thinking Skills"]}
             />
 
             <AboutCard
               imageSrc="/milo-world/milo-character.png"
               title="Milo’s World"
-              audience="Built for ages 13+"
-              description="A real-world skills world where teens build and manage businesses, explore investments, and practise financial decision-making through safe simulations."
+              audience="Ages 13+"
+              items={[
+                "Financial Literacy",
+                "Business",
+                "Entrepreneurship",
+                "Real-World Decision Making",
+              ]}
             />
           </div>
-
-
 
           <section
             id="inside-dreamscape"
@@ -1471,72 +1503,110 @@ export default function Home() {
             </div>
 
             <div
+              id="how-it-works"
               style={{
-                marginTop: isMobile ? "34px" : "46px",
+                marginTop: isMobile ? "48px" : "64px",
                 width: "100%",
-                display: "grid",
-                gridTemplateColumns: isMobile
-                  ? "1fr"
-                  : "repeat(3, minmax(0, 1fr))",
-                gap: isMobile ? "14px" : "18px",
+                scrollMarginTop: isMobile ? "92px" : "108px",
               }}
             >
-              {journeySteps.map((step) => (
-                <article
-                  key={step.number}
-                  style={{
-                    minHeight: "178px",
-                    padding: "26px 25px",
-                    borderRadius: "22px",
-                    border: "1px solid rgba(142,232,255,0.18)",
-                    background:
-                      "linear-gradient(145deg, rgba(255,255,255,0.055), rgba(255,255,255,0.02))",
-                    textAlign: "left",
-                  }}
-                >
-                  <p
+              <p
+                style={{
+                  margin: 0,
+                  color: "#ffbd73",
+                  fontSize: "12px",
+                  fontWeight: 900,
+                  letterSpacing: "0.2em",
+                  textTransform: "uppercase",
+                  textAlign: "center",
+                }}
+              >
+                How It Works
+              </p>
+
+              <h3
+                style={{
+                  margin: "14px 0 0",
+                  color: "white",
+                  fontFamily: 'Georgia, "Times New Roman", serif',
+                  fontSize: isMobile ? "34px" : "48px",
+                  fontWeight: 400,
+                  lineHeight: 1.1,
+                  textAlign: "center",
+                }}
+              >
+                Learn. Play. Earn. Progress.
+              </h3>
+
+              <div
+                style={{
+                  marginTop: isMobile ? "28px" : "34px",
+                  width: "100%",
+                  display: "grid",
+                  gridTemplateColumns: isMobile
+                    ? "1fr"
+                    : "repeat(4, minmax(0, 1fr))",
+                  gap: isMobile ? "14px" : "18px",
+                }}
+              >
+                {journeySteps.map((step) => (
+                  <article
+                    key={step.number}
                     style={{
-                      margin: 0,
-                      color: "#ffbd73",
-                      fontSize: "12px",
-                      fontWeight: 900,
-                      letterSpacing: "0.16em",
+                      minHeight: "178px",
+                      padding: "26px 25px",
+                      borderRadius: "22px",
+                      border: "1px solid rgba(142,232,255,0.18)",
+                      background:
+                        "linear-gradient(145deg, rgba(255,255,255,0.055), rgba(255,255,255,0.02))",
+                      textAlign: "left",
                     }}
                   >
-                    {step.number}
-                  </p>
-                  <h3
-                    style={{
-                      margin: "14px 0 0",
-                      color: "white",
-                      fontSize: "24px",
-                      fontWeight: 800,
-                    }}
-                  >
-                    {step.title}
-                  </h3>
-                  <p
-                    style={{
-                      margin: "13px 0 0",
-                      color: "rgba(255,255,255,0.64)",
-                      fontSize: "15px",
-                      fontWeight: 300,
-                      lineHeight: 1.62,
-                    }}
-                  >
-                    {step.text}
-                  </p>
-                </article>
-              ))}
+                    <p
+                      style={{
+                        margin: 0,
+                        color: "#ffbd73",
+                        fontSize: "12px",
+                        fontWeight: 900,
+                        letterSpacing: "0.16em",
+                      }}
+                    >
+                      {step.number}
+                    </p>
+                    <h3
+                      style={{
+                        margin: "14px 0 0",
+                        color: "white",
+                        fontSize: "24px",
+                        fontWeight: 800,
+                      }}
+                    >
+                      {step.title}
+                    </h3>
+                    <p
+                      style={{
+                        margin: "13px 0 0",
+                        color: "rgba(255,255,255,0.64)",
+                        fontSize: "15px",
+                        fontWeight: 300,
+                        lineHeight: 1.62,
+                      }}
+                    >
+                      {step.text}
+                    </p>
+                  </article>
+                ))}
+              </div>
             </div>
           </section>
 
           <section
-            id="trust"
+            id="for-parents"
             aria-labelledby="trust-heading"
             style={{
               position: "relative",
               marginTop: "72px",
+              scrollMarginTop: isMobile ? "92px" : "108px",
               width: "100%",
               maxWidth: "1450px",
               padding: isMobile ? "56px 20px 50px" : "76px 54px 62px",
@@ -1716,21 +1786,6 @@ export default function Home() {
               Trusted by families. Built from real teaching experience.
             </h2>
 
-            <p
-              style={{
-                margin: "22px 0 0",
-                maxWidth: "850px",
-                color: "rgba(255,255,255,0.68)",
-                fontSize: isMobile ? "16px" : "19px",
-                fontWeight: 300,
-                lineHeight: 1.7,
-                textAlign: "center",
-              }}
-            >
-              These development-preview quotes must be replaced with genuine,
-              permission-cleared reviews before they are published as customer
-              testimonials.
-            </p>
 
             <div
               style={{
@@ -1777,300 +1832,6 @@ export default function Home() {
           >
             Back to top
           </button>
-        </div>
-      </section>
-
-      <section
-        id="affiliate"
-        style={{
-          position: "relative",
-          padding: isMobile ? "82px 22px" : "112px 7.6vw",
-          overflow: "hidden",
-          color: "white",
-          background:
-            "radial-gradient(circle at 14% 28%, rgba(83,215,255,0.16), transparent 28%), radial-gradient(circle at 86% 70%, rgba(255,138,43,0.16), transparent 30%), linear-gradient(135deg, #061326 0%, #130a2d 52%, #24103d 100%)",
-          borderTop: "1px solid rgba(116,200,255,0.16)",
-          borderBottom: "1px solid rgba(197,140,255,0.18)",
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            pointerEvents: "none",
-            background:
-              "linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.025) 45%, transparent 100%)",
-          }}
-        />
-
-        <div
-          style={{
-            position: "relative",
-            zIndex: 2,
-            maxWidth: "1320px",
-            margin: "0 auto",
-            display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.15fr) minmax(320px, 0.85fr)",
-            gap: isMobile ? "34px" : "74px",
-            alignItems: "center",
-          }}
-        >
-          <div style={{ textAlign: isMobile ? "center" : "left" }}>
-            <p
-              style={{
-                margin: 0,
-                color: "#8ee8ff",
-                fontSize: "13px",
-                fontWeight: 700,
-                letterSpacing: "0.24em",
-                textTransform: "uppercase",
-              }}
-            >
-              Dreamscape Affiliate Programme
-            </p>
-
-            <h2
-              style={{
-                margin: "20px 0 0",
-                maxWidth: "760px",
-                fontFamily: 'Georgia, "Times New Roman", serif',
-                fontSize: isMobile ? "42px" : "66px",
-                fontWeight: 400,
-                lineHeight: 1.04,
-                color: "white",
-                textShadow: "0 18px 48px rgba(0,0,0,0.38)",
-              }}
-            >
-              Partner with Dreamscape.
-            </h2>
-
-            <p
-              style={{
-                margin: "24px 0 0",
-                maxWidth: "760px",
-                color: "rgba(255,255,255,0.72)",
-                fontSize: isMobile ? "17px" : "21px",
-                fontWeight: 300,
-                lineHeight: 1.7,
-              }}
-            >
-              Educators, child-focused businesses, and parenting creators can
-              earn commission for up to 12 months per eligible referred
-              customer while helping more families discover Dreamscape One.
-            </p>
-
-            <div
-              style={{
-                marginTop: "30px",
-                display: "flex",
-                flexWrap: "wrap",
-                justifyContent: isMobile ? "center" : "flex-start",
-                gap: "10px",
-              }}
-            >
-              {[
-                "Regular tier available now",
-                "10% recurring commission",
-                "Plus & Pro coming soon",
-                "Maximum 12 months per customer",
-              ].map((item) => (
-                <span
-                  key={item}
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: "999px",
-                    border: "1px solid rgba(142,232,255,0.24)",
-                    background: "rgba(255,255,255,0.055)",
-                    color: "rgba(255,255,255,0.9)",
-                    fontSize: "13px",
-                    fontWeight: 700,
-                    backdropFilter: "blur(12px)",
-                  }}
-                >
-                  {item}
-                </span>
-              ))}
-            </div>
-
-            <Link
-              href="/affiliate"
-              style={{
-                marginTop: "32px",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "12px",
-                minHeight: "54px",
-                padding: "14px 24px",
-                borderRadius: "999px",
-                textDecoration: "none",
-                color: "#150a31",
-                background:
-                  "linear-gradient(90deg, #8ee8ff 0%, #c58cff 58%, #ff9a45 100%)",
-                fontSize: "14px",
-                fontWeight: 900,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                boxShadow:
-                  "0 18px 42px rgba(71,33,139,0.34), 0 0 26px rgba(83,215,255,0.12)",
-              }}
-            >
-              Explore Affiliate Programme
-              <span aria-hidden="true">→</span>
-            </Link>
-
-            <p
-              style={{
-                margin: "14px 0 0",
-                color: "rgba(255,255,255,0.52)",
-                fontSize: "13px",
-                lineHeight: 1.6,
-              }}
-            >
-              Affiliate Regular applications are open now. Affiliate Plus and
-              Affiliate Pro are coming soon.
-            </p>
-          </div>
-
-          <div
-            style={{
-              minHeight: isMobile ? "310px" : "390px",
-              position: "relative",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: "30px",
-              border: "1px solid rgba(197,140,255,0.3)",
-              overflow: "hidden",
-              background:
-                "radial-gradient(circle at 50% 40%, rgba(197,140,255,0.24), transparent 38%), linear-gradient(145deg, rgba(255,255,255,0.07), rgba(255,255,255,0.025))",
-              boxShadow:
-                "0 28px 70px rgba(0,0,0,0.34), inset 0 0 30px rgba(83,215,255,0.04)",
-              backdropFilter: "blur(16px)",
-            }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                inset: "24px",
-                borderRadius: "24px",
-                border: "1px solid rgba(255,255,255,0.08)",
-              }}
-            />
-
-            <div
-              style={{
-                position: "absolute",
-                top: isMobile ? "18px" : "22px",
-                left: isMobile ? "18px" : "22px",
-                zIndex: 3,
-                padding: "9px 12px",
-                borderRadius: "999px",
-                border: "1px solid rgba(142,232,255,0.3)",
-                background: "rgba(2,8,19,0.72)",
-                color: "#8ee8ff",
-                fontSize: "10px",
-                fontWeight: 900,
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                backdropFilter: "blur(12px)",
-              }}
-            >
-              Regular · Available Now
-            </div>
-
-            <div
-              style={{
-                position: "absolute",
-                top: isMobile ? "56px" : "62px",
-                left: isMobile ? "18px" : "22px",
-                zIndex: 3,
-                padding: "8px 11px",
-                borderRadius: "999px",
-                border: "1px solid rgba(255,181,95,0.26)",
-                background: "rgba(2,8,19,0.66)",
-                color: "#ffbd73",
-                fontSize: "9px",
-                fontWeight: 900,
-                letterSpacing: "0.1em",
-                textTransform: "uppercase",
-                backdropFilter: "blur(12px)",
-              }}
-            >
-              Plus & Pro · Coming Soon
-            </div>
-
-            <img
-              src="/nova/nova-character.png"
-              alt="Nova from Dreamscape One"
-              style={{
-                position: "absolute",
-                left: isMobile ? "10%" : "8%",
-                bottom: 0,
-                width: isMobile ? "44%" : "48%",
-                maxHeight: "92%",
-                objectFit: "contain",
-                objectPosition: "bottom",
-                filter: "drop-shadow(0 22px 32px rgba(0,0,0,0.38))",
-              }}
-            />
-
-            <img
-              src="/home/dreamscape-logo.png"
-              alt=""
-              aria-hidden="true"
-              style={{
-                position: "absolute",
-                right: "12%",
-                top: "15%",
-                width: isMobile ? "86px" : "112px",
-                height: isMobile ? "86px" : "112px",
-                objectFit: "contain",
-                opacity: 0.94,
-                borderRadius: "999px",
-                boxShadow:
-                  "0 0 30px rgba(83,215,255,0.25), 0 0 38px rgba(197,140,255,0.22)",
-              }}
-            />
-
-            <div
-              style={{
-                position: "absolute",
-                right: "8%",
-                bottom: "13%",
-                width: isMobile ? "44%" : "46%",
-                padding: isMobile ? "18px" : "22px",
-                borderRadius: "22px",
-                border: "1px solid rgba(255,255,255,0.13)",
-                background: "rgba(2,8,19,0.66)",
-                backdropFilter: "blur(16px)",
-                textAlign: "left",
-              }}
-            >
-              <p
-                style={{
-                  margin: 0,
-                  color: "#ffb55f",
-                  fontSize: isMobile ? "25px" : "34px",
-                  fontWeight: 900,
-                  lineHeight: 1,
-                }}
-              >
-                10%
-              </p>
-              <p
-                style={{
-                  margin: "8px 0 0",
-                  color: "white",
-                  fontSize: isMobile ? "14px" : "17px",
-                  fontWeight: 800,
-                  lineHeight: 1.35,
-                }}
-              >
-                regular commission for up to 12 months per referred customer
-              </p>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -2288,173 +2049,6 @@ export default function Home() {
     </main>
   );
 }
-
-function EcosystemCard({
-  title,
-  subtitle,
-  text,
-  image,
-  href,
-}: {
-  title: string;
-  subtitle: string;
-  text: string;
-  image: string;
-  href?: string;
-}) {
-  const cardContent = (
-    <>
-      <div
-        style={{
-          height: "205px",
-          flex: "0 0 205px",
-          position: "relative",
-          overflow: "hidden",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "18px 22px 8px",
-          background:
-            "radial-gradient(circle at center, rgba(83,215,255,0.14), rgba(2,8,19,0.08) 55%, rgba(2,8,19,0.22))",
-        }}
-      >
-        <img
-          src={image}
-          alt=""
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "contain",
-            objectPosition: "center",
-            display: "block",
-            opacity: 1,
-            filter: "drop-shadow(0 18px 28px rgba(0,0,0,0.34))",
-          }}
-        />
-      </div>
-
-      <div
-        style={{
-          minHeight: 0,
-          flex: 1,
-          padding: "26px 28px 32px",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "flex-start",
-          background:
-            "linear-gradient(180deg, rgba(2,8,19,0.42), rgba(2,8,19,0.62))",
-          borderTop: "1px solid rgba(116,200,255,0.12)",
-        }}
-      >
-        <p
-          style={{
-            margin: 0,
-            color: "#8ee8ff",
-            fontSize: "13px",
-            letterSpacing: "0.22em",
-            textTransform: "uppercase",
-          }}
-        >
-          {subtitle}
-        </p>
-
-        <h3
-          style={{
-            margin: "12px 0 0",
-            color: "white",
-            fontSize: "28px",
-            fontWeight: 500,
-            lineHeight: 1.18,
-          }}
-        >
-          {title}
-        </h3>
-
-        <p
-          style={{
-            margin: "16px 0 0",
-            color: "rgba(255,255,255,0.68)",
-            fontSize: "16px",
-            lineHeight: 1.65,
-            fontWeight: 300,
-            maxWidth: "330px",
-          }}
-        >
-          {text}
-        </p>
-      </div>
-    </>
-  );
-
-  const sharedStyle: CSSProperties = {
-    height: "420px",
-    minHeight: "420px",
-    display: "flex",
-    flexDirection: "column",
-    borderRadius: "24px",
-    overflow: "hidden",
-    border: "1px solid rgba(116,200,255,0.28)",
-    background:
-      "linear-gradient(145deg, rgba(255,255,255,0.07), rgba(255,255,255,0.025))",
-    boxShadow:
-      "0 24px 60px rgba(0,0,0,0.34), inset 0 0 24px rgba(83,215,255,0.035)",
-    backdropFilter: "blur(16px)",
-    textAlign: "center",
-    textDecoration: "none",
-    color: "white",
-    cursor: href ? "pointer" : "default",
-    transition:
-      "transform 250ms ease, border-color 250ms ease, box-shadow 250ms ease",
-  };
-
-  if (href) {
-    return (
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={sharedStyle}
-        onMouseEnter={(event) => {
-          event.currentTarget.style.transform = "translateY(-6px)";
-          event.currentTarget.style.borderColor = "rgba(116,200,255,0.55)";
-          event.currentTarget.style.boxShadow =
-            "0 30px 80px rgba(0,0,0,0.42), 0 0 26px rgba(83,215,255,0.16)";
-        }}
-        onMouseLeave={(event) => {
-          event.currentTarget.style.transform = "translateY(0)";
-          event.currentTarget.style.borderColor = "rgba(116,200,255,0.28)";
-          event.currentTarget.style.boxShadow =
-            "0 24px 60px rgba(0,0,0,0.34), inset 0 0 24px rgba(83,215,255,0.035)";
-        }}
-      >
-        {cardContent}
-      </a>
-    );
-  }
-
-  return <article style={sharedStyle}>{cardContent}</article>;
-}
-
-function EcosystemArrow({ isMobile }: { isMobile: boolean }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        color: "#8ee8ff",
-        fontSize: "28px",
-        opacity: 0.9,
-        minHeight: isMobile ? "18px" : "auto",
-      }}
-    >
-      {isMobile ? "↓" : "→"}
-    </div>
-  );
-}
-
-
 
 function ProductPreviewCard({
   eyebrow,
@@ -2776,12 +2370,12 @@ function AboutCard({
   imageSrc,
   title,
   audience,
-  description,
+  items,
 }: {
   imageSrc: string;
   title: string;
   audience: string;
-  description: string;
+  items: string[];
 }) {
   return (
     <article
@@ -2834,6 +2428,7 @@ function AboutCard({
           margin: "26px 0 0",
           color: "#8ee8ff",
           fontSize: "13px",
+          fontWeight: 800,
           letterSpacing: "0.22em",
           textTransform: "uppercase",
         }}
@@ -2863,18 +2458,38 @@ function AboutCard({
         }}
       />
 
-      <p
+      <div
         style={{
-          margin: "24px 0 0",
-          maxWidth: "520px",
-          fontSize: "20px",
-          fontWeight: 300,
-          lineHeight: 1.6,
-          color: "rgba(255,255,255,0.72)",
+          marginTop: "26px",
+          width: "100%",
+          maxWidth: "430px",
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gap: "12px",
         }}
       >
-        {description}
-      </p>
+        {items.map((item) => (
+          <div
+            key={item}
+            style={{
+              minHeight: "52px",
+              padding: "12px 14px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "15px",
+              border: "1px solid rgba(142,232,255,0.16)",
+              background: "rgba(255,255,255,0.045)",
+              color: "rgba(255,255,255,0.88)",
+              fontSize: "15px",
+              fontWeight: 700,
+              lineHeight: 1.3,
+            }}
+          >
+            {item}
+          </div>
+        ))}
+      </div>
     </article>
   );
 }

@@ -55,15 +55,17 @@ export default function PublicPreviewBanner() {
         top: isMobile ? "88px" : "104px",
         left: "50%",
         zIndex: 38,
-        width: isMobile ? "calc(100% - 28px)" : "min(980px, calc(100% - 80px))",
+        width: isMobile
+          ? "calc(100% - 28px)"
+          : "min(1080px, calc(100% - 80px))",
         transform: "translateX(-50%)",
-        padding: isMobile ? "14px" : "16px 18px",
+        padding: isMobile ? "16px" : "17px 20px",
         display: "flex",
         flexDirection: isMobile ? "column" : "row",
         alignItems: isMobile ? "stretch" : "center",
         justifyContent: "space-between",
-        gap: isMobile ? "12px" : "20px",
-        borderRadius: isMobile ? "22px" : "999px",
+        gap: isMobile ? "14px" : "24px",
+        borderRadius: isMobile ? "22px" : "26px",
         border: "1px solid rgba(142,232,255,0.34)",
         background:
           "linear-gradient(100deg, rgba(5,20,42,0.94), rgba(28,13,61,0.93) 58%, rgba(63,31,16,0.92))",
@@ -78,25 +80,41 @@ export default function PublicPreviewBanner() {
           style={{
             margin: 0,
             color: "#8ee8ff",
-            fontSize: "10px",
+            fontSize: "9px",
             fontWeight: 900,
-            letterSpacing: "0.18em",
+            letterSpacing: "0.17em",
             textTransform: "uppercase",
           }}
         >
           Public Preview · Until 1 October
         </p>
-        <p
+
+        <h2
           style={{
             margin: "6px 0 0",
-            color: "rgba(255,255,255,0.84)",
+            color: "white",
+            fontSize: isMobile ? "19px" : "22px",
+            fontWeight: 900,
+            lineHeight: 1.12,
+            letterSpacing: "0.025em",
+            textTransform: "uppercase",
+          }}
+        >
+          Turn Learning Into Adventure
+        </h2>
+
+        <p
+          style={{
+            margin: "7px 0 0",
+            maxWidth: "700px",
+            color: "rgba(255,255,255,0.82)",
             fontSize: isMobile ? "12px" : "13px",
-            fontWeight: 700,
+            fontWeight: 600,
             lineHeight: 1.5,
           }}
         >
-          Explore free activities, save your progress, earn Dream Tokens and
-          compete with friends in multiplayer quizzes when signed in.
+          Master English, Maths and Science through missions, games and rewards
+          in a connected world built for curious minds.
         </p>
       </div>
 
