@@ -196,6 +196,7 @@ type Zone = {
   description: string;
   href: string;
   icon: string;
+  accent: string;
   adminOnly?: boolean;
   statusLabel?: string;
 };
@@ -207,86 +208,74 @@ type WalkthroughStep = {
   zoneNumber?: string;
 };
 
-const WALKTHROUGH_STORAGE_KEY = "nova-world-walkthrough-completed-v3";
+const WALKTHROUGH_STORAGE_KEY = "nova-world-walkthrough-completed-v4";
 
 const zones: Zone[] = [
   {
     id: "thinking-skills-lab",
     number: "1",
-    title: "Thinking Skills Lab",
-    description: "Play puzzles that train logic, patterns, and reasoning.",
+    title: "Think Lab",
+    description: "Where Nova sharpens her mind — and challenges yours.",
     href: "/nova/thinking-skills-lab",
     icon: "◇",
+    accent: "#53d7ff",
   },
   {
     id: "learning-missions",
     number: "2",
     title: "Learning Missions",
-    description: "Complete English, Math, and writing missions while earning rewards.",
+    description: "Where you and Nova turn learning into an adventure.",
     href: "/learning-missions",
     icon: "✦",
+    accent: "#8dfcff",
   },
   {
     id: "nova-home",
     number: "3",
     title: "Nova’s Home",
-    description:
-      "Build and customise Nova’s connected home areas with Dream Tokens.",
+    description: "Your space. Build it your way.",
     href: "/inventor/hub",
     icon: "⌂",
-  },
-  {
-    id: "membership-portal",
-    number: "4",
-    title: "Membership Portal",
-    description: "View Nova’s World access plans, benefits, and learning upgrades.",
-    href: "/nova/membership-portal",
-    icon: "✦",
+    accent: "#c58cff",
   },
 ];
 
 const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   {
-    eyebrow: "Welcome",
-    title: "Welcome to Nova’s World.",
-    text: "Choose a zone and start exploring.",
+    eyebrow: "Hi, I’m Nova",
+    title: "Want me to show you around?",
+    text: "I can show you where we think, learn, earn rewards, and build your own space. It only takes a moment.",
   },
   {
     eyebrow: "Your Rewards",
-    title: "DT for play. DG for rewards.",
-    text:
-      "Spend Dream Tokens inside Dreamscape. Earn Dream Gems from eligible classes and missions.",
+    title: "Meet Dream Tokens and Dream Gems.",
+    text: "Dream Tokens, or DT, are used for play, upgrades, and building inside Dreamscape. Dream Gems, or DG, are special learning rewards earned through eligible activities.",
   },
   {
-    eyebrow: "Stop 1 of 4",
-    title: "Train your thinking.",
-    text: "Play quick logic and reasoning challenges.",
+    eyebrow: "Stop 1 of 3",
+    title: "This is my Think Lab.",
+    text: "I come here to sharpen my logic, spot patterns, and stretch my reasoning. Want to try a game with me?",
     zoneNumber: "1",
   },
   {
-    eyebrow: "Stop 2 of 4",
-    title: "Complete learning missions.",
-    text: "Build skills, earn DT, and collect eligible DG rewards.",
+    eyebrow: "Stop 2 of 3",
+    title: "Our learning adventures start here.",
+    text: "Learning Missions is where we tackle English, Maths, Science, and bigger challenges together — with progress and rewards along the way.",
     zoneNumber: "2",
   },
   {
-    eyebrow: "Stop 3 of 4",
-    title: "Build Nova’s Home.",
-    text: "Use Dream Tokens to shape Nova’s connected home areas. Admins can preview this zone while it is in development.",
+    eyebrow: "Stop 3 of 3",
+    title: "And this is home.",
+    text: "Earn Dream Tokens, unlock new spaces, play at home, and make Nova’s Home feel like yours.",
     zoneNumber: "3",
   },
   {
-    eyebrow: "Stop 4 of 4",
-    title: "Manage your access.",
-    text: "View plans and unlock more learning activities.",
-    zoneNumber: "4",
-  },
-  {
     eyebrow: "You’re ready",
-    title: "Choose a zone.",
-    text: "Tap Nova Guide whenever you need help.",
+    title: "Where should we go first?",
+    text: "Choose a place and I’ll meet you there. You can open Nova Guide again anytime you want a reminder.",
   },
 ];
+
 export default function NovaWorldPage() {
   const screenMode = useResponsiveMode();
   const isDesktop = screenMode === "desktop";
@@ -294,6 +283,7 @@ export default function NovaWorldPage() {
   const isMobile = screenMode === "mobile";
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
   const [walkthroughStep, setWalkthroughStep] = useState(0);
+  const [hoveredZone, setHoveredZone] = useState<Zone | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [profileAssets, setProfileAssets] = useState<ProfileAssetBreakdown>({
     cash: 0,
@@ -647,7 +637,7 @@ export default function NovaWorldPage() {
     if (!walkthroughOpen) return;
 
     const activeZoneNumber = WALKTHROUGH_STEPS[walkthroughStep]?.zoneNumber;
-    if (!activeZoneNumber) return;
+    if (!activeZoneNumber || isDesktop) return;
 
     const timeout = window.setTimeout(() => {
       document.getElementById(`nova-zone-${activeZoneNumber}`)?.scrollIntoView({
@@ -657,10 +647,19 @@ export default function NovaWorldPage() {
     }, 120);
 
     return () => window.clearTimeout(timeout);
-  }, [walkthroughOpen, walkthroughStep]);
+  }, [isDesktop, walkthroughOpen, walkthroughStep]);
+
+  const activeWalkthroughZoneNumber = walkthroughOpen
+    ? (WALKTHROUGH_STEPS[walkthroughStep]?.zoneNumber ?? null)
+    : null;
+  const activeWalkthroughZone = activeWalkthroughZoneNumber
+    ? (zones.find((zone) => zone.number === activeWalkthroughZoneNumber) ?? null)
+    : null;
+  const displayedDesktopZone = activeWalkthroughZone ?? hoveredZone;
 
   function startWalkthrough() {
     setShowMembershipPortal(false);
+    setHoveredZone(null);
     setWalkthroughStep(0);
     setWalkthroughOpen(true);
   }
@@ -673,6 +672,8 @@ export default function NovaWorldPage() {
     }
 
     setWalkthroughOpen(false);
+    setWalkthroughStep(0);
+    setHoveredZone(null);
   }
 
   return (
@@ -745,6 +746,7 @@ export default function NovaWorldPage() {
         claimedMilestones={claimedMilestones}
         objectivesLoading={objectivesLoading}
         screenMode={screenMode}
+        onOpenMembership={() => setShowMembershipPortal(true)}
       />
 
       <section
@@ -837,56 +839,103 @@ export default function NovaWorldPage() {
         </div>
       </section>
 
-      <section
-        style={{
-          position: isDesktop ? "absolute" : "relative",
-          top: isDesktop ? "142px" : "auto",
-          left: isDesktop ? "50%" : "auto",
-          transform: isDesktop ? "translateX(-50%)" : "none",
-          zIndex: walkthroughOpen ? 90 : 20,
-          width: isDesktop
-            ? "min(470px, calc(100% - 48px))"
-            : isTablet
-              ? walkthroughOpen
-                ? "min(320px, calc(100% - 48px))"
-                : "min(680px, calc(100% - 36px))"
+      {isDesktop ? (
+        <section
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: activeWalkthroughZoneNumber ? 90 : 20,
+            pointerEvents: "none",
+          }}
+        >
+          {zones.map((zone) => (
+            <NovaHotspot
+              key={zone.id}
+              zone={zone}
+              isActive={displayedDesktopZone?.id === zone.id}
+              isWalkthroughActive={Boolean(activeWalkthroughZoneNumber)}
+              isHighlighted={activeWalkthroughZoneNumber === zone.number}
+              onEnter={() => {
+                if (!walkthroughOpen) setHoveredZone(zone);
+              }}
+              onLeave={() => {
+                if (!walkthroughOpen) setHoveredZone(null);
+              }}
+              onClick={() => {
+                window.location.href = zone.href;
+              }}
+            />
+          ))}
+
+          {displayedDesktopZone && (
+            <NovaZoneHoverPopup
+              zone={displayedDesktopZone}
+              isHighlighted={activeWalkthroughZoneNumber === displayedDesktopZone.number}
+            />
+          )}
+
+          {!walkthroughOpen && (
+            <div
+              style={{
+                position: "absolute",
+                left: "50%",
+                bottom: "30px",
+                transform: "translateX(-50%)",
+                zIndex: 30,
+                padding: "11px 17px",
+                borderRadius: "999px",
+                border: "1px solid rgba(141,252,255,0.24)",
+                background: "rgba(2,8,19,0.5)",
+                backdropFilter: "blur(14px)",
+                color: "rgba(255,255,255,0.7)",
+                fontSize: "12px",
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                boxShadow: "0 16px 36px rgba(0,0,0,0.28)",
+                pointerEvents: "none",
+              }}
+            >
+              Hover over a location, then click to enter
+            </div>
+          )}
+        </section>
+      ) : (
+        <section
+          style={{
+            position: "relative",
+            zIndex: activeWalkthroughZoneNumber ? 90 : 20,
+            width: isTablet && walkthroughOpen
+              ? "min(360px, calc(100% - 48px))"
               : "min(680px, calc(100% - 28px))",
-          margin: isDesktop
-            ? 0
-            : isTablet && walkthroughOpen
-              ? "0 24px 0 auto"
-              : "0 auto",
-          display: "grid",
-          gridTemplateColumns: "1fr",
-          gap: isMobile ? "12px" : "14px",
-          paddingBottom: isDesktop ? 0 : "24px",
-        }}
-      >
-        {zones.map((zone) => (
-          <ZoneCard
-            key={zone.id}
-            zone={zone}
-            screenMode={screenMode}
-            isAdmin={isAdmin}
-            onClick={
-              zone.id === "membership-portal"
-                ? () => setShowMembershipPortal(true)
-                : undefined
-            }
-            walkthroughActive={walkthroughOpen}
-            walkthroughHighlighted={
-              walkthroughOpen &&
-              WALKTHROUGH_STEPS[walkthroughStep]?.zoneNumber === zone.number
-            }
-          />
-        ))}
-      </section>
+            margin: isTablet && walkthroughOpen ? "0 24px 0 auto" : "0 auto",
+            display: "grid",
+            gridTemplateColumns: "1fr",
+            gap: isMobile ? "12px" : "14px",
+            paddingBottom: "24px",
+          }}
+        >
+          {zones.map((zone) => (
+            <ZoneCard
+              key={zone.id}
+              zone={zone}
+              screenMode={screenMode}
+              isAdmin={isAdmin}
+              walkthroughActive={walkthroughOpen}
+              walkthroughHighlighted={
+                walkthroughOpen &&
+                WALKTHROUGH_STEPS[walkthroughStep]?.zoneNumber === zone.number
+              }
+            />
+          ))}
+        </section>
+      )}
 
       {showMembershipPortal && (
         <MembershipPortalPopup onClose={() => setShowMembershipPortal(false)} />
       )}
 
 
+      {!walkthroughOpen && (
       <div
         style={{
           position: "fixed",
@@ -944,6 +993,7 @@ export default function NovaWorldPage() {
           {isMobile ? "Guide" : "Nova Guide"}
         </button>
       </div>
+      )}
 
       <GuidedWalkthrough
         open={walkthroughOpen}
@@ -968,6 +1018,7 @@ function FloatingControls({
   claimedMilestones,
   objectivesLoading,
   screenMode,
+  onOpenMembership,
 }: {
   userEmail: string | null;
   profileAssets: ProfileAssetBreakdown;
@@ -981,6 +1032,7 @@ function FloatingControls({
   claimedMilestones: ReferralMilestone[];
   objectivesLoading: boolean;
   screenMode: ScreenMode;
+  onOpenMembership: () => void;
 }) {
   const isDesktop = screenMode === "desktop";
   const isMobile = screenMode === "mobile";
@@ -1056,144 +1108,178 @@ function FloatingControls({
         {isMobile ? "Home" : "Return to Home"}
       </Link>
 
-      {isCompact && (
+      <div
+        style={{
+          position: "fixed",
+          top: isMobile ? "12px" : "18px",
+          right: isMobile ? "12px" : "18px",
+          zIndex: 84,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => {
+            setProfileAssetsOpen(false);
+            setDreamGemsOpen(false);
+            setCompactMenuOpen((current) => !current);
+          }}
+          aria-expanded={compactMenuOpen}
+          aria-haspopup="menu"
+          style={{
+            height: isMobile ? "40px" : "46px",
+            padding: isMobile ? "0 14px" : "0 18px",
+            borderRadius: "999px",
+            border: "1px solid rgba(126,232,255,0.5)",
+            background: compactMenuOpen
+              ? "rgba(20,84,118,0.92)"
+              : "rgba(2,8,19,0.72)",
+            backdropFilter: "blur(16px)",
+            WebkitBackdropFilter: "blur(16px)",
+            color: "white",
+            display: "flex",
+            alignItems: "center",
+            gap: "9px",
+            fontSize: isMobile ? "11px" : "13px",
+            fontWeight: 800,
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            boxShadow: "0 16px 36px rgba(0,0,0,0.3)",
+            cursor: "pointer",
+            fontFamily: "inherit",
+          }}
+        >
+          <span aria-hidden="true" style={{ fontSize: "16px" }}>☰</span>
+          Menu
+        </button>
+
+        {compactMenuOpen && (
+          <div
+            role="menu"
+            style={{
+              position: "absolute",
+              top: "calc(100% + 9px)",
+              right: 0,
+              width: isMobile ? "min(310px, calc(100vw - 24px))" : "320px",
+              borderRadius: "20px",
+              border: "1px solid rgba(126,232,255,0.3)",
+              background:
+                "linear-gradient(145deg, rgba(3,20,39,0.98), rgba(3,10,25,0.99))",
+              boxShadow:
+                "0 28px 72px rgba(0,0,0,0.58), 0 0 28px rgba(83,215,255,0.14)",
+              backdropFilter: "blur(22px)",
+              WebkitBackdropFilter: "blur(22px)",
+              padding: "10px",
+              display: "grid",
+              gap: "8px",
+              color: "white",
+            }}
+          >
+            <Link
+              href={userEmail ? "/profile" : "/login"}
+              onClick={() => setCompactMenuOpen(false)}
+              style={compactMenuItemStyle}
+            >
+              <span aria-hidden="true">◎</span>
+              <span>{userEmail ? "My Account" : "Log In"}</span>
+              <span aria-hidden="true">›</span>
+            </Link>
+
+            <button
+              type="button"
+              onClick={() => {
+                setCompactMenuOpen(false);
+                onOpenMembership();
+              }}
+              style={{
+                ...compactMenuItemStyle,
+                width: "100%",
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              <span aria-hidden="true" style={{ color: "#8ee8ff" }}>✦</span>
+              <span>Membership</span>
+              <span aria-hidden="true">›</span>
+            </button>
+
+            <Link
+              href="/cart"
+              onClick={() => setCompactMenuOpen(false)}
+              style={compactMenuItemStyle}
+            >
+              <span aria-hidden="true">🛒</span>
+              <span>Cart</span>
+              <span aria-hidden="true">›</span>
+            </Link>
+          </div>
+        )}
+      </div>
+
+      {!isDesktop && (
         <div
           style={{
             position: "fixed",
-            top: isMobile ? "12px" : "18px",
+            top: isMobile ? "60px" : "74px",
             right: isMobile ? "12px" : "18px",
-            zIndex: 84,
+            zIndex: 82,
+            display: "flex",
+            alignItems: "center",
+            gap: "7px",
           }}
         >
           <button
             type="button"
             onClick={() => {
-              setProfileAssetsOpen(false);
               setDreamGemsOpen(false);
-              setCompactMenuOpen((current) => !current);
+              setProfileAssetsOpen((current) => !current);
             }}
-            aria-expanded={compactMenuOpen}
-            aria-haspopup="menu"
+            aria-label="Profile assets"
             style={{
-              height: isMobile ? "40px" : "46px",
-              padding: isMobile ? "0 14px" : "0 18px",
+              minHeight: isMobile ? "38px" : "42px",
+              padding: isMobile ? "0 10px" : "0 13px",
               borderRadius: "999px",
-              border: "1px solid rgba(126,232,255,0.5)",
-              background: compactMenuOpen
-                ? "rgba(20,84,118,0.92)"
-                : "rgba(2,8,19,0.72)",
-              backdropFilter: "blur(16px)",
-              WebkitBackdropFilter: "blur(16px)",
+              border: "1px solid rgba(83,215,255,0.55)",
+              background: "rgba(2,14,28,0.78)",
               color: "white",
-              display: "flex",
+              display: "inline-flex",
               alignItems: "center",
-              gap: "9px",
-              fontSize: isMobile ? "11px" : "13px",
-              fontWeight: 800,
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              boxShadow: "0 16px 36px rgba(0,0,0,0.3)",
+              gap: "7px",
               cursor: "pointer",
-              fontFamily: "inherit",
+              boxShadow: "0 12px 28px rgba(0,0,0,0.3)",
             }}
           >
-            <span aria-hidden="true" style={{ fontSize: "16px" }}>☰</span>
-            Menu
+            <span style={{ color: "#8ee8ff" }}>◈</span>
+            <strong style={{ color: "#53d7ff", fontSize: isMobile ? "10px" : "12px" }}>
+              {profileAssetsLoading ? "..." : formatDreamTokenAmount(profileAssetsTotal)}
+            </strong>
           </button>
 
-          {compactMenuOpen && (
-            <div
-              role="menu"
-              style={{
-                position: "absolute",
-                top: "calc(100% + 9px)",
-                right: 0,
-                width: isMobile
-                  ? "min(330px, calc(100vw - 24px))"
-                  : "350px",
-                borderRadius: "20px",
-                border: "1px solid rgba(126,232,255,0.3)",
-                background:
-                  "linear-gradient(145deg, rgba(3,20,39,0.98), rgba(3,10,25,0.99))",
-                boxShadow:
-                  "0 28px 72px rgba(0,0,0,0.58), 0 0 28px rgba(83,215,255,0.14)",
-                backdropFilter: "blur(22px)",
-                WebkitBackdropFilter: "blur(22px)",
-                padding: "10px",
-                display: "grid",
-                gap: "8px",
-                color: "white",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  setCompactMenuOpen(false);
-                  setDreamGemsOpen(false);
-                  setProfileAssetsOpen(true);
-                }}
-                style={{
-                  ...compactMenuItemStyle,
-                  width: "100%",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                <span aria-hidden="true" style={{ color: "#8ee8ff" }}>◈</span>
-                <span>Profile Assets</span>
-                <strong style={{ color: "#53d7ff", whiteSpace: "nowrap" }}>
-                  {profileAssetsLoading
-                    ? "..."
-                    : formatDreamTokenAmount(profileAssetsTotal)}
-                </strong>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setCompactMenuOpen(false);
-                  setProfileAssetsOpen(false);
-                  setDreamGemsOpen(true);
-                }}
-                style={{
-                  ...compactMenuItemStyle,
-                  width: "100%",
-                  border: "1px solid rgba(216,180,254,0.22)",
-                  background: "rgba(192,132,252,0.08)",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                <span aria-hidden="true" style={{ color: "#e9d5ff" }}>◆</span>
-                <span>Dream Gems</span>
-                <strong style={{ color: "#e9d5ff", whiteSpace: "nowrap" }}>
-                  {dreamGemsLoading
-                    ? "..."
-                    : formatDreamGemAmount(dreamGemBalance)}
-                </strong>
-              </button>
-
-              <Link
-                href={userEmail ? "/profile" : "/login"}
-                onClick={() => setCompactMenuOpen(false)}
-                style={compactMenuItemStyle}
-              >
-                <span aria-hidden="true">◎</span>
-                <span>{userEmail ? "My Account" : "Log In"}</span>
-                <span aria-hidden="true">›</span>
-              </Link>
-
-              <Link
-                href="/cart"
-                onClick={() => setCompactMenuOpen(false)}
-                style={compactMenuItemStyle}
-              >
-                <span aria-hidden="true">🛒</span>
-                <span>Cart</span>
-                <span aria-hidden="true">›</span>
-              </Link>
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              setProfileAssetsOpen(false);
+              setDreamGemsOpen((current) => !current);
+            }}
+            aria-label="Dream Gems"
+            style={{
+              minHeight: isMobile ? "38px" : "42px",
+              padding: isMobile ? "0 10px" : "0 13px",
+              borderRadius: "999px",
+              border: "1px solid rgba(216,180,254,0.58)",
+              background: "rgba(50,22,88,0.82)",
+              color: "white",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "7px",
+              cursor: "pointer",
+              boxShadow: "0 12px 28px rgba(0,0,0,0.3)",
+            }}
+          >
+            <span style={{ color: "#e9d5ff" }}>◆</span>
+            <strong style={{ color: "#e9d5ff", fontSize: isMobile ? "10px" : "12px" }}>
+              {dreamGemsLoading ? "..." : formatDreamGemAmount(dreamGemBalance)}
+            </strong>
+          </button>
         </div>
       )}
 
@@ -1201,7 +1287,7 @@ function FloatingControls({
         style={{
           position: isDesktop ? "fixed" : "static",
           top: "18px",
-          right: "18px",
+          right: isDesktop ? "126px" : "18px",
           zIndex: 70,
           display: isDesktop ? "flex" : "contents",
           alignItems: "center",
@@ -1209,30 +1295,6 @@ function FloatingControls({
           gap: "14px",
         }}
       >
-        <Link
-          href={userEmail ? "/profile" : "/login"}
-          style={{
-            display: isDesktop ? "flex" : "none",
-            height: "46px",
-            padding: "0 22px",
-            borderRadius: "999px",
-            border: "1px solid rgba(116,200,255,0.45)",
-            background: "rgba(2,8,19,0.58)",
-            backdropFilter: "blur(16px)",
-            color: "white",
-            textDecoration: "none",
-            alignItems: "center",
-            gap: "10px",
-            fontSize: isMobile ? "11px" : "14px",
-            letterSpacing: isMobile ? "0.08em" : "0.1em",
-            textTransform: "uppercase",
-            boxShadow: "0 16px 36px rgba(0,0,0,0.28)",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {userEmail ? "My Account" : "Log In"}
-        </Link>
-
         <Link
           href="/cart"
           aria-label="Cart"
@@ -2033,6 +2095,7 @@ function ReferralObjectivesPanel({
   screenMode: ScreenMode;
 }) {
   const isMobile = screenMode === "mobile";
+  const isDesktop = screenMode === "desktop";
   const [isOpen, setIsOpen] = useState(false);
 
   const completedCount = REFERRAL_OBJECTIVES.filter((objective) =>
@@ -2053,7 +2116,7 @@ function ReferralObjectivesPanel({
     <aside
       style={{
         position: "fixed",
-        top: isMobile ? "108px" : "76px",
+        top: isMobile ? "108px" : isDesktop ? "76px" : "126px",
         right: isMobile ? "12px" : "18px",
         left: isMobile ? "12px" : "auto",
         zIndex: 69,
@@ -2384,6 +2447,192 @@ function ReferralObjectivesPanel({
     </aside>
   );
 }
+
+function getNovaMarkerPosition(zoneId: string): CSSProperties {
+  switch (zoneId) {
+    case "thinking-skills-lab":
+      return { left: "19%", top: "61%" };
+    case "learning-missions":
+      return { left: "55%", top: "54%" };
+    case "nova-home":
+      return { left: "86%", top: "60%" };
+    default:
+      return { left: "50%", top: "50%" };
+  }
+}
+
+function getNovaPopupPosition(zoneId: string): CSSProperties {
+  const marker = getNovaMarkerPosition(zoneId);
+
+  if (zoneId === "thinking-skills-lab") {
+    return { ...marker, transform: "translate(-18%, calc(-100% - 48px))" };
+  }
+
+  if (zoneId === "nova-home") {
+    return { ...marker, transform: "translate(-86%, calc(-100% - 48px))" };
+  }
+
+  return { ...marker, transform: "translate(-50%, calc(-100% - 48px))" };
+}
+
+function NovaHotspot({
+  zone,
+  isActive,
+  isWalkthroughActive,
+  isHighlighted,
+  onEnter,
+  onLeave,
+  onClick,
+}: {
+  zone: Zone;
+  isActive: boolean;
+  isWalkthroughActive: boolean;
+  isHighlighted: boolean;
+  onEnter: () => void;
+  onLeave: () => void;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      id={`nova-zone-${zone.number}`}
+      type="button"
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
+      onFocus={onEnter}
+      onBlur={onLeave}
+      onClick={onClick}
+      aria-label={`Location ${zone.number}: ${zone.title}`}
+      style={{
+        position: "absolute",
+        zIndex: isHighlighted ? 94 : 25,
+        ...getNovaMarkerPosition(zone.id),
+        width: "64px",
+        height: "64px",
+        padding: 0,
+        transform: isActive
+          ? "translate(-50%, -50%) scale(1.12)"
+          : "translate(-50%, -50%)",
+        borderRadius: "16px",
+        border: isActive
+          ? `1px solid ${zone.accent}`
+          : `1px solid ${zone.accent}cc`,
+        background: isActive
+          ? `linear-gradient(145deg, ${zone.accent}dd, rgba(12,50,91,0.98))`
+          : "rgba(4,24,53,0.9)",
+        color: "white",
+        fontFamily: "inherit",
+        fontSize: "25px",
+        fontWeight: 900,
+        cursor: "pointer",
+        outline: "none",
+        boxShadow: isActive
+          ? `0 0 0 6px ${zone.accent}1f, 0 0 44px ${zone.accent}aa, 0 20px 46px rgba(0,0,0,0.48)`
+          : `0 0 0 4px rgba(2,8,19,0.46), 0 0 25px ${zone.accent}55, 0 16px 36px rgba(0,0,0,0.42)`,
+        opacity: isWalkthroughActive && !isHighlighted ? 0.13 : 1,
+        filter:
+          isWalkthroughActive && !isHighlighted
+            ? "saturate(0.25) brightness(0.42)"
+            : "none",
+        pointerEvents: isWalkthroughActive && !isHighlighted ? "none" : "auto",
+        transition:
+          "transform 220ms ease, opacity 220ms ease, filter 220ms ease, border-color 220ms ease, background 220ms ease, box-shadow 220ms ease",
+      }}
+    >
+      {zone.number}
+    </button>
+  );
+}
+
+function NovaZoneHoverPopup({
+  zone,
+  isHighlighted = false,
+}: {
+  zone: Zone;
+  isHighlighted?: boolean;
+}) {
+  const popupPosition = getNovaPopupPosition(zone.id);
+  const popupTransform =
+    typeof popupPosition.transform === "string" ? popupPosition.transform : "";
+  const popupPositionWithoutTransform = {
+    ...popupPosition,
+    transform: undefined,
+  };
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        zIndex: 62,
+        ...popupPositionWithoutTransform,
+        width: "330px",
+        padding: "22px 24px",
+        borderRadius: "20px",
+        border: `${isHighlighted ? 2 : 1}px solid ${zone.accent}${isHighlighted ? "" : "aa"}`,
+        background:
+          "linear-gradient(145deg, rgba(8,35,70,0.95), rgba(3,13,34,0.97))",
+        backdropFilter: "blur(18px)",
+        WebkitBackdropFilter: "blur(18px)",
+        boxShadow: isHighlighted
+          ? `0 0 0 8px ${zone.accent}18, 0 0 46px ${zone.accent}aa, 0 24px 60px rgba(0,0,0,0.52)`
+          : `0 0 28px ${zone.accent}55, 0 24px 60px rgba(0,0,0,0.45)`,
+        color: "white",
+        pointerEvents: "none",
+        transform: `${popupTransform}${isHighlighted ? " scale(1.035)" : ""}`.trim(),
+        transition: "border-color 220ms ease, box-shadow 220ms ease, transform 220ms ease",
+      }}
+    >
+      <p
+        style={{
+          margin: 0,
+          color: zone.accent,
+          fontSize: "11px",
+          letterSpacing: "0.18em",
+          textTransform: "uppercase",
+          fontWeight: 800,
+        }}
+      >
+        Location {zone.number}
+      </p>
+      <h2
+        style={{
+          margin: "10px 0 0",
+          fontFamily: 'Georgia, "Times New Roman", serif',
+          fontSize: "28px",
+          lineHeight: 1.12,
+          fontWeight: 500,
+        }}
+      >
+        {zone.title}
+      </h2>
+      <p
+        style={{
+          margin: "12px 0 0",
+          color: "rgba(255,255,255,0.78)",
+          fontSize: "14px",
+          lineHeight: 1.55,
+        }}
+      >
+        {zone.description}
+      </p>
+      <div
+        style={{
+          marginTop: "18px",
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          color: zone.accent,
+          fontSize: "12px",
+          fontWeight: 850,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+        }}
+      >
+        Enter location <span aria-hidden="true">→</span>
+      </div>
+    </div>
+  );
+}
+
 
 function ZoneCard({
   zone,
@@ -3253,11 +3502,12 @@ function GuidedWalkthrough({
 }) {
   const screenMode = useResponsiveMode();
   const isMobile = screenMode === "mobile";
-  // The walkthrough should keep its full desktop proportions on tablet and
-  // split-screen layouts. Only true mobile widths use the compact popup.
-  const useFullWalkthroughLayout = !isMobile;
   const step = WALKTHROUGH_STEPS[stepIndex] ?? WALKTHROUGH_STEPS[0];
   const isFirstStep = stepIndex === 0;
+  const isRewardsStep = stepIndex === 1;
+  const isThinkStep = step.zoneNumber === "1";
+  const isMissionsStep = step.zoneNumber === "2";
+  const isHomeStep = step.zoneNumber === "3";
   const isLastStep = stepIndex === WALKTHROUGH_STEPS.length - 1;
   const [typedLength, setTypedLength] = useState(0);
 
@@ -3274,10 +3524,9 @@ function GuidedWalkthrough({
           window.clearInterval(interval);
           return current;
         }
-
         return current + 1;
       });
-    }, 14);
+    }, 13);
 
     return () => window.clearInterval(interval);
   }, [open, step.text]);
@@ -3295,6 +3544,30 @@ function GuidedWalkthrough({
 
   if (!open) return null;
 
+  const actionStyle: CSSProperties = {
+    minHeight: "42px",
+    padding: "0 17px",
+    borderRadius: "12px",
+    border: "1px solid rgba(83,215,255,0.42)",
+    background: "rgba(83,215,255,0.16)",
+    color: "white",
+    cursor: "pointer",
+    fontWeight: 850,
+    textDecoration: "none",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontFamily: "inherit",
+    fontSize: "13px",
+  };
+
+  const secondaryStyle: CSSProperties = {
+    ...actionStyle,
+    border: "1px solid rgba(255,255,255,0.18)",
+    background: "rgba(255,255,255,0.06)",
+    fontWeight: 750,
+  };
+
   return (
     <>
       <div
@@ -3303,7 +3576,7 @@ function GuidedWalkthrough({
           position: "fixed",
           inset: 0,
           zIndex: 80,
-          background: "rgba(0,3,12,0.76)",
+          background: "rgba(0,3,12,0.74)",
           backdropFilter: "blur(3px)",
           WebkitBackdropFilter: "blur(3px)",
         }}
@@ -3312,40 +3585,34 @@ function GuidedWalkthrough({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Nova’s World guided walkthrough"
+        aria-label="Nova’s World interactive guide"
         style={{
           position: "fixed",
-          left: isMobile ? "12px" : "36px",
-          right: isMobile ? "12px" : "auto",
-          bottom: isMobile ? "12px" : "26px",
+          left: isMobile ? "10px" : "30px",
+          right: isMobile ? "10px" : "auto",
+          bottom: isMobile ? "10px" : "24px",
           zIndex: 100,
-          width: isMobile
-            ? "auto"
-            : "min(520px, calc(100vw - 72px))",
-          maxHeight: isMobile ? "52dvh" : "none",
-          overflowY: isMobile ? "auto" : "visible",
-          borderRadius: isMobile ? "20px" : "26px",
+          width: isMobile ? "auto" : "min(570px, calc(100vw - 60px))",
+          maxHeight: isMobile ? "72dvh" : "min(620px, calc(100dvh - 48px))",
+          overflowY: "auto",
+          borderRadius: isMobile ? "20px" : "28px",
           border: "1px solid rgba(142,232,255,0.42)",
           background:
-            "linear-gradient(145deg, rgba(4,21,47,0.98), rgba(3,9,24,0.98))",
+            "radial-gradient(circle at 10% 0%, rgba(83,215,255,0.12), transparent 34%), linear-gradient(145deg, rgba(4,21,47,0.985), rgba(3,9,24,0.985))",
           boxShadow:
             "0 32px 90px rgba(0,0,0,0.68), 0 0 40px rgba(83,215,255,0.14)",
           color: "white",
-          padding: isMobile
-            ? "20px"
-            : useFullWalkthroughLayout
-              ? "26px 28px 24px 190px"
-              : "20px",
+          padding: isMobile ? "18px" : "26px 28px 24px 190px",
         }}
       >
         <button
           type="button"
-          aria-label="Close walkthrough"
+          aria-label="Close guide"
           onClick={onClose}
           style={{
             position: "absolute",
-            top: "14px",
-            right: "14px",
+            top: "13px",
+            right: "13px",
             width: "36px",
             height: "36px",
             borderRadius: "999px",
@@ -3365,13 +3632,13 @@ function GuidedWalkthrough({
           alt="Nova"
           style={{
             position: isMobile ? "relative" : "absolute",
-            left: isMobile ? "auto" : "4px",
+            left: isMobile ? "auto" : "3px",
             bottom: isMobile ? "auto" : "-8px",
-            height: isMobile ? "108px" : "245px",
+            height: isMobile ? "105px" : "250px",
             width: "auto",
             objectFit: "contain",
             display: "block",
-            margin: isMobile ? "0 auto 10px" : 0,
+            margin: isMobile ? "0 auto 8px" : 0,
             filter: "drop-shadow(0 18px 36px rgba(0,0,0,0.52))",
             pointerEvents: "none",
           }}
@@ -3405,7 +3672,7 @@ function GuidedWalkthrough({
         <p
           style={{
             margin: "14px 0 0",
-            minHeight: isMobile ? "72px" : "78px",
+            minHeight: isMobile ? "64px" : "72px",
             color: "rgba(255,255,255,0.78)",
             fontSize: isMobile ? "14px" : "16px",
             lineHeight: 1.58,
@@ -3427,6 +3694,28 @@ function GuidedWalkthrough({
           )}
         </p>
 
+        {isRewardsStep && (
+          <div
+            style={{
+              marginTop: "16px",
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "10px",
+            }}
+          >
+            <div className="nova-reward-token nova-reward-dt">
+              <span>◈</span>
+              <strong>Dream Tokens</strong>
+              <small>DT · Play & build</small>
+            </div>
+            <div className="nova-reward-token nova-reward-dg">
+              <span>◆</span>
+              <strong>Dream Gems</strong>
+              <small>DG · Learning rewards</small>
+            </div>
+          </div>
+        )}
+
         <div
           style={{
             marginTop: "18px",
@@ -3438,7 +3727,7 @@ function GuidedWalkthrough({
           }}
         >
           <div
-            aria-label={`Walkthrough step ${stepIndex + 1} of ${WALKTHROUGH_STEPS.length}`}
+            aria-label={`Guide step ${stepIndex + 1} of ${WALKTHROUGH_STEPS.length}`}
             style={{ display: "flex", gap: "6px", alignItems: "center" }}
           >
             {WALKTHROUGH_STEPS.map((_, index) => (
@@ -3449,56 +3738,137 @@ function GuidedWalkthrough({
                   height: "7px",
                   borderRadius: "999px",
                   background:
-                    index === stepIndex
-                      ? "#8ee8ff"
-                      : "rgba(255,255,255,0.2)",
+                    index === stepIndex ? "#8ee8ff" : "rgba(255,255,255,0.2)",
                   transition: "width 180ms ease, background 180ms ease",
                 }}
               />
             ))}
           </div>
 
-          <div style={{ display: "flex", gap: "9px" }}>
-            {!isFirstStep && (
-              <button
-                type="button"
-                onClick={() => onStepChange(stepIndex - 1)}
-                style={{
-                  minHeight: "42px",
-                  padding: "0 16px",
-                  borderRadius: "12px",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  background: "rgba(255,255,255,0.06)",
-                  color: "white",
-                  cursor: "pointer",
-                  fontWeight: 750,
-                }}
-              >
-                Back
-              </button>
+          <div
+            style={{
+              display: "flex",
+              gap: "8px",
+              flexWrap: "wrap",
+              justifyContent: "flex-end",
+            }}
+          >
+            {isFirstStep ? (
+              <>
+                <button type="button" onClick={onClose} style={secondaryStyle}>
+                  Maybe later
+                </button>
+                <button type="button" onClick={() => onStepChange(1)} style={actionStyle}>
+                  Sure!
+                </button>
+              </>
+            ) : isThinkStep ? (
+              <>
+                <button type="button" onClick={() => onStepChange(stepIndex + 1)} style={secondaryStyle}>
+                  Maybe later
+                </button>
+                <Link href="/nova/thinking-skills-lab" style={actionStyle}>
+                  Sure! Let’s play
+                </Link>
+              </>
+            ) : isMissionsStep ? (
+              <>
+                <button type="button" onClick={() => onStepChange(stepIndex + 1)} style={secondaryStyle}>
+                  Keep touring
+                </button>
+                <Link href="/learning-missions" style={actionStyle}>
+                  Explore Missions
+                </Link>
+              </>
+            ) : isHomeStep ? (
+              <>
+                <button type="button" onClick={() => onStepChange(stepIndex + 1)} style={secondaryStyle}>
+                  Keep touring
+                </button>
+                <Link href="/inventor/hub" style={actionStyle}>
+                  Visit Nova’s Home
+                </Link>
+              </>
+            ) : isLastStep ? (
+              <>
+                <Link href="/nova/thinking-skills-lab" style={secondaryStyle}>Think Lab</Link>
+                <Link href="/learning-missions" style={secondaryStyle}>Learning Missions</Link>
+                <Link href="/inventor/hub" style={actionStyle}>Nova’s Home</Link>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onStepChange(Math.max(0, stepIndex - 1))}
+                  style={secondaryStyle}
+                >
+                  Back
+                </button>
+                <button type="button" onClick={() => onStepChange(stepIndex + 1)} style={actionStyle}>
+                  Next
+                </button>
+              </>
             )}
-
-            <button
-              type="button"
-              onClick={() =>
-                isLastStep ? onClose() : onStepChange(stepIndex + 1)
-              }
-              style={{
-                minHeight: "42px",
-                padding: "0 18px",
-                borderRadius: "12px",
-                border: "1px solid rgba(83,215,255,0.42)",
-                background: "rgba(83,215,255,0.16)",
-                color: "white",
-                cursor: "pointer",
-                fontWeight: 850,
-              }}
-            >
-              {isLastStep ? "Start Exploring" : isFirstStep ? "Show Me" : "Next"}
-            </button>
           </div>
         </div>
+
+        <style>{`
+          .nova-reward-token {
+            min-height: 102px;
+            padding: 14px 10px;
+            border-radius: 18px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            animation: novaRewardArrive 520ms cubic-bezier(.2,.85,.25,1.2) both;
+          }
+          .nova-reward-token > span {
+            width: 38px;
+            height: 38px;
+            border-radius: 13px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 8px;
+            font-size: 20px;
+            animation: novaRewardFloat 1.8s ease-in-out infinite alternate;
+          }
+          .nova-reward-token strong { font-size: 12px; }
+          .nova-reward-token small { margin-top: 3px; font-size: 9px; opacity: .62; }
+          .nova-reward-dt {
+            border: 1px solid rgba(83,215,255,.3);
+            background: rgba(83,215,255,.07);
+          }
+          .nova-reward-dt > span {
+            color: #bdf6ff;
+            border: 1px solid rgba(83,215,255,.52);
+            background: radial-gradient(circle, rgba(83,215,255,.34), rgba(2,8,19,.8));
+            box-shadow: 0 0 24px rgba(83,215,255,.28);
+          }
+          .nova-reward-dg {
+            border: 1px solid rgba(216,180,254,.3);
+            background: rgba(192,132,252,.08);
+            animation-delay: 120ms;
+          }
+          .nova-reward-dg > span {
+            color: #f3e8ff;
+            border: 1px solid rgba(216,180,254,.58);
+            background: radial-gradient(circle, rgba(216,180,254,.38), rgba(30,12,58,.9));
+            box-shadow: 0 0 24px rgba(192,132,252,.32);
+          }
+          @keyframes novaRewardArrive {
+            from { opacity: 0; transform: translateY(18px) scale(.84); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+          }
+          @keyframes novaRewardFloat {
+            from { transform: translateY(0) rotate(-2deg); }
+            to { transform: translateY(-5px) rotate(2deg); }
+          }
+        `}</style>
       </div>
     </>
   );
 }
+

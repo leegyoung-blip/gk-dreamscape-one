@@ -16,7 +16,7 @@ const DAILY_LIMIT = 3;
 const CLUE_COST = 5;
 const COLOUR_MAX_ATTEMPTS = 15;
 const TOWER_MAX_ATTEMPTS = 5;
-const WALKTHROUGH_STORAGE_KEY = "thinking-skills-lab-walkthrough-v2";
+const WALKTHROUGH_STORAGE_KEY = "thinking-skills-lab-walkthrough-v3";
 
 type GameId = "colour-code" | "set-finder" | "tower-memory";
 type ScreenMode = "desktop" | "tablet" | "mobile";
@@ -210,7 +210,7 @@ const GAME_INSTRUCTIONS: Record<
       "Green shows a colour in the correct position. Yellow shows a correct colour in the wrong position.",
       "Use the clue history to narrow the code within 15 attempts.",
     ],
-    note: "A position clue costs 5 DT. Rewards are 5 DT, 10 DT, and 15 DT.",
+    note: "Signed-in players can use a position clue for 5 DT. Guests get one free hint per challenge. Rewards are collected only when signed in.",
   },
   "set-finder": {
     title: "How to play SET Finder",
@@ -219,7 +219,7 @@ const GAME_INSTRUCTIONS: Record<
       "For colour, shape, number, and pattern, each feature must be either all the same or all different.",
       "Find three correct SETs to complete the level.",
     ],
-    note: "A one-card clue costs 5 DT. Completing one level rewards 20 DT.",
+    note: "Signed-in players can use a one-card clue for 5 DT. Guests get one free hint per challenge. The 20 DT reward is collected only when signed in.",
   },
   "tower-memory": {
     title: "How to play Tower Memory",
@@ -229,14 +229,14 @@ const GAME_INSTRUCTIONS: Record<
       "Rebuild it from the bottom block upward.",
       "You have five checking attempts. A paid review shows the tower again without clearing your answer.",
     ],
-    note: "Showing the tower again costs 5 DT. Rewards are 5 DT, 10 DT, and 15 DT.",
+    note: "Signed-in players can show the tower again for 5 DT. Guests get one free review per challenge. Rewards are collected only when signed in.",
   },
 };
 
 const WALKTHROUGH_STEPS = [
   {
     eyebrow: "Welcome",
-    title: "Welcome to the Thinking Skills Lab.",
+    title: "Welcome to the Think Lab.",
     text: "I’m Nova. I’ll show you how to choose a game, find the rules, and earn Dream Tokens.",
   },
   {
@@ -251,13 +251,13 @@ const WALKTHROUGH_STEPS = [
   },
   {
     eyebrow: "Step 3 of 4",
-    title: "Clues use Dream Tokens.",
-    text: "Colour Code and SET clues cost 5 DT. Showing a Tower Memory sequence again also costs 5 DT.",
+    title: "Hints work differently for guests.",
+    text: "Signed-in players use 5 DT for clues and tower reviews. Guests can use one free Guest Hint in each challenge.",
   },
   {
     eyebrow: "You’re ready",
     title: "Complete three challenges in each game.",
-    text: "Colour Code and Tower Memory let you choose their three levels in any order. Daily games reset at midnight Singapore time.",
+    text: "Colour Code and Tower Memory let you choose their three levels in any order. Sign in to collect Dream Tokens and save daily progress.",
   },
 ] as const;
 
@@ -326,6 +326,48 @@ function useResponsiveMode() {
   }, []);
 
   return screenMode;
+}
+
+function getSingaporeDateKey() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Singapore",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function createGuestStatus(activityDate = getSingaporeDateKey()): LabStatus {
+  return {
+    ...EMPTY_STATUS,
+    activityDate,
+    games: {
+      "colour-code": {
+        ...EMPTY_STATUS.games["colour-code"],
+        levels: {
+          1: { ...EMPTY_STATUS.games["colour-code"].levels[1] },
+          2: { ...EMPTY_STATUS.games["colour-code"].levels[2] },
+          3: { ...EMPTY_STATUS.games["colour-code"].levels[3] },
+        },
+      },
+      "set-finder": {
+        ...EMPTY_STATUS.games["set-finder"],
+        levels: {
+          1: { ...EMPTY_STATUS.games["set-finder"].levels[1] },
+          2: { ...EMPTY_STATUS.games["set-finder"].levels[2] },
+          3: { ...EMPTY_STATUS.games["set-finder"].levels[3] },
+        },
+      },
+      "tower-memory": {
+        ...EMPTY_STATUS.games["tower-memory"],
+        levels: {
+          1: { ...EMPTY_STATUS.games["tower-memory"].levels[1] },
+          2: { ...EMPTY_STATUS.games["tower-memory"].levels[2] },
+          3: { ...EMPTY_STATUS.games["tower-memory"].levels[3] },
+        },
+      },
+    },
+  };
 }
 
 function useMidnightCountdown(activityDate: string) {
@@ -603,8 +645,11 @@ export default function ThinkingSkillsLabPage() {
     } = await supabase.auth.getUser();
 
     if (userError || !user) {
+      const today = getSingaporeDateKey();
       setUserId(null);
-      setStatus(EMPTY_STATUS);
+      setStatus((current) =>
+        current.activityDate === today ? current : createGuestStatus(today)
+      );
       setProfileAssets(EMPTY_PROFILE_ASSETS);
       setTokenTransactions([]);
       setProfileAssetsLoading(false);
@@ -656,7 +701,7 @@ export default function ThinkingSkillsLabPage() {
 
     if (statusResult.error) {
       console.error(
-        "Could not load Thinking Skills Lab status:",
+        "Could not load Think Lab status:",
         statusResult.error
       );
       setNotice(formatSupabaseError(statusResult.error));
@@ -931,8 +976,53 @@ export default function ThinkingSkillsLabPage() {
 
   const buyClue = useCallback(
     async (gameId: GameId, questionNumber: number) => {
+      const level = questionNumber as DailyLevelNumber;
+
       if (!userId) {
-        throw new Error("Please log in before buying a clue.");
+        const currentGame = status.games[gameId];
+        const guestCluesUsed =
+          gameId === "set-finder"
+            ? currentGame.clues
+            : currentGame.levels[level].clues;
+
+        if (guestCluesUsed >= 1) {
+          throw new Error("Your free Guest Hint has already been used for this challenge.");
+        }
+
+        const result: ClueResult = {
+          clueCost: 0,
+          cluesUsed: 1,
+          tokenBalance: 0,
+        };
+
+        setStatus((current) => {
+          const game = current.games[gameId];
+
+          return {
+            ...current,
+            games: {
+              ...current.games,
+              [gameId]: {
+                ...game,
+                clues: gameId === "set-finder" ? 1 : game.clues,
+                levels: {
+                  ...game.levels,
+                  [level]: {
+                    ...game.levels[level],
+                    clues: 1,
+                  },
+                },
+              },
+            },
+          };
+        });
+
+        setNotice(
+          gameId === "tower-memory"
+            ? "Guest Review used — free for this challenge."
+            : "Guest Hint revealed — free for this challenge."
+        );
+        return result;
       }
 
       const { data, error } = await supabase.rpc(
@@ -953,7 +1043,6 @@ export default function ThinkingSkillsLabPage() {
       };
 
       setStatus((current) => {
-        const level = questionNumber as DailyLevelNumber;
         const currentGame = current.games[gameId];
 
         return {
@@ -994,7 +1083,7 @@ export default function ThinkingSkillsLabPage() {
       );
       return result;
     },
-    [refreshCashAndTransactions, userId]
+    [refreshCashAndTransactions, status.games, userId]
   );
 
   const completeQuestion = useCallback(
@@ -1003,8 +1092,54 @@ export default function ThinkingSkillsLabPage() {
       questionNumber: number,
       score: number
     ) => {
+      const level = questionNumber as DailyLevelNumber;
+
       if (!userId) {
-        throw new Error("Please log in to save rewards and progress.");
+        const currentGame = status.games[gameId];
+        const completedCount = Math.min(
+          DAILY_LIMIT,
+          currentGame.completed + (currentGame.levels[level].completed ? 0 : 1)
+        );
+        const previewReward =
+          gameId === "set-finder" ? 20 : rewardForDailyLevel(level);
+
+        const result: CompletionResult = {
+          reward: previewReward,
+          tokenBalance: 0,
+          completedCount,
+        };
+
+        setStatus((current) => {
+          const game = current.games[gameId];
+
+          return {
+            ...current,
+            totalSessions: current.totalSessions + 1,
+            bestScore: Math.max(current.bestScore, Math.round(score)),
+            games: {
+              ...current.games,
+              [gameId]: {
+                ...game,
+                completed: completedCount,
+                clues: gameId === "set-finder" ? 0 : game.clues,
+                levels: {
+                  ...game.levels,
+                  [level]: {
+                    ...game.levels[level],
+                    completed: true,
+                    reward: 0,
+                  },
+                },
+              },
+            },
+          };
+        });
+
+        setCompletionInView(gameId);
+        setNotice(
+          `Challenge complete. Log in to collect ${previewReward} DT and save your progress.`
+        );
+        return result;
       }
 
       const { data, error } = await supabase.rpc(
@@ -1026,7 +1161,6 @@ export default function ThinkingSkillsLabPage() {
       };
 
       setStatus((current) => {
-        const level = questionNumber as DailyLevelNumber;
         const currentGame = current.games[gameId];
 
         return {
@@ -1066,7 +1200,7 @@ export default function ThinkingSkillsLabPage() {
       setNotice(`Challenge complete. You earned ${result.reward} DT.`);
       return result;
     },
-    [refreshCashAndTransactions, userId]
+    [refreshCashAndTransactions, status.games, userId]
   );
 
   function beginNextQuestion() {
@@ -1288,7 +1422,7 @@ export default function ThinkingSkillsLabPage() {
         >
           <div className="sidebar-heading">
             <div>
-              <p className="sidebar-eyebrow">Choose a game</p>
+              <p className="sidebar-eyebrow">Think Lab · Choose a game</p>
               <h2>Daily Games</h2>
               <span className="sidebar-reset">Reset {countdown}</span>
             </div>
@@ -1368,7 +1502,7 @@ export default function ThinkingSkillsLabPage() {
             <span aria-hidden="true">✦</span>
             <p>
               Colour Code and Tower levels can be played in any order.
-              Clues and tower reviews cost 5 DT.
+              Signed in: hints cost 5 DT. Guest: one free hint per challenge.
             </p>
           </div>
         </aside>
@@ -1423,11 +1557,32 @@ export default function ThinkingSkillsLabPage() {
             </div>
           </div>
 
+          {!loading && !userId && (
+            <div
+              style={{
+                margin: "0 12px 8px",
+                minHeight: "38px",
+                padding: "8px 12px",
+                borderRadius: "12px",
+                border: "1px solid rgba(126,224,255,0.22)",
+                background: "rgba(83,215,255,0.07)",
+                color: "rgba(235,248,255,0.78)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                textAlign: "center",
+                fontSize: "11px",
+                fontWeight: 750,
+                letterSpacing: "0.03em",
+              }}
+            >
+              Guest Play · All games are open. Sign in to collect DT and save progress.
+            </div>
+          )}
+
           <div className="game-surface">
             {loading ? (
               <LoadingPanel />
-            ) : !userId ? (
-              <LoginPanel />
             ) : dailyComplete ? (
               <DailyCompletePanel
                 game={activeGame}
@@ -1438,7 +1593,8 @@ export default function ThinkingSkillsLabPage() {
                 {selectedGame === "colour-code" && (
                   <ColourCodeGame
                     key={`${status.activityDate}-${gameVersion}-${selectedColourLevel}`}
-                    userId={userId}
+                    userId={userId ?? "guest"}
+                    isGuest={!userId}
                     activityDate={status.activityDate}
                     questionNumber={selectedColourLevel}
                     cluesUsed={activeClues}
@@ -1462,7 +1618,8 @@ export default function ThinkingSkillsLabPage() {
                 {selectedGame === "set-finder" && (
                   <SetFinderGame
                     key={`${status.activityDate}-${gameVersion}`}
-                    userId={userId}
+                    userId={userId ?? "guest"}
+                    isGuest={!userId}
                     activityDate={status.activityDate}
                     questionNumber={currentQuestion}
                     cluesUsed={activeStatus.clues}
@@ -1479,7 +1636,8 @@ export default function ThinkingSkillsLabPage() {
                 {selectedGame === "tower-memory" && (
                   <TowerMemoryGame
                     key={`${status.activityDate}-${gameVersion}-${selectedTowerLevel}`}
-                    userId={userId}
+                    userId={userId ?? "guest"}
+                    isGuest={!userId}
                     activityDate={status.activityDate}
                     questionNumber={selectedTowerLevel}
                     cluesUsed={activeClues}
@@ -2379,6 +2537,7 @@ function RewardResult({
   title,
   text,
   reward,
+  isGuest = false,
   score,
   isLastQuestion,
   onContinue,
@@ -2386,6 +2545,7 @@ function RewardResult({
   title: string;
   text: string;
   reward: number;
+  isGuest?: boolean;
   score: number;
   isLastQuestion: boolean;
   onContinue: () => void;
@@ -2400,8 +2560,8 @@ function RewardResult({
 
       <div className="reward-row">
         <div>
-          <strong>+{reward} DT</strong>
-          <small>Dream Tokens</small>
+          <strong>{isGuest ? `${reward} DT` : `+${reward} DT`}</strong>
+          <small>{isGuest ? "Log in to collect" : "Dream Tokens"}</small>
         </div>
         <div>
           <strong>{score}</strong>
@@ -2410,6 +2570,20 @@ function RewardResult({
       </div>
 
       <p className="result-copy">{text}</p>
+      {isGuest && (
+        <Link
+          href="/login"
+          style={{
+            margin: "0 0 12px",
+            color: "#8ee8ff",
+            fontSize: "12px",
+            fontWeight: 850,
+            textDecoration: "none",
+          }}
+        >
+          Log in to collect rewards and save progress →
+        </Link>
+      )}
       <PrimaryButton onClick={onContinue}>
         {isLastQuestion ? "View daily completion" : "Play next challenge"}
       </PrimaryButton>
@@ -2879,11 +3053,13 @@ function CompletedSelectedLevel({
   level,
   detail,
   reward,
+  isGuest = false,
 }: {
   gameTitle: string;
   level: DailyLevelNumber;
   detail: string;
   reward: number;
+  isGuest?: boolean;
 }) {
   return (
     <div className="selected-level-complete">
@@ -2891,7 +3067,7 @@ function CompletedSelectedLevel({
       <p>{dailyLevelName(level)} level complete</p>
       <h3>{gameTitle}</h3>
       <strong>
-        {detail} · {reward} DT collected
+        {detail} · {isGuest ? `${reward} DT available when signed in` : `${reward} DT collected`}
       </strong>
       <small>Select another level above to continue today.</small>
 
@@ -3002,6 +3178,7 @@ function scoreColourGuess(secret: string[], guess: string[]) {
 
 function ColourCodeGame({
   userId,
+  isGuest,
   activityDate,
   questionNumber,
   cluesUsed,
@@ -3014,6 +3191,7 @@ function ColourCodeGame({
   walkthroughHighlightClue = false,
 }: {
   userId: string;
+  isGuest: boolean;
   activityDate: string;
   questionNumber: DailyLevelNumber;
   cluesUsed: number;
@@ -3100,7 +3278,7 @@ function ColourCodeGame({
   }
 
   async function buyClue() {
-    if (busy || localClues >= 4) return;
+    if (busy || localClues >= (isGuest ? 1 : 4)) return;
     setBusy(true);
     setErrorMessage("");
 
@@ -3198,6 +3376,7 @@ function ColourCodeGame({
           title="Code cracked!"
           text={`You solved the ${dailyLevelName(levelNumber).toLowerCase()} code using ${availableColours.length} available colours.`}
           reward={completion.reward}
+          isGuest={isGuest}
           score={finalScore}
           isLastQuestion={completion.completedCount >= DAILY_LIMIT}
           onContinue={onContinue}
@@ -3232,6 +3411,7 @@ function ColourCodeGame({
           level={levelNumber}
           detail={`${availableColours.length} available colours`}
           reward={selectedLevelStatus.reward || expectedReward}
+          isGuest={isGuest}
         />
       </GamePanel>
     );
@@ -3319,9 +3499,19 @@ function ColourCodeGame({
                 walkthroughHighlightClue ? "is-walkthrough-highlighted" : ""
               }`}
               onClick={buyClue}
-              disabled={busy || localClues >= 4 || tokenBalance < CLUE_COST}
+              disabled={
+                busy ||
+                localClues >= (isGuest ? 1 : 4) ||
+                (!isGuest && tokenBalance < CLUE_COST)
+              }
             >
-              {localClues >= 4 ? "All revealed" : `Clue · ${CLUE_COST} DT`}
+              {isGuest
+                ? localClues >= 1
+                  ? "Guest Hint used"
+                  : "Guest Hint · Free"
+                : localClues >= 4
+                  ? "All revealed"
+                  : `Clue · ${CLUE_COST} DT`}
             </button>
 
             {phase === "failed" ? (
@@ -3887,6 +4077,7 @@ function SetSymbol({
 
 function SetFinderGame({
   userId,
+  isGuest,
   activityDate,
   questionNumber,
   cluesUsed,
@@ -3897,6 +4088,7 @@ function SetFinderGame({
   walkthroughHighlightClue = false,
 }: {
   userId: string;
+  isGuest: boolean;
   activityDate: string;
   questionNumber: number;
   cluesUsed: number;
@@ -3940,7 +4132,7 @@ function SetFinderGame({
     [currentBoardClues, validSet]
   );
   const mayBuyCurrentClue =
-    localClues < 3 && currentBoardClues < 3 && !completion;
+    localClues < (isGuest ? 1 : 3) && currentBoardClues < 3 && !completion;
 
   function toggleCard(cardId: string) {
     if (busy || completion) return;
@@ -4028,6 +4220,7 @@ function SetFinderGame({
           title="Three SETs found!"
           text="You compared colour, shape, number, and pattern at the same time."
           reward={completion.reward}
+          isGuest={isGuest}
           score={finalScore}
           isLastQuestion={completion.completedCount >= DAILY_LIMIT}
           onContinue={onContinue}
@@ -4068,10 +4261,18 @@ function SetFinderGame({
             }`}
             onClick={buyClue}
             disabled={
-              busy || !mayBuyCurrentClue || tokenBalance < CLUE_COST
+              busy ||
+              !mayBuyCurrentClue ||
+              (!isGuest && tokenBalance < CLUE_COST)
             }
           >
-            {localClues >= 3 ? "Clues used" : `Clue · ${CLUE_COST} DT`}
+            {isGuest
+              ? localClues >= 1
+                ? "Guest Hint used"
+                : "Guest Hint · Free"
+              : localClues >= 3
+                ? "Clues used"
+                : `Clue · ${CLUE_COST} DT`}
           </button>
         </div>
 
@@ -4422,6 +4623,7 @@ function TowerDisplay({
 
 function TowerMemoryGame({
   userId,
+  isGuest,
   activityDate,
   questionNumber,
   cluesUsed,
@@ -4434,6 +4636,7 @@ function TowerMemoryGame({
   walkthroughHighlightClue = false,
 }: {
   userId: string;
+  isGuest: boolean;
   activityDate: string;
   questionNumber: DailyLevelNumber;
   cluesUsed: number;
@@ -4506,8 +4709,8 @@ function TowerMemoryGame({
     if (
       busy ||
       phase !== "build" ||
-      tokenBalance < CLUE_COST ||
-      localClues >= TOWER_MAX_ATTEMPTS
+      (!isGuest && tokenBalance < CLUE_COST) ||
+      localClues >= (isGuest ? 1 : TOWER_MAX_ATTEMPTS)
     ) {
       return;
     }
@@ -4609,6 +4812,7 @@ function TowerMemoryGame({
           title={`${size}-block tower rebuilt!`}
           text="You remembered the exact colour order from the bottom block upward."
           reward={completion.reward}
+          isGuest={isGuest}
           score={finalScore}
           isLastQuestion={completion.completedCount >= DAILY_LIMIT}
           onContinue={onContinue}
@@ -4643,6 +4847,7 @@ function TowerMemoryGame({
           level={levelNumber}
           detail={`${size}-block tower`}
           reward={selectedLevelStatus.reward || expectedReward}
+          isGuest={isGuest}
         />
       </GamePanel>
     );
@@ -4747,12 +4952,16 @@ function TowerMemoryGame({
                   disabled={
                     busy ||
                     phase !== "build" ||
-                    tokenBalance < CLUE_COST ||
-                    localClues >= TOWER_MAX_ATTEMPTS
+                    (!isGuest && tokenBalance < CLUE_COST) ||
+                    localClues >= (isGuest ? 1 : TOWER_MAX_ATTEMPTS)
                   }
                   secondary
                 >
-                  Show again · 5 DT
+                  {isGuest
+                    ? localClues >= 1
+                      ? "Guest Review used"
+                      : "Guest Review · Free"
+                    : "Show again · 5 DT"}
                 </PrimaryButton>
 
                 <PrimaryButton
