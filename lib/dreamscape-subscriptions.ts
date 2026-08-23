@@ -1,8 +1,19 @@
 import type { User } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
-export type DreamscapePlanCode = "core" | "science" | "complete";
-export type DreamscapeBillingCycle = "monthly" | "annual";
+export type DreamscapePlanCode =
+  | "core"
+  | "science"
+  | "complete";
+
+export type DreamscapeBillingCycle =
+  | "monthly"
+  | "annual";
+
+export type DreamscapeBillingProvider =
+  | "hitpay"
+  | "stripe"
+  | "gkp_billing";
 
 export type DreamscapePlanRow = {
   id: string;
@@ -13,11 +24,17 @@ export type DreamscapePlanRow = {
   audience: "public" | "gkp";
   amount: number | string;
   currency: string;
-  provider: "hitpay" | "gkp_billing";
+  provider: DreamscapeBillingProvider;
   is_available: boolean;
   is_coming_soon: boolean;
+
   hitpay_plan_id: string | null;
   hitpay_environment: string | null;
+  hitpay_synced_at?: string | null;
+
+  stripe_test_price_id: string | null;
+  stripe_live_price_id: string | null;
+  stripe_synced_at?: string | null;
 };
 
 export type DreamscapeContractRow = {
@@ -29,49 +46,79 @@ export type DreamscapeContractRow = {
   learner_name: string;
   learner_email: string;
   learner_user_id: string | null;
-  provider: string;
+
+  provider: DreamscapeBillingProvider | string;
   provider_environment: string | null;
   provider_subscription_id: string | null;
+  provider_customer_id?: string | null;
   provider_status: string | null;
+
   status: string;
+
   current_period_start?: string | null;
   current_period_end?: string | null;
   next_billing_at?: string | null;
   grace_until?: string | null;
+
   cancel_at_period_end?: boolean;
   cancellation_requested_at?: string | null;
   cancellation_mode?: string | null;
+
   failed_charge_count?: number;
   first_paid_at?: string | null;
+
   previous_plan_id?: string | null;
   pending_plan_id?: string | null;
+
   plan_change_status?: string | null;
   plan_change_effective_at?: string | null;
   plan_change_requested_at?: string | null;
   plan_change_source?: string | null;
+
   pending_transition_id?: string | null;
+
   updated_at?: string | null;
 };
 
-export function normaliseEmail(value: unknown) {
-  return String(value || "").trim().toLowerCase();
+export function normaliseEmail(
+  value: unknown,
+) {
+  return String(value || "")
+    .trim()
+    .toLowerCase();
 }
 
-export function normaliseText(value: unknown, max = 255) {
-  return String(value || "").trim().slice(0, max);
+export function normaliseText(
+  value: unknown,
+  max = 255,
+) {
+  return String(value || "")
+    .trim()
+    .slice(0, max);
 }
 
-export function singaporeDateString(date = new Date()) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Singapore",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
+export function singaporeDateString(
+  date = new Date(),
+) {
+  const parts =
+    new Intl.DateTimeFormat(
+      "en-CA",
+      {
+        timeZone:
+          "Asia/Singapore",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      },
+    ).formatToParts(date);
 
-  const values = Object.fromEntries(
-    parts.map((part) => [part.type, part.value]),
-  );
+  const values =
+    Object.fromEntries(
+      parts.map((part) => [
+        part.type,
+        part.value,
+      ]),
+    );
 
   return `${values.year}-${values.month}-${values.day}`;
 }
@@ -83,43 +130,79 @@ export function addBillingPeriod(
   const result = new Date(date);
 
   if (cycle === "annual") {
-    const month = result.getUTCMonth();
-    const day = result.getUTCDate();
+    const month =
+      result.getUTCMonth();
+
+    const day =
+      result.getUTCDate();
+
     result.setUTCDate(1);
-    result.setUTCFullYear(result.getUTCFullYear() + 1);
+
+    result.setUTCFullYear(
+      result.getUTCFullYear() + 1,
+    );
+
     result.setUTCMonth(month);
-    const lastDay = new Date(
-      Date.UTC(result.getUTCFullYear(), month + 1, 0),
-    ).getUTCDate();
-    result.setUTCDate(Math.min(day, lastDay));
+
+    const lastDay =
+      new Date(
+        Date.UTC(
+          result.getUTCFullYear(),
+          month + 1,
+          0,
+        ),
+      ).getUTCDate();
+
+    result.setUTCDate(
+      Math.min(day, lastDay),
+    );
+
     return result;
   }
 
-  const day = result.getUTCDate();
+  const day =
+    result.getUTCDate();
+
   result.setUTCDate(1);
-  result.setUTCMonth(result.getUTCMonth() + 1);
-  const lastDay = new Date(
-    Date.UTC(
-      result.getUTCFullYear(),
-      result.getUTCMonth() + 1,
-      0,
-    ),
-  ).getUTCDate();
-  result.setUTCDate(Math.min(day, lastDay));
+
+  result.setUTCMonth(
+    result.getUTCMonth() + 1,
+  );
+
+  const lastDay =
+    new Date(
+      Date.UTC(
+        result.getUTCFullYear(),
+        result.getUTCMonth() + 1,
+        0,
+      ),
+    ).getUTCDate();
+
+  result.setUTCDate(
+    Math.min(day, lastDay),
+  );
+
   return result;
 }
 
 export async function findAuthUserByEmail(
   email: string,
 ): Promise<User | null> {
-  for (let page = 1; page <= 20; page += 1) {
+  for (
+    let page = 1;
+    page <= 20;
+    page += 1
+  ) {
     const {
       data: { users },
       error,
-    } = await supabaseAdmin.auth.admin.listUsers({
-      page,
-      perPage: 1000,
-    });
+    } =
+      await supabaseAdmin.auth.admin.listUsers(
+        {
+          page,
+          perPage: 1000,
+        },
+      );
 
     if (error) {
       throw new Error(
@@ -127,29 +210,51 @@ export async function findAuthUserByEmail(
       );
     }
 
-    const match = users.find(
-      (user) => normaliseEmail(user.email) === email,
-    );
+    const match =
+      users.find(
+        (user) =>
+          normaliseEmail(
+            user.email,
+          ) === email,
+      );
 
-    if (match) return match;
-    if (users.length < 1000) break;
+    if (match) {
+      return match;
+    }
+
+    if (users.length < 1000) {
+      break;
+    }
   }
 
   return null;
 }
 
-export async function getOrInviteDreamscapeLearner(input: {
-  learnerEmail: string;
-  learnerName: string;
-}) {
-  const learnerEmail = normaliseEmail(input.learnerEmail);
-  const existing = await findAuthUserByEmail(learnerEmail);
+export async function getOrInviteDreamscapeLearner(
+  input: {
+    learnerEmail: string;
+    learnerName: string;
+  },
+) {
+  const learnerEmail =
+    normaliseEmail(
+      input.learnerEmail,
+    );
 
-  if (existing) return existing;
+  const existing =
+    await findAuthUserByEmail(
+      learnerEmail,
+    );
+
+  if (existing) {
+    return existing;
+  }
 
   const redirectTo =
-    process.env.DREAMSCAPE_INVITE_REDIRECT_URL ||
-    (process.env.NEXT_PUBLIC_SITE_URL
+    process.env
+      .DREAMSCAPE_INVITE_REDIRECT_URL ||
+    (process.env
+      .NEXT_PUBLIC_SITE_URL
       ? `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/profile`
       : undefined);
 
@@ -158,16 +263,35 @@ export async function getOrInviteDreamscapeLearner(input: {
       learnerEmail,
       {
         data: {
-          full_name: input.learnerName || undefined,
-          account_source: "hitpay-dreamscape-subscription",
+          full_name:
+            input.learnerName ||
+            undefined,
+
+          /*
+           * Provider-neutral.
+           *
+           * Previously:
+           * hitpay-dreamscape-subscription
+           */
+          account_source:
+            "dreamscape-subscription",
         },
-        ...(redirectTo ? { redirectTo } : {}),
+
+        ...(redirectTo
+          ? { redirectTo }
+          : {}),
       },
     );
 
   if (error) {
-    const retry = await findAuthUserByEmail(learnerEmail);
-    if (retry) return retry;
+    const retry =
+      await findAuthUserByEmail(
+        learnerEmail,
+      );
+
+    if (retry) {
+      return retry;
+    }
 
     throw new Error(
       `Could not create/invite learner account: ${error.message}`,
@@ -175,7 +299,9 @@ export async function getOrInviteDreamscapeLearner(input: {
   }
 
   if (!data.user) {
-    throw new Error("Supabase did not return the invited learner.");
+    throw new Error(
+      "Supabase did not return the invited learner.",
+    );
   }
 
   return data.user;
@@ -185,7 +311,10 @@ export async function ensureDreamscapeStudentProfile(
   userId: string,
   learnerName: string,
 ) {
-  const { data: profile, error } = await supabaseAdmin
+  const {
+    data: profile,
+    error,
+  } = await supabaseAdmin
     .from("profiles")
     .select("role")
     .eq("id", userId)
@@ -197,23 +326,32 @@ export async function ensureDreamscapeStudentProfile(
     );
   }
 
-  const role = String(profile?.role || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[\s_]+/g, "-");
+  const role =
+    String(profile?.role || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_]+/g, "-");
 
-  const protectedRoles = new Set([
-    "admin",
-    "teacher",
-    "curriculum-lead",
-    "curriculumlead",
-  ]);
+  const protectedRoles =
+    new Set([
+      "admin",
+      "teacher",
+      "curriculum-lead",
+      "curriculumlead",
+    ]);
 
   if (profile) {
-    if (!protectedRoles.has(role) && role !== "student") {
-      const { error: updateError } = await supabaseAdmin
+    if (
+      !protectedRoles.has(role) &&
+      role !== "student"
+    ) {
+      const {
+        error: updateError,
+      } = await supabaseAdmin
         .from("profiles")
-        .update({ role: "student" })
+        .update({
+          role: "student",
+        })
         .eq("id", userId);
 
       if (updateError) {
@@ -222,10 +360,13 @@ export async function ensureDreamscapeStudentProfile(
         );
       }
     }
+
     return;
   }
 
-  const { error: insertError } = await supabaseAdmin
+  const {
+    error: insertError,
+  } = await supabaseAdmin
     .from("profiles")
     .insert({
       id: userId,
@@ -240,133 +381,362 @@ export async function ensureDreamscapeStudentProfile(
 }
 
 export function extractNestedString(
-  payload: Record<string, unknown>,
+  payload: Record<
+    string,
+    unknown
+  >,
   path: string[],
 ) {
-  let current: unknown = payload;
+  let current: unknown =
+    payload;
 
   for (const key of path) {
     if (
       !current ||
-      typeof current !== "object" ||
+      typeof current !==
+        "object" ||
       Array.isArray(current)
     ) {
       return "";
     }
 
-    current = (current as Record<string, unknown>)[key];
+    current = (
+      current as Record<
+        string,
+        unknown
+      >
+    )[key];
   }
 
-  return typeof current === "string" ? current.trim() : "";
+  return typeof current ===
+    "string"
+    ? current.trim()
+    : "";
 }
 
 export function extractString(
-  payload: Record<string, unknown>,
+  payload: Record<
+    string,
+    unknown
+  >,
   keys: string[],
 ) {
   for (const key of keys) {
-    const value = payload[key];
-    if (typeof value === "string" && value.trim()) {
+    const value =
+      payload[key];
+
+    if (
+      typeof value ===
+        "string" &&
+      value.trim()
+    ) {
       return value.trim();
     }
   }
+
   return "";
 }
 
+function valueAsDate(
+  value: unknown,
+) {
+  /*
+   * Stripe uses Unix timestamps in seconds.
+   */
+  if (
+    typeof value ===
+      "number" &&
+    Number.isFinite(value)
+  ) {
+    const date =
+      new Date(
+        value * 1000,
+      );
+
+    return Number.isFinite(
+      date.getTime(),
+    )
+      ? date
+      : null;
+  }
+
+  if (
+    typeof value !==
+      "string" ||
+    !value.trim()
+  ) {
+    return null;
+  }
+
+  const trimmed =
+    value.trim();
+
+  /*
+   * Also tolerate a Unix timestamp that arrived
+   * as a JSON/string value.
+   */
+  if (/^\d{10}$/.test(trimmed)) {
+    const date =
+      new Date(
+        Number(trimmed) *
+          1000,
+      );
+
+    return Number.isFinite(
+      date.getTime(),
+    )
+      ? date
+      : null;
+  }
+
+  const date =
+    new Date(trimmed);
+
+  return Number.isFinite(
+    date.getTime(),
+  )
+    ? date
+    : null;
+}
+
 export function extractDate(
-  payload: Record<string, unknown>,
+  payload: Record<
+    string,
+    unknown
+  >,
   keys: string[],
 ) {
   for (const key of keys) {
-    const value = payload[key];
-    if (typeof value !== "string" || !value.trim()) continue;
-    const date = new Date(value);
-    if (Number.isFinite(date.getTime())) return date;
+    const date =
+      valueAsDate(
+        payload[key],
+      );
+
+    if (date) {
+      return date;
+    }
   }
+
   return null;
 }
 
-export async function projectContractToNovaAccess(input: {
-  contract: DreamscapeContractRow;
-  plan: DreamscapePlanRow;
-  providerPayload?: Record<string, unknown>;
-  paidAt?: Date | null;
-}) {
-  const learner = await getOrInviteDreamscapeLearner({
-    learnerEmail: input.contract.learner_email,
-    learnerName: input.contract.learner_name,
-  });
+export async function projectContractToNovaAccess(
+  input: {
+    contract:
+      DreamscapeContractRow;
+    plan:
+      DreamscapePlanRow;
+    providerPayload?: Record<
+      string,
+      unknown
+    >;
+    paidAt?: Date | null;
+
+    /*
+     * Stripe's current subscription API exposes
+     * billing periods at subscription-item level,
+     * so webhook code may provide explicit dates.
+     */
+    periodStart?: Date | null;
+    periodEnd?: Date | null;
+    nextBillingAt?: Date | null;
+  },
+) {
+  const learner =
+    await getOrInviteDreamscapeLearner(
+      {
+        learnerEmail:
+          input.contract
+            .learner_email,
+
+        learnerName:
+          input.contract
+            .learner_name,
+      },
+    );
 
   await ensureDreamscapeStudentProfile(
     learner.id,
     input.contract.learner_name,
   );
 
-  const now = input.paidAt || new Date();
-  const payload = input.providerPayload || {};
+  const now =
+    input.paidAt ||
+    new Date();
+
+  const payload =
+    input.providerPayload ||
+    {};
 
   const periodEnd =
-    extractDate(payload, [
-      "current_period_end",
-      "period_end",
-      "next_billing_at",
-      "next_billing_date",
-      "next_charge_date",
-    ]) || addBillingPeriod(now, input.plan.billing_cycle);
+    input.periodEnd ||
+    extractDate(
+      payload,
+      [
+        "current_period_end",
+        "period_end",
+        "next_billing_at",
+        "next_billing_date",
+        "next_charge_date",
+      ],
+    ) ||
+    addBillingPeriod(
+      now,
+      input.plan.billing_cycle,
+    );
 
   const periodStart =
-    extractDate(payload, [
-      "current_period_start",
-      "period_start",
-      "start_date",
-    ]) || now;
+    input.periodStart ||
+    extractDate(
+      payload,
+      [
+        "current_period_start",
+        "period_start",
+        "start_date",
+      ],
+    ) ||
+    now;
 
   const nextBilling =
-    extractDate(payload, [
-      "next_billing_at",
-      "next_billing_date",
-      "next_charge_date",
-    ]) || periodEnd;
+    input.nextBillingAt ||
+    extractDate(
+      payload,
+      [
+        "next_billing_at",
+        "next_billing_date",
+        "next_charge_date",
+      ],
+    ) ||
+    periodEnd;
 
-  const amount = Number(input.plan.amount || 0);
+  const amount =
+    Number(
+      input.plan.amount ||
+        0,
+    );
 
-  const { error: subscriptionError } = await supabaseAdmin
-    .from("nova_subscriptions")
+  const billingProvider =
+    String(
+      input.contract.provider ||
+        "",
+    )
+      .trim()
+      .toLowerCase() ||
+    "unknown";
+
+  const {
+    error:
+      subscriptionError,
+  } = await supabaseAdmin
+    .from(
+      "nova_subscriptions",
+    )
     .upsert(
       {
-        user_id: learner.id,
-        plan: input.plan.plan_code,
-        plan_code: input.plan.plan_code,
-        status: "active",
-        access_until: periodEnd.toISOString(),
-        billing_cycle: input.plan.billing_cycle,
-        source: "hitpay",
-        learner_email: normaliseEmail(
-          input.contract.learner_email,
-        ),
-        learner_name: input.contract.learner_name,
-        paid_at: (input.paidAt || now).toISOString(),
-        access_started_at: periodStart.toISOString(),
-        cancel_at_period_end: false,
-        cancellation_requested_at: null,
-        revoked_at: null,
-        revoke_reason: null,
-        dreamscape_contract_id: input.contract.id,
-        billing_provider: "hitpay",
+        user_id:
+          learner.id,
+
+        plan:
+          input.plan
+            .plan_code,
+
+        plan_code:
+          input.plan
+            .plan_code,
+
+        status:
+          "active",
+
+        access_until:
+          periodEnd.toISOString(),
+
+        billing_cycle:
+          input.plan
+            .billing_cycle,
+
+        /*
+         * Provider-aware.
+         *
+         * Existing HitPay subscriptions remain
+         * source = hitpay.
+         * New subscriptions become source = stripe.
+         */
+        source:
+          billingProvider,
+
+        learner_email:
+          normaliseEmail(
+            input.contract
+              .learner_email,
+          ),
+
+        learner_name:
+          input.contract
+            .learner_name,
+
+        paid_at:
+          (
+            input.paidAt ||
+            now
+          ).toISOString(),
+
+        access_started_at:
+          periodStart.toISOString(),
+
+        cancel_at_period_end:
+          false,
+
+        cancellation_requested_at:
+          null,
+
+        revoked_at:
+          null,
+
+        revoke_reason:
+          null,
+
+        dreamscape_contract_id:
+          input.contract.id,
+
+        billing_provider:
+          billingProvider,
+
         provider_subscription_id:
-          input.contract.provider_subscription_id,
-        billing_status: "active",
-        current_period_start: periodStart.toISOString(),
-        current_period_end: periodEnd.toISOString(),
-        next_billing_at: nextBilling.toISOString(),
-        grace_until: null,
-        last_payment_at: input.paidAt
-          ? input.paidAt.toISOString()
-          : null,
-        last_payment_amount: input.paidAt ? amount : null,
-        updated_at: new Date().toISOString(),
+          input.contract
+            .provider_subscription_id,
+
+        billing_status:
+          "active",
+
+        current_period_start:
+          periodStart.toISOString(),
+
+        current_period_end:
+          periodEnd.toISOString(),
+
+        next_billing_at:
+          nextBilling.toISOString(),
+
+        grace_until:
+          null,
+
+        last_payment_at:
+          input.paidAt
+            ? input.paidAt.toISOString()
+            : null,
+
+        last_payment_amount:
+          input.paidAt
+            ? amount
+            : null,
+
+        updated_at:
+          new Date().toISOString(),
       },
-      { onConflict: "user_id" },
+      {
+        onConflict:
+          "user_id",
+      },
     );
 
   if (subscriptionError) {
@@ -375,26 +745,55 @@ export async function projectContractToNovaAccess(input: {
     );
   }
 
-  const { error: contractError } = await supabaseAdmin
-    .from("dreamscape_subscription_contracts")
+  const {
+    error:
+      contractError,
+  } = await supabaseAdmin
+    .from(
+      "dreamscape_subscription_contracts",
+    )
     .update({
-      learner_user_id: learner.id,
-      status: "active",
-      provider_status: "active",
-      current_period_start: periodStart.toISOString(),
-      current_period_end: periodEnd.toISOString(),
-      next_billing_at: nextBilling.toISOString(),
-      grace_until: null,
-      started_at: periodStart.toISOString(),
-      first_paid_at: input.paidAt
-        ? input.paidAt.toISOString()
-        : undefined,
-      last_successful_charge_at: input.paidAt
-        ? input.paidAt.toISOString()
-        : undefined,
-      updated_at: new Date().toISOString(),
+      learner_user_id:
+        learner.id,
+
+      status:
+        "active",
+
+      provider_status:
+        "active",
+
+      current_period_start:
+        periodStart.toISOString(),
+
+      current_period_end:
+        periodEnd.toISOString(),
+
+      next_billing_at:
+        nextBilling.toISOString(),
+
+      grace_until:
+        null,
+
+      started_at:
+        periodStart.toISOString(),
+
+      first_paid_at:
+        input.paidAt
+          ? input.paidAt.toISOString()
+          : undefined,
+
+      last_successful_charge_at:
+        input.paidAt
+          ? input.paidAt.toISOString()
+          : undefined,
+
+      updated_at:
+        new Date().toISOString(),
     })
-    .eq("id", input.contract.id);
+    .eq(
+      "id",
+      input.contract.id,
+    );
 
   if (contractError) {
     throw new Error(
@@ -403,62 +802,133 @@ export async function projectContractToNovaAccess(input: {
   }
 
   return {
-    learnerUserId: learner.id,
-    accessUntil: periodEnd.toISOString(),
+    learnerUserId:
+      learner.id,
+
+    accessUntil:
+      periodEnd.toISOString(),
   };
 }
 
-export async function suspendNovaAccess(input: {
-  contract: DreamscapeContractRow;
-  reason: string;
-  providerStatus?: string | null;
-}) {
-  if (input.contract.learner_user_id) {
+export async function suspendNovaAccess(
+  input: {
+    contract:
+      DreamscapeContractRow;
+    reason: string;
+    providerStatus?:
+      string | null;
+  },
+) {
+  if (
+    input.contract
+      .learner_user_id
+  ) {
     await supabaseAdmin
-      .from("nova_subscriptions")
+      .from(
+        "nova_subscriptions",
+      )
       .update({
-        status: "revoked",
-        billing_status: input.providerStatus || input.reason,
-        revoked_at: new Date().toISOString(),
-        revoke_reason: input.reason,
-        updated_at: new Date().toISOString(),
+        status:
+          "revoked",
+
+        billing_status:
+          input.providerStatus ||
+          input.reason,
+
+        revoked_at:
+          new Date().toISOString(),
+
+        revoke_reason:
+          input.reason,
+
+        updated_at:
+          new Date().toISOString(),
       })
-      .eq("user_id", input.contract.learner_user_id)
-      .eq("dreamscape_contract_id", input.contract.id);
+      .eq(
+        "user_id",
+        input.contract
+          .learner_user_id,
+      )
+      .eq(
+        "dreamscape_contract_id",
+        input.contract.id,
+      );
   }
 
   await supabaseAdmin
-    .from("dreamscape_subscription_contracts")
+    .from(
+      "dreamscape_subscription_contracts",
+    )
     .update({
-      status: "suspended",
-      provider_status: input.providerStatus || input.reason,
+      status:
+        "suspended",
+
+      provider_status:
+        input.providerStatus ||
+        input.reason,
+
       cancelled_at:
-        input.providerStatus === "cancelled"
+        input.providerStatus ===
+        "cancelled"
           ? new Date().toISOString()
           : null,
-      updated_at: new Date().toISOString(),
+
+      updated_at:
+        new Date().toISOString(),
     })
-    .eq("id", input.contract.id);
+    .eq(
+      "id",
+      input.contract.id,
+    );
 }
 
-
-export async function keepNovaAccessUntilPeriodEnd(input: {
-  contract: DreamscapeContractRow;
-  periodEnd: Date;
-}) {
-  if (!input.contract.learner_user_id) return;
+export async function keepNovaAccessUntilPeriodEnd(
+  input: {
+    contract:
+      DreamscapeContractRow;
+    periodEnd: Date;
+  },
+) {
+  if (
+    !input.contract
+      .learner_user_id
+  ) {
+    return;
+  }
 
   await supabaseAdmin
-    .from("nova_subscriptions")
+    .from(
+      "nova_subscriptions",
+    )
     .update({
-      status: "active",
-      access_until: input.periodEnd.toISOString(),
-      cancel_at_period_end: true,
-      cancellation_requested_at: new Date().toISOString(),
-      billing_status: "cancel_at_period_end",
-      current_period_end: input.periodEnd.toISOString(),
-      updated_at: new Date().toISOString(),
+      status:
+        "active",
+
+      access_until:
+        input.periodEnd.toISOString(),
+
+      cancel_at_period_end:
+        true,
+
+      cancellation_requested_at:
+        new Date().toISOString(),
+
+      billing_status:
+        "cancel_at_period_end",
+
+      current_period_end:
+        input.periodEnd.toISOString(),
+
+      updated_at:
+        new Date().toISOString(),
     })
-    .eq("user_id", input.contract.learner_user_id)
-    .eq("dreamscape_contract_id", input.contract.id);
+    .eq(
+      "user_id",
+      input.contract
+        .learner_user_id,
+    )
+    .eq(
+      "dreamscape_contract_id",
+      input.contract.id,
+    );
 }

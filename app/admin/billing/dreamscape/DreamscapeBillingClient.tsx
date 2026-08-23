@@ -19,6 +19,9 @@ type Plan = {
   hitpay_plan_id: string | null;
   hitpay_environment: string | null;
   hitpay_synced_at: string | null;
+  stripe_test_price_id: string | null;
+  stripe_live_price_id: string | null;
+  stripe_synced_at: string | null;
 };
 
 type Contract = {
@@ -197,7 +200,7 @@ export default function DreamscapeBillingClient() {
       warningResult,
       conflictResult,
     ] = await Promise.all([
-        supabase.rpc("gkp_get_dreamscape_subscription_plans"),
+        supabase.rpc("gkp_get_dreamscape_subscription_plans_v2"),
         supabase.rpc(
           "gkp_get_dreamscape_subscription_contracts",
           { p_limit: 300 },
@@ -239,71 +242,6 @@ export default function DreamscapeBillingClient() {
     void load();
   }, [load]);
 
-  async function syncPlans() {
-    setWorking(true);
-    setMessage("");
-    setError("");
-
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.access_token) {
-        throw new Error("Please sign in again.");
-      }
-
-      const response = await fetch(
-        "/api/billing/dreamscape/plans/sync",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        },
-      );
-
-      const payload = (await response.json().catch(() => null)) as
-        | {
-            error?: string;
-            results?: Array<{
-              status: string;
-              planKey: string;
-            }>;
-          }
-        | null;
-
-      if (!response.ok) {
-        throw new Error(
-          payload?.error || "Could not sync HitPay plans.",
-        );
-      }
-
-      const created =
-        payload?.results?.filter(
-          (row) => row.status === "created",
-        ).length || 0;
-
-      setMessage(
-        created > 0
-          ? `${created} Dreamscape HitPay plan${
-              created === 1 ? "" : "s"
-            } created and mapped.`
-          : "All public Dreamscape plans were already synced.",
-      );
-
-      await load();
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Could not sync HitPay plans.",
-      );
-    }
-
-    setWorking(false);
-  }
-
   async function togglePublicCheckout() {
     if (!settings) return;
 
@@ -313,7 +251,7 @@ export default function DreamscapeBillingClient() {
       next &&
       !window.confirm(
         "Enable public Dreamscape subscription checkout? " +
-          "Only do this after the available monthly HitPay plans and webhook have been tested.",
+          "Only do this after the Stripe sandbox prices and webhook have been tested.",
       )
     ) {
       return;
@@ -384,6 +322,13 @@ export default function DreamscapeBillingClient() {
       | "cancel_immediate"
       | "reactivate",
   ) {
+    if (contract.provider !== "hitpay") {
+      setError(
+        "Stripe subscription management controls will be enabled in the next migration pass. The public checkout toggle and Stripe webhook are safe to use now.",
+      );
+      return;
+    }
+
     if (
       action === "cancel_period_end" &&
       !window.confirm(
@@ -407,7 +352,7 @@ export default function DreamscapeBillingClient() {
     if (
       action === "reactivate" &&
       !window.confirm(
-        `Reactivate the HitPay subscription for ${contract.learner_name}?`,
+        `Reactivate the billing subscription for ${contract.learner_name}?`,
       )
     ) {
       return;
@@ -482,6 +427,13 @@ export default function DreamscapeBillingClient() {
     contract: Contract,
     action: "change_plan" | "cancel_plan_change",
   ) {
+    if (contract.provider !== "hitpay") {
+      setError(
+        "Stripe plan-change controls will be enabled in the next migration pass.",
+      );
+      return;
+    }
+
     if (action === "change_plan" && !targetPlanId) {
       setError("Choose the target plan first.");
       return;
@@ -643,21 +595,32 @@ export default function DreamscapeBillingClient() {
     );
   }, [contracts, search]);
 
-  const allPublicPlansSynced =
-    plans
-      .filter(
-        (plan) =>
-          plan.audience === "public" &&
-          plan.provider === "hitpay" &&
-          !plan.is_coming_soon,
-      )
-      .every((plan) => Boolean(plan.hitpay_plan_id));
+  const stripeSellablePlanKeys = new Set([
+    "core_monthly",
+    "core_annual",
+    "complete_monthly",
+    "complete_annual",
+  ]);
+
+  const publicStripePlans = plans.filter(
+    (plan) =>
+      plan.audience === "public" &&
+      stripeSellablePlanKeys.has(plan.plan_key) &&
+      plan.is_available &&
+      !plan.is_coming_soon,
+  );
+
+  const allPublicStripePlansMapped =
+    publicStripePlans.length === 4 &&
+    publicStripePlans.every((plan) =>
+      Boolean(plan.stripe_test_price_id),
+    );
 
   return (
     <BillingAdminShell
       eyebrow="Dreamscape"
       title="Dreamscape Subscriptions"
-      description="Manage Dreamscape public subscription plans, HitPay recurring setup, learner access projection and subscription status without Shopify."
+      description="Manage Dreamscape public subscriptions, Stripe checkout launch controls, learner access projection and legacy HitPay contracts."
       actions={
         <button
           type="button"
@@ -731,43 +694,34 @@ export default function DreamscapeBillingClient() {
               Launch controls
             </p>
             <h2 className="mt-2 text-xl font-semibold text-[#15233b]">
-              HitPay recurring setup
+              Stripe public checkout
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[#81796d]">
-              Sync creates only missing public Core and Full plans.
-              Public checkout remains disabled until you explicitly enable it.
+              Use this switch to open or close all public Dreamscape subscription checkout.
+              GKP student billing is separate and is not affected by this control.
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => void syncPlans()}
-              disabled={working}
-              className="min-h-11 rounded-full border border-[#c9b27d] bg-[#fff9eb] px-5 text-xs font-black text-[#6c5420]"
-            >
-              {working ? "Working…" : "Sync HitPay Plans"}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => void togglePublicCheckout()}
-              disabled={
-                working ||
-                (!settings?.public_checkout_enabled &&
-                  !allPublicPlansSynced)
-              }
-              className={`min-h-11 rounded-full border px-5 text-xs font-black ${
-                settings?.public_checkout_enabled
-                  ? "border-red-200 bg-red-50 text-red-700"
-                  : "border-emerald-200 bg-emerald-50 text-emerald-700"
-              } disabled:cursor-not-allowed disabled:opacity-45`}
-            >
-              {settings?.public_checkout_enabled
-                ? "Disable Public Checkout"
-                : "Enable Public Checkout"}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => void togglePublicCheckout()}
+            disabled={
+              working ||
+              (!settings?.public_checkout_enabled &&
+                !allPublicStripePlansMapped)
+            }
+            className={`min-h-11 rounded-full border px-6 text-xs font-black ${
+              settings?.public_checkout_enabled
+                ? "border-red-200 bg-red-50 text-red-700"
+                : "border-emerald-200 bg-emerald-50 text-emerald-700"
+            } disabled:cursor-not-allowed disabled:opacity-45`}
+          >
+            {working
+              ? "Working…"
+              : settings?.public_checkout_enabled
+                ? "Turn Public Checkout OFF"
+                : "Turn Public Checkout ON"}
+          </button>
         </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-3">
@@ -775,20 +729,24 @@ export default function DreamscapeBillingClient() {
             label="Public checkout"
             value={
               settings?.public_checkout_enabled
-                ? "ENABLED"
-                : "DISABLED"
+                ? "ON"
+                : "OFF"
             }
-            detail="Keep disabled during Phase 1 testing."
+            detail={
+              settings?.public_checkout_enabled
+                ? "Public pricing pages may start Stripe checkout."
+                : "New public subscription checkout is blocked."
+            }
           />
           <StatusBox
             label="Grace period"
             value={`${settings?.failed_payment_grace_days || 7} DAYS`}
-            detail="HitPay also documents a 7-day failed-card recovery window."
+            detail="Used when a recurring Stripe payment fails."
           />
           <StatusBox
-            label="Plan mapping"
-            value={allPublicPlansSynced ? "READY" : "NOT SYNCED"}
-            detail="All currently available public monthly plans must have HitPay IDs. Annual plans remain disabled for now."
+            label="Stripe sandbox mapping"
+            value={allPublicStripePlansMapped ? "READY" : "NOT READY"}
+            detail="Core and Full monthly/yearly plans must all have sandbox Price IDs before checkout can be enabled."
           />
         </div>
       </section>
@@ -865,15 +823,16 @@ export default function DreamscapeBillingClient() {
         </h2>
 
         <div className="mt-5 overflow-x-auto">
-          <table className="w-full min-w-[880px] border-collapse text-left">
+          <table className="w-full min-w-[1080px] border-collapse text-left">
             <thead>
               <tr className="border-b border-[#ebe5da] bg-[#fbfaf7] text-[10px] font-black uppercase tracking-[0.12em] text-[#8a8378]">
                 <th className="px-4 py-3">Plan</th>
                 <th className="px-4 py-3">Audience</th>
                 <th className="px-4 py-3">Billing</th>
                 <th className="px-4 py-3">Price</th>
-                <th className="px-4 py-3">Provider</th>
-                <th className="px-4 py-3">HitPay mapping</th>
+                <th className="px-4 py-3">Current default</th>
+                <th className="px-4 py-3">Stripe sandbox</th>
+                <th className="px-4 py-3">Legacy HitPay</th>
               </tr>
             </thead>
             <tbody>
@@ -900,16 +859,23 @@ export default function DreamscapeBillingClient() {
                     {money(plan.amount, plan.currency)}
                   </td>
                   <td className="px-4 py-4 text-sm">
-                    {plan.provider === "hitpay"
-                      ? "HitPay Recurring"
-                      : "GKP Billing"}
+                    {plan.audience === "gkp"
+                      ? "GKP Billing"
+                      : plan.provider === "stripe"
+                        ? "Stripe"
+                        : "HitPay (until cutover)"}
                   </td>
                   <td className="px-4 py-4 text-xs">
-                    {plan.provider !== "hitpay"
+                    {plan.audience !== "public"
+                      ? "Not required"
+                      : plan.stripe_test_price_id || "Not mapped"}
+                  </td>
+                  <td className="px-4 py-4 text-xs">
+                    {plan.audience !== "public"
                       ? "Not required"
                       : plan.hitpay_plan_id
                         ? `${plan.hitpay_environment || ""} · ${plan.hitpay_plan_id}`
-                        : "Not synced"}
+                        : "Not mapped"}
                   </td>
                 </tr>
               ))}
@@ -1009,8 +975,8 @@ export default function DreamscapeBillingClient() {
                       {date(contract.next_billing_at)}
                     </td>
                     <td className="px-4 py-4 text-xs">
-                      <span className="block">
-                        {contract.provider_environment || "—"}
+                      <span className="block capitalize">
+                        {contract.provider} · {contract.provider_environment || "—"}
                       </span>
                       <span className="mt-1 block max-w-[220px] truncate text-[#81796d]">
                         {contract.provider_subscription_id || "Not attached"}
@@ -1202,7 +1168,7 @@ export default function DreamscapeBillingClient() {
                   <>
                     <h3 className="mt-2 text-base font-semibold text-[#15233b]">Schedule a next-cycle plan change</h3>
                     <p className="mt-1 text-xs leading-5 text-[#81796d]">
-                      No proration and no early access switch. HitPay changes the recurring plan for the next billing cycle.
+                      No proration and no early access switch. The billing provider changes the recurring price for the next billing cycle.
                     </p>
                   </>
                 )}
@@ -1229,6 +1195,7 @@ export default function DreamscapeBillingClient() {
                       .filter(
                         (item) =>
                           item.id !== selectedContract.plan_id &&
+                          selectedContract.provider === "hitpay" &&
                           item.audience === "public" &&
                           item.provider === "hitpay" &&
                           item.is_available &&
@@ -1261,7 +1228,7 @@ export default function DreamscapeBillingClient() {
                   <th className="px-4 py-3">Paid</th>
                   <th className="px-4 py-3">Amount</th>
                   <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">HitPay charge</th>
+                  <th className="px-4 py-3">Provider payment</th>
                 </tr>
               </thead>
               <tbody>
