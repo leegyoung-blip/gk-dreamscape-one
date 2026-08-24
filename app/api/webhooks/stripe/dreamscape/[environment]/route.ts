@@ -133,6 +133,16 @@ function subscriptionPeriod(subscription: Stripe.Subscription) {
   };
 }
 
+function scheduleIdFromSubscription(
+  subscription: Stripe.Subscription,
+) {
+  return idFromExpandable(
+    (subscription as unknown as {
+      schedule?: unknown;
+    }).schedule,
+  );
+}
+
 async function loadContract(contractId: string) {
   if (!contractId) return null;
 
@@ -348,6 +358,8 @@ async function syncContractProviderIds(input: {
       provider_environment: input.environment,
       provider_subscription_id: input.subscription.id,
       provider_customer_id: customerId || null,
+      provider_schedule_id:
+        scheduleIdFromSubscription(input.subscription) || null,
       provider_status: input.subscription.status,
       provider_data: input.providerData || input.subscription,
       last_provider_sync_at: new Date().toISOString(),
@@ -363,6 +375,8 @@ async function syncContractProviderIds(input: {
     provider_environment: input.environment,
     provider_subscription_id: input.subscription.id,
     provider_customer_id: customerId || null,
+    provider_schedule_id:
+      scheduleIdFromSubscription(input.subscription) || null,
     provider_status: input.subscription.status,
   } as DreamscapeContractRow;
 }
@@ -823,8 +837,10 @@ export async function POST(
         const { error: accessError } = await supabaseAdmin
           .from("nova_subscriptions")
           .update({
+            status: "active",
             billing_status: "payment_issue",
             grace_until: graceUntil.toISOString(),
+            access_until: graceUntil.toISOString(),
             updated_at: failedAt,
           })
           .eq("user_id", contract.learner_user_id)

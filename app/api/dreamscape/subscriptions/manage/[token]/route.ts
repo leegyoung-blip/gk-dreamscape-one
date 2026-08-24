@@ -6,6 +6,16 @@ import {
   isHitPayEnvironment,
   updateHitPayRecurringBilling,
 } from "@/lib/hitpay";
+import {
+  createDreamscapeStripePaymentMethodPortal,
+  getDreamscapeStripeSubscription,
+  getStripeSubscriptionPeriod,
+  isStripeEnvironment,
+  setDreamscapeStripeCancelAtPeriodEnd,
+  scheduleDreamscapeStripePlanChange,
+  releaseDreamscapeStripePlanSchedule,
+  getStripePriceId,
+} from "@/lib/stripe";
 import { keepNovaAccessUntilPeriodEnd } from "@/lib/dreamscape-subscriptions";
 import { sendDreamscapeSubscriptionEmail } from "@/lib/dreamscapeSubscriptionEmail";
 
@@ -23,6 +33,12 @@ function json(body: unknown, status = 200) {
   });
 }
 
+function siteUrlFromRequest(request: Request) {
+  return (
+    process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
+  ).replace(/\/+$/, "");
+}
+
 async function loadByToken(token: string) {
   const { data: contract, error } = await supabaseAdmin
     .from("dreamscape_subscription_contracts")
@@ -34,11 +50,14 @@ async function loadByToken(token: string) {
   if (error) throw error;
   if (!contract) return null;
 
-  const [{ data: plan, error: planError }, paymentsResult, plansResult] =
+  const planFields =
+    "id,display_name,plan_key,plan_code,billing_cycle,amount,currency,provider,hitpay_plan_id,hitpay_environment,stripe_test_price_id,stripe_live_price_id";
+
+  const [{ data: plan, error: planError }, paymentsResult] =
     await Promise.all([
       supabaseAdmin
         .from("dreamscape_subscription_plans")
-        .select("id,display_name,plan_key,plan_code,billing_cycle,amount,currency,hitpay_plan_id,hitpay_environment")
+        .select(planFields)
         .eq("id", contract.plan_id)
         .single(),
       supabaseAdmin
@@ -47,19 +66,10 @@ async function loadByToken(token: string) {
         .eq("contract_id", contract.id)
         .order("paid_at", { ascending: false, nullsFirst: false })
         .limit(12),
-      supabaseAdmin
-        .from("dreamscape_subscription_plans")
-        .select("id,display_name,plan_key,plan_code,billing_cycle,amount,currency,hitpay_plan_id,hitpay_environment")
-        .eq("audience", "public")
-        .eq("provider", "hitpay")
-        .eq("is_available", true)
-        .eq("is_coming_soon", false)
-        .order("amount"),
     ]);
 
   if (planError) throw planError;
   if (paymentsResult.error) throw paymentsResult.error;
-  if (plansResult.error) throw plansResult.error;
 
   let pendingPlan = null;
 
@@ -74,13 +84,55 @@ async function loadByToken(token: string) {
     pendingPlan = data;
   }
 
+  let availablePlans: Array<Record<string, unknown>> = [];
+
+  if (
+    contract.provider === "hitpay" ||
+    contract.provider === "stripe"
+  ) {
+    const { data, error: plansError } = await supabaseAdmin
+      .from("dreamscape_subscription_plans")
+      .select(planFields)
+      .eq("audience", "public")
+      .eq("is_available", true)
+      .eq("is_coming_soon", false)
+      .order("amount");
+
+    if (plansError) throw plansError;
+
+    availablePlans = (data || [])
+      .filter(
+        (item) =>
+          item.id !== contract.plan_id,
+      )
+      .filter((item) => {
+        if (contract.provider === "hitpay") {
+          return Boolean(
+            item.hitpay_plan_id,
+          );
+        }
+
+        if (
+          !isStripeEnvironment(
+            contract.provider_environment,
+          )
+        ) {
+          return false;
+        }
+
+        return Boolean(
+          contract.provider_environment === "production"
+            ? item.stripe_live_price_id
+            : item.stripe_test_price_id,
+        );
+      });
+  }
+
   return {
     contract,
     plan,
     pendingPlan,
-    availablePlans: (plansResult.data || []).filter(
-      (item) => item.id !== contract.plan_id,
-    ),
+    availablePlans,
     payments: paymentsResult.data || [],
   };
 }
@@ -99,6 +151,9 @@ export async function GET(
 
     const { contract, plan, pendingPlan, availablePlans, payments } = loaded;
 
+    const isStripe = contract.provider === "stripe";
+    const isHitPay = contract.provider === "hitpay";
+
     return json({
       subscription: {
         learnerName: contract.learner_name,
@@ -110,6 +165,7 @@ export async function GET(
         billingCycle: plan.billing_cycle,
         amount: Number(plan.amount || 0),
         currency: plan.currency,
+        provider: contract.provider,
         status: contract.status,
         providerStatus: contract.provider_status,
         currentPeriodEnd: contract.current_period_end,
@@ -119,10 +175,19 @@ export async function GET(
         canCancelAtPeriodEnd: ["active", "payment_issue"].includes(
           String(contract.status),
         ),
-        canUpdatePaymentMethod: Boolean(
-          contract.provider_subscription_id && contract.provider_environment,
-        ),
+        canUpdatePaymentMethod:
+          (isStripe &&
+            Boolean(
+              contract.provider_customer_id ||
+                contract.provider_subscription_id,
+            )) ||
+          (isHitPay &&
+            Boolean(
+              contract.provider_subscription_id &&
+                contract.provider_environment,
+            )),
         canChangePlan:
+          (isHitPay || isStripe) &&
           contract.status === "active" &&
           !contract.cancel_at_period_end &&
           !contract.grace_until &&
@@ -187,6 +252,472 @@ export async function POST(
         | "cancel_plan_change";
       targetPlanId?: string;
     };
+
+    if (contract.provider === "stripe") {
+      if (
+        !contract.provider_subscription_id ||
+        !isStripeEnvironment(contract.provider_environment)
+      ) {
+        return json(
+          { error: "The Stripe subscription is not ready." },
+          409,
+        );
+      }
+
+      const environment = contract.provider_environment;
+      const subscriptionId = contract.provider_subscription_id;
+
+      if (body.action === "payment_method") {
+        const subscription = await getDreamscapeStripeSubscription(
+          environment,
+          subscriptionId,
+        );
+
+        const customerId =
+          contract.provider_customer_id ||
+          (typeof subscription.customer === "string"
+            ? subscription.customer
+            : subscription.customer?.id || "");
+
+        if (!customerId) {
+          return json(
+            {
+              error:
+                "Stripe did not return a customer record for this subscription.",
+            },
+            409,
+          );
+        }
+
+        if (customerId !== contract.provider_customer_id) {
+          await supabaseAdmin
+            .from("dreamscape_subscription_contracts")
+            .update({
+              provider_customer_id: customerId,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", contract.id);
+        }
+
+        const returnUrl = `${siteUrlFromRequest(
+          request,
+        )}/dreamscape/subscription/${encodeURIComponent(token)}`;
+
+        const portal = await createDreamscapeStripePaymentMethodPortal({
+          environment,
+          customerId,
+          returnUrl,
+        });
+
+        return json({
+          ok: true,
+          redirectUrl: portal.url,
+        });
+      }
+
+      if (body.action === "change_plan") {
+        const targetPlanId =
+          String(
+            body.targetPlanId || "",
+          ).trim();
+
+        if (!targetPlanId) {
+          return json(
+            {
+              error:
+                "Choose the new plan.",
+            },
+            400,
+          );
+        }
+
+        const {
+          data: targetPlan,
+          error: targetError,
+        } = await supabaseAdmin
+          .from(
+            "dreamscape_subscription_plans",
+          )
+          .select("*")
+          .eq("id", targetPlanId)
+          .eq(
+            "audience",
+            "public",
+          )
+          .eq(
+            "is_available",
+            true,
+          )
+          .eq(
+            "is_coming_soon",
+            false,
+          )
+          .maybeSingle();
+
+        if (targetError) {
+          throw targetError;
+        }
+
+        if (!targetPlan) {
+          return json(
+            {
+              error:
+                "The selected plan is not available.",
+            },
+            409,
+          );
+        }
+
+        const targetPriceId =
+          getStripePriceId(
+            targetPlan,
+            environment,
+          );
+
+        let transitionId:
+          | string
+          | null = null;
+
+        let scheduleId:
+          | string
+          | null = null;
+
+        try {
+          const {
+            data,
+            error: beginError,
+          } =
+            await supabaseAdmin.rpc(
+              "gkp_begin_dreamscape_plan_change",
+              {
+                p_contract_id:
+                  contract.id,
+                p_target_plan_id:
+                  targetPlan.id,
+                p_requested_by:
+                  null,
+                p_source:
+                  "parent",
+              },
+            );
+
+          if (beginError) {
+            throw beginError;
+          }
+
+          transitionId =
+            String(data || "");
+
+          if (!transitionId) {
+            throw new Error(
+              "The plan change could not be scheduled.",
+            );
+          }
+
+          const scheduled =
+            await scheduleDreamscapeStripePlanChange({
+              environment,
+              subscriptionId,
+              contractId:
+                contract.id,
+              targetPlanId:
+                targetPlan.id,
+              targetPlanKey:
+                targetPlan.plan_key,
+              targetPriceId,
+            });
+
+          scheduleId =
+            scheduled.schedule.id;
+
+          const nowIso =
+            new Date().toISOString();
+
+          const {
+            error:
+              scheduleStateError,
+          } = await supabaseAdmin
+            .from(
+              "dreamscape_subscription_contracts",
+            )
+            .update({
+              provider_schedule_id:
+                scheduleId,
+              provider_data: {
+                subscription:
+                  scheduled.subscription,
+                subscription_schedule:
+                  scheduled.schedule,
+              },
+              last_provider_sync_at:
+                nowIso,
+              updated_at:
+                nowIso,
+            })
+            .eq(
+              "id",
+              contract.id,
+            );
+
+          if (scheduleStateError) {
+            throw scheduleStateError;
+          }
+
+          const {
+            error: confirmError,
+          } =
+            await supabaseAdmin.rpc(
+              "gkp_confirm_dreamscape_plan_change",
+              {
+                p_transition_id:
+                  transitionId,
+                p_provider_response:
+                  scheduled.schedule,
+              },
+            );
+
+          if (confirmError) {
+            await releaseDreamscapeStripePlanSchedule({
+              environment,
+              subscriptionId,
+              scheduleId,
+            }).catch(
+              (releaseError) =>
+                console.error(
+                  "Could not release Stripe schedule after parent plan-change confirmation failure",
+                  releaseError,
+                ),
+            );
+
+            await supabaseAdmin
+              .from(
+                "dreamscape_subscription_contracts",
+              )
+              .update({
+                provider_schedule_id:
+                  null,
+                updated_at:
+                  new Date().toISOString(),
+              })
+              .eq(
+                "id",
+                contract.id,
+              );
+
+            await supabaseAdmin.rpc(
+              "gkp_fail_dreamscape_plan_change",
+              {
+                p_transition_id:
+                  transitionId,
+                p_error:
+                  confirmError.message,
+              },
+            );
+
+            throw confirmError;
+          }
+
+          return json({
+            ok: true,
+            status:
+              "scheduled",
+            nextPlan:
+              targetPlan.display_name,
+            effectiveAt:
+              scheduled.effectiveAt.toISOString(),
+          });
+        } catch (error) {
+          if (transitionId) {
+            try {
+              await supabaseAdmin.rpc(
+                "gkp_fail_dreamscape_plan_change",
+                {
+                  p_transition_id:
+                    transitionId,
+                  p_error:
+                    error instanceof Error
+                      ? error.message
+                      : String(error),
+                },
+              );
+            } catch {
+              // Preserve the original error.
+            }
+          }
+
+          throw error;
+        }
+      }
+
+      if (
+        body.action ===
+        "cancel_plan_change"
+      ) {
+        if (
+          !contract.pending_plan_id ||
+          !contract.pending_transition_id
+        ) {
+          return json(
+            {
+              error:
+                "There is no pending plan change.",
+            },
+            409,
+          );
+        }
+
+        await releaseDreamscapeStripePlanSchedule({
+          environment,
+          subscriptionId,
+          scheduleId:
+            contract.provider_schedule_id ||
+            null,
+        });
+
+        const {
+          error: cancelError,
+        } =
+          await supabaseAdmin.rpc(
+            "gkp_cancel_dreamscape_plan_change",
+            {
+              p_contract_id:
+                contract.id,
+              p_requested_by:
+                null,
+              p_reason:
+                "Cancelled by parent before effective date",
+            },
+          );
+
+        if (cancelError) {
+          throw cancelError;
+        }
+
+        await supabaseAdmin
+          .from(
+            "dreamscape_subscription_contracts",
+          )
+          .update({
+            provider_schedule_id:
+              null,
+            updated_at:
+              new Date().toISOString(),
+          })
+          .eq(
+            "id",
+            contract.id,
+          );
+
+        return json({
+          ok: true,
+          status:
+            "plan_change_cancelled",
+        });
+      }
+
+      if (body.action === "cancel_period_end") {
+        if (contract.pending_plan_id) {
+          return json(
+            {
+              error:
+                "Cancel the pending plan change first, then schedule subscription cancellation.",
+            },
+            409,
+          );
+        }
+
+        if (!["active", "payment_issue"].includes(contract.status)) {
+          return json(
+            {
+              error:
+                "This subscription cannot be scheduled for cancellation.",
+            },
+            409,
+          );
+        }
+
+        const current = await getDreamscapeStripeSubscription(
+          environment,
+          subscriptionId,
+        );
+        const currentPeriod = getStripeSubscriptionPeriod(current);
+
+        if (
+          !currentPeriod.end ||
+          currentPeriod.end.getTime() <= Date.now()
+        ) {
+          return json(
+            {
+              error:
+                "The paid-through date is unavailable. Please contact Guru Kids Pro before cancelling.",
+            },
+            409,
+          );
+        }
+
+        const subscription = await setDreamscapeStripeCancelAtPeriodEnd({
+          environment,
+          subscriptionId,
+          cancelAtPeriodEnd: true,
+        });
+
+        const period = getStripeSubscriptionPeriod(subscription);
+        const periodEnd = period.end || currentPeriod.end;
+        const requestedAt = new Date().toISOString();
+
+        const { error: stateError } = await supabaseAdmin
+          .from("dreamscape_subscription_contracts")
+          .update({
+            status: "cancel_at_period_end",
+            provider_status: subscription.status,
+            cancel_at_period_end: true,
+            cancellation_mode: "period_end",
+            cancellation_requested_at: requestedAt,
+            grace_until: null,
+            current_period_end: periodEnd.toISOString(),
+            next_billing_at: null,
+            provider_data: subscription,
+            last_provider_sync_at: requestedAt,
+            updated_at: requestedAt,
+          })
+          .eq("id", contract.id);
+
+        if (stateError) throw stateError;
+
+        await keepNovaAccessUntilPeriodEnd({
+          contract: {
+            ...contract,
+            cancel_at_period_end: true,
+            cancellation_requested_at: requestedAt,
+          },
+          periodEnd,
+        });
+
+        await sendDreamscapeSubscriptionEmail({
+          contractId: contract.id,
+          emailType: "cancellation_scheduled",
+          origin: siteUrlFromRequest(request),
+          eventKey: `parent-stripe-cancel:${requestedAt}`,
+        }).catch((error) =>
+          console.error("Stripe cancellation email failed", error),
+        );
+
+        return json({
+          ok: true,
+          status: "cancel_at_period_end",
+          accessUntil: periodEnd.toISOString(),
+        });
+      }
+
+      return json({ error: "Unknown management action." }, 400);
+    }
+
+    if (contract.provider !== "hitpay") {
+      return json(
+        { error: "This subscription provider is not supported." },
+        409,
+      );
+    }
 
     if (
       !contract.provider_subscription_id ||
@@ -319,7 +850,10 @@ export async function POST(
       }
 
       if (!plan.hitpay_plan_id) {
-        return json({ error: "The current plan is not mapped to HitPay." }, 409);
+        return json(
+          { error: "The current plan is not mapped to HitPay." },
+          409,
+        );
       }
 
       await updateHitPayRecurringBilling({
@@ -448,7 +982,7 @@ export async function POST(
       await sendDreamscapeSubscriptionEmail({
         contractId: contract.id,
         emailType: "cancellation_scheduled",
-        origin: new URL(request.url).origin,
+        origin: siteUrlFromRequest(request),
         eventKey: `parent-cancel:${requestedAt}`,
       }).catch((error) =>
         console.error("Cancellation email failed", error),

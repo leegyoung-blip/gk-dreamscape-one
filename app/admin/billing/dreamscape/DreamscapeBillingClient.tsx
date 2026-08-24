@@ -322,13 +322,6 @@ export default function DreamscapeBillingClient() {
       | "cancel_immediate"
       | "reactivate",
   ) {
-    if (contract.provider !== "hitpay") {
-      setError(
-        "Stripe subscription management controls will be enabled in the next migration pass. The public checkout toggle and Stripe webhook are safe to use now.",
-      );
-      return;
-    }
-
     if (
       action === "cancel_period_end" &&
       !window.confirm(
@@ -427,13 +420,6 @@ export default function DreamscapeBillingClient() {
     contract: Contract,
     action: "change_plan" | "cancel_plan_change",
   ) {
-    if (contract.provider !== "hitpay") {
-      setError(
-        "Stripe plan-change controls will be enabled in the next migration pass.",
-      );
-      return;
-    }
-
     if (action === "change_plan" && !targetPlanId) {
       setError("Choose the target plan first.");
       return;
@@ -1053,9 +1039,7 @@ export default function DreamscapeBillingClient() {
                           </>
                         )}
 
-                        {["cancelled", "suspended", "expired"].includes(
-                          contract.status,
-                        ) && (
+                        {contract.status === "cancel_at_period_end" && (
                           <button
                             type="button"
                             disabled={working}
@@ -1067,9 +1051,28 @@ export default function DreamscapeBillingClient() {
                             }
                             className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-[10px] font-bold text-emerald-700"
                           >
-                            Reactivate
+                            Keep subscription
                           </button>
                         )}
+
+                        {contract.provider === "hitpay" &&
+                          ["cancelled", "suspended", "expired"].includes(
+                            contract.status,
+                          ) && (
+                            <button
+                              type="button"
+                              disabled={working}
+                              onClick={() =>
+                                void runSubscriptionAction(
+                                  contract,
+                                  "reactivate",
+                                )
+                              }
+                              className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-[10px] font-bold text-emerald-700"
+                            >
+                              Reactivate
+                            </button>
+                          )}
                       </div>
                     </td>
                   </tr>
@@ -1192,16 +1195,30 @@ export default function DreamscapeBillingClient() {
                   >
                     <option value="">Choose new plan</option>
                     {plans
-                      .filter(
-                        (item) =>
-                          item.id !== selectedContract.plan_id &&
-                          selectedContract.provider === "hitpay" &&
-                          item.audience === "public" &&
-                          item.provider === "hitpay" &&
-                          item.is_available &&
-                          !item.is_coming_soon &&
-                          Boolean(item.hitpay_plan_id),
-                      )
+                      .filter((item) => {
+                        if (
+                          item.id === selectedContract.plan_id ||
+                          item.audience !== "public" ||
+                          !item.is_available ||
+                          item.is_coming_soon
+                        ) {
+                          return false;
+                        }
+
+                        if (selectedContract.provider === "stripe") {
+                          return Boolean(
+                            selectedContract.provider_environment === "production"
+                              ? item.stripe_live_price_id
+                              : item.stripe_test_price_id,
+                          );
+                        }
+
+                        if (selectedContract.provider === "hitpay") {
+                          return Boolean(item.hitpay_plan_id);
+                        }
+
+                        return false;
+                      })
                       .map((item) => (
                         <option key={item.id} value={item.id}>
                           {item.display_name} · {money(item.amount, item.currency)} / {item.billing_cycle}
@@ -1210,8 +1227,17 @@ export default function DreamscapeBillingClient() {
                   </select>
                   <button
                     type="button"
-                    disabled={working || !targetPlanId || selectedContract.status !== "active"}
-                    onClick={() => void runPlanChange(selectedContract, "change_plan")}
+                    disabled={
+                      working ||
+                      !targetPlanId ||
+                      selectedContract.status !== "active"
+                    }
+                    onClick={() =>
+                      void runPlanChange(
+                        selectedContract,
+                        "change_plan",
+                      )
+                    }
                     className="min-h-11 rounded-full border border-violet-200 bg-violet-600 px-5 text-xs font-black text-white disabled:opacity-45"
                   >
                     Schedule change
