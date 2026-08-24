@@ -548,6 +548,10 @@ function formatDreamTokenAmount(value: number) {
   return `${Math.max(0, Math.round(value)).toLocaleString("en-US")} DT`;
 }
 
+function formatDreamGemAmount(value: number) {
+  return `${Math.max(0, Math.round(value)).toLocaleString("en-US")} DG`;
+}
+
 function formatDreamTokenTransactionDate(value: string | null) {
   if (!value) return "";
 
@@ -591,6 +595,8 @@ export default function ThinkingSkillsLabPage() {
   >([]);
   const [profileAssetsLoading, setProfileAssetsLoading] = useState(true);
   const [profileAssetsOpen, setProfileAssetsOpen] = useState(false);
+  const [dreamGemBalance, setDreamGemBalance] = useState(0);
+  const [dreamGemsLoading, setDreamGemsLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
   const [gameVersion, setGameVersion] = useState(0);
@@ -638,6 +644,7 @@ export default function ThinkingSkillsLabPage() {
   const loadStatus = useCallback(async () => {
     setLoading(true);
     setProfileAssetsLoading(true);
+    setDreamGemsLoading(true);
 
     const {
       data: { user },
@@ -652,6 +659,8 @@ export default function ThinkingSkillsLabPage() {
       );
       setProfileAssets(EMPTY_PROFILE_ASSETS);
       setTokenTransactions([]);
+      setDreamGemBalance(0);
+      setDreamGemsLoading(false);
       setProfileAssetsLoading(false);
       setLoading(false);
       return;
@@ -661,6 +670,7 @@ export default function ThinkingSkillsLabPage() {
 
     const [
       statusResult,
+      profileResult,
       balanceResult,
       recentTransactionsResult,
       stocksResult,
@@ -669,6 +679,11 @@ export default function ThinkingSkillsLabPage() {
       propertyHoldingsResult,
     ] = await Promise.all([
       supabase.rpc("thinking_lab_get_status"),
+      supabase
+        .from("profiles")
+        .select("dream_gem_balance")
+        .eq("id", user.id)
+        .maybeSingle(),
       supabase
         .from("dream_token_transactions")
         .select("amount")
@@ -705,6 +720,7 @@ export default function ThinkingSkillsLabPage() {
         statusResult.error
       );
       setNotice(formatSupabaseError(statusResult.error));
+      setDreamGemsLoading(false);
       setProfileAssetsLoading(false);
       setLoading(false);
       return;
@@ -713,6 +729,18 @@ export default function ThinkingSkillsLabPage() {
     const nextStatus = normaliseStatus(
       (statusResult.data ?? null) as RpcStatusPayload | null
     );
+
+    if (profileResult.error) {
+      console.warn(
+        "Could not load Dream Gem balance:",
+        profileResult.error.message
+      );
+      setDreamGemBalance(0);
+    } else {
+      setDreamGemBalance(
+        Math.max(0, Number(profileResult.data?.dream_gem_balance ?? 0))
+      );
+    }
 
     const cashValue = balanceResult.error
       ? 0
@@ -806,6 +834,7 @@ export default function ThinkingSkillsLabPage() {
       property: propertyValue,
       stocks: stockValue,
     });
+    setDreamGemsLoading(false);
     setProfileAssetsLoading(false);
     setLoading(false);
   }, []);
@@ -1389,8 +1418,16 @@ export default function ThinkingSkillsLabPage() {
             )}
           </div>
 
+          <div className="stat-pill dream-gem-pill" aria-label="Dream Gems balance">
+            <span className="stat-label">Dream Gems</span>
+            <strong>
+              <span className="dream-gem-icon" aria-hidden="true">◆</span>
+              {dreamGemsLoading ? "—" : formatDreamGemAmount(dreamGemBalance)}
+            </strong>
+          </div>
+
           <div
-            className={`stat-pill ${
+            className={`stat-pill today-pill ${
               walkthroughOpen && walkthroughStep === 4
                 ? "walkthrough-highlight"
                 : ""
@@ -1734,6 +1771,22 @@ export default function ThinkingSkillsLabPage() {
         .guide-button { appearance: none; color: #d9f8ff; }
         .stat-pill { min-width: 100px; padding: 6px 13px; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; }
         .token-pill { min-width: 205px; }
+        .dream-gem-pill {
+          min-width: 145px;
+          border-color: rgba(216,180,254,.42);
+          background: linear-gradient(145deg, rgba(50,22,88,.76), rgba(13,8,35,.82));
+        }
+        .dream-gem-pill strong {
+          display: inline-flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 6px;
+          color: #ead8ff;
+        }
+        .dream-gem-icon {
+          color: #e9d5ff;
+          filter: drop-shadow(0 0 7px rgba(192,132,252,.72));
+        }
         .assets-button { width: 100%; appearance: none; color: white; font: inherit; text-align: left; cursor: pointer; }
         .assets-button strong { display: inline-flex; align-items: center; gap: 6px; }
         .assets-chevron { color: #8ee8ff; font-size: 12px; transition: transform 180ms ease; }
@@ -1948,9 +2001,14 @@ export default function ThinkingSkillsLabPage() {
           .topbar-left, .topbar-stats { gap: 5px; }
           .round-button { width: 40px; min-height: 40px; padding: 0; }
           .round-button-label { display: none; }
-          .stat-pill { min-width: 56px; min-height: 40px; padding: 5px 8px; grid-template-columns: 1fr; gap: 0; text-align: center; }
-          .token-pill { min-width: 126px; grid-template-columns: 1fr; }
+          .stat-pill { min-width: 48px; min-height: 40px; padding: 5px 6px; grid-template-columns: 1fr; gap: 0; text-align: center; }
+          .token-pill { min-width: 104px; grid-template-columns: 1fr; }
           .token-pill .stat-label { display: none; }
+          .dream-gem-pill { min-width: 68px; padding-left: 6px; padding-right: 6px; }
+          .dream-gem-pill .stat-label { display: none; }
+          .dream-gem-pill strong { justify-content: center; gap: 3px; font-size: 10px; }
+          .dream-gem-icon { font-size: 9px; }
+          .today-pill { min-width: 42px; }
           .stat-label { font-size: 7px; }
           .stat-pill strong { font-size: 11px; }
           .assets-dropdown { position: fixed; top: 60px; right: 7px; left: 7px; width: auto; max-height: calc(100dvh - 67px); }
@@ -1979,8 +2037,12 @@ export default function ThinkingSkillsLabPage() {
         }
 
         @media (max-width: 390px) {
-          .token-pill { min-width: 112px; }
-          .stat-pill { min-width: 48px; padding-left: 5px; padding-right: 5px; }
+          .topbar { padding-left: 5px; padding-right: 5px; }
+          .topbar-left, .topbar-stats { gap: 3px; }
+          .token-pill { min-width: 90px; }
+          .dream-gem-pill { min-width: 60px; }
+          .today-pill { min-width: 38px; }
+          .stat-pill { min-width: 42px; padding-left: 4px; padding-right: 4px; }
           .lab-layout { grid-template-columns: 54px minmax(0,1fr); }
           .game-sidebar { padding: 4px; }
           .game-menu-icon { width: 39px; height: 39px; }
@@ -3477,7 +3539,13 @@ function ColourCodeGame({
             ))}
           </div>
 
-          <div className="colour-palette" aria-label="Choose a colour">
+          <div
+            className="colour-palette"
+            aria-label="Choose a colour"
+            style={{
+              "--palette-count": availableColours.length,
+            } as CSSProperties}
+          >
             {availableColours.map((colour) => (
               <button
                 type="button"
@@ -3614,6 +3682,8 @@ function ColourCodeGame({
           background: rgba(255, 255, 255, 0.025);
         }
         .colour-focus {
+          --colour-circle-size: clamp(58px, 6.2vw, 78px);
+          --colour-circle-gap: clamp(10px, 1.3vw, 16px);
           padding: 10px;
           display: flex;
           flex-direction: column;
@@ -3645,11 +3715,11 @@ function ColourCodeGame({
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: clamp(10px, 1.5vw, 18px);
+          gap: var(--colour-circle-gap);
         }
         .current-guess button {
-          width: clamp(58px, 7vw, 86px);
-          height: clamp(58px, 7vw, 86px);
+          width: var(--colour-circle-size);
+          height: var(--colour-circle-size);
           border-radius: 999px;
           border: 3px dashed rgba(126, 220, 255, 0.27);
           background: rgba(2, 10, 22, 0.62);
@@ -3666,15 +3736,17 @@ function ColourCodeGame({
           box-shadow: inset 0 5px 10px rgba(255, 255, 255, 0.23), 0 12px 24px rgba(0, 0, 0, 0.24);
         }
         .colour-palette {
-          width: min(430px, 100%);
+          width: 100%;
           display: grid;
-          grid-template-columns: repeat(6, 1fr);
-          gap: 7px;
+          grid-template-columns: repeat(var(--palette-count), var(--colour-circle-size));
+          justify-content: center;
+          gap: var(--colour-circle-gap);
         }
         .colour-palette button {
-          aspect-ratio: 1;
+          width: var(--colour-circle-size);
+          height: var(--colour-circle-size);
           min-width: 0;
-          padding: 4px;
+          padding: 5px;
           border-radius: 999px;
           border: 1px solid rgba(137, 215, 255, 0.12);
           background: rgba(255, 255, 255, 0.035);
@@ -3866,15 +3938,22 @@ function ColourCodeGame({
 
         @media (max-width: 900px) {
           .colour-layout { grid-template-columns: minmax(0, 1fr) minmax(245px, 0.78fr); gap: 6px; }
-          .current-guess button { width: clamp(50px, 6.5vw, 68px); height: clamp(50px, 6.5vw, 68px); }
+          .colour-focus {
+            --colour-circle-size: clamp(50px, 6vw, 64px);
+            --colour-circle-gap: 8px;
+          }
         }
         @media (max-width: 720px) {
           .colour-layout { grid-template-columns: 1fr; grid-template-rows: minmax(210px, 0.82fr) minmax(0, 1.18fr); gap: 5px; }
-          .colour-focus { padding: 6px; justify-content: flex-start; }
+          .colour-focus {
+            --colour-circle-size: clamp(38px, 11vw, 50px);
+            --colour-circle-gap: 5px;
+            padding: 6px;
+            justify-content: flex-start;
+          }
           .secret-row span { width: 24px; height: 24px; font-size: 10px; }
-          .current-guess { margin: 7px 0; gap: 7px; }
-          .current-guess button { width: clamp(43px, 13vw, 57px); height: clamp(43px, 13vw, 57px); border-width: 2px; }
-          .colour-palette { gap: 4px; }
+          .current-guess { margin: 7px 0; }
+          .current-guess button { border-width: 2px; }
           .colour-palette button { padding: 3px; }
           .colour-actions { margin-top: 5px; gap: 5px; }
           .clue-button { min-height: 34px; font-size: 9px; }
@@ -3898,9 +3977,15 @@ function ColourCodeGame({
           .attempt-result { gap: 4px; font-size: 9px; }
           .attempt-result span { min-width: 23px; height: 23px; font-size: 9px; }
         }
+        @media (max-width: 390px) {
+          .colour-focus {
+            --colour-circle-size: clamp(33px, 10vw, 40px);
+            --colour-circle-gap: 3px;
+          }
+        }
         @media (max-height: 680px) and (max-width: 720px) {
           .colour-layout { grid-template-rows: 190px minmax(0, 1fr); }
-          .current-guess button { width: 42px; height: 42px; }
+          .colour-focus { --colour-circle-size: 40px; }
           .secret-row span { width: 21px; height: 21px; }
         }
       `}</style>

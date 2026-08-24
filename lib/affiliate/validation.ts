@@ -57,40 +57,19 @@ export const affiliateApplicationSchema = z.object({
   conductAccepted: z.literal(true),
 });
 
-export const affiliateOnboardingSchema = z
-  .object({
-    token: z.string().trim().min(20).max(500),
-    legalName: z.string().trim().min(2).max(120),
-    businessName: z.string().trim().max(180).optional().default(""),
-    phone: z.string().trim().min(7).max(40),
-    country: z.string().trim().min(2).max(100),
-    payoutMethod: z.enum(["paynow", "international_manual"]),
-    paynowProxyType: z
-      .enum(["mobile", "uen", "nric_fin"])
-      .optional(),
-    paynowProxyValue: z.string().trim().max(120).optional().default(""),
-    payeeName: z.string().trim().min(2).max(180),
-    termsAccepted: z.literal(true),
-    payoutConfirmed: z.literal(true),
-    billingRuleAccepted: z.literal(true),
-    participationRuleAccepted: z.literal(true),
-    brandRulesAccepted: z.literal(true),
-  })
-  .superRefine((value, context) => {
-    if (value.payoutMethod === "paynow") {
-      if (!value.paynowProxyType) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["paynowProxyType"],
-          message: "Select a PayNow proxy type",
-        });
-      }
-      if (!value.paynowProxyValue || value.paynowProxyValue.length < 4) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["paynowProxyValue"],
-          message: "Enter the PayNow proxy value",
-        });
-      }
-    }
-  });
+export const affiliateOnboardingSchema = z.object({
+  token: z.string().trim().min(20).max(500),
+  phone: z.string().trim().min(7).max(40),
+  paynowProxyType: z.enum(["mobile", "uen", "nric_fin"]).optional(),
+  paynowProxyValue: z.string().trim().max(120).optional().default(""),
+  payeeName: z.string().trim().min(2).max(180),
+  termsAccepted: z.literal(true),
+  privacyAccepted: z.literal(true),
+  payoutConfirmed: z.literal(true),
+  commissionAccepted: z.literal(true),
+  eligibilityAccepted: z.literal(true),
+  periodAccepted: z.literal(true),
+  disclosureAccepted: z.literal(true),
+  conductAccepted: z.literal(true),
+  reversalAccepted: z.literal(true),
+});

@@ -296,6 +296,7 @@ export default function PricingPage() {
   const [showSubscriptionComingSoon, setShowSubscriptionComingSoon] =
     useState(false);
   const [checkoutRole, setCheckoutRole] = useState<string | null>(null);
+  const [isSignedIn, setIsSignedIn] = useState(false);
   const [checkoutAccessLoading, setCheckoutAccessLoading] = useState(true);
   const [viewportWidth, setViewportWidth] = useState(1440);
   const [publicPreviewActive, setPublicPreviewActive] = useState(() =>
@@ -330,10 +331,13 @@ export default function PricingPage() {
       if (!isMounted) return;
 
       if (userError || !user) {
+        setIsSignedIn(false);
         setCheckoutRole(null);
         setCheckoutAccessLoading(false);
         return;
       }
+
+      setIsSignedIn(true);
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
@@ -358,8 +362,34 @@ export default function PricingPage() {
 
     void loadCheckoutAccess();
 
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!isMounted) return;
+
+      if (event === "SIGNED_OUT" || !session?.user) {
+        setIsSignedIn(false);
+        setCheckoutRole(null);
+        return;
+      }
+
+      setIsSignedIn(true);
+
+      /*
+       * Re-read the role after sign-in/user changes so the
+       * pricing page remains correct without requiring a
+       * full browser refresh.
+       */
+      window.setTimeout(() => {
+        if (isMounted) {
+          void loadCheckoutAccess();
+        }
+      }, 0);
+    });
+
     return () => {
       isMounted = false;
+      subscription.unsubscribe();
     };
   }, []);
 
@@ -487,7 +517,11 @@ export default function PricingPage() {
             </>
           )}
           <Link
-            href="/login"
+            href={
+              isSignedIn
+                ? "/profile"
+                : "/login?next=%2Fpricing"
+            }
             style={{
               padding: isMobile ? "10px 13px" : "11px 18px",
               borderRadius: "999px",
@@ -497,9 +531,14 @@ export default function PricingPage() {
               fontSize: "11px",
               fontWeight: 900,
               letterSpacing: "0.08em",
+              whiteSpace: "nowrap",
             }}
           >
-            LOG IN
+            {checkoutAccessLoading
+              ? "..."
+              : isSignedIn
+                ? "MY ACCOUNT"
+                : "LOG IN"}
           </Link>
         </nav>
       </header>
