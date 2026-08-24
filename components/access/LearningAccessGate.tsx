@@ -5,9 +5,6 @@ import {
   useEffect,
   useState,
 } from "react";
-import {
-  getLearningEntitlements,
-} from "@/lib/learning-access";
 import { supabase } from "@/lib/supabase";
 
 type LearningZone =
@@ -20,19 +17,14 @@ type GateStatus =
   | "locked"
   | "logged-out";
 
-type SubscriptionRow = {
-  status: string | null;
-  access_until: string | null;
-  plan_code: string | null;
+type AccessRpcResult = {
+  authenticated?: boolean;
+  core?: boolean;
+  science?: boolean;
+  next_access_until?: string | null;
 };
 
 type CheckAccessOptions = {
-  /**
-   * Only true for the initial page-entry check.
-   *
-   * Background revalidation must not temporarily remove
-   * children from the React tree.
-   */
   showChecking?: boolean;
 };
 
@@ -48,14 +40,10 @@ export default function LearningAccessGate({
 
   useEffect(() => {
     let cancelled = false;
-
     let expiryTimer:
       | number
       | null = null;
 
-    /*
-     * Used to reject stale async responses.
-     */
     let latestRequestId = 0;
 
     function clearExpiryTimer() {
@@ -63,7 +51,6 @@ export default function LearningAccessGate({
         window.clearTimeout(
           expiryTimer,
         );
-
         expiryTimer = null;
       }
     }
@@ -80,15 +67,6 @@ export default function LearningAccessGate({
 
       clearExpiryTimer();
 
-      /*
-       * CRITICAL:
-       *
-       * Only show the access-check screen when the user
-       * FIRST enters this protected area.
-       *
-       * Focus/auth/expiry rechecks happen in the
-       * background while children remain mounted.
-       */
       if (showChecking) {
         setStatus("checking");
       }
@@ -96,7 +74,8 @@ export default function LearningAccessGate({
       const {
         data: { user },
         error: userError,
-      } = await supabase.auth.getUser();
+      } =
+        await supabase.auth.getUser();
 
       if (
         cancelled ||
@@ -111,10 +90,6 @@ export default function LearningAccessGate({
           userError.message,
         );
 
-        /*
-         * A background network/auth read error is not
-         * proof that the learner's access disappeared.
-         */
         if (!showChecking) {
           return;
         }
@@ -125,23 +100,20 @@ export default function LearningAccessGate({
         return;
       }
 
+      /*
+       * Canonical paid entitlement comes from a SECURITY
+       * DEFINER RPC scoped to auth.uid().
+       *
+       * This avoids any mismatch between service-role
+       * billing writes and browser-side RLS reads.
+       */
       const [
-        profileResult,
-        subscriptionResult,
+        accessResult,
         manualAccessResult,
       ] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("role,tier")
-          .eq("id", user.id)
-          .maybeSingle(),
-
-        supabase
-          .from("nova_subscriptions")
-          .select(
-            "status,access_until,plan_code",
-          )
-          .eq("user_id", user.id),
+        supabase.rpc(
+          "dreamscape_get_my_learning_access",
+        ),
 
         supabase
           .from(
@@ -160,31 +132,10 @@ export default function LearningAccessGate({
         return;
       }
 
-      if (
-        profileResult.error ||
-        !profileResult.data
-      ) {
+      if (accessResult.error) {
         console.warn(
-          `Could not check ${zone} profile access:`,
-          profileResult.error?.message,
-        );
-
-        /*
-         * Fail closed when entering for the first time.
-         * Do not destroy an already-running session because
-         * of a transient background query failure.
-         */
-        if (showChecking) {
-          setStatus("locked");
-        }
-
-        return;
-      }
-
-      if (subscriptionResult.error) {
-        console.warn(
-          `Could not check ${zone} subscription access:`,
-          subscriptionResult.error.message,
+          `Could not check ${zone} paid entitlement:`,
+          accessResult.error.message,
         );
       }
 
@@ -195,22 +146,14 @@ export default function LearningAccessGate({
         );
       }
 
-      const subscriptionRows =
-        subscriptionResult.error
-          ? []
-          : ((subscriptionResult.data ||
-              []) as SubscriptionRow[]);
+      const access =
+        (accessResult.data ||
+          {}) as AccessRpcResult;
 
-      const role =
-        profileResult.data.role ||
-        profileResult.data.tier ||
-        null;
-
-      const entitlements =
-        getLearningEntitlements(
-          role,
-          subscriptionRows,
-        );
+      const entitlementAllowed =
+        zone === "core"
+          ? Boolean(access.core)
+          : Boolean(access.science);
 
       const manualAccess =
         !manualAccessResult.error &&
@@ -219,15 +162,6 @@ export default function LearningAccessGate({
             ?.is_unlocked,
         );
 
-      const entitlementAllowed =
-        zone === "core"
-          ? entitlements.core
-          : entitlements.science;
-
-      /*
-       * If either source successfully proves access,
-       * immediately keep/allow the page.
-       */
       if (
         entitlementAllowed ||
         manualAccess
@@ -235,63 +169,31 @@ export default function LearningAccessGate({
         setStatus("allowed");
       } else if (
         !showChecking &&
-        (subscriptionResult.error ||
+        (accessResult.error ||
           manualAccessResult.error)
       ) {
         /*
-         * During background revalidation, incomplete data
-         * is not enough evidence to revoke an existing
-         * learning session.
-         *
-         * Leave the current status unchanged.
+         * Never destroy an already-running mission because
+         * one background entitlement read failed.
          */
       } else {
-        /*
-         * Both entitlement sources completed successfully
-         * and neither grants access.
-         */
         setStatus("locked");
       }
 
-      /*
-       * Schedule the next real subscription-expiry check.
-       *
-       * Importantly this future check is SILENT. It does not
-       * first unmount the current quiz/game.
-       */
-      const futureExpiries =
-        subscriptionRows
-          .filter(
-            (row) =>
-              String(
-                row.status || "",
-              )
-                .trim()
-                .toLowerCase() ===
-                "active" &&
-              row.access_until,
-          )
-          .map((row) =>
-            new Date(
-              String(row.access_until),
-            ).getTime(),
-          )
-          .filter(
-            (value) =>
-              Number.isFinite(value) &&
-              value > Date.now(),
-          )
-          .sort(
-            (a, b) =>
-              a - b,
-          );
+      const expiry =
+        access.next_access_until
+          ? new Date(
+              access.next_access_until,
+            ).getTime()
+          : NaN;
 
       if (
-        futureExpiries.length > 0
+        Number.isFinite(expiry) &&
+        expiry > Date.now()
       ) {
         const delay = Math.min(
           Math.max(
-            futureExpiries[0] -
+            expiry -
               Date.now() +
               750,
             1000,
@@ -308,10 +210,6 @@ export default function LearningAccessGate({
       }
     }
 
-    /*
-     * First entry is allowed to display the access-check
-     * screen.
-     */
     void checkAccess({
       showChecking: true,
     });
@@ -321,10 +219,6 @@ export default function LearningAccessGate({
     } =
       supabase.auth.onAuthStateChange(
         (event) => {
-          /*
-           * A confirmed sign-out should take effect
-           * immediately.
-           */
           if (
             event === "SIGNED_OUT"
           ) {
@@ -334,13 +228,6 @@ export default function LearningAccessGate({
             return;
           }
 
-          /*
-           * TOKEN_REFRESHED, SIGNED_IN, USER_UPDATED etc.
-           * should revalidate silently.
-           *
-           * setTimeout also keeps Supabase work outside the
-           * auth callback itself.
-           */
           window.setTimeout(() => {
             if (cancelled) {
               return;
@@ -354,13 +241,6 @@ export default function LearningAccessGate({
       );
 
     function handleWindowFocus() {
-      /*
-       * Screenshot tools, Alt-Tab and switching windows can
-       * fire focus.
-       *
-       * Revalidate security if desired, but NEVER change to
-       * "checking" first.
-       */
       void checkAccess({
         showChecking: false,
       });
@@ -374,9 +254,7 @@ export default function LearningAccessGate({
     return () => {
       cancelled = true;
       latestRequestId += 1;
-
       clearExpiryTimer();
-
       subscription.unsubscribe();
 
       window.removeEventListener(
@@ -386,12 +264,6 @@ export default function LearningAccessGate({
     };
   }, [zone]);
 
-  /*
-   * Once access is allowed, background checks leave this
-   * branch mounted unless access is actually revoked.
-   *
-   * That means the quiz/game React tree stays alive.
-   */
   if (status === "allowed") {
     return <>{children}</>;
   }

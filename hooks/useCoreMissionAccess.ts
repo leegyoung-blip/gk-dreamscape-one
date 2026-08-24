@@ -7,7 +7,6 @@ import {
   useState,
 } from "react";
 import {
-  getLearningEntitlements,
   roleHasStaffLearningAccess,
 } from "@/lib/learning-access";
 import { supabase } from "@/lib/supabase";
@@ -19,12 +18,6 @@ export type CoreAccessStatus =
   | "allowed"
   | "locked";
 
-type SubscriptionRow = {
-  status: string | null;
-  access_until: string | null;
-  plan_code: string | null;
-};
-
 type LearningProfileStatus = {
   complete?: boolean;
   missing_fields?: string[];
@@ -33,13 +26,27 @@ type LearningProfileStatus = {
   age_band?: string | null;
 };
 
+type AccessRpcResult = {
+  authenticated?: boolean;
+  user_id?: string | null;
+  role?: string | null;
+  is_staff?: boolean;
+  core?: boolean;
+  science?: boolean;
+  business_builder?: boolean;
+  rewards?: boolean;
+  any_paid_access?: boolean;
+  active_plans?: string[];
+  next_access_until?: string | null;
+};
+
 type RefreshAccessOptions = {
   /**
-   * Only use true for the very first access check when
-   * entering the page.
+   * Only true for the very first access check when entering
+   * the page.
    *
-   * Background checks should stay silent so quizzes and
-   * games are not unmounted/reset.
+   * Background checks must stay silent so quizzes and games
+   * are not unmounted/reset.
    */
   showChecking?: boolean;
 };
@@ -65,11 +72,6 @@ export function useCoreMissionAccess() {
       null,
     );
 
-  /*
-   * These request IDs prevent an older async request from
-   * finishing later and overwriting the result of a newer
-   * request.
-   */
   const accessRequestIdRef = useRef(0);
   const balanceRequestIdRef = useRef(0);
 
@@ -142,10 +144,6 @@ export function useCoreMissionAccess() {
           .maybeSingle(),
       ]);
 
-      /*
-       * Ignore this response if another balance refresh
-       * started after it.
-       */
       if (
         requestId !==
         balanceRequestIdRef.current
@@ -200,16 +198,6 @@ export function useCoreMissionAccess() {
       const requestId =
         ++accessRequestIdRef.current;
 
-      /*
-       * CRITICAL:
-       *
-       * Only the initial page-entry check should put the
-       * interface into "checking".
-       *
-       * Focus changes, screenshots, auth token refreshes,
-       * etc. must never temporarily remove the quiz/game
-       * from the React tree.
-       */
       if (showChecking) {
         setStatus("checking");
       }
@@ -232,12 +220,6 @@ export function useCoreMissionAccess() {
           userError.message,
         );
 
-        /*
-         * A background network/auth read failure is not
-         * proof that access has been revoked.
-         *
-         * Keep the current UI alive and try again later.
-         */
         if (!showChecking) {
           return;
         }
@@ -255,14 +237,14 @@ export function useCoreMissionAccess() {
       setUserId(user.id);
 
       /*
-       * Balances are independent UI data.
-       * Refreshing them must not affect access state.
+       * Balances are independent UI data and must never
+       * control entitlement state.
        */
       void refreshBalances(user.id);
 
       /*
-       * Resolve account role BEFORE applying learner
-       * profile requirements.
+       * Load the profile role first so staff can retain the
+       * existing full-learning-access override.
        */
       const profileResult =
         await supabase
@@ -287,10 +269,6 @@ export function useCoreMissionAccess() {
           profileResult.error?.message,
         );
 
-        /*
-         * Do not eject somebody from a live quiz merely
-         * because a background Supabase request failed.
-         */
         if (showChecking) {
           setStatus("locked");
         }
@@ -303,10 +281,6 @@ export function useCoreMissionAccess() {
         profileResult.data.tier ||
         null;
 
-      /*
-       * Staff receive full Core access and do not need a
-       * learner DOB/profile.
-       */
       if (
         roleHasStaffLearningAccess(role)
       ) {
@@ -316,31 +290,20 @@ export function useCoreMissionAccess() {
       }
 
       /*
-       * IMPORTANT ACCESS ORDER
-       * ----------------------
+       * Canonical paid entitlement is resolved by the
+       * database using auth.uid().
        *
-       * Paid/manual entitlement is authoritative for access.
-       *
-       * A newly-created learner account may not have completed
-       * age/profile onboarding yet. That must NOT cancel access
-       * that has already been paid for and activated by Stripe
-       * or GKP billing.
-       *
-       * We therefore load entitlement + learner profile together,
-       * then grant paid/manual access BEFORE enforcing the optional
-       * learner-profile completion screen.
+       * This avoids depending on browser-side RLS visibility
+       * of nova_subscriptions.
        */
       const [
-        subscriptionResult,
+        accessResult,
         manualAccessResult,
         learningProfileResult,
       ] = await Promise.all([
-        supabase
-          .from("nova_subscriptions")
-          .select(
-            "status,access_until,plan_code",
-          )
-          .eq("user_id", user.id),
+        supabase.rpc(
+          "dreamscape_get_my_learning_access",
+        ),
 
         supabase
           .from(
@@ -363,10 +326,10 @@ export function useCoreMissionAccess() {
         return;
       }
 
-      if (subscriptionResult.error) {
+      if (accessResult.error) {
         console.warn(
-          "Could not check Core subscription:",
-          subscriptionResult.error.message,
+          "Could not check Core paid entitlement:",
+          accessResult.error.message,
         );
       }
 
@@ -384,17 +347,9 @@ export function useCoreMissionAccess() {
         );
       }
 
-      const subscriptionRows =
-        subscriptionResult.error
-          ? []
-          : ((subscriptionResult.data ||
-              []) as SubscriptionRow[]);
-
-      const entitlements =
-        getLearningEntitlements(
-          role,
-          subscriptionRows,
-        );
+      const access =
+        (accessResult.data ||
+          {}) as AccessRpcResult;
 
       const manuallyUnlocked =
         !manualAccessResult.error &&
@@ -404,14 +359,12 @@ export function useCoreMissionAccess() {
         );
 
       /*
-       * Paid subscription/manual access wins immediately.
-       *
-       * This is the key Stripe fix:
-       * an active Core/Full subscription must unlock Core
-       * even if the learner has not filled in DOB/profile yet.
+       * Paid Core/Complete access or a manual unlock wins
+       * immediately, even if learner-profile onboarding is
+       * not yet complete.
        */
       if (
-        entitlements.core ||
+        Boolean(access.core) ||
         manuallyUnlocked
       ) {
         if (
@@ -428,8 +381,21 @@ export function useCoreMissionAccess() {
       }
 
       /*
-       * If there is no paid/manual entitlement, preserve the
-       * existing learner-profile onboarding requirement.
+       * During a silent/background recheck, a temporary
+       * access read failure is not enough evidence to remove
+       * a learner from a running quiz/game.
+       */
+      if (
+        !showChecking &&
+        (accessResult.error ||
+          manualAccessResult.error)
+      ) {
+        return;
+      }
+
+      /*
+       * No paid/manual Core entitlement. The existing
+       * learner-profile requirement still applies.
        */
       if (learningProfileResult.error) {
         if (showChecking) {
@@ -454,22 +420,6 @@ export function useCoreMissionAccess() {
         return;
       }
 
-      /*
-       * During a silent/background recheck, incomplete
-       * entitlement reads are not enough evidence to revoke
-       * an existing session.
-       */
-      if (
-        !showChecking &&
-        (subscriptionResult.error ||
-          manualAccessResult.error)
-      ) {
-        return;
-      }
-
-      /*
-       * Profile is complete, but no Core entitlement exists.
-       */
       setStatus("locked");
     },
     [refreshBalances],
@@ -477,9 +427,6 @@ export function useCoreMissionAccess() {
 
   /*
    * Initial page-entry check.
-   *
-   * This is the ONLY normal access check that deliberately
-   * shows the "checking" state.
    */
   useEffect(() => {
     void refreshAccess({
@@ -492,21 +439,12 @@ export function useCoreMissionAccess() {
       void refreshBalances();
     }
 
-    /*
-     * Profile changes should be reflected immediately,
-     * but without destroying the current page first.
-     */
     function handleAccessUpdate() {
       void refreshAccess({
         showChecking: false,
       });
     }
 
-    /*
-     * Returning to the browser can still trigger a useful
-     * security revalidation, but it is now completely
-     * silent unless access has genuinely changed.
-     */
     function handleWindowFocus() {
       void refreshAccess({
         showChecking: false,
@@ -533,6 +471,32 @@ export function useCoreMissionAccess() {
       handleWindowFocus,
     );
 
+    const {
+      data: { subscription },
+    } =
+      supabase.auth.onAuthStateChange(
+        (event) => {
+          if (
+            event === "SIGNED_OUT"
+          ) {
+            accessRequestIdRef.current += 1;
+            balanceRequestIdRef.current += 1;
+            setUserId(null);
+            setLearningProfile(null);
+            setTokenBalance(0);
+            setDreamGemBalance(0);
+            setStatus("signed_out");
+            return;
+          }
+
+          window.setTimeout(() => {
+            void refreshAccess({
+              showChecking: false,
+            });
+          }, 0);
+        },
+      );
+
     return () => {
       window.removeEventListener(
         "dream-tokens-updated",
@@ -554,9 +518,8 @@ export function useCoreMissionAccess() {
         handleWindowFocus,
       );
 
-      /*
-       * Invalidate any outstanding request after unmount.
-       */
+      subscription.unsubscribe();
+
       accessRequestIdRef.current += 1;
       balanceRequestIdRef.current += 1;
     };
