@@ -706,6 +706,37 @@ export default function MiloCategoriesPage() {
   const [savedMultiplayerAttemptId, setSavedMultiplayerAttemptId] = useState<string | null>(null);
   const [isSavingMultiplayerAnalytics, setIsSavingMultiplayerAnalytics] = useState(false);
 
+  // Categories is a fixed-screen experience on every device.
+  // Lock the document while this page is mounted so browser/body scrolling can
+  // never compete with the intentionally scrollable inner result/mastery panes.
+  useEffect(() => {
+    const body = document.body;
+    const html = document.documentElement;
+
+    const previousBodyOverflow = body.style.overflow;
+    const previousBodyOverscroll = body.style.overscrollBehavior;
+    const previousBodyHeight = body.style.height;
+    const previousHtmlOverflow = html.style.overflow;
+    const previousHtmlOverscroll = html.style.overscrollBehavior;
+    const previousHtmlHeight = html.style.height;
+
+    body.style.overflow = "hidden";
+    body.style.overscrollBehavior = "none";
+    body.style.height = "100%";
+    html.style.overflow = "hidden";
+    html.style.overscrollBehavior = "none";
+    html.style.height = "100%";
+
+    return () => {
+      body.style.overflow = previousBodyOverflow;
+      body.style.overscrollBehavior = previousBodyOverscroll;
+      body.style.height = previousBodyHeight;
+      html.style.overflow = previousHtmlOverflow;
+      html.style.overscrollBehavior = previousHtmlOverscroll;
+      html.style.height = previousHtmlHeight;
+    };
+  }, []);
+
   const currentCategoryQuestion = categoryQuestions[categoryQuestionIndex];
   const currentMultiplayerQuestion =
     multiplayerQuestions[multiplayerQuestionIndex];
@@ -3576,8 +3607,134 @@ export default function MiloCategoriesPage() {
 
       <style jsx global>{`
         .categories-page {
-          min-height: 100dvh;
-          overflow-x: hidden;
+          position: fixed;
+          inset: 0;
+          display: flex;
+          width: 100%;
+          height: 100vh;
+          height: 100dvh;
+          min-height: 0;
+          flex-direction: column;
+          overflow: hidden;
+          overscroll-behavior: none;
+        }
+
+        .categories-topbar {
+          min-height: 52px;
+          flex: 0 0 auto;
+          padding-top: max(6px, env(safe-area-inset-top));
+          padding-right: max(14px, env(safe-area-inset-right));
+          padding-bottom: 6px;
+          padding-left: max(14px, env(safe-area-inset-left));
+        }
+
+        .categories-back-button {
+          height: 38px;
+        }
+
+        .categories-viewport {
+          min-height: 0;
+          flex: 1 1 0;
+          overflow: hidden;
+          padding: 6px max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+        }
+
+        .categories-shell {
+          width: min(1080px, 100%);
+          height: 100%;
+          min-height: 0;
+          flex: 1 1 auto;
+        }
+
+        .categories-hero {
+          display: flex;
+          min-height: 0;
+          flex: 0 0 auto;
+          align-items: center;
+          gap: 18px;
+          padding: 12px 20px;
+        }
+
+        .categories-hero-heading {
+          display: flex;
+          min-width: max-content;
+          align-items: baseline;
+          gap: 11px;
+        }
+
+        .categories-hero-heading > p {
+          font-size: 9px;
+          letter-spacing: 0.14em;
+        }
+
+        .categories-title {
+          margin-top: 0;
+          font-size: clamp(30px, 4vw, 48px);
+          line-height: 1;
+        }
+
+        .categories-hero-description {
+          margin-top: 0;
+          max-width: 330px;
+          flex: 1 1 280px;
+          font-size: 12px;
+          line-height: 1.4;
+        }
+
+        .categories-overview-stats {
+          width: min(380px, 38vw);
+          max-width: none;
+          flex: 0 1 380px;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 6px;
+          margin-top: 0;
+        }
+
+        .categories-overview-stats > div {
+          min-width: 0;
+          border-radius: 12px;
+          padding: 8px 10px;
+        }
+
+        .categories-overview-stats > div > p:first-child {
+          font-size: 8px;
+          letter-spacing: 0.11em;
+        }
+
+        .categories-overview-stats > div > p:last-child {
+          margin-top: 2px;
+          overflow: hidden;
+          font-size: 12px;
+          line-height: 1.15;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .categories-page--quiz .categories-hero {
+          display: none;
+        }
+
+        .categories-content {
+          min-height: 0;
+          flex: 1 1 0;
+          overflow: hidden;
+          padding: 12px;
+        }
+
+        .categories-page--quiz .categories-content {
+          padding: 8px;
+        }
+
+        .categories-stage-card {
+          height: 100%;
+          min-height: 0;
+          overflow: hidden;
+          padding: 16px;
+        }
+
+        .stage-fill {
+          min-height: 0;
+          overflow: hidden;
         }
 
         .categories-back-short {
@@ -3601,6 +3758,148 @@ export default function MiloCategoriesPage() {
         .quiz-option-text {
           min-width: 0;
           line-height: 1.35;
+        }
+
+        /* Keep selection/setup stages inside the fixed viewport on laptops and desktops. */
+        .mode-grid {
+          min-height: 0;
+          margin-top: 12px;
+          gap: 10px;
+        }
+
+        .mode-card {
+          min-height: 0;
+          padding: clamp(14px, 2vh, 22px);
+        }
+
+        .reward-rules {
+          margin-top: 10px;
+          padding: 12px 14px;
+        }
+
+        .reward-rules-grid {
+          margin-top: 6px;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 3px 16px;
+          font-size: 11px;
+          line-height: 1.35;
+        }
+
+        .stage-header {
+          margin-top: 12px;
+        }
+
+        .category-grid {
+          min-height: 0;
+          margin-top: 10px;
+          gap: 9px;
+        }
+
+        .category-card {
+          min-height: 0 !important;
+          height: 100%;
+        }
+
+        .category-card > span.relative {
+          min-height: 0 !important;
+          height: 100%;
+          padding: clamp(12px, 1.8vh, 20px);
+        }
+
+        .adaptive-mode-grid {
+          margin-top: 8px;
+          gap: 7px;
+        }
+
+        .adaptive-mode-card {
+          min-height: 48px;
+          padding: 8px 10px;
+        }
+
+        .category-grid + .primary-action,
+        .stage-fill > .primary-action {
+          margin-top: 9px;
+        }
+
+        .primary-action,
+        .secondary-action {
+          min-height: 42px;
+          padding-top: 10px;
+          padding-bottom: 10px;
+        }
+
+        @media (max-width: 1180px) {
+          .categories-hero-description {
+            display: none;
+          }
+
+          .categories-overview-stats {
+            margin-left: auto;
+          }
+        }
+
+        @media (max-height: 760px) and (min-width: 1025px) {
+          .categories-topbar {
+            min-height: 46px;
+            padding-top: max(4px, env(safe-area-inset-top));
+            padding-bottom: 4px;
+          }
+
+          .categories-back-button {
+            height: 34px;
+          }
+
+          .categories-hero {
+            padding-top: 8px;
+            padding-bottom: 8px;
+          }
+
+          .categories-title {
+            font-size: 30px;
+          }
+
+          .categories-hero-description {
+            display: none;
+          }
+
+          .categories-overview-stats > div {
+            padding: 6px 8px;
+          }
+
+          .categories-content {
+            padding: 8px;
+          }
+
+          .categories-stage-card {
+            border-radius: 18px;
+            padding: 12px;
+          }
+
+          .mode-title {
+            font-size: 20px;
+          }
+
+          .mode-description {
+            margin-top: 5px;
+            font-size: 11px;
+            line-height: 1.4;
+          }
+
+          .reward-rules {
+            padding: 9px 11px;
+          }
+
+          .category-description {
+            display: none;
+          }
+
+          .selected-pill {
+            margin-top: 6px;
+          }
+
+          .adaptive-mode-description {
+            display: none;
+          }
         }
 
         @media (orientation: landscape) {
@@ -3639,11 +3938,7 @@ export default function MiloCategoriesPage() {
 
         @media (max-width: 1024px), (hover: none) and (pointer: coarse) {
           .categories-page {
-            display: flex;
             height: 100dvh;
-            min-height: 100dvh;
-            flex-direction: column;
-            overflow: hidden;
           }
 
           .categories-topbar {
