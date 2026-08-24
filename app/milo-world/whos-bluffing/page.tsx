@@ -9,6 +9,9 @@ type LobbyStatus = "lobby" | "submitting" | "voting" | "results" | "finished";
 type ScreenMode = "desktop" | "tablet" | "mobile";
 type RoundCount = 5 | 10 | 20;
 
+const BLUFF_SUBMIT_SECONDS = 25;
+const BLUFF_VOTE_SECONDS = 15;
+
 type Lobby = {
   id: string;
   room_code: string;
@@ -253,6 +256,22 @@ export default function WhosBluffingPage() {
       void finishVotingAndScore();
     }
   }, [lobby?.status, submitSecondsLeft, voteSecondsLeft, nowTick]);
+
+  useEffect(() => {
+    if (!lobby) return;
+    if (lobby.status !== "submitting") return;
+    if (players.length < 2) return;
+
+    if (answers.length >= players.length) {
+      void moveToVoting();
+    }
+  }, [
+    lobby?.status,
+    lobby?.id,
+    lobby?.current_round,
+    answers.length,
+    players.length,
+  ]);
 
   useEffect(() => {
     if (!lobby) return;
@@ -529,7 +548,7 @@ export default function WhosBluffingPage() {
         status: "submitting",
         current_round: nextRound,
         current_question_id: selectedQuestion.id,
-        submit_ends_at: new Date(Date.now() + 20_000).toISOString(),
+        submit_ends_at: new Date(Date.now() + BLUFF_SUBMIT_SECONDS * 1000).toISOString(),
         vote_ends_at: null,
         scoring_applied: false,
         updated_at: new Date().toISOString(),
@@ -584,7 +603,7 @@ export default function WhosBluffingPage() {
       .from("milo_bluff_lobbies")
       .update({
         status: "voting",
-        vote_ends_at: new Date(Date.now() + 20_000).toISOString(),
+        vote_ends_at: new Date(Date.now() + BLUFF_VOTE_SECONDS * 1000).toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq("id", lobby.id)
@@ -860,6 +879,40 @@ export default function WhosBluffingPage() {
               Create fake answers, spot the real one, and fool the room. Designed
               for 2 to 10 players.
             </p>
+
+            <div
+              style={{
+                marginTop: "18px",
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "8px",
+              }}
+            >
+              {[
+                `Write a bluff · ${BLUFF_SUBMIT_SECONDS}s`,
+                `Vote · ${BLUFF_VOTE_SECONDS}s`,
+                "Find the truth · +200",
+                "Fool a player · +100",
+              ].map((item) => (
+                <span
+                  key={item}
+                  style={{
+                    minHeight: "32px",
+                    borderRadius: "999px",
+                    border: "1px solid rgba(255,209,138,0.2)",
+                    background: "rgba(255,209,138,0.08)",
+                    color: "rgba(255,255,255,0.76)",
+                    padding: "7px 11px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    fontSize: isMobile ? "11px" : "12px",
+                    fontWeight: 800,
+                  }}
+                >
+                  {item}
+                </span>
+              ))}
+            </div>
           </div>
 
           {!lobby && (
@@ -1135,7 +1188,9 @@ export default function WhosBluffingPage() {
                       }}
                     >
                       Share the lobby code. The host can start once there are at
-                      least 2 players.
+                      least 2 players. When everyone submits a bluff or vote, the
+                      game moves on immediately instead of making the room wait for
+                      the timer.
                     </p>
 
                     {isHost ? (
