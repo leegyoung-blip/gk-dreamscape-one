@@ -1575,6 +1575,310 @@ export default function Home() {
             </div>
           </section>
 
+
+          <section
+            id="pricing-preview"
+            aria-labelledby="pricing-preview-heading"
+            style={{
+              marginTop: isMobile ? "86px" : "116px",
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+              scrollMarginTop: isMobile ? "92px" : "108px",
+            }}
+          >
+            <p
+              style={{
+                margin: 0,
+                color: "#8ee8ff",
+                fontSize: "12px",
+                fontWeight: 900,
+                letterSpacing: "0.22em",
+                textTransform: "uppercase",
+              }}
+            >
+              Student Access
+            </p>
+
+            <h2
+              id="pricing-preview-heading"
+              style={{
+                margin: "18px 0 0",
+                maxWidth: "980px",
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontSize: isMobile ? "41px" : "62px",
+                fontWeight: 400,
+                lineHeight: 1.07,
+                color: "white",
+              }}
+            >
+              Start with 7 days free.
+            </h2>
+
+            <p
+              style={{
+                margin: "22px 0 0",
+                maxWidth: "820px",
+                color: "rgba(255,255,255,0.7)",
+                fontSize: isMobile ? "16px" : "19px",
+                fontWeight: 300,
+                lineHeight: 1.7,
+              }}
+            >
+              Every first-time DREAMSCAPE user can try Student Access free for 7 days. Choose the plan that fits your learner, explore the full experience, and continue only if it works for your family.
+            </p>
+
+            <div
+              style={{
+                marginTop: isMobile ? "30px" : "36px",
+                width: "100%",
+                maxWidth: "980px",
+                padding: isMobile ? "18px 18px" : "20px 26px",
+                display: "flex",
+                flexDirection: isMobile ? "column" : "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: isMobile ? "8px" : "14px",
+                borderRadius: "24px",
+                border: "1px solid rgba(142,232,255,0.28)",
+                background:
+                  "linear-gradient(100deg, rgba(83,215,255,0.11), rgba(197,140,255,0.09) 56%, rgba(255,174,92,0.1))",
+                boxShadow: "0 24px 68px rgba(0,0,0,0.24)",
+              }}
+            >
+              <span
+                style={{
+                  color: "#8ee8ff",
+                  fontSize: isMobile ? "28px" : "32px",
+                  fontWeight: 900,
+                  lineHeight: 1,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                7 DAYS FREE
+              </span>
+              <span
+                aria-hidden="true"
+                style={{
+                  display: isMobile ? "none" : "block",
+                  width: "1px",
+                  height: "30px",
+                  background: "rgba(255,255,255,0.18)",
+                }}
+              />
+              <span
+                style={{
+                  color: "rgba(255,255,255,0.76)",
+                  fontSize: isMobile ? "13px" : "15px",
+                  fontWeight: 700,
+                  lineHeight: 1.5,
+                }}
+              >
+                For all first-time users · One introductory trial per user
+              </span>
+            </div>
+
+            <div
+              style={{
+                marginTop: isMobile ? "28px" : "38px",
+                width: "100%",
+                maxWidth: "1120px",
+                display: "grid",
+                gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+                gap: isMobile ? "18px" : "24px",
+                alignItems: "stretch",
+              }}
+            >
+              <article
+                style={{
+                  minHeight: isMobile ? "auto" : "420px",
+                  padding: isMobile ? "29px 24px" : "36px 34px",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-start",
+                  textAlign: "left",
+                  borderRadius: "28px",
+                  border: "1px solid rgba(197,140,255,0.3)",
+                  background:
+                    "radial-gradient(circle at 12% 0%, rgba(197,140,255,0.12), transparent 34%), linear-gradient(145deg, rgba(255,255,255,0.065), rgba(255,255,255,0.018))",
+                  boxShadow: "0 26px 68px rgba(0,0,0,0.28)",
+                }}
+              >
+                <p
+                  style={{
+                    margin: 0,
+                    color: "#c58cff",
+                    fontSize: "11px",
+                    fontWeight: 900,
+                    letterSpacing: "0.18em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  English + Mathematics
+                </p>
+                <h3 style={{ margin: "14px 0 0", color: "white", fontSize: isMobile ? "30px" : "34px", fontWeight: 800 }}>
+                  Core Missions
+                </h3>
+                <div style={{ marginTop: "21px", display: "flex", alignItems: "flex-end", gap: "8px" }}>
+                  <span style={{ color: "rgba(255,255,255,0.54)", fontSize: "15px", paddingBottom: "6px" }}>SGD</span>
+                  <span style={{ color: "white", fontSize: isMobile ? "43px" : "49px", fontWeight: 900, lineHeight: 1 }}>19.90</span>
+                  <span style={{ color: "rgba(255,255,255,0.52)", fontSize: "14px", paddingBottom: "6px" }}>/month</span>
+                </div>
+                <p style={{ margin: "8px 0 0", color: "#8ee8ff", fontSize: "13px", fontWeight: 800 }}>
+                  First 7 days free for new users
+                </p>
+
+                <div
+                  style={{
+                    marginTop: "25px",
+                    paddingTop: "23px",
+                    width: "100%",
+                    borderTop: "1px solid rgba(255,255,255,0.1)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "13px",
+                    flex: 1,
+                  }}
+                >
+                  {["Primary 1–6 English", "Primary 1–6 Mathematics", "Think Missions & Knowledge Arena", "Progress insights, DT & DG rewards"].map((feature) => (
+                    <div key={feature} style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                      <span aria-hidden="true" style={{ color: "#c58cff", fontWeight: 900 }}>✓</span>
+                      <span style={{ color: "rgba(255,255,255,0.75)", fontSize: "15px", lineHeight: 1.5 }}>{feature}</span>
+                    </div>
+                  ))}
+                </div>
+              </article>
+
+              <article
+                style={{
+                  position: "relative",
+                  minHeight: isMobile ? "auto" : "420px",
+                  padding: isMobile ? "29px 24px" : "36px 34px",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-start",
+                  textAlign: "left",
+                  borderRadius: "28px",
+                  border: "1px solid rgba(255,174,92,0.72)",
+                  background:
+                    "radial-gradient(circle at 88% 0%, rgba(255,174,92,0.16), transparent 34%), linear-gradient(145deg, rgba(255,255,255,0.085), rgba(255,255,255,0.022))",
+                  boxShadow: "0 28px 78px rgba(0,0,0,0.32), 0 0 32px rgba(255,174,92,0.08)",
+                }}
+              >
+                <span
+                  style={{
+                    position: "absolute",
+                    top: "18px",
+                    right: "18px",
+                    padding: "7px 11px",
+                    borderRadius: "999px",
+                    background: "#ffae5c",
+                    color: "#1b0c26",
+                    fontSize: "9px",
+                    fontWeight: 900,
+                    letterSpacing: "0.1em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Best Value
+                </span>
+                <p
+                  style={{
+                    margin: 0,
+                    paddingRight: "96px",
+                    color: "#ffbd73",
+                    fontSize: "11px",
+                    fontWeight: 900,
+                    letterSpacing: "0.18em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  English + Mathematics + Science
+                </p>
+                <h3 style={{ margin: "14px 0 0", color: "white", fontSize: isMobile ? "30px" : "34px", fontWeight: 800 }}>
+                  Full Access
+                </h3>
+                <div style={{ marginTop: "21px", display: "flex", alignItems: "flex-end", gap: "8px" }}>
+                  <span style={{ color: "rgba(255,255,255,0.54)", fontSize: "15px", paddingBottom: "6px" }}>SGD</span>
+                  <span style={{ color: "white", fontSize: isMobile ? "43px" : "49px", fontWeight: 900, lineHeight: 1 }}>24.90</span>
+                  <span style={{ color: "rgba(255,255,255,0.52)", fontSize: "14px", paddingBottom: "6px" }}>/month</span>
+                </div>
+                <p style={{ margin: "8px 0 0", color: "#8ee8ff", fontSize: "13px", fontWeight: 800 }}>
+                  First 7 days free for new users
+                </p>
+
+                <div
+                  style={{
+                    marginTop: "25px",
+                    paddingTop: "23px",
+                    width: "100%",
+                    borderTop: "1px solid rgba(255,255,255,0.1)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "13px",
+                    flex: 1,
+                  }}
+                >
+                  {["Everything in Core Missions", "Primary 1–6 Science", "Complete three-subject Learning Missions", "Science progress & mastery tracking"].map((feature) => (
+                    <div key={feature} style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                      <span aria-hidden="true" style={{ color: "#ffbd73", fontWeight: 900 }}>✓</span>
+                      <span style={{ color: "rgba(255,255,255,0.78)", fontSize: "15px", lineHeight: 1.5 }}>{feature}</span>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            </div>
+
+            <p
+              style={{
+                margin: "20px 0 0",
+                color: "rgba(255,255,255,0.48)",
+                fontSize: "12px",
+                fontWeight: 600,
+                lineHeight: 1.6,
+              }}
+            >
+              Monthly prices shown. Annual plans and additional plan details are available on the pricing page.
+            </p>
+
+            <Link
+              href="/pricing"
+              style={{
+                marginTop: "28px",
+                minHeight: "56px",
+                padding: "14px 26px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: "999px",
+                background: "linear-gradient(90deg, #8ee8ff, #c58cff 58%, #ffae5c)",
+                color: "#160729",
+                textDecoration: "none",
+                fontSize: "12px",
+                fontWeight: 900,
+                letterSpacing: "0.09em",
+                textTransform: "uppercase",
+                boxShadow: "0 18px 44px rgba(83,215,255,0.12)",
+              }}
+            >
+              Start Your 7-Day Free Trial →
+            </Link>
+
+            <p
+              style={{
+                margin: "14px 0 0",
+                maxWidth: "720px",
+                color: "rgba(255,255,255,0.42)",
+                fontSize: "11px",
+                lineHeight: 1.6,
+              }}
+            >
+              Introductory trial is available once per first-time user. Subscription terms and billing details are shown before checkout.
+            </p>
+          </section>
+
           <button
             type="button"
             onClick={() => scrollToSection("home")}

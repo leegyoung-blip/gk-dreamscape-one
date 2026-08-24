@@ -14,6 +14,8 @@ const STAFF_CHECKOUT_ROLES = new Set([
   "curriculum_lead",
 ]);
 
+const STANDARD_TRIAL_DAYS = 7;
+
 function normaliseRole(role: string | null | undefined) {
   return String(role || "")
     .trim()
@@ -178,6 +180,16 @@ const comparisonRows = [
 
 const faqItems = [
   {
+    question: "How does the 7-day free trial work?",
+    answer:
+      `All first-time Dreamscape users can start an eligible Core Missions or Full Access subscription with ${STANDARD_TRIAL_DAYS} days free. The trial applies to both monthly and annual billing. Your selected paid subscription begins after the trial unless it is cancelled before the trial ends. The introductory trial may be redeemed once per eligible first-time user.`,
+  },
+  {
+    question: "Does the 7-day trial also apply to Guru Kids Pro students?",
+    answer:
+      "The Guru Kids Pro student promotion is a separate introductory offer. Eligible new GKP students receive one month of Full Dreamscape Student Access after completing one full month of an eligible GKP class. The GKP offer cannot be combined with another introductory Dreamscape promotion unless Guru Kids Pro agrees in writing.",
+  },
+  {
     question: "Who should purchase a student plan?",
     answer:
       "A parent or guardian should purchase or authorise paid access for users below 18. The learner may still use their own supervised account.",
@@ -190,7 +202,7 @@ const faqItems = [
   {
     question: "What does the annual option mean?",
     answer:
-      "Annual access is paid upfront for a 12-month subscription. The annual prices shown are lower than paying the equivalent monthly plan for 12 months.",
+      "Annual access is paid upfront for a 12-month subscription after the 7-day free trial. The annual prices shown are lower than paying the equivalent monthly plan for 12 months.",
   },
   {
     question: "What is Nova+?",
@@ -210,7 +222,7 @@ const faqItems = [
   {
     question: "How are payments processed?",
     answer:
-      "Public Dreamscape subscriptions are processed securely by Stripe. Stripe handles the recurring subscription payment and displays the available payment methods during checkout. GKP student add-ons are separate and continue to be handled through normal Guru Kids Pro class billing.",
+      "Public Dreamscape subscriptions are processed securely by Stripe. Checkout will show the selected plan, billing cycle, trial terms, first billing date, and available payment methods before confirmation. GKP student add-ons are separate and continue to be handled through normal Guru Kids Pro class billing.",
   },
 ];
 
@@ -572,7 +584,7 @@ export default function PricingPage() {
             lineHeight: 1.04,
           }}
         >
-          Choose the right Dreamscape plan.
+          Start with 7 days free.
         </h1>
 
         <p
@@ -585,14 +597,49 @@ export default function PricingPage() {
             lineHeight: 1.7,
           }}
         >
-          Build consistent learning across English, Mathematics, and Science
-          with structured missions, meaningful progress, rewards, and a clear
-          path toward Nova’s future personalised learning intelligence.
+          Every first-time Dreamscape user can begin with a 7-day free trial
+          on Core Missions or Full Access, whether you choose monthly or annual
+          billing. Explore the learning world first, then continue only if it
+          is right for your family.
         </p>
 
         <div
           style={{
-            margin: "36px auto 0",
+            margin: "30px auto 0",
+            maxWidth: "860px",
+            display: "flex",
+            flexWrap: "wrap",
+            justifyContent: "center",
+            gap: "10px",
+          }}
+        >
+          {[
+            "7 days free",
+            "Monthly or annual",
+            "First-time users",
+            "Cancel before the trial ends",
+          ].map((item) => (
+            <span
+              key={item}
+              style={{
+                padding: "10px 14px",
+                borderRadius: "999px",
+                border: "1px solid rgba(142,232,255,0.22)",
+                background: "rgba(255,255,255,0.045)",
+                color: "rgba(255,255,255,0.82)",
+                fontSize: isMobile ? "11px" : "12px",
+                fontWeight: 800,
+                lineHeight: 1.25,
+              }}
+            >
+              {item}
+            </span>
+          ))}
+        </div>
+
+        <div
+          style={{
+            margin: "30px auto 0",
             width: isMobile ? "100%" : "fit-content",
             maxWidth: "680px",
             padding: "6px",
@@ -670,7 +717,8 @@ export default function PricingPage() {
           >
             <strong style={{ color: "#8ee8ff" }}>Public Preview:</strong>{" "}
             Free activity zones are available now. Student Access subscriptions
-            open on 1 October.
+            open on 1 October, with a 7-day free trial for first-time users on
+            Core Missions and Full Access.
           </div>
         )}
 
@@ -847,6 +895,46 @@ export default function PricingPage() {
                   </p>
                 )}
 
+                {!plan.comingSoon && (
+                  <div
+                    style={{
+                      marginTop: "20px",
+                      padding: "15px 16px",
+                      borderRadius: "17px",
+                      border: `1px solid ${plan.accent}3d`,
+                      background: plan.featured
+                        ? "linear-gradient(90deg, rgba(255,174,92,0.12), rgba(197,140,255,0.08))"
+                        : "linear-gradient(90deg, rgba(83,215,255,0.1), rgba(197,140,255,0.07))",
+                    }}
+                  >
+                    <p
+                      style={{
+                        margin: 0,
+                        color: plan.featured ? "#ffcb92" : "#8ee8ff",
+                        fontSize: "11px",
+                        fontWeight: 900,
+                        letterSpacing: "0.13em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      First 7 days free
+                    </p>
+                    <p
+                      style={{
+                        margin: "7px 0 0",
+                        color: "rgba(255,255,255,0.66)",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      For first-time Dreamscape users. Your {regularBillingCycle}
+                      subscription begins after the trial unless cancelled before
+                      the trial ends.
+                    </p>
+                  </div>
+                )}
+
                 <p
                   style={{
                     margin: "24px 0 0",
@@ -965,7 +1053,9 @@ export default function PricingPage() {
                       ? "Nova+ Coming Soon"
                       : checkoutAccessLoading
                         ? "Checking access..."
-                        : `Choose ${plan.name}`}
+                        : publicPreviewActive
+                          ? `Choose ${plan.name}`
+                          : `Start 7-Day Free Trial`}
                   </span>
 
                   <span
@@ -999,7 +1089,7 @@ export default function PricingPage() {
                       textAlign: "center",
                     }}
                   >
-                    Secure recurring checkout powered by Stripe
+                    7-day introductory trial · Secure recurring checkout powered by Stripe
                   </p>
                 )}
               </article>
@@ -1086,6 +1176,7 @@ export default function PricingPage() {
                   "Primary English or Mathematics only",
                   "Complete one full month at GKP",
                   "One free month of Full Access",
+                  "Separate from the standard 7-day trial",
                 ].map((item) => (
                   <span
                     key={item}
@@ -1610,10 +1701,11 @@ export default function PricingPage() {
             }}
           >
             All prices are in Singapore dollars. Public Dreamscape
-            subscription payments are processed securely by Stripe. Prices and
-            plan details are shown for preview during the Dreamscape One trial
-            phase, and purchases and rewards remain subject to the applicable
-            Terms & Conditions.
+            subscription payments are processed securely by Stripe. The 7-day
+            introductory trial is available once to eligible first-time users
+            on Core Missions and Full Access. Prices and plan details are shown
+            during the Dreamscape One public preview period, and subscriptions,
+            trials and rewards remain subject to the applicable Terms & Conditions.
           </p>
 
           <div
@@ -1952,7 +2044,10 @@ export default function PricingPage() {
               }}
             >
               Free activity zones are open now. Public Student Access
-              subscriptions open on 1 October. Authorised staff accounts can continue testing the secure Stripe subscription flow during the preview.
+              subscriptions open on 1 October, with 7 days free for first-time
+              users on Core Missions and Full Access. Authorised staff accounts
+              can continue testing the secure Stripe subscription flow during
+              the preview.
             </p>
 
             <div
@@ -2017,7 +2112,7 @@ export default function PricingPage() {
                 lineHeight: 1.6,
               }}
             >
-              Staff testing access remains available to authorised admin, teacher and curriculum lead accounts.
+              Staff testing access remains available to authorised admin, teacher and curriculum lead accounts. Trial billing will be activated in the Stripe checkout setup step.
             </p>
           </div>
         </div>
