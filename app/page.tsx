@@ -995,7 +995,16 @@ export default function Home() {
               textAlign: "center",
             }}
           >
-            <p style={{ margin: 0, color: "#53d7ff", fontSize: "13px", fontWeight: 800, letterSpacing: "0.26em", textTransform: "uppercase" }}>
+            <p
+              style={{
+                margin: 0,
+                color: "#53d7ff",
+                fontSize: "13px",
+                fontWeight: 800,
+                letterSpacing: "0.26em",
+                textTransform: "uppercase",
+              }}
+            >
               One Connected Ecosystem
             </p>
 
@@ -1014,37 +1023,20 @@ export default function Home() {
               A learning world that grows with them.
             </h2>
 
-            <p style={{ margin: "23px 0 0", maxWidth: "780px", color: "rgba(255,255,255,0.68)", fontSize: isMobile ? "17px" : "19px", fontWeight: 300, lineHeight: 1.68 }}>
-              Start with curriculum mastery in Nova, then continue into real-world capability with Milo as learners get older.
-            </p>
-
-            <div
+            <p
               style={{
-                marginTop: "46px",
-                width: "100%",
-                display: "grid",
-                gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.25fr) minmax(0, 0.75fr)",
-                gap: isMobile ? "24px" : "30px",
-                alignItems: "stretch",
+                margin: "23px 0 0",
+                maxWidth: "840px",
+                color: "rgba(255,255,255,0.68)",
+                fontSize: isMobile ? "17px" : "19px",
+                fontWeight: 300,
+                lineHeight: 1.68,
               }}
             >
-              <AboutCard
-                imageSrc="/nova/nova-character.png"
-                title="Nova’s World"
-                audience="Ages 6–12"
-                items={["English", "Mathematics", "Science", "Thinking Skills"]}
-                footer="The learning adventure begins here."
-                featured
-              />
+              From school mastery to real-world capability — one world that evolves as they grow.
+            </p>
 
-              <AboutCard
-                imageSrc="/milo-world/milo-character.png"
-                title="Milo’s World"
-                audience="Ages 13+"
-                items={["Financial Literacy", "Business", "Entrepreneurship", "Decision Making"]}
-                footer="Turn learning into real-world capability."
-              />
-            </div>
+            <GrowthJourney isMobile={isMobile} />
           </section>
 
           <section
@@ -1363,88 +1355,472 @@ function TrustCard({
   );
 }
 
-function AboutCard({
+function GrowthJourney({ isMobile }: { isMobile: boolean }) {
+  const novaSkills = ["English", "Mathematics", "Science", "Thinking Skills"];
+  const miloSkills = ["Financial Literacy", "Business", "Entrepreneurship", "Decision Making"];
+
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        marginTop: isMobile ? "38px" : "52px",
+        width: "100%",
+        overflow: "hidden",
+        borderRadius: isMobile ? "28px" : "36px",
+        border: "1px solid rgba(255,255,255,0.12)",
+        background: isMobile
+          ? "linear-gradient(180deg, rgba(5,28,45,0.92) 0%, rgba(4,12,25,0.96) 46%, rgba(24,12,43,0.94) 100%)"
+          : "linear-gradient(100deg, rgba(5,31,49,0.92) 0%, rgba(4,13,27,0.96) 54%, rgba(29,14,49,0.94) 100%)",
+        boxShadow:
+          "0 34px 88px rgba(0,0,0,0.36), inset 0 0 44px rgba(83,215,255,0.025)",
+      }}
+    >
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          inset: 0,
+          pointerEvents: "none",
+          background: isMobile
+            ? "radial-gradient(circle at 50% 10%, rgba(83,215,255,0.16), transparent 31%), radial-gradient(circle at 50% 92%, rgba(197,140,255,0.16), transparent 33%)"
+            : "radial-gradient(circle at 13% 50%, rgba(83,215,255,0.17), transparent 27%), radial-gradient(circle at 89% 48%, rgba(197,140,255,0.17), transparent 28%)",
+        }}
+      />
+
+      {isMobile ? (
+        <div
+          style={{
+            position: "relative",
+            zIndex: 2,
+            padding: "38px 20px 40px",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+          }}
+        >
+          <JourneyWorld
+            world="nova"
+            imageSrc="/nova/nova-character.png"
+            audience="Ages 6–12"
+            title="Nova’s World"
+            skills={novaSkills}
+            summary="Build strong academic foundations through missions, rewards and play."
+            footer="Learn · Earn · Build"
+            isMobile
+          />
+
+          <div
+            aria-label="Progression from Nova to Milo"
+            style={{
+              width: "100%",
+              maxWidth: "340px",
+              padding: "30px 0 28px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
+            <div
+              aria-hidden="true"
+              style={{
+                width: "2px",
+                height: "50px",
+                background: "linear-gradient(180deg, #53d7ff, #9ba8ff)",
+                boxShadow: "0 0 18px rgba(83,215,255,0.42)",
+              }}
+            />
+
+            <div
+              style={{
+                margin: "12px 0",
+                padding: "10px 16px",
+                borderRadius: "999px",
+                border: "1px solid rgba(176,177,255,0.34)",
+                background: "rgba(6,11,25,0.82)",
+                color: "white",
+                fontSize: "11px",
+                fontWeight: 900,
+                letterSpacing: "0.16em",
+                textTransform: "uppercase",
+              }}
+            >
+              Grows With Them
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              {["Foundations", "Independence", "Real-World Skills"].map((stage, index) => (
+                <div key={stage} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
+                  <span
+                    style={{
+                      color: index === 0 ? "#8ee8ff" : index === 1 ? "#b5bdff" : "#d5b5ff",
+                      fontSize: "11px",
+                      fontWeight: 900,
+                      letterSpacing: "0.12em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {stage}
+                  </span>
+                  {index < 2 && (
+                    <span aria-hidden="true" style={{ color: "rgba(255,255,255,0.38)", fontSize: "16px" }}>
+                      ↓
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <p
+              style={{
+                margin: "16px 0 0",
+                color: "rgba(255,255,255,0.62)",
+                fontSize: "13px",
+                fontWeight: 600,
+                lineHeight: 1.5,
+              }}
+            >
+              School mastery develops into real-world capability.
+            </p>
+
+            <div
+              aria-hidden="true"
+              style={{
+                marginTop: "14px",
+                width: "2px",
+                height: "50px",
+                background: "linear-gradient(180deg, #9ba8ff, #c58cff)",
+                boxShadow: "0 0 18px rgba(197,140,255,0.35)",
+              }}
+            />
+            <span aria-hidden="true" style={{ marginTop: "-6px", color: "#c58cff", fontSize: "24px", lineHeight: 1 }}>
+              ↓
+            </span>
+          </div>
+
+          <JourneyWorld
+            world="milo"
+            imageSrc="/milo-world/milo-character.png"
+            audience="Ages 13+"
+            title="Milo’s World"
+            skills={miloSkills}
+            summary="Apply what you’ve learned to money, business and real-world choices."
+            footer="Money · Business · Create"
+            isMobile
+          />
+        </div>
+      ) : (
+        <div
+          style={{
+            position: "relative",
+            zIndex: 2,
+            minHeight: "520px",
+            padding: "48px 46px",
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1.08fr) minmax(230px, 0.38fr) minmax(0, 0.82fr)",
+            gap: "28px",
+            alignItems: "center",
+          }}
+        >
+          <JourneyWorld
+            world="nova"
+            imageSrc="/nova/nova-character.png"
+            audience="Ages 6–12"
+            title="Nova’s World"
+            skills={novaSkills}
+            summary="Build strong academic foundations through missions, rewards and play."
+            footer="Learn · Earn · Build"
+          />
+
+          <div
+            aria-label="Progression from Nova to Milo"
+            style={{
+              position: "relative",
+              alignSelf: "stretch",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              minWidth: 0,
+            }}
+          >
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: "-42px",
+                right: "-42px",
+                height: "2px",
+                transform: "translateY(-50%)",
+                background: "linear-gradient(90deg, #53d7ff 0%, #9ba8ff 50%, #c58cff 100%)",
+                boxShadow: "0 0 22px rgba(119,188,255,0.38)",
+              }}
+            />
+
+            <div
+              style={{
+                position: "relative",
+                zIndex: 2,
+                width: "100%",
+                minHeight: "310px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <div
+                style={{
+                  padding: "11px 17px",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(176,177,255,0.34)",
+                  background: "rgba(5,11,25,0.92)",
+                  boxShadow: "0 14px 32px rgba(0,0,0,0.28)",
+                  color: "white",
+                  fontSize: "11px",
+                  fontWeight: 900,
+                  letterSpacing: "0.15em",
+                  textTransform: "uppercase",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Grows With Them
+              </div>
+
+              <div
+                style={{
+                  marginTop: "24px",
+                  width: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "12px",
+                  alignItems: "center",
+                }}
+              >
+                {["Foundations", "Independence", "Real-World Skills"].map((stage, index) => (
+                  <div
+                    key={stage}
+                    style={{
+                      width: "100%",
+                      maxWidth: "195px",
+                      padding: "9px 10px",
+                      borderRadius: "12px",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      background: "rgba(3,9,21,0.72)",
+                      color: index === 0 ? "#8ee8ff" : index === 1 ? "#b5bdff" : "#d5b5ff",
+                      fontSize: "10px",
+                      fontWeight: 900,
+                      letterSpacing: "0.11em",
+                      textTransform: "uppercase",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {stage}
+                  </div>
+                ))}
+              </div>
+
+              <p
+                style={{
+                  margin: "24px 0 0",
+                  maxWidth: "220px",
+                  color: "rgba(255,255,255,0.62)",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  lineHeight: 1.5,
+                }}
+              >
+                School mastery develops into real-world capability.
+              </p>
+
+              <span
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  right: "-50px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: "#c58cff",
+                  fontSize: "34px",
+                  textShadow: "0 0 20px rgba(197,140,255,0.5)",
+                }}
+              >
+                →
+              </span>
+            </div>
+          </div>
+
+          <JourneyWorld
+            world="milo"
+            imageSrc="/milo-world/milo-character.png"
+            audience="Ages 13+"
+            title="Milo’s World"
+            skills={miloSkills}
+            summary="Apply what you’ve learned to money, business and real-world choices."
+            footer="Money · Business · Create"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function JourneyWorld({
+  world,
   imageSrc,
-  title,
   audience,
-  items,
+  title,
+  skills,
+  summary,
   footer,
-  featured = false,
+  isMobile = false,
 }: {
+  world: "nova" | "milo";
   imageSrc: string;
-  title: string;
   audience: string;
-  items: string[];
+  title: string;
+  skills: string[];
+  summary: string;
   footer: string;
-  featured?: boolean;
+  isMobile?: boolean;
 }) {
+  const isNova = world === "nova";
+
   return (
     <article
       style={{
-        minHeight: featured ? "430px" : "410px",
+        position: "relative",
+        width: "100%",
+        minWidth: 0,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         textAlign: "center",
-        borderRadius: "28px",
-        padding: featured ? "44px 42px 40px" : "40px 34px 36px",
-        border: featured ? "1px solid rgba(83,215,255,0.5)" : "1px solid rgba(197,140,255,0.34)",
-        background: featured
-          ? "radial-gradient(circle at 50% 0%, rgba(83,215,255,0.13), transparent 34%), linear-gradient(145deg, rgba(10,27,48,0.78), rgba(2,8,19,0.78))"
-          : "radial-gradient(circle at 50% 0%, rgba(197,140,255,0.12), transparent 34%), linear-gradient(145deg, rgba(20,14,42,0.78), rgba(2,8,19,0.78))",
-        boxShadow: featured ? "0 30px 76px rgba(0,0,0,0.42), 0 0 36px rgba(83,215,255,0.08)" : "0 26px 66px rgba(0,0,0,0.36)",
+        padding: isMobile ? "6px 4px" : isNova ? "8px 18px 8px 4px" : "8px 4px 8px 14px",
       }}
     >
       <div
         style={{
-          width: featured ? "150px" : "136px",
-          height: featured ? "150px" : "136px",
+          width: isMobile ? "136px" : isNova ? "158px" : "142px",
+          height: isMobile ? "136px" : isNova ? "158px" : "142px",
           borderRadius: "999px",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          border: featured ? "1px solid rgba(83,215,255,0.5)" : "1px solid rgba(197,140,255,0.38)",
-          background: featured
-            ? "radial-gradient(circle, rgba(83,215,255,0.18), rgba(2,8,19,0.82))"
-            : "radial-gradient(circle, rgba(197,140,255,0.16), rgba(2,8,19,0.82))",
+          border: isNova ? "1px solid rgba(83,215,255,0.5)" : "1px solid rgba(197,140,255,0.42)",
+          background: isNova
+            ? "radial-gradient(circle, rgba(83,215,255,0.17), rgba(2,8,19,0.3) 68%, rgba(2,8,19,0.58))"
+            : "radial-gradient(circle, rgba(197,140,255,0.16), rgba(2,8,19,0.3) 68%, rgba(2,8,19,0.58))",
+          boxShadow: isNova
+            ? "0 0 34px rgba(83,215,255,0.12)"
+            : "0 0 32px rgba(197,140,255,0.1)",
           overflow: "hidden",
         }}
       >
-        <img src={imageSrc} alt={title} style={{ width: featured ? "140px" : "126px", height: featured ? "140px" : "126px", objectFit: "contain", display: "block" }} />
+        <img
+          src={imageSrc}
+          alt={title}
+          style={{
+            width: isMobile ? "126px" : isNova ? "148px" : "132px",
+            height: isMobile ? "126px" : isNova ? "148px" : "132px",
+            objectFit: "contain",
+            display: "block",
+            transform: !isNova ? "scale(1.08)" : "none",
+          }}
+        />
       </div>
 
-      <p style={{ margin: "25px 0 0", color: featured ? "#8ee8ff" : "#d5b5ff", fontSize: "13px", fontWeight: 800, letterSpacing: "0.22em", textTransform: "uppercase" }}>
+      <p
+        style={{
+          margin: "22px 0 0",
+          color: isNova ? "#8ee8ff" : "#d5b5ff",
+          fontSize: "12px",
+          fontWeight: 900,
+          letterSpacing: "0.19em",
+          textTransform: "uppercase",
+        }}
+      >
         {audience}
       </p>
-      <h3 style={{ margin: "12px 0 0", fontSize: featured ? "38px" : "34px", fontWeight: 500, lineHeight: 1.2, color: "white" }}>
+
+      <h3
+        style={{
+          margin: "10px 0 0",
+          color: "white",
+          fontFamily: 'Georgia, "Times New Roman", serif',
+          fontSize: isMobile ? "34px" : isNova ? "40px" : "36px",
+          fontWeight: 400,
+          lineHeight: 1.15,
+        }}
+      >
         {title}
       </h3>
 
-      <div style={{ marginTop: "24px", width: "100%", maxWidth: featured ? "500px" : "410px", display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "11px" }}>
-        {items.map((item) => (
+      <p
+        style={{
+          margin: "14px 0 0",
+          maxWidth: isNova ? "520px" : "430px",
+          color: "rgba(255,255,255,0.67)",
+          fontSize: isMobile ? "14px" : "15px",
+          fontWeight: 400,
+          lineHeight: 1.58,
+        }}
+      >
+        {summary}
+      </p>
+
+      <div
+        style={{
+          marginTop: "22px",
+          width: "100%",
+          maxWidth: isNova ? "520px" : "420px",
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gap: "10px",
+        }}
+      >
+        {skills.map((skill) => (
           <div
-            key={item}
+            key={skill}
             style={{
-              minHeight: "50px",
-              padding: "11px 13px",
+              minHeight: isMobile ? "44px" : "48px",
+              padding: isMobile ? "10px 12px" : "11px 14px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               borderRadius: "14px",
-              border: featured ? "1px solid rgba(142,232,255,0.16)" : "1px solid rgba(213,181,255,0.14)",
+              border: isNova ? "1px solid rgba(142,232,255,0.16)" : "1px solid rgba(213,181,255,0.16)",
               background: "rgba(255,255,255,0.045)",
-              color: "rgba(255,255,255,0.88)",
-              fontSize: "14px",
+              color: "rgba(255,255,255,0.9)",
+              fontSize: isMobile ? "13px" : "14px",
               fontWeight: 700,
               lineHeight: 1.3,
+              textAlign: "center",
             }}
           >
-            {item}
+            {skill}
           </div>
         ))}
       </div>
 
-      <p style={{ margin: "24px 0 0", color: "rgba(255,255,255,0.66)", fontSize: "14px", fontWeight: 700, lineHeight: 1.45 }}>
+      <p
+        style={{
+          margin: "22px 0 0",
+          color: isNova ? "#8ee8ff" : "#d5b5ff",
+          fontSize: "11px",
+          fontWeight: 900,
+          letterSpacing: "0.13em",
+          textTransform: "uppercase",
+        }}
+      >
         {footer}
       </p>
     </article>

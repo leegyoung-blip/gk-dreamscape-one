@@ -17,6 +17,7 @@ type CategoryQuizQuestion = {
   topic?: string | null;
   subtopic?: string | null;
   difficulty?: string | number | null;
+  adaptive_difficulty?: number | null;
 };
 
 type SinglePlayerAnswerDraft = {
@@ -44,6 +45,84 @@ type ReviewAnswer = {
   points: number;
 };
 
+type MasterySubtopic = {
+  topic: string;
+  subtopic: string;
+  mastery_percent: number | null;
+  lifetime_accuracy_percent: number | null;
+  recent_accuracy_percent: number | null;
+  recent_average_difficulty: number | null;
+  evidence: number;
+  confidence: "learning" | "low" | "medium" | "high";
+  status: "strong" | "developing" | "needs_practice" | null;
+};
+
+type MasteryTopic = {
+  topic: string;
+  mastery_percent: number | null;
+  evidence: number;
+  tested_subtopics: number;
+  total_subtopics: number;
+};
+
+type MasteryAttempt = {
+  id: string;
+  completed_at: string;
+  accuracy_percent: number;
+  points: number;
+  score_correct: number;
+  question_count: number;
+  duration_seconds?: number;
+};
+
+type CategoryMastery = {
+  category: string;
+  mastery_percent: number | null;
+  tested_topics: number;
+  total_topics: number;
+  tested_subtopics: number;
+  total_subtopics: number;
+  single_quizzes: number;
+  multiplayer_quizzes: number;
+  lifetime_accuracy_percent: number | null;
+  all_mode_accuracy_percent: number | null;
+  answers_recorded: number;
+  best_points: number | null;
+  recent_average_points: number | null;
+  recent_three_accuracy: number | null;
+  previous_three_accuracy: number | null;
+  improvement_pp: number | null;
+  trend: "learning" | "improving" | "steady" | "needs_attention";
+  topics: MasteryTopic[];
+  subtopics: MasterySubtopic[];
+  attempt_series: MasteryAttempt[];
+  attempt_history: MasteryAttempt[];
+};
+
+type HistoricalAnswer = {
+  id: string;
+  question_order: number;
+  topic: string | null;
+  subtopic: string | null;
+  adaptive_difficulty: number;
+  selected_option: "A" | "B" | "C" | "D" | null;
+  correct_option: "A" | "B" | "C" | "D";
+  is_correct: boolean;
+  points: number;
+  response_seconds: number;
+  question_text: string;
+  option_a: string;
+  option_b: string;
+  option_c: string;
+  option_d: string;
+  explanation: string | null;
+};
+
+type HistoricalAttemptDetail = {
+  attempt: MasteryAttempt;
+  answers: HistoricalAnswer[];
+};
+
 type CategoriesStage =
   | "mode"
   | "category"
@@ -51,6 +130,8 @@ type CategoriesStage =
   | "answered"
   | "finished"
   | "results"
+  | "mastery"
+  | "mastery-attempt"
   | "multiplayer-menu"
   | "multiplayer-create"
   | "multiplayer-join"
@@ -268,6 +349,190 @@ function buildMiloQuizSummary(
   return parts.join(" ");
 }
 
+function formatMasteryPercent(value: number | null) {
+  return value === null || Number.isNaN(value) ? "—" : `${Math.round(value)}%`;
+}
+
+function formatMasteryDate(value: string) {
+  try {
+    return new Intl.DateTimeFormat("en-SG", {
+      timeZone: "Asia/Singapore",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+}
+
+function getMasteryStatusLabel(status: MasterySubtopic["status"]) {
+  if (status === "strong") return "Strong";
+  if (status === "developing") return "Developing";
+  if (status === "needs_practice") return "Needs Practice";
+  return "Learning";
+}
+
+function getMasteryStatusClass(status: MasterySubtopic["status"]) {
+  if (status === "strong") return "border-green-300/20 bg-green-400/[0.08] text-green-100";
+  if (status === "developing") return "border-yellow-200/20 bg-yellow-300/[0.08] text-yellow-100";
+  if (status === "needs_practice") return "border-fuchsia-300/20 bg-fuchsia-400/[0.08] text-fuchsia-100";
+  return "border-white/10 bg-white/[0.045] text-white/55";
+}
+
+function getConfidenceLabel(confidence: MasterySubtopic["confidence"], evidence: number) {
+  if (confidence === "learning") return `Learning about you · ${evidence}/5`;
+  if (confidence === "low") return "Low confidence";
+  if (confidence === "medium") return "Medium confidence";
+  return "High confidence";
+}
+
+function buildMasteryInsight(data: CategoryMastery | null) {
+  if (!data || data.answers_recorded === 0) {
+    return "Complete quizzes and Milo will begin building a personal learning map for this category.";
+  }
+
+  const tested = data.subtopics.filter(
+    (item) => item.evidence >= 5 && item.mastery_percent !== null,
+  );
+
+  if (tested.length === 0) {
+    const closest = [...data.subtopics]
+      .filter((item) => item.evidence > 0)
+      .sort((a, b) => b.evidence - a.evidence)[0];
+
+    return closest
+      ? `Milo is still learning your ${data.category} profile. ${closest.subtopic} currently has ${closest.evidence}/5 answers needed for a reliable mastery signal.`
+      : `Milo is still learning your ${data.category} profile. Keep playing to unlock strengths and areas to practise.`;
+  }
+
+  const strongest = [...tested].sort(
+    (a, b) => (b.mastery_percent ?? 0) - (a.mastery_percent ?? 0),
+  )[0];
+  const weakest = [...tested].sort(
+    (a, b) => (a.mastery_percent ?? 100) - (b.mastery_percent ?? 100),
+  )[0];
+
+  const parts: string[] = [];
+  if (strongest?.status === "strong") {
+    parts.push(`${strongest.subtopic} is currently one of your strongest areas.`);
+  }
+  if (weakest && weakest.status === "needs_practice" && weakest.subtopic !== strongest?.subtopic) {
+    parts.push(`${weakest.subtopic} is the clearest area to practise next.`);
+  }
+  if (data.trend === "improving" && data.improvement_pp !== null) {
+    parts.push(`Your recent single-player accuracy is up ${Math.abs(data.improvement_pp).toFixed(1)} percentage points.`);
+  } else if (data.trend === "needs_attention" && data.improvement_pp !== null) {
+    parts.push(`Recent accuracy is ${Math.abs(data.improvement_pp).toFixed(1)} percentage points below your previous three quizzes, so Milo will keep watching the trend.`);
+  }
+
+  return parts.length > 0
+    ? parts.join(" ")
+    : "Your learning map is taking shape. Keep playing to strengthen the confidence behind each mastery score.";
+}
+
+function getHistoricalOptionText(
+  answer: HistoricalAnswer,
+  option: "A" | "B" | "C" | "D" | null,
+) {
+  if (!option) return "No answer";
+  if (option === "A") return answer.option_a;
+  if (option === "B") return answer.option_b;
+  if (option === "C") return answer.option_c;
+  return answer.option_d;
+}
+
+function MasteryProgressChart({
+  attempts,
+  metric,
+}: {
+  attempts: MasteryAttempt[];
+  metric: "accuracy" | "points";
+}) {
+  if (attempts.length < 2) {
+    return (
+      <div className="flex min-h-[180px] items-center justify-center rounded-[16px] border border-white/10 bg-white/[0.025] px-5 text-center text-sm leading-6 text-white/48">
+        Complete at least two single-player quizzes to start your progress graph.
+      </div>
+    );
+  }
+
+  const width = 640;
+  const height = 220;
+  const left = 44;
+  const right = 20;
+  const top = 18;
+  const bottom = 34;
+  const values = attempts.map((attempt) =>
+    metric === "accuracy" ? Number(attempt.accuracy_percent || 0) : Number(attempt.points || 0),
+  );
+  const maxValue = metric === "accuracy"
+    ? 100
+    : Math.max(100, Math.ceil(Math.max(...values, 0) / 100) * 100);
+  const minValue = 0;
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
+  const xFor = (index: number) =>
+    attempts.length === 1
+      ? left + plotWidth / 2
+      : left + (index / (attempts.length - 1)) * plotWidth;
+  const yFor = (value: number) =>
+    top + plotHeight - ((value - minValue) / Math.max(1, maxValue - minValue)) * plotHeight;
+  const points = values.map((value, index) => `${xFor(index)},${yFor(value)}`).join(" ");
+  const ticks = [0, 0.25, 0.5, 0.75, 1];
+
+  return (
+    <div className="rounded-[18px] border border-white/10 bg-[#050d1c]/60 p-3">
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="block h-auto w-full"
+        role="img"
+        aria-label={`${metric === "accuracy" ? "Accuracy" : "Points"} over recent quizzes`}
+      >
+        {ticks.map((tick) => {
+          const value = minValue + (maxValue - minValue) * tick;
+          const y = yFor(value);
+          return (
+            <g key={tick}>
+              <line x1={left} x2={width - right} y1={y} y2={y} stroke="rgba(255,255,255,0.09)" strokeWidth="1" />
+              <text x={left - 8} y={y + 4} textAnchor="end" fill="rgba(255,255,255,0.42)" fontSize="11">
+                {metric === "accuracy" ? `${Math.round(value)}%` : Math.round(value)}
+              </text>
+            </g>
+          );
+        })}
+        <polyline
+          points={points}
+          fill="none"
+          stroke="#ffd18a"
+          strokeWidth="4"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        {values.map((value, index) => (
+          <g key={attempts[index].id}>
+            <circle cx={xFor(index)} cy={yFor(value)} r="5.5" fill="#ffd18a" stroke="#07101f" strokeWidth="3" />
+            {(index === 0 || index === values.length - 1) && (
+              <text
+                x={xFor(index)}
+                y={Math.max(13, yFor(value) - 12)}
+                textAnchor={index === 0 ? "start" : "end"}
+                fill="rgba(255,255,255,0.78)"
+                fontSize="11"
+                fontWeight="700"
+              >
+                {metric === "accuracy" ? `${Math.round(value)}%` : Math.round(value)}
+              </text>
+            )}
+          </g>
+        ))}
+        <text x={left} y={height - 8} fill="rgba(255,255,255,0.36)" fontSize="10">Older</text>
+        <text x={width - right} y={height - 8} textAnchor="end" fill="rgba(255,255,255,0.36)" fontSize="10">Latest</text>
+      </svg>
+    </div>
+  );
+}
+
 export default function MiloCategoriesPage() {
   const [categoriesStage, setCategoriesStage] =
     useState<CategoriesStage>("mode");
@@ -304,6 +569,14 @@ export default function MiloCategoriesPage() {
     useState<PercentileResult | null>(null);
   const [isSavingAnalytics, setIsSavingAnalytics] = useState(false);
   const [analyticsMessage, setAnalyticsMessage] = useState("");
+  const [masteryData, setMasteryData] = useState<Record<string, CategoryMastery>>({});
+  const [masteryCategory, setMasteryCategory] = useState("Geography");
+  const [masteryView, setMasteryView] = useState<"overview" | "knowledge" | "history">("overview");
+  const [masteryMetric, setMasteryMetric] = useState<"accuracy" | "points">("accuracy");
+  const [isLoadingMastery, setIsLoadingMastery] = useState(false);
+  const [masteryMessage, setMasteryMessage] = useState("");
+  const [historicalAttemptDetail, setHistoricalAttemptDetail] = useState<HistoricalAttemptDetail | null>(null);
+  const [isLoadingHistoricalAttempt, setIsLoadingHistoricalAttempt] = useState(false);
   const [guestHintUsed, setGuestHintUsed] = useState(false);
   const [hiddenCategoryOptions, setHiddenCategoryOptions] = useState<
     ("A" | "B" | "C" | "D")[]
@@ -352,6 +625,9 @@ export default function MiloCategoriesPage() {
   const [displayName, setDisplayName] = useState("");
   const [isCreatingLobby, setIsCreatingLobby] = useState(false);
   const [isJoiningLobby, setIsJoiningLobby] = useState(false);
+  const [multiplayerAnswerDrafts, setMultiplayerAnswerDrafts] = useState<SinglePlayerAnswerDraft[]>([]);
+  const [savedMultiplayerAttemptId, setSavedMultiplayerAttemptId] = useState<string | null>(null);
+  const [isSavingMultiplayerAnalytics, setIsSavingMultiplayerAnalytics] = useState(false);
 
   const currentCategoryQuestion = categoryQuestions[categoryQuestionIndex];
   const currentMultiplayerQuestion =
@@ -466,6 +742,15 @@ export default function MiloCategoriesPage() {
 
     loadCategories();
   }, []);
+
+  useEffect(() => {
+    if (!userAccess.userId || isLoadingCategories) {
+      if (!userAccess.userId) setMasteryData({});
+      return;
+    }
+
+    void loadMasteryData();
+  }, [userAccess.userId, isLoadingCategories, availableCategories]);
 
   useEffect(() => {
   if (!multiplayerLobby?.id) return;
@@ -623,7 +908,7 @@ export default function MiloCategoriesPage() {
 
     const { data, error } = await supabase
       .from("milo_category_questions")
-      .select("id,topic,subtopic,difficulty")
+      .select("id,topic,subtopic,difficulty,adaptive_difficulty")
       .in(
         "id",
         questions.map((question) => question.id),
@@ -646,9 +931,97 @@ export default function MiloCategoriesPage() {
             topic: item.topic ?? null,
             subtopic: item.subtopic ?? null,
             difficulty: item.difficulty ?? null,
+            adaptive_difficulty: item.adaptive_difficulty ?? null,
           }
         : question;
     });
+  }
+
+  async function loadMasteryData(preferredCategory?: string) {
+    if (!userAccess.userId) {
+      setMasteryData({});
+      return;
+    }
+
+    const categories = availableCategories.length > 0
+      ? availableCategories
+      : fallbackCategoryNames;
+
+    setIsLoadingMastery(true);
+    setMasteryMessage("");
+
+    const results = await Promise.all(
+      categories.map(async (category) => {
+        const { data, error } = await supabase.rpc("get_milo_category_mastery", {
+          p_category: category,
+        });
+        return { category, data, error };
+      }),
+    );
+
+    const next: Record<string, CategoryMastery> = {};
+    const errors: string[] = [];
+
+    results.forEach(({ category, data, error }) => {
+      if (error) {
+        console.warn(`Could not load ${category} mastery:`, error.message);
+        errors.push(category);
+        return;
+      }
+      if (data && typeof data === "object") {
+        next[category] = data as CategoryMastery;
+      }
+    });
+
+    setMasteryData(next);
+    if (preferredCategory && categories.includes(preferredCategory)) {
+      setMasteryCategory(preferredCategory);
+    }
+    if (errors.length > 0) {
+      setMasteryMessage(`Could not load mastery for: ${errors.join(", ")}.`);
+    }
+    setIsLoadingMastery(false);
+  }
+
+  function openMastery(category = selectedCategory) {
+    if (!userAccess.isLoggedIn) {
+      setCategoryMessage("Log in to build and view your personal mastery profile.");
+      return;
+    }
+    setMasteryCategory(category);
+    setMasteryView("overview");
+    setHistoricalAttemptDetail(null);
+    setCategoriesStage("mastery");
+    void loadMasteryData(category);
+  }
+
+  async function openHistoricalAttempt(attempt: MasteryAttempt) {
+    if (!userAccess.userId) return;
+
+    setIsLoadingHistoricalAttempt(true);
+    setMasteryMessage("");
+
+    const { data: answersData, error: answersError } = await supabase
+      .from("milo_category_quiz_answers")
+      .select(
+        "id,question_order,topic,subtopic,adaptive_difficulty,selected_option,correct_option,is_correct,points,response_seconds,question_text,option_a,option_b,option_c,option_d,explanation",
+      )
+      .eq("attempt_id", attempt.id)
+      .order("question_order", { ascending: true });
+
+    if (answersError) {
+      console.warn("Could not load historical Categories attempt:", answersError.message);
+      setMasteryMessage("That quiz review could not be loaded.");
+      setIsLoadingHistoricalAttempt(false);
+      return;
+    }
+
+    setHistoricalAttemptDetail({
+      attempt,
+      answers: (answersData || []) as HistoricalAnswer[],
+    });
+    setCategoriesStage("mastery-attempt");
+    setIsLoadingHistoricalAttempt(false);
   }
 
   async function startSinglePlayerCategoryQuiz() {
@@ -742,6 +1115,9 @@ export default function MiloCategoriesPage() {
     setMultiplayerNextCountdown(3);
     setMultiplayerMessage("");
     setJoinLobbyCode("");
+    setMultiplayerAnswerDrafts([]);
+    setSavedMultiplayerAttemptId(null);
+    setIsSavingMultiplayerAnalytics(false);
   }
 
   function useGuestCategoryHint() {
@@ -870,6 +1246,7 @@ export default function MiloCategoriesPage() {
       setPercentileResult(percentileData as PercentileResult);
     }
 
+    await loadMasteryData(selectedCategory);
     setIsSavingAnalytics(false);
     return attemptId;
   }
@@ -1262,6 +1639,9 @@ export default function MiloCategoriesPage() {
     setMultiplayerCountdown(10);
     setMultiplayerNextCountdown(3);
     setMultiplayerMessage("");
+    setMultiplayerAnswerDrafts([]);
+    setSavedMultiplayerAttemptId(null);
+    setIsSavingMultiplayerAnalytics(false);
     setCategoriesStage("multiplayer-playing");
 
     await loadLobbyState(multiplayerLobby.id);
@@ -1284,6 +1664,9 @@ export default function MiloCategoriesPage() {
     setMultiplayerCountdown(10);
     setMultiplayerNextCountdown(3);
     setMultiplayerMessage("");
+    setMultiplayerAnswerDrafts([]);
+    setSavedMultiplayerAttemptId(null);
+    setIsSavingMultiplayerAnalytics(false);
     setCategoriesStage("multiplayer-playing");
   }
 
@@ -1299,6 +1682,17 @@ export default function MiloCategoriesPage() {
     const pointsEarned = isCorrect
       ? Math.max(10, multiplayerCountdown * 10)
       : 0;
+    const responseSeconds = Math.max(0, Math.min(10, 10 - multiplayerCountdown));
+
+    setMultiplayerAnswerDrafts((current) => [
+      ...current,
+      {
+        questionId: currentMultiplayerQuestion.id,
+        questionOrder: multiplayerQuestionIndex + 1,
+        selectedOption: finalAnswer,
+        responseSeconds,
+      },
+    ]);
 
     const nextScore = multiplayerScore + (isCorrect ? 1 : 0);
     const nextPoints = multiplayerPoints + pointsEarned;
@@ -1359,11 +1753,58 @@ export default function MiloCategoriesPage() {
     setCategoriesStage("multiplayer-answered");
   }
 
+  async function saveMultiplayerAnalytics() {
+    if (
+      !userAccess.userId ||
+      !multiplayerLobby ||
+      savedMultiplayerAttemptId ||
+      isSavingMultiplayerAnalytics ||
+      multiplayerAnswerDrafts.length === 0
+    ) {
+      return null;
+    }
+
+    setIsSavingMultiplayerAnalytics(true);
+
+    const durationSeconds = multiplayerAnswerDrafts.reduce(
+      (sum, answer) => sum + answer.responseSeconds,
+      0,
+    );
+
+    const { data, error } = await supabase.rpc("record_milo_category_quiz_attempt", {
+      p_category: multiplayerLobby.category,
+      p_mode: "multiplayer",
+      p_lobby_id: multiplayerLobby.id,
+      p_started_at: multiplayerLobby.started_at,
+      p_duration_seconds: durationSeconds,
+      p_answers: multiplayerAnswerDrafts.map((answer) => ({
+        question_id: answer.questionId,
+        question_order: answer.questionOrder,
+        selected_option: answer.selectedOption,
+        response_seconds: answer.responseSeconds,
+      })),
+    });
+
+    if (error) {
+      console.warn("Could not save multiplayer mastery evidence:", error.message);
+      setMultiplayerMessage("Game complete. Your multiplayer mastery record could not be saved this time.");
+      setIsSavingMultiplayerAnalytics(false);
+      return null;
+    }
+
+    const attemptId = typeof data === "string" ? data : data ? String(data) : "";
+    if (attemptId) setSavedMultiplayerAttemptId(attemptId);
+    await loadMasteryData(multiplayerLobby.category);
+    setIsSavingMultiplayerAnalytics(false);
+    return attemptId || null;
+  }
+
   async function goToNextMultiplayerQuestion() {
     const nextIndex = multiplayerQuestionIndex + 1;
 
     if (nextIndex >= multiplayerQuestions.length) {
       setCategoriesStage("multiplayer-finished");
+      void saveMultiplayerAnalytics();
 
       if (multiplayerPlayer) {
         await supabase
@@ -1468,11 +1909,16 @@ export default function MiloCategoriesPage() {
     singlePlayerAnswers,
   );
 
+  const currentMastery = masteryData[masteryCategory] || null;
+  const masteryInsight = buildMasteryInsight(currentMastery);
+
   const isQuizStage = [
     "playing",
     "answered",
     "finished",
     "results",
+    "mastery",
+    "mastery-attempt",
     "multiplayer-playing",
     "multiplayer-answered",
     "multiplayer-finished",
@@ -1622,13 +2068,24 @@ export default function MiloCategoriesPage() {
                     ← Back to mode select
                   </button>
 
-                  <div className="stage-header mt-7 shrink-0">
-                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/44">
-                      Choose Topic
-                    </p>
-                    <p className="stage-subtitle mt-2 text-sm leading-6 text-white/52">
-                      Pick a category for your 10-question timed quiz.
-                    </p>
+                  <div className="stage-header mt-7 flex shrink-0 items-end justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/44">
+                        Choose Topic
+                      </p>
+                      <p className="stage-subtitle mt-2 text-sm leading-6 text-white/52">
+                        Pick a category for your 10-question timed quiz.
+                      </p>
+                    </div>
+                    {userAccess.isLoggedIn && (
+                      <button
+                        type="button"
+                        onClick={() => openMastery(selectedCategory)}
+                        className="shrink-0 rounded-full border border-[#9bf5ff]/24 bg-[#9bf5ff]/[0.07] px-4 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-[#9bf5ff] transition hover:bg-[#9bf5ff]/[0.12]"
+                      >
+                        My Mastery
+                      </button>
+                    )}
                   </div>
 
                   <div className="category-grid mt-5 grid min-h-0 flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -1679,6 +2136,16 @@ export default function MiloCategoriesPage() {
                               {CATEGORY_TAGLINES[category] ||
                                 "10 timed questions. Answer quickly to earn more points."}
                             </span>
+
+                            {userAccess.isLoggedIn && (
+                              <span className="mt-2 block text-[11px] font-black text-[#9bf5ff] drop-shadow-[0_1px_8px_rgba(0,0,0,0.8)]">
+                                {masteryData[category]?.mastery_percent !== null && masteryData[category]?.mastery_percent !== undefined
+                                  ? `${Math.round(masteryData[category].mastery_percent as number)}% Mastery${masteryData[category].trend === "improving" ? " · ↑ Improving" : ""}`
+                                  : masteryData[category]?.single_quizzes
+                                    ? `Learning your profile · ${masteryData[category].single_quizzes} quiz${masteryData[category].single_quizzes === 1 ? "" : "zes"}`
+                                    : "Start your first quiz"}
+                              </span>
+                            )}
 
                             {isSelected && (
                               <span className="selected-pill mt-3 inline-flex w-fit rounded-full border border-[#ffd18a]/45 bg-[#07101f]/75 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-[#ffd18a] backdrop-blur-sm">
@@ -2380,6 +2847,305 @@ export default function MiloCategoriesPage() {
                 </div>
               )}
 
+              {categoriesStage === "mastery" && (
+                <div className="stage-fill flex h-full min-h-0 flex-col">
+                  <div className="shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setCategoriesStage("category")}
+                      className="stage-back text-sm font-bold text-[#ffd18a]"
+                    >
+                      ← Back to Categories
+                    </button>
+
+                    <div className="mt-3 flex items-end justify-between gap-3">
+                      <div>
+                        <p className="stage-kicker text-xs font-bold uppercase tracking-[0.18em] text-[#9bf5ff]">
+                          Personalized Learning
+                        </p>
+                        <h2 className="mt-1 text-2xl font-black text-white sm:text-3xl">
+                          My Mastery
+                        </h2>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void loadMasteryData(masteryCategory)}
+                        disabled={isLoadingMastery}
+                        className="rounded-full border border-white/12 bg-white/[0.05] px-3 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-white/62 disabled:opacity-40"
+                      >
+                        {isLoadingMastery ? "Updating…" : "Refresh"}
+                      </button>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      {availableCategories.map((category) => (
+                        <button
+                          key={category}
+                          type="button"
+                          onClick={() => {
+                            setMasteryCategory(category);
+                            setMasteryView("overview");
+                          }}
+                          className={`rounded-[12px] border px-2 py-2 text-[10px] font-black uppercase tracking-[0.08em] transition ${
+                            masteryCategory === category
+                              ? "border-[#ffd18a]/45 bg-[#ffd18a]/12 text-[#ffd18a]"
+                              : "border-white/10 bg-white/[0.035] text-white/55"
+                          }`}
+                        >
+                          {category}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="mt-2 grid grid-cols-3 gap-2">
+                      {(["overview", "knowledge", "history"] as const).map((view) => (
+                        <button
+                          key={view}
+                          type="button"
+                          onClick={() => setMasteryView(view)}
+                          className={`rounded-[11px] px-2 py-2 text-[9px] font-black uppercase tracking-[0.1em] transition ${
+                            masteryView === view
+                              ? "bg-white/[0.10] text-white"
+                              : "text-white/38 hover:bg-white/[0.05]"
+                          }`}
+                        >
+                          {view === "overview" ? "Overview" : view === "knowledge" ? "Knowledge Map" : "History"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mastery-scroll mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
+                    {masteryMessage && (
+                      <p className="mb-3 rounded-[14px] border border-yellow-200/16 bg-yellow-300/[0.08] p-3 text-xs font-bold leading-5 text-[#ffd18a]">
+                        {masteryMessage}
+                      </p>
+                    )}
+
+                    {isLoadingMastery && !currentMastery ? (
+                      <div className="flex min-h-[240px] items-center justify-center text-sm font-bold text-white/48">
+                        Building your mastery profile…
+                      </div>
+                    ) : !currentMastery ? (
+                      <div className="flex min-h-[240px] items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.025] p-6 text-center text-sm leading-6 text-white/50">
+                        No mastery data is available yet. Complete a logged-in quiz to start your profile.
+                      </div>
+                    ) : masteryView === "overview" ? (
+                      <div className="grid gap-3">
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          <div className="rounded-[16px] border border-[#ffd18a]/20 bg-[#ffd18a]/[0.08] p-3">
+                            <p className="text-[9px] font-black uppercase tracking-[0.12em] text-white/40">Mastery</p>
+                            <p className="mt-1 text-3xl font-black text-[#ffd18a]">{formatMasteryPercent(currentMastery.mastery_percent)}</p>
+                            <p className="mt-1 text-[10px] text-white/38">{currentMastery.tested_subtopics}/{currentMastery.total_subtopics} areas tested</p>
+                          </div>
+                          <div className="rounded-[16px] border border-white/10 bg-white/[0.035] p-3">
+                            <p className="text-[9px] font-black uppercase tracking-[0.12em] text-white/40">Accuracy</p>
+                            <p className="mt-1 text-2xl font-black text-white">{formatMasteryPercent(currentMastery.lifetime_accuracy_percent)}</p>
+                            <p className="mt-1 text-[10px] text-white/38">Single player</p>
+                          </div>
+                          <div className="rounded-[16px] border border-white/10 bg-white/[0.035] p-3">
+                            <p className="text-[9px] font-black uppercase tracking-[0.12em] text-white/40">Best</p>
+                            <p className="mt-1 text-2xl font-black text-white">{currentMastery.best_points ?? "—"}</p>
+                            <p className="mt-1 text-[10px] text-white/38">points</p>
+                          </div>
+                          <div className="rounded-[16px] border border-[#9bf5ff]/16 bg-[#9bf5ff]/[0.055] p-3">
+                            <p className="text-[9px] font-black uppercase tracking-[0.12em] text-white/40">Improvement</p>
+                            <p className={`mt-1 text-2xl font-black ${currentMastery.trend === "improving" ? "text-green-200" : currentMastery.trend === "needs_attention" ? "text-fuchsia-200" : "text-[#9bf5ff]"}`}>
+                              {currentMastery.improvement_pp === null
+                                ? "Learning"
+                                : `${currentMastery.improvement_pp >= 0 ? "+" : ""}${currentMastery.improvement_pp.toFixed(1)}pp`}
+                            </p>
+                            <p className="mt-1 text-[10px] text-white/38">Recent 3 vs previous 3</p>
+                          </div>
+                        </div>
+
+                        <div className="rounded-[18px] border border-[#9bf5ff]/16 bg-[#9bf5ff]/[0.05] p-4">
+                          <p className="text-[9px] font-black uppercase tracking-[0.15em] text-[#9bf5ff]">Milo Noticed</p>
+                          <p className="mt-2 text-sm font-semibold leading-6 text-white/70">{masteryInsight}</p>
+                        </div>
+
+                        <div className="rounded-[18px] border border-white/10 bg-white/[0.025] p-3">
+                          <div className="mb-3 flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-[10px] font-black uppercase tracking-[0.13em] text-white/45">Progress Over Time</p>
+                              <p className="mt-1 text-xs text-white/38">Single-player quizzes only</p>
+                            </div>
+                            <div className="flex rounded-full border border-white/10 bg-black/20 p-1">
+                              {(["accuracy", "points"] as const).map((metric) => (
+                                <button
+                                  key={metric}
+                                  type="button"
+                                  onClick={() => setMasteryMetric(metric)}
+                                  className={`rounded-full px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.08em] ${masteryMetric === metric ? "bg-[#ffd18a]/16 text-[#ffd18a]" : "text-white/38"}`}
+                                >
+                                  {metric}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <MasteryProgressChart attempts={currentMastery.attempt_series} metric={masteryMetric} />
+                        </div>
+
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {currentMastery.topics.map((topic) => (
+                            <div key={topic.topic} className="rounded-[16px] border border-white/10 bg-white/[0.03] p-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="text-xs font-black text-white">{topic.topic}</p>
+                                <p className="text-sm font-black text-[#ffd18a]">{formatMasteryPercent(topic.mastery_percent)}</p>
+                              </div>
+                              <p className="mt-1 text-[10px] text-white/38">{topic.tested_subtopics}/{topic.total_subtopics} areas tested</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : masteryView === "knowledge" ? (
+                      <div className="grid gap-3">
+                        {currentMastery.topics.map((topic) => {
+                          const subtopics = currentMastery.subtopics.filter((item) => item.topic === topic.topic);
+                          return (
+                            <section key={topic.topic} className="rounded-[18px] border border-white/10 bg-white/[0.025] p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <h3 className="text-sm font-black text-white">{topic.topic}</h3>
+                                  <p className="mt-1 text-[10px] text-white/38">{topic.tested_subtopics}/{topic.total_subtopics} areas with enough evidence</p>
+                                </div>
+                                <p className="text-xl font-black text-[#ffd18a]">{formatMasteryPercent(topic.mastery_percent)}</p>
+                              </div>
+
+                              <div className="mt-3 grid gap-2">
+                                {subtopics.map((subtopic) => (
+                                  <div key={`${subtopic.topic}-${subtopic.subtopic}`} className={`rounded-[14px] border p-3 ${getMasteryStatusClass(subtopic.status)}`}>
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <p className="text-xs font-black text-white">{subtopic.subtopic}</p>
+                                        <p className="mt-1 text-[9px] font-bold text-white/42">{getConfidenceLabel(subtopic.confidence, subtopic.evidence)} · Difficulty {subtopic.recent_average_difficulty?.toFixed(1) ?? "—"}</p>
+                                      </div>
+                                      <div className="shrink-0 text-right">
+                                        <p className="text-base font-black">{formatMasteryPercent(subtopic.mastery_percent)}</p>
+                                        <p className="text-[8px] font-black uppercase tracking-[0.08em] opacity-70">{getMasteryStatusLabel(subtopic.status)}</p>
+                                      </div>
+                                    </div>
+                                    {subtopic.evidence > 0 && (
+                                      <div className="mt-2 grid grid-cols-2 gap-2 text-[9px] text-white/45">
+                                        <span>Lifetime accuracy {formatMasteryPercent(subtopic.lifetime_accuracy_percent)}</span>
+                                        <span className="text-right">Recent {formatMasteryPercent(subtopic.recent_accuracy_percent)}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </section>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="grid gap-2">
+                        {currentMastery.attempt_history.length === 0 ? (
+                          <div className="rounded-[18px] border border-white/10 bg-white/[0.025] p-6 text-center text-sm text-white/48">
+                            No saved single-player quiz history yet.
+                          </div>
+                        ) : (
+                          currentMastery.attempt_history.map((attempt, index) => (
+                            <button
+                              key={attempt.id}
+                              type="button"
+                              onClick={() => void openHistoricalAttempt(attempt)}
+                              disabled={isLoadingHistoricalAttempt}
+                              className="flex items-center justify-between gap-3 rounded-[15px] border border-white/10 bg-white/[0.035] p-3 text-left transition hover:border-[#ffd18a]/30 hover:bg-white/[0.06] disabled:opacity-50"
+                            >
+                              <div>
+                                <p className="text-xs font-black text-white">{formatMasteryDate(attempt.completed_at)}</p>
+                                <p className="mt-1 text-[10px] text-white/40">Quiz {currentMastery.single_quizzes - index}</p>
+                              </div>
+                              <div className="flex items-center gap-5 text-right">
+                                <div>
+                                  <p className="text-sm font-black text-white">{attempt.score_correct}/{attempt.question_count}</p>
+                                  <p className="text-[9px] text-white/36">{Math.round(attempt.accuracy_percent)}%</p>
+                                </div>
+                                <div>
+                                  <p className="text-base font-black text-[#ffd18a]">{attempt.points}</p>
+                                  <p className="text-[9px] text-white/36">points</p>
+                                </div>
+                                <span className="text-[#9bf5ff]">→</span>
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {categoriesStage === "mastery-attempt" && historicalAttemptDetail && (
+                <div className="stage-fill flex h-full min-h-0 flex-col">
+                  <div className="shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setCategoriesStage("mastery")}
+                      className="stage-back text-sm font-bold text-[#ffd18a]"
+                    >
+                      ← Back to My Mastery
+                    </button>
+                    <div className="mt-3 flex items-end justify-between gap-3">
+                      <div>
+                        <p className="stage-kicker text-xs font-bold uppercase tracking-[0.18em] text-[#9bf5ff]">{masteryCategory} History</p>
+                        <h2 className="mt-1 text-2xl font-black text-white">Quiz Review</h2>
+                        <p className="mt-1 text-xs text-white/40">{formatMasteryDate(historicalAttemptDetail.attempt.completed_at)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-black text-[#ffd18a]">{historicalAttemptDetail.attempt.points}</p>
+                        <p className="text-[9px] font-black uppercase tracking-[0.1em] text-white/38">points</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mastery-scroll mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
+                    <div className="grid gap-3">
+                      {historicalAttemptDetail.answers.map((answer) => (
+                        <article
+                          key={answer.id}
+                          className={`rounded-[18px] border p-4 ${answer.is_correct ? "border-green-300/18 bg-green-400/[0.055]" : "border-red-300/20 bg-red-400/[0.055]"}`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-[9px] font-black uppercase tracking-[0.12em] text-white/38">Question {answer.question_order}</span>
+                                {answer.subtopic && <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 text-[9px] font-bold text-white/48">{answer.subtopic}</span>}
+                                <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 text-[9px] font-bold text-white/38">Difficulty {answer.adaptive_difficulty}</span>
+                              </div>
+                              <h3 className="mt-2 text-sm font-black leading-5 text-white">{answer.question_text}</h3>
+                            </div>
+                            <p className={`shrink-0 text-xs font-black ${answer.is_correct ? "text-green-200" : "text-red-200"}`}>{answer.is_correct ? "Correct" : "Review"}</p>
+                          </div>
+
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            <div className="rounded-[12px] border border-white/10 bg-black/15 p-3">
+                              <p className="text-[9px] font-black uppercase tracking-[0.12em] text-white/36">Your answer</p>
+                              <p className={`mt-1 text-xs font-bold leading-5 ${answer.is_correct ? "text-green-100" : "text-red-100"}`}>
+                                {answer.selected_option ? `${answer.selected_option}. ${getHistoricalOptionText(answer, answer.selected_option)}` : "No answer"}
+                              </p>
+                            </div>
+                            <div className="rounded-[12px] border border-green-300/14 bg-green-400/[0.045] p-3">
+                              <p className="text-[9px] font-black uppercase tracking-[0.12em] text-white/36">Correct answer</p>
+                              <p className="mt-1 text-xs font-bold leading-5 text-green-100">{answer.correct_option}. {getHistoricalOptionText(answer, answer.correct_option)}</p>
+                            </div>
+                          </div>
+
+                          <div className="mt-2 rounded-[12px] border border-white/8 bg-white/[0.025] p-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-[9px] font-black uppercase tracking-[0.12em] text-[#9bf5ff]">Explanation</p>
+                              <p className="text-[9px] font-black text-[#ffd18a]">+{answer.points} · {answer.response_seconds}s</p>
+                            </div>
+                            <p className="mt-1 text-xs leading-5 text-white/62">{answer.explanation || "No explanation has been added to this question yet."}</p>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {categoriesStage === "multiplayer-finished" && (
                 <div className="finished-stage stage-fill flex h-full min-h-0 flex-col text-center">
                   <p className="stage-kicker text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
@@ -2511,19 +3277,22 @@ export default function MiloCategoriesPage() {
         }
 
         .finished-scroll,
-        .results-scroll {
+        .results-scroll,
+        .mastery-scroll {
           scrollbar-width: thin;
           scrollbar-color: rgba(255, 209, 138, 0.34) transparent;
           overscroll-behavior: contain;
         }
 
         .finished-scroll::-webkit-scrollbar,
-        .results-scroll::-webkit-scrollbar {
+        .results-scroll::-webkit-scrollbar,
+        .mastery-scroll::-webkit-scrollbar {
           width: 5px;
         }
 
         .finished-scroll::-webkit-scrollbar-thumb,
-        .results-scroll::-webkit-scrollbar-thumb {
+        .results-scroll::-webkit-scrollbar-thumb,
+        .mastery-scroll::-webkit-scrollbar-thumb {
           border-radius: 999px;
           background: rgba(255, 209, 138, 0.3);
         }
