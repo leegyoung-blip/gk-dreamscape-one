@@ -16,7 +16,7 @@ type CategoryQuizQuestion = {
   explanation: string | null;
   topic?: string | null;
   subtopic?: string | null;
-  difficulty?: number | null;
+  difficulty?: string | number | null;
 };
 
 type SinglePlayerAnswerDraft = {
@@ -26,12 +26,31 @@ type SinglePlayerAnswerDraft = {
   responseSeconds: number;
 };
 
+type PercentileResult = {
+  available: boolean;
+  category: string;
+  sample_size: number;
+  beats_count: number;
+  beats_percent: number | null;
+  minimum_sample_size: number;
+};
+
+type ReviewAnswer = {
+  question: CategoryQuizQuestion;
+  draft: SinglePlayerAnswerDraft | null;
+  selectedText: string;
+  correctText: string;
+  isCorrect: boolean;
+  points: number;
+};
+
 type CategoriesStage =
   | "mode"
   | "category"
   | "playing"
   | "answered"
   | "finished"
+  | "results"
   | "multiplayer-menu"
   | "multiplayer-create"
   | "multiplayer-join"
@@ -161,6 +180,94 @@ function sortQuestionsByIds(
   });
 }
 
+function getOptionText(
+  question: CategoryQuizQuestion,
+  option: "A" | "B" | "C" | "D" | null,
+) {
+  if (!option) return "No answer";
+
+  if (option === "A") return question.option_a;
+  if (option === "B") return question.option_b;
+  if (option === "C") return question.option_c;
+  return question.option_d;
+}
+
+function getReviewPoints(
+  question: CategoryQuizQuestion,
+  draft: SinglePlayerAnswerDraft | null,
+) {
+  if (!draft || draft.selectedOption !== question.correct_option) return 0;
+  return Math.max(10, (10 - Math.min(10, draft.responseSeconds)) * 10);
+}
+
+function buildMiloQuizSummary(
+  questions: CategoryQuizQuestion[],
+  answers: SinglePlayerAnswerDraft[],
+) {
+  const groups = new Map<
+    string,
+    { answered: number; correct: number; wrong: number }
+  >();
+
+  questions.forEach((question, index) => {
+    const label = question.subtopic?.trim() || question.topic?.trim();
+    if (!label) return;
+
+    const draft = answers.find((item) => item.questionOrder === index + 1);
+    if (!draft) return;
+
+    const current = groups.get(label) || { answered: 0, correct: 0, wrong: 0 };
+    current.answered += 1;
+
+    if (draft.selectedOption === question.correct_option) {
+      current.correct += 1;
+    } else {
+      current.wrong += 1;
+    }
+
+    groups.set(label, current);
+  });
+
+  const reliableGroups = [...groups.entries()]
+    .filter(([, stats]) => stats.answered >= 2)
+    .map(([label, stats]) => ({
+      label,
+      ...stats,
+      accuracy: stats.correct / stats.answered,
+    }));
+
+  if (reliableGroups.length === 0) {
+    return "Milo is still learning your patterns. As more questions are tagged by topic and you complete more quizzes, your results will show clearer strengths and areas to practise.";
+  }
+
+  const strongest = [...reliableGroups].sort(
+    (a, b) => b.accuracy - a.accuracy || b.answered - a.answered,
+  )[0];
+  const weakest = [...reliableGroups].sort(
+    (a, b) => b.wrong - a.wrong || a.accuracy - b.accuracy,
+  )[0];
+
+  const parts: string[] = [];
+
+  if (strongest && strongest.accuracy >= 0.7) {
+    parts.push(`In this quiz, you were strongest on ${strongest.label}.`);
+  }
+
+  if (
+    weakest &&
+    weakest.wrong > 0 &&
+    (!strongest || weakest.label !== strongest.label)
+  ) {
+    parts.push(`Most of your mistakes were in ${weakest.label}.`);
+  }
+
+  if (parts.length === 0) {
+    return "Milo is building your learning profile. Keep playing so your strongest and weakest areas become clearer.";
+  }
+
+  return parts.join(" ");
+}
+
 export default function MiloCategoriesPage() {
   const [categoriesStage, setCategoriesStage] =
     useState<CategoriesStage>("mode");
@@ -192,6 +299,11 @@ export default function MiloCategoriesPage() {
     SinglePlayerAnswerDraft[]
   >([]);
   const [singlePlayerStartedAt, setSinglePlayerStartedAt] = useState<string | null>(null);
+  const [savedAttemptId, setSavedAttemptId] = useState<string | null>(null);
+  const [percentileResult, setPercentileResult] =
+    useState<PercentileResult | null>(null);
+  const [isSavingAnalytics, setIsSavingAnalytics] = useState(false);
+  const [analyticsMessage, setAnalyticsMessage] = useState("");
   const [guestHintUsed, setGuestHintUsed] = useState(false);
   const [hiddenCategoryOptions, setHiddenCategoryOptions] = useState<
     ("A" | "B" | "C" | "D")[]
@@ -504,6 +616,41 @@ export default function MiloCategoriesPage() {
     setCategoriesStage("category");
   }
 
+  async function enrichQuestionsWithMetadata(
+    questions: CategoryQuizQuestion[],
+  ) {
+    if (questions.length === 0) return questions;
+
+    const { data, error } = await supabase
+      .from("milo_category_questions")
+      .select("id,topic,subtopic,difficulty")
+      .in(
+        "id",
+        questions.map((question) => question.id),
+      );
+
+    if (error) {
+      console.warn("Could not load Categories metadata:", error.message);
+      return questions;
+    }
+
+    const metadata = new Map(
+      (data || []).map((item) => [String(item.id), item]),
+    );
+
+    return questions.map((question) => {
+      const item = metadata.get(String(question.id));
+      return item
+        ? {
+            ...question,
+            topic: item.topic ?? null,
+            subtopic: item.subtopic ?? null,
+            difficulty: item.difficulty ?? null,
+          }
+        : question;
+    });
+  }
+
   async function startSinglePlayerCategoryQuiz() {
     setIsLoadingCategoryQuiz(true);
     setCategoryMessage("");
@@ -523,7 +670,8 @@ export default function MiloCategoriesPage() {
       return;
     }
 
-    const questions = (data || []) as CategoryQuizQuestion[];
+    const rawQuestions = (data || []) as CategoryQuizQuestion[];
+    const questions = await enrichQuestionsWithMetadata(rawQuestions);
 
     if (questions.length < 10) {
       setCategoryMessage(
@@ -541,6 +689,10 @@ export default function MiloCategoriesPage() {
     setLastQuestionPoints(0);
     setSinglePlayerAnswers([]);
     setSinglePlayerStartedAt(new Date().toISOString());
+    setSavedAttemptId(null);
+    setPercentileResult(null);
+    setIsSavingAnalytics(false);
+    setAnalyticsMessage("");
     setGuestHintUsed(false);
     setHiddenCategoryOptions([]);
     setQuestionCountdown(10);
@@ -559,6 +711,10 @@ export default function MiloCategoriesPage() {
     setLastQuestionPoints(0);
     setSinglePlayerAnswers([]);
     setSinglePlayerStartedAt(null);
+    setSavedAttemptId(null);
+    setPercentileResult(null);
+    setIsSavingAnalytics(false);
+    setAnalyticsMessage("");
     setGuestHintUsed(false);
     setHiddenCategoryOptions([]);
     setQuestionCountdown(10);
@@ -649,14 +805,17 @@ export default function MiloCategoriesPage() {
   }
 
   async function saveSinglePlayerAnalytics() {
-    if (!userAccess.userId || singlePlayerAnswers.length === 0) return;
+    if (!userAccess.userId || singlePlayerAnswers.length === 0) return null;
+
+    setIsSavingAnalytics(true);
+    setAnalyticsMessage("");
 
     const durationSeconds = singlePlayerAnswers.reduce(
       (sum, answer) => sum + answer.responseSeconds,
       0,
     );
 
-    const { error } = await supabase.rpc(
+    const { data, error } = await supabase.rpc(
       "record_milo_category_quiz_attempt",
       {
         p_category: selectedCategory,
@@ -675,9 +834,44 @@ export default function MiloCategoriesPage() {
 
     if (error) {
       console.warn("Could not save Categories analytics:", error.message);
-      return;
+      setAnalyticsMessage(
+        "Your quiz was completed, but the learning record could not be saved.",
+      );
+      setIsSavingAnalytics(false);
+      return null;
     }
 
+    const attemptId = typeof data === "string" ? data : data ? String(data) : "";
+
+    if (!attemptId) {
+      setAnalyticsMessage(
+        "Your quiz was completed, but the saved attempt could not be identified.",
+      );
+      setIsSavingAnalytics(false);
+      return null;
+    }
+
+    setSavedAttemptId(attemptId);
+
+    const { data: percentileData, error: percentileError } = await supabase.rpc(
+      "get_milo_category_attempt_percentile",
+      { p_attempt_id: attemptId },
+    );
+
+    if (percentileError) {
+      console.warn(
+        "Could not calculate Categories percentile:",
+        percentileError.message,
+      );
+      setAnalyticsMessage(
+        "Your learning record was saved, but score comparison is temporarily unavailable.",
+      );
+    } else if (percentileData && typeof percentileData === "object") {
+      setPercentileResult(percentileData as PercentileResult);
+    }
+
+    setIsSavingAnalytics(false);
+    return attemptId;
   }
 
   function goToNextCategoryQuestion() {
@@ -1250,11 +1444,38 @@ export default function MiloCategoriesPage() {
     return "border-white/12 bg-white/[0.045] text-white/82 hover:border-[#ffd18a]/35 hover:bg-white/[0.075]";
   }
 
+  const reviewAnswers: ReviewAnswer[] = categoryQuestions.map(
+    (question, index) => {
+      const draft =
+        singlePlayerAnswers.find(
+          (answer) => answer.questionOrder === index + 1,
+        ) || null;
+      const isCorrect = draft?.selectedOption === question.correct_option;
+
+      return {
+        question,
+        draft,
+        selectedText: getOptionText(question, draft?.selectedOption || null),
+        correctText: getOptionText(question, question.correct_option),
+        isCorrect,
+        points: getReviewPoints(question, draft),
+      };
+    },
+  );
+
+  const miloQuizSummary = buildMiloQuizSummary(
+    categoryQuestions,
+    singlePlayerAnswers,
+  );
+
   const isQuizStage = [
     "playing",
     "answered",
+    "finished",
+    "results",
     "multiplayer-playing",
     "multiplayer-answered",
+    "multiplayer-finished",
   ].includes(categoriesStage);
 
   return (
@@ -1927,55 +2148,235 @@ export default function MiloCategoriesPage() {
 
               {categoriesStage === "finished" && (
                 <div className="finished-stage stage-fill flex h-full min-h-0 flex-col text-center">
-                  <p className="stage-kicker text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
-                    Quiz Complete
-                  </p>
-
-                  <h2 className="finished-score mt-4 text-5xl font-extrabold">
-                    {categoryScore} / 10
-                  </h2>
-
-                  <p className="finished-points mt-3 text-3xl font-extrabold text-[#ffd18a]">
-                    {categoryPoints} points
-                  </p>
-
-                  <p className="finished-copy mx-auto mt-4 max-w-xl text-sm leading-6 text-white/58">
-                    {categoryScore >= 8
-                      ? "Excellent. That was a strong mastery score."
-                      : categoryScore >= 6
-                      ? "Good pass. Try another category to improve your score."
-                      : "Keep practising. These questions are designed to be tougher."}
-                  </p>
-
-                  <div className="reward-card mt-7 min-h-0 flex-1 rounded-[24px] border border-yellow-200/18 bg-yellow-300/10 p-5 text-left">
-                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ffd18a]">
-                      Dreamscape Token Reward
+                  <div className="finished-scroll min-h-0 flex-1 overflow-y-auto">
+                    <p className="stage-kicker text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
+                      Quiz Complete
                     </p>
 
-                    <p className="mt-3 text-sm leading-6 text-white/68">
-                      {rewardMessage || "Checking weekly reward eligibility..."}
-                    </p>
+                    <div className="phase2-summary-grid mt-4 grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-[18px] border border-white/12 bg-white/[0.045] p-4">
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/42">
+                          Correct
+                        </p>
+                        <p className="mt-2 text-4xl font-black text-white">
+                          {categoryScore}/10
+                        </p>
+                      </div>
 
-                    {earnedTokens > 0 && (
-                      <p className="mt-4 text-3xl font-extrabold text-[#ffd18a]">
-                        +{earnedTokens} DT
-                      </p>
-                    )}
+                      <div className="rounded-[18px] border border-[#ffd18a]/24 bg-[#ffd18a]/10 p-4">
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/42">
+                          Score
+                        </p>
+                        <p className="mt-2 text-4xl font-black text-[#ffd18a]">
+                          {categoryPoints}
+                        </p>
+                        <p className="mt-1 text-xs font-bold text-white/48">points</p>
+                      </div>
 
-                    {alreadyRewardedThisWeek && (
-                      <p className="mt-4 text-sm font-bold text-[#ffd18a]">
-                        Weekly reward already claimed.
+                      <div className="rounded-[18px] border border-cyan-200/18 bg-cyan-300/[0.07] p-4">
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/42">
+                          Score Comparison
+                        </p>
+                        {userAccess.isLoggedIn ? (
+                          isSavingAnalytics ? (
+                            <p className="mt-3 text-sm font-bold text-[#9bf5ff]">
+                              Comparing your score…
+                            </p>
+                          ) : percentileResult?.available &&
+                            percentileResult.beats_percent !== null ? (
+                            <p className="mt-2 text-sm font-black leading-5 text-[#9bf5ff]">
+                              Well done! You scored higher than {percentileResult.beats_percent}% of {selectedCategory} attempts.
+                            </p>
+                          ) : percentileResult ? (
+                            <p className="mt-2 text-xs font-bold leading-5 text-white/58">
+                              Score comparison unlocks after {percentileResult.minimum_sample_size} other {selectedCategory} attempts. {percentileResult.sample_size}/{percentileResult.minimum_sample_size} recorded.
+                            </p>
+                          ) : (
+                            <p className="mt-2 text-xs font-bold leading-5 text-white/58">
+                              {analyticsMessage || "Saving your learning result…"}
+                            </p>
+                          )
+                        ) : (
+                          <p className="mt-2 text-xs font-bold leading-5 text-white/58">
+                            Log in before your next quiz to save progress and compare your score.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="milo-summary-card mt-3 rounded-[18px] border border-[#9bf5ff]/16 bg-[#9bf5ff]/[0.055] p-4 text-left">
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#9bf5ff]">
+                        Milo Noticed
                       </p>
-                    )}
+                      <p className="mt-2 text-sm font-semibold leading-6 text-white/72">
+                        {miloQuizSummary}
+                      </p>
+                    </div>
+
+                    <div className="reward-card mt-3 rounded-[18px] border border-yellow-200/18 bg-yellow-300/10 p-4 text-left">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#ffd18a]">
+                            Dreamscape Token Reward
+                          </p>
+                          <p className="mt-2 text-xs leading-5 text-white/68">
+                            {rewardMessage || "Checking weekly reward eligibility…"}
+                          </p>
+                        </div>
+                        {earnedTokens > 0 && (
+                          <p className="shrink-0 text-2xl font-extrabold text-[#ffd18a]">
+                            +{earnedTokens} DT
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={resetCategoriesQuiz}
-                    className="primary-action mt-5 w-full shrink-0 rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white shadow-[0_14px_32px_rgba(196,122,37,0.24)] transition hover:scale-[1.01]"
-                  >
-                    Back to Mode Select
-                  </button>
+                  <div className="finished-actions mt-3 grid shrink-0 gap-2 sm:grid-cols-3">
+                    <button
+                      type="button"
+                      onClick={() => setCategoriesStage("results")}
+                      className="primary-action rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-4 py-3 text-xs font-black uppercase tracking-[0.1em] text-white shadow-[0_14px_32px_rgba(196,122,37,0.24)] transition hover:scale-[1.01]"
+                    >
+                      See Results
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={startSinglePlayerCategoryQuiz}
+                      disabled={isLoadingCategoryQuiz}
+                      className="secondary-action rounded-[14px] border border-white/14 bg-white/[0.055] px-4 py-3 text-xs font-black uppercase tracking-[0.1em] text-white transition hover:bg-white/[0.09] disabled:opacity-50"
+                    >
+                      {isLoadingCategoryQuiz ? "Loading…" : "Play Again"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        resetCategoriesQuiz();
+                        setCategoriesStage("category");
+                      }}
+                      className="secondary-action rounded-[14px] border border-white/14 bg-white/[0.055] px-4 py-3 text-xs font-black uppercase tracking-[0.1em] text-white transition hover:bg-white/[0.09]"
+                    >
+                      Choose Topic
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {categoriesStage === "results" && (
+                <div className="results-stage stage-fill flex h-full min-h-0 flex-col">
+                  <div className="results-header shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setCategoriesStage("finished")}
+                      className="stage-back text-sm font-bold text-[#ffd18a]"
+                    >
+                      ← Back to summary
+                    </button>
+
+                    <div className="mt-3 flex items-end justify-between gap-3">
+                      <div>
+                        <p className="stage-kicker text-xs font-bold uppercase tracking-[0.18em] text-[#ffd18a]">
+                          {selectedCategory}
+                        </p>
+                        <h2 className="mt-1 text-2xl font-black text-white sm:text-3xl">
+                          Your 10 Answers
+                        </h2>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-2xl font-black text-[#ffd18a]">
+                          {categoryPoints}
+                        </p>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/40">
+                          points
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="milo-summary-card mt-3 rounded-[16px] border border-[#9bf5ff]/16 bg-[#9bf5ff]/[0.055] px-4 py-3">
+                      <p className="text-[9px] font-black uppercase tracking-[0.15em] text-[#9bf5ff]">
+                        Milo Noticed
+                      </p>
+                      <p className="mt-1 text-xs font-semibold leading-5 text-white/68">
+                        {miloQuizSummary}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="results-scroll mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
+                    <div className="grid gap-3">
+                      {reviewAnswers.map((item, index) => (
+                        <article
+                          key={item.question.id}
+                          className={`result-card rounded-[18px] border p-4 ${
+                            item.isCorrect
+                              ? "border-green-300/18 bg-green-400/[0.055]"
+                              : "border-red-300/20 bg-red-400/[0.055]"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-[10px] font-black uppercase tracking-[0.14em] text-white/38">
+                                  Question {index + 1}
+                                </span>
+                                {(item.question.subtopic || item.question.topic) && (
+                                  <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 text-[9px] font-bold text-white/48">
+                                    {item.question.subtopic || item.question.topic}
+                                  </span>
+                                )}
+                              </div>
+                              <h3 className="mt-2 text-sm font-black leading-5 text-white sm:text-base">
+                                {item.question.question}
+                              </h3>
+                            </div>
+
+                            <div className="shrink-0 text-right">
+                              <p className={`text-xs font-black ${item.isCorrect ? "text-green-200" : "text-red-200"}`}>
+                                {item.isCorrect ? "Correct" : "Review"}
+                              </p>
+                              <p className="mt-1 text-xs font-black text-[#ffd18a]">
+                                +{item.points}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="result-answer-grid mt-3 grid gap-2 sm:grid-cols-2">
+                            <div className="rounded-[12px] border border-white/10 bg-black/15 p-3">
+                              <p className="text-[9px] font-black uppercase tracking-[0.12em] text-white/36">
+                                Your answer
+                              </p>
+                              <p className={`mt-1 text-xs font-bold leading-5 ${item.isCorrect ? "text-green-100" : "text-red-100"}`}>
+                                {item.draft?.selectedOption
+                                  ? `${item.draft.selectedOption}. ${item.selectedText}`
+                                  : "No answer"}
+                              </p>
+                            </div>
+
+                            <div className="rounded-[12px] border border-green-300/14 bg-green-400/[0.045] p-3">
+                              <p className="text-[9px] font-black uppercase tracking-[0.12em] text-white/36">
+                                Correct answer
+                              </p>
+                              <p className="mt-1 text-xs font-bold leading-5 text-green-100">
+                                {item.question.correct_option}. {item.correctText}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="mt-2 rounded-[12px] border border-white/8 bg-white/[0.025] p-3">
+                            <p className="text-[9px] font-black uppercase tracking-[0.12em] text-[#9bf5ff]">
+                              Explanation
+                            </p>
+                            <p className="mt-1 text-xs leading-5 text-white/62">
+                              {item.question.explanation ||
+                                "No explanation has been added to this question yet."}
+                            </p>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -2107,6 +2508,24 @@ export default function MiloCategoriesPage() {
             grid-template-columns: 1fr;
             grid-template-rows: minmax(0, 0.72fr) minmax(0, 1.28fr);
           }
+        }
+
+        .finished-scroll,
+        .results-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(255, 209, 138, 0.34) transparent;
+          overscroll-behavior: contain;
+        }
+
+        .finished-scroll::-webkit-scrollbar,
+        .results-scroll::-webkit-scrollbar {
+          width: 5px;
+        }
+
+        .finished-scroll::-webkit-scrollbar-thumb,
+        .results-scroll::-webkit-scrollbar-thumb {
+          border-radius: 999px;
+          background: rgba(255, 209, 138, 0.3);
         }
 
         @media (max-width: 1024px), (hover: none) and (pointer: coarse) {
@@ -2518,6 +2937,71 @@ export default function MiloCategoriesPage() {
             margin-top: 8px;
             font-size: 10px;
             line-height: 1.35;
+          }
+
+          .phase2-summary-grid {
+            margin-top: 8px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 6px;
+          }
+
+          .phase2-summary-grid > div {
+            border-radius: 13px;
+            padding: 9px;
+          }
+
+          .phase2-summary-grid p:nth-child(2) {
+            font-size: 20px;
+          }
+
+          .milo-summary-card,
+          .reward-card {
+            margin-top: 7px;
+            border-radius: 13px;
+            padding: 9px 10px;
+          }
+
+          .finished-actions {
+            margin-top: 7px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 5px;
+          }
+
+          .finished-actions button {
+            min-height: 38px;
+            padding: 7px 6px;
+            font-size: 9px;
+            letter-spacing: 0.05em;
+          }
+
+          .results-header h2 {
+            font-size: 20px;
+          }
+
+          .results-scroll {
+            margin-top: 7px;
+          }
+
+          .result-card {
+            border-radius: 13px;
+            padding: 10px;
+          }
+
+          .result-answer-grid {
+            margin-top: 8px;
+            grid-template-columns: 1fr;
+            gap: 5px;
+          }
+
+          .result-card h3 {
+            margin-top: 5px;
+            font-size: 12px;
+            line-height: 1.35;
+          }
+
+          .result-card > div:last-child,
+          .result-answer-grid > div {
+            padding: 8px;
           }
         }
 
