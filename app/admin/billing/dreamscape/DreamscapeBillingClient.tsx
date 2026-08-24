@@ -82,6 +82,23 @@ type Settings = {
   updated_at: string;
 };
 
+type StripeRuntimeStatus = {
+  ok: boolean;
+  stripeConfigured: boolean;
+  stripeEnvironment: "sandbox" | "production";
+  activeSecretKeyPresent: boolean;
+  activeWebhookSecretPresent: boolean;
+  testSecretKeyPresent: boolean;
+  liveSecretKeyPresent: boolean;
+  testWebhookSecretPresent: boolean;
+  liveWebhookSecretPresent: boolean;
+  testMappingReady: boolean;
+  liveMappingReady: boolean;
+  activeMappingReady: boolean;
+  publicPlanCount: number;
+  activeMappedPlanCount: number;
+};
+
 type AddonWarning = {
   addon_id: string;
   student_id: string;
@@ -176,6 +193,8 @@ export default function DreamscapeBillingClient() {
   const [planChangeHistory, setPlanChangeHistory] = useState<PlanChangeHistory[]>([]);
   const [dualConflicts, setDualConflicts] = useState<DualBillingConflict[]>([]);
   const [targetPlanId, setTargetPlanId] = useState("");
+  const [stripeRuntime, setStripeRuntime] =
+    useState<StripeRuntimeStatus | null>(null);
   const [paymentHistory, setPaymentHistory] = useState<
     Array<{
       id: string;
@@ -188,6 +207,45 @@ export default function DreamscapeBillingClient() {
     }>
   >([]);
 
+  const loadStripeRuntimeStatus =
+    useCallback(async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        return null;
+      }
+
+      const response = await fetch(
+        "/api/billing/stripe/system-status",
+        {
+          method: "GET",
+          cache: "no-store",
+          headers: {
+            Authorization:
+              `Bearer ${session.access_token}`,
+          },
+        },
+      );
+
+      const payload =
+        (await response.json()) as
+          | StripeRuntimeStatus
+          | { error?: string };
+
+      if (!response.ok) {
+        throw new Error(
+          "error" in payload &&
+          payload.error
+            ? payload.error
+            : "Stripe runtime status is unavailable.",
+        );
+      }
+
+      return payload as StripeRuntimeStatus;
+    }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -199,6 +257,7 @@ export default function DreamscapeBillingClient() {
       settingsResult,
       warningResult,
       conflictResult,
+      stripeRuntimeResult,
     ] = await Promise.all([
         supabase.rpc("gkp_get_dreamscape_subscription_plans_v2"),
         supabase.rpc(
@@ -209,6 +268,14 @@ export default function DreamscapeBillingClient() {
         supabase.rpc("gkp_get_dreamscape_billing_settings"),
         supabase.rpc("gkp_get_gkp_dreamscape_addon_warnings"),
         supabase.rpc("gkp_get_dreamscape_dual_billing_conflicts"),
+        loadStripeRuntimeStatus().catch(
+          (runtimeError) => ({
+            __runtimeError:
+              runtimeError instanceof Error
+                ? runtimeError.message
+                : String(runtimeError),
+          }),
+        ),
       ]);
 
     const firstError =
@@ -235,8 +302,30 @@ export default function DreamscapeBillingClient() {
     );
     setAddonWarnings((warningResult.data || []) as AddonWarning[]);
     setDualConflicts((conflictResult.data || []) as DualBillingConflict[]);
+
+    if (
+      stripeRuntimeResult &&
+      !("__runtimeError" in stripeRuntimeResult)
+    ) {
+      setStripeRuntime(
+        stripeRuntimeResult as StripeRuntimeStatus,
+      );
+    } else {
+      setStripeRuntime(null);
+
+      if (
+        stripeRuntimeResult &&
+        "__runtimeError" in stripeRuntimeResult
+      ) {
+        console.warn(
+          "Stripe runtime status could not be loaded:",
+          stripeRuntimeResult.__runtimeError,
+        );
+      }
+    }
+
     setLoading(false);
-  }, []);
+  }, [loadStripeRuntimeStatus]);
 
   useEffect(() => {
     void load();
@@ -247,14 +336,19 @@ export default function DreamscapeBillingClient() {
 
     const next = !settings.public_checkout_enabled;
 
-    if (
-      next &&
-      !window.confirm(
-        "Enable public Dreamscape subscription checkout? " +
-          "Only do this after the Stripe sandbox prices and webhook have been tested.",
-      )
-    ) {
-      return;
+    if (next) {
+      const isProduction =
+        stripeRuntime?.stripeEnvironment ===
+        "production";
+
+      const confirmation =
+        isProduction
+          ? "Enable LIVE public Dreamscape subscription checkout? Real customer cards can now be charged."
+          : "Enable SANDBOX public Dreamscape subscription checkout? No real transactions will be processed.";
+
+      if (!window.confirm(confirmation)) {
+        return;
+      }
     }
 
     setWorking(true);
@@ -596,10 +690,27 @@ export default function DreamscapeBillingClient() {
       !plan.is_coming_soon,
   );
 
-  const allPublicStripePlansMapped =
+  const testPublicStripePlansMapped =
     publicStripePlans.length === 4 &&
     publicStripePlans.every((plan) =>
       Boolean(plan.stripe_test_price_id),
+    );
+
+  const livePublicStripePlansMapped =
+    publicStripePlans.length === 4 &&
+    publicStripePlans.every((plan) =>
+      Boolean(plan.stripe_live_price_id),
+    );
+
+  const activeStripeMappingReady =
+    Boolean(
+      stripeRuntime?.activeMappingReady,
+    );
+
+  const activeStripeRuntimeReady =
+    Boolean(
+      stripeRuntime?.stripeConfigured &&
+      activeStripeMappingReady,
     );
 
   return (
@@ -694,7 +805,7 @@ export default function DreamscapeBillingClient() {
             disabled={
               working ||
               (!settings?.public_checkout_enabled &&
-                !allPublicStripePlansMapped)
+                !activeStripeRuntimeReady)
             }
             className={`min-h-11 rounded-full border px-6 text-xs font-black ${
               settings?.public_checkout_enabled
@@ -710,7 +821,7 @@ export default function DreamscapeBillingClient() {
           </button>
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-3">
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <StatusBox
             label="Public checkout"
             value={
@@ -724,15 +835,41 @@ export default function DreamscapeBillingClient() {
                 : "New public subscription checkout is blocked."
             }
           />
+
+          <StatusBox
+            label="Stripe mode"
+            value={
+              stripeRuntime
+                ? stripeRuntime.stripeEnvironment.toUpperCase()
+                : "UNKNOWN"
+            }
+            detail={
+              stripeRuntime?.stripeEnvironment === "production"
+                ? "Live Stripe keys and live Price IDs are active. Real cards can be charged."
+                : stripeRuntime?.stripeEnvironment === "sandbox"
+                  ? "Test Stripe keys and sandbox Price IDs are active."
+                  : "Runtime environment could not be verified."
+            }
+          />
+
+          <StatusBox
+            label="Active Stripe setup"
+            value={
+              activeStripeRuntimeReady
+                ? "READY"
+                : "NOT READY"
+            }
+            detail={
+              stripeRuntime
+                ? `${stripeRuntime.activeMappedPlanCount}/${stripeRuntime.publicPlanCount} active-environment prices mapped. Secret key: ${stripeRuntime.activeSecretKeyPresent ? "OK" : "missing"}. Webhook secret: ${stripeRuntime.activeWebhookSecretPresent ? "OK" : "missing"}.`
+                : "Could not verify the server-side Stripe environment."
+            }
+          />
+
           <StatusBox
             label="Grace period"
             value={`${settings?.failed_payment_grace_days || 7} DAYS`}
             detail="Used when a recurring Stripe payment fails."
-          />
-          <StatusBox
-            label="Stripe sandbox mapping"
-            value={allPublicStripePlansMapped ? "READY" : "NOT READY"}
-            detail="Core and Full monthly/yearly plans must all have sandbox Price IDs before checkout can be enabled."
           />
         </div>
       </section>
@@ -808,6 +945,12 @@ export default function DreamscapeBillingClient() {
           Dreamscape plans
         </h2>
 
+        <p className="mt-2 text-xs leading-5 text-[#81796d]">
+          Sandbox mapping: {testPublicStripePlansMapped ? "READY" : "NOT READY"} ·
+          Live mapping: {livePublicStripePlansMapped ? "READY" : "NOT READY"}.
+          The server-side Stripe mode shown above decides which mapping is used for new checkout.
+        </p>
+
         <div className="mt-5 overflow-x-auto">
           <table className="w-full min-w-[1080px] border-collapse text-left">
             <thead>
@@ -818,6 +961,7 @@ export default function DreamscapeBillingClient() {
                 <th className="px-4 py-3">Price</th>
                 <th className="px-4 py-3">Current default</th>
                 <th className="px-4 py-3">Stripe sandbox</th>
+                <th className="px-4 py-3">Stripe live</th>
                 <th className="px-4 py-3">Legacy HitPay</th>
               </tr>
             </thead>
@@ -855,6 +999,11 @@ export default function DreamscapeBillingClient() {
                     {plan.audience !== "public"
                       ? "Not required"
                       : plan.stripe_test_price_id || "Not mapped"}
+                  </td>
+                  <td className="px-4 py-4 text-xs">
+                    {plan.audience !== "public"
+                      ? "Not required"
+                      : plan.stripe_live_price_id || "Not mapped"}
                   </td>
                   <td className="px-4 py-4 text-xs">
                     {plan.audience !== "public"
