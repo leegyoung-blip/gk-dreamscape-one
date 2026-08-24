@@ -1,7 +1,6 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { resolveAffiliateAttributionForCheckout } from "@/lib/affiliate/attribution";
 
 import {
   createDreamscapeStripeCheckout,
@@ -16,137 +15,83 @@ import {
 } from "@/lib/dreamscape-subscriptions";
 
 export const runtime = "nodejs";
-export const dynamic =
-  "force-dynamic";
+export const dynamic = "force-dynamic";
 
-/*
- * Public DREAMSCAPE pricing currently exposes:
- *
- * Core Monthly
- * Core Annual
- * Full Monthly
- * Full Annual
- *
- * GKP-priced plans are intentionally excluded.
- */
-const ALLOWED_PLAN_KEYS =
-  new Set([
-    "core_monthly",
-    "core_annual",
-    "complete_monthly",
-    "complete_annual",
-  ]);
+const ALLOWED_PLAN_KEYS = new Set([
+  "core_monthly",
+  "core_annual",
+  "complete_monthly",
+  "complete_annual",
+]);
 
-function json(
-  body: unknown,
-  status = 200,
-) {
-  return NextResponse.json(
-    body,
-    {
-      status,
-      headers: {
-        "Cache-Control":
-          "no-store",
-      },
+const STANDARD_INTRO_TRIAL_DAYS = 7;
+
+type IntroTrialEligibility = {
+  eligible?: boolean;
+  trial_days?: number;
+  reason?: string;
+  identity_hash?: string;
+};
+
+function json(body: unknown, status = 200) {
+  return NextResponse.json(body, {
+    status,
+    headers: {
+      "Cache-Control": "no-store",
     },
-  );
+  });
 }
 
-function validEmail(
-  value: string,
-) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-    value,
-  );
+function validEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-export async function POST(
-  request: Request,
-) {
-  let contractId:
-    | string
-    | null = null;
+function safeTrialDays(input: IntroTrialEligibility | null) {
+  if (!input?.eligible) return 0;
+
+  const value = Number(input.trial_days || STANDARD_INTRO_TRIAL_DAYS);
+
+  if (!Number.isInteger(value) || value <= 0 || value > 30) {
+    return STANDARD_INTRO_TRIAL_DAYS;
+  }
+
+  return value;
+}
+
+export async function POST(request: Request) {
+  let contractId: string | null = null;
 
   try {
-    const body =
-      (await request.json()) as {
-        planKey?: string;
-        parentName?: string;
-        parentEmail?: string;
-        learnerName?: string;
-        learnerEmail?: string;
-        guardianAuthorised?: boolean;
+    const body = (await request.json()) as {
+      planKey?: string;
+      parentName?: string;
+      parentEmail?: string;
+      learnerName?: string;
+      learnerEmail?: string;
+      guardianAuthorised?: boolean;
+      website?: string;
+    };
 
-        /*
-         * Optional compatibility input. The canonical affiliate link uses a
-         * secure first-party cookie, but this keeps direct affiliate_ref flows
-         * working when the purchase UI forwards the code explicitly.
-         */
-        affiliateRef?: string;
-
-        /*
-         * Honeypot.
-         */
-        website?: string;
-      };
-
-    if (
-      String(
-        body.website || "",
-      ).trim()
-    ) {
+    if (String(body.website || "").trim()) {
       return json(
         {
-          error:
-            "Unable to start subscription.",
+          error: "Unable to start subscription.",
         },
         400,
       );
     }
 
-    const planKey =
-      normaliseText(
-        body.planKey,
-        80,
-      );
+    const planKey = normaliseText(body.planKey, 80);
+    const parentName = normaliseText(body.parentName, 160);
+    const parentEmail = normaliseEmail(body.parentEmail);
+    const learnerName = normaliseText(body.learnerName, 160);
+    const learnerEmail = normaliseEmail(body.learnerEmail);
+    const guardianAuthorised = Boolean(body.guardianAuthorised);
 
-    const parentName =
-      normaliseText(
-        body.parentName,
-        160,
-      );
-
-    const parentEmail =
-      normaliseEmail(
-        body.parentEmail,
-      );
-
-    const learnerName =
-      normaliseText(
-        body.learnerName,
-        160,
-      );
-
-    const learnerEmail =
-      normaliseEmail(
-        body.learnerEmail,
-      );
-
-    const guardianAuthorised =
-      Boolean(
-        body.guardianAuthorised,
-      );
-
-    if (
-      !ALLOWED_PLAN_KEYS.has(
-        planKey,
-      )
-    ) {
+    if (!ALLOWED_PLAN_KEYS.has(planKey)) {
       return json(
         {
-          error:
-            "Invalid Dreamscape plan.",
+          error: "Invalid Dreamscape plan.",
         },
         400,
       );
@@ -155,60 +100,42 @@ export async function POST(
     if (
       !parentName ||
       !learnerName ||
-      !validEmail(
-        parentEmail,
-      ) ||
-      !validEmail(
-        learnerEmail,
-      )
+      !validEmail(parentEmail) ||
+      !validEmail(learnerEmail)
     ) {
       return json(
         {
-          error:
-            "Complete all parent and learner details.",
+          error: "Complete all parent and learner details.",
         },
         400,
       );
     }
 
-    if (
-      !guardianAuthorised
-    ) {
+    if (!guardianAuthorised) {
       return json(
         {
-          error:
-            "Parent/guardian authorisation must be confirmed.",
+          error: "Parent/guardian authorisation must be confirmed.",
         },
         400,
       );
     }
 
     /*
-     * Prevent duplicate public/GKP Dreamscape billing.
+     * Existing active/setup public or GKP access still blocks a second
+     * checkout. This also prevents two concurrent trial checkouts for the
+     * same learner identity.
      */
-    const {
-      data: conflict,
-      error:
-        conflictError,
-    } =
-      await supabaseAdmin.rpc(
-        "gkp_check_dreamscape_checkout_conflict",
-        {
-          p_learner_email:
-            learnerEmail,
-        },
-      );
+    const { data: conflict, error: conflictError } =
+      await supabaseAdmin.rpc("gkp_check_dreamscape_checkout_conflict", {
+        p_learner_email: learnerEmail,
+      });
 
     if (conflictError) {
       throw conflictError;
     }
 
     if (conflict?.blocked) {
-      const source =
-        String(
-          conflict.source ||
-            "",
-        );
+      const source = String(conflict.source || "");
 
       return json(
         {
@@ -216,92 +143,67 @@ export async function POST(
             source === "gkp"
               ? "This learner already has Guru Kids Pro Dreamscape access. Please contact Guru Kids Pro before starting a separate public subscription."
               : "This learner already has a Dreamscape subscription or subscription setup in progress.",
-
-          code:
-            "EXISTING_DREAMSCAPE_ACCESS",
-
+          code: "EXISTING_DREAMSCAPE_ACCESS",
           source,
         },
         409,
       );
     }
 
-    /*
-     * Preserve the existing master launch switch.
-     */
-    const {
-      data: settings,
-      error:
-        settingsError,
-    } =
-      await supabaseAdmin
-        .from(
-          "dreamscape_billing_settings",
-        )
-        .select(
-          "public_checkout_enabled",
-        )
-        .eq(
-          "id",
-          true,
-        )
-        .maybeSingle();
+    const { data: settings, error: settingsError } = await supabaseAdmin
+      .from("dreamscape_billing_settings")
+      .select("public_checkout_enabled")
+      .eq("id", true)
+      .maybeSingle();
 
     if (settingsError) {
       throw settingsError;
     }
 
-    if (
-      !settings
-        ?.public_checkout_enabled
-    ) {
+    if (!settings?.public_checkout_enabled) {
       return json(
         {
-          error:
-            "Dreamscape public subscriptions are not open yet.",
-
-          code:
-            "PUBLIC_CHECKOUT_DISABLED",
+          error: "Dreamscape public subscriptions are not open yet.",
+          code: "PUBLIC_CHECKOUT_DISABLED",
         },
         403,
       );
     }
 
     /*
-     * Do NOT filter on plan.provider here.
-     *
-     * During migration the plan rows retain their historical
-     * HitPay mapping while also carrying Stripe Price IDs.
-     *
-     * The CONTRACT determines which provider actually owns
-     * this subscription.
+     * Phase 1 trial eligibility is server-authoritative.
+     * A pricing-page label cannot grant a trial by itself.
      */
-    const {
-      data: plan,
-      error: planError,
-    } =
-      await supabaseAdmin
-        .from(
-          "dreamscape_subscription_plans",
-        )
-        .select("*")
-        .eq(
-          "plan_key",
-          planKey,
-        )
-        .eq(
-          "audience",
-          "public",
-        )
-        .eq(
-          "is_available",
-          true,
-        )
-        .eq(
-          "is_coming_soon",
-          false,
-        )
-        .maybeSingle();
+    const { data: trialEligibilityData, error: trialEligibilityError } =
+      await supabaseAdmin.rpc(
+        "gkp_get_dreamscape_intro_trial_eligibility",
+        {
+          p_learner_email: learnerEmail,
+        },
+      );
+
+    if (trialEligibilityError) {
+      throw trialEligibilityError;
+    }
+
+    const trialEligibility =
+      (trialEligibilityData || null) as IntroTrialEligibility | null;
+
+    const trialDays = safeTrialDays(trialEligibility);
+    const introTrialEligible = trialDays > 0;
+    const introTrialReason = String(
+      trialEligibility?.reason ||
+        (introTrialEligible ? "eligible_first_time_user" : "not_eligible"),
+    );
+
+    const { data: plan, error: planError } = await supabaseAdmin
+      .from("dreamscape_subscription_plans")
+      .select("*")
+      .eq("plan_key", planKey)
+      .eq("audience", "public")
+      .eq("is_available", true)
+      .eq("is_coming_soon", false)
+      .maybeSingle();
 
     if (planError) {
       throw planError;
@@ -310,255 +212,107 @@ export async function POST(
     if (!plan) {
       return json(
         {
-          error:
-            "This subscription plan is not available.",
+          error: "This subscription plan is not available.",
         },
         404,
       );
     }
 
-    const typedPlan =
-      plan as DreamscapePlanRow;
-
-    const environment =
-      getStripeEnvironment();
-
-    /*
-     * Select sandbox or live Price ID automatically.
-     */
-    const priceId =
-      getStripePriceId(
-        typedPlan,
-        environment,
-      );
+    const typedPlan = plan as DreamscapePlanRow;
+    const environment = getStripeEnvironment();
+    const priceId = getStripePriceId(typedPlan, environment);
+    const reference = `DSUB-${crypto.randomUUID()}`;
+    const nowIso = new Date().toISOString();
 
     /*
-     * Internal Dreamscape subscription reference.
-     */
-    const reference =
-      `DSUB-${crypto.randomUUID()}`;
-
-    /*
-     * Resolve affiliate attribution immediately before the contract is
-     * created. The contract's affiliate_partner_id + referral_code become the
-     * durable source of truth used later by the Stripe webhook commission RPC.
+     * Store the eligibility decision before opening Stripe.
+     * intro_trial_identity_hash is a one-way server-generated identifier from
+     * the SQL eligibility function. It lets DREAMSCAPE enforce the one-trial
+     * rule even if a historical account is later anonymised.
      *
-     * Purchase is never blocked merely because an affiliate code is invalid or
-     * rejected as a self-referral.
+     * Phase 2 will populate trial_started_at / trial_ends_at /
+     * trial_redeemed_at only after Stripe confirms the trial actually began.
      */
-    const affiliateAttribution =
-      await resolveAffiliateAttributionForCheckout({
-        request,
-        parentEmail,
-        learnerEmail,
-        bodyAffiliateRef: body.affiliateRef,
-      });
-
-    const affiliateMetadata = {
-      partner_id: affiliateAttribution.partnerId,
-      referral_code: affiliateAttribution.referralCode,
-      click_id: affiliateAttribution.clickId,
-      source: affiliateAttribution.source,
-      rejected_reason: affiliateAttribution.rejectedReason,
-    };
-
-    /*
-     * Create our local contract BEFORE Stripe Checkout.
-     *
-     * Stripe receives this contract ID in both Checkout
-     * metadata and Subscription metadata.
-     */
-    const {
-      data: contract,
-      error:
-        contractError,
-    } =
-      await supabaseAdmin
-        .from(
-          "dreamscape_subscription_contracts",
-        )
-        .insert({
-          reference,
-
-          plan_id:
-            typedPlan.id,
-
-          parent_name:
-            parentName,
-
-          parent_email:
-            parentEmail,
-
-          learner_name:
-            learnerName,
-
-          learner_email:
-            learnerEmail,
-
-          guardian_authorised:
-            true,
-
-          affiliate_partner_id:
-            affiliateAttribution.partnerId,
-
-          referral_code:
-            affiliateAttribution.referralCode,
-
-          affiliate_click_id:
-            affiliateAttribution.clickId,
-
-          affiliate_attributed_at:
-            affiliateAttribution.partnerId
-              ? new Date().toISOString()
-              : null,
-
-          provider:
-            "stripe",
-
-          provider_environment:
-            environment,
-
-          provider_status:
-            "checkout_pending",
-
-          provider_data: {
-            affiliate_attribution:
-              affiliateMetadata,
-          },
-
-          status:
-            "setup_pending",
-        })
-        .select("*")
-        .single();
+    const { data: contract, error: contractError } = await supabaseAdmin
+      .from("dreamscape_subscription_contracts")
+      .insert({
+        reference,
+        plan_id: typedPlan.id,
+        parent_name: parentName,
+        parent_email: parentEmail,
+        learner_name: learnerName,
+        learner_email: learnerEmail,
+        guardian_authorised: true,
+        provider: "stripe",
+        provider_environment: environment,
+        provider_status: "checkout_pending",
+        status: "setup_pending",
+        intro_trial_eligible: introTrialEligible,
+        intro_trial_days: trialDays,
+        intro_trial_offered_at: introTrialEligible ? nowIso : null,
+        intro_trial_identity_hash:
+          trialEligibility?.identity_hash || null,
+      })
+      .select("*")
+      .single();
 
     if (contractError) {
       throw contractError;
     }
 
-    contractId =
-      contract.id;
+    contractId = contract.id;
 
-    const siteUrl =
-      (
-        process.env
-          .NEXT_PUBLIC_SITE_URL ||
-        new URL(
-          request.url,
-        ).origin
-      ).replace(
-        /\/$/,
-        "",
-      );
+    const siteUrl = (
+      process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
+    ).replace(/\/$/, "");
 
-    /*
-     * The webhook — not this return URL — will activate
-     * paid access.
-     *
-     * CHECKOUT_SESSION_ID is a Stripe placeholder and must
-     * remain literally inside the URL.
-     */
     const successUrl =
       `${siteUrl}` +
       `/dreamscape/subscribe/complete` +
-      `?contract=${encodeURIComponent(
-        contract.id,
-      )}` +
+      `?contract=${encodeURIComponent(contract.id)}` +
       `&session_id={CHECKOUT_SESSION_ID}`;
 
     const cancelUrl =
       `${siteUrl}` +
       `/pricing` +
       `?checkout=cancelled` +
-      `&plan=${encodeURIComponent(
-        planKey,
-      )}`;
+      `&plan=${encodeURIComponent(planKey)}`;
 
     try {
-      const session =
-        await createDreamscapeStripeCheckout(
-          {
-            contractId:
-              contract.id,
-
-            reference,
-
-            planId:
-              typedPlan.id,
-
-            planKey:
-              typedPlan.plan_key,
-
-            priceId,
-
-            parentEmail,
-
-            successUrl,
-
-            cancelUrl,
-
-            environment,
-          },
-        );
+      const session = await createDreamscapeStripeCheckout({
+        contractId: contract.id,
+        reference,
+        planId: typedPlan.id,
+        planKey: typedPlan.plan_key,
+        priceId,
+        parentEmail,
+        successUrl,
+        cancelUrl,
+        trialDays,
+        environment,
+      });
 
       const providerCustomerId =
-        typeof session.customer ===
-        "string"
-          ? session.customer
-          : null;
+        typeof session.customer === "string" ? session.customer : null;
 
-      /*
-       * At this stage Stripe has created the Checkout
-       * Session, but the Subscription may not exist until
-       * Checkout completes.
-       *
-       * Therefore provider_subscription_id remains NULL
-       * here. The webhook will populate the real sub_...
-       * identifier.
-       */
-      const {
-        error:
-          updateError,
-      } =
-        await supabaseAdmin
-          .from(
-            "dreamscape_subscription_contracts",
-          )
-          .update({
-            provider_status:
-              session.status ||
-              "open",
-
-            provider_customer_id:
-              providerCustomerId,
-
-            provider_data: {
-              checkout_session_id:
-                session.id,
-
-              checkout_status:
-                session.status,
-
-              payment_status:
-                session.payment_status,
-
-              price_id:
-                priceId,
-
-              livemode:
-                session.livemode,
-
-              affiliate_attribution:
-                affiliateMetadata,
-            },
-
-            updated_at:
-              new Date().toISOString(),
-          })
-          .eq(
-            "id",
-            contract.id,
-          );
+      const { error: updateError } = await supabaseAdmin
+        .from("dreamscape_subscription_contracts")
+        .update({
+          provider_status: session.status || "open",
+          provider_customer_id: providerCustomerId,
+          provider_data: {
+            checkout_session_id: session.id,
+            checkout_status: session.status,
+            payment_status: session.payment_status,
+            price_id: priceId,
+            livemode: session.livemode,
+            intro_trial_eligible: introTrialEligible,
+            intro_trial_days: trialDays,
+            intro_trial_reason: introTrialReason,
+          },
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", contract.id);
 
       if (updateError) {
         throw updateError;
@@ -566,78 +320,41 @@ export async function POST(
 
       return json({
         ok: true,
-
-        contractId:
-          contract.id,
-
+        contractId: contract.id,
         reference,
-
-        redirectUrl:
-          session.url,
-
-        provider:
-          "stripe",
-
+        redirectUrl: session.url,
+        provider: "stripe",
         environment,
-
-        affiliateAttributed:
-          Boolean(
-            affiliateAttribution.partnerId,
-          ),
+        introTrial: {
+          eligible: introTrialEligible,
+          days: trialDays,
+          reason: introTrialReason,
+        },
       });
     } catch (error) {
-      /*
-       * Checkout failed before payment was possible.
-       */
       await supabaseAdmin
-        .from(
-          "dreamscape_subscription_contracts",
-        )
+        .from("dreamscape_subscription_contracts")
         .update({
-          status:
-            "failed",
-
-          provider_status:
-            "checkout_failed",
-
+          status: "failed",
+          provider_status: "checkout_failed",
           provider_data: {
             setup_error:
-              error instanceof
-                Error
-                ? error.message
-                : String(
-                    error,
-                  ),
-
-            affiliate_attribution:
-              affiliateMetadata,
+              error instanceof Error ? error.message : String(error),
+            intro_trial_eligible: introTrialEligible,
+            intro_trial_days: trialDays,
+            intro_trial_reason: introTrialReason,
           },
-
-          updated_at:
-            new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         })
-        .eq(
-          "id",
-          contract.id,
-        );
+        .eq("id", contract.id);
 
       throw error;
     }
   } catch (error) {
-    console.error(
-      "Dreamscape Stripe subscription start failed",
-      {
-        contractId,
-
-        error:
-          error instanceof
-          Error
-            ? error.message
-            : String(
-                error,
-              ),
-      },
-    );
+    console.error("Dreamscape Stripe subscription start failed", {
+      contractId,
+      error: error instanceof Error ? error.message : String(error),
+    });
 
     return json(
       {

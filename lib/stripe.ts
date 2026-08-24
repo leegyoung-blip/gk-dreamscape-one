@@ -181,12 +181,28 @@ export async function createDreamscapeStripeCheckout(input: {
   parentEmail: string;
   successUrl: string;
   cancelUrl: string;
+  trialDays?: number | null;
   environment?: DreamscapeStripeEnvironment;
 }) {
   const environment =
     input.environment || getStripeEnvironment();
 
   const stripe = getStripeClient(environment);
+
+  const requestedTrialDays = Number(input.trialDays || 0);
+  const trialDays =
+    Number.isInteger(requestedTrialDays) &&
+    requestedTrialDays > 0 &&
+    requestedTrialDays <= 30
+      ? requestedTrialDays
+      : 0;
+
+  const trialMetadata = {
+    dreamscape_intro_trial:
+      trialDays > 0 ? "true" : "false",
+    dreamscape_intro_trial_days:
+      String(trialDays),
+  };
 
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
@@ -196,6 +212,13 @@ export async function createDreamscapeStripeCheckout(input: {
         quantity: 1,
       },
     ],
+
+    /*
+     * Always collect a payment method at the start of Checkout.
+     * Eligible users are charged only after the free-trial period ends.
+     */
+    payment_method_collection: "always",
+
     customer_email: input.parentEmail,
     client_reference_id: input.contractId,
     success_url: input.successUrl,
@@ -205,13 +228,20 @@ export async function createDreamscapeStripeCheckout(input: {
       dreamscape_reference: input.reference,
       dreamscape_plan_id: input.planId,
       dreamscape_plan_key: input.planKey,
+      ...trialMetadata,
     },
     subscription_data: {
+      ...(trialDays > 0
+        ? {
+            trial_period_days: trialDays,
+          }
+        : {}),
       metadata: {
         dreamscape_contract_id: input.contractId,
         dreamscape_reference: input.reference,
         dreamscape_plan_id: input.planId,
         dreamscape_plan_key: input.planKey,
+        ...trialMetadata,
       },
     },
     expires_at: Math.floor(Date.now() / 1000) + 30 * 60,

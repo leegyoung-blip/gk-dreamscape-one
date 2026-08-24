@@ -2112,7 +2112,7 @@ export default function PricingPage() {
                 lineHeight: 1.6,
               }}
             >
-              Staff testing access remains available to authorised admin, teacher and curriculum lead accounts. Trial billing will be activated in the Stripe checkout setup step.
+              Staff testing access remains available to authorised admin, teacher and curriculum lead accounts. Eligible first-time users receive the 7-day introductory trial automatically when Stripe Checkout is opened.
             </p>
           </div>
         </div>

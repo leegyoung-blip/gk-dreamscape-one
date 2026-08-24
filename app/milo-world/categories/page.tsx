@@ -918,7 +918,7 @@ export default function MiloCategoriesPage() {
     if (categoriesStage !== "answered") return;
 
     if (nextQuestionCountdown <= 0) {
-      goToNextCategoryQuestion();
+      void goToNextCategoryQuestion();
       return;
     }
 
@@ -1354,13 +1354,22 @@ export default function MiloCategoriesPage() {
     setCategoriesStage("answered");
   }
 
-  async function saveSinglePlayerAnalytics() {
-    if (!userAccess.userId || singlePlayerAnswers.length === 0) return null;
+  async function saveSinglePlayerAnalytics(
+    answersOverride?: SinglePlayerAnswerDraft[],
+  ) {
+    const answersToSave = answersOverride ?? singlePlayerAnswers;
+
+    if (!userAccess.userId || answersToSave.length === 0) return null;
+
+    // If this exact quiz has already been saved in the current page session,
+    // do not create a second attempt. The Phase 4 QA SQL patch also makes the
+    // server recorder idempotent by user/category/mode/started_at.
+    if (savedAttemptId) return savedAttemptId;
 
     setIsSavingAnalytics(true);
     setAnalyticsMessage("");
 
-    const durationSeconds = singlePlayerAnswers.reduce(
+    const durationSeconds = answersToSave.reduce(
       (sum, answer) => sum + answer.responseSeconds,
       0,
     );
@@ -1373,7 +1382,7 @@ export default function MiloCategoriesPage() {
         p_lobby_id: null,
         p_started_at: singlePlayerStartedAt,
         p_duration_seconds: durationSeconds,
-        p_answers: singlePlayerAnswers.map((answer) => ({
+        p_answers: answersToSave.map((answer) => ({
           question_id: answer.questionId,
           question_order: answer.questionOrder,
           selected_option: answer.selectedOption,
@@ -1441,13 +1450,16 @@ export default function MiloCategoriesPage() {
     return attemptId;
   }
 
-  function goToNextCategoryQuestion() {
+  async function goToNextCategoryQuestion() {
     const nextIndex = categoryQuestionIndex + 1;
 
     if (nextIndex >= categoryQuestions.length) {
+      // Move to the completion screen immediately, but await analytics before
+      // allowing the user to leave/replay. This prevents mobile navigation or
+      // a fast tap from interrupting the Challenge record/target update.
       setCategoriesStage("finished");
-      void saveSinglePlayerAnalytics();
-      checkAndAwardWeeklyTokens(categoryScore, categoryPoints);
+      await saveSinglePlayerAnalytics([...singlePlayerAnswers]);
+      await checkAndAwardWeeklyTokens(categoryScore, categoryPoints);
       return;
     }
 
@@ -2992,7 +3004,8 @@ export default function MiloCategoriesPage() {
                     <button
                       type="button"
                       onClick={() => setCategoriesStage("results")}
-                      className="primary-action rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-4 py-3 text-xs font-black uppercase tracking-[0.1em] text-white shadow-[0_14px_32px_rgba(196,122,37,0.24)] transition hover:scale-[1.01]"
+                      disabled={isSavingAnalytics}
+                      className="primary-action disabled:cursor-wait disabled:opacity-50 rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-4 py-3 text-xs font-black uppercase tracking-[0.1em] text-white shadow-[0_14px_32px_rgba(196,122,37,0.24)] transition hover:scale-[1.01]"
                     >
                       See Results
                     </button>
@@ -3000,7 +3013,7 @@ export default function MiloCategoriesPage() {
                     <button
                       type="button"
                       onClick={startSinglePlayerCategoryQuiz}
-                      disabled={isLoadingCategoryQuiz}
+                      disabled={isLoadingCategoryQuiz || isSavingAnalytics}
                       className="secondary-action rounded-[14px] border border-white/14 bg-white/[0.055] px-4 py-3 text-xs font-black uppercase tracking-[0.1em] text-white transition hover:bg-white/[0.09] disabled:opacity-50"
                     >
                       {isLoadingCategoryQuiz ? "Loading…" : "Play Again"}
@@ -3012,7 +3025,8 @@ export default function MiloCategoriesPage() {
                         resetCategoriesQuiz();
                         setCategoriesStage("category");
                       }}
-                      className="secondary-action rounded-[14px] border border-white/14 bg-white/[0.055] px-4 py-3 text-xs font-black uppercase tracking-[0.1em] text-white transition hover:bg-white/[0.09]"
+                      disabled={isSavingAnalytics}
+                      className="secondary-action disabled:cursor-wait disabled:opacity-50 rounded-[14px] border border-white/14 bg-white/[0.055] px-4 py-3 text-xs font-black uppercase tracking-[0.1em] text-white transition hover:bg-white/[0.09]"
                     >
                       Choose Topic
                     </button>
