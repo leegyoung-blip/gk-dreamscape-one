@@ -852,12 +852,30 @@ export default function Home() {
                     flexDirection: "column",
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px" }}>
+                  <div
+                    style={{
+                      minHeight: "22px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "16px",
+                    }}
+                  >
                     <p style={{ margin: 0, color: "#ffbd73", fontSize: "12px", fontWeight: 900, letterSpacing: "0.16em" }}>
                       {step.number}
                     </p>
-                    {!isMobile && index < journeySteps.length - 1 && (
-                      <span aria-hidden="true" style={{ color: "rgba(142,232,255,0.5)", fontSize: "22px" }}>→</span>
+                    {!isMobile && (
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          color: "rgba(142,232,255,0.5)",
+                          fontSize: "22px",
+                          lineHeight: 1,
+                          visibility: index < journeySteps.length - 1 ? "visible" : "hidden",
+                        }}
+                      >
+                        →
+                      </span>
                     )}
                   </div>
 
