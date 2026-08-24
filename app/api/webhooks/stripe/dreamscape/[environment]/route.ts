@@ -31,6 +31,48 @@ function json(body: unknown, status = 200) {
   });
 }
 
+function readableError(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (error && typeof error === "object") {
+    const value = error as {
+      message?: unknown;
+      details?: unknown;
+      hint?: unknown;
+      code?: unknown;
+    };
+
+    const parts = [
+      typeof value.message === "string" && value.message
+        ? value.message
+        : "",
+      typeof value.details === "string" && value.details
+        ? `Details: ${value.details}`
+        : "",
+      typeof value.hint === "string" && value.hint
+        ? `Hint: ${value.hint}`
+        : "",
+      typeof value.code === "string" && value.code
+        ? `Code: ${value.code}`
+        : "",
+    ].filter(Boolean);
+
+    if (parts.length > 0) {
+      return parts.join(" | ");
+    }
+
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return "Unknown webhook error.";
+    }
+  }
+
+  return String(error);
+}
+
 function idFromExpandable(value: unknown) {
   if (typeof value === "string") return value;
 
@@ -401,10 +443,7 @@ export async function POST(
     return json(
       {
         ok: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Could not journal Stripe event.",
+        error: readableError(error),
       },
       500,
     );
@@ -424,6 +463,7 @@ export async function POST(
   }
 
   let matchedContractId: string | null = null;
+  let processingStage = "starting";
 
   try {
     if (event.type === "checkout.session.completed") {
@@ -523,6 +563,7 @@ export async function POST(
         if (error) throw error;
       }
     } else if (event.type === "invoice.paid") {
+      processingStage = "reading paid invoice";
       const invoice = event.data.object as Stripe.Invoice;
       const subscriptionId = subscriptionIdFromInvoice(invoice);
 
@@ -534,11 +575,13 @@ export async function POST(
         return json({ ok: true, ignored: true });
       }
 
+      processingStage = "retrieving Stripe subscription";
       const subscription = await retrieveSubscription(
         environment,
         subscriptionId,
       );
 
+      processingStage = "matching Dreamscape contract";
       const contract = await findContractBySubscription(subscription);
 
       if (!contract) {
@@ -551,6 +594,7 @@ export async function POST(
 
       matchedContractId = contract.id;
 
+      processingStage = "syncing Stripe contract identifiers";
       const syncedContract = await syncContractProviderIds({
         contract,
         subscription,
@@ -561,6 +605,7 @@ export async function POST(
         },
       });
 
+      processingStage = "loading Dreamscape plan";
       const plan = await loadPlan(contract.plan_id);
       const paidAt =
         stripeTimestampToDate(invoice.status_transitions?.paid_at) ||
@@ -572,43 +617,49 @@ export async function POST(
         .trim()
         .toUpperCase();
 
-      const { error: paymentError } = await supabaseAdmin
-        .from("dreamscape_subscription_payments")
-        .upsert(
-          {
-            contract_id: contract.id,
-            provider: "stripe",
-            provider_environment: environment,
-            provider_charge_id: invoice.id,
-            provider_subscription_id: subscription.id,
-            plan_id: plan.id,
-            amount,
-            currency,
-            refund_amount: 0,
-            status: "succeeded",
-            paid_at: paidAt.toISOString(),
-            raw_payload: rawPayload,
-          },
-          {
-            onConflict: "provider,provider_charge_id",
-            ignoreDuplicates: true,
-          },
-        );
+      processingStage = "recording Stripe payment";
 
-      if (paymentError) throw paymentError;
-
-      const storedPayment = await findStoredPayment({
+      let storedPayment = await findStoredPayment({
         contractId: contract.id,
         environment,
         invoiceId: invoice.id,
       });
 
       if (!storedPayment?.id) {
+        const { data: insertedPayment, error: paymentError } =
+          await supabaseAdmin
+            .from("dreamscape_subscription_payments")
+            .insert({
+              contract_id: contract.id,
+              provider: "stripe",
+              provider_environment: environment,
+              provider_charge_id: invoice.id,
+              provider_subscription_id: subscription.id,
+              plan_id: plan.id,
+              amount,
+              currency,
+              refund_amount: 0,
+              status: "succeeded",
+              paid_at: paidAt.toISOString(),
+              raw_payload: rawPayload,
+            })
+            .select("id")
+            .single();
+
+        if (paymentError) {
+          throw paymentError;
+        }
+
+        storedPayment = insertedPayment;
+      }
+
+      if (!storedPayment?.id) {
         throw new Error(
-          "The successful Stripe invoice was stored, but its Dreamscape payment row could not be resolved.",
+          "The successful Stripe invoice could not be stored as a Dreamscape payment.",
         );
       }
 
+      processingStage = "applying Dreamscape plan transition";
       const { data: effectivePlanId, error: transitionError } =
         await supabaseAdmin.rpc("gkp_apply_dreamscape_plan_change", {
           p_contract_id: contract.id,
@@ -629,6 +680,7 @@ export async function POST(
           ? await loadPlan(String(effectivePlanId))
           : plan;
 
+      processingStage = "snapshotting payment plan";
       const { error: paymentPlanSnapshotError } = await supabaseAdmin
         .from("dreamscape_subscription_payments")
         .update({ plan_id: effectivePlan.id })
@@ -642,6 +694,7 @@ export async function POST(
 
       const period = subscriptionPeriod(subscription);
 
+      processingStage = "activating Nova access";
       await projectContractToNovaAccess({
         contract: {
           ...syncedContract,
@@ -655,6 +708,7 @@ export async function POST(
         nextBillingAt: period.end,
       });
 
+      processingStage = "finalising Dreamscape contract";
       const { error: contractUpdateError } = await supabaseAdmin
         .from("dreamscape_subscription_contracts")
         .update({
@@ -674,6 +728,7 @@ export async function POST(
 
       if (contractUpdateError) throw contractUpdateError;
 
+      processingStage = "recording affiliate commission";
       const commissionId = await recordAffiliateCommission(
         storedPayment.id,
       );
@@ -1003,22 +1058,29 @@ export async function POST(
       contractId: matchedContractId,
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : String(error);
+    const message = readableError(error);
 
     await markEvent(eventJournal.id, {
       status: "failed",
       contractId: matchedContractId,
-      error: message,
+      error: `${processingStage}: ${message}`,
     });
 
     console.error("Dreamscape Stripe webhook failed", {
       eventId: event.id,
       eventType: event.type,
       contractId: matchedContractId,
+      processingStage,
       error,
     });
 
-    return json({ ok: false, error: message }, 500);
+    return json(
+      {
+        ok: false,
+        error: message,
+        stage: processingStage,
+      },
+      500,
+    );
   }
 }
