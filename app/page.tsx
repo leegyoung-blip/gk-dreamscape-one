@@ -1041,6 +1041,259 @@ export default function Home() {
 
           <section
             id="for-parents"
+            aria-labelledby="parents-heading"
+            style={{
+              marginTop: isMobile ? "84px" : "112px",
+              width: "100%",
+              scrollMarginTop: isMobile ? "92px" : "108px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+            }}
+          >
+            <p
+              style={{
+                margin: 0,
+                color: "#8ee8ff",
+                fontSize: "13px",
+                fontWeight: 800,
+                letterSpacing: "0.28em",
+                textTransform: "uppercase",
+              }}
+            >
+              For Parents
+            </p>
+
+            <h2
+              id="parents-heading"
+              style={{
+                margin: "20px 0 0",
+                maxWidth: "1040px",
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontSize: isMobile ? "42px" : "62px",
+                fontWeight: 400,
+                lineHeight: 1.08,
+                color: "white",
+              }}
+            >
+              See the learning behind the adventure.
+            </h2>
+
+            <p
+              style={{
+                margin: "23px 0 0",
+                maxWidth: "900px",
+                color: "rgba(255,255,255,0.7)",
+                fontSize: isMobile ? "17px" : "19px",
+                fontWeight: 300,
+                lineHeight: 1.72,
+              }}
+            >
+              Dreamscape turns learning activity into clear, useful insight — showing what learners are doing well, where they may need support and what to work on next.
+            </p>
+
+            <div
+              style={{
+                marginTop: isMobile ? "38px" : "50px",
+                width: "100%",
+                padding: isMobile ? "10px" : "14px",
+                borderRadius: isMobile ? "24px" : "32px",
+                border: "1px solid rgba(83,215,255,0.3)",
+                background:
+                  "radial-gradient(circle at 20% 0%, rgba(83,215,255,0.12), transparent 34%), rgba(3,10,23,0.76)",
+                boxShadow:
+                  "0 30px 80px rgba(0,0,0,0.38), 0 0 32px rgba(83,215,255,0.07)",
+                overflow: "hidden",
+              }}
+            >
+              <img
+                src="/home/parent-learning-coach.png"
+                alt="Nova Personal Learning Coach showing a parent-facing summary of recent learning performance"
+                style={{
+                  width: "100%",
+                  height: "auto",
+                  display: "block",
+                  borderRadius: isMobile ? "17px" : "23px",
+                }}
+              />
+            </div>
+
+            <div
+              style={{
+                marginTop: isMobile ? "24px" : "30px",
+                width: "100%",
+                display: "grid",
+                gridTemplateColumns: isMobile
+                  ? "1fr"
+                  : "repeat(3, minmax(0, 1fr))",
+                gap: isMobile ? "14px" : "18px",
+              }}
+            >
+              {[
+                {
+                  title: "Know what matters",
+                  text: "Nova summarises recent performance and brings the most important learning signals to the surface.",
+                },
+                {
+                  title: "See strengths and weaknesses",
+                  text: "Subject performance makes it easier to understand where learning is secure and where more practice may help.",
+                },
+                {
+                  title: "Stay involved without micromanaging",
+                  text: "Weekly planning and parent updates help families follow learning without hovering over every activity.",
+                },
+              ].map((point) => (
+                <article
+                  key={point.title}
+                  style={{
+                    minHeight: isMobile ? "auto" : "184px",
+                    padding: "26px 25px",
+                    borderRadius: "22px",
+                    border: "1px solid rgba(142,232,255,0.18)",
+                    background:
+                      "linear-gradient(145deg, rgba(255,255,255,0.055), rgba(255,255,255,0.018))",
+                    textAlign: "left",
+                  }}
+                >
+                  <div
+                    aria-hidden="true"
+                    style={{
+                      width: "34px",
+                      height: "34px",
+                      borderRadius: "999px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#8ee8ff",
+                      border: "1px solid rgba(142,232,255,0.3)",
+                      background: "rgba(83,215,255,0.08)",
+                      fontWeight: 900,
+                    }}
+                  >
+                    ✓
+                  </div>
+                  <h3
+                    style={{
+                      margin: "18px 0 0",
+                      color: "white",
+                      fontSize: "22px",
+                      fontWeight: 800,
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    {point.title}
+                  </h3>
+                  <p
+                    style={{
+                      margin: "12px 0 0",
+                      color: "rgba(255,255,255,0.65)",
+                      fontSize: "15px",
+                      fontWeight: 300,
+                      lineHeight: 1.62,
+                    }}
+                  >
+                    {point.text}
+                  </p>
+                </article>
+              ))}
+            </div>
+
+            <div
+              style={{
+                marginTop: isMobile ? "26px" : "36px",
+                width: "100%",
+                display: "grid",
+                gridTemplateColumns: isMobile ? "1fr" : "0.72fr 1.28fr",
+                alignItems: "stretch",
+                overflow: "hidden",
+                borderRadius: isMobile ? "26px" : "32px",
+                border: "1px solid rgba(197,140,255,0.22)",
+                background:
+                  "radial-gradient(circle at 8% 20%, rgba(197,140,255,0.13), transparent 35%), linear-gradient(145deg, rgba(12,12,38,0.92), rgba(3,11,25,0.9))",
+                boxShadow: "0 28px 72px rgba(0,0,0,0.3)",
+              }}
+            >
+              <div
+                style={{
+                  padding: isMobile ? "30px 24px" : "42px 38px",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                  textAlign: "left",
+                }}
+              >
+                <p
+                  style={{
+                    margin: 0,
+                    color: "#d7b5ff",
+                    fontSize: "11px",
+                    fontWeight: 900,
+                    letterSpacing: "0.18em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Deeper Detail
+                </p>
+                <h3
+                  style={{
+                    margin: "15px 0 0",
+                    color: "white",
+                    fontFamily: 'Georgia, "Times New Roman", serif',
+                    fontSize: isMobile ? "31px" : "39px",
+                    fontWeight: 400,
+                    lineHeight: 1.1,
+                  }}
+                >
+                  Every answer is still there when you want the detail.
+                </h3>
+                <p
+                  style={{
+                    margin: "18px 0 0",
+                    color: "rgba(255,255,255,0.66)",
+                    fontSize: "16px",
+                    fontWeight: 300,
+                    lineHeight: 1.68,
+                  }}
+                >
+                  The Teaching Dashboard provides the underlying view of weekly quiz activity, subject performance and recorded learning history behind Nova’s summaries.
+                </p>
+              </div>
+
+              <div
+                style={{
+                  minHeight: isMobile ? "250px" : "360px",
+                  padding: isMobile ? "10px" : "14px",
+                  display: "flex",
+                  alignItems: "center",
+                  background: "rgba(0,0,0,0.16)",
+                  borderLeft: isMobile
+                    ? "none"
+                    : "1px solid rgba(197,140,255,0.14)",
+                  borderTop: isMobile
+                    ? "1px solid rgba(197,140,255,0.14)"
+                    : "none",
+                }}
+              >
+                <img
+                  src="/home/parent-teaching-dashboard.png"
+                  alt="Teaching Dashboard monthly learning activity view"
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    maxHeight: isMobile ? "320px" : "390px",
+                    objectFit: "cover",
+                    objectPosition: "center",
+                    display: "block",
+                    borderRadius: "20px",
+                  }}
+                />
+              </div>
+            </div>
+          </section>
+
+          <section
+            id="quality-trust"
             aria-labelledby="trust-heading"
             style={{
               position: "relative",
@@ -1128,6 +1381,197 @@ export default function Home() {
                 <span aria-hidden="true" style={{ color: "#8ee8ff", fontSize: "18px", flexShrink: 0 }}>✓</span>
                 AI supports the process. Teachers make the final call.
               </div>
+            </div>
+          </section>
+
+
+
+          <section
+            id="testimonials"
+            aria-labelledby="testimonials-heading"
+            style={{
+              marginTop: isMobile ? "84px" : "112px",
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+            }}
+          >
+            <p
+              style={{
+                margin: 0,
+                color: "#ffbd73",
+                fontSize: "12px",
+                fontWeight: 900,
+                letterSpacing: "0.22em",
+                textTransform: "uppercase",
+              }}
+            >
+              Families & Educators
+            </p>
+
+            <h2
+              id="testimonials-heading"
+              style={{
+                margin: "18px 0 0",
+                maxWidth: "980px",
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontSize: isMobile ? "40px" : "60px",
+                fontWeight: 400,
+                lineHeight: 1.08,
+                color: "white",
+              }}
+            >
+              Built to make learning meaningful — and worth returning to.
+            </h2>
+
+            <p
+              style={{
+                margin: "22px 0 0",
+                maxWidth: "820px",
+                color: "rgba(255,255,255,0.68)",
+                fontSize: isMobile ? "16px" : "18px",
+                fontWeight: 300,
+                lineHeight: 1.7,
+              }}
+            >
+              Hear how DREAMSCAPE is experienced from the perspectives that matter most: parents, educators and learners.
+            </p>
+
+            <div
+              style={{
+                marginTop: isMobile ? "36px" : "48px",
+                width: "100%",
+                display: "grid",
+                gridTemplateColumns: isMobile
+                  ? "1fr"
+                  : "repeat(3, minmax(0, 1fr))",
+                gap: isMobile ? "18px" : "24px",
+                alignItems: "stretch",
+              }}
+            >
+              {[
+                {
+                  eyebrow: "Parent Perspective",
+                  quote:
+                    "What I like most is that my child doesn’t see DREAMSCAPE as another worksheet. He wants to complete the missions because there is something to work towards afterwards, and that has made him much more willing to practise independently.",
+                  name: "Parent of Primary School Learner",
+                  meta: "Motivation & independent practice",
+                  accent: "#8ee8ff",
+                },
+                {
+                  eyebrow: "Educator Perspective",
+                  quote:
+                    "Good educational content should do more than test whether a child can recall an answer. It should develop understanding, reasoning and the confidence to tackle unfamiliar questions. That is what we aim for in DREAMSCAPE — carefully structured, age-appropriate content that gives children meaningful practice while still challenging them to think.",
+                  name: "Katherine Law",
+                  meta: "M.Ed (Gifted Ed), PGDE, B.A. · Chief Curriculum Developer, Guru Kids Pro",
+                  accent: "#c58cff",
+                },
+                {
+                  eyebrow: "Learner Perspective",
+                  quote:
+                    "I like that the quizzes actually help me earn things for Nova’s world. I can use my rewards to upgrade the rover and customise Nova’s home, so finishing a learning mission feels like I’m progressing in the game too.",
+                  name: "Primary School Learner",
+                  meta: "Learning + rewards",
+                  accent: "#ffbd73",
+                },
+              ].map((testimonial) => (
+                <article
+                  key={testimonial.eyebrow}
+                  style={{
+                    minHeight: isMobile ? "auto" : "410px",
+                    padding: isMobile ? "28px 24px" : "34px 30px",
+                    display: "flex",
+                    flexDirection: "column",
+                    textAlign: "left",
+                    borderRadius: "28px",
+                    border: `1px solid ${testimonial.accent}33`,
+                    background:
+                      "linear-gradient(145deg, rgba(255,255,255,0.062), rgba(255,255,255,0.018))",
+                    boxShadow: "0 26px 66px rgba(0,0,0,0.28)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "16px",
+                    }}
+                  >
+                    <p
+                      style={{
+                        margin: 0,
+                        color: testimonial.accent,
+                        fontSize: "11px",
+                        fontWeight: 900,
+                        letterSpacing: "0.17em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {testimonial.eyebrow}
+                    </p>
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        color: testimonial.accent,
+                        fontFamily: 'Georgia, "Times New Roman", serif',
+                        fontSize: "44px",
+                        lineHeight: 0.8,
+                        opacity: 0.8,
+                      }}
+                    >
+                      “
+                    </span>
+                  </div>
+
+                  <blockquote
+                    style={{
+                      margin: "24px 0 0",
+                      flex: 1,
+                      color: "rgba(255,255,255,0.86)",
+                      fontSize: isMobile ? "17px" : "18px",
+                      fontWeight: 300,
+                      lineHeight: 1.7,
+                      fontStyle: "italic",
+                    }}
+                  >
+                    {testimonial.quote}
+                  </blockquote>
+
+                  <div
+                    style={{
+                      marginTop: "28px",
+                      paddingTop: "22px",
+                      borderTop: "1px solid rgba(255,255,255,0.1)",
+                    }}
+                  >
+                    <p
+                      style={{
+                        margin: 0,
+                        color: "white",
+                        fontSize: "16px",
+                        fontWeight: 800,
+                        lineHeight: 1.35,
+                      }}
+                    >
+                      {testimonial.name}
+                    </p>
+                    <p
+                      style={{
+                        margin: "7px 0 0",
+                        color: "rgba(255,255,255,0.5)",
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {testimonial.meta}
+                    </p>
+                  </div>
+                </article>
+              ))}
             </div>
           </section>
 

@@ -99,6 +99,34 @@ type CategoryMastery = {
   attempt_history: MasteryAttempt[];
 };
 
+type SinglePlayStyle = "quick" | "challenge" | "beat_best";
+
+type LearningTarget = {
+  available: boolean;
+  reason?: "building_profile" | "recent_target_cooldown" | "no_priority_weakness" | "target_not_found" | string;
+  id?: string;
+  category?: string;
+  topic?: string;
+  subtopic?: string;
+  status?: "active" | "completed" | "superseded";
+  baseline_mastery?: number;
+  target_accuracy?: number;
+  required_questions?: number;
+  progress_questions?: number;
+  progress_correct?: number;
+  progress_accuracy?: number | null;
+  total_target_answers?: number;
+  reward_tokens?: number;
+  reward_gems?: number;
+  reward_claimed?: boolean;
+  created_at?: string;
+  completed_at?: string | null;
+  just_completed?: boolean;
+  suggested_topic?: string | null;
+  suggested_subtopic?: string | null;
+  suggested_evidence?: number;
+};
+
 type HistoricalAnswer = {
   id: string;
   question_order: number;
@@ -431,6 +459,48 @@ function buildMasteryInsight(data: CategoryMastery | null) {
     : "Your learning map is taking shape. Keep playing to strengthen the confidence behind each mastery score.";
 }
 
+function getPlayStyleLabel(style: SinglePlayStyle) {
+  if (style === "challenge") return "Milo Challenge";
+  if (style === "beat_best") return "Beat My Best";
+  return "Quick Play";
+}
+
+function getTargetStatusCopy(target: LearningTarget | null) {
+  if (!target) return "Milo is checking your learning profile.";
+
+  if (target.available && target.status === "completed") {
+    return `Target complete · ${target.subtopic || "Learning area"}`;
+  }
+
+  if (target.available) {
+    const progress = Math.min(
+      target.required_questions || 10,
+      target.progress_questions || 0,
+    );
+    const required = target.required_questions || 10;
+    const accuracy = target.progress_accuracy;
+    return `${target.subtopic || "Personal target"} · ${progress}/${required}${
+      accuracy !== null && accuracy !== undefined ? ` · ${Math.round(accuracy)}%` : ""
+    }`;
+  }
+
+  if (target.reason === "building_profile") {
+    return target.suggested_subtopic
+      ? `Discovery: build evidence in ${target.suggested_subtopic}`
+      : "Discovery Challenge · build your learning profile";
+  }
+
+  if (target.reason === "recent_target_cooldown") {
+    return target.suggested_subtopic
+      ? `Adaptive practice · ${target.suggested_subtopic}`
+      : "Adaptive practice while Milo prepares your next rewarded target";
+  }
+
+  return target.suggested_subtopic
+    ? `Recommended practice · ${target.suggested_subtopic}`
+    : "Adaptive practice based on your learning profile";
+}
+
 function getHistoricalOptionText(
   answer: HistoricalAnswer,
   option: "A" | "B" | "C" | "D" | null,
@@ -577,6 +647,13 @@ export default function MiloCategoriesPage() {
   const [masteryMessage, setMasteryMessage] = useState("");
   const [historicalAttemptDetail, setHistoricalAttemptDetail] = useState<HistoricalAttemptDetail | null>(null);
   const [isLoadingHistoricalAttempt, setIsLoadingHistoricalAttempt] = useState(false);
+  const [singlePlayStyle, setSinglePlayStyle] = useState<SinglePlayStyle>("quick");
+  const [activeQuizPlayStyle, setActiveQuizPlayStyle] = useState<SinglePlayStyle>("quick");
+  const [learningTargets, setLearningTargets] = useState<Record<string, LearningTarget>>({});
+  const [isLoadingTarget, setIsLoadingTarget] = useState(false);
+  const [activeQuizTarget, setActiveQuizTarget] = useState<LearningTarget | null>(null);
+  const [targetResultAfterQuiz, setTargetResultAfterQuiz] = useState<LearningTarget | null>(null);
+  const [beatBestTargetPoints, setBeatBestTargetPoints] = useState<number | null>(null);
   const [guestHintUsed, setGuestHintUsed] = useState(false);
   const [hiddenCategoryOptions, setHiddenCategoryOptions] = useState<
     ("A" | "B" | "C" | "D")[]
@@ -751,6 +828,15 @@ export default function MiloCategoriesPage() {
 
     void loadMasteryData();
   }, [userAccess.userId, isLoadingCategories, availableCategories]);
+
+  useEffect(() => {
+    if (!userAccess.userId || isLoadingCategories || !selectedCategory) {
+      if (!userAccess.userId) setLearningTargets({});
+      return;
+    }
+
+    void loadLearningTarget(selectedCategory);
+  }, [userAccess.userId, isLoadingCategories, selectedCategory]);
 
   useEffect(() => {
   if (!multiplayerLobby?.id) return;
@@ -937,6 +1023,39 @@ export default function MiloCategoriesPage() {
     });
   }
 
+  async function loadLearningTarget(category: string) {
+    if (!userAccess.userId) {
+      setLearningTargets((current) => {
+        const next = { ...current };
+        delete next[category];
+        return next;
+      });
+      return null;
+    }
+
+    setIsLoadingTarget(true);
+
+    const { data, error } = await supabase.rpc(
+      "get_or_create_milo_category_target",
+      { p_category: category },
+    );
+
+    if (error) {
+      console.warn(`Could not load ${category} Milo Target:`, error.message);
+      setIsLoadingTarget(false);
+      return null;
+    }
+
+    const target =
+      data && typeof data === "object"
+        ? (data as LearningTarget)
+        : ({ available: false } as LearningTarget);
+
+    setLearningTargets((current) => ({ ...current, [category]: target }));
+    setIsLoadingTarget(false);
+    return target;
+  }
+
   async function loadMasteryData(preferredCategory?: string) {
     if (!userAccess.userId) {
       setMasteryData({});
@@ -1031,14 +1150,62 @@ export default function MiloCategoriesPage() {
     setRewardChecked(false);
     setAlreadyRewardedThisWeek(false);
     setEarnedTokens(0);
+    setTargetResultAfterQuiz(null);
 
-    const { data, error } = await supabase.rpc("get_milo_category_quiz", {
-      p_category: selectedCategory,
-      p_limit: 10,
-    });
+    let resolvedStyle: SinglePlayStyle = singlePlayStyle;
+    let targetForQuiz: LearningTarget | null = null;
 
-    if (error) {
-      setCategoryMessage(`Could not load quiz: ${error.message}`);
+    if (!userAccess.isLoggedIn && resolvedStyle !== "quick") {
+      resolvedStyle = "quick";
+      setSinglePlayStyle("quick");
+      setCategoryMessage("Guests can use Quick Play. Log in to unlock Milo Challenge and Beat My Best.");
+    }
+
+    if (resolvedStyle === "beat_best") {
+      const previousBest = masteryData[selectedCategory]?.best_points ?? null;
+      if (!previousBest) {
+        setCategoryMessage("Complete one logged-in Quick Play quiz before using Beat My Best.");
+        setIsLoadingCategoryQuiz(false);
+        return;
+      }
+      setBeatBestTargetPoints(previousBest);
+    } else {
+      setBeatBestTargetPoints(null);
+    }
+
+    let data: unknown = null;
+    let loadError: { message: string } | null = null;
+
+    if (resolvedStyle === "quick") {
+      const result = await supabase.rpc("get_milo_category_quiz", {
+        p_category: selectedCategory,
+        p_limit: 10,
+      });
+      data = result.data;
+      loadError = result.error;
+    } else {
+      if (resolvedStyle === "challenge") {
+        const refreshedTarget = await loadLearningTarget(selectedCategory);
+        targetForQuiz = refreshedTarget?.available && refreshedTarget.status === "active"
+          ? refreshedTarget
+          : null;
+      }
+
+      const result = await supabase.rpc("get_milo_category_adaptive_quiz", {
+        p_category: selectedCategory,
+        p_play_style: resolvedStyle,
+        p_limit: 10,
+        p_target_id:
+          resolvedStyle === "challenge" && targetForQuiz?.id
+            ? targetForQuiz.id
+            : null,
+      });
+      data = result.data;
+      loadError = result.error;
+    }
+
+    if (loadError) {
+      setCategoryMessage(`Could not load quiz: ${loadError.message}`);
       setIsLoadingCategoryQuiz(false);
       return;
     }
@@ -1048,12 +1215,14 @@ export default function MiloCategoriesPage() {
 
     if (questions.length < 10) {
       setCategoryMessage(
-        `This category needs at least 10 active questions. It currently has ${questions.length}.`
+        `This category needs at least 10 suitable active questions. It currently returned ${questions.length}.`,
       );
       setIsLoadingCategoryQuiz(false);
       return;
     }
 
+    setActiveQuizPlayStyle(resolvedStyle);
+    setActiveQuizTarget(targetForQuiz);
     setCategoryQuestions(questions);
     setCategoryQuestionIndex(0);
     setSelectedCategoryAnswer(null);
@@ -1088,6 +1257,11 @@ export default function MiloCategoriesPage() {
     setPercentileResult(null);
     setIsSavingAnalytics(false);
     setAnalyticsMessage("");
+    setSinglePlayStyle("quick");
+    setActiveQuizPlayStyle("quick");
+    setActiveQuizTarget(null);
+    setTargetResultAfterQuiz(null);
+    setBeatBestTargetPoints(null);
     setGuestHintUsed(false);
     setHiddenCategoryOptions([]);
     setQuestionCountdown(10);
@@ -1205,6 +1379,11 @@ export default function MiloCategoriesPage() {
           selected_option: answer.selectedOption,
           response_seconds: answer.responseSeconds,
         })),
+        p_play_style: activeQuizPlayStyle,
+        p_target_id:
+          activeQuizPlayStyle === "challenge" && activeQuizTarget?.id
+            ? activeQuizTarget.id
+            : null,
       },
     );
 
@@ -1244,6 +1423,17 @@ export default function MiloCategoriesPage() {
       );
     } else if (percentileData && typeof percentileData === "object") {
       setPercentileResult(percentileData as PercentileResult);
+    }
+
+    if (activeQuizPlayStyle === "challenge") {
+      const refreshedTarget = await loadLearningTarget(selectedCategory);
+      if (refreshedTarget) {
+        setTargetResultAfterQuiz(refreshedTarget);
+        if (refreshedTarget.just_completed) {
+          window.dispatchEvent(new Event("dream-tokens-updated"));
+          window.dispatchEvent(new Event("dream-gems-updated"));
+        }
+      }
     }
 
     await loadMasteryData(selectedCategory);
@@ -1911,6 +2101,9 @@ export default function MiloCategoriesPage() {
 
   const currentMastery = masteryData[masteryCategory] || null;
   const masteryInsight = buildMasteryInsight(currentMastery);
+  const selectedLearningTarget = learningTargets[selectedCategory] || null;
+  const masteryLearningTarget = learningTargets[masteryCategory] || null;
+  const selectedBestPoints = masteryData[selectedCategory]?.best_points ?? null;
 
   const isQuizStage = [
     "playing",
@@ -2158,15 +2351,61 @@ export default function MiloCategoriesPage() {
                     })}
                   </div>
 
+                  <div className="adaptive-mode-grid mt-3 grid shrink-0 grid-cols-3 gap-2">
+                    {([
+                      { key: "quick" as const, title: "Quick Play", icon: "⚡" },
+                      { key: "challenge" as const, title: "Milo Challenge", icon: "◎" },
+                      { key: "beat_best" as const, title: "Beat My Best", icon: "↗" },
+                    ]).map((mode) => {
+                      const locked =
+                        !userAccess.isLoggedIn && mode.key !== "quick"
+                          ? true
+                          : mode.key === "beat_best" && !selectedBestPoints;
+                      const selected = singlePlayStyle === mode.key;
+
+                      return (
+                        <button
+                          key={mode.key}
+                          type="button"
+                          disabled={locked}
+                          onClick={() => setSinglePlayStyle(mode.key)}
+                          className={`adaptive-mode-card rounded-[14px] border px-3 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-35 ${
+                            selected
+                              ? "border-[#ffd18a]/55 bg-[#ffd18a]/12 shadow-[0_0_22px_rgba(229,183,94,0.10)]"
+                              : "border-white/10 bg-white/[0.035] hover:bg-white/[0.06]"
+                          }`}
+                        >
+                          <span className="adaptive-mode-heading flex items-center gap-2">
+                            <span className="text-base">{mode.icon}</span>
+                            <span className="adaptive-mode-title text-[11px] font-black text-white">{mode.title}</span>
+                          </span>
+                          <span className="adaptive-mode-description mt-1 block text-[9px] leading-4 text-white/46">
+                            {mode.key === "quick"
+                              ? "Balanced category mix."
+                              : mode.key === "challenge"
+                                ? userAccess.isLoggedIn
+                                  ? getTargetStatusCopy(selectedLearningTarget)
+                                  : "Log in to personalize."
+                                : selectedBestPoints
+                                  ? `Current best: ${selectedBestPoints} pts`
+                                  : userAccess.isLoggedIn
+                                    ? "Unlock after your first quiz."
+                                    : "Log in to unlock."}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
                   <button
                     type="button"
                     onClick={startSinglePlayerCategoryQuiz}
                     disabled={isLoadingCategoryQuiz || isLoadingCategories}
-                    className="primary-action mt-5 w-full shrink-0 rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white shadow-[0_14px_32px_rgba(196,122,37,0.24)] transition hover:scale-[1.01] disabled:cursor-wait disabled:opacity-50"
+                    className="primary-action mt-3 w-full shrink-0 rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white shadow-[0_14px_32px_rgba(196,122,37,0.24)] transition hover:scale-[1.01] disabled:cursor-wait disabled:opacity-50"
                   >
                     {isLoadingCategoryQuiz
-                      ? "Loading Quiz..."
-                      : "Start 10-Question Quiz"}
+                      ? "Building Your Quiz..."
+                      : `Start ${getPlayStyleLabel(singlePlayStyle)}`}
                   </button>
                 </div>
               )}
@@ -2389,6 +2628,10 @@ export default function MiloCategoriesPage() {
                     <div className="quiz-statusbar flex shrink-0 items-center justify-between gap-2">
                       <span className="quiz-pill rounded-full border border-white/14 bg-white/[0.07] px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-[#ffd18a]">
                         {selectedCategory}
+                      </span>
+
+                      <span className="quiz-pill quiz-style-pill rounded-full border border-[#9bf5ff]/16 bg-[#9bf5ff]/[0.055] px-4 py-2 text-xs font-bold text-[#9bf5ff]">
+                        {getPlayStyleLabel(activeQuizPlayStyle)}
                       </span>
 
                       <span className="quiz-pill rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-xs font-bold text-white/72">
@@ -2680,6 +2923,52 @@ export default function MiloCategoriesPage() {
                       </p>
                     </div>
 
+                    {activeQuizPlayStyle === "challenge" && (activeQuizTarget || targetResultAfterQuiz) && (
+                      <div className={`target-result-card mt-3 rounded-[18px] border p-4 text-left ${
+                        targetResultAfterQuiz?.just_completed
+                          ? "border-green-300/24 bg-green-400/[0.08]"
+                          : "border-fuchsia-300/18 bg-fuchsia-400/[0.06]"
+                      }`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.15em] text-fuchsia-200">Milo Target</p>
+                            <p className="mt-1 text-sm font-black text-white">
+                              {(targetResultAfterQuiz || activeQuizTarget)?.subtopic || "Discovery Challenge"}
+                            </p>
+                            <p className="mt-1 text-xs leading-5 text-white/58">
+                              {targetResultAfterQuiz?.just_completed
+                                ? `Target complete at ${Math.round(targetResultAfterQuiz.progress_accuracy || 0)}% accuracy.`
+                                : targetResultAfterQuiz?.available
+                                  ? `${targetResultAfterQuiz.progress_questions || 0}/${targetResultAfterQuiz.required_questions || 10} target answers · ${targetResultAfterQuiz.progress_accuracy === null || targetResultAfterQuiz.progress_accuracy === undefined ? "building accuracy" : `${Math.round(targetResultAfterQuiz.progress_accuracy)}% accuracy`} · goal ${targetResultAfterQuiz.target_accuracy}%`
+                                  : "Milo used this challenge to learn which area should become your next personalized target."}
+                            </p>
+                          </div>
+                          {targetResultAfterQuiz?.just_completed && (
+                            <div className="shrink-0 text-right">
+                              <p className="text-lg font-black text-green-200">+{targetResultAfterQuiz.reward_tokens || 0} DT</p>
+                              <p className="text-xs font-black text-fuchsia-200">+{targetResultAfterQuiz.reward_gems || 0} DG</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {activeQuizPlayStyle === "beat_best" && beatBestTargetPoints !== null && (
+                      <div className="target-result-card mt-3 rounded-[18px] border border-cyan-200/18 bg-cyan-300/[0.06] p-4 text-left">
+                        <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#9bf5ff]">Beat My Best</p>
+                        <p className="mt-1 text-sm font-black text-white">
+                          {categoryPoints > beatBestTargetPoints
+                            ? `New personal best! ${categoryPoints} points`
+                            : `${categoryPoints} points · personal best ${beatBestTargetPoints}`}
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-white/52">
+                          {categoryPoints > beatBestTargetPoints
+                            ? `You improved your best by ${categoryPoints - beatBestTargetPoints} points.`
+                            : `${Math.max(0, beatBestTargetPoints - categoryPoints)} points to beat your current record.`}
+                        </p>
+                      </div>
+                    )}
+
                     <div className="reward-card mt-3 rounded-[18px] border border-yellow-200/18 bg-yellow-300/10 p-4 text-left">
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -2869,7 +3158,10 @@ export default function MiloCategoriesPage() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => void loadMasteryData(masteryCategory)}
+                        onClick={() => {
+                          void loadMasteryData(masteryCategory);
+                          void loadLearningTarget(masteryCategory);
+                        }}
                         disabled={isLoadingMastery}
                         className="rounded-full border border-white/12 bg-white/[0.05] px-3 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-white/62 disabled:opacity-40"
                       >
@@ -2885,6 +3177,7 @@ export default function MiloCategoriesPage() {
                           onClick={() => {
                             setMasteryCategory(category);
                             setMasteryView("overview");
+                            void loadLearningTarget(category);
                           }}
                           className={`rounded-[12px] border px-2 py-2 text-[10px] font-black uppercase tracking-[0.08em] transition ${
                             masteryCategory === category
@@ -2962,6 +3255,39 @@ export default function MiloCategoriesPage() {
                         <div className="rounded-[18px] border border-[#9bf5ff]/16 bg-[#9bf5ff]/[0.05] p-4">
                           <p className="text-[9px] font-black uppercase tracking-[0.15em] text-[#9bf5ff]">Milo Noticed</p>
                           <p className="mt-2 text-sm font-semibold leading-6 text-white/70">{masteryInsight}</p>
+                        </div>
+
+                        <div className="rounded-[18px] border border-fuchsia-300/16 bg-fuchsia-400/[0.05] p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-[9px] font-black uppercase tracking-[0.15em] text-fuchsia-200">Current Milo Target</p>
+                              <p className="mt-1 text-sm font-black text-white">
+                                {masteryLearningTarget?.available
+                                  ? masteryLearningTarget.subtopic
+                                  : "Adaptive discovery"}
+                              </p>
+                              <p className="mt-1 text-xs leading-5 text-white/52">
+                                {getTargetStatusCopy(masteryLearningTarget)}
+                              </p>
+                            </div>
+                            {masteryLearningTarget?.available && (
+                              <div className="shrink-0 text-right">
+                                <p className="text-sm font-black text-[#ffd18a]">Goal {masteryLearningTarget.target_accuracy}%</p>
+                                <p className="mt-1 text-[9px] font-bold text-white/40">+{masteryLearningTarget.reward_tokens || 0} DT · +{masteryLearningTarget.reward_gems || 0} DG</p>
+                              </div>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedCategory(masteryCategory);
+                              setSinglePlayStyle("challenge");
+                              setCategoriesStage("category");
+                            }}
+                            className="mt-3 w-full rounded-[12px] border border-fuchsia-200/18 bg-fuchsia-300/[0.08] px-3 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-fuchsia-100 transition hover:bg-fuchsia-300/[0.13]"
+                          >
+                            Start Milo Challenge
+                          </button>
                         </div>
 
                         <div className="rounded-[18px] border border-white/10 bg-white/[0.025] p-3">
@@ -3492,6 +3818,44 @@ export default function MiloCategoriesPage() {
             margin-top: 10px;
           }
 
+          .adaptive-mode-grid {
+            margin-top: 7px;
+            gap: 5px;
+          }
+
+          .adaptive-mode-card {
+            min-height: 52px;
+            border-radius: 11px;
+            padding: 6px 7px;
+          }
+
+          .adaptive-mode-heading {
+            gap: 4px;
+          }
+
+          .adaptive-mode-heading > span:first-child {
+            font-size: 12px;
+          }
+
+          .adaptive-mode-title {
+            font-size: 8px;
+            line-height: 1.1;
+          }
+
+          .adaptive-mode-description {
+            margin-top: 3px;
+            max-height: 22px;
+            overflow: hidden;
+            font-size: 7px;
+            line-height: 1.45;
+          }
+
+          .target-result-card {
+            margin-top: 7px;
+            border-radius: 13px;
+            padding: 9px 10px;
+          }
+
           .form-grid {
             width: min(100%, 620px);
             margin: 12px auto 0;
@@ -3566,7 +3930,13 @@ export default function MiloCategoriesPage() {
           }
 
           .quiz-pill:first-child {
-            max-width: 34%;
+            max-width: 30%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+
+          .quiz-style-pill {
+            max-width: 23%;
             overflow: hidden;
             text-overflow: ellipsis;
           }
@@ -3791,6 +4161,19 @@ export default function MiloCategoriesPage() {
             align-items: center;
             justify-content: center;
             text-align: center;
+          }
+
+          .adaptive-mode-description {
+            display: none;
+          }
+
+          .adaptive-mode-card {
+            min-height: 42px;
+            text-align: center;
+          }
+
+          .adaptive-mode-heading {
+            justify-content: center;
           }
 
           .waiting-grid {
