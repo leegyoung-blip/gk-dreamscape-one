@@ -24,7 +24,8 @@ type AdminSection =
   | "organisations"
   | "teachers"
   | "roles"
-  | "student-access";
+  | "student-access"
+  | "affiliates";
 
 type DirectoryUser = {
   user_id: string;
@@ -534,7 +535,7 @@ export default function DreamTokensAdminPage() {
           )}
         </section>
 
-        <section className="mt-8 grid grid-cols-1 gap-3 rounded-[28px] border border-cyan-200/16 bg-white/[0.04] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:grid-cols-2 xl:grid-cols-5">
+        <section className="mt-8 grid grid-cols-1 gap-3 rounded-[28px] border border-cyan-200/16 bg-white/[0.04] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:grid-cols-2 xl:grid-cols-6">
           <button
             type="button"
             onClick={() => setActiveSection("currency")}
@@ -593,6 +594,18 @@ export default function DreamTokensAdminPage() {
             }`}
           >
             Student Access
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSection("affiliates")}
+            className={`min-h-14 flex-1 rounded-2xl border px-5 text-sm font-extrabold uppercase tracking-[0.12em] transition ${
+              activeSection === "affiliates"
+                ? "border-pink-200/40 bg-pink-300/12 text-pink-100 shadow-[0_0_28px_rgba(244,114,182,0.1)]"
+                : "border-white/10 bg-white/[0.035] text-white/58 hover:border-white/20 hover:text-white"
+            }`}
+          >
+            Affiliates
           </button>
         </section>
 
@@ -968,8 +981,10 @@ export default function DreamTokensAdminPage() {
           <TeacherLicensingPanel />
         ) : activeSection === "roles" ? (
           <RoleManagementPanel />
-        ) : (
+        ) : activeSection === "student-access" ? (
           <StudentAccessPanel />
+        ) : (
+          <AffiliateManagementPanel />
         )}
       </div>
 
@@ -1051,6 +1066,118 @@ function SelectedUserSummary({
         </p>
       </div>
     </div>
+  );
+}
+
+
+function AffiliateManagementPanel() {
+  return (
+    <section className="mt-8">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <AdminMetricCard
+          label="Affiliate Applications"
+          value="Review"
+          tone="violet"
+        />
+        <AdminMetricCard
+          label="Affiliate Finance"
+          value="Payouts"
+          tone="green"
+        />
+        <AdminMetricCard
+          label="Programme"
+          value="10%"
+          tone="cyan"
+        />
+      </div>
+
+      <section className="mt-6 rounded-[32px] border border-pink-200/18 bg-white/[0.045] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.26)] backdrop-blur-xl sm:p-7">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div>
+            <p className="m-0 text-xs font-bold uppercase tracking-[0.2em] text-pink-200">
+              Affiliate Programme
+            </p>
+            <h2 className="mt-3 text-3xl font-bold tracking-[-0.04em] text-white">
+              Affiliate Management
+            </h2>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-white/52">
+              Review applications, manage approved affiliate partners, and
+              oversee commission and payout operations.
+            </p>
+          </div>
+
+          <span className="w-fit rounded-full border border-pink-200/20 bg-pink-300/10 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.12em] text-pink-100">
+            Admin only
+          </span>
+        </div>
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-3">
+          <a
+            href="/admin/affiliates"
+            className="group rounded-3xl border border-pink-200/18 bg-[linear-gradient(180deg,rgba(131,45,101,0.24),rgba(4,20,48,0.78))] p-6 no-underline transition hover:-translate-y-0.5 hover:border-pink-200/36 hover:bg-pink-300/[0.08]"
+          >
+            <p className="m-0 text-xs font-bold uppercase tracking-[0.18em] text-pink-200">
+              Applications & Partners
+            </p>
+            <h3 className="mt-3 text-2xl font-bold tracking-[-0.03em] text-white">
+              Affiliate Applications
+            </h3>
+            <p className="mt-3 text-sm leading-6 text-white/50">
+              Review new applications, approve or reject applicants, resend
+              onboarding links, and open active affiliate partner records.
+            </p>
+            <span className="mt-5 inline-flex items-center text-sm font-extrabold text-pink-100 transition group-hover:translate-x-1">
+              Open Affiliate Management →
+            </span>
+          </a>
+
+          <a
+            href="/admin/affiliates/finance"
+            className="group rounded-3xl border border-emerald-200/18 bg-[linear-gradient(180deg,rgba(19,92,74,0.24),rgba(4,20,48,0.78))] p-6 no-underline transition hover:-translate-y-0.5 hover:border-emerald-200/36 hover:bg-emerald-300/[0.08]"
+          >
+            <p className="m-0 text-xs font-bold uppercase tracking-[0.18em] text-emerald-200">
+              Commission & Payouts
+            </p>
+            <h3 className="mt-3 text-2xl font-bold tracking-[-0.03em] text-white">
+              Affiliate Finance
+            </h3>
+            <p className="mt-3 text-sm leading-6 text-white/50">
+              Review commissions, release schedules, payout batches,
+              adjustments, and affiliate payment records.
+            </p>
+            <span className="mt-5 inline-flex items-center text-sm font-extrabold text-emerald-100 transition group-hover:translate-x-1">
+              Open Affiliate Finance →
+            </span>
+          </a>
+
+          <a
+            href="/affiliate"
+            target="_blank"
+            rel="noreferrer"
+            className="group rounded-3xl border border-cyan-200/18 bg-[linear-gradient(180deg,rgba(24,87,111,0.24),rgba(4,20,48,0.78))] p-6 no-underline transition hover:-translate-y-0.5 hover:border-cyan-200/36 hover:bg-cyan-300/[0.08]"
+          >
+            <p className="m-0 text-xs font-bold uppercase tracking-[0.18em] text-[#8dfcff]">
+              Public Programme
+            </p>
+            <h3 className="mt-3 text-2xl font-bold tracking-[-0.03em] text-white">
+              View Affiliate Page
+            </h3>
+            <p className="mt-3 text-sm leading-6 text-white/50">
+              Preview the public Affiliate Programme page exactly as potential
+              applicants see it.
+            </p>
+            <span className="mt-5 inline-flex items-center text-sm font-extrabold text-[#8dfcff] transition group-hover:translate-x-1">
+              Open Public Page ↗
+            </span>
+          </a>
+        </div>
+
+        <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 px-5 py-4 text-sm leading-6 text-white/48">
+          Active affiliates manage their own referral link, commission activity,
+          payout history, and account details from the Affiliate Dashboard.
+        </div>
+      </section>
+    </section>
   );
 }
 
