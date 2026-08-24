@@ -5,7 +5,7 @@ import {
   AFFILIATE_ROUTES,
   AFFILIATE_TERMS_VERSION,
   PRIVACY_VERSION,
-  getReferralDestinationPath,
+  getAffiliateReferralPath,
   getSiteUrl,
 } from "@/lib/affiliate/config";
 import { sendActivationEmail } from "@/lib/affiliate/email";
@@ -259,12 +259,7 @@ export async function completeAffiliateOnboarding(
 
   const siteUrl = getSiteUrl();
 
-  // Phase 3 will wire affiliate_ref into dedicated affiliate attribution.
-  // Using a separate parameter now avoids colliding with Dreamscape's existing
-  // member referral code flow, which uses ?ref=.
-  const referralLink = `${siteUrl}${getReferralDestinationPath()}?affiliate_ref=${encodeURIComponent(
-    referralCode,
-  )}`;
+  const referralLink = `${siteUrl}${getAffiliateReferralPath(referralCode)}`;
 
   const emailSent = await sendActivationEmail({
     to: application.email,

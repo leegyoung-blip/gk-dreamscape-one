@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/affiliate/auth";
-import { getReferralDestinationPath, getSiteUrl } from "@/lib/affiliate/config";
+import {
+  getAffiliateReferralPath,
+  getSiteUrl,
+} from "@/lib/affiliate/config";
 import { createAdminClient } from "@/lib/supabase/admin";
 import CopyAffiliateDetails from "./CopyAffiliateDetails";
 import styles from "../affiliate.module.css";
@@ -33,8 +36,7 @@ export default async function AffiliateWelcomePage({
   }
 
   const referralLink =
-    `${getSiteUrl()}${getReferralDestinationPath()}` +
-    `?affiliate_ref=${encodeURIComponent(partner.referral_code)}`;
+    `${getSiteUrl()}${getAffiliateReferralPath(partner.referral_code)}`;
 
   return (
     <main className={styles.centeredPage}>
@@ -49,7 +51,7 @@ export default async function AffiliateWelcomePage({
           Your approved commission rate is{" "}
           <strong>{Number(partner.commission_rate)}%</strong>. Your assigned
           affiliate code is separate from Dreamscape&apos;s ordinary member referral
-          rewards and will be used for affiliate attribution.
+          rewards and is the final identifier used for affiliate attribution.
         </p>
 
         {notice ? <div className={styles.formError}>{notice}</div> : null}
@@ -63,9 +65,9 @@ export default async function AffiliateWelcomePage({
           <div>
             <strong>Commission period</strong>
             <p>
-              An eligible referred customer can generate commission for up to 12
-              consecutive months from the first successful eligible subscription
-              payment, subject to the Programme Terms.
+              Eligible completed billing cycles can generate commission for up to
+              12 consecutive months from the referred customer&apos;s first
+              successful eligible subscription payment.
             </p>
           </div>
 
@@ -88,26 +90,26 @@ export default async function AffiliateWelcomePage({
         </div>
 
         <div className={styles.infoBox}>
-          <strong>Affiliate tracking</strong>
+          <strong>Affiliate tracking is active</strong>
           <p style={{ marginBottom: 0 }}>
-            Your affiliate identity and referral code are now active. The dedicated
-            click/signup/subscription attribution layer is connected in Phase 3.
-            Until that phase is deployed, keep your code available and do not rely
-            on link-only attribution.
+            Share the referral link above. Dreamscape records the affiliate code
+            before checkout and saves that code on the subscription contract. The
+            recorded contract attribution, not a verbal claim or link click alone,
+            determines commission eligibility.
           </p>
         </div>
 
         <div className={styles.buttonRow}>
-          <Link href="/affiliate" className={styles.primaryLink}>
-            View Affiliate Programme
+          <Link href="/affiliate/dashboard" className={styles.primaryLink}>
+            Open Affiliate Dashboard
           </Link>
 
           <Link href="/affiliate-terms" className={styles.secondaryLink}>
             Read Affiliate Terms
           </Link>
 
-          <Link href="/" className={styles.secondaryLink}>
-            Go to Dreamscape
+          <Link href="/affiliate" className={styles.secondaryLink}>
+            View Affiliate Programme
           </Link>
 
           <a

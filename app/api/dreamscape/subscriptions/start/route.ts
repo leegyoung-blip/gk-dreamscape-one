@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { resolveAffiliateAttributionForCheckout } from "@/lib/affiliate/attribution";
 
 import {
   createDreamscapeStripeCheckout,
@@ -76,6 +77,13 @@ export async function POST(
         learnerName?: string;
         learnerEmail?: string;
         guardianAuthorised?: boolean;
+
+        /*
+         * Optional compatibility input. The canonical affiliate link uses a
+         * secure first-party cookie, but this keeps direct affiliate_ref flows
+         * working when the purchase UI forwards the code explicitly.
+         */
+        affiliateRef?: string;
 
         /*
          * Honeypot.
@@ -331,6 +339,30 @@ export async function POST(
       `DSUB-${crypto.randomUUID()}`;
 
     /*
+     * Resolve affiliate attribution immediately before the contract is
+     * created. The contract's affiliate_partner_id + referral_code become the
+     * durable source of truth used later by the Stripe webhook commission RPC.
+     *
+     * Purchase is never blocked merely because an affiliate code is invalid or
+     * rejected as a self-referral.
+     */
+    const affiliateAttribution =
+      await resolveAffiliateAttributionForCheckout({
+        request,
+        parentEmail,
+        learnerEmail,
+        bodyAffiliateRef: body.affiliateRef,
+      });
+
+    const affiliateMetadata = {
+      partner_id: affiliateAttribution.partnerId,
+      referral_code: affiliateAttribution.referralCode,
+      click_id: affiliateAttribution.clickId,
+      source: affiliateAttribution.source,
+      rejected_reason: affiliateAttribution.rejectedReason,
+    };
+
+    /*
      * Create our local contract BEFORE Stripe Checkout.
      *
      * Stripe receives this contract ID in both Checkout
@@ -366,6 +398,20 @@ export async function POST(
           guardian_authorised:
             true,
 
+          affiliate_partner_id:
+            affiliateAttribution.partnerId,
+
+          referral_code:
+            affiliateAttribution.referralCode,
+
+          affiliate_click_id:
+            affiliateAttribution.clickId,
+
+          affiliate_attributed_at:
+            affiliateAttribution.partnerId
+              ? new Date().toISOString()
+              : null,
+
           provider:
             "stripe",
 
@@ -374,6 +420,11 @@ export async function POST(
 
           provider_status:
             "checkout_pending",
+
+          provider_data: {
+            affiliate_attribution:
+              affiliateMetadata,
+          },
 
           status:
             "setup_pending",
@@ -496,6 +547,9 @@ export async function POST(
 
               livemode:
                 session.livemode,
+
+              affiliate_attribution:
+                affiliateMetadata,
             },
 
             updated_at:
@@ -525,6 +579,11 @@ export async function POST(
           "stripe",
 
         environment,
+
+        affiliateAttributed:
+          Boolean(
+            affiliateAttribution.partnerId,
+          ),
       });
     } catch (error) {
       /*
@@ -549,6 +608,9 @@ export async function POST(
                 : String(
                     error,
                   ),
+
+            affiliate_attribution:
+              affiliateMetadata,
           },
 
           updated_at:

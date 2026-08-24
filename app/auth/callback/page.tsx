@@ -3,6 +3,26 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
+function safeNextPath(currentUrl: URL): string {
+  const requested = (currentUrl.searchParams.get("next") || "").trim();
+
+  if (!requested || !requested.startsWith("/") || requested.startsWith("//")) {
+    return "/profile";
+  }
+
+  try {
+    const resolved = new URL(requested, currentUrl.origin);
+
+    if (resolved.origin !== currentUrl.origin) {
+      return "/profile";
+    }
+
+    return `${resolved.pathname}${resolved.search}${resolved.hash}`;
+  } catch {
+    return "/profile";
+  }
+}
+
 export default function AuthCallbackPage() {
   const hasStarted = useRef(false);
 
@@ -16,6 +36,7 @@ export default function AuthCallbackPage() {
     async function completeAuthentication() {
       try {
         const currentUrl = new URL(window.location.href);
+        const nextPath = safeNextPath(currentUrl);
 
         const oauthError =
           currentUrl.searchParams.get("error_description") ||
@@ -24,7 +45,7 @@ export default function AuthCallbackPage() {
         if (oauthError) {
           console.error("OAuth callback error:", oauthError);
           setHasError(true);
-          setMessage(decodeURIComponent(oauthError));
+          setMessage(oauthError);
           return;
         }
 
@@ -32,7 +53,7 @@ export default function AuthCallbackPage() {
 
         /*
          * If the page is revisited after the session was already created,
-         * send the user directly to the profile.
+         * send the user to the validated requested destination.
          */
         if (!code) {
           const {
@@ -45,13 +66,13 @@ export default function AuthCallbackPage() {
           }
 
           if (user) {
-            window.location.replace("/profile");
+            window.location.replace(nextPath);
             return;
           }
 
           setHasError(true);
           setMessage(
-            "The login callback did not include an authentication code. Please return to login and try again."
+            "The login callback did not include an authentication code. Please return to login and try again.",
           );
           return;
         }
@@ -73,7 +94,7 @@ export default function AuthCallbackPage() {
           } = await supabase.auth.getUser();
 
           if (existingUser) {
-            window.location.replace("/profile");
+            window.location.replace(nextPath);
             return;
           }
 
@@ -85,19 +106,18 @@ export default function AuthCallbackPage() {
         if (!data.session?.user) {
           setHasError(true);
           setMessage(
-            "Google login completed, but no session was created. Please return to login and try again."
+            "Google login completed, but no session was created. Please return to login and try again.",
           );
           return;
         }
 
-        setMessage("Login successful. Opening your profile...");
+        setMessage("Login successful. Opening Dreamscape...");
 
         /*
          * Use a full browser navigation instead of router.replace().
-         * This ensures the new Supabase session is loaded cleanly
-         * by the profile page.
+         * This ensures the new Supabase session is loaded cleanly.
          */
-        window.location.replace("/profile");
+        window.location.replace(nextPath);
       } catch (error) {
         console.error("Authentication callback error:", error);
 
@@ -105,7 +125,7 @@ export default function AuthCallbackPage() {
         setMessage(
           error instanceof Error
             ? `Login failed: ${error.message}`
-            : "Login failed unexpectedly."
+            : "Login failed unexpectedly.",
         );
       }
     }
