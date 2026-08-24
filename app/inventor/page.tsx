@@ -640,14 +640,26 @@ export default function NovaWorldPage() {
     if (!activeZoneNumber || isDesktop) return;
 
     const timeout = window.setTimeout(() => {
-      document.getElementById(`nova-zone-${activeZoneNumber}`)?.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
+      const target = document.getElementById(`nova-zone-${activeZoneNumber}`);
+      if (!target) return;
+
+      // Keep the highlighted location in the open half of the screen so the
+      // guide never sits on top of the location Nova is talking about.
+      if (isMobile) {
+        target.scrollIntoView({
+          behavior: "smooth",
+          block: activeZoneNumber === "1" ? "start" : "end",
+        });
+      } else {
+        target.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }
     }, 120);
 
     return () => window.clearTimeout(timeout);
-  }, [isDesktop, walkthroughOpen, walkthroughStep]);
+  }, [isDesktop, isMobile, walkthroughOpen, walkthroughStep]);
 
   const activeWalkthroughZoneNumber = walkthroughOpen
     ? (WALKTHROUGH_STEPS[walkthroughStep]?.zoneNumber ?? null)
@@ -3509,6 +3521,7 @@ function GuidedWalkthrough({
   const isMissionsStep = step.zoneNumber === "2";
   const isHomeStep = step.zoneNumber === "3";
   const isLastStep = stepIndex === WALKTHROUGH_STEPS.length - 1;
+  const dockGuideAtTop = isMobile && (isMissionsStep || isHomeStep);
   const [typedLength, setTypedLength] = useState(0);
 
   useEffect(() => {
@@ -3590,10 +3603,15 @@ function GuidedWalkthrough({
           position: "fixed",
           left: isMobile ? "10px" : "30px",
           right: isMobile ? "10px" : "auto",
-          bottom: isMobile ? "10px" : "24px",
+          top: dockGuideAtTop ? "10px" : "auto",
+          bottom: isMobile ? (dockGuideAtTop ? "auto" : "10px") : "24px",
           zIndex: 100,
           width: isMobile ? "auto" : "min(570px, calc(100vw - 60px))",
-          maxHeight: isMobile ? "72dvh" : "min(620px, calc(100dvh - 48px))",
+          maxHeight: isMobile
+            ? dockGuideAtTop
+              ? "48dvh"
+              : "62dvh"
+            : "min(620px, calc(100dvh - 48px))",
           overflowY: "auto",
           borderRadius: isMobile ? "20px" : "28px",
           border: "1px solid rgba(142,232,255,0.42)",
@@ -3634,7 +3652,7 @@ function GuidedWalkthrough({
             position: isMobile ? "relative" : "absolute",
             left: isMobile ? "auto" : "3px",
             bottom: isMobile ? "auto" : "-8px",
-            height: isMobile ? "105px" : "250px",
+            height: isMobile ? (step.zoneNumber ? "76px" : "105px") : "250px",
             width: "auto",
             objectFit: "contain",
             display: "block",
@@ -3767,7 +3785,7 @@ function GuidedWalkthrough({
                 <button type="button" onClick={() => onStepChange(stepIndex + 1)} style={secondaryStyle}>
                   Maybe later
                 </button>
-                <Link href="/nova/thinking-skills-lab" style={actionStyle}>
+                <Link href="/nova/thinking-skills-lab" onClick={onClose} style={actionStyle}>
                   Sure! Let’s play
                 </Link>
               </>
@@ -3776,7 +3794,7 @@ function GuidedWalkthrough({
                 <button type="button" onClick={() => onStepChange(stepIndex + 1)} style={secondaryStyle}>
                   Keep touring
                 </button>
-                <Link href="/learning-missions" style={actionStyle}>
+                <Link href="/learning-missions" onClick={onClose} style={actionStyle}>
                   Explore Missions
                 </Link>
               </>
@@ -3785,15 +3803,15 @@ function GuidedWalkthrough({
                 <button type="button" onClick={() => onStepChange(stepIndex + 1)} style={secondaryStyle}>
                   Keep touring
                 </button>
-                <Link href="/inventor/hub" style={actionStyle}>
+                <Link href="/inventor/hub" onClick={onClose} style={actionStyle}>
                   Visit Nova’s Home
                 </Link>
               </>
             ) : isLastStep ? (
               <>
-                <Link href="/nova/thinking-skills-lab" style={secondaryStyle}>Think Lab</Link>
-                <Link href="/learning-missions" style={secondaryStyle}>Learning Missions</Link>
-                <Link href="/inventor/hub" style={actionStyle}>Nova’s Home</Link>
+                <Link href="/nova/thinking-skills-lab" onClick={onClose} style={secondaryStyle}>Think Lab</Link>
+                <Link href="/learning-missions" onClick={onClose} style={secondaryStyle}>Learning Missions</Link>
+                <Link href="/inventor/hub" onClick={onClose} style={actionStyle}>Nova’s Home</Link>
               </>
             ) : (
               <>
