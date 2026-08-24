@@ -401,8 +401,8 @@ function Keyboard({
 
   const keyHeight = mobile
     ? dense
-      ? 31
-      : 36
+      ? 36
+      : 44
     : dense
       ? 38
       : wide
@@ -457,11 +457,11 @@ function Keyboard({
         <div
           key={row}
           style={{
-            width: rowIndex === 0 ? "100%" : rowIndex === 1 ? "92%" : "96%",
+            width: "100%",
             margin: "0 auto",
             display: "flex",
             justifyContent: "center",
-            gap: mobile ? "3px" : wide ? "7px" : "5px",
+            gap: mobile ? "4px" : wide ? "7px" : "5px",
           }}
         >
           {row.split("").map((letter) => (
@@ -473,9 +473,9 @@ function Keyboard({
                 minWidth: 0,
                 height: `${keyHeight}px`,
                 flex: "1 1 0",
-                borderRadius: mobile ? "7px" : "10px",
+                borderRadius: mobile ? "9px" : "10px",
                 fontFamily: "inherit",
-                fontSize: mobile ? "10px" : wide ? "16px" : "14px",
+                fontSize: mobile ? "12px" : wide ? "16px" : "14px",
                 fontWeight: 900,
                 cursor: "pointer",
                 boxShadow: "inset 0 -2px 0 rgba(0,0,0,0.12)",
@@ -494,12 +494,12 @@ function Keyboard({
                 minWidth: 0,
                 height: `${keyHeight}px`,
                 flex: "1.55 1 0",
-                borderRadius: mobile ? "7px" : "10px",
+                borderRadius: mobile ? "9px" : "10px",
                 border: "1px solid rgba(126,232,255,0.14)",
                 background: "rgba(255,255,255,0.09)",
                 color: "white",
                 fontFamily: "inherit",
-                fontSize: mobile ? "8px" : wide ? "12px" : "10px",
+                fontSize: mobile ? "10px" : wide ? "12px" : "10px",
                 fontWeight: 900,
                 cursor: "pointer",
               }}
@@ -592,8 +592,8 @@ export default function ActivityLabPage() {
 
   const cellSize = mobile
     ? dense
-      ? 32
-      : 38
+      ? 38
+      : 48
     : dense
       ? 48
       : wide
@@ -1345,7 +1345,7 @@ export default function ActivityLabPage() {
               "linear-gradient(145deg, rgba(5,22,43,0.88), rgba(3,9,24,0.95))",
             boxShadow:
               "0 30px 90px rgba(0,0,0,0.35), inset 0 0 50px rgba(83,215,255,0.025)",
-            padding: mobile ? (dense ? "8px" : "10px") : dense ? "14px" : "18px",
+            padding: mobile ? "6px" : dense ? "14px" : "18px",
             display: "grid",
             gridTemplateColumns: mobile
               ? "1fr"
@@ -1363,7 +1363,7 @@ export default function ActivityLabPage() {
               borderRadius: mobile ? "13px" : "19px",
               border: "1px solid rgba(126,232,255,0.1)",
               background: "rgba(255,255,255,0.025)",
-              padding: mobile ? (dense ? "7px" : "9px") : dense ? "12px" : "16px",
+              padding: mobile ? "6px" : dense ? "12px" : "16px",
               overflow: "hidden",
               display: "grid",
               gridTemplateRows: "auto minmax(0, 1fr) auto",
@@ -1541,7 +1541,9 @@ export default function ActivityLabPage() {
                                 alignItems: "center",
                                 justifyContent: "center",
                                 fontSize: mobile
-                                  ? "15px"
+                                  ? dense
+                                    ? "18px"
+                                    : "21px"
                                   : dense
                                     ? "19px"
                                     : wide
@@ -1731,24 +1733,25 @@ export default function ActivityLabPage() {
                     : "Submit Guess"}
             </button>
 
-            <div
-              style={{
-                gridColumn: mobile ? "1 / -1" : "auto",
-                display: "grid",
-                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                gap: "6px",
-              }}
-            >
-              <StatBox
-                label="Attempts"
-                value={`${remainingAttempts}/${DAILY_CODE_MAX_ATTEMPTS}`}
-              />
-              <StatBox
-                label={userId ? "Completed" : "Guest Run"}
-                value={userId ? String(completed) : solvedToday ? "1" : "0"}
-              />
-              <StatBox label="Status" value={solvedToday ? "Solved" : "Active"} />
-            </div>
+            {!mobile && (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                  gap: "6px",
+                }}
+              >
+                <StatBox
+                  label="Attempts"
+                  value={`${remainingAttempts}/${DAILY_CODE_MAX_ATTEMPTS}`}
+                />
+                <StatBox
+                  label={userId ? "Completed" : "Guest Run"}
+                  value={userId ? String(completed) : solvedToday ? "1" : "0"}
+                />
+                <StatBox label="Status" value={solvedToday ? "Solved" : "Active"} />
+              </div>
+            )}
 
             <div
               role="status"
