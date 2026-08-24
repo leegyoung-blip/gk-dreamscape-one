@@ -89,6 +89,10 @@ type ProfileMembership = {
   nextBillingAt: string | null;
   graceUntil: string | null;
   pausedAt: string | null;
+  isTrial: boolean;
+  trialStartedAt: string | null;
+  trialEndsAt: string | null;
+  firstBillingAt: string | null;
   cancelAtPeriodEnd: boolean;
   canUpdatePaymentMethod: boolean;
   canChangePlan: boolean;
@@ -96,6 +100,8 @@ type ProfileMembership = {
   canResume: boolean;
   canCancelAtPeriodEnd: boolean;
   canKeepSubscription: boolean;
+  canCancelTrial: boolean;
+  canKeepTrial: boolean;
   isLive: boolean;
   isPaused: boolean;
   pendingPlan: null | {
@@ -1161,7 +1167,9 @@ export default function ProfilePage() {
       | "cancel_period_end"
       | "keep_subscription"
       | "pause_membership"
-      | "resume_membership",
+      | "resume_membership"
+      | "cancel_trial"
+      | "keep_trial",
   ) {
     if (!membershipDetails) {
       return;
@@ -1208,6 +1216,24 @@ export default function ProfilePage() {
       action === "keep_subscription" &&
       !window.confirm(
         "Keep this membership renewing normally?",
+      )
+    ) {
+      return;
+    }
+
+    if (
+      action === "cancel_trial" &&
+      !window.confirm(
+        "Cancel the free trial? You will not be charged when the trial ends, and learning access will remain available until the trial end date.",
+      )
+    ) {
+      return;
+    }
+
+    if (
+      action === "keep_trial" &&
+      !window.confirm(
+        "Keep the free trial continuing into the selected paid subscription when the trial ends?",
       )
     ) {
       return;
@@ -1314,6 +1340,10 @@ export default function ProfilePage() {
           "Membership paused. Paid learning access is now paused too.",
         resume_membership:
           "Membership resumed and learning access restored.",
+        cancel_trial:
+          "Trial cancellation scheduled. You will not be charged when the trial ends.",
+        keep_trial:
+          "Trial renewal restored. The selected subscription will begin after the trial.",
       };
 
       setMembershipMessage(
@@ -2499,24 +2529,32 @@ Thank you.`;
                   {membershipDetails && (
                     <span
                       className={`rounded-full border px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.12em] ${
-                        membershipDetails.isPaused
-                          ? "border-amber-200/20 bg-amber-300/10 text-amber-100"
-                          : membershipDetails.cancelAtPeriodEnd
-                            ? "border-red-200/20 bg-red-300/10 text-red-100"
-                            : membershipDetails.status === "payment_issue"
-                              ? "border-amber-200/20 bg-amber-300/10 text-amber-100"
-                              : "border-green-200/20 bg-green-300/10 text-green-200"
+                        membershipDetails.isTrial
+                          ? membershipDetails.cancelAtPeriodEnd
+                            ? "border-amber-200/20 bg-amber-300/10 text-amber-100"
+                            : "border-cyan-200/20 bg-cyan-300/10 text-cyan-100"
+                          : membershipDetails.isPaused
+                            ? "border-amber-200/20 bg-amber-300/10 text-amber-100"
+                            : membershipDetails.cancelAtPeriodEnd
+                              ? "border-red-200/20 bg-red-300/10 text-red-100"
+                              : membershipDetails.status === "payment_issue"
+                                ? "border-amber-200/20 bg-amber-300/10 text-amber-100"
+                                : "border-green-200/20 bg-green-300/10 text-green-200"
                       }`}
                     >
-                      {membershipDetails.isPaused
-                        ? "Paused"
-                        : membershipDetails.cancelAtPeriodEnd
-                          ? "Renewal stopped"
-                          : membershipDetails.status === "payment_issue"
-                            ? "Payment issue"
-                            : membershipDetails.isLive
-                              ? "Active"
-                              : membershipDetails.status}
+                      {membershipDetails.isTrial
+                        ? membershipDetails.cancelAtPeriodEnd
+                          ? "Trial ending"
+                          : "7-Day Free Trial"
+                        : membershipDetails.isPaused
+                          ? "Paused"
+                          : membershipDetails.cancelAtPeriodEnd
+                            ? "Renewal stopped"
+                            : membershipDetails.status === "payment_issue"
+                              ? "Payment issue"
+                              : membershipDetails.isLive
+                                ? "Active"
+                                : membershipDetails.status}
                     </span>
                   )}
                 </div>
@@ -2576,20 +2614,29 @@ Thank you.`;
 
                       <div className="rounded-2xl border border-white/9 bg-black/16 p-4">
                         <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/36">
-                          {membershipDetails.isPaused
-                            ? "Paused since"
-                            : membershipDetails.cancelAtPeriodEnd
-                              ? "Access through"
-                              : "Next billing"}
+                          {membershipDetails.isTrial
+                            ? membershipDetails.cancelAtPeriodEnd
+                              ? "Trial ends"
+                              : "First billing"
+                            : membershipDetails.isPaused
+                              ? "Paused since"
+                              : membershipDetails.cancelAtPeriodEnd
+                                ? "Access through"
+                                : "Next billing"}
                         </p>
                         <p className="mt-2 text-sm font-extrabold text-white/84">
                           {formatMembershipDate(
-                            membershipDetails.isPaused
-                              ? membershipDetails.pausedAt
-                              : membershipDetails.cancelAtPeriodEnd
-                                ? membershipDetails.currentPeriodEnd
-                                : membershipDetails.nextBillingAt ||
-                                  membershipDetails.currentPeriodEnd,
+                            membershipDetails.isTrial
+                              ? membershipDetails.cancelAtPeriodEnd
+                                ? membershipDetails.trialEndsAt
+                                : membershipDetails.firstBillingAt ||
+                                  membershipDetails.trialEndsAt
+                              : membershipDetails.isPaused
+                                ? membershipDetails.pausedAt
+                                : membershipDetails.cancelAtPeriodEnd
+                                  ? membershipDetails.currentPeriodEnd
+                                  : membershipDetails.nextBillingAt ||
+                                    membershipDetails.currentPeriodEnd,
                           )}
                         </p>
                       </div>
@@ -2607,6 +2654,41 @@ Thank you.`;
                         </p>
                       </div>
                     </div>
+
+                    {membershipDetails.isTrial && (
+                      <div className={`mt-5 rounded-2xl border p-4 ${
+                        membershipDetails.cancelAtPeriodEnd
+                          ? "border-amber-200/18 bg-amber-300/[0.06]"
+                          : "border-cyan-200/18 bg-cyan-300/[0.06]"
+                      }`}>
+                        <p className={`text-[10px] font-extrabold uppercase tracking-[0.13em] ${
+                          membershipDetails.cancelAtPeriodEnd
+                            ? "text-amber-100"
+                            : "text-cyan-100"
+                        }`}>
+                          {membershipDetails.cancelAtPeriodEnd
+                            ? "Trial cancellation scheduled"
+                            : "7-Day Free Trial"}
+                        </p>
+
+                        <p className="mt-2 text-sm leading-6 text-white/62">
+                          {membershipDetails.cancelAtPeriodEnd
+                            ? `Your free trial remains active through ${formatMembershipDate(
+                                membershipDetails.trialEndsAt,
+                              )}. No subscription charge will be made after the trial ends.`
+                            : `Your ${membershipDetails.planName} access is active now. Your first charge of ${new Intl.NumberFormat(
+                                "en-SG",
+                                {
+                                  style: "currency",
+                                  currency: membershipDetails.currency || "SGD",
+                                },
+                              ).format(membershipDetails.amount)} is scheduled for ${formatMembershipDate(
+                                membershipDetails.firstBillingAt ||
+                                  membershipDetails.trialEndsAt,
+                              )} unless you cancel before the trial ends.`}
+                        </p>
+                      </div>
+                    )}
 
                     {membershipDetails.pendingPlan && (
                       <div className="mt-4 rounded-2xl border border-cyan-200/18 bg-cyan-300/[0.07] p-4">
@@ -2716,6 +2798,44 @@ Thank you.`;
                           <p className="text-xs font-bold uppercase tracking-[0.13em] text-white/40">
                             Membership Status
                           </p>
+
+                          {membershipDetails.canCancelTrial && (
+                            <>
+                              <button
+                                type="button"
+                                disabled={isWorkingMembership}
+                                onClick={() =>
+                                  void runMembershipAction("cancel_trial")
+                                }
+                                className="mt-4 min-h-[46px] w-full rounded-full border border-red-200/20 bg-red-300/[0.07] px-4 text-[10px] font-extrabold uppercase tracking-[0.11em] text-red-100 transition hover:bg-red-300/[0.13] disabled:opacity-45"
+                              >
+                                Cancel Trial
+                              </button>
+
+                              <p className="mt-2 text-xs leading-5 text-white/38">
+                                You keep access until the trial ends. No subscription charge will be made after the trial.
+                              </p>
+                            </>
+                          )}
+
+                          {membershipDetails.canKeepTrial && (
+                            <>
+                              <button
+                                type="button"
+                                disabled={isWorkingMembership}
+                                onClick={() =>
+                                  void runMembershipAction("keep_trial")
+                                }
+                                className="mt-4 min-h-[46px] w-full rounded-full border border-green-200/22 bg-green-300/[0.10] px-4 text-[10px] font-extrabold uppercase tracking-[0.11em] text-green-50 transition hover:bg-green-300/[0.16] disabled:opacity-45"
+                              >
+                                Keep Trial
+                              </button>
+
+                              <p className="mt-2 text-xs leading-5 text-white/38">
+                                Continue the trial and allow your selected paid subscription to begin when the trial ends.
+                              </p>
+                            </>
+                          )}
 
                           {membershipDetails.canPause && (
                             <>

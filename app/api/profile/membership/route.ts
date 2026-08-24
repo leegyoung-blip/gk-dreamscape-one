@@ -17,6 +17,10 @@ import {
   keepNovaAccessUntilPeriodEnd,
 } from "@/lib/dreamscape-subscriptions";
 import {
+  activateDreamscapeStripeTrialAccess,
+  getDreamscapeStripeTrialWindow,
+} from "@/lib/dreamscape-trials";
+import {
   sendDreamscapeSubscriptionEmail,
 } from "@/lib/dreamscapeSubscriptionEmail";
 
@@ -30,7 +34,9 @@ type MembershipAction =
   | "cancel_period_end"
   | "keep_subscription"
   | "pause_membership"
-  | "resume_membership";
+  | "resume_membership"
+  | "cancel_trial"
+  | "keep_trial";
 
 function json(
   body: unknown,
@@ -141,6 +147,19 @@ const liveStatuses =
     "suspended",
     "setup_pending",
   ]);
+
+function isIntroTrialContract(
+  contract: Record<string, any>,
+) {
+  return (
+    String(contract.provider || "").toLowerCase() === "stripe" &&
+    Boolean(contract.intro_trial_eligible) &&
+    Number(contract.intro_trial_days || 0) > 0 &&
+    String(contract.provider_status || "").toLowerCase() === "trialing" &&
+    Boolean(contract.trial_redeemed_at) &&
+    !contract.first_paid_at
+  );
+}
 
 function contractPriority(
   contract: Record<
@@ -598,6 +617,11 @@ export async function GET(
       contract.provider_status ===
         "paused";
 
+    const isTrial =
+      isIntroTrialContract(
+        contract,
+      );
+
     const isLive =
       liveStatuses.has(
         String(
@@ -653,6 +677,24 @@ export async function GET(
           contract.paused_at ||
           null,
 
+        isTrial,
+        trialStartedAt:
+          contract
+            .trial_started_at ||
+          null,
+        trialEndsAt:
+          contract
+            .trial_ends_at ||
+          null,
+        firstBillingAt:
+          isTrial
+            ? contract
+                .trial_ends_at ||
+              contract
+                .next_billing_at ||
+              null
+            : null,
+
         cancelAtPeriodEnd:
           Boolean(
             contract
@@ -668,6 +710,7 @@ export async function GET(
 
         canChangePlan:
           isStripe &&
+          !isTrial &&
           contract.status ===
             "active" &&
           !contract
@@ -683,6 +726,7 @@ export async function GET(
 
         canPause:
           isStripe &&
+          !isTrial &&
           contract.status ===
             "active" &&
           !contract
@@ -698,6 +742,7 @@ export async function GET(
 
         canCancelAtPeriodEnd:
           isStripe &&
+          !isTrial &&
           [
             "active",
             "payment_issue",
@@ -711,6 +756,21 @@ export async function GET(
 
         canKeepSubscription:
           isStripe &&
+          !isTrial &&
+          Boolean(
+            contract
+              .cancel_at_period_end,
+          ),
+
+        canCancelTrial:
+          isStripe &&
+          isTrial &&
+          !contract
+            .cancel_at_period_end,
+
+        canKeepTrial:
+          isStripe &&
+          isTrial &&
           Boolean(
             contract
               .cancel_at_period_end,
@@ -900,6 +960,11 @@ export async function POST(
       contract
         .provider_subscription_id;
 
+    const isTrial =
+      isIntroTrialContract(
+        contract,
+      );
+
     if (
       action ===
       "payment_method"
@@ -970,9 +1035,265 @@ export async function POST(
 
     if (
       action ===
+      "cancel_trial"
+    ) {
+      if (!isTrial) {
+        return json(
+          {
+            error:
+              "This membership is not currently in its introductory trial.",
+          },
+          409,
+        );
+      }
+
+      if (
+        contract
+          .cancel_at_period_end
+      ) {
+        return json({
+          ok: true,
+          status:
+            "trial_cancel_at_period_end",
+          accessUntil:
+            contract
+              .trial_ends_at ||
+            contract
+              .current_period_end ||
+            null,
+        });
+      }
+
+      const current =
+        await getDreamscapeStripeSubscription(
+          environment,
+          subscriptionId,
+        );
+
+      if (
+        current.status !==
+        "trialing"
+      ) {
+        return json(
+          {
+            error:
+              "Stripe no longer reports this membership as trialing. Refresh the page and try again.",
+          },
+          409,
+        );
+      }
+
+      const trial =
+        getDreamscapeStripeTrialWindow(
+          current,
+        );
+
+      const trialEnd =
+        trial.end ||
+        (contract
+          .trial_ends_at
+          ? new Date(
+              contract
+                .trial_ends_at,
+            )
+          : null);
+
+      if (
+        !trialEnd ||
+        !Number.isFinite(
+          trialEnd.getTime(),
+        ) ||
+        trialEnd.getTime() <=
+          Date.now()
+      ) {
+        return json(
+          {
+            error:
+              "The trial end date is unavailable.",
+          },
+          409,
+        );
+      }
+
+      const subscription =
+        await setDreamscapeStripeCancelAtPeriodEnd({
+          environment,
+          subscriptionId,
+          cancelAtPeriodEnd:
+            true,
+        });
+
+      const requestedAt =
+        new Date().toISOString();
+
+      const {
+        error,
+      } = await supabaseAdmin
+        .from(
+          "dreamscape_subscription_contracts",
+        )
+        .update({
+          status:
+            "cancel_at_period_end",
+          provider_status:
+            subscription.status,
+          cancel_at_period_end:
+            true,
+          cancellation_mode:
+            "trial_end",
+          cancellation_requested_at:
+            requestedAt,
+          current_period_end:
+            trialEnd.toISOString(),
+          trial_ends_at:
+            trialEnd.toISOString(),
+          next_billing_at:
+            null,
+          provider_data:
+            subscription,
+          last_provider_sync_at:
+            requestedAt,
+          updated_at:
+            requestedAt,
+        })
+        .eq(
+          "id",
+          contract.id,
+        );
+
+      if (error) {
+        throw error;
+      }
+
+      await keepNovaAccessUntilPeriodEnd({
+        contract: {
+          ...contract,
+          cancel_at_period_end:
+            true,
+          cancellation_requested_at:
+            requestedAt,
+        },
+        periodEnd:
+          trialEnd,
+      });
+
+      if (
+        contract
+          .learner_user_id
+      ) {
+        await supabaseAdmin
+          .from(
+            "nova_subscriptions",
+          )
+          .update({
+            billing_status:
+              "trial_cancel_at_period_end",
+            next_billing_at:
+              null,
+            updated_at:
+              requestedAt,
+          })
+          .eq(
+            "user_id",
+            contract
+              .learner_user_id,
+          )
+          .eq(
+            "dreamscape_contract_id",
+            contract.id,
+          );
+      }
+
+      await sendDreamscapeSubscriptionEmail({
+        contractId:
+          contract.id,
+        emailType:
+          "trial_cancelled",
+        origin:
+          siteUrlFromRequest(
+            request,
+          ),
+        eventKey:
+          `profile-stripe-trial-cancel:${subscription.id}`,
+      }).catch(
+        (emailError: unknown) =>
+          console.error(
+            "Stripe trial cancellation email failed",
+            emailError,
+          ),
+      );
+
+      return json({
+        ok: true,
+        status:
+          "trial_cancel_at_period_end",
+        accessUntil:
+          trialEnd.toISOString(),
+      });
+    }
+
+    if (
+      action ===
+      "keep_trial"
+    ) {
+      if (
+        !isTrial ||
+        !contract
+          .cancel_at_period_end
+      ) {
+        return json(
+          {
+            error:
+              "This trial is already set to continue normally.",
+          },
+          409,
+        );
+      }
+
+      const subscription =
+        await setDreamscapeStripeCancelAtPeriodEnd({
+          environment,
+          subscriptionId,
+          cancelAtPeriodEnd:
+            false,
+        });
+
+      if (
+        subscription.status !==
+        "trialing"
+      ) {
+        return json(
+          {
+            error:
+              "Stripe no longer reports this membership as an active trial.",
+          },
+          409,
+        );
+      }
+
+      const refreshed =
+        await activateDreamscapeStripeTrialAccess({
+          contract,
+          plan,
+          subscription,
+        });
+
+      return json({
+        ok: true,
+        status:
+          "trialing",
+        trialEndsAt:
+          refreshed
+            .trialEndsAt,
+      });
+    }
+
+    if (
+      action ===
       "change_plan"
     ) {
       if (
+        isTrial ||
         contract.status !==
           "active" ||
         contract
@@ -1319,6 +1640,16 @@ export async function POST(
       action ===
       "cancel_period_end"
     ) {
+      if (isTrial) {
+        return json(
+          {
+            error:
+              "Use Cancel Trial while the introductory trial is active.",
+          },
+          409,
+        );
+      }
+
       if (
         contract
           .pending_plan_id
@@ -1458,7 +1789,7 @@ export async function POST(
         eventKey:
           `profile-stripe-cancel:${requestedAt}`,
       }).catch(
-        (emailError) =>
+        (emailError: unknown) =>
           console.error(
             "Stripe profile cancellation email failed",
             emailError,
@@ -1478,6 +1809,16 @@ export async function POST(
       action ===
       "keep_subscription"
     ) {
+      if (isTrial) {
+        return json(
+          {
+            error:
+              "Use Keep Trial while the introductory trial is active.",
+          },
+          409,
+        );
+      }
+
       if (
         !contract
           .cancel_at_period_end
@@ -1569,6 +1910,7 @@ export async function POST(
       "pause_membership"
     ) {
       if (
+        isTrial ||
         contract.status !==
           "active" ||
         contract

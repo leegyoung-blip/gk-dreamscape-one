@@ -1,10 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import {
-  createEmailDeliveryLog,
-  parseMailbox,
-  updateEmailDeliveryLog,
-} from "@/lib/email-delivery-log";
 
 export type DreamscapeSubscriptionEmailType =
   | "subscription_started"
@@ -12,7 +7,11 @@ export type DreamscapeSubscriptionEmailType =
   | "payment_issue"
   | "cancellation_scheduled"
   | "subscription_ended"
-  | "management_link";
+  | "management_link"
+  | "trial_started"
+  | "trial_ending"
+  | "trial_cancelled"
+  | "trial_ended";
 
 type SendInput = {
   contractId: string;
@@ -32,16 +31,8 @@ function requiredEnv(name: string) {
 
 function senderAddress() {
   return (
-    process.env.DREAMSCAPE_FROM_EMAIL?.trim() ||
     process.env.RESEND_FROM?.trim() ||
-    "Dreamscape One <hello@mail.dreamscape-one.com>"
-  );
-}
-
-function replyToAddress() {
-  return (
-    process.env.DREAMSCAPE_REPLY_TO_EMAIL?.trim() ||
-    "admin@gurukidspro.com"
+    "Guru Kids Pro <admin@gurukidspro.com>"
   );
 }
 
@@ -83,7 +74,7 @@ async function loadContract(contractId: string) {
   const { data, error } = await supabaseAdmin
     .from("dreamscape_subscription_contracts")
     .select(
-      "id,reference,parent_name,parent_email,learner_name,learner_email,status,current_period_end,next_billing_at,grace_until,management_token,management_link_enabled,last_successful_charge_at,first_paid_at,updated_at,plan_id",
+      "id,reference,parent_name,parent_email,learner_name,learner_email,status,current_period_end,next_billing_at,grace_until,management_token,management_link_enabled,last_successful_charge_at,first_paid_at,updated_at,plan_id,trial_started_at,trial_ends_at,intro_trial_days,cancel_at_period_end,provider",
     )
     .eq("id", contractId)
     .single();
@@ -110,6 +101,8 @@ function emailContent(input: {
   paidThrough: string;
   nextBilling: string;
   graceUntil: string;
+  trialEnds: string;
+  firstBilling: string;
   managementUrl: string;
 }) {
   const common = {
@@ -139,8 +132,8 @@ function emailContent(input: {
       return {
         subject: `Action required: Dreamscape payment method – ${input.learnerName}`,
         title: "Please update the payment method",
-        intro: `We were unable to process the latest payment for ${input.learnerName}'s Dreamscape subscription.`,
-        detail: `Dreamscape access remains available during the recovery period${input.graceUntil !== "—" ? ` until ${input.graceUntil}` : ""}. Please use the secure management page below to update the payment method.`,
+        intro: `A payment issue has been reported for ${input.learnerName}'s Dreamscape subscription.`,
+        detail: `Please use the secure management page below to update the payment method.${input.graceUntil !== "—" ? ` Access is currently available during the recovery period until ${input.graceUntil}.` : ""}`,
         button: "Manage Payment Method",
       };
 
@@ -162,6 +155,42 @@ function emailContent(input: {
         button: common.managementLabel,
       };
 
+    case "trial_started":
+      return {
+        subject: `Your 7-day Dreamscape trial has started – ${input.learnerName}`,
+        title: "Your 7-day free trial is active",
+        intro: `${input.learnerName} now has ${input.planName} access during the introductory trial.`,
+        detail: `The trial ends on ${input.trialEnds}. Your first charge of ${input.amount} ${input.billingCycle} is scheduled for ${input.firstBilling} unless the trial is cancelled before it ends.`,
+        button: common.managementLabel,
+      };
+
+    case "trial_ending":
+      return {
+        subject: `Dreamscape trial ending soon – ${input.learnerName}`,
+        title: "Your free trial ends soon",
+        intro: `${input.learnerName}'s ${input.planName} trial is due to end on ${input.trialEnds}.`,
+        detail: `Your selected subscription will continue at ${input.amount} ${input.billingCycle}, with the first charge scheduled for ${input.firstBilling}, unless you cancel before the trial ends.`,
+        button: common.managementLabel,
+      };
+
+    case "trial_cancelled":
+      return {
+        subject: `Dreamscape trial cancellation scheduled – ${input.learnerName}`,
+        title: "Your trial will not convert to a paid plan",
+        intro: `${input.learnerName}'s ${input.planName} trial will end on ${input.trialEnds}.`,
+        detail: "You can continue using the trial until it ends. No subscription charge will be made after the trial unless you choose to keep the trial before it ends.",
+        button: common.managementLabel,
+      };
+
+    case "trial_ended":
+      return {
+        subject: `Dreamscape trial ended – ${input.learnerName}`,
+        title: "Your Dreamscape trial has ended",
+        intro: `${input.learnerName}'s ${input.planName} introductory trial has ended.`,
+        detail: "No further subscription charge will be made for a cancelled trial. You can visit Dreamscape One if you would like to choose a paid plan later.",
+        button: common.managementLabel,
+      };
+
     case "management_link":
       return {
         subject: `Manage ${input.learnerName}'s Dreamscape subscription`,
@@ -180,8 +209,10 @@ function shell(input: {
   detail: string;
   learnerName: string;
   planName: string;
-  paidThrough: string;
-  nextBilling: string;
+  periodLabel: string;
+  periodValue: string;
+  billingLabel: string;
+  billingValue: string;
   buttonLabel: string;
   managementUrl: string;
 }) {
@@ -214,12 +245,12 @@ function shell(input: {
                     <td style="padding:14px 16px;border-bottom:1px solid #ebe4d8;text-align:right;font-weight:700;">${escapeHtml(input.planName)}</td>
                   </tr>
                   <tr>
-                    <td style="padding:14px 16px;border-bottom:1px solid #ebe4d8;color:#81796d;font-size:12px;">Paid through</td>
-                    <td style="padding:14px 16px;border-bottom:1px solid #ebe4d8;text-align:right;font-weight:700;">${escapeHtml(input.paidThrough)}</td>
+                    <td style="padding:14px 16px;border-bottom:1px solid #ebe4d8;color:#81796d;font-size:12px;">${escapeHtml(input.periodLabel)}</td>
+                    <td style="padding:14px 16px;border-bottom:1px solid #ebe4d8;text-align:right;font-weight:700;">${escapeHtml(input.periodValue)}</td>
                   </tr>
                   <tr>
-                    <td style="padding:14px 16px;color:#81796d;font-size:12px;">Next billing</td>
-                    <td style="padding:14px 16px;text-align:right;font-weight:700;">${escapeHtml(input.nextBilling)}</td>
+                    <td style="padding:14px 16px;color:#81796d;font-size:12px;">${escapeHtml(input.billingLabel)}</td>
+                    <td style="padding:14px 16px;text-align:right;font-weight:700;">${escapeHtml(input.billingValue)}</td>
                   </tr>
                 </table>
 
@@ -271,6 +302,8 @@ export async function sendDreamscapeSubscriptionEmail(
     paidThrough: date(contract.current_period_end),
     nextBilling: date(contract.next_billing_at),
     graceUntil: date(contract.grace_until),
+    trialEnds: date(contract.trial_ends_at || contract.current_period_end),
+    firstBilling: date(contract.trial_ends_at || contract.next_billing_at),
     managementUrl,
   });
 
@@ -284,10 +317,6 @@ export async function sendDreamscapeSubscriptionEmail(
     .update(`${input.emailType}:${contract.id}:${eventKey}`)
     .digest("hex")
     .slice(0, 32)}`;
-
-  const from = senderAddress();
-  const replyTo = replyToAddress();
-  const parsedSender = parseMailbox(from);
 
   const { data: existing, error: existingError } = await supabaseAdmin
     .from("dreamscape_subscription_email_logs")
@@ -322,10 +351,6 @@ export async function sendDreamscapeSubscriptionEmail(
           management_url: managementUrl,
         },
         requested_by: input.requestedBy || null,
-        sender_name: parsedSender.name,
-        sender_email: parsedSender.email,
-        sender_raw: parsedSender.raw,
-        reply_to_email: replyTo,
         updated_at: new Date().toISOString(),
       })
       .eq("id", existing.id);
@@ -348,14 +373,12 @@ export async function sendDreamscapeSubscriptionEmail(
           management_url: managementUrl,
         },
         requested_by: input.requestedBy || null,
-        sender_name: parsedSender.name,
-        sender_email: parsedSender.email,
-        sender_raw: parsedSender.raw,
-        reply_to_email: replyTo,
       });
 
     if (error) throw error;
   }
+
+  const isTrialEmail = input.emailType.startsWith("trial_");
 
   const html = shell({
     preheader: content.subject,
@@ -364,26 +387,19 @@ export async function sendDreamscapeSubscriptionEmail(
     detail: content.detail,
     learnerName: contract.learner_name,
     planName: plan.display_name,
-    paidThrough: date(contract.current_period_end),
-    nextBilling: date(contract.next_billing_at),
+    periodLabel: isTrialEmail ? "Trial ends" : "Paid through",
+    periodValue: isTrialEmail
+      ? date(contract.trial_ends_at || contract.current_period_end)
+      : date(contract.current_period_end),
+    billingLabel: isTrialEmail ? "First billing" : "Next billing",
+    billingValue:
+      input.emailType === "trial_cancelled" || input.emailType === "trial_ended"
+        ? "No charge scheduled"
+        : isTrialEmail
+          ? date(contract.trial_ends_at || contract.next_billing_at)
+          : date(contract.next_billing_at),
     buttonLabel: content.button,
     managementUrl,
-  });
-
-  const deliveryLogId = await createEmailDeliveryLog({
-    category: "subscription",
-    emailType: input.emailType,
-    to: contract.parent_email,
-    from,
-    replyTo,
-    subject: content.subject,
-    metadata: {
-      contract_id: contract.id,
-      subscription_reference: contract.reference,
-      learner_name: contract.learner_name,
-      plan_name: plan.display_name,
-      idempotency_key: idempotencyKey,
-    },
   });
 
   const response = await fetch("https://api.resend.com/emails", {
@@ -394,9 +410,9 @@ export async function sendDreamscapeSubscriptionEmail(
       "Idempotency-Key": idempotencyKey,
     },
     body: JSON.stringify({
-      from,
+      from: senderAddress(),
       to: [contract.parent_email],
-      reply_to: replyTo,
+      reply_to: "admin@gurukidspro.com",
       subject: content.subject,
       html,
       tags: [
@@ -427,11 +443,6 @@ export async function sendDreamscapeSubscriptionEmail(
       })
       .eq("id", logId);
 
-    await updateEmailDeliveryLog(deliveryLogId, {
-      status: "failed",
-      error: message,
-    });
-
     throw new Error(message);
   }
 
@@ -447,11 +458,6 @@ export async function sendDreamscapeSubscriptionEmail(
       updated_at: sentAt,
     })
     .eq("id", logId);
-
-  await updateEmailDeliveryLog(deliveryLogId, {
-    status: "sent",
-    providerMessageId: payload.id,
-  });
 
   if (input.emailType === "management_link") {
     await supabaseAdmin

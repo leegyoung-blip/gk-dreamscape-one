@@ -16,6 +16,11 @@ import {
   type DreamscapeContractRow,
   type DreamscapePlanRow,
 } from "@/lib/dreamscape-subscriptions";
+import {
+  activateDreamscapeStripeTrialAccess,
+  isDreamscapeIntroTrialSubscription,
+  type DreamscapeTrialContract,
+} from "@/lib/dreamscape-trials";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -502,6 +507,7 @@ export async function POST(
       const subscriptionId = idFromExpandable(session.subscription);
       const customerId = idFromExpandable(session.customer);
 
+      let checkoutSubscription: Stripe.Subscription | null = null;
       let providerStatus = String(session.status || "complete");
       let providerData: Record<string, unknown> = {
         checkout_session_id: session.id,
@@ -511,15 +517,15 @@ export async function POST(
       };
 
       if (subscriptionId) {
-        const subscription = await retrieveSubscription(
+        checkoutSubscription = await retrieveSubscription(
           environment,
           subscriptionId,
         );
 
-        providerStatus = subscription.status;
+        providerStatus = checkoutSubscription.status;
         providerData = {
           ...providerData,
-          subscription,
+          subscription: checkoutSubscription,
         };
       }
 
@@ -538,6 +544,42 @@ export async function POST(
         .eq("id", contract.id);
 
       if (error) throw error;
+
+      if (
+        checkoutSubscription &&
+        isDreamscapeIntroTrialSubscription(
+          contract as DreamscapeTrialContract,
+          checkoutSubscription,
+        )
+      ) {
+        processingStage = "activating introductory trial from Checkout";
+        const plan = await loadPlan(contract.plan_id);
+        const trialResult = await activateDreamscapeStripeTrialAccess({
+          contract: {
+            ...(contract as DreamscapeTrialContract),
+            provider_subscription_id: checkoutSubscription.id,
+            provider_customer_id: customerId || null,
+            provider_status: checkoutSubscription.status,
+          },
+          plan,
+          subscription: checkoutSubscription,
+        });
+
+        if (trialResult.wasNewTrial) {
+          await sendDreamscapeSubscriptionEmail({
+            contractId: contract.id,
+            emailType: "trial_started",
+            origin:
+              process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin,
+            eventKey: `stripe-trial-start:${checkoutSubscription.id}`,
+          }).catch((emailError: unknown) =>
+            console.error(
+              "Dreamscape Stripe trial-start email failed",
+              emailError,
+            ),
+          );
+        }
+      }
     } else if (event.type === "checkout.session.expired") {
       const session = event.data.object as Stripe.Checkout.Session;
       const contractId =
@@ -630,6 +672,54 @@ export async function POST(
       const currency = String(invoice.currency || plan.currency || "SGD")
         .trim()
         .toUpperCase();
+
+      /*
+       * Stripe can emit a paid $0 invoice when a free trial starts. That is
+       * not a Dreamscape payment: it must not set first_paid_at, create an
+       * affiliate payment sequence, or qualify for commission.
+       */
+      if (
+        amount <= 0 &&
+        isDreamscapeIntroTrialSubscription(
+          contract as DreamscapeTrialContract,
+          subscription,
+        )
+      ) {
+        processingStage = "activating introductory trial from zero-dollar invoice";
+        const trialResult = await activateDreamscapeStripeTrialAccess({
+          contract: syncedContract as DreamscapeTrialContract,
+          plan,
+          subscription,
+        });
+
+        if (trialResult.wasNewTrial) {
+          await sendDreamscapeSubscriptionEmail({
+            contractId: contract.id,
+            emailType: "trial_started",
+            origin:
+              process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin,
+            eventKey: `stripe-trial-start:${subscription.id}`,
+          }).catch((emailError: unknown) =>
+            console.error(
+              "Dreamscape Stripe trial-start email failed",
+              emailError,
+            ),
+          );
+        }
+
+        await markEvent(eventJournal.id, {
+          status: "processed",
+          contractId: contract.id,
+        });
+
+        return json({
+          ok: true,
+          event: event.type,
+          contractId: contract.id,
+          introductoryTrial: true,
+          paymentRecorded: false,
+        });
+      }
 
       processingStage = "recording Stripe payment";
 
@@ -763,7 +853,7 @@ export async function POST(
         origin:
           process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin,
         eventKey: `stripe-invoice:${invoice.id}`,
-      }).catch((emailError) =>
+      }).catch((emailError: unknown) =>
         console.error("Dreamscape Stripe payment email failed", emailError),
       );
     } else if (event.type === "invoice.payment_failed") {
@@ -804,49 +894,102 @@ export async function POST(
         },
       });
 
-      const { data: settings, error: settingsError } = await supabaseAdmin
-        .from("dreamscape_billing_settings")
-        .select("failed_payment_grace_days")
-        .eq("id", true)
-        .maybeSingle();
-
-      if (settingsError) throw settingsError;
-
-      const graceDays = Number(settings?.failed_payment_grace_days || 7);
-      const graceUntil = new Date(
-        Date.now() + graceDays * 24 * 60 * 60 * 1000,
-      );
       const failedAt = new Date().toISOString();
+      const trialContract = contract as DreamscapeTrialContract;
+      const isFirstPostTrialFailure =
+        !contract.first_paid_at &&
+        Boolean(trialContract.trial_redeemed_at);
 
-      const { error: contractError } = await supabaseAdmin
-        .from("dreamscape_subscription_contracts")
-        .update({
-          status: "payment_issue",
-          provider_status: subscription.status || "past_due",
-          grace_until: graceUntil.toISOString(),
-          last_failed_charge_at: failedAt,
-          failed_charge_count:
-            Number(contract.failed_charge_count || 0) + 1,
-          updated_at: failedAt,
-        })
-        .eq("id", contract.id);
+      /*
+       * A failed first charge after the introductory trial does not extend the
+       * free-access period. Later recurring-payment failures still use the
+       * configured grace period.
+       */
+      if (isFirstPostTrialFailure) {
+        const trialEndsAt =
+          trialContract.trial_ends_at ||
+          contract.current_period_end ||
+          failedAt;
 
-      if (contractError) throw contractError;
-
-      if (contract.learner_user_id) {
-        const { error: accessError } = await supabaseAdmin
-          .from("nova_subscriptions")
+        const { error: contractError } = await supabaseAdmin
+          .from("dreamscape_subscription_contracts")
           .update({
-            status: "active",
-            billing_status: "payment_issue",
-            grace_until: graceUntil.toISOString(),
-            access_until: graceUntil.toISOString(),
+            status: "payment_issue",
+            provider_status: subscription.status || "past_due",
+            grace_until: null,
+            next_billing_at: null,
+            last_failed_charge_at: failedAt,
+            failed_charge_count:
+              Number(contract.failed_charge_count || 0) + 1,
             updated_at: failedAt,
           })
-          .eq("user_id", contract.learner_user_id)
-          .eq("dreamscape_contract_id", contract.id);
+          .eq("id", contract.id);
 
-        if (accessError) throw accessError;
+        if (contractError) throw contractError;
+
+        if (contract.learner_user_id) {
+          const { error: accessError } = await supabaseAdmin
+            .from("nova_subscriptions")
+            .update({
+              status: "revoked",
+              billing_status: "payment_issue",
+              access_until: trialEndsAt,
+              next_billing_at: null,
+              grace_until: null,
+              revoked_at: failedAt,
+              revoke_reason:
+                "First subscription payment after the free trial was not successful.",
+              updated_at: failedAt,
+            })
+            .eq("user_id", contract.learner_user_id)
+            .eq("dreamscape_contract_id", contract.id);
+
+          if (accessError) throw accessError;
+        }
+      } else {
+        const { data: settings, error: settingsError } = await supabaseAdmin
+          .from("dreamscape_billing_settings")
+          .select("failed_payment_grace_days")
+          .eq("id", true)
+          .maybeSingle();
+
+        if (settingsError) throw settingsError;
+
+        const graceDays = Number(settings?.failed_payment_grace_days || 7);
+        const graceUntil = new Date(
+          Date.now() + graceDays * 24 * 60 * 60 * 1000,
+        );
+
+        const { error: contractError } = await supabaseAdmin
+          .from("dreamscape_subscription_contracts")
+          .update({
+            status: "payment_issue",
+            provider_status: subscription.status || "past_due",
+            grace_until: graceUntil.toISOString(),
+            last_failed_charge_at: failedAt,
+            failed_charge_count:
+              Number(contract.failed_charge_count || 0) + 1,
+            updated_at: failedAt,
+          })
+          .eq("id", contract.id);
+
+        if (contractError) throw contractError;
+
+        if (contract.learner_user_id) {
+          const { error: accessError } = await supabaseAdmin
+            .from("nova_subscriptions")
+            .update({
+              status: "active",
+              billing_status: "payment_issue",
+              grace_until: graceUntil.toISOString(),
+              access_until: graceUntil.toISOString(),
+              updated_at: failedAt,
+            })
+            .eq("user_id", contract.learner_user_id)
+            .eq("dreamscape_contract_id", contract.id);
+
+          if (accessError) throw accessError;
+        }
       }
 
       await sendDreamscapeSubscriptionEmail({
@@ -855,12 +998,68 @@ export async function POST(
         origin:
           process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin,
         eventKey: `stripe-payment-failed:${invoice.id}:${event.id}`,
-      }).catch((emailError) =>
+      }).catch((emailError: unknown) =>
         console.error(
           "Dreamscape Stripe payment issue email failed",
           emailError,
         ),
       );
+    } else if (event.type === "customer.subscription.trial_will_end") {
+      const subscription = event.data.object as Stripe.Subscription;
+      const contract = await findContractBySubscription(subscription);
+
+      if (!contract) {
+        await markEvent(eventJournal.id, {
+          status: "ignored",
+          error:
+            "No Dreamscape contract matches the Stripe trial-ending reminder.",
+        });
+        return json({ ok: true, ignored: true });
+      }
+
+      matchedContractId = contract.id;
+
+      if (
+        !isDreamscapeIntroTrialSubscription(
+          contract as DreamscapeTrialContract,
+          subscription,
+        )
+      ) {
+        await markEvent(eventJournal.id, {
+          status: "ignored",
+          contractId: contract.id,
+          error:
+            "Stripe trial-ending event does not match an eligible Dreamscape introductory trial.",
+        });
+
+        return json({
+          ok: true,
+          ignored: true,
+          contractId: contract.id,
+        });
+      }
+
+      const plan = await loadPlan(contract.plan_id);
+      await activateDreamscapeStripeTrialAccess({
+        contract: contract as DreamscapeTrialContract,
+        plan,
+        subscription,
+      });
+
+      if (!subscription.cancel_at_period_end) {
+        await sendDreamscapeSubscriptionEmail({
+          contractId: contract.id,
+          emailType: "trial_ending",
+          origin:
+            process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin,
+          eventKey: `stripe-trial-ending:${subscription.id}`,
+        }).catch((emailError: unknown) =>
+          console.error(
+            "Dreamscape Stripe trial-ending email failed",
+            emailError,
+          ),
+        );
+      }
     } else if (event.type === "customer.subscription.updated") {
       const subscription = event.data.object as Stripe.Subscription;
       const contract = await findContractBySubscription(subscription);
@@ -946,6 +1145,33 @@ export async function POST(
           }
         }
       } else if (
+        isDreamscapeIntroTrialSubscription(
+          syncedContract as DreamscapeTrialContract,
+          subscription,
+        )
+      ) {
+        const plan = await loadPlan(contract.plan_id);
+        const trialResult = await activateDreamscapeStripeTrialAccess({
+          contract: syncedContract as DreamscapeTrialContract,
+          plan,
+          subscription,
+        });
+
+        if (trialResult.wasNewTrial) {
+          await sendDreamscapeSubscriptionEmail({
+            contractId: contract.id,
+            emailType: "trial_started",
+            origin:
+              process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin,
+            eventKey: `stripe-trial-start:${subscription.id}`,
+          }).catch((emailError: unknown) =>
+            console.error(
+              "Dreamscape Stripe trial-start email failed",
+              emailError,
+            ),
+          );
+        }
+      } else if (
         subscription.cancel_at_period_end &&
         period.end &&
         period.end.getTime() > Date.now()
@@ -973,7 +1199,7 @@ export async function POST(
 
         if (error) throw error;
       } else if (
-        ["active", "trialing"].includes(subscription.status) &&
+        subscription.status === "active" &&
         contract.first_paid_at
       ) {
         const nowIso =
@@ -1103,11 +1329,15 @@ export async function POST(
 
       await sendDreamscapeSubscriptionEmail({
         contractId: contract.id,
-        emailType: "subscription_ended",
+        emailType:
+          !contract.first_paid_at &&
+          Boolean((contract as DreamscapeTrialContract).trial_redeemed_at)
+            ? "trial_ended"
+            : "subscription_ended",
         origin:
           process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin,
         eventKey: `stripe-ended:${subscription.id}:${event.id}`,
-      }).catch((emailError) =>
+      }).catch((emailError: unknown) =>
         console.error("Dreamscape Stripe ended email failed", emailError),
       );
     } else if (event.type === "charge.refunded") {
