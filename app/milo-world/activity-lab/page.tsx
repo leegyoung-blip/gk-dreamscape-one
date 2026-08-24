@@ -43,7 +43,7 @@ const activities: ActivityCardData[] = [
   {
     title: "Mastery Code",
     eyebrow: "Daily Challenge",
-    description: "Solve today’s five-letter code and earn up to 60 DT.",
+    description: "Solve today’s five-letter code. Logged-in players can earn up to 60 DT.",
     image: "/milo-world/activities/daily-puzzle.png",
     active: true,
     icon: "◇",
@@ -569,6 +569,7 @@ export default function ActivityLabPage() {
   const [attempts, setAttempts] = useState<DailyPuzzleAttempt[]>([]);
   const [solvedToday, setSolvedToday] = useState(false);
   const [clueBought, setClueBought] = useState(false);
+  const [guestHintUsed, setGuestHintUsed] = useState(false);
   const [buyingClue, setBuyingClue] = useState(false);
   const [letterBought, setLetterBought] = useState(false);
   const [revealedLetter, setRevealedLetter] = useState("");
@@ -680,6 +681,7 @@ export default function ActivityLabPage() {
 
     async function loadActivityLab() {
       setLoading(true);
+      setPuzzleMessage("");
 
       const {
         data: { user },
@@ -687,19 +689,21 @@ export default function ActivityLabPage() {
 
       if (!mounted) return;
 
-      if (!user) {
-        setUserId("");
-        setUserEmail("");
-        setPuzzleMessage(
-          "Log in to play today’s Mastery Code and earn Dreamscape Tokens.",
-        );
-        setLoading(false);
-        return;
-      }
+      setUserId(user?.id ?? "");
+      setUserEmail(user?.email ?? "");
+      setDreamTokens(0);
+      setCompleted(0);
+      setAttempts([]);
+      setSolvedToday(false);
+      setClueBought(false);
+      setGuestHintUsed(false);
+      setLetterBought(false);
+      setRevealedLetter("");
+      setPuzzleAnswer("");
 
-      setUserId(user.id);
-      setUserEmail(user.email ?? "");
-      await refreshTokenBalance(user.id);
+      if (user) {
+        await refreshTokenBalance(user.id);
+      }
 
       const today = getSingaporeDateString();
 
@@ -713,13 +717,27 @@ export default function ActivityLabPage() {
       if (!mounted) return;
 
       if (puzzleError || !puzzleData) {
-        setPuzzleMessage("No Mastery Code has been published for today yet.");
+        console.warn("Could not load today's Mastery Code:", puzzleError?.message);
+        setPuzzle(null);
+        setPuzzleMessage(
+          puzzleError?.message
+            ? "Today’s Mastery Code could not be loaded."
+            : "No Mastery Code has been published for today yet.",
+        );
         setLoading(false);
         return;
       }
 
       const typedPuzzle = puzzleData as DailyPuzzle;
       setPuzzle(typedPuzzle);
+
+      if (!user) {
+        setPuzzleMessage(
+          "Guest mode: play the full puzzle for free. Log in before a future run to save progress and collect DT.",
+        );
+        setLoading(false);
+        return;
+      }
 
       const { data: progressData, error: progressError } = await supabase
         .from("milo_daily_puzzle_progress")
@@ -853,7 +871,19 @@ export default function ActivityLabPage() {
   }
 
   async function buyClue() {
-    if (!puzzle || clueBought || buyingClue || solvedToday || !userId) return;
+    if (!puzzle || clueBought || buyingClue || solvedToday) return;
+
+    if (!userId) {
+      if (guestHintUsed) {
+        setPuzzleMessage("Your free Guest Hint has already been used.");
+        return;
+      }
+
+      setGuestHintUsed(true);
+      setClueBought(true);
+      setPuzzleMessage("Guest Hint unlocked for free.");
+      return;
+    }
 
     if (dreamTokens < DAILY_CODE_CLUE_COST) {
       setPuzzleMessage(
@@ -900,7 +930,12 @@ export default function ActivityLabPage() {
   }
 
   async function buyLetter() {
-    if (!puzzle || letterBought || solvedToday || !userId) return;
+    if (!puzzle || letterBought || solvedToday) return;
+
+    if (!userId) {
+      setPuzzleMessage("Log in to use the 1 DT letter reveal. Guests still get one free clue.");
+      return;
+    }
 
     if (dreamTokens < 1) {
       setPuzzleMessage("You need at least 1 DT to reveal a letter.");
@@ -935,11 +970,6 @@ export default function ActivityLabPage() {
 
     if (!puzzle) {
       setPuzzleMessage("No Mastery Code is available.");
-      return;
-    }
-
-    if (!userId) {
-      setPuzzleMessage("Log in before playing Mastery Code.");
       return;
     }
 
@@ -979,7 +1009,9 @@ export default function ActivityLabPage() {
     const nextAttempts = [...attempts, { guess, feedback }];
     const solved = isPuzzleAnswer;
 
-    const saved = await savePuzzleProgress({ nextAttempts, solved });
+    const saved = userId
+      ? await savePuzzleProgress({ nextAttempts, solved })
+      : true;
 
     if (!saved) return;
 
@@ -999,6 +1031,14 @@ export default function ActivityLabPage() {
     setCompleted((current) => current + 1);
 
     const reward = getDailyCodeReward(nextAttempts.length);
+
+    if (!userId) {
+      setPuzzleMessage(
+        `Code solved! This run was worth ${reward} DT. Log in before your next run to save progress and collect rewards.`,
+      );
+      return;
+    }
+
     const awarded = await addTokenTransaction(
       reward,
       `Solved Mastery Code ${puzzle.date_sg} in ${nextAttempts.length} guess${
@@ -1093,7 +1133,6 @@ export default function ActivityLabPage() {
     loading ||
     wordListLoading ||
     !puzzle ||
-    !userId ||
     solvedToday ||
     attempts.length >= DAILY_CODE_MAX_ATTEMPTS;
 
@@ -1255,14 +1294,14 @@ export default function ActivityLabPage() {
 
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
           <Link
-            href="/profile"
+            href={userId ? "/profile" : "/login"}
             style={{
               ...navButtonStyle,
               border: "1px solid rgba(126,232,255,0.3)",
             }}
           >
             <span style={{ color: "#8ee8ff" }}>✦</span>
-            {dreamTokens} DT
+            {userId ? `${dreamTokens} DT` : "Guest · 0 DT"}
           </Link>
 
           <Link href={userEmail ? "/profile" : "/login"} style={navButtonStyle}>
@@ -1618,7 +1657,9 @@ export default function ActivityLabPage() {
                 >
                   {loading
                     ? "Loading today’s code..."
-                    : `Buy today’s clue for ${DAILY_CODE_CLUE_COST} DT to reveal it.`}
+                    : userId
+                      ? `Buy today’s clue for ${DAILY_CODE_CLUE_COST} DT to reveal it.`
+                      : "Guests get one free clue for today’s puzzle."}
                 </p>
               )}
 
@@ -1642,22 +1683,20 @@ export default function ActivityLabPage() {
             <button
               type="button"
               onClick={buyClue}
-              disabled={
-                !puzzle || clueBought || buyingClue || solvedToday || !userId
-              }
+              disabled={!puzzle || clueBought || buyingClue || solvedToday}
               style={utilityButtonStyle(
-                !puzzle ||
-                  clueBought ||
-                  buyingClue ||
-                  solvedToday ||
-                  !userId,
+                !puzzle || clueBought || buyingClue || solvedToday,
               )}
             >
               {clueBought
-                ? "Clue Unlocked"
+                ? userId
+                  ? "Clue Unlocked"
+                  : "Guest Hint Used"
                 : buyingClue
                   ? "Unlocking Clue..."
-                  : `Buy Clue · ${DAILY_CODE_CLUE_COST} DT`}
+                  : userId
+                    ? `Buy Clue · ${DAILY_CODE_CLUE_COST} DT`
+                    : "Guest Hint · Free"}
             </button>
 
             <button
@@ -1668,7 +1707,11 @@ export default function ActivityLabPage() {
                 !puzzle || letterBought || solvedToday || !userId,
               )}
             >
-              {letterBought ? "Letter Revealed" : "Buy Letter · 1 DT"}
+              {letterBought
+                ? "Letter Revealed"
+                : userId
+                  ? "Buy Letter · 1 DT"
+                  : "Log In for Letter Hint"}
             </button>
 
             <button
@@ -1685,9 +1728,7 @@ export default function ActivityLabPage() {
                   ? "Loading Word List"
                   : solvedToday
                     ? "Code Completed"
-                    : !userId
-                      ? "Log In to Play"
-                      : "Submit Guess"}
+                    : "Submit Guess"}
             </button>
 
             <div
@@ -1702,7 +1743,10 @@ export default function ActivityLabPage() {
                 label="Attempts"
                 value={`${remainingAttempts}/${DAILY_CODE_MAX_ATTEMPTS}`}
               />
-              <StatBox label="Completed" value={String(completed)} />
+              <StatBox
+                label={userId ? "Completed" : "Guest Run"}
+                value={userId ? String(completed) : solvedToday ? "1" : "0"}
+              />
               <StatBox label="Status" value={solvedToday ? "Solved" : "Active"} />
             </div>
 

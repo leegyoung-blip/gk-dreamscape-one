@@ -367,6 +367,36 @@ export default function ProfilePage() {
   const [membershipError, setMembershipError] =
     useState("");
 
+  const [showDeleteAccount, setShowDeleteAccount] =
+    useState(false);
+
+  const [deletePreflightLoading, setDeletePreflightLoading] =
+    useState(false);
+
+  const [deleteCanProceed, setDeleteCanProceed] =
+    useState(false);
+
+  const [deleteBlockers, setDeleteBlockers] =
+    useState<string[]>([]);
+
+  const [deleteWord, setDeleteWord] =
+    useState("");
+
+  const [deleteEmailConfirmation, setDeleteEmailConfirmation] =
+    useState("");
+
+  const [deleteAcknowledgeAccessLoss, setDeleteAcknowledgeAccessLoss] =
+    useState(false);
+
+  const [deleteAcknowledgeNoRefund, setDeleteAcknowledgeNoRefund] =
+    useState(false);
+
+  const [isDeletingAccount, setIsDeletingAccount] =
+    useState(false);
+
+  const [deleteAccountError, setDeleteAccountError] =
+    useState("");
+
   const [username, setUsername] = useState<
     string | null
   >(null);
@@ -1308,6 +1338,178 @@ export default function ProfilePage() {
     }
 
     setIsWorkingMembership(false);
+  }
+
+  async function openDeleteAccount() {
+    setShowDeleteAccount(true);
+    setDeletePreflightLoading(true);
+    setDeleteCanProceed(false);
+    setDeleteBlockers([]);
+    setDeleteWord("");
+    setDeleteEmailConfirmation("");
+    setDeleteAcknowledgeAccessLoss(false);
+    setDeleteAcknowledgeNoRefund(false);
+    setDeleteAccountError("");
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("Please sign in again.");
+      }
+
+      const response = await fetch(
+        "/api/profile/account-deletion",
+        {
+          method: "GET",
+          cache: "no-store",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        },
+      );
+
+      const payload = (await response.json()) as {
+        canDelete?: boolean;
+        blockers?: string[];
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(
+          payload.error ||
+            "Account deletion could not be checked.",
+        );
+      }
+
+      setDeleteCanProceed(Boolean(payload.canDelete));
+      setDeleteBlockers(
+        Array.isArray(payload.blockers) ? payload.blockers : [],
+      );
+    } catch (error) {
+      setDeleteAccountError(
+        error instanceof Error
+          ? error.message
+          : "Account deletion could not be checked.",
+      );
+    }
+
+    setDeletePreflightLoading(false);
+  }
+
+  async function deleteAccountPermanently() {
+    if (!deleteCanProceed) {
+      return;
+    }
+
+    const expectedEmail = String(email || "")
+      .trim()
+      .toLowerCase();
+
+    if (deleteWord !== "DELETE") {
+      setDeleteAccountError('Type "DELETE" exactly.');
+      return;
+    }
+
+    if (
+      deleteEmailConfirmation.trim().toLowerCase() !==
+      expectedEmail
+    ) {
+      setDeleteAccountError(
+        "Enter this account's email address exactly.",
+      );
+      return;
+    }
+
+    if (
+      !deleteAcknowledgeAccessLoss ||
+      !deleteAcknowledgeNoRefund
+    ) {
+      setDeleteAccountError(
+        "Confirm both deletion acknowledgements before continuing.",
+      );
+      return;
+    }
+
+    if (
+      !window.confirm(
+        "Final confirmation: permanently delete this Dreamscape account now?",
+      )
+    ) {
+      return;
+    }
+
+    setIsDeletingAccount(true);
+    setDeleteAccountError("");
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("Please sign in again.");
+      }
+
+      const response = await fetch(
+        "/api/profile/account-deletion",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            confirmation: deleteWord,
+            emailConfirmation: deleteEmailConfirmation,
+            acknowledgeImmediateAccessLoss:
+              deleteAcknowledgeAccessLoss,
+            acknowledgeNoAutomaticRefund:
+              deleteAcknowledgeNoRefund,
+          }),
+        },
+      );
+
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            ok?: boolean;
+            deleted?: boolean;
+            cleanupPending?: boolean;
+            message?: string;
+            error?: string;
+            blockers?: string[];
+          }
+        | null;
+
+      if (!response.ok && !payload?.deleted) {
+        throw new Error(
+          payload?.error ||
+            "The account could not be deleted.",
+        );
+      }
+
+      try {
+        await supabase.auth.signOut({ scope: "local" });
+      } catch {
+        // The server-side deletion is authoritative.
+      }
+
+      window.localStorage.clear();
+      window.sessionStorage.clear();
+
+      window.location.href = payload?.cleanupPending
+        ? "/?account=deleted&cleanup=pending"
+        : "/?account=deleted";
+    } catch (error) {
+      setDeleteAccountError(
+        error instanceof Error
+          ? error.message
+          : "The account could not be deleted.",
+      );
+      setIsDeletingAccount(false);
+    }
   }
 
   async function saveUsername() {
@@ -2699,11 +2901,15 @@ Thank you.`;
                   <div className="mt-3">
                     <button
                       type="button"
-                      disabled
-                      className="min-h-[48px] w-full cursor-not-allowed rounded-full border border-red-200/14 bg-red-300/[0.05] px-4 text-[10px] font-extrabold uppercase tracking-[0.11em] text-red-100/44"
+                      onClick={() => void openDeleteAccount()}
+                      className="min-h-[48px] w-full rounded-full border border-red-200/22 bg-red-300/[0.07] px-4 text-[10px] font-extrabold uppercase tracking-[0.11em] text-red-100 transition hover:bg-red-300/[0.13]"
                     >
-                      Delete Account · Phase 3
+                      Delete Account
                     </button>
+
+                    <p className="mt-2 text-xs leading-5 text-white/34">
+                      Permanent deletion has a separate protected confirmation flow. Staff and organisation-managed accounts require administrator assistance.
+                    </p>
                   </div>
                 </div>
               </section>
@@ -2717,6 +2923,195 @@ Thank you.`;
               >
                 Done
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Account modal */}
+      {showDeleteAccount && (
+        <div className="fixed inset-0 z-[140] flex items-start justify-center overflow-y-auto bg-[#020813]/90 px-4 py-6 backdrop-blur-md sm:py-10">
+          <div className="relative w-full max-w-2xl overflow-hidden rounded-[30px] border border-red-200/24 bg-[#0a0d1a] shadow-[0_30px_100px_rgba(0,0,0,0.65)]">
+            <button
+              type="button"
+              disabled={isDeletingAccount}
+              onClick={() => setShowDeleteAccount(false)}
+              className="absolute right-5 top-5 z-20 rounded-full border border-white/14 bg-white/[0.07] px-3 py-1.5 text-white transition hover:bg-white/[0.12] disabled:opacity-40"
+            >
+              ✕
+            </button>
+
+            <div className="p-6 sm:p-8">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-red-200">
+                Permanent Account Deletion
+              </p>
+
+              <h2 className="mt-4 text-4xl font-bold tracking-[-0.04em] text-white">
+                Delete Dreamscape account?
+              </h2>
+
+              <p className="mt-4 text-sm leading-6 text-white/56">
+                This is different from pausing or stopping renewal. Deleting the account disables the Dreamscape login and removes or anonymises the learner&apos;s personal Dreamscape data.
+              </p>
+
+              {deletePreflightLoading ? (
+                <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-5 text-sm text-white/52">
+                  Checking whether this account can be safely deleted...
+                </div>
+              ) : deleteBlockers.length > 0 ? (
+                <div className="mt-6 rounded-2xl border border-amber-200/20 bg-amber-300/[0.07] p-5">
+                  <p className="text-sm font-extrabold text-amber-100">
+                    This account cannot be self-deleted yet.
+                  </p>
+
+                  <div className="mt-3 space-y-2">
+                    {deleteBlockers.map((blocker) => (
+                      <p
+                        key={blocker}
+                        className="text-sm leading-6 text-white/58"
+                      >
+                        • {blocker}
+                      </p>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDeleteAccount(false);
+                      setSupportMessage("");
+                      setShowSupport(true);
+                    }}
+                    className="mt-5 min-h-[48px] w-full rounded-full border border-amber-200/22 bg-amber-300/[0.10] px-5 text-xs font-extrabold uppercase tracking-[0.13em] text-amber-50 transition hover:bg-amber-300/[0.16]"
+                  >
+                    Contact Support
+                  </button>
+                </div>
+              ) : deleteCanProceed ? (
+                <>
+                  <div className="mt-6 rounded-2xl border border-red-200/16 bg-red-300/[0.05] p-5">
+                    <p className="text-sm font-extrabold text-red-100">
+                      What deletion does
+                    </p>
+
+                    <div className="mt-3 space-y-2 text-sm leading-6 text-white/56">
+                      <p>• Your Dreamscape login is disabled.</p>
+                      <p>• Paid Dreamscape learning access ends immediately.</p>
+                      <p>• Any live Stripe Dreamscape subscription is cancelled immediately so it cannot renew.</p>
+                      <p>• Quiz responses, learner progress, DT, DG and exchange holdings linked to the learner are removed.</p>
+                      <p>• Profile details such as email, username and date of birth are removed or anonymised.</p>
+                      <p>• Required billing and deletion-audit records may be retained in anonymised form.</p>
+                      <p>• Account deletion does not automatically create a Stripe refund.</p>
+                    </div>
+                  </div>
+
+                  <label className="mt-6 block">
+                    <span className="text-xs font-bold uppercase tracking-[0.13em] text-white/42">
+                      Type DELETE
+                    </span>
+
+                    <input
+                      value={deleteWord}
+                      onChange={(event) => {
+                        setDeleteWord(event.target.value);
+                        setDeleteAccountError("");
+                      }}
+                      autoComplete="off"
+                      placeholder="DELETE"
+                      className="mt-2 min-h-[50px] w-full rounded-2xl border border-red-200/18 bg-black/24 px-4 text-sm font-bold text-white outline-none transition placeholder:text-white/22 focus:border-red-200/40"
+                    />
+                  </label>
+
+                  <label className="mt-4 block">
+                    <span className="text-xs font-bold uppercase tracking-[0.13em] text-white/42">
+                      Confirm account email
+                    </span>
+
+                    <input
+                      value={deleteEmailConfirmation}
+                      onChange={(event) => {
+                        setDeleteEmailConfirmation(event.target.value);
+                        setDeleteAccountError("");
+                      }}
+                      autoComplete="off"
+                      placeholder={email || "Account email"}
+                      className="mt-2 min-h-[50px] w-full rounded-2xl border border-red-200/18 bg-black/24 px-4 text-sm font-bold text-white outline-none transition placeholder:text-white/22 focus:border-red-200/40"
+                    />
+                  </label>
+
+                  <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4">
+                    <input
+                      type="checkbox"
+                      checked={deleteAcknowledgeAccessLoss}
+                      onChange={(event) => {
+                        setDeleteAcknowledgeAccessLoss(event.target.checked);
+                        setDeleteAccountError("");
+                      }}
+                      className="mt-1 h-4 w-4"
+                    />
+
+                    <span className="text-sm leading-6 text-white/58">
+                      I understand that Dreamscape learning access ends immediately and cannot be recovered through this account.
+                    </span>
+                  </label>
+
+                  <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4">
+                    <input
+                      type="checkbox"
+                      checked={deleteAcknowledgeNoRefund}
+                      onChange={(event) => {
+                        setDeleteAcknowledgeNoRefund(event.target.checked);
+                        setDeleteAccountError("");
+                      }}
+                      className="mt-1 h-4 w-4"
+                    />
+
+                    <span className="text-sm leading-6 text-white/58">
+                      I understand that deleting the account does not automatically refund previous Stripe payments.
+                    </span>
+                  </label>
+
+                  {deleteAccountError && (
+                    <p className="mt-4 rounded-2xl border border-red-200/18 bg-red-300/[0.08] px-4 py-3 text-sm leading-6 text-red-100">
+                      {deleteAccountError}
+                    </p>
+                  )}
+
+                  <button
+                    type="button"
+                    disabled={
+                      isDeletingAccount ||
+                      deleteWord !== "DELETE" ||
+                      deleteEmailConfirmation.trim().toLowerCase() !==
+                        String(email || "").trim().toLowerCase() ||
+                      !deleteAcknowledgeAccessLoss ||
+                      !deleteAcknowledgeNoRefund
+                    }
+                    onClick={() => void deleteAccountPermanently()}
+                    className="mt-6 min-h-[52px] w-full rounded-full border border-red-200/28 bg-red-500/22 px-5 text-xs font-extrabold uppercase tracking-[0.14em] text-red-50 transition hover:bg-red-500/30 disabled:cursor-not-allowed disabled:opacity-35"
+                  >
+                    {isDeletingAccount
+                      ? "Deleting Account..."
+                      : "Permanently Delete Account"}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isDeletingAccount}
+                    onClick={() => setShowDeleteAccount(false)}
+                    className="mt-3 min-h-[48px] w-full rounded-full border border-white/14 bg-white/[0.05] px-5 text-xs font-extrabold uppercase tracking-[0.13em] text-white/76 transition hover:bg-white/[0.09] disabled:opacity-40"
+                  >
+                    Keep My Account
+                  </button>
+                </>
+              ) : (
+                <div className="mt-6 rounded-2xl border border-red-200/16 bg-red-300/[0.05] p-5">
+                  <p className="text-sm leading-6 text-red-100">
+                    {deleteAccountError ||
+                      "Account deletion is not available right now."}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>

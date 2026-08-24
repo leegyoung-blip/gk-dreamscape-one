@@ -117,6 +117,17 @@ function getTokenReward(score: number) {
   return 0;
 }
 
+function stableHash(value: string) {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(index);
+    hash |= 0;
+  }
+
+  return Math.abs(hash);
+}
+
 function sortQuestionsByIds(
   questions: CategoryQuizQuestion[],
   questionIds: string[]
@@ -155,6 +166,10 @@ export default function MiloCategoriesPage() {
   const [categoryScore, setCategoryScore] = useState(0);
   const [categoryPoints, setCategoryPoints] = useState(0);
   const [lastQuestionPoints, setLastQuestionPoints] = useState(0);
+  const [guestHintUsed, setGuestHintUsed] = useState(false);
+  const [hiddenCategoryOptions, setHiddenCategoryOptions] = useState<
+    ("A" | "B" | "C" | "D")[]
+  >([]);
 
   const [questionCountdown, setQuestionCountdown] = useState(10);
   const [nextQuestionCountdown, setNextQuestionCountdown] = useState(3);
@@ -436,9 +451,18 @@ export default function MiloCategoriesPage() {
 
   function chooseCategoriesMode(mode: "single" | "multiplayer") {
     setCategoryMode(mode);
-    setCategoryMessage("");
     setRewardMessage("");
     setMultiplayerMessage("");
+
+    if (mode === "multiplayer" && !userAccess.isLoggedIn) {
+      setCategoryMode("single");
+      setCategoryMessage(
+        "Single Player is open to guests. Log in to create or join a shared Categories lobby.",
+      );
+      return;
+    }
+
+    setCategoryMessage("");
 
     if (mode === "multiplayer") {
       setCategoriesStage("multiplayer-menu");
@@ -483,6 +507,8 @@ export default function MiloCategoriesPage() {
     setCategoryScore(0);
     setCategoryPoints(0);
     setLastQuestionPoints(0);
+    setGuestHintUsed(false);
+    setHiddenCategoryOptions([]);
     setQuestionCountdown(10);
     setNextQuestionCountdown(3);
     setCategoriesStage("playing");
@@ -497,6 +523,8 @@ export default function MiloCategoriesPage() {
     setCategoryScore(0);
     setCategoryPoints(0);
     setLastQuestionPoints(0);
+    setGuestHintUsed(false);
+    setHiddenCategoryOptions([]);
     setQuestionCountdown(10);
     setNextQuestionCountdown(3);
     setCategoryMessage("");
@@ -522,6 +550,28 @@ export default function MiloCategoriesPage() {
     setMultiplayerNextCountdown(3);
     setMultiplayerMessage("");
     setJoinLobbyCode("");
+  }
+
+  function useGuestCategoryHint() {
+    if (userAccess.isLoggedIn) return;
+    if (guestHintUsed) return;
+    if (categoriesStage !== "playing" || !currentCategoryQuestion) return;
+
+    const allOptions = ["A", "B", "C", "D"] as const;
+    const incorrectOptions = allOptions.filter(
+      (option) => option !== currentCategoryQuestion.correct_option,
+    );
+    const offset = stableHash(currentCategoryQuestion.id) % incorrectOptions.length;
+    const rotated = [
+      ...incorrectOptions.slice(offset),
+      ...incorrectOptions.slice(0, offset),
+    ];
+
+    setHiddenCategoryOptions(rotated.slice(0, 2));
+    setGuestHintUsed(true);
+    setCategoryMessage(
+      "Milo removed two incorrect answers. That was your one free Guest Hint for this quiz.",
+    );
   }
 
   function submitCategoryAnswer(answer: "A" | "B" | "C" | "D" | null) {
@@ -562,6 +612,7 @@ export default function MiloCategoriesPage() {
 
     setCategoryQuestionIndex(nextIndex);
     setSelectedCategoryAnswer(null);
+    setHiddenCategoryOptions([]);
     setQuestionCountdown(10);
     setNextQuestionCountdown(3);
     setCategoryMessage("");
@@ -581,7 +632,9 @@ export default function MiloCategoriesPage() {
 
     if (!userAccess.isLoggedIn || !userAccess.userId) {
       setRewardMessage(
-        "Log in to earn Dreamscape Tokens from Categories."
+        tokenReward > 0
+          ? `Guest score complete. This result would qualify for ${tokenReward} DT. Log in before your next quiz to collect weekly rewards and save them to your account.`
+          : "Guest score complete. You need at least 5 correct answers to qualify for a DT reward. Log in before a future run to collect eligible rewards.",
       );
       return;
     }
@@ -1221,8 +1274,9 @@ export default function MiloCategoriesPage() {
                 >
                   <span className="text-2xl font-bold">Multiplayer</span>
                   <span className="mt-3 block text-sm leading-6 text-white/58">
-                    Create or join a lobby and play the same 10 questions
-                    against others.
+                    {userAccess.isLoggedIn
+                      ? "Create or join a lobby and play the same 10 questions against others."
+                      : "Shared lobbies use your player account. Log in to create or join multiplayer."}
                   </span>
                 </button>
               </div>
@@ -1235,7 +1289,8 @@ export default function MiloCategoriesPage() {
                 <div className="mt-3 grid gap-2 text-sm leading-6 text-white/66">
                   <p>• Correct answer points: remaining seconds × 10.</p>
                   <p>• Single-player DT rewards are once per week per category.</p>
-                  <p>• Multiplayer uses the same question base and points system.</p>
+                  <p>• Guests can play Single Player freely and get one free 50:50 hint per quiz, but cannot collect DT.</p>
+                  <p>• Multiplayer uses the same question base and points system and requires login.</p>
                 </div>
               </div>
             </>
@@ -1259,7 +1314,7 @@ export default function MiloCategoriesPage() {
                       </p>
 
                       <p className="mt-2 text-sm leading-6 text-white/52">
-                        Pick the quiz category for this multiplayer lobby.
+                        Pick a category for your 10-question timed quiz.
                       </p>
                     </div>
 
@@ -1572,27 +1627,48 @@ export default function MiloCategoriesPage() {
                   {currentCategoryQuestion.question}
                 </h2>
 
+                {!userAccess.isLoggedIn && (
+                  <button
+                    type="button"
+                    onClick={useGuestCategoryHint}
+                    disabled={guestHintUsed || categoriesStage === "answered"}
+                    className="mt-6 min-h-[48px] w-full rounded-[14px] border border-[#ffd18a]/28 bg-[#ffd18a]/10 px-4 py-3 text-sm font-black text-[#ffd18a] transition hover:bg-[#ffd18a]/16 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {guestHintUsed
+                      ? "Guest Hint Used"
+                      : "Guest Hint · Free · Remove 2 Answers"}
+                  </button>
+                )}
+
                 <div className="mt-7 grid gap-3">
                   {[
                     ["A", currentCategoryQuestion.option_a],
                     ["B", currentCategoryQuestion.option_b],
                     ["C", currentCategoryQuestion.option_c],
                     ["D", currentCategoryQuestion.option_d],
-                  ].map(([letter, answer]) => (
-                    <button
-                      key={letter}
-                      type="button"
-                      disabled={categoriesStage === "answered"}
-                      onClick={() =>
-                        submitCategoryAnswer(letter as "A" | "B" | "C" | "D")
-                      }
-                      className={`min-h-[58px] rounded-[14px] border px-5 py-4 text-left text-sm font-bold transition ${getCategoryOptionClass(
-                        letter as "A" | "B" | "C" | "D"
-                      )}`}
-                    >
-                      {letter}. {answer}
-                    </button>
-                  ))}
+                  ].map(([letter, answer]) => {
+                    const typedLetter = letter as "A" | "B" | "C" | "D";
+                    const isEliminated = hiddenCategoryOptions.includes(typedLetter);
+
+                    return (
+                      <button
+                        key={letter}
+                        type="button"
+                        disabled={categoriesStage === "answered" || isEliminated}
+                        onClick={() => submitCategoryAnswer(typedLetter)}
+                        className={`min-h-[58px] rounded-[14px] border px-5 py-4 text-left text-sm font-bold transition ${getCategoryOptionClass(
+                          typedLetter
+                        )} ${isEliminated ? "cursor-not-allowed opacity-30 line-through" : ""}`}
+                      >
+                        {letter}. {answer}
+                        {isEliminated && (
+                          <span className="ml-2 text-xs font-black uppercase tracking-[0.12em] text-[#ffd18a]">
+                            Eliminated
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {categoryMessage && (
