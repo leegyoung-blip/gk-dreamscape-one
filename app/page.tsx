@@ -170,7 +170,7 @@ function WorldPanel({
           zIndex: 5,
           left: isMobile ? "24px" : isNova ? "clamp(48px, 5.4vw, 96px)" : "clamp(28px, 2.5vw, 48px)",
           right: isMobile ? "24px" : isNova ? "clamp(48px, 5vw, 90px)" : "clamp(24px, 2.4vw, 44px)",
-          bottom: isMobile ? "44px" : isNova ? "72px" : "66px",
+          bottom: isMobile ? "34px" : isNova ? "42px" : "66px",
           maxWidth: isNova ? "760px" : "500px",
         }}
       >
@@ -194,10 +194,10 @@ function WorldPanel({
             fontFamily: 'Georgia, "Times New Roman", serif',
             fontSize: isMobile
               ? isNova
-                ? "46px"
+                ? "42px"
                 : "38px"
               : isNova
-                ? "clamp(48px, 4.3vw, 76px)"
+                ? "clamp(44px, 4vw, 68px)"
                 : "clamp(34px, 2.9vw, 50px)",
             fontWeight: 400,
             lineHeight: isNova ? 1.02 : 1.06,
@@ -229,55 +229,7 @@ function WorldPanel({
           <>
             <div
               style={{
-                marginTop: "24px",
-                display: "inline-flex",
-                alignItems: "center",
-                flexWrap: "wrap",
-                gap: isMobile ? "8px" : "10px",
-              }}
-            >
-              {["LEARN", "EARN", "BUILD"].map((label, index) => (
-                <div key={label} style={{ display: "inline-flex", alignItems: "center", gap: "10px" }}>
-                  <span
-                    style={{
-                      minHeight: "33px",
-                      padding: "8px 13px",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      borderRadius: "999px",
-                      border: "1px solid rgba(142,232,255,0.32)",
-                      background: "rgba(3,12,25,0.48)",
-                      backdropFilter: "blur(10px)",
-                      color: "white",
-                      fontSize: "10px",
-                      fontWeight: 900,
-                      letterSpacing: "0.13em",
-                    }}
-                  >
-                    {label}
-                  </span>
-                  {index < 2 && (
-                    <span style={{ color: "#8ee8ff", fontSize: "15px", fontWeight: 900 }}>→</span>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            <p
-              style={{
-                margin: "13px 0 0",
-                color: "rgba(255,255,255,0.68)",
-                fontSize: isMobile ? "13px" : "14px",
-                lineHeight: 1.45,
-                fontWeight: 600,
-              }}
-            >
-              Complete missions → earn DT & DG → upgrade the world around you.
-            </p>
-
-            <div
-              style={{
-                marginTop: "25px",
+                marginTop: "22px",
                 display: "flex",
                 flexWrap: "wrap",
                 gap: "11px",
@@ -888,7 +840,7 @@ export default function Home() {
                   key={step.number}
                   style={{
                     position: "relative",
-                    minHeight: "220px",
+                    minHeight: "240px",
                     padding: "28px 27px",
                     borderRadius: "24px",
                     border: "1px solid rgba(142,232,255,0.2)",
@@ -896,6 +848,8 @@ export default function Home() {
                       "linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.018))",
                     textAlign: "left",
                     boxShadow: "0 22px 58px rgba(0,0,0,0.24)",
+                    display: "flex",
+                    flexDirection: "column",
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px" }}>
@@ -910,10 +864,29 @@ export default function Home() {
                   <h3 style={{ margin: "16px 0 0", color: "white", fontSize: "28px", fontWeight: 800 }}>
                     {step.title}
                   </h3>
-                  <p style={{ margin: "15px 0 0", color: "rgba(255,255,255,0.66)", fontSize: "15px", fontWeight: 300, lineHeight: 1.62 }}>
+                  <p
+                    style={{
+                      margin: "15px 0 0",
+                      color: "rgba(255,255,255,0.66)",
+                      fontSize: "15px",
+                      fontWeight: 300,
+                      lineHeight: 1.62,
+                      maxWidth: "92%",
+                    }}
+                  >
                     {step.text}
                   </p>
-                  <p style={{ margin: "20px 0 0", color: "#8ee8ff", fontSize: "11px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>
+                  <p
+                    style={{
+                      margin: "auto 0 0",
+                      paddingTop: "22px",
+                      color: "#8ee8ff",
+                      fontSize: "11px",
+                      fontWeight: 900,
+                      letterSpacing: "0.12em",
+                      textTransform: "uppercase",
+                    }}
+                  >
                     {step.detail}
                   </p>
                 </article>
