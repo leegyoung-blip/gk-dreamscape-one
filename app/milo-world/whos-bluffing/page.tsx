@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, FormEvent } from "react";
+import type { CSSProperties, FormEvent, MouseEvent as ReactMouseEvent } from "react";
 import { supabase } from "@/lib/supabase";
 
 type LobbyStatus = "lobby" | "submitting" | "voting" | "results" | "finished";
@@ -11,6 +11,9 @@ type RoundCount = 5 | 10 | 20;
 
 const BLUFF_SUBMIT_SECONDS = 25;
 const BLUFF_VOTE_SECONDS = 15;
+const PLAYER_HEARTBEAT_MS = 15_000;
+const PLAYER_STALE_MS = 60_000;
+const SESSION_STORAGE_KEY = "milo-whos-bluffing-session-v1";
 
 type Lobby = {
   id: string;
@@ -31,6 +34,9 @@ type Player = {
   nickname: string;
   score: number;
   is_host: boolean;
+  is_active: boolean;
+  last_seen_at: string;
+  left_at: string | null;
 };
 
 type BluffQuestion = {
@@ -144,6 +150,8 @@ export default function WhosBluffingPage() {
   const [nowTick, setNowTick] = useState(Date.now());
 
   const transitionLockRef = useRef(false);
+  const playersRef = useRef<Player[]>([]);
+  const restoredSessionRef = useRef(false);
 
   const isHost = Boolean(lobby && playerId && lobby.host_player_id === playerId);
   const myAnswer = answers.find((answer) => answer.player_id === playerId);
@@ -184,12 +192,74 @@ export default function WhosBluffingPage() {
   }, [answers, currentQuestion?.correct_answer, lobby?.current_round, lobby?.id]);
 
   useEffect(() => {
+    playersRef.current = players;
+  }, [players]);
+
+  useEffect(() => {
+    if (restoredSessionRef.current) return;
+    restoredSessionRef.current = true;
+
+    try {
+      const raw = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+      if (!raw) return;
+
+      const saved = JSON.parse(raw) as {
+        lobbyId?: string;
+        playerId?: string;
+        nickname?: string;
+      };
+
+      if (!saved.lobbyId || !saved.playerId) {
+        window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+        return;
+      }
+
+      setLobbyId(saved.lobbyId);
+      setPlayerId(saved.playerId);
+
+      if (saved.nickname) {
+        setNickname(saved.nickname);
+      }
+    } catch {
+      window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
     const interval = window.setInterval(() => {
       setNowTick(Date.now());
     }, 1000);
 
     return () => window.clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!lobbyId || !playerId) return;
+
+    let cancelled = false;
+
+    async function heartbeat() {
+      const { error } = await supabase.rpc("milo_bluff_touch_player", {
+        p_lobby_id: lobbyId,
+        p_player_id: playerId,
+      });
+
+      if (!cancelled && error) {
+        console.warn("Could not refresh bluff player presence:", error.message);
+      }
+    }
+
+    void heartbeat();
+
+    const interval = window.setInterval(() => {
+      void heartbeat();
+    }, PLAYER_HEARTBEAT_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [lobbyId, playerId]);
 
   useEffect(() => {
     if (!lobbyId) return;
@@ -216,7 +286,29 @@ export default function WhosBluffingPage() {
           table: "milo_bluff_players",
           filter: `lobby_id=eq.${lobbyId}`,
         },
-        () => void loadGameState(lobbyId)
+        (payload) => {
+          if (payload.eventType !== "UPDATE") {
+            void loadGameState(lobbyId);
+            return;
+          }
+
+          const next = payload.new as Partial<Player>;
+          const current = playersRef.current.find(
+            (player) => player.id === next.id
+          );
+
+          const isHeartbeatOnly =
+            current &&
+            current.nickname === next.nickname &&
+            current.score === next.score &&
+            current.is_host === next.is_host &&
+            current.is_active === next.is_active &&
+            current.left_at === next.left_at;
+
+          if (!isHeartbeatOnly) {
+            void loadGameState(lobbyId);
+          }
+        }
       )
       .on(
         "postgres_changes",
@@ -298,13 +390,28 @@ export default function WhosBluffingPage() {
     const nextLobby = lobbyData as Lobby;
     setLobby(nextLobby);
 
+    const staleCutoffIso = new Date(Date.now() - PLAYER_STALE_MS).toISOString();
+
     const { data: playerData } = await supabase
       .from("milo_bluff_players")
       .select("*")
       .eq("lobby_id", nextLobbyId)
+      .eq("is_active", true)
+      .gte("last_seen_at", staleCutoffIso)
       .order("joined_at", { ascending: true });
 
-    setPlayers((playerData || []) as Player[]);
+    const nextPlayers = (playerData || []) as Player[];
+    setPlayers(nextPlayers);
+
+    if (
+      playerId &&
+      !nextPlayers.some((player) => player.id === playerId) &&
+      nextLobby.status !== "finished"
+    ) {
+      setMessage(
+        "Reconnecting your player session. If this message remains, leave and rejoin the lobby."
+      );
+    }
 
     if (nextLobby.current_round > 0) {
       const { data: answerData } = await supabase
@@ -384,6 +491,8 @@ export default function WhosBluffingPage() {
           nickname: cleanName,
           is_host: true,
           score: 0,
+          is_active: true,
+          last_seen_at: new Date().toISOString(),
         })
         .select("*")
         .single();
@@ -401,6 +510,15 @@ export default function WhosBluffingPage() {
           updated_at: new Date().toISOString(),
         })
         .eq("id", lobbyData.id);
+
+      window.sessionStorage.setItem(
+        SESSION_STORAGE_KEY,
+        JSON.stringify({
+          lobbyId: lobbyData.id,
+          playerId: playerData.id,
+          nickname: cleanName,
+        })
+      );
 
       setLobbyId(lobbyData.id);
       setPlayerId(playerData.id);
@@ -449,10 +567,14 @@ export default function WhosBluffingPage() {
       return;
     }
 
+    const staleCutoffIso = new Date(Date.now() - PLAYER_STALE_MS).toISOString();
+
     const { count } = await supabase
       .from("milo_bluff_players")
       .select("id", { count: "exact", head: true })
-      .eq("lobby_id", lobbyData.id);
+      .eq("lobby_id", lobbyData.id)
+      .eq("is_active", true)
+      .gte("last_seen_at", staleCutoffIso);
 
     if ((count || 0) >= 10) {
       setMessage("This lobby is full.");
@@ -465,8 +587,10 @@ export default function WhosBluffingPage() {
       .insert({
         lobby_id: lobbyData.id,
         nickname: cleanName,
-        is_host: false,
-        score: 0,
+          is_host: false,
+          score: 0,
+          is_active: true,
+          last_seen_at: new Date().toISOString(),
       })
       .select("*")
       .single();
@@ -476,6 +600,15 @@ export default function WhosBluffingPage() {
       setBusy(false);
       return;
     }
+
+    window.sessionStorage.setItem(
+      SESSION_STORAGE_KEY,
+      JSON.stringify({
+        lobbyId: lobbyData.id,
+        playerId: playerData.id,
+        nickname: cleanName,
+      })
+    );
 
     setLobbyId(lobbyData.id);
     setPlayerId(playerData.id);
@@ -571,21 +704,25 @@ export default function WhosBluffingPage() {
       return;
     }
 
-    const { error } = await supabase.from("milo_bluff_answers").upsert(
-      {
-        lobby_id: lobby.id,
-        question_id: currentQuestion.id,
-        round_number: lobby.current_round,
-        player_id: playerId,
-        answer_text: cleanAnswer,
-      },
-      {
-        onConflict: "lobby_id,round_number,player_id",
-      }
-    );
+    setBusy(true);
+
+    const { error } = await supabase.rpc("submit_milo_bluff_answer", {
+      p_lobby_id: lobby.id,
+      p_player_id: playerId,
+      p_answer_text: cleanAnswer,
+    });
+
+    setBusy(false);
 
     if (error) {
-      setMessage(`Could not submit answer: ${error.message}`);
+      const safeMessage =
+        error.message.includes("real answer")
+          ? "That matches the real answer. Invent a different bluff."
+          : error.message.includes("already in the room")
+          ? "That bluff is already in the room. Try something different."
+          : `Could not submit answer: ${error.message}`;
+
+      setMessage(safeMessage);
       return;
     }
 
@@ -709,7 +846,8 @@ export default function WhosBluffingPage() {
     await loadGameState(lobby.id);
   }
 
-  async function resetToHome() {
+  function clearLobbyState() {
+    window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
     setLobbyId(null);
     setPlayerId(null);
     setLobby(null);
@@ -719,6 +857,37 @@ export default function WhosBluffingPage() {
     setVotes([]);
     setFakeAnswer("");
     setMessage("");
+  }
+
+  async function leaveCurrentLobby() {
+    const leavingLobbyId = lobbyId;
+    const leavingPlayerId = playerId;
+
+    setBusy(true);
+
+    if (leavingLobbyId && leavingPlayerId) {
+      const { error } = await supabase.rpc("milo_bluff_leave_lobby", {
+        p_lobby_id: leavingLobbyId,
+        p_player_id: leavingPlayerId,
+      });
+
+      if (error) {
+        console.warn("Could not mark bluff player as left:", error.message);
+      }
+    }
+
+    setBusy(false);
+    clearLobbyState();
+  }
+
+  async function handleBackToActivityLab(
+    event: ReactMouseEvent<HTMLAnchorElement>
+  ) {
+    if (!lobbyId || !playerId) return;
+
+    event.preventDefault();
+    await leaveCurrentLobby();
+    window.location.assign("/milo-world/activity-lab");
   }
 
   const pageStyle: CSSProperties = {
@@ -804,6 +973,7 @@ export default function WhosBluffingPage() {
       >
         <Link
           href="/milo-world/activity-lab"
+          onClick={(event) => void handleBackToActivityLab(event)}
           style={{
             ...darkButtonStyle,
             height: "42px",
@@ -820,7 +990,7 @@ export default function WhosBluffingPage() {
         {lobby && (
           <button
             type="button"
-            onClick={resetToHome}
+            onClick={() => void leaveCurrentLobby()}
             style={{
               ...darkButtonStyle,
               height: "42px",
@@ -1190,7 +1360,8 @@ export default function WhosBluffingPage() {
                       Share the lobby code. The host can start once there are at
                       least 2 players. When everyone submits a bluff or vote, the
                       game moves on immediately instead of making the room wait for
-                      the timer.
+                      the timer. If the host disconnects, host control transfers
+                      automatically to an active player.
                     </p>
 
                     {isHost ? (
@@ -1287,13 +1458,15 @@ export default function WhosBluffingPage() {
 
                         <button
                           type="submit"
+                          disabled={busy}
                           style={{
                             ...primaryButtonStyle,
                             marginTop: "14px",
                             width: "100%",
+                            opacity: busy ? 0.62 : 1,
                           }}
                         >
-                          Submit Fake Answer
+                          {busy ? "Checking Bluff..." : "Submit Fake Answer"}
                         </button>
                       </form>
                     )}
@@ -1539,7 +1712,7 @@ export default function WhosBluffingPage() {
 
                     <button
                       type="button"
-                      onClick={resetToHome}
+                      onClick={() => void leaveCurrentLobby()}
                       style={{
                         ...darkButtonStyle,
                         marginTop: "22px",

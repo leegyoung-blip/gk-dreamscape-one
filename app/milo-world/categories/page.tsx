@@ -14,6 +14,16 @@ type CategoryQuizQuestion = {
   option_d: string;
   correct_option: "A" | "B" | "C" | "D";
   explanation: string | null;
+  topic?: string | null;
+  subtopic?: string | null;
+  difficulty?: number | null;
+};
+
+type SinglePlayerAnswerDraft = {
+  questionId: string;
+  questionOrder: number;
+  selectedOption: "A" | "B" | "C" | "D" | null;
+  responseSeconds: number;
 };
 
 type CategoriesStage =
@@ -69,7 +79,19 @@ type MultiplayerAnswer = {
   points: number;
 };
 
-const fallbackCategoryNames = ["Geography", "Science", "History"];
+const fallbackCategoryNames = ["History", "Geography", "Science"];
+
+const CATEGORY_BACKGROUNDS: Record<string, string> = {
+  History: "/milo-world/activities/categories/history-card.webp",
+  Geography: "/milo-world/activities/categories/geography-card.webp",
+  Science: "/milo-world/activities/categories/science-card.webp",
+};
+
+const CATEGORY_TAGLINES: Record<string, string> = {
+  History: "Explore people, events and civilisations from the past.",
+  Geography: "Explore countries, regions, landforms and our world.",
+  Science: "Explore living things, matter, forces, Earth and space.",
+};
 
 function generateLobbyCode() {
   const characters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -166,6 +188,10 @@ export default function MiloCategoriesPage() {
   const [categoryScore, setCategoryScore] = useState(0);
   const [categoryPoints, setCategoryPoints] = useState(0);
   const [lastQuestionPoints, setLastQuestionPoints] = useState(0);
+  const [singlePlayerAnswers, setSinglePlayerAnswers] = useState<
+    SinglePlayerAnswerDraft[]
+  >([]);
+  const [singlePlayerStartedAt, setSinglePlayerStartedAt] = useState<string | null>(null);
   const [guestHintUsed, setGuestHintUsed] = useState(false);
   const [hiddenCategoryOptions, setHiddenCategoryOptions] = useState<
     ("A" | "B" | "C" | "D")[]
@@ -306,7 +332,13 @@ export default function MiloCategoriesPage() {
 
       const uniqueCategories = Array.from(
         new Set((data || []).map((item) => item.category).filter(Boolean))
-      );
+      ).sort((a, b) => {
+        const aIndex = fallbackCategoryNames.indexOf(a);
+        const bIndex = fallbackCategoryNames.indexOf(b);
+        const safeA = aIndex === -1 ? 999 : aIndex;
+        const safeB = bIndex === -1 ? 999 : bIndex;
+        return safeA - safeB || a.localeCompare(b);
+      });
 
       if (uniqueCategories.length > 0) {
         setAvailableCategories(uniqueCategories);
@@ -507,6 +539,8 @@ export default function MiloCategoriesPage() {
     setCategoryScore(0);
     setCategoryPoints(0);
     setLastQuestionPoints(0);
+    setSinglePlayerAnswers([]);
+    setSinglePlayerStartedAt(new Date().toISOString());
     setGuestHintUsed(false);
     setHiddenCategoryOptions([]);
     setQuestionCountdown(10);
@@ -523,6 +557,8 @@ export default function MiloCategoriesPage() {
     setCategoryScore(0);
     setCategoryPoints(0);
     setLastQuestionPoints(0);
+    setSinglePlayerAnswers([]);
+    setSinglePlayerStartedAt(null);
     setGuestHintUsed(false);
     setHiddenCategoryOptions([]);
     setQuestionCountdown(10);
@@ -581,11 +617,22 @@ export default function MiloCategoriesPage() {
     const finalAnswer = answer || selectedCategoryAnswer;
     const isCorrect = finalAnswer === currentCategoryQuestion.correct_option;
     const pointsEarned = isCorrect ? Math.max(10, questionCountdown * 10) : 0;
+    const responseSeconds = Math.max(0, Math.min(10, 10 - questionCountdown));
 
     if (isCorrect) {
       setCategoryScore((score) => score + 1);
       setCategoryPoints((points) => points + pointsEarned);
     }
+
+    setSinglePlayerAnswers((current) => [
+      ...current,
+      {
+        questionId: currentCategoryQuestion.id,
+        questionOrder: categoryQuestionIndex + 1,
+        selectedOption: finalAnswer,
+        responseSeconds,
+      },
+    ]);
 
     setLastQuestionPoints(pointsEarned);
     setSelectedCategoryAnswer(finalAnswer);
@@ -601,11 +648,44 @@ export default function MiloCategoriesPage() {
     setCategoriesStage("answered");
   }
 
+  async function saveSinglePlayerAnalytics() {
+    if (!userAccess.userId || singlePlayerAnswers.length === 0) return;
+
+    const durationSeconds = singlePlayerAnswers.reduce(
+      (sum, answer) => sum + answer.responseSeconds,
+      0,
+    );
+
+    const { error } = await supabase.rpc(
+      "record_milo_category_quiz_attempt",
+      {
+        p_category: selectedCategory,
+        p_mode: "single",
+        p_lobby_id: null,
+        p_started_at: singlePlayerStartedAt,
+        p_duration_seconds: durationSeconds,
+        p_answers: singlePlayerAnswers.map((answer) => ({
+          question_id: answer.questionId,
+          question_order: answer.questionOrder,
+          selected_option: answer.selectedOption,
+          response_seconds: answer.responseSeconds,
+        })),
+      },
+    );
+
+    if (error) {
+      console.warn("Could not save Categories analytics:", error.message);
+      return;
+    }
+
+  }
+
   function goToNextCategoryQuestion() {
     const nextIndex = categoryQuestionIndex + 1;
 
     if (nextIndex >= categoryQuestions.length) {
       setCategoriesStage("finished");
+      void saveSinglePlayerAnalytics();
       checkAndAwardWeeklyTokens(categoryScore, categoryPoints);
       return;
     }
@@ -747,7 +827,7 @@ export default function MiloCategoriesPage() {
     const { data, error } = await supabase
       .from("milo_category_questions")
       .select(
-        "id,category,question,option_a,option_b,option_c,option_d,correct_option,explanation"
+        "id,category,question,option_a,option_b,option_c,option_d,correct_option,explanation,topic,subtopic,difficulty"
       )
       .in("id", questionIds)
       .eq("is_active", true);
@@ -1340,29 +1420,51 @@ export default function MiloCategoriesPage() {
                           type="button"
                           onClick={() => setSelectedCategory(category)}
                           disabled={isLoadingCategories}
-                          className={`category-card min-h-[128px] rounded-[24px] border p-5 text-left transition hover:scale-[1.02] disabled:cursor-wait disabled:opacity-50 ${
+                          className={`category-card group relative min-h-[128px] overflow-hidden rounded-[24px] border p-0 text-left transition hover:scale-[1.02] disabled:cursor-wait disabled:opacity-50 ${
                             isSelected
-                              ? "border-[#ffd18a]/60 bg-[#ffd18a]/16 shadow-[0_0_32px_rgba(229,183,94,0.16)]"
-                              : "border-white/14 bg-[#050d1c]/85 hover:border-[#ffd18a]/45 hover:bg-white/[0.065]"
+                              ? "border-[#ffd18a]/70 shadow-[0_0_34px_rgba(229,183,94,0.18)]"
+                              : "border-white/14 hover:border-[#ffd18a]/45"
                           }`}
                         >
-                          <span className="category-index text-xs font-bold uppercase tracking-[0.16em] text-white/42">
-                            Category {index + 1}
-                          </span>
+                          <span
+                            aria-hidden="true"
+                            className="absolute inset-0 bg-cover bg-center transition duration-300 group-hover:scale-[1.035]"
+                            style={{
+                              backgroundImage: `url('${
+                                CATEGORY_BACKGROUNDS[category] ||
+                                "/milo-world/activities/categories-bg.png"
+                              }')`,
+                            }}
+                          />
+                          <span
+                            aria-hidden="true"
+                            className={`absolute inset-0 ${
+                              isSelected
+                                ? "bg-[linear-gradient(180deg,rgba(3,10,24,0.18),rgba(3,10,24,0.82))]"
+                                : "bg-[linear-gradient(180deg,rgba(3,10,24,0.34),rgba(3,10,24,0.9))]"
+                            }`}
+                          />
 
-                          <span className="category-name mt-3 block text-2xl font-bold text-white">
-                            {category}
-                          </span>
-
-                          <span className="category-description mt-3 block text-sm leading-6 text-white/56">
-                            10 timed questions for all players in the lobby.
-                          </span>
-
-                          {isSelected && (
-                            <span className="selected-pill mt-4 inline-flex rounded-full border border-[#ffd18a]/30 bg-[#ffd18a]/12 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-[#ffd18a]">
-                              Selected
+                          <span className="relative z-10 flex h-full min-h-[128px] flex-col justify-end p-5">
+                            <span className="category-index text-xs font-bold uppercase tracking-[0.16em] text-white/55">
+                              Category {index + 1}
                             </span>
-                          )}
+
+                            <span className="category-name mt-2 block text-2xl font-black text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.72)]">
+                              {category}
+                            </span>
+
+                            <span className="category-description mt-2 block max-w-[31rem] text-sm leading-5 text-white/72">
+                              {CATEGORY_TAGLINES[category] ||
+                                "10 timed questions. Answer quickly to earn more points."}
+                            </span>
+
+                            {isSelected && (
+                              <span className="selected-pill mt-3 inline-flex w-fit rounded-full border border-[#ffd18a]/45 bg-[#07101f]/75 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-[#ffd18a] backdrop-blur-sm">
+                                Selected
+                              </span>
+                            )}
+                          </span>
                         </button>
                       );
                     })}
