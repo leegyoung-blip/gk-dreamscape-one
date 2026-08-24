@@ -1170,9 +1170,18 @@ export default function MiloCategoriesPage() {
     return "border-white/12 bg-white/[0.045] text-white/82 hover:border-[#ffd18a]/35 hover:bg-white/[0.075]";
   }
 
+  const isQuizStage = [
+    "playing",
+    "answered",
+    "multiplayer-playing",
+    "multiplayer-answered",
+  ].includes(categoriesStage);
+
   return (
     <main
-      className="relative min-h-[100dvh] overflow-x-hidden text-white"
+      className={`categories-page relative text-white ${
+        isQuizStage ? "categories-page--quiz" : ""
+      }`}
       style={{
         backgroundImage: `
           linear-gradient(
@@ -1184,37 +1193,39 @@ export default function MiloCategoriesPage() {
         `,
         backgroundSize: "cover",
         backgroundPosition: "center",
-        backgroundAttachment: "fixed",
         fontFamily:
           'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       }}
     >
-      <header className="relative z-10 flex items-center justify-between gap-3 px-3 py-3 sm:px-5 sm:py-5">
+      <header className="categories-topbar relative z-10 flex shrink-0 items-center justify-between gap-3 px-3 py-3 sm:px-5 sm:py-5">
         <Link
           href="/milo-world/activity-lab"
-          className="inline-flex h-[42px] items-center justify-center rounded-[14px] border border-white/16 bg-[#050d1c]/90 px-[18px] text-sm font-black text-white no-underline shadow-[0_14px_32px_rgba(0,0,0,0.22)] transition hover:bg-white/10"
+          className="categories-back-button inline-flex h-[42px] items-center justify-center rounded-[14px] border border-white/16 bg-[#050d1c]/90 px-[18px] text-sm font-black text-white no-underline shadow-[0_14px_32px_rgba(0,0,0,0.22)] transition hover:bg-white/10"
         >
-          ← Back to Activity Lab
+          <span className="categories-back-full">← Back to Activity Lab</span>
+          <span className="categories-back-short">← Activity Lab</span>
         </Link>
       </header>
 
-      <section className="relative z-10 px-0 pb-9 pt-2 sm:pb-14 sm:pt-5">
-        <div className="mx-auto w-[calc(100%_-_20px)] max-w-[1080px] overflow-hidden rounded-[22px] border border-white/16 bg-[#030a17]/72 shadow-[0_34px_100px_rgba(0,0,0,0.45)] backdrop-blur-[18px] sm:w-[calc(100%_-_32px)] sm:rounded-[30px]">
-          <div className="border-b border-white/12 bg-[linear-gradient(145deg,rgba(255,176,83,0.16),rgba(83,215,255,0.08))] px-5 py-6 sm:px-[34px] sm:py-[34px]">
-            <p className="m-0 text-xs font-black uppercase tracking-[0.2em] text-[#ffd18a]">
-              Milo’s Quiz Lab
-            </p>
+      <section className="categories-viewport relative z-10 flex min-h-0 flex-1 px-0 pb-9 pt-2 sm:pb-14 sm:pt-5">
+        <div className="categories-shell mx-auto flex w-[calc(100%_-_20px)] max-w-[1080px] flex-col overflow-hidden rounded-[22px] border border-white/16 bg-[#030a17]/72 shadow-[0_34px_100px_rgba(0,0,0,0.45)] backdrop-blur-[18px] sm:w-[calc(100%_-_32px)] sm:rounded-[30px]">
+          <div className="categories-hero shrink-0 border-b border-white/12 bg-[linear-gradient(145deg,rgba(255,176,83,0.16),rgba(83,215,255,0.08))] px-5 py-6 sm:px-[34px] sm:py-[34px]">
+            <div className="categories-hero-heading">
+              <p className="m-0 text-xs font-black uppercase tracking-[0.2em] text-[#ffd18a]">
+                Milo’s Quiz Lab
+              </p>
 
-            <h1 className="mt-[14px] font-serif text-[46px] font-medium leading-[0.95] text-white sm:text-[clamp(44px,7vw,78px)]">
-              Categories
-            </h1>
+              <h1 className="categories-title mt-[14px] font-serif text-[46px] font-medium leading-[0.95] text-white sm:text-[clamp(44px,7vw,78px)]">
+                Categories
+              </h1>
+            </div>
 
-            <p className="mt-[18px] max-w-[740px] text-[15px] leading-[1.6] text-white/76 sm:text-[17px]">
+            <p className="categories-hero-description mt-[18px] max-w-[740px] text-[15px] leading-[1.6] text-white/76 sm:text-[17px]">
               Pick a category, answer quickly, and climb the scoreboard. Play
               solo or challenge friends in a shared lobby.
             </p>
 
-            <div className="mt-6 grid max-w-[760px] gap-3 sm:grid-cols-3">
+            <div className="categories-overview-stats mt-6 grid max-w-[760px] gap-3 sm:grid-cols-3">
               <div className="rounded-[16px] border border-white/14 bg-white/[0.08] p-4">
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-white/45">
                   Mode
@@ -1246,680 +1257,1310 @@ export default function MiloCategoriesPage() {
             </div>
           </div>
 
-          <div className="p-5 sm:p-[34px]">
-            <section className="rounded-[24px] border border-white/14 bg-white/[0.08] p-5 sm:p-6">
-          {categoriesStage === "mode" && (
-            <>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
-                Choose Mode
-              </p>
+          <div className="categories-content min-h-0 flex-1 p-5 sm:p-[34px]">
+            <section className="categories-stage-card h-full min-h-0 rounded-[24px] border border-white/14 bg-white/[0.08] p-5 sm:p-6">
+              {categoriesStage === "mode" && (
+                <div className="stage-fill flex h-full min-h-0 flex-col">
+                  <p className="stage-kicker text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
+                    Choose Mode
+                  </p>
 
-              <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => chooseCategoriesMode("single")}
-                  className="min-h-[180px] rounded-[24px] border border-white/14 bg-[#050d1c]/85 p-6 text-left transition hover:scale-[1.02] hover:border-[#ffd18a]/45"
-                >
-                  <span className="text-2xl font-bold">Single Player</span>
-                  <span className="mt-3 block text-sm leading-6 text-white/58">
-                    Start a 10-question timed quiz. Faster correct answers earn
-                    more points.
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => chooseCategoriesMode("multiplayer")}
-                  className="min-h-[180px] rounded-[24px] border border-[#ffd18a]/24 bg-[#ffd18a]/10 p-6 text-left transition hover:scale-[1.02] hover:border-[#ffd18a]/45"
-                >
-                  <span className="text-2xl font-bold">Multiplayer</span>
-                  <span className="mt-3 block text-sm leading-6 text-white/58">
-                    {userAccess.isLoggedIn
-                      ? "Create or join a lobby and play the same 10 questions against others."
-                      : "Shared lobbies use your player account. Log in to create or join multiplayer."}
-                  </span>
-                </button>
-              </div>
-
-              <div className="mt-6 rounded-[24px] border border-yellow-200/18 bg-yellow-300/10 p-5">
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ffd18a]">
-                  Reward Rules
-                </p>
-
-                <div className="mt-3 grid gap-2 text-sm leading-6 text-white/66">
-                  <p>• Correct answer points: remaining seconds × 10.</p>
-                  <p>• Single-player DT rewards are once per week per category.</p>
-                  <p>• Guests can play Single Player freely and get one free 50:50 hint per quiz, but cannot collect DT.</p>
-                  <p>• Multiplayer uses the same question base and points system and requires login.</p>
-                </div>
-              </div>
-            </>
-          )}
-
-          {categoriesStage === "category" && (
-            <>
-              <button
-                type="button"
-                onClick={() => setCategoriesStage("mode")}
-                className="text-sm font-bold text-[#ffd18a]"
-              >
-                ← Back to mode select
-              </button>
-
-              <div className="mt-7">
-                <div className="grid gap-3">
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/44">
-                        Choose Topic
-                      </p>
-
-                      <p className="mt-2 text-sm leading-6 text-white/52">
-                        Pick a category for your 10-question timed quiz.
-                      </p>
-                    </div>
-
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {availableCategories.map((category, index) => {
-                        const isSelected = selectedCategory === category;
-
-                        return (
-                          <button
-                            key={category}
-                            type="button"
-                            onClick={() => setSelectedCategory(category)}
-                            disabled={isLoadingCategories}
-                            className={`min-h-[128px] rounded-[24px] border p-5 text-left transition hover:scale-[1.02] disabled:cursor-wait disabled:opacity-50 ${
-                              isSelected
-                                ? "border-[#ffd18a]/60 bg-[#ffd18a]/16 shadow-[0_0_32px_rgba(229,183,94,0.16)]"
-                                : "border-white/14 bg-[#050d1c]/85 hover:border-[#ffd18a]/45 hover:bg-white/[0.065]"
-                            }`}
-                          >
-                            <span className="text-xs font-bold uppercase tracking-[0.16em] text-white/42">
-                              Category {index + 1}
-                            </span>
-
-                            <span className="mt-3 block text-2xl font-bold text-white">
-                              {category}
-                            </span>
-
-                            <span className="mt-3 block text-sm leading-6 text-white/56">
-                              10 timed questions for all players in the lobby.
-                            </span>
-
-                            {isSelected && (
-                              <span className="mt-4 inline-flex rounded-full border border-[#ffd18a]/30 bg-[#ffd18a]/12 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-[#ffd18a]">
-                                Selected
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                <button
-                  type="button"
-                  onClick={startSinglePlayerCategoryQuiz}
-                  disabled={isLoadingCategoryQuiz || isLoadingCategories}
-                  className="mt-5 h-13 w-full rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white shadow-[0_14px_32px_rgba(196,122,37,0.24)] transition hover:scale-[1.01] disabled:cursor-wait disabled:opacity-50"
-                >
-                  {isLoadingCategoryQuiz
-                    ? "Loading Quiz..."
-                    : "Start 10-Question Quiz"}
-                </button>
-              </div>
-            </>
-          )}
-
-          {categoriesStage === "multiplayer-menu" && (
-            <>
-              <button
-                type="button"
-                onClick={resetCategoriesQuiz}
-                className="text-sm font-bold text-[#ffd18a]"
-              >
-                ← Back to mode select
-              </button>
-
-              <p className="mt-7 text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
-                Multiplayer Lobby
-              </p>
-
-              <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => setCategoriesStage("multiplayer-create")}
-                  className="min-h-[180px] rounded-[24px] border border-white/14 bg-[#050d1c]/85 p-6 text-left transition hover:scale-[1.02] hover:border-[#ffd18a]/45"
-                >
-                  <span className="text-2xl font-bold">Create Lobby</span>
-                  <span className="mt-3 block text-sm leading-6 text-white/58">
-                    Choose a category and generate a lobby code for friends.
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setCategoriesStage("multiplayer-join")}
-                  className="min-h-[180px] rounded-[24px] border border-[#ffd18a]/24 bg-[#ffd18a]/10 p-6 text-left transition hover:scale-[1.02] hover:border-[#ffd18a]/45"
-                >
-                  <span className="text-2xl font-bold">Join Lobby</span>
-                  <span className="mt-3 block text-sm leading-6 text-white/58">
-                    Enter a lobby code and play the same question set.
-                  </span>
-                </button>
-              </div>
-            </>
-          )}
-
-          {categoriesStage === "multiplayer-create" && (
-            <>
-              <button
-                type="button"
-                onClick={() => setCategoriesStage("multiplayer-menu")}
-                className="text-sm font-bold text-[#ffd18a]"
-              >
-                ← Back to multiplayer
-              </button>
-
-              <div className="mt-7 grid gap-5">
-                <label className="grid gap-3">
-                  <span className="text-xs font-bold uppercase tracking-[0.18em] text-white/44">
-                    Display Name
-                  </span>
-
-                  <input
-                    value={displayName}
-                    onChange={(event) => setDisplayName(event.target.value)}
-                    placeholder="Player name"
-                    className="h-12 rounded-[14px] border border-white/14 bg-[#050d1c] px-4 text-white outline-none placeholder:text-white/30"
-                  />
-                </label>
-
-                <label className="grid gap-3">
-                  <span className="text-xs font-bold uppercase tracking-[0.18em] text-white/44">
-                    Choose Topic
-                  </span>
-
-                  <select
-                    value={selectedCategory}
-                    onChange={(event) => setSelectedCategory(event.target.value)}
-                    className="h-12 rounded-[14px] border border-white/14 bg-[#050d1c] px-4 text-white outline-none"
-                  >
-                    {availableCategories.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <button
-                  type="button"
-                  onClick={createMultiplayerLobby}
-                  disabled={isCreatingLobby || isLoadingCategories}
-                  className="h-13 w-full rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white shadow-[0_14px_32px_rgba(196,122,37,0.24)] transition hover:scale-[1.01] disabled:cursor-wait disabled:opacity-50"
-                >
-                  {isCreatingLobby ? "Creating Lobby..." : "Create Lobby"}
-                </button>
-              </div>
-            </>
-          )}
-
-          {categoriesStage === "multiplayer-join" && (
-            <>
-              <button
-                type="button"
-                onClick={() => setCategoriesStage("multiplayer-menu")}
-                className="text-sm font-bold text-[#ffd18a]"
-              >
-                ← Back to multiplayer
-              </button>
-
-              <div className="mt-7 grid gap-5">
-                <label className="grid gap-3">
-                  <span className="text-xs font-bold uppercase tracking-[0.18em] text-white/44">
-                    Display Name
-                  </span>
-
-                  <input
-                    value={displayName}
-                    onChange={(event) => setDisplayName(event.target.value)}
-                    placeholder="Player name"
-                    className="h-12 rounded-[14px] border border-white/14 bg-[#050d1c] px-4 text-white outline-none placeholder:text-white/30"
-                  />
-                </label>
-
-                <label className="grid gap-3">
-                  <span className="text-xs font-bold uppercase tracking-[0.18em] text-white/44">
-                    Lobby Code
-                  </span>
-
-                  <input
-                    value={joinLobbyCode}
-                    onChange={(event) =>
-                      setJoinLobbyCode(event.target.value.toUpperCase())
-                    }
-                    placeholder="ABC123"
-                    maxLength={6}
-                    className="h-12 rounded-[14px] border border-white/14 bg-[#050d1c] px-4 text-center text-2xl font-black uppercase tracking-[0.2em] text-white outline-none placeholder:text-white/30"
-                  />
-                </label>
-
-                <button
-                  type="button"
-                  onClick={joinMultiplayerLobby}
-                  disabled={isJoiningLobby}
-                  className="h-13 w-full rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white shadow-[0_14px_32px_rgba(196,122,37,0.24)] transition hover:scale-[1.01] disabled:cursor-wait disabled:opacity-50"
-                >
-                  {isJoiningLobby ? "Joining Lobby..." : "Join Lobby"}
-                </button>
-              </div>
-            </>
-          )}
-
-          {categoriesStage === "multiplayer-waiting" && multiplayerLobby && (
-            <>
-              <button
-                type="button"
-                onClick={resetCategoriesQuiz}
-                className="text-sm font-bold text-[#ffd18a]"
-              >
-                ← Leave lobby
-              </button>
-
-              <div className="mt-7 rounded-[24px] border border-white/14 bg-[#050d1c]/85 p-6 text-center">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
-                  Lobby Code
-                </p>
-
-                <h2 className="mt-4 text-5xl font-black tracking-[0.16em]">
-                  {multiplayerLobby.code}
-                </h2>
-
-                <p className="mt-4 text-sm text-white/58">
-                  Category: {multiplayerLobby.category}
-                </p>
-              </div>
-
-              <div className="mt-6 rounded-[24px] border border-white/10 bg-white/[0.04] p-5">
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/44">
-                  Players
-                </p>
-
-                <div className="mt-4 grid gap-3">
-                  {multiplayerPlayers.map((player) => (
-                    <div
-                      key={player.id}
-                      className="flex items-center justify-between rounded-[14px] border border-white/12 bg-white/[0.045] px-4 py-3"
+                  <div className="mode-grid mt-6 grid min-h-0 flex-1 gap-4 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => chooseCategoriesMode("single")}
+                      className="mode-card min-h-[180px] rounded-[24px] border border-white/14 bg-[#050d1c]/85 p-6 text-left transition hover:scale-[1.02] hover:border-[#ffd18a]/45"
                     >
-                      <span className="font-bold">{player.display_name}</span>
-                      <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#ffd18a]">
-                        {player.is_host ? "Host" : "Player"}
+                      <span className="mode-title text-2xl font-bold">
+                        Single Player
                       </span>
+                      <span className="mode-description mt-3 block text-sm leading-6 text-white/58">
+                        Start a 10-question timed quiz. Faster correct answers earn
+                        more points.
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => chooseCategoriesMode("multiplayer")}
+                      className="mode-card min-h-[180px] rounded-[24px] border border-[#ffd18a]/24 bg-[#ffd18a]/10 p-6 text-left transition hover:scale-[1.02] hover:border-[#ffd18a]/45"
+                    >
+                      <span className="mode-title text-2xl font-bold">
+                        Multiplayer
+                      </span>
+                      <span className="mode-description mt-3 block text-sm leading-6 text-white/58">
+                        {userAccess.isLoggedIn
+                          ? "Create or join a lobby and play the same 10 questions against others."
+                          : "Shared lobbies use your player account. Log in to create or join multiplayer."}
+                      </span>
+                    </button>
+                  </div>
+
+                  <div className="reward-rules mt-6 rounded-[24px] border border-yellow-200/18 bg-yellow-300/10 p-5">
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ffd18a]">
+                      Reward Rules
+                    </p>
+
+                    <div className="reward-rules-grid mt-3 grid gap-2 text-sm leading-6 text-white/66">
+                      <p>• Correct answer points: remaining seconds × 10.</p>
+                      <p>• Single-player DT rewards are once per week per category.</p>
+                      <p>• Guests get one free 50:50 hint but cannot collect DT.</p>
+                      <p>• Multiplayer requires login and uses the same points system.</p>
                     </div>
-                  ))}
+                  </div>
                 </div>
-              </div>
-
-              {isMultiplayerHost ? (
-                <button
-                  type="button"
-                  onClick={startMultiplayerGame}
-                  className="mt-6 h-13 w-full rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white shadow-[0_14px_32px_rgba(196,122,37,0.24)] transition hover:scale-[1.01]"
-                >
-                  Start Game
-                </button>
-              ) : (
-                <p className="mt-6 rounded-[24px] border border-[#ffd18a]/24 bg-[#ffd18a]/10 p-5 text-sm font-bold text-[#ffd18a]">
-                  Waiting for the host to start the game.
-                </p>
               )}
-            </>
-          )}
 
-          {(categoriesStage === "playing" || categoriesStage === "answered") &&
-            currentCategoryQuestion && (
-              <div>
-                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-                  <span className="rounded-full border border-white/14 bg-white/[0.07] px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-[#ffd18a]">
-                    {selectedCategory}
-                  </span>
-
-                  <span className="rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-xs font-bold text-white/72">
-                    Question {categoryQuestionIndex + 1} / 10
-                  </span>
-
-                  <span className="rounded-full border border-[#ffd18a]/24 bg-[#ffd18a]/10 px-4 py-2 text-xs font-bold text-[#ffd18a]">
-                    {categoriesStage === "answered"
-                      ? `Next in ${nextQuestionCountdown}s`
-                      : `${questionCountdown}s`}
-                  </span>
-                </div>
-
-                <div className="mb-6 grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-[14px] border border-white/12 bg-white/[0.045] p-4">
-                    <p className="text-xs uppercase tracking-[0.18em] text-white/40">
-                      Current Score
-                    </p>
-                    <p className="mt-1 text-xl font-bold">
-                      {categoryScore}/10
-                    </p>
-                  </div>
-
-                  <div className="rounded-[14px] border border-white/12 bg-white/[0.045] p-4">
-                    <p className="text-xs uppercase tracking-[0.18em] text-white/40">
-                      Total Points
-                    </p>
-                    <p className="mt-1 text-xl font-bold">{categoryPoints}</p>
-                  </div>
-
-                  <div className="rounded-[14px] border border-yellow-200/14 bg-yellow-300/10 p-4">
-                    <p className="text-xs uppercase tracking-[0.18em] text-white/40">
-                      Last Question
-                    </p>
-                    <p className="mt-1 text-xl font-bold text-[#ffd18a]">
-                      +{lastQuestionPoints}
-                    </p>
-                  </div>
-                </div>
-
-                <h2 className="text-2xl font-bold leading-snug text-white sm:text-3xl">
-                  {currentCategoryQuestion.question}
-                </h2>
-
-                {!userAccess.isLoggedIn && (
+              {categoriesStage === "category" && (
+                <div className="stage-fill flex h-full min-h-0 flex-col">
                   <button
                     type="button"
-                    onClick={useGuestCategoryHint}
-                    disabled={guestHintUsed || categoriesStage === "answered"}
-                    className="mt-6 min-h-[48px] w-full rounded-[14px] border border-[#ffd18a]/28 bg-[#ffd18a]/10 px-4 py-3 text-sm font-black text-[#ffd18a] transition hover:bg-[#ffd18a]/16 disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={() => setCategoriesStage("mode")}
+                    className="stage-back self-start text-sm font-bold text-[#ffd18a]"
                   >
-                    {guestHintUsed
-                      ? "Guest Hint Used"
-                      : "Guest Hint · Free · Remove 2 Answers"}
+                    ← Back to mode select
                   </button>
-                )}
 
-                <div className="mt-7 grid gap-3">
-                  {[
-                    ["A", currentCategoryQuestion.option_a],
-                    ["B", currentCategoryQuestion.option_b],
-                    ["C", currentCategoryQuestion.option_c],
-                    ["D", currentCategoryQuestion.option_d],
-                  ].map(([letter, answer]) => {
-                    const typedLetter = letter as "A" | "B" | "C" | "D";
-                    const isEliminated = hiddenCategoryOptions.includes(typedLetter);
+                  <div className="stage-header mt-7 shrink-0">
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/44">
+                      Choose Topic
+                    </p>
+                    <p className="stage-subtitle mt-2 text-sm leading-6 text-white/52">
+                      Pick a category for your 10-question timed quiz.
+                    </p>
+                  </div>
 
-                    return (
-                      <button
-                        key={letter}
-                        type="button"
-                        disabled={categoriesStage === "answered" || isEliminated}
-                        onClick={() => submitCategoryAnswer(typedLetter)}
-                        className={`min-h-[58px] rounded-[14px] border px-5 py-4 text-left text-sm font-bold transition ${getCategoryOptionClass(
-                          typedLetter
-                        )} ${isEliminated ? "cursor-not-allowed opacity-30 line-through" : ""}`}
-                      >
-                        {letter}. {answer}
-                        {isEliminated && (
-                          <span className="ml-2 text-xs font-black uppercase tracking-[0.12em] text-[#ffd18a]">
-                            Eliminated
+                  <div className="category-grid mt-5 grid min-h-0 flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {availableCategories.map((category, index) => {
+                      const isSelected = selectedCategory === category;
+
+                      return (
+                        <button
+                          key={category}
+                          type="button"
+                          onClick={() => setSelectedCategory(category)}
+                          disabled={isLoadingCategories}
+                          className={`category-card min-h-[128px] rounded-[24px] border p-5 text-left transition hover:scale-[1.02] disabled:cursor-wait disabled:opacity-50 ${
+                            isSelected
+                              ? "border-[#ffd18a]/60 bg-[#ffd18a]/16 shadow-[0_0_32px_rgba(229,183,94,0.16)]"
+                              : "border-white/14 bg-[#050d1c]/85 hover:border-[#ffd18a]/45 hover:bg-white/[0.065]"
+                          }`}
+                        >
+                          <span className="category-index text-xs font-bold uppercase tracking-[0.16em] text-white/42">
+                            Category {index + 1}
                           </span>
-                        )}
-                      </button>
-                    );
-                  })}
+
+                          <span className="category-name mt-3 block text-2xl font-bold text-white">
+                            {category}
+                          </span>
+
+                          <span className="category-description mt-3 block text-sm leading-6 text-white/56">
+                            10 timed questions for all players in the lobby.
+                          </span>
+
+                          {isSelected && (
+                            <span className="selected-pill mt-4 inline-flex rounded-full border border-[#ffd18a]/30 bg-[#ffd18a]/12 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-[#ffd18a]">
+                              Selected
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={startSinglePlayerCategoryQuiz}
+                    disabled={isLoadingCategoryQuiz || isLoadingCategories}
+                    className="primary-action mt-5 w-full shrink-0 rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white shadow-[0_14px_32px_rgba(196,122,37,0.24)] transition hover:scale-[1.01] disabled:cursor-wait disabled:opacity-50"
+                  >
+                    {isLoadingCategoryQuiz
+                      ? "Loading Quiz..."
+                      : "Start 10-Question Quiz"}
+                  </button>
                 </div>
+              )}
 
-                {categoryMessage && (
-                  <p className="mt-5 text-sm font-bold leading-6 text-[#ffd18a]">
-                    {categoryMessage}
-                    {categoriesStage === "answered" &&
-                      currentCategoryQuestion.explanation && (
-                        <>
-                          <br />
-                          <span className="font-normal text-white/56">
-                            {currentCategoryQuestion.explanation}
-                          </span>
-                        </>
-                      )}
+              {categoriesStage === "multiplayer-menu" && (
+                <div className="stage-fill flex h-full min-h-0 flex-col">
+                  <button
+                    type="button"
+                    onClick={resetCategoriesQuiz}
+                    className="stage-back self-start text-sm font-bold text-[#ffd18a]"
+                  >
+                    ← Back to mode select
+                  </button>
+
+                  <p className="stage-kicker mt-7 text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
+                    Multiplayer Lobby
                   </p>
-                )}
-              </div>
-            )}
 
-          {(categoriesStage === "multiplayer-playing" ||
-            categoriesStage === "multiplayer-answered") &&
-            currentMultiplayerQuestion && (
-              <div>
-                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-                  <span className="rounded-full border border-white/14 bg-white/[0.07] px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-[#ffd18a]">
-                    {multiplayerLobby?.category}
-                  </span>
-
-                  <span className="rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-xs font-bold text-white/72">
-                    Question {multiplayerQuestionIndex + 1} / 10
-                  </span>
-
-                  <span className="rounded-full border border-[#ffd18a]/24 bg-[#ffd18a]/10 px-4 py-2 text-xs font-bold text-[#ffd18a]">
-                    {categoriesStage === "multiplayer-answered"
-                      ? `Next in ${multiplayerNextCountdown}s`
-                      : `${multiplayerCountdown}s`}
-                  </span>
-                </div>
-
-                <div className="mb-6 grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-[14px] border border-white/12 bg-white/[0.045] p-4">
-                    <p className="text-xs uppercase tracking-[0.18em] text-white/40">
-                      Your Score
-                    </p>
-                    <p className="mt-1 text-xl font-bold">
-                      {multiplayerScore}/10
-                    </p>
-                  </div>
-
-                  <div className="rounded-[14px] border border-white/12 bg-white/[0.045] p-4">
-                    <p className="text-xs uppercase tracking-[0.18em] text-white/40">
-                      Your Points
-                    </p>
-                    <p className="mt-1 text-xl font-bold">
-                      {multiplayerPoints}
-                    </p>
-                  </div>
-
-                  <div className="rounded-[14px] border border-yellow-200/14 bg-yellow-300/10 p-4">
-                    <p className="text-xs uppercase tracking-[0.18em] text-white/40">
-                      Last Question
-                    </p>
-                    <p className="mt-1 text-xl font-bold text-[#ffd18a]">
-                      +{multiplayerLastQuestionPoints}
-                    </p>
-                  </div>
-                </div>
-
-                <h2 className="text-2xl font-bold leading-snug text-white sm:text-3xl">
-                  {currentMultiplayerQuestion.question}
-                </h2>
-
-                <div className="mt-7 grid gap-3">
-                  {[
-                    ["A", currentMultiplayerQuestion.option_a],
-                    ["B", currentMultiplayerQuestion.option_b],
-                    ["C", currentMultiplayerQuestion.option_c],
-                    ["D", currentMultiplayerQuestion.option_d],
-                  ].map(([letter, answer]) => (
+                  <div className="mode-grid mt-6 grid min-h-0 flex-1 gap-4 sm:grid-cols-2">
                     <button
-                      key={letter}
                       type="button"
-                      disabled={categoriesStage === "multiplayer-answered"}
-                      onClick={() =>
-                        submitMultiplayerAnswer(
-                          letter as "A" | "B" | "C" | "D"
-                        )
-                      }
-                      className={`min-h-[58px] rounded-[14px] border px-5 py-4 text-left text-sm font-bold transition ${getMultiplayerOptionClass(
-                        letter as "A" | "B" | "C" | "D"
-                      )}`}
+                      onClick={() => setCategoriesStage("multiplayer-create")}
+                      className="mode-card min-h-[180px] rounded-[24px] border border-white/14 bg-[#050d1c]/85 p-6 text-left transition hover:scale-[1.02] hover:border-[#ffd18a]/45"
                     >
-                      {letter}. {answer}
+                      <span className="mode-title text-2xl font-bold">
+                        Create Lobby
+                      </span>
+                      <span className="mode-description mt-3 block text-sm leading-6 text-white/58">
+                        Choose a category and generate a lobby code for friends.
+                      </span>
                     </button>
-                  ))}
-                </div>
 
-                {multiplayerMessage && (
-                  <p className="mt-5 text-sm font-bold leading-6 text-[#ffd18a]">
-                    {multiplayerMessage}
-                    {categoriesStage === "multiplayer-answered" &&
-                      currentMultiplayerQuestion.explanation && (
-                        <>
-                          <br />
-                          <span className="font-normal text-white/56">
-                            {currentMultiplayerQuestion.explanation}
-                          </span>
-                        </>
-                      )}
-                  </p>
-                )}
-              </div>
-            )}
-
-          {categoriesStage === "finished" && (
-            <div className="text-center">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
-                Quiz Complete
-              </p>
-
-              <h2 className="mt-4 text-5xl font-extrabold">
-                {categoryScore} / 10
-              </h2>
-
-              <p className="mt-3 text-3xl font-extrabold text-[#ffd18a]">
-                {categoryPoints} points
-              </p>
-
-              <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-white/58">
-                {categoryScore >= 8
-                  ? "Excellent. That was a strong mastery score."
-                  : categoryScore >= 6
-                  ? "Good pass. Try another category to improve your score."
-                  : "Keep practising. These questions are designed to be tougher."}
-              </p>
-
-              <div className="mt-7 rounded-[24px] border border-yellow-200/18 bg-yellow-300/10 p-5 text-left">
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ffd18a]">
-                  Dreamscape Token Reward
-                </p>
-
-                <p className="mt-3 text-sm leading-6 text-white/68">
-                  {rewardMessage || "Checking weekly reward eligibility..."}
-                </p>
-
-                {earnedTokens > 0 && (
-                  <p className="mt-4 text-3xl font-extrabold text-[#ffd18a]">
-                    +{earnedTokens} DT
-                  </p>
-                )}
-
-                {alreadyRewardedThisWeek && (
-                  <p className="mt-4 text-sm font-bold text-[#ffd18a]">
-                    Weekly reward already claimed.
-                  </p>
-                )}
-              </div>
-
-              <button
-                type="button"
-                onClick={resetCategoriesQuiz}
-                className="mt-7 h-13 w-full rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white shadow-[0_14px_32px_rgba(196,122,37,0.24)] transition hover:scale-[1.01]"
-              >
-                Back to Mode Select
-              </button>
-            </div>
-          )}
-
-          {categoriesStage === "multiplayer-finished" && (
-            <div className="text-center">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
-                Multiplayer Complete
-              </p>
-
-              <h2 className="mt-4 text-5xl font-extrabold">
-                {multiplayerScore} / 10
-              </h2>
-
-              <p className="mt-3 text-3xl font-extrabold text-[#ffd18a]">
-                {multiplayerPoints} points
-              </p>
-
-              <div className="mt-7 rounded-[24px] border border-white/14 bg-white/[0.045] p-5 text-left">
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ffd18a]">
-                  Leaderboard
-                </p>
-
-                <div className="mt-4 grid gap-3">
-                  {sortedMultiplayerPlayers.map((player, index) => (
-                    <div
-                      key={player.id}
-                      className="flex items-center justify-between rounded-[14px] border border-white/12 bg-[#050d1c]/85 px-4 py-3"
+                    <button
+                      type="button"
+                      onClick={() => setCategoriesStage("multiplayer-join")}
+                      className="mode-card min-h-[180px] rounded-[24px] border border-[#ffd18a]/24 bg-[#ffd18a]/10 p-6 text-left transition hover:scale-[1.02] hover:border-[#ffd18a]/45"
                     >
-                      <div>
-                        <p className="font-bold">
-                          #{index + 1} {player.display_name}
+                      <span className="mode-title text-2xl font-bold">
+                        Join Lobby
+                      </span>
+                      <span className="mode-description mt-3 block text-sm leading-6 text-white/58">
+                        Enter a lobby code and play the same question set.
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {categoriesStage === "multiplayer-create" && (
+                <div className="form-stage stage-fill flex h-full min-h-0 flex-col">
+                  <button
+                    type="button"
+                    onClick={() => setCategoriesStage("multiplayer-menu")}
+                    className="stage-back self-start text-sm font-bold text-[#ffd18a]"
+                  >
+                    ← Back to multiplayer
+                  </button>
+
+                  <div className="form-grid mt-7 grid min-h-0 flex-1 content-center gap-5">
+                    <label className="grid gap-3">
+                      <span className="text-xs font-bold uppercase tracking-[0.18em] text-white/44">
+                        Display Name
+                      </span>
+
+                      <input
+                        value={displayName}
+                        onChange={(event) => setDisplayName(event.target.value)}
+                        placeholder="Player name"
+                        className="form-control h-12 rounded-[14px] border border-white/14 bg-[#050d1c] px-4 text-white outline-none placeholder:text-white/30"
+                      />
+                    </label>
+
+                    <label className="grid gap-3">
+                      <span className="text-xs font-bold uppercase tracking-[0.18em] text-white/44">
+                        Choose Topic
+                      </span>
+
+                      <select
+                        value={selectedCategory}
+                        onChange={(event) => setSelectedCategory(event.target.value)}
+                        className="form-control h-12 rounded-[14px] border border-white/14 bg-[#050d1c] px-4 text-white outline-none"
+                      >
+                        {availableCategories.map((category) => (
+                          <option key={category} value={category}>
+                            {category}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={createMultiplayerLobby}
+                      disabled={isCreatingLobby || isLoadingCategories}
+                      className="primary-action w-full rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white shadow-[0_14px_32px_rgba(196,122,37,0.24)] transition hover:scale-[1.01] disabled:cursor-wait disabled:opacity-50"
+                    >
+                      {isCreatingLobby ? "Creating Lobby..." : "Create Lobby"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {categoriesStage === "multiplayer-join" && (
+                <div className="form-stage stage-fill flex h-full min-h-0 flex-col">
+                  <button
+                    type="button"
+                    onClick={() => setCategoriesStage("multiplayer-menu")}
+                    className="stage-back self-start text-sm font-bold text-[#ffd18a]"
+                  >
+                    ← Back to multiplayer
+                  </button>
+
+                  <div className="form-grid mt-7 grid min-h-0 flex-1 content-center gap-5">
+                    <label className="grid gap-3">
+                      <span className="text-xs font-bold uppercase tracking-[0.18em] text-white/44">
+                        Display Name
+                      </span>
+
+                      <input
+                        value={displayName}
+                        onChange={(event) => setDisplayName(event.target.value)}
+                        placeholder="Player name"
+                        className="form-control h-12 rounded-[14px] border border-white/14 bg-[#050d1c] px-4 text-white outline-none placeholder:text-white/30"
+                      />
+                    </label>
+
+                    <label className="grid gap-3">
+                      <span className="text-xs font-bold uppercase tracking-[0.18em] text-white/44">
+                        Lobby Code
+                      </span>
+
+                      <input
+                        value={joinLobbyCode}
+                        onChange={(event) =>
+                          setJoinLobbyCode(event.target.value.toUpperCase())
+                        }
+                        placeholder="ABC123"
+                        maxLength={6}
+                        className="form-control h-12 rounded-[14px] border border-white/14 bg-[#050d1c] px-4 text-center text-2xl font-black uppercase tracking-[0.2em] text-white outline-none placeholder:text-white/30"
+                      />
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={joinMultiplayerLobby}
+                      disabled={isJoiningLobby}
+                      className="primary-action w-full rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white shadow-[0_14px_32px_rgba(196,122,37,0.24)] transition hover:scale-[1.01] disabled:cursor-wait disabled:opacity-50"
+                    >
+                      {isJoiningLobby ? "Joining Lobby..." : "Join Lobby"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {categoriesStage === "multiplayer-waiting" && multiplayerLobby && (
+                <div className="waiting-stage stage-fill flex h-full min-h-0 flex-col">
+                  <button
+                    type="button"
+                    onClick={resetCategoriesQuiz}
+                    className="stage-back self-start text-sm font-bold text-[#ffd18a]"
+                  >
+                    ← Leave lobby
+                  </button>
+
+                  <div className="waiting-grid mt-5 grid min-h-0 flex-1 gap-4">
+                    <div className="lobby-code-card rounded-[24px] border border-white/14 bg-[#050d1c]/85 p-6 text-center">
+                      <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
+                        Lobby Code
+                      </p>
+
+                      <h2 className="lobby-code mt-4 text-5xl font-black tracking-[0.16em]">
+                        {multiplayerLobby.code}
+                      </h2>
+
+                      <p className="mt-4 text-sm text-white/58">
+                        Category: {multiplayerLobby.category}
+                      </p>
+                    </div>
+
+                    <div className="players-card min-h-0 rounded-[24px] border border-white/10 bg-white/[0.04] p-5">
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/44">
+                        Players
+                      </p>
+
+                      <div className="players-list mt-4 grid min-h-0 gap-3 overflow-y-auto overscroll-contain">
+                        {multiplayerPlayers.map((player) => (
+                          <div
+                            key={player.id}
+                            className="flex items-center justify-between rounded-[14px] border border-white/12 bg-white/[0.045] px-4 py-3"
+                          >
+                            <span className="font-bold">{player.display_name}</span>
+                            <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#ffd18a]">
+                              {player.is_host ? "Host" : "Player"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {isMultiplayerHost ? (
+                    <button
+                      type="button"
+                      onClick={startMultiplayerGame}
+                      className="primary-action mt-5 w-full shrink-0 rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white shadow-[0_14px_32px_rgba(196,122,37,0.24)] transition hover:scale-[1.01]"
+                    >
+                      Start Game
+                    </button>
+                  ) : (
+                    <p className="waiting-message mt-5 shrink-0 rounded-[24px] border border-[#ffd18a]/24 bg-[#ffd18a]/10 p-5 text-sm font-bold text-[#ffd18a]">
+                      Waiting for the host to start the game.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {(categoriesStage === "playing" || categoriesStage === "answered") &&
+                currentCategoryQuestion && (
+                  <div className="quiz-screen flex h-full min-h-0 flex-col">
+                    <div className="quiz-statusbar flex shrink-0 items-center justify-between gap-2">
+                      <span className="quiz-pill rounded-full border border-white/14 bg-white/[0.07] px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-[#ffd18a]">
+                        {selectedCategory}
+                      </span>
+
+                      <span className="quiz-pill rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-xs font-bold text-white/72">
+                        Question {categoryQuestionIndex + 1} / 10
+                      </span>
+
+                      <span className="quiz-pill rounded-full border border-[#ffd18a]/24 bg-[#ffd18a]/10 px-4 py-2 text-xs font-bold text-[#ffd18a]">
+                        {categoriesStage === "answered"
+                          ? `Next in ${nextQuestionCountdown}s`
+                          : `${questionCountdown}s`}
+                      </span>
+                    </div>
+
+                    <div className="quiz-score-strip mt-3 grid shrink-0 grid-cols-3 gap-3">
+                      <div className="quiz-stat rounded-[14px] border border-white/12 bg-white/[0.045] p-4">
+                        <p className="quiz-stat-label text-xs uppercase tracking-[0.18em] text-white/40">
+                          Score
                         </p>
-                        <p className="mt-1 text-xs text-white/46">
-                          {player.score}/10 correct
+                        <p className="quiz-stat-value mt-1 text-xl font-bold">
+                          {categoryScore}/10
                         </p>
                       </div>
 
-                      <p className="text-xl font-black text-[#ffd18a]">
-                        {player.points}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
+                      <div className="quiz-stat rounded-[14px] border border-white/12 bg-white/[0.045] p-4">
+                        <p className="quiz-stat-label text-xs uppercase tracking-[0.18em] text-white/40">
+                          Points
+                        </p>
+                        <p className="quiz-stat-value mt-1 text-xl font-bold">
+                          {categoryPoints}
+                        </p>
+                      </div>
 
-              {isMultiplayerHost && multiplayerLobby?.status !== "finished" && (
-                <button
-                  type="button"
-                  onClick={finishLobbyForEveryone}
-                  className="mt-5 h-13 w-full rounded-[14px] border border-[#ffd18a]/24 bg-[#ffd18a]/10 px-5 py-4 text-sm font-bold uppercase tracking-[0.12em] text-[#ffd18a] transition hover:scale-[1.01]"
-                >
-                  End Lobby for Everyone
-                </button>
+                      <div className="quiz-stat rounded-[14px] border border-yellow-200/14 bg-yellow-300/10 p-4">
+                        <p className="quiz-stat-label text-xs uppercase tracking-[0.18em] text-white/40">
+                          Last
+                        </p>
+                        <p className="quiz-stat-value mt-1 text-xl font-bold text-[#ffd18a]">
+                          +{lastQuestionPoints}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="quiz-play-layout mt-4 grid min-h-0 flex-1 gap-4">
+                      <div className="quiz-question-panel min-h-0 rounded-[20px] border border-white/12 bg-[#050d1c]/58 p-5">
+                        <div className="quiz-question-scroll min-h-0">
+                          <p className="quiz-question-label text-xs font-black uppercase tracking-[0.18em] text-[#ffd18a]">
+                            Question
+                          </p>
+                          <h2 className="quiz-question mt-3 font-bold leading-snug text-white">
+                            {currentCategoryQuestion.question}
+                          </h2>
+
+                          {!userAccess.isLoggedIn && (
+                            <button
+                              type="button"
+                              onClick={useGuestCategoryHint}
+                              disabled={guestHintUsed || categoriesStage === "answered"}
+                              className="quiz-hint mt-5 min-h-[44px] w-full rounded-[14px] border border-[#ffd18a]/28 bg-[#ffd18a]/10 px-4 py-2.5 text-sm font-black text-[#ffd18a] transition hover:bg-[#ffd18a]/16 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {guestHintUsed
+                                ? "Guest Hint Used"
+                                : "Guest Hint · Remove 2 Answers"}
+                            </button>
+                          )}
+
+                          {categoryMessage && (
+                            <div className="quiz-feedback mt-4 text-sm font-bold leading-5 text-[#ffd18a]">
+                              <p>{categoryMessage}</p>
+                              {categoriesStage === "answered" &&
+                                currentCategoryQuestion.explanation && (
+                                  <p className="mt-2 font-normal text-white/56">
+                                    {currentCategoryQuestion.explanation}
+                                  </p>
+                                )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="quiz-options-panel grid min-h-0 gap-3">
+                        {[
+                          ["A", currentCategoryQuestion.option_a],
+                          ["B", currentCategoryQuestion.option_b],
+                          ["C", currentCategoryQuestion.option_c],
+                          ["D", currentCategoryQuestion.option_d],
+                        ].map(([letter, answer]) => {
+                          const typedLetter = letter as "A" | "B" | "C" | "D";
+                          const isEliminated = hiddenCategoryOptions.includes(typedLetter);
+
+                          return (
+                            <button
+                              key={letter}
+                              type="button"
+                              disabled={categoriesStage === "answered" || isEliminated}
+                              onClick={() => submitCategoryAnswer(typedLetter)}
+                              className={`quiz-option min-h-0 rounded-[14px] border px-5 py-3 text-left text-sm font-bold transition ${getCategoryOptionClass(
+                                typedLetter
+                              )} ${
+                                isEliminated
+                                  ? "cursor-not-allowed opacity-30 line-through"
+                                  : ""
+                              }`}
+                            >
+                              <span className="quiz-option-letter mr-2 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-current/20 text-xs font-black">
+                                {letter}
+                              </span>
+                              <span className="quiz-option-text">{answer}</span>
+                              {isEliminated && (
+                                <span className="ml-2 text-[10px] font-black uppercase tracking-[0.1em] text-[#ffd18a]">
+                                  Eliminated
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+              {(categoriesStage === "multiplayer-playing" ||
+                categoriesStage === "multiplayer-answered") &&
+                currentMultiplayerQuestion && (
+                  <div className="quiz-screen flex h-full min-h-0 flex-col">
+                    <div className="quiz-statusbar flex shrink-0 items-center justify-between gap-2">
+                      <span className="quiz-pill rounded-full border border-white/14 bg-white/[0.07] px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-[#ffd18a]">
+                        {multiplayerLobby?.category}
+                      </span>
+
+                      <span className="quiz-pill rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-xs font-bold text-white/72">
+                        Question {multiplayerQuestionIndex + 1} / 10
+                      </span>
+
+                      <span className="quiz-pill rounded-full border border-[#ffd18a]/24 bg-[#ffd18a]/10 px-4 py-2 text-xs font-bold text-[#ffd18a]">
+                        {categoriesStage === "multiplayer-answered"
+                          ? `Next in ${multiplayerNextCountdown}s`
+                          : `${multiplayerCountdown}s`}
+                      </span>
+                    </div>
+
+                    <div className="quiz-score-strip mt-3 grid shrink-0 grid-cols-3 gap-3">
+                      <div className="quiz-stat rounded-[14px] border border-white/12 bg-white/[0.045] p-4">
+                        <p className="quiz-stat-label text-xs uppercase tracking-[0.18em] text-white/40">
+                          Score
+                        </p>
+                        <p className="quiz-stat-value mt-1 text-xl font-bold">
+                          {multiplayerScore}/10
+                        </p>
+                      </div>
+
+                      <div className="quiz-stat rounded-[14px] border border-white/12 bg-white/[0.045] p-4">
+                        <p className="quiz-stat-label text-xs uppercase tracking-[0.18em] text-white/40">
+                          Points
+                        </p>
+                        <p className="quiz-stat-value mt-1 text-xl font-bold">
+                          {multiplayerPoints}
+                        </p>
+                      </div>
+
+                      <div className="quiz-stat rounded-[14px] border border-yellow-200/14 bg-yellow-300/10 p-4">
+                        <p className="quiz-stat-label text-xs uppercase tracking-[0.18em] text-white/40">
+                          Last
+                        </p>
+                        <p className="quiz-stat-value mt-1 text-xl font-bold text-[#ffd18a]">
+                          +{multiplayerLastQuestionPoints}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="quiz-play-layout mt-4 grid min-h-0 flex-1 gap-4">
+                      <div className="quiz-question-panel min-h-0 rounded-[20px] border border-white/12 bg-[#050d1c]/58 p-5">
+                        <div className="quiz-question-scroll min-h-0">
+                          <p className="quiz-question-label text-xs font-black uppercase tracking-[0.18em] text-[#ffd18a]">
+                            Question
+                          </p>
+                          <h2 className="quiz-question mt-3 font-bold leading-snug text-white">
+                            {currentMultiplayerQuestion.question}
+                          </h2>
+
+                          {multiplayerMessage && (
+                            <div className="quiz-feedback mt-4 text-sm font-bold leading-5 text-[#ffd18a]">
+                              <p>{multiplayerMessage}</p>
+                              {categoriesStage === "multiplayer-answered" &&
+                                currentMultiplayerQuestion.explanation && (
+                                  <p className="mt-2 font-normal text-white/56">
+                                    {currentMultiplayerQuestion.explanation}
+                                  </p>
+                                )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="quiz-options-panel grid min-h-0 gap-3">
+                        {[
+                          ["A", currentMultiplayerQuestion.option_a],
+                          ["B", currentMultiplayerQuestion.option_b],
+                          ["C", currentMultiplayerQuestion.option_c],
+                          ["D", currentMultiplayerQuestion.option_d],
+                        ].map(([letter, answer]) => (
+                          <button
+                            key={letter}
+                            type="button"
+                            disabled={categoriesStage === "multiplayer-answered"}
+                            onClick={() =>
+                              submitMultiplayerAnswer(
+                                letter as "A" | "B" | "C" | "D"
+                              )
+                            }
+                            className={`quiz-option min-h-0 rounded-[14px] border px-5 py-3 text-left text-sm font-bold transition ${getMultiplayerOptionClass(
+                              letter as "A" | "B" | "C" | "D"
+                            )}`}
+                          >
+                            <span className="quiz-option-letter mr-2 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-current/20 text-xs font-black">
+                              {letter}
+                            </span>
+                            <span className="quiz-option-text">{answer}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+              {categoriesStage === "finished" && (
+                <div className="finished-stage stage-fill flex h-full min-h-0 flex-col text-center">
+                  <p className="stage-kicker text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
+                    Quiz Complete
+                  </p>
+
+                  <h2 className="finished-score mt-4 text-5xl font-extrabold">
+                    {categoryScore} / 10
+                  </h2>
+
+                  <p className="finished-points mt-3 text-3xl font-extrabold text-[#ffd18a]">
+                    {categoryPoints} points
+                  </p>
+
+                  <p className="finished-copy mx-auto mt-4 max-w-xl text-sm leading-6 text-white/58">
+                    {categoryScore >= 8
+                      ? "Excellent. That was a strong mastery score."
+                      : categoryScore >= 6
+                      ? "Good pass. Try another category to improve your score."
+                      : "Keep practising. These questions are designed to be tougher."}
+                  </p>
+
+                  <div className="reward-card mt-7 min-h-0 flex-1 rounded-[24px] border border-yellow-200/18 bg-yellow-300/10 p-5 text-left">
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ffd18a]">
+                      Dreamscape Token Reward
+                    </p>
+
+                    <p className="mt-3 text-sm leading-6 text-white/68">
+                      {rewardMessage || "Checking weekly reward eligibility..."}
+                    </p>
+
+                    {earnedTokens > 0 && (
+                      <p className="mt-4 text-3xl font-extrabold text-[#ffd18a]">
+                        +{earnedTokens} DT
+                      </p>
+                    )}
+
+                    {alreadyRewardedThisWeek && (
+                      <p className="mt-4 text-sm font-bold text-[#ffd18a]">
+                        Weekly reward already claimed.
+                      </p>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={resetCategoriesQuiz}
+                    className="primary-action mt-5 w-full shrink-0 rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white shadow-[0_14px_32px_rgba(196,122,37,0.24)] transition hover:scale-[1.01]"
+                  >
+                    Back to Mode Select
+                  </button>
+                </div>
               )}
 
-              <button
-                type="button"
-                onClick={resetCategoriesQuiz}
-                className="mt-5 h-13 w-full rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white shadow-[0_14px_32px_rgba(196,122,37,0.24)] transition hover:scale-[1.01]"
-              >
-                Back to Mode Select
-              </button>
-            </div>
-          )}
+              {categoriesStage === "multiplayer-finished" && (
+                <div className="finished-stage stage-fill flex h-full min-h-0 flex-col text-center">
+                  <p className="stage-kicker text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
+                    Multiplayer Complete
+                  </p>
 
-          {categoryMessage && categoriesStage === "mode" && (
-            <p className="mt-5 text-sm font-bold leading-6 text-[#ffd18a]">
-              {categoryMessage}
-            </p>
-          )}
+                  <div className="finished-summary shrink-0">
+                    <h2 className="finished-score mt-4 text-5xl font-extrabold">
+                      {multiplayerScore} / 10
+                    </h2>
 
-          {multiplayerMessage &&
-            [
-              "multiplayer-menu",
-              "multiplayer-create",
-              "multiplayer-join",
-              "multiplayer-waiting",
-            ].includes(categoriesStage) && (
-              <p className="mt-5 text-sm font-bold leading-6 text-[#ffd18a]">
-                {multiplayerMessage}
-              </p>
-            )}
+                    <p className="finished-points mt-3 text-3xl font-extrabold text-[#ffd18a]">
+                      {multiplayerPoints} points
+                    </p>
+                  </div>
+
+                  <div className="leaderboard-card mt-5 min-h-0 flex-1 rounded-[24px] border border-white/14 bg-white/[0.045] p-5 text-left">
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ffd18a]">
+                      Leaderboard
+                    </p>
+
+                    <div className="leaderboard-list mt-4 grid min-h-0 gap-3 overflow-y-auto overscroll-contain">
+                      {sortedMultiplayerPlayers.map((player, index) => (
+                        <div
+                          key={player.id}
+                          className="flex items-center justify-between rounded-[14px] border border-white/12 bg-[#050d1c]/85 px-4 py-3"
+                        >
+                          <div>
+                            <p className="font-bold">
+                              #{index + 1} {player.display_name}
+                            </p>
+                            <p className="mt-1 text-xs text-white/46">
+                              {player.score}/10 correct
+                            </p>
+                          </div>
+
+                          <p className="text-xl font-black text-[#ffd18a]">
+                            {player.points}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="finished-actions shrink-0">
+                    {isMultiplayerHost && multiplayerLobby?.status !== "finished" && (
+                      <button
+                        type="button"
+                        onClick={finishLobbyForEveryone}
+                        className="secondary-action mt-4 w-full rounded-[14px] border border-[#ffd18a]/24 bg-[#ffd18a]/10 px-5 py-4 text-sm font-bold uppercase tracking-[0.12em] text-[#ffd18a] transition hover:scale-[1.01]"
+                      >
+                        End Lobby for Everyone
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={resetCategoriesQuiz}
+                      className="primary-action mt-4 w-full rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white shadow-[0_14px_32px_rgba(196,122,37,0.24)] transition hover:scale-[1.01]"
+                    >
+                      Back to Mode Select
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {categoryMessage && categoriesStage === "mode" && (
+                <p className="stage-message mt-5 text-sm font-bold leading-6 text-[#ffd18a]">
+                  {categoryMessage}
+                </p>
+              )}
+
+              {multiplayerMessage &&
+                [
+                  "multiplayer-menu",
+                  "multiplayer-create",
+                  "multiplayer-join",
+                  "multiplayer-waiting",
+                ].includes(categoriesStage) && (
+                  <p className="stage-message mt-5 text-sm font-bold leading-6 text-[#ffd18a]">
+                    {multiplayerMessage}
+                  </p>
+                )}
             </section>
           </div>
         </div>
       </section>
+
+      <style jsx global>{`
+        .categories-page {
+          min-height: 100dvh;
+          overflow-x: hidden;
+        }
+
+        .categories-back-short {
+          display: none;
+        }
+
+        .quiz-question {
+          font-size: clamp(1.45rem, 2.7vw, 2rem);
+        }
+
+        .quiz-options-panel {
+          grid-template-rows: repeat(4, minmax(0, 1fr));
+        }
+
+        .quiz-option {
+          display: flex;
+          align-items: center;
+          overflow: hidden;
+        }
+
+        .quiz-option-text {
+          min-width: 0;
+          line-height: 1.35;
+        }
+
+        @media (orientation: landscape) {
+          .quiz-play-layout {
+            grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.12fr);
+          }
+        }
+
+        @media (orientation: portrait) {
+          .quiz-play-layout {
+            grid-template-columns: 1fr;
+            grid-template-rows: minmax(0, 0.72fr) minmax(0, 1.28fr);
+          }
+        }
+
+        @media (max-width: 1024px), (hover: none) and (pointer: coarse) {
+          .categories-page {
+            display: flex;
+            height: 100dvh;
+            min-height: 100dvh;
+            flex-direction: column;
+            overflow: hidden;
+          }
+
+          .categories-topbar {
+            min-height: 50px;
+            padding-top: max(6px, env(safe-area-inset-top));
+            padding-right: max(10px, env(safe-area-inset-right));
+            padding-bottom: 6px;
+            padding-left: max(10px, env(safe-area-inset-left));
+          }
+
+          .categories-back-button {
+            height: 36px;
+            border-radius: 12px;
+            padding-inline: 12px;
+            font-size: 12px;
+          }
+
+          .categories-back-full {
+            display: none;
+          }
+
+          .categories-back-short {
+            display: inline;
+          }
+
+          .categories-viewport {
+            min-height: 0;
+            flex: 1;
+            padding: 4px max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+          }
+
+          .categories-shell {
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+            border-radius: 18px;
+          }
+
+          .categories-hero {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 14px;
+          }
+
+          .categories-hero-heading {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+          }
+
+          .categories-hero-heading > p {
+            font-size: 9px;
+            letter-spacing: 0.13em;
+          }
+
+          .categories-title {
+            margin-top: 0;
+            font-size: 27px;
+            line-height: 1;
+          }
+
+          .categories-hero-description,
+          .categories-overview-stats {
+            display: none;
+          }
+
+          .categories-page--quiz .categories-hero {
+            display: none;
+          }
+
+          .categories-page--quiz .categories-topbar {
+            min-height: 44px;
+          }
+
+          .categories-content {
+            min-height: 0;
+            flex: 1;
+            padding: 10px;
+          }
+
+          .categories-page--quiz .categories-content {
+            padding: 8px;
+          }
+
+          .categories-stage-card {
+            height: 100%;
+            min-height: 0;
+            overflow: hidden;
+            border-radius: 18px;
+            padding: 12px;
+          }
+
+          .stage-kicker {
+            font-size: 10px;
+            letter-spacing: 0.14em;
+          }
+
+          .stage-back {
+            font-size: 12px;
+          }
+
+          .stage-header {
+            margin-top: 12px;
+          }
+
+          .stage-subtitle {
+            margin-top: 2px;
+            font-size: 12px;
+            line-height: 1.35;
+          }
+
+          .mode-grid {
+            margin-top: 12px;
+            gap: 10px;
+          }
+
+          .mode-card {
+            min-height: 0;
+            border-radius: 16px;
+            padding: 14px;
+          }
+
+          .mode-title {
+            font-size: 18px;
+          }
+
+          .mode-description {
+            margin-top: 5px;
+            font-size: 12px;
+            line-height: 1.4;
+          }
+
+          .reward-rules {
+            margin-top: 10px;
+            border-radius: 16px;
+            padding: 10px 12px;
+          }
+
+          .reward-rules > p {
+            font-size: 9px;
+          }
+
+          .reward-rules-grid {
+            margin-top: 6px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 2px 12px;
+            font-size: 10px;
+            line-height: 1.3;
+          }
+
+          .category-grid {
+            margin-top: 10px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+          }
+
+          .category-card {
+            min-height: 0;
+            border-radius: 16px;
+            padding: 12px;
+          }
+
+          .category-index,
+          .category-description,
+          .selected-pill {
+            display: none;
+          }
+
+          .category-name {
+            margin-top: 0;
+            font-size: 16px;
+            line-height: 1.15;
+          }
+
+          .primary-action,
+          .secondary-action {
+            min-height: 42px;
+            padding: 10px 14px;
+            font-size: 11px;
+          }
+
+          .category-grid + .primary-action,
+          .stage-fill > .primary-action {
+            margin-top: 10px;
+          }
+
+          .form-grid {
+            width: min(100%, 620px);
+            margin: 12px auto 0;
+            gap: 12px;
+          }
+
+          .form-grid label {
+            gap: 5px;
+          }
+
+          .form-control {
+            height: 42px;
+          }
+
+          .waiting-grid {
+            margin-top: 10px;
+            grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.25fr);
+            gap: 10px;
+          }
+
+          .lobby-code-card,
+          .players-card {
+            border-radius: 16px;
+            padding: 12px;
+          }
+
+          .lobby-code {
+            margin-top: 8px;
+            font-size: 34px;
+          }
+
+          .lobby-code-card > p:last-child {
+            margin-top: 8px;
+            font-size: 11px;
+          }
+
+          .players-card {
+            display: flex;
+            min-height: 0;
+            flex-direction: column;
+          }
+
+          .players-list,
+          .leaderboard-list {
+            min-height: 0;
+            flex: 1;
+            margin-top: 8px;
+            gap: 6px;
+          }
+
+          .players-list > div,
+          .leaderboard-list > div {
+            padding: 8px 10px;
+          }
+
+          .waiting-message {
+            margin-top: 10px;
+            border-radius: 16px;
+            padding: 10px 12px;
+            font-size: 11px;
+          }
+
+          .quiz-statusbar {
+            gap: 6px;
+          }
+
+          .quiz-pill {
+            min-width: 0;
+            padding: 6px 9px;
+            font-size: 10px;
+            white-space: nowrap;
+          }
+
+          .quiz-pill:first-child {
+            max-width: 34%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+
+          .quiz-score-strip {
+            margin-top: 7px;
+            gap: 7px;
+          }
+
+          .quiz-stat {
+            border-radius: 11px;
+            padding: 7px 9px;
+          }
+
+          .quiz-stat-label {
+            font-size: 8px;
+            letter-spacing: 0.1em;
+          }
+
+          .quiz-stat-value {
+            margin-top: 1px;
+            font-size: 15px;
+            line-height: 1.1;
+          }
+
+          .quiz-play-layout {
+            margin-top: 8px;
+            gap: 8px;
+          }
+
+          .quiz-question-panel {
+            min-height: 0;
+            overflow: hidden;
+            border-radius: 14px;
+            padding: 12px;
+          }
+
+          .quiz-question-scroll {
+            height: 100%;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            scrollbar-width: none;
+          }
+
+          .quiz-question-scroll::-webkit-scrollbar {
+            display: none;
+          }
+
+          .quiz-question-label {
+            font-size: 8px;
+            letter-spacing: 0.12em;
+          }
+
+          .quiz-question {
+            margin-top: 6px;
+            font-size: clamp(16px, 4.3vw, 23px);
+            line-height: 1.22;
+          }
+
+          .quiz-hint {
+            min-height: 36px;
+            margin-top: 9px;
+            border-radius: 10px;
+            padding: 7px 9px;
+            font-size: 10px;
+          }
+
+          .quiz-feedback {
+            margin-top: 8px;
+            font-size: 10px;
+            line-height: 1.35;
+          }
+
+          .quiz-feedback p + p {
+            margin-top: 4px;
+          }
+
+          .quiz-options-panel {
+            gap: 7px;
+          }
+
+          .quiz-option {
+            min-height: 0;
+            border-radius: 11px;
+            padding: 8px 10px;
+            font-size: 12px;
+          }
+
+          .quiz-option-letter {
+            width: 24px;
+            height: 24px;
+            margin-right: 8px;
+            font-size: 10px;
+          }
+
+          .finished-score {
+            margin-top: 8px;
+            font-size: 34px;
+          }
+
+          .finished-points {
+            margin-top: 3px;
+            font-size: 22px;
+          }
+
+          .finished-copy {
+            margin-top: 7px;
+            font-size: 11px;
+            line-height: 1.4;
+          }
+
+          .reward-card,
+          .leaderboard-card {
+            margin-top: 10px;
+            border-radius: 16px;
+            padding: 12px;
+            overflow: hidden;
+          }
+
+          .reward-card p {
+            font-size: 11px;
+            line-height: 1.4;
+          }
+
+          .leaderboard-card {
+            display: flex;
+            min-height: 0;
+            flex-direction: column;
+          }
+
+          .finished-actions .primary-action,
+          .finished-actions .secondary-action {
+            margin-top: 8px;
+          }
+
+          .stage-message {
+            margin-top: 8px;
+            font-size: 10px;
+            line-height: 1.35;
+          }
+        }
+
+        @media (max-width: 1024px) and (orientation: portrait),
+          (hover: none) and (pointer: coarse) and (orientation: portrait) {
+          .mode-grid {
+            grid-template-columns: 1fr;
+            grid-template-rows: repeat(2, minmax(0, 1fr));
+          }
+
+          .category-grid {
+            grid-template-columns: 1fr;
+            grid-template-rows: repeat(3, minmax(0, 1fr));
+          }
+
+          .category-card {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+          }
+
+          .waiting-grid {
+            grid-template-columns: 1fr;
+            grid-template-rows: auto minmax(0, 1fr);
+          }
+
+          .quiz-play-layout {
+            grid-template-columns: 1fr;
+            grid-template-rows: minmax(0, 0.68fr) minmax(0, 1.32fr);
+          }
+        }
+
+        @media (max-width: 1024px) and (orientation: landscape),
+          (hover: none) and (pointer: coarse) and (orientation: landscape) {
+          .categories-topbar {
+            min-height: 42px;
+            padding-top: max(4px, env(safe-area-inset-top));
+            padding-bottom: 4px;
+          }
+
+          .categories-hero {
+            padding-block: 7px;
+          }
+
+          .categories-title {
+            font-size: 23px;
+          }
+
+          .mode-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .category-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+          }
+
+          .quiz-play-layout {
+            grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+            grid-template-rows: 1fr;
+          }
+
+          .quiz-question {
+            font-size: clamp(16px, 2.5vw, 23px);
+          }
+
+          .reward-rules {
+            padding-block: 8px;
+          }
+
+          .finished-stage {
+            max-width: 880px;
+            margin-inline: auto;
+          }
+        }
+
+        @media (max-height: 640px) and (orientation: landscape) {
+          .categories-topbar {
+            min-height: 38px;
+          }
+
+          .categories-back-button {
+            height: 32px;
+          }
+
+          .categories-viewport {
+            padding-top: 2px;
+            padding-bottom: max(5px, env(safe-area-inset-bottom));
+          }
+
+          .categories-content,
+          .categories-page--quiz .categories-content {
+            padding: 6px;
+          }
+
+          .categories-stage-card {
+            padding: 8px;
+          }
+
+          .quiz-statusbar {
+            min-height: 27px;
+          }
+
+          .quiz-pill {
+            padding: 4px 8px;
+            font-size: 9px;
+          }
+
+          .quiz-score-strip {
+            margin-top: 5px;
+            gap: 5px;
+          }
+
+          .quiz-stat {
+            padding: 5px 7px;
+          }
+
+          .quiz-stat-label {
+            display: none;
+          }
+
+          .quiz-stat-value {
+            font-size: 13px;
+          }
+
+          .quiz-play-layout {
+            margin-top: 5px;
+            gap: 6px;
+          }
+
+          .quiz-question-panel {
+            padding: 9px;
+          }
+
+          .quiz-option {
+            padding: 6px 9px;
+            font-size: 11px;
+          }
+
+          .quiz-option-letter {
+            width: 21px;
+            height: 21px;
+          }
+        }
+      `}</style>
     </main>
   );
 }

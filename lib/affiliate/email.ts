@@ -140,6 +140,32 @@ export async function sendApprovalEmail(input: {
   });
 }
 
+export async function sendAffiliateInviteEmail(input: {
+  to: string;
+  name: string;
+  commissionRate: number;
+  onboardingUrl: string;
+  expiresAt: string;
+}): Promise<boolean> {
+  const name = escapeHtml(input.name);
+  const onboardingUrl = escapeHtml(input.onboardingUrl);
+  const expiresAt = escapeHtml(input.expiresAt);
+
+  return sendEmailSafe({
+    to: input.to,
+    subject: "You’re invited to join the Dreamscape Affiliate Programme",
+    html: emailShell(
+      "You’re invited to become a Dreamscape Affiliate",
+      `<p style="line-height:1.7">Hi ${name},</p>
+       <p style="line-height:1.7">Dreamscape One has invited you directly to join our Affiliate Programme. You do <strong>not</strong> need to complete the public affiliate application.</p>
+       <p style="line-height:1.7">Your proposed affiliate commission rate is <strong>${input.commissionRate}%</strong>. Before your account becomes active, please complete secure onboarding, register your payout details, and personally accept the current Affiliate Programme Terms and Privacy Policy.</p>
+       <p style="line-height:1.7">Complete onboarding by <strong>${expiresAt}</strong>. This link is valid for 7 days and is single-use.</p>
+       <p><a href="${onboardingUrl}" style="display:inline-block;background:linear-gradient(135deg,#6338d7,#db4a9d);color:#fff;text-decoration:none;padding:14px 21px;border-radius:999px;font-weight:800">Complete Affiliate Onboarding</a></p>
+       <p style="color:#777184;font-size:13px;line-height:1.6">Do not forward this link. If it expires, Dreamscape can issue a new one.</p>`,
+    ),
+  });
+}
+
 export async function sendActivationEmail(input: {
   to: string;
   name: string;
