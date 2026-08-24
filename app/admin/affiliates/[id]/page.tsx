@@ -51,7 +51,6 @@ export default async function AffiliateApplicationDetailPage({
     "submitted",
     "under_review",
     "information_requested",
-    "approved_pending_onboarding",
   ].includes(application.status);
 
   return (
@@ -222,16 +221,25 @@ export default async function AffiliateApplicationDetailPage({
                   </dd>
                 </div>
               </dl>
-              {application.status === "approved_pending_onboarding" ? (
-                <form
-                  action={resendAffiliateApprovalLink}
-                  className={styles.inlineForm}
-                >
-                  <input type="hidden" name="application_id" value={id} />
-                  <button type="submit" className={styles.secondaryButton}>
-                    Send a new onboarding link
-                  </button>
-                </form>
+
+              {application.status === "approved_pending_onboarding" &&
+              partner.status === "approved_pending_onboarding" ? (
+                <>
+                  <p>
+                    The applicant has been approved but has not completed
+                    onboarding yet. Sending a new link immediately invalidates the
+                    previous unused link.
+                  </p>
+                  <form
+                    action={resendAffiliateApprovalLink}
+                    className={styles.inlineForm}
+                  >
+                    <input type="hidden" name="application_id" value={id} />
+                    <button type="submit" className={styles.secondaryButton}>
+                      Send a new onboarding link
+                    </button>
+                  </form>
+                </>
               ) : null}
             </section>
           ) : null}
@@ -328,6 +336,13 @@ export default async function AffiliateApplicationDetailPage({
           {!['active', 'rejected', 'terminated'].includes(application.status) ? (
             <section className={styles.adminCard}>
               <h2>Request information</h2>
+              {application.status === "approved_pending_onboarding" ? (
+                <p>
+                  Requesting more information will invalidate the applicant’s
+                  current unused onboarding link. You can approve them again later
+                  to issue a fresh link.
+                </p>
+              ) : null}
               <form
                 action={requestAffiliateInformation}
                 className={styles.adminForm}
@@ -360,6 +375,12 @@ export default async function AffiliateApplicationDetailPage({
           {!['active', 'rejected', 'terminated'].includes(application.status) ? (
             <section className={`${styles.adminCard} ${styles.rejectCard}`}>
               <h2>Reject application</h2>
+              {application.status === "approved_pending_onboarding" ? (
+                <p>
+                  Rejecting this application will invalidate its unused onboarding
+                  link and terminate the pending partner record.
+                </p>
+              ) : null}
               <form
                 action={rejectAffiliateApplication}
                 className={styles.adminForm}

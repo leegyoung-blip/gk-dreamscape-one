@@ -15,11 +15,37 @@ function messageUrl(id: string, type: "success" | "error", message: string) {
   return `/admin/affiliates/${id}?${type}=${encodeURIComponent(message)}`;
 }
 
+function revalidateAffiliateAdmin(id: string) {
+  revalidatePath(AFFILIATE_ROUTES.adminList);
+  revalidatePath(`/admin/affiliates/${id}`);
+}
+
+async function invalidateUnusedOnboardingTokens(
+  admin: Awaited<ReturnType<typeof requireAdmin>>["admin"],
+  applicationId: string,
+) {
+  const { error } = await admin
+    .from("affiliate_onboarding_tokens")
+    .update({ used_at: new Date().toISOString() })
+    .eq("application_id", applicationId)
+    .is("used_at", null);
+
+  if (error) {
+    console.error("Failed to invalidate affiliate onboarding tokens", error);
+    throw new Error("Could not invalidate the existing onboarding link.");
+  }
+}
+
 export async function markAffiliateUnderReview(formData: FormData) {
   const id = String(formData.get("application_id") ?? "");
+
+  if (!id) {
+    redirect(messageUrl(id, "error", "Invalid application."));
+  }
+
   const { user, admin } = await requireAdmin();
 
-  const { error } = await admin
+  const { data: updated, error } = await admin
     .from("affiliate_applications")
     .update({
       status: "under_review",
@@ -27,10 +53,22 @@ export async function markAffiliateUnderReview(formData: FormData) {
       reviewed_by: user.id,
     })
     .eq("id", id)
-    .in("status", ["submitted", "information_requested"]);
+    .in("status", ["submitted", "information_requested"])
+    .select("id")
+    .maybeSingle();
 
   if (error) {
     redirect(messageUrl(id, "error", error.message));
+  }
+
+  if (!updated) {
+    redirect(
+      messageUrl(
+        id,
+        "error",
+        "This application can no longer be moved to under review.",
+      ),
+    );
   }
 
   await admin.from("affiliate_admin_audit_log").insert({
@@ -39,34 +77,51 @@ export async function markAffiliateUnderReview(formData: FormData) {
     action: "marked_under_review",
   });
 
-  revalidatePath(AFFILIATE_ROUTES.adminList);
-  revalidatePath(`/admin/affiliates/${id}`);
+  revalidateAffiliateAdmin(id);
   redirect(messageUrl(id, "success", "Application marked as under review."));
 }
 
 export async function approveAffiliateApplication(formData: FormData) {
   const id = String(formData.get("application_id") ?? "");
   const partnerType = String(formData.get("partner_type") ?? "standard");
-  const commissionRate = Number(formData.get("commission_rate") ?? 20);
+  const commissionRate = Number(formData.get("commission_rate") ?? 10);
   const adminNotes = String(formData.get("admin_notes") ?? "").trim();
 
   if (!id || !["standard", "kol", "business", "educator"].includes(partnerType)) {
     redirect(messageUrl(id, "error", "Invalid approval details."));
   }
 
-  if (!Number.isFinite(commissionRate) || commissionRate <= 0 || commissionRate > 40) {
-    redirect(messageUrl(id, "error", "Commission must be between 0 and 40%."));
+  if (
+    !Number.isFinite(commissionRate) ||
+    commissionRate <= 0 ||
+    commissionRate > 20
+  ) {
+    redirect(messageUrl(id, "error", "Commission must be between 0 and 20%."));
   }
 
   const { user, admin } = await requireAdmin();
-  const { data: application } = await admin
+  const { data: application, error: applicationError } = await admin
     .from("affiliate_applications")
-    .select("legal_name, display_name, email")
+    .select("legal_name, display_name, email, status")
     .eq("id", id)
     .single();
 
-  if (!application) {
+  if (applicationError || !application) {
     redirect(messageUrl(id, "error", "Application not found."));
+  }
+
+  if (
+    !["submitted", "under_review", "information_requested"].includes(
+      application.status,
+    )
+  ) {
+    redirect(
+      messageUrl(
+        id,
+        "error",
+        "This application is no longer eligible for approval.",
+      ),
+    );
   }
 
   const rawToken = createRawToken();
@@ -89,7 +144,7 @@ export async function approveAffiliateApplication(formData: FormData) {
   }
 
   const onboardingUrl = `${getSiteUrl()}${AFFILIATE_ROUTES.onboarding}?token=${encodeURIComponent(rawToken)}`;
-  await sendApprovalEmail({
+  const emailSent = await sendApprovalEmail({
     to: application.email,
     name: application.display_name || application.legal_name,
     commissionRate,
@@ -101,38 +156,68 @@ export async function approveAffiliateApplication(formData: FormData) {
     }),
   });
 
-  revalidatePath(AFFILIATE_ROUTES.adminList);
-  revalidatePath(`/admin/affiliates/${id}`);
+  revalidateAffiliateAdmin(id);
+
+  if (!emailSent) {
+    redirect(
+      messageUrl(
+        id,
+        "success",
+        "Application approved, but the onboarding email could not be sent. Check Resend, then use ‘Send a new onboarding link’.",
+      ),
+    );
+  }
+
   redirect(messageUrl(id, "success", "Approved and onboarding email sent."));
 }
 
 export async function resendAffiliateApprovalLink(formData: FormData) {
   const id = String(formData.get("application_id") ?? "");
+
+  if (!id) {
+    redirect(messageUrl(id, "error", "Invalid application."));
+  }
+
   const { user, admin } = await requireAdmin();
 
-  const { data: application } = await admin
-    .from("affiliate_applications")
-    .select("legal_name, display_name, email, status")
-    .eq("id", id)
-    .single();
-  const { data: partner } = await admin
-    .from("affiliate_partners")
-    .select("id, commission_rate")
-    .eq("application_id", id)
-    .single();
+  const [{ data: application }, { data: partner }] = await Promise.all([
+    admin
+      .from("affiliate_applications")
+      .select("legal_name, display_name, email, status")
+      .eq("id", id)
+      .single(),
+    admin
+      .from("affiliate_partners")
+      .select("id, commission_rate, status")
+      .eq("application_id", id)
+      .single(),
+  ]);
 
-  if (!application || !partner || application.status !== "approved_pending_onboarding") {
-    redirect(messageUrl(id, "error", "This application is not awaiting onboarding."));
+  if (
+    !application ||
+    !partner ||
+    application.status !== "approved_pending_onboarding" ||
+    partner.status !== "approved_pending_onboarding"
+  ) {
+    redirect(
+      messageUrl(id, "error", "This application is not awaiting onboarding."),
+    );
   }
 
   const rawToken = createRawToken();
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-  await admin
-    .from("affiliate_onboarding_tokens")
-    .update({ used_at: new Date().toISOString() })
-    .eq("application_id", id)
-    .is("used_at", null);
+  try {
+    await invalidateUnusedOnboardingTokens(admin, id);
+  } catch (error) {
+    redirect(
+      messageUrl(
+        id,
+        "error",
+        error instanceof Error ? error.message : "Could not replace the onboarding link.",
+      ),
+    );
+  }
 
   const { error } = await admin.from("affiliate_onboarding_tokens").insert({
     application_id: id,
@@ -153,7 +238,7 @@ export async function resendAffiliateApprovalLink(formData: FormData) {
     details: { expires_at: expiresAt.toISOString() },
   });
 
-  await sendApprovalEmail({
+  const emailSent = await sendApprovalEmail({
     to: application.email,
     name: application.display_name || application.legal_name,
     commissionRate: Number(partner.commission_rate),
@@ -165,7 +250,18 @@ export async function resendAffiliateApprovalLink(formData: FormData) {
     }),
   });
 
-  revalidatePath(`/admin/affiliates/${id}`);
+  revalidateAffiliateAdmin(id);
+
+  if (!emailSent) {
+    redirect(
+      messageUrl(
+        id,
+        "success",
+        "A new onboarding link was created, but the email could not be sent. Check Resend before trying again.",
+      ),
+    );
+  }
+
   redirect(messageUrl(id, "success", "A new onboarding link was sent."));
 }
 
@@ -174,19 +270,51 @@ export async function requestAffiliateInformation(formData: FormData) {
   const requestMessage = String(formData.get("request_message") ?? "").trim();
   const adminNotes = String(formData.get("admin_notes") ?? "").trim();
 
-  if (requestMessage.length < 10) {
-    redirect(messageUrl(id, "error", "Enter the information you need from the applicant."));
+  if (!id || requestMessage.length < 10) {
+    redirect(
+      messageUrl(
+        id,
+        "error",
+        "Enter the information you need from the applicant.",
+      ),
+    );
   }
 
   const { user, admin } = await requireAdmin();
   const { data: application } = await admin
     .from("affiliate_applications")
-    .select("legal_name, display_name, email")
+    .select("legal_name, display_name, email, status")
     .eq("id", id)
     .single();
 
   if (!application) {
     redirect(messageUrl(id, "error", "Application not found."));
+  }
+
+  if (["active", "rejected", "terminated"].includes(application.status)) {
+    redirect(
+      messageUrl(
+        id,
+        "error",
+        "Information can no longer be requested for this application.",
+      ),
+    );
+  }
+
+  if (application.status === "approved_pending_onboarding") {
+    try {
+      await invalidateUnusedOnboardingTokens(admin, id);
+    } catch (error) {
+      redirect(
+        messageUrl(
+          id,
+          "error",
+          error instanceof Error
+            ? error.message
+            : "Could not invalidate the onboarding link.",
+        ),
+      );
+    }
   }
 
   const { error } = await admin
@@ -199,24 +327,38 @@ export async function requestAffiliateInformation(formData: FormData) {
     })
     .eq("id", id);
 
-  if (error) redirect(messageUrl(id, "error", error.message));
+  if (error) {
+    redirect(messageUrl(id, "error", error.message));
+  }
 
   await admin.from("affiliate_admin_audit_log").insert({
     application_id: id,
     actor_user_id: user.id,
     action: "information_requested",
-    details: { request_message: requestMessage },
+    details: {
+      request_message: requestMessage,
+      onboarding_link_invalidated:
+        application.status === "approved_pending_onboarding",
+    },
   });
 
-  await sendInformationRequestedEmail({
+  const emailSent = await sendInformationRequestedEmail({
     to: application.email,
     name: application.display_name || application.legal_name,
     message: requestMessage,
   });
 
-  revalidatePath(AFFILIATE_ROUTES.adminList);
-  revalidatePath(`/admin/affiliates/${id}`);
-  redirect(messageUrl(id, "success", "Information request sent."));
+  revalidateAffiliateAdmin(id);
+
+  redirect(
+    messageUrl(
+      id,
+      "success",
+      emailSent
+        ? "Information request sent."
+        : "Application updated, but the information-request email could not be sent.",
+    ),
+  );
 }
 
 export async function rejectAffiliateApplication(formData: FormData) {
@@ -224,19 +366,41 @@ export async function rejectAffiliateApplication(formData: FormData) {
   const reason = String(formData.get("rejection_reason") ?? "").trim();
   const adminNotes = String(formData.get("admin_notes") ?? "").trim();
 
-  if (reason.length < 5) {
+  if (!id || reason.length < 5) {
     redirect(messageUrl(id, "error", "Enter an internal rejection reason."));
   }
 
   const { user, admin } = await requireAdmin();
   const { data: application } = await admin
     .from("affiliate_applications")
-    .select("legal_name, display_name, email")
+    .select("legal_name, display_name, email, status")
     .eq("id", id)
     .single();
 
   if (!application) {
     redirect(messageUrl(id, "error", "Application not found."));
+  }
+
+  if (["active", "rejected", "terminated"].includes(application.status)) {
+    redirect(
+      messageUrl(id, "error", "This application can no longer be rejected."),
+    );
+  }
+
+  if (application.status === "approved_pending_onboarding") {
+    try {
+      await invalidateUnusedOnboardingTokens(admin, id);
+    } catch (error) {
+      redirect(
+        messageUrl(
+          id,
+          "error",
+          error instanceof Error
+            ? error.message
+            : "Could not invalidate the onboarding link.",
+        ),
+      );
+    }
   }
 
   const { error } = await admin
@@ -250,21 +414,53 @@ export async function rejectAffiliateApplication(formData: FormData) {
     })
     .eq("id", id);
 
-  if (error) redirect(messageUrl(id, "error", error.message));
+  if (error) {
+    redirect(messageUrl(id, "error", error.message));
+  }
+
+  const { data: partner } = await admin
+    .from("affiliate_partners")
+    .select("id, status")
+    .eq("application_id", id)
+    .maybeSingle();
+
+  if (partner && partner.status === "approved_pending_onboarding") {
+    await admin
+      .from("affiliate_partners")
+      .update({
+        status: "terminated",
+        terminated_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", partner.id);
+  }
 
   await admin.from("affiliate_admin_audit_log").insert({
     application_id: id,
+    affiliate_partner_id: partner?.id ?? null,
     actor_user_id: user.id,
     action: "rejected",
-    details: { rejection_reason: reason },
+    details: {
+      rejection_reason: reason,
+      onboarding_link_invalidated:
+        application.status === "approved_pending_onboarding",
+    },
   });
 
-  await sendRejectionEmail({
+  const emailSent = await sendRejectionEmail({
     to: application.email,
     name: application.display_name || application.legal_name,
   });
 
-  revalidatePath(AFFILIATE_ROUTES.adminList);
-  revalidatePath(`/admin/affiliates/${id}`);
-  redirect(messageUrl(id, "success", "Application rejected and applicant notified."));
+  revalidateAffiliateAdmin(id);
+
+  redirect(
+    messageUrl(
+      id,
+      "success",
+      emailSent
+        ? "Application rejected and applicant notified."
+        : "Application rejected, but the notification email could not be sent.",
+    ),
+  );
 }

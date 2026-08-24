@@ -36,7 +36,7 @@ async function sendEmailSafe(input: {
   to: string | string[];
   subject: string;
   html: string;
-}) {
+}): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   const from =
     process.env.DREAMSCAPE_FROM_EMAIL ||
@@ -44,19 +44,27 @@ async function sendEmailSafe(input: {
 
   if (!apiKey) {
     console.warn("RESEND_API_KEY is missing. Email was not sent:", input.subject);
-    return;
+    return false;
   }
 
-  const resend = new Resend(apiKey);
-  const { error } = await resend.emails.send({
-    from,
-    to: input.to,
-    subject: input.subject,
-    html: input.html,
-  });
+  try {
+    const resend = new Resend(apiKey);
+    const { error } = await resend.emails.send({
+      from,
+      to: input.to,
+      subject: input.subject,
+      html: input.html,
+    });
 
-  if (error) {
-    console.error("Resend email error:", error);
+    if (error) {
+      console.error("Resend email error:", error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Unexpected Resend email failure:", error);
+    return false;
   }
 }
 
@@ -64,11 +72,11 @@ export async function sendApplicationReceivedEmail(input: {
   to: string;
   name: string;
   applicationNumber: string;
-}) {
+}): Promise<boolean> {
   const name = escapeHtml(input.name);
   const applicationNumber = escapeHtml(input.applicationNumber);
 
-  await sendEmailSafe({
+  return sendEmailSafe({
     to: input.to,
     subject: "We received your Dreamscape Affiliate application",
     html: emailShell(
@@ -87,12 +95,12 @@ export async function sendAdminApplicationAlert(input: {
   applicantType: string;
   programmeRequested: string;
   adminUrl: string;
-}) {
+}): Promise<boolean> {
   const values = Object.fromEntries(
     Object.entries(input).map(([key, value]) => [key, escapeHtml(value)]),
   ) as typeof input;
 
-  await sendEmailSafe({
+  return sendEmailSafe({
     to: "admin@gurukidspro.com",
     subject: `New affiliate application: ${input.applicationNumber}`,
     html: emailShell(
@@ -113,21 +121,21 @@ export async function sendApprovalEmail(input: {
   commissionRate: number;
   onboardingUrl: string;
   expiresAt: string;
-}) {
+}): Promise<boolean> {
   const name = escapeHtml(input.name);
   const onboardingUrl = escapeHtml(input.onboardingUrl);
   const expiresAt = escapeHtml(input.expiresAt);
 
-  await sendEmailSafe({
+  return sendEmailSafe({
     to: input.to,
     subject: "You’re approved for the Dreamscape Affiliate Programme",
     html: emailShell(
       "Your application has been approved",
       `<p style="line-height:1.7">Hi ${name},</p>
-       <p style="line-height:1.7">Your approved affiliate commission rate is <strong>${input.commissionRate}%</strong>.</p>
-       <p style="line-height:1.7">Complete your secure registration by <strong>${expiresAt}</strong>. Sign in using the same email address that you used in your application.</p>
-       <p><a href="${onboardingUrl}" style="display:inline-block;background:linear-gradient(135deg,#6338d7,#db4a9d);color:#fff;text-decoration:none;padding:14px 21px;border-radius:999px;font-weight:800">Complete Affiliate Registration</a></p>
-       <p style="color:#777184;font-size:13px;line-height:1.6">This link is single-use. Do not forward it.</p>`,
+       <p style="line-height:1.7">Your Dreamscape Affiliate Regular application has been approved at a commission rate of <strong>${input.commissionRate}%</strong>.</p>
+       <p style="line-height:1.7">Complete your secure onboarding by <strong>${expiresAt}</strong>. The link below is valid for 7 days and is single-use.</p>
+       <p><a href="${onboardingUrl}" style="display:inline-block;background:linear-gradient(135deg,#6338d7,#db4a9d);color:#fff;text-decoration:none;padding:14px 21px;border-radius:999px;font-weight:800">Complete Affiliate Onboarding</a></p>
+       <p style="color:#777184;font-size:13px;line-height:1.6">Do not forward this link. If it expires, Dreamscape can issue you a new one.</p>`,
     ),
   });
 }
@@ -139,13 +147,13 @@ export async function sendActivationEmail(input: {
   referralCode: string;
   referralLink: string;
   welcomeUrl: string;
-}) {
+}): Promise<boolean> {
   const name = escapeHtml(input.name);
   const referralCode = escapeHtml(input.referralCode);
   const referralLink = escapeHtml(input.referralLink);
   const welcomeUrl = escapeHtml(input.welcomeUrl);
 
-  await sendEmailSafe({
+  return sendEmailSafe({
     to: input.to,
     subject: "Your Dreamscape affiliate account is active",
     html: emailShell(
@@ -166,8 +174,8 @@ export async function sendInformationRequestedEmail(input: {
   to: string;
   name: string;
   message: string;
-}) {
-  await sendEmailSafe({
+}): Promise<boolean> {
+  return sendEmailSafe({
     to: input.to,
     subject: "More information needed for your Dreamscape application",
     html: emailShell(
@@ -182,8 +190,8 @@ export async function sendInformationRequestedEmail(input: {
 export async function sendRejectionEmail(input: {
   to: string;
   name: string;
-}) {
-  await sendEmailSafe({
+}): Promise<boolean> {
+  return sendEmailSafe({
     to: input.to,
     subject: "Update on your Dreamscape Affiliate application",
     html: emailShell(
