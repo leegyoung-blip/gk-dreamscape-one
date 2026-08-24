@@ -218,6 +218,30 @@ export default function CoreTopicClient({
     );
   }
 
+  if (status === "signed_out") {
+    return (
+      <CoreMissionPageShell>
+        <CoreMissionTopBar
+          backHref={`/learning-missions/core/${subject}/p${level}`}
+          backLabel={`P${level} Topics`}
+        />
+        <MessagePanel text="Log in with the learner account connected to Dreamscape access." />
+      </CoreMissionPageShell>
+    );
+  }
+
+  if (status === "profile_required") {
+    return (
+      <CoreMissionPageShell>
+        <CoreMissionTopBar
+          backHref={`/learning-missions/core/${subject}/p${level}`}
+          backLabel={`P${level} Topics`}
+        />
+        <MessagePanel text="Complete the learner profile before using unpaid or manually unavailable Core access." />
+      </CoreMissionPageShell>
+    );
+  }
+
   if (status === "locked") {
     return (
       <CoreMissionPageShell>

@@ -210,7 +210,7 @@ const faqItems = [
   {
     question: "How are payments processed?",
     answer:
-      "During the Public Preview, public subscriptions are not open. Once public checkout is available, payment methods will be displayed during checkout. GKP student add-ons continue to be handled through normal Guru Kids Pro class billing.",
+      "Public Dreamscape subscriptions are processed securely by Stripe. Stripe handles the recurring subscription payment and displays the available payment methods during checkout. GKP student add-ons are separate and continue to be handled through normal Guru Kids Pro class billing.",
   },
 ];
 
@@ -948,6 +948,21 @@ export default function PricingPage() {
                     →
                   </span>
                 </button>
+
+                {!plan.comingSoon && (
+                  <p
+                    style={{
+                      margin: "11px 0 0",
+                      color: "rgba(255,255,255,0.42)",
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      lineHeight: 1.5,
+                      textAlign: "center",
+                    }}
+                  >
+                    Secure recurring checkout powered by Stripe
+                  </p>
+                )}
               </article>
             );
           })}
@@ -1555,10 +1570,11 @@ export default function PricingPage() {
               lineHeight: 1.7,
             }}
           >
-            All prices are in Singapore dollars. Prices and plan details are
-            shown for preview during the Dreamscape One trial phase. Public
-            subscriptions are coming soon. Purchases and rewards remain subject
-            to the applicable Terms & Conditions.
+            All prices are in Singapore dollars. Public Dreamscape
+            subscription payments are processed securely by Stripe. Prices and
+            plan details are shown for preview during the Dreamscape One trial
+            phase, and purchases and rewards remain subject to the applicable
+            Terms & Conditions.
           </p>
 
           <div
@@ -1897,7 +1913,7 @@ export default function PricingPage() {
               }}
             >
               Free activity zones are open now. Public Student Access
-              subscriptions open on 1 October. Authorised staff accounts can continue testing the new Dreamscape recurring subscription flow during the preview.
+              subscriptions open on 1 October. Authorised staff accounts can continue testing the secure Stripe subscription flow during the preview.
             </p>
 
             <div

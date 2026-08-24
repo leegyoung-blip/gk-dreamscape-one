@@ -719,6 +719,63 @@ export default function CoreQuizPlayer({
     router.push(`/learning-missions/core/${subject}/p${level}`);
   }
 
+  if (status === "signed_out") {
+    return (
+      <main style={pageShell}>
+        <div style={lockedCard}>
+          <h1 style={{ margin: 0 }}>Log in to continue</h1>
+          <p style={mutedText}>
+            Use the learner account connected to the Dreamscape subscription.
+          </p>
+          <div style={buttonRow(isMobile)}>
+            <a
+              href="/login"
+              style={{ ...primaryButton, textDecoration: "none" }}
+            >
+              Log In
+            </a>
+            <button
+              type="button"
+              onClick={() => router.push("/learning-missions")}
+              style={ghostButton}
+            >
+              Exit
+            </button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (status === "profile_required") {
+    return (
+      <main style={pageShell}>
+        <div style={lockedCard}>
+          <h1 style={{ margin: 0 }}>Complete learner profile</h1>
+          <p style={mutedText}>
+            Complete the learner profile before using Core Missions when no
+            paid or manual Core entitlement is active.
+          </p>
+          <div style={buttonRow(isMobile)}>
+            <a
+              href="/complete-profile"
+              style={{ ...primaryButton, textDecoration: "none" }}
+            >
+              Complete Profile
+            </a>
+            <button
+              type="button"
+              onClick={() => router.push("/learning-missions")}
+              style={ghostButton}
+            >
+              Exit
+            </button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   if (status === "checking" || stage === "loading") {
     return (
       <main style={pageShell}>

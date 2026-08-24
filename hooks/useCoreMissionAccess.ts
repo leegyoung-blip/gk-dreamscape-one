@@ -315,55 +315,25 @@ export function useCoreMissionAccess() {
         return;
       }
 
-      const {
-        data: learningProfileData,
-        error: learningProfileError,
-      } = await supabase.rpc(
-        "get_my_learning_profile_status",
-      );
-
-      if (
-        requestId !==
-        accessRequestIdRef.current
-      ) {
-        return;
-      }
-
-      if (learningProfileError) {
-        console.warn(
-          "Could not check the learner profile:",
-          learningProfileError.message,
-        );
-
-        /*
-         * Preserve an already-running learning session
-         * during a transient background failure.
-         */
-        if (showChecking) {
-          setStatus("locked");
-        }
-
-        return;
-      }
-
-      const resolvedLearningProfile =
-        (learningProfileData ||
-          {}) as LearningProfileStatus;
-
-      setLearningProfile(
-        resolvedLearningProfile,
-      );
-
-      if (
-        !resolvedLearningProfile.complete
-      ) {
-        setStatus("profile_required");
-        return;
-      }
-
+      /*
+       * IMPORTANT ACCESS ORDER
+       * ----------------------
+       *
+       * Paid/manual entitlement is authoritative for access.
+       *
+       * A newly-created learner account may not have completed
+       * age/profile onboarding yet. That must NOT cancel access
+       * that has already been paid for and activated by Stripe
+       * or GKP billing.
+       *
+       * We therefore load entitlement + learner profile together,
+       * then grant paid/manual access BEFORE enforcing the optional
+       * learner-profile completion screen.
+       */
       const [
         subscriptionResult,
         manualAccessResult,
+        learningProfileResult,
       ] = await Promise.all([
         supabase
           .from("nova_subscriptions")
@@ -380,6 +350,10 @@ export function useCoreMissionAccess() {
           .eq("user_id", user.id)
           .eq("zone_key", "core")
           .maybeSingle(),
+
+        supabase.rpc(
+          "get_my_learning_profile_status",
+        ),
       ]);
 
       if (
@@ -403,13 +377,23 @@ export function useCoreMissionAccess() {
         );
       }
 
+      if (learningProfileResult.error) {
+        console.warn(
+          "Could not check the learner profile:",
+          learningProfileResult.error.message,
+        );
+      }
+
+      const subscriptionRows =
+        subscriptionResult.error
+          ? []
+          : ((subscriptionResult.data ||
+              []) as SubscriptionRow[]);
+
       const entitlements =
         getLearningEntitlements(
           role,
-          subscriptionResult.error
-            ? []
-            : ((subscriptionResult.data ||
-                []) as SubscriptionRow[]),
+          subscriptionRows,
         );
 
       const manuallyUnlocked =
@@ -420,23 +404,60 @@ export function useCoreMissionAccess() {
         );
 
       /*
-       * If either successfully-loaded source proves access,
-       * allow immediately.
+       * Paid subscription/manual access wins immediately.
+       *
+       * This is the key Stripe fix:
+       * an active Core/Full subscription must unlock Core
+       * even if the learner has not filled in DOB/profile yet.
        */
       if (
         entitlements.core ||
         manuallyUnlocked
       ) {
+        if (
+          !learningProfileResult.error
+        ) {
+          setLearningProfile(
+            (learningProfileResult.data ||
+              {}) as LearningProfileStatus,
+          );
+        }
+
         setStatus("allowed");
         return;
       }
 
       /*
-       * During a silent/background recheck, an error from
-       * either entitlement source means we do not have
-       * enough reliable information to revoke access.
-       *
-       * Keep the existing state.
+       * If there is no paid/manual entitlement, preserve the
+       * existing learner-profile onboarding requirement.
+       */
+      if (learningProfileResult.error) {
+        if (showChecking) {
+          setStatus("locked");
+        }
+
+        return;
+      }
+
+      const resolvedLearningProfile =
+        (learningProfileResult.data ||
+          {}) as LearningProfileStatus;
+
+      setLearningProfile(
+        resolvedLearningProfile,
+      );
+
+      if (
+        !resolvedLearningProfile.complete
+      ) {
+        setStatus("profile_required");
+        return;
+      }
+
+      /*
+       * During a silent/background recheck, incomplete
+       * entitlement reads are not enough evidence to revoke
+       * an existing session.
        */
       if (
         !showChecking &&
@@ -447,8 +468,7 @@ export function useCoreMissionAccess() {
       }
 
       /*
-       * Both access sources loaded successfully and neither
-       * grants Core access.
+       * Profile is complete, but no Core entitlement exists.
        */
       setStatus("locked");
     },
