@@ -53,6 +53,70 @@ type LearningProfileStatus = {
   age_band?: string | null;
 };
 
+
+type MembershipPlanOption = {
+  id: string;
+  name: string;
+  planCode: string;
+  billingCycle: string;
+  amount: number;
+  currency: string;
+};
+
+type MembershipPayment = {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  paid_at: string | null;
+  created_at: string;
+  refund_amount?: number | null;
+};
+
+type ProfileMembership = {
+  contractId: string;
+  provider: string;
+  providerEnvironment: string | null;
+  planId: string;
+  planName: string;
+  planCode: string;
+  billingCycle: string;
+  amount: number;
+  currency: string;
+  status: string;
+  providerStatus: string | null;
+  currentPeriodEnd: string | null;
+  nextBillingAt: string | null;
+  graceUntil: string | null;
+  pausedAt: string | null;
+  cancelAtPeriodEnd: boolean;
+  canUpdatePaymentMethod: boolean;
+  canChangePlan: boolean;
+  canPause: boolean;
+  canResume: boolean;
+  canCancelAtPeriodEnd: boolean;
+  canKeepSubscription: boolean;
+  isLive: boolean;
+  isPaused: boolean;
+  pendingPlan: null | {
+    id: string;
+    name: string;
+    planCode: string;
+    billingCycle: string;
+    amount: number;
+    currency: string;
+    effectiveAt: string | null;
+    status: string | null;
+  };
+};
+
+type ProfileMembershipResponse = {
+  membership: ProfileMembership | null;
+  availablePlans: MembershipPlanOption[];
+  payments: MembershipPayment[];
+  error?: string;
+};
+
 function calculateAge(dateOfBirth: string) {
   if (!dateOfBirth) {
     return null;
@@ -269,6 +333,40 @@ export default function ProfilePage() {
   const [supportMessage, setSupportMessage] =
     useState("");
 
+  const [showSettings, setShowSettings] =
+    useState(false);
+
+  const [showSupport, setShowSupport] =
+    useState(false);
+
+  const [membershipAccessUntil, setMembershipAccessUntil] =
+    useState<string | null>(null);
+
+
+  const [membershipDetails, setMembershipDetails] =
+    useState<ProfileMembership | null>(null);
+
+  const [membershipPlanOptions, setMembershipPlanOptions] =
+    useState<MembershipPlanOption[]>([]);
+
+  const [membershipPayments, setMembershipPayments] =
+    useState<MembershipPayment[]>([]);
+
+  const [membershipTargetPlanId, setMembershipTargetPlanId] =
+    useState("");
+
+  const [isLoadingMembership, setIsLoadingMembership] =
+    useState(true);
+
+  const [isWorkingMembership, setIsWorkingMembership] =
+    useState(false);
+
+  const [membershipMessage, setMembershipMessage] =
+    useState("");
+
+  const [membershipError, setMembershipError] =
+    useState("");
+
   const [username, setUsername] = useState<
     string | null
   >(null);
@@ -458,6 +556,14 @@ export default function ProfilePage() {
         setHasOrganisationPortalAccess(false);
         setHasStudentRewardsAccess(false);
         setActiveLearningPlanLabels([]);
+        setMembershipAccessUntil(null);
+        setMembershipDetails(null);
+        setMembershipPlanOptions([]);
+        setMembershipPayments([]);
+        setMembershipTargetPlanId("");
+        setMembershipMessage("");
+        setMembershipError("");
+        setIsLoadingMembership(false);
         setTokenTransactions([]);
         setGemTransactions([]);
         setDreamGemBalance(0);
@@ -473,6 +579,7 @@ export default function ProfilePage() {
       const userId = data.user.id;
 
       setEmail(data.user.email ?? null);
+      void loadMembershipControls();
 
       const carriedClaimMessage =
         takeOrganisationClaimMessage();
@@ -637,6 +744,27 @@ export default function ProfilePage() {
       setHasStudentRewardsAccess(entitlements.rewards);
       setActiveLearningPlanLabels(
         entitlements.activePlans.map(learningPlanLabel),
+      );
+
+      const latestAccessUntil =
+        subscriptionData
+          .map((row) => row.access_until)
+          .filter(
+            (value): value is string =>
+              typeof value === "string" &&
+              value.length > 0 &&
+              Number.isFinite(
+                new Date(value).getTime(),
+              ),
+          )
+          .sort(
+            (a, b) =>
+              new Date(b).getTime() -
+              new Date(a).getTime(),
+          )[0] || null;
+
+      setMembershipAccessUntil(
+        latestAccessUntil,
       );
 
       const pendingReferralCode =
@@ -877,6 +1005,11 @@ export default function ProfilePage() {
     );
 
     window.addEventListener(
+      "dreamscape-membership-updated",
+      refreshBalances,
+    );
+
+    window.addEventListener(
       "focus",
       refreshBalances,
     );
@@ -895,11 +1028,287 @@ export default function ProfilePage() {
       );
 
       window.removeEventListener(
+        "dreamscape-membership-updated",
+        refreshBalances,
+      );
+
+      window.removeEventListener(
         "focus",
         refreshBalances,
       );
     };
   }, []);
+
+  async function loadMembershipControls() {
+    setIsLoadingMembership(true);
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        setMembershipDetails(null);
+        setMembershipPlanOptions([]);
+        setMembershipPayments([]);
+        setIsLoadingMembership(false);
+        return;
+      }
+
+      const response = await fetch(
+        "/api/profile/membership",
+        {
+          method: "GET",
+          cache: "no-store",
+          headers: {
+            Authorization:
+              `Bearer ${session.access_token}`,
+          },
+        },
+      );
+
+      const payload =
+        (await response.json()) as
+          ProfileMembershipResponse;
+
+      if (!response.ok) {
+        throw new Error(
+          payload.error ||
+            "Membership details could not be loaded.",
+        );
+      }
+
+      setMembershipDetails(
+        payload.membership || null,
+      );
+
+      setMembershipPlanOptions(
+        payload.availablePlans || [],
+      );
+
+      setMembershipPayments(
+        payload.payments || [],
+      );
+
+      setMembershipTargetPlanId(
+        (current) => {
+          if (
+            current &&
+            (payload.availablePlans || []).some(
+              (plan) =>
+                plan.id === current,
+            )
+          ) {
+            return current;
+          }
+
+          return "";
+        },
+      );
+
+      setMembershipError("");
+    } catch (error) {
+      console.warn(
+        "Could not load profile membership controls:",
+        error,
+      );
+
+      setMembershipError(
+        error instanceof Error
+          ? error.message
+          : "Membership details could not be loaded.",
+      );
+    }
+
+    setIsLoadingMembership(false);
+  }
+
+  async function runMembershipAction(
+    action:
+      | "payment_method"
+      | "change_plan"
+      | "cancel_plan_change"
+      | "cancel_period_end"
+      | "keep_subscription"
+      | "pause_membership"
+      | "resume_membership",
+  ) {
+    if (!membershipDetails) {
+      return;
+    }
+
+    if (
+      action === "change_plan" &&
+      !membershipTargetPlanId
+    ) {
+      setMembershipError(
+        "Choose the new membership plan first.",
+      );
+      return;
+    }
+
+    if (
+      action === "change_plan" &&
+      !window.confirm(
+        "Schedule this plan change for the next paid billing cycle? Your current access remains unchanged until the new plan starts.",
+      )
+    ) {
+      return;
+    }
+
+    if (
+      action === "cancel_plan_change" &&
+      !window.confirm(
+        "Cancel the pending membership plan change and keep the current plan?",
+      )
+    ) {
+      return;
+    }
+
+    if (
+      action === "cancel_period_end" &&
+      !window.confirm(
+        "Stop future renewal? Paid learning access will remain available through the current paid period.",
+      )
+    ) {
+      return;
+    }
+
+    if (
+      action === "keep_subscription" &&
+      !window.confirm(
+        "Keep this membership renewing normally?",
+      )
+    ) {
+      return;
+    }
+
+    if (
+      action === "pause_membership" &&
+      !window.confirm(
+        "Pause membership now? Learning access stops immediately and Stripe stops generating subscription invoices while paused. Unused paid time is credited by Stripe and can be applied when the membership is resumed.",
+      )
+    ) {
+      return;
+    }
+
+    if (
+      action === "resume_membership" &&
+      !window.confirm(
+        "Resume membership now? Stripe may charge the payment method to begin the resumed billing period. Learning access is restored after Stripe confirms the subscription is active.",
+      )
+    ) {
+      return;
+    }
+
+    setIsWorkingMembership(true);
+    setMembershipMessage("");
+    setMembershipError("");
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error(
+          "Please sign in again.",
+        );
+      }
+
+      const response = await fetch(
+        "/api/profile/membership",
+        {
+          method: "POST",
+          headers: {
+            Authorization:
+              `Bearer ${session.access_token}`,
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            action,
+            ...(action === "change_plan"
+              ? {
+                  targetPlanId:
+                    membershipTargetPlanId,
+                }
+              : {}),
+          }),
+        },
+      );
+
+      const payload =
+        (await response.json().catch(
+          () => null,
+        )) as
+          | {
+              error?: string;
+              redirectUrl?: string;
+              status?: string;
+              nextPlan?: string;
+            }
+          | null;
+
+      if (!response.ok) {
+        throw new Error(
+          payload?.error ||
+            "The membership action could not be completed.",
+        );
+      }
+
+      if (
+        action === "payment_method" &&
+        payload?.redirectUrl
+      ) {
+        window.location.href =
+          payload.redirectUrl;
+        return;
+      }
+
+      const labels: Record<
+        typeof action,
+        string
+      > = {
+        payment_method:
+          "Opening secure payment settings...",
+        change_plan:
+          "Membership plan change scheduled.",
+        cancel_plan_change:
+          "Pending plan change cancelled.",
+        cancel_period_end:
+          "Future renewal has been stopped. Current paid access remains available through the paid-through date.",
+        keep_subscription:
+          "Membership renewal restored.",
+        pause_membership:
+          "Membership paused. Paid learning access is now paused too.",
+        resume_membership:
+          "Membership resumed and learning access restored.",
+      };
+
+      setMembershipMessage(
+        labels[action],
+      );
+
+      setMembershipTargetPlanId("");
+
+      await loadMembershipControls();
+
+      window.dispatchEvent(
+        new Event(
+          "dreamscape-membership-updated",
+        ),
+      );
+    } catch (error) {
+      setMembershipError(
+        error instanceof Error
+          ? error.message
+          : "The membership action could not be completed.",
+      );
+    }
+
+    setIsWorkingMembership(false);
+  }
 
   async function saveUsername() {
     const cleanedUsername = usernameDraft
@@ -1150,6 +1559,44 @@ Thank you.`;
     );
   }
 
+  function formatMembershipDate(
+    value: string | null,
+  ) {
+    if (!value) {
+      return "Not applicable";
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return "Not available";
+    }
+
+    return date.toLocaleDateString(
+      "en-SG",
+      {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      },
+    );
+  }
+
+  const hasStaffAccess =
+    isAdmin ||
+    hasTeachingDashboardAccess ||
+    hasCurriculumDeveloperAccess;
+
+  const hasAnyStaffTools =
+    hasTeachingDashboardAccess ||
+    hasCurriculumDeveloperAccess ||
+    hasOrganisationPortalAccess ||
+    isAdmin;
+
+  const hasActiveAccountAccess =
+    hasStaffAccess ||
+    hasStudentRewardsAccess;
+
   async function logout() {
     localStorage.removeItem("seen-prologue");
     localStorage.removeItem(
@@ -1168,96 +1615,57 @@ Thank you.`;
   }
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-[#020813] px-5 py-8 pb-16 text-white sm:px-8 sm:py-8 sm:pb-16">
+    <main className="relative min-h-screen overflow-x-hidden bg-[#020813] px-5 py-7 pb-16 text-white sm:px-8 sm:py-8 sm:pb-16">
       <div className="pointer-events-none fixed inset-0 z-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(126,232,255,0.18),transparent_34%),linear-gradient(180deg,#041124_0%,#020813_100%)]" />
-
         <div className="absolute left-[-120px] top-[-120px] h-[360px] w-[360px] rounded-full bg-cyan-400/10 blur-3xl" />
-
         <div className="absolute bottom-[-140px] right-[-120px] h-[380px] w-[380px] rounded-full bg-violet-500/10 blur-3xl" />
       </div>
 
-      <button
-        type="button"
-        onClick={() => router.push("/")}
-        className="absolute left-5 top-5 z-30 rounded-full border border-cyan-200/25 bg-white/[0.06] px-5 py-2 text-sm tracking-wide text-white shadow-[0_16px_36px_rgba(0,0,0,0.28)] backdrop-blur-xl transition hover:scale-[1.03] hover:border-cyan-200/45 sm:left-8 sm:top-8"
-      >
-        ← Back to World
-      </button>
-
-      <div className="fixed right-5 top-5 z-50 flex items-center gap-3 sm:right-8 sm:top-8">
-        {hasTeachingDashboardAccess && (
+      <div className="relative z-10 mx-auto max-w-6xl">
+        {/* Top navigation */}
+        <div className="flex items-center justify-between gap-3">
           <button
             type="button"
-            onClick={() =>
-              router.push(
-                "/teacher-dashboard",
-              )
-            }
-            className="hidden h-[46px] items-center justify-center rounded-full border border-cyan-200/28 bg-cyan-400/18 px-5 text-xs font-extrabold uppercase tracking-[0.12em] text-white shadow-[0_12px_28px_rgba(34,211,238,0.18)] backdrop-blur-xl transition hover:scale-[1.03] sm:flex"
+            onClick={() => router.push("/")}
+            className="rounded-full border border-cyan-200/25 bg-white/[0.06] px-4 py-2.5 text-xs font-bold uppercase tracking-[0.1em] text-white shadow-[0_14px_34px_rgba(0,0,0,0.25)] backdrop-blur-xl transition hover:scale-[1.02] hover:border-cyan-200/45 sm:px-5"
           >
-            Teaching Dashboard
+            ← Back to World
           </button>
-        )}
 
-        {hasCurriculumDeveloperAccess && (
-          <button
-            type="button"
-            onClick={() =>
-              router.push(
-                "/curriculum-developer",
-              )
-            }
-            className="hidden h-[46px] items-center justify-center rounded-full border border-emerald-200/28 bg-emerald-400/18 px-5 text-xs font-extrabold uppercase tracking-[0.12em] text-white shadow-[0_12px_28px_rgba(52,211,153,0.18)] backdrop-blur-xl transition hover:scale-[1.03] sm:flex"
-          >
-            Quiz Builder
-          </button>
-        )}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={() => setShowSettings(true)}
+              className="min-h-[44px] rounded-full border border-cyan-200/24 bg-white/[0.07] px-4 text-[11px] font-extrabold uppercase tracking-[0.12em] text-white shadow-[0_12px_28px_rgba(0,0,0,0.2)] backdrop-blur-xl transition hover:scale-[1.02] hover:bg-white/[0.1] sm:px-5"
+            >
+              Settings
+            </button>
 
-        {hasOrganisationPortalAccess && (
-          <button
-            type="button"
-            onClick={() => router.push("/organisation/manage")}
-            className="hidden h-[46px] items-center justify-center rounded-full border border-amber-200/28 bg-amber-300/16 px-5 text-xs font-extrabold uppercase tracking-[0.12em] text-white shadow-[0_12px_28px_rgba(251,191,36,0.12)] backdrop-blur-xl transition hover:scale-[1.03] sm:flex"
-          >
-            Organisation Portal
-          </button>
-        )}
+            <button
+              type="button"
+              onClick={() => {
+                setSupportMessage("");
+                setShowSupport(true);
+              }}
+              className="min-h-[44px] rounded-full border border-violet-200/24 bg-violet-300/[0.10] px-4 text-[11px] font-extrabold uppercase tracking-[0.12em] text-white shadow-[0_12px_28px_rgba(0,0,0,0.2)] backdrop-blur-xl transition hover:scale-[1.02] hover:bg-violet-300/[0.16] sm:px-5"
+            >
+              Support
+            </button>
 
-        {isAdmin && (
-          <button
-            type="button"
-            onClick={() =>
-              router.push(
-                "/admin/dream-tokens",
-              )
-            }
-            className="hidden h-[46px] items-center justify-center rounded-full border border-violet-200/25 bg-violet-500/25 px-5 text-xs font-extrabold uppercase tracking-[0.12em] text-white shadow-[0_12px_28px_rgba(109,79,143,0.28)] backdrop-blur-xl transition hover:scale-[1.03] sm:flex"
-          >
-            Admin Panel
-          </button>
-        )}
+            <button
+              type="button"
+              onClick={() => router.push("/cart")}
+              aria-label="Cart"
+              className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full border border-cyan-200/24 bg-white/[0.07] shadow-[0_12px_28px_rgba(0,0,0,0.2)] backdrop-blur-xl transition hover:scale-[1.03]"
+            >
+              <CartIcon />
+            </button>
+          </div>
+        </div>
 
-        <button
-          type="button"
-          onClick={logout}
-          className="h-[46px] rounded-full border border-cyan-200/25 bg-white/[0.08] px-5 text-xs font-bold uppercase tracking-[0.12em] text-white shadow-[0_12px_28px_rgba(0,0,0,0.22)] backdrop-blur-xl transition hover:scale-[1.03]"
-        >
-          Log Out
-        </button>
-
-        <button
-          type="button"
-          onClick={() => router.push("/cart")}
-          aria-label="Cart"
-          className="flex h-[46px] w-[46px] items-center justify-center rounded-full border border-cyan-200/25 bg-white/[0.08] shadow-[0_12px_28px_rgba(0,0,0,0.22)] backdrop-blur-xl transition hover:scale-[1.03]"
-        >
-          <CartIcon />
-        </button>
-      </div>
-
-      <div className="relative z-10 mx-auto max-w-6xl pt-24 sm:pt-0">
-        <section className="text-center">
+        {/* Identity */}
+        <section className="mx-auto mt-12 max-w-3xl text-center sm:mt-14">
           <p className="m-0 text-xs font-bold uppercase tracking-[0.24em] text-[#7ee8ff]">
             Dreamscape One
           </p>
@@ -1266,10 +1674,18 @@ Thank you.`;
             My Profile
           </h1>
 
-          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-white/62">
-            {email
-              ? `Logged in as ${email}`
-              : "Not logged in"}
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <span className="rounded-full border border-white/12 bg-white/[0.06] px-4 py-2 text-sm font-bold text-white/88">
+              {username || "Dreamscape User"}
+            </span>
+
+            <span className="rounded-full border border-cyan-200/18 bg-cyan-300/[0.08] px-4 py-2 text-sm text-cyan-50/80">
+              {accountAccessLabel}
+            </span>
+          </div>
+
+          <p className="mx-auto mt-4 max-w-2xl break-all text-sm leading-6 text-white/54">
+            {email ? email : "Not logged in"}
           </p>
 
           {referralMessage && (
@@ -1285,157 +1701,555 @@ Thank you.`;
           )}
         </section>
 
-        <section className="mt-9 grid gap-6 md:grid-cols-[1.05fr_0.95fr]">
-          <div className="rounded-[32px] border border-cyan-200/18 bg-white/[0.045] p-7 shadow-[0_24px_70px_rgba(0,0,0,0.26)] backdrop-blur-xl sm:p-8">
-            <p className="m-0 text-xs font-bold uppercase tracking-[0.2em] text-[#7ee8ff]">
-              Account
-            </p>
+        {/* Staff tools */}
+        {hasAnyStaffTools && (
+          <section className="mt-9 rounded-[28px] border border-white/10 bg-white/[0.04] p-5 shadow-[0_20px_58px_rgba(0,0,0,0.22)] backdrop-blur-xl sm:p-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-white/42">
+                  Staff Tools
+                </p>
+                <h2 className="mt-2 text-2xl font-bold tracking-[-0.03em] text-white">
+                  Workspaces for your role
+                </h2>
+              </div>
 
-            <h2 className="mt-4 text-3xl font-bold tracking-[-0.04em] text-white sm:text-4xl">
-              Dreamscape Access
-            </h2>
+              <p className="text-xs uppercase tracking-[0.13em] text-white/34">
+                {normalizedRole.replace(/-/g, " ")}
+              </p>
+            </div>
 
-            <div className="mt-7 grid gap-4">
-              <div className="rounded-2xl border border-cyan-200/14 bg-[#061632]/75 p-5">
-                <p className="text-xs uppercase tracking-[0.18em] text-white/42">
-                  Email
+            <div className="mt-5 flex flex-wrap gap-3">
+              {hasTeachingDashboardAccess && (
+                <button
+                  type="button"
+                  onClick={() => router.push("/teacher-dashboard")}
+                  className="min-h-[46px] rounded-full border border-cyan-200/28 bg-cyan-400/16 px-5 text-xs font-extrabold uppercase tracking-[0.12em] text-white transition hover:scale-[1.02] hover:bg-cyan-400/24"
+                >
+                  Teaching Dashboard
+                </button>
+              )}
+
+              {hasCurriculumDeveloperAccess && (
+                <button
+                  type="button"
+                  onClick={() => router.push("/curriculum-developer")}
+                  className="min-h-[46px] rounded-full border border-emerald-200/28 bg-emerald-400/16 px-5 text-xs font-extrabold uppercase tracking-[0.12em] text-white transition hover:scale-[1.02] hover:bg-emerald-400/24"
+                >
+                  Quiz Builder
+                </button>
+              )}
+
+              {hasOrganisationPortalAccess && (
+                <button
+                  type="button"
+                  onClick={() => router.push("/organisation/manage")}
+                  className="min-h-[46px] rounded-full border border-amber-200/28 bg-amber-300/14 px-5 text-xs font-extrabold uppercase tracking-[0.12em] text-white transition hover:scale-[1.02] hover:bg-amber-300/22"
+                >
+                  Organisation Portal
+                </button>
+              )}
+
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => router.push("/admin/dream-tokens")}
+                  className="min-h-[46px] rounded-full border border-violet-200/28 bg-violet-500/20 px-5 text-xs font-extrabold uppercase tracking-[0.12em] text-white transition hover:scale-[1.02] hover:bg-violet-500/30"
+                >
+                  Admin Panel
+                </button>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* Snapshot */}
+        <section className="mt-7 grid gap-6 lg:grid-cols-2">
+          <article className="rounded-[30px] border border-cyan-200/16 bg-white/[0.045] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.24)] backdrop-blur-xl sm:p-7">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#7ee8ff]">
+                  Account Overview
+                </p>
+                <h2 className="mt-3 text-3xl font-bold tracking-[-0.04em] text-white">
+                  Your details
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowSettings(true)}
+                className="rounded-full border border-cyan-200/18 bg-cyan-300/[0.08] px-4 py-2 text-[10px] font-extrabold uppercase tracking-[0.12em] text-white transition hover:bg-cyan-300/[0.14]"
+              >
+                Manage
+              </button>
+            </div>
+
+            <div className="mt-6 divide-y divide-white/[0.08] rounded-2xl border border-white/[0.08] bg-[#061632]/64 px-5">
+              {[
+                ["Username", username || "Not set"],
+                ["Email", email || "No active login"],
+                [
+                  "Learner age",
+                  isLoadingLearnerDetails
+                    ? "Loading..."
+                    : ageYears === null
+                      ? "Not recorded"
+                      : `${ageYears} years`,
+                ],
+                [
+                  "Nova age band",
+                  isLoadingLearnerDetails
+                    ? "Loading..."
+                    : formatAgeBand(ageBand),
+                ],
+                ["Access", accountAccessLabel],
+              ].map(([label, value]) => (
+                <div
+                  key={String(label)}
+                  className="flex flex-col gap-1 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-5"
+                >
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/38">
+                    {label}
+                  </p>
+                  <p className="break-all text-sm font-semibold text-white/82 sm:text-right">
+                    {value}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </article>
+
+          <article className="rounded-[30px] border border-violet-200/18 bg-[linear-gradient(145deg,rgba(37,22,78,0.68),rgba(4,20,48,0.82))] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.24)] backdrop-blur-xl sm:p-7">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#e7b7ff]">
+                  Membership
+                </p>
+                <h2 className="mt-3 text-3xl font-bold tracking-[-0.04em] text-white">
+                  {membershipDetails?.planName || accountAccessLabel}
+                </h2>
+              </div>
+
+              <span
+                className={`rounded-full border px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.12em] ${
+                  membershipDetails?.isPaused
+                    ? "border-amber-200/20 bg-amber-300/10 text-amber-100"
+                    : hasActiveAccountAccess
+                      ? "border-green-200/20 bg-green-300/10 text-green-200"
+                      : "border-white/12 bg-white/[0.05] text-white/48"
+                }`}
+              >
+                {membershipDetails?.isPaused
+                  ? "Paused"
+                  : membershipDetails?.cancelAtPeriodEnd
+                    ? "Ends after paid period"
+                    : hasActiveAccountAccess
+                      ? "Active"
+                      : "Basic"}
+              </span>
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-white/[0.09] bg-black/18 p-5">
+              <div className="flex items-center justify-between gap-4">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/38">
+                  Learning plan
                 </p>
 
-                <p className="mt-2 break-all text-lg text-white/86">
-                  {email || "No active login"}
+                <p className="text-right text-sm font-bold text-white/82">
+                  {activeLearningPlanLabels.length > 0
+                    ? activeLearningPlanLabels.join(" + ")
+                    : hasStaffAccess
+                      ? accountAccessLabel
+                      : "Basic Access"}
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-cyan-200/14 bg-[#061632]/75 p-5">
-                <p className="text-xs uppercase tracking-[0.18em] text-white/42">
-                  Username
+              <div className="mt-4 flex items-center justify-between gap-4 border-t border-white/[0.08] pt-4">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/38">
+                  Access through
                 </p>
 
-                <p className="mt-2 break-all text-2xl font-extrabold tracking-[0.08em] text-white">
-                  {username || "Loading..."}
+                <p className="text-right text-sm font-bold text-white/82">
+                  {hasStaffAccess
+                    ? "Staff access"
+                    : formatMembershipDate(membershipAccessUntil)}
+                </p>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between gap-4 border-t border-white/[0.08] pt-4">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/38">
+                  Rewards
                 </p>
 
-                <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                  <input
-                    value={usernameDraft}
-                    onChange={(event) =>
-                      setUsernameDraft(
-                        event.target.value.toLowerCase(),
-                      )
-                    }
-                    placeholder="Choose username"
-                    className="min-h-[50px] flex-1 rounded-full border border-cyan-200/14 bg-white/[0.07] px-5 text-sm font-bold text-white outline-none transition placeholder:text-white/32 focus:border-cyan-200/45"
-                  />
+                <p className="text-right text-sm font-bold text-white/82">
+                  {hasStudentRewardsAccess
+                    ? "Dream Gem rewards enabled"
+                    : hasStaffAccess
+                      ? "Staff access"
+                      : "Upgrade required"}
+                </p>
+              </div>
+            </div>
 
-                  <button
-                    type="button"
-                    onClick={saveUsername}
-                    disabled={isSavingUsername}
-                    className="min-h-[50px] rounded-full border border-cyan-200/22 bg-cyan-300/14 px-6 text-xs font-extrabold uppercase tracking-[0.14em] text-white transition hover:scale-[1.02] hover:bg-cyan-300/20 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isSavingUsername
-                      ? "Saving..."
-                      : "Save"}
-                  </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMembershipMessage("");
+                setMembershipError("");
+                setShowSettings(true);
+              }}
+              className="mt-5 min-h-[50px] w-full rounded-full border border-violet-200/26 bg-violet-300/14 px-5 text-xs font-extrabold uppercase tracking-[0.14em] text-white transition hover:scale-[1.01] hover:bg-violet-300/22"
+            >
+              Manage Membership
+            </button>
+          </article>
+        </section>
+
+        {/* Wallets */}
+        <section className="mt-7">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-white/38">
+              Your Wallet
+            </p>
+            <h2 className="mt-2 text-3xl font-bold tracking-[-0.04em] text-white">
+              Dreamscape balances
+            </h2>
+          </div>
+
+          <div className="mt-5 grid gap-6 lg:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setShowTokenHistory(true)}
+              className="group rounded-[30px] border border-yellow-300/26 bg-[linear-gradient(180deg,rgba(112,57,18,0.38),rgba(4,20,48,0.82))] p-6 text-left shadow-[0_0_42px_rgba(250,204,21,0.07),0_24px_70px_rgba(0,0,0,0.24)] backdrop-blur-xl transition hover:scale-[1.01] hover:border-yellow-200/42 sm:p-7"
+            >
+              <div className="flex items-start justify-between gap-5">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
+                    Dream Tokens
+                  </p>
+
+                  {isLoadingTokens ? (
+                    <p className="mt-4 text-lg text-white/48">
+                      Loading...
+                    </p>
+                  ) : (
+                    <div className="mt-4 flex items-end gap-3">
+                      <span className="text-5xl font-extrabold leading-none text-white">
+                        {dreamTokenBalance.toLocaleString()}
+                      </span>
+                      <span className="pb-2 text-sm font-bold tracking-[0.14em] text-[#ffd18a]">
+                        DT
+                      </span>
+                    </div>
+                  )}
                 </div>
 
-                <p className="mt-3 text-sm leading-6 text-white/54">
-                  This username appears on Milo’s
-                  Stock Exchange leaderboard. Use
-                  3–20 characters: letters, numbers,
-                  or underscores.
-                </p>
-
-                {usernameMessage && (
-                  <p
-                    className={`mt-3 rounded-2xl border px-4 py-3 text-sm ${
-                      usernameMessageType ===
-                      "success"
-                        ? "border-green-200/20 bg-green-400/10 text-green-200"
-                        : "border-red-200/20 bg-red-400/10 text-red-200"
-                    }`}
-                  >
-                    {usernameMessage}
-                  </p>
-                )}
+                <img
+                  src="/dreamscape/dream-token.png"
+                  alt="Dream Token"
+                  className="h-14 w-14 shrink-0 object-contain drop-shadow-[0_0_22px_rgba(250,204,21,0.28)]"
+                />
               </div>
 
-              <div className="rounded-2xl border border-cyan-200/18 bg-[linear-gradient(145deg,rgba(12,57,89,0.72),rgba(6,22,50,0.82))] p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.18em] text-[#7ee8ff]">
-                      Learner Details
-                    </p>
+              <div className="mt-6 grid grid-cols-2 gap-3">
+                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/38">
+                    Net Worth
+                  </p>
+                  <p className="mt-2 text-lg font-extrabold text-white">
+                    {isLoadingTokens || isLoadingPortfolio
+                      ? "—"
+                      : totalNetWorth.toLocaleString()}{" "}
+                    <span className="text-xs text-[#ffd18a]">
+                      DT
+                    </span>
+                  </p>
+                </div>
 
-                    <h3 className="mt-2 text-2xl font-extrabold text-white">
-                      Age Profile
+                <div className="flex items-center justify-center rounded-2xl border border-yellow-200/14 bg-yellow-200/[0.06] p-4 text-center text-xs font-extrabold uppercase tracking-[0.12em] text-[#ffd18a]">
+                  View History →
+                </div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowGemHistory(true)}
+              className="group rounded-[30px] border border-fuchsia-200/28 bg-[linear-gradient(180deg,rgba(76,24,112,0.44),rgba(4,20,48,0.86))] p-6 text-left shadow-[0_0_46px_rgba(217,70,239,0.10),0_24px_70px_rgba(0,0,0,0.25)] backdrop-blur-xl transition hover:scale-[1.01] hover:border-fuchsia-200/46 sm:p-7"
+            >
+              <div className="flex items-start justify-between gap-5">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#e7b7ff]">
+                    Dream Gems
+                  </p>
+
+                  {isLoadingGems ? (
+                    <p className="mt-4 text-lg text-white/48">
+                      Loading...
+                    </p>
+                  ) : (
+                    <div className="mt-4 flex items-end gap-3">
+                      <span className="text-5xl font-extrabold leading-none text-white">
+                        {dreamGemBalance.toLocaleString()}
+                      </span>
+                      <span className="pb-2 text-sm font-bold tracking-[0.14em] text-[#e7b7ff]">
+                        DG
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-fuchsia-200/22 bg-fuchsia-300/10 text-[#e7b7ff]">
+                  <GemIcon className="h-10 w-10" />
+                </div>
+              </div>
+
+              <div className="mt-6 grid grid-cols-2 gap-3">
+                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/38">
+                    Reward Access
+                  </p>
+                  <p
+                    className={`mt-2 text-sm font-extrabold ${
+                      hasStudentRewardsAccess
+                        ? "text-green-200"
+                        : "text-white/58"
+                    }`}
+                  >
+                    {hasStudentRewardsAccess
+                      ? "Rewards active"
+                      : "Student access required"}
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-center rounded-2xl border border-fuchsia-200/14 bg-fuchsia-200/[0.06] p-4 text-center text-xs font-extrabold uppercase tracking-[0.12em] text-[#e7b7ff]">
+                  View History →
+                </div>
+              </div>
+            </button>
+          </div>
+        </section>
+
+        {/* Referral */}
+        <section className="mt-7 rounded-[30px] border border-violet-200/18 bg-[linear-gradient(145deg,rgba(24,16,60,0.74),rgba(4,20,48,0.82))] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.22)] backdrop-blur-xl sm:p-7">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="max-w-2xl">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#e7b7ff]">
+                Invite a Friend
+              </p>
+              <h2 className="mt-3 text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
+                Share Dreamscape and earn rewards
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-white/54">
+                When a friend successfully joins using your code, both of you receive 10 Dream Tokens. Additional referral objectives can unlock more bonuses.
+              </p>
+            </div>
+
+            <div className="w-full rounded-2xl border border-violet-200/14 bg-black/20 p-4 lg:max-w-md">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/38">
+                Referral Code
+              </p>
+
+              <button
+                type="button"
+                onClick={copyReferralCode}
+                disabled={!referralCode}
+                className="mt-2 break-all text-left text-2xl font-extrabold tracking-[0.14em] text-white disabled:opacity-50"
+              >
+                {referralCode || "Loading..."}
+              </button>
+
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={copyReferralCode}
+                  disabled={!referralCode}
+                  className="min-h-[44px] rounded-full border border-violet-200/20 bg-white/[0.05] px-4 text-[10px] font-extrabold uppercase tracking-[0.12em] text-white transition hover:bg-white/[0.09] disabled:opacity-50"
+                >
+                  {copiedReferralCode ? "Code Copied" : "Copy Code"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={shareOrCopyReferralLink}
+                  disabled={!referralCode}
+                  className="min-h-[44px] rounded-full border border-violet-200/24 bg-violet-300/14 px-4 text-[10px] font-extrabold uppercase tracking-[0.12em] text-white transition hover:bg-violet-300/22 disabled:opacity-50"
+                >
+                  {copiedReferralLink
+                    ? "Link Copied"
+                    : isShareDevice
+                      ? "Share Invite"
+                      : "Copy Invite"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {/* Settings modal */}
+      {showSettings && (
+        <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-[#020813]/84 px-4 py-6 backdrop-blur-md sm:py-10">
+          <div className="relative w-full max-w-4xl overflow-hidden rounded-[30px] border border-cyan-200/22 bg-[#051126] shadow-[0_30px_90px_rgba(0,0,0,0.58)]">
+            <div className="sticky top-0 z-20 flex items-center justify-between border-b border-white/10 bg-[#051126]/95 px-5 py-5 backdrop-blur-xl sm:px-7">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#7ee8ff]">
+                  Settings
+                </p>
+                <h2 className="mt-1 text-2xl font-bold tracking-[-0.03em] text-white">
+                  Account & membership
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowSettings(false)}
+                className="rounded-full border border-white/14 bg-white/[0.07] px-3 py-1.5 text-white transition hover:bg-white/[0.12]"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-2">
+              {/* Profile settings */}
+              <section className="rounded-[26px] border border-cyan-200/14 bg-white/[0.035] p-5 sm:p-6">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7ee8ff]">
+                  Profile
+                </p>
+
+                <h3 className="mt-3 text-2xl font-bold text-white">
+                  Personal details
+                </h3>
+
+                <div className="mt-5">
+                  <label className="block text-xs font-bold uppercase tracking-[0.14em] text-white/44">
+                    Email
+                  </label>
+                  <div className="mt-2 rounded-2xl border border-white/10 bg-black/16 px-4 py-3 text-sm text-white/72">
+                    {email || "No active login"}
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-white/38">
+                    Email changes will be handled through account security rather than edited directly here.
+                  </p>
+                </div>
+
+                <div className="mt-5">
+                  <label className="block text-xs font-bold uppercase tracking-[0.14em] text-white/44">
+                    Username
+                  </label>
+
+                  <div className="mt-2 flex flex-col gap-3 sm:flex-row">
+                    <input
+                      value={usernameDraft}
+                      onChange={(event) =>
+                        setUsernameDraft(
+                          event.target.value.toLowerCase(),
+                        )
+                      }
+                      placeholder="Choose username"
+                      className="min-h-[50px] flex-1 rounded-full border border-cyan-200/14 bg-white/[0.07] px-5 text-sm font-bold text-white outline-none transition placeholder:text-white/32 focus:border-cyan-200/45"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={saveUsername}
+                      disabled={isSavingUsername}
+                      className="min-h-[50px] rounded-full border border-cyan-200/22 bg-cyan-300/14 px-6 text-xs font-extrabold uppercase tracking-[0.14em] text-white transition hover:bg-cyan-300/20 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isSavingUsername ? "Saving..." : "Save"}
+                    </button>
+                  </div>
+
+                  <p className="mt-2 text-xs leading-5 text-white/38">
+                    3–20 characters using letters, numbers, or underscores.
+                  </p>
+
+                  {usernameMessage && (
+                    <p
+                      className={`mt-3 rounded-2xl border px-4 py-3 text-sm ${
+                        usernameMessageType === "success"
+                          ? "border-green-200/20 bg-green-400/10 text-green-200"
+                          : "border-red-200/20 bg-red-400/10 text-red-200"
+                      }`}
+                    >
+                      {usernameMessage}
+                    </p>
+                  )}
+                </div>
+              </section>
+
+              {/* Learner settings */}
+              <section className="rounded-[26px] border border-cyan-200/14 bg-white/[0.035] p-5 sm:p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7ee8ff]">
+                      Learner Profile
+                    </p>
+                    <h3 className="mt-3 text-2xl font-bold text-white">
+                      Age settings
                     </h3>
                   </div>
 
                   {!dateOfBirth && !isLoadingLearnerDetails && (
-                    <span className="rounded-full border border-amber-200/25 bg-amber-300/10 px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-amber-100">
+                    <span className="rounded-full border border-amber-200/24 bg-amber-300/10 px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-amber-100">
                       Required
                     </span>
                   )}
                 </div>
 
-                <p className="mt-3 text-sm leading-6 text-white/54">
-                  Nova uses the learner&apos;s age to adjust explanations and
-                  recommendations. Age does not change quiz marks.
+                <p className="mt-3 text-sm leading-6 text-white/50">
+                  Nova uses the learner&apos;s age to adjust explanations and recommendations. Age does not change quiz marks.
                 </p>
 
                 {isLoadingLearnerDetails ? (
-                  <p className="mt-5 text-sm text-white/48">
+                  <p className="mt-5 text-sm text-white/46">
                     Loading learner details...
                   </p>
                 ) : (
                   <>
                     <label className="mt-5 block">
-                      <span className="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-white/48">
+                      <span className="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-white/44">
                         Date of birth
                       </span>
 
-                      <div className="w-full min-w-0 max-w-full overflow-hidden rounded-2xl">
-                        <input
-                          type="date"
-                          required
-                          max={new Date().toISOString().slice(0, 10)}
-                          value={dateOfBirth}
-                          onChange={(event) => {
-                            const nextDate = event.target.value;
-                            const nextAge = calculateAge(nextDate);
+                      <input
+                        type="date"
+                        required
+                        max={new Date().toISOString().slice(0, 10)}
+                        value={dateOfBirth}
+                        onChange={(event) => {
+                          const nextDate = event.target.value;
+                          const nextAge = calculateAge(nextDate);
 
-                            setDateOfBirth(nextDate);
-                            setAgeYears(nextAge);
-                            setAgeBand(ageBandFromAge(nextAge));
-                            setLearnerDetailsMessage("");
-                            setLearnerDetailsMessageType("");
-                          }}
-                          autoComplete="bday"
-                          className="dream-mobile-date-input block min-h-[52px] w-full min-w-0 max-w-full rounded-2xl border border-cyan-200/16 bg-[#020a1b]/70 px-4 text-[16px] text-white outline-none transition focus:border-cyan-200/48 sm:px-5 sm:text-base"
-                        />
-                      </div>
+                          setDateOfBirth(nextDate);
+                          setAgeYears(nextAge);
+                          setAgeBand(ageBandFromAge(nextAge));
+                          setLearnerDetailsMessage("");
+                          setLearnerDetailsMessageType("");
+                        }}
+                        autoComplete="bday"
+                        className="dream-mobile-date-input block min-h-[52px] w-full min-w-0 max-w-full rounded-2xl border border-cyan-200/16 bg-[#020a1b]/70 px-4 text-[16px] text-white outline-none transition focus:border-cyan-200/48"
+                      />
                     </label>
 
                     <div className="mt-4 grid grid-cols-2 gap-3">
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/40">
-                          Current Age
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/36">
+                          Age
                         </p>
-
-                        <p className="mt-2 text-lg font-extrabold text-white">
+                        <p className="mt-2 text-base font-extrabold text-white">
                           {ageYears === null
                             ? "Not recorded"
                             : `${ageYears} years`}
                         </p>
                       </div>
 
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/40">
-                          Nova Age Band
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/36">
+                          Nova Band
                         </p>
-
-                        <p className="mt-2 text-lg font-extrabold text-white">
+                        <p className="mt-2 text-base font-extrabold text-white">
                           {formatAgeBand(ageBand)}
                         </p>
                       </div>
@@ -1457,7 +2271,7 @@ Thank you.`;
                       type="button"
                       onClick={saveLearnerDetails}
                       disabled={isSavingLearnerDetails}
-                      className="mt-4 min-h-[50px] w-full rounded-full border border-cyan-200/25 bg-cyan-300/16 px-6 text-xs font-extrabold uppercase tracking-[0.14em] text-white transition hover:scale-[1.01] hover:bg-cyan-300/22 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="mt-4 min-h-[50px] w-full rounded-full border border-cyan-200/24 bg-cyan-300/14 px-6 text-xs font-extrabold uppercase tracking-[0.14em] text-white transition hover:bg-cyan-300/21 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {isSavingLearnerDetails
                         ? "Saving..."
@@ -1465,407 +2279,530 @@ Thank you.`;
                     </button>
                   </>
                 )}
-              </div>
+              </section>
 
-              <div className="rounded-2xl border border-cyan-200/14 bg-[#061632]/75 p-5">
-                <p className="text-xs uppercase tracking-[0.18em] text-white/42">
-                  Access Level
-                </p>
+              {/* Membership settings */}
+              <section className="rounded-[26px] border border-violet-200/16 bg-violet-300/[0.035] p-5 sm:p-6 lg:col-span-2">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#e7b7ff]">
+                      Membership & Billing
+                    </p>
 
-                <div className="mt-2 flex flex-wrap items-center gap-3">
-                  <p className="text-lg text-white/86">
-                    {accountAccessLabel}
-                  </p>
+                    <h3 className="mt-3 text-2xl font-bold text-white">
+                      {membershipDetails?.planName || accountAccessLabel}
+                    </h3>
+                  </div>
 
-                  {hasStudentRewardsAccess && (
-                    <span className="rounded-full border border-fuchsia-200/22 bg-fuchsia-300/10 px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#e7b7ff]">
-                      Dream Gem Rewards
+                  {membershipDetails && (
+                    <span
+                      className={`rounded-full border px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.12em] ${
+                        membershipDetails.isPaused
+                          ? "border-amber-200/20 bg-amber-300/10 text-amber-100"
+                          : membershipDetails.cancelAtPeriodEnd
+                            ? "border-red-200/20 bg-red-300/10 text-red-100"
+                            : membershipDetails.status === "payment_issue"
+                              ? "border-amber-200/20 bg-amber-300/10 text-amber-100"
+                              : "border-green-200/20 bg-green-300/10 text-green-200"
+                      }`}
+                    >
+                      {membershipDetails.isPaused
+                        ? "Paused"
+                        : membershipDetails.cancelAtPeriodEnd
+                          ? "Renewal stopped"
+                          : membershipDetails.status === "payment_issue"
+                            ? "Payment issue"
+                            : membershipDetails.isLive
+                              ? "Active"
+                              : membershipDetails.status}
                     </span>
                   )}
                 </div>
-              </div>
 
-              <div className="rounded-2xl border border-violet-200/18 bg-[#120b2e]/75 p-5">
-                <p className="text-xs uppercase tracking-[0.18em] text-white/42">
-                  Referral Code
+                {isLoadingMembership ? (
+                  <p className="mt-5 text-sm text-white/48">
+                    Loading membership details...
+                  </p>
+                ) : !membershipDetails ? (
+                  <div className="mt-5 rounded-2xl border border-white/9 bg-black/16 p-5">
+                    <p className="text-sm font-bold text-white">
+                      No paid Dreamscape membership is linked to this account.
+                    </p>
+
+                    <p className="mt-2 text-sm leading-6 text-white/46">
+                      Basic Dreamscape access remains available. View the current Core and Full plans when you are ready to upgrade.
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowSettings(false);
+                        router.push("/pricing");
+                      }}
+                      className="mt-4 min-h-[48px] w-full rounded-full border border-violet-200/24 bg-violet-300/14 px-5 text-xs font-extrabold uppercase tracking-[0.13em] text-white transition hover:bg-violet-300/22"
+                    >
+                      View Membership Plans
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="rounded-2xl border border-white/9 bg-black/16 p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/36">
+                          Plan
+                        </p>
+                        <p className="mt-2 text-sm font-extrabold text-white/84">
+                          {membershipDetails.planName}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-white/9 bg-black/16 p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/36">
+                          Price
+                        </p>
+                        <p className="mt-2 text-sm font-extrabold text-white/84">
+                          {new Intl.NumberFormat("en-SG", {
+                            style: "currency",
+                            currency: membershipDetails.currency || "SGD",
+                          }).format(membershipDetails.amount)}
+                          {" / "}
+                          {membershipDetails.billingCycle === "annual"
+                            ? "year"
+                            : "month"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-white/9 bg-black/16 p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/36">
+                          {membershipDetails.isPaused
+                            ? "Paused since"
+                            : membershipDetails.cancelAtPeriodEnd
+                              ? "Access through"
+                              : "Next billing"}
+                        </p>
+                        <p className="mt-2 text-sm font-extrabold text-white/84">
+                          {formatMembershipDate(
+                            membershipDetails.isPaused
+                              ? membershipDetails.pausedAt
+                              : membershipDetails.cancelAtPeriodEnd
+                                ? membershipDetails.currentPeriodEnd
+                                : membershipDetails.nextBillingAt ||
+                                  membershipDetails.currentPeriodEnd,
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-white/9 bg-black/16 p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/36">
+                          Billing
+                        </p>
+                        <p className="mt-2 text-sm font-extrabold text-white/84">
+                          {membershipDetails.provider === "stripe"
+                            ? "Stripe"
+                            : membershipDetails.provider === "gkp_billing"
+                              ? "Guru Kids Pro"
+                              : "Legacy billing"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {membershipDetails.pendingPlan && (
+                      <div className="mt-4 rounded-2xl border border-cyan-200/18 bg-cyan-300/[0.07] p-4">
+                        <p className="text-xs font-bold uppercase tracking-[0.13em] text-cyan-100/58">
+                          Scheduled Plan Change
+                        </p>
+
+                        <p className="mt-2 text-sm font-extrabold text-white">
+                          {membershipDetails.planName}
+                          {" → "}
+                          {membershipDetails.pendingPlan.name}
+                        </p>
+
+                        <p className="mt-1 text-xs leading-5 text-white/46">
+                          Effective from{" "}
+                          {formatMembershipDate(
+                            membershipDetails.pendingPlan.effectiveAt ||
+                              membershipDetails.currentPeriodEnd,
+                          )}
+                          .
+                        </p>
+
+                        <button
+                          type="button"
+                          disabled={isWorkingMembership}
+                          onClick={() =>
+                            void runMembershipAction("cancel_plan_change")
+                          }
+                          className="mt-4 min-h-[44px] rounded-full border border-red-200/20 bg-red-300/[0.08] px-4 text-[10px] font-extrabold uppercase tracking-[0.11em] text-red-100 transition hover:bg-red-300/[0.14] disabled:opacity-45"
+                        >
+                          Cancel Pending Change
+                        </button>
+                      </div>
+                    )}
+
+                    {membershipDetails.provider === "stripe" ? (
+                      <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                        <div className="rounded-2xl border border-white/9 bg-black/14 p-4">
+                          <p className="text-xs font-bold uppercase tracking-[0.13em] text-white/40">
+                            Plan & Payment
+                          </p>
+
+                          {membershipDetails.canChangePlan &&
+                            membershipPlanOptions.length > 0 && (
+                              <div className="mt-4">
+                                <label className="block text-[10px] font-bold uppercase tracking-[0.12em] text-white/36">
+                                  Change plan next cycle
+                                </label>
+
+                                <select
+                                  value={membershipTargetPlanId}
+                                  onChange={(event) =>
+                                    setMembershipTargetPlanId(event.target.value)
+                                  }
+                                  className="mt-2 min-h-[48px] w-full rounded-2xl border border-white/12 bg-[#071022] px-4 text-sm font-bold text-white outline-none"
+                                >
+                                  <option value="">
+                                    Choose a new plan
+                                  </option>
+
+                                  {membershipPlanOptions.map((plan) => (
+                                    <option key={plan.id} value={plan.id}>
+                                      {plan.name} ·{" "}
+                                      {new Intl.NumberFormat("en-SG", {
+                                        style: "currency",
+                                        currency: plan.currency || "SGD",
+                                      }).format(plan.amount)}
+                                      {" / "}
+                                      {plan.billingCycle === "annual"
+                                        ? "year"
+                                        : "month"}
+                                    </option>
+                                  ))}
+                                </select>
+
+                                <button
+                                  type="button"
+                                  disabled={
+                                    isWorkingMembership ||
+                                    !membershipTargetPlanId
+                                  }
+                                  onClick={() =>
+                                    void runMembershipAction("change_plan")
+                                  }
+                                  className="mt-3 min-h-[46px] w-full rounded-full border border-cyan-200/22 bg-cyan-300/12 px-4 text-[10px] font-extrabold uppercase tracking-[0.11em] text-white transition hover:bg-cyan-300/20 disabled:opacity-45"
+                                >
+                                  Schedule Plan Change
+                                </button>
+                              </div>
+                            )}
+
+                          {membershipDetails.canUpdatePaymentMethod && (
+                            <button
+                              type="button"
+                              disabled={isWorkingMembership}
+                              onClick={() =>
+                                void runMembershipAction("payment_method")
+                              }
+                              className="mt-4 min-h-[46px] w-full rounded-full border border-violet-200/22 bg-violet-300/12 px-4 text-[10px] font-extrabold uppercase tracking-[0.11em] text-white transition hover:bg-violet-300/20 disabled:opacity-45"
+                            >
+                              Update Payment Method
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="rounded-2xl border border-white/9 bg-black/14 p-4">
+                          <p className="text-xs font-bold uppercase tracking-[0.13em] text-white/40">
+                            Membership Status
+                          </p>
+
+                          {membershipDetails.canPause && (
+                            <>
+                              <button
+                                type="button"
+                                disabled={isWorkingMembership}
+                                onClick={() =>
+                                  void runMembershipAction("pause_membership")
+                                }
+                                className="mt-4 min-h-[46px] w-full rounded-full border border-amber-200/20 bg-amber-300/[0.08] px-4 text-[10px] font-extrabold uppercase tracking-[0.11em] text-amber-50 transition hover:bg-amber-300/[0.14] disabled:opacity-45"
+                              >
+                                Pause Membership
+                              </button>
+
+                              <p className="mt-2 text-xs leading-5 text-white/38">
+                                Pausing stops learning access and Stripe invoice generation immediately. Your account, progress, DT and DG remain.
+                              </p>
+                            </>
+                          )}
+
+                          {membershipDetails.canResume && (
+                            <>
+                              <button
+                                type="button"
+                                disabled={isWorkingMembership}
+                                onClick={() =>
+                                  void runMembershipAction("resume_membership")
+                                }
+                                className="mt-4 min-h-[46px] w-full rounded-full border border-green-200/22 bg-green-300/[0.10] px-4 text-[10px] font-extrabold uppercase tracking-[0.11em] text-green-50 transition hover:bg-green-300/[0.16] disabled:opacity-45"
+                              >
+                                Resume Membership
+                              </button>
+
+                              <p className="mt-2 text-xs leading-5 text-white/38">
+                                Stripe may collect a resumption payment before paid learning access is restored.
+                              </p>
+                            </>
+                          )}
+
+                          {membershipDetails.canCancelAtPeriodEnd && (
+                            <button
+                              type="button"
+                              disabled={isWorkingMembership}
+                              onClick={() =>
+                                void runMembershipAction("cancel_period_end")
+                              }
+                              className="mt-4 min-h-[46px] w-full rounded-full border border-red-200/20 bg-red-300/[0.07] px-4 text-[10px] font-extrabold uppercase tracking-[0.11em] text-red-100 transition hover:bg-red-300/[0.13] disabled:opacity-45"
+                            >
+                              Stop Future Renewal
+                            </button>
+                          )}
+
+                          {membershipDetails.canKeepSubscription && (
+                            <button
+                              type="button"
+                              disabled={isWorkingMembership}
+                              onClick={() =>
+                                void runMembershipAction("keep_subscription")
+                              }
+                              className="mt-4 min-h-[46px] w-full rounded-full border border-green-200/22 bg-green-300/[0.10] px-4 text-[10px] font-extrabold uppercase tracking-[0.11em] text-green-50 transition hover:bg-green-300/[0.16] disabled:opacity-45"
+                            >
+                              Keep Membership
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-5 rounded-2xl border border-amber-200/15 bg-amber-300/[0.06] p-4">
+                        <p className="text-sm font-bold text-amber-100">
+                          {membershipDetails.provider === "gkp_billing"
+                            ? "This membership is managed through Guru Kids Pro billing."
+                            : "This is a legacy non-Stripe Dreamscape membership."}
+                        </p>
+
+                        <p className="mt-2 text-xs leading-5 text-white/42">
+                          Use Support for billing changes. Your existing membership remains visible here and is not removed by the Stripe migration.
+                        </p>
+                      </div>
+                    )}
+
+                    {membershipMessage && (
+                      <p className="mt-4 rounded-2xl border border-green-200/18 bg-green-300/[0.08] px-4 py-3 text-sm text-green-100">
+                        {membershipMessage}
+                      </p>
+                    )}
+
+                    {membershipError && (
+                      <p className="mt-4 rounded-2xl border border-red-200/18 bg-red-300/[0.08] px-4 py-3 text-sm text-red-100">
+                        {membershipError}
+                      </p>
+                    )}
+
+                    <div className="mt-6 border-t border-white/8 pt-5">
+                      <div className="flex items-end justify-between gap-4">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-[0.13em] text-white/40">
+                            Billing History
+                          </p>
+                          <p className="mt-1 text-xs text-white/34">
+                            Latest recorded Dreamscape subscription payments
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={isWorkingMembership}
+                          onClick={() => void loadMembershipControls()}
+                          className="rounded-full border border-white/12 bg-white/[0.04] px-3 py-2 text-[9px] font-extrabold uppercase tracking-[0.1em] text-white/62 transition hover:bg-white/[0.08] disabled:opacity-45"
+                        >
+                          Refresh
+                        </button>
+                      </div>
+
+                      {membershipPayments.length === 0 ? (
+                        <p className="mt-4 text-sm text-white/40">
+                          No payment history is recorded yet.
+                        </p>
+                      ) : (
+                        <div className="mt-4 space-y-2">
+                          {membershipPayments.slice(0, 6).map((payment) => (
+                            <div
+                              key={payment.id}
+                              className="flex flex-col gap-2 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                              <div>
+                                <p className="text-sm font-bold text-white/78">
+                                  {new Intl.NumberFormat("en-SG", {
+                                    style: "currency",
+                                    currency: payment.currency || "SGD",
+                                  }).format(Number(payment.amount || 0))}
+                                </p>
+
+                                <p className="mt-1 text-xs text-white/36">
+                                  {formatMembershipDate(
+                                    payment.paid_at || payment.created_at,
+                                  )}
+                                </p>
+                              </div>
+
+                              <span
+                                className={`text-xs font-extrabold uppercase tracking-[0.1em] ${
+                                  payment.status === "succeeded"
+                                    ? "text-green-200"
+                                    : payment.status === "refunded"
+                                      ? "text-amber-100"
+                                      : "text-white/46"
+                                }`}
+                              >
+                                {payment.status}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </section>
+
+              {/* Account controls */}
+              <section className="rounded-[26px] border border-white/12 bg-white/[0.025] p-5 sm:p-6">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/42">
+                  Account
                 </p>
 
-                <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <button
-                    type="button"
-                    onClick={copyReferralCode}
-                    disabled={!referralCode}
-                    aria-label="Copy referral code only"
-                    title="Copy referral code only"
-                    className="break-all rounded-2xl border border-transparent px-2 py-1 text-left text-2xl font-extrabold tracking-[0.16em] text-white transition hover:border-violet-200/20 hover:bg-violet-300/[0.08] disabled:cursor-default"
-                  >
-                    {referralCode ||
-                      "Loading..."}
-                  </button>
+                <h3 className="mt-3 text-2xl font-bold text-white">
+                  Session & account controls
+                </h3>
 
-                  <button
-                    type="button"
-                    onClick={
-                      shareOrCopyReferralLink
-                    }
-                    disabled={!referralCode}
-                    className="rounded-full border border-violet-200/25 bg-violet-400/18 px-5 py-2 text-xs font-bold uppercase tracking-[0.12em] text-white transition hover:scale-[1.03] disabled:opacity-50"
-                  >
-                    {copiedReferralLink
-                      ? "Link Copied"
-                      : isShareDevice
-                        ? "Share Link"
-                        : "Copy Link"}
-                  </button>
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="mt-5 min-h-[50px] w-full rounded-full border border-white/16 bg-white/[0.07] px-5 text-xs font-extrabold uppercase tracking-[0.14em] text-white transition hover:bg-white/[0.11]"
+                >
+                  Log Out
+                </button>
+
+                <div className="mt-5 border-t border-white/8 pt-5">
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-red-200/60">
+                    Account management
+                  </p>
+
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      disabled
+                      className="min-h-[48px] w-full cursor-not-allowed rounded-full border border-red-200/14 bg-red-300/[0.05] px-4 text-[10px] font-extrabold uppercase tracking-[0.11em] text-red-100/44"
+                    >
+                      Delete Account · Phase 3
+                    </button>
+                  </div>
                 </div>
-
-                <p className="mt-2 text-xs font-bold uppercase tracking-[0.12em] text-violet-100/58">
-                  {copiedReferralCode
-                    ? "Referral code copied"
-                    : "Tap the code to copy the code only"}
-                </p>
-
-                <p className="mt-3 text-sm leading-6 text-white/54">
-                  Share your signup link with a
-                  friend. On phones and iPads, Share
-                  Link opens the device share sheet
-                  for available messaging apps. When
-                  they successfully join using your
-                  code, both of you receive 10 Dream
-                  Tokens. You can also earn additional
-                  bonuses by reaching the referral
-                  objectives.
-                </p>
-              </div>
+              </section>
             </div>
 
-            {hasTeachingDashboardAccess && (
+            <div className="border-t border-white/10 bg-white/[0.02] px-5 py-4 sm:px-7">
               <button
                 type="button"
-                onClick={() =>
-                  router.push(
-                    "/teacher-dashboard",
-                  )
-                }
-                className="mt-6 w-full rounded-2xl border border-cyan-200/25 bg-cyan-400/16 px-5 py-4 text-sm font-extrabold uppercase tracking-[0.14em] text-white transition hover:scale-[1.01] hover:bg-cyan-400/24 sm:hidden"
+                onClick={() => setShowSettings(false)}
+                className="min-h-[48px] w-full rounded-full bg-white px-5 text-xs font-extrabold uppercase tracking-[0.14em] text-[#071022] transition hover:scale-[1.005]"
               >
-                Teaching Dashboard
+                Done
               </button>
-            )}
-
-            {hasCurriculumDeveloperAccess && (
-              <button
-                type="button"
-                onClick={() =>
-                  router.push(
-                    "/curriculum-developer",
-                  )
-                }
-                className={`${
-                  hasTeachingDashboardAccess
-                    ? "mt-3"
-                    : "mt-6"
-                } w-full rounded-2xl border border-emerald-200/25 bg-emerald-400/16 px-5 py-4 text-sm font-extrabold uppercase tracking-[0.14em] text-white transition hover:scale-[1.01] hover:bg-emerald-400/24 sm:hidden`}
-              >
-                Quiz Builder
-              </button>
-            )}
-
-            {hasOrganisationPortalAccess && (
-              <button
-                type="button"
-                onClick={() => router.push("/organisation/manage")}
-                className={`${
-                  hasTeachingDashboardAccess ||
-                  hasCurriculumDeveloperAccess ||
-                  hasOrganisationPortalAccess
-                    ? "mt-3"
-                    : "mt-6"
-                } w-full rounded-2xl border border-amber-200/25 bg-amber-300/16 px-5 py-4 text-sm font-extrabold uppercase tracking-[0.14em] text-white transition hover:scale-[1.01] hover:bg-amber-300/24 sm:hidden`}
-              >
-                Organisation Portal
-              </button>
-            )}
-
-            {isAdmin && (
-              <button
-                type="button"
-                onClick={() =>
-                  router.push(
-                    "/admin/dream-tokens",
-                  )
-                }
-                className={`${
-                  hasTeachingDashboardAccess ||
-                  hasCurriculumDeveloperAccess
-                    ? "mt-3"
-                    : "mt-6"
-                } w-full rounded-2xl border border-violet-200/25 bg-violet-500/24 px-5 py-4 text-sm font-extrabold uppercase tracking-[0.14em] text-white transition hover:scale-[1.01] hover:bg-violet-500/34 sm:hidden`}
-              >
-                Admin Panel
-              </button>
-            )}
+            </div>
           </div>
+        </div>
+      )}
 
-          <div className="grid gap-6">
+      {/* Support modal */}
+      {showSupport && (
+        <div className="fixed inset-0 z-[125] flex items-start justify-center overflow-y-auto bg-[#020813]/84 px-4 py-8 backdrop-blur-md sm:py-12">
+          <div className="relative w-full max-w-2xl overflow-hidden rounded-[30px] border border-violet-200/22 bg-[#071022] shadow-[0_30px_90px_rgba(0,0,0,0.58)]">
             <button
               type="button"
-              onClick={() =>
-                setShowTokenHistory(true)
-              }
-              className="group rounded-[32px] border border-yellow-300/28 bg-[linear-gradient(180deg,rgba(112,57,18,0.42),rgba(4,20,48,0.82))] p-7 text-left shadow-[0_0_42px_rgba(250,204,21,0.08),0_24px_70px_rgba(0,0,0,0.26)] backdrop-blur-xl transition hover:scale-[1.01] hover:border-yellow-200/44 hover:shadow-[0_0_52px_rgba(250,204,21,0.14)] sm:p-8"
+              onClick={() => setShowSupport(false)}
+              className="absolute right-5 top-5 z-20 rounded-full border border-white/14 bg-white/[0.07] px-3 py-1.5 text-white transition hover:bg-white/[0.12]"
             >
-              <div className="flex items-start justify-between gap-5">
-                <div>
-                  <p className="m-0 text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
-                    Dream Token Wallet
-                  </p>
-
-                  <h2 className="mt-4 text-3xl font-bold tracking-[-0.04em] text-white sm:text-4xl">
-                    Platform currency
-                  </h2>
-
-                  <p className="mt-4 max-w-md text-sm leading-6 text-white/62">
-                    Use DT for digital activities,
-                    upgrades, and virtual assets inside
-                    Dreamscape. DT cannot be redeemed
-                    for cash or physical products.
-                  </p>
-                </div>
-
-                <img
-                  src="/dreamscape/dream-token.png"
-                  alt="Dream Token"
-                  className="h-16 w-16 shrink-0 object-contain drop-shadow-[0_0_22px_rgba(250,204,21,0.28)]"
-                />
-              </div>
-
-              <div className="mt-9 rounded-3xl border border-yellow-200/16 bg-black/24 p-5">
-                <div className="flex items-end justify-between gap-5">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.18em] text-white/42">
-                      Current Balance
-                    </p>
-
-                    {isLoadingTokens ? (
-                      <p className="mt-2 text-lg text-white/52">
-                        Loading...
-                      </p>
-                    ) : (
-                      <div className="mt-2 flex items-end gap-3">
-                        <span className="text-5xl font-extrabold leading-none text-white">
-                          {dreamTokenBalance.toLocaleString()}
-                        </span>
-
-                        <span className="pb-2 text-sm font-bold tracking-[0.16em] text-[#ffd18a]">
-                          DT
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <span className="rounded-full border border-yellow-200/20 bg-yellow-200/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-[#ffd18a]">
-                    Open Wallet
-                  </span>
-                </div>
-
-                <div className="mt-5 border-t border-yellow-100/12 pt-5">
-                  <div className="flex items-end justify-between gap-4">
-                    <p className="text-xs uppercase tracking-[0.18em] text-white/42">
-                      Total Net Worth
-                    </p>
-
-                    {isLoadingTokens ||
-                    isLoadingPortfolio ? (
-                      <p className="text-sm text-white/48">
-                        Loading...
-                      </p>
-                    ) : (
-                      <p className="text-2xl font-extrabold text-white">
-                        {totalNetWorth.toLocaleString()}{" "}
-                        <span className="text-xs tracking-[0.12em] text-[#ffd18a]">
-                          DT
-                        </span>
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
-                    {[
-                      [
-                        "Cash",
-                        dreamTokenBalance,
-                      ],
-                      [
-                        "Property",
-                        propertyPortfolioValue,
-                      ],
-                      [
-                        "Stocks",
-                        stockPortfolioValue,
-                      ],
-                    ].map(([label, value]) => (
-                      <div
-                        key={String(label)}
-                        className="min-w-0 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-3 py-3"
-                      >
-                        <p className="truncate text-[10px] font-bold uppercase tracking-[0.12em] text-white/38">
-                          {label}
-                        </p>
-
-                        <p className="mt-2 truncate text-sm font-extrabold text-white sm:text-base">
-                          {isLoadingTokens ||
-                          isLoadingPortfolio
-                            ? "—"
-                            : Number(
-                                value,
-                              ).toLocaleString()}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              ✕
             </button>
 
-            <button
-              type="button"
-              onClick={() =>
-                setShowGemHistory(true)
-              }
-              className="group rounded-[32px] border border-fuchsia-200/30 bg-[linear-gradient(180deg,rgba(76,24,112,0.48),rgba(4,20,48,0.86))] p-7 text-left shadow-[0_0_46px_rgba(217,70,239,0.11),0_24px_70px_rgba(0,0,0,0.28)] backdrop-blur-xl transition hover:scale-[1.01] hover:border-fuchsia-200/48 hover:shadow-[0_0_58px_rgba(217,70,239,0.17)] sm:p-8"
-            >
-              <div className="flex items-start justify-between gap-5">
-                <div>
-                  <p className="m-0 text-xs font-bold uppercase tracking-[0.2em] text-[#e7b7ff]">
-                    Dream Gem Wallet
-                  </p>
+            <div className="p-6 sm:p-8">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#e7b7ff]">
+                Dreamscape Support
+              </p>
 
-                  <h2 className="mt-4 text-3xl font-bold tracking-[-0.04em] text-white sm:text-4xl">
-                    Premium learning rewards
-                  </h2>
+              <h2 className="mt-4 text-4xl font-bold tracking-[-0.04em] text-white">
+                How can we help?
+              </h2>
 
-                  <p className="mt-4 max-w-md text-sm leading-6 text-white/62">
-                    Earn DG through eligible class
-                    attendance and selected Core, Science and
-                    Think Learning Missions. Redeem
-                    them for selected Dreamscape
-                    rewards.
-                  </p>
-                </div>
+              <p className="mt-4 max-w-xl text-sm leading-6 text-white/54">
+                Contact the Dreamscape team for login, account, membership, billing, Learning Missions, Dream Token, Dream Gem, or technical issues.
+              </p>
 
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-fuchsia-200/25 bg-fuchsia-300/10 text-[#e7b7ff] shadow-[0_0_24px_rgba(217,70,239,0.17)]">
-                  <GemIcon className="h-11 w-11" />
-                </div>
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                {[
+                  "Login or account",
+                  "Membership & billing",
+                  "Learning Missions",
+                  "Dream Tokens / Dream Gems",
+                  "Technical problem",
+                  "Something else",
+                ].map((item) => (
+                  <div
+                    key={item}
+                    className="rounded-2xl border border-white/9 bg-white/[0.035] px-4 py-3 text-sm font-semibold text-white/70"
+                  >
+                    {item}
+                  </div>
+                ))}
               </div>
 
-              <div className="mt-9 rounded-3xl border border-fuchsia-200/16 bg-black/24 p-5">
-                <div className="flex items-end justify-between gap-5">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.18em] text-white/42">
-                      Current Balance
-                    </p>
-
-                    {isLoadingGems ? (
-                      <p className="mt-2 text-lg text-white/52">
-                        Loading...
-                      </p>
-                    ) : (
-                      <div className="mt-2 flex items-end gap-3">
-                        <span className="text-5xl font-extrabold leading-none text-white">
-                          {dreamGemBalance.toLocaleString()}
-                        </span>
-
-                        <span className="pb-2 text-sm font-bold tracking-[0.16em] text-[#e7b7ff]">
-                          DG
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <span className="rounded-full border border-fuchsia-200/22 bg-fuchsia-200/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-[#e7b7ff]">
-                    {hasStudentRewardsAccess
-                      ? "Rewards Active"
-                      : "Explore Rewards"}
-                  </span>
-                </div>
-
-                <div className="mt-5 border-t border-fuchsia-100/12 pt-5">
-                  <div className="flex items-center justify-between gap-4">
-                    <p className="text-xs uppercase tracking-[0.18em] text-white/42">
-                      Reward Access
-                    </p>
-
-                    <p
-                      className={`text-sm font-extrabold ${
-                        hasStudentRewardsAccess
-                          ? "text-green-200"
-                          : "text-[#e7b7ff]"
-                      }`}
-                    >
-                      {hasStudentRewardsAccess
-                        ? "Student rewards enabled"
-                        : "Student Access required to earn DG"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </button>
-
-            <section className="rounded-[32px] border border-cyan-200/18 bg-[linear-gradient(180deg,rgba(12,48,83,0.52),rgba(4,20,48,0.82))] p-7 shadow-[0_0_42px_rgba(126,232,255,0.08),0_24px_70px_rgba(0,0,0,0.24)] backdrop-blur-xl sm:p-8">
-              <div className="flex items-start justify-between gap-5">
-                <div>
-                  <p className="m-0 text-xs font-bold uppercase tracking-[0.2em] text-[#7ee8ff]">
-                    Tech Support
-                  </p>
-
-                  <h2 className="mt-4 text-3xl font-bold tracking-[-0.04em] text-white sm:text-4xl">
-                    Need help?
-                  </h2>
-
-                  <p className="mt-4 max-w-md text-sm leading-6 text-white/62">
-                    For technical difficulties, login
-                    issues, account problems, or
-                    general enquiries, contact the
-                    Dreamscape team directly.
-                  </p>
-                </div>
-
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-cyan-200/20 bg-cyan-300/10 text-3xl shadow-[0_0_22px_rgba(126,232,255,0.16)]">
-                  ✉
-                </div>
+              <div className="mt-6 rounded-2xl border border-violet-200/14 bg-violet-300/[0.05] p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.13em] text-white/38">
+                  Account
+                </p>
+                <p className="mt-2 break-all text-sm text-white/72">
+                  {email || "No active login"}
+                </p>
               </div>
 
               <button
                 type="button"
                 onClick={openSupportEmail}
-                className="mt-7 flex min-h-[56px] w-full items-center justify-center rounded-full border border-cyan-200/24 bg-cyan-300/14 px-5 text-sm font-extrabold uppercase tracking-[0.14em] text-white transition hover:scale-[1.01] hover:bg-cyan-300/22"
+                className="mt-6 flex min-h-[54px] w-full items-center justify-center rounded-full border border-violet-200/25 bg-violet-300/16 px-5 text-xs font-extrabold uppercase tracking-[0.14em] text-white transition hover:scale-[1.01] hover:bg-violet-300/24"
               >
                 Email Support
               </button>
 
-              <p className="mt-4 text-center text-sm text-white/46">
+              <p className="mt-4 text-center text-sm text-white/42">
                 admin@gurukidspro.com
               </p>
 
               {supportMessage && (
-                <p className="mt-3 text-center text-xs leading-5 text-cyan-100/62">
+                <p className="mt-3 text-center text-xs leading-5 text-violet-100/64">
                   {supportMessage}
                 </p>
               )}
-            </section>
+            </div>
           </div>
-        </section>
-      </div>
+        </div>
+      )}
 
+      {/* Dream Token history */}
       {showTokenHistory && (
-        <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-[#020813]/78 px-4 py-10 backdrop-blur-md">
+        <div className="fixed inset-0 z-[130] flex items-start justify-center overflow-y-auto bg-[#020813]/78 px-4 py-10 backdrop-blur-md">
           <div className="relative h-[74vh] w-full max-w-4xl overflow-hidden rounded-[30px] border border-yellow-300/30 bg-[#041124] shadow-[0_0_55px_rgba(250,204,21,0.12),0_30px_90px_rgba(0,0,0,0.55)]">
             <button
               type="button"
-              onClick={() =>
-                setShowTokenHistory(false)
-              }
+              onClick={() => setShowTokenHistory(false)}
               className="absolute right-5 top-5 z-20 rounded-full border border-white/14 bg-white/[0.08] px-3 py-1 text-white transition hover:bg-white/[0.14]"
             >
               ✕
@@ -1896,8 +2833,7 @@ Thank you.`;
                     </div>
 
                     <p className="mt-2 text-sm text-white/48">
-                      Digital currency for use inside
-                      Dreamscape only
+                      Digital currency for use inside Dreamscape only
                     </p>
                   </div>
                 </div>
@@ -1910,9 +2846,7 @@ Thank you.`;
                   </h3>
 
                   <p className="mt-1 text-sm text-white/48">
-                    Track DT earned and spent across
-                    Dreamscape’s digital activities,
-                    upgrades, and virtual assets.
+                    Track DT earned and spent across Dreamscape&apos;s digital activities, upgrades, and virtual assets.
                   </p>
                 </div>
 
@@ -1922,41 +2856,32 @@ Thank you.`;
                   </p>
                 ) : (
                   <div className="mt-5 space-y-3">
-                    {tokenTransactions.map(
-                      (transaction) => (
-                        <div
-                          key={transaction.id}
-                          className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 shadow-sm"
-                        >
-                          <div>
-                            <p className="font-medium text-white">
-                              {
-                                transaction.title
-                              }
-                            </p>
+                    {tokenTransactions.map((transaction) => (
+                      <div
+                        key={transaction.id}
+                        className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 shadow-sm"
+                      >
+                        <div>
+                          <p className="font-medium text-white">
+                            {transaction.title}
+                          </p>
 
-                            <p className="mt-1 text-sm text-white/42">
-                              {formatTransactionDate(
-                                transaction.created_at,
-                              )}
-                            </p>
-                          </div>
-
-                          <p
-                            className={`shrink-0 font-bold ${
-                              transaction.amount <
-                              0
-                                ? "text-red-300"
-                                : "text-green-300"
-                            }`}
-                          >
-                            {formatTokenTransactionAmount(
-                              transaction,
-                            )}
+                          <p className="mt-1 text-sm text-white/42">
+                            {formatTransactionDate(transaction.created_at)}
                           </p>
                         </div>
-                      ),
-                    )}
+
+                        <p
+                          className={`shrink-0 font-bold ${
+                            transaction.amount < 0
+                              ? "text-red-300"
+                              : "text-green-300"
+                          }`}
+                        >
+                          {formatTokenTransactionAmount(transaction)}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -1964,9 +2889,7 @@ Thank you.`;
               <div className="border-t border-white/10 bg-white/[0.03] px-6 py-4">
                 <button
                   type="button"
-                  onClick={() =>
-                    setShowTokenHistory(false)
-                  }
+                  onClick={() => setShowTokenHistory(false)}
                   className="w-full rounded-full bg-white px-5 py-3 text-sm font-bold uppercase tracking-[0.12em] text-[#061632] transition hover:scale-[1.01]"
                 >
                   Close Wallet
@@ -1977,14 +2900,13 @@ Thank you.`;
         </div>
       )}
 
+      {/* Dream Gem history */}
       {showGemHistory && (
-        <div className="fixed inset-0 z-[110] flex items-start justify-center overflow-y-auto bg-[#020813]/82 px-4 py-8 backdrop-blur-md sm:py-10">
+        <div className="fixed inset-0 z-[135] flex items-start justify-center overflow-y-auto bg-[#020813]/82 px-4 py-8 backdrop-blur-md sm:py-10">
           <div className="relative h-[82vh] w-full max-w-4xl overflow-hidden rounded-[30px] border border-fuchsia-200/32 bg-[#071022] shadow-[0_0_60px_rgba(217,70,239,0.14),0_30px_90px_rgba(0,0,0,0.58)]">
             <button
               type="button"
-              onClick={() =>
-                setShowGemHistory(false)
-              }
+              onClick={() => setShowGemHistory(false)}
               className="absolute right-5 top-5 z-20 rounded-full border border-white/14 bg-white/[0.08] px-3 py-1 text-white transition hover:bg-white/[0.14]"
             >
               ✕
@@ -2013,8 +2935,7 @@ Thank you.`;
                     </div>
 
                     <p className="mt-2 text-sm text-white/48">
-                      Premium achievement rewards ·
-                      Not exchangeable for cash
+                      Premium achievement rewards · Not exchangeable for cash
                     </p>
                   </div>
                 </div>
@@ -2027,45 +2948,30 @@ Thank you.`;
                   </h3>
 
                   <p className="mt-1 text-sm leading-6 text-white/48">
-                    Dream Gems are earned from
-                    eligible class attendance and
-                    selected Core and Think Learning
-                    Missions. They may be redeemed for
-                    selected physical or digital
-                    Dreamscape rewards, subject to
-                    availability.
+                    Dream Gems are earned from eligible class attendance and selected Core, Science and Think Learning Missions. They may be redeemed for selected physical or digital Dreamscape rewards, subject to availability.
                   </p>
                 </div>
 
                 {!hasStudentRewardsAccess && (
-                  <div className="mt-5 rounded-3xl border border-fuchsia-200/22 bg-[linear-gradient(145deg,rgba(92,38,130,0.42),rgba(19,22,58,0.72))] p-5 shadow-[0_0_30px_rgba(217,70,239,0.08)]">
+                  <div className="mt-5 rounded-3xl border border-fuchsia-200/22 bg-[linear-gradient(145deg,rgba(92,38,130,0.42),rgba(19,22,58,0.72))] p-5">
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#e7b7ff]">
                       Unlock Premium Rewards
                     </p>
 
                     <h4 className="mt-2 text-2xl font-bold tracking-[-0.03em] text-white">
-                      Get Student Access for Bigger
-                      Rewards
+                      Get Student Access for Bigger Rewards
                     </h4>
 
                     <p className="mt-3 text-sm leading-6 text-white/60">
-                      Student Access unlocks eligible
-                      Dream Gem earning opportunities
-                      across selected paid learning
-                      activities.
+                      Student Access unlocks eligible Dream Gem earning opportunities across selected paid learning activities.
                     </p>
 
                     <button
                       type="button"
-                      onClick={() =>
-                        router.push(
-                          "/nova/membership-portal",
-                        )
-                      }
-                      className="mt-5 w-full rounded-full border border-fuchsia-100/30 bg-fuchsia-300/18 px-5 py-3 text-xs font-extrabold uppercase tracking-[0.12em] text-white transition hover:scale-[1.01] hover:bg-fuchsia-300/24"
+                      onClick={() => router.push("/nova/membership-portal")}
+                      className="mt-5 w-full rounded-full border border-fuchsia-100/30 bg-fuchsia-300/18 px-5 py-3 text-xs font-extrabold uppercase tracking-[0.12em] text-white transition hover:bg-fuchsia-300/24"
                     >
-                      Get Student Access for Bigger
-                      Rewards
+                      Get Student Access
                     </button>
                   </div>
                 )}
@@ -2073,91 +2979,61 @@ Thank you.`;
                 {hasStudentRewardsAccess && (
                   <div className="mt-5 rounded-2xl border border-green-200/18 bg-green-400/[0.08] px-5 py-4">
                     <p className="text-sm font-bold text-green-200">
-                      Student reward access is active
-                      on this account.
-                    </p>
-
-                    <p className="mt-1 text-sm leading-6 text-white/48">
-                      Core, Science and Think reward rules will
-                      appear here after those mission
-                      pages are connected to the Dream
-                      Gem ledger.
+                      Student reward access is active on this account.
                     </p>
                   </div>
                 )}
 
                 {gemTransactions.length === 0 ? (
                   <p className="mt-6 rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-5 text-sm text-white/48">
-                    No Dream Gem activity yet. Your
-                    balance will remain at 0 until an
-                    eligible reward or adjustment is
-                    recorded.
+                    No Dream Gem activity yet. Your balance will remain at 0 until an eligible reward or adjustment is recorded.
                   </p>
                 ) : (
                   <div className="mt-5 space-y-3">
-                    {gemTransactions.map(
-                      (transaction) => {
-                        const isPositive =
-                          transaction.amount > 0;
+                    {gemTransactions.map((transaction) => {
+                      const isPositive = transaction.amount > 0;
 
-                        return (
-                          <div
-                            key={transaction.id}
-                            className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
-                          >
-                            <div className="min-w-0">
-                              <p className="font-medium text-white">
-                                {
-                                  transaction.title
-                                }
-                              </p>
+                      return (
+                        <div
+                          key={transaction.id}
+                          className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div className="min-w-0">
+                            <p className="font-medium text-white">
+                              {transaction.title}
+                            </p>
 
-                              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-white/42">
-                                <span>
-                                  {formatTransactionDate(
-                                    transaction.created_at,
-                                  )}
-                                </span>
-
-                                <span>
-                                  {formatGemSource(
-                                    transaction.source,
-                                  )}
-                                </span>
-
-                                <span>
-                                  Balance after:{" "}
-                                  {
-                                    transaction.balance_after
-                                  }{" "}
-                                  DG
-                                </span>
-                              </div>
-
-                              {transaction.description && (
-                                <p className="mt-2 text-sm leading-6 text-white/50">
-                                  {
-                                    transaction.description
-                                  }
-                                </p>
-                              )}
+                            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-white/42">
+                              <span>
+                                {formatTransactionDate(transaction.created_at)}
+                              </span>
+                              <span>
+                                {formatGemSource(transaction.source)}
+                              </span>
+                              <span>
+                                Balance after: {transaction.balance_after} DG
+                              </span>
                             </div>
 
-                            <p
-                              className={`shrink-0 text-lg font-extrabold ${
-                                isPositive
-                                  ? "text-green-300"
-                                  : "text-red-300"
-                              }`}
-                            >
-                              {formatGemTransactionAmount(
-                                transaction,
-                              )}
-                            </p>
+                            {transaction.description && (
+                              <p className="mt-2 text-sm leading-6 text-white/50">
+                                {transaction.description}
+                              </p>
+                            )}
                           </div>
-                        );
-                      },
-                    )}
+
+                          <p
+                            className={`shrink-0 text-lg font-extrabold ${
+                              isPositive
+                                ? "text-green-300"
+                                : "text-red-300"
+                            }`}
+                          >
+                            {formatGemTransactionAmount(transaction)}
+                          </p>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -2165,9 +3041,7 @@ Thank you.`;
               <div className="border-t border-fuchsia-100/12 bg-fuchsia-300/[0.03] px-6 py-4">
                 <button
                   type="button"
-                  onClick={() =>
-                    setShowGemHistory(false)
-                  }
+                  onClick={() => setShowGemHistory(false)}
                   className="w-full rounded-full bg-white px-5 py-3 text-sm font-bold uppercase tracking-[0.12em] text-[#111028] transition hover:scale-[1.01]"
                 >
                   Close Wallet

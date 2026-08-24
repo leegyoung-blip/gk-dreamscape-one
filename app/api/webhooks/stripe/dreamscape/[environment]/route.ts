@@ -881,7 +881,71 @@ export async function POST(
       });
       const period = subscriptionPeriod(subscription);
 
-      if (
+      if (subscription.status === "paused") {
+        const pausedAt =
+          new Date().toISOString();
+
+        const { error } =
+          await supabaseAdmin
+            .from(
+              "dreamscape_subscription_contracts",
+            )
+            .update({
+              status: "suspended",
+              provider_status: "paused",
+              paused_at: pausedAt,
+              cancel_at_period_end: false,
+              cancellation_mode: null,
+              grace_until: null,
+              current_period_start:
+                period.start?.toISOString() ||
+                null,
+              current_period_end:
+                period.end?.toISOString() ||
+                pausedAt,
+              next_billing_at: null,
+              updated_at: pausedAt,
+            })
+            .eq("id", contract.id);
+
+        if (error) throw error;
+
+        if (contract.learner_user_id) {
+          const {
+            error: accessError,
+          } = await supabaseAdmin
+            .from(
+              "nova_subscriptions",
+            )
+            .update({
+              status: "paused",
+              billing_status:
+                "paused",
+              access_until:
+                pausedAt,
+              current_period_end:
+                period.end?.toISOString() ||
+                pausedAt,
+              next_billing_at:
+                null,
+              grace_until: null,
+              updated_at:
+                pausedAt,
+            })
+            .eq(
+              "user_id",
+              contract.learner_user_id,
+            )
+            .eq(
+              "dreamscape_contract_id",
+              contract.id,
+            );
+
+          if (accessError) {
+            throw accessError;
+          }
+        }
+      } else if (
         subscription.cancel_at_period_end &&
         period.end &&
         period.end.getTime() > Date.now()
@@ -900,6 +964,7 @@ export async function POST(
             cancellation_requested_at:
               contract.cancellation_requested_at ||
               new Date().toISOString(),
+            paused_at: null,
             current_period_end: period.end.toISOString(),
             next_billing_at: null,
             updated_at: new Date().toISOString(),
@@ -911,21 +976,72 @@ export async function POST(
         ["active", "trialing"].includes(subscription.status) &&
         contract.first_paid_at
       ) {
+        const nowIso =
+          new Date().toISOString();
+
         const { error } = await supabaseAdmin
           .from("dreamscape_subscription_contracts")
           .update({
             status: "active",
             cancel_at_period_end: false,
             cancellation_mode: null,
+            cancellation_requested_at:
+              null,
+            paused_at: null,
             grace_until: null,
             current_period_start: period.start?.toISOString() || null,
             current_period_end: period.end?.toISOString() || null,
             next_billing_at: period.end?.toISOString() || null,
-            updated_at: new Date().toISOString(),
+            updated_at: nowIso,
           })
           .eq("id", contract.id);
 
         if (error) throw error;
+
+        if (
+          contract.learner_user_id &&
+          period.end
+        ) {
+          const {
+            error: accessError,
+          } = await supabaseAdmin
+            .from(
+              "nova_subscriptions",
+            )
+            .update({
+              status: "active",
+              billing_status:
+                "active",
+              access_started_at:
+                period.start?.toISOString() ||
+                nowIso,
+              access_until:
+                period.end.toISOString(),
+              current_period_start:
+                period.start?.toISOString() ||
+                nowIso,
+              current_period_end:
+                period.end.toISOString(),
+              next_billing_at:
+                period.end.toISOString(),
+              grace_until: null,
+              revoked_at: null,
+              revoke_reason: null,
+              updated_at: nowIso,
+            })
+            .eq(
+              "user_id",
+              contract.learner_user_id,
+            )
+            .eq(
+              "dreamscape_contract_id",
+              contract.id,
+            );
+
+          if (accessError) {
+            throw accessError;
+          }
+        }
       } else if (subscription.status === "incomplete_expired") {
         const { error } = await supabaseAdmin
           .from("dreamscape_subscription_contracts")

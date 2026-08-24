@@ -604,3 +604,307 @@ export async function releaseDreamscapeStripePlanSchedule(input: {
     scheduleId,
   };
 }
+
+
+/*
+ * -------------------------------------------------------------------
+ * Dreamscape membership pause / resume
+ * -------------------------------------------------------------------
+ *
+ * Stripe's true subscription pause suspends BOTH service delivery and
+ * invoice generation. It requires Flexible billing mode.
+ *
+ * These requests deliberately use Stripe's preview API only for the
+ * pause/migrate/resume operations, so the rest of Dreamscape's Stripe
+ * integration can continue using the existing SDK/account API version.
+ */
+
+const DREAMSCAPE_STRIPE_PAUSE_API_VERSION =
+  "2026-07-29.preview";
+
+async function dreamscapeStripePreviewRequest<T>(
+  environment: DreamscapeStripeEnvironment,
+  path: string,
+  options: {
+    method?: "GET" | "POST";
+    body?: URLSearchParams;
+  } = {},
+) {
+  const method =
+    options.method || "GET";
+
+  const response = await fetch(
+    `https://api.stripe.com/v1${path}`,
+    {
+      method,
+      headers: {
+        Authorization:
+          `Bearer ${getStripeSecretKey(environment)}`,
+        "Stripe-Version":
+          DREAMSCAPE_STRIPE_PAUSE_API_VERSION,
+        ...(options.body
+          ? {
+              "Content-Type":
+                "application/x-www-form-urlencoded",
+            }
+          : {}),
+      },
+      ...(options.body
+        ? {
+            body:
+              options.body.toString(),
+          }
+        : {}),
+      cache: "no-store",
+    },
+  );
+
+  const payload =
+    (await response.json()) as
+      | T
+      | {
+          error?: {
+            message?: string;
+          };
+        };
+
+  if (!response.ok) {
+    const message =
+      payload &&
+      typeof payload === "object" &&
+      "error" in payload
+        ? payload.error?.message
+        : null;
+
+    throw new Error(
+      message ||
+        "Stripe could not update the subscription.",
+    );
+  }
+
+  return payload as T;
+}
+
+function stripePreviewBillingMode(
+  subscription:
+    Record<string, any>,
+) {
+  const value =
+    subscription.billing_mode;
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (
+    value &&
+    typeof value === "object" &&
+    typeof value.type === "string"
+  ) {
+    return value.type;
+  }
+
+  return "";
+}
+
+export async function getDreamscapeStripePreviewSubscription(
+  environment: DreamscapeStripeEnvironment,
+  subscriptionId: string,
+) {
+  return dreamscapeStripePreviewRequest<
+    Record<string, any>
+  >(
+    environment,
+    `/subscriptions/${encodeURIComponent(
+      subscriptionId,
+    )}`,
+  );
+}
+
+export async function ensureDreamscapeStripeFlexibleBilling(
+  environment: DreamscapeStripeEnvironment,
+  subscriptionId: string,
+) {
+  let subscription =
+    await getDreamscapeStripePreviewSubscription(
+      environment,
+      subscriptionId,
+    );
+
+  if (
+    stripePreviewBillingMode(
+      subscription,
+    ) === "flexible"
+  ) {
+    return subscription;
+  }
+
+  const body =
+    new URLSearchParams();
+
+  body.set(
+    "billing_mode[type]",
+    "flexible",
+  );
+
+  subscription =
+    await dreamscapeStripePreviewRequest<
+      Record<string, any>
+    >(
+      environment,
+      `/subscriptions/${encodeURIComponent(
+        subscriptionId,
+      )}/migrate`,
+      {
+        method: "POST",
+        body,
+      },
+    );
+
+  return subscription;
+}
+
+export async function pauseDreamscapeStripeSubscription(input: {
+  environment: DreamscapeStripeEnvironment;
+  subscriptionId: string;
+}) {
+  const flexible =
+    await ensureDreamscapeStripeFlexibleBilling(
+      input.environment,
+      input.subscriptionId,
+    );
+
+  const status =
+    String(
+      flexible.status || "",
+    ).toLowerCase();
+
+  if (status === "paused") {
+    return flexible;
+  }
+
+  if (status !== "active") {
+    throw new Error(
+      `Only an active Stripe subscription can be paused. Current status: ${
+        status || "unknown"
+      }.`,
+    );
+  }
+
+  if (
+    String(
+      flexible.collection_method ||
+        "",
+    ) !== "charge_automatically"
+  ) {
+    throw new Error(
+      "This Stripe subscription cannot be paused because it does not use automatic collection.",
+    );
+  }
+
+  if (flexible.schedule) {
+    throw new Error(
+      "Cancel the pending plan change before pausing this membership.",
+    );
+  }
+
+  const body =
+    new URLSearchParams();
+
+  /*
+   * Credit unused fixed-price time from the moment of pause.
+   * Dreamscape has no metered subscription usage to bill here.
+   * The credit remains as a pending invoice item and Stripe applies
+   * it when the subscription is resumed.
+   */
+  body.set(
+    "bill_for[unused_time_from][type]",
+    "now",
+  );
+
+  body.set(
+    "bill_for[outstanding_usage_through][type]",
+    "none",
+  );
+
+  body.set(
+    "invoicing_behavior",
+    "pending_invoice_item",
+  );
+
+  return dreamscapeStripePreviewRequest<
+    Record<string, any>
+  >(
+    input.environment,
+    `/subscriptions/${encodeURIComponent(
+      input.subscriptionId,
+    )}/pause`,
+    {
+      method: "POST",
+      body,
+    },
+  );
+}
+
+export async function resumeDreamscapeStripeSubscription(input: {
+  environment: DreamscapeStripeEnvironment;
+  subscriptionId: string;
+}) {
+  const current =
+    await getDreamscapeStripePreviewSubscription(
+      input.environment,
+      input.subscriptionId,
+    );
+
+  const status =
+    String(
+      current.status || "",
+    ).toLowerCase();
+
+  if (status === "active") {
+    return current;
+  }
+
+  if (status !== "paused") {
+    throw new Error(
+      `Only a paused Stripe subscription can be resumed. Current status: ${
+        status || "unknown"
+      }.`,
+    );
+  }
+
+  const body =
+    new URLSearchParams();
+
+  /*
+   * Stripe's recommended resume behavior: only restore the
+   * subscription after the resumption payment succeeds.
+   */
+  body.set(
+    "payment_behavior",
+    "resume_on_payment_success",
+  );
+
+  body.set(
+    "billing_cycle_anchor",
+    "now",
+  );
+
+  body.set(
+    "proration_behavior",
+    "create_prorations",
+  );
+
+  return dreamscapeStripePreviewRequest<
+    Record<string, any>
+  >(
+    input.environment,
+    `/subscriptions/${encodeURIComponent(
+      input.subscriptionId,
+    )}/resume`,
+    {
+      method: "POST",
+      body,
+    },
+  );
+}

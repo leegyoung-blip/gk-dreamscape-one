@@ -43,7 +43,6 @@ type ProfileAssetBreakdown = {
 
 type MiloClubProfile = {
   role: string | null;
-  milos_club_member: boolean | null;
 };
 
 type ReferralMilestone = 1 | 5 | 15;
@@ -64,9 +63,9 @@ type Zone = {
   icon: string;
   title: string;
   description: string;
-  href?: string;
-  opensMembership?: boolean;
-  requiresClub?: boolean;
+  href: string;
+  adminOnly?: boolean;
+  statusLabel?: string;
 };
 
 type WalkthroughStep = {
@@ -94,23 +93,21 @@ const REFERRAL_OBJECTIVES: ReferralObjectiveDefinition[] = [
   },
 ];
 
-const WALKTHROUGH_STORAGE_KEY = "milo-world-walkthrough-completed-v1";
+const WALKTHROUGH_STORAGE_KEY = "milo-world-walkthrough-completed-v2";
 
 const ZONES: Zone[] = [
   {
     number: "1",
     icon: "▣",
     title: "Activity Lab",
-    description:
-      "Play challenges, quiz battles, and party games to earn Dreamscape Tokens.",
+    description: "Where you play, compete and earn your first Dream Tokens.",
     href: "/milo-world/activity-lab",
   },
   {
     number: "2",
     icon: "◈",
     title: "Milo’s Exchange",
-    description:
-      "Use Dreamscape Tokens to explore fictional stocks and property investing.",
+    description: "Where you put your Dream Tokens to work.",
     href: "/milo-world/exchange",
   },
   {
@@ -118,73 +115,67 @@ const ZONES: Zone[] = [
     icon: "★",
     title: "Milo’s Business Builder",
     description:
-      "Build, manage, and grow a Dreamscape business through strategic decisions.",
+      "Where ideas become businesses — and your decisions shape what happens next.",
     href: "/milo-world/club",
-    requiresClub: true,
+    adminOnly: true,
+    statusLabel: "Coming Soon",
   },
   {
     number: "4",
     icon: "◆",
     title: "Dream Shop",
-    description: "Use Dreamscape Tokens and discover collectibles and special items.",
+    description:
+      "Where you decide what your hard-earned Tokens are worth spending on.",
     href: "/milo-world/dream-shop",
-  },
-  {
-    number: "5",
-    icon: "✦",
-    title: "Membership",
-    description: "View your Milo’s World access options and membership benefits.",
-    opensMembership: true,
   },
 ];
 
 const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   {
     eyebrow: "Welcome",
-    title: "Let me show you around Milo’s World.",
+    title: "Want me to show you around?",
     text:
-      "This world is built around earning, using, and growing Dreamscape Tokens. I’ll explain each location so you know where to begin.",
+      "Hey! I’m Milo. I’ll show you how to earn Dream Tokens, put them to work, build something of your own and decide what’s worth spending on.",
   },
   {
-    eyebrow: "Stop 1 of 5",
-    title: "Start in the Activity Lab.",
+    eyebrow: "Your Money",
+    title: "Dream Tokens are your starting point.",
     text:
-      "Play challenges, quiz battles, and party games here. This is the easiest place for a new user to earn Dreamscape Tokens.",
+      "Earn DT through activities, then choose what to do with them. Spend them, invest them, or use them as you build your way through Milo’s World.",
+  },
+  {
+    eyebrow: "Stop 1 of 4",
+    title: "Need some Dream Tokens? Start here.",
+    text:
+      "The Activity Lab has challenges, quiz battles and party games where you can play, compete and earn your first Dream Tokens.",
     zoneNumber: "1",
   },
   {
-    eyebrow: "Stop 2 of 5",
-    title: "Learn investing in Milo’s Exchange.",
+    eyebrow: "Stop 2 of 4",
+    title: "Now put those Tokens to work.",
     text:
-      "Use the tokens you earn to explore fictional stocks and property. The exchange is designed to teach how value, risk, and returns work.",
+      "Milo’s Exchange lets you experiment with fictional stocks and property without risking real money — and see how value, risk and returns can change.",
     zoneNumber: "2",
   },
   {
-    eyebrow: "Stop 3 of 5",
-    title: "Build a business with Milo.",
+    eyebrow: "Stop 3 of 4 · Coming Soon",
+    title: "What if you built the business yourself?",
     text:
-      "Choose a business, manage costs and staff, make operating decisions, and grow its value inside Milo’s Business Builder.",
+      "Business Builder is coming soon. You’ll make decisions about costs, staff, operations and growth, then see what happens to the business you create.",
     zoneNumber: "3",
   },
   {
-    eyebrow: "Stop 4 of 5",
-    title: "Visit the Dream Shop.",
+    eyebrow: "Stop 4 of 4",
+    title: "Earning also means choosing how to spend.",
     text:
-      "Use the Dream Shop to discover Dreamscape items, token packs, collectibles, and future limited releases.",
+      "The Dream Shop is where you decide what your hard-earned Tokens are worth spending on, from collectibles to special Dreamscape items.",
     zoneNumber: "4",
   },
   {
-    eyebrow: "Stop 5 of 5",
-    title: "Check your Membership access.",
+    eyebrow: "Your Turn",
+    title: "Where do you want to start?",
     text:
-      "The Membership area explains which Milo’s World features are included in your current access level and what additional benefits are available.",
-    zoneNumber: "5",
-  },
-  {
-    eyebrow: "You’re ready",
-    title: "Begin with the Activity Lab.",
-    text:
-      "Earn a few Dreamscape Tokens first, then explore the Exchange, Business Builder, and Dream Shop. You can restart this walkthrough anytime using the Milo Guide button at the top.",
+      "That’s the idea: earn it, decide what to do with it, and see what happens next. Pick a place and let’s go.",
   },
 ];
 
@@ -264,6 +255,27 @@ function ResponsiveMiloStyles() {
       a {
         -webkit-tap-highlight-color: transparent;
       }
+
+      @keyframes miloTokenArrive {
+        0% { opacity: 0; transform: translateY(14px) scale(0.72) rotate(-12deg); }
+        65% { opacity: 1; transform: translateY(-4px) scale(1.08) rotate(3deg); }
+        100% { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
+      }
+
+      @keyframes miloAssetArrive {
+        0% { opacity: 0; transform: translateX(14px) scale(0.86); }
+        100% { opacity: 1; transform: translateX(0) scale(1); }
+      }
+
+      @keyframes miloFloat {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-5px); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .milo-guide-token,
+        .milo-guide-asset { animation: none !important; }
+      }
     `}</style>
   );
 }
@@ -271,20 +283,19 @@ function ResponsiveMiloStyles() {
 function ZoneCard({
   zone,
   screenMode,
-  hasClubAccess,
-  onOpenMembership,
+  isAdmin,
   walkthroughActive,
   walkthroughHighlighted,
 }: {
   zone: Zone;
   screenMode: ScreenMode;
-  hasClubAccess: boolean;
-  onOpenMembership: () => void;
+  isAdmin: boolean;
   walkthroughActive: boolean;
   walkthroughHighlighted: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   const isMobile = screenMode === "mobile";
+  const isUnavailable = Boolean(zone.adminOnly && !isAdmin);
   const isEmphasised = hovered || walkthroughHighlighted;
 
   const cardStyle: CSSProperties = {
@@ -301,10 +312,14 @@ function ZoneCard({
     borderRadius: "16px",
     border: isEmphasised
       ? "1px solid rgba(142, 232, 255, 0.88)"
-      : "1px solid rgba(132, 218, 255, 0.32)",
+      : isUnavailable
+        ? "1px solid rgba(255,190,105,0.3)"
+        : "1px solid rgba(132, 218, 255, 0.32)",
     background: isEmphasised
       ? "rgba(5, 18, 36, 0.94)"
-      : "rgba(5, 13, 28, 0.68)",
+      : isUnavailable
+        ? "rgba(30,20,18,0.72)"
+        : "rgba(5, 13, 28, 0.68)",
     color: "white",
     textDecoration: "none",
     textAlign: "left",
@@ -313,23 +328,32 @@ function ZoneCard({
     WebkitBackdropFilter: "blur(18px)",
     boxShadow: walkthroughHighlighted
       ? "0 0 0 3px rgba(83,215,255,0.18), 0 0 54px rgba(83,215,255,0.48), 0 28px 74px rgba(0,0,0,0.55)"
-      : hovered
+      : hovered && !isUnavailable
         ? "0 0 42px rgba(83,215,255,0.28), 0 26px 70px rgba(0,0,0,0.42)"
         : "0 14px 34px rgba(0,0,0,0.3)",
     opacity:
-      walkthroughActive && !walkthroughHighlighted ? 0.2 : isEmphasised ? 1 : 0.88,
+      walkthroughActive && !walkthroughHighlighted
+        ? 0.2
+        : isUnavailable
+          ? 0.76
+          : isEmphasised
+            ? 1
+            : 0.88,
     filter:
       walkthroughActive && !walkthroughHighlighted
         ? "saturate(0.35) brightness(0.5)"
-        : isEmphasised
-          ? "none"
-          : "saturate(0.86) brightness(0.94)",
+        : isUnavailable
+          ? "saturate(0.72) brightness(0.9)"
+          : isEmphasised
+            ? "none"
+            : "saturate(0.86) brightness(0.94)",
     transition:
       "transform 260ms ease, box-shadow 260ms ease, border-color 260ms ease, opacity 260ms ease, filter 260ms ease, background 260ms ease",
     zIndex: walkthroughHighlighted ? 4 : hovered ? 3 : 1,
-    cursor: walkthroughActive ? "default" : "pointer",
+    cursor: walkthroughActive || isUnavailable ? "default" : "pointer",
     pointerEvents: walkthroughActive ? "none" : "auto",
-    transform: isEmphasised ? "translateY(-4px) scale(1.012)" : "none",
+    transform:
+      isEmphasised && !isUnavailable ? "translateY(-4px) scale(1.012)" : "none",
   };
 
   const content = (
@@ -343,12 +367,16 @@ function ZoneCard({
           alignItems: "center",
           justifyContent: "center",
           fontSize: isMobile ? "20px" : "23px",
-          color: "#8ee8ff",
-          background:
-            "radial-gradient(circle, rgba(83,215,255,0.2), rgba(2,8,19,0.88))",
-          border: "1px solid rgba(83,215,255,0.45)",
-          boxShadow:
-            "0 0 22px rgba(83,215,255,0.22), inset 0 0 18px rgba(83,215,255,0.08)",
+          color: isUnavailable ? "#ffd18a" : "#8ee8ff",
+          background: isUnavailable
+            ? "radial-gradient(circle, rgba(255,189,115,0.18), rgba(24,14,12,0.9))"
+            : "radial-gradient(circle, rgba(83,215,255,0.2), rgba(2,8,19,0.88))",
+          border: isUnavailable
+            ? "1px solid rgba(255,189,115,0.4)"
+            : "1px solid rgba(83,215,255,0.45)",
+          boxShadow: isUnavailable
+            ? "0 0 20px rgba(255,189,115,0.12)"
+            : "0 0 22px rgba(83,215,255,0.22), inset 0 0 18px rgba(83,215,255,0.08)",
         }}
       >
         {zone.icon}
@@ -382,19 +410,47 @@ function ZoneCard({
           </span>
 
           <div style={{ minWidth: 0 }}>
-            <h3
+            <div
               style={{
-                margin: 0,
-                textTransform: "uppercase",
-                letterSpacing: "0.09em",
-                fontSize: isMobile ? "15px" : "17px",
-                lineHeight: 1.35,
-                fontWeight: 750,
-                color: "white",
+                display: "flex",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "8px",
               }}
             >
-              {zone.title}
-            </h3>
+              <h3
+                style={{
+                  margin: 0,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.09em",
+                  fontSize: isMobile ? "15px" : "17px",
+                  lineHeight: 1.35,
+                  fontWeight: 750,
+                  color: "white",
+                }}
+              >
+                {zone.title}
+              </h3>
+
+              {zone.statusLabel && (
+                <span
+                  style={{
+                    padding: "4px 8px",
+                    borderRadius: "999px",
+                    border: "1px solid rgba(255,189,115,0.35)",
+                    background: "rgba(255,189,115,0.1)",
+                    color: "#ffd18a",
+                    fontSize: "9px",
+                    fontWeight: 900,
+                    letterSpacing: "0.12em",
+                    textTransform: "uppercase",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {zone.statusLabel}
+                </span>
+              )}
+            </div>
 
             {!isMobile && (
               <p
@@ -416,10 +472,10 @@ function ZoneCard({
         aria-hidden="true"
         style={{
           fontSize: isMobile ? "22px" : "28px",
-          color: "rgba(255,255,255,0.78)",
+          color: isUnavailable ? "rgba(255,209,138,0.6)" : "rgba(255,255,255,0.78)",
         }}
       >
-        →
+        {isUnavailable ? "•" : "→"}
       </div>
     </>
   );
@@ -431,48 +487,50 @@ function ZoneCard({
     style: cardStyle,
   };
 
-  if (zone.requiresClub && !hasClubAccess) {
+  if (isUnavailable) {
     return (
-      <button type="button" onClick={onOpenMembership} {...commonProps}>
+      <div
+        {...commonProps}
+        aria-disabled="true"
+        title="Coming soon. Admin preview only."
+      >
         {content}
-      </button>
-    );
-  }
-
-  if (zone.href) {
-    return (
-      <Link href={zone.href} {...commonProps}>
-        {content}
-      </Link>
+      </div>
     );
   }
 
   return (
-    <button type="button" onClick={onOpenMembership} {...commonProps}>
+    <Link href={zone.href} {...commonProps}>
       {content}
-    </button>
+    </Link>
   );
 }
 
 function GuidedWalkthrough({
   open,
   stepIndex,
+  isAdmin,
   onStepChange,
   onClose,
+  onNavigate,
 }: {
   open: boolean;
   stepIndex: number;
+  isAdmin: boolean;
   onStepChange: (nextStep: number) => void;
   onClose: () => void;
+  onNavigate: (href: string) => void;
 }) {
   const screenMode = useResponsiveMode();
   const isMobile = screenMode === "mobile";
-  // Keep the full desktop walkthrough proportions on tablet and split-screen
-  // layouts. Only true mobile widths use the compact popup.
   const useFullWalkthroughLayout = !isMobile;
   const step = WALKTHROUGH_STEPS[stepIndex] ?? WALKTHROUGH_STEPS[0];
   const isFirstStep = stepIndex === 0;
   const isLastStep = stepIndex === WALKTHROUGH_STEPS.length - 1;
+  const isCurrencyStep = stepIndex === 1;
+  const isLocationStep = Boolean(step.zoneNumber);
+  const dockAtTop =
+    isMobile && Boolean(step.zoneNumber && ["3", "4"].includes(step.zoneNumber));
   const [typedLength, setTypedLength] = useState(0);
 
   useEffect(() => {
@@ -490,7 +548,7 @@ function GuidedWalkthrough({
         }
         return current + 1;
       });
-    }, 14);
+    }, 13);
 
     return () => window.clearInterval(interval);
   }, [open, step.text]);
@@ -508,6 +566,195 @@ function GuidedWalkthrough({
 
   if (!open) return null;
 
+  const primaryActionStyle: CSSProperties = {
+    minHeight: "42px",
+    padding: "0 18px",
+    borderRadius: "12px",
+    border: "1px solid rgba(83,215,255,0.42)",
+    background: "rgba(83,215,255,0.16)",
+    color: "white",
+    cursor: "pointer",
+    fontWeight: 850,
+    fontFamily: "inherit",
+  };
+
+  const secondaryActionStyle: CSSProperties = {
+    minHeight: "42px",
+    padding: "0 16px",
+    borderRadius: "12px",
+    border: "1px solid rgba(255,255,255,0.18)",
+    background: "rgba(255,255,255,0.06)",
+    color: "white",
+    cursor: "pointer",
+    fontWeight: 750,
+    fontFamily: "inherit",
+  };
+
+  function renderStepActions() {
+    if (stepIndex === 0) {
+      return (
+        <>
+          <button type="button" onClick={() => onStepChange(1)} style={primaryActionStyle}>
+            Sure!
+          </button>
+          <button type="button" onClick={onClose} style={secondaryActionStyle}>
+            Maybe later
+          </button>
+        </>
+      );
+    }
+
+    if (stepIndex === 2) {
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => onNavigate("/milo-world/activity-lab")}
+            style={primaryActionStyle}
+          >
+            Let’s play!
+          </button>
+          <button type="button" onClick={() => onStepChange(3)} style={secondaryActionStyle}>
+            Keep touring
+          </button>
+        </>
+      );
+    }
+
+    if (stepIndex === 3) {
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => onNavigate("/milo-world/exchange")}
+            style={primaryActionStyle}
+          >
+            Visit the Exchange
+          </button>
+          <button type="button" onClick={() => onStepChange(4)} style={secondaryActionStyle}>
+            Keep touring
+          </button>
+        </>
+      );
+    }
+
+    if (stepIndex === 4) {
+      return (
+        <>
+          {isAdmin ? (
+            <button
+              type="button"
+              onClick={() => onNavigate("/milo-world/club")}
+              style={primaryActionStyle}
+            >
+              Admin Preview
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled
+              style={{
+                ...secondaryActionStyle,
+                cursor: "not-allowed",
+                color: "rgba(255,255,255,0.48)",
+              }}
+            >
+              Coming Soon
+            </button>
+          )}
+          <button type="button" onClick={() => onStepChange(5)} style={secondaryActionStyle}>
+            Keep touring
+          </button>
+        </>
+      );
+    }
+
+    if (stepIndex === 5) {
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => onNavigate("/milo-world/dream-shop")}
+            style={primaryActionStyle}
+          >
+            Browse the Shop
+          </button>
+          <button type="button" onClick={() => onStepChange(6)} style={secondaryActionStyle}>
+            Keep touring
+          </button>
+        </>
+      );
+    }
+
+    if (isLastStep) {
+      const choiceStyle: CSSProperties = {
+        ...secondaryActionStyle,
+        minHeight: "48px",
+        width: isMobile ? "100%" : "auto",
+        flex: isMobile ? "1 1 100%" : "1 1 150px",
+        justifyContent: "center",
+      };
+
+      return (
+        <div
+          style={{
+            width: "100%",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "8px",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => onNavigate("/milo-world/activity-lab")}
+            style={choiceStyle}
+          >
+            Play & Earn
+          </button>
+          <button
+            type="button"
+            onClick={() => onNavigate("/milo-world/exchange")}
+            style={choiceStyle}
+          >
+            Invest
+          </button>
+          <button
+            type="button"
+            disabled={!isAdmin}
+            onClick={() => isAdmin && onNavigate("/milo-world/club")}
+            style={{
+              ...choiceStyle,
+              cursor: isAdmin ? "pointer" : "not-allowed",
+              color: isAdmin ? "white" : "rgba(255,255,255,0.44)",
+            }}
+          >
+            {isAdmin ? "Business Builder" : "Business · Coming Soon"}
+          </button>
+          <button
+            type="button"
+            onClick={() => onNavigate("/milo-world/dream-shop")}
+            style={choiceStyle}
+          >
+            Visit the Shop
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        {!isFirstStep && (
+          <button type="button" onClick={() => onStepChange(stepIndex - 1)} style={secondaryActionStyle}>
+            Back
+          </button>
+        )}
+        <button type="button" onClick={() => onStepChange(stepIndex + 1)} style={primaryActionStyle}>
+          Next
+        </button>
+      </>
+    );
+  }
+
   return (
     <>
       <div
@@ -516,7 +763,7 @@ function GuidedWalkthrough({
           position: "fixed",
           inset: 0,
           zIndex: 60,
-          background: "rgba(0, 3, 12, 0.76)",
+          background: "rgba(0, 3, 12, 0.74)",
           backdropFilter: "blur(3px)",
           WebkitBackdropFilter: "blur(3px)",
         }}
@@ -530,13 +777,12 @@ function GuidedWalkthrough({
           position: "fixed",
           left: isMobile ? "12px" : "36px",
           right: isMobile ? "12px" : "auto",
-          bottom: isMobile ? "12px" : "26px",
+          top: dockAtTop ? "12px" : "auto",
+          bottom: dockAtTop ? "auto" : isMobile ? "12px" : "26px",
           transform: "none",
           zIndex: 80,
-          width: isMobile
-            ? "auto"
-            : "min(520px, calc(100vw - 72px))",
-          maxHeight: isMobile ? "52dvh" : "none",
+          width: isMobile ? "auto" : "min(560px, calc(100vw - 72px))",
+          maxHeight: isMobile ? "48dvh" : "none",
           overflowY: isMobile ? "auto" : "visible",
           borderRadius: isMobile ? "20px" : "26px",
           border: "1px solid rgba(142,232,255,0.4)",
@@ -546,7 +792,7 @@ function GuidedWalkthrough({
             "0 32px 90px rgba(0,0,0,0.68), 0 0 40px rgba(83,215,255,0.12)",
           color: "white",
           padding: isMobile
-            ? "20px"
+            ? "18px"
             : useFullWalkthroughLayout
               ? "26px 28px 24px 190px"
               : "20px",
@@ -581,11 +827,11 @@ function GuidedWalkthrough({
             position: isMobile ? "relative" : "absolute",
             left: isMobile ? "auto" : "18px",
             bottom: isMobile ? "auto" : "-8px",
-            height: isMobile ? "108px" : "245px",
+            height: isMobile ? (isLocationStep ? "78px" : "92px") : "245px",
             width: "auto",
             objectFit: "contain",
             display: "block",
-            margin: isMobile ? "0 auto 10px" : 0,
+            margin: isMobile ? "0 auto 8px" : 0,
             filter: "drop-shadow(0 18px 36px rgba(0,0,0,0.52))",
             pointerEvents: "none",
           }}
@@ -608,7 +854,7 @@ function GuidedWalkthrough({
           style={{
             margin: "9px 42px 0 0",
             fontFamily: 'Georgia, "Times New Roman", serif',
-            fontSize: isMobile ? "26px" : "35px",
+            fontSize: isMobile ? "25px" : "35px",
             lineHeight: 1.08,
             fontWeight: 500,
           }}
@@ -619,10 +865,10 @@ function GuidedWalkthrough({
         <p
           style={{
             margin: "14px 0 0",
-            minHeight: isMobile ? "72px" : "78px",
+            minHeight: isMobile ? "58px" : "76px",
             color: "rgba(255,255,255,0.78)",
             fontSize: isMobile ? "14px" : "16px",
-            lineHeight: 1.58,
+            lineHeight: 1.56,
           }}
         >
           {step.text.slice(0, typedLength)}
@@ -641,75 +887,142 @@ function GuidedWalkthrough({
           )}
         </p>
 
+        {isCurrencyStep && (
+          <div
+            style={{
+              marginTop: "16px",
+              padding: isMobile ? "12px" : "14px",
+              display: "grid",
+              gridTemplateColumns: isMobile ? "1fr" : "150px minmax(0,1fr)",
+              gap: "12px",
+              alignItems: "center",
+              borderRadius: "18px",
+              border: "1px solid rgba(83,215,255,0.2)",
+              background: "rgba(255,255,255,0.04)",
+            }}
+          >
+            <div
+              className="milo-guide-token"
+              style={{
+                minHeight: "76px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "10px",
+                animation:
+                  "miloTokenArrive 560ms ease-out both, miloFloat 2.6s ease-in-out 650ms infinite",
+              }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  width: "58px",
+                  height: "58px",
+                  borderRadius: "999px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  border: "1px solid rgba(83,215,255,0.68)",
+                  background:
+                    "radial-gradient(circle at 35% 30%, rgba(189,246,255,0.72), rgba(83,215,255,0.2) 38%, rgba(3,15,31,0.94) 72%)",
+                  color: "#d9fbff",
+                  fontSize: "17px",
+                  fontWeight: 950,
+                  boxShadow:
+                    "0 0 28px rgba(83,215,255,0.36), inset 0 0 18px rgba(83,215,255,0.2)",
+                }}
+              >
+                DT
+              </span>
+              <span style={{ minWidth: 0 }}>
+                <strong style={{ display: "block", color: "white", fontSize: "13px" }}>
+                  Dream Tokens
+                </strong>
+                <small style={{ color: "rgba(255,255,255,0.56)", lineHeight: 1.35 }}>
+                  Earn · spend · invest
+                </small>
+              </span>
+            </div>
+
+            <div
+              className="milo-guide-asset"
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, minmax(0,1fr))",
+                gap: "7px",
+                animation: "miloAssetArrive 420ms ease-out 300ms both",
+              }}
+            >
+              {["Cash", "Stocks", "Property"].map((label, index) => (
+                <div
+                  key={label}
+                  style={{
+                    minHeight: "58px",
+                    padding: "8px 6px",
+                    borderRadius: "12px",
+                    border: "1px solid rgba(126,232,255,0.13)",
+                    background: "rgba(83,215,255,0.055)",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "5px",
+                    textAlign: "center",
+                  }}
+                >
+                  <span aria-hidden="true" style={{ color: "#8ee8ff", fontSize: "16px" }}>
+                    {index === 0 ? "✦" : index === 1 ? "↗" : "⌂"}
+                  </span>
+                  <strong style={{ fontSize: "10px", color: "rgba(255,255,255,0.82)" }}>
+                    {label}
+                  </strong>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div
           style={{
             marginTop: "18px",
             display: "flex",
-            alignItems: "center",
+            alignItems: isLastStep ? "stretch" : "center",
             justifyContent: "space-between",
             gap: "12px",
             flexWrap: "wrap",
           }}
         >
-          <div
-            aria-label={`Walkthrough step ${stepIndex + 1} of ${WALKTHROUGH_STEPS.length}`}
-            style={{ display: "flex", gap: "6px", alignItems: "center" }}
-          >
-            {WALKTHROUGH_STEPS.map((_, index) => (
-              <span
-                key={index}
-                style={{
-                  width: index === stepIndex ? "22px" : "7px",
-                  height: "7px",
-                  borderRadius: "999px",
-                  background:
-                    index === stepIndex
-                      ? "#8ee8ff"
-                      : "rgba(255,255,255,0.2)",
-                  transition: "width 180ms ease, background 180ms ease",
-                }}
-              />
-            ))}
-          </div>
-
-          <div style={{ display: "flex", gap: "9px" }}>
-            {!isFirstStep && (
-              <button
-                type="button"
-                onClick={() => onStepChange(stepIndex - 1)}
-                style={{
-                  minHeight: "42px",
-                  padding: "0 16px",
-                  borderRadius: "12px",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  background: "rgba(255,255,255,0.06)",
-                  color: "white",
-                  cursor: "pointer",
-                  fontWeight: 750,
-                }}
-              >
-                Back
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() =>
-                isLastStep ? onClose() : onStepChange(stepIndex + 1)
-              }
-              style={{
-                minHeight: "42px",
-                padding: "0 18px",
-                borderRadius: "12px",
-                border: "1px solid rgba(83,215,255,0.42)",
-                background: "rgba(83,215,255,0.16)",
-                color: "white",
-                cursor: "pointer",
-                fontWeight: 850,
-              }}
+          {!isLastStep && (
+            <div
+              aria-label={`Walkthrough step ${stepIndex + 1} of ${WALKTHROUGH_STEPS.length}`}
+              style={{ display: "flex", gap: "6px", alignItems: "center" }}
             >
-              {isLastStep ? "Start Exploring" : isFirstStep ? "Show Me" : "Next"}
-            </button>
+              {WALKTHROUGH_STEPS.map((_, index) => (
+                <span
+                  key={index}
+                  style={{
+                    width: index === stepIndex ? "22px" : "7px",
+                    height: "7px",
+                    borderRadius: "999px",
+                    background:
+                      index === stepIndex ? "#8ee8ff" : "rgba(255,255,255,0.2)",
+                    transition: "width 180ms ease, background 180ms ease",
+                  }}
+                />
+              ))}
+            </div>
+          )}
+
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              justifyContent: "flex-end",
+              gap: "9px",
+              width: isLastStep ? "100%" : "auto",
+            }}
+          >
+            {renderStepActions()}
           </div>
         </div>
       </div>
@@ -1615,6 +1928,7 @@ export default function MiloWorldPage() {
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
   const [walkthroughStep, setWalkthroughStep] = useState(0);
   const [membershipOpen, setMembershipOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [profileAssets, setProfileAssets] = useState<ProfileAssetBreakdown>({
     cash: 0,
     property: 0,
@@ -1626,8 +1940,7 @@ export default function MiloWorldPage() {
   const [profileAssetsOpen, setProfileAssetsOpen] = useState(false);
   const [profileAssetsLoading, setProfileAssetsLoading] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [hasClubAccess, setHasClubAccess] = useState(false);
-  const [clubAccessLoading, setClubAccessLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [referralCount, setReferralCount] = useState(0);
   const [claimedMilestones, setClaimedMilestones] = useState<
     ReferralMilestone[]
@@ -1654,18 +1967,16 @@ export default function MiloWorldPage() {
         setProfileAssetsOpen(false);
         setReferralCount(0);
         setClaimedMilestones([]);
-        setHasClubAccess(false);
-        setClubAccessLoading(false);
+        setIsAdmin(false);
         setObjectivesLoading(false);
         return;
       }
 
       setUserEmail(user.email ?? null);
-      setClubAccessLoading(true);
 
       const { data: clubProfile, error: clubProfileError } = await supabase
         .from("profiles")
-        .select("role,milos_club_member")
+        .select("role")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -1676,13 +1987,12 @@ export default function MiloWorldPage() {
           "Could not load Milo’s Club access:",
           clubProfileError?.message || "Profile not found",
         );
-        setHasClubAccess(false);
+        setIsAdmin(false);
       } else {
         const profile = clubProfile as MiloClubProfile;
-        const role = String(profile.role || "").toLowerCase();
-        setHasClubAccess(role === "admin" || Boolean(profile.milos_club_member));
+        const role = String(profile.role || "").trim().toLowerCase();
+        setIsAdmin(role === "admin");
       }
-      setClubAccessLoading(false);
 
       const { data: objectiveData, error: objectiveError } = await supabase.rpc(
         "get_referral_objective_status",
@@ -1909,42 +2219,59 @@ export default function MiloWorldPage() {
     const timeout = window.setTimeout(() => {
       document.getElementById(`milo-zone-${activeZoneNumber}`)?.scrollIntoView({
         behavior: "smooth",
-        block: "center",
+        block:
+          isMobile && ["3", "4"].includes(activeZoneNumber)
+            ? "end"
+            : "center",
       });
     }, 120);
 
     return () => window.clearTimeout(timeout);
-  }, [walkthroughOpen, walkthroughStep]);
+  }, [isMobile, walkthroughOpen, walkthroughStep]);
 
   function startWalkthrough() {
     setProfileAssetsOpen(false);
     setMembershipOpen(false);
+    setMenuOpen(false);
     setWalkthroughStep(0);
     setWalkthroughOpen(true);
   }
 
-  function closeWalkthrough() {
+  function markWalkthroughComplete() {
     try {
       window.localStorage.setItem(WALKTHROUGH_STORAGE_KEY, "true");
     } catch {
-      // The walkthrough still closes if browser storage is unavailable.
+      // Navigation and closing still work if browser storage is unavailable.
     }
+  }
+
+  function closeWalkthrough() {
+    markWalkthroughComplete();
     setWalkthroughOpen(false);
+    setWalkthroughStep(0);
+  }
+
+  function navigateFromWalkthrough(href: string) {
+    markWalkthroughComplete();
+    setWalkthroughOpen(false);
+    setWalkthroughStep(0);
+    window.location.href = href;
   }
 
   useEffect(() => {
-    if (!profileAssetsOpen) return;
+    if (!profileAssetsOpen && !menuOpen) return;
 
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setProfileAssetsOpen(false);
+        setMenuOpen(false);
       }
     }
 
     document.addEventListener("keydown", closeOnEscape);
 
     return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [profileAssetsOpen]);
+  }, [menuOpen, profileAssetsOpen]);
 
   const profileAssetsTotal =
     profileAssets.cash + profileAssets.property + profileAssets.stocks;
@@ -1969,6 +2296,23 @@ export default function MiloWorldPage() {
     WebkitBackdropFilter: "blur(16px)",
     boxShadow: "0 14px 34px rgba(0,0,0,0.28)",
     whiteSpace: "nowrap",
+  };
+
+  const menuItemStyle: CSSProperties = {
+    minHeight: "50px",
+    padding: "0 14px",
+    borderRadius: "13px",
+    border: "1px solid rgba(126,232,255,0.14)",
+    background: "rgba(255,255,255,0.035)",
+    color: "white",
+    textDecoration: "none",
+    display: "grid",
+    gridTemplateColumns: "28px minmax(0,1fr) 20px",
+    alignItems: "center",
+    gap: "10px",
+    textAlign: "left",
+    fontSize: "12px",
+    fontWeight: 800,
   };
 
   return (
@@ -2032,11 +2376,11 @@ export default function MiloWorldPage() {
         }}
       />
 
-      {profileAssetsOpen && (
+      {(profileAssetsOpen || menuOpen) && (
         <button
           type="button"
-          aria-label="Close token transactions"
-          onClick={() => setProfileAssetsOpen(false)}
+          aria-label="Close account panels"
+          onClick={() => { setProfileAssetsOpen(false); setMenuOpen(false); }}
           style={{
             position: "fixed",
             inset: 0,
@@ -2056,14 +2400,14 @@ export default function MiloWorldPage() {
           right: isDesktop ? "28px" : "auto",
           zIndex: 30,
           display: "flex",
-          flexDirection: isMobile ? "column" : "row",
-          alignItems: isMobile ? "stretch" : "center",
+          flexDirection: "row",
+          alignItems: "center",
           justifyContent: "space-between",
-          gap: "12px",
+          gap: "10px",
           padding: isDesktop ? 0 : isMobile ? "12px" : "18px 22px 0",
         }}
       >
-        <Link href="/" style={navButtonStyle}>
+        <Link href="/" style={{...navButtonStyle, flexShrink: 0}}>
           <span style={{ fontSize: isMobile ? "14px" : "17px" }}>←</span>
           {isMobile ? "Home" : "Return to Home"}
         </Link>
@@ -2071,32 +2415,12 @@ export default function MiloWorldPage() {
         <div
           style={{
             display: "flex",
-            flexWrap: "wrap",
-            gap: isMobile ? "8px" : "12px",
+            gap: isMobile ? "7px" : "12px",
             alignItems: "center",
-            justifyContent: isMobile ? "space-between" : "flex-end",
+            justifyContent: "flex-end",
+            minWidth: 0,
           }}
         >
-          <button
-            type="button"
-            onClick={startWalkthrough}
-            style={{
-              ...navButtonStyle,
-              border: "1px solid rgba(83,215,255,0.46)",
-              background: "rgba(22,81,105,0.68)",
-              boxShadow: "0 0 24px rgba(83,215,255,0.16)",
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            <span aria-hidden="true">✦</span>
-            {isMobile ? "Guide" : "Milo Guide"}
-          </button>
-
-          <Link href="/profile" style={navButtonStyle}>
-            {isMobile ? "Account" : "My Account"}
-          </Link>
-
           <div style={{ position: "relative", zIndex: 42 }}>
             <button
               type="button"
@@ -2157,7 +2481,7 @@ export default function MiloWorldPage() {
                 className="milo-scrollbar"
                 style={{
                   position: isMobile ? "fixed" : "absolute",
-                  top: isMobile ? "108px" : "calc(100% + 10px)",
+                  top: isMobile ? "64px" : "calc(100% + 10px)",
                   right: isMobile ? "12px" : 0,
                   width: isMobile ? "min(360px, calc(100vw - 24px))" : "380px",
                   maxHeight: "min(560px, calc(100dvh - 92px))",
@@ -2215,7 +2539,7 @@ export default function MiloWorldPage() {
                     </strong>
 
                     <Link
-                      href="/profile"
+                      href={userEmail ? "/profile" : "/login"}
                       onClick={() => setProfileAssetsOpen(false)}
                       style={{
                         color: "#bdf6ff",
@@ -2224,7 +2548,7 @@ export default function MiloWorldPage() {
                         textDecoration: "none",
                       }}
                     >
-                      View account →
+                      {userEmail ? "View account →" : "Log in →"}
                     </Link>
                   </div>
                 </div>
@@ -2444,18 +2768,82 @@ export default function MiloWorldPage() {
             )}
           </div>
 
-          <Link
-            href="/cart"
-            aria-label="Open cart"
-            style={{
-              ...navButtonStyle,
-              width: isMobile ? "42px" : "48px",
-              padding: 0,
-              fontSize: isMobile ? "17px" : "19px",
-            }}
-          >
-            🛒
-          </Link>
+          <div style={{ position: "relative", zIndex: 43 }}>
+            <button
+              type="button"
+              onClick={() => {
+                setProfileAssetsOpen(false);
+                setMenuOpen((current) => !current);
+              }}
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+              style={{
+                ...navButtonStyle,
+                minWidth: isMobile ? "42px" : "96px",
+                padding: isMobile ? "0 12px" : "0 17px",
+                border: "1px solid rgba(126,232,255,0.38)",
+                background: menuOpen ? "rgba(22,81,105,0.88)" : "rgba(5,13,28,0.7)",
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              <span aria-hidden="true" style={{ fontSize: "16px" }}>☰</span>
+              {!isMobile && "Menu"}
+            </button>
+
+            {menuOpen && (
+              <div
+                role="menu"
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 9px)",
+                  right: 0,
+                  width: isMobile ? "min(300px, calc(100vw - 24px))" : "310px",
+                  padding: "10px",
+                  display: "grid",
+                  gap: "8px",
+                  borderRadius: "18px",
+                  border: "1px solid rgba(126,232,255,0.28)",
+                  background:
+                    "linear-gradient(145deg, rgba(3,20,39,0.98), rgba(3,10,25,0.99))",
+                  boxShadow:
+                    "0 28px 72px rgba(0,0,0,0.58), 0 0 28px rgba(83,215,255,0.12)",
+                  backdropFilter: "blur(22px)",
+                  WebkitBackdropFilter: "blur(22px)",
+                  color: "white",
+                }}
+              >
+                <Link
+                  href={userEmail ? "/profile" : "/login"}
+                  onClick={() => setMenuOpen(false)}
+                  style={menuItemStyle}
+                >
+                  <span aria-hidden="true">◎</span>
+                  <span>{userEmail ? "My Account" : "Log In"}</span>
+                  <span aria-hidden="true">›</span>
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setMembershipOpen(true);
+                  }}
+                  style={{...menuItemStyle, width: "100%", cursor: "pointer", fontFamily: "inherit"}}
+                >
+                  <span aria-hidden="true">✦</span>
+                  <span>Membership</span>
+                  <span aria-hidden="true">›</span>
+                </button>
+
+                <Link href="/cart" onClick={() => setMenuOpen(false)} style={menuItemStyle}>
+                  <span aria-hidden="true">🛒</span>
+                  <span>Cart</span>
+                  <span aria-hidden="true">›</span>
+                </Link>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -2514,7 +2902,7 @@ export default function MiloWorldPage() {
             textShadow: "0 8px 30px rgba(0,0,0,0.45)",
           }}
         >
-          Play, earn, build, and trade inside Dreamscape.
+          Learn how money, business and decisions work — by actually using them.
         </p>
 
         <div
@@ -2577,8 +2965,7 @@ export default function MiloWorldPage() {
             key={zone.number}
             zone={zone}
             screenMode={screenMode}
-            hasClubAccess={!clubAccessLoading && hasClubAccess}
-            onOpenMembership={() => setMembershipOpen(true)}
+            isAdmin={isAdmin}
             walkthroughActive={walkthroughOpen}
             walkthroughHighlighted={
               walkthroughOpen &&
@@ -2588,27 +2975,73 @@ export default function MiloWorldPage() {
         ))}
       </section>
 
-      <img
-        src="/milo-world/milo-character.png"
-        alt="Milo"
-        style={{
-          position: "fixed",
-          right: isDesktop ? "58px" : isMobile ? "-42px" : "12px",
-          bottom: isDesktop ? "20px" : "0px",
-          height: isDesktop ? "220px" : isMobile ? "170px" : "210px",
-          width: "auto",
-          zIndex: 15,
-          objectFit: "contain",
-          filter: "drop-shadow(0 18px 40px rgba(0,0,0,0.58))",
-          pointerEvents: "none",
-        }}
-      />
+      {!walkthroughOpen && (
+        <div
+          style={{
+            position: "fixed",
+            right: isMobile ? "8px" : isDesktop ? "34px" : "14px",
+            bottom: isMobile ? "8px" : "16px",
+            zIndex: 70,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: isMobile ? "4px" : "7px",
+            pointerEvents: "none",
+          }}
+        >
+          <img
+            src="/milo-world/milo-character.png"
+            alt="Milo"
+            style={{
+              height: isDesktop ? "220px" : isMobile ? "145px" : "195px",
+              width: "auto",
+              objectFit: "contain",
+              filter: "drop-shadow(0 18px 40px rgba(0,0,0,0.58))",
+              pointerEvents: "none",
+            }}
+          />
+
+          <button
+            type="button"
+            onClick={startWalkthrough}
+            style={{
+              minHeight: isMobile ? "40px" : "46px",
+              padding: isMobile ? "0 14px" : "0 19px",
+              borderRadius: "999px",
+              border: "1px solid rgba(83,215,255,0.6)",
+              background: "rgba(22,81,105,0.82)",
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
+              color: "white",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+              fontSize: isMobile ? "11px" : "13px",
+              fontWeight: 850,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              boxShadow:
+                "0 16px 36px rgba(0,0,0,0.32), 0 0 22px rgba(83,215,255,0.16)",
+              whiteSpace: "nowrap",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              pointerEvents: "auto",
+            }}
+          >
+            <span aria-hidden="true">✦</span>
+            {isMobile ? "Guide" : "Milo Guide"}
+          </button>
+        </div>
+      )}
 
       <GuidedWalkthrough
         open={walkthroughOpen}
         stepIndex={walkthroughStep}
+        isAdmin={isAdmin}
         onStepChange={setWalkthroughStep}
         onClose={closeWalkthrough}
+        onNavigate={navigateFromWalkthrough}
       />
 
       <MembershipPopup
