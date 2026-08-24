@@ -6,8 +6,8 @@ export async function POST(request: Request) {
     if (!process.env.RESEND_API_KEY) {
       console.error("Missing RESEND_API_KEY");
       return NextResponse.json(
-        { error: "Missing RESEND_API_KEY in .env.local." },
-        { status: 500 }
+        { error: "Email service is temporarily unavailable." },
+        { status: 500 },
       );
     }
 
@@ -21,19 +21,23 @@ export async function POST(request: Request) {
     if (!fullName || !email) {
       return NextResponse.json(
         { error: "Full name and email are required." },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     if (!email.includes("@")) {
       return NextResponse.json(
         { error: "Please enter a valid email address." },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
+    const from =
+      process.env.DREAMSCAPE_FROM_EMAIL?.trim() ||
+      "Dreamscape One <hello@mail.dreamscape-one.com>";
+
     const emailResult = await resend.emails.send({
-      from: "Dreamscape One <onboarding@resend.dev>",
+      from,
       to: "admin@gurukidspro.com",
       subject: "GKP Student Access Activation Request",
       replyTo: email,
@@ -59,7 +63,7 @@ Verification timeline shown to user:
     if (emailResult.error) {
       return NextResponse.json(
         { error: emailResult.error.message },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -72,7 +76,7 @@ Verification timeline shown to user:
 
     return NextResponse.json(
       { error: "Could not submit activation request." },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

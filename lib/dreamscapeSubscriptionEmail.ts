@@ -27,8 +27,16 @@ function requiredEnv(name: string) {
 
 function senderAddress() {
   return (
+    process.env.DREAMSCAPE_FROM_EMAIL?.trim() ||
     process.env.RESEND_FROM?.trim() ||
-    "Guru Kids Pro <admin@gurukidspro.com>"
+    "Dreamscape One <hello@mail.dreamscape-one.com>"
+  );
+}
+
+function replyToAddress() {
+  return (
+    process.env.DREAMSCAPE_REPLY_TO_EMAIL?.trim() ||
+    "admin@gurukidspro.com"
   );
 }
 
@@ -126,7 +134,7 @@ function emailContent(input: {
       return {
         subject: `Action required: Dreamscape payment method – ${input.learnerName}`,
         title: "Please update the payment method",
-        intro: `HitPay has reported a payment-method issue for ${input.learnerName}'s Dreamscape subscription.`,
+        intro: `We were unable to process the latest payment for ${input.learnerName}'s Dreamscape subscription.`,
         detail: `Dreamscape access remains available during the recovery period${input.graceUntil !== "—" ? ` until ${input.graceUntil}` : ""}. Please use the secure management page below to update the payment method.`,
         button: "Manage Payment Method",
       };
@@ -355,7 +363,7 @@ export async function sendDreamscapeSubscriptionEmail(
     body: JSON.stringify({
       from: senderAddress(),
       to: [contract.parent_email],
-      reply_to: "admin@gurukidspro.com",
+      reply_to: replyToAddress(),
       subject: content.subject,
       html,
       tags: [

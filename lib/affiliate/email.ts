@@ -39,8 +39,9 @@ async function sendEmailSafe(input: {
 }): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   const from =
-    process.env.DREAMSCAPE_FROM_EMAIL ||
-    "Dreamscape One <admin@gurukidspro.com>";
+    process.env.DREAMSCAPE_AFFILIATE_FROM_EMAIL?.trim() ||
+    process.env.DREAMSCAPE_FROM_EMAIL?.trim() ||
+    "Dreamscape One <affiliates@mail.dreamscape-one.com>";
 
   if (!apiKey) {
     console.warn("RESEND_API_KEY is missing. Email was not sent:", input.subject);
@@ -49,9 +50,14 @@ async function sendEmailSafe(input: {
 
   try {
     const resend = new Resend(apiKey);
+    const replyTo =
+      process.env.DREAMSCAPE_REPLY_TO_EMAIL?.trim() ||
+      "admin@gurukidspro.com";
+
     const { error } = await resend.emails.send({
       from,
       to: input.to,
+      replyTo,
       subject: input.subject,
       html: input.html,
     });
