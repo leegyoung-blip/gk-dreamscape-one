@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
+import {
+  createEmailDeliveryLog,
+  updateEmailDeliveryLog,
+} from "@/lib/email-delivery-log";
 
 export async function POST(request: Request) {
   try {
@@ -36,10 +40,26 @@ export async function POST(request: Request) {
       process.env.DREAMSCAPE_FROM_EMAIL?.trim() ||
       "Dreamscape One <hello@mail.dreamscape-one.com>";
 
+    const recipient = "admin@gurukidspro.com";
+    const subject = "GKP Student Access Activation Request";
+
+    const deliveryLogId = await createEmailDeliveryLog({
+      category: "student_access",
+      emailType: "gkp_student_access_activation_request",
+      to: recipient,
+      from,
+      replyTo: email,
+      subject,
+      metadata: {
+        requester_email: email,
+        requester_name: fullName,
+      },
+    });
+
     const emailResult = await resend.emails.send({
       from,
-      to: "admin@gurukidspro.com",
-      subject: "GKP Student Access Activation Request",
+      to: recipient,
+      subject,
       replyTo: email,
       text: `
 New GKP Student Access activation request:
@@ -61,11 +81,21 @@ Verification timeline shown to user:
     console.log("Resend result:", emailResult);
 
     if (emailResult.error) {
+      await updateEmailDeliveryLog(deliveryLogId, {
+        status: "failed",
+        error: emailResult.error.message,
+      });
+
       return NextResponse.json(
         { error: emailResult.error.message },
         { status: 500 },
       );
     }
+
+    await updateEmailDeliveryLog(deliveryLogId, {
+      status: "sent",
+      providerMessageId: emailResult.data?.id || null,
+    });
 
     return NextResponse.json({
       success: true,

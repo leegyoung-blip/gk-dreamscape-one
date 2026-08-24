@@ -1,5 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import {
+  createEmailDeliveryLog,
+  parseMailbox,
+  updateEmailDeliveryLog,
+} from "@/lib/email-delivery-log";
 
 export type DreamscapeSubscriptionEmailType =
   | "subscription_started"
@@ -280,6 +285,10 @@ export async function sendDreamscapeSubscriptionEmail(
     .digest("hex")
     .slice(0, 32)}`;
 
+  const from = senderAddress();
+  const replyTo = replyToAddress();
+  const parsedSender = parseMailbox(from);
+
   const { data: existing, error: existingError } = await supabaseAdmin
     .from("dreamscape_subscription_email_logs")
     .select("id,status,resend_email_id")
@@ -313,6 +322,10 @@ export async function sendDreamscapeSubscriptionEmail(
           management_url: managementUrl,
         },
         requested_by: input.requestedBy || null,
+        sender_name: parsedSender.name,
+        sender_email: parsedSender.email,
+        sender_raw: parsedSender.raw,
+        reply_to_email: replyTo,
         updated_at: new Date().toISOString(),
       })
       .eq("id", existing.id);
@@ -335,6 +348,10 @@ export async function sendDreamscapeSubscriptionEmail(
           management_url: managementUrl,
         },
         requested_by: input.requestedBy || null,
+        sender_name: parsedSender.name,
+        sender_email: parsedSender.email,
+        sender_raw: parsedSender.raw,
+        reply_to_email: replyTo,
       });
 
     if (error) throw error;
@@ -353,6 +370,22 @@ export async function sendDreamscapeSubscriptionEmail(
     managementUrl,
   });
 
+  const deliveryLogId = await createEmailDeliveryLog({
+    category: "subscription",
+    emailType: input.emailType,
+    to: contract.parent_email,
+    from,
+    replyTo,
+    subject: content.subject,
+    metadata: {
+      contract_id: contract.id,
+      subscription_reference: contract.reference,
+      learner_name: contract.learner_name,
+      plan_name: plan.display_name,
+      idempotency_key: idempotencyKey,
+    },
+  });
+
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -361,9 +394,9 @@ export async function sendDreamscapeSubscriptionEmail(
       "Idempotency-Key": idempotencyKey,
     },
     body: JSON.stringify({
-      from: senderAddress(),
+      from,
       to: [contract.parent_email],
-      reply_to: replyToAddress(),
+      reply_to: replyTo,
       subject: content.subject,
       html,
       tags: [
@@ -394,6 +427,11 @@ export async function sendDreamscapeSubscriptionEmail(
       })
       .eq("id", logId);
 
+    await updateEmailDeliveryLog(deliveryLogId, {
+      status: "failed",
+      error: message,
+    });
+
     throw new Error(message);
   }
 
@@ -409,6 +447,11 @@ export async function sendDreamscapeSubscriptionEmail(
       updated_at: sentAt,
     })
     .eq("id", logId);
+
+  await updateEmailDeliveryLog(deliveryLogId, {
+    status: "sent",
+    providerMessageId: payload.id,
+  });
 
   if (input.emailType === "management_link") {
     await supabaseAdmin

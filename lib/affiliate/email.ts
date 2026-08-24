@@ -1,5 +1,9 @@
 import "server-only";
 import { Resend } from "resend";
+import {
+  createEmailDeliveryLog,
+  updateEmailDeliveryLog,
+} from "@/lib/email-delivery-log";
 
 function escapeHtml(value: string): string {
   return value.replace(
@@ -36,25 +40,40 @@ async function sendEmailSafe(input: {
   to: string | string[];
   subject: string;
   html: string;
+  emailType: string;
 }): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   const from =
     process.env.DREAMSCAPE_AFFILIATE_FROM_EMAIL?.trim() ||
     process.env.DREAMSCAPE_FROM_EMAIL?.trim() ||
     "Dreamscape One <affiliates@mail.dreamscape-one.com>";
+  const replyTo =
+    process.env.DREAMSCAPE_REPLY_TO_EMAIL?.trim() ||
+    "admin@gurukidspro.com";
+
+  const deliveryLogId = await createEmailDeliveryLog({
+    category: "affiliate",
+    emailType: input.emailType,
+    to: input.to,
+    from,
+    replyTo,
+    subject: input.subject,
+  });
 
   if (!apiKey) {
     console.warn("RESEND_API_KEY is missing. Email was not sent:", input.subject);
+
+    await updateEmailDeliveryLog(deliveryLogId, {
+      status: "failed",
+      error: "RESEND_API_KEY is missing.",
+    });
+
     return false;
   }
 
   try {
     const resend = new Resend(apiKey);
-    const replyTo =
-      process.env.DREAMSCAPE_REPLY_TO_EMAIL?.trim() ||
-      "admin@gurukidspro.com";
-
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from,
       to: input.to,
       replyTo,
@@ -64,12 +83,29 @@ async function sendEmailSafe(input: {
 
     if (error) {
       console.error("Resend email error:", error);
+
+      await updateEmailDeliveryLog(deliveryLogId, {
+        status: "failed",
+        error: error.message || "Resend returned an email error.",
+      });
+
       return false;
     }
+
+    await updateEmailDeliveryLog(deliveryLogId, {
+      status: "sent",
+      providerMessageId: data?.id || null,
+    });
 
     return true;
   } catch (error) {
     console.error("Unexpected Resend email failure:", error);
+
+    await updateEmailDeliveryLog(deliveryLogId, {
+      status: "failed",
+      error: error instanceof Error ? error.message : String(error),
+    });
+
     return false;
   }
 }
@@ -84,6 +120,7 @@ export async function sendApplicationReceivedEmail(input: {
 
   return sendEmailSafe({
     to: input.to,
+    emailType: "application_received",
     subject: "We received your Dreamscape Affiliate application",
     html: emailShell(
       "Application received",
@@ -108,6 +145,7 @@ export async function sendAdminApplicationAlert(input: {
 
   return sendEmailSafe({
     to: "admin@gurukidspro.com",
+    emailType: "admin_application_alert",
     subject: `New affiliate application: ${input.applicationNumber}`,
     html: emailShell(
       "New affiliate application",
@@ -134,6 +172,7 @@ export async function sendApprovalEmail(input: {
 
   return sendEmailSafe({
     to: input.to,
+    emailType: "approval",
     subject: "You’re approved for the Dreamscape Affiliate Programme",
     html: emailShell(
       "Your application has been approved",
@@ -159,6 +198,7 @@ export async function sendAffiliateInviteEmail(input: {
 
   return sendEmailSafe({
     to: input.to,
+    emailType: "direct_invite",
     subject: "You’re invited to join the Dreamscape Affiliate Programme",
     html: emailShell(
       "You’re invited to become a Dreamscape Affiliate",
@@ -187,6 +227,7 @@ export async function sendActivationEmail(input: {
 
   return sendEmailSafe({
     to: input.to,
+    emailType: "activation",
     subject: "Your Dreamscape affiliate account is active",
     html: emailShell(
       "Welcome to the Dreamscape Affiliate Programme",
@@ -209,6 +250,7 @@ export async function sendInformationRequestedEmail(input: {
 }): Promise<boolean> {
   return sendEmailSafe({
     to: input.to,
+    emailType: "information_requested",
     subject: "More information needed for your Dreamscape application",
     html: emailShell(
       "More information is needed",
@@ -225,6 +267,7 @@ export async function sendRejectionEmail(input: {
 }): Promise<boolean> {
   return sendEmailSafe({
     to: input.to,
+    emailType: "rejection",
     subject: "Update on your Dreamscape Affiliate application",
     html: emailShell(
       "Application update",
