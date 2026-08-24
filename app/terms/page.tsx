@@ -4,26 +4,32 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 
-const EFFECTIVE_DATE = "1 August 2026";
+const EFFECTIVE_DATE = "24 August 2026";
+const TERMS_VERSION = "terms-v2-2026-08-24";
 
 const contents = [
-  { id: "acceptance", label: "Acceptance of these Terms" },
+  { id: "acceptance", label: "Acceptance and scope" },
   { id: "about", label: "About Dreamscape One" },
   { id: "eligibility", label: "Eligibility and younger users" },
   { id: "accounts", label: "Accounts and security" },
-  { id: "education", label: "Educational use and content" },
-  { id: "subscriptions", label: "Plans, billing, and renewal" },
-  { id: "payments", label: "Payments and refunds" },
-  { id: "rewards", label: "Dream Tokens, Gems, and rewards" },
+  { id: "parents", label: "Parents, guardians, schools and organisations" },
+  { id: "education", label: "Educational content and AI-assisted tools" },
+  { id: "subscriptions", label: "Plans, subscriptions and renewal" },
+  { id: "membership-controls", label: "Plan changes, pause, cancellation and resumption" },
+  { id: "payments", label: "Payments, taxes, refunds and disputes" },
+  { id: "deletion", label: "Account deletion" },
+  { id: "rewards", label: "Dream Tokens, Dream Gems and rewards" },
   { id: "licensing", label: "Education Licences and affiliates" },
   { id: "acceptable-use", label: "Acceptable use" },
+  { id: "user-content", label: "User submissions and feedback" },
   { id: "intellectual-property", label: "Intellectual property" },
   { id: "availability", label: "Availability and changes" },
   { id: "third-parties", label: "Third-party services" },
-  { id: "liability", label: "Disclaimers and liability" },
   { id: "termination", label: "Suspension and termination" },
   { id: "privacy", label: "Privacy and communications" },
+  { id: "liability", label: "Disclaimers and liability" },
   { id: "changes", label: "Changes to these Terms" },
+  { id: "general", label: "General legal terms" },
   { id: "law", label: "Governing law and disputes" },
   { id: "contact", label: "Contact us" },
 ];
@@ -308,7 +314,7 @@ export default function TermsPage() {
         <p
           style={{
             margin: "25px auto 0",
-            maxWidth: "820px",
+            maxWidth: "860px",
             color: "rgba(255,255,255,0.7)",
             fontSize: isMobile ? "16px" : "clamp(18px, 1.9vw, 21px)",
             fontWeight: 300,
@@ -316,8 +322,9 @@ export default function TermsPage() {
           }}
         >
           These Terms govern access to and use of Dreamscape One, including
-          student accounts, Learning Missions, Milo’s World, subscriptions,
-          virtual rewards, and related services.
+          student and staff accounts, Learning Missions, Nova&apos;s World,
+          Milo&apos;s World, subscriptions, virtual rewards, Education
+          Licences, affiliate participation and related services.
         </p>
 
         <div
@@ -334,7 +341,7 @@ export default function TermsPage() {
             lineHeight: 1.5,
           }}
         >
-          Effective {EFFECTIVE_DATE}
+          Effective {EFFECTIVE_DATE} · {TERMS_VERSION}
         </div>
       </section>
 
@@ -473,24 +480,28 @@ export default function TermsPage() {
                   lineHeight: 1.7,
                 }}
               >
-                Users below 18 may use Dreamscape One only with appropriate
-                parent or guardian involvement. A parent, guardian, school, or
-                authorised organisation must approve and make any paid
-                purchase for a user below 18.
+                Users below 13 require parent or guardian consent for the
+                collection, use and disclosure of their personal data and
+                should use Dreamscape with appropriate adult involvement.
+                A parent, guardian, school or other authorised organisation
+                must approve and complete any paid purchase for a user below
+                18.
               </p>
             </div>
 
-            <Section id="acceptance" number="01" title="Acceptance of these Terms">
+            <Section id="acceptance" number="01" title="Acceptance and scope">
               <Paragraph>
                 These Terms & Conditions (“Terms”) form a legal agreement
                 between you and Guru Kids Pro, UEN 53232375X, the operator of
-                Dreamscape One (“Dreamscape”, “we”, “us”, or “our”).
+                Dreamscape One (“Dreamscape”, “we”, “us” or “our”).
               </Paragraph>
 
               <Paragraph>
-                By creating an account, accessing Dreamscape, purchasing a
-                plan, accepting access through an education organisation, or
-                otherwise using the platform, you agree to these Terms and our{" "}
+                By creating an account, accessing Dreamscape, purchasing or
+                managing a plan, accepting access through an education
+                organisation, participating in an affiliate or licence
+                programme, or otherwise using the platform, you agree to these
+                Terms and our{" "}
                 <Link
                   href="/privacy"
                   style={{ color: "#8ee8ff", textDecoration: "none" }}
@@ -501,28 +512,35 @@ export default function TermsPage() {
               </Paragraph>
 
               <Paragraph>
-                If you are accepting these Terms for a child, student,
-                organisation, or another person, you confirm that you have the
-                authority to do so. If you do not agree, do not use the
-                platform.
+                If you accept these Terms for a child, student, school,
+                organisation or another person, you confirm that you have the
+                authority to do so. If you do not agree to these Terms, do not
+                use the platform.
+              </Paragraph>
+
+              <Paragraph>
+                Certain features or programmes may have additional written
+                terms. Where programme-specific terms conflict with these
+                general Terms, the more specific terms apply to that feature
+                or programme to the extent of the conflict.
               </Paragraph>
             </Section>
 
             <Section id="about" number="02" title="About Dreamscape One">
               <Paragraph>
                 Dreamscape One is a gamified learning ecosystem by Guru Kids
-                Pro. It includes Nova’s World for younger learners and Milo’s
-                World for users aged 13 and above, together with Learning
-                Missions, thinking challenges, progress records, virtual
-                rewards, simulations, and related features.
+                Pro. It includes Nova&apos;s World, Milo&apos;s World, Learning
+                Missions, thinking challenges, progress records, teacher and
+                organisation tools, virtual rewards, simulations, commerce,
+                support and related services.
               </Paragraph>
 
               <Paragraph>
                 Features may differ by age, account role, subscription,
-                education licence, beta status, device, and location. Some
-                features may be identified as “Coming Soon”, “Beta”, “Pilot”,
-                or similar and may not yet be available for purchase or general
-                use.
+                Education Licence, beta status, device, location and launch
+                stage. Features identified as “Coming Soon”, “Beta”, “Pilot”,
+                “Preview” or similar are developmental and may change,
+                be delayed or not proceed to general release.
               </Paragraph>
             </Section>
 
@@ -533,31 +551,33 @@ export default function TermsPage() {
             >
               <Paragraph>
                 Dreamscape is designed for children, teenagers, parents,
-                educators, and approved organisations. Age labels are guidance
+                educators and approved organisations. Age labels are guidance
                 for selecting suitable content and do not replace parent,
-                guardian, or educator supervision.
+                guardian or educator supervision.
               </Paragraph>
 
               <List>
-                <li>Nova’s World is generally designed for learners aged 6–12.</li>
+                <li>Nova&apos;s World is generally designed for learners aged 6–12.</li>
+                <li>Milo&apos;s World is generally designed for users aged 13 and above.</li>
                 <li>
-                  Milo’s World is generally designed for users aged 13 and above.
+                  For a child below 13, a parent or legal guardian must provide
+                  the consent required for Dreamscape to collect, use and
+                  disclose the child&apos;s personal data.
                 </li>
                 <li>
-                  Users below 13 should use Dreamscape with active parent,
-                  guardian, teacher, or authorised organisation involvement.
-                </li>
-                <li>
-                  Users below 18 may not independently enter into a paid
-                  purchase. A parent, guardian, or authorised organisation must
-                  approve and complete the purchase.
+                  Users below 18 may not independently complete a paid
+                  Dreamscape purchase under our platform rules. A parent,
+                  guardian or authorised organisation must approve and complete
+                  the purchase.
                 </li>
               </List>
 
               <Paragraph>
                 We may request information reasonably necessary to confirm age,
-                authority, account ownership, organisational approval, or
-                payment authorisation.
+                authority, account ownership, organisational approval or payment
+                authorisation. If we learn that a younger user&apos;s account
+                lacks required authority or consent, we may restrict the
+                account while the issue is resolved.
               </Paragraph>
             </Section>
 
@@ -565,38 +585,73 @@ export default function TermsPage() {
               <Paragraph>
                 You must provide accurate information and keep account details
                 reasonably current. You are responsible for activity carried
-                out through your account unless it results from a security
-                failure under our control.
+                out through your account except to the extent it results from
+                a security failure under our control or applicable law provides
+                otherwise.
               </Paragraph>
 
               <List>
-                <li>Do not share passwords or login links publicly.</li>
+                <li>Do not share passwords, one-time codes or login links publicly.</li>
+                <li>Notify us promptly if you believe an account has been compromised.</li>
+                <li>Do not create or control an account for another person without proper authority.</li>
                 <li>
-                  Notify us promptly if you believe an account has been
-                  compromised.
+                  If an account email, learner assignment or other account
+                  detail is entered incorrectly, contact us promptly so we can
+                  verify and correct the record.
                 </li>
                 <li>
-                  Do not create accounts for another person without proper
-                  authority.
-                </li>
-                <li>
-                  Schools and education organisations must obtain any required
-                  parent or guardian consent before creating or assigning
-                  student accounts.
+                  Do not circumvent age, role, subscription, organisation or
+                  staff access controls.
                 </li>
               </List>
 
               <Paragraph>
-                We may merge, correct, restrict, or close duplicate,
-                unauthorised, fraudulent, or inactive accounts where reasonably
-                necessary.
+                We may verify, merge, correct, restrict or close duplicate,
+                unauthorised, fraudulent, compromised or materially inaccurate
+                accounts where reasonably necessary. We may require additional
+                verification before transferring an account, subscription or
+                learner entitlement to a different account.
               </Paragraph>
             </Section>
 
             <Section
-              id="education"
+              id="parents"
               number="05"
-              title="Educational use and content"
+              title="Parents, guardians, schools and organisations"
+            >
+              <Paragraph>
+                A parent, guardian, teacher, school or Education Licence
+                organisation that creates, approves, assigns or manages a
+                learner account must have the authority to do so and must
+                provide any notice or obtain any consent required by law.
+              </Paragraph>
+
+              <List>
+                <li>
+                  Parents and guardians remain responsible for supervising
+                  younger users and reviewing purchases made for them.
+                </li>
+                <li>
+                  Schools and organisations are responsible for authorised
+                  roster uploads, seat assignment and role administration.
+                </li>
+                <li>
+                  Organisation administrators must promptly remove access when
+                  a student, teacher or administrator is no longer authorised.
+                </li>
+                <li>
+                  Staff and organisation-managed accounts may be subject to
+                  additional restrictions on self-service account deletion
+                  where responsibilities, records or licences must first be
+                  transferred or closed.
+                </li>
+              </List>
+            </Section>
+
+            <Section
+              id="education"
+              number="06"
+              title="Educational content and AI-assisted tools"
             >
               <Paragraph>
                 Dreamscape supports learning and practice. It is not a
@@ -606,162 +661,295 @@ export default function TermsPage() {
               </Paragraph>
 
               <Paragraph>
-                Content may be developed with AI-assisted tools and is reviewed
-                by qualified teachers before publication. We aim for accuracy,
-                clarity, age appropriateness, and curriculum relevance, but we
-                do not guarantee that every question, explanation, score,
-                simulation, or recommendation will be error-free or suitable
-                for every learner.
+                Some content, explanations, recommendations or internal
+                workflows may use automated or AI-assisted tools. Published
+                learning content may also be reviewed or edited by educators.
+                We aim for accuracy, clarity, age appropriateness and curriculum
+                relevance, but we do not guarantee that every question,
+                explanation, score, simulation or recommendation will be
+                error-free or suitable for every learner.
               </Paragraph>
 
               <Paragraph>
                 Dreamscape One is independently developed by Guru Kids Pro. It
-                is not represented as officially endorsed, approved, or
-                operated by the Singapore Ministry of Education unless we
-                expressly state otherwise in writing.
+                is not represented as officially endorsed, approved or operated
+                by the Singapore Ministry of Education unless we expressly
+                state otherwise in writing.
               </Paragraph>
 
               <Paragraph>
-                Results, scores, rewards, leaderboards, and progress indicators
+                Results, scores, rewards, leaderboards and progress indicators
                 are platform records. They are not official school grades,
-                qualifications, financial advice, or guarantees of academic or
-                commercial outcomes.
+                qualifications, financial advice, investment advice or
+                guarantees of academic or commercial outcomes.
               </Paragraph>
             </Section>
 
             <Section
               id="subscriptions"
-              number="06"
-              title="Plans, billing, and renewal"
+              number="07"
+              title="Plans, subscriptions and renewal"
             >
               <Paragraph>
                 Paid access may be offered as monthly, annual, standalone,
-                bundled, pilot, promotional, or organisation-based access.
-                Current prices, included features, billing periods, and
-                availability are shown on the relevant pricing, checkout, or
-                written offer page.
+                bundled, pilot, promotional, school-managed or
+                organisation-based access. The current price, billing interval,
+                included features, renewal status and material purchase terms
+                are shown on the relevant pricing, checkout or written offer
+                page before payment.
               </Paragraph>
 
               <List>
                 <li>
-                  A monthly plan covers the monthly billing period shown at
-                  checkout.
+                  Public Dreamscape recurring subscriptions are generally
+                  processed through Stripe.
                 </li>
                 <li>
-                  An annual plan is generally paid upfront for a 12-month term
-                  unless the checkout page states otherwise.
+                  Guru Kids Pro-managed access and certain legacy arrangements
+                  may be billed separately through Guru Kids Pro, HitPay or
+                  another payment method stated to the payer.
                 </li>
                 <li>
-                  Whether a plan renews automatically will be shown before
-                  purchase. If automatic renewal applies, the plan continues
-                  until cancelled in accordance with the checkout instructions.
+                  A monthly plan renews at the monthly interval shown at
+                  checkout unless cancelled or otherwise stated.
                 </li>
                 <li>
-                  Cancelling a recurring plan stops future renewal charges. It
-                  does not normally reverse a completed charge or remove access
-                  already paid for, unless required by law or expressly stated.
+                  An annual plan is generally charged upfront for the annual
+                  billing period shown at checkout and renews at that interval
+                  if automatic renewal is selected.
                 </li>
                 <li>
-                  “Coming Soon” features may be described for information but
-                  cannot be relied on as available until formally launched.
+                  We will not intentionally enrol a consumer into a recurring
+                  subscription without presenting the recurring nature and
+                  price before authorisation.
                 </li>
               </List>
 
               <Paragraph>
-                We may change future prices or plan structures. A price change
-                will not alter a completed fixed-term purchase, but it may
-                apply to a later renewal, upgrade, or new purchase after notice
-                is provided where required.
+                We may change future prices or plan structures. A change does
+                not alter a completed fixed-term purchase, but may apply to a
+                future renewal, upgrade, downgrade or new purchase after notice
+                where required.
               </Paragraph>
             </Section>
 
-            <Section id="payments" number="07" title="Payments and refunds">
+            <Section
+              id="membership-controls"
+              number="08"
+              title="Plan changes, pause, cancellation and resumption"
+            >
               <Paragraph>
-                Payments may be processed through Shopify or another payment
-                provider shown at checkout. Payment providers may apply their
-                own terms, privacy notices, authentication, currency
-                conversion, and transaction rules.
+                Where self-service membership controls are available, the
+                options shown in your account govern how a change is applied.
+                The following concepts are different and should not be treated
+                as interchangeable.
+              </Paragraph>
+
+              <List>
+                <li>
+                  <strong>Plan change.</strong> A scheduled upgrade, downgrade
+                  or billing-cycle change will normally take effect at the next
+                  paid billing cycle unless the confirmation screen states
+                  otherwise. Your current paid entitlement remains in place
+                  until the change becomes effective.
+                </li>
+                <li>
+                  <strong>Pause Membership.</strong> If offered for the
+                  subscription, pausing may stop paid learning access and
+                  subscription invoice generation from the effective pause
+                  time. The confirmation screen will state the billing effect,
+                  treatment of unused paid time or credits, and what is
+                  required to resume.
+                </li>
+                <li>
+                  <strong>Resume Membership.</strong> Resumption may require a
+                  successful payment before paid learning access is restored.
+                  Any amount due, credit or new billing date is determined by
+                  the payment provider and displayed where applicable.
+                </li>
+                <li>
+                  <strong>Stop future renewal.</strong> Cancelling automatic
+                  renewal normally leaves paid access available through the
+                  current paid-through date, after which paid access ends.
+                </li>
+                <li>
+                  <strong>Keep Membership.</strong> If a future cancellation has
+                  not yet taken effect, an eligible user may be able to reverse
+                  it and restore normal renewal.
+                </li>
+              </List>
+
+              <Paragraph>
+                Some membership states cannot be combined. For example, you may
+                need to cancel a pending plan change before pausing or ending a
+                subscription. Availability also depends on the provider,
+                billing state, payment status and type of access.
+              </Paragraph>
+            </Section>
+
+            <Section
+              id="payments"
+              number="09"
+              title="Payments, taxes, refunds and disputes"
+            >
+              <Paragraph>
+                Payment processing is performed by the provider shown at
+                checkout. Public Dreamscape subscriptions are generally
+                processed by Stripe; Guru Kids Pro-managed and legacy billing
+                may use HitPay or another stated method. Payment providers have
+                their own terms, authentication and privacy practices.
+              </Paragraph>
+
+              <List>
+                <li>
+                  You confirm that you are authorised to use the selected
+                  payment method and to approve any recurring charge shown at
+                  checkout.
+                </li>
+                <li>
+                  The total amount and recurring billing interval, where
+                  applicable, are displayed before payment. Mandatory taxes or
+                  charges are included or disclosed as required by applicable
+                  law.
+                </li>
+                <li>
+                  We may receive payment status, transaction identifiers,
+                  subscription identifiers, billing contact details and refund
+                  information, but we do not normally receive or store complete
+                  payment-card details.
+                </li>
+              </List>
+
+              <Paragraph>
+                Unless a specific offer, checkout page, written agreement or
+                applicable law provides otherwise, completed subscription
+                charges are non-refundable once the relevant access period has
+                begun. Cancelling renewal, pausing a membership or deleting an
+                account does not by itself create a refund for a completed
+                charge. This does not exclude any refund, cancellation or
+                consumer right that cannot lawfully be excluded.
               </Paragraph>
 
               <Paragraph>
-                You confirm that you are authorised to use the selected payment
-                method. Users below 18 must not complete a paid purchase
-                without parent, guardian, or authorised organisation approval.
+                If you believe a charge is duplicate, incorrect, unauthorised
+                or inconsistent with the purchase terms, contact us promptly.
+                We may investigate payment disputes and may temporarily
+                restrict paid access while a chargeback or fraud investigation
+                is unresolved, where reasonable and permitted by law.
+              </Paragraph>
+            </Section>
+
+            <Section id="deletion" number="10" title="Account deletion">
+              <Paragraph>
+                Eligible users may request permanent Dreamscape account
+                deletion through the account settings or by contacting us.
+                Account deletion is different from pausing a membership or
+                stopping future renewal.
               </Paragraph>
 
-              <Paragraph>
-                Unless a specific offer, checkout page, written agreement, or
-                applicable law provides otherwise, fees are non-refundable
-                after the relevant access period has begun. This does not
-                exclude any refund, cancellation, or consumer right that cannot
-                lawfully be excluded.
-              </Paragraph>
+              <List>
+                <li>
+                  Deleting an eligible account ends Dreamscape learning access
+                  and may permanently remove learner progress, quiz history,
+                  Dream Tokens, Dream Gems, virtual holdings, referrals and
+                  other account data.
+                </li>
+                <li>
+                  If an eligible account has a live public Stripe subscription,
+                  our current self-service deletion process cancels that
+                  subscription so it cannot renew. Paid learning access ends as
+                  part of the deletion process.
+                </li>
+                <li>
+                  Account deletion does not automatically create a refund for
+                  charges already completed.
+                </li>
+                <li>
+                  Staff, organisation-managed, Guru Kids Pro-managed or certain
+                  legacy accounts may not be eligible for immediate
+                  self-service deletion because roles, student relationships,
+                  licences, billing or records must first be transferred or
+                  closed.
+                </li>
+                <li>
+                  We may retain limited billing, tax, security, dispute and
+                  deletion-audit records where reasonably necessary or
+                  required by law. Personal identifiers in retained Dreamscape
+                  records are deleted, redacted, anonymised or pseudonymised
+                  where appropriate.
+                </li>
+              </List>
 
               <Paragraph>
-                We may correct obvious pricing, billing, or product-description
-                errors before fulfilment. If we cannot provide the purchased
-                access, we may offer a correction, replacement access, account
-                credit, or refund as appropriate.
+                More detail about deletion, anonymisation and retention is
+                provided in our{" "}
+                <Link
+                  href="/privacy"
+                  style={{ color: "#8ee8ff", textDecoration: "none" }}
+                >
+                  Privacy Policy
+                </Link>
+                .
               </Paragraph>
             </Section>
 
             <Section
               id="rewards"
-              number="08"
-              title="Dream Tokens, Gems, and rewards"
+              number="11"
+              title="Dream Tokens, Dream Gems and rewards"
             >
               <Paragraph>
                 Dream Tokens, Dream Gems, points, badges, virtual cash,
-                property values, stock values, rewards, and other in-platform
-                items are digital platform features only.
+                simulated property values, simulated stock values, rewards and
+                other in-platform items are digital platform features only.
               </Paragraph>
 
               <List>
-                <li>They are not legal tender, deposits, or stored value.</li>
+                <li>They are not legal tender, deposits or stored value.</li>
                 <li>
                   They cannot be exchanged for cash unless we expressly state a
                   lawful redemption option in writing.
                 </li>
                 <li>
                   They cannot be sold, transferred, traded outside Dreamscape,
-                  pledged, or used for real-world investment.
+                  pledged or used for real-world investment.
                 </li>
                 <li>
-                  Reward rates, limits, eligibility, stock, and redemption
+                  Reward rates, eligibility, limits, stock and redemption
                   options may change.
                 </li>
                 <li>
-                  Quiz, attendance, referral, promotional, and redemption
-                  rewards are subject to the applicable programme rules and
-                  Terms & Conditions.
+                  Quiz, attendance, referral, promotional and redemption
+                  rewards are subject to the applicable programme rules.
                 </li>
               </List>
 
               <Paragraph>
-                We may reverse duplicate, mistaken, manipulated, fraudulent, or
-                improperly obtained rewards. Closing or losing access to an
-                account may result in the loss of unused virtual items where
-                permitted by law.
+                We may reverse duplicate, mistaken, manipulated, fraudulent or
+                improperly obtained rewards. Closing or deleting an account may
+                result in the permanent loss of unused virtual items, subject
+                to applicable law.
               </Paragraph>
             </Section>
 
             <Section
               id="licensing"
-              number="09"
+              number="12"
               title="Education Licences and affiliates"
             >
               <Paragraph>
                 Education Licences are subject to these Terms together with the
-                package details, onboarding terms, written quotation, licence
-                conditions, and other terms accepted by the organisation.
+                package details, onboarding terms, quotation, licence
+                conditions and other written terms accepted by the
+                organisation.
               </Paragraph>
 
               <Paragraph>
                 An education organisation is responsible for authorised user
-                access, parent or guardian permissions, seat assignments, and
-                appropriate supervision. Student access may not be shared
-                across unrelated organisations or branches unless expressly
-                approved in writing.
+                access, required parent or guardian permissions, seat
+                assignments, role administration and appropriate supervision.
+                Student access may not be shared across unrelated organisations
+                or branches unless expressly approved.
               </Paragraph>
 
               <Paragraph>
@@ -777,66 +965,96 @@ export default function TermsPage() {
               </Paragraph>
             </Section>
 
-            <Section id="acceptable-use" number="10" title="Acceptable use">
+            <Section id="acceptable-use" number="13" title="Acceptable use">
               <Paragraph>
-                You must use Dreamscape lawfully, respectfully, and only for
-                its intended educational, personal, or authorised
-                organisational purposes.
+                You must use Dreamscape lawfully, respectfully and only for its
+                intended educational, personal or authorised organisational
+                purposes.
               </Paragraph>
 
               <Paragraph>You must not:</Paragraph>
 
               <List>
                 <li>
-                  cheat, automate, script, manipulate, or falsely generate
-                  scores, rewards, referrals, attendance, or progress;
+                  cheat, automate, script, manipulate or falsely generate
+                  scores, rewards, referrals, attendance or progress;
                 </li>
                 <li>
-                  access another person’s account, personal information, or
-                  restricted educator or administrator tools without authority;
+                  access another person&apos;s account, personal information or
+                  restricted educator, curriculum or administrator tools
+                  without authority;
                 </li>
                 <li>
-                  copy, scrape, download in bulk, republish, sell, or build a
+                  copy, scrape, download in bulk, republish, sell or build a
                   competing question bank or service from Dreamscape content;
                 </li>
                 <li>
-                  reverse engineer, interfere with, overload, bypass, probe, or
+                  reverse engineer, interfere with, overload, bypass, probe or
                   compromise platform security or access controls;
                 </li>
                 <li>
                   upload malware, harmful code, unlawful material, abusive
-                  content, or content that infringes another person’s rights;
+                  content or content that infringes another person&apos;s rights;
                 </li>
                 <li>
-                  use Dreamscape to harass, impersonate, mislead, exploit, or
+                  use Dreamscape to harass, impersonate, mislead, exploit or
                   endanger another person; or
                 </li>
                 <li>
                   use student or account data for unrelated advertising,
-                  profiling, resale, or unauthorised commercial purposes.
+                  profiling, resale or unauthorised commercial purposes.
                 </li>
               </List>
             </Section>
 
             <Section
+              id="user-content"
+              number="14"
+              title="User submissions and feedback"
+            >
+              <Paragraph>
+                If Dreamscape allows you to submit text, files, images,
+                business-builder materials, support attachments, comments or
+                other content, you retain any ownership you already have in
+                that material.
+              </Paragraph>
+
+              <Paragraph>
+                You grant us a limited licence to host, process, reproduce and
+                display the submitted material only as reasonably necessary to
+                operate, secure, support and improve the relevant Dreamscape
+                feature. You must have the right to submit the material and
+                must not upload unlawful, confidential or infringing content
+                that you are not authorised to provide.
+              </Paragraph>
+
+              <Paragraph>
+                If you voluntarily send product feedback or suggestions, you
+                allow us to use those ideas to improve Dreamscape without
+                payment or obligation, provided we do not publicly identify
+                you without permission.
+              </Paragraph>
+            </Section>
+
+            <Section
               id="intellectual-property"
-              number="11"
+              number="15"
               title="Intellectual property"
             >
               <Paragraph>
                 Dreamscape One, Guru Kids Pro, Nova, Milo, platform designs,
                 characters, graphics, software, questions, explanations,
-                missions, simulations, audio, videos, branding, and related
+                missions, simulations, audio, videos, branding and related
                 materials are owned by us or used with permission.
               </Paragraph>
 
               <Paragraph>
                 We grant you a limited, personal, non-exclusive,
-                non-transferable, revocable licence to use the platform during
-                your authorised access period. This licence does not transfer
-                ownership or permit commercial reproduction, public
-                distribution, resale, sublicensing, or creation of derivative
-                products.
+                non-transferable and revocable licence to use the platform
+                during your authorised access period. This licence does not
+                transfer ownership or permit commercial reproduction, public
+                distribution, resale, sublicensing or creation of derivative
+                products except where we expressly permit it.
               </Paragraph>
 
               <Paragraph>
@@ -845,199 +1063,228 @@ export default function TermsPage() {
                 not export or reproduce the full content bank for use outside
                 the platform.
               </Paragraph>
-
-              <Paragraph>
-                If you send feedback or suggestions, you allow us to use them
-                to improve Dreamscape without payment or obligation, provided
-                we do not publicly identify you without permission.
-              </Paragraph>
             </Section>
 
             <Section
               id="availability"
-              number="12"
+              number="16"
               title="Availability and changes"
             >
               <Paragraph>
                 We aim to keep Dreamscape available but do not guarantee
-                uninterrupted, permanent, or error-free access. Maintenance,
+                uninterrupted, permanent or error-free access. Maintenance,
                 security work, internet failures, device limitations,
-                third-party outages, updates, and events beyond reasonable
+                third-party outages, updates and events beyond reasonable
                 control may affect availability.
               </Paragraph>
 
               <Paragraph>
-                We may add, remove, redesign, rebalance, test, or discontinue
-                features, content, reward systems, simulations, access rules,
+                We may add, remove, redesign, rebalance, test or discontinue
+                features, content, reward systems, simulations, access rules
                 and supported devices. Where a material change substantially
-                affects paid access, we will take reasonable steps such as
-                notice, replacement access, account credit, or another
-                appropriate remedy.
-              </Paragraph>
-
-              <Paragraph>
-                Beta, pilot, preview, and coming-soon features may change
-                significantly, contain errors, or never proceed to full launch.
+                affects a current paid entitlement, we will take reasonable
+                steps such as notice, replacement access, account credit,
+                refund or another appropriate remedy depending on the
+                circumstances and applicable law.
               </Paragraph>
             </Section>
 
             <Section
               id="third-parties"
-              number="13"
+              number="17"
               title="Third-party services"
             >
               <Paragraph>
-                Dreamscape may connect to services operated by other providers,
-                including authentication, hosting, email, analytics, payment,
-                ecommerce, messaging, and external websites.
+                Dreamscape relies on third-party providers for functions such
+                as hosting, authentication, databases, email, payments,
+                analytics, communications and external websites. Current
+                providers may include Supabase, Vercel, Resend, Google, Stripe
+                and HitPay depending on the service used.
               </Paragraph>
 
               <Paragraph>
-                Those services are governed by their own terms and privacy
-                practices. We are not responsible for third-party content,
-                policies, security, availability, or actions that are outside
-                our reasonable control.
-              </Paragraph>
-
-              <Paragraph>
-                Links to another website do not mean that Dreamscape endorses
-                every statement, product, or service on that website.
-              </Paragraph>
-            </Section>
-
-            <Section
-              id="liability"
-              number="14"
-              title="Disclaimers and liability"
-            >
-              <Paragraph>
-                To the fullest extent permitted by law, Dreamscape is provided
-                on an “as available” basis. We do not guarantee specific
-                grades, examination results, learning speed, financial
-                knowledge, business performance, investment outcomes, or other
-                results.
-              </Paragraph>
-
-              <Paragraph>
-                Milo’s simulations, virtual investments, market information,
-                and business activities are educational simulations only. They
-                do not involve real securities, real ownership, real profit,
-                or personalised financial, legal, tax, or investment advice.
-              </Paragraph>
-
-              <Paragraph>
-                Nothing in these Terms excludes liability that cannot lawfully
-                be excluded, including rights and remedies that apply under
-                mandatory consumer law.
-              </Paragraph>
-
-              <Paragraph>
-                Subject to the previous paragraph, we are not liable for
-                indirect, incidental, special, or consequential loss, loss of
-                opportunity, loss of data, loss of virtual items, or loss
-                caused by unauthorised use, third-party services, or events
-                beyond our reasonable control.
-              </Paragraph>
-
-              <Paragraph>
-                Where liability may lawfully be limited, our total liability
-                arising from a paid service will not exceed the amount actually
-                paid to us for the affected service during the 12 months before
-                the event giving rise to the claim.
+                Third-party services are governed by their own terms and
+                privacy practices. We remain responsible for our own
+                obligations, but are not responsible for third-party content,
+                policies, security, availability or actions outside our
+                reasonable control.
               </Paragraph>
             </Section>
 
             <Section
               id="termination"
-              number="15"
+              number="18"
               title="Suspension and termination"
             >
               <Paragraph>
-                You may stop using Dreamscape at any time. Closing an account
-                does not automatically create a refund or cancel an external
-                payment arrangement unless the applicable cancellation process
-                is also completed.
+                You may stop using Dreamscape at any time. If you have a
+                recurring subscription, stopping use of the platform does not
+                by itself stop future billing; use the applicable membership
+                cancellation or account-deletion process.
               </Paragraph>
 
               <Paragraph>
-                We may restrict, suspend, or terminate access where reasonably
+                We may restrict, suspend or terminate access where reasonably
                 necessary to:
               </Paragraph>
 
               <List>
-                <li>protect users, students, educators, or the platform;</li>
+                <li>protect users, students, educators or the platform;</li>
                 <li>
-                  investigate fraud, security issues, abuse, payment disputes,
+                  investigate fraud, security issues, abuse, payment disputes
                   or serious rule violations;
                 </li>
                 <li>comply with law or a valid authority request;</li>
-                <li>enforce these Terms or programme-specific terms; or</li>
+                <li>enforce these Terms or programme-specific terms;</li>
                 <li>
-                  manage an expired, cancelled, unpaid, or withdrawn licence.
+                  manage an expired, cancelled, unpaid, paused or withdrawn
+                  subscription or licence; or
+                </li>
+                <li>
+                  address an account whose required parent, guardian or
+                  organisational authority cannot be verified.
                 </li>
               </List>
 
               <Paragraph>
                 Where appropriate, we may give notice and an opportunity to
                 correct the issue. Immediate action may be taken for serious
-                safety, security, legal, or fraudulent conduct.
+                safety, security, legal or fraudulent conduct.
               </Paragraph>
             </Section>
 
             <Section
               id="privacy"
-              number="16"
+              number="19"
               title="Privacy and communications"
             >
               <Paragraph>
-                Our collection and use of personal data are described in the{" "}
+                Our collection, use, disclosure, protection, retention and
+                deletion of personal data are described in the{" "}
                 <Link
                   href="/privacy"
                   style={{ color: "#8ee8ff", textDecoration: "none" }}
                 >
                   Privacy Policy
                 </Link>
-                . You should review it before creating or assigning an account.
+                . You should review it before creating, approving or assigning
+                an account.
               </Paragraph>
 
               <Paragraph>
-                We may send service communications needed to operate an
-                account, including login, security, purchase, progress,
-                support, policy, and access messages.
+                We may send service communications reasonably required to
+                operate an account or programme, including login, security,
+                purchase, billing, progress, support, policy, access and
+                account-lifecycle messages.
               </Paragraph>
 
               <Paragraph>
-                Promotional email will be sent only where permitted and may be
-                unsubscribed from using the method provided. Service and legal
-                notices may still be sent where necessary for an active
-                account, transaction, licence, or programme.
-              </Paragraph>
-            </Section>
-
-            <Section id="changes" number="17" title="Changes to these Terms">
-              <Paragraph>
-                We may update these Terms to reflect changes to Dreamscape,
-                pricing structures, legal requirements, security practices, or
-                business operations.
-              </Paragraph>
-
-              <Paragraph>
-                The updated version will display a new effective or last
-                updated date. Where a change materially affects current paid
-                access or user rights, we will provide reasonable notice
-                through the platform, email, or another appropriate method.
-              </Paragraph>
-
-              <Paragraph>
-                Continued use after the updated Terms take effect means you
-                accept the revised Terms. If you do not agree, you should stop
-                using Dreamscape and cancel future renewal where applicable.
+                Promotional communications will be sent only where permitted.
+                Where an unsubscribe option is provided, you may use it to stop
+                the relevant promotional messages. Service, transaction,
+                security and legal notices may still be sent where necessary.
               </Paragraph>
             </Section>
 
             <Section
+              id="liability"
+              number="20"
+              title="Disclaimers and liability"
+            >
+              <Paragraph>
+                To the fullest extent permitted by law, Dreamscape is provided
+                on an “as available” basis. We do not guarantee specific
+                grades, examination results, learning speed, financial
+                knowledge, business performance, investment outcomes or other
+                results.
+              </Paragraph>
+
+              <Paragraph>
+                Milo&apos;s simulations, virtual investments, market
+                information and business activities are educational
+                simulations only. They do not involve real securities, real
+                ownership, real profit or personalised financial, legal, tax
+                or investment advice.
+              </Paragraph>
+
+              <Paragraph>
+                Nothing in these Terms excludes or limits liability, rights or
+                remedies that cannot lawfully be excluded or limited,
+                including mandatory consumer protections.
+              </Paragraph>
+
+              <Paragraph>
+                Subject to the previous paragraph and to the fullest extent
+                permitted by law, we are not liable for indirect, incidental,
+                special or consequential loss, loss of opportunity, loss of
+                virtual items or loss caused by unauthorised use, third-party
+                services or events beyond our reasonable control.
+              </Paragraph>
+
+              <Paragraph>
+                Where liability for a paid Dreamscape service may lawfully be
+                limited, our aggregate liability arising from that paid service
+                will not exceed the amount actually paid to us for the affected
+                service during the 12 months before the event giving rise to
+                the claim.
+              </Paragraph>
+            </Section>
+
+            <Section id="changes" number="21" title="Changes to these Terms">
+              <Paragraph>
+                We may update these Terms to reflect changes to Dreamscape,
+                pricing structures, membership controls, payment providers,
+                legal requirements, security practices or business operations.
+              </Paragraph>
+
+              <Paragraph>
+                The updated version will display a new effective date and
+                version identifier. Where a change materially affects current
+                paid access or user rights, we will provide reasonable notice
+                through the platform, email or another appropriate method.
+              </Paragraph>
+
+              <Paragraph>
+                Continued use after updated Terms take effect means you accept
+                the revised Terms to the extent permitted by law. If you do not
+                agree, you should stop using Dreamscape and cancel future
+                renewal where applicable.
+              </Paragraph>
+            </Section>
+
+            <Section id="general" number="22" title="General legal terms">
+              <Paragraph>
+                These Terms, together with the Privacy Policy and any
+                applicable programme-specific terms, form the agreement
+                governing the relevant Dreamscape service.
+              </Paragraph>
+
+              <List>
+                <li>
+                  If any provision is invalid or unenforceable, the remaining
+                  provisions continue to apply to the fullest extent permitted
+                  by law.
+                </li>
+                <li>
+                  A delay or failure by either party to enforce a provision
+                  does not automatically waive that provision.
+                </li>
+                <li>
+                  You may not transfer a personal account or subscription to
+                  another person without our approval. We may transfer these
+                  Terms as part of a genuine business reorganisation or
+                  transfer, subject to applicable law.
+                </li>
+                <li>
+                  Headings are for convenience and do not change the meaning of
+                  the Terms.
+                </li>
+              </List>
+            </Section>
+
+            <Section
               id="law"
-              number="18"
+              number="23"
               title="Governing law and disputes"
             >
               <Paragraph>
@@ -1053,18 +1300,12 @@ export default function TermsPage() {
               <Paragraph>
                 If a dispute cannot be resolved informally, the courts of
                 Singapore will have jurisdiction, subject to any mandatory
-                consumer right or dispute process that cannot lawfully be
-                excluded.
-              </Paragraph>
-
-              <Paragraph>
-                If any provision of these Terms is found invalid or
-                unenforceable, the remaining provisions will continue to
-                operate to the fullest extent permitted by law.
+                consumer right, statutory remedy or dispute process that cannot
+                lawfully be excluded.
               </Paragraph>
             </Section>
 
-            <Section id="contact" number="19" title="Contact us">
+            <Section id="contact" number="24" title="Contact us">
               <Paragraph>Dreamscape One is operated by:</Paragraph>
 
               <div
@@ -1089,7 +1330,7 @@ export default function TermsPage() {
 
                 <p style={{ margin: "10px 0 0" }}>UEN 53232375X</p>
                 <p style={{ margin: "5px 0 0" }}>
-                  Blk 4 Queen’s Road, #02-127, Singapore
+                  Blk 4 Queen&apos;s Road, #02-127, Singapore
                 </p>
                 <p style={{ margin: "5px 0 0" }}>
                   Email: admin@gurukidspro.com
@@ -1179,7 +1420,7 @@ export default function TermsPage() {
                   lineHeight: 1.6,
                 }}
               >
-                Effective {EFFECTIVE_DATE}
+                Effective {EFFECTIVE_DATE} · {TERMS_VERSION}
               </p>
 
               <div

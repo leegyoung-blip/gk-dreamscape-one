@@ -18,14 +18,17 @@ export async function createClient() {
       getAll() {
         return cookieStore.getAll();
       },
+
       setAll(cookiesToSet) {
         try {
           cookiesToSet.forEach(({ name, value, options }) => {
             cookieStore.set(name, value, options);
           });
         } catch {
-          // Setting cookies can fail in a Server Component. Session refresh
-          // should be handled by the project's existing Supabase proxy/middleware.
+          /*
+           * Server Components cannot always mutate cookies.
+           * middleware.ts refreshes the Supabase session for normal requests.
+           */
         }
       },
     },
