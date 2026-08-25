@@ -210,10 +210,15 @@ type MultiplayerAnswer = {
 const fallbackCategoryNames = ["History", "Geography", "Science"];
 
 const CATEGORY_BACKGROUNDS: Record<string, string> = {
-  History: "/milo-world/activities/categories/history-card.webp",
-  Geography: "/milo-world/activities/categories/geography-card.webp",
-  Science: "/milo-world/activities/categories/science-card.webp",
+  History: "/milo-world/activities/categories/history-time-journey.png",
+  Geography: "/milo-world/activities/categories/geography-global-exploration.png",
+  Science: "/milo-world/activities/categories/science-future-discovery.png",
 };
+
+const MODE_BACKGROUNDS = {
+  single: "/milo-world/activities/categories/mode-single-solo-mastery.png",
+  multiplayer: "/milo-world/activities/categories/mode-multiplayer-live-showdown.png",
+} as const;
 
 const CATEGORY_TAGLINES: Record<string, string> = {
   History: "Explore people, events and civilisations from the past.",
@@ -2366,29 +2371,49 @@ export default function MiloCategoriesPage() {
                     <button
                       type="button"
                       onClick={() => chooseCategoriesMode("single")}
-                      className="mode-card min-h-[180px] rounded-[24px] border border-white/14 bg-[#050d1c]/85 p-6 text-left transition hover:scale-[1.02] hover:border-[#ffd18a]/45"
+                      className="mode-card group relative min-h-[180px] overflow-hidden rounded-[24px] border border-white/14 p-6 text-left transition hover:scale-[1.02] hover:border-[#ffd18a]/45"
                     >
-                      <span className="mode-title text-2xl font-bold">
-                        Single Player
-                      </span>
-                      <span className="mode-description mt-3 block text-sm leading-6 text-white/58">
-                        Start a 10-question timed quiz. Faster correct answers earn
-                        more points.
+                      <span
+                        aria-hidden="true"
+                        className="absolute inset-0 bg-cover bg-center transition duration-300 group-hover:scale-[1.035]"
+                        style={{
+                          backgroundImage: `url('${MODE_BACKGROUNDS.single}')`,
+                        }}
+                      />
+                      <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(3,10,24,0.18),rgba(3,10,24,0.88))]" />
+                      <span className="relative z-10 block">
+                        <span className="mode-title text-2xl font-bold drop-shadow-[0_2px_12px_rgba(0,0,0,0.72)]">
+                          Single Player
+                        </span>
+                        <span className="mode-description mt-3 block max-w-[28rem] text-sm leading-6 text-white/76">
+                          Start a 10-question timed quiz. Faster correct answers earn
+                          more points.
+                        </span>
                       </span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => chooseCategoriesMode("multiplayer")}
-                      className="mode-card min-h-[180px] rounded-[24px] border border-[#ffd18a]/24 bg-[#ffd18a]/10 p-6 text-left transition hover:scale-[1.02] hover:border-[#ffd18a]/45"
+                      className="mode-card group relative min-h-[180px] overflow-hidden rounded-[24px] border border-[#ffd18a]/24 p-6 text-left transition hover:scale-[1.02] hover:border-[#ffd18a]/45"
                     >
-                      <span className="mode-title text-2xl font-bold">
-                        Multiplayer
-                      </span>
-                      <span className="mode-description mt-3 block text-sm leading-6 text-white/58">
-                        {userAccess.isLoggedIn
-                          ? "Create or join a lobby and play the same 10 questions against others."
-                          : "Shared lobbies use your player account. Log in to create or join multiplayer."}
+                      <span
+                        aria-hidden="true"
+                        className="absolute inset-0 bg-cover bg-center transition duration-300 group-hover:scale-[1.035]"
+                        style={{
+                          backgroundImage: `url('${MODE_BACKGROUNDS.multiplayer}')`,
+                        }}
+                      />
+                      <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(3,10,24,0.18),rgba(3,10,24,0.88))]" />
+                      <span className="relative z-10 block">
+                        <span className="mode-title text-2xl font-bold drop-shadow-[0_2px_12px_rgba(0,0,0,0.72)]">
+                          Multiplayer
+                        </span>
+                        <span className="mode-description mt-3 block max-w-[28rem] text-sm leading-6 text-white/76">
+                          {userAccess.isLoggedIn
+                            ? "Create or join a lobby and play the same 10 questions against others."
+                            : "Shared lobbies use your player account. Log in to create or join multiplayer."}
+                        </span>
                       </span>
                     </button>
                   </div>
