@@ -82,11 +82,30 @@ type ProfileAssetBreakdown = {
   stocks: number;
 };
 
+type WalkthroughStepId =
+  | "welcome"
+  | "rewards"
+  | "knowledge"
+  | "core"
+  | "science"
+  | "think"
+  | "dashboard"
+  | "ready";
+
 type WalkthroughStep = {
+  id: WalkthroughStepId;
   eyebrow: string;
   title: string;
   text: string;
   zoneId?: string;
+};
+
+type WalkthroughZoneState = {
+  released: boolean;
+  unlocked: boolean;
+  adminPreview: boolean;
+  lockedMessage: string;
+  href: string | null;
 };
 
 function useResponsiveMode() {
@@ -278,53 +297,61 @@ const missionZones: MissionZone[] = [
   },
 ];
 
-const WALKTHROUGH_STORAGE_KEY = "learning-missions-walkthrough-completed-v2";
+const WALKTHROUGH_STORAGE_KEY = "learning-missions-walkthrough-completed-v3";
 
 const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   {
-    eyebrow: "Welcome",
-    title: "Let me show you around the Mission Centre.",
-    text: "This is where you choose different challenges, prepare Nova’s equipment, earn rewards, and review your progress. I’ll show you what each zone is for.",
+    id: "welcome",
+    eyebrow: "Nova Guide",
+    title: "Want me to show you around?",
+    text: "I’ll point out what each mission zone does, what you can enter right now, and where Dream Tokens and Dream Gems fit into your learning journey.",
   },
   {
+    id: "rewards",
     eyebrow: "Your Rewards",
-    title: "Look for both Dream Tokens and Dream Gems.",
-    text: "Dream Tokens, or DT, are the standard currency used only inside Dreamscape. Dream Gems, or DG, are premium learning rewards earned through eligible paid activities. Core Missions and Think Missions can award DG to eligible Student Access users. On a full screen, both balances appear at the top. On tablet or mobile, open the Menu beneath the Back button to view them. Selected Gems can later be redeemed for tangible or premium rewards.",
+    title: "Two rewards power your learning.",
+    text: "Dream Tokens, or DT, are the everyday currency used across Dreamscape. Dream Gems, or DG, are premium learning rewards earned through eligible activities. Your balances are always available from the controls at the top, or from the Menu on smaller screens.",
   },
   {
-    eyebrow: "Stop 1 of 5",
-    title: "Warm up in the Knowledge Arena.",
-    text: "Enter quick topic challenges, test what you know, earn points, and collect Dreamscape Tokens. This zone is available to everyone.",
+    id: "knowledge",
+    eyebrow: "Zone 1 · Knowledge Arena",
+    title: "Start with a fast challenge.",
+    text: "Pick a topic, answer a quick challenge, earn points and collect Dream Tokens. Knowledge Arena is the easiest place to jump straight into a mission.",
     zoneId: "knowledge-arena",
   },
   {
-    eyebrow: "Stop 2 of 5",
-    title: "Build strong foundations in Core Missions.",
-    text: "Complete English and Math missions to prepare and upgrade Nova’s Skyforge Rover. Eligible Student Access users can also earn Dream Gems here.",
+    id: "core",
+    eyebrow: "Zone 2 · Core Missions",
+    title: "Build your English and Math foundations.",
+    text: "Core Missions combines English and Math missions with Nova’s Skyforge Rover progression. Eligible Student Access users can also earn Dream Gems as they advance.",
     zoneId: "core-missions",
   },
   {
-    eyebrow: "Stop 3 of 5",
-    title: "Explore the new Science Missions.",
-    text: "Open the Primary 1 to Primary 6 Science curriculum, choose a topic, and enter concept, practice, investigation, or mastery missions. Access follows the Science or Complete plan linked to the learner’s account.",
+    id: "science",
+    eyebrow: "Zone 3 · Science Missions",
+    title: "Explore Science through missions.",
+    text: "Science Missions covers Primary 1 to Primary 6 concepts through concept, practice, investigation and mastery missions.",
     zoneId: "science-missions",
   },
   {
-    eyebrow: "Stop 4 of 5",
-    title: "Think Missions are currently locked.",
-    text: "The reasoning, logic, pattern, and HAP-style mission zone is currently unavailable and will remain here for a future update.",
+    id: "think",
+    eyebrow: "Zone 4 · Think Missions",
+    title: "Train how you think.",
+    text: "Think Missions develops reasoning, logic, pattern spotting and HAP-style thinking through challenges built to stretch problem-solving skills.",
     zoneId: "think-missions",
   },
   {
-    eyebrow: "Stop 5 of 5",
-    title: "Review progress in the Teaching Dashboard.",
-    text: "Parents and teachers can use the Teaching Dashboard to review student mission progress, completed levels, scores, and learning activity.",
+    id: "dashboard",
+    eyebrow: "Zone 5 · Teaching Dashboard",
+    title: "See how learning is progressing.",
+    text: "The Teaching Dashboard brings together mission progress, completed levels, scores and learning activity so growth is easier to review.",
     zoneId: "progress-rewards",
   },
   {
-    eyebrow: "You’re ready",
-    title: "Choose your first mission.",
-    text: "Start with the Knowledge Arena or enter an unlocked mission zone. You can restart this walkthrough anytime using the Nova Guide button beneath Nova.",
+    id: "ready",
+    eyebrow: "You’re Ready",
+    title: "Where do you want to go?",
+    text: "Choose a mission now, or close the guide and explore the Mission Centre yourself. You can reopen Nova Guide anytime from the button beside Nova.",
   },
 ];
 
@@ -904,6 +931,45 @@ export default function LearningMissionsPage() {
 
   const displayedDesktopZone = activeWalkthroughZone ?? hoveredZone;
 
+  const walkthroughZoneStates = missionZones.reduce<
+    Record<string, WalkthroughZoneState>
+  >((states, zone) => {
+    states[zone.id] = {
+      released: isZoneReleased(zone),
+      unlocked: isZoneUnlocked(zone),
+      adminPreview: isAdminPreview(zone),
+      lockedMessage: getLockedMessage(zone),
+      href: getZoneHref(zone.id),
+    };
+    return states;
+  }, {});
+
+  function markWalkthroughComplete() {
+    try {
+      window.localStorage.setItem(WALKTHROUGH_STORAGE_KEY, "true");
+    } catch {
+      // Navigation and closing still work if browser storage is unavailable.
+    }
+  }
+
+  function enterWalkthroughZone(zoneId: string) {
+    const zone = missionZones.find((candidate) => candidate.id === zoneId);
+    if (!zone) return;
+
+    const href = getZoneHref(zone.id);
+    if (!href) return;
+
+    if (!isZoneUnlocked(zone)) {
+      setLockedZoneMessage(getLockedMessage(zone));
+      return;
+    }
+
+    markWalkthroughComplete();
+    setWalkthroughOpen(false);
+    setHoveredZone(null);
+    window.location.href = href;
+  }
+
   function startWalkthrough() {
     walkthroughStartScrollY.current = window.scrollY;
     setLockedZoneMessage("");
@@ -913,11 +979,7 @@ export default function LearningMissionsPage() {
   }
 
   function closeWalkthrough() {
-    try {
-      window.localStorage.setItem(WALKTHROUGH_STORAGE_KEY, "true");
-    } catch {
-      // The guide still closes when browser storage is unavailable.
-    }
+    markWalkthroughComplete();
 
     setWalkthroughOpen(false);
     setWalkthroughStep(0);
@@ -1311,7 +1373,10 @@ export default function LearningMissionsPage() {
       <MissionGuidedWalkthrough
         open={walkthroughOpen}
         stepIndex={walkthroughStep}
+        zoneStates={walkthroughZoneStates}
+        isAdmin={userMissionAccess.isAdmin}
         onStepChange={setWalkthroughStep}
+        onEnterZone={enterWalkthroughZone}
         onClose={closeWalkthrough}
       />
     </main>
@@ -2919,30 +2984,32 @@ function getPopupPosition(zoneId: string): CSSProperties {
 function MissionGuidedWalkthrough({
   open,
   stepIndex,
+  zoneStates,
+  isAdmin,
   onStepChange,
+  onEnterZone,
   onClose,
 }: {
   open: boolean;
   stepIndex: number;
+  zoneStates: Record<string, WalkthroughZoneState>;
+  isAdmin: boolean;
   onStepChange: (nextStep: number) => void;
+  onEnterZone: (zoneId: string) => void;
   onClose: () => void;
 }) {
   const screenMode = useResponsiveMode();
   const isDesktop = screenMode === "desktop";
   const isMobile = screenMode === "mobile";
   const step = WALKTHROUGH_STEPS[stepIndex] ?? WALKTHROUGH_STEPS[0];
+  const zoneState = step.zoneId ? zoneStates[step.zoneId] : null;
   const isFirstStep = stepIndex === 0;
   const isLastStep = stepIndex === WALKTHROUGH_STEPS.length - 1;
 
-  const isThinkMissionStep = step.zoneId === "think-missions";
-  const isTeachingDashboardStep = step.zoneId === "progress-rewards";
-
-  const shouldCenterDesktopGuide = isDesktop && isThinkMissionStep;
-
-  const shouldTopMobileGuide =
-    isMobile && (isThinkMissionStep || isTeachingDashboardStep);
-
   const [typedLength, setTypedLength] = useState(0);
+
+  const dynamicText = getInteractiveGuideText(step, zoneState, isAdmin);
+  const zoneStatus = getInteractiveGuideZoneStatus(step, zoneState);
 
   useEffect(() => {
     if (!open) {
@@ -2953,16 +3020,16 @@ function MissionGuidedWalkthrough({
     setTypedLength(0);
     const interval = window.setInterval(() => {
       setTypedLength((current) => {
-        if (current >= step.text.length) {
+        if (current >= dynamicText.length) {
           window.clearInterval(interval);
           return current;
         }
         return current + 1;
       });
-    }, 14);
+    }, 12);
 
     return () => window.clearInterval(interval);
-  }, [open, step.text]);
+  }, [open, dynamicText]);
 
   useEffect(() => {
     if (!open) return;
@@ -2977,6 +3044,39 @@ function MissionGuidedWalkthrough({
 
   if (!open) return null;
 
+  const guidePosition = getInteractiveGuidePosition(
+    step.zoneId,
+    isDesktop,
+    isMobile,
+  );
+
+  const canEnterCurrentZone = Boolean(step.zoneId && zoneState?.unlocked);
+  const currentZoneTitle = step.zoneId
+    ? missionZones.find((zone) => zone.id === step.zoneId)?.title || "Mission"
+    : "Mission";
+  const currentZoneActionLabel = zoneState?.adminPreview
+    ? `Preview ${currentZoneTitle}`
+    : step.zoneId === "progress-rewards"
+      ? "Open Dashboard"
+      : `Enter ${currentZoneTitle}`;
+
+  const finalDestinations = missionZones.filter((zone) => {
+    if (zone.id === "progress-rewards") {
+      return Boolean(zoneStates[zone.id]?.unlocked);
+    }
+
+    if (zone.id === "knowledge-arena") return true;
+    return Boolean(zoneStates[zone.id]?.unlocked);
+  });
+
+  function goForward() {
+    if (isLastStep) {
+      onClose();
+      return;
+    }
+    onStepChange(Math.min(stepIndex + 1, WALKTHROUGH_STEPS.length - 1));
+  }
+
   return (
     <>
       <div
@@ -2985,7 +3085,7 @@ function MissionGuidedWalkthrough({
           position: "fixed",
           inset: 0,
           zIndex: 80,
-          background: "rgba(0,3,12,0.76)",
+          background: "rgba(0,3,12,0.72)",
           backdropFilter: "blur(3px)",
           WebkitBackdropFilter: "blur(3px)",
         }}
@@ -2994,54 +3094,26 @@ function MissionGuidedWalkthrough({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Learning Missions guided walkthrough"
+        aria-label="Nova Learning Missions guide"
         style={{
           position: "fixed",
-          top: shouldCenterDesktopGuide
-            ? "50%"
-            : isDesktop
-              ? "auto"
-              : isMobile
-                ? shouldTopMobileGuide
-                  ? "8px"
-                  : "auto"
-                : "18px",
-          right: shouldCenterDesktopGuide
-            ? "auto"
-            : isDesktop
-              ? "24px"
-              : "auto",
-          bottom: shouldCenterDesktopGuide
-            ? "auto"
-            : isDesktop
-              ? "24px"
-              : isMobile
-                ? shouldTopMobileGuide
-                  ? "auto"
-                  : "8px"
-                : "auto",
-          left: shouldCenterDesktopGuide ? "50%" : isDesktop ? "auto" : "50%",
-          transform: shouldCenterDesktopGuide
-            ? "translate(-50%, -50%)"
-            : isDesktop
-              ? "none"
-              : "translateX(-50%)",
+          ...guidePosition,
           zIndex: 100,
           width: isDesktop
-            ? "min(560px, calc(100vw - 48px))"
+            ? "min(570px, calc(100vw - 48px))"
             : isMobile
               ? "calc(100vw - 16px)"
               : "min(720px, calc(100vw - 36px))",
           maxHeight: isDesktop
-            ? "none"
+            ? "min(620px, calc(100dvh - 48px))"
             : isMobile
               ? "58dvh"
-              : "min(430px, 52dvh)",
-          overflowY: isDesktop ? "visible" : "auto",
+              : "min(470px, 54dvh)",
+          overflowY: "auto",
           borderRadius: isMobile ? "20px" : "26px",
           border: "1px solid rgba(142,232,255,0.42)",
           background:
-            "linear-gradient(145deg, rgba(4,21,47,0.98), rgba(3,9,24,0.98))",
+            "linear-gradient(145deg, rgba(4,21,47,0.985), rgba(3,9,24,0.99))",
           boxShadow:
             "0 32px 90px rgba(0,0,0,0.68), 0 0 40px rgba(83,215,255,0.14)",
           transition:
@@ -3052,7 +3124,7 @@ function MissionGuidedWalkthrough({
       >
         <button
           type="button"
-          aria-label="Close walkthrough"
+          aria-label="Close Nova Guide"
           onClick={onClose}
           style={{
             position: "absolute",
@@ -3078,8 +3150,8 @@ function MissionGuidedWalkthrough({
           style={{
             position: isMobile ? "relative" : "absolute",
             left: isMobile ? "auto" : "4px",
-            bottom: isMobile ? "auto" : isDesktop ? "-8px" : "0px",
-            height: isMobile ? "108px" : "245px",
+            bottom: isMobile ? "auto" : "-8px",
+            height: isMobile ? "106px" : "245px",
             width: "auto",
             objectFit: "contain",
             display: "block",
@@ -3089,24 +3161,55 @@ function MissionGuidedWalkthrough({
           }}
         />
 
-        <p
+        <div
           style={{
-            margin: 0,
-            color: "#8ee8ff",
-            fontSize: "11px",
-            letterSpacing: "0.2em",
-            textTransform: "uppercase",
-            fontWeight: 850,
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            flexWrap: "wrap",
+            paddingRight: "42px",
           }}
         >
-          {step.eyebrow}
-        </p>
+          <p
+            style={{
+              margin: 0,
+              color: "#8ee8ff",
+              fontSize: "11px",
+              letterSpacing: "0.2em",
+              textTransform: "uppercase",
+              fontWeight: 850,
+            }}
+          >
+            {step.eyebrow}
+          </p>
+
+          {zoneStatus && (
+            <span
+              style={{
+                minHeight: "24px",
+                borderRadius: "999px",
+                border: `1px solid ${zoneStatus.border}`,
+                background: zoneStatus.background,
+                color: zoneStatus.color,
+                padding: "4px 8px",
+                display: "inline-flex",
+                alignItems: "center",
+                fontSize: "9px",
+                fontWeight: 900,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+              }}
+            >
+              {zoneStatus.label}
+            </span>
+          )}
+        </div>
 
         <h2
           style={{
             margin: "9px 42px 0 0",
             fontFamily: 'Georgia, "Times New Roman", serif',
-            fontSize: isMobile ? "26px" : "35px",
+            fontSize: isMobile ? "25px" : "35px",
             lineHeight: 1.08,
             fontWeight: 500,
           }}
@@ -3117,14 +3220,14 @@ function MissionGuidedWalkthrough({
         <p
           style={{
             margin: "14px 0 0",
-            minHeight: isMobile ? "72px" : "78px",
-            color: "rgba(255,255,255,0.78)",
+            minHeight: isMobile ? "76px" : "80px",
+            color: "rgba(255,255,255,0.79)",
             fontSize: isMobile ? "14px" : "16px",
             lineHeight: 1.58,
           }}
         >
-          {step.text.slice(0, typedLength)}
-          {typedLength < step.text.length && (
+          {dynamicText.slice(0, typedLength)}
+          {typedLength < dynamicText.length && (
             <span
               aria-hidden="true"
               style={{
@@ -3141,7 +3244,74 @@ function MissionGuidedWalkthrough({
 
         <div
           style={{
-            marginTop: "18px",
+            marginTop: "17px",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "9px",
+          }}
+        >
+          {step.id === "welcome" ? (
+            <>
+              <GuideActionButton
+                label="Show Me Around"
+                primary
+                onClick={goForward}
+              />
+              <GuideActionButton label="Maybe Later" onClick={onClose} />
+            </>
+          ) : step.id === "rewards" ? (
+            <>
+              <GuideActionButton
+                label="Show Me the Zones"
+                primary
+                onClick={goForward}
+              />
+              <GuideActionButton label="Skip Tour" onClick={onClose} />
+            </>
+          ) : isLastStep ? (
+            <>
+              {finalDestinations.map((zone, index) => {
+                const state = zoneStates[zone.id];
+                const label = state?.adminPreview
+                  ? `Preview ${zone.title}`
+                  : zone.id === "progress-rewards"
+                    ? "Open Dashboard"
+                    : `Enter ${zone.title}`;
+
+                return (
+                  <GuideActionButton
+                    key={zone.id}
+                    label={label}
+                    primary={index === 0}
+                    onClick={() => onEnterZone(zone.id)}
+                  />
+                );
+              })}
+              <GuideActionButton label="Explore on My Own" onClick={onClose} />
+            </>
+          ) : (
+            <>
+              {canEnterCurrentZone && step.zoneId && (
+                <GuideActionButton
+                  label={currentZoneActionLabel}
+                  primary
+                  onClick={() => onEnterZone(step.zoneId!)}
+                />
+              )}
+              <GuideActionButton
+                label={canEnterCurrentZone ? "Keep Touring" : "Continue Tour"}
+                primary={!canEnterCurrentZone}
+                onClick={goForward}
+              />
+            </>
+          )}
+        </div>
+
+        <div
+          style={{
+            marginTop: "19px",
+            paddingTop: "15px",
+            borderTop: "1px solid rgba(142,232,255,0.12)",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -3150,71 +3320,246 @@ function MissionGuidedWalkthrough({
           }}
         >
           <div
-            aria-label={`Walkthrough step ${stepIndex + 1} of ${WALKTHROUGH_STEPS.length}`}
+            aria-label={`Nova Guide step ${stepIndex + 1} of ${WALKTHROUGH_STEPS.length}`}
             style={{ display: "flex", gap: "6px", alignItems: "center" }}
           >
-            {WALKTHROUGH_STEPS.map((_, index) => (
-              <span
-                key={index}
+            {WALKTHROUGH_STEPS.map((guideStep, index) => (
+              <button
+                key={guideStep.id}
+                type="button"
+                aria-label={`Go to ${guideStep.eyebrow}`}
+                onClick={() => onStepChange(index)}
                 style={{
-                  width: index === stepIndex ? "22px" : "7px",
-                  height: "7px",
+                  width: index === stepIndex ? "22px" : "8px",
+                  height: "8px",
+                  padding: 0,
+                  border: "none",
                   borderRadius: "999px",
                   background:
                     index === stepIndex ? "#8ee8ff" : "rgba(255,255,255,0.2)",
+                  cursor: "pointer",
                   transition: "width 180ms ease, background 180ms ease",
                 }}
               />
             ))}
           </div>
 
-          <div style={{ display: "flex", gap: "9px" }}>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             {!isFirstStep && (
               <button
                 type="button"
                 onClick={() => onStepChange(stepIndex - 1)}
                 style={{
-                  minHeight: "42px",
-                  padding: "0 16px",
-                  borderRadius: "12px",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  background: "rgba(255,255,255,0.06)",
-                  color: "white",
+                  minHeight: "36px",
+                  padding: "0 12px",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  background: "rgba(255,255,255,0.04)",
+                  color: "rgba(255,255,255,0.72)",
                   cursor: "pointer",
-                  fontWeight: 750,
+                  fontSize: "11px",
+                  fontWeight: 800,
                 }}
               >
-                Back
+                ← Back
               </button>
             )}
-            <button
-              type="button"
-              onClick={() =>
-                isLastStep ? onClose() : onStepChange(stepIndex + 1)
-              }
-              style={{
-                minHeight: "42px",
-                padding: "0 18px",
-                borderRadius: "12px",
-                border: "1px solid rgba(83,215,255,0.42)",
-                background: "rgba(83,215,255,0.16)",
-                color: "white",
-                cursor: "pointer",
-                fontWeight: 850,
-              }}
-            >
-              {isLastStep
-                ? "Start Exploring"
-                : isFirstStep
-                  ? "Show Me"
-                  : "Next"}
-            </button>
+
+            {!isLastStep && step.id !== "welcome" && step.id !== "rewards" && (
+              <button
+                type="button"
+                onClick={goForward}
+                style={{
+                  minHeight: "36px",
+                  padding: "0 12px",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(83,215,255,0.16)",
+                  background: "rgba(83,215,255,0.05)",
+                  color: "#bdf6ff",
+                  cursor: "pointer",
+                  fontSize: "11px",
+                  fontWeight: 800,
+                }}
+              >
+                Next →
+              </button>
+            )}
           </div>
         </div>
       </div>
     </>
   );
 }
+
+function GuideActionButton({
+  label,
+  primary = false,
+  onClick,
+}: {
+  label: string;
+  primary?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        minHeight: "42px",
+        borderRadius: "12px",
+        border: primary
+          ? "1px solid rgba(83,215,255,0.46)"
+          : "1px solid rgba(255,255,255,0.16)",
+        background: primary
+          ? "linear-gradient(135deg, rgba(34,211,238,0.2), rgba(59,130,246,0.18))"
+          : "rgba(255,255,255,0.055)",
+        color: "white",
+        padding: "0 15px",
+        cursor: "pointer",
+        fontFamily: "inherit",
+        fontSize: "12px",
+        fontWeight: 850,
+        boxShadow: primary ? "0 10px 24px rgba(34,211,238,0.09)" : "none",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function getInteractiveGuideText(
+  step: WalkthroughStep,
+  zoneState: WalkthroughZoneState | null,
+  isAdmin: boolean,
+) {
+  if (!zoneState || !step.zoneId) return step.text;
+
+  if (step.id === "knowledge") {
+    return `${step.text} This zone is open to everyone, so you can enter it straight from the guide whenever you want.`;
+  }
+
+  if (step.id === "core") {
+    if (zoneState.adminPreview) {
+      return `${step.text} Learner Access is currently OFF, but you can still enter as an admin without opening the zone to learners.`;
+    }
+    if (!zoneState.released) {
+      return `${step.text} This zone is not open to learners yet, so I’ll keep it on the map without sending you into a locked page.`;
+    }
+    if (zoneState.unlocked) {
+      return `${step.text} Core is released and this account can enter it now.`;
+    }
+    return `${step.text} Core is released, but this account does not currently have the required Core access.`;
+  }
+
+  if (step.id === "science") {
+    if (zoneState.adminPreview) {
+      return `${step.text} Science is currently hidden from learners. As an admin, you can preview it here without changing Learner Access.`;
+    }
+    if (!zoneState.released) {
+      return `${step.text} Science is still being prepared and is not open to learners yet. When it is released, eligible Science or Complete users will be able to enter.`;
+    }
+    if (zoneState.unlocked) {
+      return `${step.text} Science is released and this account can enter it now.`;
+    }
+    return `${step.text} Science is released, but this account does not currently have Science or Complete access.`;
+  }
+
+  if (step.id === "think") {
+    if (zoneState.adminPreview) {
+      return `${step.text} Think is currently hidden from learners. As an admin, you can preview the zone without turning Learner Access on.`;
+    }
+    if (!zoneState.released) {
+      return `${step.text} Think Missions are not open to learners yet, so I’ll keep this stop visible while the zone is being prepared.`;
+    }
+    if (zoneState.unlocked) {
+      return `${step.text} Think is released and this account can enter it now.`;
+    }
+    return `${step.text} Think is released, but this account does not currently have the required Core/Think access.`;
+  }
+
+  if (step.id === "dashboard") {
+    if (zoneState.unlocked) {
+      return `${step.text} This account can open the dashboard directly from the guide.`;
+    }
+    return `${step.text} This account does not currently have access to the dashboard, so I’ll explain it without sending you into a locked page.`;
+  }
+
+  return step.text;
+}
+
+function getInteractiveGuideZoneStatus(
+  step: WalkthroughStep,
+  zoneState: WalkthroughZoneState | null,
+) {
+  if (!step.zoneId || !zoneState) return null;
+
+  if (zoneState.adminPreview) {
+    return {
+      label: "Admin Preview",
+      color: "#ede9fe",
+      border: "rgba(196,181,253,0.44)",
+      background: "rgba(124,58,237,0.16)",
+    };
+  }
+
+  if (!zoneState.released) {
+    return {
+      label: "Learner Access Closed",
+      color: "#fde68a",
+      border: "rgba(253,230,138,0.36)",
+      background: "rgba(245,158,11,0.1)",
+    };
+  }
+
+  if (zoneState.unlocked) {
+    return {
+      label: "Available",
+      color: "#a7f3d0",
+      border: "rgba(110,231,183,0.34)",
+      background: "rgba(16,185,129,0.1)",
+    };
+  }
+
+  return {
+    label: "Access Required",
+    color: "#fde68a",
+    border: "rgba(253,230,138,0.34)",
+    background: "rgba(245,158,11,0.09)",
+  };
+}
+
+function getInteractiveGuidePosition(
+  zoneId: string | undefined,
+  isDesktop: boolean,
+  isMobile: boolean,
+): CSSProperties {
+  if (!isDesktop) {
+    const shouldOpenAtTop =
+      zoneId === "think-missions" || zoneId === "progress-rewards";
+
+    return {
+      top: isMobile ? (shouldOpenAtTop ? "8px" : "auto") : "18px",
+      right: "auto",
+      bottom: isMobile ? (shouldOpenAtTop ? "auto" : "8px") : "auto",
+      left: "50%",
+      transform: "translateX(-50%)",
+    };
+  }
+
+  switch (zoneId) {
+    case "science-missions":
+      return { left: "24px", bottom: "24px" };
+    case "think-missions":
+      return { left: "24px", top: "24px" };
+    case "progress-rewards":
+      return { right: "24px", top: "110px" };
+    case "knowledge-arena":
+    case "core-missions":
+    default:
+      return { right: "24px", bottom: "24px" };
+  }
+}
+
 
 const controlButtonStyle: CSSProperties = {
   height: "46px",

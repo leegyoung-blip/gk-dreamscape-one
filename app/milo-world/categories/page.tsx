@@ -221,6 +221,65 @@ const CATEGORY_TAGLINES: Record<string, string> = {
   Science: "Explore living things, matter, forces, Earth and space.",
 };
 
+const MILO_GUIDE_STEPS = [
+  {
+    eyebrow: "Start here",
+    title: "Choose a category",
+    description:
+      "History, Geography and Science each build their own mastery profile. Your progress stays separate so Milo can learn where you are strongest in each subject.",
+    detail: "Pick any category first. You can switch categories whenever you return to this screen.",
+  },
+  {
+    eyebrow: "Play style",
+    title: "Quick Play",
+    description:
+      "Quick Play gives you a balanced 10-question mix from the category. Correct answers earn more points when you answer quickly.",
+    detail: "Use this when you want a fast, balanced challenge without targeting a specific weakness.",
+  },
+  {
+    eyebrow: "Personalized learning",
+    title: "Milo Challenge",
+    description:
+      "Milo Challenge uses your mastery data to focus more questions on areas that need practice. Before Milo has enough evidence, it runs a discovery challenge instead.",
+    detail: "As Milo gathers evidence, these challenges become increasingly specific to your learning profile.",
+  },
+  {
+    eyebrow: "Personal record",
+    title: "Beat My Best",
+    description:
+      "Once you have a saved score, Beat My Best builds a competitive mix around your current level and challenges you to improve your personal best.",
+    detail: "This mode unlocks after your first recorded single-player quiz in that category.",
+  },
+  {
+    eyebrow: "Your learning profile",
+    title: "My Mastery",
+    description:
+      "My Mastery shows your overall mastery, accuracy trend, best score, improvement, Knowledge Map and past quiz history.",
+    detail: "Milo only labels a subtopic Strong, Developing or Needs Practice after enough evidence has been collected.",
+  },
+  {
+    eyebrow: "Goals & rewards",
+    title: "Milo Targets",
+    description:
+      "When Milo finds a reliable area to improve, it can create a personalized target. Completing the target can award extra DT and DG on top of normal quiz rewards.",
+    detail: "Targets are based on your own weaker areas rather than the same goal being given to everyone.",
+  },
+  {
+    eyebrow: "Learn from every attempt",
+    title: "Results & ranking",
+    description:
+      "After a quiz, See Results lets you review all 10 answers, the correct answers and explanations. Your score can also be compared with completed attempts in the same category.",
+    detail: "The ranking compares quiz attempts, not people. More detailed comparisons appear once enough attempts exist.",
+  },
+  {
+    eyebrow: "Play together",
+    title: "Multiplayer",
+    description:
+      "Create or join a lobby and answer the same 10 questions together. Multiplayer correctness still contributes to your personal mastery evidence.",
+    detail: "Multiplayer is tracked separately from single-player improvement benchmarking so competitive play does not distort your normal progress trend.",
+  },
+] as const;
+
 function generateLobbyCode() {
   const characters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code = "";
@@ -706,6 +765,9 @@ export default function MiloCategoriesPage() {
   const [savedMultiplayerAttemptId, setSavedMultiplayerAttemptId] = useState<string | null>(null);
   const [isSavingMultiplayerAnalytics, setIsSavingMultiplayerAnalytics] = useState(false);
 
+  const [miloGuideOpen, setMiloGuideOpen] = useState(false);
+  const [miloGuideStep, setMiloGuideStep] = useState(0);
+
   // Categories is a fixed-screen experience on every device.
   // Lock the document while this page is mounted so browser/body scrolling can
   // never compete with the intentionally scrollable inner result/mastery panes.
@@ -736,6 +798,35 @@ export default function MiloCategoriesPage() {
       html.style.height = previousHtmlHeight;
     };
   }, []);
+
+  useEffect(() => {
+    try {
+      const hasSeenGuide = window.localStorage.getItem("milo-categories-guide-seen-v1");
+      if (!hasSeenGuide) {
+        const timer = window.setTimeout(() => {
+          setMiloGuideStep(0);
+          setMiloGuideOpen(true);
+        }, 450);
+
+        return () => window.clearTimeout(timer);
+      }
+    } catch {
+      // The guide still works manually if storage is unavailable.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!miloGuideOpen) return;
+
+    function handleGuideEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMiloGuideOpen(false);
+      }
+    }
+
+    window.addEventListener("keydown", handleGuideEscape);
+    return () => window.removeEventListener("keydown", handleGuideEscape);
+  }, [miloGuideOpen]);
 
   const currentCategoryQuestion = categoryQuestions[categoryQuestionIndex];
   const currentMultiplayerQuestion =
@@ -931,6 +1022,7 @@ export default function MiloCategoriesPage() {
 
   useEffect(() => {
     if (categoriesStage !== "playing") return;
+    if (miloGuideOpen) return;
     if (!currentCategoryQuestion) return;
 
     if (questionCountdown <= 0) {
@@ -943,10 +1035,11 @@ export default function MiloCategoriesPage() {
     }, 1000);
 
     return () => window.clearTimeout(timer);
-  }, [categoriesStage, questionCountdown, currentCategoryQuestion]);
+  }, [categoriesStage, questionCountdown, currentCategoryQuestion, miloGuideOpen]);
 
   useEffect(() => {
     if (categoriesStage !== "answered") return;
+    if (miloGuideOpen) return;
 
     if (nextQuestionCountdown <= 0) {
       void goToNextCategoryQuestion();
@@ -958,10 +1051,11 @@ export default function MiloCategoriesPage() {
     }, 1000);
 
     return () => window.clearTimeout(timer);
-  }, [categoriesStage, nextQuestionCountdown]);
+  }, [categoriesStage, nextQuestionCountdown, miloGuideOpen]);
 
   useEffect(() => {
     if (categoriesStage !== "multiplayer-playing") return;
+    if (miloGuideOpen) return;
     if (!currentMultiplayerQuestion) return;
 
     if (multiplayerCountdown <= 0) {
@@ -978,10 +1072,12 @@ export default function MiloCategoriesPage() {
     categoriesStage,
     multiplayerCountdown,
     currentMultiplayerQuestion,
+    miloGuideOpen,
   ]);
 
   useEffect(() => {
     if (categoriesStage !== "multiplayer-answered") return;
+    if (miloGuideOpen) return;
 
     if (multiplayerNextCountdown <= 0) {
       goToNextMultiplayerQuestion();
@@ -993,7 +1089,25 @@ export default function MiloCategoriesPage() {
     }, 1000);
 
     return () => window.clearTimeout(timer);
-  }, [categoriesStage, multiplayerNextCountdown]);
+  }, [categoriesStage, multiplayerNextCountdown, miloGuideOpen]);
+
+  function rememberMiloGuideSeen() {
+    try {
+      window.localStorage.setItem("milo-categories-guide-seen-v1", "1");
+    } catch {
+      // Storage is optional; the guide remains fully usable without it.
+    }
+  }
+
+  function closeMiloGuide() {
+    rememberMiloGuideSeen();
+    setMiloGuideOpen(false);
+  }
+
+  function openMiloGuide() {
+    setMiloGuideStep(0);
+    setMiloGuideOpen(true);
+  }
 
   function chooseCategoriesMode(mode: "single" | "multiplayer") {
     setCategoryMode(mode);
@@ -2191,7 +2305,7 @@ export default function MiloCategoriesPage() {
       </header>
 
       <section className="categories-viewport relative z-10 flex min-h-0 flex-1 px-0 pb-9 pt-2 sm:pb-14 sm:pt-5">
-        <div className="categories-shell mx-auto flex w-[calc(100%_-_20px)] max-w-[1080px] flex-col overflow-hidden rounded-[22px] border border-white/16 bg-[#030a17]/72 shadow-[0_34px_100px_rgba(0,0,0,0.45)] backdrop-blur-[18px] sm:w-[calc(100%_-_32px)] sm:rounded-[30px]">
+        <div className="categories-shell flex w-full flex-col overflow-hidden">
           <div className="categories-hero shrink-0 border-b border-white/12 bg-[linear-gradient(145deg,rgba(255,176,83,0.16),rgba(83,215,255,0.08))] px-5 py-6 sm:px-[34px] sm:py-[34px]">
             <div className="categories-hero-heading">
               <p className="m-0 text-xs font-black uppercase tracking-[0.2em] text-[#ffd18a]">
@@ -3605,6 +3719,119 @@ export default function MiloCategoriesPage() {
         </div>
       </section>
 
+      <button
+        type="button"
+        onClick={openMiloGuide}
+        className="categories-guide-launcher"
+        aria-label="Open Milo guide"
+      >
+        <span className="categories-guide-launcher-mark">✦</span>
+        <span className="categories-guide-launcher-copy">
+          <strong>Milo Guide</strong>
+          <small>How Categories works</small>
+        </span>
+      </button>
+
+      {miloGuideOpen && (
+        <div className="categories-guide-layer" role="presentation">
+          <button
+            type="button"
+            aria-label="Close Milo guide"
+            className="categories-guide-backdrop"
+            onClick={closeMiloGuide}
+          />
+
+          <aside
+            className="categories-guide-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Milo Categories guide"
+          >
+            <div className="categories-guide-topline">
+              <div className="categories-guide-identity">
+                <span className="categories-guide-avatar" aria-hidden="true">
+                  ✦
+                </span>
+                <span>
+                  <small>Milo Guide</small>
+                  <strong>Categories walkthrough</strong>
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeMiloGuide}
+                className="categories-guide-close"
+                aria-label="Close guide"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="categories-guide-progress" aria-label="Guide progress">
+              {MILO_GUIDE_STEPS.map((step, index) => (
+                <button
+                  key={step.title}
+                  type="button"
+                  onClick={() => setMiloGuideStep(index)}
+                  className={index === miloGuideStep ? "is-active" : index < miloGuideStep ? "is-complete" : ""}
+                  aria-label={`Guide step ${index + 1}: ${step.title}`}
+                >
+                  <span>{index + 1}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="categories-guide-body">
+              <p className="categories-guide-eyebrow">
+                {MILO_GUIDE_STEPS[miloGuideStep].eyebrow}
+              </p>
+              <h2>{MILO_GUIDE_STEPS[miloGuideStep].title}</h2>
+              <p className="categories-guide-description">
+                {MILO_GUIDE_STEPS[miloGuideStep].description}
+              </p>
+              <div className="categories-guide-tip">
+                <span aria-hidden="true">◎</span>
+                <p>{MILO_GUIDE_STEPS[miloGuideStep].detail}</p>
+              </div>
+            </div>
+
+            <div className="categories-guide-actions">
+              <button
+                type="button"
+                onClick={() => setMiloGuideStep((current) => Math.max(0, current - 1))}
+                disabled={miloGuideStep === 0}
+                className="categories-guide-secondary"
+              >
+                Back
+              </button>
+
+              <span>
+                {miloGuideStep + 1} / {MILO_GUIDE_STEPS.length}
+              </span>
+
+              {miloGuideStep < MILO_GUIDE_STEPS.length - 1 ? (
+                <button
+                  type="button"
+                  onClick={() => setMiloGuideStep((current) => Math.min(MILO_GUIDE_STEPS.length - 1, current + 1))}
+                  className="categories-guide-primary"
+                >
+                  Next
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={closeMiloGuide}
+                  className="categories-guide-primary"
+                >
+                  Got it
+                </button>
+              )}
+            </div>
+          </aside>
+        </div>
+      )}
+
       <style jsx global>{`
         .categories-page {
           position: fixed;
@@ -3636,14 +3863,19 @@ export default function MiloCategoriesPage() {
           min-height: 0;
           flex: 1 1 0;
           overflow: hidden;
-          padding: 6px max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+          padding: 0 max(14px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
         }
 
         .categories-shell {
-          width: min(1080px, 100%);
+          width: 100%;
           height: 100%;
           min-height: 0;
           flex: 1 1 auto;
+          border: 0;
+          border-radius: 0;
+          background: transparent;
+          box-shadow: none;
+          backdrop-filter: none;
         }
 
         .categories-hero {
@@ -3652,7 +3884,11 @@ export default function MiloCategoriesPage() {
           flex: 0 0 auto;
           align-items: center;
           gap: 18px;
-          padding: 12px 20px;
+          margin: 0;
+          border: 0;
+          border-bottom: 1px solid rgba(255,255,255,0.10);
+          background: linear-gradient(90deg, rgba(255,176,83,0.10), rgba(83,215,255,0.035) 52%, transparent);
+          padding: 10px 18px;
         }
 
         .categories-hero-heading {
@@ -3718,11 +3954,11 @@ export default function MiloCategoriesPage() {
           min-height: 0;
           flex: 1 1 0;
           overflow: hidden;
-          padding: 12px;
+          padding: 10px 0 0;
         }
 
         .categories-page--quiz .categories-content {
-          padding: 8px;
+          padding: 4px 0 0;
         }
 
         .categories-stage-card {
@@ -3826,6 +4062,304 @@ export default function MiloCategoriesPage() {
           min-height: 42px;
           padding-top: 10px;
           padding-bottom: 10px;
+        }
+
+        .categories-guide-launcher {
+          position: fixed;
+          top: max(7px, env(safe-area-inset-top));
+          right: max(18px, env(safe-area-inset-right));
+          z-index: 70;
+          display: flex;
+          min-height: 50px;
+          align-items: center;
+          gap: 10px;
+          border: 1px solid rgba(155,245,255,0.28);
+          border-radius: 16px;
+          background: linear-gradient(135deg, rgba(7,22,43,0.96), rgba(19,31,66,0.96));
+          padding: 7px 12px 7px 8px;
+          color: white;
+          box-shadow: 0 16px 42px rgba(0,0,0,0.38), 0 0 28px rgba(83,215,255,0.08);
+          backdrop-filter: blur(18px);
+          cursor: pointer;
+          transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+        }
+
+        .categories-guide-launcher:hover {
+          transform: translateY(-2px);
+          border-color: rgba(155,245,255,0.52);
+          background: linear-gradient(135deg, rgba(9,31,58,0.98), rgba(27,39,79,0.98));
+        }
+
+        .categories-guide-launcher-mark {
+          display: grid;
+          width: 36px;
+          height: 36px;
+          place-items: center;
+          flex: 0 0 auto;
+          border: 1px solid rgba(255,209,138,0.35);
+          border-radius: 12px;
+          background: radial-gradient(circle at 35% 30%, rgba(255,209,138,0.28), rgba(83,215,255,0.08));
+          color: #ffd18a;
+          font-size: 18px;
+          box-shadow: inset 0 0 18px rgba(255,209,138,0.08);
+        }
+
+        .categories-guide-launcher-copy {
+          display: grid;
+          gap: 1px;
+          text-align: left;
+        }
+
+        .categories-guide-launcher-copy strong {
+          font-size: 11px;
+          font-weight: 900;
+        }
+
+        .categories-guide-launcher-copy small {
+          color: rgba(255,255,255,0.46);
+          font-size: 8px;
+          font-weight: 700;
+        }
+
+        .categories-guide-layer {
+          position: fixed;
+          inset: 0;
+          z-index: 100;
+          pointer-events: none;
+        }
+
+        .categories-guide-backdrop {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          border: 0;
+          background: rgba(0, 4, 12, 0.42);
+          backdrop-filter: blur(2px);
+          pointer-events: auto;
+          cursor: default;
+        }
+
+        .categories-guide-panel {
+          position: absolute;
+          right: max(18px, env(safe-area-inset-right));
+          bottom: max(18px, env(safe-area-inset-bottom));
+          width: min(430px, calc(100vw - 36px));
+          max-height: min(610px, calc(100dvh - 36px));
+          overflow: hidden;
+          display: grid;
+          grid-template-rows: auto auto minmax(0, 1fr) auto;
+          border: 1px solid rgba(155,245,255,0.22);
+          border-radius: 22px;
+          background: linear-gradient(155deg, rgba(6,20,40,0.985), rgba(4,10,26,0.99));
+          box-shadow: 0 30px 90px rgba(0,0,0,0.58), 0 0 50px rgba(83,215,255,0.08);
+          color: white;
+          pointer-events: auto;
+          backdrop-filter: blur(24px);
+        }
+
+        .categories-guide-topline {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          border-bottom: 1px solid rgba(255,255,255,0.08);
+          padding: 14px 14px 12px;
+        }
+
+        .categories-guide-identity {
+          display: flex;
+          min-width: 0;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .categories-guide-avatar {
+          display: grid;
+          width: 42px;
+          height: 42px;
+          place-items: center;
+          flex: 0 0 auto;
+          border: 1px solid rgba(255,209,138,0.34);
+          border-radius: 14px;
+          background: radial-gradient(circle at 35% 30%, rgba(255,209,138,0.30), rgba(83,215,255,0.08));
+          color: #ffd18a;
+          font-size: 20px;
+        }
+
+        .categories-guide-identity span:last-child {
+          display: grid;
+          min-width: 0;
+          gap: 2px;
+        }
+
+        .categories-guide-identity small {
+          color: #9bf5ff;
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+        }
+
+        .categories-guide-identity strong {
+          overflow: hidden;
+          font-size: 14px;
+          font-weight: 900;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .categories-guide-close {
+          display: grid;
+          width: 34px;
+          height: 34px;
+          place-items: center;
+          flex: 0 0 auto;
+          border: 1px solid rgba(255,255,255,0.12);
+          border-radius: 999px;
+          background: rgba(255,255,255,0.05);
+          color: rgba(255,255,255,0.76);
+          font-size: 22px;
+          line-height: 1;
+          cursor: pointer;
+        }
+
+        .categories-guide-progress {
+          display: grid;
+          grid-template-columns: repeat(8, minmax(0, 1fr));
+          gap: 5px;
+          padding: 11px 14px 0;
+        }
+
+        .categories-guide-progress button {
+          display: grid;
+          min-width: 0;
+          height: 26px;
+          place-items: center;
+          border: 1px solid rgba(255,255,255,0.09);
+          border-radius: 8px;
+          background: rgba(255,255,255,0.035);
+          color: rgba(255,255,255,0.34);
+          font-size: 8px;
+          font-weight: 900;
+          cursor: pointer;
+        }
+
+        .categories-guide-progress button.is-complete {
+          border-color: rgba(155,245,255,0.16);
+          color: rgba(155,245,255,0.72);
+        }
+
+        .categories-guide-progress button.is-active {
+          border-color: rgba(255,209,138,0.48);
+          background: rgba(255,209,138,0.12);
+          color: #ffd18a;
+        }
+
+        .categories-guide-body {
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          padding: 18px 18px 16px;
+          scrollbar-width: thin;
+          scrollbar-color: rgba(255,209,138,0.25) transparent;
+        }
+
+        .categories-guide-eyebrow {
+          margin: 0;
+          color: #9bf5ff;
+          font-size: 9px;
+          font-weight: 900;
+          letter-spacing: 0.17em;
+          text-transform: uppercase;
+        }
+
+        .categories-guide-body h2 {
+          margin: 6px 0 0;
+          font-family: Georgia, "Times New Roman", serif;
+          font-size: clamp(26px, 4vw, 36px);
+          font-weight: 400;
+          line-height: 1;
+        }
+
+        .categories-guide-description {
+          margin: 12px 0 0;
+          color: rgba(255,255,255,0.70);
+          font-size: 13px;
+          line-height: 1.55;
+        }
+
+        .categories-guide-tip {
+          display: grid;
+          grid-template-columns: 28px minmax(0, 1fr);
+          gap: 9px;
+          margin-top: 14px;
+          border: 1px solid rgba(255,209,138,0.14);
+          border-radius: 14px;
+          background: rgba(255,209,138,0.055);
+          padding: 10px 11px;
+        }
+
+        .categories-guide-tip > span {
+          display: grid;
+          width: 28px;
+          height: 28px;
+          place-items: center;
+          border-radius: 9px;
+          background: rgba(255,209,138,0.10);
+          color: #ffd18a;
+        }
+
+        .categories-guide-tip p {
+          margin: 0;
+          color: rgba(255,255,255,0.56);
+          font-size: 11px;
+          line-height: 1.45;
+        }
+
+        .categories-guide-actions {
+          display: grid;
+          grid-template-columns: minmax(88px, 1fr) auto minmax(88px, 1fr);
+          align-items: center;
+          gap: 10px;
+          border-top: 1px solid rgba(255,255,255,0.08);
+          padding: 12px 14px 14px;
+        }
+
+        .categories-guide-actions > span {
+          color: rgba(255,255,255,0.34);
+          font-size: 9px;
+          font-weight: 900;
+          letter-spacing: 0.08em;
+          text-align: center;
+        }
+
+        .categories-guide-primary,
+        .categories-guide-secondary {
+          min-height: 38px;
+          border-radius: 11px;
+          padding: 8px 12px;
+          font-size: 9px;
+          font-weight: 900;
+          letter-spacing: 0.09em;
+          text-transform: uppercase;
+          cursor: pointer;
+        }
+
+        .categories-guide-primary {
+          border: 1px solid rgba(255,209,138,0.45);
+          background: linear-gradient(90deg, rgba(196,122,37,0.95), rgba(229,183,94,0.95));
+          color: white;
+        }
+
+        .categories-guide-secondary {
+          border: 1px solid rgba(255,255,255,0.12);
+          background: rgba(255,255,255,0.04);
+          color: rgba(255,255,255,0.72);
+        }
+
+        .categories-guide-secondary:disabled {
+          cursor: not-allowed;
+          opacity: 0.28;
         }
 
         @media (max-width: 1180px) {
@@ -4451,6 +4985,76 @@ export default function MiloCategoriesPage() {
           .result-answer-grid > div {
             padding: 8px;
           }
+        }
+
+        @media (max-width: 1024px), (hover: none) and (pointer: coarse) {
+          .categories-guide-launcher {
+            top: max(7px, env(safe-area-inset-top));
+            right: max(9px, env(safe-area-inset-right));
+            min-height: 42px;
+            border-radius: 13px;
+            padding: 5px 8px 5px 5px;
+          }
+
+          .categories-guide-launcher-mark {
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            font-size: 15px;
+          }
+
+          .categories-guide-launcher-copy small {
+            display: none;
+          }
+
+          .categories-guide-panel {
+            right: max(8px, env(safe-area-inset-right));
+            bottom: max(8px, env(safe-area-inset-bottom));
+            width: calc(100vw - max(16px, env(safe-area-inset-left) + env(safe-area-inset-right)));
+            max-height: calc(100dvh - max(16px, env(safe-area-inset-top) + env(safe-area-inset-bottom)));
+            border-radius: 18px;
+          }
+
+          .categories-guide-topline {
+            padding: 10px 11px 9px;
+          }
+
+          .categories-guide-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 12px;
+          }
+
+          .categories-guide-progress {
+            gap: 3px;
+            padding: 8px 10px 0;
+          }
+
+          .categories-guide-progress button {
+            height: 22px;
+            border-radius: 7px;
+            font-size: 7px;
+          }
+
+          .categories-guide-body {
+            padding: 13px 13px 12px;
+          }
+
+          .categories-guide-description {
+            margin-top: 9px;
+            font-size: 11px;
+            line-height: 1.45;
+          }
+
+          .categories-guide-tip {
+            margin-top: 10px;
+            padding: 8px 9px;
+          }
+
+          .categories-guide-actions {
+            padding: 9px 10px 10px;
+          }
+
         }
 
         @media (max-width: 1024px) and (orientation: portrait),
