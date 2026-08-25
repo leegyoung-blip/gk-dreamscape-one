@@ -10,6 +10,8 @@ type PlanKey =
   | "complete_monthly"
   | "complete_annual";
 
+const STANDARD_TRIAL_DAYS = 7;
+
 const PLAN_DETAILS: Record<
   PlanKey,
   {
@@ -17,6 +19,7 @@ const PLAN_DETAILS: Record<
     access: string;
     price: string;
     cadence: string;
+    billingLabel: string;
   }
 > = {
   core_monthly: {
@@ -24,24 +27,28 @@ const PLAN_DETAILS: Record<
     access: "English + Mathematics",
     price: "SGD 19.90",
     cadence: "per month",
+    billingLabel: "monthly",
   },
   core_annual: {
     name: "Core Missions",
     access: "English + Mathematics",
     price: "SGD 199",
     cadence: "per year",
+    billingLabel: "annual",
   },
   complete_monthly: {
     name: "Full Access",
     access: "English + Mathematics + Science",
     price: "SGD 24.90",
     cadence: "per month",
+    billingLabel: "monthly",
   },
   complete_annual: {
     name: "Full Access",
     access: "English + Mathematics + Science",
     price: "SGD 249",
     cadence: "per year",
+    billingLabel: "annual",
   },
 };
 
@@ -154,7 +161,7 @@ export default function DreamscapeSubscribeClient() {
           </Link>
 
           <span className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200">
-            Secure recurring setup by HitPay
+            Secure recurring checkout by Stripe
           </span>
         </div>
 
@@ -181,11 +188,23 @@ export default function DreamscapeSubscribeClient() {
               </span>
             </div>
 
-            <div className="mt-7 rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-6 text-white/60">
-              Your payment method is entered on HitPay&apos;s secure
-              recurring-billing page. Dreamscape only activates paid
-              learning access after a validated provider event confirms
-              the subscription.
+            <div className="mt-5 rounded-2xl border border-cyan-200/20 bg-cyan-300/[0.055] p-5">
+              <p className="m-0 text-xs font-black uppercase tracking-[0.15em] text-cyan-200">
+                Up to {STANDARD_TRIAL_DAYS} days free
+              </p>
+              <p className="mt-2 text-sm leading-6 text-white/65">
+                Eligible first-time Dreamscape users receive a{" "}
+                {STANDARD_TRIAL_DAYS}-day introductory trial on this{" "}
+                {plan.billingLabel} plan. Stripe will show the trial,
+                first billing date and recurring amount before you confirm.
+              </p>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-6 text-white/60">
+              Your payment method is entered securely on Stripe&apos;s
+              checkout page. Dreamscape activates trial or paid learning
+              access only after a validated Stripe event confirms the
+              subscription.
             </div>
 
             <p className="mt-5 text-xs leading-5 text-white/38">
@@ -245,6 +264,7 @@ export default function DreamscapeSubscribeClient() {
                   onChange={(event) =>
                     setLearnerEmail(event.target.value)
                   }
+                  autoComplete="email"
                   className={inputClass}
                 />
               </Field>
@@ -275,6 +295,16 @@ export default function DreamscapeSubscribeClient() {
               </span>
             </label>
 
+            <div className="mt-5 rounded-2xl border border-violet-200/14 bg-violet-300/[0.04] px-4 py-4 text-xs leading-5 text-white/52">
+              Eligible first-time users are not charged the subscription
+              fee during the {STANDARD_TRIAL_DAYS}-day trial. Unless
+              cancelled before the trial ends, the selected subscription
+              will begin automatically at {plan.price} {plan.cadence}.
+              Users who have already used an introductory Dreamscape trial
+              or otherwise do not qualify will see the applicable billing
+              terms in Stripe before confirming.
+            </div>
+
             {error && (
               <p className="mt-5 rounded-2xl border border-red-200/20 bg-red-400/10 px-4 py-3 text-sm text-red-100">
                 {error}
@@ -288,13 +318,30 @@ export default function DreamscapeSubscribeClient() {
               className="mt-7 min-h-14 w-full rounded-full border border-cyan-100/30 bg-gradient-to-r from-cyan-300 via-violet-300 to-orange-300 px-6 text-sm font-black uppercase tracking-[0.12em] text-[#160729] disabled:cursor-not-allowed disabled:opacity-55"
             >
               {submitting
-                ? "Opening secure subscription…"
-                : "Continue to HitPay"}
+                ? "Opening secure Stripe checkout…"
+                : "Continue to Stripe"}
             </button>
 
             <p className="mt-5 text-center text-xs leading-5 text-white/38">
-              By continuing, you agree to the Dreamscape One Terms &
-              Conditions and recurring subscription terms.
+              By continuing, you confirm the information above and agree
+              to the{" "}
+              <Link
+                href="/terms"
+                target="_blank"
+                className="text-cyan-200 underline underline-offset-2"
+              >
+                Dreamscape One Terms & Conditions
+              </Link>
+              , including recurring subscription terms, and acknowledge
+              the{" "}
+              <Link
+                href="/privacy"
+                target="_blank"
+                className="text-cyan-200 underline underline-offset-2"
+              >
+                Privacy Policy
+              </Link>
+              .
             </p>
           </section>
         </section>

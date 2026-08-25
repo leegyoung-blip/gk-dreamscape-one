@@ -11,13 +11,25 @@ import { supabase } from "@/lib/supabase";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 
+type LearningZoneKey = "core" | "think" | "science";
+
+type ZoneReleaseSettings = Record<LearningZoneKey, boolean>;
+
+const DEFAULT_ZONE_RELEASE_SETTINGS: ZoneReleaseSettings = {
+  core: true,
+  think: false,
+  science: false,
+};
+
 type UserMissionAccess = {
   userId: string | null;
   email: string | null;
   role: string | null;
+  isAdmin: boolean;
   hasFullAccess: boolean;
   hasStudentRewardsAccess: boolean;
   canAccessCore: boolean;
+  canAccessThink: boolean;
   canAccessScience: boolean;
 };
 
@@ -162,26 +174,16 @@ type MissionZone = {
   position: CSSProperties;
   accent: string;
   requiresRoleAccess?: boolean;
-  accessKey?: "core" | "science";
+  accessKey?: LearningZoneKey;
   staffOnly?: boolean;
-  alwaysLocked?: boolean;
   comingSoon?: boolean;
 };
 
-function getZoneLockNotice(zone: MissionZone) {
-  if (zone.alwaysLocked) {
-    return "This mission zone is currently locked.";
-  }
-
-  if (zone.comingSoon) {
-    return "This mission zone is locked and will be released in a future update.";
-  }
-
-  if (zone.staffOnly) {
-    return "This zone requires active Science or Complete Student Access.";
-  }
-
-  return "This zone requires an active Dreamscape learning plan.";
+function isAdminRole(role: string | null | undefined) {
+  return String(role || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_") === "admin";
 }
 
 function getZoneHref(zoneId: string) {
@@ -251,7 +253,7 @@ const missionZones: MissionZone[] = [
       "Train reasoning, logic, pattern spotting and HAP-style thinking while earning eligible Dream Gem rewards.",
     accent: "#60f0d0",
     requiresRoleAccess: true,
-    alwaysLocked: true,
+    accessKey: "think",
     position: {
       right: "1%",
       top: "50%",
@@ -349,15 +351,22 @@ export default function LearningMissionsPage() {
   const [lockedZoneMessage, setLockedZoneMessage] = useState("");
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
   const [walkthroughStep, setWalkthroughStep] = useState(0);
+  const [zoneReleaseSettings, setZoneReleaseSettings] =
+    useState<ZoneReleaseSettings>(DEFAULT_ZONE_RELEASE_SETTINGS);
+  const [releaseSettingsLoading, setReleaseSettingsLoading] = useState(true);
+  const [updatingReleaseZone, setUpdatingReleaseZone] =
+    useState<LearningZoneKey | null>(null);
 
   const [userMissionAccess, setUserMissionAccess] = useState<UserMissionAccess>(
     {
       userId: null,
       email: null,
       role: null,
+      isAdmin: false,
       hasFullAccess: false,
       hasStudentRewardsAccess: false,
       canAccessCore: false,
+      canAccessThink: false,
       canAccessScience: false,
     },
   );
@@ -382,9 +391,11 @@ export default function LearningMissionsPage() {
           userId: null,
           email: null,
           role: null,
+          isAdmin: false,
           hasFullAccess: false,
           hasStudentRewardsAccess: false,
           canAccessCore: false,
+          canAccessThink: false,
           canAccessScience: false,
         });
         setProfileAssets({ cash: 0, property: 0, stocks: 0 });
@@ -411,7 +422,7 @@ export default function LearningMissionsPage() {
             .from("learning_mission_zone_access")
             .select("zone_key,is_unlocked")
             .eq("user_id", user.id)
-            .in("zone_key", ["core", "science"]),
+            .in("zone_key", ["core", "think", "science"]),
         ]);
 
       if (!isMounted) return;
@@ -445,8 +456,11 @@ export default function LearningMissionsPage() {
               .map((row) => String(row.zone_key)),
       );
 
+      const isAdmin = isAdminRole(role);
       const canAccessCore =
         entitlements.core || manuallyUnlockedZones.has("core");
+      const canAccessThink =
+        entitlements.core || manuallyUnlockedZones.has("think");
       const canAccessScience =
         entitlements.science || manuallyUnlockedZones.has("science");
       const hasStudentRewardsAccess = entitlements.rewards;
@@ -461,10 +475,15 @@ export default function LearningMissionsPage() {
         userId: user.id,
         email: user.email ?? null,
         role,
+        isAdmin,
         hasFullAccess:
-          canAccessCore || canAccessScience || entitlements.anyPaidAccess,
+          canAccessCore ||
+          canAccessThink ||
+          canAccessScience ||
+          entitlements.anyPaidAccess,
         hasStudentRewardsAccess,
         canAccessCore,
+        canAccessThink,
         canAccessScience,
       });
 
@@ -644,6 +663,63 @@ export default function LearningMissionsPage() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function loadZoneReleaseSettings() {
+      const { data, error } = await supabase
+        .from("learning_mission_zone_settings")
+        .select("zone_key,learner_access_enabled")
+        .in("zone_key", ["core", "think", "science"]);
+
+      if (cancelled) return;
+
+      if (error) {
+        console.warn(
+          "Could not load Learning Mission release settings:",
+          error.message,
+        );
+        setReleaseSettingsLoading(false);
+        return;
+      }
+
+      const nextSettings: ZoneReleaseSettings = {
+        ...DEFAULT_ZONE_RELEASE_SETTINGS,
+      };
+
+      for (const row of data || []) {
+        const zoneKey = String(row.zone_key) as LearningZoneKey;
+
+        if (zoneKey in nextSettings) {
+          nextSettings[zoneKey] = Boolean(row.learner_access_enabled);
+        }
+      }
+
+      setZoneReleaseSettings(nextSettings);
+      setReleaseSettingsLoading(false);
+    }
+
+    function refreshZoneReleaseSettings() {
+      void loadZoneReleaseSettings();
+    }
+
+    void loadZoneReleaseSettings();
+    window.addEventListener(
+      "learning-mission-release-updated",
+      refreshZoneReleaseSettings,
+    );
+    window.addEventListener("focus", refreshZoneReleaseSettings);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener(
+        "learning-mission-release-updated",
+        refreshZoneReleaseSettings,
+      );
+      window.removeEventListener("focus", refreshZoneReleaseSettings);
+    };
+  }, []);
+
+  useEffect(() => {
     try {
       const completed = window.localStorage.getItem(WALKTHROUGH_STORAGE_KEY);
       if (!completed) {
@@ -672,12 +748,35 @@ export default function LearningMissionsPage() {
     return () => window.clearTimeout(timeout);
   }, [screenMode, walkthroughOpen, walkthroughStep]);
 
+  function isZoneReleased(zone: MissionZone) {
+    if (!zone.accessKey) return true;
+    return zoneReleaseSettings[zone.accessKey];
+  }
+
+  function isAdminPreview(zone: MissionZone) {
+    return Boolean(
+      userMissionAccess.isAdmin &&
+        zone.accessKey &&
+        !zoneReleaseSettings[zone.accessKey],
+    );
+  }
+
   function isZoneUnlocked(zone: MissionZone) {
-    if (zone.alwaysLocked || zone.comingSoon) return false;
+    if (zone.comingSoon) return false;
     if (!zone.requiresRoleAccess) return true;
+
+    if (zone.accessKey) {
+      // Only admins bypass a global learner-release switch.
+      if (userMissionAccess.isAdmin) return true;
+      if (!zoneReleaseSettings[zone.accessKey]) return false;
+    }
 
     if (zone.accessKey === "core") {
       return userMissionAccess.canAccessCore;
+    }
+
+    if (zone.accessKey === "think") {
+      return userMissionAccess.canAccessThink;
     }
 
     if (zone.accessKey === "science") {
@@ -696,12 +795,16 @@ export default function LearningMissionsPage() {
   }
 
   function getLockedMessage(zone: MissionZone) {
-    if (zone.alwaysLocked) {
-      return `${zone.title} is currently locked.`;
-    }
-
     if (zone.comingSoon) {
       return `${zone.title} is locked and coming soon.`;
+    }
+
+    if (
+      zone.accessKey &&
+      !zoneReleaseSettings[zone.accessKey] &&
+      !userMissionAccess.isAdmin
+    ) {
+      return `${zone.title} is not currently open to learners.`;
     }
 
     if (!userMissionAccess.userId) {
@@ -710,6 +813,10 @@ export default function LearningMissionsPage() {
 
     if (zone.accessKey === "core") {
       return "This account does not currently have active Core Missions access.";
+    }
+
+    if (zone.accessKey === "think") {
+      return "This account does not currently have active Core/Think Missions access.";
     }
 
     if (zone.accessKey === "science") {
@@ -742,6 +849,47 @@ export default function LearningMissionsPage() {
 
       window.location.href = href;
     };
+  }
+
+  async function toggleZoneRelease(zoneKey: LearningZoneKey) {
+    if (!userMissionAccess.isAdmin || updatingReleaseZone) return;
+
+    const nextEnabled = !zoneReleaseSettings[zoneKey];
+    setUpdatingReleaseZone(zoneKey);
+    setLockedZoneMessage("");
+
+    const { error } = await supabase.rpc(
+      "admin_set_learning_mission_zone_release",
+      {
+        p_zone_key: zoneKey,
+        p_learner_access_enabled: nextEnabled,
+      },
+    );
+
+    if (error) {
+      console.warn("Could not update Learning Mission release:", error.message);
+      setLockedZoneMessage(
+        `Could not update ${zoneKey} learner access. ${error.message}`,
+      );
+      setUpdatingReleaseZone(null);
+      return;
+    }
+
+    setZoneReleaseSettings((current) => ({
+      ...current,
+      [zoneKey]: nextEnabled,
+    }));
+    setUpdatingReleaseZone(null);
+
+    const zoneTitle =
+      missionZones.find((zone) => zone.accessKey === zoneKey)?.title || zoneKey;
+
+    setLockedZoneMessage(
+      `${zoneTitle} learner access is now ${nextEnabled ? "ON" : "OFF"}.` +
+        (nextEnabled ? "" : " Admin preview remains available."),
+    );
+
+    window.dispatchEvent(new Event("learning-mission-release-updated"));
   }
 
   const walkthroughStartScrollY = useRef(0);
@@ -935,6 +1083,7 @@ export default function LearningMissionsPage() {
               isActive={displayedDesktopZone?.id === zone.id}
               isWalkthroughActive={Boolean(activeWalkthroughZoneId)}
               isHighlighted={activeWalkthroughZoneId === zone.id}
+              isAdminPreview={isAdminPreview(zone)}
               onEnter={() => {
                 if (!walkthroughOpen) setHoveredZone(zone);
               }}
@@ -945,6 +1094,15 @@ export default function LearningMissionsPage() {
             />
           ))}
 
+          {userMissionAccess.isAdmin && !walkthroughOpen && (
+            <AdminZoneReleaseBar
+              settings={zoneReleaseSettings}
+              loading={releaseSettingsLoading}
+              updatingZone={updatingReleaseZone}
+              onToggle={(zoneKey) => void toggleZoneRelease(zoneKey)}
+            />
+          )}
+
           {displayedDesktopZone && (
             <ZoneHoverPopup
               zone={displayedDesktopZone}
@@ -952,6 +1110,9 @@ export default function LearningMissionsPage() {
               isHighlighted={
                 activeWalkthroughZoneId === displayedDesktopZone.id
               }
+              isAdminPreview={isAdminPreview(displayedDesktopZone)}
+              isReleased={isZoneReleased(displayedDesktopZone)}
+              lockedMessage={getLockedMessage(displayedDesktopZone)}
             />
           )}
 
@@ -1060,14 +1221,27 @@ export default function LearningMissionsPage() {
               }}
             >
               {missionZones.map((zone) => (
-                <MissionCard
-                  key={zone.id}
-                  zone={zone}
-                  isLocked={isZoneLocked(zone)}
-                  isWalkthroughActive={Boolean(activeWalkthroughZoneId)}
-                  isHighlighted={activeWalkthroughZoneId === zone.id}
-                  onClick={getZoneClick(zone)}
-                />
+                <div key={zone.id}>
+                  <MissionCard
+                    zone={zone}
+                    isLocked={isZoneLocked(zone)}
+                    isWalkthroughActive={Boolean(activeWalkthroughZoneId)}
+                    isHighlighted={activeWalkthroughZoneId === zone.id}
+                    isAdminPreview={isAdminPreview(zone)}
+                    isReleased={isZoneReleased(zone)}
+                    onClick={getZoneClick(zone)}
+                  />
+
+                  {userMissionAccess.isAdmin && zone.accessKey && (
+                    <AdminZoneReleaseControl
+                      zoneTitle={zone.title}
+                      enabled={zoneReleaseSettings[zone.accessKey]}
+                      loading={releaseSettingsLoading}
+                      updating={updatingReleaseZone === zone.accessKey}
+                      onToggle={() => void toggleZoneRelease(zone.accessKey!)}
+                    />
+                  )}
+                </div>
               ))}
             </div>
           </div>
@@ -2187,12 +2361,187 @@ const compactMenuItemStyle: CSSProperties = {
   fontWeight: 800,
 };
 
+function AdminZoneReleaseControl({
+  zoneTitle,
+  enabled,
+  loading,
+  updating,
+  onToggle,
+}: {
+  zoneTitle: string;
+  enabled: boolean;
+  loading: boolean;
+  updating: boolean;
+  onToggle: () => void;
+}) {
+  const disabled = loading || updating;
+
+  return (
+    <div
+      style={{
+        marginTop: "8px",
+        borderRadius: "16px",
+        border: "1px solid rgba(196,181,253,0.24)",
+        background: "rgba(46,16,101,0.5)",
+        padding: "10px 12px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "12px",
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <p
+          style={{
+            margin: 0,
+            color: "#ddd6fe",
+            fontSize: "10px",
+            fontWeight: 900,
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+          }}
+        >
+          Admin Release Control
+        </p>
+        <p
+          style={{
+            margin: "4px 0 0",
+            color: "rgba(255,255,255,0.6)",
+            fontSize: "11px",
+          }}
+        >
+          {zoneTitle} · Admin preview always available
+        </p>
+      </div>
+
+      <button
+        type="button"
+        onClick={onToggle}
+        disabled={disabled}
+        aria-label={`Turn ${zoneTitle} learner access ${enabled ? "off" : "on"}`}
+        style={{
+          minWidth: "118px",
+          minHeight: "38px",
+          borderRadius: "999px",
+          border: enabled
+            ? "1px solid rgba(110,231,183,0.5)"
+            : "1px solid rgba(196,181,253,0.42)",
+          background: enabled
+            ? "rgba(16,185,129,0.16)"
+            : "rgba(124,58,237,0.18)",
+          color: enabled ? "#a7f3d0" : "#ddd6fe",
+          fontSize: "10px",
+          fontWeight: 900,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          cursor: disabled ? "wait" : "pointer",
+          opacity: disabled ? 0.58 : 1,
+        }}
+      >
+        {updating ? "Saving..." : `Learner Access ${enabled ? "ON" : "OFF"}`}
+      </button>
+    </div>
+  );
+}
+
+function AdminZoneReleaseBar({
+  settings,
+  loading,
+  updatingZone,
+  onToggle,
+}: {
+  settings: ZoneReleaseSettings;
+  loading: boolean;
+  updatingZone: LearningZoneKey | null;
+  onToggle: (zoneKey: LearningZoneKey) => void;
+}) {
+  const controls: { key: LearningZoneKey; label: string }[] = [
+    { key: "core", label: "Core" },
+    { key: "think", label: "Think" },
+    { key: "science", label: "Science" },
+  ];
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: "82px",
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 72,
+        borderRadius: "18px",
+        border: "1px solid rgba(196,181,253,0.25)",
+        background: "rgba(19,9,48,0.82)",
+        backdropFilter: "blur(18px)",
+        WebkitBackdropFilter: "blur(18px)",
+        boxShadow: "0 18px 42px rgba(0,0,0,0.35)",
+        padding: "9px 11px",
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+      }}
+    >
+      <span
+        style={{
+          color: "#ddd6fe",
+          fontSize: "9px",
+          fontWeight: 900,
+          letterSpacing: "0.12em",
+          textTransform: "uppercase",
+          whiteSpace: "nowrap",
+          marginRight: "3px",
+        }}
+      >
+        Learner Access
+      </span>
+
+      {controls.map((control) => {
+        const enabled = settings[control.key];
+        const updating = updatingZone === control.key;
+
+        return (
+          <button
+            key={control.key}
+            type="button"
+            disabled={loading || Boolean(updatingZone)}
+            onClick={() => onToggle(control.key)}
+            style={{
+              minHeight: "32px",
+              minWidth: "86px",
+              padding: "0 10px",
+              borderRadius: "999px",
+              border: enabled
+                ? "1px solid rgba(110,231,183,0.45)"
+                : "1px solid rgba(196,181,253,0.34)",
+              background: enabled
+                ? "rgba(16,185,129,0.15)"
+                : "rgba(124,58,237,0.13)",
+              color: enabled ? "#a7f3d0" : "#ddd6fe",
+              fontSize: "9px",
+              fontWeight: 900,
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+              cursor: loading || updatingZone ? "wait" : "pointer",
+              opacity: loading || (updatingZone && !updating) ? 0.5 : 1,
+            }}
+          >
+            {updating
+              ? "Saving..."
+              : `${control.label} ${enabled ? "ON" : "OFF"}`}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function MissionHotspot({
   zone,
   isLocked,
   isActive,
   isWalkthroughActive,
   isHighlighted,
+  isAdminPreview,
   onEnter,
   onLeave,
   onClick,
@@ -2202,6 +2551,7 @@ function MissionHotspot({
   isActive: boolean;
   isWalkthroughActive: boolean;
   isHighlighted: boolean;
+  isAdminPreview: boolean;
   onEnter: () => void;
   onLeave: () => void;
   onClick?: () => void;
@@ -2224,15 +2574,19 @@ function MissionHotspot({
         padding: 0,
         border: isActive
           ? `1px solid ${zone.accent}`
+          : isAdminPreview
+            ? "1px solid rgba(196,181,253,0.92)"
           : isLocked
             ? "1px solid rgba(255,215,106,0.72)"
             : `1px solid ${zone.accent}cc`,
         background: isActive
           ? `linear-gradient(145deg, ${zone.accent}dd, rgba(19,69,120,0.98))`
+          : isAdminPreview
+            ? "linear-gradient(145deg, rgba(124,58,237,0.94), rgba(45,22,89,0.98))"
           : isLocked
             ? "rgba(53,38,36,0.92)"
             : "rgba(4,24,53,0.92)",
-        color: isLocked ? "#ffd76a" : "white",
+        color: isAdminPreview ? "#ede9fe" : isLocked ? "#ffd76a" : "white",
         boxShadow: isActive
           ? `0 0 0 6px ${zone.accent}1f, 0 0 42px ${zone.accent}aa, 0 20px 46px rgba(0,0,0,0.48)`
           : `0 0 0 4px rgba(2,8,19,0.48), 0 0 24px ${
@@ -2293,12 +2647,16 @@ function MissionCard({
   isLocked,
   isWalkthroughActive,
   isHighlighted,
+  isAdminPreview,
+  isReleased,
   onClick,
 }: {
   zone: MissionZone;
   isLocked: boolean;
   isWalkthroughActive: boolean;
   isHighlighted: boolean;
+  isAdminPreview: boolean;
+  isReleased: boolean;
   onClick?: () => void;
 }) {
   return (
@@ -2350,9 +2708,13 @@ function MissionCard({
       >
         {zone.comingSoon
           ? "Locked · Coming Soon"
-          : isLocked
-            ? "Locked Zone"
-            : "Learning Zone"}
+          : isAdminPreview
+            ? "Admin Preview"
+            : zone.accessKey && !isReleased
+              ? "Learner Access Closed"
+              : isLocked
+                ? "Locked Zone"
+                : "Learning Zone"}
       </p>
 
       <h2
@@ -2391,11 +2753,15 @@ function MissionCard({
       >
         {zone.comingSoon
           ? "LOCKED · Coming Soon"
-          : isLocked
-            ? "Locked"
-            : onClick
-              ? "Enter Mission ›"
-              : "Coming Soon"}
+          : isAdminPreview
+            ? "Admin Preview ›"
+            : zone.accessKey && !isReleased
+              ? "Not yet open to learners"
+              : isLocked
+                ? "Locked"
+                : onClick
+                  ? "Enter Mission ›"
+                  : "Coming Soon"}
       </div>
     </button>
   );
@@ -2405,10 +2771,16 @@ function ZoneHoverPopup({
   zone,
   isLocked,
   isHighlighted = false,
+  isAdminPreview = false,
+  isReleased = true,
+  lockedMessage,
 }: {
   zone: MissionZone;
   isLocked: boolean;
   isHighlighted?: boolean;
+  isAdminPreview?: boolean;
+  isReleased?: boolean;
+  lockedMessage: string;
 }) {
   const popupPosition = getPopupPosition(zone.id);
   const popupTransform =
@@ -2460,9 +2832,13 @@ function ZoneHoverPopup({
       >
         {zone.comingSoon
           ? "Locked · Coming Soon"
-          : isLocked
-            ? "Locked Zone"
-            : "Learning Zone"}
+          : isAdminPreview
+            ? "Admin Preview"
+            : zone.accessKey && !isReleased
+              ? "Learner Access Closed"
+              : isLocked
+                ? "Locked Zone"
+                : "Learning Zone"}
       </p>
 
       <h2
@@ -2487,6 +2863,20 @@ function ZoneHoverPopup({
         {zone.description}
       </p>
 
+      {isAdminPreview && (
+        <p
+          style={{
+            margin: "14px 0 0",
+            color: "#ddd6fe",
+            fontSize: "13px",
+            lineHeight: 1.45,
+            fontWeight: 700,
+          }}
+        >
+          Learner Access is OFF. You can still enter this zone as an admin.
+        </p>
+      )}
+
       {isLocked && (
         <p
           style={{
@@ -2497,7 +2887,7 @@ function ZoneHoverPopup({
             fontWeight: 700,
           }}
         >
-          {getZoneLockNotice(zone)}
+          {lockedMessage}
         </p>
       )}
 
