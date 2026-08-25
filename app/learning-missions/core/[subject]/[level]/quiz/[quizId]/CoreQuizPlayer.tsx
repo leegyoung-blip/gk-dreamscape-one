@@ -170,6 +170,20 @@ type AnswerMap = Record<string, JsonObject>;
 type FeedbackMap = Record<string, ImmediateFeedback>;
 type TimeMap = Record<string, number>;
 
+type CoreQuizCheckpoint = {
+  version: 1;
+  attempt_id: string;
+  quiz_id: string;
+  question_index: number;
+  stage: "intro" | "playing";
+  answers: AnswerMap;
+  feedback_by_question: FeedbackMap;
+  time_by_question: TimeMap;
+  current_question_elapsed_seconds: number;
+  quiz_elapsed_seconds: number;
+  saved_at: number;
+};
+
 const SUBJECT_LABELS: Record<CoreSubject, string> = {
   english: "English",
   math: "Mathematics",
@@ -195,6 +209,68 @@ const CORE_RPCS: Record<
   },
 };
 
+function getCheckpointKey(
+  subject: CoreSubject,
+  level: number,
+  quizId: string,
+  attemptId: string,
+) {
+  return `dreamscape-core-quiz:v1:${subject}:p${level}:${quizId}:${attemptId}`;
+}
+
+function readCheckpoint(
+  subject: CoreSubject,
+  level: number,
+  quizId: string,
+  attemptId: string,
+): CoreQuizCheckpoint | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.sessionStorage.getItem(
+      getCheckpointKey(subject, level, quizId, attemptId),
+    );
+
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as Partial<CoreQuizCheckpoint>;
+
+    if (
+      parsed.version !== 1 ||
+      parsed.attempt_id !== attemptId ||
+      parsed.quiz_id !== quizId ||
+      (parsed.stage !== "intro" && parsed.stage !== "playing") ||
+      !parsed.answers ||
+      !parsed.feedback_by_question ||
+      !parsed.time_by_question
+    ) {
+      return null;
+    }
+
+    return parsed as CoreQuizCheckpoint;
+  } catch (checkpointError) {
+    console.warn("Could not restore Core quiz checkpoint:", checkpointError);
+    return null;
+  }
+}
+
+function removeCheckpoint(
+  subject: CoreSubject,
+  level: number,
+  quizId: string,
+  attemptId: string,
+) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.sessionStorage.removeItem(
+      getCheckpointKey(subject, level, quizId, attemptId),
+    );
+  } catch (checkpointError) {
+    console.warn("Could not clear Core quiz checkpoint:", checkpointError);
+  }
+}
+
 function useResponsiveMode() {
   const [mode, setMode] = useState<ScreenMode>("desktop");
 
@@ -218,9 +294,10 @@ function useResponsiveMode() {
 
 function asOptions(content: JsonObject): QuizOption[] {
   const options = Array.isArray(content.options) ? content.options : [];
+
   return options
     .map((option: any, index: number) => ({
-      id: String(option?.id ?? index + 1),
+      id: String(option?.id ?? option?.key ?? index + 1),
       text: String(option?.text ?? ""),
       image_url: option?.image_url ? String(option.image_url) : null,
       image_alt: option?.image_alt ? String(option.image_alt) : null,
@@ -232,6 +309,17 @@ function asOptions(content: JsonObject): QuizOption[] {
     );
 }
 
+function getBlankIds(content: JsonObject) {
+  const explicit = Array.isArray(content.blank_ids)
+    ? content.blank_ids.map(String)
+    : [];
+  if (explicit.length > 0) return explicit;
+
+  const text = String(content.text_with_blanks ?? content.text ?? "");
+  const matches = Array.from(text.matchAll(/\{\{([^}]+)\}\}/g));
+  return matches.map((match) => String(match[1]));
+}
+
 function responseIsComplete(question: QuizQuestion, response?: JsonObject) {
   if (!response) return false;
 
@@ -241,9 +329,7 @@ function responseIsComplete(question: QuizQuestion, response?: JsonObject) {
     case "listening_comprehension":
       return Boolean(response.option_id);
     case "multiple_select":
-      return (
-        Array.isArray(response.option_ids) && response.option_ids.length > 0
-      );
+      return Array.isArray(response.option_ids) && response.option_ids.length > 0;
     case "short_text":
     case "open_cloze":
     case "editing":
@@ -263,12 +349,17 @@ function responseIsComplete(question: QuizQuestion, response?: JsonObject) {
         ? question.content.left
         : [];
       const matches = response.matches ?? {};
-      return (
-        left.length > 0 && left.every((item: any) => matches[String(item.id)])
-      );
+      return left.length > 0 && left.every((item: any) => matches[String(item.id)]);
     }
     case "word_bank":
     case "dropdown_cloze": {
+      if (question.content.layout === "drag_drop_grouped") {
+        const blankId = String(
+          question.content.blank_id ?? question.question_order,
+        );
+        return Boolean(response.values?.[blankId]);
+      }
+
       const blankIds = getBlankIds(question.content);
       const values = response.values ?? {};
       return blankIds.length > 0 && blankIds.every((id) => values[id]);
@@ -280,17 +371,12 @@ function responseIsComplete(question: QuizQuestion, response?: JsonObject) {
   }
 }
 
-function getBlankIds(content: JsonObject) {
-  const text = String(content.text_with_blanks ?? content.text ?? "");
-  const matches = Array.from(text.matchAll(/\{\{([^}]+)\}\}/g));
-  return matches.map((match) => String(match[1]));
-}
-
 function friendlyCorrectResponse(value: JsonObject | string | null) {
   if (value == null) return "";
   if (typeof value === "string") return value;
 
   if (typeof value.display === "string") return value.display;
+  if (typeof value.display_answer === "string") return value.display_answer;
   if (typeof value.text === "string") return value.text;
   if (Array.isArray(value.correct_option_ids)) {
     return value.correct_option_ids.join(", ");
@@ -357,8 +443,9 @@ export default function CoreQuizPlayer({
   const screenMode = useResponsiveMode();
   const isMobile = screenMode === "mobile";
   const rpcNames = CORE_RPCS[subject];
+  const quizIdentity = `${subject}:p${level}:${quizId}`;
 
-  const { status, userId, tokenBalance, dreamGemBalance, refreshBalances } =
+  const { status, tokenBalance, dreamGemBalance, refreshBalances } =
     useCoreMissionAccess();
 
   const [stage, setStage] = useState<QuizStage>("loading");
@@ -374,76 +461,174 @@ export default function CoreQuizPlayer({
 
   const questionOpenedAtRef = useRef<number>(Date.now());
   const quizStartedAtRef = useRef<number>(Date.now());
+  const quizElapsedBeforeRef = useRef(0);
+  const loadedQuizIdentityRef = useRef<string | null>(null);
+  const loadRequestIdRef = useRef(0);
 
-  const loadQuiz = useCallback(async () => {
-    if (status !== "allowed") return;
+  const loadQuiz = useCallback(
+    async (options: { force?: boolean } = {}) => {
+      const { force = false } = options;
 
-    setStage("loading");
-    setError(null);
-
-    const { data, error: loadError } = await supabase.rpc(rpcNames.getPayload, {
-      p_quiz_id: quizId,
-    });
-
-    if (loadError || !data) {
-      console.warn("Could not load Core quiz payload:", loadError);
-      setError(
-        loadError?.message ||
-          "This quiz could not be loaded. Check that it is published and has the correct number of questions.",
-      );
-      setStage("error");
-      return;
-    }
-
-    const nextPayload = data as QuizPayload;
-
-    if (
-      nextPayload.quiz.subject !== subject ||
-      Number(nextPayload.quiz.primary_level) !== level
-    ) {
-      setError("This quiz does not belong to the selected subject and level.");
-      setStage("error");
-      return;
-    }
-
-    if (nextPayload.questions.length !== nextPayload.quiz.question_count) {
-      setError("This quiz is incomplete and cannot be started yet.");
-      setStage("error");
-      return;
-    }
-
-    const restoredAnswers: AnswerMap = {};
-    const restoredFeedback: FeedbackMap = {};
-    for (const saved of nextPayload.saved_answers ?? []) {
-      restoredAnswers[saved.question_id] = saved.response_data ?? {};
-      if (saved.locked) {
-        restoredFeedback[saved.question_id] = {
-          saved: true,
-          locked: true,
-          pending_manual_review: saved.pending_manual_review,
-          is_correct: saved.is_correct,
-          marks_awarded: saved.marks_awarded,
-          maximum_marks: Number(saved.maximum_marks ?? 0),
-          explanation: saved.explanation,
-          correct_response: saved.correct_response,
-        };
+      // Critical anti-reset guard: access/auth revalidation may rerun the
+      // effect below, but it cannot reload the same quiz identity.
+      if (!force && loadedQuizIdentityRef.current === quizIdentity) {
+        return;
       }
-    }
 
-    setPayload(nextPayload);
-    setAnswers(restoredAnswers);
-    setFeedbackByQuestion(restoredFeedback);
-    setTimeByQuestion({});
-    setQuestionIndex(0);
-    setResult(null);
-    quizStartedAtRef.current = Date.now();
-    questionOpenedAtRef.current = Date.now();
-    setStage("intro");
-  }, [level, quizId, status, subject, rpcNames.getPayload]);
+      loadedQuizIdentityRef.current = quizIdentity;
+      const requestId = ++loadRequestIdRef.current;
+
+      setStage("loading");
+      setError(null);
+      setActionBusy(false);
+      setExpandedResultId(null);
+
+      const { data, error: loadError } = await supabase.rpc(
+        rpcNames.getPayload,
+        { p_quiz_id: quizId },
+      );
+
+      if (requestId !== loadRequestIdRef.current) return;
+
+      if (loadError || !data) {
+        loadedQuizIdentityRef.current = null;
+        console.warn("Could not load Core quiz payload:", loadError);
+        setError(
+          loadError?.message ||
+            "This quiz could not be loaded. Check that it is published and has the correct number of questions.",
+        );
+        setStage("error");
+        return;
+      }
+
+      const nextPayload = data as QuizPayload;
+
+      if (
+        nextPayload.quiz.subject !== subject ||
+        Number(nextPayload.quiz.primary_level) !== level
+      ) {
+        loadedQuizIdentityRef.current = null;
+        setError("This quiz does not belong to the selected subject and level.");
+        setStage("error");
+        return;
+      }
+
+      if (nextPayload.questions.length !== nextPayload.quiz.question_count) {
+        loadedQuizIdentityRef.current = null;
+        setError("This quiz is incomplete and cannot be started yet.");
+        setStage("error");
+        return;
+      }
+
+      const serverAnswers: AnswerMap = {};
+      const serverFeedback: FeedbackMap = {};
+
+      for (const saved of nextPayload.saved_answers ?? []) {
+        serverAnswers[saved.question_id] = saved.response_data ?? {};
+
+        if (saved.locked) {
+          serverFeedback[saved.question_id] = {
+            saved: true,
+            locked: true,
+            pending_manual_review: saved.pending_manual_review,
+            is_correct: saved.is_correct,
+            marks_awarded: saved.marks_awarded,
+            maximum_marks: Number(saved.maximum_marks ?? 0),
+            explanation: saved.explanation,
+            correct_response: saved.correct_response,
+          };
+        }
+      }
+
+      const checkpoint = readCheckpoint(
+        subject,
+        level,
+        quizId,
+        nextPayload.attempt_id,
+      );
+
+      const restoredAnswers: AnswerMap = checkpoint
+        ? { ...serverAnswers, ...checkpoint.answers }
+        : serverAnswers;
+
+      // Server-locked feedback is authoritative.
+      const restoredFeedback: FeedbackMap = checkpoint
+        ? { ...checkpoint.feedback_by_question, ...serverFeedback }
+        : serverFeedback;
+
+      const restoredTime: TimeMap = checkpoint
+        ? { ...checkpoint.time_by_question }
+        : {};
+
+      let restoredQuestionIndex = 0;
+
+      if (checkpoint) {
+        restoredQuestionIndex = Math.min(
+          Math.max(0, Number(checkpoint.question_index) || 0),
+          Math.max(0, nextPayload.questions.length - 1),
+        );
+
+        const checkpointQuestion = nextPayload.questions[restoredQuestionIndex];
+
+        if (
+          checkpointQuestion &&
+          Number(checkpoint.current_question_elapsed_seconds) > 0
+        ) {
+          restoredTime[checkpointQuestion.id] =
+            (restoredTime[checkpointQuestion.id] ?? 0) +
+            Math.max(
+              0,
+              Number(checkpoint.current_question_elapsed_seconds) || 0,
+            );
+        }
+
+        quizElapsedBeforeRef.current = Math.max(
+          0,
+          Number(checkpoint.quiz_elapsed_seconds) || 0,
+        );
+      } else {
+        const firstIncompleteIndex = nextPayload.questions.findIndex(
+          (question) =>
+            !responseIsComplete(question, serverAnswers[question.id]),
+        );
+
+        if (nextPayload.resumed) {
+          restoredQuestionIndex =
+            firstIncompleteIndex >= 0
+              ? firstIncompleteIndex
+              : Math.max(0, nextPayload.questions.length - 1);
+        }
+
+        quizElapsedBeforeRef.current = 0;
+      }
+
+      setPayload(nextPayload);
+      setAnswers(restoredAnswers);
+      setFeedbackByQuestion(restoredFeedback);
+      setTimeByQuestion(restoredTime);
+      setQuestionIndex(restoredQuestionIndex);
+      setResult(null);
+
+      quizStartedAtRef.current = Date.now();
+      questionOpenedAtRef.current = Date.now();
+
+      // If the browser checkpoint says the learner was already playing,
+      // return straight to the exact question rather than the intro screen.
+      setStage(checkpoint?.stage === "playing" ? "playing" : "intro");
+    },
+    [level, quizId, quizIdentity, rpcNames.getPayload, subject],
+  );
 
   useEffect(() => {
+    if (status !== "allowed") return;
     void loadQuiz();
-  }, [loadQuiz]);
+  }, [status, loadQuiz]);
+
+  useEffect(() => {
+    return () => {
+      loadRequestIdRef.current += 1;
+    };
+  }, []);
 
   const currentQuestion = payload?.questions[questionIndex] ?? null;
   const currentResponse = currentQuestion
@@ -452,6 +637,90 @@ export default function CoreQuizPlayer({
   const currentFeedback = currentQuestion
     ? feedbackByQuestion[currentQuestion.id]
     : undefined;
+
+  const persistCheckpoint = useCallback(() => {
+    if (!payload) return;
+    if (payload.quiz.id !== quizId) return;
+    if (stage !== "intro" && stage !== "playing") return;
+    if (typeof window === "undefined") return;
+
+    const checkpointQuestion = payload.questions[questionIndex] ?? null;
+
+    const currentQuestionElapsedSeconds =
+      stage === "playing" && checkpointQuestion
+        ? Math.max(
+            0,
+            Math.round((Date.now() - questionOpenedAtRef.current) / 1000),
+          )
+        : 0;
+
+    const currentQuizElapsedSeconds =
+      stage === "playing"
+        ? quizElapsedBeforeRef.current +
+          Math.max(
+            0,
+            Math.round((Date.now() - quizStartedAtRef.current) / 1000),
+          )
+        : quizElapsedBeforeRef.current;
+
+    const checkpoint: CoreQuizCheckpoint = {
+      version: 1,
+      attempt_id: payload.attempt_id,
+      quiz_id: quizId,
+      question_index: questionIndex,
+      stage,
+      answers,
+      feedback_by_question: feedbackByQuestion,
+      time_by_question: timeByQuestion,
+      current_question_elapsed_seconds: currentQuestionElapsedSeconds,
+      quiz_elapsed_seconds: currentQuizElapsedSeconds,
+      saved_at: Date.now(),
+    };
+
+    try {
+      window.sessionStorage.setItem(
+        getCheckpointKey(subject, level, quizId, payload.attempt_id),
+        JSON.stringify(checkpoint),
+      );
+    } catch (checkpointError) {
+      console.warn("Could not save Core quiz checkpoint:", checkpointError);
+    }
+  }, [
+    answers,
+    feedbackByQuestion,
+    level,
+    payload,
+    questionIndex,
+    quizId,
+    stage,
+    subject,
+    timeByQuestion,
+  ]);
+
+  useEffect(() => {
+    persistCheckpoint();
+  }, [persistCheckpoint]);
+
+  useEffect(() => {
+    function handlePageHide() {
+      persistCheckpoint();
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "hidden") {
+        persistCheckpoint();
+      }
+    }
+
+    window.addEventListener("pagehide", handlePageHide);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("pagehide", handlePageHide);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      persistCheckpoint();
+    };
+  }, [persistCheckpoint]);
 
   const answeredCount = useMemo(() => {
     if (!payload) return 0;
@@ -468,11 +737,7 @@ export default function CoreQuizPlayer({
   }, [answers, payload]);
 
   const isGroupedWordBankQuiz = useMemo(() => {
-    if (
-      subject !== "english" ||
-      !payload ||
-      payload.questions.length === 0
-    ) {
+    if (subject !== "english" || !payload || payload.questions.length === 0) {
       return false;
     }
 
@@ -480,13 +745,10 @@ export default function CoreQuizPlayer({
       payload.questions[0]?.content?.cloze_passage ?? "",
     );
 
-    if (!firstPassage.trim()) {
-      return false;
-    }
+    if (!firstPassage.trim()) return false;
 
     return payload.questions.every((question) => {
       const content = question.content ?? {};
-
       return (
         question.question_type === "word_bank" &&
         content.layout === "drag_drop_grouped" &&
@@ -498,11 +760,7 @@ export default function CoreQuizPlayer({
   }, [payload, subject]);
 
   const isSplitComprehensionQuiz = useMemo(() => {
-    if (
-      subject !== "english" ||
-      !payload ||
-      payload.questions.length === 0
-    ) {
+    if (subject !== "english" || !payload || payload.questions.length === 0) {
       return false;
     }
 
@@ -510,13 +768,10 @@ export default function CoreQuizPlayer({
       payload.questions[0]?.content?.comprehension_passage ?? "",
     ).trim();
 
-    if (!firstPassage) {
-      return false;
-    }
+    if (!firstPassage) return false;
 
     return payload.questions.every((question) => {
       const content = question.content ?? {};
-
       return (
         question.question_type === "multiple_choice" &&
         content.layout === "split_comprehension" &&
@@ -528,11 +783,13 @@ export default function CoreQuizPlayer({
   }, [payload, subject]);
 
   function recordCurrentQuestionTime() {
-    if (!currentQuestion) return;
+    if (!currentQuestion || isGroupedWordBankQuiz) return;
+
     const seconds = Math.max(
       1,
       Math.round((Date.now() - questionOpenedAtRef.current) / 1000),
     );
+
     setTimeByQuestion((current) => ({
       ...current,
       [currentQuestion.id]: (current[currentQuestion.id] ?? 0) + seconds,
@@ -543,6 +800,7 @@ export default function CoreQuizPlayer({
   function updateResponse(next: JsonObject) {
     if (!currentQuestion || currentFeedback?.locked) return;
     setAnswers((current) => ({ ...current, [currentQuestion.id]: next }));
+    setError(null);
   }
 
   async function saveCurrentAnswer() {
@@ -633,12 +891,15 @@ export default function CoreQuizPlayer({
     if (!payload || actionBusy) return;
 
     if (missingQuestions.length > 0) {
-      setQuestionIndex(
-        payload.questions.findIndex(
-          (question) => question.id === missingQuestions[0].id,
-        ),
+      const firstMissingIndex = payload.questions.findIndex(
+        (question) => question.id === missingQuestions[0].id,
       );
-      questionOpenedAtRef.current = Date.now();
+
+      if (!isGroupedWordBankQuiz && firstMissingIndex >= 0) {
+        setQuestionIndex(firstMissingIndex);
+        questionOpenedAtRef.current = Date.now();
+      }
+
       setError(
         `Answer all questions before submitting. ${missingQuestions.length} question${
           missingQuestions.length === 1 ? " is" : "s are"
@@ -672,7 +933,8 @@ export default function CoreQuizPlayer({
 
     const finalDuration = Math.max(
       1,
-      Math.round((Date.now() - quizStartedAtRef.current) / 1000),
+      quizElapsedBeforeRef.current +
+        Math.round((Date.now() - quizStartedAtRef.current) / 1000),
     );
 
     const groupedAverageSeconds = isGroupedWordBankQuiz
@@ -706,77 +968,38 @@ export default function CoreQuizPlayer({
     }
 
     const nextResult = data as SubmitResult;
+    removeCheckpoint(subject, level, quizId, payload.attempt_id);
+
     setResult(nextResult);
     setStage("results");
 
     await refreshBalances();
     window.dispatchEvent(new Event("dream-tokens-updated"));
     window.dispatchEvent(new Event("dream-gems-updated"));
+    window.dispatchEvent(new Event(`${subject}-missions-progress-updated`));
     window.dispatchEvent(new Event("core-missions-progress-updated"));
   }
 
   function returnToQuizList() {
+    if (payload && (stage === "intro" || stage === "playing")) {
+      persistCheckpoint();
+    }
     router.push(`/learning-missions/core/${subject}/p${level}`);
   }
 
-  if (status === "signed_out") {
-    return (
-      <main style={pageShell}>
-        <div style={lockedCard}>
-          <h1 style={{ margin: 0 }}>Log in to continue</h1>
-          <p style={mutedText}>
-            Use the learner account connected to the Dreamscape subscription.
-          </p>
-          <div style={buttonRow(isMobile)}>
-            <a
-              href="/login"
-              style={{ ...primaryButton, textDecoration: "none" }}
-            >
-              Log In
-            </a>
-            <button
-              type="button"
-              onClick={() => router.push("/learning-missions")}
-              style={ghostButton}
-            >
-              Exit
-            </button>
-          </div>
-        </div>
-      </main>
-    );
+  async function replayQuiz() {
+    if (payload) {
+      removeCheckpoint(subject, level, quizId, payload.attempt_id);
+    }
+
+    quizElapsedBeforeRef.current = 0;
+    loadedQuizIdentityRef.current = null;
+    setResult(null);
+    setExpandedResultId(null);
+    await loadQuiz({ force: true });
   }
 
-  if (status === "profile_required") {
-    return (
-      <main style={pageShell}>
-        <div style={lockedCard}>
-          <h1 style={{ margin: 0 }}>Complete learner profile</h1>
-          <p style={mutedText}>
-            Complete the learner profile before using Core Missions when no
-            paid or manual Core entitlement is active.
-          </p>
-          <div style={buttonRow(isMobile)}>
-            <a
-              href="/complete-profile"
-              style={{ ...primaryButton, textDecoration: "none" }}
-            >
-              Complete Profile
-            </a>
-            <button
-              type="button"
-              onClick={() => router.push("/learning-missions")}
-              style={ghostButton}
-            >
-              Exit
-            </button>
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  if (status === "checking" || stage === "loading") {
+  if ((status === "checking" && !payload) || stage === "loading") {
     return (
       <main style={pageShell}>
         <CenteredCard message="Preparing Core Mission..." />
@@ -784,19 +1007,39 @@ export default function CoreQuizPlayer({
     );
   }
 
-  if (status === "locked") {
+  if (
+    status === "locked" ||
+    status === "signed_out" ||
+    status === "profile_required"
+  ) {
+    const accessTitle =
+      status === "signed_out"
+        ? "Log in to continue"
+        : status === "profile_required"
+          ? "Learner Profile Required"
+          : "Core Missions Locked";
+
+    const accessMessage =
+      status === "signed_out"
+        ? "Log in with the learner account linked to Core Missions."
+        : status === "profile_required"
+          ? "Complete the learner profile before continuing with Core Missions."
+          : "This account does not currently have Core Missions access.";
+
     return (
       <main style={pageShell}>
         <div style={lockedCard}>
-          <h1 style={{ margin: 0 }}>Core Missions Locked</h1>
-          <p style={mutedText}>Log in with an account that has Core access.</p>
+          <h1 style={{ margin: 0 }}>{accessTitle}</h1>
+          <p style={mutedText}>{accessMessage}</p>
           <div style={buttonRow(isMobile)}>
-            <a
-              href="/login"
-              style={{ ...primaryButton, textDecoration: "none" }}
-            >
-              Log In
-            </a>
+            {status === "signed_out" && (
+              <a
+                href="/login"
+                style={{ ...primaryButton, textDecoration: "none" }}
+              >
+                Log In
+              </a>
+            )}
             <button
               type="button"
               onClick={() => router.push("/learning-missions")}
@@ -821,7 +1064,7 @@ export default function CoreQuizPlayer({
           <p style={mutedText}>{error || "This quiz could not be loaded."}</p>
           <button
             type="button"
-            onClick={() => void loadQuiz()}
+            onClick={() => void loadQuiz({ force: true })}
             style={primaryButton}
           >
             Try Again
@@ -852,9 +1095,7 @@ export default function CoreQuizPlayer({
                 <span style={scienceQuestionTypeBadge}>
                   {SUBJECT_LABELS[subject]} · Primary {level}
                 </span>
-                <span style={scienceSkillBadge}>
-                  {payload.quiz.topic_title}
-                </span>
+                <span style={scienceSkillBadge}>{payload.quiz.topic_title}</span>
               </div>
 
               <h1 style={scienceIntroTitle(isMobile)}>{payload.quiz.title}</h1>
@@ -949,7 +1190,7 @@ export default function CoreQuizPlayer({
         expandedResultId={expandedResultId}
         setExpandedResultId={setExpandedResultId}
         onQuizList={returnToQuizList}
-        onReplay={() => window.location.reload()}
+        onReplay={() => void replayQuiz()}
         onRover={() => router.push("/learning-missions/core/rover")}
       />
     );
@@ -1003,7 +1244,6 @@ export default function CoreQuizPlayer({
         error={error}
         onAnswerChange={(questionId, response) => {
           const feedback = feedbackByQuestion[questionId];
-
           if (feedback?.locked) return;
 
           setAnswers((current) => ({
@@ -1052,8 +1292,8 @@ export default function CoreQuizPlayer({
                 Question {questionIndex + 1} of {payload.questions.length}
               </p>
               <p style={scienceQuestionMeta}>
-                {payload.quiz.title} · {answeredCount}/
-                {payload.questions.length} answered
+                {payload.quiz.title} · {answeredCount}/{payload.questions.length}{" "}
+                answered
               </p>
             </div>
 
@@ -1105,48 +1345,40 @@ export default function CoreQuizPlayer({
               </span>
             </div>
 
+            {currentQuestion.instruction && (
+              <p style={scienceInstruction}>{currentQuestion.instruction}</p>
+            )}
+
             <h1 style={scienceQuestionPrompt(isMobile)}>
               {currentQuestion.prompt}
             </h1>
-
-            {currentQuestion.instruction && (
-              <p style={scienceInstructionText}>
-                {currentQuestion.instruction}
-              </p>
-            )}
 
             <QuestionMediaRenderer
               stimulus={currentQuestion.stimulus}
               assets={currentQuestion.assets}
             />
 
-            <div style={scienceResponseWrap}>
-              <QuestionResponse
-                question={currentQuestion}
-                response={currentResponse ?? {}}
-                disabled={isImmediateLocked || actionBusy}
-                attemptId={payload.attempt_id}
-                userId={userId}
-                onChange={updateResponse}
-              />
-            </div>
+            <QuestionResponseEditor
+              question={currentQuestion}
+              response={currentResponse}
+              locked={isImmediateLocked || actionBusy}
+              onChange={updateResponse}
+            />
 
-            {currentFeedback && (
-              <ImmediateFeedbackCard feedback={currentFeedback} />
-            )}
+            <ImmediateFeedbackCard feedback={currentFeedback} />
 
-            {error && <div style={errorBanner}>{error}</div>}
+            {error && <div style={errorBox}>{error}</div>}
           </article>
 
           <div style={scienceActionRow(isMobile)}>
             <button
               type="button"
-              disabled={questionIndex <= 0 || actionBusy}
+              disabled={actionBusy || questionIndex === 0}
               onClick={() => void moveToQuestion(questionIndex - 1)}
               style={{
                 ...sciencePreviousButton,
+                opacity: actionBusy || questionIndex === 0 ? 0.35 : 1,
                 width: isMobile ? "100%" : "auto",
-                opacity: questionIndex <= 0 || actionBusy ? 0.35 : 1,
               }}
             >
               ← Previous
@@ -1161,19 +1393,16 @@ export default function CoreQuizPlayer({
               onClick={() => void handlePrimaryQuestionAction()}
               style={{
                 ...scienceNextButton,
-                width: isMobile ? "100%" : "auto",
                 opacity:
                   actionBusy ||
                   !responseIsComplete(currentQuestion, currentResponse)
                     ? 0.35
                     : 1,
+                width: isMobile ? "100%" : "auto",
               }}
             >
-              {actionBusy
-                ? "Saving..."
-                : `${primaryActionLabel}${
-                    primaryActionLabel === "Next Question" ? " →" : ""
-                  }`}
+              {actionBusy ? "Saving..." : primaryActionLabel}
+              {!actionBusy && primaryActionLabel === "Next Question" ? " →" : ""}
             </button>
           </div>
         </div>
@@ -1182,155 +1411,130 @@ export default function CoreQuizPlayer({
   );
 }
 
-function QuestionResponse({
+function QuestionResponseEditor({
   question,
   response,
-  disabled,
-  attemptId,
-  userId,
+  locked,
   onChange,
 }: {
   question: QuizQuestion;
-  response: JsonObject;
-  disabled: boolean;
-  attemptId: string;
-  userId: string | null;
-  onChange: (response: JsonObject) => void;
+  response?: JsonObject;
+  locked: boolean;
+  onChange: (next: JsonObject) => void;
 }) {
   const options = asOptions(question.content);
 
   switch (question.question_type) {
     case "multiple_choice":
-    case "listening_comprehension":
+    case "true_false":
+    case "listening_comprehension": {
+      const selected = String(response?.option_id ?? "");
       return (
-        <OptionGrid optionCount={options.length}>
-          {options.map((option, index) => (
-            <OptionButton
-              key={option.id}
-              option={option}
-              label={String.fromCharCode(65 + index)}
-              selected={response.option_id === option.id}
-              disabled={disabled}
-              onClick={() => onChange({ option_id: option.id })}
-            />
-          ))}
-        </OptionGrid>
-      );
-
-    case "true_false": {
-      const trueFalseOptions =
-        options.length > 0
-          ? options
-          : [
-              {
-                id: "true",
-                text: "True",
-                image_url: null,
-                image_alt: null,
-                show_text_with_image: false,
-              },
-              {
-                id: "false",
-                text: "False",
-                image_url: null,
-                image_alt: null,
-                show_text_with_image: false,
-              },
-            ];
-      return (
-        <OptionGrid optionCount={trueFalseOptions.length}>
-          {trueFalseOptions.map((option) => (
-            <OptionButton
-              key={option.id}
-              option={option}
-              label={option.id === "true" ? "T" : "F"}
-              selected={response.option_id === option.id}
-              disabled={disabled}
-              onClick={() => onChange({ option_id: option.id })}
-            />
-          ))}
-        </OptionGrid>
+        <div style={optionGrid}>
+          {options.map((option, index) => {
+            const active = selected === option.id;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                disabled={locked}
+                onClick={() => onChange({ option_id: option.id })}
+                style={optionButton(active, locked)}
+              >
+                <span style={optionLetter}>{String.fromCharCode(65 + index)}</span>
+                <span style={optionContent}>
+                  {option.image_url && (
+                    <img
+                      src={option.image_url}
+                      alt={option.image_alt || option.text || `Option ${index + 1}`}
+                      style={optionImage}
+                    />
+                  )}
+                  {(!option.image_url || option.show_text_with_image) &&
+                    option.text && <span>{option.text}</span>}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       );
     }
 
-    case "multiple_select":
+    case "multiple_select": {
+      const selected = new Set(
+        Array.isArray(response?.option_ids)
+          ? response?.option_ids.map(String)
+          : [],
+      );
+
       return (
-        <div>
-          <p style={helperText}>Choose every correct answer.</p>
-          <OptionGrid optionCount={options.length}>
-            {options.map((option, index) => {
-              const selectedIds = Array.isArray(response.option_ids)
-                ? response.option_ids.map(String)
-                : [];
-              const selected = selectedIds.includes(option.id);
-              return (
-                <OptionButton
-                  key={option.id}
-                  option={option}
-                  label={String.fromCharCode(65 + index)}
-                  selected={selected}
-                  disabled={disabled}
-                  onClick={() =>
-                    onChange({
-                      option_ids: selected
-                        ? selectedIds.filter((id: string) => id !== option.id)
-                        : [...selectedIds, option.id],
-                    })
-                  }
-                />
-              );
-            })}
-          </OptionGrid>
+        <div style={optionGrid}>
+          {options.map((option, index) => {
+            const active = selected.has(option.id);
+            return (
+              <button
+                key={option.id}
+                type="button"
+                disabled={locked}
+                onClick={() => {
+                  const next = new Set(selected);
+                  if (active) next.delete(option.id);
+                  else next.add(option.id);
+                  onChange({ option_ids: Array.from(next) });
+                }}
+                style={optionButton(active, locked)}
+              >
+                <span style={optionLetter}>{String.fromCharCode(65 + index)}</span>
+                <span style={optionContent}>{option.text}</span>
+              </button>
+            );
+          })}
         </div>
       );
+    }
 
     case "short_text":
     case "open_cloze":
+    case "editing":
+    case "picture_description":
       return (
         <input
-          type="text"
-          value={String(response.text ?? "")}
-          disabled={disabled}
+          value={String(response?.text ?? "")}
+          disabled={locked}
           onChange={(event) => onChange({ text: event.target.value })}
           placeholder="Type your answer"
           style={textInput}
         />
       );
 
-    case "editing":
     case "long_text":
-    case "picture_description":
       return (
         <textarea
-          value={String(response.text ?? "")}
-          disabled={disabled}
+          value={String(response?.text ?? "")}
+          disabled={locked}
           onChange={(event) => onChange({ text: event.target.value })}
-          placeholder={
-            question.question_type === "editing"
-              ? "Type the corrected sentence or passage"
-              : "Type your response"
-          }
-          rows={question.question_type === "long_text" ? 9 : 6}
+          placeholder="Type your response"
+          rows={7}
           style={textArea}
         />
       );
 
     case "sentence_reordering":
       return (
-        <SentenceReordering
-          content={question.content}
+        <SentenceReorderingEditor
+          question={question}
           response={response}
-          disabled={disabled}
+          locked={locked}
           onChange={onChange}
         />
       );
 
     case "matching":
       return (
-        <MatchingQuestion
-          content={question.content}
+        <MatchingEditor
+          question={question}
           response={response}
-          disabled={disabled}
+          locked={locked}
           onChange={onChange}
         />
       );
@@ -1338,438 +1542,227 @@ function QuestionResponse({
     case "word_bank":
     case "dropdown_cloze":
       return (
-        <ClozeQuestion
-          content={question.content}
+        <BlankEditor
+          question={question}
           response={response}
-          disabled={disabled}
+          locked={locked}
           onChange={onChange}
         />
       );
 
     case "oral_recording":
       return (
-        <OralRecorder
-          attemptId={attemptId}
-          questionId={question.id}
-          userId={userId}
-          response={response}
-          disabled={disabled}
-          onChange={onChange}
-        />
+        <div style={noticeBox}>
+          This mission expects an uploaded oral recording. The existing recording
+          uploader can continue to provide <code>storage_path</code> in the
+          response object.
+        </div>
       );
 
     default:
-      return (
-        <div style={errorBanner}>This question type is not supported yet.</div>
-      );
+      return null;
   }
 }
 
-function OptionGrid({
-  children,
-  optionCount,
-}: {
-  children: ReactNode;
-  optionCount: number;
-}) {
-  return <div style={optionGrid(optionCount)}>{children}</div>;
-}
-
-function OptionButton({
-  option,
-  label,
-  selected,
-  disabled,
-  onClick,
-}: {
-  option: QuizOption;
-  label: string;
-  selected: boolean;
-  disabled: boolean;
-  onClick: () => void;
-}) {
-  const showText =
-    option.text.trim().length > 0 &&
-    (!option.image_url || option.show_text_with_image);
-
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      style={optionButton(selected, disabled)}
-    >
-      <span style={optionLabel}>{label}</span>
-      <span style={{ minWidth: 0 }}>
-        {option.image_url && (
-          <img
-            src={option.image_url}
-            alt={option.image_alt || `Image for option ${label}`}
-            style={{
-              display: "block",
-              width: "100%",
-              maxWidth: "220px",
-              maxHeight: "150px",
-              objectFit: "contain",
-              margin: "0 auto 8px",
-            }}
-          />
-        )}
-        {showText && <span style={optionText}>{option.text}</span>}
-      </span>
-    </button>
-  );
-}
-
-function SentenceReordering({
-  content,
+function SentenceReorderingEditor({
+  question,
   response,
-  disabled,
+  locked,
   onChange,
 }: {
-  content: JsonObject;
-  response: JsonObject;
-  disabled: boolean;
-  onChange: (response: JsonObject) => void;
+  question: QuizQuestion;
+  response?: JsonObject;
+  locked: boolean;
+  onChange: (next: JsonObject) => void;
 }) {
-  const tokens = Array.isArray(content.tokens)
-    ? content.tokens.map((token: any, index: number) => ({
+  const tokens = Array.isArray(question.content.tokens)
+    ? question.content.tokens.map((token: any, index: number) => ({
         id: String(token?.id ?? index + 1),
         text: String(token?.text ?? token ?? ""),
       }))
     : [];
-  const selectedIds = Array.isArray(response.token_ids)
-    ? response.token_ids.map(String)
+
+  const selectedIds = Array.isArray(response?.token_ids)
+    ? response!.token_ids.map(String)
     : [];
+
   const selectedTokens = selectedIds
-    .map((id: string) => tokens.find((token: any) => token.id === id))
-    .filter(Boolean);
-  const remaining = tokens.filter(
+    .map((id) => tokens.find((token: any) => token.id === id))
+    .filter(Boolean) as Array<{ id: string; text: string }>;
+  const remainingTokens = tokens.filter(
     (token: any) => !selectedIds.includes(token.id),
   );
 
   return (
-    <div>
+    <div style={editorStack}>
       <div style={reorderAnswerBox}>
         {selectedTokens.length === 0 ? (
-          <span style={{ opacity: 0.45 }}>
-            Tap the words in the correct order.
-          </span>
+          <span style={placeholderText}>Tap the words in the correct order.</span>
         ) : (
-          selectedTokens.map((token: any, index: number) => (
+          selectedTokens.map((token) => (
             <button
-              key={`${token.id}-${index}`}
+              key={token.id}
               type="button"
-              disabled={disabled}
+              disabled={locked}
               onClick={() =>
                 onChange({
-                  token_ids: selectedIds.filter(
-                    (_: string, itemIndex: number) => itemIndex !== index,
-                  ),
+                  token_ids: selectedIds.filter((id) => id !== token.id),
                 })
               }
-              style={wordChip(true)}
+              style={chipButton(true, locked)}
             >
               {token.text}
             </button>
           ))
         )}
       </div>
-      <div style={wordBankWrap}>
-        {remaining.map((token: any) => (
+
+      <div style={chipWrap}>
+        {remainingTokens.map((token: any) => (
           <button
             key={token.id}
             type="button"
-            disabled={disabled}
-            onClick={() => onChange({ token_ids: [...selectedIds, token.id] })}
-            style={wordChip(false)}
+            disabled={locked}
+            onClick={() =>
+              onChange({ token_ids: [...selectedIds, token.id] })
+            }
+            style={chipButton(false, locked)}
           >
             {token.text}
           </button>
         ))}
       </div>
-      {selectedIds.length > 0 && !disabled && (
-        <button
-          type="button"
-          onClick={() => onChange({ token_ids: [] })}
-          style={smallTextButton}
-        >
-          Clear sentence
-        </button>
-      )}
     </div>
   );
 }
 
-function MatchingQuestion({
-  content,
+function MatchingEditor({
+  question,
   response,
-  disabled,
+  locked,
   onChange,
 }: {
-  content: JsonObject;
-  response: JsonObject;
-  disabled: boolean;
-  onChange: (response: JsonObject) => void;
+  question: QuizQuestion;
+  response?: JsonObject;
+  locked: boolean;
+  onChange: (next: JsonObject) => void;
 }) {
-  const left = Array.isArray(content.left) ? content.left : [];
-  const right = Array.isArray(content.right) ? content.right : [];
-  const matches = response.matches ?? {};
+  const left = Array.isArray(question.content.left) ? question.content.left : [];
+  const right = Array.isArray(question.content.right)
+    ? question.content.right
+    : [];
+  const matches = (response?.matches ?? {}) as Record<string, string>;
 
   return (
-    <div style={matchingWrap}>
+    <div style={editorStack}>
       {left.map((item: any, index: number) => {
-        const leftId = String(item?.id ?? index + 1);
+        const id = String(item?.id ?? index + 1);
         return (
-          <div key={leftId} style={matchingRow}>
-            <div style={matchingPrompt}>{String(item?.text ?? "")}</div>
-            <span style={{ opacity: 0.5 }}>→</span>
+          <label key={id} style={matchingRow}>
+            <span style={matchingLabel}>{String(item?.text ?? item)}</span>
             <select
-              disabled={disabled}
-              value={String(matches[leftId] ?? "")}
+              value={String(matches[id] ?? "")}
+              disabled={locked}
               onChange={(event) =>
                 onChange({
-                  matches: { ...matches, [leftId]: event.target.value },
+                  matches: {
+                    ...matches,
+                    [id]: event.target.value,
+                  },
                 })
               }
               style={selectInput}
             >
-              <option value="">Choose</option>
-              {right.map((choice: any, choiceIndex: number) => (
+              <option value="">Choose a match</option>
+              {right.map((option: any, rightIndex: number) => (
                 <option
-                  key={String(choice?.id ?? choiceIndex + 1)}
-                  value={String(choice?.id ?? choiceIndex + 1)}
+                  key={String(option?.id ?? rightIndex + 1)}
+                  value={String(option?.id ?? rightIndex + 1)}
                 >
-                  {String(choice?.text ?? "")}
+                  {String(option?.text ?? option)}
                 </option>
               ))}
             </select>
-          </div>
+          </label>
         );
       })}
     </div>
   );
 }
 
-function ClozeQuestion({
-  content,
+function BlankEditor({
+  question,
   response,
-  disabled,
+  locked,
   onChange,
 }: {
-  content: JsonObject;
-  response: JsonObject;
-  disabled: boolean;
-  onChange: (response: JsonObject) => void;
+  question: QuizQuestion;
+  response?: JsonObject;
+  locked: boolean;
+  onChange: (next: JsonObject) => void;
 }) {
-  const text = String(content.text_with_blanks ?? content.text ?? "");
-  const values = response.values ?? {};
-  const parts = text.split(/(\{\{[^}]+\}\})/g);
-  const globalBank = Array.isArray(content.word_bank) ? content.word_bank : [];
-  const optionsByBlank = content.options_by_blank ?? {};
+  const blankIds = getBlankIds(question.content);
+  const values = (response?.values ?? {}) as Record<string, string>;
+  const bank = Array.isArray(question.content.word_bank)
+    ? question.content.word_bank.map(String)
+    : Array.isArray(question.content.options)
+      ? question.content.options.map((option: any) =>
+          String(option?.text ?? option?.value ?? option),
+        )
+      : [];
 
   return (
-    <div>
-      <div style={clozeText}>
-        {parts.map((part, index) => {
-          const match = /^\{\{([^}]+)\}\}$/.exec(part);
-          if (!match) return <span key={index}>{part}</span>;
-
-          const blankId = match[1];
-          const blankOptions = Array.isArray(optionsByBlank[blankId])
-            ? optionsByBlank[blankId]
-            : globalBank;
-
-          return (
+    <div style={editorStack}>
+      {blankIds.map((blankId, index) => (
+        <label key={blankId} style={matchingRow}>
+          <span style={matchingLabel}>Blank {index + 1}</span>
+          {bank.length > 0 ? (
             <select
-              key={`${blankId}-${index}`}
-              disabled={disabled}
               value={String(values[blankId] ?? "")}
+              disabled={locked}
               onChange={(event) =>
                 onChange({
                   values: { ...values, [blankId]: event.target.value },
                 })
               }
-              style={inlineSelect}
+              style={selectInput}
             >
-              <option value="">Choose</option>
-              {blankOptions.map((option: any, optionIndex: number) => {
-                const optionValue = String(
-                  option?.id ?? option?.text ?? option,
-                );
-                const optionText = String(option?.text ?? option);
-                return (
-                  <option
-                    key={`${optionValue}-${optionIndex}`}
-                    value={optionValue}
-                  >
-                    {optionText}
-                  </option>
-                );
-              })}
+              <option value="">Choose a word</option>
+              {bank.map((word: string) => (
+                <option key={word} value={word}>
+                  {word}
+                </option>
+              ))}
             </select>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function OralRecorder({
-  attemptId,
-  questionId,
-  userId,
-  response,
-  disabled,
-  onChange,
-}: {
-  attemptId: string;
-  questionId: string;
-  userId: string | null;
-  response: JsonObject;
-  disabled: boolean;
-  onChange: (response: JsonObject) => void;
-}) {
-  const [recording, setRecording] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  const [recordingError, setRecordingError] = useState<string | null>(null);
-
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const timerRef = useRef<number | null>(null);
-  const elapsedRef = useRef(0);
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) window.clearInterval(timerRef.current);
-      streamRef.current?.getTracks().forEach((track) => track.stop());
-    };
-  }, []);
-
-  async function startRecording() {
-    if (!userId || disabled) return;
-    setRecordingError(null);
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      chunksRef.current = [];
-
-      const recorder = new MediaRecorder(stream);
-      recorderRef.current = recorder;
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) chunksRef.current.push(event.data);
-      };
-      recorder.onstop = () => void uploadRecording(recorder.mimeType);
-      recorder.start();
-      setElapsed(0);
-      elapsedRef.current = 0;
-      setRecording(true);
-      timerRef.current = window.setInterval(() => {
-        elapsedRef.current += 1;
-        setElapsed(elapsedRef.current);
-      }, 1000);
-    } catch (err) {
-      console.warn("Microphone could not start:", err);
-      setRecordingError("Microphone access is required for this question.");
-    }
-  }
-
-  function stopRecording() {
-    if (!recording) return;
-    setRecording(false);
-    if (timerRef.current) window.clearInterval(timerRef.current);
-    timerRef.current = null;
-    recorderRef.current?.stop();
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-  }
-
-  async function uploadRecording(mimeType: string) {
-    if (!userId || chunksRef.current.length === 0) return;
-    setUploading(true);
-    setRecordingError(null);
-
-    const resolvedMimeType = mimeType || "audio/webm";
-    const extension = resolvedMimeType.includes("ogg") ? "ogg" : "webm";
-    const blob = new Blob(chunksRef.current, { type: resolvedMimeType });
-    const storagePath = `${userId}/${attemptId}/${questionId}-${Date.now()}.${extension}`;
-
-    const { error } = await supabase.storage
-      .from("core-response-assets")
-      .upload(storagePath, blob, {
-        contentType: resolvedMimeType,
-        upsert: false,
-      });
-
-    setUploading(false);
-
-    if (error) {
-      console.warn("Oral response upload failed:", error);
-      setRecordingError(
-        "The recording could not be uploaded. Please try again.",
-      );
-      return;
-    }
-
-    onChange({
-      storage_bucket: "core-response-assets",
-      storage_path: storagePath,
-      mime_type: resolvedMimeType,
-      duration_seconds: elapsedRef.current,
-    });
-  }
-
-  return (
-    <div style={recorderCard}>
-      {response.storage_path ? (
-        <>
-          <p style={{ margin: 0, color: "#b8ffdb", fontWeight: 900 }}>
-            Recording saved
-          </p>
-          <p style={{ ...mutedText, marginBottom: 0 }}>
-            Duration: {Number(response.duration_seconds ?? 0)} seconds
-          </p>
-          {!disabled && (
-            <button
-              type="button"
-              onClick={() => onChange({})}
-              style={smallTextButton}
-            >
-              Record again
-            </button>
+          ) : (
+            <input
+              value={String(values[blankId] ?? "")}
+              disabled={locked}
+              onChange={(event) =>
+                onChange({
+                  values: { ...values, [blankId]: event.target.value },
+                })
+              }
+              style={textInput}
+            />
           )}
-        </>
-      ) : (
-        <>
-          <p style={{ margin: 0, fontWeight: 800 }}>
-            {recording
-              ? `Recording… ${elapsed}s`
-              : uploading
-                ? "Uploading recording…"
-                : "Record your spoken answer"}
-          </p>
-          <button
-            type="button"
-            disabled={disabled || uploading || !userId}
-            onClick={recording ? stopRecording : () => void startRecording()}
-            style={{ ...primaryButton, marginTop: "12px" }}
-          >
-            {recording ? "Stop Recording" : "Start Recording"}
-          </button>
-        </>
-      )}
-      {recordingError && <div style={errorBanner}>{recordingError}</div>}
+        </label>
+      ))}
     </div>
   );
 }
 
-function ImmediateFeedbackCard({ feedback }: { feedback: ImmediateFeedback }) {
+function ImmediateFeedbackCard({
+  feedback,
+}: {
+  feedback?: ImmediateFeedback;
+}) {
+  if (!feedback) return null;
+
   if (feedback.pending_manual_review) {
     return (
-      <div style={noticeBox}>
-        This response has been saved and will be reviewed by a teacher.
+      <div style={feedbackCard(null)}>
+        <p style={{ margin: 0, fontWeight: 900 }}>Saved for teacher review.</p>
       </div>
     );
   }
@@ -1870,113 +1863,97 @@ function ResultsScreen({
                 label="DT Balance"
                 value={String(result.token_balance)}
               />
-              <ResultStat
-                label="DG Balance"
-                value={String(result.gem_balance)}
-              />
             </div>
 
-            <p style={termsText}>
-              All rewards are subject to terms and conditions.
-            </p>
+            <div style={scienceActionRow(isMobile)}>
+              <button type="button" onClick={onQuizList} style={sciencePreviousButton}>
+                Back to Quiz List
+              </button>
+              <button type="button" onClick={onReplay} style={ghostButton}>
+                Replay Mission
+              </button>
+              <button type="button" onClick={onRover} style={scienceNextButton}>
+                My Rover →
+              </button>
+            </div>
           </article>
 
-          <div style={scienceResultActions(isMobile)}>
-            <button
-              type="button"
-              onClick={onQuizList}
-              style={sciencePreviousButton}
-            >
-              Choose Another Quiz
-            </button>
-            <button
-              type="button"
-              onClick={onReplay}
-              style={sciencePreviousButton}
-            >
-              Replay
-            </button>
-            <button type="button" onClick={onRover} style={scienceNextButton}>
-              View My Rover
-            </button>
-          </div>
-        </div>
+          {payload.quiz.feedback_mode !== "none" &&
+            result.question_results.length > 0 && (
+              <div style={scienceReviewPanel(isMobile)}>
+                <p style={scienceQuestionEyebrow}>Answer review</p>
+                <h2 style={scienceReviewTitle}>Review every question</h2>
+                <p style={{ ...mutedText, margin: "8px 0 0" }}>
+                  Open a question to review your response and explanation.
+                </p>
 
-        {payload.quiz.feedback_mode !== "none" &&
-          result.question_results.length > 0 && (
-            <div style={scienceReviewPanel(isMobile)}>
-              <p style={scienceQuestionEyebrow}>Answer review</p>
-              <h2 style={scienceReviewTitle}>Review every question</h2>
-              <p style={{ ...mutedText, margin: "8px 0 0" }}>
-                Open a question to review your response and explanation.
-              </p>
-
-              <div style={reviewList}>
-                {result.question_results.map((item) => {
-                  const expanded = expandedResultId === item.question_id;
-                  return (
-                    <div key={item.question_id} style={reviewItem}>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setExpandedResultId(
-                            expanded ? null : item.question_id,
-                          )
-                        }
-                        style={reviewItemButton}
-                      >
-                        <span
-                          style={reviewStatus(
-                            item.is_correct,
-                            item.pending_manual_review,
-                          )}
+                <div style={reviewList}>
+                  {result.question_results.map((item) => {
+                    const expanded = expandedResultId === item.question_id;
+                    return (
+                      <div key={item.question_id} style={reviewItem}>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedResultId(
+                              expanded ? null : item.question_id,
+                            )
+                          }
+                          style={reviewItemButton}
                         >
-                          {item.pending_manual_review
-                            ? "…"
-                            : item.is_correct
-                              ? "✓"
-                              : "×"}
-                        </span>
-                        <span style={{ flex: 1, textAlign: "left" }}>
-                          <strong>Question {item.question_order}</strong>
-                          <span style={reviewPrompt}>{item.prompt}</span>
-                        </span>
-                        <span>{expanded ? "−" : "+"}</span>
-                      </button>
+                          <span
+                            style={reviewStatus(
+                              item.is_correct,
+                              item.pending_manual_review,
+                            )}
+                          >
+                            {item.pending_manual_review
+                              ? "…"
+                              : item.is_correct
+                                ? "✓"
+                                : "×"}
+                          </span>
+                          <span style={{ flex: 1, textAlign: "left" }}>
+                            <strong>Question {item.question_order}</strong>
+                            <span style={reviewPrompt}>{item.prompt}</span>
+                          </span>
+                          <span>{expanded ? "−" : "+"}</span>
+                        </button>
 
-                      {expanded && (
-                        <div style={reviewDetails}>
-                          <p style={reviewLine}>
-                            <strong>Your response:</strong>{" "}
-                            {friendlyCorrectResponse(item.response_data)}
-                          </p>
-                          {!item.pending_manual_review &&
-                            item.correct_response && (
+                        {expanded && (
+                          <div style={reviewDetails}>
+                            <p style={reviewLine}>
+                              <strong>Your response:</strong>{" "}
+                              {friendlyCorrectResponse(item.response_data)}
+                            </p>
+                            {!item.pending_manual_review &&
+                              item.correct_response && (
+                                <p style={reviewLine}>
+                                  <strong>Correct response:</strong>{" "}
+                                  {friendlyCorrectResponse(item.correct_response)}
+                                </p>
+                              )}
+                            {item.explanation && (
                               <p style={reviewLine}>
-                                <strong>Correct response:</strong>{" "}
-                                {friendlyCorrectResponse(item.correct_response)}
+                                <strong>Explanation:</strong> {item.explanation}
                               </p>
                             )}
-                          {item.explanation && (
                             <p style={reviewLine}>
-                              <strong>Explanation:</strong> {item.explanation}
+                              <strong>Marks:</strong>{" "}
+                              {item.marks_awarded == null
+                                ? "Pending"
+                                : item.marks_awarded}
+                              /{item.maximum_marks}
                             </p>
-                          )}
-                          <p style={reviewLine}>
-                            <strong>Marks:</strong>{" "}
-                            {item.marks_awarded == null
-                              ? "Pending"
-                              : item.marks_awarded}
-                            /{item.maximum_marks}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+        </div>
       </section>
     </main>
   );
@@ -2045,90 +2022,171 @@ const pageShell: CSSProperties = {
 
 const scienceQuizPage: CSSProperties = {
   minHeight: "100dvh",
-  overflowX: "hidden",
   color: "white",
   fontFamily: "Arial, Helvetica, sans-serif",
-  backgroundColor: "#030d1d",
-  backgroundImage: `
-    radial-gradient(circle at 52% -12%, rgba(64,224,208,0.17), transparent 36%),
-    radial-gradient(circle at 88% 18%, rgba(53,125,255,0.11), transparent 30%),
-    linear-gradient(rgba(126,232,255,0.038) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(126,232,255,0.038) 1px, transparent 1px),
-    linear-gradient(180deg, #07162c 0%, #020915 100%)
-  `,
-  backgroundSize: "auto, auto, 48px 48px, 48px 48px, auto",
-  backgroundPosition: "center top, center top, center, center, center",
+  background:
+    "radial-gradient(circle at 18% 10%, rgba(40,190,255,0.10), transparent 34%), #061326",
+  padding: "18px",
+  boxSizing: "border-box",
 };
 
 function scienceQuizHeader(isMobile: boolean): CSSProperties {
   return {
-    width: "min(1366px,100%)",
-    margin: "0 auto",
-    padding: isMobile ? "16px 14px 0" : "26px 20px 0",
+    maxWidth: "1540px",
+    margin: "0 auto 16px",
     display: "flex",
-    alignItems: "center",
+    flexDirection: isMobile ? "column" : "row",
+    alignItems: isMobile ? "stretch" : "center",
     justifyContent: "space-between",
-    gap: "12px",
+    gap: "10px",
   };
 }
 
 function scienceQuizWrap(isMobile: boolean): CSSProperties {
   return {
-    width: "min(1056px,100%)",
+    maxWidth: "1540px",
     margin: "0 auto",
-    padding: isMobile ? "18px 12px 32px" : "28px 16px 48px",
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    gap: "16px",
+  };
+}
+
+function scienceResultsWrap(isMobile: boolean): CSSProperties {
+  return {
+    ...scienceQuizWrap(isMobile),
+    maxWidth: "1240px",
   };
 }
 
 function scienceQuizPanel(isMobile: boolean): CSSProperties {
   return {
-    borderRadius: isMobile ? "24px" : "36px",
-    border: "1px solid rgba(255,255,255,0.11)",
-    background:
-      "linear-gradient(145deg,rgba(255,255,255,0.065),rgba(255,255,255,0.035))",
-    padding: isMobile ? "16px" : "32px",
-    boxShadow: "0 30px 80px rgba(0,0,0,0.36)",
-    backdropFilter: "blur(18px)",
+    borderRadius: isMobile ? "22px" : "30px",
+    border: "1px solid rgba(126,232,255,0.15)",
+    background: "rgba(6,19,38,0.90)",
+    boxShadow: "0 26px 70px rgba(0,0,0,0.28)",
+    padding: isMobile ? "16px" : "24px",
   };
 }
+
+function scienceIntroCard(isMobile: boolean): CSSProperties {
+  return {
+    borderRadius: isMobile ? "18px" : "24px",
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    padding: isMobile ? "20px" : "32px",
+  };
+}
+
+const scienceQuestionBadgeRow: CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "8px",
+  alignItems: "center",
+};
+
+const scienceQuestionTypeBadge: CSSProperties = {
+  borderRadius: "999px",
+  border: "1px solid rgba(126,232,255,0.26)",
+  background: "rgba(83,215,255,0.10)",
+  color: "#b9f4ff",
+  padding: "7px 10px",
+  fontSize: "10px",
+  fontWeight: 900,
+  letterSpacing: "0.10em",
+  textTransform: "uppercase",
+};
+
+const scienceSkillBadge: CSSProperties = {
+  ...scienceQuestionTypeBadge,
+  border: "1px solid rgba(216,180,254,0.25)",
+  background: "rgba(168,85,247,0.09)",
+  color: "#ead6ff",
+};
+
+function scienceIntroTitle(isMobile: boolean): CSSProperties {
+  return {
+    margin: "20px 0 0",
+    fontSize: isMobile ? "34px" : "52px",
+    lineHeight: 1.03,
+    letterSpacing: "-0.04em",
+  };
+}
+
+const scienceIntroDescription: CSSProperties = {
+  margin: "14px 0 0",
+  maxWidth: "800px",
+  color: "rgba(255,255,255,0.60)",
+  fontSize: "15px",
+  lineHeight: 1.7,
+};
+
+function scienceIntroStats(isMobile: boolean): CSSProperties {
+  return {
+    marginTop: "24px",
+    display: "grid",
+    gridTemplateColumns: isMobile
+      ? "repeat(2, minmax(0, 1fr))"
+      : "repeat(4, minmax(0, 1fr))",
+    gap: "10px",
+  };
+}
+
+const introStatCard: CSSProperties = {
+  borderRadius: "16px",
+  border: "1px solid rgba(255,255,255,0.10)",
+  background: "rgba(0,0,0,0.16)",
+  padding: "14px",
+};
+
+const noticeBox: CSSProperties = {
+  marginTop: "18px",
+  borderRadius: "14px",
+  border: "1px solid rgba(52,211,153,0.23)",
+  background: "rgba(52,211,153,0.08)",
+  color: "#c9f8e8",
+  padding: "13px 14px",
+  fontSize: "13px",
+  lineHeight: 1.5,
+};
+
+const termsText: CSSProperties = {
+  margin: "18px 0 0",
+  color: "rgba(255,255,255,0.35)",
+  fontSize: "11px",
+};
 
 function scienceProgressHeader(isMobile: boolean): CSSProperties {
   return {
     display: "flex",
     flexDirection: isMobile ? "column" : "row",
-    alignItems: isMobile ? "stretch" : "center",
     justifyContent: "space-between",
-    gap: isMobile ? "14px" : "20px",
+    alignItems: isMobile ? "stretch" : "center",
+    gap: "14px",
   };
 }
 
 const scienceQuestionEyebrow: CSSProperties = {
   margin: 0,
-  color: "#9cf5ff",
-  fontSize: "10px",
-  letterSpacing: "0.17em",
+  color: "#8ee8ff",
+  fontSize: "11px",
   fontWeight: 900,
+  letterSpacing: "0.14em",
   textTransform: "uppercase",
 };
 
 const scienceQuestionMeta: CSSProperties = {
-  margin: "6px 0 0",
-  color: "rgba(255,255,255,0.43)",
+  margin: "5px 0 0",
+  color: "rgba(255,255,255,0.48)",
   fontSize: "12px",
-  whiteSpace: "nowrap",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
 };
 
 function scienceQuestionNav(isMobile: boolean): CSSProperties {
   return {
     display: "flex",
-    flexWrap: isMobile ? "nowrap" : "wrap",
+    gap: "7px",
+    flexWrap: "wrap",
     justifyContent: isMobile ? "flex-start" : "flex-end",
-    gap: "8px",
-    maxWidth: isMobile ? "100%" : "56%",
-    overflowX: isMobile ? "auto" : "visible",
-    paddingBottom: isMobile ? "3px" : 0,
   };
 }
 
@@ -2140,172 +2198,414 @@ function scienceQuestionButton(
   return {
     width: "36px",
     height: "36px",
-    flex: "0 0 36px",
-    borderRadius: "999px",
+    borderRadius: "11px",
     border: active
-      ? "1px solid rgba(156,245,255,0.7)"
-      : checked || complete
-        ? "1px solid rgba(96,240,208,0.32)"
-        : "1px solid rgba(255,255,255,0.11)",
+      ? "1px solid rgba(126,232,255,0.70)"
+      : "1px solid rgba(255,255,255,0.10)",
     background: active
-      ? "#9cf5ff"
-      : checked || complete
-        ? "rgba(96,240,208,0.12)"
-        : "rgba(255,255,255,0.045)",
-    color: active
-      ? "#071223"
-      : checked || complete
-        ? "#b8ffeb"
-        : "rgba(255,255,255,0.48)",
+      ? "rgba(83,215,255,0.18)"
+      : checked
+        ? "rgba(52,211,153,0.12)"
+        : complete
+          ? "rgba(255,255,255,0.09)"
+          : "rgba(255,255,255,0.035)",
+    color: active ? "#c5f7ff" : "white",
     cursor: "pointer",
-    fontSize: "12px",
     fontWeight: 900,
   };
 }
 
 const scienceProgressTrack: CSSProperties = {
-  height: "8px",
-  marginTop: "20px",
-  overflow: "hidden",
+  marginTop: "14px",
+  height: "5px",
   borderRadius: "999px",
-  background: "rgba(255,255,255,0.065)",
+  overflow: "hidden",
+  background: "rgba(255,255,255,0.07)",
 };
 
 const scienceProgressFill: CSSProperties = {
   height: "100%",
   borderRadius: "999px",
-  background: "linear-gradient(90deg,#53d7ff,#60f0d0)",
+  background: "linear-gradient(90deg,#74ddc4,#77e6f5)",
   transition: "width 180ms ease",
 };
 
 function scienceQuestionCard(isMobile: boolean): CSSProperties {
   return {
-    minHeight: isMobile ? "360px" : "375px",
-    marginTop: isMobile ? "18px" : "24px",
-    borderRadius: isMobile ? "22px" : "30px",
-    border: "1px solid rgba(126,232,255,0.13)",
-    background: "linear-gradient(145deg,rgba(3,14,34,0.94),rgba(3,17,38,0.86))",
-    padding: isMobile ? "20px" : "32px",
-    overflow: "hidden",
+    marginTop: "18px",
+    borderRadius: isMobile ? "18px" : "24px",
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.035)",
+    padding: isMobile ? "18px" : "26px",
   };
 }
 
-const scienceQuestionBadgeRow: CSSProperties = {
-  display: "flex",
-  flexWrap: "wrap",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: "10px",
-};
-
-const scienceQuestionTypeBadge: CSSProperties = {
-  borderRadius: "999px",
-  border: "1px solid rgba(255,255,255,0.11)",
-  background: "rgba(255,255,255,0.04)",
-  padding: "7px 13px",
-  color: "rgba(255,255,255,0.52)",
-  fontSize: "10px",
-  letterSpacing: "0.12em",
-  fontWeight: 900,
-  textTransform: "uppercase",
-};
-
-const scienceSkillBadge: CSSProperties = {
-  color: "rgba(190,241,255,0.58)",
-  fontSize: "10px",
-  letterSpacing: "0.12em",
-  fontWeight: 900,
-  textTransform: "uppercase",
+const scienceInstruction: CSSProperties = {
+  margin: "16px 0 0",
+  color: "rgba(255,255,255,0.45)",
+  fontSize: "12px",
+  fontWeight: 700,
 };
 
 function scienceQuestionPrompt(isMobile: boolean): CSSProperties {
   return {
-    margin: isMobile ? "24px 0 0" : "28px 0 0",
-    color: "#ffffff",
-    fontSize: isMobile ? "26px" : "clamp(30px,3.1vw,40px)",
-    lineHeight: 1.16,
+    margin: "14px 0 18px",
+    fontSize: isMobile ? "23px" : "31px",
+    lineHeight: 1.28,
     letterSpacing: "-0.025em",
-    fontWeight: 900,
   };
 }
 
-const scienceInstructionText: CSSProperties = {
-  margin: "13px 0 0",
-  color: "rgba(255,255,255,0.53)",
-  fontSize: "14px",
-  lineHeight: 1.6,
+const optionGrid: CSSProperties = {
+  display: "grid",
+  gap: "10px",
+  marginTop: "16px",
 };
 
-const scienceResponseWrap: CSSProperties = {
-  marginTop: "28px",
+function optionButton(active: boolean, locked: boolean): CSSProperties {
+  return {
+    width: "100%",
+    minHeight: "58px",
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    padding: "11px 13px",
+    borderRadius: "16px",
+    border: active
+      ? "1px solid rgba(126,232,255,0.58)"
+      : "1px solid rgba(255,255,255,0.10)",
+    background: active
+      ? "rgba(83,215,255,0.13)"
+      : "rgba(255,255,255,0.04)",
+    color: "white",
+    textAlign: "left",
+    cursor: locked ? "default" : "pointer",
+    opacity: locked && !active ? 0.72 : 1,
+  };
+}
+
+const optionLetter: CSSProperties = {
+  flex: "0 0 auto",
+  width: "34px",
+  height: "34px",
+  display: "grid",
+  placeItems: "center",
+  borderRadius: "11px",
+  background: "rgba(126,232,255,0.10)",
+  color: "#bff6ff",
+  fontWeight: 950,
+};
+
+const optionContent: CSSProperties = {
+  minWidth: 0,
+  flex: 1,
+  display: "grid",
+  gap: "8px",
+  fontSize: "14px",
+  lineHeight: 1.5,
+};
+
+const optionImage: CSSProperties = {
+  display: "block",
+  maxWidth: "100%",
+  maxHeight: "260px",
+  objectFit: "contain",
+  borderRadius: "12px",
+  background: "rgba(255,255,255,0.96)",
+};
+
+const textInput: CSSProperties = {
+  width: "100%",
+  boxSizing: "border-box",
+  minHeight: "52px",
+  borderRadius: "14px",
+  border: "1px solid rgba(126,232,255,0.18)",
+  background: "rgba(0,0,0,0.20)",
+  color: "white",
+  padding: "0 14px",
+  outline: "none",
+  fontSize: "15px",
+};
+
+const textArea: CSSProperties = {
+  ...textInput,
+  minHeight: "160px",
+  padding: "14px",
+  resize: "vertical",
+  fontFamily: "inherit",
+};
+
+const selectInput: CSSProperties = {
+  ...textInput,
+  minWidth: "200px",
+  cursor: "pointer",
+};
+
+const editorStack: CSSProperties = {
+  display: "grid",
+  gap: "10px",
+  marginTop: "14px",
+};
+
+const matchingRow: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(120px,1fr) minmax(180px,1fr)",
+  gap: "10px",
+  alignItems: "center",
+};
+
+const matchingLabel: CSSProperties = {
+  color: "rgba(255,255,255,0.74)",
+  fontSize: "13px",
+  fontWeight: 800,
+};
+
+const reorderAnswerBox: CSSProperties = {
+  minHeight: "74px",
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "8px",
+  alignItems: "center",
+  borderRadius: "16px",
+  border: "1px dashed rgba(126,232,255,0.25)",
+  background: "rgba(0,0,0,0.12)",
+  padding: "12px",
+};
+
+const chipWrap: CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "8px",
+};
+
+function chipButton(selected: boolean, locked: boolean): CSSProperties {
+  return {
+    minHeight: "40px",
+    borderRadius: "12px",
+    border: selected
+      ? "1px solid rgba(126,232,255,0.42)"
+      : "1px solid rgba(255,255,255,0.12)",
+    background: selected
+      ? "rgba(83,215,255,0.12)"
+      : "rgba(255,255,255,0.05)",
+    color: "white",
+    padding: "0 12px",
+    cursor: locked ? "default" : "pointer",
+    fontWeight: 800,
+  };
+}
+
+const placeholderText: CSSProperties = {
+  color: "rgba(255,255,255,0.35)",
+  fontSize: "13px",
+};
+
+function feedbackCard(correct: boolean | null): CSSProperties {
+  return {
+    marginTop: "16px",
+    borderRadius: "14px",
+    border:
+      correct === true
+        ? "1px solid rgba(52,211,153,0.28)"
+        : correct === false
+          ? "1px solid rgba(248,113,113,0.28)"
+          : "1px solid rgba(251,191,36,0.25)",
+    background:
+      correct === true
+        ? "rgba(52,211,153,0.08)"
+        : correct === false
+          ? "rgba(239,68,68,0.08)"
+          : "rgba(251,191,36,0.08)",
+    color:
+      correct === true ? "#c8fae8" : correct === false ? "#fecaca" : "#fde7a6",
+    padding: "13px",
+    fontSize: "13px",
+  };
+}
+
+const errorBox: CSSProperties = {
+  marginTop: "14px",
+  borderRadius: "13px",
+  border: "1px solid rgba(248,113,113,0.30)",
+  background: "rgba(239,68,68,0.10)",
+  color: "#fecaca",
+  padding: "13px",
+  fontSize: "12px",
+  lineHeight: 1.5,
 };
 
 function scienceActionRow(isMobile: boolean): CSSProperties {
   return {
-    marginTop: "20px",
+    marginTop: "18px",
     display: "flex",
-    flexDirection: isMobile ? "column-reverse" : "row",
-    alignItems: "stretch",
-    justifyContent: "space-between",
-    gap: "12px",
+    flexDirection: isMobile ? "column" : "row",
+    justifyContent: "flex-end",
+    gap: "10px",
   };
 }
 
 const sciencePreviousButton: CSSProperties = {
-  minHeight: "50px",
-  borderRadius: "16px",
+  minHeight: "48px",
+  borderRadius: "14px",
   border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.045)",
+  background: "rgba(255,255,255,0.05)",
   color: "white",
-  padding: "0 24px",
+  padding: "0 18px",
   cursor: "pointer",
-  fontSize: "14px",
   fontWeight: 900,
 };
 
 const scienceNextButton: CSSProperties = {
-  minHeight: "50px",
-  borderRadius: "16px",
-  border: "1px solid rgba(255,255,255,0.28)",
-  background: "#ffffff",
-  color: "#071223",
-  padding: "0 28px",
+  ...sciencePreviousButton,
+  border: "1px solid rgba(126,232,255,0.40)",
+  background: "linear-gradient(135deg,#77e6f5,#74ddc4)",
+  color: "#061326",
+};
+
+const primaryButton: CSSProperties = {
+  ...scienceNextButton,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const ghostButton: CSSProperties = {
+  ...sciencePreviousButton,
+};
+
+const backButton: CSSProperties = {
+  minHeight: "40px",
+  borderRadius: "999px",
+  border: "1px solid rgba(126,232,255,0.22)",
+  background: "rgba(255,255,255,0.05)",
+  color: "white",
+  padding: "0 14px",
   cursor: "pointer",
-  fontSize: "14px",
-  fontWeight: 900,
+  fontWeight: 850,
 };
 
-function scienceIntroCard(isMobile: boolean): CSSProperties {
+function buttonRow(isMobile: boolean): CSSProperties {
   return {
-    borderRadius: isMobile ? "22px" : "30px",
-    border: "1px solid rgba(126,232,255,0.13)",
-    background: "linear-gradient(145deg,rgba(3,14,34,0.94),rgba(3,17,38,0.86))",
-    padding: isMobile ? "22px" : "36px",
+    marginTop: "18px",
+    display: "flex",
+    flexDirection: isMobile ? "column" : "row",
+    gap: "10px",
   };
 }
 
-function scienceIntroTitle(isMobile: boolean): CSSProperties {
-  return {
-    margin: isMobile ? "26px 0 0" : "32px 0 0",
-    color: "#ffffff",
-    fontSize: isMobile ? "36px" : "clamp(44px,5vw,64px)",
-    lineHeight: 1.04,
-    letterSpacing: "-0.045em",
-    fontWeight: 900,
-  };
-}
-
-const scienceIntroDescription: CSSProperties = {
-  maxWidth: "760px",
-  margin: "16px 0 0",
+const mutedText: CSSProperties = {
   color: "rgba(255,255,255,0.58)",
-  fontSize: "16px",
-  lineHeight: 1.65,
+  lineHeight: 1.6,
 };
 
-function scienceIntroStats(isMobile: boolean): CSSProperties {
+const lockedCard: CSSProperties = {
+  width: "min(560px, 100%)",
+  borderRadius: "24px",
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(5,18,42,0.92)",
+  boxShadow: "0 26px 70px rgba(0,0,0,0.35)",
+  padding: "28px",
+};
+
+const centeredCard: CSSProperties = {
+  width: "min(480px,100%)",
+  borderRadius: "22px",
+  border: "1px solid rgba(126,232,255,0.18)",
+  background: "rgba(5,18,42,0.88)",
+  color: "rgba(255,255,255,0.72)",
+  padding: "28px",
+  textAlign: "center",
+  fontWeight: 850,
+};
+
+const balanceRow: CSSProperties = {
+  display: "flex",
+  gap: "7px",
+  justifyContent: "flex-end",
+};
+
+const balancePill: CSSProperties = {
+  borderRadius: "999px",
+  border: "1px solid rgba(255,215,106,0.25)",
+  background: "rgba(255,215,106,0.08)",
+  padding: "9px 11px",
+  fontSize: "11px",
+  fontWeight: 900,
+  whiteSpace: "nowrap",
+};
+
+const gemPill: CSSProperties = {
+  ...balancePill,
+  border: "1px solid rgba(210,160,255,0.28)",
+  background: "rgba(168,85,247,0.10)",
+};
+
+const compactBalancePill: CSSProperties = {
+  padding: "8px 10px",
+};
+
+function scienceResultHero(isMobile: boolean): CSSProperties {
   return {
-    marginTop: "28px",
+    borderRadius: isMobile ? "18px" : "24px",
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.035)",
+    padding: isMobile ? "20px" : "28px",
+  };
+}
+
+function scienceResultTitle(isMobile: boolean): CSSProperties {
+  return {
+    margin: "18px 0 0",
+    fontSize: isMobile ? "30px" : "42px",
+    letterSpacing: "-0.035em",
+  };
+}
+
+function scienceScoreRow(isMobile: boolean): CSSProperties {
+  return {
+    marginTop: "22px",
+    display: "grid",
+    gridTemplateColumns: isMobile ? "1fr" : "220px minmax(0,1fr)",
+    gap: "18px",
+    alignItems: "center",
+  };
+}
+
+const scienceScoreBlock: CSSProperties = {
+  borderRadius: "20px",
+  border: "1px solid rgba(126,232,255,0.18)",
+  background: "rgba(83,215,255,0.07)",
+  padding: "18px",
+};
+
+const scienceScoreLabel: CSSProperties = {
+  margin: 0,
+  color: "rgba(255,255,255,0.45)",
+  fontSize: "11px",
+  fontWeight: 900,
+  letterSpacing: "0.12em",
+  textTransform: "uppercase",
+};
+
+function scienceScoreValue(isMobile: boolean): CSSProperties {
+  return {
+    margin: "7px 0 0",
+    color: "#9af4ff",
+    fontSize: isMobile ? "44px" : "60px",
+    fontWeight: 950,
+    lineHeight: 1,
+  };
+}
+
+const scienceResultMessage: CSSProperties = {
+  margin: 0,
+  color: "rgba(255,255,255,0.64)",
+  lineHeight: 1.7,
+};
+
+function resultStats(isMobile: boolean): CSSProperties {
+  return {
+    marginTop: "18px",
     display: "grid",
     gridTemplateColumns: isMobile
       ? "repeat(2,minmax(0,1fr))"
@@ -2314,510 +2614,66 @@ function scienceIntroStats(isMobile: boolean): CSSProperties {
   };
 }
 
-function scienceResultsWrap(isMobile: boolean): CSSProperties {
-  return {
-    width: "min(1056px,100%)",
-    margin: "0 auto",
-    padding: isMobile ? "18px 12px 36px" : "28px 16px 56px",
-  };
-}
-
-function scienceResultHero(isMobile: boolean): CSSProperties {
-  return {
-    borderRadius: isMobile ? "22px" : "30px",
-    border: "1px solid rgba(126,232,255,0.13)",
-    background: "linear-gradient(145deg,rgba(3,14,34,0.94),rgba(3,17,38,0.86))",
-    padding: isMobile ? "22px" : "34px",
-  };
-}
-
-function scienceResultTitle(isMobile: boolean): CSSProperties {
-  return {
-    margin: isMobile ? "24px 0 0" : "28px 0 0",
-    color: "#ffffff",
-    fontSize: isMobile ? "34px" : "clamp(40px,4.5vw,58px)",
-    lineHeight: 1.05,
-    letterSpacing: "-0.04em",
-    fontWeight: 900,
-  };
-}
-
-function scienceScoreRow(isMobile: boolean): CSSProperties {
-  return {
-    marginTop: "24px",
-    display: "grid",
-    gridTemplateColumns: isMobile ? "1fr" : "220px minmax(0,1fr)",
-    alignItems: "stretch",
-    gap: "12px",
-  };
-}
-
-const scienceScoreBlock: CSSProperties = {
-  borderRadius: "18px",
-  border: "1px solid rgba(156,245,255,0.2)",
-  background: "rgba(83,215,255,0.075)",
-  padding: "18px",
-};
-
-const scienceScoreLabel: CSSProperties = {
-  margin: 0,
-  color: "#9cf5ff",
-  fontSize: "10px",
-  letterSpacing: "0.15em",
-  fontWeight: 900,
-  textTransform: "uppercase",
-};
-
-function scienceScoreValue(isMobile: boolean): CSSProperties {
-  return {
-    margin: "8px 0 0",
-    fontSize: isMobile ? "48px" : "58px",
-    lineHeight: 1,
-    letterSpacing: "-0.05em",
-    fontWeight: 900,
-  };
-}
-
-const scienceResultMessage: CSSProperties = {
-  margin: 0,
-  borderRadius: "18px",
-  border: "1px solid rgba(255,255,255,0.1)",
-  background: "rgba(255,255,255,0.035)",
-  padding: "20px",
-  display: "flex",
-  alignItems: "center",
-  color: "rgba(255,255,255,0.65)",
-  fontSize: "14px",
-  lineHeight: 1.65,
-};
-
-function scienceResultActions(isMobile: boolean): CSSProperties {
-  return {
-    marginTop: "20px",
-    display: "flex",
-    flexDirection: isMobile ? "column" : "row",
-    justifyContent: "flex-end",
-    gap: "10px",
-  };
-}
-
-function scienceReviewPanel(isMobile: boolean): CSSProperties {
-  return {
-    marginTop: "18px",
-    borderRadius: isMobile ? "24px" : "32px",
-    border: "1px solid rgba(255,255,255,0.11)",
-    background:
-      "linear-gradient(145deg,rgba(255,255,255,0.055),rgba(255,255,255,0.03))",
-    padding: isMobile ? "20px" : "30px",
-    boxShadow: "0 24px 64px rgba(0,0,0,0.25)",
-    backdropFilter: "blur(18px)",
-  };
-}
-
-const scienceReviewTitle: CSSProperties = {
-  margin: "8px 0 0",
-  fontSize: "clamp(26px,3vw,36px)",
-  lineHeight: 1.1,
-  fontWeight: 900,
-};
-
-const backButton: CSSProperties = {
-  justifySelf: "start",
-  minHeight: "36px",
-  borderRadius: "999px",
-  border: "1px solid rgba(126,232,255,0.3)",
-  background: "rgba(255,255,255,0.065)",
-  color: "white",
-  padding: "0 13px",
-  cursor: "pointer",
-  fontWeight: 800,
-};
-
-const balanceRow: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "7px",
-};
-
-const balancePill: CSSProperties = {
-  minHeight: "36px",
-  borderRadius: "999px",
-  border: "1px solid rgba(255,215,106,0.28)",
-  background: "rgba(255,215,106,0.09)",
-  padding: "0 12px",
-  display: "flex",
-  alignItems: "center",
-  gap: "5px",
-  fontSize: "12px",
-  fontWeight: 900,
-  whiteSpace: "nowrap",
-};
-
-const gemPill: CSSProperties = {
-  ...balancePill,
-  border: "1px solid rgba(231,183,255,0.3)",
-  background: "rgba(168,85,247,0.12)",
-};
-
-const compactBalancePill: CSSProperties = {
-  minHeight: "32px",
-  padding: "0 8px",
-  fontSize: "10px",
-};
-
-const introStatCard: CSSProperties = {
-  minHeight: "100px",
-  borderRadius: "16px",
-  border: "1px solid rgba(255,255,255,0.1)",
-  background: "rgba(255,255,255,0.04)",
-  padding: "14px 10px",
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  textAlign: "center",
-};
-
-const noticeBox: CSSProperties = {
-  marginTop: "14px",
-  borderRadius: "13px",
-  border: "1px solid rgba(255,215,106,0.34)",
-  background: "rgba(255,215,106,0.09)",
-  padding: "12px",
-  color: "#fff1bd",
-  lineHeight: 1.5,
-};
-
-const termsText: CSSProperties = {
-  margin: "14px 0 0",
-  fontSize: "11px",
-  color: "rgba(255,255,255,0.48)",
-};
-
-function buttonRow(isMobile: boolean): CSSProperties {
-  return {
-    marginTop: "20px",
-    display: "flex",
-    flexDirection: isMobile ? "column" : "row",
-    justifyContent: "center",
-    gap: "9px",
-  };
-}
-
-const primaryButton: CSSProperties = {
-  minHeight: "44px",
-  borderRadius: "12px",
-  border: "1px solid rgba(255,255,255,0.28)",
-  background: "linear-gradient(135deg, #35c5ff, #4c6dff)",
-  color: "white",
-  padding: "0 18px",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  cursor: "pointer",
-  fontWeight: 900,
-};
-
-const ghostButton: CSSProperties = {
-  ...primaryButton,
-  border: "1px solid rgba(126,232,255,0.28)",
-  background: "rgba(255,255,255,0.065)",
-};
-
-const centeredCard: CSSProperties = {
-  borderRadius: "18px",
-  border: "1px solid rgba(126,232,255,0.32)",
-  background: "rgba(5,18,42,0.82)",
-  padding: "24px",
-  color: "rgba(255,255,255,0.8)",
-  fontWeight: 800,
-};
-
-const lockedCard: CSSProperties = {
-  width: "min(620px,100%)",
-  borderRadius: "22px",
-  border: "1px solid rgba(255,215,106,0.4)",
-  background:
-    "linear-gradient(180deg, rgba(90,62,16,0.56), rgba(30,20,8,0.84))",
-  padding: "28px",
-  textAlign: "center",
-};
-
-const mutedText: CSSProperties = {
-  color: "rgba(255,255,255,0.66)",
-  lineHeight: 1.5,
-};
-
-function optionGrid(optionCount: number): CSSProperties {
-  return {
-    display: "grid",
-    gridTemplateColumns:
-      optionCount === 1
-        ? "1fr"
-        : "repeat(auto-fit,minmax(min(100%,320px),1fr))",
-    gap: "12px",
-    alignItems: "stretch",
-  };
-}
-
-function optionButton(selected: boolean, disabled: boolean): CSSProperties {
-  return {
-    minHeight: "72px",
-    borderRadius: "14px",
-    border: selected
-      ? "1px solid rgba(156,245,255,0.88)"
-      : "1px solid rgba(255,255,255,0.13)",
-    background: selected
-      ? "linear-gradient(135deg,rgba(83,215,255,0.22),rgba(96,240,208,0.14))"
-      : "rgba(255,255,255,0.045)",
-    color: "white",
-    padding: "12px 16px",
-    width: "100%",
-    minWidth: 0,
-    display: "grid",
-    gridTemplateColumns: "34px minmax(0,1fr)",
-    alignItems: "center",
-    gap: "10px",
-    textAlign: "left",
-    cursor: disabled ? "default" : "pointer",
-    opacity: disabled && !selected ? 0.65 : 1,
-  };
-}
-
-const optionLabel: CSSProperties = {
-  width: "34px",
-  height: "34px",
-  borderRadius: "12px",
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(2,10,25,0.34)",
-  color: "#c9f8ff",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontWeight: 900,
-};
-
-const optionText: CSSProperties = {
-  fontSize: "clamp(14px,1.8vw,18px)",
-  lineHeight: 1.35,
-  fontWeight: 700,
-};
-
-const helperText: CSSProperties = {
-  margin: "0 0 8px",
-  color: "rgba(255,255,255,0.58)",
-  fontSize: "12px",
-};
-
-const textInput: CSSProperties = {
-  width: "100%",
-  minHeight: "52px",
-  borderRadius: "13px",
-  border: "1px solid rgba(126,232,255,0.3)",
-  background: "rgba(255,255,255,0.08)",
-  color: "white",
-  padding: "0 14px",
-  fontSize: "18px",
-  outline: "none",
-};
-
-const textArea: CSSProperties = {
-  ...textInput,
-  minHeight: "150px",
-  padding: "13px 14px",
-  resize: "vertical",
-  lineHeight: 1.5,
-};
-
-const reorderAnswerBox: CSSProperties = {
-  minHeight: "72px",
-  borderRadius: "14px",
-  border: "1px dashed rgba(126,232,255,0.42)",
-  background: "rgba(255,255,255,0.045)",
-  padding: "10px",
-  display: "flex",
-  alignItems: "center",
-  flexWrap: "wrap",
-  gap: "7px",
-};
-
-const wordBankWrap: CSSProperties = {
-  marginTop: "10px",
-  display: "flex",
-  flexWrap: "wrap",
-  gap: "7px",
-};
-
-function wordChip(selected: boolean): CSSProperties {
-  return {
-    minHeight: "38px",
-    borderRadius: "10px",
-    border: selected
-      ? "1px solid rgba(96,240,208,0.55)"
-      : "1px solid rgba(126,232,255,0.28)",
-    background: selected ? "rgba(96,240,208,0.16)" : "rgba(255,255,255,0.07)",
-    color: "white",
-    padding: "0 12px",
-    cursor: "pointer",
-    fontWeight: 800,
-  };
-}
-
-const smallTextButton: CSSProperties = {
-  marginTop: "10px",
-  border: 0,
-  background: "transparent",
-  color: "#7ee8ff",
-  cursor: "pointer",
-  fontWeight: 800,
-  padding: 0,
-};
-
-const matchingWrap: CSSProperties = {
-  display: "grid",
-  gap: "8px",
-};
-
-const matchingRow: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "minmax(0,1fr) auto minmax(150px,0.8fr)",
-  gap: "10px",
-  alignItems: "center",
-};
-
-const matchingPrompt: CSSProperties = {
-  minHeight: "46px",
-  borderRadius: "11px",
-  background: "rgba(255,255,255,0.065)",
-  border: "1px solid rgba(126,232,255,0.2)",
-  padding: "10px",
-  display: "flex",
-  alignItems: "center",
-  fontWeight: 700,
-};
-
-const selectInput: CSSProperties = {
-  minHeight: "46px",
-  borderRadius: "11px",
-  border: "1px solid rgba(126,232,255,0.28)",
-  background: "#102e56",
-  color: "white",
-  padding: "0 10px",
-};
-
-const clozeText: CSSProperties = {
-  borderRadius: "14px",
-  border: "1px solid rgba(126,232,255,0.25)",
-  background: "rgba(255,255,255,0.055)",
-  padding: "16px",
-  fontSize: "clamp(17px,2.2vw,23px)",
-  lineHeight: 2,
-};
-
-const inlineSelect: CSSProperties = {
-  minHeight: "38px",
-  margin: "0 5px",
-  borderRadius: "9px",
-  border: "1px solid rgba(126,232,255,0.35)",
-  background: "#102e56",
-  color: "white",
-  padding: "0 8px",
-  fontSize: "0.82em",
-};
-
-const recorderCard: CSSProperties = {
-  borderRadius: "14px",
-  border: "1px solid rgba(198,166,255,0.38)",
-  background: "rgba(168,85,247,0.1)",
-  padding: "16px",
-  textAlign: "center",
-};
-
-function feedbackCard(correct: boolean): CSSProperties {
-  return {
-    marginTop: "14px",
-    borderRadius: "14px",
-    border: correct
-      ? "1px solid rgba(74,222,128,0.5)"
-      : "1px solid rgba(248,113,113,0.5)",
-    background: correct ? "rgba(34,197,94,0.14)" : "rgba(239,68,68,0.14)",
-    padding: "13px",
-  };
-}
-
-const errorBanner: CSSProperties = {
-  marginTop: "12px",
-  borderRadius: "12px",
-  border: "1px solid rgba(255,215,106,0.42)",
-  background: "rgba(255,215,106,0.1)",
-  color: "#fff0b3",
-  padding: "10px 12px",
-  fontSize: "12px",
-  lineHeight: 1.45,
-};
-
-function resultStats(isMobile: boolean): CSSProperties {
-  return {
-    marginTop: "20px",
-    display: "grid",
-    gridTemplateColumns: isMobile
-      ? "repeat(2,minmax(0,1fr))"
-      : "repeat(5,minmax(0,1fr))",
-    gap: "10px",
-  };
-}
-
 const resultStatCard: CSSProperties = {
-  minHeight: "92px",
   borderRadius: "16px",
-  border: "1px solid rgba(255,255,255,0.1)",
-  background: "rgba(255,255,255,0.04)",
-  padding: "14px 10px",
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  textAlign: "center",
+  border: "1px solid rgba(255,255,255,0.09)",
+  background: "rgba(0,0,0,0.14)",
+  padding: "14px",
 };
 
 const resultStatLabel: CSSProperties = {
   margin: 0,
-  color: "#7ee8ff",
-  fontSize: "9px",
-  letterSpacing: "0.12em",
+  color: "rgba(255,255,255,0.38)",
+  fontSize: "10px",
   fontWeight: 900,
+  letterSpacing: "0.11em",
   textTransform: "uppercase",
 };
 
 const resultStatValue: CSSProperties = {
+  margin: "7px 0 0",
+  color: "white",
+  fontSize: "24px",
+  fontWeight: 950,
+};
+
+function scienceReviewPanel(isMobile: boolean): CSSProperties {
+  return {
+    marginTop: "18px",
+    borderRadius: isMobile ? "18px" : "24px",
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.025)",
+    padding: isMobile ? "18px" : "24px",
+  };
+}
+
+const scienceReviewTitle: CSSProperties = {
   margin: "6px 0 0",
-  fontSize: "clamp(19px,2.7vw,28px)",
-  fontWeight: 900,
+  fontSize: "24px",
 };
 
 const reviewList: CSSProperties = {
-  marginTop: "14px",
+  marginTop: "16px",
   display: "grid",
-  gap: "8px",
+  gap: "9px",
 };
 
 const reviewItem: CSSProperties = {
-  borderRadius: "13px",
-  border: "1px solid rgba(126,232,255,0.2)",
-  background: "rgba(255,255,255,0.05)",
+  borderRadius: "15px",
+  border: "1px solid rgba(255,255,255,0.09)",
+  background: "rgba(0,0,0,0.12)",
   overflow: "hidden",
 };
 
 const reviewItemButton: CSSProperties = {
   width: "100%",
-  minHeight: "58px",
   border: 0,
   background: "transparent",
   color: "white",
-  padding: "10px 12px",
+  padding: "13px",
   display: "flex",
   alignItems: "center",
-  gap: "10px",
+  gap: "11px",
   cursor: "pointer",
 };
 
@@ -2826,41 +2682,39 @@ function reviewStatus(
   pending: boolean,
 ): CSSProperties {
   return {
+    flex: "0 0 auto",
     width: "30px",
     height: "30px",
-    borderRadius: "999px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
+    display: "grid",
+    placeItems: "center",
+    borderRadius: "10px",
     background: pending
-      ? "rgba(255,215,106,0.2)"
+      ? "rgba(251,191,36,0.13)"
       : correct
-        ? "rgba(34,197,94,0.28)"
-        : "rgba(239,68,68,0.28)",
-    color: pending ? "#ffe6a8" : correct ? "#b8ffdb" : "#fecaca",
-    fontWeight: 900,
-    flexShrink: 0,
+        ? "rgba(52,211,153,0.13)"
+        : "rgba(248,113,113,0.13)",
+    color: pending ? "#fde68a" : correct ? "#a7f3d0" : "#fecaca",
+    fontWeight: 950,
   };
 }
 
 const reviewPrompt: CSSProperties = {
   display: "block",
-  marginTop: "3px",
-  color: "rgba(255,255,255,0.58)",
+  marginTop: "4px",
+  color: "rgba(255,255,255,0.46)",
   fontSize: "12px",
-  whiteSpace: "nowrap",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
+  lineHeight: 1.45,
 };
 
 const reviewDetails: CSSProperties = {
-  borderTop: "1px solid rgba(126,232,255,0.16)",
-  padding: "12px 14px",
-  background: "rgba(0,0,0,0.12)",
+  borderTop: "1px solid rgba(255,255,255,0.08)",
+  padding: "12px 14px 14px",
+  background: "rgba(255,255,255,0.025)",
 };
 
 const reviewLine: CSSProperties = {
-  margin: "6px 0",
-  lineHeight: 1.5,
-  overflowWrap: "anywhere",
+  margin: "6px 0 0",
+  color: "rgba(255,255,255,0.62)",
+  fontSize: "12px",
+  lineHeight: 1.55,
 };

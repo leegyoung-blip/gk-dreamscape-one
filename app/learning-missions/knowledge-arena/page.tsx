@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
+type TimerSeconds = 10 | 20;
 
 type KnowledgeArenaTopic =
   | "world_explorer"
@@ -48,6 +49,7 @@ type Lobby = {
   host_user_id: string;
   topic: KnowledgeArenaTopic;
   question_ids: string[];
+  timer_seconds: TimerSeconds;
   status: "waiting" | "playing" | "finished";
   created_at: string;
   started_at: string | null;
@@ -94,36 +96,40 @@ const topics: {
   id: KnowledgeArenaTopic;
   title: string;
   subtitle: string;
-  icon: string;
   accent: string;
+  coverImage: string;
 }[] = [
   {
     id: "world_explorer",
     title: "World Explorer",
     subtitle: "Geography, countries, landmarks, cultures, and nature.",
-    icon: "🌍",
     accent: "#53d7ff",
+    coverImage:
+      "/activities/learning-missions/knowledge-arena/categories/world-explorer.png",
   },
   {
     id: "time_traveller",
     title: "Time Traveller",
     subtitle: "History, inventions, ancient worlds, and famous moments.",
-    icon: "⏳",
     accent: "#ffd76a",
+    coverImage:
+      "/activities/learning-missions/knowledge-arena/categories/time-traveller.png",
   },
   {
     id: "science_sparks",
     title: "Science Sparks",
     subtitle: "Space, animals, nature, the body, and simple science.",
-    icon: "⚡",
     accent: "#60f0d0",
+    coverImage:
+      "/activities/learning-missions/knowledge-arena/categories/science-sparks.png",
   },
   {
     id: "mystery_logic",
     title: "Mystery Logic",
     subtitle: "Riddles, clues, deduction, patterns, and smart guesses.",
-    icon: "◇",
-    accent: "#ff9df0",
+    accent: "#c99cff",
+    coverImage:
+      "/activities/learning-missions/knowledge-arena/categories/mystery-logic.png",
   },
 ];
 
@@ -165,9 +171,15 @@ function generateLobbyCode() {
   return code;
 }
 
-function calculatePoints(isCorrect: boolean, secondsRemaining: number) {
+function calculatePoints(
+  isCorrect: boolean,
+  secondsRemaining: number,
+  timerSeconds: TimerSeconds
+) {
   if (!isCorrect) return 0;
-  return Math.min(40 + secondsRemaining * 3, 100);
+
+  const speedRatio = Math.max(0, Math.min(1, secondsRemaining / timerSeconds));
+  return 40 + Math.round(speedRatio * 60);
 }
 
 function calculateTokenReward(finalScore: number, finalCorrectCount: number) {
@@ -211,10 +223,13 @@ export default function KnowledgeArenaPage() {
     useState<KnowledgeArenaAnswer | null>(null);
   const [score, setScore] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(20);
+  const [soloTimerSeconds, setSoloTimerSeconds] = useState<TimerSeconds>(10);
+  const [lobbyTimerSecondsChoice, setLobbyTimerSecondsChoice] =
+    useState<TimerSeconds>(10);
+  const [timeLeft, setTimeLeft] = useState<number>(10);
   const [answerLocked, setAnswerLocked] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [nextCountdown, setNextCountdown] = useState(5);
+  const [nextCountdown, setNextCountdown] = useState(3);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tokensEarned, setTokensEarned] = useState(0);
   const [rewardSaved, setRewardSaved] = useState(false);
@@ -234,6 +249,23 @@ export default function KnowledgeArenaPage() {
   const currentQuestion = questions[questionIndex];
   const selectedTopicInfo = topics.find((topic) => topic.id === selectedTopic);
   const isHost = Boolean(lobby && userId && lobby.host_user_id === userId);
+
+  const activeTimerSeconds: TimerSeconds = useMemo(() => {
+    if (stage === "solo-quiz" || stage === "solo-results") {
+      return soloTimerSeconds;
+    }
+
+    if (
+      stage === "create-lobby" ||
+      stage === "waiting-lobby" ||
+      stage === "multiplayer-quiz" ||
+      stage === "multiplayer-results"
+    ) {
+      return lobby?.timer_seconds ?? lobbyTimerSecondsChoice;
+    }
+
+    return soloTimerSeconds;
+  }, [stage, soloTimerSeconds, lobbyTimerSecondsChoice, lobby?.timer_seconds]);
 
   const leaderboard = [...players].sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
@@ -287,7 +319,7 @@ export default function KnowledgeArenaPage() {
     }
 
     const timer = window.setTimeout(() => {
-      setTimeLeft((prev) => prev - 1);
+      setTimeLeft((prev) => Math.max(0, prev - 1));
     }, 1000);
 
     return () => window.clearTimeout(timer);
@@ -378,7 +410,7 @@ export default function KnowledgeArenaPage() {
 
     if (error || !data || data.length < 10) {
       setLoadError("This topic needs at least 10 active questions in Supabase.");
-      setStage("topic");
+      setStage(stage === "create-lobby" ? "create-lobby" : "topic");
       return [];
     }
 
@@ -394,10 +426,10 @@ export default function KnowledgeArenaPage() {
     setSelectedAnswer(null);
     setScore(0);
     setCorrectCount(0);
-    setTimeLeft(20);
+    setTimeLeft(soloTimerSeconds);
     setAnswerLocked(false);
     setFeedback(null);
-    setNextCountdown(5);
+    setNextCountdown(3);
     setTokensEarned(0);
     setRewardSaved(false);
     setAttemptSaveMessage("");
@@ -456,6 +488,7 @@ export default function KnowledgeArenaPage() {
           host_user_id: userId,
           topic,
           question_ids: loadedQuestions.map((question) => question.id),
+          timer_seconds: lobbyTimerSecondsChoice,
           status: "waiting",
         })
         .select("*")
@@ -472,6 +505,7 @@ export default function KnowledgeArenaPage() {
     if (!createdLobby) {
       setMultiplayerMessage(lastError || "Could not create lobby.");
       setIsCreatingLobby(false);
+      setStage("create-lobby");
       return;
     }
 
@@ -570,6 +604,7 @@ export default function KnowledgeArenaPage() {
     }
 
     setLobby(foundLobby);
+    setLobbyTimerSecondsChoice(foundLobby.timer_seconds ?? 10);
     setMyPlayer(playerData as LobbyPlayer);
     setSelectedTopic(foundLobby.topic);
     await loadLobbyState(foundLobby.id);
@@ -591,7 +626,9 @@ export default function KnowledgeArenaPage() {
       .order("score", { ascending: false });
 
     if (lobbyData) {
-      setLobby(lobbyData as Lobby);
+      const nextLobby = lobbyData as Lobby;
+      setLobby(nextLobby);
+      setLobbyTimerSecondsChoice(nextLobby.timer_seconds ?? 10);
     }
 
     const nextPlayers = (playerData || []) as LobbyPlayer[];
@@ -622,7 +659,7 @@ export default function KnowledgeArenaPage() {
       .eq("lobby_id", lobby.id);
 
     setQuestions(loadedQuestions);
-    resetQuestionState();
+    resetQuestionState(lobby.timer_seconds);
     setStage("multiplayer-quiz");
     await loadLobbyState(lobby.id);
   }
@@ -633,19 +670,19 @@ export default function KnowledgeArenaPage() {
 
     setQuestions(loadedQuestions);
     setSelectedTopic(nextLobby.topic);
-    resetQuestionState();
+    resetQuestionState(nextLobby.timer_seconds);
     setStage("multiplayer-quiz");
   }
 
-  function resetQuestionState() {
+  function resetQuestionState(timerSeconds: TimerSeconds = activeTimerSeconds) {
     setQuestionIndex(0);
     setSelectedAnswer(null);
     setScore(0);
     setCorrectCount(0);
-    setTimeLeft(20);
+    setTimeLeft(timerSeconds);
     setAnswerLocked(false);
     setFeedback(null);
-    setNextCountdown(5);
+    setNextCountdown(3);
     setTokensEarned(0);
     setRewardSaved(false);
     setAttemptSaveMessage("");
@@ -733,8 +770,8 @@ export default function KnowledgeArenaPage() {
     if (!currentQuestion || answerLocked) return;
 
     const isCorrect = answer === currentQuestion.correct_answer;
-    const points = calculatePoints(isCorrect, timeLeft);
-    const secondsUsed = 20 - timeLeft;
+    const points = calculatePoints(isCorrect, timeLeft, activeTimerSeconds);
+    const secondsUsed = activeTimerSeconds - timeLeft;
     const nextScore = score + points;
     const nextCorrectCount = correctCount + (isCorrect ? 1 : 0);
 
@@ -766,8 +803,11 @@ export default function KnowledgeArenaPage() {
     ];
 
     if (stage === "multiplayer-quiz" && myPlayer) {
+      const existingAnswers = Array.isArray(myPlayer.answers) ? myPlayer.answers : [];
       const nextAnswers = [
-        ...(Array.isArray(myPlayer.answers) ? myPlayer.answers : []),
+        ...existingAnswers.filter(
+          (savedAnswer) => savedAnswer.questionId !== currentQuestion.id
+        ),
         {
           questionId: currentQuestion.id,
           answer,
@@ -812,8 +852,8 @@ export default function KnowledgeArenaPage() {
 
     setQuestionIndex((prev) => prev + 1);
     setSelectedAnswer(null);
-    setTimeLeft(20);
-    setNextCountdown(5);
+    setTimeLeft(activeTimerSeconds);
+    setNextCountdown(3);
     setAnswerLocked(false);
     setFeedback(null);
   }
@@ -880,7 +920,8 @@ export default function KnowledgeArenaPage() {
     setMyPlayer(null);
     setJoinCode("");
     setMultiplayerMessage("");
-    resetQuestionState();
+    setLoadError(null);
+    resetQuestionState(soloTimerSeconds);
   }
 
   function getAnswerStyle(label: KnowledgeArenaAnswer): CSSProperties {
@@ -909,411 +950,425 @@ export default function KnowledgeArenaPage() {
     }
 
     return {
-      border: "1px solid rgba(126,232,255,0.32)",
+      border: "1px solid rgba(126,232,255,0.28)",
       background:
         selectedAnswer === label
           ? "linear-gradient(135deg,#35c5ff,#4c6dff)"
           : "rgba(255,255,255,0.08)",
-      color: answerLocked ? "rgba(255,255,255,0.55)" : "white",
+      color: answerLocked ? "rgba(255,255,255,0.6)" : "white",
     };
   }
 
   return (
-    <main
-      style={{
-        minHeight: "100dvh",
-        width: "100%",
-        backgroundImage: `
-          linear-gradient(
-            180deg,
-            rgba(2, 8, 19, 0.72),
-            rgba(2, 8, 19, 0.9)
-          ),
-          radial-gradient(circle at 50% 0%, rgba(126,232,255,0.18), transparent 36%),
-          url("/activities/learning-missions/knowledge-arena/knowledge-arena-bg.png")
-        `,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundAttachment: isMobile ? "scroll" : "fixed",
-        color: "white",
-        fontFamily: "Arial, Helvetica, sans-serif",
-        padding: isMobile ? "18px" : "28px",
-        overflowX: "hidden",
-      }}
-    >
-      <header
-        style={{
-          maxWidth: "1220px",
-          margin: "0 auto",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: "12px",
-          flexWrap: "wrap",
-        }}
-      >
-        <Link href="/learning-missions" style={navButtonStyle}>
-          ← Back to Learning Missions
-        </Link>
-
-        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-          <Link href={userEmail ? "/profile" : "/login"} style={navButtonStyle}>
-            {userEmail ? "My Account" : "Log In"}
+    <main style={pageStyle(isMobile)}>
+      <div style={shellStyle}>
+        <header
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "12px",
+            flexWrap: "wrap",
+          }}
+        >
+          <Link href="/learning-missions" style={navButtonStyle}>
+            ← Back to Learning Missions
           </Link>
 
-          <span style={navButtonStyle}>✦ Tokens {tokenBalance}</span>
-        </div>
-      </header>
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+            <Link href={userEmail ? "/profile" : "/login"} style={navButtonStyle}>
+              {userEmail ? "My Account" : "Log In"}
+            </Link>
 
-      <section
-        style={{
-          maxWidth: "1220px",
-          margin: isMobile ? "44px auto 0" : "54px auto 0",
-          textAlign: "center",
-        }}
-      >
-        <p style={eyebrowStyle}>Learning Missions</p>
-
-        <h1
-          style={{
-            margin: "12px 0 22px",
-            fontSize: isMobile ? "46px" : "74px",
-            lineHeight: 0.94,
-            fontWeight: 400,
-            letterSpacing: "0.02em",
-          }}
-        >
-          Knowledge Arena
-        </h1>
-
-        <p
-          style={{
-            maxWidth: "720px",
-            margin: "18px auto 0",
-            color: "rgba(255,255,255,0.68)",
-            fontSize: "18px",
-            lineHeight: 1.6,
-          }}
-        >
-          Play solo or create a multiplayer lobby. Everyone gets the same 10
-          questions.
-        </p>
-      </section>
-
-      <section style={panelStyle(isMobile)}>
-        {stage === "mode" && (
-          <div style={twoColumnGrid(isMobile)}>
-            <button
-              type="button"
-              onClick={() => setStage("topic")}
-              style={bigCardStyle("#53d7ff")}
-            >
-              <div style={{ fontSize: "46px" }}>🎮</div>
-
-              <h2 style={cardTitleStyle}>Single Player</h2>
-
-              <p style={cardTextStyle}>
-                Play a 10-question topic challenge on your own.
-              </p>
-
-              <div style={primaryButtonLook}>Start Solo Challenge ›</div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setStage("multiplayer-menu")}
-              style={bigCardStyle("#a9a9ff")}
-            >
-              <div style={{ fontSize: "46px" }}>👥</div>
-
-              <h2 style={cardTitleStyle}>Multiplayer</h2>
-
-              <p style={cardTextStyle}>
-                Create or join a lobby and compete with friends.
-              </p>
-
-              <div style={primaryButtonLook}>Enter Multiplayer ›</div>
-            </button>
+            <span style={navButtonStyle}>✦ Tokens {tokenBalance}</span>
           </div>
+        </header>
+
+        <section style={heroStyle(isMobile)}>
+          <div style={{ maxWidth: "780px" }}>
+            <p style={eyebrowStyle}>Learning Missions</p>
+            <h1 style={heroTitleStyle(isMobile)}>Knowledge Arena</h1>
+            <p style={heroCopyStyle(isMobile)}>
+              Pick a knowledge world, choose your pace, and take on a 10-question
+              challenge solo or with friends.
+            </p>
+          </div>
+        </section>
+
+        {stage === "mode" && (
+          <section style={sectionBlockStyle}>
+            <SectionHeading
+              title="Choose how you want to play"
+              subtitle="Start a solo challenge or enter a multiplayer lobby."
+            />
+
+            <div style={modeGridStyle(isMobile)}>
+              <button
+                type="button"
+                onClick={() => setStage("topic")}
+                style={modeCardStyle("#53d7ff")}
+              >
+                <div style={modeIconStyle}>🎮</div>
+                <div>
+                  <h2 style={modeTitleStyle}>Single Player</h2>
+                  <p style={modeCopyStyle}>
+                    Play a fast 10-question challenge on your own, with a 10s or
+                    20s timer.
+                  </p>
+                </div>
+                <div style={primaryActionStyle}>Start Solo Challenge ›</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStage("multiplayer-menu")}
+                style={modeCardStyle("#b9a9ff")}
+              >
+                <div style={modeIconStyle}>👥</div>
+                <div>
+                  <h2 style={modeTitleStyle}>Multiplayer</h2>
+                  <p style={modeCopyStyle}>
+                    Create or join a lobby. The host chooses the topic and timer.
+                  </p>
+                </div>
+                <div style={primaryActionStyle}>Enter Multiplayer ›</div>
+              </button>
+            </div>
+          </section>
         )}
 
         {stage === "topic" && (
-          <TopicPicker
-            isMobile={isMobile}
-            isCompact={isCompact}
-            title="Choose 1 topic world to begin."
-            onBack={() => setStage("mode")}
-            onPick={(topic) => startSolo(topic)}
-            loadError={loadError}
-          />
+          <section style={sectionBlockStyle}>
+            <TopBar label="Single Player" onBack={() => setStage("mode")} />
+            <TimerSelector
+              title="Question Timer"
+              value={soloTimerSeconds}
+              onChange={setSoloTimerSeconds}
+            />
+            <TopicPicker
+              isMobile={isMobile}
+              isCompact={isCompact}
+              title="Choose a topic world to begin your solo challenge."
+              buttonText="Start Quiz"
+              onPick={(topic) => startSolo(topic)}
+              loadError={loadError}
+            />
+          </section>
         )}
 
         {stage === "multiplayer-menu" && (
-          <div>
-            <button
-              type="button"
-              onClick={() => setStage("mode")}
-              style={backButtonStyle}
-            >
-              ← Back to mode
-            </button>
+          <section style={sectionBlockStyle}>
+            <TopBar label="Multiplayer" onBack={() => setStage("mode")} />
 
-            <div style={{ ...twoColumnGrid(isMobile), marginTop: "26px" }}>
+            <div style={modeGridStyle(isMobile)}>
               <button
                 type="button"
                 onClick={() => setStage("create-lobby")}
-                style={bigCardStyle("#53d7ff")}
+                style={modeCardStyle("#53d7ff")}
               >
-                <h2 style={cardTitleStyle}>Create Lobby</h2>
-
-                <p style={cardTextStyle}>
-                  Choose a topic and share a code with other players.
-                </p>
-
-                <div style={primaryButtonLook}>Create Lobby ›</div>
+                <div style={modeIconStyle}>🛰️</div>
+                <div>
+                  <h2 style={modeTitleStyle}>Create Lobby</h2>
+                  <p style={modeCopyStyle}>
+                    Choose a topic and timer, then share your lobby code.
+                  </p>
+                </div>
+                <div style={primaryActionStyle}>Create Lobby ›</div>
               </button>
 
               <button
                 type="button"
                 onClick={() => setStage("join-lobby")}
-                style={bigCardStyle("#ffd76a")}
+                style={modeCardStyle("#ffd76a")}
               >
-                <h2 style={cardTitleStyle}>Join Lobby</h2>
-
-                <p style={cardTextStyle}>Enter a lobby code from the host.</p>
-
-                <div style={primaryButtonLook}>Join Lobby ›</div>
+                <div style={modeIconStyle}>🔑</div>
+                <div>
+                  <h2 style={modeTitleStyle}>Join Lobby</h2>
+                  <p style={modeCopyStyle}>
+                    Enter a lobby code from the host and get ready to compete.
+                  </p>
+                </div>
+                <div style={primaryActionStyle}>Join Lobby ›</div>
               </button>
             </div>
-          </div>
+          </section>
         )}
 
         {stage === "create-lobby" && (
-          <div>
-            <button
-              type="button"
-              onClick={() => setStage("multiplayer-menu")}
-              style={backButtonStyle}
-            >
-              ← Back to multiplayer
-            </button>
-
-            <NameInput
-              displayName={displayName}
-              setDisplayName={setDisplayName}
-            />
-
-            <TopicPicker
-              isMobile={isMobile}
-              isCompact={isCompact}
-              title="Choose topic for the lobby."
-              onPick={(topic) => createLobby(topic)}
-              buttonText={isCreatingLobby ? "Creating..." : "Create Lobby"}
-              loadError={loadError || multiplayerMessage}
-            />
-          </div>
-        )}
-
-        {stage === "join-lobby" && (
-          <div style={formCardStyle}>
-            <button
-              type="button"
-              onClick={() => setStage("multiplayer-menu")}
-              style={backButtonStyle}
-            >
-              ← Back to multiplayer
-            </button>
-
-            <div style={{ marginTop: "28px", display: "grid", gap: "22px" }}>
+          <section style={sectionBlockStyle}>
+            <TopBar label="Create Lobby" onBack={() => setStage("multiplayer-menu")} />
+            <div style={stackStyle}>
               <NameInput
                 displayName={displayName}
                 setDisplayName={setDisplayName}
               />
-
-              <label style={fieldLabelStyle}>
-                <span style={fieldCaptionStyle}>Lobby Code</span>
-
-                <input
-                  value={joinCode}
-                  onChange={(event) =>
-                    setJoinCode(
-                      event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "")
-                    )
-                  }
-                  placeholder="ABC123"
-                  maxLength={6}
-                  style={{
-                    ...inputStyle,
-                    textAlign: "center",
-                    letterSpacing: "0.18em",
-                    textTransform: "uppercase",
-                    fontSize: "22px",
-                    fontWeight: 900,
-                  }}
-                />
-              </label>
-
-              <button
-                type="button"
-                onClick={joinLobby}
-                disabled={isJoiningLobby}
-                style={{ ...mainButtonStyle, width: "100%" }}
-              >
-                {isJoiningLobby ? "Joining..." : "Join Lobby"}
-              </button>
+              <TimerSelector
+                title="Lobby Timer"
+                value={lobbyTimerSecondsChoice}
+                onChange={setLobbyTimerSecondsChoice}
+              />
             </div>
+            <TopicPicker
+              isMobile={isMobile}
+              isCompact={isCompact}
+              title="Choose a topic world for the lobby."
+              buttonText={isCreatingLobby ? "Creating..." : "Create Lobby"}
+              onPick={(topic) => createLobby(topic)}
+              loadError={loadError || multiplayerMessage}
+              disabled={isCreatingLobby}
+            />
+          </section>
+        )}
 
-            {multiplayerMessage && <p style={errorStyle}>{multiplayerMessage}</p>}
-          </div>
+        {stage === "join-lobby" && (
+          <section style={sectionBlockStyle}>
+            <TopBar label="Join Lobby" onBack={() => setStage("multiplayer-menu")} />
+            <div style={joinCardStyle}>
+              <div style={stackStyle}>
+                <NameInput
+                  displayName={displayName}
+                  setDisplayName={setDisplayName}
+                />
+
+                <label style={fieldLabelStyle}>
+                  <span style={fieldCaptionStyle}>Lobby Code</span>
+                  <input
+                    value={joinCode}
+                    onChange={(event) =>
+                      setJoinCode(
+                        event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "")
+                      )
+                    }
+                    placeholder="ABC123"
+                    maxLength={6}
+                    style={{
+                      ...inputStyle,
+                      textAlign: "center",
+                      letterSpacing: "0.18em",
+                      textTransform: "uppercase",
+                      fontSize: "22px",
+                      fontWeight: 900,
+                    }}
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  onClick={joinLobby}
+                  disabled={isJoiningLobby}
+                  style={{ ...mainButtonStyle, width: "100%" }}
+                >
+                  {isJoiningLobby ? "Joining..." : "Join Lobby"}
+                </button>
+              </div>
+
+              {multiplayerMessage && <p style={errorStyle}>{multiplayerMessage}</p>}
+            </div>
+          </section>
         )}
 
         {stage === "waiting-lobby" && lobby && (
-          <div style={{ maxWidth: "760px", margin: "0 auto", textAlign: "center" }}>
-            <button type="button" onClick={resetAll} style={backButtonStyle}>
-              ← Leave lobby
-            </button>
+          <section style={sectionBlockStyle}>
+            <TopBar label="Lobby Waiting Room" onBack={resetAll} backLabel="Leave lobby" />
+            <div style={waitingShellStyle}>
+              <p style={eyebrowStyle}>Lobby Code</p>
+              <h2 style={lobbyCodeStyle(isMobile)}>{lobby.code}</h2>
+              <div style={waitingMetaRowStyle}>
+                <StatusPill
+                  label="Topic"
+                  value={topics.find((topic) => topic.id === lobby.topic)?.title ?? "—"}
+                />
+                <StatusPill label="Timer" value={`${lobby.timer_seconds}s`} />
+                <StatusPill label="Players" value={String(players.length)} />
+              </div>
 
-            <p style={{ ...eyebrowStyle, marginTop: "26px" }}>Lobby Code</p>
+              <div style={waitingPlayersGridStyle}>
+                {players.map((player) => (
+                  <div key={player.id} style={playerTileStyle}>
+                    <strong>{player.display_name}</strong>
+                    <span style={{ color: player.is_host ? "#ffd76a" : "rgba(255,255,255,0.72)" }}>
+                      {player.is_host ? "Host" : "Player"}
+                    </span>
+                  </div>
+                ))}
+              </div>
 
-            <h2
-              style={{
-                margin: "12px 0",
-                fontSize: isMobile ? "42px" : "58px",
-                letterSpacing: "0.16em",
-              }}
-            >
-              {lobby.code}
-            </h2>
-
-            <p style={{ color: "rgba(255,255,255,0.66)" }}>
-              Topic: {topics.find((topic) => topic.id === lobby.topic)?.title}
-            </p>
-
-            <div style={{ marginTop: "26px", display: "grid", gap: "10px" }}>
-              {players.map((player) => (
-                <div key={player.id} style={playerRowStyle}>
-                  <strong>{player.display_name}</strong>
-                  <span>{player.is_host ? "Host" : "Player"}</span>
-                </div>
-              ))}
+              {isHost ? (
+                <button
+                  type="button"
+                  onClick={startMultiplayerGame}
+                  style={{ ...mainButtonStyle, marginTop: "10px" }}
+                >
+                  Start Game
+                </button>
+              ) : (
+                <p style={helperTextStyle}>Waiting for the host to start the game.</p>
+              )}
             </div>
-
-            {isHost ? (
-              <button
-                type="button"
-                onClick={startMultiplayerGame}
-                style={{ ...mainButtonStyle, marginTop: "26px" }}
-              >
-                Start Game
-              </button>
-            ) : (
-              <p style={{ marginTop: "26px", color: "#ffd76a" }}>
-                Waiting for host to start.
-              </p>
-            )}
-          </div>
+          </section>
         )}
 
         {stage === "loading" && (
-          <MessageCard message="Loading Knowledge Arena questions..." />
+          <section style={sectionBlockStyle}>
+            <MessageCard message="Loading Knowledge Arena questions..." />
+          </section>
         )}
 
         {(stage === "solo-quiz" || stage === "multiplayer-quiz") &&
           currentQuestion &&
           selectedTopicInfo && (
-            <QuizView
-              isMobile={isMobile}
-              isCompact={isCompact}
-              topicTitle={selectedTopicInfo.title}
-              topicAccent={selectedTopicInfo.accent}
-              question={currentQuestion}
-              questionIndex={questionIndex}
-              score={score}
-              timeLeft={timeLeft}
-              nextCountdown={nextCountdown}
-              answerLocked={answerLocked}
-              selectedAnswer={selectedAnswer}
-              feedback={feedback}
-              getAnswerStyle={getAnswerStyle}
-              onChoose={(answer) => lockAnswer(answer)}
-              onBack={stage === "solo-quiz" ? () => setStage("topic") : resetAll}
-            />
+            <section style={sectionBlockStyle}>
+              <QuizView
+                isMobile={isMobile}
+                isCompact={isCompact}
+                isSolo={stage === "solo-quiz"}
+                topicTitle={selectedTopicInfo.title}
+                topicAccent={selectedTopicInfo.accent}
+                question={currentQuestion}
+                questionIndex={questionIndex}
+                score={score}
+                timeLeft={timeLeft}
+                timerSeconds={activeTimerSeconds}
+                nextCountdown={nextCountdown}
+                answerLocked={answerLocked}
+                selectedAnswer={selectedAnswer}
+                feedback={feedback}
+                getAnswerStyle={getAnswerStyle}
+                onChoose={(answer) => lockAnswer(answer)}
+                onNext={() => void nextQuestion()}
+                onBack={stage === "solo-quiz" ? () => setStage("topic") : resetAll}
+              />
+            </section>
           )}
 
         {stage === "solo-results" && (
-          <ResultsPanel
-            title="Challenge Complete"
-            score={score}
-            correctCount={correctCount}
-            tokensEarned={tokensEarned}
-            tokenBalance={tokenBalance}
-            rewardSaved={rewardSaved}
-            saveMessage={attemptSaveMessage}
-            onPrimary={() => setStage("topic")}
-            primaryLabel="Play Another Topic"
-            onSecondary={resetAll}
-            secondaryLabel="Exit Knowledge Arena"
-          />
+          <section style={sectionBlockStyle}>
+            <ResultsPanel
+              title="Challenge Complete"
+              score={score}
+              correctCount={correctCount}
+              tokensEarned={tokensEarned}
+              tokenBalance={tokenBalance}
+              rewardSaved={rewardSaved}
+              saveMessage={attemptSaveMessage}
+              onPrimary={() => setStage("topic")}
+              primaryLabel="Play Another Topic"
+              onSecondary={resetAll}
+              secondaryLabel="Exit Knowledge Arena"
+            />
+          </section>
         )}
 
         {stage === "multiplayer-results" && (
-          <div style={{ maxWidth: "760px", margin: "0 auto", textAlign: "center" }}>
-            <p style={eyebrowStyle}>Multiplayer Complete</p>
+          <section style={sectionBlockStyle}>
+            <div style={resultsShellStyle}>
+              <p style={eyebrowStyle}>Multiplayer Complete</p>
+              <h2 style={resultsTitleStyle}>Leaderboard</h2>
 
-            <h2 style={{ margin: "12px 0 28px", fontSize: "42px" }}>
-              Leaderboard
-            </h2>
+              {attemptSaveMessage && (
+                <p style={messageBannerStyle}>{attemptSaveMessage}</p>
+              )}
 
-            {attemptSaveMessage && (
-              <p
-                style={{
-                  margin: "0 0 22px",
-                  borderRadius: "16px",
-                  border: "1px solid rgba(126,232,255,0.28)",
-                  background: "rgba(126,232,255,0.08)",
-                  padding: "14px 16px",
-                  color: "rgba(255,255,255,0.82)",
-                  lineHeight: 1.5,
-                }}
-              >
-                {attemptSaveMessage}
-              </p>
-            )}
+              <div style={leaderboardListStyle}>
+                {leaderboard.map((player, index) => (
+                  <div key={player.id} style={leaderboardRowStyle}>
+                    <strong>
+                      #{index + 1} {player.display_name}
+                    </strong>
+                    <span>
+                      {player.score} pts · {player.correct_count}/10
+                    </span>
+                  </div>
+                ))}
+              </div>
 
-            <div style={{ marginTop: "24px", display: "grid", gap: "12px" }}>
-              {leaderboard.map((player, index) => (
-                <div key={player.id} style={playerRowStyle}>
-                  <strong>
-                    #{index + 1} {player.display_name}
-                  </strong>
-                  <span>
-                    {player.score} pts · {player.correct_count}/10
-                  </span>
-                </div>
-              ))}
-            </div>
+              {isHost && lobby?.status !== "finished" && (
+                <button
+                  type="button"
+                  onClick={endLobby}
+                  style={{ ...mainButtonStyle, marginTop: "24px" }}
+                >
+                  End Lobby for Everyone
+                </button>
+              )}
 
-            {isHost && lobby?.status !== "finished" && (
               <button
                 type="button"
-                onClick={endLobby}
-                style={{ ...mainButtonStyle, marginTop: "24px" }}
+                onClick={resetAll}
+                style={{ ...backButtonStyle, marginTop: "16px" }}
               >
-                End Lobby for Everyone
+                Back to Mode Select
               </button>
-            )}
-
-            <button
-              type="button"
-              onClick={resetAll}
-              style={{ ...backButtonStyle, marginTop: "16px" }}
-            >
-              Back to Mode Select
-            </button>
-          </div>
+            </div>
+          </section>
         )}
-      </section>
+      </div>
     </main>
+  );
+}
+
+function SectionHeading({
+  title,
+  subtitle,
+}: {
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <div style={{ marginBottom: "24px" }}>
+      <h2 style={sectionTitleStyle}>{title}</h2>
+      <p style={sectionCopyStyle}>{subtitle}</p>
+    </div>
+  );
+}
+
+function TopBar({
+  label,
+  onBack,
+  backLabel = "Back",
+}: {
+  label: string;
+  onBack: () => void;
+  backLabel?: string;
+}) {
+  return (
+    <div style={topBarStyle}>
+      <button type="button" onClick={onBack} style={backButtonStyle}>
+        ← {backLabel}
+      </button>
+      <p style={{ ...eyebrowStyle, margin: 0 }}>{label}</p>
+    </div>
+  );
+}
+
+function TimerSelector({
+  title,
+  value,
+  onChange,
+}: {
+  title: string;
+  value: TimerSeconds;
+  onChange: (value: TimerSeconds) => void;
+}) {
+  return (
+    <div style={timerSelectorShellStyle}>
+      <span style={timerLabelStyle}>{title}</span>
+      <div style={timerToggleStyle}>
+        {[10, 20].map((timer) => {
+          const active = value === timer;
+          return (
+            <button
+              key={timer}
+              type="button"
+              onClick={() => onChange(timer as TimerSeconds)}
+              style={timerOptionStyle(active)}
+            >
+              {timer}s
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -1321,38 +1376,22 @@ function TopicPicker({
   isMobile,
   isCompact,
   title,
-  onBack,
   onPick,
-  buttonText = "Start Quiz",
+  buttonText,
   loadError,
+  disabled = false,
 }: {
   isMobile: boolean;
   isCompact: boolean;
   title: string;
-  onBack?: () => void;
   onPick: (topic: KnowledgeArenaTopic) => void;
-  buttonText?: string;
+  buttonText: string;
   loadError?: string | null;
+  disabled?: boolean;
 }) {
   return (
     <div>
-      {onBack && (
-        <button type="button" onClick={onBack} style={backButtonStyle}>
-          ← Back
-        </button>
-      )}
-
-      <p
-        style={{
-          margin: onBack ? "26px 0 24px" : "0 0 24px",
-          color: "rgba(255,255,255,0.74)",
-          fontSize: "16px",
-          lineHeight: 1.55,
-        }}
-      >
-        {title}
-      </p>
-
+      <p style={pickerDescriptionStyle}>{title}</p>
       {loadError && <p style={errorStyle}>{loadError}</p>}
 
       <div
@@ -1363,25 +1402,26 @@ function TopicPicker({
             : isCompact
             ? "repeat(2, minmax(0, 1fr))"
             : "repeat(4, minmax(0, 1fr))",
-          gap: "22px",
+          gap: "20px",
         }}
       >
         {topics.map((topic) => (
           <button
             key={topic.id}
             type="button"
+            disabled={disabled}
             onClick={() => onPick(topic.id)}
-            style={bigCardStyle(topic.accent)}
+            style={topicCardStyle(topic.coverImage, topic.accent)}
           >
-            <div style={{ fontSize: "38px" }}>{topic.icon}</div>
-
-            <h2 style={{ ...cardTitleStyle, fontSize: "25px" }}>
-              {topic.title}
-            </h2>
-
-            <p style={cardTextStyle}>{topic.subtitle}</p>
-
-            <div style={primaryButtonLook}>{buttonText} ›</div>
+            <div style={topicOverlayStyle} />
+            <div style={topicContentStyle}>
+              <div>
+                <span style={topicPillStyle(topic.accent)}>Knowledge World</span>
+                <h3 style={topicTitleStyle}>{topic.title}</h3>
+                <p style={topicSubtitleStyle}>{topic.subtitle}</p>
+              </div>
+              <div style={topicActionStyle}>{buttonText} ›</div>
+            </div>
           </button>
         ))}
       </div>
@@ -1399,7 +1439,6 @@ function NameInput({
   return (
     <label style={fieldLabelStyle}>
       <span style={fieldCaptionStyle}>Player Name</span>
-
       <input
         value={displayName}
         onChange={(event) => setDisplayName(event.target.value)}
@@ -1413,34 +1452,40 @@ function NameInput({
 function QuizView({
   isMobile,
   isCompact,
+  isSolo,
   topicTitle,
   topicAccent,
   question,
   questionIndex,
   score,
   timeLeft,
+  timerSeconds,
   nextCountdown,
   answerLocked,
   selectedAnswer,
   feedback,
   getAnswerStyle,
   onChoose,
+  onNext,
   onBack,
 }: {
   isMobile: boolean;
   isCompact: boolean;
+  isSolo: boolean;
   topicTitle: string;
   topicAccent: string;
   question: KnowledgeArenaQuestion;
   questionIndex: number;
   score: number;
   timeLeft: number;
+  timerSeconds: TimerSeconds;
   nextCountdown: number;
   answerLocked: boolean;
   selectedAnswer: KnowledgeArenaAnswer | null;
   feedback: string | null;
   getAnswerStyle: (answer: KnowledgeArenaAnswer) => CSSProperties;
   onChoose: (answer: KnowledgeArenaAnswer) => void;
+  onNext: () => void;
   onBack: () => void;
 }) {
   const options: [KnowledgeArenaAnswer, string][] = [
@@ -1452,15 +1497,7 @@ function QuizView({
 
   return (
     <div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: "12px",
-          flexWrap: "wrap",
-          marginBottom: "22px",
-        }}
-      >
+      <div style={quizTopBarStyle}>
         <button type="button" onClick={onBack} style={backButtonStyle}>
           ← Back
         </button>
@@ -1469,133 +1506,65 @@ function QuizView({
           <StatusPill label="Topic" value={topicTitle} />
           <StatusPill label="Score" value={String(score)} />
           <StatusPill label="Question" value={`${questionIndex + 1}/10`} />
+          <StatusPill label="Timer" value={`${timerSeconds}s`} />
         </div>
       </div>
 
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: isCompact
-            ? "1fr"
-            : "minmax(0, 1.1fr) 360px",
-          gap: "28px",
+          gridTemplateColumns: isCompact ? "1fr" : "minmax(0, 1.15fr) 380px",
+          gap: "22px",
         }}
       >
-        <div style={quizPanelStyle}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: "16px",
-              alignItems: "start",
-            }}
-          >
+        <div style={quizMainCardStyle}>
+          <div style={quizHeaderRowStyle}>
             <div>
               <p style={{ ...eyebrowStyle, color: topicAccent }}>{topicTitle}</p>
-
-              <h2
-                style={{
-                  margin: "8px 0 0",
-                  fontSize: isMobile ? "25px" : "30px",
-                }}
-              >
+              <h2 style={{ margin: "10px 0 0", fontSize: isMobile ? "26px" : "32px" }}>
                 Question {questionIndex + 1}
               </h2>
             </div>
 
-            <div
-              style={{
-                width: "86px",
-                height: "86px",
-                borderRadius: "999px",
-                border: "1px solid rgba(126,232,255,0.6)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexDirection: "column",
-                color: timeLeft <= 5 ? "#ffb3b3" : "#7ee8ff",
-                flexShrink: 0,
-              }}
-            >
-              <strong style={{ fontSize: "28px" }}>{timeLeft}</strong>
+            <div style={timerCircleStyle(timeLeft <= Math.max(3, timerSeconds / 3))}>
+              <strong style={{ fontSize: "30px" }}>{timeLeft}</strong>
               <span style={{ fontSize: "11px" }}>seconds</span>
             </div>
           </div>
 
           {question.question_image && (
-            <div
-              style={{
-                marginTop: "24px",
-                borderRadius: "20px",
-                background: "rgba(255,255,255,0.95)",
-                minHeight: "220px",
-                overflow: "hidden",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
+            <div style={questionImageShellStyle}>
               <img
                 src={question.question_image}
                 alt={`Question ${questionIndex + 1}`}
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "contain",
-                }}
+                style={questionImageStyle}
                 draggable={false}
               />
             </div>
           )}
 
-          <p
-            style={{
-              margin: "26px 0 0",
-              fontSize: isMobile ? "21px" : "28px",
-              lineHeight: 1.35,
-            }}
-          >
-            {question.question_text}
-          </p>
-
-          <p
-            style={{
-              margin: "14px 0 0",
-              color: "rgba(255,255,255,0.62)",
-              fontSize: "14px",
-            }}
-          >
-            Difficulty: {question.difficulty}
-          </p>
+          <p style={questionTextStyle(isMobile)}>{question.question_text}</p>
+          <p style={difficultyStyle}>Difficulty: {question.difficulty}</p>
 
           {feedback && (
             <div
-              style={{
-                marginTop: "24px",
-                borderRadius: "18px",
-                border:
-                  selectedAnswer === question.correct_answer
-                    ? "1px solid rgba(74,222,128,0.6)"
-                    : "1px solid rgba(248,113,113,0.6)",
-                background:
-                  selectedAnswer === question.correct_answer
-                    ? "rgba(34,197,94,0.14)"
-                    : "rgba(239,68,68,0.14)",
-                padding: "18px 20px",
-                lineHeight: 1.5,
-              }}
+              style={feedbackCardStyle(
+                selectedAnswer === question.correct_answer && selectedAnswer !== null
+              )}
             >
               <strong
                 style={{
                   display: "block",
                   marginBottom: "6px",
                   color:
-                    selectedAnswer === question.correct_answer
+                    selectedAnswer === question.correct_answer && selectedAnswer !== null
                       ? "#86efac"
+                      : selectedAnswer === null
+                      ? "#ffd76a"
                       : "#fca5a5",
                 }}
               >
-                {selectedAnswer === question.correct_answer
+                {selectedAnswer === question.correct_answer && selectedAnswer !== null
                   ? "Correct!"
                   : selectedAnswer === null
                   ? "Time's up!"
@@ -1604,26 +1573,26 @@ function QuizView({
 
               {feedback}
 
-              {answerLocked && (
-                <div
-                  style={{
-                    marginTop: "12px",
-                    color: "#7ee8ff",
-                    fontSize: "14px",
-                    fontWeight: 700,
-                  }}
-                >
+              <div style={feedbackFooterStyle}>
+                <span style={{ color: "#7ee8ff", fontWeight: 700 }}>
                   Next question in {nextCountdown}...
-                </div>
-              )}
+                </span>
+
+                {isSolo && answerLocked && (
+                  <button type="button" onClick={onNext} style={nextButtonStyle}>
+                    Next Question →
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
 
-        <div style={quizPanelStyle}>
+        <div style={quizSideCardStyle}>
           <h3 style={{ margin: 0, fontSize: "22px" }}>Choose your answer</h3>
+          <p style={quizInstructionStyle}>Tap one answer. Feedback appears immediately.</p>
 
-          <div style={{ marginTop: "20px", display: "grid", gap: "12px" }}>
+          <div style={{ marginTop: "18px", display: "grid", gap: "12px" }}>
             {options.map(([label, text]) => (
               <button
                 key={label}
@@ -1672,58 +1641,25 @@ function ResultsPanel({
   secondaryLabel: string;
 }) {
   return (
-    <div
-      style={{
-        margin: "0 auto",
-        maxWidth: "720px",
-        borderRadius: "26px",
-        border: "1px solid rgba(126,232,255,0.5)",
-        background:
-          "linear-gradient(180deg, rgba(17,82,136,0.86), rgba(7,27,68,0.98))",
-        padding: "36px",
-        textAlign: "center",
-      }}
-    >
+    <div style={resultsPanelStyle}>
       <p style={eyebrowStyle}>Challenge Complete</p>
-
       <h2 style={{ margin: "12px 0 28px", fontSize: "38px" }}>{title}</h2>
 
-      <div
-        style={{
-          marginTop: "28px",
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-          gap: "12px",
-        }}
-      >
+      <div style={resultsStatsGridStyle}>
         <ResultStat label="Correct" value={`${correctCount}/10`} />
         <ResultStat label="Score" value={String(score)} />
         <ResultStat label="Tokens" value={`+${tokensEarned}`} />
         <ResultStat label="Balance" value={String(tokenBalance)} />
       </div>
 
-      <p
-        style={{
-          margin: "26px 0 0",
-          color: "rgba(255,255,255,0.78)",
-          lineHeight: 1.5,
-        }}
-      >
+      <p style={resultsMessageStyle}>
         {saveMessage ||
           (rewardSaved
             ? "Your attempt and Dreamscape Token reward have been saved."
             : "Log in to save your attempt and receive Dreamscape Tokens.")}
       </p>
 
-      <div
-        style={{
-          marginTop: "28px",
-          display: "flex",
-          justifyContent: "center",
-          gap: "12px",
-          flexWrap: "wrap",
-        }}
-      >
+      <div style={resultsButtonRowStyle}>
         <button type="button" onClick={onPrimary} style={backButtonStyle}>
           {primaryLabel}
         </button>
@@ -1737,36 +1673,12 @@ function ResultsPanel({
 }
 
 function MessageCard({ message }: { message: string }) {
-  return (
-    <div
-      style={{
-        margin: "22px auto",
-        maxWidth: "560px",
-        borderRadius: "24px",
-        border: "1px solid rgba(126,232,255,0.36)",
-        background: "rgba(255,255,255,0.08)",
-        padding: "30px",
-        textAlign: "center",
-        color: "rgba(255,255,255,0.82)",
-      }}
-    >
-      {message}
-    </div>
-  );
+  return <div style={messageCardStyle}>{message}</div>;
 }
 
 function StatusPill({ label, value }: { label: string; value: string }) {
   return (
-    <div
-      style={{
-        borderRadius: "999px",
-        border: "1px solid rgba(126,232,255,0.36)",
-        background: "rgba(255,255,255,0.07)",
-        padding: "9px 14px",
-        fontSize: "13px",
-        color: "rgba(255,255,255,0.72)",
-      }}
-    >
+    <div style={statusPillStyle}>
       {label}: <strong style={{ color: "#7ee8ff" }}>{value}</strong>
     </div>
   );
@@ -1774,44 +1686,542 @@ function StatusPill({ label, value }: { label: string; value: string }) {
 
 function ResultStat({ label, value }: { label: string; value: string }) {
   return (
-    <div
-      style={{
-        borderRadius: "16px",
-        border: "1px solid rgba(126,232,255,0.28)",
-        background: "rgba(255,255,255,0.08)",
-        padding: "16px 10px",
-      }}
-    >
-      <p
-        style={{
-          margin: 0,
-          color: "#7ee8ff",
-          fontSize: "12px",
-          letterSpacing: "0.12em",
-          textTransform: "uppercase",
-        }}
-      >
-        {label}
-      </p>
-
-      <p
-        style={{
-          margin: "8px 0 0",
-          fontSize: "24px",
-          fontWeight: 700,
-        }}
-      >
-        {value}
-      </p>
+    <div style={resultStatStyle}>
+      <p style={resultStatLabelStyle}>{label}</p>
+      <p style={resultStatValueStyle}>{value}</p>
     </div>
   );
 }
+
+const pageStyle = (isMobile: boolean): CSSProperties => ({
+  minHeight: "100dvh",
+  width: "100%",
+  backgroundImage: `
+    linear-gradient(180deg, rgba(2, 8, 19, 0.7), rgba(2, 8, 19, 0.92)),
+    radial-gradient(circle at 50% 0%, rgba(126,232,255,0.14), transparent 34%),
+    url("/activities/learning-missions/knowledge-arena/knowledge-arena-bg.png")
+  `,
+  backgroundSize: "cover",
+  backgroundPosition: "center",
+  backgroundAttachment: isMobile ? "scroll" : "fixed",
+  color: "white",
+  fontFamily: "Arial, Helvetica, sans-serif",
+  padding: isMobile ? "18px 18px 34px" : "26px 28px 42px",
+  overflowX: "hidden",
+});
+
+const shellStyle: CSSProperties = {
+  maxWidth: "1380px",
+  margin: "0 auto",
+};
+
+const heroStyle = (isMobile: boolean): CSSProperties => ({
+  marginTop: isMobile ? "32px" : "38px",
+  padding: isMobile ? "8px 0 0" : "16px 0 6px",
+});
+
+const heroTitleStyle = (isMobile: boolean): CSSProperties => ({
+  margin: "14px 0 0",
+  fontSize: isMobile ? "50px" : "78px",
+  lineHeight: 0.94,
+  fontWeight: 400,
+  letterSpacing: "0.02em",
+});
+
+const heroCopyStyle = (isMobile: boolean): CSSProperties => ({
+  maxWidth: "720px",
+  margin: "18px 0 0",
+  color: "rgba(255,255,255,0.72)",
+  fontSize: isMobile ? "16px" : "19px",
+  lineHeight: 1.6,
+});
+
+const sectionBlockStyle: CSSProperties = {
+  marginTop: "28px",
+  display: "grid",
+  gap: "22px",
+};
+
+const sectionTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: "32px",
+};
+
+const sectionCopyStyle: CSSProperties = {
+  margin: "8px 0 0",
+  color: "rgba(255,255,255,0.72)",
+  fontSize: "16px",
+  lineHeight: 1.55,
+};
+
+const topBarStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "12px",
+  flexWrap: "wrap",
+};
+
+const stackStyle: CSSProperties = {
+  display: "grid",
+  gap: "16px",
+};
+
+const modeGridStyle = (isMobile: boolean): CSSProperties => ({
+  display: "grid",
+  gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
+  gap: "22px",
+});
+
+const modeCardStyle = (accent: string): CSSProperties => ({
+  minHeight: "250px",
+  borderRadius: "28px",
+  border: `1px solid ${accent}55`,
+  background:
+    "linear-gradient(180deg, rgba(12,30,66,0.86), rgba(6,18,44,0.96))",
+  boxShadow: `0 0 24px ${accent}18, inset 0 0 0 1px rgba(255,255,255,0.03)`,
+  padding: "28px",
+  display: "grid",
+  gridTemplateRows: "auto auto 1fr auto",
+  gap: "14px",
+  color: "white",
+  textAlign: "left",
+  cursor: "pointer",
+});
+
+const modeIconStyle: CSSProperties = {
+  width: "60px",
+  height: "60px",
+  borderRadius: "18px",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "30px",
+  background: "rgba(255,255,255,0.08)",
+};
+
+const modeTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: "30px",
+  fontWeight: 700,
+};
+
+const modeCopyStyle: CSSProperties = {
+  margin: "10px 0 0",
+  fontSize: "16px",
+  lineHeight: 1.6,
+  color: "rgba(255,255,255,0.76)",
+};
+
+const primaryActionStyle: CSSProperties = {
+  marginTop: "auto",
+  height: "52px",
+  borderRadius: "16px",
+  background: "linear-gradient(135deg,#35c5ff,#4c6dff)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "16px",
+  fontWeight: 800,
+};
+
+const timerSelectorShellStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "12px",
+  flexWrap: "wrap",
+  borderRadius: "22px",
+  border: "1px solid rgba(126,232,255,0.2)",
+  background: "rgba(255,255,255,0.05)",
+  padding: "16px 18px",
+};
+
+const timerLabelStyle: CSSProperties = {
+  color: "rgba(255,255,255,0.8)",
+  fontSize: "15px",
+  fontWeight: 700,
+};
+
+const timerToggleStyle: CSSProperties = {
+  display: "inline-flex",
+  gap: "8px",
+  padding: "6px",
+  borderRadius: "999px",
+  background: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(126,232,255,0.18)",
+};
+
+const timerOptionStyle = (active: boolean): CSSProperties => ({
+  minWidth: "84px",
+  height: "42px",
+  padding: "0 18px",
+  borderRadius: "999px",
+  border: active ? "1px solid rgba(255,255,255,0.5)" : "1px solid transparent",
+  background: active
+    ? "linear-gradient(135deg,#35c5ff,#4c6dff)"
+    : "transparent",
+  color: "white",
+  fontWeight: 800,
+  cursor: "pointer",
+});
+
+const pickerDescriptionStyle: CSSProperties = {
+  margin: 0,
+  color: "rgba(255,255,255,0.74)",
+  fontSize: "16px",
+  lineHeight: 1.55,
+};
+
+const topicCardStyle = (imagePath: string, accent: string): CSSProperties => ({
+  position: "relative",
+  minHeight: "420px",
+  borderRadius: "30px",
+  overflow: "hidden",
+  border: `1px solid ${accent}55`,
+  backgroundImage: `url("${imagePath}")`,
+  backgroundSize: "cover",
+  backgroundPosition: "center",
+  boxShadow: `0 0 28px ${accent}14, 0 24px 60px rgba(0,0,0,0.28)`,
+  cursor: "pointer",
+  color: "white",
+  textAlign: "left",
+});
+
+const topicOverlayStyle: CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  background:
+    "linear-gradient(180deg, rgba(6,14,30,0.16) 0%, rgba(8,16,36,0.12) 22%, rgba(6,18,42,0.5) 56%, rgba(3,10,24,0.96) 100%)",
+};
+
+const topicContentStyle: CSSProperties = {
+  position: "relative",
+  zIndex: 1,
+  height: "100%",
+  padding: "22px",
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "space-between",
+  gap: "16px",
+};
+
+const topicPillStyle = (accent: string): CSSProperties => ({
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: "30px",
+  padding: "0 12px",
+  borderRadius: "999px",
+  border: `1px solid ${accent}66`,
+  background: "rgba(7, 18, 42, 0.45)",
+  color: "white",
+  fontSize: "12px",
+  fontWeight: 700,
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+});
+
+const topicTitleStyle: CSSProperties = {
+  margin: "14px 0 0",
+  fontSize: "30px",
+  lineHeight: 1.05,
+};
+
+const topicSubtitleStyle: CSSProperties = {
+  margin: "12px 0 0",
+  color: "rgba(255,255,255,0.84)",
+  fontSize: "15px",
+  lineHeight: 1.5,
+  maxWidth: "280px",
+};
+
+const topicActionStyle: CSSProperties = {
+  minHeight: "48px",
+  borderRadius: "14px",
+  background: "rgba(255,255,255,0.1)",
+  border: "1px solid rgba(255,255,255,0.15)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontWeight: 800,
+  backdropFilter: "blur(10px)",
+};
+
+const joinCardStyle: CSSProperties = {
+  maxWidth: "620px",
+  borderRadius: "28px",
+  border: "1px solid rgba(126,232,255,0.2)",
+  background: "rgba(255,255,255,0.05)",
+  padding: "24px",
+};
+
+const waitingShellStyle: CSSProperties = {
+  maxWidth: "820px",
+  margin: "0 auto",
+  textAlign: "center",
+  display: "grid",
+  gap: "18px",
+};
+
+const lobbyCodeStyle = (isMobile: boolean): CSSProperties => ({
+  margin: 0,
+  fontSize: isMobile ? "42px" : "62px",
+  letterSpacing: "0.16em",
+});
+
+const waitingMetaRowStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "center",
+  flexWrap: "wrap",
+  gap: "10px",
+};
+
+const waitingPlayersGridStyle: CSSProperties = {
+  display: "grid",
+  gap: "10px",
+};
+
+const playerTileStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "12px",
+  borderRadius: "16px",
+  border: "1px solid rgba(126,232,255,0.24)",
+  background: "rgba(255,255,255,0.08)",
+  padding: "14px 16px",
+};
+
+const helperTextStyle: CSSProperties = {
+  margin: 0,
+  color: "#ffd76a",
+};
+
+const quizTopBarStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  flexWrap: "wrap",
+  marginBottom: "18px",
+};
+
+const quizMainCardStyle: CSSProperties = {
+  borderRadius: "28px",
+  border: "1px solid rgba(126,232,255,0.24)",
+  background: "linear-gradient(180deg, rgba(14,35,72,0.86), rgba(7,18,42,0.95))",
+  padding: "26px",
+};
+
+const quizSideCardStyle: CSSProperties = {
+  borderRadius: "28px",
+  border: "1px solid rgba(126,232,255,0.24)",
+  background: "rgba(255,255,255,0.06)",
+  padding: "24px",
+  height: "fit-content",
+};
+
+const quizHeaderRowStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "16px",
+  alignItems: "flex-start",
+};
+
+const timerCircleStyle = (isUrgent: boolean): CSSProperties => ({
+  width: "88px",
+  height: "88px",
+  borderRadius: "999px",
+  border: `1px solid ${isUrgent ? "rgba(248,113,113,0.65)" : "rgba(126,232,255,0.5)"}`,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexDirection: "column",
+  color: isUrgent ? "#ffb3b3" : "#7ee8ff",
+  flexShrink: 0,
+});
+
+const questionImageShellStyle: CSSProperties = {
+  marginTop: "22px",
+  borderRadius: "20px",
+  background: "rgba(255,255,255,0.95)",
+  minHeight: "220px",
+  overflow: "hidden",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const questionImageStyle: CSSProperties = {
+  width: "100%",
+  height: "100%",
+  objectFit: "contain",
+};
+
+const questionTextStyle = (isMobile: boolean): CSSProperties => ({
+  margin: "24px 0 0",
+  fontSize: isMobile ? "21px" : "29px",
+  lineHeight: 1.35,
+});
+
+const difficultyStyle: CSSProperties = {
+  margin: "12px 0 0",
+  color: "rgba(255,255,255,0.6)",
+  fontSize: "14px",
+};
+
+const feedbackCardStyle = (isCorrect: boolean): CSSProperties => ({
+  marginTop: "22px",
+  borderRadius: "18px",
+  border: isCorrect
+    ? "1px solid rgba(74,222,128,0.55)"
+    : "1px solid rgba(248,113,113,0.45)",
+  background: isCorrect ? "rgba(34,197,94,0.14)" : "rgba(239,68,68,0.14)",
+  padding: "18px 20px",
+  lineHeight: 1.55,
+});
+
+const feedbackFooterStyle: CSSProperties = {
+  marginTop: "14px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "12px",
+  flexWrap: "wrap",
+};
+
+const nextButtonStyle: CSSProperties = {
+  minHeight: "44px",
+  padding: "0 16px",
+  borderRadius: "999px",
+  border: "1px solid rgba(255,255,255,0.35)",
+  background: "linear-gradient(135deg,#35c5ff,#4c6dff)",
+  color: "white",
+  fontWeight: 800,
+  cursor: "pointer",
+};
+
+const quizInstructionStyle: CSSProperties = {
+  margin: "8px 0 0",
+  color: "rgba(255,255,255,0.7)",
+  lineHeight: 1.55,
+};
+
+const resultsShellStyle: CSSProperties = {
+  margin: "0 auto",
+  maxWidth: "760px",
+  textAlign: "center",
+};
+
+const resultsTitleStyle: CSSProperties = {
+  margin: "12px 0 28px",
+  fontSize: "42px",
+};
+
+const messageBannerStyle: CSSProperties = {
+  margin: "0 0 22px",
+  borderRadius: "16px",
+  border: "1px solid rgba(126,232,255,0.28)",
+  background: "rgba(126,232,255,0.08)",
+  padding: "14px 16px",
+  color: "rgba(255,255,255,0.82)",
+  lineHeight: 1.5,
+};
+
+const leaderboardListStyle: CSSProperties = {
+  marginTop: "24px",
+  display: "grid",
+  gap: "12px",
+};
+
+const leaderboardRowStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  alignItems: "center",
+  borderRadius: "16px",
+  border: "1px solid rgba(126,232,255,0.24)",
+  background: "rgba(255,255,255,0.08)",
+  padding: "14px 16px",
+};
+
+const resultsPanelStyle: CSSProperties = {
+  margin: "0 auto",
+  maxWidth: "760px",
+  borderRadius: "28px",
+  border: "1px solid rgba(126,232,255,0.4)",
+  background:
+    "linear-gradient(180deg, rgba(17,82,136,0.86), rgba(7,27,68,0.98))",
+  padding: "36px",
+  textAlign: "center",
+};
+
+const resultsStatsGridStyle: CSSProperties = {
+  marginTop: "28px",
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+  gap: "12px",
+};
+
+const resultsMessageStyle: CSSProperties = {
+  margin: "26px 0 0",
+  color: "rgba(255,255,255,0.78)",
+  lineHeight: 1.5,
+};
+
+const resultsButtonRowStyle: CSSProperties = {
+  marginTop: "28px",
+  display: "flex",
+  justifyContent: "center",
+  gap: "12px",
+  flexWrap: "wrap",
+};
+
+const messageCardStyle: CSSProperties = {
+  margin: "22px auto",
+  maxWidth: "560px",
+  borderRadius: "24px",
+  border: "1px solid rgba(126,232,255,0.36)",
+  background: "rgba(255,255,255,0.08)",
+  padding: "30px",
+  textAlign: "center",
+  color: "rgba(255,255,255,0.82)",
+};
+
+const statusPillStyle: CSSProperties = {
+  borderRadius: "999px",
+  border: "1px solid rgba(126,232,255,0.28)",
+  background: "rgba(255,255,255,0.07)",
+  padding: "9px 14px",
+  fontSize: "13px",
+  color: "rgba(255,255,255,0.72)",
+};
+
+const resultStatStyle: CSSProperties = {
+  borderRadius: "16px",
+  border: "1px solid rgba(126,232,255,0.28)",
+  background: "rgba(255,255,255,0.08)",
+  padding: "16px 10px",
+};
+
+const resultStatLabelStyle: CSSProperties = {
+  margin: 0,
+  color: "#7ee8ff",
+  fontSize: "12px",
+  letterSpacing: "0.12em",
+  textTransform: "uppercase",
+};
+
+const resultStatValueStyle: CSSProperties = {
+  margin: "8px 0 0",
+  fontSize: "24px",
+  fontWeight: 700,
+};
 
 const navButtonStyle: CSSProperties = {
   minHeight: "42px",
   padding: "0 18px",
   borderRadius: "999px",
-  border: "1px solid rgba(126,232,255,0.25)",
+  border: "1px solid rgba(126,232,255,0.24)",
   background: "rgba(255,255,255,0.06)",
   color: "white",
   textDecoration: "none",
@@ -1831,68 +2241,8 @@ const eyebrowStyle: CSSProperties = {
   fontWeight: 700,
 };
 
-const panelStyle = (isMobile: boolean): CSSProperties => ({
-  maxWidth: "1220px",
-  margin: isMobile ? "34px auto 0" : "40px auto 0",
-  borderRadius: isMobile ? "22px" : "30px",
-  border: "1px solid rgba(126,221,255,0.42)",
-  background:
-    "linear-gradient(145deg, rgba(8,28,60,0.82), rgba(6,18,44,0.94))",
-  boxShadow:
-    "0 0 45px rgba(85,215,255,0.18), 0 30px 90px rgba(0,0,0,0.35)",
-  padding: isMobile ? "24px" : "38px",
-  color: "white",
-  backdropFilter: "blur(18px)",
-});
-
-const twoColumnGrid = (isMobile: boolean): CSSProperties => ({
-  display: "grid",
-  gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
-  gap: "24px",
-});
-
-const bigCardStyle = (accent: string): CSSProperties => ({
-  minHeight: "330px",
-  borderRadius: "24px",
-  padding: "30px",
-  border: `1px solid ${accent}88`,
-  background:
-    "linear-gradient(180deg, rgba(20,58,100,0.78), rgba(8,25,56,0.92))",
-  boxShadow: `0 0 22px ${accent}22, inset 0 0 24px rgba(255,255,255,0.03)`,
-  color: "white",
-  textAlign: "left",
-  cursor: "pointer",
-  display: "flex",
-  flexDirection: "column",
-});
-
-const cardTitleStyle: CSSProperties = {
-  margin: "24px 0 0",
-  fontSize: "30px",
-  fontWeight: 700,
-};
-
-const cardTextStyle: CSSProperties = {
-  margin: "14px 0 28px",
-  fontSize: "16px",
-  lineHeight: 1.5,
-  color: "rgba(255,255,255,0.76)",
-};
-
-const primaryButtonLook: CSSProperties = {
-  marginTop: "auto",
-  height: "52px",
-  borderRadius: "14px",
-  background: "linear-gradient(135deg,#35c5ff,#4c6dff)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "16px",
-  fontWeight: 700,
-};
-
 const backButtonStyle: CSSProperties = {
-  border: "1px solid rgba(126,232,255,0.36)",
+  border: "1px solid rgba(126,232,255,0.32)",
   background: "rgba(255,255,255,0.06)",
   color: "white",
   borderRadius: "999px",
@@ -1916,22 +2266,13 @@ const inputStyle: CSSProperties = {
   width: "100%",
   height: "56px",
   borderRadius: "16px",
-  border: "1px solid rgba(126,232,255,0.36)",
+  border: "1px solid rgba(126,232,255,0.32)",
   background: "rgba(255,255,255,0.08)",
   color: "white",
   padding: "0 18px",
   fontSize: "16px",
   outline: "none",
   boxSizing: "border-box",
-};
-
-const formCardStyle: CSSProperties = {
-  maxWidth: "620px",
-  margin: "0 auto",
-  borderRadius: "26px",
-  border: "1px solid rgba(126,232,255,0.24)",
-  background: "rgba(255,255,255,0.055)",
-  padding: "26px",
 };
 
 const fieldLabelStyle: CSSProperties = {
@@ -1955,25 +2296,6 @@ const errorStyle: CSSProperties = {
   padding: "14px 16px",
   color: "#ffe6a8",
   fontSize: "14px",
-};
-
-const playerRowStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: "12px",
-  alignItems: "center",
-  borderRadius: "16px",
-  border: "1px solid rgba(126,232,255,0.24)",
-  background: "rgba(255,255,255,0.08)",
-  padding: "14px 16px",
-};
-
-const quizPanelStyle: CSSProperties = {
-  borderRadius: "24px",
-  border: "1px solid rgba(150,220,255,0.42)",
-  background:
-    "linear-gradient(180deg, rgba(20,58,100,0.74), rgba(8,25,56,0.9))",
-  padding: "26px",
 };
 
 const answerButtonBaseStyle: CSSProperties = {

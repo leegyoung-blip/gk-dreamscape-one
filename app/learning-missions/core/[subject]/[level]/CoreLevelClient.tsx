@@ -42,6 +42,11 @@ type TopicWithCounts = CoreTopic & {
   completedCount: number;
 };
 
+const PREMIUM_ENGLISH_TOPIC_SLUGS = new Set([
+  "reading-comprehension",
+  "cloze-language-use",
+]);
+
 export default function CoreLevelClient({
   subject,
   level,
@@ -212,38 +217,25 @@ export default function CoreLevelClient({
     );
   }
 
-  if (status === "signed_out") {
-    return (
-      <CoreMissionPageShell>
-        <CoreMissionTopBar
-          backHref={`/learning-missions/core?subject=${subject}`}
-          backLabel={`${theme.shortName} Levels`}
-        />
-        <MessagePanel text="Log in with the learner account connected to Dreamscape access." />
-      </CoreMissionPageShell>
-    );
-  }
+  if (
+    status === "locked" ||
+    status === "signed_out" ||
+    status === "profile_required"
+  ) {
+    const text =
+      status === "signed_out"
+        ? "Log in to continue into Core Missions."
+        : status === "profile_required"
+          ? "Complete the learner profile before continuing into Core Missions."
+          : "This account does not currently have Core Missions access.";
 
-  if (status === "profile_required") {
     return (
       <CoreMissionPageShell>
         <CoreMissionTopBar
           backHref={`/learning-missions/core?subject=${subject}`}
           backLabel={`${theme.shortName} Levels`}
         />
-        <MessagePanel text="Complete the learner profile before using unpaid or manually unavailable Core access." />
-      </CoreMissionPageShell>
-    );
-  }
-
-  if (status === "locked") {
-    return (
-      <CoreMissionPageShell>
-        <CoreMissionTopBar
-          backHref={`/learning-missions/core?subject=${subject}`}
-          backLabel={`${theme.shortName} Levels`}
-        />
-        <MessagePanel text="This account does not currently have Core Missions access." />
+        <MessagePanel text={text} />
       </CoreMissionPageShell>
     );
   }
@@ -342,63 +334,123 @@ export default function CoreLevelClient({
                     )
                   : 0;
 
+              const isPremiumEnglishTopic =
+                subject === "english" &&
+                PREMIUM_ENGLISH_TOPIC_SLUGS.has(topic.slug);
+
               return (
                 <Link
                   key={topic.id}
                   href={`/learning-missions/core/${subject}/p${level}/${topic.slug}`}
                   className={[
-                    "group rounded-[1.75rem] border border-white/10 p-5 text-white no-underline shadow-[0_20px_58px_rgba(0,0,0,0.22)] transition hover:-translate-y-1",
-                    theme.cardBackground,
-                    subject === "english"
-                      ? "hover:border-violet-200/30"
-                      : "hover:border-emerald-200/30",
+                    "group rounded-[1.75rem] border p-5 text-white no-underline transition hover:-translate-y-1",
+                    isPremiumEnglishTopic
+                      ? "border-amber-200/35 bg-[linear-gradient(145deg,rgba(120,78,12,0.38),rgba(22,14,4,0.94))] shadow-[0_20px_58px_rgba(245,158,11,0.12)] hover:border-amber-200/60 hover:shadow-[0_22px_64px_rgba(245,158,11,0.18)]"
+                      : [
+                          "border-white/10 shadow-[0_20px_58px_rgba(0,0,0,0.22)]",
+                          theme.cardBackground,
+                          subject === "english"
+                            ? "hover:border-violet-200/30"
+                            : "hover:border-emerald-200/30",
+                        ].join(" "),
                   ].join(" ")}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div
                       className={[
                         "grid h-14 w-14 place-items-center rounded-2xl border text-2xl",
-                        theme.borderClass,
-                        theme.softClass,
+                        isPremiumEnglishTopic
+                          ? "border-amber-200/35 bg-amber-300/10 text-amber-100 shadow-[0_0_26px_rgba(251,191,36,0.10)]"
+                          : [theme.borderClass, theme.softClass].join(" "),
                       ].join(" ")}
                     >
                       {topic.icon || theme.icon}
                     </div>
 
-                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white/55">
+                    <span
+                      className={[
+                        "rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em]",
+                        isPremiumEnglishTopic
+                          ? "border-amber-200/25 bg-amber-300/10 text-amber-100/80"
+                          : "border-white/10 bg-white/[0.04] text-white/55",
+                      ].join(" ")}
+                    >
                       {topic.quiz_target} planned
                     </span>
                   </div>
 
-                  <h3 className="mt-5 text-xl font-black tracking-[-0.025em]">
+                  <h3
+                    className={[
+                      "mt-5 text-xl font-black tracking-[-0.025em]",
+                      isPremiumEnglishTopic ? "text-amber-50" : "",
+                    ].join(" ")}
+                  >
                     {topic.title}
                   </h3>
 
-                  <p className="mt-2 min-h-[66px] text-sm leading-6 text-white/55">
+                  <p
+                    className={[
+                      "mt-2 min-h-[66px] text-sm leading-6",
+                      isPremiumEnglishTopic
+                        ? "text-amber-50/62"
+                        : "text-white/55",
+                    ].join(" ")}
+                  >
                     {topic.description ||
                       "Focused curriculum practice for this topic."}
                   </p>
 
                   <div className="mt-5">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-white/45">
+                      <span
+                        className={
+                          isPremiumEnglishTopic
+                            ? "text-amber-50/45"
+                            : "text-white/45"
+                        }
+                      >
                         {topic.publishedCount} published · {topic.completedCount}{" "}
                         completed
                       </span>
-                      <strong className={theme.eyebrowClass}>
+                      <strong
+                        className={
+                          isPremiumEnglishTopic
+                            ? "text-amber-200"
+                            : theme.eyebrowClass
+                        }
+                      >
                         {topicProgress}%
                       </strong>
                     </div>
 
-                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/[0.07]">
+                    <div
+                      className={[
+                        "mt-2 h-2 overflow-hidden rounded-full",
+                        isPremiumEnglishTopic
+                          ? "bg-amber-50/[0.08]"
+                          : "bg-white/[0.07]",
+                      ].join(" ")}
+                    >
                       <div
-                        className={`h-full rounded-full ${theme.progressClass}`}
+                        className={[
+                          "h-full rounded-full",
+                          isPremiumEnglishTopic
+                            ? "bg-gradient-to-r from-amber-500 via-yellow-300 to-amber-200"
+                            : theme.progressClass,
+                        ].join(" ")}
                         style={{ width: `${topicProgress}%` }}
                       />
                     </div>
                   </div>
 
-                  <div className="mt-5 text-sm font-extrabold text-cyan-200">
+                  <div
+                    className={[
+                      "mt-5 text-sm font-extrabold",
+                      isPremiumEnglishTopic
+                        ? "text-amber-200"
+                        : "text-cyan-200",
+                    ].join(" ")}
+                  >
                     Open topic →
                   </div>
                 </Link>
