@@ -1,9 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  getLearningEntitlements,
-} from "@/lib/learning-access";
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { getLearningEntitlements } from "@/lib/learning-access";
 import { supabase } from "@/lib/supabase";
 
 export type LearningMissionZoneKey = "core" | "think" | "science";
@@ -30,6 +34,16 @@ type GateState = {
   learnerAccessEnabled: boolean;
   adminPreview: boolean;
   message: string;
+};
+
+type RefreshOptions = {
+  /**
+   * Only the first page-entry check should show the checking screen.
+   * Focus, screenshot/window changes, auth token refreshes and the
+   * periodic release check must stay silent so a live quiz/game remains
+   * mounted.
+   */
+  showChecking?: boolean;
 };
 
 const INITIAL_STATE: GateState = {
@@ -65,34 +79,74 @@ function getEntitlementMessage(zone: LearningMissionZoneKey) {
   return "This account does not currently include Core Missions access.";
 }
 
+function getZoneName(zone: LearningMissionZoneKey) {
+  if (zone === "science") return "Science Missions";
+  if (zone === "think") return "Think Missions";
+  return "Core Missions";
+}
+
 export function useLearningMissionRouteAccess(
   zone: LearningMissionZoneKey,
 ) {
   const [state, setState] = useState<GateState>(INITIAL_STATE);
-  const [refreshNonce, setRefreshNonce] = useState(0);
 
-  const refresh = useCallback(() => {
-    setRefreshNonce((current) => current + 1);
-  }, []);
+  const mountedRef = useRef(false);
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
-    let cancelled = false;
+    mountedRef.current = true;
 
-    async function loadAccess() {
-      setState((current) => ({
-        ...current,
-        status: "checking",
-        message: "",
-      }));
+    return () => {
+      mountedRef.current = false;
+      requestIdRef.current += 1;
+    };
+  }, []);
+
+  const refreshAccess = useCallback(
+    async (options: RefreshOptions = {}) => {
+      const { showChecking = false } = options;
+      const requestId = ++requestIdRef.current;
+
+      /*
+       * CRITICAL SESSION-PRESERVATION RULE:
+       *
+       * Never replace an already-mounted mission with a checking screen
+       * during a background revalidation. That was the cause of quizzes
+       * and Rover sessions appearing to restart after Alt-Tab, screenshots,
+       * token refreshes, or the periodic access check.
+       */
+      if (showChecking && mountedRef.current) {
+        setState((current) => ({
+          ...current,
+          status: "checking",
+          message: "",
+        }));
+      }
 
       const {
         data: { user },
         error: userError,
       } = await supabase.auth.getUser();
 
-      if (cancelled) return;
+      if (
+        !mountedRef.current ||
+        requestId !== requestIdRef.current
+      ) {
+        return;
+      }
 
       if (userError) {
+        console.warn(
+          `Could not check ${zone} authentication:`,
+          userError.message,
+        );
+
+        if (!showChecking) {
+          // A transient background auth/network read is not proof that the
+          // learner lost access. Keep the live experience mounted.
+          return;
+        }
+
         setState({
           ...INITIAL_STATE,
           status: "error",
@@ -109,63 +163,94 @@ export function useLearningMissionRouteAccess(
         return;
       }
 
-      const [profileResult, subscriptionResult, manualAccessResult, releaseResult] =
-        await Promise.all([
-          supabase
-            .from("profiles")
-            .select("role")
-            .eq("id", user.id)
-            .maybeSingle(),
-          supabase
-            .from("nova_subscriptions")
-            .select("status,access_until,plan_code")
-            .eq("user_id", user.id),
-          supabase
-            .from("learning_mission_zone_access")
-            .select("zone_key,is_unlocked")
-            .eq("user_id", user.id)
-            .eq("zone_key", zone)
-            .maybeSingle(),
-          supabase
-            .from("learning_mission_zone_settings")
-            .select("zone_key,learner_access_enabled")
-            .eq("zone_key", zone)
-            .maybeSingle(),
-        ]);
+      const [
+        profileResult,
+        subscriptionResult,
+        manualAccessResult,
+        releaseResult,
+      ] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .maybeSingle(),
 
-      if (cancelled) return;
+        supabase
+          .from("nova_subscriptions")
+          .select("status,access_until,plan_code")
+          .eq("user_id", user.id),
 
-      if (profileResult.error) {
+        supabase
+          .from("learning_mission_zone_access")
+          .select("zone_key,is_unlocked")
+          .eq("user_id", user.id)
+          .eq("zone_key", zone)
+          .maybeSingle(),
+
+        supabase
+          .from("learning_mission_zone_settings")
+          .select("zone_key,learner_access_enabled")
+          .eq("zone_key", zone)
+          .maybeSingle(),
+      ]);
+
+      if (
+        !mountedRef.current ||
+        requestId !== requestIdRef.current
+      ) {
+        return;
+      }
+
+      if (profileResult.error || !profileResult.data) {
+        console.warn(
+          `Could not check ${zone} profile access:`,
+          profileResult.error?.message,
+        );
+
+        if (!showChecking) {
+          return;
+        }
+
         setState({
           ...INITIAL_STATE,
           status: "error",
           userId: user.id,
-          message: profileResult.error.message,
+          message:
+            profileResult.error?.message ||
+            "Dreamscape could not verify this account profile.",
         });
         return;
       }
 
       if (releaseResult.error) {
+        console.warn(
+          `Could not check ${zone} release state:`,
+          releaseResult.error.message,
+        );
+
+        if (!showChecking) {
+          return;
+        }
+
         setState({
           ...INITIAL_STATE,
           status: "error",
           userId: user.id,
-          role: profileResult.data?.role || null,
+          role: profileResult.data.role || null,
           message:
             "Could not verify whether this Learning Mission zone is currently released.",
         });
         return;
       }
 
-      const role = profileResult.data?.role || null;
+      const role = profileResult.data.role || null;
       const isAdmin = roleIsAdmin(role);
-
-      // Fail closed if the global setting row is unexpectedly missing.
       const learnerAccessEnabled = Boolean(
         releaseResult.data?.learner_access_enabled,
       );
 
-      // Admins always retain preview access, even while Learner Access is OFF.
+      // Administrators always retain preview access, even while learner
+      // release is disabled globally.
       if (isAdmin) {
         setState({
           status: "allowed",
@@ -179,6 +264,8 @@ export function useLearningMissionRouteAccess(
         return;
       }
 
+      // A successfully verified global lock is a real access change and may
+      // replace the live experience.
       if (!learnerAccessEnabled) {
         setState({
           status: "release_locked",
@@ -187,12 +274,23 @@ export function useLearningMissionRouteAccess(
           isAdmin: false,
           learnerAccessEnabled: false,
           adminPreview: false,
-          message: `${zone === "science" ? "Science Missions" : zone === "think" ? "Think Missions" : "Core Missions"} are not currently open to learners.`,
+          message: `${getZoneName(zone)} are not currently open to learners.`,
         });
         return;
       }
 
       if (subscriptionResult.error) {
+        console.warn(
+          `Could not check ${zone} subscription access:`,
+          subscriptionResult.error.message,
+        );
+
+        if (!showChecking) {
+          // Do not eject a learner from a running session because a
+          // background subscription query temporarily failed.
+          return;
+        }
+
         setState({
           status: "error",
           userId: user.id,
@@ -208,55 +306,80 @@ export function useLearningMissionRouteAccess(
       const subscriptionRows = (subscriptionResult.data ||
         []) as NovaSubscriptionRow[];
 
-      const entitlements = getLearningEntitlements(role, subscriptionRows);
+      const entitlements = getLearningEntitlements(
+        role,
+        subscriptionRows,
+      );
 
+      const manualAccessKnown = !manualAccessResult.error;
       const manuallyUnlocked =
-        !manualAccessResult.error &&
+        manualAccessKnown &&
         Boolean(manualAccessResult.data?.is_unlocked);
 
-      const entitled =
+      const entitlementAllowed =
         zone === "science"
-          ? entitlements.science || manuallyUnlocked
-          : entitlements.core || manuallyUnlocked;
+          ? entitlements.science
+          : entitlements.core;
 
-      if (!entitled) {
+      if (entitlementAllowed || manuallyUnlocked) {
         setState({
-          status: "entitlement_locked",
+          status: "allowed",
           userId: user.id,
           role,
           isAdmin: false,
           learnerAccessEnabled: true,
           adminPreview: false,
-          message: getEntitlementMessage(zone),
+          message: "",
         });
         return;
       }
 
+      if (!manualAccessKnown) {
+        console.warn(
+          `Could not check ${zone} manual access:`,
+          manualAccessResult.error?.message,
+        );
+
+        if (!showChecking) {
+          // The subscription does not prove access, but the fallback/manual
+          // source failed. Preserve an existing live session until access can
+          // be verified reliably.
+          return;
+        }
+      }
+
+      // Both access sources completed successfully and neither grants entry.
       setState({
-        status: "allowed",
+        status: "entitlement_locked",
         userId: user.id,
         role,
         isAdmin: false,
         learnerAccessEnabled: true,
         adminPreview: false,
-        message: "",
+        message: getEntitlementMessage(zone),
       });
-    }
+    },
+    [zone],
+  );
 
-    void loadAccess();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [zone, refreshNonce]);
+  /* Initial page entry: this is the only normal check allowed to show UI. */
+  useEffect(() => {
+    void refreshAccess({ showChecking: true });
+  }, [refreshAccess]);
 
   useEffect(() => {
+    function silentRefresh() {
+      void refreshAccess({ showChecking: false });
+    }
+
     function handleFocus() {
-      refresh();
+      // Screenshots, Alt-Tab and switching browser tabs can fire focus.
+      // Revalidate silently and keep children mounted.
+      silentRefresh();
     }
 
     function handleReleaseUpdate() {
-      refresh();
+      silentRefresh();
     }
 
     window.addEventListener("focus", handleFocus);
@@ -266,13 +389,31 @@ export function useLearningMissionRouteAccess(
     );
 
     const interval = window.setInterval(() => {
-      refresh();
+      silentRefresh();
     }, 60_000);
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      refresh();
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
+        requestIdRef.current += 1;
+
+        if (mountedRef.current) {
+          setState({
+            ...INITIAL_STATE,
+            status: "signed_out",
+          });
+        }
+        return;
+      }
+
+      // Keep Supabase work outside the auth callback and never flash the
+      // checking screen for SIGNED_IN/TOKEN_REFRESHED/USER_UPDATED events.
+      window.setTimeout(() => {
+        if (mountedRef.current) {
+          silentRefresh();
+        }
+      }, 0);
     });
 
     return () => {
@@ -284,7 +425,11 @@ export function useLearningMissionRouteAccess(
       window.clearInterval(interval);
       subscription.unsubscribe();
     };
-  }, [refresh]);
+  }, [refreshAccess]);
+
+  const refresh = useCallback(() => {
+    void refreshAccess({ showChecking: true });
+  }, [refreshAccess]);
 
   return useMemo(
     () => ({

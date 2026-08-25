@@ -195,7 +195,7 @@ export default function OrganisationLicensingPanel() {
 
     setMessage(
       result?.manager_status === "pending_account"
-        ? "Organisation created. The manager email is reserved and will link automatically in Phase 1C after account claim."
+        ? "Organisation created. The manager email is reserved and will link automatically when the matching verified Dreamscape account signs in."
         : "Organisation and active licence created successfully.",
     );
 
@@ -290,7 +290,7 @@ export default function OrganisationLicensingPanel() {
     const status = String(data || "");
     setMessage(
       status === "pending_account"
-        ? "Manager email reserved. It will claim automatically in Phase 1C when that account signs in."
+        ? "Manager email reserved. It will link automatically when the matching verified Dreamscape account signs in."
         : "Organisation manager access updated.",
     );
     setAdditionalManagerEmail("");
@@ -302,7 +302,7 @@ export default function OrganisationLicensingPanel() {
       <div className="flex flex-col gap-4 rounded-[32px] border border-cyan-200/18 bg-white/[0.045] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.26)] backdrop-blur-xl sm:p-7 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <p className="m-0 text-xs font-bold uppercase tracking-[0.2em] text-[#8dfcff]">
-            Phase 1B
+            Education Organisations
           </p>
           <h2 className="mt-3 text-3xl font-bold tracking-[-0.04em] text-white">
             Organisations & Licensing
@@ -310,7 +310,7 @@ export default function OrganisationLicensingPanel() {
           <p className="mt-3 max-w-3xl text-sm leading-6 text-white/52">
             Create GKP or external education organisations, control licence seats,
             appoint organisation administrators and open each organisation&apos;s
-            approved-email portal.
+            student onboarding and roster portal.
           </p>
         </div>
 
@@ -603,7 +603,7 @@ export default function OrganisationLicensingPanel() {
                     }
                     className="min-h-12 rounded-full border border-emerald-200/28 bg-emerald-300/12 px-6 text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-100 transition hover:bg-emerald-300/20"
                   >
-                    Manage Emails & Roster →
+                    Manage Onboarding & Roster →
                   </button>
                 </div>
 
@@ -775,7 +775,7 @@ export default function OrganisationLicensingPanel() {
                 <h3 className="mt-2 text-2xl font-bold">Add another manager</h3>
                 <p className="mt-2 text-sm leading-6 text-white/48">
                   Existing Dreamscape accounts are linked immediately. New emails are
-                  held as pending manager invitations until Phase 1C account claiming is installed.
+                  held as pending manager invitations until the matching verified Dreamscape account signs in.
                 </p>
 
                 <div className="mt-5 flex flex-col gap-3 sm:flex-row">

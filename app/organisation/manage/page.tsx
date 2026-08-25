@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { supabase } from "@/lib/supabase";
+import StudentJoinLinkPanel from "@/components/organisation/StudentJoinLinkPanel";
 
 type OrganisationRow = {
   organisation_id: string;
@@ -335,10 +336,10 @@ function OrganisationManageContent() {
             Organisation Portal
           </h1>
           <p className="mt-5 max-w-3xl text-base leading-7 text-white/60">
-            Manage the approved teacher and student emails covered by your Dreamscape
-            organisation licence. Approved emails now link automatically when the
-            matching verified Dreamscape account signs in. Formal classes are created
-            and managed from the Teacher Dashboard.
+            Manage student onboarding, approved account emails and the organisation
+            roster covered by your Dreamscape licence. Students can join through a
+            centre-shared link or through an approved email reservation. Formal classes
+            are created and managed from the Teacher Dashboard.
           </p>
         </header>
 
@@ -427,10 +428,16 @@ function OrganisationManageContent() {
                   </div>
                 </section>
 
+                <StudentJoinLinkPanel
+                  key={selected.organisation_id}
+                  organisationId={selected.organisation_id}
+                  organisationName={selected.organisation_name}
+                />
+
                 <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
                   <section className="rounded-[32px] border border-cyan-200/18 bg-white/[0.045] p-6 backdrop-blur-xl sm:p-7">
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8dfcff]">
-                      Approved Email Importer
+                      Approved Email List
                     </p>
                     <h2 className="mt-2 text-3xl font-bold">Reserve licence seats</h2>
                     <p className="mt-3 text-sm leading-6 text-white/50">
