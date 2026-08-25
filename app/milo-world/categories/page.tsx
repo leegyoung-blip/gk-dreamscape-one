@@ -2641,11 +2641,11 @@ export default function MiloCategoriesPage() {
     >
       <header className="categories-topbar relative z-10 flex shrink-0 items-center justify-between gap-3 px-3 py-3 sm:px-5 sm:py-5">
         <Link
-          href="/milo-world/activity-lab"
+          href="/milo-world/quiz-hall"
           className="categories-back-button inline-flex h-[42px] items-center justify-center rounded-[14px] border border-white/16 bg-[#050d1c]/90 px-[18px] text-sm font-black text-white no-underline shadow-[0_14px_32px_rgba(0,0,0,0.22)] transition hover:bg-white/10"
         >
-          <span className="categories-back-full">← Back to Activity Lab</span>
-          <span className="categories-back-short">← Activity Lab</span>
+          <span className="categories-back-full">← Back to Quiz Hall</span>
+          <span className="categories-back-short">← Quiz Hall</span>
         </Link>
       </header>
 
@@ -2654,7 +2654,7 @@ export default function MiloCategoriesPage() {
           <div className="categories-hero shrink-0 border-b border-white/12 bg-[linear-gradient(145deg,rgba(255,176,83,0.16),rgba(83,215,255,0.08))] px-5 py-6 sm:px-[34px] sm:py-[34px]">
             <div className="categories-hero-heading">
               <p className="m-0 text-xs font-black uppercase tracking-[0.2em] text-[#ffd18a]">
-                Milo’s Quiz Lab
+                Categories Hub
               </p>
 
               <h1 className="categories-title mt-[14px] font-serif text-[46px] font-medium leading-[0.95] text-white sm:text-[clamp(44px,7vw,78px)]">

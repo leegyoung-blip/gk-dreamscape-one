@@ -241,6 +241,100 @@ const challengeModeMeta: Record<
   },
 };
 
+
+const NOVA_GUIDE_STEPS = [
+  {
+    eyebrow: "Start here",
+    title: "Choose how to play",
+    description:
+      "Play a solo Knowledge Arena challenge or enter a shared multiplayer lobby.",
+    detail:
+      "Single Player contains Nova's personalised challenge modes. Multiplayer uses a shared world and timer.",
+    stage: "mode" as PageStage,
+    target: "play-mode",
+  },
+  {
+    eyebrow: "Knowledge worlds",
+    title: "Choose a world",
+    description:
+      "World Explorer, Time Traveller, Science Sparks and Mystery Logic each keep their own Nova mastery profile.",
+    detail:
+      "Quick Play and Expert Challenge use the world you select. Focus Mission can automatically use Nova's recommended world.",
+    stage: "solo-mode" as PageStage,
+    target: "worlds",
+  },
+  {
+    eyebrow: "Choose your pace",
+    title: "Question timer",
+    description:
+      "Choose 10 or 20 seconds per question. Both timers use the same 100-point maximum.",
+    detail:
+      "20 seconds is the default. A faster timer changes the pace, not the maximum score.",
+    stage: "solo-mode" as PageStage,
+    target: "timer",
+  },
+  {
+    eyebrow: "Classic challenge",
+    title: "Quick Play",
+    description:
+      "Play 10 questions from one selected knowledge world without adaptive targeting.",
+    detail:
+      "Use Quick Play when you want a straightforward category challenge.",
+    stage: "solo-mode" as PageStage,
+    target: "quick-play",
+  },
+  {
+    eyebrow: "Personalised learning",
+    title: "Focus Mission",
+    description:
+      "Nova uses the mastery already stored in Nova Analytics and targets the knowledge world that needs the most attention.",
+    detail:
+      "This does not create a second mastery system. Knowledge Arena reads the same profile Nova Analytics already maintains.",
+    stage: "solo-mode" as PageStage,
+    target: "focus-mission",
+  },
+  {
+    eyebrow: "Adaptive mix",
+    title: "Nova Challenge",
+    description:
+      "Nova builds a personalised 10-question mix across all four worlds, weighted toward lower-mastered areas.",
+    detail:
+      "The challenge uses the existing Nova profile and feeds new evidence back into that same profile.",
+    stage: "solo-mode" as PageStage,
+    target: "nova-challenge",
+  },
+  {
+    eyebrow: "Stretch yourself",
+    title: "Expert Challenge",
+    description:
+      "Choose a knowledge world and take on the toughest eligible questions available there.",
+    detail:
+      "Expert Challenge is difficulty-led. Your selected world still controls the question pool.",
+    stage: "solo-mode" as PageStage,
+    target: "expert-challenge",
+  },
+  {
+    eyebrow: "Your learning profile",
+    title: "Knowledge Profile",
+    description:
+      "See your overall knowledge mastery, four world scores and Nova's current recommendation.",
+    detail:
+      "For deeper evidence, trends and cross-subject analytics, open the full Nova Analytics dashboard.",
+    stage: "solo-mode" as PageStage,
+    target: "knowledge-profile",
+  },
+  {
+    eyebrow: "Play together",
+    title: "Multiplayer",
+    description:
+      "Create or join a lobby and answer the same 10 questions together.",
+    detail:
+      "Multiplayer correctness still contributes to personal mastery evidence while remaining separate from solo improvement benchmarking.",
+    stage: "mode" as PageStage,
+    target: "multiplayer-mode",
+  },
+] as const;
+
 function useResponsiveMode() {
   const [screenMode, setScreenMode] = useState<ScreenMode>("desktop");
 
@@ -324,17 +418,17 @@ export default function KnowledgeArenaPage() {
   const [tokenBalance, setTokenBalance] = useState(0);
 
   const [selectedTopic, setSelectedTopic] =
-    useState<KnowledgeArenaTopic | null>(null);
+    useState<KnowledgeArenaTopic | null>("world_explorer");
   const [questions, setQuestions] = useState<KnowledgeArenaQuestion[]>([]);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] =
     useState<KnowledgeArenaAnswer | null>(null);
   const [score, setScore] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
-  const [soloTimerSeconds, setSoloTimerSeconds] = useState<TimerSeconds>(10);
+  const [soloTimerSeconds, setSoloTimerSeconds] = useState<TimerSeconds>(20);
   const [lobbyTimerSecondsChoice, setLobbyTimerSecondsChoice] =
-    useState<TimerSeconds>(10);
-  const [timeLeft, setTimeLeft] = useState<number>(10);
+    useState<TimerSeconds>(20);
+  const [timeLeft, setTimeLeft] = useState<number>(20);
   const [answerLocked, setAnswerLocked] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [nextCountdown, setNextCountdown] = useState(3);
@@ -370,6 +464,32 @@ export default function KnowledgeArenaPage() {
   const [isJoiningLobby, setIsJoiningLobby] = useState(false);
   const [multiplayerMessage, setMultiplayerMessage] = useState("");
 
+  const [novaGuideOpen, setNovaGuideOpen] = useState(false);
+  const [novaGuideStep, setNovaGuideStep] = useState(0);
+  const [novaGuideTargetRect, setNovaGuideTargetRect] = useState<{
+    top: number;
+    left: number;
+    right: number;
+    bottom: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [novaGuideViewport, setNovaGuideViewport] = useState({
+    width: 1440,
+    height: 900,
+  });
+  const [novaGuidePanelSize, setNovaGuidePanelSize] = useState({
+    width: 420,
+    height: 390,
+  });
+  const novaGuidePanelRef = useRef<HTMLElement | null>(null);
+  const novaGuideReturnState = useRef<{
+    stage: PageStage;
+    selectedTopic: KnowledgeArenaTopic | null;
+    selectedChallengeMode: ChallengeMode;
+  } | null>(null);
+
+
   const currentQuestion = questions[questionIndex];
   const selectedTopicInfo = topics.find((topic) => topic.id === selectedTopic);
   const currentQuestionTopicInfo = topics.find(
@@ -398,6 +518,154 @@ export default function KnowledgeArenaPage() {
     if (b.score !== a.score) return b.score - a.score;
     return b.correct_count - a.correct_count;
   });
+
+  // Knowledge Arena is a fixed-screen experience on every device.
+  useEffect(() => {
+    const body = document.body;
+    const html = document.documentElement;
+
+    const previousBodyOverflow = body.style.overflow;
+    const previousBodyOverscroll = body.style.overscrollBehavior;
+    const previousBodyHeight = body.style.height;
+    const previousHtmlOverflow = html.style.overflow;
+    const previousHtmlOverscroll = html.style.overscrollBehavior;
+    const previousHtmlHeight = html.style.height;
+
+    body.style.overflow = "hidden";
+    body.style.overscrollBehavior = "none";
+    body.style.height = "100%";
+    html.style.overflow = "hidden";
+    html.style.overscrollBehavior = "none";
+    html.style.height = "100%";
+
+    return () => {
+      body.style.overflow = previousBodyOverflow;
+      body.style.overscrollBehavior = previousBodyOverscroll;
+      body.style.height = previousBodyHeight;
+      html.style.overflow = previousHtmlOverflow;
+      html.style.overscrollBehavior = previousHtmlOverscroll;
+      html.style.height = previousHtmlHeight;
+    };
+  }, []);
+
+  useEffect(() => {
+    try {
+      const hasSeenGuide = window.localStorage.getItem(
+        "nova-knowledge-arena-guide-seen-v1"
+      );
+
+      if (!hasSeenGuide) {
+        const timer = window.setTimeout(() => {
+          openNovaGuide();
+        }, 500);
+
+        return () => window.clearTimeout(timer);
+      }
+    } catch {
+      // The guide remains available manually when storage is unavailable.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!novaGuideOpen) return;
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        closeNovaGuide();
+      }
+    }
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [novaGuideOpen]);
+
+  useEffect(() => {
+    if (!novaGuideOpen) {
+      setNovaGuideTargetRect(null);
+      return;
+    }
+
+    const step = NOVA_GUIDE_STEPS[novaGuideStep] ?? NOVA_GUIDE_STEPS[0];
+    setStage(step.stage);
+
+    if (step.stage === "solo-mode" && !selectedTopic) {
+      setSelectedTopic("world_explorer");
+    }
+  }, [novaGuideOpen, novaGuideStep]);
+
+  useEffect(() => {
+    if (!novaGuideOpen) return;
+
+    let animationFrame = 0;
+    let settleTimer = 0;
+    let observer: ResizeObserver | null = null;
+
+    const step = NOVA_GUIDE_STEPS[novaGuideStep] ?? NOVA_GUIDE_STEPS[0];
+
+    function findTarget() {
+      return document.querySelector<HTMLElement>(
+        `[data-nova-guide-target="${step.target}"]`
+      );
+    }
+
+    function measureGuide() {
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(() => {
+        const target = findTarget();
+        setNovaGuideViewport({
+          width: window.innerWidth,
+          height: window.innerHeight,
+        });
+
+        if (!target) {
+          setNovaGuideTargetRect(null);
+        } else {
+          const rect = target.getBoundingClientRect();
+          setNovaGuideTargetRect({
+            top: rect.top,
+            left: rect.left,
+            right: rect.right,
+            bottom: rect.bottom,
+            width: rect.width,
+            height: rect.height,
+          });
+        }
+
+        if (novaGuidePanelRef.current) {
+          const panelRect = novaGuidePanelRef.current.getBoundingClientRect();
+          setNovaGuidePanelSize({
+            width: panelRect.width,
+            height: panelRect.height,
+          });
+        }
+      });
+    }
+
+    observer =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(() => measureGuide())
+        : null;
+
+    settleTimer = window.setTimeout(() => {
+      const target = findTarget();
+      if (target) observer?.observe(target);
+      if (novaGuidePanelRef.current) {
+        observer?.observe(novaGuidePanelRef.current);
+      }
+      measureGuide();
+    }, 120);
+
+    window.addEventListener("resize", measureGuide);
+    window.addEventListener("scroll", measureGuide, true);
+
+    return () => {
+      window.clearTimeout(settleTimer);
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("resize", measureGuide);
+      window.removeEventListener("scroll", measureGuide, true);
+      observer?.disconnect();
+    };
+  }, [novaGuideOpen, novaGuideStep, stage, selectedTopic, selectedChallengeMode]);
 
   useEffect(() => {
     async function loadUser() {
@@ -448,6 +716,7 @@ export default function KnowledgeArenaPage() {
 
   useEffect(() => {
     if (stage !== "solo-quiz" && stage !== "multiplayer-quiz") return;
+    if (novaGuideOpen) return;
     if (answerLocked || !currentQuestion) return;
 
     if (timeLeft <= 0) {
@@ -460,10 +729,11 @@ export default function KnowledgeArenaPage() {
     }, 1000);
 
     return () => window.clearTimeout(timer);
-  }, [stage, timeLeft, answerLocked, currentQuestion]);
+  }, [stage, timeLeft, answerLocked, currentQuestion, novaGuideOpen]);
 
   useEffect(() => {
     if (stage !== "solo-quiz" && stage !== "multiplayer-quiz") return;
+    if (novaGuideOpen) return;
     if (!answerLocked) return;
 
     if (nextCountdown <= 0) {
@@ -476,7 +746,7 @@ export default function KnowledgeArenaPage() {
     }, 1000);
 
     return () => window.clearTimeout(timer);
-  }, [stage, answerLocked, nextCountdown]);
+  }, [stage, answerLocked, nextCountdown, novaGuideOpen]);
 
   useEffect(() => {
     if (!lobby?.id) return;
@@ -622,11 +892,7 @@ export default function KnowledgeArenaPage() {
       setLoadError(
         planError?.message || "Nova could not build this challenge right now."
       );
-      setStage(
-        challengeMode === "quick_play" || challengeMode === "expert_challenge"
-          ? "topic"
-          : "solo-mode"
-      );
+      setStage("solo-mode");
       return;
     }
 
@@ -647,11 +913,7 @@ export default function KnowledgeArenaPage() {
         questionError?.message ||
           "This challenge does not have enough eligible questions yet."
       );
-      setStage(
-        challengeMode === "quick_play" || challengeMode === "expert_challenge"
-          ? "topic"
-          : "solo-mode"
-      );
+      setStage("solo-mode");
       return;
     }
 
@@ -679,12 +941,48 @@ export default function KnowledgeArenaPage() {
     setLoadError(null);
     setProfileError(null);
 
-    if (challengeMode === "quick_play" || challengeMode === "expert_challenge") {
-      setStage("topic");
+    if (
+      challengeMode === "focus_mission" &&
+      knowledgeProfile?.recommended_topic
+    ) {
+      setSelectedTopic(knowledgeProfile.recommended_topic);
+    }
+  }
+
+  function startConfiguredSoloChallenge() {
+    setLoadError(null);
+
+    if (
+      (selectedChallengeMode === "focus_mission" ||
+        selectedChallengeMode === "nova_challenge") &&
+      !userId
+    ) {
+      setLoadError("Log in to use Nova's personalised challenge modes.");
       return;
     }
 
-    void startSoloChallenge(challengeMode);
+    if (
+      selectedChallengeMode === "quick_play" ||
+      selectedChallengeMode === "expert_challenge"
+    ) {
+      if (!selectedTopic) {
+        setLoadError("Choose a knowledge world first.");
+        return;
+      }
+
+      void startSoloChallenge(selectedChallengeMode, selectedTopic);
+      return;
+    }
+
+    void startSoloChallenge(selectedChallengeMode);
+  }
+
+  function startFocusFromResults() {
+    setSelectedChallengeMode("focus_mission");
+    if (knowledgeProfile?.recommended_topic) {
+      setSelectedTopic(knowledgeProfile.recommended_topic);
+    }
+    void startSoloChallenge("focus_mission");
   }
 
   async function loadQuestionsByIds(questionIds: string[]) {
@@ -853,7 +1151,7 @@ export default function KnowledgeArenaPage() {
     }
 
     setLobby(foundLobby);
-    setLobbyTimerSecondsChoice(foundLobby.timer_seconds ?? 10);
+    setLobbyTimerSecondsChoice(foundLobby.timer_seconds ?? 20);
     setMyPlayer(playerData as LobbyPlayer);
     setSelectedTopic(foundLobby.topic);
     await loadLobbyState(foundLobby.id);
@@ -877,7 +1175,7 @@ export default function KnowledgeArenaPage() {
     if (lobbyData) {
       const nextLobby = lobbyData as Lobby;
       setLobby(nextLobby);
-      setLobbyTimerSecondsChoice(nextLobby.timer_seconds ?? 10);
+      setLobbyTimerSecondsChoice(nextLobby.timer_seconds ?? 20);
     }
 
     const nextPlayers = (playerData || []) as LobbyPlayer[];
@@ -1189,9 +1487,45 @@ export default function KnowledgeArenaPage() {
     await loadLobbyState(lobby.id);
   }
 
+  function rememberNovaGuideSeen() {
+    try {
+      window.localStorage.setItem("nova-knowledge-arena-guide-seen-v1", "1");
+    } catch {
+      // Storage is optional.
+    }
+  }
+
+  function openNovaGuide() {
+    if (!novaGuideOpen) {
+      novaGuideReturnState.current = {
+        stage,
+        selectedTopic,
+        selectedChallengeMode,
+      };
+    }
+
+    setNovaGuideStep(0);
+    setNovaGuideOpen(true);
+  }
+
+  function closeNovaGuide() {
+    rememberNovaGuideSeen();
+    setNovaGuideOpen(false);
+    setNovaGuideTargetRect(null);
+
+    const returnState = novaGuideReturnState.current;
+    if (returnState) {
+      setStage(returnState.stage);
+      setSelectedTopic(returnState.selectedTopic);
+      setSelectedChallengeMode(returnState.selectedChallengeMode);
+    }
+
+    novaGuideReturnState.current = null;
+  }
+
   function resetAll() {
     setStage("mode");
-    setSelectedTopic(null);
+    setSelectedTopic("world_explorer");
     setQuestions([]);
     setLobby(null);
     setPlayers([]);
@@ -1200,11 +1534,13 @@ export default function KnowledgeArenaPage() {
     setMultiplayerMessage("");
     setLoadError(null);
     setSelectedChallengeMode("quick_play");
+    setSoloTimerSeconds(20);
+    setLobbyTimerSecondsChoice(20);
     setActiveChallengePlan(null);
     setProfileAtChallengeStart(null);
     setProfileAfterAttempt(null);
     setLastTopicResults([]);
-    resetQuestionState(soloTimerSeconds);
+    resetQuestionState(20);
   }
 
   function getAnswerStyle(label: KnowledgeArenaAnswer): CSSProperties {
@@ -1242,312 +1578,627 @@ export default function KnowledgeArenaPage() {
     };
   }
 
+
+  const hideHero = [
+    "loading",
+    "solo-quiz",
+    "solo-results",
+    "waiting-lobby",
+    "multiplayer-quiz",
+    "multiplayer-results",
+  ].includes(stage);
+
+  const multiplayerStage = [
+    "multiplayer-menu",
+    "create-lobby",
+    "join-lobby",
+    "waiting-lobby",
+    "multiplayer-quiz",
+    "multiplayer-results",
+  ].includes(stage);
+
+  const headerMode =
+    stage === "mode" ? "Choose" : multiplayerStage ? "Multiplayer" : "Single";
+
+  const headerTimer =
+    stage === "solo-quiz" || stage === "solo-results"
+      ? activeTimerSeconds
+      : multiplayerStage
+      ? lobby?.timer_seconds ?? lobbyTimerSecondsChoice
+      : soloTimerSeconds;
+
+  const focusTopic =
+    knowledgeProfile?.recommended_topic ?? selectedTopic ?? "world_explorer";
+
+  const displayedSelectedTopic =
+    selectedChallengeMode === "focus_mission"
+      ? focusTopic
+      : selectedChallengeMode === "nova_challenge"
+      ? null
+      : selectedTopic;
+
+  const personalisedMode =
+    selectedChallengeMode === "focus_mission" ||
+    selectedChallengeMode === "nova_challenge";
+
+  const soloStartDisabled =
+    (personalisedMode && !userId) ||
+    ((selectedChallengeMode === "quick_play" ||
+      selectedChallengeMode === "expert_challenge") &&
+      !selectedTopic);
+
+  const novaGuidePanelPosition = (() => {
+    const margin = 12;
+    const gap = 16;
+    const viewportWidth = Math.max(320, novaGuideViewport.width);
+    const viewportHeight = Math.max(320, novaGuideViewport.height);
+    const panelWidth = Math.min(
+      novaGuidePanelSize.width || 420,
+      viewportWidth - margin * 2
+    );
+    const panelHeight = Math.min(
+      novaGuidePanelSize.height || 390,
+      viewportHeight - margin * 2
+    );
+    const target = novaGuideTargetRect;
+
+    const clamp = (value: number, min: number, max: number) =>
+      Math.min(Math.max(value, min), Math.max(min, max));
+
+    if (!target) {
+      return {
+        left: viewportWidth - panelWidth - margin,
+        top: viewportHeight - panelHeight - margin,
+        width: panelWidth,
+        maxHeight: viewportHeight - margin * 2,
+      };
+    }
+
+    const canFitRight =
+      viewportWidth - target.right >= panelWidth + gap + margin;
+    const canFitLeft = target.left >= panelWidth + gap + margin;
+    const canFitBelow =
+      viewportHeight - target.bottom >= panelHeight + gap + margin;
+    const canFitAbove = target.top >= panelHeight + gap + margin;
+
+    if (canFitRight) {
+      return {
+        left: target.right + gap,
+        top: clamp(
+          target.top + target.height / 2 - panelHeight / 2,
+          margin,
+          viewportHeight - panelHeight - margin
+        ),
+        width: panelWidth,
+        maxHeight: viewportHeight - margin * 2,
+      };
+    }
+
+    if (canFitLeft) {
+      return {
+        left: target.left - panelWidth - gap,
+        top: clamp(
+          target.top + target.height / 2 - panelHeight / 2,
+          margin,
+          viewportHeight - panelHeight - margin
+        ),
+        width: panelWidth,
+        maxHeight: viewportHeight - margin * 2,
+      };
+    }
+
+    if (canFitBelow) {
+      return {
+        left: clamp(
+          target.left + target.width / 2 - panelWidth / 2,
+          margin,
+          viewportWidth - panelWidth - margin
+        ),
+        top: target.bottom + gap,
+        width: panelWidth,
+        maxHeight: Math.max(
+          150,
+          viewportHeight - target.bottom - gap - margin
+        ),
+      };
+    }
+
+    if (canFitAbove) {
+      return {
+        left: clamp(
+          target.left + target.width / 2 - panelWidth / 2,
+          margin,
+          viewportWidth - panelWidth - margin
+        ),
+        top: Math.max(margin, target.top - panelHeight - gap),
+        width: panelWidth,
+        maxHeight: Math.max(150, target.top - gap - margin),
+      };
+    }
+
+    const spaceAbove = Math.max(0, target.top - gap - margin);
+    const spaceBelow = Math.max(
+      0,
+      viewportHeight - target.bottom - gap - margin
+    );
+    const useBelow = spaceBelow >= spaceAbove;
+    const availableHeight = Math.max(150, useBelow ? spaceBelow : spaceAbove);
+
+    return {
+      left: clamp(
+        target.left + target.width / 2 - panelWidth / 2,
+        margin,
+        viewportWidth - panelWidth - margin
+      ),
+      top: useBelow
+        ? target.bottom + gap
+        : Math.max(margin, target.top - gap - Math.min(panelHeight, availableHeight)),
+      width: panelWidth,
+      maxHeight: availableHeight,
+    };
+  })();
+
   return (
-    <main style={pageStyle(isMobile)}>
-      <div style={shellStyle}>
-        <header
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: "12px",
-            flexWrap: "wrap",
-          }}
-        >
-          <Link href="/learning-missions" style={navButtonStyle}>
-            ← Back to Learning Missions
+    <main
+      className={`ka-page ${hideHero ? "ka-page--hero-hidden" : ""}`}
+      style={{
+        backgroundImage: `
+          linear-gradient(180deg, rgba(2,8,19,0.72), rgba(2,8,19,0.91)),
+          radial-gradient(circle at 48% 0%, rgba(83,215,255,0.14), transparent 36%),
+          url("/activities/learning-missions/knowledge-arena/knowledge-arena-bg.png")
+        `,
+      }}
+    >
+      <header className="ka-topbar">
+        <Link href="/learning-missions" className="ka-nav-button ka-back-button">
+          <span className="ka-back-full">← Back to Learning Missions</span>
+          <span className="ka-back-short">← Missions</span>
+        </Link>
+
+        <div className="ka-top-actions">
+          <Link href={userEmail ? "/profile" : "/login"} className="ka-nav-button">
+            {userEmail ? "My Account" : "Log In"}
           </Link>
+          <span className="ka-nav-button">✦ Tokens {tokenBalance}</span>
+        </div>
+      </header>
 
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-            <Link href={userEmail ? "/profile" : "/login"} style={navButtonStyle}>
-              {userEmail ? "My Account" : "Log In"}
-            </Link>
-
-            <span style={navButtonStyle}>✦ Tokens {tokenBalance}</span>
+      {!hideHero && (
+        <section className="ka-hero">
+          <div className="ka-hero-heading">
+            <p>Learning Missions</p>
+            <h1>Knowledge Arena</h1>
           </div>
-        </header>
 
-        <section style={heroStyle(isMobile)}>
-          <div style={{ maxWidth: "780px" }}>
-            <p style={eyebrowStyle}>Learning Missions</p>
-            <h1 style={heroTitleStyle(isMobile)}>Knowledge Arena</h1>
-            <p style={heroCopyStyle(isMobile)}>
-              Pick a knowledge world, choose your pace, and take on a 10-question
-              challenge solo or with friends.
-            </p>
+          <p className="ka-hero-copy">
+            Choose a knowledge world, set your pace, and take on a 10-question challenge.
+          </p>
+
+          <div className="ka-hero-stats">
+            <div>
+              <span>Mode</span>
+              <strong>{headerMode}</strong>
+            </div>
+            <div>
+              <span>Points</span>
+              <strong>{score}</strong>
+            </div>
+            <div className="is-timer">
+              <span>Timer</span>
+              <strong>{headerTimer}s/question</strong>
+            </div>
           </div>
         </section>
+      )}
 
-        {stage === "mode" && (
-          <section style={sectionBlockStyle}>
-            <SectionHeading
-              title="Choose how you want to play"
-              subtitle="Start a solo challenge or enter a multiplayer lobby."
-            />
-
-            <div style={modeGridStyle(isMobile)}>
-              <button
-                type="button"
-                onClick={() => setStage("solo-mode")}
-                style={modeCardStyle("#53d7ff")}
-              >
-                <div style={modeIconStyle}>🎮</div>
+      <section className="ka-viewport">
+        <div className="ka-stage-shell">
+          {stage === "mode" && (
+            <div className="ka-stage ka-mode-stage">
+              <div className="ka-stage-heading">
                 <div>
-                  <h2 style={modeTitleStyle}>Single Player</h2>
-                  <p style={modeCopyStyle}>
-                    Play a fast 10-question challenge on your own, with a 10s or
-                    20s timer.
-                  </p>
+                  <p className="ka-kicker">Choose Mode</p>
+                  <h2>How do you want to play?</h2>
                 </div>
-                <div style={primaryActionStyle}>Start Solo Challenge ›</div>
-              </button>
+                <p>Solo challenges use Nova mastery. Multiplayer shares one world and timer.</p>
+              </div>
 
-              <button
-                type="button"
-                onClick={() => setStage("multiplayer-menu")}
-                style={modeCardStyle("#b9a9ff")}
+              <div
+                className="ka-mode-grid"
+                data-nova-guide-target="play-mode"
               >
-                <div style={modeIconStyle}>👥</div>
-                <div>
-                  <h2 style={modeTitleStyle}>Multiplayer</h2>
-                  <p style={modeCopyStyle}>
-                    Create or join a lobby. The host chooses the topic and timer.
-                  </p>
-                </div>
-                <div style={primaryActionStyle}>Enter Multiplayer ›</div>
-              </button>
+                <button
+                  type="button"
+                  className="ka-mode-card is-single"
+                  onClick={() => setStage("solo-mode")}
+                >
+                  <span className="ka-mode-icon">⚡</span>
+                  <span className="ka-mode-copy">
+                    <small>Personal challenge</small>
+                    <strong>Single Player</strong>
+                    <span>
+                      Choose a world, timer and challenge type on one screen.
+                    </span>
+                  </span>
+                  <span className="ka-mode-action">Start Solo →</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="ka-mode-card is-multi"
+                  onClick={() => setStage("multiplayer-menu")}
+                  data-nova-guide-target="multiplayer-mode"
+                >
+                  <span className="ka-mode-icon">◈</span>
+                  <span className="ka-mode-copy">
+                    <small>Shared arena</small>
+                    <strong>Multiplayer</strong>
+                    <span>
+                      Create or join a lobby and answer the same 10 questions.
+                    </span>
+                  </span>
+                  <span className="ka-mode-action">Enter Multiplayer →</span>
+                </button>
+              </div>
+
+              <div className="ka-mode-footer">
+                <span>20s default</span>
+                <span>10 questions</span>
+                <span>100-point maximum per correct answer</span>
+              </div>
             </div>
-          </section>
-        )}
+          )}
 
-        {stage === "solo-mode" && (
-          <section style={sectionBlockStyle}>
-            <TopBar label="Single Player" onBack={() => setStage("mode")} />
-            <TimerSelector
-              title="Question Timer"
-              value={soloTimerSeconds}
-              onChange={setSoloTimerSeconds}
-            />
-
-            <ChallengeModePicker
-              profile={knowledgeProfile}
-              isSignedIn={Boolean(userId)}
-              isMobile={isMobile}
-              onChoose={chooseSoloChallengeMode}
-            />
-
-            {profileError && <p style={errorStyle}>{profileError}</p>}
-
-            <KnowledgeProfilePanel
-              profile={knowledgeProfile}
-              loading={profileLoading}
-              error={profileError}
-              onStartFocus={() => chooseSoloChallengeMode("focus_mission")}
-            />
-          </section>
-        )}
-
-        {stage === "topic" && (
-          <section style={sectionBlockStyle}>
-            <TopBar
-              label={challengeModeMeta[selectedChallengeMode].title}
-              onBack={() => setStage("solo-mode")}
-            />
-            <TimerSelector
-              title="Question Timer"
-              value={soloTimerSeconds}
-              onChange={setSoloTimerSeconds}
-            />
-            <TopicPicker
-              isMobile={isMobile}
-              isCompact={isCompact}
-              title={
-                selectedChallengeMode === "expert_challenge"
-                  ? "Choose a knowledge world for your Expert Challenge."
-                  : "Choose a knowledge world to begin Quick Play."
-              }
-              buttonText={
-                selectedChallengeMode === "expert_challenge"
-                  ? "Start Expert Challenge"
-                  : "Start Quiz"
-              }
-              onPick={(topic) =>
-                void startSoloChallenge(selectedChallengeMode, topic)
-              }
-              loadError={loadError}
-              profile={knowledgeProfile}
-            />
-          </section>
-        )}
-
-        {stage === "multiplayer-menu" && (
-          <section style={sectionBlockStyle}>
-            <TopBar label="Multiplayer" onBack={() => setStage("mode")} />
-
-            <div style={modeGridStyle(isMobile)}>
-              <button
-                type="button"
-                onClick={() => setStage("create-lobby")}
-                style={modeCardStyle("#53d7ff")}
-              >
-                <div style={modeIconStyle}>🛰️</div>
+          {(stage === "solo-mode" || stage === "topic") && (
+            <div className="ka-stage ka-solo-setup">
+              <div className="ka-stage-toolbar">
+                <button
+                  type="button"
+                  className="ka-inline-back"
+                  onClick={() => setStage("mode")}
+                >
+                  ← Back
+                </button>
                 <div>
-                  <h2 style={modeTitleStyle}>Create Lobby</h2>
-                  <p style={modeCopyStyle}>
-                    Choose a topic and timer, then share your lobby code.
-                  </p>
+                  <p className="ka-kicker">Single Player</p>
+                  <strong>Build your challenge</strong>
                 </div>
-                <div style={primaryActionStyle}>Create Lobby ›</div>
-              </button>
+              </div>
 
-              <button
-                type="button"
-                onClick={() => setStage("join-lobby")}
-                style={modeCardStyle("#ffd76a")}
-              >
-                <div style={modeIconStyle}>🔑</div>
-                <div>
-                  <h2 style={modeTitleStyle}>Join Lobby</h2>
-                  <p style={modeCopyStyle}>
-                    Enter a lobby code from the host and get ready to compete.
-                  </p>
-                </div>
-                <div style={primaryActionStyle}>Join Lobby ›</div>
-              </button>
-            </div>
-          </section>
-        )}
-
-        {stage === "create-lobby" && (
-          <section style={sectionBlockStyle}>
-            <TopBar label="Create Lobby" onBack={() => setStage("multiplayer-menu")} />
-            <div style={stackStyle}>
-              <NameInput
-                displayName={displayName}
-                setDisplayName={setDisplayName}
+              <KnowledgeProfileStrip
+                profile={knowledgeProfile}
+                loading={profileLoading}
+                error={profileError}
               />
-              <TimerSelector
-                title="Lobby Timer"
-                value={lobbyTimerSecondsChoice}
-                onChange={setLobbyTimerSecondsChoice}
-              />
-            </div>
-            <TopicPicker
-              isMobile={isMobile}
-              isCompact={isCompact}
-              title="Choose a topic world for the lobby."
-              buttonText={isCreatingLobby ? "Creating..." : "Create Lobby"}
-              onPick={(topic) => createLobby(topic)}
-              loadError={loadError || multiplayerMessage}
-              disabled={isCreatingLobby}
-            />
-          </section>
-        )}
 
-        {stage === "join-lobby" && (
-          <section style={sectionBlockStyle}>
-            <TopBar label="Join Lobby" onBack={() => setStage("multiplayer-menu")} />
-            <div style={joinCardStyle}>
-              <div style={stackStyle}>
-                <NameInput
-                  displayName={displayName}
-                  setDisplayName={setDisplayName}
+              <div className="ka-setup-section">
+                <div className="ka-setup-label-row">
+                  <div>
+                    <span>Choose World</span>
+                    <small>
+                      {selectedChallengeMode === "nova_challenge"
+                        ? "Nova Challenge mixes all four worlds."
+                        : selectedChallengeMode === "focus_mission"
+                        ? `Nova focus: ${topicTitle(focusTopic)}`
+                        : "Select the world you want to play."}
+                    </small>
+                  </div>
+                </div>
+
+                <ArenaWorldGrid
+                  profile={knowledgeProfile}
+                  selectedTopic={displayedSelectedTopic}
+                  mixed={selectedChallengeMode === "nova_challenge"}
+                  focusTopic={
+                    selectedChallengeMode === "focus_mission"
+                      ? focusTopic
+                      : null
+                  }
+                  onSelect={(topic) => {
+                    if (
+                      selectedChallengeMode !== "focus_mission" &&
+                      selectedChallengeMode !== "nova_challenge"
+                    ) {
+                      setSelectedTopic(topic);
+                    }
+                  }}
+                  locked={
+                    selectedChallengeMode === "focus_mission" ||
+                    selectedChallengeMode === "nova_challenge"
+                  }
                 />
+              </div>
 
-                <label style={fieldLabelStyle}>
-                  <span style={fieldCaptionStyle}>Lobby Code</span>
+              <div className="ka-setup-lower">
+                <div data-nova-guide-target="timer">
+                  <ArenaTimerSelector
+                    title="Question Timer"
+                    value={soloTimerSeconds}
+                    onChange={setSoloTimerSeconds}
+                  />
+                </div>
+
+                <ArenaChallengeGrid
+                  profile={knowledgeProfile}
+                  isSignedIn={Boolean(userId)}
+                  selectedMode={selectedChallengeMode}
+                  onSelect={chooseSoloChallengeMode}
+                />
+              </div>
+
+              {loadError && <p className="ka-error-banner">{loadError}</p>}
+
+              <button
+                type="button"
+                className="ka-start-button"
+                disabled={soloStartDisabled}
+                onClick={startConfiguredSoloChallenge}
+              >
+                {selectedChallengeMode === "focus_mission" &&
+                knowledgeProfile?.recommended_topic_title
+                  ? `Start Focus Mission · ${knowledgeProfile.recommended_topic_title}`
+                  : `Start ${challengeModeMeta[selectedChallengeMode].title}`}
+              </button>
+            </div>
+          )}
+
+          {stage === "multiplayer-menu" && (
+            <div className="ka-stage ka-mode-stage">
+              <div className="ka-stage-toolbar">
+                <button
+                  type="button"
+                  className="ka-inline-back"
+                  onClick={() => setStage("mode")}
+                >
+                  ← Back
+                </button>
+                <div>
+                  <p className="ka-kicker">Multiplayer</p>
+                  <strong>Create or join a shared arena</strong>
+                </div>
+              </div>
+
+              <div className="ka-mode-grid">
+                <button
+                  type="button"
+                  className="ka-mode-card is-single"
+                  onClick={() => setStage("create-lobby")}
+                >
+                  <span className="ka-mode-icon">⌁</span>
+                  <span className="ka-mode-copy">
+                    <small>Host</small>
+                    <strong>Create Lobby</strong>
+                    <span>Choose a world and timer, then share the code.</span>
+                  </span>
+                  <span className="ka-mode-action">Create →</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="ka-mode-card is-multi"
+                  onClick={() => setStage("join-lobby")}
+                >
+                  <span className="ka-mode-icon">⌘</span>
+                  <span className="ka-mode-copy">
+                    <small>Player</small>
+                    <strong>Join Lobby</strong>
+                    <span>Enter the six-character code from your host.</span>
+                  </span>
+                  <span className="ka-mode-action">Join →</span>
+                </button>
+              </div>
+
+              {!userId && (
+                <p className="ka-error-banner">
+                  Log in before creating or joining a multiplayer lobby.
+                </p>
+              )}
+            </div>
+          )}
+
+          {stage === "create-lobby" && (
+            <div className="ka-stage ka-create-stage">
+              <div className="ka-stage-toolbar">
+                <button
+                  type="button"
+                  className="ka-inline-back"
+                  onClick={() => setStage("multiplayer-menu")}
+                >
+                  ← Back
+                </button>
+                <div>
+                  <p className="ka-kicker">Create Lobby</p>
+                  <strong>Host settings</strong>
+                </div>
+              </div>
+
+              <div className="ka-create-controls">
+                <label className="ka-field">
+                  <span>Player Name</span>
                   <input
+                    value={displayName}
+                    onChange={(event) => setDisplayName(event.target.value)}
+                    placeholder="Enter your player name"
+                  />
+                </label>
+
+                <ArenaTimerSelector
+                  title="Lobby Timer"
+                  value={lobbyTimerSecondsChoice}
+                  onChange={setLobbyTimerSecondsChoice}
+                />
+              </div>
+
+              <div className="ka-setup-section ka-create-worlds">
+                <div className="ka-setup-label-row">
+                  <div>
+                    <span>Choose World</span>
+                    <small>The host chooses one shared world for everyone.</small>
+                  </div>
+                </div>
+                <ArenaWorldGrid
+                  profile={knowledgeProfile}
+                  selectedTopic={selectedTopic}
+                  mixed={false}
+                  focusTopic={null}
+                  onSelect={setSelectedTopic}
+                  locked={false}
+                />
+              </div>
+
+              {(loadError || multiplayerMessage) && (
+                <p className="ka-error-banner">
+                  {loadError || multiplayerMessage}
+                </p>
+              )}
+
+              <button
+                type="button"
+                className="ka-start-button"
+                disabled={isCreatingLobby || !selectedTopic}
+                onClick={() =>
+                  selectedTopic && void createLobby(selectedTopic)
+                }
+              >
+                {isCreatingLobby ? "Creating Lobby…" : "Create Lobby"}
+              </button>
+            </div>
+          )}
+
+          {stage === "join-lobby" && (
+            <div className="ka-stage ka-form-stage">
+              <div className="ka-stage-toolbar">
+                <button
+                  type="button"
+                  className="ka-inline-back"
+                  onClick={() => setStage("multiplayer-menu")}
+                >
+                  ← Back
+                </button>
+                <div>
+                  <p className="ka-kicker">Join Lobby</p>
+                  <strong>Enter your lobby details</strong>
+                </div>
+              </div>
+
+              <div className="ka-form-card">
+                <label className="ka-field">
+                  <span>Player Name</span>
+                  <input
+                    value={displayName}
+                    onChange={(event) => setDisplayName(event.target.value)}
+                    placeholder="Enter your player name"
+                  />
+                </label>
+
+                <label className="ka-field">
+                  <span>Lobby Code</span>
+                  <input
+                    className="ka-code-input"
                     value={joinCode}
                     onChange={(event) =>
                       setJoinCode(
-                        event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "")
+                        event.target.value
+                          .toUpperCase()
+                          .replace(/[^A-Z0-9]/g, "")
                       )
                     }
                     placeholder="ABC123"
                     maxLength={6}
-                    style={{
-                      ...inputStyle,
-                      textAlign: "center",
-                      letterSpacing: "0.18em",
-                      textTransform: "uppercase",
-                      fontSize: "22px",
-                      fontWeight: 900,
-                    }}
                   />
                 </label>
 
+                {multiplayerMessage && (
+                  <p className="ka-error-banner">{multiplayerMessage}</p>
+                )}
+
                 <button
                   type="button"
-                  onClick={joinLobby}
+                  className="ka-start-button"
                   disabled={isJoiningLobby}
-                  style={{ ...mainButtonStyle, width: "100%" }}
+                  onClick={() => void joinLobby()}
                 >
-                  {isJoiningLobby ? "Joining..." : "Join Lobby"}
+                  {isJoiningLobby ? "Joining…" : "Join Lobby"}
                 </button>
               </div>
-
-              {multiplayerMessage && <p style={errorStyle}>{multiplayerMessage}</p>}
             </div>
-          </section>
-        )}
+          )}
 
-        {stage === "waiting-lobby" && lobby && (
-          <section style={sectionBlockStyle}>
-            <TopBar label="Lobby Waiting Room" onBack={resetAll} backLabel="Leave lobby" />
-            <div style={waitingShellStyle}>
-              <p style={eyebrowStyle}>Lobby Code</p>
-              <h2 style={lobbyCodeStyle(isMobile)}>{lobby.code}</h2>
-              <div style={waitingMetaRowStyle}>
-                <StatusPill
-                  label="Topic"
-                  value={topics.find((topic) => topic.id === lobby.topic)?.title ?? "—"}
-                />
-                <StatusPill label="Timer" value={`${lobby.timer_seconds}s`} />
-                <StatusPill label="Players" value={String(players.length)} />
+          {stage === "waiting-lobby" && lobby && (
+            <div className="ka-stage ka-waiting-stage">
+              <div className="ka-stage-toolbar">
+                <button
+                  type="button"
+                  className="ka-inline-back"
+                  onClick={resetAll}
+                >
+                  ← Leave lobby
+                </button>
+                <div>
+                  <p className="ka-kicker">Waiting Room</p>
+                  <strong>{topicTitle(lobby.topic)}</strong>
+                </div>
               </div>
 
-              <div style={waitingPlayersGridStyle}>
-                {players.map((player) => (
-                  <div key={player.id} style={playerTileStyle}>
-                    <strong>{player.display_name}</strong>
-                    <span style={{ color: player.is_host ? "#ffd76a" : "rgba(255,255,255,0.72)" }}>
-                      {player.is_host ? "Host" : "Player"}
-                    </span>
+              <div className="ka-waiting-layout">
+                <div className="ka-lobby-code-card">
+                  <span>Lobby Code</span>
+                  <strong>{lobby.code}</strong>
+                  <small>{lobby.timer_seconds}s per question</small>
+                </div>
+
+                <div className="ka-player-panel">
+                  <div className="ka-panel-heading">
+                    <span>Players</span>
+                    <strong>{players.length}</strong>
                   </div>
-                ))}
+                  <div className="ka-player-scroll">
+                    {players.map((player) => (
+                      <div key={player.id} className="ka-player-row">
+                        <strong>{player.display_name}</strong>
+                        <span>{player.is_host ? "Host" : "Player"}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
+
+              {multiplayerMessage && (
+                <p className="ka-error-banner">{multiplayerMessage}</p>
+              )}
 
               {isHost ? (
                 <button
                   type="button"
-                  onClick={startMultiplayerGame}
-                  style={{ ...mainButtonStyle, marginTop: "10px" }}
+                  className="ka-start-button"
+                  onClick={() => void startMultiplayerGame()}
                 >
                   Start Game
                 </button>
               ) : (
-                <p style={helperTextStyle}>Waiting for the host to start the game.</p>
+                <div className="ka-waiting-message">
+                  Waiting for the host to start the game.
+                </div>
               )}
             </div>
-          </section>
-        )}
+          )}
 
-        {stage === "loading" && (
-          <section style={sectionBlockStyle}>
-            <MessageCard message={loadingMessage} />
-          </section>
-        )}
+          {stage === "loading" && (
+            <div className="ka-stage ka-loading-stage">
+              <div className="ka-loader-orb">✦</div>
+              <p className="ka-kicker">Nova is preparing your challenge</p>
+              <h2>{loadingMessage}</h2>
+            </div>
+          )}
 
-        {(stage === "solo-quiz" || stage === "multiplayer-quiz") &&
-          currentQuestion &&
-          (currentQuestionTopicInfo || selectedTopicInfo) && (
-            <section style={sectionBlockStyle}>
-              <QuizView
-                isMobile={isMobile}
-                isCompact={isCompact}
+          {(stage === "solo-quiz" || stage === "multiplayer-quiz") &&
+            currentQuestion && (
+              <ArenaQuizView
                 isSolo={stage === "solo-quiz"}
-                topicTitle={(currentQuestionTopicInfo || selectedTopicInfo)?.title || "Knowledge Arena"}
-                topicAccent={(currentQuestionTopicInfo || selectedTopicInfo)?.accent || "#7ee8ff"}
+                topicTitle={
+                  (currentQuestionTopicInfo || selectedTopicInfo)?.title ||
+                  "Knowledge Arena"
+                }
                 challengeLabel={
                   stage === "solo-quiz"
                     ? challengeModeMeta[selectedChallengeMode].title
@@ -1556,6 +2207,7 @@ export default function KnowledgeArenaPage() {
                 question={currentQuestion}
                 questionIndex={questionIndex}
                 score={score}
+                correctCount={correctCount}
                 timeLeft={timeLeft}
                 timerSeconds={activeTimerSeconds}
                 nextCountdown={nextCountdown}
@@ -1563,27 +2215,18 @@ export default function KnowledgeArenaPage() {
                 selectedAnswer={selectedAnswer}
                 feedback={feedback}
                 getAnswerStyle={getAnswerStyle}
-                onChoose={(answer) => lockAnswer(answer)}
+                onChoose={(answer) => void lockAnswer(answer)}
                 onNext={() => void nextQuestion()}
                 onBack={
                   stage === "solo-quiz"
-                    ? () =>
-                        setStage(
-                          selectedChallengeMode === "quick_play" ||
-                            selectedChallengeMode === "expert_challenge"
-                            ? "topic"
-                            : "solo-mode"
-                        )
+                    ? () => setStage("solo-mode")
                     : resetAll
                 }
               />
-            </section>
-          )}
+            )}
 
-        {stage === "solo-results" && (
-          <section style={sectionBlockStyle}>
-            <ResultsPanel
-              title="Challenge Complete"
+          {stage === "solo-results" && (
+            <ArenaResultsPanel
               challengeMode={selectedChallengeMode}
               score={score}
               correctCount={correctCount}
@@ -1594,28 +2237,32 @@ export default function KnowledgeArenaPage() {
               beforeProfile={profileAtChallengeStart}
               afterProfile={profileAfterAttempt}
               topicResults={lastTopicResults}
-              onStartFocus={() => chooseSoloChallengeMode("focus_mission")}
-              onPrimary={() => setStage("solo-mode")}
-              primaryLabel="Choose Next Challenge"
-              onSecondary={resetAll}
-              secondaryLabel="Exit Knowledge Arena"
+              onStartFocus={startFocusFromResults}
+              onNextChallenge={() => setStage("solo-mode")}
+              onExit={resetAll}
             />
-          </section>
-        )}
+          )}
 
-        {stage === "multiplayer-results" && (
-          <section style={sectionBlockStyle}>
-            <div style={resultsShellStyle}>
-              <p style={eyebrowStyle}>Multiplayer Complete</p>
-              <h2 style={resultsTitleStyle}>Leaderboard</h2>
+          {stage === "multiplayer-results" && (
+            <div className="ka-stage ka-multi-results">
+              <div className="ka-results-heading">
+                <div>
+                  <p className="ka-kicker">Multiplayer Complete</p>
+                  <h2>Leaderboard</h2>
+                </div>
+                <div className="ka-result-score">
+                  <span>Your score</span>
+                  <strong>{score}</strong>
+                </div>
+              </div>
 
               {attemptSaveMessage && (
-                <p style={messageBannerStyle}>{attemptSaveMessage}</p>
+                <p className="ka-message-banner">{attemptSaveMessage}</p>
               )}
 
-              <div style={leaderboardListStyle}>
+              <div className="ka-leaderboard-scroll">
                 {leaderboard.map((player, index) => (
-                  <div key={player.id} style={leaderboardRowStyle}>
+                  <div key={player.id} className="ka-leaderboard-row">
                     <strong>
                       #{index + 1} {player.display_name}
                     </strong>
@@ -1626,66 +2273,2306 @@ export default function KnowledgeArenaPage() {
                 ))}
               </div>
 
-              {isHost && lobby?.status !== "finished" && (
+              <div className="ka-results-actions">
+                {isHost && lobby?.status !== "finished" && (
+                  <button
+                    type="button"
+                    className="ka-secondary-button"
+                    onClick={() => void endLobby()}
+                  >
+                    End Lobby
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={endLobby}
-                  style={{ ...mainButtonStyle, marginTop: "24px" }}
+                  className="ka-start-button"
+                  onClick={resetAll}
                 >
-                  End Lobby for Everyone
+                  Back to Mode Select
                 </button>
-              )}
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <button
+        type="button"
+        onClick={openNovaGuide}
+        className="ka-guide-launcher"
+        aria-label="Open Nova Guide"
+      >
+        <span className="ka-guide-mark">✦</span>
+        <span className="ka-guide-copy">
+          <strong>Nova Guide</strong>
+          <small>How Knowledge Arena works</small>
+        </span>
+      </button>
+
+      {novaGuideOpen && (
+        <div className="ka-guide-layer" role="presentation">
+          <button
+            type="button"
+            className="ka-guide-backdrop"
+            aria-label="Close Nova Guide"
+            onClick={closeNovaGuide}
+          />
+
+          {novaGuideTargetRect && (
+            <div
+              className="ka-guide-spotlight"
+              aria-hidden="true"
+              style={{
+                top: Math.max(5, novaGuideTargetRect.top - 7),
+                left: Math.max(5, novaGuideTargetRect.left - 7),
+                width: Math.min(
+                  novaGuideViewport.width -
+                    Math.max(5, novaGuideTargetRect.left - 7) -
+                    5,
+                  novaGuideTargetRect.width + 14
+                ),
+                height: Math.min(
+                  novaGuideViewport.height -
+                    Math.max(5, novaGuideTargetRect.top - 7) -
+                    5,
+                  novaGuideTargetRect.height + 14
+                ),
+              }}
+            />
+          )}
+
+          <aside
+            ref={novaGuidePanelRef}
+            className="ka-guide-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Nova Knowledge Arena guide"
+            style={{
+              left: novaGuidePanelPosition.left,
+              top: novaGuidePanelPosition.top,
+              width: novaGuidePanelPosition.width,
+              maxHeight: novaGuidePanelPosition.maxHeight,
+            }}
+          >
+            <div className="ka-guide-topline">
+              <div className="ka-guide-identity">
+                <span className="ka-guide-avatar">✦</span>
+                <span>
+                  <small>Nova Guide</small>
+                  <strong>Knowledge Arena walkthrough</strong>
+                </span>
+              </div>
 
               <button
                 type="button"
-                onClick={resetAll}
-                style={{ ...backButtonStyle, marginTop: "16px" }}
+                onClick={closeNovaGuide}
+                className="ka-guide-close"
+                aria-label="Close guide"
               >
-                Back to Mode Select
+                ×
               </button>
             </div>
-          </section>
-        )}
-      </div>
+
+            <div className="ka-guide-progress">
+              {NOVA_GUIDE_STEPS.map((step, index) => (
+                <button
+                  key={step.title}
+                  type="button"
+                  onClick={() => setNovaGuideStep(index)}
+                  className={
+                    index === novaGuideStep
+                      ? "is-active"
+                      : index < novaGuideStep
+                      ? "is-complete"
+                      : ""
+                  }
+                  aria-label={`Guide step ${index + 1}: ${step.title}`}
+                >
+                  {index + 1}
+                </button>
+              ))}
+            </div>
+
+            <div className="ka-guide-body">
+              <p className="ka-guide-eyebrow">
+                {NOVA_GUIDE_STEPS[novaGuideStep].eyebrow}
+              </p>
+              <h2>{NOVA_GUIDE_STEPS[novaGuideStep].title}</h2>
+              <p className="ka-guide-description">
+                {NOVA_GUIDE_STEPS[novaGuideStep].description}
+              </p>
+              <div className="ka-guide-tip">
+                <span>◎</span>
+                <p>{NOVA_GUIDE_STEPS[novaGuideStep].detail}</p>
+              </div>
+            </div>
+
+            <div className="ka-guide-actions">
+              <button
+                type="button"
+                className="ka-guide-secondary"
+                disabled={novaGuideStep === 0}
+                onClick={() =>
+                  setNovaGuideStep((current) => Math.max(0, current - 1))
+                }
+              >
+                Back
+              </button>
+
+              <span>
+                {novaGuideStep + 1} / {NOVA_GUIDE_STEPS.length}
+              </span>
+
+              {novaGuideStep < NOVA_GUIDE_STEPS.length - 1 ? (
+                <button
+                  type="button"
+                  className="ka-guide-primary"
+                  onClick={() =>
+                    setNovaGuideStep((current) =>
+                      Math.min(NOVA_GUIDE_STEPS.length - 1, current + 1)
+                    )
+                  }
+                >
+                  Next
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="ka-guide-primary"
+                  onClick={closeNovaGuide}
+                >
+                  Got it
+                </button>
+              )}
+            </div>
+          </aside>
+        </div>
+      )}
+
+      <style jsx global>{`
+        html,
+        body {
+          overscroll-behavior: none;
+        }
+
+        .ka-page {
+          position: fixed;
+          inset: 0;
+          display: flex;
+          width: 100%;
+          height: 100vh;
+          height: 100dvh;
+          min-height: 0;
+          flex-direction: column;
+          overflow: hidden;
+          overscroll-behavior: none;
+          background-size: cover;
+          background-position: center;
+          color: white;
+          font-family: Inter, ui-sans-serif, system-ui, -apple-system,
+            BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .ka-topbar {
+          position: relative;
+          z-index: 20;
+          display: flex;
+          min-height: 48px;
+          flex: 0 0 auto;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          padding: max(6px, env(safe-area-inset-top))
+            max(14px, env(safe-area-inset-right)) 6px
+            max(14px, env(safe-area-inset-left));
+        }
+
+        .ka-top-actions {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+        }
+
+        .ka-nav-button {
+          display: inline-flex;
+          min-height: 36px;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid rgba(126, 232, 255, 0.22);
+          border-radius: 999px;
+          background: rgba(5, 13, 28, 0.76);
+          padding: 0 14px;
+          color: white;
+          font-size: 11px;
+          font-weight: 850;
+          text-decoration: none;
+          box-shadow: 0 10px 26px rgba(0, 0, 0, 0.18);
+          backdrop-filter: blur(16px);
+        }
+
+        .ka-back-short {
+          display: none;
+        }
+
+        .ka-hero {
+          display: flex;
+          min-height: 72px;
+          flex: 0 0 auto;
+          align-items: center;
+          gap: 18px;
+          border-top: 1px solid rgba(255, 255, 255, 0.035);
+          border-bottom: 1px solid rgba(126, 232, 255, 0.11);
+          background: linear-gradient(
+            90deg,
+            rgba(53, 197, 255, 0.095),
+            rgba(76, 109, 255, 0.045) 56%,
+            transparent
+          );
+          padding: 9px max(18px, env(safe-area-inset-right)) 9px
+            max(18px, env(safe-area-inset-left));
+        }
+
+        .ka-hero-heading {
+          display: flex;
+          min-width: max-content;
+          align-items: baseline;
+          gap: 12px;
+        }
+
+        .ka-hero-heading p,
+        .ka-kicker {
+          margin: 0;
+          color: #7ee8ff;
+          font-size: 9px;
+          font-weight: 900;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+        }
+
+        .ka-hero-heading h1 {
+          margin: 0;
+          font-family: Georgia, "Times New Roman", serif;
+          font-size: clamp(31px, 3.8vw, 48px);
+          font-weight: 400;
+          line-height: 0.95;
+        }
+
+        .ka-hero-copy {
+          max-width: 360px;
+          flex: 1 1 320px;
+          margin: 0;
+          color: rgba(255, 255, 255, 0.65);
+          font-size: 11px;
+          line-height: 1.4;
+        }
+
+        .ka-hero-stats {
+          display: grid;
+          width: min(370px, 36vw);
+          flex: 0 1 370px;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 6px;
+          margin-left: auto;
+        }
+
+        .ka-hero-stats > div {
+          min-width: 0;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 11px;
+          background: rgba(255, 255, 255, 0.055);
+          padding: 7px 9px;
+        }
+
+        .ka-hero-stats > div.is-timer {
+          border-color: rgba(126, 232, 255, 0.2);
+          background: rgba(126, 232, 255, 0.075);
+        }
+
+        .ka-hero-stats span {
+          display: block;
+          color: rgba(255, 255, 255, 0.38);
+          font-size: 7px;
+          font-weight: 900;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+        }
+
+        .ka-hero-stats strong {
+          display: block;
+          margin-top: 2px;
+          overflow: hidden;
+          color: white;
+          font-size: 11px;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .ka-viewport {
+          min-height: 0;
+          flex: 1 1 0;
+          overflow: hidden;
+          padding: 7px max(12px, env(safe-area-inset-right))
+            max(9px, env(safe-area-inset-bottom))
+            max(12px, env(safe-area-inset-left));
+        }
+
+        .ka-stage-shell {
+          width: 100%;
+          height: 100%;
+          min-height: 0;
+          overflow: hidden;
+        }
+
+        .ka-stage {
+          display: flex;
+          width: 100%;
+          height: 100%;
+          min-height: 0;
+          flex-direction: column;
+          overflow: hidden;
+          border: 1px solid rgba(126, 232, 255, 0.11);
+          border-radius: 18px;
+          background: rgba(6, 16, 37, 0.44);
+          padding: 13px;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+          backdrop-filter: blur(6px);
+        }
+
+        .ka-stage-heading,
+        .ka-stage-toolbar,
+        .ka-results-heading {
+          display: flex;
+          flex: 0 0 auto;
+          align-items: flex-end;
+          justify-content: space-between;
+          gap: 12px;
+        }
+
+        .ka-stage-heading h2,
+        .ka-results-heading h2 {
+          margin: 4px 0 0;
+          font-size: clamp(20px, 2.6vw, 29px);
+          line-height: 1.05;
+        }
+
+        .ka-stage-heading > p {
+          max-width: 470px;
+          margin: 0;
+          color: rgba(255, 255, 255, 0.48);
+          font-size: 10px;
+          line-height: 1.4;
+          text-align: right;
+        }
+
+        .ka-stage-toolbar {
+          align-items: center;
+        }
+
+        .ka-stage-toolbar > div {
+          min-width: 0;
+        }
+
+        .ka-stage-toolbar > div > strong {
+          display: block;
+          margin-top: 3px;
+          overflow: hidden;
+          font-size: 16px;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .ka-inline-back,
+        .ka-secondary-button {
+          min-height: 34px;
+          flex: 0 0 auto;
+          border: 1px solid rgba(126, 232, 255, 0.19);
+          border-radius: 11px;
+          background: rgba(255, 255, 255, 0.045);
+          padding: 0 11px;
+          color: rgba(255, 255, 255, 0.8);
+          font-size: 10px;
+          font-weight: 850;
+          cursor: pointer;
+        }
+
+        .ka-mode-grid {
+          display: grid;
+          min-height: 0;
+          flex: 1 1 0;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
+          margin-top: 10px;
+        }
+
+        .ka-mode-card {
+          position: relative;
+          display: grid;
+          min-height: 0;
+          grid-template-columns: auto minmax(0, 1fr);
+          grid-template-rows: 1fr auto;
+          gap: 10px 13px;
+          overflow: hidden;
+          border: 1px solid rgba(126, 232, 255, 0.18);
+          border-radius: 18px;
+          background: linear-gradient(
+            145deg,
+            rgba(15, 42, 84, 0.78),
+            rgba(4, 14, 35, 0.91)
+          );
+          padding: clamp(14px, 2.2vh, 22px);
+          color: white;
+          text-align: left;
+          cursor: pointer;
+          transition: transform 160ms ease, border-color 160ms ease;
+        }
+
+        .ka-mode-card.is-multi {
+          border-color: rgba(201, 168, 255, 0.2);
+          background: linear-gradient(
+            145deg,
+            rgba(45, 28, 85, 0.72),
+            rgba(5, 13, 35, 0.92)
+          );
+        }
+
+        .ka-mode-card:hover {
+          transform: translateY(-2px);
+          border-color: rgba(126, 232, 255, 0.42);
+        }
+
+        .ka-mode-icon {
+          display: grid;
+          width: 42px;
+          height: 42px;
+          place-items: center;
+          align-self: start;
+          border: 1px solid rgba(126, 232, 255, 0.24);
+          border-radius: 13px;
+          background: rgba(126, 232, 255, 0.08);
+          color: #7ee8ff;
+          font-size: 18px;
+        }
+
+        .ka-mode-card.is-multi .ka-mode-icon {
+          border-color: rgba(201, 168, 255, 0.25);
+          background: rgba(201, 168, 255, 0.09);
+          color: #c9a8ff;
+        }
+
+        .ka-mode-copy {
+          display: block;
+          min-width: 0;
+        }
+
+        .ka-mode-copy small {
+          display: block;
+          color: #7ee8ff;
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: 0.13em;
+          text-transform: uppercase;
+        }
+
+        .ka-mode-copy strong {
+          display: block;
+          margin-top: 5px;
+          font-size: clamp(19px, 2.5vw, 28px);
+          line-height: 1.05;
+        }
+
+        .ka-mode-copy > span {
+          display: block;
+          max-width: 38rem;
+          margin-top: 7px;
+          color: rgba(255, 255, 255, 0.58);
+          font-size: 11px;
+          line-height: 1.45;
+        }
+
+        .ka-mode-action {
+          grid-column: 1 / -1;
+          align-self: end;
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
+          padding-top: 9px;
+          color: rgba(255, 255, 255, 0.82);
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 0.06em;
+          text-align: right;
+          text-transform: uppercase;
+        }
+
+        .ka-mode-footer {
+          display: flex;
+          flex: 0 0 auto;
+          flex-wrap: wrap;
+          justify-content: center;
+          gap: 6px 18px;
+          margin-top: 9px;
+          border: 1px solid rgba(126, 232, 255, 0.09);
+          border-radius: 11px;
+          background: rgba(126, 232, 255, 0.035);
+          padding: 7px 10px;
+          color: rgba(255, 255, 255, 0.43);
+          font-size: 8px;
+          font-weight: 800;
+          letter-spacing: 0.07em;
+          text-transform: uppercase;
+        }
+
+        .ka-solo-setup,
+        .ka-create-stage {
+          gap: 7px;
+        }
+
+        .ka-profile-strip {
+          display: grid;
+          min-height: 50px;
+          flex: 0 0 auto;
+          grid-template-columns: auto repeat(4, minmax(0, 1fr)) minmax(160px, 1.35fr);
+          align-items: stretch;
+          gap: 5px;
+          border: 1px solid rgba(201, 168, 255, 0.15);
+          border-radius: 12px;
+          background: rgba(201, 168, 255, 0.045);
+          padding: 5px;
+        }
+
+        .ka-profile-overall,
+        .ka-profile-world,
+        .ka-profile-recommendation {
+          display: grid;
+          min-width: 0;
+          align-content: center;
+          border-radius: 9px;
+          background: rgba(255, 255, 255, 0.035);
+          padding: 5px 8px;
+        }
+
+        .ka-profile-overall {
+          min-width: 92px;
+          border: 1px solid rgba(126, 232, 255, 0.13);
+        }
+
+        .ka-profile-strip span,
+        .ka-profile-strip small {
+          overflow: hidden;
+          color: rgba(255, 255, 255, 0.4);
+          font-size: 7px;
+          font-weight: 800;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .ka-profile-strip strong {
+          overflow: hidden;
+          margin-top: 2px;
+          color: white;
+          font-size: 11px;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .ka-profile-overall strong {
+          color: #7ee8ff;
+          font-size: 18px;
+        }
+
+        .ka-profile-recommendation strong {
+          color: #c9a8ff;
+        }
+
+        .ka-profile-recommendation a {
+          margin-top: 2px;
+          color: #7ee8ff;
+          font-size: 7px;
+          font-weight: 900;
+          text-decoration: none;
+        }
+
+        .ka-setup-section {
+          display: flex;
+          min-height: 0;
+          flex: 1 1 0;
+          flex-direction: column;
+          overflow: hidden;
+        }
+
+        .ka-setup-label-row {
+          display: flex;
+          flex: 0 0 auto;
+          align-items: end;
+          justify-content: space-between;
+          gap: 10px;
+        }
+
+        .ka-setup-label-row span {
+          display: block;
+          color: white;
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+
+        .ka-setup-label-row small {
+          display: block;
+          margin-top: 2px;
+          color: rgba(255, 255, 255, 0.4);
+          font-size: 8px;
+        }
+
+        .ka-world-grid {
+          display: grid;
+          min-height: 0;
+          flex: 1 1 0;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 7px;
+          margin-top: 5px;
+        }
+
+        .ka-world-card {
+          position: relative;
+          display: flex;
+          min-height: 0;
+          overflow: hidden;
+          border: 1px solid rgba(126, 232, 255, 0.12);
+          border-radius: 13px;
+          background-position: center;
+          background-size: cover;
+          padding: 0;
+          color: white;
+          text-align: left;
+          cursor: pointer;
+          isolation: isolate;
+        }
+
+        .ka-world-card::before {
+          position: absolute;
+          inset: 0;
+          z-index: -1;
+          background: linear-gradient(
+            180deg,
+            rgba(3, 9, 24, 0.14),
+            rgba(3, 9, 24, 0.9)
+          );
+          content: "";
+        }
+
+        .ka-world-card.is-selected {
+          border: 2px solid rgba(126, 232, 255, 0.86);
+          box-shadow: 0 0 24px rgba(83, 215, 255, 0.2);
+        }
+
+        .ka-world-card.is-focus {
+          border: 2px solid rgba(96, 240, 208, 0.86);
+          box-shadow: 0 0 24px rgba(96, 240, 208, 0.18);
+        }
+
+        .ka-world-card.is-mixed {
+          border-color: rgba(201, 168, 255, 0.42);
+          box-shadow: inset 0 0 28px rgba(201, 168, 255, 0.07);
+        }
+
+        .ka-world-card.is-locked {
+          cursor: default;
+        }
+
+        .ka-world-content {
+          display: flex;
+          width: 100%;
+          min-height: 0;
+          flex-direction: column;
+          justify-content: flex-end;
+          padding: clamp(9px, 1.5vh, 14px);
+        }
+
+        .ka-world-content > small {
+          color: rgba(255, 255, 255, 0.53);
+          font-size: 7px;
+          font-weight: 900;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+
+        .ka-world-content > strong {
+          margin-top: 3px;
+          font-size: clamp(12px, 1.5vw, 17px);
+          line-height: 1.05;
+          text-shadow: 0 2px 10px rgba(0, 0, 0, 0.75);
+        }
+
+        .ka-world-content > span {
+          margin-top: 3px;
+          color: #bff3ff;
+          font-size: 8px;
+          font-weight: 850;
+        }
+
+        .ka-world-content > p {
+          margin: 4px 0 0;
+          overflow: hidden;
+          color: rgba(255, 255, 255, 0.55);
+          font-size: 8px;
+          line-height: 1.3;
+        }
+
+        .ka-setup-lower {
+          display: grid;
+          min-height: 0;
+          flex: 0 0 auto;
+          grid-template-columns: minmax(190px, 0.48fr) minmax(0, 1.52fr);
+          gap: 7px;
+        }
+
+        .ka-timer-selector {
+          display: flex;
+          height: 100%;
+          min-height: 54px;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          border: 1px solid rgba(126, 232, 255, 0.11);
+          border-radius: 12px;
+          background: rgba(255, 255, 255, 0.035);
+          padding: 6px 7px 6px 10px;
+        }
+
+        .ka-timer-selector > span {
+          color: rgba(255, 255, 255, 0.52);
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+
+        .ka-timer-options {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(48px, 1fr));
+          gap: 4px;
+          border-radius: 9px;
+          background: rgba(1, 8, 22, 0.48);
+          padding: 3px;
+        }
+
+        .ka-timer-options button {
+          min-height: 34px;
+          border: 1px solid transparent;
+          border-radius: 7px;
+          background: transparent;
+          color: rgba(255, 255, 255, 0.46);
+          font-size: 9px;
+          font-weight: 900;
+          cursor: pointer;
+        }
+
+        .ka-timer-options button.is-active {
+          border-color: rgba(126, 232, 255, 0.62);
+          background: rgba(126, 232, 255, 0.13);
+          color: #7ee8ff;
+          box-shadow: 0 0 13px rgba(83, 215, 255, 0.12);
+        }
+
+        .ka-challenge-grid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 5px;
+        }
+
+        .ka-challenge-card {
+          min-width: 0;
+          min-height: 54px;
+          border: 1px solid rgba(126, 232, 255, 0.1);
+          border-radius: 12px;
+          background: rgba(255, 255, 255, 0.035);
+          padding: 6px 7px;
+          color: white;
+          text-align: left;
+          cursor: pointer;
+        }
+
+        .ka-challenge-card.is-selected {
+          border: 2px solid rgba(126, 232, 255, 0.62);
+          background: rgba(126, 232, 255, 0.09);
+          box-shadow: 0 0 18px rgba(83, 215, 255, 0.08);
+        }
+
+        .ka-challenge-card:disabled {
+          cursor: not-allowed;
+          opacity: 0.36;
+        }
+
+        .ka-challenge-card > span {
+          display: flex;
+          min-width: 0;
+          align-items: center;
+          gap: 5px;
+        }
+
+        .ka-challenge-card b {
+          color: #7ee8ff;
+          font-size: 11px;
+        }
+
+        .ka-challenge-card strong {
+          overflow: hidden;
+          font-size: 9px;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .ka-challenge-card small {
+          display: block;
+          max-height: 24px;
+          margin-top: 3px;
+          overflow: hidden;
+          color: rgba(255, 255, 255, 0.38);
+          font-size: 7px;
+          line-height: 1.35;
+        }
+
+        .ka-start-button {
+          min-height: 40px;
+          flex: 0 0 auto;
+          border: 1px solid rgba(255, 255, 255, 0.36);
+          border-radius: 11px;
+          background: linear-gradient(90deg, #20b9f2, #4b70ff);
+          padding: 8px 14px;
+          color: white;
+          font-size: 10px;
+          font-weight: 950;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          cursor: pointer;
+          box-shadow: 0 10px 26px rgba(32, 185, 242, 0.16);
+        }
+
+        .ka-start-button:disabled {
+          cursor: not-allowed;
+          opacity: 0.38;
+          filter: saturate(0.6);
+        }
+
+        .ka-error-banner,
+        .ka-message-banner {
+          flex: 0 0 auto;
+          margin: 0;
+          border: 1px solid rgba(255, 215, 106, 0.25);
+          border-radius: 10px;
+          background: rgba(255, 215, 106, 0.075);
+          padding: 6px 9px;
+          color: #ffe8ad;
+          font-size: 8px;
+          font-weight: 750;
+          line-height: 1.35;
+        }
+
+        .ka-create-controls {
+          display: grid;
+          flex: 0 0 auto;
+          grid-template-columns: minmax(0, 1fr) minmax(210px, 0.55fr);
+          gap: 7px;
+        }
+
+        .ka-field {
+          display: grid;
+          gap: 4px;
+        }
+
+        .ka-field > span {
+          color: rgba(255, 255, 255, 0.48);
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+
+        .ka-field input {
+          width: 100%;
+          height: 40px;
+          box-sizing: border-box;
+          border: 1px solid rgba(126, 232, 255, 0.16);
+          border-radius: 10px;
+          outline: 0;
+          background: rgba(3, 10, 25, 0.72);
+          padding: 0 11px;
+          color: white;
+          font-size: 11px;
+        }
+
+        .ka-form-stage {
+          align-items: center;
+        }
+
+        .ka-form-stage > .ka-stage-toolbar {
+          width: 100%;
+        }
+
+        .ka-form-card {
+          display: grid;
+          width: min(100%, 560px);
+          margin: auto;
+          gap: 10px;
+          border: 1px solid rgba(126, 232, 255, 0.12);
+          border-radius: 16px;
+          background: rgba(4, 13, 32, 0.68);
+          padding: clamp(14px, 2.5vh, 22px);
+        }
+
+        .ka-code-input {
+          text-align: center;
+          font-size: 20px !important;
+          font-weight: 900;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+        }
+
+        .ka-waiting-layout {
+          display: grid;
+          min-height: 0;
+          flex: 1 1 0;
+          grid-template-columns: minmax(210px, 0.72fr) minmax(0, 1.28fr);
+          gap: 8px;
+          margin-top: 8px;
+        }
+
+        .ka-lobby-code-card,
+        .ka-player-panel {
+          min-height: 0;
+          overflow: hidden;
+          border: 1px solid rgba(126, 232, 255, 0.12);
+          border-radius: 14px;
+          background: rgba(4, 13, 32, 0.62);
+          padding: 12px;
+        }
+
+        .ka-lobby-code-card {
+          display: grid;
+          place-items: center;
+          align-content: center;
+          text-align: center;
+        }
+
+        .ka-lobby-code-card span,
+        .ka-lobby-code-card small {
+          color: rgba(255, 255, 255, 0.42);
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+        }
+
+        .ka-lobby-code-card strong {
+          margin: 8px 0;
+          color: #7ee8ff;
+          font-size: clamp(28px, 5vw, 54px);
+          letter-spacing: 0.16em;
+        }
+
+        .ka-player-panel {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .ka-panel-heading {
+          display: flex;
+          flex: 0 0 auto;
+          align-items: center;
+          justify-content: space-between;
+          color: rgba(255, 255, 255, 0.54);
+          font-size: 9px;
+          font-weight: 900;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+
+        .ka-panel-heading strong {
+          color: #7ee8ff;
+        }
+
+        .ka-player-scroll,
+        .ka-leaderboard-scroll,
+        .ka-results-scroll {
+          min-height: 0;
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          scrollbar-width: thin;
+          scrollbar-color: rgba(126, 232, 255, 0.24) transparent;
+        }
+
+        .ka-player-scroll {
+          display: grid;
+          gap: 5px;
+          margin-top: 7px;
+        }
+
+        .ka-player-row,
+        .ka-leaderboard-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 9px;
+          background: rgba(255, 255, 255, 0.035);
+          padding: 7px 9px;
+          font-size: 9px;
+        }
+
+        .ka-player-row span,
+        .ka-leaderboard-row span {
+          color: rgba(255, 255, 255, 0.5);
+        }
+
+        .ka-waiting-message {
+          flex: 0 0 auto;
+          border: 1px solid rgba(126, 232, 255, 0.12);
+          border-radius: 10px;
+          background: rgba(126, 232, 255, 0.06);
+          padding: 9px;
+          color: #bff3ff;
+          font-size: 9px;
+          font-weight: 800;
+          text-align: center;
+        }
+
+        .ka-loading-stage {
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+        }
+
+        .ka-loader-orb {
+          display: grid;
+          width: 58px;
+          height: 58px;
+          place-items: center;
+          border: 1px solid rgba(126, 232, 255, 0.3);
+          border-radius: 20px;
+          background: rgba(126, 232, 255, 0.09);
+          color: #7ee8ff;
+          font-size: 24px;
+          box-shadow: 0 0 32px rgba(83, 215, 255, 0.12);
+        }
+
+        .ka-loading-stage h2 {
+          margin: 8px 0 0;
+          font-size: 18px;
+        }
+
+        .ka-quiz-stage {
+          gap: 6px;
+        }
+
+        .ka-quiz-status {
+          display: flex;
+          min-height: 29px;
+          flex: 0 0 auto;
+          align-items: center;
+          gap: 5px;
+        }
+
+        .ka-quiz-status .ka-inline-back {
+          margin-right: auto;
+        }
+
+        .ka-status-chip {
+          min-width: 0;
+          border: 1px solid rgba(126, 232, 255, 0.11);
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.045);
+          padding: 5px 8px;
+          color: rgba(255, 255, 255, 0.53);
+          font-size: 8px;
+          font-weight: 800;
+          white-space: nowrap;
+        }
+
+        .ka-status-chip strong {
+          color: #bff3ff;
+        }
+
+        .ka-quiz-stats {
+          display: grid;
+          min-height: 42px;
+          flex: 0 0 auto;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 5px;
+        }
+
+        .ka-quiz-stat {
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 9px;
+          background: rgba(255, 255, 255, 0.035);
+          padding: 5px 8px;
+        }
+
+        .ka-quiz-stat span {
+          display: block;
+          color: rgba(255, 255, 255, 0.34);
+          font-size: 7px;
+          font-weight: 900;
+          letter-spacing: 0.09em;
+          text-transform: uppercase;
+        }
+
+        .ka-quiz-stat strong {
+          display: block;
+          margin-top: 1px;
+          font-size: 13px;
+        }
+
+        .ka-quiz-layout {
+          display: grid;
+          min-height: 0;
+          flex: 1 1 0;
+          grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+          gap: 7px;
+        }
+
+        .ka-question-panel,
+        .ka-options-panel {
+          min-height: 0;
+          overflow: hidden;
+          border: 1px solid rgba(126, 232, 255, 0.11);
+          border-radius: 13px;
+          background: rgba(4, 13, 32, 0.62);
+        }
+
+        .ka-question-panel {
+          display: flex;
+          flex-direction: column;
+          padding: 11px;
+        }
+
+        .ka-question-topline {
+          display: flex;
+          flex: 0 0 auto;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+        }
+
+        .ka-question-topline > div:first-child span {
+          display: block;
+          color: #7ee8ff;
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+        }
+
+        .ka-question-topline > div:first-child strong {
+          display: block;
+          margin-top: 2px;
+          font-size: 12px;
+        }
+
+        .ka-countdown {
+          display: grid;
+          width: 45px;
+          height: 45px;
+          place-items: center;
+          flex: 0 0 auto;
+          border: 1px solid rgba(126, 232, 255, 0.3);
+          border-radius: 999px;
+          background: rgba(126, 232, 255, 0.07);
+          color: #7ee8ff;
+          font-size: 16px;
+          font-weight: 950;
+        }
+
+        .ka-countdown.is-low {
+          border-color: rgba(252, 165, 165, 0.4);
+          background: rgba(248, 113, 113, 0.08);
+          color: #fca5a5;
+        }
+
+        .ka-question-scroll {
+          min-height: 0;
+          flex: 1 1 0;
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          scrollbar-width: none;
+        }
+
+        .ka-question-scroll::-webkit-scrollbar {
+          display: none;
+        }
+
+        .ka-question-image {
+          display: block;
+          width: 100%;
+          max-height: 34%;
+          margin-top: 6px;
+          object-fit: contain;
+          border-radius: 9px;
+          background: rgba(255, 255, 255, 0.94);
+        }
+
+        .ka-question-text {
+          margin: 8px 0 0;
+          font-size: clamp(15px, 2.1vw, 23px);
+          font-weight: 800;
+          line-height: 1.25;
+        }
+
+        .ka-difficulty {
+          margin: 5px 0 0;
+          color: rgba(255, 255, 255, 0.35);
+          font-size: 7px;
+          font-weight: 800;
+          text-transform: uppercase;
+        }
+
+        .ka-feedback {
+          flex: 0 0 auto;
+          margin-top: 7px;
+          border: 1px solid rgba(126, 232, 255, 0.1);
+          border-radius: 9px;
+          background: rgba(126, 232, 255, 0.05);
+          padding: 7px 8px;
+          color: rgba(255, 255, 255, 0.62);
+          font-size: 8px;
+          line-height: 1.35;
+        }
+
+        .ka-feedback strong {
+          display: block;
+          margin-bottom: 2px;
+          color: #bff3ff;
+        }
+
+        .ka-feedback-footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 7px;
+          margin-top: 5px;
+        }
+
+        .ka-feedback-footer span {
+          color: #7ee8ff;
+          font-size: 7px;
+          font-weight: 900;
+        }
+
+        .ka-next-button {
+          min-height: 29px;
+          border: 1px solid rgba(126, 232, 255, 0.28);
+          border-radius: 8px;
+          background: rgba(126, 232, 255, 0.1);
+          padding: 0 9px;
+          color: #bff3ff;
+          font-size: 7px;
+          font-weight: 900;
+          cursor: pointer;
+        }
+
+        .ka-options-panel {
+          display: grid;
+          grid-template-rows: repeat(4, minmax(0, 1fr));
+          gap: 6px;
+          border: 0;
+          background: transparent;
+        }
+
+        .ka-answer-button {
+          display: grid;
+          min-height: 0;
+          grid-template-columns: 28px minmax(0, 1fr);
+          align-items: center;
+          gap: 8px;
+          overflow: hidden;
+          border-radius: 11px !important;
+          padding: 7px 9px !important;
+          text-align: left;
+          cursor: pointer;
+        }
+
+        .ka-answer-letter {
+          display: grid;
+          width: 27px;
+          height: 27px;
+          place-items: center;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.14);
+          font-size: 9px;
+          font-weight: 950;
+        }
+
+        .ka-answer-text {
+          min-width: 0;
+          max-height: 100%;
+          overflow-y: auto;
+          font-size: clamp(10px, 1.25vw, 13px);
+          line-height: 1.25;
+          scrollbar-width: none;
+        }
+
+        .ka-answer-text::-webkit-scrollbar {
+          display: none;
+        }
+
+        .ka-results-stage,
+        .ka-multi-results {
+          gap: 7px;
+        }
+
+        .ka-results-heading {
+          align-items: center;
+        }
+
+        .ka-result-score {
+          display: grid;
+          flex: 0 0 auto;
+          text-align: right;
+        }
+
+        .ka-result-score span {
+          color: rgba(255, 255, 255, 0.4);
+          font-size: 7px;
+          font-weight: 900;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+
+        .ka-result-score strong {
+          color: #7ee8ff;
+          font-size: 23px;
+        }
+
+        .ka-result-stats {
+          display: grid;
+          flex: 0 0 auto;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 5px;
+        }
+
+        .ka-result-stat {
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 9px;
+          background: rgba(255, 255, 255, 0.035);
+          padding: 6px 8px;
+        }
+
+        .ka-result-stat span {
+          display: block;
+          color: rgba(255, 255, 255, 0.36);
+          font-size: 7px;
+          font-weight: 900;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+
+        .ka-result-stat strong {
+          display: block;
+          margin-top: 2px;
+          font-size: 14px;
+        }
+
+        .ka-results-scroll {
+          flex: 1 1 0;
+          padding-right: 2px;
+        }
+
+        .ka-impact-panel {
+          display: grid;
+          gap: 7px;
+          border: 1px solid rgba(201, 168, 255, 0.14);
+          border-radius: 12px;
+          background: rgba(201, 168, 255, 0.045);
+          padding: 9px;
+        }
+
+        .ka-impact-heading {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+        }
+
+        .ka-impact-heading strong {
+          font-size: 12px;
+        }
+
+        .ka-impact-heading span {
+          color: #c9a8ff;
+          font-size: 8px;
+          font-weight: 900;
+          text-transform: uppercase;
+        }
+
+        .ka-impact-rows {
+          display: grid;
+          gap: 4px;
+        }
+
+        .ka-impact-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.035);
+          padding: 6px 8px;
+          font-size: 8px;
+        }
+
+        .ka-impact-row small {
+          display: block;
+          margin-top: 2px;
+          color: rgba(255, 255, 255, 0.38);
+        }
+
+        .ka-impact-row > div:last-child {
+          text-align: right;
+        }
+
+        .ka-impact-row > div:last-child strong {
+          color: #7ee8ff;
+        }
+
+        .ka-recommendation {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          border: 1px solid rgba(126, 232, 255, 0.12);
+          border-radius: 9px;
+          background: rgba(126, 232, 255, 0.05);
+          padding: 7px 8px;
+        }
+
+        .ka-recommendation span {
+          color: #7ee8ff;
+          font-size: 7px;
+          font-weight: 900;
+          letter-spacing: 0.09em;
+          text-transform: uppercase;
+        }
+
+        .ka-recommendation strong {
+          display: block;
+          margin-top: 2px;
+          font-size: 9px;
+        }
+
+        .ka-recommendation p {
+          margin: 2px 0 0;
+          color: rgba(255, 255, 255, 0.4);
+          font-size: 7px;
+          line-height: 1.3;
+        }
+
+        .ka-analytics-link {
+          display: inline-flex;
+          min-height: 29px;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid rgba(201, 168, 255, 0.2);
+          border-radius: 8px;
+          background: rgba(201, 168, 255, 0.07);
+          padding: 0 9px;
+          color: #d9c7ff;
+          font-size: 7px;
+          font-weight: 900;
+          text-decoration: none;
+        }
+
+        .ka-results-actions {
+          display: grid;
+          flex: 0 0 auto;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 6px;
+        }
+
+        .ka-results-actions .ka-start-button,
+        .ka-results-actions .ka-secondary-button {
+          min-height: 36px;
+        }
+
+        .ka-leaderboard-scroll {
+          display: grid;
+          flex: 1 1 0;
+          gap: 5px;
+        }
+
+        .ka-guide-launcher {
+          position: fixed;
+          top: max(51px, calc(env(safe-area-inset-top) + 47px));
+          right: max(14px, env(safe-area-inset-right));
+          z-index: 70;
+          display: flex;
+          min-height: 43px;
+          align-items: center;
+          gap: 7px;
+          border: 1px solid rgba(126, 232, 255, 0.28);
+          border-radius: 13px;
+          background: linear-gradient(
+            135deg,
+            rgba(6, 24, 48, 0.96),
+            rgba(25, 27, 70, 0.96)
+          );
+          padding: 5px 9px 5px 5px;
+          color: white;
+          box-shadow: 0 14px 38px rgba(0, 0, 0, 0.36),
+            0 0 24px rgba(83, 215, 255, 0.08);
+          cursor: pointer;
+          backdrop-filter: blur(18px);
+        }
+
+        .ka-guide-mark,
+        .ka-guide-avatar {
+          display: grid;
+          place-items: center;
+          border: 1px solid rgba(126, 232, 255, 0.3);
+          background: radial-gradient(
+            circle at 35% 30%,
+            rgba(126, 232, 255, 0.26),
+            rgba(201, 168, 255, 0.08)
+          );
+          color: #7ee8ff;
+        }
+
+        .ka-guide-mark {
+          width: 32px;
+          height: 32px;
+          border-radius: 10px;
+          font-size: 14px;
+        }
+
+        .ka-guide-copy {
+          display: grid;
+          gap: 1px;
+          text-align: left;
+        }
+
+        .ka-guide-copy strong {
+          font-size: 9px;
+          font-weight: 950;
+        }
+
+        .ka-guide-copy small {
+          color: rgba(255, 255, 255, 0.42);
+          font-size: 7px;
+          font-weight: 750;
+        }
+
+        .ka-guide-layer {
+          position: fixed;
+          inset: 0;
+          z-index: 100;
+          pointer-events: none;
+        }
+
+        .ka-guide-backdrop {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          border: 0;
+          background: transparent;
+          pointer-events: auto;
+        }
+
+        .ka-guide-spotlight {
+          position: fixed;
+          z-index: 102;
+          border: 2px solid rgba(126, 232, 255, 0.96);
+          border-radius: 15px;
+          background: transparent;
+          box-shadow: 0 0 0 9999px rgba(0, 4, 14, 0.73),
+            0 0 0 5px rgba(126, 232, 255, 0.12),
+            0 0 36px rgba(83, 215, 255, 0.82),
+            inset 0 0 22px rgba(126, 232, 255, 0.07);
+          pointer-events: none;
+          animation: kaGuidePulse 1.65s ease-in-out infinite alternate;
+          transition: top 180ms ease, left 180ms ease, width 180ms ease,
+            height 180ms ease;
+        }
+
+        .ka-guide-panel {
+          position: absolute;
+          z-index: 104;
+          display: grid;
+          grid-template-rows: auto auto minmax(0, 1fr) auto;
+          overflow: hidden;
+          border: 1px solid rgba(126, 232, 255, 0.22);
+          border-radius: 19px;
+          background: linear-gradient(
+            155deg,
+            rgba(5, 20, 42, 0.99),
+            rgba(6, 10, 28, 0.99)
+          );
+          color: white;
+          box-shadow: 0 28px 80px rgba(0, 0, 0, 0.56),
+            0 0 42px rgba(83, 215, 255, 0.08);
+          pointer-events: auto;
+          backdrop-filter: blur(24px);
+        }
+
+        .ka-guide-topline {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+          padding: 11px 12px 9px;
+        }
+
+        .ka-guide-identity {
+          display: flex;
+          min-width: 0;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .ka-guide-avatar {
+          width: 37px;
+          height: 37px;
+          flex: 0 0 auto;
+          border-radius: 12px;
+          font-size: 16px;
+        }
+
+        .ka-guide-identity > span:last-child {
+          display: grid;
+          min-width: 0;
+          gap: 1px;
+        }
+
+        .ka-guide-identity small {
+          color: #7ee8ff;
+          font-size: 7px;
+          font-weight: 950;
+          letter-spacing: 0.13em;
+          text-transform: uppercase;
+        }
+
+        .ka-guide-identity strong {
+          overflow: hidden;
+          font-size: 12px;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .ka-guide-close {
+          display: grid;
+          width: 30px;
+          height: 30px;
+          place-items: center;
+          flex: 0 0 auto;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.04);
+          color: rgba(255, 255, 255, 0.7);
+          font-size: 18px;
+          cursor: pointer;
+        }
+
+        .ka-guide-progress {
+          display: grid;
+          grid-template-columns: repeat(9, minmax(0, 1fr));
+          gap: 3px;
+          padding: 8px 10px 0;
+        }
+
+        .ka-guide-progress button {
+          height: 22px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 7px;
+          background: rgba(255, 255, 255, 0.025);
+          color: rgba(255, 255, 255, 0.3);
+          font-size: 7px;
+          font-weight: 900;
+          cursor: pointer;
+        }
+
+        .ka-guide-progress button.is-complete {
+          color: rgba(126, 232, 255, 0.68);
+        }
+
+        .ka-guide-progress button.is-active {
+          border-color: rgba(126, 232, 255, 0.48);
+          background: rgba(126, 232, 255, 0.11);
+          color: #7ee8ff;
+        }
+
+        .ka-guide-body {
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          padding: 14px 15px 12px;
+        }
+
+        .ka-guide-eyebrow {
+          margin: 0;
+          color: #c9a8ff;
+          font-size: 8px;
+          font-weight: 950;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+        }
+
+        .ka-guide-body h2 {
+          margin: 5px 0 0;
+          font-family: Georgia, "Times New Roman", serif;
+          font-size: clamp(24px, 4vw, 32px);
+          font-weight: 400;
+          line-height: 1;
+        }
+
+        .ka-guide-description {
+          margin: 9px 0 0;
+          color: rgba(255, 255, 255, 0.66);
+          font-size: 11px;
+          line-height: 1.45;
+        }
+
+        .ka-guide-tip {
+          display: grid;
+          grid-template-columns: 25px minmax(0, 1fr);
+          gap: 7px;
+          margin-top: 10px;
+          border: 1px solid rgba(126, 232, 255, 0.1);
+          border-radius: 11px;
+          background: rgba(126, 232, 255, 0.045);
+          padding: 8px;
+        }
+
+        .ka-guide-tip > span {
+          display: grid;
+          width: 25px;
+          height: 25px;
+          place-items: center;
+          border-radius: 8px;
+          background: rgba(126, 232, 255, 0.08);
+          color: #7ee8ff;
+        }
+
+        .ka-guide-tip p {
+          margin: 0;
+          color: rgba(255, 255, 255, 0.5);
+          font-size: 9px;
+          line-height: 1.4;
+        }
+
+        .ka-guide-actions {
+          display: grid;
+          grid-template-columns: minmax(75px, 1fr) auto minmax(75px, 1fr);
+          align-items: center;
+          gap: 7px;
+          border-top: 1px solid rgba(255, 255, 255, 0.07);
+          padding: 9px 10px 10px;
+        }
+
+        .ka-guide-actions > span {
+          color: rgba(255, 255, 255, 0.3);
+          font-size: 8px;
+          font-weight: 900;
+          text-align: center;
+        }
+
+        .ka-guide-primary,
+        .ka-guide-secondary {
+          min-height: 34px;
+          border-radius: 9px;
+          padding: 6px 9px;
+          font-size: 8px;
+          font-weight: 950;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          cursor: pointer;
+        }
+
+        .ka-guide-primary {
+          border: 1px solid rgba(126, 232, 255, 0.38);
+          background: linear-gradient(90deg, #20b9f2, #4b70ff);
+          color: white;
+        }
+
+        .ka-guide-secondary {
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: rgba(255, 255, 255, 0.035);
+          color: rgba(255, 255, 255, 0.66);
+        }
+
+        .ka-guide-secondary:disabled {
+          cursor: not-allowed;
+          opacity: 0.25;
+        }
+
+        @keyframes kaGuidePulse {
+          from {
+            box-shadow: 0 0 0 9999px rgba(0, 4, 14, 0.73),
+              0 0 0 4px rgba(126, 232, 255, 0.1),
+              0 0 26px rgba(83, 215, 255, 0.54),
+              inset 0 0 16px rgba(126, 232, 255, 0.04);
+          }
+          to {
+            box-shadow: 0 0 0 9999px rgba(0, 4, 14, 0.73),
+              0 0 0 7px rgba(126, 232, 255, 0.16),
+              0 0 48px rgba(83, 215, 255, 0.94),
+              inset 0 0 28px rgba(126, 232, 255, 0.09);
+          }
+        }
+
+        @media (max-width: 1100px) {
+          .ka-hero-copy {
+            display: none;
+          }
+
+          .ka-hero-stats {
+            width: min(360px, 44vw);
+          }
+
+          .ka-profile-strip {
+            grid-template-columns: auto repeat(4, minmax(0, 1fr));
+          }
+
+          .ka-profile-recommendation {
+            grid-column: 1 / -1;
+            grid-template-columns: 1fr auto;
+            align-items: center;
+          }
+
+          .ka-profile-recommendation a {
+            margin-top: 0;
+          }
+
+          .ka-world-content > p {
+            display: none;
+          }
+        }
+
+        @media (max-width: 850px), (hover: none) and (pointer: coarse) {
+          .ka-topbar {
+            min-height: 44px;
+            padding-right: max(8px, env(safe-area-inset-right));
+            padding-left: max(8px, env(safe-area-inset-left));
+          }
+
+          .ka-nav-button {
+            min-height: 33px;
+            padding-inline: 10px;
+            font-size: 9px;
+          }
+
+          .ka-back-full {
+            display: none;
+          }
+
+          .ka-back-short {
+            display: inline;
+          }
+
+          .ka-hero {
+            min-height: 55px;
+            gap: 8px;
+            padding: 6px max(9px, env(safe-area-inset-right)) 6px
+              max(9px, env(safe-area-inset-left));
+          }
+
+          .ka-hero-heading {
+            gap: 7px;
+          }
+
+          .ka-hero-heading p {
+            font-size: 7px;
+          }
+
+          .ka-hero-heading h1 {
+            font-size: 25px;
+          }
+
+          .ka-hero-stats {
+            display: none;
+          }
+
+          .ka-viewport {
+            padding: 5px max(7px, env(safe-area-inset-right))
+              max(6px, env(safe-area-inset-bottom))
+              max(7px, env(safe-area-inset-left));
+          }
+
+          .ka-stage {
+            border-radius: 14px;
+            padding: 9px;
+          }
+
+          .ka-stage-heading > p {
+            display: none;
+          }
+
+          .ka-mode-grid {
+            gap: 7px;
+            margin-top: 7px;
+          }
+
+          .ka-mode-card {
+            border-radius: 14px;
+            padding: 11px;
+          }
+
+          .ka-mode-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            font-size: 14px;
+          }
+
+          .ka-mode-copy strong {
+            font-size: 18px;
+          }
+
+          .ka-mode-copy > span {
+            font-size: 9px;
+          }
+
+          .ka-mode-footer {
+            margin-top: 6px;
+            padding: 5px 7px;
+            font-size: 7px;
+          }
+
+          .ka-profile-strip {
+            min-height: 43px;
+            grid-template-columns: auto repeat(4, minmax(0, 1fr));
+            gap: 3px;
+            padding: 3px;
+          }
+
+          .ka-profile-recommendation {
+            display: none;
+          }
+
+          .ka-profile-overall,
+          .ka-profile-world {
+            padding: 4px 5px;
+          }
+
+          .ka-profile-overall {
+            min-width: 72px;
+          }
+
+          .ka-profile-strip strong {
+            font-size: 9px;
+          }
+
+          .ka-profile-overall strong {
+            font-size: 14px;
+          }
+
+          .ka-world-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-rows: repeat(2, minmax(0, 1fr));
+            gap: 5px;
+          }
+
+          .ka-world-card {
+            border-radius: 11px;
+          }
+
+          .ka-world-content {
+            padding: 7px 8px;
+          }
+
+          .ka-world-content > strong {
+            font-size: 11px;
+          }
+
+          .ka-world-content > small,
+          .ka-world-content > p {
+            display: none;
+          }
+
+          .ka-world-content > span {
+            font-size: 7px;
+          }
+
+          .ka-setup-lower {
+            grid-template-columns: 1fr;
+            gap: 4px;
+          }
+
+          .ka-timer-selector {
+            min-height: 38px;
+            padding: 4px 5px 4px 8px;
+          }
+
+          .ka-timer-options button {
+            min-height: 28px;
+          }
+
+          .ka-challenge-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 4px;
+          }
+
+          .ka-challenge-card {
+            min-height: 38px;
+            border-radius: 9px;
+            padding: 4px 6px;
+          }
+
+          .ka-challenge-card small {
+            display: none;
+          }
+
+          .ka-start-button {
+            min-height: 36px;
+            padding: 6px 10px;
+            font-size: 8px;
+          }
+
+          .ka-create-controls {
+            grid-template-columns: 1fr;
+            gap: 5px;
+          }
+
+          .ka-create-controls .ka-field input {
+            height: 34px;
+          }
+
+          .ka-create-controls .ka-timer-selector {
+            height: 36px;
+          }
+
+          .ka-waiting-layout {
+            grid-template-columns: 0.78fr 1.22fr;
+          }
+
+          .ka-quiz-status {
+            gap: 3px;
+          }
+
+          .ka-status-chip {
+            max-width: 24%;
+            overflow: hidden;
+            padding: 4px 6px;
+            font-size: 7px;
+            text-overflow: ellipsis;
+          }
+
+          .ka-quiz-stats {
+            min-height: 34px;
+          }
+
+          .ka-quiz-stat {
+            padding: 4px 6px;
+          }
+
+          .ka-quiz-stat span {
+            font-size: 6px;
+          }
+
+          .ka-quiz-stat strong {
+            font-size: 11px;
+          }
+
+          .ka-quiz-layout {
+            gap: 5px;
+          }
+
+          .ka-question-panel {
+            padding: 8px;
+          }
+
+          .ka-countdown {
+            width: 37px;
+            height: 37px;
+            font-size: 13px;
+          }
+
+          .ka-question-text {
+            font-size: clamp(13px, 3.6vw, 19px);
+          }
+
+          .ka-answer-button {
+            grid-template-columns: 24px minmax(0, 1fr);
+            gap: 6px;
+            border-radius: 9px !important;
+            padding: 5px 7px !important;
+          }
+
+          .ka-answer-letter {
+            width: 23px;
+            height: 23px;
+            font-size: 8px;
+          }
+
+          .ka-answer-text {
+            font-size: 10px;
+          }
+
+          .ka-result-stats {
+            gap: 3px;
+          }
+
+          .ka-result-stat {
+            padding: 4px 5px;
+          }
+
+          .ka-impact-panel {
+            gap: 5px;
+            padding: 7px;
+          }
+
+          .ka-guide-launcher {
+            top: max(44px, calc(env(safe-area-inset-top) + 40px));
+            right: max(7px, env(safe-area-inset-right));
+            min-height: 37px;
+            border-radius: 11px;
+            padding: 4px 6px 4px 4px;
+          }
+
+          .ka-guide-mark {
+            width: 28px;
+            height: 28px;
+            border-radius: 9px;
+          }
+
+          .ka-guide-copy small {
+            display: none;
+          }
+        }
+
+        @media (max-width: 850px) and (orientation: portrait),
+          (hover: none) and (pointer: coarse) and (orientation: portrait) {
+          .ka-mode-grid {
+            grid-template-columns: 1fr;
+            grid-template-rows: repeat(2, minmax(0, 1fr));
+          }
+
+          .ka-waiting-layout {
+            grid-template-columns: 1fr;
+            grid-template-rows: auto minmax(0, 1fr);
+          }
+
+          .ka-lobby-code-card {
+            min-height: 82px;
+            padding: 7px;
+          }
+
+          .ka-lobby-code-card strong {
+            margin: 3px 0;
+            font-size: 25px;
+          }
+
+          .ka-quiz-layout {
+            grid-template-columns: 1fr;
+            grid-template-rows: minmax(0, 0.68fr) minmax(0, 1.32fr);
+          }
+        }
+
+        @media (max-width: 850px) and (orientation: landscape),
+          (hover: none) and (pointer: coarse) and (orientation: landscape) {
+          .ka-hero {
+            min-height: 45px;
+          }
+
+          .ka-hero-heading h1 {
+            font-size: 22px;
+          }
+
+          .ka-mode-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .ka-world-grid {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-rows: 1fr;
+          }
+
+          .ka-setup-lower {
+            grid-template-columns: minmax(170px, 0.45fr) minmax(0, 1.55fr);
+          }
+
+          .ka-challenge-grid {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+          }
+
+          .ka-quiz-layout {
+            grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+            grid-template-rows: 1fr;
+          }
+
+          .ka-guide-panel {
+            max-height: min(58dvh, 390px);
+          }
+        }
+
+        @media (max-height: 610px) and (orientation: landscape) {
+          .ka-topbar {
+            min-height: 39px;
+            padding-top: max(3px, env(safe-area-inset-top));
+            padding-bottom: 3px;
+          }
+
+          .ka-nav-button {
+            min-height: 30px;
+          }
+
+          .ka-hero {
+            min-height: 40px;
+            padding-top: 4px;
+            padding-bottom: 4px;
+          }
+
+          .ka-hero-heading h1 {
+            font-size: 20px;
+          }
+
+          .ka-viewport {
+            padding-top: 3px;
+          }
+
+          .ka-stage {
+            padding: 7px;
+          }
+
+          .ka-profile-strip {
+            min-height: 36px;
+          }
+
+          .ka-world-content > span {
+            display: none;
+          }
+
+          .ka-timer-selector {
+            min-height: 34px;
+          }
+
+          .ka-challenge-card {
+            min-height: 34px;
+          }
+
+          .ka-start-button {
+            min-height: 33px;
+          }
+
+          .ka-quiz-stats {
+            min-height: 29px;
+          }
+
+          .ka-status-chip {
+            padding-block: 3px;
+          }
+
+          .ka-question-text {
+            font-size: 14px;
+          }
+
+          .ka-feedback {
+            padding: 5px 6px;
+          }
+        }
+      `}</style>
     </main>
   );
 }
 
-function SectionHeading({
-  title,
-  subtitle,
-}: {
-  title: string;
-  subtitle: string;
-}) {
-  return (
-    <div style={{ marginBottom: "24px" }}>
-      <h2 style={sectionTitleStyle}>{title}</h2>
-      <p style={sectionCopyStyle}>{subtitle}</p>
-    </div>
-  );
-}
-
-function TopBar({
-  label,
-  onBack,
-  backLabel = "Back",
-}: {
-  label: string;
-  onBack: () => void;
-  backLabel?: string;
-}) {
-  return (
-    <div style={topBarStyle}>
-      <button type="button" onClick={onBack} style={backButtonStyle}>
-        ← {backLabel}
-      </button>
-      <p style={{ ...eyebrowStyle, margin: 0 }}>{label}</p>
-    </div>
-  );
-}
-
-function TimerSelector({
+function ArenaTimerSelector({
   title,
   value,
   onChange,
@@ -1695,82 +4582,17 @@ function TimerSelector({
   onChange: (value: TimerSeconds) => void;
 }) {
   return (
-    <div style={timerSelectorShellStyle}>
-      <span style={timerLabelStyle}>{title}</span>
-      <div style={timerToggleStyle}>
-        {[10, 20].map((timer) => {
-          const active = value === timer;
-          return (
-            <button
-              key={timer}
-              type="button"
-              onClick={() => onChange(timer as TimerSeconds)}
-              style={timerOptionStyle(active)}
-            >
-              {timer}s
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function TopicPicker({
-  isMobile,
-  isCompact,
-  title,
-  onPick,
-  buttonText,
-  loadError,
-  disabled = false,
-  profile = null,
-}: {
-  isMobile: boolean;
-  isCompact: boolean;
-  title: string;
-  onPick: (topic: KnowledgeArenaTopic) => void;
-  buttonText: string;
-  loadError?: string | null;
-  disabled?: boolean;
-  profile?: KnowledgeArenaProfile | null;
-}) {
-  return (
-    <div>
-      <p style={pickerDescriptionStyle}>{title}</p>
-      {loadError && <p style={errorStyle}>{loadError}</p>}
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: isMobile
-            ? "1fr"
-            : isCompact
-            ? "repeat(2, minmax(0, 1fr))"
-            : "repeat(4, minmax(0, 1fr))",
-          gap: "20px",
-        }}
-      >
-        {topics.map((topic) => (
+    <div className="ka-timer-selector">
+      <span>{title}</span>
+      <div className="ka-timer-options">
+        {([10, 20] as const).map((seconds) => (
           <button
-            key={topic.id}
+            key={seconds}
             type="button"
-            disabled={disabled}
-            onClick={() => onPick(topic.id)}
-            style={topicCardStyle(topic.coverImage, topic.accent)}
+            className={value === seconds ? "is-active" : ""}
+            onClick={() => onChange(seconds)}
           >
-            <div style={topicOverlayStyle} />
-            <div style={topicContentStyle}>
-              <div>
-                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                  <span style={topicPillStyle(topic.accent)}>Knowledge World</span>
-                  <TopicMasteryChip profile={profile} topic={topic.id} />
-                </div>
-                <h3 style={topicTitleStyle}>{topic.title}</h3>
-                <p style={topicSubtitleStyle}>{topic.subtitle}</p>
-              </div>
-              <div style={topicActionStyle}>{buttonText} ›</div>
-            </div>
+            {seconds} sec
           </button>
         ))}
       </div>
@@ -1778,236 +4600,178 @@ function TopicPicker({
   );
 }
 
-function ChallengeModePicker({
+function ArenaWorldGrid({
   profile,
-  isSignedIn,
-  isMobile,
-  onChoose,
+  selectedTopic,
+  mixed,
+  focusTopic,
+  onSelect,
+  locked,
 }: {
   profile: KnowledgeArenaProfile | null;
-  isSignedIn: boolean;
-  isMobile: boolean;
-  onChoose: (mode: ChallengeMode) => void;
+  selectedTopic: KnowledgeArenaTopic | null;
+  mixed: boolean;
+  focusTopic: KnowledgeArenaTopic | null;
+  onSelect: (topic: KnowledgeArenaTopic) => void;
+  locked: boolean;
 }) {
-  const recommendation = profile?.recommended_topic_title;
-
   return (
-    <div>
-      <SectionHeading
-        title="Choose your challenge"
-        subtitle="Quick Play stays classic. Nova modes use the same mastery already calculated by Nova Analytics."
-      />
-      <div style={challengeGridStyle(isMobile)}>
-        {(Object.keys(challengeModeMeta) as ChallengeMode[]).map((mode) => {
-          const meta = challengeModeMeta[mode];
-          const personalised = mode === "focus_mission" || mode === "nova_challenge";
-          const disabled = personalised && !isSignedIn;
-          let detail = "";
+    <div className="ka-world-grid" data-nova-guide-target="worlds">
+      {topics.map((topic) => {
+        const mastery = getProfileTopic(profile, topic.id);
+        const selected = selectedTopic === topic.id;
+        const focus = focusTopic === topic.id;
 
-          if (mode === "focus_mission") {
-            detail = recommendation
-              ? `Current focus: ${recommendation}`
-              : "Build your first knowledge focus.";
-          } else if (mode === "nova_challenge") {
-            detail = profile?.profile_ready
-              ? "Uses your current four-world mastery profile."
-              : "Builds an initial profile across all four worlds.";
-          } else if (mode === "quick_play") {
-            detail = "Choose any one of the four worlds.";
-          } else {
-            detail = "Choose a world, then face higher-difficulty questions.";
-          }
-
-          return (
-            <button
-              key={mode}
-              type="button"
-              disabled={disabled}
-              onClick={() => onChoose(mode)}
-              style={challengeCardStyle(meta.accent, disabled)}
-            >
-              <div style={challengeCardTopStyle}>
-                <span style={challengeIconStyle(meta.accent)}>{meta.icon}</span>
-                <span style={challengeEyebrowStyle}>{meta.eyebrow}</span>
-              </div>
-              <h3 style={challengeTitleStyle}>{meta.title}</h3>
-              <p style={challengeDescriptionStyle}>{meta.description}</p>
-              <div style={challengeDetailStyle}>{disabled ? "Log in to personalise" : detail}</div>
-              <div style={challengeActionStyle(meta.accent)}>
-                {disabled ? "Login required" : mode === "quick_play" || mode === "expert_challenge" ? "Choose World ›" : "Start Challenge ›"}
-              </div>
-            </button>
-          );
-        })}
-      </div>
+        return (
+          <button
+            key={topic.id}
+            type="button"
+            className={`ka-world-card ${selected ? "is-selected" : ""} ${
+              focus ? "is-focus" : ""
+            } ${mixed ? "is-mixed" : ""} ${locked ? "is-locked" : ""}`}
+            style={{ backgroundImage: `url("${topic.coverImage}")` }}
+            onClick={() => onSelect(topic.id)}
+            aria-pressed={selected || focus || mixed}
+          >
+            <span className="ka-world-content">
+              <small>
+                {focus ? "Nova Focus" : mixed ? "Adaptive Mix" : "Knowledge World"}
+              </small>
+              <strong>{topic.title}</strong>
+              <span>
+                {mastery?.mastery_score === null ||
+                mastery?.mastery_score === undefined
+                  ? "Building mastery"
+                  : `${formatMastery(mastery.mastery_score)} mastery`}
+              </span>
+              <p>{topic.subtitle}</p>
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-function KnowledgeProfilePanel({
+function ArenaChallengeGrid({
+  profile,
+  isSignedIn,
+  selectedMode,
+  onSelect,
+}: {
+  profile: KnowledgeArenaProfile | null;
+  isSignedIn: boolean;
+  selectedMode: ChallengeMode;
+  onSelect: (mode: ChallengeMode) => void;
+}) {
+  return (
+    <div className="ka-challenge-grid">
+      {(Object.keys(challengeModeMeta) as ChallengeMode[]).map((mode) => {
+        const meta = challengeModeMeta[mode];
+        const personalised =
+          mode === "focus_mission" || mode === "nova_challenge";
+        const disabled = personalised && !isSignedIn;
+        let detail = meta.description;
+
+        if (mode === "focus_mission" && profile?.recommended_topic_title) {
+          detail = `Focus: ${profile.recommended_topic_title}`;
+        } else if (mode === "nova_challenge") {
+          detail = profile?.profile_ready
+            ? "Personalised four-world mix."
+            : "Builds your first four-world profile.";
+        }
+
+        return (
+          <button
+            key={mode}
+            type="button"
+            disabled={disabled}
+            onClick={() => onSelect(mode)}
+            className={`ka-challenge-card ${
+              selectedMode === mode ? "is-selected" : ""
+            }`}
+            data-nova-guide-target={mode.replace("_", "-")}
+          >
+            <span>
+              <b>{meta.icon}</b>
+              <strong>{meta.title}</strong>
+            </span>
+            <small>{disabled ? "Log in to personalise." : detail}</small>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function KnowledgeProfileStrip({
   profile,
   loading,
   error,
-  onStartFocus,
 }: {
   profile: KnowledgeArenaProfile | null;
   loading: boolean;
   error: string | null;
-  onStartFocus: () => void;
 }) {
-  if (loading) {
-    return <MessageCard message="Loading your Knowledge Arena profile from Nova Analytics..." />;
-  }
-
-  if (!profile) {
-    return (
-      <div style={profilePanelStyle}>
-        <div>
-          <p style={{ ...eyebrowStyle, color: "#c9a8ff" }}>Your Knowledge Profile</p>
-          <h3 style={profileTitleStyle}>Nova mastery appears after you log in</h3>
-          <p style={profileCopyStyle}>
-            Quick Play and Expert Challenge can still be explored, but personalised Focus Missions and Nova Challenges use your saved Nova Analytics profile.
-          </p>
-          {error && <p style={{ ...profileCopyStyle, color: "#ffe6a8" }}>{error}</p>}
-        </div>
-        <Link href="/login" style={mainButtonStyle}>
-          Log In
-        </Link>
-      </div>
-    );
-  }
-
   return (
-    <div style={profilePanelStyle}>
-      <div style={profileHeaderStyle}>
-        <div>
-          <p style={{ ...eyebrowStyle, color: "#c9a8ff" }}>Your Knowledge Profile</p>
-          <h3 style={profileTitleStyle}>
-            {profile.profile_ready ? "Nova knows your current knowledge pattern" : "Build your first knowledge profile"}
-          </h3>
-          <p style={profileCopyStyle}>
-            This is a direct view of Nova Analytics mastery. Knowledge Arena does not calculate a second mastery score.
-          </p>
-        </div>
-        <div style={overallMasteryCardStyle}>
-          <span>Overall mastery</span>
-          <strong>{profile.overall_mastery === null ? "—" : formatMastery(profile.overall_mastery)}</strong>
-          <small>{profile.total_questions_attempted} questions of evidence</small>
-        </div>
+    <div className="ka-profile-strip" data-nova-guide-target="knowledge-profile">
+      <div className="ka-profile-overall">
+        <span>Knowledge Profile</span>
+        <strong>
+          {loading
+            ? "…"
+            : profile?.overall_mastery === null ||
+              profile?.overall_mastery === undefined
+            ? "—"
+            : formatMastery(profile.overall_mastery)}
+        </strong>
+        <small>
+          {profile
+            ? `${profile.total_questions_attempted} questions`
+            : error || "Nova Analytics"}
+        </small>
       </div>
 
-      <div style={profileTopicGridStyle}>
-        {topics.map((topic) => {
-          const row = getProfileTopic(profile, topic.id);
-          return (
-            <div key={topic.id} style={profileTopicCardStyle(topic.accent)}>
-              <span>{topic.title}</span>
-              <strong>{row?.mastery_score === null || row?.mastery_score === undefined ? "—" : formatMastery(row.mastery_score)}</strong>
-              <small>
-                {row?.has_evidence
-                  ? `${row.questions_attempted ?? 0} questions · ${formatStatus(row.status)}`
-                  : "No evidence yet"}
-              </small>
-            </div>
-          );
-        })}
-      </div>
+      {topics.map((topic) => {
+        const row = getProfileTopic(profile, topic.id);
+        return (
+          <div key={topic.id} className="ka-profile-world">
+            <span>{topic.title}</span>
+            <strong>
+              {row?.mastery_score === null || row?.mastery_score === undefined
+                ? "—"
+                : formatMastery(row.mastery_score)}
+            </strong>
+            <small>
+              {row?.has_evidence
+                ? `${row.questions_attempted ?? 0} answers`
+                : "No evidence"}
+            </small>
+          </div>
+        );
+      })}
 
-      <div style={recommendationCalloutStyle}>
-        <div>
-          <span style={fieldCaptionStyle}>Nova recommends</span>
-          <strong style={{ display: "block", marginTop: "6px", fontSize: "19px" }}>
-            {profile.recommended_topic_title
-              ? `Focus next: ${profile.recommended_topic_title}`
-              : "Keep building your profile"}
-          </strong>
-          <p style={{ margin: "6px 0 0", color: "rgba(255,255,255,0.7)", lineHeight: 1.5 }}>
-            {profile.recommendation_reason}
-          </p>
-        </div>
-        <button type="button" onClick={onStartFocus} style={nextButtonStyle}>
-          Start Focus Mission →
-        </button>
+      <div className="ka-profile-recommendation">
+        <span>Nova recommends</span>
+        <strong>
+          {profile?.recommended_topic_title
+            ? `Focus: ${profile.recommended_topic_title}`
+            : "Keep building your profile"}
+        </strong>
+        <Link href={NOVA_ANALYTICS_HREF}>View Full Nova Analytics →</Link>
       </div>
-
-      <Link href={NOVA_ANALYTICS_HREF} style={fullAnalyticsLinkStyle}>
-        View Full Nova Analytics →
-      </Link>
     </div>
   );
 }
 
-function TopicMasteryChip({
-  profile,
-  topic,
-}: {
-  profile: KnowledgeArenaProfile | null;
-  topic: KnowledgeArenaTopic;
-}) {
-  if (!profile) return null;
-  const row = getProfileTopic(profile, topic);
-  return (
-    <span style={topicMasteryChipStyle}>
-      {row?.mastery_score === null || row?.mastery_score === undefined
-        ? "No mastery yet"
-        : `Mastery ${formatMastery(row.mastery_score)}`}
-    </span>
-  );
-}
-
-function getProfileTopic(
-  profile: KnowledgeArenaProfile | null,
-  topic: KnowledgeArenaTopic
-) {
-  return profile?.topics?.find((item) => item.topic === topic) ?? null;
-}
-
-function topicTitle(topic: KnowledgeArenaTopic) {
-  return topics.find((item) => item.id === topic)?.title ?? topic;
-}
-
-function formatMastery(value: number) {
-  return `${Math.round(Number(value))}%`;
-}
-
-function formatStatus(status?: string | null) {
-  if (!status || status === "not_enough_data") return "Building";
-  return status
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-function NameInput({
-  displayName,
-  setDisplayName,
-}: {
-  displayName: string;
-  setDisplayName: (value: string) => void;
-}) {
-  return (
-    <label style={fieldLabelStyle}>
-      <span style={fieldCaptionStyle}>Player Name</span>
-      <input
-        value={displayName}
-        onChange={(event) => setDisplayName(event.target.value)}
-        placeholder="Enter your player name"
-        style={inputStyle}
-      />
-    </label>
-  );
-}
-
-function QuizView({
-  isMobile,
-  isCompact,
+function ArenaQuizView({
   isSolo,
-  topicTitle,
-  topicAccent,
+  topicTitle: currentTopicTitle,
   challengeLabel,
   question,
   questionIndex,
   score,
+  correctCount,
   timeLeft,
   timerSeconds,
   nextCountdown,
@@ -2019,15 +4783,13 @@ function QuizView({
   onNext,
   onBack,
 }: {
-  isMobile: boolean;
-  isCompact: boolean;
   isSolo: boolean;
   topicTitle: string;
-  topicAccent: string;
   challengeLabel: string;
   question: KnowledgeArenaQuestion;
   questionIndex: number;
   score: number;
+  correctCount: number;
   timeLeft: number;
   timerSeconds: TimerSeconds;
   nextCountdown: number;
@@ -2046,93 +4808,97 @@ function QuizView({
     ["D", question.option_d],
   ];
 
+  const correct =
+    selectedAnswer !== null && selectedAnswer === question.correct_answer;
+
   return (
-    <div>
-      <div style={quizTopBarStyle}>
-        <button type="button" onClick={onBack} style={backButtonStyle}>
+    <div className="ka-stage ka-quiz-stage">
+      <div className="ka-quiz-status">
+        <button type="button" className="ka-inline-back" onClick={onBack}>
           ← Back
         </button>
+        <span className="ka-status-chip">
+          Mode <strong>{challengeLabel}</strong>
+        </span>
+        <span className="ka-status-chip">
+          World <strong>{currentTopicTitle}</strong>
+        </span>
+        <span className="ka-status-chip">
+          Question <strong>{questionIndex + 1}/10</strong>
+        </span>
+        <span className="ka-status-chip">
+          Timer <strong>{timerSeconds}s</strong>
+        </span>
+      </div>
 
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
-          <StatusPill label="Mode" value={challengeLabel} />
-          <StatusPill label="Topic" value={topicTitle} />
-          <StatusPill label="Score" value={String(score)} />
-          <StatusPill label="Question" value={`${questionIndex + 1}/10`} />
-          <StatusPill label="Timer" value={`${timerSeconds}s`} />
+      <div className="ka-quiz-stats">
+        <div className="ka-quiz-stat">
+          <span>Correct</span>
+          <strong>{correctCount}/10</strong>
+        </div>
+        <div className="ka-quiz-stat">
+          <span>Points</span>
+          <strong>{score}</strong>
+        </div>
+        <div className="ka-quiz-stat">
+          <span>Status</span>
+          <strong>
+            {answerLocked ? `Next in ${nextCountdown}s` : `${timeLeft}s left`}
+          </strong>
         </div>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: isCompact ? "1fr" : "minmax(0, 1.15fr) 380px",
-          gap: "22px",
-        }}
-      >
-        <div style={quizMainCardStyle}>
-          <div style={quizHeaderRowStyle}>
+      <div className="ka-quiz-layout">
+        <div className="ka-question-panel">
+          <div className="ka-question-topline">
             <div>
-              <p style={{ ...eyebrowStyle, color: topicAccent }}>{topicTitle}</p>
-              <h2 style={{ margin: "10px 0 0", fontSize: isMobile ? "26px" : "32px" }}>
-                Question {questionIndex + 1}
-              </h2>
+              <span>{currentTopicTitle}</span>
+              <strong>Question {questionIndex + 1}</strong>
             </div>
-
-            <div style={timerCircleStyle(timeLeft <= Math.max(3, timerSeconds / 3))}>
-              <strong style={{ fontSize: "30px" }}>{timeLeft}</strong>
-              <span style={{ fontSize: "11px" }}>seconds</span>
+            <div
+              className={`ka-countdown ${
+                timeLeft <= Math.max(3, Math.floor(timerSeconds / 3))
+                  ? "is-low"
+                  : ""
+              }`}
+            >
+              {timeLeft}
             </div>
           </div>
 
-          {question.question_image && (
-            <div style={questionImageShellStyle}>
+          <div className="ka-question-scroll">
+            {question.question_image && (
               <img
                 src={question.question_image}
                 alt={`Question ${questionIndex + 1}`}
-                style={questionImageStyle}
+                className="ka-question-image"
                 draggable={false}
               />
-            </div>
-          )}
-
-          <p style={questionTextStyle(isMobile)}>{question.question_text}</p>
-          <p style={difficultyStyle}>Difficulty: {question.difficulty}</p>
+            )}
+            <p className="ka-question-text">{question.question_text}</p>
+            <p className="ka-difficulty">Difficulty · {question.difficulty}</p>
+          </div>
 
           {feedback && (
-            <div
-              style={feedbackCardStyle(
-                selectedAnswer === question.correct_answer && selectedAnswer !== null
-              )}
-            >
-              <strong
-                style={{
-                  display: "block",
-                  marginBottom: "6px",
-                  color:
-                    selectedAnswer === question.correct_answer && selectedAnswer !== null
-                      ? "#86efac"
-                      : selectedAnswer === null
-                      ? "#ffd76a"
-                      : "#fca5a5",
-                }}
-              >
-                {selectedAnswer === question.correct_answer && selectedAnswer !== null
-                  ? "Correct!"
+            <div className="ka-feedback">
+              <strong>
+                {correct
+                  ? "Correct"
                   : selectedAnswer === null
-                  ? "Time's up!"
-                  : "Not quite."}
+                  ? "Time is up"
+                  : "Review"}
               </strong>
+              <span>{feedback}</span>
 
-              {feedback}
-
-              <div style={feedbackFooterStyle}>
-                <span style={{ color: "#7ee8ff", fontWeight: 700 }}>
-                  Next question in {nextCountdown}...
-                </span>
-
+              <div className="ka-feedback-footer">
+                <span>Next in {nextCountdown}s</span>
                 {isSolo && answerLocked && (
-                  <button type="button" onClick={onNext} style={nextButtonStyle}>
-                    Next Question →
+                  <button
+                    type="button"
+                    className="ka-next-button"
+                    onClick={onNext}
+                  >
+                    {questionIndex >= 9 ? "See Results →" : "Next Question →"}
                   </button>
                 )}
               </div>
@@ -2140,35 +4906,27 @@ function QuizView({
           )}
         </div>
 
-        <div style={quizSideCardStyle}>
-          <h3 style={{ margin: 0, fontSize: "22px" }}>Choose your answer</h3>
-          <p style={quizInstructionStyle}>Tap one answer. Feedback appears immediately.</p>
-
-          <div style={{ marginTop: "18px", display: "grid", gap: "12px" }}>
-            {options.map(([label, text]) => (
-              <button
-                key={label}
-                type="button"
-                disabled={answerLocked}
-                onClick={() => onChoose(label)}
-                style={{
-                  ...answerButtonBaseStyle,
-                  ...getAnswerStyle(label),
-                }}
-              >
-                <strong style={answerLetterStyle}>{label}</strong>
-                <span>{text}</span>
-              </button>
-            ))}
-          </div>
+        <div className="ka-options-panel">
+          {options.map(([label, optionText]) => (
+            <button
+              key={label}
+              type="button"
+              disabled={answerLocked}
+              onClick={() => onChoose(label)}
+              className="ka-answer-button"
+              style={getAnswerStyle(label)}
+            >
+              <strong className="ka-answer-letter">{label}</strong>
+              <span className="ka-answer-text">{optionText}</span>
+            </button>
+          ))}
         </div>
       </div>
     </div>
   );
 }
 
-function ResultsPanel({
-  title,
+function ArenaResultsPanel({
   challengeMode,
   score,
   correctCount,
@@ -2180,12 +4938,9 @@ function ResultsPanel({
   afterProfile,
   topicResults,
   onStartFocus,
-  onPrimary,
-  primaryLabel,
-  onSecondary,
-  secondaryLabel,
+  onNextChallenge,
+  onExit,
 }: {
-  title: string;
   challengeMode: ChallengeMode;
   score: number;
   correctCount: number;
@@ -2197,53 +4952,76 @@ function ResultsPanel({
   afterProfile: KnowledgeArenaProfile | null;
   topicResults: TopicResult[];
   onStartFocus: () => void;
-  onPrimary: () => void;
-  primaryLabel: string;
-  onSecondary: () => void;
-  secondaryLabel: string;
+  onNextChallenge: () => void;
+  onExit: () => void;
 }) {
   return (
-    <div style={resultsPanelStyle}>
-      <p style={eyebrowStyle}>{challengeModeMeta[challengeMode].title}</p>
-      <h2 style={{ margin: "12px 0 28px", fontSize: "38px" }}>{title}</h2>
-
-      <div style={resultsStatsGridStyle}>
-        <ResultStat label="Correct" value={`${correctCount}/10`} />
-        <ResultStat label="Score" value={String(score)} />
-        <ResultStat label="Tokens" value={`+${tokensEarned}`} />
-        <ResultStat label="Balance" value={String(tokenBalance)} />
+    <div className="ka-stage ka-results-stage">
+      <div className="ka-results-heading">
+        <div>
+          <p className="ka-kicker">{challengeModeMeta[challengeMode].title}</p>
+          <h2>Challenge Complete</h2>
+        </div>
+        <div className="ka-result-score">
+          <span>Score</span>
+          <strong>{score}</strong>
+        </div>
       </div>
 
-      <p style={resultsMessageStyle}>
-        {saveMessage ||
-          (rewardSaved
-            ? "Your attempt and Dreamscape Token reward have been saved."
-            : "Log in to save your attempt and receive Dreamscape Tokens.")}
-      </p>
+      <div className="ka-result-stats">
+        <div className="ka-result-stat">
+          <span>Correct</span>
+          <strong>{correctCount}/10</strong>
+        </div>
+        <div className="ka-result-stat">
+          <span>Points</span>
+          <strong>{score}</strong>
+        </div>
+        <div className="ka-result-stat">
+          <span>Tokens</span>
+          <strong>+{tokensEarned}</strong>
+        </div>
+        <div className="ka-result-stat">
+          <span>Balance</span>
+          <strong>{tokenBalance}</strong>
+        </div>
+      </div>
 
-      {(afterProfile || topicResults.length > 0) && (
-        <KnowledgeImpactPanel
-          beforeProfile={beforeProfile}
-          afterProfile={afterProfile}
-          topicResults={topicResults}
-          onStartFocus={onStartFocus}
-        />
-      )}
+      <div className="ka-results-scroll">
+        <p className="ka-message-banner">
+          {saveMessage ||
+            (rewardSaved
+              ? "Your attempt and Dreamscape Token reward have been saved."
+              : "Log in to save your attempt and receive Dreamscape Tokens.")}
+        </p>
 
-      <div style={resultsButtonRowStyle}>
-        <button type="button" onClick={onPrimary} style={backButtonStyle}>
-          {primaryLabel}
+        {(afterProfile || topicResults.length > 0) && (
+          <ArenaKnowledgeImpact
+            beforeProfile={beforeProfile}
+            afterProfile={afterProfile}
+            topicResults={topicResults}
+            onStartFocus={onStartFocus}
+          />
+        )}
+      </div>
+
+      <div className="ka-results-actions">
+        <button
+          type="button"
+          className="ka-secondary-button"
+          onClick={onNextChallenge}
+        >
+          Choose Next Challenge
         </button>
-
-        <button type="button" onClick={onSecondary} style={mainButtonStyle}>
-          {secondaryLabel}
+        <button type="button" className="ka-start-button" onClick={onExit}>
+          Exit Knowledge Arena
         </button>
       </div>
     </div>
   );
 }
 
-function KnowledgeImpactPanel({
+function ArenaKnowledgeImpact({
   beforeProfile,
   afterProfile,
   topicResults,
@@ -2256,26 +5034,23 @@ function KnowledgeImpactPanel({
 }) {
   const affectedTopics = topicResults.length
     ? topicResults.map((result) => result.topic)
-    : afterProfile?.topics.filter((topic) => topic.has_evidence).map((topic) => topic.topic) || [];
+    : afterProfile?.topics
+        .filter((topic) => topic.has_evidence)
+        .map((topic) => topic.topic) || [];
 
   return (
-    <div style={impactPanelStyle}>
-      <div style={impactHeadingStyle}>
-        <div>
-          <p style={{ ...eyebrowStyle, color: "#c9a8ff" }}>Knowledge impact</p>
-          <h3 style={{ margin: "8px 0 0", fontSize: "24px" }}>
-            Nova refreshed your profile
-          </h3>
-        </div>
-        {afterProfile?.overall_mastery !== null && afterProfile?.overall_mastery !== undefined && (
-          <div style={overallMasteryBadgeStyle}>
-            <span>Overall mastery</span>
-            <strong>{formatMastery(afterProfile.overall_mastery)}</strong>
-          </div>
-        )}
+    <div className="ka-impact-panel">
+      <div className="ka-impact-heading">
+        <strong>Nova refreshed your Knowledge Profile</strong>
+        <span>
+          {afterProfile?.overall_mastery === null ||
+          afterProfile?.overall_mastery === undefined
+            ? "Building mastery"
+            : `Overall ${formatMastery(afterProfile.overall_mastery)}`}
+        </span>
       </div>
 
-      <div style={impactRowsStyle}>
+      <div className="ka-impact-rows">
         {affectedTopics.map((topicId) => {
           const result = topicResults.find((item) => item.topic === topicId);
           const before = getProfileTopic(beforeProfile, topicId);
@@ -2288,28 +5063,23 @@ function KnowledgeImpactPanel({
               : null;
 
           return (
-            <div key={topicId} style={impactRowStyle}>
+            <div key={topicId} className="ka-impact-row">
               <div>
                 <strong>{topicTitle(topicId)}</strong>
-                <small style={{ display: "block", marginTop: "4px", color: "rgba(255,255,255,0.62)" }}>
+                <small>
                   {result
-                    ? `${result.correct_count}/${result.total_questions} correct in this challenge`
-                    : "New evidence added to Nova Analytics"}
+                    ? `${result.correct_count}/${result.total_questions} correct`
+                    : "New evidence added"}
                 </small>
               </div>
-              <div style={{ textAlign: "right" }}>
-                <strong style={{ color: "#7ee8ff" }}>
+              <div>
+                <strong>
                   {afterValue === null ? "Building" : formatMastery(afterValue)}
                 </strong>
                 {delta !== null && delta !== 0 && (
-                  <small
-                    style={{
-                      display: "block",
-                      marginTop: "4px",
-                      color: delta > 0 ? "#86efac" : "#fca5a5",
-                    }}
-                  >
-                    {delta > 0 ? "+" : ""}{delta.toFixed(1)} mastery
+                  <small>
+                    {delta > 0 ? "+" : ""}
+                    {delta.toFixed(1)} mastery
                   </small>
                 )}
               </div>
@@ -2319,894 +5089,40 @@ function KnowledgeImpactPanel({
       </div>
 
       {afterProfile?.recommended_topic_title && (
-        <div style={recommendationCalloutStyle}>
+        <div className="ka-recommendation">
           <div>
-            <span style={fieldCaptionStyle}>Nova recommends</span>
-            <strong style={{ display: "block", marginTop: "6px", fontSize: "18px" }}>
-              Focus next: {afterProfile.recommended_topic_title}
-            </strong>
-            <p style={{ margin: "6px 0 0", color: "rgba(255,255,255,0.7)", lineHeight: 1.5 }}>
-              {afterProfile.recommendation_reason}
-            </p>
+            <span>Nova recommends</span>
+            <strong>Focus next: {afterProfile.recommended_topic_title}</strong>
+            <p>{afterProfile.recommendation_reason}</p>
           </div>
-          <button type="button" onClick={onStartFocus} style={nextButtonStyle}>
-            Start Focus Mission →
+          <button
+            type="button"
+            className="ka-next-button"
+            onClick={onStartFocus}
+          >
+            Start Focus →
           </button>
         </div>
       )}
 
-      <Link href={NOVA_ANALYTICS_HREF} style={fullAnalyticsLinkStyle}>
+      <Link href={NOVA_ANALYTICS_HREF} className="ka-analytics-link">
         View Full Nova Analytics →
       </Link>
     </div>
   );
 }
 
-function MessageCard({ message }: { message: string }) {
-  return <div style={messageCardStyle}>{message}</div>;
+function getProfileTopic(
+  profile: KnowledgeArenaProfile | null,
+  topic: KnowledgeArenaTopic
+) {
+  return profile?.topics?.find((item) => item.topic === topic) ?? null;
 }
 
-function StatusPill({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={statusPillStyle}>
-      {label}: <strong style={{ color: "#7ee8ff" }}>{value}</strong>
-    </div>
-  );
+function topicTitle(topic: KnowledgeArenaTopic) {
+  return topics.find((item) => item.id === topic)?.title ?? topic;
 }
 
-function ResultStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={resultStatStyle}>
-      <p style={resultStatLabelStyle}>{label}</p>
-      <p style={resultStatValueStyle}>{value}</p>
-    </div>
-  );
+function formatMastery(value: number) {
+  return `${Math.round(Number(value))}%`;
 }
-
-const pageStyle = (isMobile: boolean): CSSProperties => ({
-  minHeight: "100dvh",
-  width: "100%",
-  backgroundImage: `
-    linear-gradient(180deg, rgba(2, 8, 19, 0.7), rgba(2, 8, 19, 0.92)),
-    radial-gradient(circle at 50% 0%, rgba(126,232,255,0.14), transparent 34%),
-    url("/activities/learning-missions/knowledge-arena/knowledge-arena-bg.png")
-  `,
-  backgroundSize: "cover",
-  backgroundPosition: "center",
-  backgroundAttachment: isMobile ? "scroll" : "fixed",
-  color: "white",
-  fontFamily: "Arial, Helvetica, sans-serif",
-  padding: isMobile ? "18px 18px 34px" : "26px 28px 42px",
-  overflowX: "hidden",
-});
-
-const shellStyle: CSSProperties = {
-  maxWidth: "1380px",
-  margin: "0 auto",
-};
-
-const heroStyle = (isMobile: boolean): CSSProperties => ({
-  marginTop: isMobile ? "32px" : "38px",
-  padding: isMobile ? "8px 0 0" : "16px 0 6px",
-});
-
-const heroTitleStyle = (isMobile: boolean): CSSProperties => ({
-  margin: "14px 0 0",
-  fontSize: isMobile ? "50px" : "78px",
-  lineHeight: 0.94,
-  fontWeight: 400,
-  letterSpacing: "0.02em",
-});
-
-const heroCopyStyle = (isMobile: boolean): CSSProperties => ({
-  maxWidth: "720px",
-  margin: "18px 0 0",
-  color: "rgba(255,255,255,0.72)",
-  fontSize: isMobile ? "16px" : "19px",
-  lineHeight: 1.6,
-});
-
-const sectionBlockStyle: CSSProperties = {
-  marginTop: "28px",
-  display: "grid",
-  gap: "22px",
-};
-
-const sectionTitleStyle: CSSProperties = {
-  margin: 0,
-  fontSize: "32px",
-};
-
-const sectionCopyStyle: CSSProperties = {
-  margin: "8px 0 0",
-  color: "rgba(255,255,255,0.72)",
-  fontSize: "16px",
-  lineHeight: 1.55,
-};
-
-const topBarStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "12px",
-  flexWrap: "wrap",
-};
-
-const stackStyle: CSSProperties = {
-  display: "grid",
-  gap: "16px",
-};
-
-const modeGridStyle = (isMobile: boolean): CSSProperties => ({
-  display: "grid",
-  gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
-  gap: "22px",
-});
-
-const modeCardStyle = (accent: string): CSSProperties => ({
-  minHeight: "250px",
-  borderRadius: "28px",
-  border: `1px solid ${accent}55`,
-  background:
-    "linear-gradient(180deg, rgba(12,30,66,0.86), rgba(6,18,44,0.96))",
-  boxShadow: `0 0 24px ${accent}18, inset 0 0 0 1px rgba(255,255,255,0.03)`,
-  padding: "28px",
-  display: "grid",
-  gridTemplateRows: "auto auto 1fr auto",
-  gap: "14px",
-  color: "white",
-  textAlign: "left",
-  cursor: "pointer",
-});
-
-const modeIconStyle: CSSProperties = {
-  width: "60px",
-  height: "60px",
-  borderRadius: "18px",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "30px",
-  background: "rgba(255,255,255,0.08)",
-};
-
-const modeTitleStyle: CSSProperties = {
-  margin: 0,
-  fontSize: "30px",
-  fontWeight: 700,
-};
-
-const modeCopyStyle: CSSProperties = {
-  margin: "10px 0 0",
-  fontSize: "16px",
-  lineHeight: 1.6,
-  color: "rgba(255,255,255,0.76)",
-};
-
-const primaryActionStyle: CSSProperties = {
-  marginTop: "auto",
-  height: "52px",
-  borderRadius: "16px",
-  background: "linear-gradient(135deg,#35c5ff,#4c6dff)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "16px",
-  fontWeight: 800,
-};
-
-const timerSelectorShellStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "12px",
-  flexWrap: "wrap",
-  borderRadius: "22px",
-  border: "1px solid rgba(126,232,255,0.2)",
-  background: "rgba(255,255,255,0.05)",
-  padding: "16px 18px",
-};
-
-const timerLabelStyle: CSSProperties = {
-  color: "rgba(255,255,255,0.8)",
-  fontSize: "15px",
-  fontWeight: 700,
-};
-
-const timerToggleStyle: CSSProperties = {
-  display: "inline-flex",
-  gap: "8px",
-  padding: "6px",
-  borderRadius: "999px",
-  background: "rgba(255,255,255,0.06)",
-  border: "1px solid rgba(126,232,255,0.18)",
-};
-
-const timerOptionStyle = (active: boolean): CSSProperties => ({
-  minWidth: "84px",
-  height: "42px",
-  padding: "0 18px",
-  borderRadius: "999px",
-  border: active ? "1px solid rgba(255,255,255,0.5)" : "1px solid transparent",
-  background: active
-    ? "linear-gradient(135deg,#35c5ff,#4c6dff)"
-    : "transparent",
-  color: "white",
-  fontWeight: 800,
-  cursor: "pointer",
-});
-
-const pickerDescriptionStyle: CSSProperties = {
-  margin: 0,
-  color: "rgba(255,255,255,0.74)",
-  fontSize: "16px",
-  lineHeight: 1.55,
-};
-
-const topicCardStyle = (imagePath: string, accent: string): CSSProperties => ({
-  position: "relative",
-  minHeight: "420px",
-  borderRadius: "30px",
-  overflow: "hidden",
-  border: `1px solid ${accent}55`,
-  backgroundImage: `url("${imagePath}")`,
-  backgroundSize: "cover",
-  backgroundPosition: "center",
-  boxShadow: `0 0 28px ${accent}14, 0 24px 60px rgba(0,0,0,0.28)`,
-  cursor: "pointer",
-  color: "white",
-  textAlign: "left",
-});
-
-const topicOverlayStyle: CSSProperties = {
-  position: "absolute",
-  inset: 0,
-  background:
-    "linear-gradient(180deg, rgba(6,14,30,0.16) 0%, rgba(8,16,36,0.12) 22%, rgba(6,18,42,0.5) 56%, rgba(3,10,24,0.96) 100%)",
-};
-
-const topicContentStyle: CSSProperties = {
-  position: "relative",
-  zIndex: 1,
-  height: "100%",
-  padding: "22px",
-  display: "flex",
-  flexDirection: "column",
-  justifyContent: "space-between",
-  gap: "16px",
-};
-
-const topicPillStyle = (accent: string): CSSProperties => ({
-  display: "inline-flex",
-  alignItems: "center",
-  minHeight: "30px",
-  padding: "0 12px",
-  borderRadius: "999px",
-  border: `1px solid ${accent}66`,
-  background: "rgba(7, 18, 42, 0.45)",
-  color: "white",
-  fontSize: "12px",
-  fontWeight: 700,
-  letterSpacing: "0.08em",
-  textTransform: "uppercase",
-});
-
-const topicTitleStyle: CSSProperties = {
-  margin: "14px 0 0",
-  fontSize: "30px",
-  lineHeight: 1.05,
-};
-
-const topicSubtitleStyle: CSSProperties = {
-  margin: "12px 0 0",
-  color: "rgba(255,255,255,0.84)",
-  fontSize: "15px",
-  lineHeight: 1.5,
-  maxWidth: "280px",
-};
-
-const topicActionStyle: CSSProperties = {
-  minHeight: "48px",
-  borderRadius: "14px",
-  background: "rgba(255,255,255,0.1)",
-  border: "1px solid rgba(255,255,255,0.15)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontWeight: 800,
-  backdropFilter: "blur(10px)",
-};
-
-const joinCardStyle: CSSProperties = {
-  maxWidth: "620px",
-  borderRadius: "28px",
-  border: "1px solid rgba(126,232,255,0.2)",
-  background: "rgba(255,255,255,0.05)",
-  padding: "24px",
-};
-
-const waitingShellStyle: CSSProperties = {
-  maxWidth: "820px",
-  margin: "0 auto",
-  textAlign: "center",
-  display: "grid",
-  gap: "18px",
-};
-
-const lobbyCodeStyle = (isMobile: boolean): CSSProperties => ({
-  margin: 0,
-  fontSize: isMobile ? "42px" : "62px",
-  letterSpacing: "0.16em",
-});
-
-const waitingMetaRowStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "center",
-  flexWrap: "wrap",
-  gap: "10px",
-};
-
-const waitingPlayersGridStyle: CSSProperties = {
-  display: "grid",
-  gap: "10px",
-};
-
-const playerTileStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "12px",
-  borderRadius: "16px",
-  border: "1px solid rgba(126,232,255,0.24)",
-  background: "rgba(255,255,255,0.08)",
-  padding: "14px 16px",
-};
-
-const helperTextStyle: CSSProperties = {
-  margin: 0,
-  color: "#ffd76a",
-};
-
-const quizTopBarStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: "12px",
-  flexWrap: "wrap",
-  marginBottom: "18px",
-};
-
-const quizMainCardStyle: CSSProperties = {
-  borderRadius: "28px",
-  border: "1px solid rgba(126,232,255,0.24)",
-  background: "linear-gradient(180deg, rgba(14,35,72,0.86), rgba(7,18,42,0.95))",
-  padding: "26px",
-};
-
-const quizSideCardStyle: CSSProperties = {
-  borderRadius: "28px",
-  border: "1px solid rgba(126,232,255,0.24)",
-  background: "rgba(255,255,255,0.06)",
-  padding: "24px",
-  height: "fit-content",
-};
-
-const quizHeaderRowStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: "16px",
-  alignItems: "flex-start",
-};
-
-const timerCircleStyle = (isUrgent: boolean): CSSProperties => ({
-  width: "88px",
-  height: "88px",
-  borderRadius: "999px",
-  border: `1px solid ${isUrgent ? "rgba(248,113,113,0.65)" : "rgba(126,232,255,0.5)"}`,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  flexDirection: "column",
-  color: isUrgent ? "#ffb3b3" : "#7ee8ff",
-  flexShrink: 0,
-});
-
-const questionImageShellStyle: CSSProperties = {
-  marginTop: "22px",
-  borderRadius: "20px",
-  background: "rgba(255,255,255,0.95)",
-  minHeight: "220px",
-  overflow: "hidden",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
-
-const questionImageStyle: CSSProperties = {
-  width: "100%",
-  height: "100%",
-  objectFit: "contain",
-};
-
-const questionTextStyle = (isMobile: boolean): CSSProperties => ({
-  margin: "24px 0 0",
-  fontSize: isMobile ? "21px" : "29px",
-  lineHeight: 1.35,
-});
-
-const difficultyStyle: CSSProperties = {
-  margin: "12px 0 0",
-  color: "rgba(255,255,255,0.6)",
-  fontSize: "14px",
-};
-
-const feedbackCardStyle = (isCorrect: boolean): CSSProperties => ({
-  marginTop: "22px",
-  borderRadius: "18px",
-  border: isCorrect
-    ? "1px solid rgba(74,222,128,0.55)"
-    : "1px solid rgba(248,113,113,0.45)",
-  background: isCorrect ? "rgba(34,197,94,0.14)" : "rgba(239,68,68,0.14)",
-  padding: "18px 20px",
-  lineHeight: 1.55,
-});
-
-const feedbackFooterStyle: CSSProperties = {
-  marginTop: "14px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: "12px",
-  flexWrap: "wrap",
-};
-
-const nextButtonStyle: CSSProperties = {
-  minHeight: "44px",
-  padding: "0 16px",
-  borderRadius: "999px",
-  border: "1px solid rgba(255,255,255,0.35)",
-  background: "linear-gradient(135deg,#35c5ff,#4c6dff)",
-  color: "white",
-  fontWeight: 800,
-  cursor: "pointer",
-};
-
-const quizInstructionStyle: CSSProperties = {
-  margin: "8px 0 0",
-  color: "rgba(255,255,255,0.7)",
-  lineHeight: 1.55,
-};
-
-const resultsShellStyle: CSSProperties = {
-  margin: "0 auto",
-  maxWidth: "760px",
-  textAlign: "center",
-};
-
-const resultsTitleStyle: CSSProperties = {
-  margin: "12px 0 28px",
-  fontSize: "42px",
-};
-
-const messageBannerStyle: CSSProperties = {
-  margin: "0 0 22px",
-  borderRadius: "16px",
-  border: "1px solid rgba(126,232,255,0.28)",
-  background: "rgba(126,232,255,0.08)",
-  padding: "14px 16px",
-  color: "rgba(255,255,255,0.82)",
-  lineHeight: 1.5,
-};
-
-const leaderboardListStyle: CSSProperties = {
-  marginTop: "24px",
-  display: "grid",
-  gap: "12px",
-};
-
-const leaderboardRowStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: "12px",
-  alignItems: "center",
-  borderRadius: "16px",
-  border: "1px solid rgba(126,232,255,0.24)",
-  background: "rgba(255,255,255,0.08)",
-  padding: "14px 16px",
-};
-
-const resultsPanelStyle: CSSProperties = {
-  margin: "0 auto",
-  maxWidth: "760px",
-  borderRadius: "28px",
-  border: "1px solid rgba(126,232,255,0.4)",
-  background:
-    "linear-gradient(180deg, rgba(17,82,136,0.86), rgba(7,27,68,0.98))",
-  padding: "36px",
-  textAlign: "center",
-};
-
-const resultsStatsGridStyle: CSSProperties = {
-  marginTop: "28px",
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-  gap: "12px",
-};
-
-const resultsMessageStyle: CSSProperties = {
-  margin: "26px 0 0",
-  color: "rgba(255,255,255,0.78)",
-  lineHeight: 1.5,
-};
-
-const resultsButtonRowStyle: CSSProperties = {
-  marginTop: "28px",
-  display: "flex",
-  justifyContent: "center",
-  gap: "12px",
-  flexWrap: "wrap",
-};
-
-const messageCardStyle: CSSProperties = {
-  margin: "22px auto",
-  maxWidth: "560px",
-  borderRadius: "24px",
-  border: "1px solid rgba(126,232,255,0.36)",
-  background: "rgba(255,255,255,0.08)",
-  padding: "30px",
-  textAlign: "center",
-  color: "rgba(255,255,255,0.82)",
-};
-
-const statusPillStyle: CSSProperties = {
-  borderRadius: "999px",
-  border: "1px solid rgba(126,232,255,0.28)",
-  background: "rgba(255,255,255,0.07)",
-  padding: "9px 14px",
-  fontSize: "13px",
-  color: "rgba(255,255,255,0.72)",
-};
-
-const resultStatStyle: CSSProperties = {
-  borderRadius: "16px",
-  border: "1px solid rgba(126,232,255,0.28)",
-  background: "rgba(255,255,255,0.08)",
-  padding: "16px 10px",
-};
-
-const resultStatLabelStyle: CSSProperties = {
-  margin: 0,
-  color: "#7ee8ff",
-  fontSize: "12px",
-  letterSpacing: "0.12em",
-  textTransform: "uppercase",
-};
-
-const resultStatValueStyle: CSSProperties = {
-  margin: "8px 0 0",
-  fontSize: "24px",
-  fontWeight: 700,
-};
-
-const challengeGridStyle = (isMobile: boolean): CSSProperties => ({
-  display: "grid",
-  gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
-  gap: "18px",
-});
-
-const challengeCardStyle = (accent: string, disabled: boolean): CSSProperties => ({
-  minHeight: "260px",
-  borderRadius: "26px",
-  border: `1px solid ${accent}55`,
-  background: "linear-gradient(180deg, rgba(13,31,67,0.9), rgba(6,17,39,0.97))",
-  boxShadow: `0 0 24px ${accent}14`,
-  padding: "24px",
-  color: "white",
-  textAlign: "left",
-  display: "flex",
-  flexDirection: "column",
-  cursor: disabled ? "not-allowed" : "pointer",
-  opacity: disabled ? 0.55 : 1,
-});
-
-const challengeCardTopStyle: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: "12px",
-};
-
-const challengeIconStyle = (accent: string): CSSProperties => ({
-  width: "48px",
-  height: "48px",
-  borderRadius: "15px",
-  border: `1px solid ${accent}55`,
-  background: `${accent}18`,
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "23px",
-});
-
-const challengeEyebrowStyle: CSSProperties = {
-  color: "rgba(255,255,255,0.54)",
-  fontSize: "11px",
-  fontWeight: 900,
-  letterSpacing: "0.14em",
-  textTransform: "uppercase",
-};
-
-const challengeTitleStyle: CSSProperties = {
-  margin: "18px 0 0",
-  fontSize: "28px",
-  lineHeight: 1.1,
-};
-
-const challengeDescriptionStyle: CSSProperties = {
-  margin: "10px 0 0",
-  color: "rgba(255,255,255,0.74)",
-  fontSize: "15px",
-  lineHeight: 1.55,
-};
-
-const challengeDetailStyle: CSSProperties = {
-  margin: "16px 0 0",
-  color: "#bfefff",
-  fontSize: "13px",
-  lineHeight: 1.45,
-  fontWeight: 700,
-};
-
-const challengeActionStyle = (accent: string): CSSProperties => ({
-  marginTop: "auto",
-  minHeight: "46px",
-  borderRadius: "14px",
-  border: `1px solid ${accent}55`,
-  background: `${accent}18`,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontWeight: 800,
-});
-
-const profilePanelStyle: CSSProperties = {
-  borderRadius: "28px",
-  border: "1px solid rgba(201,168,255,0.28)",
-  background: "linear-gradient(145deg, rgba(27,27,69,0.82), rgba(7,18,42,0.95))",
-  padding: "26px",
-  display: "grid",
-  gap: "22px",
-};
-
-const profileHeaderStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: "20px",
-  flexWrap: "wrap",
-};
-
-const profileTitleStyle: CSSProperties = {
-  margin: "8px 0 0",
-  fontSize: "28px",
-};
-
-const profileCopyStyle: CSSProperties = {
-  maxWidth: "720px",
-  margin: "8px 0 0",
-  color: "rgba(255,255,255,0.68)",
-  lineHeight: 1.55,
-};
-
-const overallMasteryCardStyle: CSSProperties = {
-  minWidth: "180px",
-  borderRadius: "20px",
-  border: "1px solid rgba(126,232,255,0.24)",
-  background: "rgba(255,255,255,0.06)",
-  padding: "18px",
-  display: "grid",
-  gap: "5px",
-  textAlign: "right",
-};
-
-const profileTopicGridStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
-  gap: "12px",
-};
-
-const profileTopicCardStyle = (accent: string): CSSProperties => ({
-  borderRadius: "18px",
-  border: `1px solid ${accent}44`,
-  background: "rgba(255,255,255,0.055)",
-  padding: "16px",
-  display: "grid",
-  gap: "7px",
-});
-
-const recommendationCalloutStyle: CSSProperties = {
-  borderRadius: "20px",
-  border: "1px solid rgba(126,232,255,0.24)",
-  background: "rgba(126,232,255,0.07)",
-  padding: "18px",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "16px",
-  flexWrap: "wrap",
-};
-
-const fullAnalyticsLinkStyle: CSSProperties = {
-  minHeight: "46px",
-  borderRadius: "14px",
-  border: "1px solid rgba(201,168,255,0.3)",
-  background: "rgba(201,168,255,0.08)",
-  color: "white",
-  textDecoration: "none",
-  fontWeight: 800,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
-
-const topicMasteryChipStyle: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  minHeight: "30px",
-  padding: "0 12px",
-  borderRadius: "999px",
-  border: "1px solid rgba(255,255,255,0.18)",
-  background: "rgba(7,18,42,0.48)",
-  color: "#c8f3ff",
-  fontSize: "12px",
-  fontWeight: 800,
-};
-
-const impactPanelStyle: CSSProperties = {
-  marginTop: "24px",
-  borderRadius: "22px",
-  border: "1px solid rgba(201,168,255,0.28)",
-  background: "rgba(8,18,45,0.6)",
-  padding: "20px",
-  textAlign: "left",
-  display: "grid",
-  gap: "16px",
-};
-
-const impactHeadingStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: "14px",
-  flexWrap: "wrap",
-};
-
-const overallMasteryBadgeStyle: CSSProperties = {
-  borderRadius: "16px",
-  border: "1px solid rgba(126,232,255,0.24)",
-  background: "rgba(126,232,255,0.07)",
-  padding: "12px 14px",
-  display: "grid",
-  gap: "3px",
-  textAlign: "right",
-};
-
-const impactRowsStyle: CSSProperties = {
-  display: "grid",
-  gap: "9px",
-};
-
-const impactRowStyle: CSSProperties = {
-  borderRadius: "15px",
-  border: "1px solid rgba(255,255,255,0.1)",
-  background: "rgba(255,255,255,0.045)",
-  padding: "13px 14px",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "12px",
-};
-
-const navButtonStyle: CSSProperties = {
-  minHeight: "42px",
-  padding: "0 18px",
-  borderRadius: "999px",
-  border: "1px solid rgba(126,232,255,0.24)",
-  background: "rgba(255,255,255,0.06)",
-  color: "white",
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "14px",
-  fontWeight: 700,
-};
-
-const eyebrowStyle: CSSProperties = {
-  margin: 0,
-  color: "#7ee8ff",
-  fontSize: "13px",
-  letterSpacing: "0.22em",
-  textTransform: "uppercase",
-  fontWeight: 700,
-};
-
-const backButtonStyle: CSSProperties = {
-  border: "1px solid rgba(126,232,255,0.32)",
-  background: "rgba(255,255,255,0.06)",
-  color: "white",
-  borderRadius: "999px",
-  padding: "10px 16px",
-  cursor: "pointer",
-};
-
-const mainButtonStyle: CSSProperties = {
-  minHeight: "56px",
-  borderRadius: "14px",
-  border: "1px solid rgba(255,255,255,0.45)",
-  background: "linear-gradient(135deg,#35c5ff,#4c6dff)",
-  color: "white",
-  padding: "0 22px",
-  fontWeight: 800,
-  cursor: "pointer",
-  letterSpacing: "0.04em",
-};
-
-const inputStyle: CSSProperties = {
-  width: "100%",
-  height: "56px",
-  borderRadius: "16px",
-  border: "1px solid rgba(126,232,255,0.32)",
-  background: "rgba(255,255,255,0.08)",
-  color: "white",
-  padding: "0 18px",
-  fontSize: "16px",
-  outline: "none",
-  boxSizing: "border-box",
-};
-
-const fieldLabelStyle: CSSProperties = {
-  display: "grid",
-  gap: "10px",
-};
-
-const fieldCaptionStyle: CSSProperties = {
-  color: "rgba(255,255,255,0.52)",
-  fontSize: "12px",
-  letterSpacing: "0.16em",
-  textTransform: "uppercase",
-  fontWeight: 900,
-};
-
-const errorStyle: CSSProperties = {
-  margin: "18px 0 0",
-  borderRadius: "16px",
-  border: "1px solid rgba(255,215,106,0.45)",
-  background: "rgba(255,215,106,0.1)",
-  padding: "14px 16px",
-  color: "#ffe6a8",
-  fontSize: "14px",
-};
-
-const answerButtonBaseStyle: CSSProperties = {
-  borderRadius: "16px",
-  minHeight: "62px",
-  padding: "12px 14px",
-  display: "grid",
-  gridTemplateColumns: "34px 1fr",
-  gap: "12px",
-  alignItems: "center",
-  textAlign: "left",
-  cursor: "pointer",
-  transition: "background 180ms ease, border 180ms ease",
-};
-
-const answerLetterStyle: CSSProperties = {
-  width: "34px",
-  height: "34px",
-  borderRadius: "999px",
-  background: "rgba(255,255,255,0.16)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "16px",
-};

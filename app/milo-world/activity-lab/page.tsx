@@ -49,14 +49,6 @@ const activities: ActivityCardData[] = [
     icon: "◇",
   },
   {
-    title: "Categories",
-    eyebrow: "Quiz Battle",
-    description: "Choose a topic and race through a timed quiz.",
-    image: "/milo-world/activities/categories-quiz.png",
-    href: "/milo-world/categories",
-    icon: "▦",
-  },
-  {
     title: "Who’s Bluffing",
     eyebrow: "Party Game",
     description: "Invent fake answers and identify the truth.",
@@ -361,8 +353,8 @@ function ActivityMenu({
         height: "100%",
         display: "grid",
         gridTemplateRows: drawer
-          ? "repeat(3, 92px)"
-          : "repeat(3, minmax(0, 1fr))",
+          ? "repeat(2, 92px)"
+          : "repeat(2, minmax(0, 1fr))",
         gap: drawer ? "12px" : dense ? "8px" : "11px",
       }}
     >

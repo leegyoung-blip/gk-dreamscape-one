@@ -100,7 +100,7 @@ const ZONES: Zone[] = [
     number: "1",
     icon: "▣",
     title: "Activity Lab",
-    description: "Where you play, compete and earn your first Dream Tokens.",
+    description: "Daily challenges and social games where you can earn Dream Tokens.",
     href: "/milo-world/activity-lab",
   },
   {
@@ -128,14 +128,33 @@ const ZONES: Zone[] = [
       "Where you decide what your hard-earned Tokens are worth spending on.",
     href: "/milo-world/dream-shop",
   },
+  {
+    number: "5",
+    icon: "◉",
+    title: "Milo’s Quiz Hall",
+    description:
+      "Enter creator clubs or test yourself in Dreamscape’s official Categories Hub.",
+    href: "/milo-world/quiz-hall",
+  },
 ];
+
+const DESKTOP_ZONE_POSITIONS: Record<
+  string,
+  { top: string; left?: string; right?: string; width: string }
+> = {
+  "1": { top: "33%", left: "3.2%", width: "min(360px, 24vw)" },
+  "2": { top: "66%", left: "4.5%", width: "min(360px, 24vw)" },
+  "3": { top: "66%", right: "3.7%", width: "min(390px, 25vw)" },
+  "4": { top: "33%", right: "4.2%", width: "min(360px, 24vw)" },
+  "5": { top: "68%", left: "50%", width: "min(390px, 25vw)" },
+};
 
 const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   {
     eyebrow: "Welcome",
     title: "Want me to show you around?",
     text:
-      "Hey! I’m Milo. I’ll show you how to earn Dream Tokens, put them to work, build something of your own and decide what’s worth spending on.",
+      "Hey! I’m Milo. I’ll show you how to earn Dream Tokens, put them to work, build something of your own, test what you know and decide what’s worth spending on.",
   },
   {
     eyebrow: "Your Money",
@@ -144,38 +163,45 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
       "Earn DT through activities, then choose what to do with them. Spend them, invest them, or use them as you build your way through Milo’s World.",
   },
   {
-    eyebrow: "Stop 1 of 4",
+    eyebrow: "Stop 1 of 5",
     title: "Need some Dream Tokens? Start here.",
     text:
-      "The Activity Lab has challenges, quiz battles and party games where you can play, compete and earn your first Dream Tokens.",
+      "The Activity Lab has daily challenges and social games where you can play, compete and earn your first Dream Tokens.",
     zoneNumber: "1",
   },
   {
-    eyebrow: "Stop 2 of 4",
+    eyebrow: "Stop 2 of 5",
     title: "Now put those Tokens to work.",
     text:
       "Milo’s Exchange lets you experiment with fictional stocks and property without risking real money — and see how value, risk and returns can change.",
     zoneNumber: "2",
   },
   {
-    eyebrow: "Stop 3 of 4 · Coming Soon",
+    eyebrow: "Stop 3 of 5 · Coming Soon",
     title: "What if you built the business yourself?",
     text:
       "Business Builder is coming soon. You’ll make decisions about costs, staff, operations and growth, then see what happens to the business you create.",
     zoneNumber: "3",
   },
   {
-    eyebrow: "Stop 4 of 4",
+    eyebrow: "Stop 4 of 5",
     title: "Earning also means choosing how to spend.",
     text:
       "The Dream Shop is where you decide what your hard-earned Tokens are worth spending on, from collectibles to special Dreamscape items.",
     zoneNumber: "4",
   },
   {
+    eyebrow: "Stop 5 of 5",
+    title: "Welcome to Milo’s Quiz Hall.",
+    text:
+      "Enter creator-led quiz clubs built around different interests, or head to Dreamscape’s Categories Hub to test your knowledge, build mastery and compete.",
+    zoneNumber: "5",
+  },
+  {
     eyebrow: "Your Turn",
     title: "Where do you want to start?",
     text:
-      "That’s the idea: earn it, decide what to do with it, and see what happens next. Pick a place and let’s go.",
+      "That’s the idea: earn, explore, compete, build and decide what happens next. Pick a place and let’s go.",
   },
 ];
 
@@ -188,8 +214,11 @@ function useResponsiveMode() {
       const height = window.innerHeight;
       const isPortrait = height > width;
       const aspectRatio = width / Math.max(height, 1);
+      // Keep the spatial world-map layout on normal landscape desktops/laptops.
+      // Only collapse to the stacked layout when the viewport is genuinely
+      // narrow/windowed or portrait.
       const shouldUseCompactLayout =
-        width < 1760 || isPortrait || aspectRatio < 1.65;
+        width < 1180 || isPortrait || aspectRatio < 1.35;
 
       if (width <= 720) {
         setScreenMode("mobile");
@@ -530,7 +559,7 @@ function GuidedWalkthrough({
   const isCurrencyStep = stepIndex === 1;
   const isLocationStep = Boolean(step.zoneNumber);
   const dockAtTop =
-    isMobile && Boolean(step.zoneNumber && ["3", "4"].includes(step.zoneNumber));
+    isMobile && Boolean(step.zoneNumber && ["3", "4", "5"].includes(step.zoneNumber));
   const [typedLength, setTypedLength] = useState(0);
 
   useEffect(() => {
@@ -686,6 +715,23 @@ function GuidedWalkthrough({
       );
     }
 
+    if (stepIndex === 6) {
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => onNavigate("/milo-world/quiz-hall")}
+            style={primaryActionStyle}
+          >
+            Enter Quiz Hall
+          </button>
+          <button type="button" onClick={() => onStepChange(7)} style={secondaryActionStyle}>
+            Keep touring
+          </button>
+        </>
+      );
+    }
+
     if (isLastStep) {
       const choiceStyle: CSSProperties = {
         ...secondaryActionStyle,
@@ -736,6 +782,13 @@ function GuidedWalkthrough({
             style={choiceStyle}
           >
             Visit the Shop
+          </button>
+          <button
+            type="button"
+            onClick={() => onNavigate("/milo-world/quiz-hall")}
+            style={choiceStyle}
+          >
+            Quiz Hall
           </button>
         </div>
       );
@@ -2937,42 +2990,67 @@ export default function MiloWorldPage() {
       </section>
 
       <section
+        aria-label="Milo's World locations"
         style={{
           position: isDesktop ? "absolute" : "relative",
-          top: isDesktop ? "142px" : "auto",
-          left: isDesktop ? "50%" : "auto",
-          transform: isDesktop ? "translateX(-50%)" : "none",
+          inset: isDesktop ? 0 : "auto",
           zIndex: walkthroughOpen ? 72 : 10,
           width: isDesktop
-            ? "min(470px, calc(100% - 48px))"
+            ? "100%"
             : isTablet
               ? walkthroughOpen
                 ? "min(420px, calc(100% - 48px))"
                 : "min(720px, calc(100% - 36px))"
               : "min(720px, calc(100% - 28px))",
+          height: isDesktop ? "100%" : "auto",
           margin: isDesktop
             ? 0
             : isTablet && walkthroughOpen
               ? "0 24px 0 auto"
               : "0 auto",
-          display: "grid",
-          gridTemplateColumns: "1fr",
+          display: isDesktop ? "block" : "grid",
+          gridTemplateColumns: isDesktop ? undefined : "1fr",
           gap: isMobile ? "12px" : "14px",
+          pointerEvents: isDesktop ? "none" : "auto",
         }}
       >
-        {ZONES.map((zone) => (
-          <ZoneCard
-            key={zone.number}
-            zone={zone}
-            screenMode={screenMode}
-            isAdmin={isAdmin}
-            walkthroughActive={walkthroughOpen}
-            walkthroughHighlighted={
-              walkthroughOpen &&
-              WALKTHROUGH_STEPS[walkthroughStep]?.zoneNumber === zone.number
-            }
-          />
-        ))}
+        {ZONES.map((zone) => {
+          const position = DESKTOP_ZONE_POSITIONS[zone.number];
+
+          const card = (
+            <ZoneCard
+              zone={zone}
+              screenMode={screenMode}
+              isAdmin={isAdmin}
+              walkthroughActive={walkthroughOpen}
+              walkthroughHighlighted={
+                walkthroughOpen &&
+                WALKTHROUGH_STEPS[walkthroughStep]?.zoneNumber === zone.number
+              }
+            />
+          );
+
+          if (!isDesktop) {
+            return <div key={zone.number}>{card}</div>;
+          }
+
+          return (
+            <div
+              key={zone.number}
+              style={{
+                position: "absolute",
+                ...position,
+                transform:
+                  zone.number === "5"
+                    ? "translateX(-50%)"
+                    : undefined,
+                pointerEvents: "auto",
+              }}
+            >
+              {card}
+            </div>
+          );
+        })}
       </section>
 
       {!walkthroughOpen && (
