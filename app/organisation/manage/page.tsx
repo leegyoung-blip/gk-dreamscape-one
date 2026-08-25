@@ -277,7 +277,70 @@ function OrganisationManageContent() {
     await refreshAll();
   }
 
-  const pendingInvites = invites.filter((invite) => invite.invite_status === "pending");
+  async function removeOrganisationMember(member: MemberRow) {
+    if (!selected || selected.organisation_role !== "dreamscape_admin") return;
+
+    const displayName =
+      member.email || member.username || "this Dreamscape account";
+
+    const confirmed = window.confirm(
+      `Remove ${displayName} from ${selected.organisation_name}?\n\n` +
+        "This releases the claimed licence seat immediately and removes any active class assignments in this organisation. " +
+        "The Dreamscape account, quiz history, DT, DG and other personal account data are NOT deleted.\n\n" +
+        "A removed student cannot simply reuse the shared Student Join Link. To intentionally admit them again later, add their exact email through the Approved Email List.",
+    );
+
+    if (!confirmed) return;
+
+    setSaving(true);
+    setMessage("");
+    setErrorMessage("");
+
+    const { data, error } = await supabase.rpc(
+      "admin_remove_organisation_member",
+      {
+        p_membership_id: member.membership_id,
+      },
+    );
+
+    setSaving(false);
+
+    if (error) {
+      setErrorMessage(
+        error.message || "The organisation member could not be removed.",
+      );
+      return;
+    }
+
+    const row = Array.isArray(data) ? data[0] : data;
+    const classAssignmentsRemoved = Number(
+      row?.class_assignments_removed || 0,
+    );
+
+    setMessage(
+      `${displayName} was removed from ${selected.organisation_name}. ` +
+        `The claimed ${labelRole(member.membership_role)} seat was released` +
+        (classAssignmentsRemoved > 0
+          ? ` and ${classAssignmentsRemoved} active class assignment${
+              classAssignmentsRemoved === 1 ? "" : "s"
+            } were removed.`
+          : "."),
+    );
+
+    await refreshAll();
+  }
+
+  const pendingInvites = invites.filter(
+    (invite) => invite.invite_status === "pending",
+  );
+  const activeMembers = members.filter(
+    (member) => member.membership_status === "active",
+  );
+  const inactiveMembers = members.filter(
+    (member) => member.membership_status !== "active",
+  );
+  const isDreamscapeAdmin =
+    selected?.organisation_role === "dreamscape_admin";
 
   return (
     <main className="relative min-h-screen overflow-x-hidden bg-[#020813] px-5 py-8 text-white sm:px-8">
@@ -565,24 +628,36 @@ function OrganisationManageContent() {
                 </div>
 
                 <section className="mt-6 rounded-[32px] border border-emerald-200/16 bg-emerald-400/[0.04] p-6 backdrop-blur-xl sm:p-7">
-                  <div className="flex items-end justify-between gap-4">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                     <div>
                       <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-200">
                         Claimed accounts
                       </p>
-                      <h2 className="mt-2 text-3xl font-bold">Organisation members</h2>
+                      <h2 className="mt-2 text-3xl font-bold">
+                        Active organisation members
+                      </h2>
+                      {isDreamscapeAdmin && (
+                        <p className="mt-3 max-w-3xl text-sm leading-6 text-white/46">
+                          Dreamscape admins can release a claimed seat if an account
+                          was connected by mistake. Removing a member does not delete
+                          their Dreamscape account or learning history.
+                        </p>
+                      )}
                     </div>
-                    <strong className="text-3xl text-emerald-200">{members.length}</strong>
+                    <strong className="text-3xl text-emerald-200">
+                      {activeMembers.length}
+                    </strong>
                   </div>
 
                   <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {members.length === 0 ? (
+                    {activeMembers.length === 0 ? (
                       <p className="text-sm text-white/42">
-                        No claimed accounts yet. A matching approved email will appear here after
-                        that verified Dreamscape account signs in.
+                        No active claimed accounts yet. A student who successfully
+                        joins through the shared link, or a matching approved email
+                        that is claimed, will appear here.
                       </p>
                     ) : (
-                      members.map((member) => (
+                      activeMembers.map((member) => (
                         <article
                           key={member.membership_id}
                           className="rounded-2xl border border-white/10 bg-white/[0.035] p-4"
@@ -590,16 +665,75 @@ function OrganisationManageContent() {
                           <strong className="block break-all text-sm text-white">
                             {member.email || member.username || "Dreamscape account"}
                           </strong>
-                          <span className="mt-2 block text-[10px] font-bold uppercase tracking-[0.1em] text-emerald-200">
-                            {labelRole(member.membership_role)}
-                          </span>
-                          <span className="mt-1 block text-[10px] text-white/34">
-                            {member.membership_status}
-                          </span>
+
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <span className="block text-[10px] font-bold uppercase tracking-[0.1em] text-emerald-200">
+                                {labelRole(member.membership_role)}
+                              </span>
+                              <span className="mt-1 block text-[10px] uppercase tracking-[0.08em] text-white/34">
+                                {member.membership_status}
+                              </span>
+                            </div>
+
+                            {isDreamscapeAdmin && (
+                              <button
+                                type="button"
+                                disabled={saving}
+                                onClick={() =>
+                                  void removeOrganisationMember(member)
+                                }
+                                className="rounded-full border border-red-200/24 bg-red-400/10 px-3 py-2 text-[9px] font-extrabold uppercase tracking-[0.1em] text-red-100 transition hover:bg-red-400/18 disabled:cursor-not-allowed disabled:opacity-45"
+                              >
+                                Remove Seat
+                              </button>
+                            )}
+                          </div>
                         </article>
                       ))
                     )}
                   </div>
+
+                  {isDreamscapeAdmin && inactiveMembers.length > 0 && (
+                    <div className="mt-7 border-t border-white/10 pt-6">
+                      <div className="flex items-end justify-between gap-4">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/34">
+                            Removed / inactive
+                          </p>
+                          <p className="mt-2 text-sm leading-6 text-white/42">
+                            These records do not consume licence seats. To deliberately
+                            admit one again, add that account&apos;s exact email through
+                            the Approved Email List above.
+                          </p>
+                        </div>
+                        <strong className="text-xl text-white/42">
+                          {inactiveMembers.length}
+                        </strong>
+                      </div>
+
+                      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        {inactiveMembers.map((member) => (
+                          <article
+                            key={member.membership_id}
+                            className="rounded-2xl border border-white/8 bg-black/15 p-4 opacity-75"
+                          >
+                            <strong className="block break-all text-sm text-white/72">
+                              {member.email ||
+                                member.username ||
+                                "Dreamscape account"}
+                            </strong>
+                            <span className="mt-2 block text-[10px] font-bold uppercase tracking-[0.1em] text-white/40">
+                              {labelRole(member.membership_role)}
+                            </span>
+                            <span className="mt-1 block text-[10px] uppercase tracking-[0.08em] text-red-200/70">
+                              {member.membership_status}
+                            </span>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </section>
               </>
             )}
