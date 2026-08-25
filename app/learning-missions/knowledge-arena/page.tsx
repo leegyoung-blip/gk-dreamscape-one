@@ -2343,7 +2343,7 @@ export default function KnowledgeArenaPage() {
 
           <aside
             ref={novaGuidePanelRef}
-            className="ka-guide-panel"
+            className={`ka-guide-panel ${novaGuideStep <= 1 ? "is-no-scroll" : ""}`}
             role="dialog"
             aria-modal="true"
             aria-label="Nova Knowledge Arena guide"
@@ -4567,6 +4567,510 @@ export default function KnowledgeArenaPage() {
             padding: 5px 6px;
           }
         }
+
+        /* ================================================================
+           KNOWLEDGE ARENA VISUAL REFINEMENT v2
+           - smaller mode-select buttons / spotlight
+           - non-scroll guide slides 1–2
+           - larger readable setup typography
+           - larger challenge-mode controls
+           - premium aurora start CTA
+           ================================================================ */
+
+        /* Mode select: stop the two choices from stretching across the full
+           remaining viewport. This also gives Guide step 1 a compact target. */
+        .ka-mode-stage .ka-mode-grid {
+          width: min(1120px, 88vw);
+          height: clamp(190px, 27vh, 240px);
+          min-height: 190px;
+          flex: 0 0 auto;
+          align-self: center;
+          gap: 14px;
+          margin-top: 18px;
+        }
+
+        .ka-mode-stage .ka-mode-card {
+          border-radius: 20px;
+          padding: 20px 22px;
+        }
+
+        .ka-mode-stage .ka-mode-icon {
+          width: 46px;
+          height: 46px;
+          border-radius: 14px;
+          font-size: 20px;
+        }
+
+        .ka-mode-stage .ka-mode-copy small {
+          font-size: 9px;
+        }
+
+        .ka-mode-stage .ka-mode-copy strong {
+          margin-top: 6px;
+          font-size: clamp(23px, 2.1vw, 31px);
+        }
+
+        .ka-mode-stage .ka-mode-copy > span {
+          margin-top: 8px;
+          font-size: 13px;
+          line-height: 1.45;
+        }
+
+        .ka-mode-stage .ka-mode-action {
+          padding-top: 11px;
+          font-size: 11px;
+        }
+
+        .ka-mode-stage .ka-mode-footer {
+          width: min(900px, 82vw);
+          align-self: center;
+          margin-top: 13px;
+          padding: 9px 12px;
+          font-size: 9px;
+        }
+
+        /* General setup readability. Keep the title restrained but make the
+           working UI feel like a premium game interface rather than tiny labels. */
+        .ka-hero-heading p,
+        .ka-kicker {
+          font-size: 10px;
+        }
+
+        .ka-hero-copy {
+          max-width: 420px;
+          font-size: 13px;
+          line-height: 1.45;
+        }
+
+        .ka-hero-stats span {
+          font-size: 8px;
+        }
+
+        .ka-hero-stats strong {
+          font-size: 13px;
+        }
+
+        .ka-stage-toolbar > div > strong {
+          font-size: 19px;
+        }
+
+        .ka-inline-back,
+        .ka-secondary-button {
+          min-height: 38px;
+          padding-inline: 13px;
+          font-size: 11px;
+        }
+
+        .ka-profile-strip {
+          min-height: 64px;
+          grid-template-columns: auto repeat(4, minmax(0, 1fr)) minmax(190px, 1.35fr);
+          gap: 7px;
+          border-radius: 14px;
+          padding: 7px;
+        }
+
+        .ka-profile-overall,
+        .ka-profile-world,
+        .ka-profile-recommendation {
+          border-radius: 11px;
+          padding: 8px 10px;
+        }
+
+        .ka-profile-overall {
+          min-width: 110px;
+        }
+
+        .ka-profile-strip span,
+        .ka-profile-strip small {
+          font-size: 9px;
+        }
+
+        .ka-profile-strip strong {
+          margin-top: 3px;
+          font-size: 14px;
+        }
+
+        .ka-profile-overall strong {
+          font-size: 23px;
+        }
+
+        .ka-profile-recommendation a {
+          margin-top: 4px;
+          font-size: 9px;
+        }
+
+        .ka-setup-label-row span {
+          font-size: 12px;
+          letter-spacing: 0.11em;
+        }
+
+        .ka-setup-label-row small {
+          margin-top: 3px;
+          font-size: 10px;
+        }
+
+        .ka-world-grid {
+          gap: 9px;
+          margin-top: 7px;
+        }
+
+        .ka-world-card {
+          border-radius: 16px;
+        }
+
+        .ka-world-content {
+          padding: clamp(12px, 1.8vh, 18px);
+        }
+
+        .ka-world-content > small {
+          font-size: 9px;
+        }
+
+        .ka-world-content > strong {
+          margin-top: 5px;
+          font-size: clamp(17px, 1.55vw, 23px);
+        }
+
+        .ka-world-content > span {
+          margin-top: 5px;
+          font-size: 10px;
+        }
+
+        .ka-world-content > p {
+          margin-top: 6px;
+          font-size: 10px;
+          line-height: 1.4;
+        }
+
+        .ka-setup-lower {
+          grid-template-columns: minmax(220px, 0.42fr) minmax(0, 1.58fr);
+          gap: 10px;
+        }
+
+        .ka-timer-selector {
+          min-height: 70px;
+          border-radius: 15px;
+          padding: 9px 10px 9px 14px;
+        }
+
+        .ka-timer-selector > span {
+          font-size: 10px;
+        }
+
+        .ka-timer-options {
+          gap: 5px;
+          border-radius: 11px;
+          padding: 4px;
+        }
+
+        .ka-timer-options button {
+          min-width: 58px;
+          min-height: 42px;
+          border-radius: 9px;
+          font-size: 11px;
+        }
+
+        .ka-challenge-grid {
+          gap: 8px;
+        }
+
+        .ka-challenge-card {
+          min-height: 70px;
+          border-radius: 15px;
+          padding: 10px 11px;
+          transition: transform 150ms ease, border-color 150ms ease,
+            background 150ms ease, box-shadow 150ms ease;
+        }
+
+        .ka-challenge-card:not(:disabled):hover {
+          transform: translateY(-1px);
+          border-color: rgba(126, 232, 255, 0.32);
+          background: rgba(126, 232, 255, 0.055);
+        }
+
+        .ka-challenge-card > span {
+          gap: 7px;
+        }
+
+        .ka-challenge-card b {
+          font-size: 14px;
+        }
+
+        .ka-challenge-card strong {
+          font-size: 12px;
+        }
+
+        .ka-challenge-card small {
+          max-height: 30px;
+          margin-top: 5px;
+          font-size: 9px;
+          line-height: 1.4;
+        }
+
+        /* Premium modern CTA: aurora/glass treatment instead of a flat blue bar. */
+        .ka-start-button {
+          position: relative;
+          min-height: 50px;
+          overflow: hidden;
+          border: 1px solid rgba(206, 240, 255, 0.52);
+          border-radius: 14px;
+          background:
+            linear-gradient(
+              100deg,
+              #16c9c3 0%,
+              #327df4 38%,
+              #7658f6 68%,
+              #a84ce8 100%
+            );
+          padding: 10px 16px;
+          color: #ffffff;
+          font-size: 12px;
+          font-weight: 950;
+          letter-spacing: 0.105em;
+          text-shadow: 0 1px 8px rgba(0, 0, 0, 0.28);
+          box-shadow:
+            0 12px 30px rgba(50, 125, 244, 0.23),
+            0 0 26px rgba(118, 88, 246, 0.13),
+            inset 0 1px 0 rgba(255, 255, 255, 0.28),
+            inset 0 -1px 0 rgba(6, 15, 38, 0.2);
+          transition: transform 160ms ease, filter 160ms ease,
+            box-shadow 160ms ease;
+        }
+
+        .ka-start-button::before {
+          position: absolute;
+          inset: 0;
+          background:
+            linear-gradient(
+              115deg,
+              transparent 12%,
+              rgba(255, 255, 255, 0.16) 34%,
+              transparent 54%
+            );
+          transform: translateX(-48%);
+          content: "";
+          pointer-events: none;
+        }
+
+        .ka-start-button:not(:disabled):hover {
+          transform: translateY(-1px);
+          filter: saturate(1.08) brightness(1.04);
+          box-shadow:
+            0 16px 36px rgba(50, 125, 244, 0.29),
+            0 0 34px rgba(168, 76, 232, 0.18),
+            inset 0 1px 0 rgba(255, 255, 255, 0.32);
+        }
+
+        /* Guide slides 1 and 2 are short informational slides. Let them size to
+           content instead of creating an internal scroll pane. */
+        .ka-guide-panel.is-no-scroll {
+          grid-template-rows: auto auto auto auto;
+          max-height: calc(100dvh - 24px) !important;
+        }
+
+        .ka-guide-panel.is-no-scroll .ka-guide-body {
+          overflow: hidden;
+          overscroll-behavior: none;
+          padding-top: 12px;
+          padding-bottom: 10px;
+        }
+
+        .ka-guide-panel.is-no-scroll .ka-guide-description {
+          margin-top: 8px;
+        }
+
+        .ka-guide-panel.is-no-scroll .ka-guide-tip {
+          margin-top: 9px;
+        }
+
+        /* Slightly more readable guide chrome while keeping it compact enough
+           to sit outside the highlighted target. */
+        .ka-guide-identity small {
+          font-size: 8px;
+        }
+
+        .ka-guide-identity strong {
+          font-size: 13px;
+        }
+
+        .ka-guide-eyebrow {
+          font-size: 9px;
+        }
+
+        .ka-guide-description {
+          font-size: 12px;
+        }
+
+        .ka-guide-tip p {
+          font-size: 10px;
+        }
+
+        @media (max-width: 1100px) {
+          .ka-mode-stage .ka-mode-grid {
+            width: min(980px, 94vw);
+            height: clamp(180px, 25vh, 220px);
+          }
+
+          .ka-profile-strip {
+            grid-template-columns: auto repeat(4, minmax(0, 1fr)) minmax(170px, 1.2fr);
+          }
+
+          .ka-world-content > strong {
+            font-size: clamp(15px, 1.8vw, 20px);
+          }
+
+          .ka-world-content > p {
+            font-size: 9px;
+          }
+
+          .ka-challenge-card strong {
+            font-size: 11px;
+          }
+        }
+
+        @media (max-width: 850px), (hover: none) and (pointer: coarse) {
+          .ka-mode-stage .ka-mode-grid {
+            width: 100%;
+            height: auto;
+            min-height: 0;
+            flex: 1 1 0;
+            gap: 8px;
+            margin-top: 9px;
+          }
+
+          .ka-mode-stage .ka-mode-card {
+            padding: 12px 13px;
+          }
+
+          .ka-mode-stage .ka-mode-copy strong {
+            font-size: 18px;
+          }
+
+          .ka-mode-stage .ka-mode-copy > span {
+            font-size: 11px;
+          }
+
+          .ka-profile-strip {
+            min-height: 48px;
+            gap: 4px;
+            padding: 4px;
+          }
+
+          .ka-profile-overall,
+          .ka-profile-world,
+          .ka-profile-recommendation {
+            padding: 5px 6px;
+          }
+
+          .ka-profile-strip span,
+          .ka-profile-strip small {
+            font-size: 7px;
+          }
+
+          .ka-profile-strip strong {
+            font-size: 10px;
+          }
+
+          .ka-profile-overall strong {
+            font-size: 15px;
+          }
+
+          .ka-setup-label-row span {
+            font-size: 10px;
+          }
+
+          .ka-setup-label-row small {
+            font-size: 8px;
+          }
+
+          .ka-world-content > strong {
+            font-size: 13px;
+          }
+
+          .ka-world-content > span {
+            font-size: 8px;
+          }
+
+          .ka-setup-lower {
+            grid-template-columns: 1fr;
+            gap: 5px;
+          }
+
+          .ka-timer-selector {
+            min-height: 42px;
+            padding: 5px 6px 5px 9px;
+          }
+
+          .ka-timer-selector > span {
+            font-size: 8px;
+          }
+
+          .ka-timer-options button {
+            min-height: 31px;
+            font-size: 9px;
+          }
+
+          .ka-challenge-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 5px;
+          }
+
+          .ka-challenge-card {
+            min-height: 46px;
+            padding: 7px 8px;
+          }
+
+          .ka-challenge-card strong {
+            font-size: 9px;
+          }
+
+          .ka-challenge-card b {
+            font-size: 11px;
+          }
+
+          .ka-challenge-card small {
+            display: none;
+          }
+
+          .ka-start-button {
+            min-height: 40px;
+            padding: 7px 10px;
+            font-size: 9px;
+          }
+
+          .ka-guide-panel.is-no-scroll .ka-guide-body {
+            overflow: hidden;
+          }
+        }
+
+        @media (max-height: 700px) and (min-width: 851px) {
+          .ka-mode-stage .ka-mode-grid {
+            height: clamp(165px, 25vh, 195px);
+            min-height: 165px;
+          }
+
+          .ka-profile-strip {
+            min-height: 54px;
+          }
+
+          .ka-world-content > p {
+            display: none;
+          }
+
+          .ka-world-content > strong {
+            font-size: 16px;
+          }
+
+          .ka-timer-selector,
+          .ka-challenge-card {
+            min-height: 58px;
+          }
+
+          .ka-start-button {
+            min-height: 44px;
+          }
+        }
+
       `}</style>
     </main>
   );
