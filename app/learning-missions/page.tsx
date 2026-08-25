@@ -118,10 +118,11 @@ function useResponsiveMode() {
       const isPortrait = height > width;
       const aspectRatio = width / Math.max(height, 1);
 
-      // Only use the floating mission-map layout on genuinely wide screens.
-      // Half-screen windows and ordinary laptop layouts use the vertical stack.
+      // Prefer the five-location mission map whenever there is enough
+      // horizontal room. The vertical card stack is now reserved mainly for
+      // portrait / genuinely narrow layouts.
       const shouldUseFloatingLayout =
-        width >= 1760 && !isPortrait && aspectRatio >= 1.65;
+        width >= 960 && !isPortrait && aspectRatio >= 1.2;
 
       if (width <= 720) {
         setScreenMode("mobile");
@@ -869,6 +870,16 @@ export default function LearningMissionsPage() {
     if (!href) return undefined;
 
     return () => {
+      if (
+        zone.accessKey === "core" &&
+        isZoneReleased(zone) &&
+        !userMissionAccess.isAdmin &&
+        !userMissionAccess.canAccessCore
+      ) {
+        window.location.href = "/pricing";
+        return;
+      }
+
       if (isZoneLocked(zone)) {
         setLockedZoneMessage(getLockedMessage(zone));
         return;
@@ -1483,9 +1494,12 @@ function FloatingMissionControls({
         <div
           style={{
             position: "fixed",
-            top: isMobile ? "60px" : "76px",
-            left: isMobile ? "12px" : "18px",
+            top: isMobile ? "12px" : "18px",
+            right: isMobile ? "12px" : "18px",
             zIndex: 84,
+            display: "grid",
+            justifyItems: "end",
+            gap: "7px",
           }}
         >
           <button
@@ -1508,7 +1522,9 @@ function FloatingMissionControls({
               backdropFilter: "blur(16px)",
               WebkitBackdropFilter: "blur(16px)",
               color: "white",
+              display: "flex",
               alignItems: "center",
+              justifyContent: "center",
               gap: "9px",
               fontSize: isMobile ? "11px" : "13px",
               fontWeight: 800,
@@ -1525,14 +1541,100 @@ function FloatingMissionControls({
             Menu
           </button>
 
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              gap: "7px",
+              maxWidth: "calc(100vw - 24px)",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setCompactMenuOpen(false);
+                setDreamGemsOpen(false);
+                setProfileAssetsOpen((current) => !current);
+              }}
+              aria-expanded={profileAssetsOpen}
+              aria-haspopup="menu"
+              style={{
+                minHeight: isMobile ? "34px" : "38px",
+                padding: isMobile ? "0 10px" : "0 12px",
+                borderRadius: "999px",
+                border: "1px solid rgba(83,215,255,0.5)",
+                background: "rgba(2,14,28,0.78)",
+                backdropFilter: "blur(14px)",
+                WebkitBackdropFilter: "blur(14px)",
+                color: "#bdf6ff",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                cursor: "pointer",
+                boxShadow: "0 12px 28px rgba(0,0,0,0.28)",
+                fontFamily: "inherit",
+                fontSize: isMobile ? "10px" : "11px",
+                fontWeight: 900,
+                whiteSpace: "nowrap",
+              }}
+            >
+              <span aria-hidden="true">◈</span>
+              <span>{isMobile ? "" : "Assets "}</span>
+              <strong style={{ color: "#53d7ff" }}>
+                {profileAssetsLoading
+                  ? "..."
+                  : formatDreamTokenAmount(profileAssetsTotal)}
+              </strong>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setCompactMenuOpen(false);
+                setProfileAssetsOpen(false);
+                setDreamGemsOpen((current) => !current);
+              }}
+              aria-expanded={dreamGemsOpen}
+              aria-haspopup="menu"
+              style={{
+                minHeight: isMobile ? "34px" : "38px",
+                padding: isMobile ? "0 10px" : "0 12px",
+                borderRadius: "999px",
+                border: "1px solid rgba(216,180,254,0.5)",
+                background: "rgba(36,16,68,0.82)",
+                backdropFilter: "blur(14px)",
+                WebkitBackdropFilter: "blur(14px)",
+                color: "#f3e8ff",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                cursor: "pointer",
+                boxShadow: "0 12px 28px rgba(0,0,0,0.28)",
+                fontFamily: "inherit",
+                fontSize: isMobile ? "10px" : "11px",
+                fontWeight: 900,
+                whiteSpace: "nowrap",
+              }}
+            >
+              <span aria-hidden="true">◆</span>
+              <span>{isMobile ? "" : "Gems "}</span>
+              <strong style={{ color: "#e9d5ff" }}>
+                {dreamGemsLoading
+                  ? "..."
+                  : formatDreamGemAmount(dreamGemBalance)}
+              </strong>
+            </button>
+          </div>
+
           {compactMenuOpen && (
             <div
               role="menu"
               style={{
                 position: "absolute",
-                top: "calc(100% + 9px)",
-                left: 0,
-                width: isMobile ? "min(330px, calc(100vw - 24px))" : "350px",
+                top: isMobile ? "87px" : "99px",
+                right: 0,
+                width: isMobile ? "min(300px, calc(100vw - 24px))" : "320px",
                 borderRadius: "20px",
                 border: "1px solid rgba(126,232,255,0.3)",
                 background:
@@ -1566,58 +1668,6 @@ function FloatingMissionControls({
                 <span>Cart</span>
                 <span aria-hidden="true">›</span>
               </Link>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setCompactMenuOpen(false);
-                  setDreamGemsOpen(false);
-                  setProfileAssetsOpen(true);
-                }}
-                style={{
-                  ...compactMenuItemStyle,
-                  width: "100%",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                <span aria-hidden="true" style={{ color: "#8ee8ff" }}>
-                  ◈
-                </span>
-                <span>Profile Assets</span>
-                <strong style={{ color: "#53d7ff", whiteSpace: "nowrap" }}>
-                  {profileAssetsLoading
-                    ? "..."
-                    : formatDreamTokenAmount(profileAssetsTotal)}
-                </strong>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setCompactMenuOpen(false);
-                  setProfileAssetsOpen(false);
-                  setDreamGemsOpen(true);
-                }}
-                style={{
-                  ...compactMenuItemStyle,
-                  width: "100%",
-                  border: "1px solid rgba(216,180,254,0.22)",
-                  background: "rgba(192,132,252,0.08)",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                <span aria-hidden="true" style={{ color: "#e9d5ff" }}>
-                  ◆
-                </span>
-                <span>Dream Gems</span>
-                <strong style={{ color: "#e9d5ff", whiteSpace: "nowrap" }}>
-                  {dreamGemsLoading
-                    ? "..."
-                    : formatDreamGemAmount(dreamGemBalance)}
-                </strong>
-              </button>
             </div>
           )}
         </div>
@@ -1751,11 +1801,11 @@ function FloatingMissionControls({
                 position: isCompact ? "fixed" : "absolute",
                 top: isCompact
                   ? isMobile
-                    ? "112px"
-                    : "132px"
+                    ? "104px"
+                    : "116px"
                   : "calc(100% + 10px)",
-                right: isCompact ? "auto" : 0,
-                left: isCompact ? (isMobile ? "12px" : "22px") : "auto",
+                right: isCompact ? (isMobile ? "12px" : "18px") : 0,
+                left: "auto",
                 width: isCompact ? "min(380px, calc(100vw - 24px))" : "380px",
                 maxHeight: "min(560px, calc(100dvh - 92px))",
                 overflowY: "auto",
@@ -2110,11 +2160,11 @@ function FloatingMissionControls({
                 position: isCompact ? "fixed" : "absolute",
                 top: isCompact
                   ? isMobile
-                    ? "112px"
-                    : "132px"
+                    ? "104px"
+                    : "116px"
                   : "calc(100% + 10px)",
-                right: isCompact ? "auto" : 0,
-                left: isCompact ? (isMobile ? "12px" : "22px") : "auto",
+                right: isCompact ? (isMobile ? "12px" : "18px") : 0,
+                left: "auto",
                 width: isCompact ? "min(390px, calc(100vw - 24px))" : "390px",
                 maxHeight: "min(590px, calc(100dvh - 92px))",
                 overflowY: "auto",
@@ -3051,6 +3101,11 @@ function MissionGuidedWalkthrough({
   );
 
   const canEnterCurrentZone = Boolean(step.zoneId && zoneState?.unlocked);
+  const shouldOfferCorePricing =
+    step.zoneId === "core-missions" &&
+    Boolean(zoneState?.released) &&
+    !Boolean(zoneState?.unlocked) &&
+    !Boolean(zoneState?.adminPreview);
   const currentZoneTitle = step.zoneId
     ? missionZones.find((zone) => zone.id === step.zoneId)?.title || "Mission"
     : "Mission";
@@ -3298,9 +3353,18 @@ function MissionGuidedWalkthrough({
                   onClick={() => onEnterZone(step.zoneId!)}
                 />
               )}
+              {shouldOfferCorePricing && (
+                <GuideActionButton
+                  label="View Plans"
+                  primary
+                  onClick={() => {
+                    window.location.href = "/pricing";
+                  }}
+                />
+              )}
               <GuideActionButton
                 label={canEnterCurrentZone ? "Keep Touring" : "Continue Tour"}
-                primary={!canEnterCurrentZone}
+                primary={!canEnterCurrentZone && !shouldOfferCorePricing}
                 onClick={goForward}
               />
             </>
@@ -3448,7 +3512,7 @@ function getInteractiveGuideText(
     if (zoneState.unlocked) {
       return `${step.text} Core is released and this account can enter it now.`;
     }
-    return `${step.text} Core is released, but this account does not currently have the required Core access.`;
+    return `${step.text} Core is released, but this account does not currently have the required Core access. You can view the available plans if you’d like to unlock it.`;
   }
 
   if (step.id === "science") {

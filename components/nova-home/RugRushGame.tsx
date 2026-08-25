@@ -81,7 +81,7 @@ const BRUSH_RADIUS = 34;
 const SAMPLE_STEP = 2;
 const PERFECT_CLEAN_PERCENT = 99.5;
 const DEFAULT_RUG_IMAGE = "/activities/nova-home/rugs/nova-classic-rug.png";
-const DEFAULT_CLEANING_TOOL_IMAGE = "/activities/nova-home/rug-rush/yellow-sponge.png";
+const DEFAULT_CLEANING_TOOL_IMAGE = "/activities/nova-home/rug-rush/tools/yellow-sponge.png";
 
 const MESS_TYPES: MessDefinition[] = [
   {

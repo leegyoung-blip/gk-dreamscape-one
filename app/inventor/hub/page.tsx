@@ -237,7 +237,13 @@ const AREA_2_PLACEHOLDER_IMAGE = "/activities/nova-home/area-2-placeholder.png";
 const DEFAULT_RUG_KEY = "nova-classic-rug";
 const DEFAULT_RUG_GAME_IMAGE = "/activities/nova-home/rugs/nova-classic-rug.png";
 const DEFAULT_CLEANING_TOOL_KEY = "yellow-sponge";
-const DEFAULT_CLEANING_TOOL_IMAGE = "/activities/nova-home/rug-rush/yellow-sponge.png";
+const DEFAULT_CLEANING_TOOL_IMAGE = "/activities/nova-home/rug-rush/tools/yellow-sponge.png";
+
+const CLEANING_TOOL_ASSET_BY_KEY: Record<string, string> = {
+  "yellow-sponge": "/activities/nova-home/rug-rush/tools/yellow-sponge.png",
+  "turbo-scrubber": "/activities/nova-home/rug-rush/tools/turbo-scrubber-top.png",
+  "nano-cleaner": "/activities/nova-home/rug-rush/tools/nano-cleaner-top.png",
+};
 
 const RUG_RUSH_SPARKLES = [
   { left: 31, top: 63, size: 14, delay: 0 },
@@ -1241,19 +1247,27 @@ export default function NovaHomePage() {
       setCleaningToolCatalog([]);
       setRugMessage("Cleaning tools are not ready yet. Run SQL 320 in Supabase.");
     } else {
-      const tools = (cleaningToolCatalogResult.data || []).map((row) => ({
-        cleaning_tool_key: String(row.cleaning_tool_key || ""),
-        title: String(row.title || "Cleaning Tool"),
-        description: row.description ? String(row.description) : null,
-        currency_code: String(row.currency_code || "DT") === "DG" ? "DG" as const : "DT" as const,
-        price_amount: Math.max(0, Number(row.price_amount || 0)),
-        power_multiplier: Math.max(0.5, Number(row.power_multiplier || 1)),
-        game_image: String(row.game_image || DEFAULT_CLEANING_TOOL_IMAGE),
-        thumbnail_image: row.thumbnail_image ? String(row.thumbnail_image) : null,
-        is_starter: Boolean(row.is_starter),
-        is_placeholder: Boolean(row.is_placeholder),
-        sort_order: Number(row.sort_order || 0),
-      })) satisfies CleaningToolCatalogItem[];
+      const tools = (cleaningToolCatalogResult.data || []).map((row) => {
+        const cleaningToolKey = String(row.cleaning_tool_key || "");
+        const bundledAsset = CLEANING_TOOL_ASSET_BY_KEY[cleaningToolKey];
+        const resolvedGameImage = bundledAsset || String(row.game_image || DEFAULT_CLEANING_TOOL_IMAGE);
+        const resolvedThumbnailImage = bundledAsset || (row.thumbnail_image ? String(row.thumbnail_image) : null);
+
+        return {
+          cleaning_tool_key: cleaningToolKey,
+          title: String(row.title || "Cleaning Tool"),
+          description: row.description ? String(row.description) : null,
+          currency_code: String(row.currency_code || "DT") === "DG" ? "DG" as const : "DT" as const,
+          price_amount: Math.max(0, Number(row.price_amount || 0)),
+          power_multiplier: Math.max(0.5, Number(row.power_multiplier || 1)),
+          game_image: resolvedGameImage,
+          thumbnail_image: resolvedThumbnailImage,
+          is_starter: Boolean(row.is_starter),
+          // These three assets now ship as final PNGs in /public, even if an older DB row still says TEMP.
+          is_placeholder: bundledAsset ? false : Boolean(row.is_placeholder),
+          sort_order: Number(row.sort_order || 0),
+        };
+      }) satisfies CleaningToolCatalogItem[];
       setCleaningToolCatalog(tools);
 
       const validToolKeys = new Set(tools.map((tool) => tool.cleaning_tool_key));

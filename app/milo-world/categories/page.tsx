@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 type CategoryQuizQuestion = {
@@ -185,6 +185,7 @@ type MultiplayerLobby = {
   status: "waiting" | "playing" | "finished";
   created_at: string;
   started_at: string | null;
+  question_timer_seconds?: 10 | 20;
 };
 
 type MultiplayerPlayer = {
@@ -233,6 +234,9 @@ const MILO_GUIDE_STEPS = [
     description:
       "History, Geography and Science each build their own mastery profile. Your progress stays separate so Milo can learn where you are strongest in each subject.",
     detail: "Pick any category first. You can switch categories whenever you return to this screen.",
+    target: "category-choice",
+    fallbackTarget: "category-stage",
+    stage: "category",
   },
   {
     eyebrow: "Play style",
@@ -240,6 +244,9 @@ const MILO_GUIDE_STEPS = [
     description:
       "Quick Play gives you a balanced 10-question mix from the category. Correct answers earn more points when you answer quickly.",
     detail: "Use this when you want a fast, balanced challenge without targeting a specific weakness.",
+    target: "quick-play",
+    fallbackTarget: "category-stage",
+    stage: "category",
   },
   {
     eyebrow: "Personalized learning",
@@ -247,6 +254,9 @@ const MILO_GUIDE_STEPS = [
     description:
       "Milo Challenge uses your mastery data to focus more questions on areas that need practice. Before Milo has enough evidence, it runs a discovery challenge instead.",
     detail: "As Milo gathers evidence, these challenges become increasingly specific to your learning profile.",
+    target: "milo-challenge",
+    fallbackTarget: "category-stage",
+    stage: "category",
   },
   {
     eyebrow: "Personal record",
@@ -254,6 +264,9 @@ const MILO_GUIDE_STEPS = [
     description:
       "Once you have a saved score, Beat My Best builds a competitive mix around your current level and challenges you to improve your personal best.",
     detail: "This mode unlocks after your first recorded single-player quiz in that category.",
+    target: "beat-my-best",
+    fallbackTarget: "category-stage",
+    stage: "category",
   },
   {
     eyebrow: "Your learning profile",
@@ -261,6 +274,9 @@ const MILO_GUIDE_STEPS = [
     description:
       "My Mastery shows your overall mastery, accuracy trend, best score, improvement, Knowledge Map and past quiz history.",
     detail: "Milo only labels a subtopic Strong, Developing or Needs Practice after enough evidence has been collected.",
+    target: "my-mastery",
+    fallbackTarget: "category-stage",
+    stage: "category",
   },
   {
     eyebrow: "Goals & rewards",
@@ -268,13 +284,21 @@ const MILO_GUIDE_STEPS = [
     description:
       "When Milo finds a reliable area to improve, it can create a personalized target. Completing the target can award extra DT and DG on top of normal quiz rewards.",
     detail: "Targets are based on your own weaker areas rather than the same goal being given to everyone.",
+    target: "milo-target",
+    fallbackTarget: "mastery-shell",
+    stage: "mastery",
+    masteryView: "overview",
   },
   {
     eyebrow: "Learn from every attempt",
     title: "Results & ranking",
     description:
-      "After a quiz, See Results lets you review all 10 answers, the correct answers and explanations. Your score can also be compared with completed attempts in the same category.",
-    detail: "The ranking compares quiz attempts, not people. More detailed comparisons appear once enough attempts exist.",
+      "After a quiz, See Results lets you review all 10 answers, the correct answers and explanations. Your saved attempts also stay available from My Mastery so you can revisit them later.",
+    detail: "At quiz completion, your score can be compared with completed attempts in the same category. The ranking compares quiz attempts, not people.",
+    target: "results-history",
+    fallbackTarget: "mastery-shell",
+    stage: "mastery",
+    masteryView: "history",
   },
   {
     eyebrow: "Play together",
@@ -282,6 +306,9 @@ const MILO_GUIDE_STEPS = [
     description:
       "Create or join a lobby and answer the same 10 questions together. Multiplayer correctness still contributes to your personal mastery evidence.",
     detail: "Multiplayer is tracked separately from single-player improvement benchmarking so competitive play does not distort your normal progress trend.",
+    target: "multiplayer-mode",
+    fallbackTarget: "mode-stage",
+    stage: "mode",
   },
 ] as const;
 
@@ -365,12 +392,37 @@ function getOptionText(
   return question.option_d;
 }
 
+function getNormalizedQuestionPoints(
+  isCorrect: boolean,
+  responseSeconds: number,
+  timerSeconds: 10 | 20,
+) {
+  if (!isCorrect) return 0;
+
+  const safeResponseSeconds = Math.min(
+    timerSeconds,
+    Math.max(0, Math.round(responseSeconds)),
+  );
+  const remainingSeconds = Math.max(0, timerSeconds - safeResponseSeconds);
+
+  return Math.max(
+    10,
+    Math.min(100, Math.round((remainingSeconds / timerSeconds) * 100)),
+  );
+}
+
 function getReviewPoints(
   question: CategoryQuizQuestion,
   draft: SinglePlayerAnswerDraft | null,
+  timerSeconds: 10 | 20 = 10,
 ) {
-  if (!draft || draft.selectedOption !== question.correct_option) return 0;
-  return Math.max(10, (10 - Math.min(10, draft.responseSeconds)) * 10);
+  if (!draft) return 0;
+
+  return getNormalizedQuestionPoints(
+    draft.selectedOption === question.correct_option,
+    draft.responseSeconds,
+    timerSeconds,
+  );
 }
 
 function buildMiloQuizSummary(
@@ -723,6 +775,8 @@ export default function MiloCategoriesPage() {
     ("A" | "B" | "C" | "D")[]
   >([]);
 
+  const [singleQuestionTimerSeconds, setSingleQuestionTimerSeconds] = useState<10 | 20>(10);
+  const [activeQuestionTimerSeconds, setActiveQuestionTimerSeconds] = useState<10 | 20>(10);
   const [questionCountdown, setQuestionCountdown] = useState(10);
   const [nextQuestionCountdown, setNextQuestionCountdown] = useState(3);
   const [categoryMessage, setCategoryMessage] = useState("");
@@ -759,6 +813,7 @@ export default function MiloCategoriesPage() {
   const [multiplayerPoints, setMultiplayerPoints] = useState(0);
   const [multiplayerLastQuestionPoints, setMultiplayerLastQuestionPoints] =
     useState(0);
+  const [multiplayerQuestionTimerSeconds, setMultiplayerQuestionTimerSeconds] = useState<10 | 20>(10);
   const [multiplayerCountdown, setMultiplayerCountdown] = useState(10);
   const [multiplayerNextCountdown, setMultiplayerNextCountdown] = useState(3);
   const [multiplayerMessage, setMultiplayerMessage] = useState("");
@@ -772,6 +827,25 @@ export default function MiloCategoriesPage() {
 
   const [miloGuideOpen, setMiloGuideOpen] = useState(false);
   const [miloGuideStep, setMiloGuideStep] = useState(0);
+  const [miloGuideTargetRect, setMiloGuideTargetRect] = useState<{
+    top: number;
+    left: number;
+    right: number;
+    bottom: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [miloGuideViewport, setMiloGuideViewport] = useState({ width: 1440, height: 900 });
+  const [miloGuidePanelSize, setMiloGuidePanelSize] = useState({ width: 430, height: 420 });
+  const miloGuidePanelRef = useRef<HTMLElement | null>(null);
+  const miloGuideReturnState = useRef<{
+    categoriesStage: CategoriesStage;
+    categoryMode: "single" | "multiplayer";
+    selectedCategory: string;
+    singlePlayStyle: SinglePlayStyle;
+    masteryCategory: string;
+    masteryView: "overview" | "knowledge" | "history";
+  } | null>(null);
 
   // Categories is a fixed-screen experience on every device.
   // Lock the document while this page is mounted so browser/body scrolling can
@@ -809,8 +883,7 @@ export default function MiloCategoriesPage() {
       const hasSeenGuide = window.localStorage.getItem("milo-categories-guide-seen-v1");
       if (!hasSeenGuide) {
         const timer = window.setTimeout(() => {
-          setMiloGuideStep(0);
-          setMiloGuideOpen(true);
+          openMiloGuide();
         }, 450);
 
         return () => window.clearTimeout(timer);
@@ -825,13 +898,125 @@ export default function MiloCategoriesPage() {
 
     function handleGuideEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        setMiloGuideOpen(false);
+        closeMiloGuide();
       }
     }
 
     window.addEventListener("keydown", handleGuideEscape);
     return () => window.removeEventListener("keydown", handleGuideEscape);
   }, [miloGuideOpen]);
+
+  useEffect(() => {
+    if (!miloGuideOpen) {
+      setMiloGuideTargetRect(null);
+      return;
+    }
+
+    const step = MILO_GUIDE_STEPS[miloGuideStep] ?? MILO_GUIDE_STEPS[0];
+
+    if (step.stage === "category") {
+      setCategoryMode("single");
+      setCategoriesStage("category");
+    } else if (step.stage === "mastery") {
+      if (userAccess.isLoggedIn) {
+        const nextMasteryView = "masteryView" in step ? step.masteryView : "overview";
+        setCategoryMode("single");
+        setMasteryCategory(selectedCategory);
+        setMasteryView(nextMasteryView);
+        setCategoriesStage("mastery");
+        void loadMasteryData(selectedCategory);
+        void loadLearningTarget(selectedCategory);
+      } else {
+        setCategoryMode("single");
+        setCategoriesStage("category");
+      }
+    } else if (step.stage === "mode") {
+      setCategoriesStage("mode");
+    }
+  }, [miloGuideOpen, miloGuideStep, selectedCategory, userAccess.isLoggedIn]);
+
+  useEffect(() => {
+    if (!miloGuideOpen) return;
+
+    let animationFrame = 0;
+    let settleTimer = 0;
+    let observer: ResizeObserver | null = null;
+    const step = MILO_GUIDE_STEPS[miloGuideStep] ?? MILO_GUIDE_STEPS[0];
+
+    function findTarget() {
+      const primary = document.querySelector<HTMLElement>(
+        `[data-milo-guide-target="${step.target}"]`,
+      );
+      if (primary) return primary;
+
+      if ("fallbackTarget" in step && step.fallbackTarget) {
+        return document.querySelector<HTMLElement>(
+          `[data-milo-guide-target="${step.fallbackTarget}"]`,
+        );
+      }
+
+      return null;
+    }
+
+    function measureGuide() {
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(() => {
+        const target = findTarget();
+        setMiloGuideViewport({ width: window.innerWidth, height: window.innerHeight });
+
+        if (!target) {
+          setMiloGuideTargetRect(null);
+          return;
+        }
+
+        const rect = target.getBoundingClientRect();
+        setMiloGuideTargetRect({
+          top: rect.top,
+          left: rect.left,
+          right: rect.right,
+          bottom: rect.bottom,
+          width: rect.width,
+          height: rect.height,
+        });
+
+        if (miloGuidePanelRef.current) {
+          const panelRect = miloGuidePanelRef.current.getBoundingClientRect();
+          setMiloGuidePanelSize({ width: panelRect.width, height: panelRect.height });
+        }
+      });
+    }
+
+    function settleOnTarget() {
+      const target = findTarget();
+      if (!target) {
+        measureGuide();
+        return;
+      }
+
+      target.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+      if (typeof ResizeObserver !== "undefined") observer?.observe(target);
+      measureGuide();
+      settleTimer = window.setTimeout(measureGuide, 260);
+    }
+
+    observer = typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(() => measureGuide())
+      : null;
+
+    settleTimer = window.setTimeout(settleOnTarget, 140);
+    window.addEventListener("resize", measureGuide);
+    window.addEventListener("scroll", measureGuide, true);
+
+    if (miloGuidePanelRef.current) observer?.observe(miloGuidePanelRef.current);
+
+    return () => {
+      window.clearTimeout(settleTimer);
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("resize", measureGuide);
+      window.removeEventListener("scroll", measureGuide, true);
+      observer?.disconnect();
+    };
+  }, [miloGuideOpen, miloGuideStep, categoriesStage, masteryView, masteryCategory, isLoadingMastery]);
 
   const currentCategoryQuestion = categoryQuestions[categoryQuestionIndex];
   const currentMultiplayerQuestion =
@@ -1107,9 +1292,33 @@ export default function MiloCategoriesPage() {
   function closeMiloGuide() {
     rememberMiloGuideSeen();
     setMiloGuideOpen(false);
+    setMiloGuideTargetRect(null);
+
+    const returnState = miloGuideReturnState.current;
+    if (returnState) {
+      setCategoriesStage(returnState.categoriesStage);
+      setCategoryMode(returnState.categoryMode);
+      setSelectedCategory(returnState.selectedCategory);
+      setSinglePlayStyle(returnState.singlePlayStyle);
+      setMasteryCategory(returnState.masteryCategory);
+      setMasteryView(returnState.masteryView);
+    }
+
+    miloGuideReturnState.current = null;
   }
 
   function openMiloGuide() {
+    if (!miloGuideOpen) {
+      miloGuideReturnState.current = {
+        categoriesStage,
+        categoryMode,
+        selectedCategory,
+        singlePlayStyle,
+        masteryCategory,
+        masteryView,
+      };
+    }
+
     setMiloGuideStep(0);
     setMiloGuideOpen(true);
   }
@@ -1387,7 +1596,8 @@ export default function MiloCategoriesPage() {
     setAnalyticsMessage("");
     setGuestHintUsed(false);
     setHiddenCategoryOptions([]);
-    setQuestionCountdown(10);
+    setActiveQuestionTimerSeconds(singleQuestionTimerSeconds);
+    setQuestionCountdown(singleQuestionTimerSeconds);
     setNextQuestionCountdown(3);
     setCategoriesStage("playing");
     setIsLoadingCategoryQuiz(false);
@@ -1414,6 +1624,8 @@ export default function MiloCategoriesPage() {
     setBeatBestTargetPoints(null);
     setGuestHintUsed(false);
     setHiddenCategoryOptions([]);
+    setSingleQuestionTimerSeconds(10);
+    setActiveQuestionTimerSeconds(10);
     setQuestionCountdown(10);
     setNextQuestionCountdown(3);
     setCategoryMessage("");
@@ -1435,6 +1647,7 @@ export default function MiloCategoriesPage() {
     setMultiplayerScore(0);
     setMultiplayerPoints(0);
     setMultiplayerLastQuestionPoints(0);
+    setMultiplayerQuestionTimerSeconds(10);
     setMultiplayerCountdown(10);
     setMultiplayerNextCountdown(3);
     setMultiplayerMessage("");
@@ -1472,8 +1685,18 @@ export default function MiloCategoriesPage() {
 
     const finalAnswer = answer || selectedCategoryAnswer;
     const isCorrect = finalAnswer === currentCategoryQuestion.correct_option;
-    const pointsEarned = isCorrect ? Math.max(10, questionCountdown * 10) : 0;
-    const responseSeconds = Math.max(0, Math.min(10, 10 - questionCountdown));
+    const responseSeconds = Math.max(
+      0,
+      Math.min(
+        activeQuestionTimerSeconds,
+        activeQuestionTimerSeconds - questionCountdown,
+      ),
+    );
+    const pointsEarned = getNormalizedQuestionPoints(
+      isCorrect,
+      responseSeconds,
+      activeQuestionTimerSeconds,
+    );
 
     if (isCorrect) {
       setCategoryScore((score) => score + 1);
@@ -1543,6 +1766,7 @@ export default function MiloCategoriesPage() {
           activeQuizPlayStyle === "challenge" && activeQuizTarget?.id
             ? activeQuizTarget.id
             : null,
+        p_question_timer_seconds: activeQuestionTimerSeconds,
       },
     );
 
@@ -1616,7 +1840,7 @@ export default function MiloCategoriesPage() {
     setCategoryQuestionIndex(nextIndex);
     setSelectedCategoryAnswer(null);
     setHiddenCategoryOptions([]);
-    setQuestionCountdown(10);
+    setQuestionCountdown(activeQuestionTimerSeconds);
     setNextQuestionCountdown(3);
     setCategoryMessage("");
     setLastQuestionPoints(0);
@@ -1733,6 +1957,9 @@ export default function MiloCategoriesPage() {
     const players = (playersData || []) as MultiplayerPlayer[];
 
     setMultiplayerLobby(lobby);
+    setMultiplayerQuestionTimerSeconds(
+      lobby.question_timer_seconds === 20 ? 20 : 10,
+    );
     setMultiplayerPlayers(players);
 
     if (userAccess.userId) {
@@ -1821,6 +2048,7 @@ export default function MiloCategoriesPage() {
           host_user_id: userAccess.userId,
           category: selectedCategory,
           question_ids: questions.map((question) => question.id),
+          question_timer_seconds: multiplayerQuestionTimerSeconds,
           status: "waiting",
         })
         .select("*")
@@ -1939,6 +2167,9 @@ export default function MiloCategoriesPage() {
     }
 
     setMultiplayerLobby(lobby);
+    setMultiplayerQuestionTimerSeconds(
+      lobby.question_timer_seconds === 20 ? 20 : 10,
+    );
     setMultiplayerPlayer(playerData as MultiplayerPlayer);
     await loadLobbyState(lobby.id);
     setCategoriesStage("multiplayer-waiting");
@@ -1988,7 +2219,12 @@ export default function MiloCategoriesPage() {
     setMultiplayerScore(0);
     setMultiplayerPoints(0);
     setMultiplayerLastQuestionPoints(0);
-    setMultiplayerCountdown(10);
+    setMultiplayerQuestionTimerSeconds(
+      multiplayerLobby.question_timer_seconds === 20 ? 20 : 10,
+    );
+    setMultiplayerCountdown(
+      multiplayerLobby.question_timer_seconds === 20 ? 20 : 10,
+    );
     setMultiplayerNextCountdown(3);
     setMultiplayerMessage("");
     setMultiplayerAnswerDrafts([]);
@@ -2013,7 +2249,10 @@ export default function MiloCategoriesPage() {
     setMultiplayerScore(0);
     setMultiplayerPoints(0);
     setMultiplayerLastQuestionPoints(0);
-    setMultiplayerCountdown(10);
+    setMultiplayerQuestionTimerSeconds(
+      lobby.question_timer_seconds === 20 ? 20 : 10,
+    );
+    setMultiplayerCountdown(lobby.question_timer_seconds === 20 ? 20 : 10);
     setMultiplayerNextCountdown(3);
     setMultiplayerMessage("");
     setMultiplayerAnswerDrafts([]);
@@ -2031,10 +2270,18 @@ export default function MiloCategoriesPage() {
     const finalAnswer = answer || multiplayerSelectedAnswer;
     const isCorrect =
       finalAnswer === currentMultiplayerQuestion.correct_option;
-    const pointsEarned = isCorrect
-      ? Math.max(10, multiplayerCountdown * 10)
-      : 0;
-    const responseSeconds = Math.max(0, Math.min(10, 10 - multiplayerCountdown));
+    const responseSeconds = Math.max(
+      0,
+      Math.min(
+        multiplayerQuestionTimerSeconds,
+        multiplayerQuestionTimerSeconds - multiplayerCountdown,
+      ),
+    );
+    const pointsEarned = getNormalizedQuestionPoints(
+      isCorrect,
+      responseSeconds,
+      multiplayerQuestionTimerSeconds,
+    );
 
     setMultiplayerAnswerDrafts((current) => [
       ...current,
@@ -2135,6 +2382,9 @@ export default function MiloCategoriesPage() {
         selected_option: answer.selectedOption,
         response_seconds: answer.responseSeconds,
       })),
+      p_play_style: "multiplayer",
+      p_target_id: null,
+      p_question_timer_seconds: multiplayerQuestionTimerSeconds,
     });
 
     if (error) {
@@ -2176,7 +2426,7 @@ export default function MiloCategoriesPage() {
 
     setMultiplayerQuestionIndex(nextIndex);
     setMultiplayerSelectedAnswer(null);
-    setMultiplayerCountdown(10);
+    setMultiplayerCountdown(multiplayerQuestionTimerSeconds);
     setMultiplayerNextCountdown(3);
     setMultiplayerLastQuestionPoints(0);
     setMultiplayerMessage("");
@@ -2251,7 +2501,7 @@ export default function MiloCategoriesPage() {
         selectedText: getOptionText(question, draft?.selectedOption || null),
         correctText: getOptionText(question, question.correct_option),
         isCorrect,
-        points: getReviewPoints(question, draft),
+        points: getReviewPoints(question, draft, activeQuestionTimerSeconds),
       };
     },
   );
@@ -2263,6 +2513,96 @@ export default function MiloCategoriesPage() {
 
   const currentMastery = masteryData[masteryCategory] || null;
   const masteryInsight = buildMasteryInsight(currentMastery);
+
+  const miloGuidePanelPosition = (() => {
+    const margin = 14;
+    const gap = 18;
+    const viewportWidth = Math.max(320, miloGuideViewport.width);
+    const viewportHeight = Math.max(320, miloGuideViewport.height);
+    const panelWidth = Math.min(miloGuidePanelSize.width || 430, viewportWidth - margin * 2);
+    const panelHeight = Math.min(miloGuidePanelSize.height || 420, viewportHeight - margin * 2);
+    const target = miloGuideTargetRect;
+
+    const clamp = (value: number, min: number, max: number) =>
+      Math.min(Math.max(value, min), Math.max(min, max));
+
+    if (!target) {
+      return {
+        left: clamp(viewportWidth - panelWidth - margin, margin, viewportWidth - panelWidth - margin),
+        top: clamp(viewportHeight - panelHeight - margin, margin, viewportHeight - panelHeight - margin),
+      };
+    }
+
+    const canFitRight = viewportWidth - target.right >= panelWidth + gap + margin;
+    const canFitLeft = target.left >= panelWidth + gap + margin;
+    const canFitBelow = viewportHeight - target.bottom >= panelHeight + gap + margin;
+    const canFitAbove = target.top >= panelHeight + gap + margin;
+
+    if (canFitRight) {
+      return {
+        left: target.right + gap,
+        top: clamp(target.top + target.height / 2 - panelHeight / 2, margin, viewportHeight - panelHeight - margin),
+      };
+    }
+
+    if (canFitLeft) {
+      return {
+        left: target.left - panelWidth - gap,
+        top: clamp(target.top + target.height / 2 - panelHeight / 2, margin, viewportHeight - panelHeight - margin),
+      };
+    }
+
+    if (canFitBelow) {
+      return {
+        left: clamp(target.left + target.width / 2 - panelWidth / 2, margin, viewportWidth - panelWidth - margin),
+        top: target.bottom + gap,
+      };
+    }
+
+    if (canFitAbove) {
+      return {
+        left: clamp(target.left + target.width / 2 - panelWidth / 2, margin, viewportWidth - panelWidth - margin),
+        top: target.top - panelHeight - gap,
+      };
+    }
+
+    const spaceAbove = Math.max(0, target.top - gap - margin);
+    const spaceBelow = Math.max(0, viewportHeight - target.bottom - gap - margin);
+    const spaceLeft = Math.max(0, target.left - gap - margin);
+    const spaceRight = Math.max(0, viewportWidth - target.right - gap - margin);
+
+    // If a highlighted item is wide (common on phones/tablets), force the
+    // dialogue entirely above or below it and shrink the dialogue's internal
+    // scroll area if needed. This guarantees the guide never sits on top of
+    // the feature Milo is explaining.
+    if (target.width >= viewportWidth * 0.55 || Math.max(spaceAbove, spaceBelow) >= 170) {
+      const useBelow = spaceBelow >= spaceAbove;
+      const availableHeight = Math.max(150, useBelow ? spaceBelow : spaceAbove);
+      const resolvedHeight = Math.min(panelHeight, availableHeight);
+
+      return {
+        left: clamp(target.left + target.width / 2 - panelWidth / 2, margin, viewportWidth - panelWidth - margin),
+        top: useBelow
+          ? target.bottom + gap
+          : Math.max(margin, target.top - gap - resolvedHeight),
+        maxHeight: availableHeight,
+      };
+    }
+
+    // For tall/narrow items, use whichever side has more room and reduce the
+    // panel width rather than overlapping the spotlight.
+    const useRight = spaceRight >= spaceLeft;
+    const availableWidth = Math.max(220, useRight ? spaceRight : spaceLeft);
+    const resolvedWidth = Math.min(panelWidth, availableWidth);
+
+    return {
+      left: useRight
+        ? target.right + gap
+        : Math.max(margin, target.left - gap - resolvedWidth),
+      top: clamp(target.top + target.height / 2 - panelHeight / 2, margin, viewportHeight - panelHeight - margin),
+      width: resolvedWidth,
+    };
+  })();
   const selectedLearningTarget = learningTargets[selectedCategory] || null;
   const masteryLearningTarget = learningTargets[masteryCategory] || null;
   const selectedBestPoints = masteryData[selectedCategory]?.best_points ?? null;
@@ -2353,7 +2693,11 @@ export default function MiloCategoriesPage() {
                   Timer
                 </p>
                 <p className="mt-1 text-sm font-black text-[#ffd18a]">
-                  10 seconds/question
+                  {categoryMode === "multiplayer"
+                    ? `${multiplayerLobby?.question_timer_seconds === 20 || multiplayerQuestionTimerSeconds === 20 ? 20 : 10} seconds/question`
+                    : `${["playing", "answered", "finished", "results"].includes(categoriesStage)
+                        ? activeQuestionTimerSeconds
+                        : singleQuestionTimerSeconds} seconds/question`}
                 </p>
               </div>
             </div>
@@ -2362,7 +2706,7 @@ export default function MiloCategoriesPage() {
           <div className="categories-content min-h-0 flex-1 p-5 sm:p-[34px]">
             <section className="categories-stage-card h-full min-h-0 rounded-[24px] border border-white/14 bg-white/[0.08] p-5 sm:p-6">
               {categoriesStage === "mode" && (
-                <div className="stage-fill flex h-full min-h-0 flex-col">
+                <div data-milo-guide-target="mode-stage" className="stage-fill flex h-full min-h-0 flex-col">
                   <p className="stage-kicker text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
                     Choose Mode
                   </p>
@@ -2395,6 +2739,7 @@ export default function MiloCategoriesPage() {
                     <button
                       type="button"
                       onClick={() => chooseCategoriesMode("multiplayer")}
+                      data-milo-guide-target="multiplayer-mode"
                       className="mode-card group relative min-h-[180px] overflow-hidden rounded-[24px] border border-[#ffd18a]/24 p-6 text-left transition hover:scale-[1.02] hover:border-[#ffd18a]/45"
                     >
                       <span
@@ -2424,7 +2769,7 @@ export default function MiloCategoriesPage() {
                     </p>
 
                     <div className="reward-rules-grid mt-3 grid gap-2 text-sm leading-6 text-white/66">
-                      <p>• Correct answer points: remaining seconds × 10.</p>
+                      <p>• Correct answers earn up to 100 points, normalized for either 10s or 20s.</p>
                       <p>• Single-player DT rewards are once per week per category.</p>
                       <p>• Guests get one free 50:50 hint but cannot collect DT.</p>
                       <p>• Multiplayer requires login and uses the same points system.</p>
@@ -2434,7 +2779,7 @@ export default function MiloCategoriesPage() {
               )}
 
               {categoriesStage === "category" && (
-                <div className="stage-fill flex h-full min-h-0 flex-col">
+                <div data-milo-guide-target="category-stage" className="stage-fill flex h-full min-h-0 flex-col">
                   <button
                     type="button"
                     onClick={() => setCategoriesStage("mode")}
@@ -2456,6 +2801,7 @@ export default function MiloCategoriesPage() {
                       <button
                         type="button"
                         onClick={() => openMastery(selectedCategory)}
+                        data-milo-guide-target="my-mastery"
                         className="shrink-0 rounded-full border border-[#9bf5ff]/24 bg-[#9bf5ff]/[0.07] px-4 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-[#9bf5ff] transition hover:bg-[#9bf5ff]/[0.12]"
                       >
                         My Mastery
@@ -2473,10 +2819,11 @@ export default function MiloCategoriesPage() {
                           type="button"
                           onClick={() => setSelectedCategory(category)}
                           disabled={isLoadingCategories}
-                          className={`category-card group relative min-h-[128px] overflow-hidden rounded-[24px] border p-0 text-left transition hover:scale-[1.02] disabled:cursor-wait disabled:opacity-50 ${
+                          data-milo-guide-target={index === 0 ? "category-choice" : undefined}
+                          className={`category-card group relative min-h-[128px] overflow-hidden rounded-[24px] p-0 text-left transition hover:scale-[1.02] disabled:cursor-wait disabled:opacity-50 ${
                             isSelected
-                              ? "border-[#ffd18a]/70 shadow-[0_0_34px_rgba(229,183,94,0.18)]"
-                              : "border-white/14 hover:border-[#ffd18a]/45"
+                              ? "border-2 border-[#ffd18a]/80 shadow-[0_0_34px_rgba(229,183,94,0.18)]"
+                              : "border border-white/14 hover:border-[#ffd18a]/45"
                           }`}
                         >
                           <span
@@ -2533,6 +2880,33 @@ export default function MiloCategoriesPage() {
                     })}
                   </div>
 
+                  <div className="timer-choice mt-3 flex shrink-0 items-center justify-between gap-3 rounded-[14px] border border-white/10 bg-white/[0.035] px-3 py-2.5">
+                    <span className="min-w-0">
+                      <span className="block text-[9px] font-black uppercase tracking-[0.14em] text-white/42">
+                        Question Timer
+                      </span>
+                      <span className="mt-0.5 block text-[9px] leading-4 text-white/42">
+                        Same 100-point maximum in either mode.
+                      </span>
+                    </span>
+                    <span className="grid shrink-0 grid-cols-2 gap-1 rounded-[11px] border border-white/10 bg-[#050d1c]/75 p-1">
+                      {([10, 20] as const).map((seconds) => (
+                        <button
+                          key={seconds}
+                          type="button"
+                          onClick={() => setSingleQuestionTimerSeconds(seconds)}
+                          className={`min-h-[34px] rounded-[8px] px-3 text-[10px] font-black uppercase tracking-[0.08em] transition ${
+                            singleQuestionTimerSeconds === seconds
+                              ? "border-2 border-[#ffd18a]/75 bg-[#ffd18a]/14 text-[#ffd18a] shadow-[0_0_16px_rgba(229,183,94,0.12)]"
+                              : "border border-white/8 bg-white/[0.035] text-white/54 hover:bg-white/[0.07]"
+                          }`}
+                        >
+                          {seconds} sec
+                        </button>
+                      ))}
+                    </span>
+                  </div>
+
                   <div className="adaptive-mode-grid mt-3 grid shrink-0 grid-cols-3 gap-2">
                     {([
                       { key: "quick" as const, title: "Quick Play", icon: "⚡" },
@@ -2551,10 +2925,17 @@ export default function MiloCategoriesPage() {
                           type="button"
                           disabled={locked}
                           onClick={() => setSinglePlayStyle(mode.key)}
-                          className={`adaptive-mode-card rounded-[14px] border px-3 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-35 ${
+                          data-milo-guide-target={
+                            mode.key === "quick"
+                              ? "quick-play"
+                              : mode.key === "challenge"
+                                ? "milo-challenge"
+                                : "beat-my-best"
+                          }
+                          className={`adaptive-mode-card rounded-[14px] px-3 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-35 ${
                             selected
-                              ? "border-[#ffd18a]/55 bg-[#ffd18a]/12 shadow-[0_0_22px_rgba(229,183,94,0.10)]"
-                              : "border-white/10 bg-white/[0.035] hover:bg-white/[0.06]"
+                              ? "border-2 border-[#ffd18a]/70 bg-[#ffd18a]/12 shadow-[0_0_22px_rgba(229,183,94,0.10)]"
+                              : "border border-white/10 bg-white/[0.035] hover:bg-white/[0.06]"
                           }`}
                         >
                           <span className="adaptive-mode-heading flex items-center gap-2">
@@ -2678,6 +3059,31 @@ export default function MiloCategoriesPage() {
                       </select>
                     </label>
 
+                    <div className="grid gap-3">
+                      <span className="text-xs font-bold uppercase tracking-[0.18em] text-white/44">
+                        Question Timer
+                      </span>
+                      <div className="grid grid-cols-2 gap-2">
+                        {([10, 20] as const).map((seconds) => (
+                          <button
+                            key={seconds}
+                            type="button"
+                            onClick={() => setMultiplayerQuestionTimerSeconds(seconds)}
+                            className={`min-h-[46px] rounded-[12px] px-4 text-xs font-black uppercase tracking-[0.1em] transition ${
+                              multiplayerQuestionTimerSeconds === seconds
+                                ? "border-2 border-[#ffd18a]/75 bg-[#ffd18a]/14 text-[#ffd18a] shadow-[0_0_18px_rgba(229,183,94,0.12)]"
+                                : "border border-white/12 bg-[#050d1c] text-white/64 hover:bg-white/[0.06]"
+                            }`}
+                          >
+                            {seconds} seconds
+                          </button>
+                        ))}
+                      </div>
+                      <span className="text-[10px] leading-4 text-white/42">
+                        The host sets the timer for everyone. Scores remain normalized to 100 points per question.
+                      </span>
+                    </div>
+
                     <button
                       type="button"
                       onClick={createMultiplayerLobby}
@@ -2763,7 +3169,7 @@ export default function MiloCategoriesPage() {
                       </h2>
 
                       <p className="mt-4 text-sm text-white/58">
-                        Category: {multiplayerLobby.category}
+                        Category: {multiplayerLobby.category} · {multiplayerLobby.question_timer_seconds === 20 ? 20 : 10}s per question
                       </p>
                     </div>
 
@@ -2888,6 +3294,17 @@ export default function MiloCategoriesPage() {
                                     {currentCategoryQuestion.explanation}
                                   </p>
                                 )}
+                              {categoriesStage === "answered" && (
+                                <button
+                                  type="button"
+                                  onClick={() => void goToNextCategoryQuestion()}
+                                  className="mt-3 min-h-[42px] w-full rounded-[12px] border-2 border-[#ffd18a]/70 bg-[#ffd18a]/14 px-4 text-xs font-black uppercase tracking-[0.1em] text-[#ffd18a] transition hover:bg-[#ffd18a]/20"
+                                >
+                                  {categoryQuestionIndex + 1 >= categoryQuestions.length
+                                    ? "See Results →"
+                                    : "Next Question →"}
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -3321,7 +3738,7 @@ export default function MiloCategoriesPage() {
               )}
 
               {categoriesStage === "mastery" && (
-                <div className="stage-fill flex h-full min-h-0 flex-col">
+                <div data-milo-guide-target="mastery-shell" className="stage-fill flex h-full min-h-0 flex-col">
                   <div className="shrink-0">
                     <button
                       type="button"
@@ -3363,10 +3780,10 @@ export default function MiloCategoriesPage() {
                             setMasteryView("overview");
                             void loadLearningTarget(category);
                           }}
-                          className={`rounded-[12px] border px-2 py-2 text-[10px] font-black uppercase tracking-[0.08em] transition ${
+                          className={`rounded-[12px] px-2 py-2 text-[10px] font-black uppercase tracking-[0.08em] transition ${
                             masteryCategory === category
-                              ? "border-[#ffd18a]/45 bg-[#ffd18a]/12 text-[#ffd18a]"
-                              : "border-white/10 bg-white/[0.035] text-white/55"
+                              ? "border-2 border-[#ffd18a]/60 bg-[#ffd18a]/12 text-[#ffd18a]"
+                              : "border border-white/10 bg-white/[0.035] text-white/55"
                           }`}
                         >
                           {category}
@@ -3380,6 +3797,7 @@ export default function MiloCategoriesPage() {
                           key={view}
                           type="button"
                           onClick={() => setMasteryView(view)}
+                          data-milo-guide-target={view === "history" ? "results-history" : undefined}
                           className={`rounded-[11px] px-2 py-2 text-[9px] font-black uppercase tracking-[0.1em] transition ${
                             masteryView === view
                               ? "bg-white/[0.10] text-white"
@@ -3441,7 +3859,7 @@ export default function MiloCategoriesPage() {
                           <p className="mt-2 text-sm font-semibold leading-6 text-white/70">{masteryInsight}</p>
                         </div>
 
-                        <div className="rounded-[18px] border border-fuchsia-300/16 bg-fuchsia-400/[0.05] p-4">
+                        <div data-milo-guide-target="milo-target" className="rounded-[18px] border border-fuchsia-300/16 bg-fuchsia-400/[0.05] p-4">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <p className="text-[9px] font-black uppercase tracking-[0.15em] text-fuchsia-200">Current Milo Target</p>
@@ -3766,11 +4184,37 @@ export default function MiloCategoriesPage() {
             onClick={closeMiloGuide}
           />
 
+          {miloGuideTargetRect && (
+            <div
+              aria-hidden="true"
+              className="categories-guide-spotlight"
+              style={{
+                top: Math.max(6, miloGuideTargetRect.top - 8),
+                left: Math.max(6, miloGuideTargetRect.left - 8),
+                width: Math.min(
+                  miloGuideViewport.width - Math.max(6, miloGuideTargetRect.left - 8) - 6,
+                  miloGuideTargetRect.width + 16,
+                ),
+                height: Math.min(
+                  miloGuideViewport.height - Math.max(6, miloGuideTargetRect.top - 8) - 6,
+                  miloGuideTargetRect.height + 16,
+                ),
+              }}
+            />
+          )}
+
           <aside
+            ref={miloGuidePanelRef}
             className="categories-guide-panel"
             role="dialog"
             aria-modal="true"
             aria-label="Milo Categories guide"
+            style={{
+              left: miloGuidePanelPosition.left,
+              top: miloGuidePanelPosition.top,
+              width: miloGuidePanelPosition.width,
+              maxHeight: miloGuidePanelPosition.maxHeight,
+            }}
           >
             <div className="categories-guide-topline">
               <div className="categories-guide-identity">
@@ -4159,17 +4603,31 @@ export default function MiloCategoriesPage() {
           width: 100%;
           height: 100%;
           border: 0;
-          background: rgba(0, 4, 12, 0.42);
-          backdrop-filter: blur(2px);
+          background: transparent;
           pointer-events: auto;
           cursor: default;
         }
 
+        .categories-guide-spotlight {
+          position: fixed;
+          z-index: 102;
+          border: 2px solid rgba(255, 209, 138, 0.96);
+          border-radius: 18px;
+          background: transparent;
+          box-shadow:
+            0 0 0 9999px rgba(0, 4, 12, 0.72),
+            0 0 0 5px rgba(255, 209, 138, 0.14),
+            0 0 38px rgba(255, 209, 138, 0.86),
+            inset 0 0 24px rgba(255, 209, 138, 0.08);
+          pointer-events: none;
+          animation: categoriesGuideSpotlightPulse 1.7s ease-in-out infinite alternate;
+          transition: top 220ms ease, left 220ms ease, width 220ms ease, height 220ms ease;
+        }
+
         .categories-guide-panel {
           position: absolute;
-          right: max(18px, env(safe-area-inset-right));
-          bottom: max(18px, env(safe-area-inset-bottom));
-          width: min(430px, calc(100vw - 36px));
+          z-index: 104;
+          width: min(430px, calc(100vw - 28px));
           max-height: min(610px, calc(100dvh - 36px));
           overflow: hidden;
           display: grid;
@@ -4385,6 +4843,23 @@ export default function MiloCategoriesPage() {
         .categories-guide-secondary:disabled {
           cursor: not-allowed;
           opacity: 0.28;
+        }
+
+        @keyframes categoriesGuideSpotlightPulse {
+          from {
+            box-shadow:
+              0 0 0 9999px rgba(0, 4, 12, 0.72),
+              0 0 0 4px rgba(255, 209, 138, 0.12),
+              0 0 28px rgba(255, 209, 138, 0.58),
+              inset 0 0 18px rgba(255, 209, 138, 0.05);
+          }
+          to {
+            box-shadow:
+              0 0 0 9999px rgba(0, 4, 12, 0.72),
+              0 0 0 7px rgba(255, 209, 138, 0.18),
+              0 0 48px rgba(255, 209, 138, 0.96),
+              inset 0 0 30px rgba(255, 209, 138, 0.10);
+          }
         }
 
         @media (max-width: 1180px) {
@@ -5033,10 +5508,8 @@ export default function MiloCategoriesPage() {
           }
 
           .categories-guide-panel {
-            right: max(8px, env(safe-area-inset-right));
-            bottom: max(8px, env(safe-area-inset-bottom));
-            width: calc(100vw - max(16px, env(safe-area-inset-left) + env(safe-area-inset-right)));
-            max-height: calc(100dvh - max(16px, env(safe-area-inset-top) + env(safe-area-inset-bottom)));
+            width: min(430px, calc(100vw - 16px));
+            max-height: min(54dvh, 440px);
             border-radius: 18px;
           }
 
