@@ -151,6 +151,20 @@ type SavedArenaAttempt = {
   profile?: KnowledgeArenaProfile;
 };
 
+type KnowledgeArenaAttemptReceipt = {
+  attempt_saved: boolean;
+  attempt_id: string;
+  topic: string | null;
+  mode: string | null;
+  score: number;
+  correct_count: number;
+  total_questions: number;
+  tokens_earned: number;
+  answer_rows: number;
+  analytics_event_rows: number;
+  created_at: string | null;
+};
+
 type LobbyPlayer = {
   id: string;
   lobby_id: string;
@@ -1247,6 +1261,26 @@ export default function KnowledgeArenaPage() {
     );
   }
 
+  async function refreshKnowledgeProfileAfterSave() {
+    const { data, error } = await supabase.rpc(
+      "refresh_my_knowledge_arena_profile"
+    );
+
+    if (error) {
+      console.warn("Knowledge Arena attempt saved, but live Nova refresh failed:", error);
+      return null;
+    }
+
+    const refreshed = (data ?? null) as KnowledgeArenaProfile | null;
+
+    if (refreshed) {
+      setKnowledgeProfile(refreshed);
+      setProfileAfterAttempt(refreshed);
+    }
+
+    return refreshed;
+  }
+
   async function saveKnowledgeArenaAttempt(
     mode: "solo" | "multiplayer"
   ): Promise<SavedArenaAttempt | null> {
@@ -1292,8 +1326,10 @@ export default function KnowledgeArenaPage() {
             lobby_id: lobby?.id ?? null,
           };
 
+    setAttemptSaveMessage("Saving your attempt and all 10 answer records…");
+
     const { data, error } = await supabase.rpc(
-      "save_knowledge_arena_attempt_v2",
+      "save_knowledge_arena_attempt_v3",
       {
         p_topic: attemptTopic,
         p_mode: mode,
@@ -1307,26 +1343,69 @@ export default function KnowledgeArenaPage() {
     if (error) {
       console.error("Could not save Knowledge Arena attempt:", error);
       setAttemptSaveMessage(
-        "The result was completed, but its detailed answer record could not be saved."
+        `The quiz was completed, but the server could not save it: ${error.message}`
       );
+      setRewardSaved(false);
       return null;
     }
 
     const saved = (data ?? {}) as SavedArenaAttempt;
-    const savedScore = Number(saved.score ?? 0);
-    const savedCorrectCount = Number(saved.correct_count ?? 0);
-    const savedReward = Number(saved.tokens_earned ?? 0);
+    const attemptId = String(saved.attempt_id ?? "");
+
+    if (!attemptId) {
+      console.error("Knowledge Arena save RPC returned no attempt ID:", data);
+      setAttemptSaveMessage(
+        "The server responded, but did not return a saved attempt ID. The result has not been marked as saved."
+      );
+      setRewardSaved(false);
+      return null;
+    }
+
+    // Confirm the parent attempt and all answer snapshots actually exist before
+    // telling the learner that the quiz was saved.
+    const { data: receiptData, error: receiptError } = await supabase.rpc(
+      "get_my_knowledge_arena_attempt_receipt",
+      { p_attempt_id: attemptId }
+    );
+
+    if (receiptError) {
+      console.error("Could not verify Knowledge Arena save receipt:", receiptError);
+      setAttemptSaveMessage(
+        "The server created an attempt ID, but the saved record could not be verified. Please do not rely on this result yet."
+      );
+      setRewardSaved(false);
+      return saved;
+    }
+
+    const receipt = (receiptData ?? {}) as KnowledgeArenaAttemptReceipt;
+
+    if (
+      !receipt.attempt_saved ||
+      Number(receipt.answer_rows ?? 0) !== questions.length
+    ) {
+      console.error("Knowledge Arena save receipt is incomplete:", receipt);
+      setAttemptSaveMessage(
+        `Save verification failed: ${Number(receipt.answer_rows ?? 0)}/${questions.length} answer records were found.`
+      );
+      setRewardSaved(false);
+      return saved;
+    }
+
+    const savedScore = Number(receipt.score ?? saved.score ?? 0);
+    const savedCorrectCount = Number(
+      receipt.correct_count ?? saved.correct_count ?? 0
+    );
+    const savedReward = Number(
+      receipt.tokens_earned ?? saved.tokens_earned ?? 0
+    );
 
     setScore(savedScore);
     setCorrectCount(savedCorrectCount);
     setTokensEarned(savedReward);
     setRewardSaved(true);
-    setLastTopicResults(Array.isArray(saved.topic_results) ? saved.topic_results : []);
-
-    if (saved.profile) {
-      setKnowledgeProfile(saved.profile);
-      setProfileAfterAttempt(saved.profile);
-    }
+    setLastTopicResults(
+      Array.isArray(saved.topic_results) ? saved.topic_results : []
+    );
 
     if (mode === "solo" && savedReward > 0) {
       setTokenBalance((current) => current + savedReward);
@@ -1334,10 +1413,24 @@ export default function KnowledgeArenaPage() {
     }
 
     setAttemptSaveMessage(
-      mode === "solo"
-        ? "Your attempt was saved and Nova Analytics has refreshed your Knowledge Arena profile."
-        : "Your multiplayer attempt and individual answers were saved to the Teaching Dashboard."
+      `Saved. ${receipt.answer_rows}/10 answers are recorded. Refreshing Nova Analytics…`
     );
+
+    // Important: this is a SECOND request. If mastery refresh is slow or fails,
+    // the already-committed attempt and answer history remain safe.
+    const refreshedProfile = await refreshKnowledgeProfileAfterSave();
+
+    if (refreshedProfile) {
+      setAttemptSaveMessage(
+        "Saved. All 10 answers are recorded and Nova Analytics has refreshed."
+      );
+    } else {
+      setAttemptSaveMessage(
+        "Saved. All 10 answers are recorded. Nova Analytics has the saved evidence, but its live mastery refresh did not complete this time."
+      );
+    }
+
+    window.dispatchEvent(new Event("nova-analytics-updated"));
 
     return saved;
   }
@@ -2258,6 +2351,8 @@ export default function KnowledgeArenaPage() {
               beforeProfile={profileAtChallengeStart}
               afterProfile={profileAfterAttempt}
               topicResults={lastTopicResults}
+              questions={questions}
+              answers={recordedAnswersRef.current}
               onStartFocus={startFocusFromResults}
               onNextChallenge={() => setStage("solo-mode")}
               onExit={resetAll}
@@ -2280,6 +2375,12 @@ export default function KnowledgeArenaPage() {
               {attemptSaveMessage && (
                 <p className="ka-message-banner">{attemptSaveMessage}</p>
               )}
+
+              <ArenaQuestionReviewPanel
+                questions={questions}
+                answers={recordedAnswersRef.current}
+                compact
+              />
 
               <div className="ka-leaderboard-scroll">
                 {leaderboard.map((player, index) => (
@@ -5683,6 +5784,220 @@ export default function KnowledgeArenaPage() {
           }
         }
 
+
+        /* ================================================================
+           KNOWLEDGE ARENA v5 — FULL RESULTS REVIEW + VERIFIED SAVE STATUS
+           ================================================================ */
+
+        .ka-full-review {
+          display: grid;
+          gap: 8px;
+          margin-bottom: 8px;
+          border: 1px solid rgba(126, 232, 255, 0.18);
+          border-radius: 14px;
+          background:
+            linear-gradient(
+              135deg,
+              rgba(20, 67, 96, 0.12),
+              rgba(91, 59, 164, 0.09)
+            );
+          padding: 8px;
+        }
+
+        .ka-full-review.is-compact {
+          flex: 0 0 auto;
+          margin-bottom: 0;
+        }
+
+        .ka-full-review-toggle {
+          display: flex;
+          width: 100%;
+          min-height: 48px;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          border: 1px solid rgba(126, 232, 255, 0.18);
+          border-radius: 11px;
+          background: rgba(126, 232, 255, 0.055);
+          padding: 8px 11px;
+          color: white;
+          text-align: left;
+          cursor: pointer;
+        }
+
+        .ka-full-review-toggle > span {
+          display: grid;
+          gap: 3px;
+          min-width: 0;
+        }
+
+        .ka-full-review-toggle strong {
+          font-size: 14px;
+        }
+
+        .ka-full-review-toggle small {
+          color: rgba(255, 255, 255, 0.52);
+          font-size: 10px;
+          line-height: 1.35;
+        }
+
+        .ka-full-review-toggle b {
+          display: grid;
+          width: 30px;
+          height: 30px;
+          flex: 0 0 auto;
+          place-items: center;
+          border: 1px solid rgba(126, 232, 255, 0.22);
+          border-radius: 9px;
+          background: rgba(126, 232, 255, 0.08);
+          color: #9bf5ff;
+          font-size: 18px;
+        }
+
+        .ka-full-review-list {
+          display: grid;
+          gap: 8px;
+        }
+
+        .ka-review-item {
+          display: grid;
+          gap: 9px;
+          border: 1px solid rgba(255, 255, 255, 0.09);
+          border-radius: 12px;
+          background: rgba(4, 15, 34, 0.66);
+          padding: 11px;
+        }
+
+        .ka-review-item.is-correct {
+          border-color: rgba(74, 222, 128, 0.19);
+        }
+
+        .ka-review-item.is-wrong {
+          border-color: rgba(248, 113, 113, 0.2);
+        }
+
+        .ka-review-item-header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 12px;
+        }
+
+        .ka-review-item-header > div:first-child {
+          min-width: 0;
+        }
+
+        .ka-review-item-header span,
+        .ka-review-answer-grid span {
+          display: block;
+          color: rgba(255, 255, 255, 0.42);
+          font-size: 9px;
+          font-weight: 900;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+
+        .ka-review-item-header strong {
+          display: block;
+          margin-top: 4px;
+          font-size: 14px;
+          line-height: 1.35;
+        }
+
+        .ka-review-status {
+          flex: 0 0 auto;
+          border-radius: 999px;
+          padding: 5px 8px;
+          font-size: 9px;
+          font-weight: 900;
+          text-transform: uppercase;
+        }
+
+        .ka-review-status.is-correct {
+          border: 1px solid rgba(74, 222, 128, 0.25);
+          background: rgba(34, 197, 94, 0.11);
+          color: #a7f3d0;
+        }
+
+        .ka-review-status.is-wrong {
+          border: 1px solid rgba(248, 113, 113, 0.25);
+          background: rgba(239, 68, 68, 0.11);
+          color: #fecaca;
+        }
+
+        .ka-review-answer-grid {
+          display: grid;
+          grid-template-columns:
+            minmax(0, 1.35fr)
+            minmax(0, 1.35fr)
+            minmax(70px, 0.45fr)
+            minmax(70px, 0.45fr);
+          gap: 6px;
+        }
+
+        .ka-review-answer-grid > div {
+          min-width: 0;
+          border-radius: 9px;
+          background: rgba(255, 255, 255, 0.035);
+          padding: 7px 8px;
+        }
+
+        .ka-review-answer-grid strong {
+          display: block;
+          margin-top: 4px;
+          font-size: 11px;
+          line-height: 1.35;
+        }
+
+        .ka-review-explanation {
+          margin: 0;
+          border-radius: 9px;
+          background: rgba(126, 232, 255, 0.045);
+          padding: 8px 9px;
+          color: rgba(255, 255, 255, 0.64);
+          font-size: 10px;
+          line-height: 1.45;
+        }
+
+        .ka-review-explanation strong {
+          color: #9bf5ff;
+        }
+
+        @media (max-width: 850px), (hover: none) and (pointer: coarse) {
+          .ka-full-review-toggle {
+            min-height: 42px;
+            padding: 6px 8px;
+          }
+
+          .ka-full-review-toggle strong {
+            font-size: 11px;
+          }
+
+          .ka-full-review-toggle small {
+            font-size: 8px;
+          }
+
+          .ka-review-item {
+            padding: 8px;
+          }
+
+          .ka-review-item-header strong {
+            font-size: 11px;
+          }
+
+          .ka-review-answer-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .ka-review-answer-grid strong {
+            font-size: 9px;
+          }
+
+          .ka-review-explanation {
+            font-size: 9px;
+          }
+        }
+
       `}</style>
     </main>
   );
@@ -6054,6 +6369,8 @@ function ArenaResultsPanel({
   beforeProfile,
   afterProfile,
   topicResults,
+  questions,
+  answers,
   onStartFocus,
   onNextChallenge,
   onExit,
@@ -6069,6 +6386,8 @@ function ArenaResultsPanel({
   beforeProfile: KnowledgeArenaProfile | null;
   afterProfile: KnowledgeArenaProfile | null;
   topicResults: TopicResult[];
+  questions: KnowledgeArenaQuestion[];
+  answers: RecordedArenaAnswer[];
   onStartFocus: () => void;
   onNextChallenge: () => void;
   onExit: () => void;
@@ -6115,6 +6434,11 @@ function ArenaResultsPanel({
                 : "Log in to save your attempt and receive Dreamscape Tokens.")}
         </p>
 
+        <ArenaQuestionReviewPanel
+          questions={questions}
+          answers={answers}
+        />
+
         {(afterProfile || topicResults.length > 0) && (
           <ArenaKnowledgeImpact
             beforeProfile={beforeProfile}
@@ -6138,6 +6462,118 @@ function ArenaResultsPanel({
         </button>
       </div>
     </div>
+  );
+}
+
+
+function answerOptionText(
+  question: KnowledgeArenaQuestion,
+  answer: KnowledgeArenaAnswer | null
+) {
+  if (!answer) return "No answer";
+
+  switch (answer) {
+    case "A":
+      return question.option_a;
+    case "B":
+      return question.option_b;
+    case "C":
+      return question.option_c;
+    case "D":
+      return question.option_d;
+  }
+}
+
+function ArenaQuestionReviewPanel({
+  questions,
+  answers,
+  compact = false,
+}: {
+  questions: KnowledgeArenaQuestion[];
+  answers: RecordedArenaAnswer[];
+  compact?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const answerMap = new Map(
+    answers.map((answer) => [answer.question_id, answer])
+  );
+
+  return (
+    <section className={`ka-full-review ${compact ? "is-compact" : ""}`}>
+      <button
+        type="button"
+        className="ka-full-review-toggle"
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+      >
+        <span>
+          <strong>{open ? "Hide Full Results" : "View Full Results"}</strong>
+          <small>
+            Review all {questions.length} questions, your answers, correct
+            answers and explanations.
+          </small>
+        </span>
+        <b>{open ? "−" : "+"}</b>
+      </button>
+
+      {open && (
+        <div className="ka-full-review-list">
+          {questions.map((question, index) => {
+            const answer = answerMap.get(question.id);
+            const selectedLabel = answer?.answer ?? null;
+            const correctLabel = question.correct_answer;
+            const isCorrect = Boolean(answer?.correct);
+
+            return (
+              <article
+                key={question.id}
+                className={`ka-review-item ${isCorrect ? "is-correct" : "is-wrong"}`}
+              >
+                <header className="ka-review-item-header">
+                  <div>
+                    <span>Question {index + 1}</span>
+                    <strong>{question.question_text}</strong>
+                  </div>
+                  <div className={`ka-review-status ${isCorrect ? "is-correct" : "is-wrong"}`}>
+                    {isCorrect ? "Correct" : selectedLabel ? "Incorrect" : "Timed out"}
+                  </div>
+                </header>
+
+                <div className="ka-review-answer-grid">
+                  <div>
+                    <span>Your answer</span>
+                    <strong>
+                      {selectedLabel
+                        ? `${selectedLabel}. ${answerOptionText(question, selectedLabel)}`
+                        : "No answer"}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Correct answer</span>
+                    <strong>
+                      {correctLabel}. {answerOptionText(question, correctLabel)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Points</span>
+                    <strong>{answer?.points ?? 0}</strong>
+                  </div>
+                  <div>
+                    <span>Time used</span>
+                    <strong>{answer?.seconds_used ?? "—"}s</strong>
+                  </div>
+                </div>
+
+                <p className="ka-review-explanation">
+                  <strong>Explanation:</strong> {question.explanation}
+                </p>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }
 
