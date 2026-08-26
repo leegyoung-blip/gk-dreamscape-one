@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import CreatorClubsLockedScreen from "@/components/milo/CreatorClubsLockedScreen";
+import CreatorChallengeManager from "@/components/milo/CreatorChallengeManager";
 import {
   getMiloQuizHallCreatorClubsAccess,
   type MiloQuizHallCreatorClubsAccess,
@@ -695,6 +696,8 @@ export default function CreatorStudioPage() {
               {errorMessage}
             </p>
           )}
+
+          <CreatorChallengeManager />
 
           {clubs.length === 0 ? (
             <div className="flex min-h-0 flex-1 items-center justify-center rounded-[28px] border border-white/10 bg-white/[0.035] p-8 text-center">
