@@ -98,10 +98,12 @@ function useResponsiveMode() {
       const isPortrait = height > width;
       const aspectRatio = width / Math.max(height, 1);
 
-      // Keep the floating map positions only for genuinely wide screens.
-      // Half-screen windows and normal laptop layouts use the compact stack.
+      // Match Milo’s World responsive breakpoint behavior.
+      // Keep the spatial hotspot layout on normal landscape desktops/laptops,
+      // and only stack the locations when the viewport is genuinely narrow
+      // or portrait.
       const shouldUseCompactLayout =
-        width < 1760 || isPortrait || aspectRatio < 1.65;
+        width < 1180 || isPortrait || aspectRatio < 1.35;
 
       if (width <= 720) {
         setScreenMode("mobile");
