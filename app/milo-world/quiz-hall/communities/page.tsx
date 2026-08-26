@@ -25,12 +25,20 @@ type ClubDirectoryRow = {
 
 type FilterMode = "all" | "featured" | "joined";
 
+type MyCreatorAccess = {
+  creator_partner_id: string;
+  display_name: string;
+  slug: string;
+  status: string;
+};
+
 export default function CreatorClubsPage() {
   const [clubs, setClubs] = useState<ClubDirectoryRow[]>([]);
   const [search, setSearch] = useState("");
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [myCreatorAccess, setMyCreatorAccess] = useState<MyCreatorAccess | null>(null);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -51,12 +59,26 @@ export default function CreatorClubsPage() {
     setIsLoading(true);
     setMessage("");
 
-    const [userResponse, clubsResponse] = await Promise.all([
-      supabase.auth.getUser(),
+    const userResponse = await supabase.auth.getUser();
+    const currentUser = userResponse.data.user;
+    setIsAuthenticated(Boolean(currentUser));
+
+    const [clubsResponse, creatorResponse] = await Promise.all([
       supabase.rpc("get_creator_club_directory"),
+      currentUser
+        ? supabase.rpc("get_my_creator_partner")
+        : Promise.resolve({ data: null, error: null }),
     ]);
 
-    setIsAuthenticated(Boolean(userResponse.data.user));
+    const creatorRow = Array.isArray(creatorResponse.data)
+      ? creatorResponse.data[0]
+      : creatorResponse.data;
+
+    setMyCreatorAccess(
+      creatorRow && creatorRow.status === "active"
+        ? (creatorRow as MyCreatorAccess)
+        : null,
+    );
 
     if (clubsResponse.error) {
       setClubs([]);
@@ -135,12 +157,23 @@ export default function CreatorClubsPage() {
               </p>
             </div>
 
-            <Link
-              href="/milo-world/categories"
-              className="hidden min-h-[42px] shrink-0 items-center rounded-full border border-cyan-200/20 bg-cyan-300/[0.07] px-4 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100 no-underline sm:inline-flex"
-            >
-              Categories Hub →
-            </Link>
+            <div className="hidden shrink-0 items-center gap-2 sm:flex">
+              {myCreatorAccess && (
+                <Link
+                  href="/milo-world/quiz-hall/creator-studio"
+                  className="inline-flex min-h-[42px] items-center rounded-full border border-amber-200/22 bg-amber-300/[0.08] px-4 text-[9px] font-black uppercase tracking-[0.1em] text-amber-100 no-underline"
+                >
+                  Creator Studio
+                </Link>
+              )}
+
+              <Link
+                href="/milo-world/categories"
+                className="inline-flex min-h-[42px] items-center rounded-full border border-cyan-200/20 bg-cyan-300/[0.07] px-4 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100 no-underline"
+              >
+                Categories Hub →
+              </Link>
+            </div>
           </div>
         </header>
 
@@ -175,6 +208,17 @@ export default function CreatorClubsPage() {
             )}
           </div>
         </section>
+
+        {myCreatorAccess && (
+          <div className="mx-auto mb-3 w-full max-w-[1280px] shrink-0 px-4 sm:hidden">
+            <Link
+              href="/milo-world/quiz-hall/creator-studio"
+              className="flex min-h-[42px] w-full items-center justify-center rounded-full border border-amber-200/22 bg-amber-300/[0.08] px-4 text-[9px] font-black uppercase tracking-[0.1em] text-amber-100 no-underline"
+            >
+              Open Creator Studio
+            </Link>
+          </div>
+        )}
 
         {message && (
           <p className="mx-auto mb-3 w-[calc(100%-32px)] max-w-[1248px] shrink-0 rounded-2xl border border-red-200/16 bg-red-400/[0.07] px-4 py-3 text-xs text-red-100 sm:w-[calc(100%-48px)]">

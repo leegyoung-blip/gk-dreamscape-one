@@ -1448,6 +1448,11 @@ export default function KnowledgeArenaPage() {
     setCorrectCount(localSummary.correctCount);
     setTokensEarned(localReward);
     setRewardSaved(false);
+    setAttemptSaveMessage(
+      userId
+        ? "Saving your attempt and refreshing Nova Analytics…"
+        : "Log in to save this attempt and receive Dreamscape Tokens."
+    );
     setStage("solo-results");
 
     await saveKnowledgeArenaAttempt("solo");
@@ -1750,10 +1755,25 @@ export default function KnowledgeArenaPage() {
       }}
     >
       <header className="ka-topbar">
-        <Link href="/learning-missions" className="ka-nav-button ka-back-button">
-          <span className="ka-back-full">← Back to Learning Missions</span>
-          <span className="ka-back-short">← Missions</span>
-        </Link>
+        <div className="ka-top-left">
+          <Link href="/learning-missions" className="ka-nav-button ka-back-button">
+            <span className="ka-back-full">← Back to Learning Missions</span>
+            <span className="ka-back-short">← Missions</span>
+          </Link>
+
+          <button
+            type="button"
+            onClick={openNovaGuide}
+            className="ka-guide-launcher"
+            aria-label="Open Nova Guide"
+          >
+            <span className="ka-guide-mark">✦</span>
+            <span className="ka-guide-copy">
+              <strong>Nova Guide</strong>
+              <small>How Knowledge Arena works</small>
+            </span>
+          </button>
+        </div>
 
         <div className="ka-top-actions">
           <Link href={userEmail ? "/profile" : "/login"} className="ka-nav-button">
@@ -2234,6 +2254,7 @@ export default function KnowledgeArenaPage() {
               tokenBalance={tokenBalance}
               rewardSaved={rewardSaved}
               saveMessage={attemptSaveMessage}
+              isAuthenticated={Boolean(userId)}
               beforeProfile={profileAtChallengeStart}
               afterProfile={profileAfterAttempt}
               topicResults={lastTopicResults}
@@ -2295,19 +2316,6 @@ export default function KnowledgeArenaPage() {
           )}
         </div>
       </section>
-
-      <button
-        type="button"
-        onClick={openNovaGuide}
-        className="ka-guide-launcher"
-        aria-label="Open Nova Guide"
-      >
-        <span className="ka-guide-mark">✦</span>
-        <span className="ka-guide-copy">
-          <strong>Nova Guide</strong>
-          <small>How Knowledge Arena works</small>
-        </span>
-      </button>
 
       {novaGuideOpen && (
         <div className="ka-guide-layer" role="presentation">
@@ -5071,6 +5079,610 @@ export default function KnowledgeArenaPage() {
           }
         }
 
+
+        /* ================================================================
+           KNOWLEDGE ARENA VISUAL REFINEMENT v3
+           1. Nova Guide moved beside Back to Learning Missions
+           2. Mode cards made more transparent
+           3. Typography enlarged throughout, especially quiz gameplay
+           ================================================================ */
+
+        /* ---------------------------------------------------------------
+           TOPBAR + GUIDE PLACEMENT
+           --------------------------------------------------------------- */
+        .ka-top-left {
+          display: flex;
+          min-width: 0;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .ka-guide-launcher {
+          position: static;
+          inset: auto;
+          z-index: 21;
+          min-height: 36px;
+          flex: 0 0 auto;
+          border-radius: 999px;
+          background:
+            linear-gradient(
+              135deg,
+              rgba(10, 34, 59, 0.86),
+              rgba(28, 30, 73, 0.84)
+            );
+          padding: 3px 10px 3px 4px;
+          box-shadow:
+            0 8px 24px rgba(0, 0, 0, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        }
+
+        .ka-guide-mark {
+          width: 28px;
+          height: 28px;
+          border-radius: 999px;
+          font-size: 13px;
+        }
+
+        .ka-guide-copy strong {
+          font-size: 11px;
+        }
+
+        .ka-guide-copy small {
+          font-size: 8px;
+        }
+
+        /* ---------------------------------------------------------------
+           MODE SELECT — SHOW MORE BACKGROUND PNG
+           --------------------------------------------------------------- */
+        .ka-mode-card {
+          background:
+            linear-gradient(
+              145deg,
+              rgba(15, 42, 84, 0.43),
+              rgba(4, 14, 35, 0.62)
+            );
+          border-color: rgba(126, 232, 255, 0.24);
+          backdrop-filter: blur(5px);
+        }
+
+        .ka-mode-card.is-multi {
+          background:
+            linear-gradient(
+              145deg,
+              rgba(54, 29, 93, 0.38),
+              rgba(6, 13, 35, 0.62)
+            );
+          border-color: rgba(201, 168, 255, 0.25);
+        }
+
+        .ka-mode-card:hover {
+          background:
+            linear-gradient(
+              145deg,
+              rgba(17, 52, 101, 0.5),
+              rgba(4, 14, 35, 0.68)
+            );
+        }
+
+        .ka-mode-card.is-multi:hover {
+          background:
+            linear-gradient(
+              145deg,
+              rgba(64, 34, 110, 0.46),
+              rgba(6, 13, 35, 0.67)
+            );
+        }
+
+        .ka-mode-footer {
+          background: rgba(5, 18, 39, 0.38);
+          backdrop-filter: blur(5px);
+        }
+
+        /* ---------------------------------------------------------------
+           GLOBAL READABILITY — DESKTOP / TABLET
+           --------------------------------------------------------------- */
+        .ka-nav-button {
+          font-size: 13px;
+        }
+
+        .ka-hero-heading p,
+        .ka-kicker {
+          font-size: 12px;
+        }
+
+        .ka-hero-copy {
+          max-width: 470px;
+          font-size: 14px;
+          line-height: 1.45;
+        }
+
+        .ka-hero-stats span {
+          font-size: 10px;
+        }
+
+        .ka-hero-stats strong {
+          font-size: 15px;
+        }
+
+        .ka-stage-heading h2 {
+          font-size: clamp(27px, 2.45vw, 36px);
+        }
+
+        .ka-stage-heading > p {
+          font-size: 13px;
+          line-height: 1.45;
+        }
+
+        .ka-mode-copy small {
+          font-size: 11px;
+        }
+
+        .ka-mode-copy strong {
+          font-size: clamp(26px, 2.6vw, 34px);
+        }
+
+        .ka-mode-copy > span {
+          font-size: 14px;
+        }
+
+        .ka-mode-action {
+          font-size: 12px;
+        }
+
+        .ka-mode-footer {
+          font-size: 10px;
+        }
+
+        .ka-stage-toolbar > div > strong {
+          font-size: 22px;
+        }
+
+        .ka-inline-back,
+        .ka-secondary-button {
+          min-height: 40px;
+          font-size: 13px;
+        }
+
+        .ka-profile-strip span,
+        .ka-profile-strip small {
+          font-size: 11px;
+        }
+
+        .ka-profile-strip strong {
+          font-size: 16px;
+        }
+
+        .ka-profile-overall strong {
+          font-size: 26px;
+        }
+
+        .ka-profile-recommendation a {
+          font-size: 11px;
+        }
+
+        .ka-setup-label-row span {
+          font-size: 14px;
+        }
+
+        .ka-setup-label-row small {
+          font-size: 12px;
+        }
+
+        .ka-world-content > small {
+          font-size: 11px;
+        }
+
+        .ka-world-content > strong {
+          font-size: clamp(21px, 1.7vw, 27px);
+        }
+
+        .ka-world-content > span {
+          font-size: 12px;
+        }
+
+        .ka-world-content > p {
+          font-size: 12px;
+          line-height: 1.4;
+        }
+
+        .ka-timer-selector > span {
+          font-size: 12px;
+        }
+
+        .ka-timer-options button {
+          font-size: 13px;
+        }
+
+        .ka-challenge-card b {
+          font-size: 17px;
+        }
+
+        .ka-challenge-card strong {
+          font-size: 15px;
+        }
+
+        .ka-challenge-card small {
+          font-size: 11px;
+          line-height: 1.35;
+        }
+
+        .ka-start-button {
+          font-size: 14px;
+        }
+
+        /* ---------------------------------------------------------------
+           QUIZ — LARGE, LEGIBLE GAMEPLAY TYPE
+           --------------------------------------------------------------- */
+        .ka-quiz-stage {
+          gap: 8px;
+        }
+
+        .ka-status-chip {
+          padding: 7px 11px;
+          font-size: 11px;
+        }
+
+        .ka-quiz-stats {
+          min-height: 55px;
+          gap: 7px;
+        }
+
+        .ka-quiz-stat {
+          padding: 8px 11px;
+        }
+
+        .ka-quiz-stat span {
+          font-size: 10px;
+        }
+
+        .ka-quiz-stat strong {
+          margin-top: 3px;
+          font-size: 18px;
+        }
+
+        .ka-quiz-layout {
+          gap: 9px;
+        }
+
+        .ka-question-panel {
+          padding: 16px;
+        }
+
+        .ka-question-topline > div:first-child span {
+          font-size: 11px;
+        }
+
+        .ka-question-topline > div:first-child strong {
+          margin-top: 4px;
+          font-size: 15px;
+        }
+
+        .ka-countdown {
+          width: 52px;
+          height: 52px;
+          font-size: 20px;
+        }
+
+        .ka-question-text {
+          margin-top: 13px;
+          font-size: clamp(24px, 2.55vw, 36px);
+          line-height: 1.2;
+        }
+
+        .ka-difficulty {
+          margin-top: 8px;
+          font-size: 10px;
+          letter-spacing: 0.05em;
+        }
+
+        .ka-feedback {
+          margin-top: 10px;
+          padding: 10px 12px;
+          font-size: 11px;
+          line-height: 1.45;
+        }
+
+        .ka-feedback strong {
+          margin-bottom: 4px;
+          font-size: 13px;
+        }
+
+        .ka-feedback-footer span {
+          font-size: 10px;
+        }
+
+        .ka-next-button {
+          min-height: 36px;
+          padding: 0 13px;
+          font-size: 10px;
+        }
+
+        .ka-options-panel {
+          gap: 8px;
+        }
+
+        .ka-answer-button {
+          grid-template-columns: 36px minmax(0, 1fr);
+          gap: 12px;
+          border-radius: 14px !important;
+          padding: 11px 14px !important;
+        }
+
+        .ka-answer-letter {
+          width: 34px;
+          height: 34px;
+          font-size: 12px;
+        }
+
+        .ka-answer-text {
+          font-size: clamp(16px, 1.55vw, 21px);
+          line-height: 1.3;
+        }
+
+        /* Results / waiting / lobby readability */
+        .ka-result-score span,
+        .ka-result-stat span,
+        .ka-impact-label,
+        .ka-lobby-card span,
+        .ka-player-row span {
+          font-size: 10px;
+        }
+
+        .ka-result-score strong {
+          font-size: 30px;
+        }
+
+        .ka-result-stat strong,
+        .ka-lobby-card strong,
+        .ka-player-row strong {
+          font-size: 15px;
+        }
+
+        .ka-impact-panel,
+        .ka-result-review,
+        .ka-lobby-card,
+        .ka-player-row {
+          font-size: 12px;
+        }
+
+        /* ---------------------------------------------------------------
+           TABLET / MOBILE
+           Keep everything larger than before while still preserving 100dvh.
+           --------------------------------------------------------------- */
+        @media (max-width: 850px), (hover: none) and (pointer: coarse) {
+          .ka-top-left {
+            gap: 5px;
+          }
+
+          .ka-nav-button {
+            font-size: 11px;
+          }
+
+          .ka-guide-launcher {
+            min-height: 33px;
+            padding: 3px 7px 3px 3px;
+          }
+
+          .ka-guide-mark {
+            width: 26px;
+            height: 26px;
+            font-size: 11px;
+          }
+
+          .ka-guide-copy strong {
+            font-size: 10px;
+          }
+
+          .ka-guide-copy small {
+            display: none;
+          }
+
+          .ka-hero-heading p {
+            font-size: 9px;
+          }
+
+          .ka-hero-copy {
+            font-size: 11px;
+          }
+
+          .ka-mode-stage .ka-mode-copy small {
+            font-size: 9px;
+          }
+
+          .ka-mode-stage .ka-mode-copy strong {
+            font-size: 21px;
+          }
+
+          .ka-mode-stage .ka-mode-copy > span {
+            font-size: 12px;
+          }
+
+          .ka-mode-action {
+            font-size: 10px;
+          }
+
+          .ka-profile-strip span,
+          .ka-profile-strip small {
+            font-size: 8px;
+          }
+
+          .ka-profile-strip strong {
+            font-size: 11px;
+          }
+
+          .ka-profile-overall strong {
+            font-size: 17px;
+          }
+
+          .ka-setup-label-row span {
+            font-size: 11px;
+          }
+
+          .ka-setup-label-row small {
+            font-size: 9px;
+          }
+
+          .ka-world-content > strong {
+            font-size: 15px;
+          }
+
+          .ka-world-content > span {
+            font-size: 9px;
+          }
+
+          .ka-timer-selector > span {
+            font-size: 9px;
+          }
+
+          .ka-timer-options button {
+            font-size: 10px;
+          }
+
+          .ka-challenge-card strong {
+            font-size: 11px;
+          }
+
+          .ka-challenge-card b {
+            font-size: 13px;
+          }
+
+          .ka-start-button {
+            font-size: 10px;
+          }
+
+          .ka-status-chip {
+            max-width: none;
+            padding: 5px 7px;
+            font-size: 8px;
+          }
+
+          .ka-quiz-stats {
+            min-height: 40px;
+          }
+
+          .ka-quiz-stat {
+            padding: 5px 7px;
+          }
+
+          .ka-quiz-stat span {
+            font-size: 8px;
+          }
+
+          .ka-quiz-stat strong {
+            font-size: 13px;
+          }
+
+          .ka-question-panel {
+            padding: 10px;
+          }
+
+          .ka-question-topline > div:first-child span {
+            font-size: 9px;
+          }
+
+          .ka-question-topline > div:first-child strong {
+            font-size: 12px;
+          }
+
+          .ka-countdown {
+            width: 41px;
+            height: 41px;
+            font-size: 16px;
+          }
+
+          .ka-question-text {
+            font-size: clamp(18px, 4.6vw, 25px);
+            line-height: 1.18;
+          }
+
+          .ka-difficulty {
+            font-size: 8px;
+          }
+
+          .ka-feedback {
+            padding: 7px 8px;
+            font-size: 9px;
+          }
+
+          .ka-feedback strong {
+            font-size: 10px;
+          }
+
+          .ka-feedback-footer span,
+          .ka-next-button {
+            font-size: 8px;
+          }
+
+          .ka-answer-button {
+            grid-template-columns: 29px minmax(0, 1fr);
+            gap: 8px;
+            padding: 7px 9px !important;
+          }
+
+          .ka-answer-letter {
+            width: 28px;
+            height: 28px;
+            font-size: 10px;
+          }
+
+          .ka-answer-text {
+            font-size: clamp(13px, 3.4vw, 17px);
+          }
+        }
+
+        @media (max-width: 560px) and (orientation: portrait) {
+          .ka-guide-launcher {
+            padding-right: 5px;
+          }
+
+          .ka-guide-copy {
+            display: none;
+          }
+
+          .ka-question-text {
+            font-size: clamp(17px, 5vw, 22px);
+          }
+
+          .ka-answer-text {
+            font-size: 14px;
+          }
+        }
+
+        @media (max-height: 700px) and (min-width: 851px) {
+          .ka-status-chip {
+            padding: 5px 8px;
+            font-size: 9px;
+          }
+
+          .ka-quiz-stats {
+            min-height: 45px;
+          }
+
+          .ka-quiz-stat span {
+            font-size: 8px;
+          }
+
+          .ka-quiz-stat strong {
+            font-size: 15px;
+          }
+
+          .ka-question-panel {
+            padding: 12px;
+          }
+
+          .ka-question-text {
+            font-size: clamp(21px, 2.25vw, 30px);
+          }
+
+          .ka-answer-text {
+            font-size: clamp(14px, 1.35vw, 18px);
+          }
+
+          .ka-feedback {
+            font-size: 10px;
+          }
+        }
+
       `}</style>
     </main>
   );
@@ -5438,6 +6050,7 @@ function ArenaResultsPanel({
   tokenBalance,
   rewardSaved,
   saveMessage,
+  isAuthenticated,
   beforeProfile,
   afterProfile,
   topicResults,
@@ -5452,6 +6065,7 @@ function ArenaResultsPanel({
   tokenBalance: number;
   rewardSaved: boolean;
   saveMessage: string;
+  isAuthenticated: boolean;
   beforeProfile: KnowledgeArenaProfile | null;
   afterProfile: KnowledgeArenaProfile | null;
   topicResults: TopicResult[];
@@ -5496,7 +6110,9 @@ function ArenaResultsPanel({
           {saveMessage ||
             (rewardSaved
               ? "Your attempt and Dreamscape Token reward have been saved."
-              : "Log in to save your attempt and receive Dreamscape Tokens.")}
+              : isAuthenticated
+                ? "Saving your attempt and refreshing Nova Analytics…"
+                : "Log in to save your attempt and receive Dreamscape Tokens.")}
         </p>
 
         {(afterProfile || topicResults.length > 0) && (

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import CreatorClubsAdminPanel from "@/components/admin/CreatorClubsAdminPanel";
+import CreatorQuizReviewPanel from "@/components/admin/CreatorQuizReviewPanel";
 
 type CreatorStatus = "pending" | "active" | "suspended" | "terminated";
 
@@ -710,6 +711,11 @@ export default function CreatorPartnersPanel() {
               creatorPartnerId={selectedCreator.id}
               creatorDisplayName={selectedCreator.display_name}
               creatorStatus={selectedCreator.status}
+            />
+
+            <CreatorQuizReviewPanel
+              creatorPartnerId={selectedCreator.id}
+              creatorDisplayName={selectedCreator.display_name}
             />
             </div>
           )}
