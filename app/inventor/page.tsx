@@ -208,7 +208,7 @@ type WalkthroughStep = {
   zoneNumber?: string;
 };
 
-const WALKTHROUGH_STORAGE_KEY = "nova-world-walkthrough-completed-v4";
+const WALKTHROUGH_STORAGE_KEY = "nova-world-walkthrough-completed-v5";
 
 const zones: Zone[] = [
   {
@@ -221,22 +221,40 @@ const zones: Zone[] = [
     accent: "#53d7ff",
   },
   {
-    id: "learning-missions",
-    number: "2",
-    title: "Learning Missions",
-    description: "Where you and Nova turn learning into an adventure.",
-    href: "/learning-missions",
-    icon: "✦",
-    accent: "#8dfcff",
-  },
-  {
     id: "nova-home",
-    number: "3",
+    number: "2",
     title: "Nova’s Home",
     description: "Your space. Build it your way.",
     href: "/inventor/hub",
     icon: "⌂",
     accent: "#c58cff",
+  },
+  {
+    id: "missions-centre",
+    number: "3",
+    title: "Missions Centre",
+    description: "Your launch point for English, Maths, Science, and bigger learning missions.",
+    href: "/learning-missions",
+    icon: "✦",
+    accent: "#8dfcff",
+  },
+  {
+    id: "knowledge-arena",
+    number: "4",
+    title: "Knowledge Arena",
+    description: "Jump straight into fast-paced quiz challenges and test what you know.",
+    href: "/learning-missions/knowledge-arena",
+    icon: "◎",
+    accent: "#ffd27d",
+  },
+  {
+    id: "skyforge-hangar",
+    number: "5",
+    title: "Skyforge Hangar",
+    description: "Head straight to your rover, upgrades, and driving challenges.",
+    href: "/learning-missions/core/rover",
+    icon: "⇧",
+    accent: "#8effc1",
   },
 ];
 
@@ -244,7 +262,7 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   {
     eyebrow: "Hi, I’m Nova",
     title: "Want me to show you around?",
-    text: "I can show you where we think, learn, earn rewards, and build your own space. It only takes a moment.",
+    text: "I can show you where we think, learn, earn rewards, build your own space, and launch your rover. It only takes a moment.",
   },
   {
     eyebrow: "Your Rewards",
@@ -252,22 +270,34 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
     text: "Dream Tokens, or DT, are used for play, upgrades, and building inside Dreamscape. Dream Gems, or DG, are special learning rewards earned through eligible activities.",
   },
   {
-    eyebrow: "Stop 1 of 3",
+    eyebrow: "Stop 1 of 5",
     title: "This is my Think Lab.",
     text: "I come here to sharpen my logic, spot patterns, and stretch my reasoning. Want to try a game with me?",
     zoneNumber: "1",
   },
   {
-    eyebrow: "Stop 2 of 3",
-    title: "Our learning adventures start here.",
-    text: "Learning Missions is where we tackle English, Maths, Science, and bigger challenges together — with progress and rewards along the way.",
+    eyebrow: "Stop 2 of 5",
+    title: "This is Nova’s Home.",
+    text: "Earn Dream Tokens, unlock new spaces, play at home, and make Nova’s Home feel like yours.",
     zoneNumber: "2",
   },
   {
-    eyebrow: "Stop 3 of 3",
-    title: "And this is home.",
-    text: "Earn Dream Tokens, unlock new spaces, play at home, and make Nova’s Home feel like yours.",
+    eyebrow: "Stop 3 of 5",
+    title: "Our missions launch from here.",
+    text: "The Missions Centre is where we tackle English, Maths, Science, and bigger learning challenges together — with progress and rewards along the way.",
     zoneNumber: "3",
+  },
+  {
+    eyebrow: "Stop 4 of 5",
+    title: "Ready for the Knowledge Arena?",
+    text: "Jump straight into the Knowledge Arena whenever you want a fast quiz challenge without going through the Missions Centre first.",
+    zoneNumber: "4",
+  },
+  {
+    eyebrow: "Stop 5 of 5",
+    title: "And this is Skyforge Hangar.",
+    text: "This shortcut takes you straight to your rover, where you can check your build and head into rover challenges without going through Core Missions first.",
+    zoneNumber: "5",
   },
   {
     eyebrow: "You’re ready",
@@ -648,7 +678,10 @@ export default function NovaWorldPage() {
       if (isMobile) {
         target.scrollIntoView({
           behavior: "smooth",
-          block: activeZoneNumber === "1" ? "start" : "end",
+          block:
+            activeZoneNumber === "1" || activeZoneNumber === "2"
+              ? "start"
+              : "end",
         });
       } else {
         target.scrollIntoView({
@@ -2463,11 +2496,16 @@ function ReferralObjectivesPanel({
 function getNovaMarkerPosition(zoneId: string): CSSProperties {
   switch (zoneId) {
     case "thinking-skills-lab":
+      // Keep Think Lab exactly where it is today: bottom-left platform.
       return { left: "19%", top: "61%" };
-    case "learning-missions":
-      return { left: "55%", top: "54%" };
     case "nova-home":
-      return { left: "86%", top: "60%" };
+      return { left: "29%", top: "34%" };
+    case "missions-centre":
+      return { left: "55%", top: "54%" };
+    case "knowledge-arena":
+      return { left: "76%", top: "34%" };
+    case "skyforge-hangar":
+      return { left: "86%", top: "61%" };
     default:
       return { left: "50%", top: "50%" };
   }
@@ -2476,15 +2514,37 @@ function getNovaMarkerPosition(zoneId: string): CSSProperties {
 function getNovaPopupPosition(zoneId: string): CSSProperties {
   const marker = getNovaMarkerPosition(zoneId);
 
-  if (zoneId === "thinking-skills-lab") {
-    return { ...marker, transform: "translate(-18%, calc(-100% - 48px))" };
+  switch (zoneId) {
+    case "thinking-skills-lab":
+      return {
+        ...marker,
+        transform: "translate(-18%, calc(-100% - 48px))",
+      };
+    case "nova-home":
+      // Top-left location: open the card below the marker so it stays clear
+      // of the page title and top account controls.
+      return {
+        ...marker,
+        transform: "translate(-28%, 48px)",
+      };
+    case "knowledge-arena":
+      // Top-right location: open the card below and back toward the centre
+      // so it does not collide with the referral/account controls.
+      return {
+        ...marker,
+        transform: "translate(-80%, 48px)",
+      };
+    case "skyforge-hangar":
+      return {
+        ...marker,
+        transform: "translate(-86%, calc(-100% - 48px))",
+      };
+    default:
+      return {
+        ...marker,
+        transform: "translate(-50%, calc(-100% - 48px))",
+      };
   }
-
-  if (zoneId === "nova-home") {
-    return { ...marker, transform: "translate(-86%, calc(-100% - 48px))" };
-  }
-
-  return { ...marker, transform: "translate(-50%, calc(-100% - 48px))" };
 }
 
 function NovaHotspot({
@@ -3518,10 +3578,14 @@ function GuidedWalkthrough({
   const isFirstStep = stepIndex === 0;
   const isRewardsStep = stepIndex === 1;
   const isThinkStep = step.zoneNumber === "1";
-  const isMissionsStep = step.zoneNumber === "2";
-  const isHomeStep = step.zoneNumber === "3";
+  const isHomeStep = step.zoneNumber === "2";
+  const isMissionsStep = step.zoneNumber === "3";
+  const isKnowledgeStep = step.zoneNumber === "4";
+  const isHangarStep = step.zoneNumber === "5";
   const isLastStep = stepIndex === WALKTHROUGH_STEPS.length - 1;
-  const dockGuideAtTop = isMobile && (isMissionsStep || isHomeStep);
+  const dockGuideAtTop =
+    isMobile && (isMissionsStep || isKnowledgeStep || isHangarStep);
+  const dockGuideAtRight = !isMobile && (isThinkStep || isHomeStep);
   const [typedLength, setTypedLength] = useState(0);
 
   useEffect(() => {
@@ -3601,8 +3665,8 @@ function GuidedWalkthrough({
         aria-label="Nova’s World interactive guide"
         style={{
           position: "fixed",
-          left: isMobile ? "10px" : "30px",
-          right: isMobile ? "10px" : "auto",
+          left: isMobile ? "10px" : dockGuideAtRight ? "auto" : "30px",
+          right: isMobile ? "10px" : dockGuideAtRight ? "30px" : "auto",
           top: dockGuideAtTop ? "10px" : "auto",
           bottom: isMobile ? (dockGuideAtTop ? "auto" : "10px") : "24px",
           zIndex: 100,
@@ -3776,42 +3840,132 @@ function GuidedWalkthrough({
                 <button type="button" onClick={onClose} style={secondaryStyle}>
                   Maybe later
                 </button>
-                <button type="button" onClick={() => onStepChange(1)} style={actionStyle}>
+                <button
+                  type="button"
+                  onClick={() => onStepChange(1)}
+                  style={actionStyle}
+                >
                   Sure!
                 </button>
               </>
             ) : isThinkStep ? (
               <>
-                <button type="button" onClick={() => onStepChange(stepIndex + 1)} style={secondaryStyle}>
-                  Maybe later
-                </button>
-                <Link href="/nova/thinking-skills-lab" onClick={onClose} style={actionStyle}>
-                  Sure! Let’s play
-                </Link>
-              </>
-            ) : isMissionsStep ? (
-              <>
-                <button type="button" onClick={() => onStepChange(stepIndex + 1)} style={secondaryStyle}>
+                <button
+                  type="button"
+                  onClick={() => onStepChange(stepIndex + 1)}
+                  style={secondaryStyle}
+                >
                   Keep touring
                 </button>
-                <Link href="/learning-missions" onClick={onClose} style={actionStyle}>
-                  Explore Missions
+                <Link
+                  href="/nova/thinking-skills-lab"
+                  onClick={onClose}
+                  style={actionStyle}
+                >
+                  Sure! Let’s play
                 </Link>
               </>
             ) : isHomeStep ? (
               <>
-                <button type="button" onClick={() => onStepChange(stepIndex + 1)} style={secondaryStyle}>
+                <button
+                  type="button"
+                  onClick={() => onStepChange(stepIndex + 1)}
+                  style={secondaryStyle}
+                >
                   Keep touring
                 </button>
                 <Link href="/inventor/hub" onClick={onClose} style={actionStyle}>
                   Visit Nova’s Home
                 </Link>
               </>
+            ) : isMissionsStep ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onStepChange(stepIndex + 1)}
+                  style={secondaryStyle}
+                >
+                  Keep touring
+                </button>
+                <Link
+                  href="/learning-missions"
+                  onClick={onClose}
+                  style={actionStyle}
+                >
+                  Enter Missions Centre
+                </Link>
+              </>
+            ) : isKnowledgeStep ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onStepChange(stepIndex + 1)}
+                  style={secondaryStyle}
+                >
+                  Keep touring
+                </button>
+                <Link
+                  href="/learning-missions/knowledge-arena"
+                  onClick={onClose}
+                  style={actionStyle}
+                >
+                  Enter Knowledge Arena
+                </Link>
+              </>
+            ) : isHangarStep ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onStepChange(stepIndex + 1)}
+                  style={secondaryStyle}
+                >
+                  Keep touring
+                </button>
+                <Link
+                  href="/learning-missions/core/rover"
+                  onClick={onClose}
+                  style={actionStyle}
+                >
+                  Go to My Rover
+                </Link>
+              </>
             ) : isLastStep ? (
               <>
-                <Link href="/nova/thinking-skills-lab" onClick={onClose} style={secondaryStyle}>Think Lab</Link>
-                <Link href="/learning-missions" onClick={onClose} style={secondaryStyle}>Learning Missions</Link>
-                <Link href="/inventor/hub" onClick={onClose} style={actionStyle}>Nova’s Home</Link>
+                <Link
+                  href="/nova/thinking-skills-lab"
+                  onClick={onClose}
+                  style={secondaryStyle}
+                >
+                  Think Lab
+                </Link>
+                <Link
+                  href="/inventor/hub"
+                  onClick={onClose}
+                  style={secondaryStyle}
+                >
+                  Nova’s Home
+                </Link>
+                <Link
+                  href="/learning-missions"
+                  onClick={onClose}
+                  style={secondaryStyle}
+                >
+                  Missions Centre
+                </Link>
+                <Link
+                  href="/learning-missions/knowledge-arena"
+                  onClick={onClose}
+                  style={secondaryStyle}
+                >
+                  Knowledge Arena
+                </Link>
+                <Link
+                  href="/learning-missions/core/rover"
+                  onClick={onClose}
+                  style={actionStyle}
+                >
+                  Skyforge Hangar
+                </Link>
               </>
             ) : (
               <>
@@ -3822,7 +3976,11 @@ function GuidedWalkthrough({
                 >
                   Back
                 </button>
-                <button type="button" onClick={() => onStepChange(stepIndex + 1)} style={actionStyle}>
+                <button
+                  type="button"
+                  onClick={() => onStepChange(stepIndex + 1)}
+                  style={actionStyle}
+                >
                   Next
                 </button>
               </>
