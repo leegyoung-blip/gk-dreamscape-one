@@ -16,8 +16,7 @@ type ChallengeMode =
 type KnowledgeArenaTopic =
   | "world_explorer"
   | "time_traveller"
-  | "science_sparks"
-  | "mystery_logic";
+  | "science_sparks";
 
 type KnowledgeArenaAnswer = "A" | "B" | "C" | "D";
 
@@ -210,14 +209,6 @@ const topics: {
     coverImage:
       "/activities/learning-missions/knowledge-arena/categories/science-sparks.png",
   },
-  {
-    id: "mystery_logic",
-    title: "Mystery Logic",
-    subtitle: "Riddles, clues, deduction, patterns, and smart guesses.",
-    accent: "#c99cff",
-    coverImage:
-      "/activities/learning-missions/knowledge-arena/categories/mystery-logic.png",
-  },
 ];
 
 const NOVA_ANALYTICS_HREF = "/learning-missions/progress-rewards";
@@ -272,7 +263,7 @@ const NOVA_GUIDE_STEPS = [
     eyebrow: "Knowledge worlds",
     title: "Choose a world",
     description:
-      "World Explorer, Time Traveller, Science Sparks and Mystery Logic each keep their own Nova mastery profile.",
+      "World Explorer, Time Traveller and Science Sparks each keep their own Nova mastery profile.",
     detail:
       "Quick Play and Expert Challenge use the world you select. Focus Mission can automatically use Nova's recommended world.",
     stage: "solo-mode" as PageStage,
@@ -312,7 +303,7 @@ const NOVA_GUIDE_STEPS = [
     eyebrow: "Adaptive mix",
     title: "Nova Challenge",
     description:
-      "Nova builds a personalised 10-question mix across all four worlds, weighted toward lower-mastered areas.",
+      "Nova builds a personalised 10-question mix across all three worlds, weighted toward lower-mastered areas.",
     detail:
       "The challenge uses the existing Nova profile and feeds new evidence back into that same profile.",
     stage: "solo-mode" as PageStage,
@@ -332,7 +323,7 @@ const NOVA_GUIDE_STEPS = [
     eyebrow: "Your learning profile",
     title: "Knowledge Profile",
     description:
-      "See your overall knowledge mastery, four world scores and Nova's current recommendation.",
+      "See your overall knowledge mastery, three world scores and Nova's current recommendation.",
     detail:
       "For deeper evidence, trends and cross-subject analytics, open the full Nova Analytics dashboard.",
     stage: "solo-mode" as PageStage,
@@ -1998,7 +1989,7 @@ export default function KnowledgeArenaPage() {
                     <span>Choose World</span>
                     <small>
                       {selectedChallengeMode === "nova_challenge"
-                        ? "Nova Challenge mixes all four worlds."
+                        ? "Nova Challenge mixes all three worlds."
                         : selectedChallengeMode === "focus_mission"
                         ? `Nova focus: ${topicTitle(focusTopic)}`
                         : "Select the world you want to play."}
@@ -6215,6 +6206,69 @@ export default function KnowledgeArenaPage() {
           }
         }
 
+
+        /* ================================================================
+           KNOWLEDGE ARENA v7 — THREE-WORLD LAYOUT
+           ================================================================ */
+
+        .ka-profile-strip {
+          grid-template-columns:
+            auto
+            repeat(3, minmax(0, 1fr))
+            minmax(210px, 1.35fr);
+        }
+
+        .ka-world-grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-template-rows: minmax(0, 1fr);
+        }
+
+        @media (max-width: 1100px) {
+          .ka-profile-strip {
+            grid-template-columns:
+              auto
+              repeat(3, minmax(0, 1fr))
+              minmax(180px, 1.25fr);
+          }
+        }
+
+        @media (max-width: 850px), (hover: none) and (pointer: coarse) {
+          .ka-world-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-rows: minmax(0, 1fr);
+          }
+
+          .ka-world-content > p {
+            display: none;
+          }
+
+          .ka-world-content > strong {
+            font-size: clamp(12px, 3.2vw, 16px);
+          }
+
+          .ka-world-content > span {
+            font-size: 8px;
+          }
+        }
+
+        @media (max-width: 560px) and (orientation: portrait) {
+          .ka-world-grid {
+            gap: 5px;
+          }
+
+          .ka-world-content {
+            padding: 8px 6px;
+          }
+
+          .ka-world-content > small {
+            font-size: 7px;
+          }
+
+          .ka-world-content > strong {
+            font-size: clamp(11px, 3vw, 14px);
+          }
+        }
+
       `}</style>
     </main>
   );
@@ -6330,8 +6384,8 @@ function ArenaChallengeGrid({
           detail = `Focus: ${profile.recommended_topic_title}`;
         } else if (mode === "nova_challenge") {
           detail = profile?.profile_ready
-            ? "Personalised four-world mix."
-            : "Builds your first four-world profile.";
+            ? "Personalised three-world mix."
+            : "Builds your first three-world profile.";
         }
 
         return (
