@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import CreatorClubsLockedScreen from "@/components/milo/CreatorClubsLockedScreen";
+import {
+  getMiloQuizHallCreatorClubsAccess,
+  type MiloQuizHallCreatorClubsAccess,
+} from "@/lib/milo-quiz-hall-access";
 
 type ClubDirectoryRow = {
   club_id: string;
@@ -39,6 +44,8 @@ export default function CreatorClubsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [myCreatorAccess, setMyCreatorAccess] = useState<MyCreatorAccess | null>(null);
+  const [hallAccess, setHallAccess] =
+    useState<MiloQuizHallCreatorClubsAccess | null>(null);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -58,6 +65,16 @@ export default function CreatorClubsPage() {
   async function loadPage() {
     setIsLoading(true);
     setMessage("");
+
+    const accessResult = await getMiloQuizHallCreatorClubsAccess();
+    setHallAccess(accessResult.access);
+
+    if (!accessResult.access.canAccess) {
+      setClubs([]);
+      setMyCreatorAccess(null);
+      setIsLoading(false);
+      return;
+    }
 
     const userResponse = await supabase.auth.getUser();
     const currentUser = userResponse.data.user;
@@ -122,6 +139,10 @@ export default function CreatorClubsPage() {
         .includes(term);
     });
   }, [clubs, filterMode, search]);
+
+  if (!isLoading && hallAccess && !hallAccess.canAccess) {
+    return <CreatorClubsLockedScreen />;
+  }
 
   return (
     <main className="fixed inset-0 overflow-hidden bg-[#020711] text-white">

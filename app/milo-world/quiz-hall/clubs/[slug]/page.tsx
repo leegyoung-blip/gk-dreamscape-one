@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import CreatorClubsLockedScreen from "@/components/milo/CreatorClubsLockedScreen";
+import {
+  getMiloQuizHallCreatorClubsAccess,
+  type MiloQuizHallCreatorClubsAccess,
+} from "@/lib/milo-quiz-hall-access";
 
 type ClubDetail = {
   club_id: string;
@@ -32,6 +37,8 @@ export default function CreatorClubPage() {
   const slug = decodeURIComponent(String(params?.slug || ""));
 
   const [club, setClub] = useState<ClubDetail | null>(null);
+  const [hallAccess, setHallAccess] =
+    useState<MiloQuizHallCreatorClubsAccess | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -56,6 +63,15 @@ export default function CreatorClubPage() {
     if (!slug) return;
 
     setIsLoading(true);
+
+    const accessResult = await getMiloQuizHallCreatorClubsAccess();
+    setHallAccess(accessResult.access);
+
+    if (!accessResult.access.canAccess) {
+      setClub(null);
+      setIsLoading(false);
+      return;
+    }
 
     const [userResponse, clubResponse] = await Promise.all([
       supabase.auth.getUser(),
@@ -178,6 +194,10 @@ export default function CreatorClubPage() {
         Loading Creator Club...
       </main>
     );
+  }
+
+  if (hallAccess && !hallAccess.canAccess) {
+    return <CreatorClubsLockedScreen />;
   }
 
   if (!club) {

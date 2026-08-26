@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import CreatorClubsLockedScreen from "@/components/milo/CreatorClubsLockedScreen";
+import {
+  getMiloQuizHallCreatorClubsAccess,
+  type MiloQuizHallCreatorClubsAccess,
+} from "@/lib/milo-quiz-hall-access";
 
 type CreatorAccess = {
   creator_partner_id: string;
@@ -142,6 +147,8 @@ export default function CreatorStudioPage() {
   const router = useRouter();
 
   const [creator, setCreator] = useState<CreatorAccess | null>(null);
+  const [hallAccess, setHallAccess] =
+    useState<MiloQuizHallCreatorClubsAccess | null>(null);
   const [clubs, setClubs] = useState<CreatorClub[]>([]);
   const [quizzes, setQuizzes] = useState<CreatorQuiz[]>([]);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
@@ -222,6 +229,14 @@ export default function CreatorStudioPage() {
   async function loadStudio(preferredQuizId?: string) {
     setIsLoading(true);
     setErrorMessage("");
+
+    const accessResult = await getMiloQuizHallCreatorClubsAccess();
+    setHallAccess(accessResult.access);
+
+    if (!accessResult.access.canAccess) {
+      setIsLoading(false);
+      return;
+    }
 
     const userResponse = await supabase.auth.getUser();
     if (!userResponse.data.user) {
@@ -611,6 +626,12 @@ export default function CreatorStudioPage() {
       <main className="fixed inset-0 flex items-center justify-center bg-[#020711] text-sm text-white/56">
         Opening Creator Studio...
       </main>
+    );
+  }
+
+  if (hallAccess && !hallAccess.canAccess) {
+    return (
+      <CreatorClubsLockedScreen detail="Creator Studio is currently part of the locked Creator Clubs preview. Public creator access has not been opened yet." />
     );
   }
 

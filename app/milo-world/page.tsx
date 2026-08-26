@@ -138,15 +138,15 @@ const ZONES: Zone[] = [
   },
 ];
 
-const DESKTOP_ZONE_POSITIONS: Record<
+const DESKTOP_ZONE_MARKERS: Record<
   string,
-  { top: string; left?: string; right?: string; width: string }
+  { left: string; top: string }
 > = {
-  "1": { top: "33%", left: "3.2%", width: "min(360px, 24vw)" },
-  "2": { top: "66%", left: "4.5%", width: "min(360px, 24vw)" },
-  "3": { top: "66%", right: "3.7%", width: "min(390px, 25vw)" },
-  "4": { top: "33%", right: "4.2%", width: "min(360px, 24vw)" },
-  "5": { top: "68%", left: "50%", width: "min(390px, 25vw)" },
+  "1": { left: "13%", top: "34%" },
+  "2": { left: "13%", top: "72%" },
+  "3": { left: "82%", top: "72%" },
+  "4": { left: "82%", top: "34%" },
+  "5": { left: "50%", top: "72%" },
 };
 
 const WALKTHROUGH_STEPS: WalkthroughStep[] = [
@@ -535,6 +535,241 @@ function ZoneCard({
   );
 }
 
+function MiloZoneHotspot({
+  zone,
+  isAdmin,
+  isWalkthroughActive,
+  isHighlighted,
+  isActive,
+  onEnter,
+  onLeave,
+}: {
+  zone: Zone;
+  isAdmin: boolean;
+  isWalkthroughActive: boolean;
+  isHighlighted: boolean;
+  isActive: boolean;
+  onEnter: () => void;
+  onLeave: () => void;
+}) {
+  const isUnavailable = Boolean(zone.adminOnly && !isAdmin);
+  const position = DESKTOP_ZONE_MARKERS[zone.number];
+
+  return (
+    <button
+      id={`milo-zone-${zone.number}`}
+      type="button"
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
+      onFocus={onEnter}
+      onBlur={onLeave}
+      onClick={() => {
+        if (!isUnavailable && !isWalkthroughActive) {
+          window.location.href = zone.href;
+        }
+      }}
+      aria-label={
+        isUnavailable
+          ? `Location ${zone.number}: ${zone.title}, coming soon`
+          : `Location ${zone.number}: ${zone.title}`
+      }
+      aria-disabled={isUnavailable}
+      style={{
+        position: "absolute",
+        zIndex: isHighlighted ? 92 : isActive ? 35 : 25,
+        left: position.left,
+        top: position.top,
+        width: "60px",
+        height: "60px",
+        padding: 0,
+        transform: isActive
+          ? "translate(-50%, -50%) scale(1.10)"
+          : "translate(-50%, -50%)",
+        borderRadius: "12px",
+        border: isActive
+          ? "1px solid rgba(142,232,255,0.98)"
+          : isUnavailable
+            ? "1px solid rgba(255,209,138,0.72)"
+            : "1px solid rgba(126,232,255,0.76)",
+        background: isActive
+          ? "linear-gradient(145deg, rgba(72,211,244,0.96), rgba(19,69,120,0.98))"
+          : isUnavailable
+            ? "linear-gradient(145deg, rgba(96,60,28,0.94), rgba(37,24,18,0.98))"
+            : "rgba(4,24,53,0.94)",
+        color: isUnavailable ? "#ffd18a" : "white",
+        boxShadow: isActive
+          ? "0 0 0 6px rgba(83,215,255,0.14), 0 0 42px rgba(83,215,255,0.62), 0 20px 46px rgba(0,0,0,0.48)"
+          : isUnavailable
+            ? "0 0 0 4px rgba(2,8,19,0.48), 0 0 24px rgba(255,209,138,0.24), 0 16px 36px rgba(0,0,0,0.42)"
+            : "0 0 0 4px rgba(2,8,19,0.48), 0 0 24px rgba(83,215,255,0.30), 0 16px 36px rgba(0,0,0,0.42)",
+        cursor:
+          isWalkthroughActive || isUnavailable ? "default" : "pointer",
+        outline: "none",
+        fontFamily: "inherit",
+        fontSize: "25px",
+        fontWeight: 900,
+        opacity:
+          isWalkthroughActive && !isHighlighted
+            ? 0.14
+            : isUnavailable
+              ? 0.78
+              : 1,
+        filter:
+          isWalkthroughActive && !isHighlighted
+            ? "saturate(0.3) brightness(0.45)"
+            : isUnavailable
+              ? "saturate(0.72)"
+              : "none",
+        pointerEvents:
+          isWalkthroughActive && !isHighlighted ? "none" : "auto",
+        transition:
+          "transform 220ms ease, opacity 220ms ease, filter 220ms ease, border-color 220ms ease, background 220ms ease, box-shadow 220ms ease",
+      }}
+    >
+      {zone.number}
+    </button>
+  );
+}
+
+function MiloZoneHoverPopup({
+  zone,
+  isAdmin,
+  isHighlighted,
+}: {
+  zone: Zone;
+  isAdmin: boolean;
+  isHighlighted: boolean;
+}) {
+  const marker = DESKTOP_ZONE_MARKERS[zone.number];
+  const isUnavailable = Boolean(zone.adminOnly && !isAdmin);
+  const shouldOpenBelow = zone.number === "1" || zone.number === "4";
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        zIndex: 60,
+        left: marker.left,
+        top: marker.top,
+        width: "330px",
+        transform: shouldOpenBelow
+          ? `translate(-50%, 46px)${isHighlighted ? " scale(1.025)" : ""}`
+          : `translate(-50%, calc(-100% - 46px))${isHighlighted ? " scale(1.025)" : ""}`,
+        borderRadius: "20px",
+        border: `${isHighlighted ? 2 : 1}px solid ${
+          isUnavailable
+            ? "rgba(255,209,138,0.86)"
+            : "rgba(126,232,255,0.72)"
+        }`,
+        background:
+          "linear-gradient(145deg, rgba(8,35,70,0.95), rgba(3,13,34,0.97))",
+        backdropFilter: "blur(18px)",
+        WebkitBackdropFilter: "blur(18px)",
+        boxShadow: isHighlighted
+          ? "0 0 0 8px rgba(83,215,255,0.12), 0 0 46px rgba(83,215,255,0.38), 0 24px 60px rgba(0,0,0,0.52)"
+          : "0 0 28px rgba(83,215,255,0.18), 0 24px 60px rgba(0,0,0,0.45)",
+        padding: "21px 23px",
+        pointerEvents: "none",
+        color: "white",
+        transition:
+          "border-color 220ms ease, box-shadow 220ms ease, transform 220ms ease",
+      }}
+    >
+      <p
+        style={{
+          margin: 0,
+          color: isUnavailable ? "#ffd18a" : "#8ee8ff",
+          fontSize: "10px",
+          letterSpacing: "0.17em",
+          textTransform: "uppercase",
+          fontWeight: 850,
+        }}
+      >
+        Location {zone.number}
+        {isUnavailable ? " · Coming Soon" : ""}
+      </p>
+
+      <h2
+        style={{
+          margin: "8px 0 0",
+          fontFamily: 'Georgia, "Times New Roman", serif',
+          fontSize: "25px",
+          lineHeight: 1.12,
+          fontWeight: 500,
+        }}
+      >
+        {zone.title}
+      </h2>
+
+      <p
+        style={{
+          margin: "11px 0 0",
+          color: "rgba(255,255,255,0.72)",
+          fontSize: "13px",
+          lineHeight: 1.55,
+        }}
+      >
+        {zone.description}
+      </p>
+
+      <div
+        style={{
+          marginTop: "16px",
+          color: isUnavailable ? "#ffd18a" : "#8ee8ff",
+          fontSize: "10px",
+          fontWeight: 900,
+          letterSpacing: "0.10em",
+          textTransform: "uppercase",
+        }}
+      >
+        {isUnavailable ? "Admin Preview Only" : "Click the number to enter →"}
+      </div>
+    </div>
+  );
+}
+
+function getMiloGuidePosition(
+  zoneNumber: string | undefined,
+  screenMode: ScreenMode,
+): CSSProperties {
+  const isDesktop = screenMode === "desktop";
+  const isMobile = screenMode === "mobile";
+
+  if (!isDesktop) {
+    const openAtTop = Boolean(
+      zoneNumber && ["2", "3", "5"].includes(zoneNumber),
+    );
+
+    return {
+      left: isMobile ? "12px" : "50%",
+      right: isMobile ? "12px" : "auto",
+      top: openAtTop ? (isMobile ? "12px" : "18px") : "auto",
+      bottom: openAtTop ? "auto" : isMobile ? "12px" : "18px",
+      transform: isMobile ? "none" : "translateX(-50%)",
+    };
+  }
+
+  switch (zoneNumber) {
+    case "1":
+      // Activity Lab: marker is upper-left, so keep Milo lower-right.
+      return { right: "26px", bottom: "26px" };
+    case "2":
+      // Exchange: marker is lower-left. This fixes the old Slide 4 overlap.
+      return { right: "26px", top: "92px" };
+    case "3":
+      // Business Builder: marker is lower-right.
+      return { left: "26px", top: "92px" };
+    case "4":
+      // Dream Shop: marker is upper-right.
+      return { left: "26px", bottom: "26px" };
+    case "5":
+      // Quiz Hall: marker is lower-centre.
+      return { right: "26px", top: "92px" };
+    default:
+      return { left: "26px", bottom: "26px" };
+  }
+}
+
 function GuidedWalkthrough({
   open,
   stepIndex,
@@ -551,6 +786,7 @@ function GuidedWalkthrough({
   onNavigate: (href: string) => void;
 }) {
   const screenMode = useResponsiveMode();
+  const isDesktop = screenMode === "desktop";
   const isMobile = screenMode === "mobile";
   const useFullWalkthroughLayout = !isMobile;
   const step = WALKTHROUGH_STEPS[stepIndex] ?? WALKTHROUGH_STEPS[0];
@@ -558,9 +794,8 @@ function GuidedWalkthrough({
   const isLastStep = stepIndex === WALKTHROUGH_STEPS.length - 1;
   const isCurrencyStep = stepIndex === 1;
   const isLocationStep = Boolean(step.zoneNumber);
-  const dockAtTop =
-    isMobile && Boolean(step.zoneNumber && ["3", "4", "5"].includes(step.zoneNumber));
   const [typedLength, setTypedLength] = useState(0);
+  const guidePosition = getMiloGuidePosition(step.zoneNumber, screenMode);
 
   useEffect(() => {
     if (!open) {
@@ -828,11 +1063,7 @@ function GuidedWalkthrough({
         aria-label="Milo’s World guided walkthrough"
         style={{
           position: "fixed",
-          left: isMobile ? "12px" : "36px",
-          right: isMobile ? "12px" : "auto",
-          top: dockAtTop ? "12px" : "auto",
-          bottom: dockAtTop ? "auto" : isMobile ? "12px" : "26px",
-          transform: "none",
+          ...guidePosition,
           zIndex: 80,
           width: isMobile ? "auto" : "min(560px, calc(100vw - 72px))",
           maxHeight: isMobile ? "48dvh" : "none",
@@ -1980,6 +2211,7 @@ export default function MiloWorldPage() {
 
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
   const [walkthroughStep, setWalkthroughStep] = useState(0);
+  const [hoveredDesktopZone, setHoveredDesktopZone] = useState<Zone | null>(null);
   const [membershipOpen, setMembershipOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileAssets, setProfileAssets] = useState<ProfileAssetBreakdown>({
@@ -2273,7 +2505,7 @@ export default function MiloWorldPage() {
       document.getElementById(`milo-zone-${activeZoneNumber}`)?.scrollIntoView({
         behavior: "smooth",
         block:
-          isMobile && ["3", "4"].includes(activeZoneNumber)
+          isMobile && ["3", "4", "5"].includes(activeZoneNumber)
             ? "end"
             : "center",
       });
@@ -2286,6 +2518,7 @@ export default function MiloWorldPage() {
     setProfileAssetsOpen(false);
     setMembershipOpen(false);
     setMenuOpen(false);
+    setHoveredDesktopZone(null);
     setWalkthroughStep(0);
     setWalkthroughOpen(true);
   }
@@ -2302,6 +2535,7 @@ export default function MiloWorldPage() {
     markWalkthroughComplete();
     setWalkthroughOpen(false);
     setWalkthroughStep(0);
+    setHoveredDesktopZone(null);
   }
 
   function navigateFromWalkthrough(href: string) {
@@ -2325,6 +2559,17 @@ export default function MiloWorldPage() {
 
     return () => document.removeEventListener("keydown", closeOnEscape);
   }, [menuOpen, profileAssetsOpen]);
+
+  const activeWalkthroughZoneNumber = walkthroughOpen
+    ? WALKTHROUGH_STEPS[walkthroughStep]?.zoneNumber ?? null
+    : null;
+
+  const activeWalkthroughZone = activeWalkthroughZoneNumber
+    ? ZONES.find((zone) => zone.number === activeWalkthroughZoneNumber) ?? null
+    : null;
+
+  const displayedDesktopZone =
+    activeWalkthroughZone ?? hoveredDesktopZone;
 
   const profileAssetsTotal =
     profileAssets.cash + profileAssets.property + profileAssets.stocks;
@@ -3011,46 +3256,55 @@ export default function MiloWorldPage() {
           display: isDesktop ? "block" : "grid",
           gridTemplateColumns: isDesktop ? undefined : "1fr",
           gap: isMobile ? "12px" : "14px",
-          pointerEvents: isDesktop ? "none" : "auto",
+          pointerEvents: "auto",
         }}
       >
-        {ZONES.map((zone) => {
-          const position = DESKTOP_ZONE_POSITIONS[zone.number];
+        {isDesktop ? (
+          <>
+            {ZONES.map((zone) => (
+              <MiloZoneHotspot
+                key={zone.number}
+                zone={zone}
+                isAdmin={isAdmin}
+                isWalkthroughActive={walkthroughOpen}
+                isHighlighted={
+                  activeWalkthroughZoneNumber === zone.number
+                }
+                isActive={displayedDesktopZone?.number === zone.number}
+                onEnter={() => {
+                  if (!walkthroughOpen) setHoveredDesktopZone(zone);
+                }}
+                onLeave={() => {
+                  if (!walkthroughOpen) setHoveredDesktopZone(null);
+                }}
+              />
+            ))}
 
-          const card = (
-            <ZoneCard
-              zone={zone}
-              screenMode={screenMode}
-              isAdmin={isAdmin}
-              walkthroughActive={walkthroughOpen}
-              walkthroughHighlighted={
-                walkthroughOpen &&
-                WALKTHROUGH_STEPS[walkthroughStep]?.zoneNumber === zone.number
-              }
-            />
-          );
-
-          if (!isDesktop) {
-            return <div key={zone.number}>{card}</div>;
-          }
-
-          return (
-            <div
-              key={zone.number}
-              style={{
-                position: "absolute",
-                ...position,
-                transform:
-                  zone.number === "5"
-                    ? "translateX(-50%)"
-                    : undefined,
-                pointerEvents: "auto",
-              }}
-            >
-              {card}
+            {displayedDesktopZone && (
+              <MiloZoneHoverPopup
+                zone={displayedDesktopZone}
+                isAdmin={isAdmin}
+                isHighlighted={
+                  activeWalkthroughZoneNumber === displayedDesktopZone.number
+                }
+              />
+            )}
+          </>
+        ) : (
+          ZONES.map((zone) => (
+            <div key={zone.number}>
+              <ZoneCard
+                zone={zone}
+                screenMode={screenMode}
+                isAdmin={isAdmin}
+                walkthroughActive={walkthroughOpen}
+                walkthroughHighlighted={
+                  activeWalkthroughZoneNumber === zone.number
+                }
+              />
             </div>
-          );
-        })}
+          ))
+        )}
       </section>
 
       {!walkthroughOpen && (
