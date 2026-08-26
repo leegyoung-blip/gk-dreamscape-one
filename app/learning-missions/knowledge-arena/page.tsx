@@ -99,6 +99,7 @@ type KnowledgeArenaProfile = {
   available: boolean;
   reason?: string | null;
   source?: string;
+  mastery_refresh_pending?: boolean;
   profile_ready: boolean;
   overall_mastery: number | null;
   evidence_topics: number;
@@ -1261,24 +1262,25 @@ export default function KnowledgeArenaPage() {
     );
   }
 
-  async function refreshKnowledgeProfileAfterSave() {
-    const { data, error } = await supabase.rpc(
-      "refresh_my_knowledge_arena_profile"
-    );
+  async function loadKnowledgeProfileAfterSave() {
+    const { data, error } = await supabase.rpc("get_knowledge_arena_profile");
 
     if (error) {
-      console.warn("Knowledge Arena attempt saved, but live Nova refresh failed:", error);
+      console.warn(
+        "Knowledge Arena attempt saved, but the updated Knowledge Profile could not be loaded:",
+        error
+      );
       return null;
     }
 
-    const refreshed = (data ?? null) as KnowledgeArenaProfile | null;
+    const nextProfile = (data ?? null) as KnowledgeArenaProfile | null;
 
-    if (refreshed) {
-      setKnowledgeProfile(refreshed);
-      setProfileAfterAttempt(refreshed);
+    if (nextProfile) {
+      setKnowledgeProfile(nextProfile);
+      setProfileAfterAttempt(nextProfile);
     }
 
-    return refreshed;
+    return nextProfile;
   }
 
   async function saveKnowledgeArenaAttempt(
@@ -1413,20 +1415,26 @@ export default function KnowledgeArenaPage() {
     }
 
     setAttemptSaveMessage(
-      `Saved. ${receipt.answer_rows}/10 answers are recorded. Refreshing Nova Analytics…`
+      `Saved. ${receipt.answer_rows}/10 answers are recorded. Updating your Knowledge Profile…`
     );
 
-    // Important: this is a SECOND request. If mastery refresh is slow or fails,
-    // the already-committed attempt and answer history remain safe.
-    const refreshedProfile = await refreshKnowledgeProfileAfterSave();
+    // Nova's full mastery processor is queue-based. Do not run the expensive
+    // mastery recalculation inside the browser request. The database queues it
+    // after the canonical attempt is committed, while this lightweight RPC
+    // immediately exposes the newly saved attempt as real evidence.
+    const updatedProfile = await loadKnowledgeProfileAfterSave();
 
-    if (refreshedProfile) {
+    if (updatedProfile?.mastery_refresh_pending) {
       setAttemptSaveMessage(
-        "Saved. All 10 answers are recorded and Nova Analytics has refreshed."
+        "Saved. All 10 answers are recorded. Nova has queued your mastery recalculation."
+      );
+    } else if (updatedProfile) {
+      setAttemptSaveMessage(
+        "Saved. All 10 answers are recorded and your Knowledge Profile now includes this attempt."
       );
     } else {
       setAttemptSaveMessage(
-        "Saved. All 10 answers are recorded. Nova Analytics has the saved evidence, but its live mastery refresh did not complete this time."
+        "Saved. All 10 answers are recorded. Your Knowledge Profile will update automatically."
       );
     }
 
@@ -5998,6 +6006,215 @@ export default function KnowledgeArenaPage() {
           }
         }
 
+
+        /* ================================================================
+           KNOWLEDGE ARENA v6 — RESULTS READABILITY + ASYNC MASTERY STATUS
+           ================================================================ */
+
+        .ka-results-stage .ka-kicker {
+          font-size: 13px;
+          letter-spacing: 0.16em;
+        }
+
+        .ka-results-stage .ka-results-heading h2 {
+          font-size: clamp(32px, 3vw, 44px);
+          line-height: 1.02;
+        }
+
+        .ka-results-stage .ka-result-score span {
+          font-size: 11px;
+        }
+
+        .ka-results-stage .ka-result-score strong {
+          font-size: clamp(34px, 3vw, 46px);
+          line-height: 1;
+        }
+
+        .ka-results-stage .ka-result-stat {
+          min-height: 58px;
+          padding: 9px 11px;
+        }
+
+        .ka-results-stage .ka-result-stat span {
+          font-size: 10px;
+        }
+
+        .ka-results-stage .ka-result-stat strong {
+          margin-top: 4px;
+          font-size: 18px;
+        }
+
+        .ka-results-stage .ka-message-banner {
+          padding: 10px 12px;
+          font-size: 13px;
+          line-height: 1.45;
+        }
+
+        .ka-results-stage .ka-full-review-toggle {
+          min-height: 62px;
+          padding: 10px 13px;
+        }
+
+        .ka-results-stage .ka-full-review-toggle strong {
+          font-size: 17px;
+        }
+
+        .ka-results-stage .ka-full-review-toggle small {
+          font-size: 12px;
+          line-height: 1.45;
+        }
+
+        .ka-results-stage .ka-full-review-toggle b {
+          width: 34px;
+          height: 34px;
+          font-size: 20px;
+        }
+
+        .ka-results-stage .ka-review-item-header span,
+        .ka-results-stage .ka-review-answer-grid span {
+          font-size: 10px;
+        }
+
+        .ka-results-stage .ka-review-item-header strong {
+          font-size: 16px;
+          line-height: 1.42;
+        }
+
+        .ka-results-stage .ka-review-status {
+          font-size: 10px;
+          padding: 6px 9px;
+        }
+
+        .ka-results-stage .ka-review-answer-grid strong {
+          font-size: 13px;
+          line-height: 1.42;
+        }
+
+        .ka-results-stage .ka-review-explanation {
+          font-size: 12px;
+          line-height: 1.55;
+        }
+
+        .ka-results-stage .ka-impact-panel {
+          padding: 12px;
+        }
+
+        .ka-results-stage .ka-impact-heading strong {
+          font-size: 16px;
+        }
+
+        .ka-results-stage .ka-impact-heading span {
+          font-size: 10px;
+        }
+
+        .ka-impact-note {
+          margin: 0;
+          color: rgba(255, 255, 255, 0.58);
+          font-size: 12px;
+          line-height: 1.5;
+        }
+
+        .ka-results-stage .ka-impact-row strong {
+          font-size: 13px;
+        }
+
+        .ka-results-stage .ka-impact-row small {
+          font-size: 11px;
+          line-height: 1.35;
+        }
+
+        .ka-results-stage .ka-recommendation span {
+          font-size: 10px;
+        }
+
+        .ka-results-stage .ka-recommendation strong {
+          font-size: 14px;
+        }
+
+        .ka-results-stage .ka-recommendation p {
+          font-size: 12px;
+          line-height: 1.45;
+        }
+
+        .ka-results-stage .ka-analytics-link {
+          min-height: 38px;
+          font-size: 12px;
+        }
+
+        .ka-results-stage .ka-results-actions .ka-start-button,
+        .ka-results-stage .ka-results-actions .ka-secondary-button {
+          min-height: 48px;
+          font-size: 14px;
+          letter-spacing: 0.05em;
+        }
+
+        @media (max-width: 850px), (hover: none) and (pointer: coarse) {
+          .ka-results-stage .ka-kicker {
+            font-size: 10px;
+          }
+
+          .ka-results-stage .ka-results-heading h2 {
+            font-size: clamp(24px, 7vw, 32px);
+          }
+
+          .ka-results-stage .ka-result-score strong {
+            font-size: 30px;
+          }
+
+          .ka-results-stage .ka-result-stat {
+            min-height: 48px;
+            padding: 7px 8px;
+          }
+
+          .ka-results-stage .ka-result-stat span {
+            font-size: 9px;
+          }
+
+          .ka-results-stage .ka-result-stat strong {
+            font-size: 15px;
+          }
+
+          .ka-results-stage .ka-message-banner {
+            padding: 8px 9px;
+            font-size: 11px;
+          }
+
+          .ka-results-stage .ka-full-review-toggle {
+            min-height: 52px;
+            padding: 8px 9px;
+          }
+
+          .ka-results-stage .ka-full-review-toggle strong {
+            font-size: 14px;
+          }
+
+          .ka-results-stage .ka-full-review-toggle small,
+          .ka-impact-note,
+          .ka-results-stage .ka-recommendation p {
+            font-size: 10px;
+          }
+
+          .ka-results-stage .ka-review-item-header strong {
+            font-size: 13px;
+          }
+
+          .ka-results-stage .ka-review-answer-grid strong,
+          .ka-results-stage .ka-review-explanation,
+          .ka-results-stage .ka-impact-row strong {
+            font-size: 11px;
+          }
+
+          .ka-results-stage .ka-impact-heading strong {
+            font-size: 13px;
+          }
+
+          .ka-results-stage .ka-results-actions .ka-start-button,
+          .ka-results-stage .ka-results-actions .ka-secondary-button {
+            min-height: 42px;
+            font-size: 11px;
+          }
+        }
+
       `}</style>
     </main>
   );
@@ -6070,10 +6287,15 @@ function ArenaWorldGrid({
               </small>
               <strong>{topic.title}</strong>
               <span>
-                {mastery?.mastery_score === null ||
-                mastery?.mastery_score === undefined
-                  ? "Building mastery"
-                  : `${formatMastery(mastery.mastery_score)} mastery`}
+                {mastery?.mastery_score !== null &&
+                mastery?.mastery_score !== undefined
+                  ? `${formatMastery(mastery.mastery_score)} mastery`
+                  : mastery?.has_evidence
+                    ? mastery.lifetime_accuracy !== null &&
+                      mastery.lifetime_accuracy !== undefined
+                      ? `${formatMastery(mastery.lifetime_accuracy)} accuracy · mastery building`
+                      : "Evidence recorded · mastery building"
+                    : "Start your first challenge"}
               </span>
               <p>{topic.subtitle}</p>
             </span>
@@ -6144,6 +6366,10 @@ function KnowledgeProfileStrip({
   loading: boolean;
   error: string | null;
 }) {
+  const hasAnyEvidence = Boolean(
+    profile && profile.total_questions_attempted > 0
+  );
+
   return (
     <div className="ka-profile-strip" data-nova-guide-target="knowledge-profile">
       <div className="ka-profile-overall">
@@ -6151,32 +6377,48 @@ function KnowledgeProfileStrip({
         <strong>
           {loading
             ? "…"
-            : profile?.overall_mastery === null ||
-              profile?.overall_mastery === undefined
-            ? "—"
-            : formatMastery(profile.overall_mastery)}
+            : profile?.overall_mastery !== null &&
+                profile?.overall_mastery !== undefined
+              ? formatMastery(profile.overall_mastery)
+              : hasAnyEvidence
+                ? "Building"
+                : "—"}
         </strong>
         <small>
           {profile
-            ? `${profile.total_questions_attempted} questions`
+            ? `${profile.total_questions_attempted} answers${
+                profile.mastery_refresh_pending ? " · mastery queued" : ""
+              }`
             : error || "Nova Analytics"}
         </small>
       </div>
 
       {topics.map((topic) => {
         const row = getProfileTopic(profile, topic.id);
+        const hasMastery =
+          row?.mastery_score !== null && row?.mastery_score !== undefined;
+        const hasLiveAccuracy =
+          row?.lifetime_accuracy !== null &&
+          row?.lifetime_accuracy !== undefined;
+
         return (
           <div key={topic.id} className="ka-profile-world">
             <span>{topic.title}</span>
             <strong>
-              {row?.mastery_score === null || row?.mastery_score === undefined
-                ? "—"
-                : formatMastery(row.mastery_score)}
+              {hasMastery
+                ? formatMastery(row!.mastery_score!)
+                : row?.has_evidence && hasLiveAccuracy
+                  ? formatMastery(row!.lifetime_accuracy!)
+                  : row?.has_evidence
+                    ? "Recorded"
+                    : "—"}
             </strong>
             <small>
-              {row?.has_evidence
-                ? `${row.questions_attempted ?? 0} answers`
-                : "No evidence"}
+              {hasMastery
+                ? `${row?.questions_attempted ?? 0} answers · mastery`
+                : row?.has_evidence
+                  ? `${row.questions_attempted ?? 0} answers · accuracy · mastery building`
+                  : "No evidence"}
             </small>
           </div>
         );
@@ -6597,26 +6839,30 @@ function ArenaKnowledgeImpact({
   return (
     <div className="ka-impact-panel">
       <div className="ka-impact-heading">
-        <strong>Nova refreshed your Knowledge Profile</strong>
+        <strong>Nova recorded your Knowledge evidence</strong>
         <span>
-          {afterProfile?.overall_mastery === null ||
-          afterProfile?.overall_mastery === undefined
-            ? "Building mastery"
-            : `Overall ${formatMastery(afterProfile.overall_mastery)}`}
+          {afterProfile?.mastery_refresh_pending
+            ? "Mastery queued"
+            : afterProfile?.overall_mastery === null ||
+                afterProfile?.overall_mastery === undefined
+              ? "Mastery building"
+              : `Current overall ${formatMastery(afterProfile.overall_mastery)}`}
         </span>
       </div>
+
+      <p className="ka-impact-note">
+        Your quiz evidence is available immediately. Nova recalculates full
+        mastery through the Learning Profile queue so quiz saving is never
+        blocked by analytics processing.
+      </p>
 
       <div className="ka-impact-rows">
         {affectedTopics.map((topicId) => {
           const result = topicResults.find((item) => item.topic === topicId);
-          const before = getProfileTopic(beforeProfile, topicId);
           const after = getProfileTopic(afterProfile, topicId);
-          const beforeValue = before?.mastery_score ?? null;
           const afterValue = after?.mastery_score ?? null;
-          const delta =
-            beforeValue !== null && afterValue !== null
-              ? Number((afterValue - beforeValue).toFixed(1))
-              : null;
+          const liveAccuracy =
+            result?.accuracy ?? after?.lifetime_accuracy ?? null;
 
           return (
             <div key={topicId} className="ka-impact-row">
@@ -6625,17 +6871,22 @@ function ArenaKnowledgeImpact({
                 <small>
                   {result
                     ? `${result.correct_count}/${result.total_questions} correct`
-                    : "New evidence added"}
+                    : `${after?.questions_attempted ?? 0} recorded answers`}
                 </small>
               </div>
               <div>
                 <strong>
-                  {afterValue === null ? "Building" : formatMastery(afterValue)}
+                  {afterValue !== null
+                    ? `${formatMastery(afterValue)} mastery`
+                    : liveAccuracy !== null
+                      ? `${formatMastery(liveAccuracy)} accuracy`
+                      : "Evidence saved"}
                 </strong>
-                {delta !== null && delta !== 0 && (
+                {afterValue === null && (
                   <small>
-                    {delta > 0 ? "+" : ""}
-                    {delta.toFixed(1)} mastery
+                    {afterProfile?.mastery_refresh_pending
+                      ? "Mastery recalculation queued"
+                      : "Mastery building"}
                   </small>
                 )}
               </div>
