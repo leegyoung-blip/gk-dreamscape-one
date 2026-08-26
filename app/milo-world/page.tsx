@@ -4,6 +4,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
+import ObjectivesPanel, {
+  type CurrentObjectivesStatus,
+} from "@/components/objectives/ObjectivesPanel";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 
@@ -45,19 +48,6 @@ type MiloClubProfile = {
   role: string | null;
 };
 
-type ReferralMilestone = 1 | 5 | 15;
-
-type ReferralObjectiveDefinition = {
-  milestone: ReferralMilestone;
-  title: string;
-  reward: number;
-};
-
-type ReferralObjectiveStatus = {
-  referral_count?: number;
-  claimed_milestones?: number[];
-};
-
 type Zone = {
   number: string;
   icon: string;
@@ -75,23 +65,6 @@ type WalkthroughStep = {
   zoneNumber?: string;
 };
 
-const REFERRAL_OBJECTIVES: ReferralObjectiveDefinition[] = [
-  {
-    milestone: 1,
-    title: "Complete your first successful referral",
-    reward: 25,
-  },
-  {
-    milestone: 5,
-    title: "Reach 5 successful referrals",
-    reward: 100,
-  },
-  {
-    milestone: 15,
-    title: "Reach 15 successful referrals",
-    reward: 500,
-  },
-];
 
 const WALKTHROUGH_STORAGE_KEY = "milo-world-walkthrough-completed-v2";
 
@@ -1837,372 +1810,6 @@ function MembershipPopup({
   );
 }
 
-function ReferralObjectivesPanel({
-  isLoggedIn,
-  referralCount,
-  claimedMilestones,
-  isLoading,
-  screenMode,
-}: {
-  isLoggedIn: boolean;
-  referralCount: number;
-  claimedMilestones: ReferralMilestone[];
-  isLoading: boolean;
-  screenMode: ScreenMode;
-}) {
-  const isMobile = screenMode === "mobile";
-  const isTablet = screenMode === "tablet";
-  const isDesktop = screenMode === "desktop";
-  const [isOpen, setIsOpen] = useState(false);
-
-  const completedCount = REFERRAL_OBJECTIVES.filter((objective) =>
-    claimedMilestones.includes(objective.milestone),
-  ).length;
-
-  const nextMilestone =
-    REFERRAL_OBJECTIVES.find(
-      (objective) => !claimedMilestones.includes(objective.milestone),
-    )?.milestone ?? 15;
-
-  const overallProgress = Math.min(
-    100,
-    Math.max(0, (referralCount / nextMilestone) * 100),
-  );
-
-  return (
-    <aside
-      style={{
-        position: isDesktop ? "fixed" : "relative",
-        top: isDesktop ? "72px" : "auto",
-        right: isDesktop ? "28px" : "auto",
-        left: "auto",
-        zIndex: 29,
-        width: isMobile ? "calc(100% - 24px)" : "min(380px, calc(100% - 44px))",
-        margin: isDesktop
-          ? 0
-          : isMobile
-            ? "10px auto 0"
-            : isTablet
-              ? "18px 22px 0 auto"
-              : 0,
-        borderRadius: isOpen ? "20px" : "999px",
-        border: "1px solid rgba(126,232,255,0.38)",
-        background:
-          "linear-gradient(145deg, rgba(3,20,39,0.94), rgba(3,10,25,0.96))",
-        boxShadow:
-          "0 20px 48px rgba(0,0,0,0.38), 0 0 24px rgba(83,215,255,0.12)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
-        overflow: "hidden",
-        color: "white",
-      }}
-    >
-      <button
-        type="button"
-        onClick={() => setIsOpen((current) => !current)}
-        aria-expanded={isOpen}
-        style={{
-          width: "100%",
-          minHeight: isMobile ? "50px" : "54px",
-          padding: isMobile ? "10px 14px" : "10px 16px",
-          border: "none",
-          background: "transparent",
-          color: "white",
-          display: "grid",
-          gridTemplateColumns: "36px minmax(0, 1fr) auto",
-          alignItems: "center",
-          gap: "10px",
-          cursor: "pointer",
-          textAlign: "left",
-          fontFamily: "inherit",
-        }}
-      >
-        <span
-          style={{
-            width: "34px",
-            height: "34px",
-            borderRadius: "12px",
-            border: "1px solid rgba(126,232,255,0.42)",
-            background: "rgba(83,215,255,0.12)",
-            color: "#8dfcff",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "16px",
-          }}
-        >
-          ↗
-        </span>
-
-        <span style={{ minWidth: 0 }}>
-          <strong
-            style={{
-              display: "block",
-              fontSize: isMobile ? "12px" : "13px",
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
-            Referral Objectives
-          </strong>
-
-          <span
-            style={{
-              display: "block",
-              marginTop: "3px",
-              color: "rgba(255,255,255,0.56)",
-              fontSize: isMobile ? "10px" : "11px",
-            }}
-          >
-            {isLoading
-              ? "Loading progress..."
-              : isLoggedIn
-                ? `${completedCount}/3 complete · ${referralCount} successful referral${
-                    referralCount === 1 ? "" : "s"
-                  }`
-                : "Log in to start earning bonuses"}
-          </span>
-        </span>
-
-        <span
-          aria-hidden="true"
-          style={{
-            color: "#8dfcff",
-            fontSize: "18px",
-            transform: isOpen ? "rotate(90deg)" : "rotate(0deg)",
-            transition: "transform 180ms ease",
-          }}
-        >
-          ›
-        </span>
-      </button>
-
-      {!isLoading && isLoggedIn && !isOpen && (
-        <div style={{ height: "3px", background: "rgba(255,255,255,0.07)" }}>
-          <div
-            style={{
-              width: `${overallProgress}%`,
-              height: "100%",
-              background: "linear-gradient(90deg, #53d7ff, #60f0d0)",
-              boxShadow: "0 0 12px rgba(96,240,208,0.4)",
-              transition: "width 300ms ease",
-            }}
-          />
-        </div>
-      )}
-
-      {isOpen && (
-        <div
-          style={{
-            borderTop: "1px solid rgba(126,232,255,0.14)",
-            padding: isMobile ? "12px" : "14px",
-          }}
-        >
-          {!isLoggedIn ? (
-            <Link
-              href="/login"
-              style={{
-                minHeight: "54px",
-                borderRadius: "15px",
-                border: "1px solid rgba(126,232,255,0.28)",
-                background: "rgba(83,215,255,0.09)",
-                color: "white",
-                textDecoration: "none",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "12px 16px",
-                fontSize: "12px",
-                fontWeight: 800,
-                letterSpacing: "0.1em",
-                textTransform: "uppercase",
-              }}
-            >
-              Log in to view objectives
-            </Link>
-          ) : isLoading ? (
-            <div
-              style={{
-                padding: "18px",
-                color: "rgba(255,255,255,0.58)",
-                fontSize: "12px",
-                textAlign: "center",
-              }}
-            >
-              Loading referral progress...
-            </div>
-          ) : (
-            <>
-              <p
-                style={{
-                  margin: "0 2px 12px",
-                  color: "rgba(255,255,255,0.55)",
-                  fontSize: "11px",
-                  lineHeight: 1.5,
-                }}
-              >
-                You receive the normal +10 DT for every successful referral.
-                These milestone rewards are additional one-time bonuses.
-              </p>
-
-              <div style={{ display: "grid", gap: "9px" }}>
-                {REFERRAL_OBJECTIVES.map((objective) => {
-                  const isCompleted = claimedMilestones.includes(
-                    objective.milestone,
-                  );
-                  const progress = Math.min(referralCount, objective.milestone);
-
-                  const rowStyle: CSSProperties = {
-                    minHeight: "66px",
-                    borderRadius: "16px",
-                    border: isCompleted
-                      ? "1px solid rgba(93,255,181,0.5)"
-                      : "1px solid rgba(126,232,255,0.18)",
-                    background: isCompleted
-                      ? "linear-gradient(145deg, rgba(18,116,76,0.52), rgba(8,56,45,0.66))"
-                      : "rgba(255,255,255,0.035)",
-                    color: "white",
-                    textDecoration: "none",
-                    display: "grid",
-                    gridTemplateColumns: "34px minmax(0, 1fr) auto",
-                    alignItems: "center",
-                    gap: "10px",
-                    padding: "11px 12px",
-                    boxShadow: isCompleted
-                      ? "0 0 18px rgba(93,255,181,0.1)"
-                      : "none",
-                    cursor: isCompleted ? "default" : "pointer",
-                    fontFamily: "inherit",
-                  };
-
-                  const rowContent = (
-                    <>
-                      <span
-                        style={{
-                          width: "30px",
-                          height: "30px",
-                          borderRadius: "999px",
-                          border: isCompleted
-                            ? "1px solid rgba(137,255,204,0.7)"
-                            : "1px solid rgba(126,232,255,0.32)",
-                          background: isCompleted
-                            ? "rgba(93,255,181,0.18)"
-                            : "rgba(83,215,255,0.08)",
-                          color: isCompleted ? "#9fffd2" : "#8dfcff",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "14px",
-                          fontWeight: 900,
-                        }}
-                      >
-                        {isCompleted ? "✓" : progress}
-                      </span>
-
-                      <span style={{ minWidth: 0 }}>
-                        <strong
-                          style={{
-                            display: "block",
-                            color: isCompleted ? "#d9ffed" : "white",
-                            fontSize: "12px",
-                            lineHeight: 1.35,
-                          }}
-                        >
-                          {objective.title}
-                        </strong>
-
-                        <span
-                          style={{
-                            display: "block",
-                            marginTop: "4px",
-                            color: isCompleted
-                              ? "#9fffd2"
-                              : "rgba(255,255,255,0.48)",
-                            fontSize: "10px",
-                            lineHeight: 1.35,
-                          }}
-                        >
-                          {isCompleted
-                            ? "Completed · reward awarded"
-                            : `${progress}/${objective.milestone} referrals`}
-                        </span>
-                      </span>
-
-                      <strong
-                        style={{
-                          color: isCompleted ? "#9fffd2" : "#8dfcff",
-                          fontSize: "11px",
-                          whiteSpace: "nowrap",
-                          textAlign: "right",
-                        }}
-                      >
-                        {isCompleted
-                          ? `+${objective.reward} DT ✓`
-                          : `+${objective.reward} DT`}
-                      </strong>
-                    </>
-                  );
-
-                  if (isCompleted) {
-                    return (
-                      <div
-                        key={objective.milestone}
-                        aria-disabled="true"
-                        style={{
-                          ...rowStyle,
-                          pointerEvents: "none",
-                          userSelect: "none",
-                        }}
-                      >
-                        {rowContent}
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <Link
-                      key={objective.milestone}
-                      href="/profile"
-                      style={rowStyle}
-                    >
-                      {rowContent}
-                    </Link>
-                  );
-                })}
-              </div>
-
-              <Link
-                href="/profile"
-                style={{
-                  marginTop: "11px",
-                  minHeight: "42px",
-                  borderRadius: "13px",
-                  border: "1px solid rgba(126,232,255,0.2)",
-                  background: "rgba(83,215,255,0.07)",
-                  color: "#bdf6ff",
-                  textDecoration: "none",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "10px",
-                  fontWeight: 800,
-                  letterSpacing: "0.1em",
-                  textTransform: "uppercase",
-                }}
-              >
-                View and copy referral code
-              </Link>
-            </>
-          )}
-        </div>
-      )}
-    </aside>
-  );
-}
-
 export default function MiloWorldPage() {
   const screenMode = useResponsiveMode();
   const isDesktop = screenMode === "desktop";
@@ -2226,10 +1833,8 @@ export default function MiloWorldPage() {
   const [profileAssetsLoading, setProfileAssetsLoading] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [referralCount, setReferralCount] = useState(0);
-  const [claimedMilestones, setClaimedMilestones] = useState<
-    ReferralMilestone[]
-  >([]);
+  const [objectiveStatus, setObjectiveStatus] =
+    useState<CurrentObjectivesStatus | null>(null);
   const [objectivesLoading, setObjectivesLoading] = useState(true);
 
   useEffect(() => {
@@ -2250,8 +1855,7 @@ export default function MiloWorldPage() {
         setTokenTransactions([]);
         setProfileAssetsLoading(false);
         setProfileAssetsOpen(false);
-        setReferralCount(0);
-        setClaimedMilestones([]);
+        setObjectiveStatus(null);
         setIsAdmin(false);
         setObjectivesLoading(false);
         return;
@@ -2279,33 +1883,26 @@ export default function MiloWorldPage() {
         setIsAdmin(role === "admin");
       }
 
+      // Resolve the user's global Referral Objective + Milo Progress Objective.
+      // The scoped RPC also settles a newly completed Milo Progress Objective
+      // before the DT balance below is reloaded.
       const { data: objectiveData, error: objectiveError } = await supabase.rpc(
-        "get_referral_objective_status",
+        "get_current_objectives",
+        { p_scope: "milo" },
       );
 
       if (!isMounted) return;
 
       if (objectiveError) {
         console.warn(
-          "Could not load referral objectives:",
+          "Could not load Milo objectives:",
           objectiveError.message,
         );
-        setReferralCount(0);
-        setClaimedMilestones([]);
+        setObjectiveStatus(null);
       } else {
-        const status = objectiveData as ReferralObjectiveStatus | null;
-        setReferralCount(Math.max(0, Number(status?.referral_count ?? 0)));
-
-        const milestones = Array.isArray(status?.claimed_milestones)
-          ? status.claimed_milestones
-              .map((value) => Number(value))
-              .filter(
-                (value): value is ReferralMilestone =>
-                  value === 1 || value === 5 || value === 15,
-              )
-          : [];
-
-        setClaimedMilestones(milestones);
+        setObjectiveStatus(
+          (objectiveData as CurrentObjectivesStatus | null) ?? null,
+        );
       }
 
       setProfileAssetsLoading(true);
@@ -2451,6 +2048,10 @@ export default function MiloWorldPage() {
       loadDreamTokensAndObjectives,
     );
     window.addEventListener(
+      "dream-objectives-updated",
+      loadDreamTokensAndObjectives,
+    );
+    window.addEventListener(
       "dream-referral-objectives-updated",
       loadDreamTokensAndObjectives,
     );
@@ -2461,6 +2062,10 @@ export default function MiloWorldPage() {
       window.removeEventListener("focus", loadDreamTokensAndObjectives);
       window.removeEventListener(
         "dream-tokens-updated",
+        loadDreamTokensAndObjectives,
+      );
+      window.removeEventListener(
+        "dream-objectives-updated",
         loadDreamTokensAndObjectives,
       );
       window.removeEventListener(
@@ -3145,12 +2750,12 @@ export default function MiloWorldPage() {
         </div>
       </header>
 
-      <ReferralObjectivesPanel
+      <ObjectivesPanel
         isLoggedIn={Boolean(userEmail)}
-        referralCount={referralCount}
-        claimedMilestones={claimedMilestones}
+        status={objectiveStatus}
         isLoading={objectivesLoading}
         screenMode={screenMode}
+        scope="milo"
       />
 
       <section
