@@ -325,6 +325,16 @@ export default function RoverGarageClient() {
   const isMobile = screenMode === "mobile";
   const isCompact = screenMode !== "desktop";
 
+  function goBack() {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+      return;
+    }
+
+    // Safe fallback for direct visits with no usable browser history.
+    router.push("/learning-missions/core");
+  }
+
   const [tab, setTab] = useState<GarageTab>("courses");
 
   const [loading, setLoading] = useState(true);
@@ -779,10 +789,10 @@ export default function RoverGarageClient() {
         <header style={topHeader(isMobile)}>
           <button
             type="button"
-            onClick={() => router.push("/learning-missions/core")}
+            onClick={goBack}
             style={headerButton}
           >
-            ← Core Missions
+            ← Back
           </button>
         </header>
         <div style={loadingFill}>
@@ -808,10 +818,10 @@ export default function RoverGarageClient() {
       <header style={topHeader(isMobile)}>
         <button
           type="button"
-          onClick={() => router.push("/learning-missions/core")}
+          onClick={goBack}
           style={headerButton}
         >
-          ← Core Missions
+          ← Back
         </button>
 
         <div style={headerIdentity(isMobile)}>

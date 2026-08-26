@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
@@ -412,10 +413,21 @@ function sortQuestionsByIds(
 }
 
 export default function KnowledgeArenaPage() {
+  const router = useRouter();
   const screenMode = useResponsiveMode();
   const isDesktop = screenMode === "desktop";
   const isMobile = screenMode === "mobile";
   const isCompact = !isDesktop;
+
+  function goBack() {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+      return;
+    }
+
+    // Safe fallback for direct visits with no usable browser history.
+    router.push("/learning-missions");
+  }
 
   const [stage, setStage] = useState<PageStage>("mode");
   const [userId, setUserId] = useState<string | null>(null);
@@ -1848,10 +1860,15 @@ export default function KnowledgeArenaPage() {
     >
       <header className="ka-topbar">
         <div className="ka-top-left">
-          <Link href="/learning-missions" className="ka-nav-button ka-back-button">
-            <span className="ka-back-full">← Back to Learning Missions</span>
-            <span className="ka-back-short">← Missions</span>
-          </Link>
+          <button
+            type="button"
+            onClick={goBack}
+            className="ka-nav-button ka-back-button"
+            aria-label="Go back to the previous page"
+          >
+            <span className="ka-back-full">← Back</span>
+            <span className="ka-back-short">← Back</span>
+          </button>
 
           <button
             type="button"
@@ -2616,6 +2633,11 @@ export default function KnowledgeArenaPage() {
           text-decoration: none;
           box-shadow: 0 10px 26px rgba(0, 0, 0, 0.18);
           backdrop-filter: blur(16px);
+        }
+
+        .ka-back-button {
+          cursor: pointer;
+          font-family: inherit;
         }
 
         .ka-back-short {
