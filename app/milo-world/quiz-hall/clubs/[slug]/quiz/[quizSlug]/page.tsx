@@ -174,15 +174,20 @@ export default function CreatorQuizPlayerPage() {
 
   useEffect(() => {
     if (screen !== "playing" || !question || feedback) return;
+
+    const deadlineAt = question.deadline_at;
     autoSubmittedRef.current = false;
+
     function tick() {
-      const remainingMs = new Date(question.deadline_at).getTime() - Date.now();
+      const remainingMs = new Date(deadlineAt).getTime() - Date.now();
       setSecondsLeft(Math.max(0, Math.ceil(remainingMs / 1000)));
+
       if (remainingMs <= 0 && !autoSubmittedRef.current) {
         autoSubmittedRef.current = true;
         void submitAnswer(null);
       }
     }
+
     tick();
     const interval = window.setInterval(tick, 150);
     return () => window.clearInterval(interval);
