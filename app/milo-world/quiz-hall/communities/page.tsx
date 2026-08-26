@@ -1,41 +1,105 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
-const shellCards = [
-  {
-    icon: "◎",
-    title: "Niche Quiz Communities",
-    description:
-      "Creator-led clubs can focus on specific interests, from geography and science to sport, entertainment and culture.",
-  },
-  {
-    icon: "↗",
-    title: "Community Competition",
-    description:
-      "Members will be able to compete in club challenges, compare results and climb community rankings.",
-  },
-  {
-    icon: "◇",
-    title: "Creator Quiz Packs",
-    description:
-      "Creators will be able to publish premium one-time-purchase quiz packs for their own audiences.",
-  },
-];
+type ClubDirectoryRow = {
+  club_id: string;
+  club_slug: string;
+  club_name: string;
+  topic: string | null;
+  tagline: string | null;
+  description: string | null;
+  cover_image_url: string | null;
+  logo_image_url: string | null;
+  featured: boolean;
+  creator_partner_id: string;
+  creator_slug: string;
+  creator_display_name: string;
+  creator_profile_image_url: string | null;
+  member_count: number;
+  is_member: boolean;
+  joined_at: string | null;
+};
 
-export default function CreatorClubsShellPage() {
+type FilterMode = "all" | "featured" | "joined";
+
+export default function CreatorClubsPage() {
+  const [clubs, setClubs] = useState<ClubDirectoryRow[]>([]);
+  const [search, setSearch] = useState("");
+  const [filterMode, setFilterMode] = useState<FilterMode>("all");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [message, setMessage] = useState("");
+
   useEffect(() => {
-    const oldBody = document.body.style.overflow;
-    const oldHtml = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
     document.body.style.overflow = "hidden";
     document.documentElement.style.overflow = "hidden";
 
+    void loadPage();
+
     return () => {
-      document.body.style.overflow = oldBody;
-      document.documentElement.style.overflow = oldHtml;
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
     };
   }, []);
+
+  async function loadPage() {
+    setIsLoading(true);
+    setMessage("");
+
+    const [userResponse, clubsResponse] = await Promise.all([
+      supabase.auth.getUser(),
+      supabase.rpc("get_creator_club_directory"),
+    ]);
+
+    setIsAuthenticated(Boolean(userResponse.data.user));
+
+    if (clubsResponse.error) {
+      setClubs([]);
+      setMessage(
+        clubsResponse.error.message || "Creator Clubs could not be loaded.",
+      );
+      setIsLoading(false);
+      return;
+    }
+
+    setClubs(
+      ((clubsResponse.data || []) as ClubDirectoryRow[]).map((club) => ({
+        ...club,
+        featured: Boolean(club.featured),
+        member_count: Number(club.member_count || 0),
+        is_member: Boolean(club.is_member),
+      })),
+    );
+    setIsLoading(false);
+  }
+
+  const filteredClubs = useMemo(() => {
+    const term = search.trim().toLowerCase();
+
+    return clubs.filter((club) => {
+      if (filterMode === "featured" && !club.featured) return false;
+      if (filterMode === "joined" && !club.is_member) return false;
+
+      if (!term) return true;
+
+      return [
+        club.club_name,
+        club.topic,
+        club.tagline,
+        club.description,
+        club.creator_display_name,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(term);
+    });
+  }, [clubs, filterMode, search]);
 
   return (
     <main className="fixed inset-0 overflow-hidden bg-[#020711] text-white">
@@ -43,76 +107,251 @@ export default function CreatorClubsShellPage() {
         src="/milo-world/quiz-hall/quiz-hall-bg.png"
         alt=""
         aria-hidden="true"
-        className="absolute inset-0 h-full w-full object-cover object-left opacity-35"
+        className="absolute inset-0 h-full w-full object-cover object-left opacity-25"
       />
-      <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(2,7,17,0.97)_0%,rgba(2,7,17,0.91)_52%,rgba(2,7,17,0.72)_100%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(2,7,17,0.98)_0%,rgba(2,7,17,0.94)_55%,rgba(2,7,17,0.84)_100%)]" />
 
-      <header className="relative z-10 flex items-center justify-between gap-3 p-3 sm:p-5">
-        <Link
-          href="/milo-world/quiz-hall"
-          className="inline-flex min-h-[42px] items-center justify-center rounded-full border border-cyan-200/25 bg-[#040e1f]/80 px-4 text-[10px] font-black uppercase tracking-[0.1em] text-white no-underline backdrop-blur-xl sm:px-5 sm:text-xs"
-        >
-          ← Quiz Hall
-        </Link>
+      <div className="relative z-10 flex h-full min-h-0 flex-col">
+        <header className="shrink-0 px-4 pb-3 pt-3 sm:px-6 sm:pt-5">
+          <div className="mx-auto flex max-w-[1280px] items-start justify-between gap-3">
+            <div>
+              <Link
+                href="/milo-world/quiz-hall"
+                className="inline-flex min-h-[40px] items-center rounded-full border border-cyan-200/22 bg-[#041122]/80 px-4 text-[10px] font-black uppercase tracking-[0.1em] text-white no-underline backdrop-blur-xl"
+              >
+                ← Quiz Hall
+              </Link>
 
-        <span className="rounded-full border border-amber-200/20 bg-amber-300/[0.07] px-4 py-2 text-[9px] font-black uppercase tracking-[0.14em] text-amber-100">
-          Staging Preview
-        </span>
-      </header>
+              <p className="mt-5 text-[9px] font-black uppercase tracking-[0.22em] text-[#ffd18a]">
+                Milo’s Quiz Hall
+              </p>
+              <h1 className="mt-1 font-serif text-[clamp(38px,5vw,68px)] font-normal leading-[0.94]">
+                Creator Clubs
+              </h1>
+              <p className="mt-3 max-w-2xl text-xs leading-5 text-white/52 sm:text-sm sm:leading-6">
+                Join free communities built around the topics you enjoy.
+                Creator quizzes, competitions and premium packs will live
+                inside these clubs as they are published.
+              </p>
+            </div>
 
-      <section className="relative z-10 mx-auto flex h-[calc(100dvh-74px)] w-full max-w-[1180px] min-h-0 flex-col px-4 pb-5 sm:px-6">
-        <div className="shrink-0 pt-3 sm:pt-7">
-          <p className="m-0 text-[10px] font-black uppercase tracking-[0.22em] text-[#ffd18a]">
-            Milo’s Quiz Hall
-          </p>
-          <h1 className="mt-2 font-serif text-[clamp(38px,6vw,72px)] font-normal leading-[0.95]">
-            Creator Clubs
-          </h1>
-          <p className="mt-4 max-w-[760px] text-sm leading-6 text-white/60 sm:text-base sm:leading-7">
-            This is the staging entrance for creator-led communities. The
-            community, creator publishing and marketplace systems will connect
-            here in the next build.
-          </p>
-        </div>
-
-        <div className="mt-5 grid min-h-0 flex-1 gap-3 md:grid-cols-3">
-          {shellCards.map((card) => (
-            <article
-              key={card.title}
-              className="flex min-h-0 flex-col justify-between overflow-hidden rounded-[24px] border border-white/12 bg-white/[0.055] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:p-6"
+            <Link
+              href="/milo-world/categories"
+              className="hidden min-h-[42px] shrink-0 items-center rounded-full border border-cyan-200/20 bg-cyan-300/[0.07] px-4 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100 no-underline sm:inline-flex"
             >
-              <div>
-                <span className="inline-flex h-11 w-11 items-center justify-center rounded-[13px] border border-amber-200/25 bg-amber-300/[0.08] text-xl text-[#ffd18a]">
-                  {card.icon}
-                </span>
-                <h2 className="mt-5 text-xl font-black sm:text-2xl">
-                  {card.title}
+              Categories Hub →
+            </Link>
+          </div>
+        </header>
+
+        <section className="mx-auto flex w-full max-w-[1280px] shrink-0 flex-col gap-3 px-4 pb-3 sm:flex-row sm:items-center sm:px-6">
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search clubs, creators or topics..."
+            className="h-11 min-w-0 flex-1 rounded-full border border-white/12 bg-white/[0.05] px-5 text-xs text-white outline-none placeholder:text-white/30 focus:border-cyan-200/34"
+          />
+
+          <div className="flex gap-2 overflow-x-auto">
+            <FilterButton
+              active={filterMode === "all"}
+              onClick={() => setFilterMode("all")}
+            >
+              All Clubs
+            </FilterButton>
+            <FilterButton
+              active={filterMode === "featured"}
+              onClick={() => setFilterMode("featured")}
+            >
+              Featured
+            </FilterButton>
+            {isAuthenticated && (
+              <FilterButton
+                active={filterMode === "joined"}
+                onClick={() => setFilterMode("joined")}
+              >
+                My Clubs
+              </FilterButton>
+            )}
+          </div>
+        </section>
+
+        {message && (
+          <p className="mx-auto mb-3 w-[calc(100%-32px)] max-w-[1248px] shrink-0 rounded-2xl border border-red-200/16 bg-red-400/[0.07] px-4 py-3 text-xs text-red-100 sm:w-[calc(100%-48px)]">
+            {message}
+          </p>
+        )}
+
+        <section className="dream-club-scroll mx-auto min-h-0 w-full max-w-[1280px] flex-1 overflow-y-auto px-4 pb-6 sm:px-6">
+          {isLoading ? (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {[1, 2, 3, 4, 5, 6].map((item) => (
+                <div
+                  key={item}
+                  className="h-[270px] animate-pulse rounded-[26px] border border-white/8 bg-white/[0.035]"
+                />
+              ))}
+            </div>
+          ) : filteredClubs.length === 0 ? (
+            <div className="flex min-h-[320px] items-center justify-center rounded-[28px] border border-white/10 bg-white/[0.035] p-8 text-center backdrop-blur-xl">
+              <div className="max-w-lg">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-200/18 bg-amber-300/[0.07] text-2xl text-amber-100">
+                  ◎
+                </div>
+                <h2 className="mt-5 text-2xl font-black">
+                  {clubs.length === 0
+                    ? "The first Creator Clubs are being prepared."
+                    : "No clubs match this view."}
                 </h2>
-                <p className="mt-3 text-xs leading-5 text-white/52 sm:text-sm sm:leading-6">
-                  {card.description}
+                <p className="mt-3 text-sm leading-6 text-white/48">
+                  {clubs.length === 0
+                    ? "As creator partners open their communities, they will appear here automatically."
+                    : "Try another search or filter."}
                 </p>
               </div>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {filteredClubs.map((club) => (
+                <Link
+                  key={club.club_id}
+                  href={`/milo-world/quiz-hall/clubs/${encodeURIComponent(
+                    club.club_slug,
+                  )}`}
+                  className="group relative min-h-[270px] overflow-hidden rounded-[26px] border border-white/11 bg-[linear-gradient(180deg,rgba(255,255,255,0.065),rgba(255,255,255,0.025))] p-5 text-white no-underline shadow-[0_24px_70px_rgba(0,0,0,0.25)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-cyan-200/28"
+                >
+                  {club.cover_image_url && (
+                    <>
+                      <img
+                        src={club.cover_image_url}
+                        alt=""
+                        className="absolute inset-0 h-full w-full object-cover opacity-20 transition duration-300 group-hover:scale-[1.02]"
+                      />
+                      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(3,10,24,0.38),rgba(3,10,24,0.94))]" />
+                    </>
+                  )}
 
-              <span className="mt-5 w-fit rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-white/42">
-                Coming next
-              </span>
-            </article>
-          ))}
-        </div>
+                  <div className="relative z-10 flex h-full flex-col">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-amber-200/18 bg-amber-300/[0.08] text-lg font-black text-amber-100">
+                          {club.logo_image_url ? (
+                            <img
+                              src={club.logo_image_url}
+                              alt=""
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            club.club_name.charAt(0).toUpperCase()
+                          )}
+                        </span>
 
-        <div className="mt-4 flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-[18px] border border-cyan-200/14 bg-cyan-300/[0.045] px-4 py-3 sm:px-5">
-          <p className="m-0 text-xs leading-5 text-white/48 sm:text-sm">
-            For now, Dreamscape’s existing official quiz experience remains
-            fully available through the Categories Hub.
-          </p>
-          <Link
-            href="/milo-world/categories"
-            className="rounded-full border border-cyan-200/24 bg-cyan-300/[0.09] px-4 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100 no-underline"
-          >
-            Enter Categories →
-          </Link>
-        </div>
-      </section>
+                        <div className="min-w-0">
+                          <p className="truncate text-[9px] font-black uppercase tracking-[0.12em] text-amber-100/70">
+                            {club.topic || "Creator Club"}
+                          </p>
+                          <h2 className="mt-1 line-clamp-2 text-xl font-black leading-6">
+                            {club.club_name}
+                          </h2>
+                        </div>
+                      </div>
+
+                      {club.featured && (
+                        <span className="rounded-full border border-amber-200/18 bg-amber-300/[0.08] px-2.5 py-1 text-[7px] font-black uppercase tracking-[0.1em] text-amber-100">
+                          Featured
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="mt-4 line-clamp-2 text-xs leading-5 text-white/52">
+                      {club.tagline ||
+                        club.description ||
+                        "A creator-led quiz community inside Milo’s Quiz Hall."}
+                    </p>
+
+                    <div className="mt-auto pt-6">
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-white/[0.05] text-[10px] font-black">
+                          {club.creator_profile_image_url ? (
+                            <img
+                              src={club.creator_profile_image_url}
+                              alt=""
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            club.creator_display_name.charAt(0).toUpperCase()
+                          )}
+                        </span>
+                        <span className="min-w-0 truncate text-[10px] font-bold text-white/58">
+                          by {club.creator_display_name}
+                        </span>
+                      </div>
+
+                      <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/8 pt-4">
+                        <span className="text-[10px] font-bold text-white/40">
+                          {club.member_count.toLocaleString()} member
+                          {club.member_count === 1 ? "" : "s"}
+                        </span>
+
+                        <span
+                          className={`rounded-full border px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.09em] ${
+                            club.is_member
+                              ? "border-emerald-200/20 bg-emerald-400/10 text-emerald-100"
+                              : "border-cyan-200/18 bg-cyan-300/[0.07] text-cyan-100"
+                          }`}
+                        >
+                          {club.is_member ? "Joined" : "View Club →"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+
+      <style jsx>{`
+        .dream-club-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(126, 232, 255, 0.28)
+            rgba(255, 255, 255, 0.04);
+        }
+
+        .dream-club-scroll::-webkit-scrollbar {
+          width: 7px;
+        }
+
+        .dream-club-scroll::-webkit-scrollbar-thumb {
+          background: rgba(126, 232, 255, 0.28);
+          border-radius: 999px;
+        }
+      `}</style>
     </main>
+  );
+}
+
+function FilterButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`h-11 shrink-0 rounded-full border px-4 text-[9px] font-black uppercase tracking-[0.1em] transition ${
+        active
+          ? "border-cyan-200/28 bg-cyan-300/10 text-cyan-100"
+          : "border-white/10 bg-white/[0.035] text-white/42 hover:text-white/72"
+      }`}
+    >
+      {children}
+    </button>
   );
 }

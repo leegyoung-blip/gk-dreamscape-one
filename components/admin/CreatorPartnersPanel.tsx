@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import CreatorClubsAdminPanel from "@/components/admin/CreatorClubsAdminPanel";
 
 type CreatorStatus = "pending" | "active" | "suspended" | "terminated";
 
@@ -607,6 +608,7 @@ export default function CreatorPartnersPanel() {
               Create or select a creator partner to manage their profile.
             </div>
           ) : (
+            <div className="space-y-6">
             <article className="rounded-[32px] border border-amber-200/16 bg-white/[0.045] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.26)] backdrop-blur-xl sm:p-7">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div>
@@ -703,6 +705,13 @@ export default function CreatorPartnersPanel() {
                 <InfoBox label="Terminated" value={formatDate(selectedCreator.terminated_at)} />
               </div>
             </article>
+
+            <CreatorClubsAdminPanel
+              creatorPartnerId={selectedCreator.id}
+              creatorDisplayName={selectedCreator.display_name}
+              creatorStatus={selectedCreator.status}
+            />
+            </div>
           )}
         </section>
       </div>
