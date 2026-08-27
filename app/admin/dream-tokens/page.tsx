@@ -8,6 +8,7 @@ import RoleManagementPanel from "@/components/admin/RoleManagementPanel";
 import OrganisationLicensingPanel from "@/components/admin/OrganisationLicensingPanel";
 import StudentAccessPanel from "@/components/admin/StudentAccessPanel";
 import CreatorPartnersPanel from "@/components/admin/CreatorPartnersPanel";
+import ObjectivesAdminPanel from "@/components/admin/ObjectivesAdminPanel";
 
 type AdminUser = {
   id: string;
@@ -27,6 +28,7 @@ type AdminSection =
   | "roles"
   | "student-access"
   | "creators"
+  | "objectives"
   | "affiliates";
 
 type DirectoryUser = {
@@ -527,7 +529,7 @@ export default function DreamTokensAdminPage() {
 
           <p className="mt-5 max-w-3xl text-base leading-7 text-white/62">
             Manage Dream Tokens, Dream Gems, organisation access, creator
-            partners, teacher licences, and Dreamscape account operations.
+            partners, teacher licences, objectives, and Dreamscape account operations.
           </p>
 
           {pageMessage && (
@@ -537,7 +539,7 @@ export default function DreamTokensAdminPage() {
           )}
         </section>
 
-        <section className="mt-8 grid grid-cols-1 gap-3 rounded-[28px] border border-cyan-200/16 bg-white/[0.04] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:grid-cols-2 xl:grid-cols-7">
+        <section className="mt-8 grid grid-cols-1 gap-3 rounded-[28px] border border-cyan-200/16 bg-white/[0.04] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:grid-cols-2 xl:grid-cols-8">
           <button
             type="button"
             onClick={() => setActiveSection("currency")}
@@ -608,6 +610,18 @@ export default function DreamTokensAdminPage() {
             }`}
           >
             Creator Partners
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSection("objectives")}
+            className={`min-h-14 flex-1 rounded-2xl border px-5 text-sm font-extrabold uppercase tracking-[0.12em] transition ${
+              activeSection === "objectives"
+                ? "border-cyan-200/40 bg-cyan-300/12 text-[#8dfcff] shadow-[0_0_28px_rgba(83,215,255,0.1)]"
+                : "border-white/10 bg-white/[0.035] text-white/58 hover:border-white/20 hover:text-white"
+            }`}
+          >
+            Objectives
           </button>
 
           <button
@@ -999,6 +1013,8 @@ export default function DreamTokensAdminPage() {
           <StudentAccessPanel />
         ) : activeSection === "creators" ? (
           <CreatorPartnersPanel />
+        ) : activeSection === "objectives" ? (
+          <ObjectivesAdminPanel />
         ) : (
           <AffiliateManagementPanel />
         )}
