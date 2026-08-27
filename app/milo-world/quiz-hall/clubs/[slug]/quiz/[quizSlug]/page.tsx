@@ -29,6 +29,12 @@ type PlayInfo = {
   user_best_points: number;
   current_challenge_id: string | null;
   challenge_ends_at: string | null;
+  is_premium: boolean;
+  has_pack_entitlement: boolean;
+  required_pack_id: string | null;
+  required_pack_slug: string | null;
+  required_pack_title: string | null;
+  required_pack_price_cents: number | null;
 };
 
 type LiveQuestion = {
@@ -168,6 +174,12 @@ export default function CreatorQuizPlayerPage() {
       can_play: Boolean(row.can_play),
       user_best_percent: Number(row.user_best_percent || 0),
       user_best_points: Number(row.user_best_points || 0),
+      is_premium: Boolean(row.is_premium),
+      has_pack_entitlement: Boolean(row.has_pack_entitlement),
+      required_pack_price_cents:
+        row.required_pack_price_cents === null
+          ? null
+          : Number(row.required_pack_price_cents),
     });
     setIsLoading(false);
   }
@@ -181,13 +193,11 @@ export default function CreatorQuizPlayerPage() {
     function tick() {
       const remainingMs = new Date(deadlineAt).getTime() - Date.now();
       setSecondsLeft(Math.max(0, Math.ceil(remainingMs / 1000)));
-
       if (remainingMs <= 0 && !autoSubmittedRef.current) {
         autoSubmittedRef.current = true;
         void submitAnswer(null);
       }
     }
-
     tick();
     const interval = window.setInterval(tick, 150);
     return () => window.clearInterval(interval);
@@ -205,12 +215,25 @@ export default function CreatorQuizPlayerPage() {
         router.push(`/milo-world/quiz-hall/clubs/${encodeURIComponent(clubSlug)}`);
         return;
       }
+      if (
+        playInfo.play_reason === "pack_required" &&
+        playInfo.required_pack_slug
+      ) {
+        router.push(
+          `/milo-world/quiz-hall/clubs/${encodeURIComponent(
+            clubSlug,
+          )}/packs/${encodeURIComponent(playInfo.required_pack_slug)}`,
+        );
+        return;
+      }
       setErrorMessage(
         playInfo.play_reason === "profile_required"
           ? "Complete your Dreamscape profile before playing Creator Club quizzes."
           : playInfo.play_reason === "age_restricted"
             ? "Creator Club quizzes are available to users aged 13 and above."
-            : "This quiz is not currently available to this account.",
+            : playInfo.play_reason === "pack_unavailable"
+              ? "This premium quiz is no longer available for a new unlock."
+              : "This quiz is not currently available to this account.",
       );
       return;
     }
@@ -401,17 +424,67 @@ export default function CreatorQuizPlayerPage() {
         {screen === "intro" ? (
           <section className="flex min-h-0 flex-1 items-center justify-center p-4">
             <div className="w-full max-w-[760px] rounded-[30px] border border-cyan-200/13 bg-white/[0.045] p-6 text-center backdrop-blur-xl sm:p-8">
-              {playInfo.current_challenge_id && <span className="inline-flex rounded-full border border-amber-200/18 bg-amber-300/[0.08] px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.1em] text-amber-100">Current Club Challenge{playInfo.challenge_ends_at ? ` · Ends ${formatChallengeEnd(playInfo.challenge_ends_at)}` : ""}</span>}
+              <div className="flex flex-wrap justify-center gap-2">
+                {playInfo.current_challenge_id && (
+                  <span className="inline-flex rounded-full border border-amber-200/18 bg-amber-300/[0.08] px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.1em] text-amber-100">
+                    Current Club Challenge
+                    {playInfo.challenge_ends_at
+                      ? ` · Ends ${formatChallengeEnd(playInfo.challenge_ends_at)}`
+                      : ""}
+                  </span>
+                )}
+                {playInfo.is_premium && (
+                  <span className="inline-flex rounded-full border border-violet-200/18 bg-violet-300/[0.08] px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.1em] text-violet-100">
+                    Premium Pack Quiz
+                    {playInfo.has_pack_entitlement ? " · Owned" : ""}
+                  </span>
+                )}
+              </div>
               <h1 className="mt-4 font-serif text-[clamp(40px,7vw,68px)] font-normal leading-[0.94]">{playInfo.title}</h1>
               {playInfo.description && <p className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-white/50">{playInfo.description}</p>}
               <div className="mx-auto mt-6 grid max-w-[560px] grid-cols-3 gap-2"><Metric label="Questions" value="10" /><Metric label="Best Score" value={`${playInfo.user_best_percent}%`} /><Metric label="Best Points" value={playInfo.user_best_points.toString()} /></div>
               {playInfo.is_admin && <p className="mx-auto mt-4 max-w-xl rounded-xl border border-violet-200/14 bg-violet-400/[0.06] px-4 py-3 text-[10px] text-violet-100">Admin Preview: this result is saved for QA but excluded from public leaderboards.</p>}
-              {!playInfo.can_play && <p className="mx-auto mt-4 max-w-xl rounded-xl border border-amber-200/14 bg-amber-400/[0.06] px-4 py-3 text-[10px] text-amber-100">{playInfo.play_reason === "login_required" ? "Log in to play Creator Club quizzes." : playInfo.play_reason === "join_required" ? "Join this Creator Club for free before playing." : playInfo.play_reason === "profile_required" ? "Complete your Dreamscape profile before playing." : playInfo.play_reason === "age_restricted" ? "Creator Club quizzes are available to users aged 13 and above." : "This quiz is not available to this account."}</p>}
+              {!playInfo.can_play && (
+                <p className="mx-auto mt-4 max-w-xl rounded-xl border border-amber-200/14 bg-amber-400/[0.06] px-4 py-3 text-[10px] leading-5 text-amber-100">
+                  {playInfo.play_reason === "login_required"
+                    ? "Log in to play Creator Club quizzes."
+                    : playInfo.play_reason === "join_required"
+                      ? "Join this Creator Club for free before playing."
+                      : playInfo.play_reason === "profile_required"
+                        ? "Complete your Dreamscape profile before playing."
+                        : playInfo.play_reason === "age_restricted"
+                          ? "Creator Club quizzes are available to users aged 13 and above."
+                          : playInfo.play_reason === "pack_required"
+                            ? `This quiz is part of ${
+                                playInfo.required_pack_title || "a premium pack"
+                              }. Unlock the pack for permanent access.`
+                            : playInfo.play_reason === "pack_unavailable"
+                              ? "This premium quiz is not currently available for a new unlock."
+                              : "This quiz is not available to this account."}
+                </p>
+              )}
               <p className="mt-6 text-[8px] font-black uppercase tracking-[0.12em] text-white/32">Question Timer</p>
               <div className="mt-2 inline-flex rounded-full border border-white/9 bg-black/18 p-1">
                 {[10,20].map((seconds) => <button key={seconds} type="button" onClick={() => setTimerSeconds(seconds as 10|20)} className={`min-h-9 rounded-full px-5 text-[9px] font-black uppercase tracking-[0.08em] ${timerSeconds === seconds ? "bg-cyan-300/12 text-cyan-100" : "text-white/36"}`}>{seconds}s</button>)}
               </div>
-              <button type="button" disabled={isSaving} onClick={() => void startQuiz()} className="mt-6 min-h-12 rounded-full border border-cyan-200/24 bg-cyan-300/10 px-7 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 disabled:opacity-40">{isSaving ? "Starting..." : playInfo.can_play ? "Start Quiz" : playInfo.play_reason === "login_required" ? "Log In to Play" : playInfo.play_reason === "join_required" ? "Join Club to Play" : "Cannot Play Yet"}</button>
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={() => void startQuiz()}
+                className="mt-6 min-h-12 rounded-full border border-cyan-200/24 bg-cyan-300/10 px-7 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 disabled:opacity-40"
+              >
+                {isSaving
+                  ? "Starting..."
+                  : playInfo.can_play
+                    ? "Start Quiz"
+                    : playInfo.play_reason === "login_required"
+                      ? "Log In to Play"
+                      : playInfo.play_reason === "join_required"
+                        ? "Join Club to Play"
+                        : playInfo.play_reason === "pack_required"
+                          ? "View Premium Pack"
+                          : "Cannot Play Yet"}
+              </button>
               <p className="mt-4 text-[9px] leading-4 text-white/25">Correct answers earn 100 base points plus up to 50 speed points. 10s and 20s modes use the same proportional speed bonus.</p>
             </div>
           </section>

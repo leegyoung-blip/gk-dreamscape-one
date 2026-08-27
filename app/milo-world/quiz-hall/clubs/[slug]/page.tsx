@@ -47,6 +47,22 @@ type QuizCatalogRow = {
   is_current_challenge: boolean;
 };
 
+type PackCatalogRow = {
+  pack_id: string;
+  pack_slug: string;
+  title: string;
+  description: string | null;
+  cover_image_url: string | null;
+  currency: string;
+  price_cents: number;
+  item_count: number;
+  creator_display_name: string;
+  published_at: string | null;
+  is_owned: boolean;
+  entitlement_source: string | null;
+  entitlement_granted_at: string | null;
+};
+
 type ClubLeaderboardRow = {
   rank: number;
   user_id: string;
@@ -99,6 +115,10 @@ function formatShortDate(value: string | null) {
   }).format(new Date(value));
 }
 
+function money(cents: number | null | undefined) {
+  return `S$${(Number(cents || 0) / 100).toFixed(2)}`;
+}
+
 export default function CreatorClubPage() {
   const params = useParams<{ slug: string }>();
   const router = useRouter();
@@ -106,6 +126,7 @@ export default function CreatorClubPage() {
 
   const [club, setClub] = useState<ClubDetail | null>(null);
   const [quizzes, setQuizzes] = useState<QuizCatalogRow[]>([]);
+  const [packs, setPacks] = useState<PackCatalogRow[]>([]);
   const [clubLeaderboard, setClubLeaderboard] = useState<ClubLeaderboardRow[]>([]);
   const [challengeLeaderboard, setChallengeLeaderboard] = useState<ChallengeLeaderboardRow[]>([]);
   const [history, setHistory] = useState<HistoryRow[]>([]);
@@ -176,8 +197,9 @@ export default function CreatorClubPage() {
     };
     setClub(nextClub);
 
-    const [quizResponse, leaderboardResponse, historyResponse] = await Promise.all([
+    const [quizResponse, packResponse, leaderboardResponse, historyResponse] = await Promise.all([
       supabase.rpc("get_creator_club_quiz_catalog", { p_club_slug: slug }),
+      supabase.rpc("get_creator_club_pack_catalog", { p_club_slug: slug }),
       supabase.rpc("get_creator_club_leaderboard", { p_club_id: nextClub.club_id, p_limit: 10 }),
       userResponse.data.user
         ? supabase.rpc("get_my_creator_quiz_history", { p_club_id: nextClub.club_id })
@@ -196,6 +218,22 @@ export default function CreatorClubPage() {
     } else {
       setQuizzes([]);
       setErrorMessage(quizResponse.error.message || "Could not load creator quizzes.");
+    }
+
+    if (!packResponse.error) {
+      setPacks(
+        ((packResponse.data || []) as PackCatalogRow[]).map((pack) => ({
+          ...pack,
+          price_cents: Number(pack.price_cents || 0),
+          item_count: Number(pack.item_count || 0),
+          is_owned: Boolean(pack.is_owned),
+        })),
+      );
+    } else {
+      setPacks([]);
+      setErrorMessage(
+        packResponse.error.message || "Could not load premium quiz packs.",
+      );
     }
 
     setClubLeaderboard(
@@ -313,9 +351,22 @@ export default function CreatorClubPage() {
         <header className="shrink-0 p-3 sm:p-5">
           <div className="mx-auto flex max-w-[1320px] items-center justify-between gap-3">
             <Link href="/milo-world/quiz-hall/communities" className="inline-flex min-h-[40px] items-center rounded-full border border-white/14 bg-[#041122]/74 px-4 text-[9px] font-black uppercase tracking-[0.1em] text-white no-underline">← Creator Clubs</Link>
-            {hallAccess?.isAdmin && !hallAccess.publicAccessEnabled && (
-              <span className="rounded-full border border-violet-200/18 bg-violet-400/[0.08] px-3 py-2 text-[8px] font-black uppercase tracking-[0.1em] text-violet-100">Admin Preview · Results Excluded</span>
-            )}
+            <div className="flex items-center gap-2">
+              {isAuthenticated && (
+                <Link
+                  href="/milo-world/quiz-hall/library"
+                  className="inline-flex min-h-[38px] items-center rounded-full border border-violet-200/16 bg-violet-300/[0.06] px-3 text-[8px] font-black uppercase tracking-[0.09em] text-violet-100 no-underline"
+                >
+                  My Premium Packs
+                </Link>
+              )}
+
+              {hallAccess?.isAdmin && !hallAccess.publicAccessEnabled && (
+                <span className="rounded-full border border-violet-200/18 bg-violet-400/[0.08] px-3 py-2 text-[8px] font-black uppercase tracking-[0.1em] text-violet-100">
+                  Admin Preview · Results Excluded
+                </span>
+              )}
+            </div>
           </div>
         </header>
 
@@ -376,6 +427,98 @@ export default function CreatorClubPage() {
             </section>
           )}
 
+          <section className="mt-4 rounded-[28px] border border-violet-200/13 bg-[linear-gradient(135deg,rgba(67,38,104,0.17),rgba(4,17,39,0.82))] p-5 backdrop-blur-xl sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-[8px] font-black uppercase tracking-[0.16em] text-violet-100/62">
+                  Premium Quiz Packs
+                </p>
+                <h2 className="mt-2 text-2xl font-black">
+                  One-time unlocks
+                </h2>
+                <p className="mt-2 max-w-3xl text-[10px] leading-5 text-white/40">
+                  Premium packs bundle creator quizzes into permanent account
+                  access. Payments are not live yet; Dreamscape Admin can test
+                  ownership during Phase 5.
+                </p>
+              </div>
+              <strong className="text-3xl text-violet-100">{packs.length}</strong>
+            </div>
+
+            {packs.length === 0 ? (
+              <div className="mt-4 rounded-2xl border border-white/8 bg-black/16 p-5 text-center">
+                <h3 className="text-lg font-black">No premium packs yet</h3>
+                <p className="mt-2 text-xs text-white/38">
+                  Free creator quizzes remain available below.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {packs.map((pack) => (
+                  <Link
+                    key={pack.pack_id}
+                    href={`/milo-world/quiz-hall/clubs/${encodeURIComponent(
+                      club.club_slug,
+                    )}/packs/${encodeURIComponent(pack.pack_slug)}`}
+                    className="group relative min-h-[190px] overflow-hidden rounded-[22px] border border-violet-200/12 bg-black/16 p-4 text-white no-underline transition hover:-translate-y-0.5 hover:border-violet-200/24"
+                  >
+                    {pack.cover_image_url && (
+                      <>
+                        <img
+                          src={pack.cover_image_url}
+                          alt=""
+                          className="absolute inset-0 h-full w-full object-cover opacity-14"
+                        />
+                        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,7,18,0.28),rgba(5,7,18,0.92))]" />
+                      </>
+                    )}
+
+                    <div className="relative z-10 flex h-full flex-col">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="min-w-0">
+                          <p className="text-[8px] font-black uppercase tracking-[0.12em] text-violet-100/60">
+                            {pack.item_count} quiz
+                            {pack.item_count === 1 ? "" : "zes"}
+                          </p>
+                          <h3 className="mt-1 line-clamp-2 text-lg font-black leading-6">
+                            {pack.title}
+                          </h3>
+                        </span>
+
+                        {pack.is_owned && (
+                          <span className="shrink-0 rounded-full border border-emerald-200/15 bg-emerald-400/[0.07] px-2 py-1 text-[7px] font-black uppercase tracking-[0.07em] text-emerald-100">
+                            Owned
+                          </span>
+                        )}
+                      </div>
+
+                      {pack.description && (
+                        <p className="mt-2 line-clamp-2 text-[10px] leading-4 text-white/38">
+                          {pack.description}
+                        </p>
+                      )}
+
+                      <div className="mt-auto flex items-end justify-between gap-3 border-t border-white/7 pt-4">
+                        <span>
+                          <strong className="block text-xl text-violet-100">
+                            {money(pack.price_cents)}
+                          </strong>
+                          <small className="text-[8px] text-white/28">
+                            one-time
+                          </small>
+                        </span>
+
+                        <span className="rounded-full border border-violet-200/16 bg-violet-300/[0.06] px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.08em] text-violet-100">
+                          {pack.is_owned ? "Open Pack →" : "View Pack →"}
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
+
           <section className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_350px]">
             <article className="rounded-[28px] border border-cyan-200/12 bg-white/[0.04] p-5 backdrop-blur-xl sm:p-6">
               <div className="flex items-end justify-between gap-4">
@@ -383,7 +526,7 @@ export default function CreatorClubPage() {
                 <strong className="text-3xl text-cyan-100">{quizzes.length}</strong>
               </div>
               {quizzes.length === 0 ? (
-                <div className="mt-4 rounded-2xl border border-white/8 bg-black/16 p-5 text-center"><h3 className="text-lg font-black">No published quizzes yet</h3><p className="mt-2 text-xs text-white/40">This creator is preparing the club’s first quiz.</p></div>
+                <div className="mt-4 rounded-2xl border border-white/8 bg-black/16 p-5 text-center"><h3 className="text-lg font-black">No free quizzes currently available</h3><p className="mt-2 text-xs text-white/40">This club may have premium packs above, or the creator may still be preparing its next free challenge.</p></div>
               ) : (
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   {quizzes.map((quiz) => (

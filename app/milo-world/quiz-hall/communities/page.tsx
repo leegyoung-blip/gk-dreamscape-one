@@ -179,6 +179,15 @@ export default function CreatorClubsPage() {
             </div>
 
             <div className="hidden shrink-0 items-center gap-2 sm:flex">
+              {isAuthenticated && (
+                <Link
+                  href="/milo-world/quiz-hall/library"
+                  className="inline-flex min-h-[42px] items-center rounded-full border border-violet-200/20 bg-violet-300/[0.07] px-4 text-[9px] font-black uppercase tracking-[0.1em] text-violet-100 no-underline"
+                >
+                  My Premium Packs
+                </Link>
+              )}
+
               {myCreatorAccess && (
                 <Link
                   href="/milo-world/quiz-hall/creator-studio"
@@ -229,6 +238,17 @@ export default function CreatorClubsPage() {
             )}
           </div>
         </section>
+
+        {isAuthenticated && (
+          <div className="mx-auto mb-2 w-full max-w-[1280px] shrink-0 px-4 sm:hidden">
+            <Link
+              href="/milo-world/quiz-hall/library"
+              className="flex min-h-[42px] w-full items-center justify-center rounded-full border border-violet-200/20 bg-violet-300/[0.07] px-4 text-[9px] font-black uppercase tracking-[0.1em] text-violet-100 no-underline"
+            >
+              My Premium Packs
+            </Link>
+          </div>
+        )}
 
         {myCreatorAccess && (
           <div className="mx-auto mb-3 w-full max-w-[1280px] shrink-0 px-4 sm:hidden">
