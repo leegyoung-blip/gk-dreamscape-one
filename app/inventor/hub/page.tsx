@@ -3698,6 +3698,13 @@ function WardrobeBay({
     ) ??
     null;
 
+  const previewOutfitOwned = previewOutfitItem
+    ? previewOutfitItem.is_starter || ownedItems.has(previewOutfitItem.item_key)
+    : true;
+  const dimPreviewOutfit = Boolean(
+    previewOutfitItem?.category === "outfit" && !previewOutfitOwned,
+  );
+
   const previewAccessoryLayers = previewEquipped
     .filter((entry) => entry.category === "accessory")
     .map((entry) => catalog.find((item) => item.item_key === entry.item_key))
@@ -4115,7 +4122,9 @@ function WardrobeBay({
                     <img
                       src={previewOutfitItem.layer_image}
                       alt={previewOutfitItem.title}
-                      className="pointer-events-none absolute inset-0 z-10 h-full w-full object-contain object-bottom drop-shadow-[0_18px_30px_rgba(0,0,0,0.55)]"
+                      className={`pointer-events-none absolute inset-0 z-10 h-full w-full object-contain object-bottom drop-shadow-[0_18px_30px_rgba(0,0,0,0.55)] transition-opacity duration-200 ${
+                        dimPreviewOutfit ? "opacity-[0.16] saturate-[0.45]" : "opacity-100"
+                      }`}
                       draggable={false}
                     />
                   ) : activeCharacter === "nova" ? (
@@ -4198,16 +4207,21 @@ function WardrobeBay({
                       const owned = item.is_starter || ownedItems.has(item.item_key);
                       const equipped = effectiveEquipped.some((entry) => entry.item_key === item.item_key);
                       const selected = selectedItem?.item_key === item.item_key;
+                      const lockedOutfit = item.category === "outfit" && !owned;
 
                       return (
                         <button
                           key={item.item_key}
                           type="button"
                           onClick={() => onSelectItem(item.item_key)}
-                          className={`grid min-h-[58px] grid-cols-[46px_minmax(0,1fr)] items-center gap-2 rounded-[12px] border p-1.5 text-left ${
+                          className={`grid min-h-[58px] grid-cols-[46px_minmax(0,1fr)] items-center gap-2 rounded-[12px] border p-1.5 text-left transition ${
                             selected
-                              ? "border-cyan-200/42 bg-cyan-300/[0.09]"
-                              : "border-white/[0.07] bg-white/[0.025]"
+                              ? lockedOutfit
+                                ? "border-cyan-200/34 bg-slate-950/82"
+                                : "border-cyan-200/42 bg-cyan-300/[0.09]"
+                              : lockedOutfit
+                                ? "border-white/[0.05] bg-slate-950/78"
+                                : "border-white/[0.07] bg-white/[0.025]"
                           }`}
                         >
                           <div
@@ -4219,7 +4233,13 @@ function WardrobeBay({
                             }}
                           >
                             {item.thumbnail_image ? (
-                              <img src={item.thumbnail_image} alt="" className="h-full w-full object-contain" />
+                              <img
+                                src={item.thumbnail_image}
+                                alt=""
+                                className={`h-full w-full object-contain transition-opacity duration-200 ${
+                                  lockedOutfit ? "opacity-[0.16] saturate-[0.4]" : "opacity-100"
+                                }`}
+                              />
                             ) : (
                               <span className="text-sm">{selectedCategoryMeta.icon}</span>
                             )}
@@ -4502,7 +4522,9 @@ function WardrobeBay({
                       <img
                         src={previewOutfitItem.layer_image}
                         alt={previewOutfitItem.title}
-                        className="pointer-events-none absolute inset-0 z-10 h-full w-full object-contain object-bottom drop-shadow-[0_28px_44px_rgba(0,0,0,0.55)]"
+                        className={`pointer-events-none absolute inset-0 z-10 h-full w-full object-contain object-bottom drop-shadow-[0_28px_44px_rgba(0,0,0,0.55)] transition-opacity duration-200 ${
+                          dimPreviewOutfit ? "opacity-[0.16] saturate-[0.45]" : "opacity-100"
+                        }`}
                         draggable={false}
                       />
                     ) : activeCharacter === "nova" ? (
@@ -4636,6 +4658,7 @@ function WardrobeBay({
                       (entry) => entry.item_key === item.item_key,
                     );
                     const selected = selectedItem?.item_key === item.item_key;
+                    const lockedOutfit = item.category === "outfit" && !owned;
 
                     return (
                       <button
@@ -4644,8 +4667,12 @@ function WardrobeBay({
                         onClick={() => onSelectItem(item.item_key)}
                         className={`group relative min-h-[118px] overflow-hidden rounded-[16px] border p-3 text-left transition ${
                           selected
-                            ? "border-cyan-200/48 bg-cyan-300/[0.09] shadow-[0_0_24px_rgba(83,215,255,0.09)]"
-                            : "border-white/[0.075] bg-slate-950/34 hover:border-white/16 hover:bg-white/[0.04]"
+                            ? lockedOutfit
+                              ? "border-cyan-200/34 bg-slate-950/82 shadow-[0_0_18px_rgba(83,215,255,0.04)]"
+                              : "border-cyan-200/48 bg-cyan-300/[0.09] shadow-[0_0_24px_rgba(83,215,255,0.09)]"
+                            : lockedOutfit
+                              ? "border-white/[0.05] bg-slate-950/78 hover:border-white/10"
+                              : "border-white/[0.075] bg-slate-950/34 hover:border-white/16 hover:bg-white/[0.04]"
                         }`}
                       >
                         <div className="flex items-start justify-between gap-2">
@@ -4661,7 +4688,9 @@ function WardrobeBay({
                               <img
                                 src={item.thumbnail_image}
                                 alt=""
-                                className="h-full w-full object-contain"
+                                className={`h-full w-full object-contain transition-opacity duration-200 ${
+                                  lockedOutfit ? "opacity-[0.16] saturate-[0.4]" : "opacity-100"
+                                }`}
                               />
                             ) : (
                               selectedCategoryMeta.icon
