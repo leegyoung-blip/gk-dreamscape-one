@@ -72,6 +72,8 @@ export default function CreatorPremiumPackPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [checkoutSessionId, setCheckoutSessionId] = useState("");
+  const [isVerifyingCheckout, setIsVerifyingCheckout] = useState(false);
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -88,6 +90,41 @@ export default function CreatorPremiumPackPage() {
       document.documentElement.style.overflow = oldHtml;
     };
   }, [clubSlug, packSlug]);
+
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const checkout = query.get("checkout");
+    const sessionId = query.get("session_id") || "";
+
+    if (checkout === "cancelled") {
+      setMessage("Checkout was cancelled. You have not been charged.");
+    }
+
+    if (checkout === "success" && sessionId) {
+      setCheckoutSessionId(sessionId);
+      setMessage(
+        "Payment completed. Dreamscape is confirming your permanent pack access...",
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    if (
+      !checkoutSessionId ||
+      !isAuthenticated ||
+      isLoading ||
+      isVerifyingCheckout
+    ) {
+      return;
+    }
+
+    void verifyStripeCheckout(checkoutSessionId);
+  }, [
+    checkoutSessionId,
+    isAuthenticated,
+    isLoading,
+    isVerifyingCheckout,
+  ]);
 
   async function loadPack() {
     setIsLoading(true);
@@ -155,6 +192,127 @@ export default function CreatorPremiumPackPage() {
     }
 
     setIsLoading(false);
+  }
+
+  async function startStripeCheckout() {
+    if (!pack) return;
+
+    if (!isAuthenticated) {
+      goToLogin();
+      return;
+    }
+
+    setIsSaving(true);
+    setMessage("");
+    setErrorMessage("");
+
+    try {
+      const response = await fetch("/api/creator-packs/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          packId: pack.pack_id,
+        }),
+      });
+
+      const result = (await response.json()) as {
+        error?: string;
+        redirectUrl?: string;
+      };
+
+      if (!response.ok || !result.redirectUrl) {
+        throw new Error(
+          result.error || "Unable to start premium pack checkout.",
+        );
+      }
+
+      window.location.href = result.redirectUrl;
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to start premium pack checkout.";
+
+      if (/already own/i.test(message)) {
+        setMessage("This premium pack is already in your library.");
+        await loadPack();
+      } else {
+        setErrorMessage(message);
+      }
+
+      setIsSaving(false);
+    }
+  }
+
+  async function verifyStripeCheckout(sessionId: string) {
+    setIsVerifyingCheckout(true);
+    setErrorMessage("");
+
+    try {
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        const { data, error } = await supabase.rpc(
+          "get_my_creator_pack_checkout_status",
+          {
+            p_checkout_session_id: sessionId,
+          },
+        );
+
+        if (error) throw error;
+
+        const row = Array.isArray(data) ? data[0] : data;
+
+        if (row?.is_owned) {
+          setMessage(
+            "Payment confirmed. This premium pack is now permanently unlocked on your Dreamscape account.",
+          );
+          setCheckoutSessionId("");
+          window.history.replaceState(
+            {},
+            "",
+            `/milo-world/quiz-hall/clubs/${encodeURIComponent(
+              clubSlug,
+            )}/packs/${encodeURIComponent(packSlug)}`,
+          );
+          await loadPack();
+          return;
+        }
+
+        const status = String(row?.order_status || "");
+
+        if (
+          [
+            "payment_failed",
+            "cancelled",
+            "refunded",
+            "disputed",
+            "chargeback",
+          ].includes(status)
+        ) {
+          throw new Error(
+            status === "payment_failed"
+              ? "Stripe could not complete the payment."
+              : "This checkout did not produce an active premium pack entitlement.",
+          );
+        }
+
+        await new Promise((resolve) => window.setTimeout(resolve, 1000));
+      }
+
+      setCheckoutSessionId("");
+      setMessage(
+        "Stripe has returned you to Dreamscape, but the payment webhook is still being confirmed. Refresh this page shortly; the pack unlocks only after Stripe confirms payment.",
+      );
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not confirm premium pack payment.",
+      );
+    } finally {
+      setIsVerifyingCheckout(false);
+    }
   }
 
   async function grantAdminTestAccess() {
@@ -395,9 +553,7 @@ export default function CreatorPremiumPackPage() {
                     {isSaving ? "Granting..." : "Grant Admin Test Access"}
                   </button>
                   <p className="mt-3 text-center text-[8px] leading-4 text-white/26">
-                    Creates a Phase 5 test order + entitlement. No money is
-                    charged and the test entitlement is excluded from future
-                    paid revenue reporting.
+                    Creates an admin-test order + entitlement. No money is charged and the test entitlement is excluded from paid revenue reporting.
                   </p>
                 </>
               ) : !isAuthenticated ? (
@@ -412,14 +568,19 @@ export default function CreatorPremiumPackPage() {
                 <>
                   <button
                     type="button"
-                    disabled
-                    className="mt-5 min-h-11 w-full cursor-not-allowed rounded-full border border-violet-200/14 bg-violet-300/[0.05] px-5 text-[9px] font-black uppercase tracking-[0.1em] text-violet-100/48"
+                    disabled={isSaving || isVerifyingCheckout}
+                    onClick={() => void startStripeCheckout()}
+                    className="mt-5 min-h-11 w-full rounded-full border border-violet-200/20 bg-violet-300/[0.09] px-5 text-[9px] font-black uppercase tracking-[0.1em] text-violet-100 shadow-[0_18px_44px_rgba(139,92,246,0.08)] disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    Unlock Pack · {money(pack.price_cents)}
+                    {isSaving
+                      ? "Opening Stripe..."
+                      : isVerifyingCheckout
+                        ? "Confirming Payment..."
+                        : `Unlock Pack · ${money(pack.price_cents)}`}
                   </button>
                   <p className="mt-3 text-center text-[8px] leading-4 text-white/28">
-                    Checkout opens in Phase 6 when Stripe is connected. No
-                    payment can be taken from this Phase 5 screen.
+                    Secure one-time Stripe Checkout. Access is granted only
+                    after Dreamscape receives Stripe’s verified payment webhook.
                   </p>
                 </>
               ) : (
