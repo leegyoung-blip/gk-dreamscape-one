@@ -901,7 +901,7 @@ export default function NovaWorldPage() {
                 pointerEvents: "none",
               }}
             >
-              Hover over a location, then click to enter
+              Tap a location to enter · hover for details
             </div>
           )}
         </section>
@@ -2145,6 +2145,8 @@ function NovaHotspot({
   onLeave: () => void;
   onClick: () => void;
 }) {
+  const compactTitle = zone.title.length > 18;
+
   return (
     <button
       id={`nova-zone-${zone.number}`}
@@ -2154,33 +2156,41 @@ function NovaHotspot({
       onFocus={onEnter}
       onBlur={onLeave}
       onClick={onClick}
-      aria-label={`Location ${zone.number}: ${zone.title}`}
+      aria-label={zone.title}
       style={{
         position: "absolute",
         zIndex: isHighlighted ? 94 : 25,
         ...getNovaMarkerPosition(zone.id),
-        width: "64px",
-        height: "64px",
-        padding: 0,
+        width: "auto",
+        minWidth: compactTitle ? "148px" : "112px",
+        maxWidth: "188px",
+        height: "46px",
+        padding: compactTitle ? "0 13px" : "0 16px",
         transform: isActive
-          ? "translate(-50%, -50%) scale(1.12)"
+          ? "translate(-50%, -50%) scale(1.06)"
           : "translate(-50%, -50%)",
-        borderRadius: "16px",
+        borderRadius: "999px",
         border: isActive
           ? `1px solid ${zone.accent}`
-          : `1px solid ${zone.accent}cc`,
+          : `1px solid ${zone.accent}99`,
         background: isActive
-          ? `linear-gradient(145deg, ${zone.accent}dd, rgba(12,50,91,0.98))`
-          : "rgba(4,24,53,0.9)",
+          ? `linear-gradient(145deg, ${zone.accent}88, rgba(12,50,91,0.62))`
+          : "rgba(4,24,53,0.46)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
         color: "white",
         fontFamily: "inherit",
-        fontSize: "25px",
-        fontWeight: 900,
+        fontSize: compactTitle ? "11px" : "12px",
+        lineHeight: 1.1,
+        letterSpacing: compactTitle ? "0.025em" : "0.045em",
+        fontWeight: 850,
+        whiteSpace: "nowrap",
+        textAlign: "center",
         cursor: "pointer",
         outline: "none",
         boxShadow: isActive
-          ? `0 0 0 6px ${zone.accent}1f, 0 0 44px ${zone.accent}aa, 0 20px 46px rgba(0,0,0,0.48)`
-          : `0 0 0 4px rgba(2,8,19,0.46), 0 0 25px ${zone.accent}55, 0 16px 36px rgba(0,0,0,0.42)`,
+          ? `0 0 0 4px ${zone.accent}18, 0 0 30px ${zone.accent}88, 0 14px 34px rgba(0,0,0,0.34)`
+          : `0 0 18px ${zone.accent}38, 0 12px 28px rgba(0,0,0,0.28)`,
         opacity: isWalkthroughActive && !isHighlighted ? 0.13 : 1,
         filter:
           isWalkthroughActive && !isHighlighted
@@ -2191,7 +2201,7 @@ function NovaHotspot({
           "transform 220ms ease, opacity 220ms ease, filter 220ms ease, border-color 220ms ease, background 220ms ease, box-shadow 220ms ease",
       }}
     >
-      {zone.number}
+      {zone.title}
     </button>
   );
 }

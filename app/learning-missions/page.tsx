@@ -1208,7 +1208,7 @@ export default function LearningMissionsPage() {
               boxShadow: "0 16px 36px rgba(0,0,0,0.28)",
             }}
           >
-            Hover over a zone, then click to enter
+            Tap a zone to enter · hover for details
           </div>
         </section>
       ) : (
@@ -2671,6 +2671,8 @@ function MissionHotspot({
   onLeave: () => void;
   onClick?: () => void;
 }) {
+  const compactTitle = zone.title.length > 18;
+
   return (
     <button
       id={`mission-zone-${zone.id}`}
@@ -2684,35 +2686,43 @@ function MissionHotspot({
         position: "absolute",
         zIndex: isHighlighted ? 92 : 25,
         ...getMissionMarkerPosition(zone.id),
-        width: "60px",
-        height: "60px",
-        padding: 0,
+        width: "auto",
+        minWidth: compactTitle ? "148px" : "116px",
+        maxWidth: "194px",
+        height: "46px",
+        padding: compactTitle ? "0 13px" : "0 16px",
         border: isActive
           ? `1px solid ${zone.accent}`
           : isAdminPreview
-            ? "1px solid rgba(196,181,253,0.92)"
-          : isLocked
-            ? "1px solid rgba(255,215,106,0.72)"
-            : `1px solid ${zone.accent}cc`,
+            ? "1px solid rgba(196,181,253,0.72)"
+            : isLocked
+              ? "1px solid rgba(255,215,106,0.58)"
+              : `1px solid ${zone.accent}99`,
         background: isActive
-          ? `linear-gradient(145deg, ${zone.accent}dd, rgba(19,69,120,0.98))`
+          ? `linear-gradient(145deg, ${zone.accent}88, rgba(19,69,120,0.62))`
           : isAdminPreview
-            ? "linear-gradient(145deg, rgba(124,58,237,0.94), rgba(45,22,89,0.98))"
-          : isLocked
-            ? "rgba(53,38,36,0.92)"
-            : "rgba(4,24,53,0.92)",
+            ? "linear-gradient(145deg, rgba(124,58,237,0.48), rgba(45,22,89,0.56))"
+            : isLocked
+              ? "rgba(53,38,36,0.48)"
+              : "rgba(4,24,53,0.46)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
         color: isAdminPreview ? "#ede9fe" : isLocked ? "#ffd76a" : "white",
         boxShadow: isActive
-          ? `0 0 0 6px ${zone.accent}1f, 0 0 42px ${zone.accent}aa, 0 20px 46px rgba(0,0,0,0.48)`
-          : `0 0 0 4px rgba(2,8,19,0.48), 0 0 24px ${
-              isLocked ? "rgba(255,215,106,0.28)" : `${zone.accent}55`
-            }, 0 16px 36px rgba(0,0,0,0.42)`,
-        borderRadius: "12px",
+          ? `0 0 0 4px ${zone.accent}18, 0 0 30px ${zone.accent}88, 0 14px 34px rgba(0,0,0,0.34)`
+          : `0 0 18px ${
+              isLocked ? "rgba(255,215,106,0.16)" : `${zone.accent}38`
+            }, 0 12px 28px rgba(0,0,0,0.28)`,
+        borderRadius: "999px",
         cursor: onClick ? "pointer" : "default",
         outline: "none",
         fontFamily: "inherit",
-        fontSize: "25px",
-        fontWeight: 900,
+        fontSize: compactTitle ? "11px" : "12px",
+        lineHeight: 1.1,
+        letterSpacing: compactTitle ? "0.025em" : "0.045em",
+        fontWeight: 850,
+        whiteSpace: "nowrap",
+        textAlign: "center",
         opacity:
           isWalkthroughActive && !isHighlighted ? 0.14 : isLocked ? 0.78 : 1,
         filter:
@@ -2722,7 +2732,7 @@ function MissionHotspot({
               ? "saturate(0.65)"
               : "none",
         transform: isActive
-          ? "translate(-50%, -50%) scale(1.1)"
+          ? "translate(-50%, -50%) scale(1.055)"
           : "translate(-50%, -50%)",
         transition:
           "transform 220ms ease, opacity 220ms ease, filter 220ms ease, border-color 220ms ease, background 220ms ease, box-shadow 220ms ease",
@@ -2730,12 +2740,12 @@ function MissionHotspot({
       }}
       aria-label={
         isLocked
-          ? `Area ${zone.number}: ${zone.title}, locked`
-          : `Area ${zone.number}: ${zone.title}`
+          ? `${zone.title}, locked`
+          : zone.title
       }
       aria-disabled={isLocked}
     >
-      {zone.number}
+      {zone.title}
     </button>
   );
 }

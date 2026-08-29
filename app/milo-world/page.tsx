@@ -527,6 +527,7 @@ function MiloZoneHotspot({
 }) {
   const isUnavailable = Boolean(zone.adminOnly && !isAdmin);
   const position = DESKTOP_ZONE_MARKERS[zone.number];
+  const compactTitle = zone.title.length > 20;
 
   return (
     <button
@@ -543,8 +544,8 @@ function MiloZoneHotspot({
       }}
       aria-label={
         isUnavailable
-          ? `Location ${zone.number}: ${zone.title}, coming soon`
-          : `Location ${zone.number}: ${zone.title}`
+          ? `${zone.title}, coming soon`
+          : zone.title
       }
       aria-disabled={isUnavailable}
       style={{
@@ -552,35 +553,43 @@ function MiloZoneHotspot({
         zIndex: isHighlighted ? 92 : isActive ? 35 : 25,
         left: position.left,
         top: position.top,
-        width: "60px",
-        height: "60px",
-        padding: 0,
+        width: "auto",
+        minWidth: compactTitle ? "154px" : "112px",
+        maxWidth: "196px",
+        height: "46px",
+        padding: compactTitle ? "0 13px" : "0 16px",
         transform: isActive
-          ? "translate(-50%, -50%) scale(1.10)"
+          ? "translate(-50%, -50%) scale(1.055)"
           : "translate(-50%, -50%)",
-        borderRadius: "12px",
+        borderRadius: "999px",
         border: isActive
-          ? "1px solid rgba(142,232,255,0.98)"
+          ? "1px solid rgba(142,232,255,0.92)"
           : isUnavailable
-            ? "1px solid rgba(255,209,138,0.72)"
-            : "1px solid rgba(126,232,255,0.76)",
+            ? "1px solid rgba(255,209,138,0.58)"
+            : "1px solid rgba(126,232,255,0.58)",
         background: isActive
-          ? "linear-gradient(145deg, rgba(72,211,244,0.96), rgba(19,69,120,0.98))"
+          ? "linear-gradient(145deg, rgba(72,211,244,0.58), rgba(19,69,120,0.62))"
           : isUnavailable
-            ? "linear-gradient(145deg, rgba(96,60,28,0.94), rgba(37,24,18,0.98))"
-            : "rgba(4,24,53,0.94)",
+            ? "linear-gradient(145deg, rgba(96,60,28,0.46), rgba(37,24,18,0.54))"
+            : "rgba(4,24,53,0.48)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
         color: isUnavailable ? "#ffd18a" : "white",
         boxShadow: isActive
-          ? "0 0 0 6px rgba(83,215,255,0.14), 0 0 42px rgba(83,215,255,0.62), 0 20px 46px rgba(0,0,0,0.48)"
+          ? "0 0 0 4px rgba(83,215,255,0.10), 0 0 30px rgba(83,215,255,0.46), 0 14px 34px rgba(0,0,0,0.34)"
           : isUnavailable
-            ? "0 0 0 4px rgba(2,8,19,0.48), 0 0 24px rgba(255,209,138,0.24), 0 16px 36px rgba(0,0,0,0.42)"
-            : "0 0 0 4px rgba(2,8,19,0.48), 0 0 24px rgba(83,215,255,0.30), 0 16px 36px rgba(0,0,0,0.42)",
+            ? "0 0 18px rgba(255,209,138,0.14), 0 12px 28px rgba(0,0,0,0.28)"
+            : "0 0 18px rgba(83,215,255,0.18), 0 12px 28px rgba(0,0,0,0.28)",
         cursor:
           isWalkthroughActive || isUnavailable ? "default" : "pointer",
         outline: "none",
         fontFamily: "inherit",
-        fontSize: "25px",
-        fontWeight: 900,
+        fontSize: compactTitle ? "11px" : "12px",
+        lineHeight: 1.1,
+        letterSpacing: compactTitle ? "0.025em" : "0.045em",
+        fontWeight: 850,
+        whiteSpace: "nowrap",
+        textAlign: "center",
         opacity:
           isWalkthroughActive && !isHighlighted
             ? 0.14
@@ -599,7 +608,7 @@ function MiloZoneHotspot({
           "transform 220ms ease, opacity 220ms ease, filter 220ms ease, border-color 220ms ease, background 220ms ease, box-shadow 220ms ease",
       }}
     >
-      {zone.number}
+      {zone.title}
     </button>
   );
 }
@@ -695,7 +704,7 @@ function MiloZoneHoverPopup({
           textTransform: "uppercase",
         }}
       >
-        {isUnavailable ? "Admin Preview Only" : "Click the number to enter →"}
+        {isUnavailable ? "Admin Preview Only" : "Click the location to enter →"}
       </div>
     </div>
   );
