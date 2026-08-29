@@ -74,6 +74,18 @@ type ScorePopup = {
   multiplier: number;
 };
 
+type DirtAssetKey =
+  | "dustLight"
+  | "dustHeavy"
+  | "dustCorner"
+  | "footprintLeft"
+  | "footprintRight"
+  | "mudSmear"
+  | "mudHeavy"
+  | "dreamDust";
+
+type DirtAssetImages = Partial<Record<DirtAssetKey, HTMLImageElement>>;
+
 const CANVAS_WIDTH = 900;
 const CANVAS_HEIGHT = 560;
 const ROUND_DURATION_MS = 10_000;
@@ -82,6 +94,27 @@ const SAMPLE_STEP = 2;
 const PERFECT_CLEAN_PERCENT = 99.5;
 const DEFAULT_RUG_IMAGE = "/activities/nova-home/rugs/nova-classic-rug.png";
 const DEFAULT_CLEANING_TOOL_IMAGE = "/activities/nova-home/rug-rush/tools/yellow-sponge.png";
+
+const DIRT_ASSET_PATHS: Record<DirtAssetKey, string> = {
+  dustLight: "/activities/nova-home/rug-rush/dirt/01-gritty-dust-and-lint-patch.png",
+  dustHeavy: "/activities/nova-home/rug-rush/dirt/02-isolated-dusty-earth-texture-patch.png",
+  dustCorner: "/activities/nova-home/rug-rush/dirt/03-l-shaped-dust-and-grime-overlay.png",
+  footprintLeft: "/activities/nova-home/rug-rush/dirt/04-muddy-bootprint-with-splattered-tread.png",
+  footprintRight: "/activities/nova-home/rug-rush/dirt/05-photorealistic-muddy-bootprint-cutout.png",
+  mudSmear: "/activities/nova-home/rug-rush/dirt/06-wet-mud-smear-with-splashes.png",
+  mudHeavy: "/activities/nova-home/rug-rush/dirt/07-photorealistic-mud-splatter-texture.png",
+  dreamDust: "/activities/nova-home/rug-rush/dirt/08-magical-iridescent-nebula-gem-dust.png",
+};
+
+function loadHtmlImage(src: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.decoding = "async";
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = src;
+  });
+}
 
 const MESS_TYPES: MessDefinition[] = [
   {
@@ -397,7 +430,7 @@ function drawFootprint(
   context.restore();
 }
 
-function drawMess(
+function drawProceduralMess(
   normalContext: CanvasRenderingContext2D,
   toughContext: CanvasRenderingContext2D,
   extraToughContext: CanvasRenderingContext2D,
@@ -502,6 +535,334 @@ function drawMess(
   }
 
   [normalContext, toughContext, extraToughContext].forEach((context) => context.restore());
+}
+
+function drawTextureStamp(
+  context: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  x: number,
+  y: number,
+  width: number,
+  rotation: number,
+  opacity = 1,
+  mirrorX = false,
+) {
+  const aspect = image.naturalHeight > 0 ? image.naturalWidth / image.naturalHeight : 1;
+  const height = width / Math.max(0.25, aspect);
+
+  context.save();
+  context.translate(x, y);
+  context.rotate(rotation);
+  context.scale(mirrorX ? -1 : 1, 1);
+  context.globalAlpha = opacity;
+  context.drawImage(image, -width / 2, -height / 2, width, height);
+  context.restore();
+}
+
+function drawLayeredTexture(
+  normalContext: CanvasRenderingContext2D,
+  toughContext: CanvasRenderingContext2D,
+  extraToughContext: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  x: number,
+  y: number,
+  width: number,
+  rotation: number,
+  options?: {
+    normalOpacity?: number;
+    toughOpacity?: number;
+    extraOpacity?: number;
+    toughScale?: number;
+    extraScale?: number;
+    mirrorX?: boolean;
+  },
+) {
+  const normalOpacity = options?.normalOpacity ?? 0.72;
+  const toughOpacity = options?.toughOpacity ?? 0;
+  const extraOpacity = options?.extraOpacity ?? 0;
+  const toughScale = options?.toughScale ?? 0.72;
+  const extraScale = options?.extraScale ?? 0.46;
+  const mirrorX = options?.mirrorX ?? false;
+
+  if (normalOpacity > 0) {
+    drawTextureStamp(normalContext, image, x, y, width, rotation, normalOpacity, mirrorX);
+  }
+  if (toughOpacity > 0) {
+    drawTextureStamp(toughContext, image, x, y, width * toughScale, rotation, toughOpacity, mirrorX);
+  }
+  if (extraOpacity > 0) {
+    drawTextureStamp(extraToughContext, image, x, y, width * extraScale, rotation, extraOpacity, mirrorX);
+  }
+}
+
+function randomRugPoint(edgeBias = false) {
+  if (!edgeBias) {
+    return {
+      x: 104 + Math.random() * (CANVAS_WIDTH - 208),
+      y: 90 + Math.random() * (CANVAS_HEIGHT - 180),
+    };
+  }
+
+  const edge = Math.floor(Math.random() * 4);
+  if (edge === 0) return { x: 94 + Math.random() * (CANVAS_WIDTH - 188), y: 72 + Math.random() * 46 };
+  if (edge === 1) return { x: CANVAS_WIDTH - 118 + Math.random() * 46, y: 88 + Math.random() * (CANVAS_HEIGHT - 176) };
+  if (edge === 2) return { x: 94 + Math.random() * (CANVAS_WIDTH - 188), y: CANVAS_HEIGHT - 118 + Math.random() * 46 };
+  return { x: 72 + Math.random() * 46, y: 88 + Math.random() * (CANVAS_HEIGHT - 176) };
+}
+
+function drawTexturedMess(
+  normalContext: CanvasRenderingContext2D,
+  toughContext: CanvasRenderingContext2D,
+  extraToughContext: CanvasRenderingContext2D,
+  mess: MessDefinition,
+  assets: DirtAssetImages,
+) {
+  [normalContext, toughContext, extraToughContext].forEach((context) => {
+    context.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    context.save();
+    roundedRectPath(context, 48, 40, CANVAS_WIDTH - 96, CANVAS_HEIGHT - 80, 46);
+    context.clip();
+  });
+
+  const dustLight = assets.dustLight;
+  const dustHeavy = assets.dustHeavy;
+  const dustCorner = assets.dustCorner;
+  const footprintLeft = assets.footprintLeft;
+  const footprintRight = assets.footprintRight;
+  const mudSmear = assets.mudSmear;
+  const mudHeavy = assets.mudHeavy;
+  const dreamDust = assets.dreamDust;
+
+  if (mess.key === "dusty-day") {
+    if (dustLight) {
+      const count = 9 + Math.floor(Math.random() * 5);
+      for (let i = 0; i < count; i += 1) {
+        const point = randomRugPoint(i < 4);
+        drawLayeredTexture(
+          normalContext,
+          toughContext,
+          extraToughContext,
+          dustLight,
+          point.x,
+          point.y,
+          112 + Math.random() * 82,
+          Math.random() * Math.PI * 2,
+          { normalOpacity: 0.48 + Math.random() * 0.18 },
+        );
+      }
+    }
+
+    if (dustHeavy) {
+      const count = 5 + Math.floor(Math.random() * 4);
+      for (let i = 0; i < count; i += 1) {
+        const point = randomRugPoint(i < 2);
+        drawLayeredTexture(
+          normalContext,
+          toughContext,
+          extraToughContext,
+          dustHeavy,
+          point.x,
+          point.y,
+          126 + Math.random() * 92,
+          Math.random() * Math.PI * 2,
+          {
+            normalOpacity: 0.38,
+            toughOpacity: 0.64,
+            toughScale: 0.70,
+          },
+        );
+      }
+    }
+
+    if (dustCorner) {
+      const corners = [
+        { x: 120, y: 104, rotation: 0 },
+        { x: CANVAS_WIDTH - 120, y: 104, rotation: Math.PI / 2 },
+        { x: CANVAS_WIDTH - 120, y: CANVAS_HEIGHT - 104, rotation: Math.PI },
+        { x: 120, y: CANVAS_HEIGHT - 104, rotation: -Math.PI / 2 },
+      ];
+      corners
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 2 + Math.floor(Math.random() * 2))
+        .forEach((corner) => {
+          drawLayeredTexture(
+            normalContext,
+            toughContext,
+            extraToughContext,
+            dustCorner,
+            corner.x,
+            corner.y,
+            190 + Math.random() * 48,
+            corner.rotation,
+            { normalOpacity: 0.58, toughOpacity: 0.34, toughScale: 0.78 },
+          );
+        });
+    }
+  } else if (mess.key === "muddy-shoes") {
+    if (footprintLeft && footprintRight) {
+      const pairs = 6 + Math.floor(Math.random() * 4);
+      for (let i = 0; i < pairs; i += 1) {
+        const point = randomRugPoint(i < 2);
+        const direction = Math.random() * Math.PI * 2;
+        const step = 62 + Math.random() * 20;
+        const nextX = clamp(point.x + Math.cos(direction) * step, 92, CANVAS_WIDTH - 92);
+        const nextY = clamp(point.y + Math.sin(direction) * step, 82, CANVAS_HEIGHT - 82);
+        const width = 82 + Math.random() * 24;
+
+        drawLayeredTexture(
+          normalContext,
+          toughContext,
+          extraToughContext,
+          footprintLeft,
+          point.x,
+          point.y,
+          width,
+          direction - Math.PI / 2,
+          { normalOpacity: 0.28, toughOpacity: 0.88, toughScale: 0.92 },
+        );
+        drawLayeredTexture(
+          normalContext,
+          toughContext,
+          extraToughContext,
+          footprintRight,
+          nextX,
+          nextY,
+          width * (0.94 + Math.random() * 0.12),
+          direction - Math.PI / 2,
+          { normalOpacity: 0.28, toughOpacity: 0.88, toughScale: 0.92 },
+        );
+      }
+    }
+
+    if (mudSmear) {
+      const count = 2 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < count; i += 1) {
+        const point = randomRugPoint(i === 0);
+        drawLayeredTexture(
+          normalContext,
+          toughContext,
+          extraToughContext,
+          mudSmear,
+          point.x,
+          point.y,
+          180 + Math.random() * 100,
+          Math.random() * Math.PI * 2,
+          { normalOpacity: 0.64, toughOpacity: 0.48, toughScale: 0.72 },
+        );
+      }
+    }
+
+    if (mudHeavy) {
+      const count = 2 + Math.floor(Math.random() * 2);
+      for (let i = 0; i < count; i += 1) {
+        const point = randomRugPoint(i === 0);
+        drawLayeredTexture(
+          normalContext,
+          toughContext,
+          extraToughContext,
+          mudHeavy,
+          point.x,
+          point.y,
+          150 + Math.random() * 82,
+          Math.random() * Math.PI * 2,
+          {
+            normalOpacity: 0.50,
+            toughOpacity: 0.72,
+            extraOpacity: 0.46,
+            toughScale: 0.76,
+            extraScale: 0.46,
+          },
+        );
+      }
+    }
+  } else if (mess.key === "big-spill") {
+    if (mudHeavy) {
+      const count = 3 + Math.floor(Math.random() * 2);
+      for (let i = 0; i < count; i += 1) {
+        const point = randomRugPoint(i === 0);
+        drawLayeredTexture(
+          normalContext,
+          toughContext,
+          extraToughContext,
+          mudHeavy,
+          point.x,
+          point.y,
+          220 + Math.random() * 105,
+          Math.random() * Math.PI * 2,
+          {
+            normalOpacity: 0.58,
+            toughOpacity: 0.78,
+            extraOpacity: 0.72,
+            toughScale: 0.68,
+            extraScale: 0.40,
+          },
+        );
+      }
+    }
+    if (mudSmear) {
+      const count = 1 + Math.floor(Math.random() * 2);
+      for (let i = 0; i < count; i += 1) {
+        const point = randomRugPoint(false);
+        drawLayeredTexture(
+          normalContext,
+          toughContext,
+          extraToughContext,
+          mudSmear,
+          point.x,
+          point.y,
+          240 + Math.random() * 90,
+          Math.random() * Math.PI * 2,
+          { normalOpacity: 0.58, toughOpacity: 0.54, toughScale: 0.72 },
+        );
+      }
+    }
+  }
+
+  // Dream Dust is a rare premium visual surprise in the textured rounds.
+  if (dreamDust && mess.key !== "snack-attack" && Math.random() < 0.48) {
+    const point = randomRugPoint(false);
+    drawLayeredTexture(
+      normalContext,
+      toughContext,
+      extraToughContext,
+      dreamDust,
+      point.x,
+      point.y,
+      115 + Math.random() * 50,
+      Math.random() * Math.PI * 2,
+      { normalOpacity: 0.62, toughOpacity: 0.20, toughScale: 0.70 },
+    );
+  }
+
+  [normalContext, toughContext, extraToughContext].forEach((context) => context.restore());
+}
+
+function drawMess(
+  normalContext: CanvasRenderingContext2D,
+  toughContext: CanvasRenderingContext2D,
+  extraToughContext: CanvasRenderingContext2D,
+  mess: MessDefinition,
+  assets: DirtAssetImages,
+) {
+  const hasBatchOneAssets = Boolean(
+    assets.dustLight &&
+      assets.dustHeavy &&
+      assets.dustCorner &&
+      assets.footprintLeft &&
+      assets.footprintRight &&
+      assets.mudSmear &&
+      assets.mudHeavy,
+  );
+
+  // Batch 1 fully replaces Dusty Day, Muddy Shoes and Big Spill with detailed
+  // transparent PNG textures. Snack Attack stays on the existing procedural
+  // crumbs temporarily until the Batch 2 snack/spill texture pack is added.
+  if (hasBatchOneAssets && mess.key !== "snack-attack") {
+    drawTexturedMess(normalContext, toughContext, extraToughContext, mess, assets);
+    return;
+  }
+
+  drawProceduralMess(normalContext, toughContext, extraToughContext, mess);
 }
 
 function compositeFrame(
@@ -614,6 +975,7 @@ export default function RugRushGame({
   const surfaceHostRef = useRef<HTMLDivElement | null>(null);
   const rugCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const rugImageElementRef = useRef<HTMLImageElement | null>(null);
+  const dirtImageElementsRef = useRef<DirtAssetImages>({});
   const dirtCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const toughDirtCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const extraToughDirtCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -973,7 +1335,7 @@ export default function RugRushGame({
     const extraToughDirtContext = extraToughDirt.getContext("2d", { willReadFrequently: true });
     if (!extraToughDirtContext) return;
 
-    drawMess(dirtContext, toughDirtContext, extraToughDirtContext, mess);
+    drawMess(dirtContext, toughDirtContext, extraToughDirtContext, mess, dirtImageElementsRef.current);
 
     rugCanvasRef.current = rug;
     dirtCanvasRef.current = dirt;
@@ -1026,19 +1388,27 @@ export default function RugRushGame({
     }
 
     let cancelled = false;
-    const image = new Image();
-    image.decoding = "async";
-    image.onload = () => {
+
+    async function loadVisualAssets() {
+      const [loadedRug, ...loadedDirt] = await Promise.all([
+        loadHtmlImage(rugImage || DEFAULT_RUG_IMAGE),
+        ...Object.values(DIRT_ASSET_PATHS).map((src) => loadHtmlImage(src)),
+      ]);
+
       if (cancelled) return;
-      rugImageElementRef.current = image;
+
+      rugImageElementRef.current = loadedRug;
+      const keys = Object.keys(DIRT_ASSET_PATHS) as DirtAssetKey[];
+      const nextDirtAssets: DirtAssetImages = {};
+      keys.forEach((key, index) => {
+        const image = loadedDirt[index];
+        if (image) nextDirtAssets[key] = image;
+      });
+      dirtImageElementsRef.current = nextDirtAssets;
       prepareRound();
-    };
-    image.onerror = () => {
-      if (cancelled) return;
-      rugImageElementRef.current = null;
-      prepareRound();
-    };
-    image.src = rugImage || DEFAULT_RUG_IMAGE;
+    }
+
+    void loadVisualAssets();
 
     return () => {
       cancelled = true;
