@@ -7,7 +7,7 @@ import CoreMissionTopBar from "@/components/core-missions/CoreMissionTopBar";
 import {
   CORE_LEVEL_COPY,
   CORE_SUBJECT_THEMES,
-  CORE_TABLES,
+  normaliseRole,
   type CoreSubject,
   type PrimaryLevel,
 } from "@/lib/core-missions/catalogue";
@@ -19,7 +19,7 @@ type TopicReviewStatus =
   | "reviewing"
   | "satisfied";
 
-type CoreTopic = {
+type TopicOverviewRow = {
   id: string;
   subject: CoreSubject;
   primary_level: number;
@@ -32,29 +32,26 @@ type CoreTopic = {
   sort_order: number;
   is_assessment_topic: boolean;
   review_status: TopicReviewStatus;
+  published_count: number;
+  completed_count: number;
 };
 
-type CoreQuiz = {
+type TopicWithCounts = {
   id: string;
-  topic_id: string;
-};
-
-type AttemptRow = {
-  quiz_id: string;
-};
-
-type TopicWithCounts = CoreTopic & {
+  subject: CoreSubject;
+  primary_level: number;
+  slug: string;
+  title: string;
+  short_title: string;
+  description: string | null;
+  icon: string | null;
+  quiz_target: number;
+  sort_order: number;
+  is_assessment_topic: boolean;
+  review_status: TopicReviewStatus;
   publishedCount: number;
   completedCount: number;
 };
-
-function normalizeRole(value: unknown) {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/_/g, "-")
-    .replace(/\s+/g, "-");
-}
 
 export default function CoreLevelClient({
   subject,
@@ -63,23 +60,18 @@ export default function CoreLevelClient({
   subject: CoreSubject;
   level: PrimaryLevel;
 }) {
-  const { status, userId } = useCoreMissionAccess();
+  const { status, role } = useCoreMissionAccess();
 
   const theme = CORE_SUBJECT_THEMES[subject];
-  const tables = CORE_TABLES[subject];
 
-  const [topics, setTopics] = useState<CoreTopic[]>([]);
-  const [quizzes, setQuizzes] = useState<CoreQuiz[]>([]);
-  const [completedQuizIds, setCompletedQuizIds] =
-    useState<Set<string>>(new Set());
-
+  const [topics, setTopics] = useState<TopicWithCounts[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
-
-  const [isAdmin, setIsAdmin] = useState(false);
   const [savingTopicId, setSavingTopicId] =
     useState<string | null>(null);
   const [reviewError, setReviewError] = useState("");
+
+  const isAdmin = normaliseRole(role) === "admin";
 
   useEffect(() => {
     if (status !== "allowed") return;
@@ -91,131 +83,42 @@ export default function CoreLevelClient({
       setMessage("");
       setReviewError("");
 
-      setTopics([]);
-      setQuizzes([]);
-      setCompletedQuizIds(new Set());
-
-      // ================================================================
-      // TOPICS
-      // ================================================================
-
-      const topicResult = await supabase
-        .from(tables.topics)
-        .select(
-          "id,subject,primary_level,slug,title,short_title,description,icon,quiz_target,sort_order,is_assessment_topic,review_status",
-        )
-        .eq("subject", subject)
-        .eq("primary_level", level)
-        .eq("is_active", true)
-        .order("sort_order", { ascending: true });
+      const { data, error } = await supabase.rpc(
+        "get_core_level_topics_overview",
+        {
+          p_subject: subject,
+          p_level: level,
+        },
+      );
 
       if (cancelled) return;
 
-      if (topicResult.error) {
-        setMessage(topicResult.error.message);
+      if (error) {
+        setMessage(error.message);
+        setTopics([]);
         setLoading(false);
         return;
       }
 
-      const loadedTopics =
-        (topicResult.data || []) as CoreTopic[];
+      const rows = (data || []) as TopicOverviewRow[];
 
-      setTopics(loadedTopics);
-
-      // ================================================================
-      // ADMIN STATUS
-      // ================================================================
-
-      if (userId) {
-        const profileResult = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", userId)
-          .maybeSingle();
-
-        if (cancelled) return;
-
-        if (profileResult.error) {
-          console.warn(
-            "Could not determine Core Mission admin status:",
-            profileResult.error.message,
-          );
-          setIsAdmin(false);
-        } else {
-          setIsAdmin(
-            normalizeRole(profileResult.data?.role) === "admin",
-          );
-        }
-      } else {
-        setIsAdmin(false);
-      }
-
-      // ================================================================
-      // PUBLISHED QUIZZES
-      // ================================================================
-
-      const topicIds = loadedTopics.map(
-        (topic) => topic.id,
-      );
-
-      const quizResult = topicIds.length
-        ? await supabase
-            .from(tables.quizzes)
-            .select("id,topic_id")
-            .in("topic_id", topicIds)
-            .eq("is_published", true)
-            .eq("status", "published")
-            .order("quiz_order", {
-              ascending: true,
-            })
-        : { data: [], error: null };
-
-      if (cancelled) return;
-
-      if (quizResult.error) {
-        setMessage(quizResult.error.message);
-        setLoading(false);
-        return;
-      }
-
-      const loadedQuizzes =
-        (quizResult.data || []) as CoreQuiz[];
-
-      setQuizzes(loadedQuizzes);
-
-      // ================================================================
-      // USER PROGRESS
-      // ================================================================
-
-      const quizIds = loadedQuizzes.map(
-        (quiz) => quiz.id,
-      );
-
-      const attemptResult =
-        userId && quizIds.length
-          ? await supabase
-              .from(tables.attempts)
-              .select("quiz_id")
-              .eq("user_id", userId)
-              .eq("status", "marked")
-              .in("quiz_id", quizIds)
-          : { data: [], error: null };
-
-      if (cancelled) return;
-
-      if (attemptResult.error) {
-        console.warn(
-          "Could not load Core topic progress:",
-          attemptResult.error.message,
-        );
-      }
-
-      setCompletedQuizIds(
-        new Set(
-          ((attemptResult.data || []) as AttemptRow[]).map(
-            (attempt) => attempt.quiz_id,
-          ),
-        ),
+      setTopics(
+        rows.map((row) => ({
+          id: row.id,
+          subject: row.subject,
+          primary_level: Number(row.primary_level),
+          slug: row.slug,
+          title: row.title,
+          short_title: row.short_title,
+          description: row.description,
+          icon: row.icon,
+          quiz_target: Number(row.quiz_target || 0),
+          sort_order: Number(row.sort_order || 0),
+          is_assessment_topic: Boolean(row.is_assessment_topic),
+          review_status: row.review_status || "reviewing",
+          publishedCount: Number(row.published_count || 0),
+          completedCount: Number(row.completed_count || 0),
+        })),
       );
 
       setLoading(false);
@@ -226,15 +129,7 @@ export default function CoreLevelClient({
     return () => {
       cancelled = true;
     };
-  }, [
-    status,
-    userId,
-    subject,
-    level,
-    tables.topics,
-    tables.quizzes,
-    tables.attempts,
-  ]);
+  }, [status, subject, level]);
 
   async function setTopicReviewStatus(
     topicId: string,
@@ -297,46 +192,36 @@ export default function CoreLevelClient({
     setSavingTopicId(null);
   }
 
-  const topicRows = useMemo<TopicWithCounts[]>(
+  const totalPublished = useMemo(
     () =>
-      topics.map((topic) => {
-        const topicQuizzes = quizzes.filter(
-          (quiz) => quiz.topic_id === topic.id,
-        );
-
-        return {
-          ...topic,
-          publishedCount: topicQuizzes.length,
-          completedCount: topicQuizzes.filter(
-            (quiz) =>
-              completedQuizIds.has(quiz.id),
-          ).length,
-        };
-      }),
-    [topics, quizzes, completedQuizIds],
+      topics.reduce(
+        (sum, topic) => sum + topic.publishedCount,
+        0,
+      ),
+    [topics],
   );
 
-  const totalPublished = topicRows.reduce(
-    (sum, topic) => sum + topic.publishedCount,
-    0,
+  const totalCompleted = useMemo(
+    () =>
+      topics.reduce(
+        (sum, topic) => sum + topic.completedCount,
+        0,
+      ),
+    [topics],
   );
 
-  const totalCompleted = topicRows.reduce(
-    (sum, topic) => sum + topic.completedCount,
-    0,
-  );
-
-  const totalPlanned = topicRows.reduce(
-    (sum, topic) =>
-      sum + Number(topic.quiz_target || 0),
-    0,
+  const totalPlanned = useMemo(
+    () =>
+      topics.reduce(
+        (sum, topic) => sum + Number(topic.quiz_target || 0),
+        0,
+      ),
+    [topics],
   );
 
   const progress =
     totalPublished > 0
-      ? Math.round(
-          (totalCompleted / totalPublished) * 100,
-        )
+      ? Math.round((totalCompleted / totalPublished) * 100)
       : 0;
 
   const levelCopy = CORE_LEVEL_COPY[level];
@@ -409,8 +294,8 @@ export default function CoreLevelClient({
             </h1>
 
             <p className="mt-4 max-w-3xl text-base leading-7 text-white/65 sm:text-lg">
-              {levelCopy.subtitle} Choose a curriculum topic
-              and continue into its mission bank.
+              {levelCopy.subtitle} Choose a curriculum topic and continue into
+              its mission bank.
             </p>
 
             <div className="mt-6 flex flex-wrap gap-2">
@@ -453,9 +338,7 @@ export default function CoreLevelClient({
       </section>
 
       {loading ? (
-        <StatusPanel
-          text={`Loading ${theme.name} topics…`}
-        />
+        <StatusPanel text={`Loading ${theme.name} topics…`} />
       ) : message ? (
         <MessagePanel text={message} />
       ) : (
@@ -472,8 +355,8 @@ export default function CoreLevelClient({
             </div>
 
             <p className="m-0 max-w-xl text-sm leading-6 text-white/50">
-              Quiz cards appear inside each topic after a
-              Curriculum Lead or Admin publishes them.
+              Quiz cards appear inside each topic after a Curriculum Lead or
+              Admin publishes them.
             </p>
           </div>
 
@@ -508,7 +391,7 @@ export default function CoreLevelClient({
           ) : null}
 
           <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {topicRows.map((topic) => {
+            {topics.map((topic) => {
               const topicProgress =
                 topic.publishedCount > 0
                   ? Math.round(

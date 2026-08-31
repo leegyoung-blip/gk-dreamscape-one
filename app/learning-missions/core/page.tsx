@@ -7,27 +7,11 @@ import CoreMissionTopBar from "@/components/core-missions/CoreMissionTopBar";
 import {
   CORE_LEVEL_COPY,
   CORE_SUBJECT_THEMES,
-  CORE_TABLES,
   type CoreSubject,
   type PrimaryLevel,
 } from "@/lib/core-missions/catalogue";
 import { useCoreMissionAccess } from "@/hooks/useCoreMissionAccess";
 import { supabase } from "@/lib/supabase";
-
-type TopicRow = {
-  id: string;
-  primary_level: number;
-  quiz_target: number;
-};
-
-type QuizRow = {
-  id: string;
-  topic_id: string;
-};
-
-type AttemptRow = {
-  quiz_id: string;
-};
 
 type LevelSummary = {
   level: PrimaryLevel;
@@ -36,26 +20,36 @@ type LevelSummary = {
   completed: number;
 };
 
+type LevelOverviewRow = {
+  level: number;
+  planned: number;
+  published: number;
+  completed: number;
+};
+
 const LEVELS: PrimaryLevel[] = [1, 2, 3, 4, 5, 6];
+
+function emptySummaries(): LevelSummary[] {
+  return LEVELS.map((level) => ({
+    level,
+    planned: 0,
+    published: 0,
+    completed: 0,
+  }));
+}
 
 export default function CoreMissionsPage() {
   const router = useRouter();
-  const { status, userId } = useCoreMissionAccess();
+  const { status } = useCoreMissionAccess();
 
   const [subject, setSubject] = useState<CoreSubject>("english");
   const [summaries, setSummaries] = useState<LevelSummary[]>(
-    LEVELS.map((level) => ({
-      level,
-      planned: 0,
-      published: 0,
-      completed: 0,
-    })),
+    emptySummaries(),
   );
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
   const theme = CORE_SUBJECT_THEMES[subject];
-  const tables = CORE_TABLES[subject];
 
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
@@ -75,97 +69,42 @@ export default function CoreMissionsPage() {
       setLoading(true);
       setMessage("");
 
-      const topicResult = await supabase
-        .from(tables.topics)
-        .select("id,primary_level,quiz_target")
-        .eq("subject", subject)
-        .eq("is_active", true)
-        .order("primary_level", { ascending: true });
+      const { data, error } = await supabase.rpc(
+        "get_core_levels_overview",
+        {
+          p_subject: subject,
+        },
+      );
 
       if (cancelled) return;
 
-      if (topicResult.error) {
-        setMessage(topicResult.error.message);
-        setSummaries(
-          LEVELS.map((level) => ({
-            level,
-            planned: 0,
-            published: 0,
-            completed: 0,
-          })),
-        );
+      if (error) {
+        setMessage(error.message);
+        setSummaries(emptySummaries());
         setLoading(false);
         return;
       }
 
-      const topics = (topicResult.data || []) as TopicRow[];
-      const topicIds = topics.map((topic) => topic.id);
-
-      const quizResult = topicIds.length
-        ? await supabase
-            .from(tables.quizzes)
-            .select("id,topic_id")
-            .in("topic_id", topicIds)
-            .eq("is_published", true)
-        : { data: [], error: null };
-
-      if (cancelled) return;
-
-      if (quizResult.error) {
-        setMessage(quizResult.error.message);
-      }
-
-      const quizzes = (quizResult.data || []) as QuizRow[];
-      const quizIds = quizzes.map((quiz) => quiz.id);
-
-      const attemptResult =
-        userId && quizIds.length
-          ? await supabase
-              .from(tables.attempts)
-              .select("quiz_id")
-              .eq("user_id", userId)
-              .eq("status", "marked")
-              .in("quiz_id", quizIds)
-          : { data: [], error: null };
-
-      if (cancelled) return;
-
-      if (attemptResult.error) {
-        console.warn(
-          "Could not load Core level progress:",
-          attemptResult.error.message,
-        );
-      }
-
-      const completedQuizIds = new Set(
-        ((attemptResult.data || []) as AttemptRow[]).map(
-          (attempt) => attempt.quiz_id,
-        ),
+      const byLevel = new Map<number, LevelOverviewRow>(
+        ((data || []) as LevelOverviewRow[]).map((row) => [
+          Number(row.level),
+          row,
+        ]),
       );
 
-      const nextSummaries = LEVELS.map((level) => {
-        const levelTopics = topics.filter(
-          (topic) => topic.primary_level === level,
-        );
-        const levelTopicIds = new Set(levelTopics.map((topic) => topic.id));
-        const levelQuizzes = quizzes.filter((quiz) =>
-          levelTopicIds.has(quiz.topic_id),
-        );
+      setSummaries(
+        LEVELS.map((level) => {
+          const row = byLevel.get(level);
 
-        return {
-          level,
-          planned: levelTopics.reduce(
-            (sum, topic) => sum + Number(topic.quiz_target || 0),
-            0,
-          ),
-          published: levelQuizzes.length,
-          completed: levelQuizzes.filter((quiz) =>
-            completedQuizIds.has(quiz.id),
-          ).length,
-        };
-      });
+          return {
+            level,
+            planned: Number(row?.planned || 0),
+            published: Number(row?.published || 0),
+            completed: Number(row?.completed || 0),
+          };
+        }),
+      );
 
-      setSummaries(nextSummaries);
       setLoading(false);
     }
 
@@ -174,14 +113,7 @@ export default function CoreMissionsPage() {
     return () => {
       cancelled = true;
     };
-  }, [
-    status,
-    userId,
-    subject,
-    tables.topics,
-    tables.quizzes,
-    tables.attempts,
-  ]);
+  }, [status, subject]);
 
   const totals = useMemo(
     () =>
@@ -318,8 +250,6 @@ export default function CoreMissionsPage() {
                   </button>
                 );
               })}
-
-
             </div>
           </div>
 
@@ -408,7 +338,8 @@ export default function CoreMissionsPage() {
                   <div className="mt-5">
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-white/45">
-                        {summary.published} published · {summary.completed} completed
+                        {summary.published} published · {summary.completed}{" "}
+                        completed
                       </span>
                       <strong className={theme.eyebrowClass}>
                         {progress}%

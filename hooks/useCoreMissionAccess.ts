@@ -40,23 +40,64 @@ type AccessRpcResult = {
   next_access_until?: string | null;
 };
 
+type BalanceRpcRow = {
+  token_balance?: number | string | null;
+  gem_balance?: number | string | null;
+};
+
 type RefreshAccessOptions = {
   /**
-   * Only true for the very first access check when entering
-   * the page.
-   *
-   * Background checks must stay silent so quizzes and games
-   * are not unmounted/reset.
+   * Only true when there is no recent access snapshot.
+   * Background checks remain silent so quizzes/games are not reset.
    */
   showChecking?: boolean;
 };
 
+type AccessCache = {
+  status: CoreAccessStatus;
+  userId: string | null;
+  role: string | null;
+  learningProfile: LearningProfileStatus | null;
+  savedAt: number;
+};
+
+const ACCESS_CACHE_MS = 45_000;
+let accessCache: AccessCache | null = null;
+
+function getFreshAccessCache() {
+  if (!accessCache) return null;
+
+  if (Date.now() - accessCache.savedAt > ACCESS_CACHE_MS) {
+    accessCache = null;
+    return null;
+  }
+
+  return accessCache;
+}
+
+function clearAccessCache() {
+  accessCache = null;
+}
+
 export function useCoreMissionAccess() {
+  const initialCacheRef = useRef<AccessCache | null>(
+    getFreshAccessCache(),
+  );
+
   const [status, setStatus] =
-    useState<CoreAccessStatus>("checking");
+    useState<CoreAccessStatus>(
+      initialCacheRef.current?.status || "checking",
+    );
 
   const [userId, setUserId] =
-    useState<string | null>(null);
+    useState<string | null>(
+      initialCacheRef.current?.userId || null,
+    );
+
+  const [role, setRole] =
+    useState<string | null>(
+      initialCacheRef.current?.role || null,
+    );
 
   const [tokenBalance, setTokenBalance] =
     useState(0);
@@ -64,16 +105,41 @@ export function useCoreMissionAccess() {
   const [dreamGemBalance, setDreamGemBalance] =
     useState(0);
 
-  const [
-    learningProfile,
-    setLearningProfile,
-  ] =
+  const [learningProfile, setLearningProfile] =
     useState<LearningProfileStatus | null>(
-      null,
+      initialCacheRef.current?.learningProfile || null,
     );
 
   const accessRequestIdRef = useRef(0);
   const balanceRequestIdRef = useRef(0);
+
+  const commitAccessState = useCallback(
+    ({
+      nextStatus,
+      nextUserId,
+      nextRole,
+      nextLearningProfile,
+    }: {
+      nextStatus: CoreAccessStatus;
+      nextUserId: string | null;
+      nextRole: string | null;
+      nextLearningProfile: LearningProfileStatus | null;
+    }) => {
+      setStatus(nextStatus);
+      setUserId(nextUserId);
+      setRole(nextRole);
+      setLearningProfile(nextLearningProfile);
+
+      accessCache = {
+        status: nextStatus,
+        userId: nextUserId,
+        role: nextRole,
+        learningProfile: nextLearningProfile,
+        savedAt: Date.now(),
+      };
+    },
+    [],
+  );
 
   const refreshBalances = useCallback(
     async (activeUserId?: string) => {
@@ -84,9 +150,9 @@ export function useCoreMissionAccess() {
 
       if (!resolvedUserId) {
         const {
-          data: { user },
+          data: { session },
           error,
-        } = await supabase.auth.getUser();
+        } = await supabase.auth.getSession();
 
         if (
           requestId !==
@@ -97,13 +163,13 @@ export function useCoreMissionAccess() {
 
         if (error) {
           console.warn(
-            "Could not resolve user while refreshing balances:",
+            "Could not resolve session while refreshing balances:",
             error.message,
           );
           return;
         }
 
-        resolvedUserId = user?.id;
+        resolvedUserId = session?.user?.id;
       }
 
       if (!resolvedUserId) {
@@ -119,30 +185,9 @@ export function useCoreMissionAccess() {
         return;
       }
 
-      const [
-        tokenResult,
-        profileResult,
-      ] = await Promise.all([
-        supabase
-          .from(
-            "dream_token_transactions",
-          )
-          .select("amount")
-          .eq(
-            "user_id",
-            resolvedUserId,
-          )
-          .eq(
-            "token_kind",
-            "virtual",
-          ),
-
-        supabase
-          .from("profiles")
-          .select("dream_gem_balance")
-          .eq("id", resolvedUserId)
-          .maybeSingle(),
-      ]);
+      const { data, error } = await supabase.rpc(
+        "get_my_dreamscape_balances",
+      );
 
       if (
         requestId !==
@@ -151,38 +196,33 @@ export function useCoreMissionAccess() {
         return;
       }
 
-      if (!tokenResult.error) {
-        setTokenBalance(
-          tokenResult.data?.reduce(
-            (sum, row) =>
-              sum +
-              Number(row.amount || 0),
-            0,
-          ) || 0,
-        );
-      } else {
+      if (error) {
         console.warn(
-          "Could not load Dreamscape Tokens:",
-          tokenResult.error.message,
+          "Could not load Dreamscape balances:",
+          error.message,
         );
+        return;
       }
 
-      if (!profileResult.error) {
-        setDreamGemBalance(
-          Math.max(
-            0,
-            Number(
-              profileResult.data
-                ?.dream_gem_balance || 0,
-            ),
-          ),
-        );
-      } else {
-        console.warn(
-          "Could not load Dream Gems:",
-          profileResult.error.message,
-        );
-      }
+      const raw = Array.isArray(data)
+        ? data[0]
+        : data;
+
+      const row = (raw || {}) as BalanceRpcRow;
+
+      setTokenBalance(
+        Math.max(
+          0,
+          Number(row.token_balance || 0),
+        ),
+      );
+
+      setDreamGemBalance(
+        Math.max(
+          0,
+          Number(row.gem_balance || 0),
+        ),
+      );
     },
     [],
   );
@@ -202,10 +242,15 @@ export function useCoreMissionAccess() {
         setStatus("checking");
       }
 
+      /*
+       * getSession() is local/cache-backed and avoids a network round-trip
+       * that getUser() performs on every page mount. Security still lives in
+       * the database/RLS/RPC layer; this is only resolving the current UI user.
+       */
       const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
       if (
         requestId !==
@@ -214,10 +259,10 @@ export function useCoreMissionAccess() {
         return;
       }
 
-      if (userError) {
+      if (sessionError) {
         console.warn(
-          "Could not check the current user:",
-          userError.message,
+          "Could not check the current session:",
+          sessionError.message,
         );
 
         if (!showChecking) {
@@ -225,82 +270,45 @@ export function useCoreMissionAccess() {
         }
       }
 
+      const user = session?.user || null;
+
       if (!user) {
-        setUserId(null);
-        setLearningProfile(null);
         setTokenBalance(0);
         setDreamGemBalance(0);
-        setStatus("signed_out");
+
+        commitAccessState({
+          nextStatus: "signed_out",
+          nextUserId: null,
+          nextRole: null,
+          nextLearningProfile: null,
+        });
         return;
       }
 
       setUserId(user.id);
 
       /*
-       * Balances are independent UI data and must never
-       * control entitlement state.
+       * Balances are independent UI data. They run in parallel and never gate
+       * access or catalogue rendering.
        */
       void refreshBalances(user.id);
 
       /*
-       * Load the profile role first so staff can retain the
-       * existing full-learning-access override.
-       */
-      const profileResult =
-        await supabase
-          .from("profiles")
-          .select("role,tier")
-          .eq("id", user.id)
-          .maybeSingle();
-
-      if (
-        requestId !==
-        accessRequestIdRef.current
-      ) {
-        return;
-      }
-
-      if (
-        profileResult.error ||
-        !profileResult.data
-      ) {
-        console.warn(
-          "Could not check Core Missions profile:",
-          profileResult.error?.message,
-        );
-
-        if (showChecking) {
-          setStatus("locked");
-        }
-
-        return;
-      }
-
-      const role =
-        profileResult.data.role ||
-        profileResult.data.tier ||
-        null;
-
-      if (
-        roleHasStaffLearningAccess(role)
-      ) {
-        setLearningProfile(null);
-        setStatus("allowed");
-        return;
-      }
-
-      /*
-       * Canonical paid entitlement is resolved by the
-       * database using auth.uid().
-       *
-       * This avoids depending on browser-side RLS visibility
-       * of nova_subscriptions.
+       * Run the access reads together rather than waiting for profile -> paid
+       * access -> manual access/profile status in separate serial phases.
        */
       const [
+        profileResult,
         accessResult,
         manualAccessResult,
         learningProfileResult,
       ] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("role,tier")
+          .eq("id", user.id)
+          .maybeSingle(),
+
         supabase.rpc(
           "dreamscape_get_my_learning_access",
         ),
@@ -326,6 +334,13 @@ export function useCoreMissionAccess() {
         return;
       }
 
+      if (profileResult.error) {
+        console.warn(
+          "Could not check Core Missions profile:",
+          profileResult.error.message,
+        );
+      }
+
       if (accessResult.error) {
         console.warn(
           "Could not check Core paid entitlement:",
@@ -348,42 +363,58 @@ export function useCoreMissionAccess() {
       }
 
       const access =
-        (accessResult.data ||
-          {}) as AccessRpcResult;
+        (accessResult.data || {}) as AccessRpcResult;
+
+      const resolvedRole =
+        profileResult.data?.role ||
+        profileResult.data?.tier ||
+        access.role ||
+        null;
+
+      const resolvedLearningProfile =
+        !learningProfileResult.error
+          ? ((learningProfileResult.data ||
+              {}) as LearningProfileStatus)
+          : null;
+
+      /*
+       * Existing staff learning override remains intact.
+       */
+      if (
+        roleHasStaffLearningAccess(resolvedRole) ||
+        Boolean(access.is_staff)
+      ) {
+        commitAccessState({
+          nextStatus: "allowed",
+          nextUserId: user.id,
+          nextRole: resolvedRole,
+          nextLearningProfile: resolvedLearningProfile,
+        });
+        return;
+      }
 
       const manuallyUnlocked =
         !manualAccessResult.error &&
         Boolean(
-          manualAccessResult.data
-            ?.is_unlocked,
+          manualAccessResult.data?.is_unlocked,
         );
 
-      /*
-       * Paid Core/Complete access or a manual unlock wins
-       * immediately, even if learner-profile onboarding is
-       * not yet complete.
-       */
       if (
         Boolean(access.core) ||
         manuallyUnlocked
       ) {
-        if (
-          !learningProfileResult.error
-        ) {
-          setLearningProfile(
-            (learningProfileResult.data ||
-              {}) as LearningProfileStatus,
-          );
-        }
-
-        setStatus("allowed");
+        commitAccessState({
+          nextStatus: "allowed",
+          nextUserId: user.id,
+          nextRole: resolvedRole,
+          nextLearningProfile: resolvedLearningProfile,
+        });
         return;
       }
 
       /*
-       * During a silent/background recheck, a temporary
-       * access read failure is not enough evidence to remove
-       * a learner from a running quiz/game.
+       * During a silent/background recheck, a temporary access read failure is
+       * not enough evidence to remove a learner from a running activity.
        */
       if (
         !showChecking &&
@@ -393,45 +424,53 @@ export function useCoreMissionAccess() {
         return;
       }
 
-      /*
-       * No paid/manual Core entitlement. The existing
-       * learner-profile requirement still applies.
-       */
       if (learningProfileResult.error) {
         if (showChecking) {
-          setStatus("locked");
+          commitAccessState({
+            nextStatus: "locked",
+            nextUserId: user.id,
+            nextRole: resolvedRole,
+            nextLearningProfile: null,
+          });
         }
 
         return;
       }
 
-      const resolvedLearningProfile =
-        (learningProfileResult.data ||
-          {}) as LearningProfileStatus;
-
-      setLearningProfile(
-        resolvedLearningProfile,
-      );
-
-      if (
-        !resolvedLearningProfile.complete
-      ) {
-        setStatus("profile_required");
+      if (!resolvedLearningProfile?.complete) {
+        commitAccessState({
+          nextStatus: "profile_required",
+          nextUserId: user.id,
+          nextRole: resolvedRole,
+          nextLearningProfile: resolvedLearningProfile,
+        });
         return;
       }
 
-      setStatus("locked");
+      commitAccessState({
+        nextStatus: "locked",
+        nextUserId: user.id,
+        nextRole: resolvedRole,
+        nextLearningProfile: resolvedLearningProfile,
+      });
     },
-    [refreshBalances],
+    [commitAccessState, refreshBalances],
   );
 
   /*
-   * Initial page-entry check.
+   * A recent snapshot allows navigation between Core pages to render
+   * immediately. A silent refresh still verifies access in the background.
    */
   useEffect(() => {
-    void refreshAccess({
-      showChecking: true,
-    });
+    if (initialCacheRef.current) {
+      void refreshAccess({
+        showChecking: false,
+      });
+    } else {
+      void refreshAccess({
+        showChecking: true,
+      });
+    }
   }, [refreshAccess]);
 
   useEffect(() => {
@@ -440,6 +479,7 @@ export function useCoreMissionAccess() {
     }
 
     function handleAccessUpdate() {
+      clearAccessCache();
       void refreshAccess({
         showChecking: false,
       });
@@ -476,17 +516,21 @@ export function useCoreMissionAccess() {
     } =
       supabase.auth.onAuthStateChange(
         (event) => {
-          if (
-            event === "SIGNED_OUT"
-          ) {
+          if (event === "SIGNED_OUT") {
             accessRequestIdRef.current += 1;
             balanceRequestIdRef.current += 1;
+            clearAccessCache();
             setUserId(null);
+            setRole(null);
             setLearningProfile(null);
             setTokenBalance(0);
             setDreamGemBalance(0);
             setStatus("signed_out");
             return;
+          }
+
+          if (event === "SIGNED_IN") {
+            clearAccessCache();
           }
 
           window.setTimeout(() => {
@@ -531,6 +575,7 @@ export function useCoreMissionAccess() {
   return {
     status,
     userId,
+    role,
     tokenBalance,
     dreamGemBalance,
     learningProfile,
