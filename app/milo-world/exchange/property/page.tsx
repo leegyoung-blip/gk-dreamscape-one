@@ -14,6 +14,7 @@ type Profile = {
   email: string | null;
   role: string | null;
   tier: string | null;
+  is_simulation_user: boolean;
   milo_exchange_age_band: string | null;
   milo_exchange_unlocked: boolean | null;
   milo_exchange_locked_until: string | null;
@@ -794,16 +795,18 @@ export default function MiloPropertyExchangePage() {
   }, [holdings, properties]);
 
   const isLockedUnder16 = useMemo(() => {
+    if (profile?.is_simulation_user) return false;
     if (!profile?.milo_exchange_locked_until) return false;
     if (profile.milo_exchange_unlocked) return false;
     return profile.milo_exchange_locked_until > getTodayDateOnly();
   }, [profile]);
 
   const canEnterExchange =
-    Boolean(profile?.milo_exchange_unlocked) &&
-    Boolean(profile?.milo_exchange_terms_accepted_at) &&
-    (profile?.milo_exchange_age_band === "16_17" ||
-      profile?.milo_exchange_age_band === "18_plus");
+    Boolean(profile?.is_simulation_user) ||
+    (Boolean(profile?.milo_exchange_unlocked) &&
+      Boolean(profile?.milo_exchange_terms_accepted_at) &&
+      (profile?.milo_exchange_age_band === "16_17" ||
+      profile?.milo_exchange_age_band === "18_plus"));
 
   const pageShell: CSSProperties = {
     position: "relative",
@@ -952,7 +955,7 @@ export default function MiloPropertyExchangePage() {
     const { data, error } = await supabase
       .from("profiles")
       .select(
-        "id,email,role,tier,milo_exchange_age_band,milo_exchange_unlocked,milo_exchange_locked_until,milo_exchange_age_verified_at,milo_exchange_age_verification_method,milo_exchange_terms_accepted_at"
+        "id,email,role,tier,is_simulation_user,milo_exchange_age_band,milo_exchange_unlocked,milo_exchange_locked_until,milo_exchange_age_verified_at,milo_exchange_age_verification_method,milo_exchange_terms_accepted_at"
       )
       .eq("id", id)
       .single();

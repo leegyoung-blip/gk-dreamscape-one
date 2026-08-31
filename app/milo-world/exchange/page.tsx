@@ -12,6 +12,7 @@ type Profile = {
   email: string | null;
   role: string | null;
   tier: string | null;
+  is_simulation_user: boolean;
   milo_exchange_age_band: string | null;
   milo_exchange_unlocked: boolean | null;
   milo_exchange_locked_until: string | null;
@@ -275,17 +276,19 @@ export default function MiloExchangeMainPage() {
   );
 
   const isLockedUnder13 = useMemo(() => {
+    if (profile?.is_simulation_user) return false;
     if (!profile?.milo_exchange_locked_until) return false;
     if (profile.milo_exchange_unlocked) return false;
     return profile.milo_exchange_locked_until > getTodayDateOnly();
   }, [profile]);
 
   const canEnterExchange =
-    Boolean(profile?.milo_exchange_unlocked) &&
-    Boolean(profile?.milo_exchange_terms_accepted_at) &&
-    (profile?.milo_exchange_age_band === "13_15" ||
+    Boolean(profile?.is_simulation_user) ||
+    (Boolean(profile?.milo_exchange_unlocked) &&
+      Boolean(profile?.milo_exchange_terms_accepted_at) &&
+      (profile?.milo_exchange_age_band === "13_15" ||
       profile?.milo_exchange_age_band === "16_17" ||
-      profile?.milo_exchange_age_band === "18_plus");
+      profile?.milo_exchange_age_band === "18_plus"));
 
   useEffect(() => {
     loadPage();
@@ -347,6 +350,7 @@ export default function MiloExchangeMainPage() {
         email,
         role,
         tier,
+        is_simulation_user,
         milo_exchange_age_band,
         milo_exchange_unlocked,
         milo_exchange_locked_until,

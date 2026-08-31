@@ -245,6 +245,13 @@ type MiloClubProfile = {
   milos_club_welcome_offer_seen_at: string | null;
 };
 
+type DreamscapeLearningAccess = {
+  business_builder?: boolean;
+  is_simulation_user?: boolean;
+  simulation_access?: boolean;
+  simulation_access_tier?: string | null;
+};
+
 const STORAGE_VERSION = "milo-business-builder-v2";
 const BUSINESS_PROGRESS_TABLE = "milo_business_builder_progress";
 const CYCLE_DAYS = 30;
@@ -2809,6 +2816,7 @@ export default function MiloBusinessBuilderPage() {
 
       const [
         profileResult,
+        learningAccessResult,
         tokensResult,
         stocksResult,
         stockHoldingsResult,
@@ -2822,6 +2830,7 @@ export default function MiloBusinessBuilderPage() {
           )
           .eq("id", user.id)
           .maybeSingle(),
+        supabase.rpc("dreamscape_get_my_learning_access"),
         supabase
           .from("dream_token_transactions")
           .select("amount,token_kind")
@@ -2858,8 +2867,21 @@ export default function MiloBusinessBuilderPage() {
       }
 
       const clubProfile = profileResult.data as MiloClubProfile;
-      const isAdmin = String(clubProfile.role || "").toLowerCase() === "admin";
-      const hasClubAccess = isAdmin || Boolean(clubProfile.milos_club_member);
+      const isAdmin =
+        String(clubProfile.role || "").trim().toLowerCase() === "admin";
+
+      const learningAccess = (
+        learningAccessResult.data || {}
+      ) as DreamscapeLearningAccess;
+
+      const hasBusinessBuilderEntitlement =
+        !learningAccessResult.error &&
+        Boolean(learningAccess.business_builder);
+
+      const hasClubAccess =
+        isAdmin ||
+        Boolean(clubProfile.milos_club_member) ||
+        hasBusinessBuilderEntitlement;
 
       if (!hasClubAccess) {
         setClubAccess("denied");

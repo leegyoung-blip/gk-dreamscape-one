@@ -9,6 +9,7 @@ import QuestionMediaRenderer from "@/components/core-media/QuestionMediaRenderer
 import GroupedWordBankCloze from "./GroupedWordBankCloze";
 import GroupedComprehension from "./GroupedComprehension";
 import InlineCoreQuestionEditor from "./InlineCoreQuestionEditor";
+import MathWorkingWorkspace from "./MathWorkingWorkspace";
 
 type CoreSubject = "english" | "math";
 type ScreenMode = "desktop" | "tablet" | "mobile";
@@ -272,6 +273,69 @@ function removeCheckpoint(
   }
 }
 
+function getMathWorkspaceAttemptPrefix(quizId: string, attemptId: string) {
+  return `dreamscape-math-workspace:v1:${quizId}:${attemptId}:`;
+}
+
+function getMathWorkspaceQuestionKey(
+  quizId: string,
+  attemptId: string,
+  questionId: string,
+) {
+  return `${getMathWorkspaceAttemptPrefix(quizId, attemptId)}question:${questionId}`;
+}
+
+function getMathWorkspaceOpenKey(quizId: string, attemptId: string) {
+  return `${getMathWorkspaceAttemptPrefix(quizId, attemptId)}open`;
+}
+
+function readMathWorkspaceOpen(quizId: string, attemptId: string) {
+  if (typeof window === "undefined") return false;
+
+  try {
+    return window.sessionStorage.getItem(
+      getMathWorkspaceOpenKey(quizId, attemptId),
+    ) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeMathWorkspaceOpen(
+  quizId: string,
+  attemptId: string,
+  open: boolean,
+) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.sessionStorage.setItem(
+      getMathWorkspaceOpenKey(quizId, attemptId),
+      open ? "1" : "0",
+    );
+  } catch (workspaceError) {
+    console.warn("Could not save Math workspace preference:", workspaceError);
+  }
+}
+
+function clearMathWorkspaceAttempt(quizId: string, attemptId: string) {
+  if (typeof window === "undefined") return;
+
+  try {
+    const prefix = getMathWorkspaceAttemptPrefix(quizId, attemptId);
+    const keys: string[] = [];
+
+    for (let index = 0; index < window.sessionStorage.length; index += 1) {
+      const key = window.sessionStorage.key(index);
+      if (key?.startsWith(prefix)) keys.push(key);
+    }
+
+    keys.forEach((key) => window.sessionStorage.removeItem(key));
+  } catch (workspaceError) {
+    console.warn("Could not clear Math workspace:", workspaceError);
+  }
+}
+
 function useResponsiveMode() {
   const [mode, setMode] = useState<ScreenMode>("desktop");
 
@@ -488,6 +552,7 @@ export default function CoreQuizPlayer({
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(
     null,
   );
+  const [mathWorkspaceOpen, setMathWorkspaceOpen] = useState(false);
 
   const questionOpenedAtRef = useRef<number>(Date.now());
   const quizStartedAtRef = useRef<number>(Date.now());
@@ -703,6 +768,31 @@ export default function CoreQuizPlayer({
   }, [status, userId]);
 
   const canInlineEdit = curriculumRole !== null;
+  const mathWorkspaceAvailable = subject === "math" && !isMobile;
+
+  useEffect(() => {
+    if (subject !== "math" || !payload) {
+      setMathWorkspaceOpen(false);
+      return;
+    }
+
+    if (!mathWorkspaceAvailable) {
+      setMathWorkspaceOpen(false);
+      return;
+    }
+
+    setMathWorkspaceOpen(readMathWorkspaceOpen(quizId, payload.attempt_id));
+  }, [mathWorkspaceAvailable, payload, quizId, subject]);
+
+  function setWorkspaceOpen(nextOpen: boolean) {
+    if (!payload || !mathWorkspaceAvailable) {
+      setMathWorkspaceOpen(false);
+      return;
+    }
+
+    setMathWorkspaceOpen(nextOpen);
+    writeMathWorkspaceOpen(quizId, payload.attempt_id, nextOpen);
+  }
 
   useEffect(() => {
     const shouldLockViewport =
@@ -1086,6 +1176,10 @@ export default function CoreQuizPlayer({
 
     const nextResult = data as SubmitResult;
     removeCheckpoint(subject, level, quizId, payload.attempt_id);
+    if (subject === "math") {
+      clearMathWorkspaceAttempt(quizId, payload.attempt_id);
+      setMathWorkspaceOpen(false);
+    }
 
     setResult(nextResult);
     setStage("results");
@@ -1107,8 +1201,12 @@ export default function CoreQuizPlayer({
   async function replayQuiz() {
     if (payload) {
       removeCheckpoint(subject, level, quizId, payload.attempt_id);
+      if (subject === "math") {
+        clearMathWorkspaceAttempt(quizId, payload.attempt_id);
+      }
     }
 
+    setMathWorkspaceOpen(false);
     quizElapsedBeforeRef.current = 0;
     loadedQuizIdentityRef.current = null;
     setResult(null);
@@ -1512,6 +1610,16 @@ export default function CoreQuizPlayer({
           </button>
 
           <div style={quizHeaderActions(isMobile)}>
+            {mathWorkspaceAvailable && (
+              <button
+                type="button"
+                onClick={() => setWorkspaceOpen(!mathWorkspaceOpen)}
+                style={workspaceToggleButton(mathWorkspaceOpen)}
+              >
+                {mathWorkspaceOpen ? "← Close Workspace" : "✎ Workspace"}
+              </button>
+            )}
+
             {canInlineEdit && (
               <button
                 type="button"
@@ -1532,6 +1640,26 @@ export default function CoreQuizPlayer({
 
       <section style={sciencePlayingWrap(isMobile)}>
         <div style={sciencePlayingPanel(isMobile)}>
+          <div style={mathWorkspaceLayout(mathWorkspaceOpen, screenMode)}>
+            <div style={mathWorkspacePane(mathWorkspaceOpen)}>
+              {mathWorkspaceOpen && mathWorkspaceAvailable && (
+                <MathWorkingWorkspace
+                  key={currentQuestion.id}
+                  storageKey={getMathWorkspaceQuestionKey(
+                    quizId,
+                    payload.attempt_id,
+                    currentQuestion.id,
+                  )}
+                  questionLabel={`Question ${questionIndex + 1}`}
+                  onClose={() => setWorkspaceOpen(false)}
+                />
+              )}
+            </div>
+
+            <div
+              className={mathWorkspaceOpen ? "core-quiz-workspace-open" : undefined}
+              style={questionExperience}
+            >
           <div style={scienceProgressHeader(isMobile)}>
             <div style={{ minWidth: 0 }}>
               <p style={scienceQuestionEyebrow}>
@@ -1582,7 +1710,7 @@ export default function CoreQuizPlayer({
             />
           </div>
 
-          <article style={scienceQuestionCard(isMobile)}>
+          <article style={scienceQuestionCard(isMobile, mathWorkspaceOpen)}>
             <div style={scienceQuestionBadgeRow}>
               <span style={scienceQuestionTypeBadge}>
                 {formatCoreQuestionType(currentQuestion.question_type)}
@@ -1596,7 +1724,7 @@ export default function CoreQuizPlayer({
               <p style={scienceInstruction}>{currentQuestion.instruction}</p>
             )}
 
-            <h1 style={scienceQuestionPrompt(isMobile)}>
+            <h1 style={scienceQuestionPrompt(isMobile, mathWorkspaceOpen)}>
               {currentQuestion.prompt}
             </h1>
 
@@ -1612,6 +1740,7 @@ export default function CoreQuizPlayer({
               response={currentResponse}
               locked={isImmediateLocked || actionBusy}
               screenMode={screenMode}
+              workspaceOpen={mathWorkspaceOpen}
               onChange={updateResponse}
             />
 
@@ -1656,6 +1785,8 @@ export default function CoreQuizPlayer({
               {actionBusy ? "Saving..." : primaryActionLabel}
               {!actionBusy && primaryActionLabel === "Next Question" ? " →" : ""}
             </button>
+          </div>
+            </div>
           </div>
         </div>
       </section>
@@ -1718,6 +1849,33 @@ function CoreQuizResponsiveStyles() {
         padding: 6px !important;
       }
 
+      .core-quiz-workspace-open .core-quiz-media-compact > div {
+        margin: 4px 0 6px !important;
+      }
+
+      .core-quiz-workspace-open .core-quiz-media-compact section,
+      .core-quiz-workspace-open .core-quiz-media-compact figure {
+        padding: 5px !important;
+      }
+
+      .core-quiz-workspace-open .core-quiz-media-compact img {
+        max-height: 105px !important;
+      }
+
+      .core-quiz-workspace-open .core-quiz-media-compact video {
+        max-height: 118px !important;
+      }
+
+      @media (max-width: 1180px) {
+        .core-quiz-workspace-open .core-quiz-media-compact img {
+          max-height: 82px !important;
+        }
+
+        .core-quiz-workspace-open .core-quiz-media-compact video {
+          max-height: 94px !important;
+        }
+      }
+
       @media (max-width: 720px) {
         .core-quiz-media-compact img {
           max-height: 104px !important;
@@ -1756,12 +1914,14 @@ function QuestionResponseEditor({
   response,
   locked,
   screenMode,
+  workspaceOpen,
   onChange,
 }: {
   question: QuizQuestion;
   response?: JsonObject;
   locked: boolean;
   screenMode: ScreenMode;
+  workspaceOpen: boolean;
   onChange: (next: JsonObject) => void;
 }) {
   const options = asOptions(question.content);
@@ -1791,7 +1951,7 @@ function QuestionResponseEditor({
                     <img
                       src={option.image_url}
                       alt={option.image_alt || option.text || `Option ${index + 1}`}
-                      style={optionImage(screenMode)}
+                      style={optionImage(screenMode, workspaceOpen)}
                     />
                   )}
                   {(!option.image_url || option.show_text_with_image) &&
@@ -1834,7 +1994,7 @@ function QuestionResponseEditor({
                     <img
                       src={option.image_url}
                       alt={option.image_alt || option.text || `Option ${index + 1}`}
-                      style={optionImage(screenMode)}
+                      style={optionImage(screenMode, workspaceOpen)}
                     />
                   )}
                   {(!option.image_url || option.show_text_with_image) &&
@@ -2408,6 +2568,66 @@ function quizHeaderActions(isMobile: boolean): CSSProperties {
   };
 }
 
+function workspaceToggleButton(open: boolean): CSSProperties {
+  return {
+    minHeight: "38px",
+    borderRadius: "999px",
+    border: open
+      ? "1px solid rgba(125,211,252,0.58)"
+      : "1px solid rgba(125,211,252,0.30)",
+    background: open ? "rgba(14,165,233,0.18)" : "rgba(14,165,233,0.08)",
+    color: open ? "#d9f7ff" : "#bcefff",
+    padding: "0 13px",
+    cursor: "pointer",
+    fontSize: "12px",
+    fontWeight: 900,
+    whiteSpace: "nowrap",
+    boxShadow: open ? "0 8px 22px rgba(14,165,233,0.12)" : "none",
+  };
+}
+
+function mathWorkspaceLayout(
+  open: boolean,
+  screenMode: ScreenMode,
+): CSSProperties {
+  const openColumns =
+    screenMode === "tablet"
+      ? "minmax(280px, 40%) minmax(0, 1fr)"
+      : "minmax(340px, 42%) minmax(0, 1fr)";
+
+  return {
+    width: "100%",
+    height: "100%",
+    minHeight: 0,
+    display: "grid",
+    gridTemplateColumns: open ? openColumns : "0 minmax(0, 1fr)",
+    gap: open ? "8px" : 0,
+    overflow: "hidden",
+    transition: "grid-template-columns 220ms ease, gap 220ms ease",
+  };
+}
+
+function mathWorkspacePane(open: boolean): CSSProperties {
+  return {
+    minWidth: 0,
+    minHeight: 0,
+    height: "100%",
+    overflow: "hidden",
+    opacity: open ? 1 : 0,
+    transform: open ? "translateX(0)" : "translateX(-18px)",
+    transition: "opacity 180ms ease, transform 220ms ease",
+  };
+}
+
+const questionExperience: CSSProperties = {
+  minWidth: 0,
+  minHeight: 0,
+  height: "100%",
+  overflow: "hidden",
+  display: "flex",
+  flexDirection: "column",
+};
+
 const staffEditButton: CSSProperties = {
   minHeight: "38px",
   borderRadius: "999px",
@@ -2676,13 +2896,16 @@ const scienceProgressFill: CSSProperties = {
   transition: "width 180ms ease",
 };
 
-function scienceQuestionCard(isMobile: boolean): CSSProperties {
+function scienceQuestionCard(
+  isMobile: boolean,
+  workspaceOpen = false,
+): CSSProperties {
   return {
-    marginTop: isMobile ? "7px" : "9px",
+    marginTop: isMobile ? "7px" : workspaceOpen ? "6px" : "9px",
     borderRadius: isMobile ? "15px" : "19px",
     border: "1px solid rgba(255,255,255,0.10)",
     background: "rgba(255,255,255,0.035)",
-    padding: isMobile ? "10px" : "14px",
+    padding: isMobile ? "10px" : workspaceOpen ? "10px" : "14px",
     flex: 1,
     minHeight: 0,
     overflow: "hidden",
@@ -2698,11 +2921,22 @@ const scienceInstruction: CSSProperties = {
   lineHeight: 1.35,
 };
 
-function scienceQuestionPrompt(isMobile: boolean): CSSProperties {
+function scienceQuestionPrompt(
+  isMobile: boolean,
+  workspaceOpen = false,
+): CSSProperties {
   return {
-    margin: isMobile ? "7px 0 8px" : "8px 0 10px",
-    fontSize: isMobile ? "clamp(18px, 5vw, 21px)" : "clamp(21px, 2.3vw, 27px)",
-    lineHeight: 1.2,
+    margin: isMobile
+      ? "7px 0 8px"
+      : workspaceOpen
+        ? "6px 0 7px"
+        : "8px 0 10px",
+    fontSize: isMobile
+      ? "clamp(18px, 5vw, 21px)"
+      : workspaceOpen
+        ? "clamp(18px, 1.8vw, 23px)"
+        : "clamp(21px, 2.3vw, 27px)",
+    lineHeight: workspaceOpen ? 1.16 : 1.2,
     letterSpacing: "-0.02em",
   };
 }
@@ -2763,13 +2997,21 @@ const optionContent: CSSProperties = {
   lineHeight: 1.35,
 };
 
-function optionImage(screenMode: ScreenMode): CSSProperties {
+function optionImage(
+  screenMode: ScreenMode,
+  workspaceOpen = false,
+): CSSProperties {
+  const normalHeight =
+    screenMode === "mobile" ? 84 : screenMode === "tablet" ? 104 : 116;
+  const workspaceHeight = screenMode === "tablet" ? 78 : 92;
+  const height = workspaceOpen ? workspaceHeight : normalHeight;
+
   return {
     display: "block",
     width: "100%",
     maxWidth: "100%",
-    height: screenMode === "mobile" ? "84px" : screenMode === "tablet" ? "104px" : "116px",
-    maxHeight: screenMode === "mobile" ? "84px" : screenMode === "tablet" ? "104px" : "116px",
+    height,
+    maxHeight: height,
     objectFit: "contain",
     objectPosition: "center",
     borderRadius: "9px",
