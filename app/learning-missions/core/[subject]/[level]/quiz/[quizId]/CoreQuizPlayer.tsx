@@ -705,6 +705,27 @@ export default function CoreQuizPlayer({
   const canInlineEdit = curriculumRole !== null;
 
   useEffect(() => {
+    const shouldLockViewport =
+      stage === "intro" || stage === "playing" || stage === "submitting";
+
+    if (!shouldLockViewport || typeof document === "undefined") return;
+
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousBodyOverscroll = document.body.style.overscrollBehavior;
+
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "none";
+
+    return () => {
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+      document.body.style.overscrollBehavior = previousBodyOverscroll;
+    };
+  }, [stage]);
+
+  useEffect(() => {
     return () => {
       loadRequestIdRef.current += 1;
     };
@@ -1256,7 +1277,7 @@ export default function CoreQuizPlayer({
 
   if (stage === "intro") {
     return (
-      <main style={scienceQuizPage}>
+      <main style={sciencePlayingPage}>
         <header style={scienceQuizHeader(isMobile)}>
           <button type="button" onClick={returnToQuizList} style={backButton}>
             ← Quiz List
@@ -1268,8 +1289,8 @@ export default function CoreQuizPlayer({
           />
         </header>
 
-        <section style={scienceQuizWrap(isMobile)}>
-          <div style={scienceQuizPanel(isMobile)}>
+        <section style={sciencePlayingWrap(isMobile)}>
+          <div style={sciencePlayingPanel(isMobile)}>
             <article style={scienceIntroCard(isMobile)}>
               <div style={scienceQuestionBadgeRow}>
                 <span style={scienceQuestionTypeBadge}>
@@ -1327,7 +1348,8 @@ export default function CoreQuizPlayer({
                 onClick={returnToQuizList}
                 style={{
                   ...sciencePreviousButton,
-                  width: isMobile ? "100%" : "auto",
+                  width: isMobile ? "auto" : "auto",
+                flex: isMobile ? 1 : undefined,
                 }}
               >
                 Not Now
@@ -1341,7 +1363,8 @@ export default function CoreQuizPlayer({
                 }}
                 style={{
                   ...scienceNextButton,
-                  width: isMobile ? "100%" : "auto",
+                  width: isMobile ? "auto" : "auto",
+                flex: isMobile ? 1 : undefined,
                 }}
               >
                 {payload.resumed ? "Resume Quiz" : "Start Quiz"}
@@ -1482,7 +1505,7 @@ export default function CoreQuizPlayer({
 
   return (
     <>
-      <main style={scienceQuizPage}>
+      <main style={sciencePlayingPage}>
         <header style={scienceQuizHeader(isMobile)}>
           <button type="button" onClick={returnToQuizList} style={backButton}>
             ← Quiz List
@@ -1507,16 +1530,17 @@ export default function CoreQuizPlayer({
           </div>
         </header>
 
-      <section style={scienceQuizWrap(isMobile)}>
-        <div style={scienceQuizPanel(isMobile)}>
+      <section style={sciencePlayingWrap(isMobile)}>
+        <div style={sciencePlayingPanel(isMobile)}>
           <div style={scienceProgressHeader(isMobile)}>
             <div style={{ minWidth: 0 }}>
               <p style={scienceQuestionEyebrow}>
                 Question {questionIndex + 1} of {payload.questions.length}
               </p>
               <p style={scienceQuestionMeta}>
-                {payload.quiz.title} · {answeredCount}/{payload.questions.length}{" "}
-                answered
+                {isMobile
+                  ? `${answeredCount}/${payload.questions.length} answered`
+                  : `${payload.quiz.title} · ${answeredCount}/${payload.questions.length} answered`}
               </p>
             </div>
 
@@ -1576,15 +1600,18 @@ export default function CoreQuizPlayer({
               {currentQuestion.prompt}
             </h1>
 
-            <QuestionMediaRenderer
-              stimulus={currentQuestion.stimulus}
-              assets={currentQuestion.assets}
-            />
+            <div className="core-quiz-media-compact">
+              <QuestionMediaRenderer
+                stimulus={currentQuestion.stimulus}
+                assets={currentQuestion.assets}
+              />
+            </div>
 
             <QuestionResponseEditor
               question={currentQuestion}
               response={currentResponse}
               locked={isImmediateLocked || actionBusy}
+              screenMode={screenMode}
               onChange={updateResponse}
             />
 
@@ -1601,7 +1628,8 @@ export default function CoreQuizPlayer({
               style={{
                 ...sciencePreviousButton,
                 opacity: actionBusy || questionIndex === 0 ? 0.35 : 1,
-                width: isMobile ? "100%" : "auto",
+                width: isMobile ? "auto" : "auto",
+                flex: isMobile ? 1 : undefined,
               }}
             >
               ← Previous
@@ -1621,7 +1649,8 @@ export default function CoreQuizPlayer({
                   !responseIsComplete(currentQuestion, currentResponse)
                     ? 0.35
                     : 1,
-                width: isMobile ? "100%" : "auto",
+                width: isMobile ? "auto" : "auto",
+                flex: isMobile ? 1 : undefined,
               }}
             >
               {actionBusy ? "Saving..." : primaryActionLabel}
@@ -1632,8 +1661,93 @@ export default function CoreQuizPlayer({
       </section>
       </main>
 
+      <CoreQuizResponsiveStyles />
       {renderInlineEditor()}
     </>
+  );
+}
+
+function CoreQuizResponsiveStyles() {
+  return (
+    <style jsx global>{`
+      .core-quiz-media-compact > div {
+        gap: 6px !important;
+        margin: 6px 0 8px !important;
+      }
+
+      .core-quiz-media-compact section,
+      .core-quiz-media-compact figure {
+        padding: 7px !important;
+        border-radius: 12px !important;
+      }
+
+      .core-quiz-media-compact h2 {
+        margin: 0 0 6px !important;
+        font-size: 14px !important;
+      }
+
+      .core-quiz-media-compact img {
+        width: auto !important;
+        max-width: 100% !important;
+        min-height: 0 !important;
+        max-height: 150px !important;
+        margin: 0 auto !important;
+        object-fit: contain !important;
+      }
+
+      .core-quiz-media-compact video {
+        max-height: 165px !important;
+      }
+
+      .core-quiz-media-compact audio {
+        min-height: 32px !important;
+      }
+
+      .core-quiz-media-compact figcaption {
+        margin-top: 5px !important;
+        font-size: 11px !important;
+        line-height: 1.3 !important;
+      }
+
+      .core-quiz-media-compact table {
+        font-size: 12px !important;
+      }
+
+      .core-quiz-media-compact th,
+      .core-quiz-media-compact td {
+        padding: 6px !important;
+      }
+
+      @media (max-width: 720px) {
+        .core-quiz-media-compact img {
+          max-height: 104px !important;
+        }
+
+        .core-quiz-media-compact video {
+          max-height: 120px !important;
+        }
+      }
+
+      @media (max-height: 720px) {
+        .core-quiz-media-compact img {
+          max-height: 118px !important;
+        }
+
+        .core-quiz-media-compact video {
+          max-height: 132px !important;
+        }
+      }
+
+      @media (max-width: 720px) and (max-height: 720px) {
+        .core-quiz-media-compact img {
+          max-height: 88px !important;
+        }
+
+        .core-quiz-media-compact video {
+          max-height: 104px !important;
+        }
+      }
+    `}</style>
   );
 }
 
@@ -1641,14 +1755,18 @@ function QuestionResponseEditor({
   question,
   response,
   locked,
+  screenMode,
   onChange,
 }: {
   question: QuizQuestion;
   response?: JsonObject;
   locked: boolean;
+  screenMode: ScreenMode;
   onChange: (next: JsonObject) => void;
 }) {
   const options = asOptions(question.content);
+  const hasImageOptions = options.some((option) => Boolean(option.image_url));
+  const imageOptionLayout = hasImageOptions && options.length >= 3;
 
   switch (question.question_type) {
     case "multiple_choice":
@@ -1656,7 +1774,7 @@ function QuestionResponseEditor({
     case "listening_comprehension": {
       const selected = String(response?.option_id ?? "");
       return (
-        <div style={optionGrid}>
+        <div style={optionGrid(imageOptionLayout)}>
           {options.map((option, index) => {
             const active = selected === option.id;
             return (
@@ -1665,7 +1783,7 @@ function QuestionResponseEditor({
                 type="button"
                 disabled={locked}
                 onClick={() => onChange({ option_id: option.id })}
-                style={optionButton(active, locked)}
+                style={optionButton(active, locked, hasImageOptions)}
               >
                 <span style={optionLetter}>{String.fromCharCode(65 + index)}</span>
                 <span style={optionContent}>
@@ -1673,7 +1791,7 @@ function QuestionResponseEditor({
                     <img
                       src={option.image_url}
                       alt={option.image_alt || option.text || `Option ${index + 1}`}
-                      style={optionImage}
+                      style={optionImage(screenMode)}
                     />
                   )}
                   {(!option.image_url || option.show_text_with_image) &&
@@ -1694,7 +1812,7 @@ function QuestionResponseEditor({
       );
 
       return (
-        <div style={optionGrid}>
+        <div style={optionGrid(imageOptionLayout)}>
           {options.map((option, index) => {
             const active = selected.has(option.id);
             return (
@@ -1708,10 +1826,20 @@ function QuestionResponseEditor({
                   else next.add(option.id);
                   onChange({ option_ids: Array.from(next) });
                 }}
-                style={optionButton(active, locked)}
+                style={optionButton(active, locked, hasImageOptions)}
               >
                 <span style={optionLetter}>{String.fromCharCode(65 + index)}</span>
-                <span style={optionContent}>{option.text}</span>
+                <span style={optionContent}>
+                  {option.image_url && (
+                    <img
+                      src={option.image_url}
+                      alt={option.image_alt || option.text || `Option ${index + 1}`}
+                      style={optionImage(screenMode)}
+                    />
+                  )}
+                  {(!option.image_url || option.show_text_with_image) &&
+                    option.text && <span>{option.text}</span>}
+                </span>
               </button>
             );
           })}
@@ -1740,7 +1868,7 @@ function QuestionResponseEditor({
           disabled={locked}
           onChange={(event) => onChange({ text: event.target.value })}
           placeholder="Type your response"
-          rows={7}
+          rows={screenMode === "mobile" ? 4 : 5}
           style={textArea}
         />
       );
@@ -2256,6 +2384,20 @@ const scienceQuizPage: CSSProperties = {
   boxSizing: "border-box",
 };
 
+const sciencePlayingPage: CSSProperties = {
+  height: "100dvh",
+  minHeight: 0,
+  overflow: "hidden",
+  color: "white",
+  fontFamily: "Arial, Helvetica, sans-serif",
+  background:
+    "radial-gradient(circle at 18% 10%, rgba(40,190,255,0.10), transparent 34%), #061326",
+  padding: "clamp(8px, 1.4vh, 14px)",
+  boxSizing: "border-box",
+  display: "flex",
+  flexDirection: "column",
+};
+
 function quizHeaderActions(isMobile: boolean): CSSProperties {
   return {
     display: "flex",
@@ -2295,13 +2437,16 @@ function floatingStaffEditButton(isMobile: boolean): CSSProperties {
 
 function scienceQuizHeader(isMobile: boolean): CSSProperties {
   return {
+    width: "100%",
     maxWidth: "1540px",
-    margin: "0 auto 16px",
+    margin: `0 auto ${isMobile ? "7px" : "9px"}`,
     display: "flex",
-    flexDirection: isMobile ? "column" : "row",
-    alignItems: isMobile ? "stretch" : "center",
+    flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    gap: "10px",
+    gap: isMobile ? "6px" : "9px",
+    flexWrap: isMobile ? "wrap" : "nowrap",
+    flex: "0 0 auto",
   };
 }
 
@@ -2312,6 +2457,19 @@ function scienceQuizWrap(isMobile: boolean): CSSProperties {
     display: "grid",
     gridTemplateColumns: "1fr",
     gap: "16px",
+  };
+}
+
+function sciencePlayingWrap(isMobile: boolean): CSSProperties {
+  return {
+    width: "100%",
+    maxWidth: "1540px",
+    margin: "0 auto",
+    flex: 1,
+    minHeight: 0,
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    gap: isMobile ? "6px" : "8px",
   };
 }
 
@@ -2332,12 +2490,31 @@ function scienceQuizPanel(isMobile: boolean): CSSProperties {
   };
 }
 
+function sciencePlayingPanel(isMobile: boolean): CSSProperties {
+  return {
+    height: "100%",
+    minHeight: 0,
+    overflow: "hidden",
+    borderRadius: isMobile ? "17px" : "22px",
+    border: "1px solid rgba(126,232,255,0.15)",
+    background: "rgba(6,19,38,0.90)",
+    boxShadow: "0 20px 54px rgba(0,0,0,0.24)",
+    padding: isMobile ? "10px" : "14px",
+    boxSizing: "border-box",
+    display: "flex",
+    flexDirection: "column",
+  };
+}
+
 function scienceIntroCard(isMobile: boolean): CSSProperties {
   return {
-    borderRadius: isMobile ? "18px" : "24px",
+    borderRadius: isMobile ? "16px" : "20px",
     border: "1px solid rgba(255,255,255,0.10)",
     background: "rgba(255,255,255,0.04)",
-    padding: isMobile ? "20px" : "32px",
+    padding: isMobile ? "14px" : "20px",
+    flex: 1,
+    minHeight: 0,
+    overflow: "hidden",
   };
 }
 
@@ -2353,8 +2530,8 @@ const scienceQuestionTypeBadge: CSSProperties = {
   border: "1px solid rgba(126,232,255,0.26)",
   background: "rgba(83,215,255,0.10)",
   color: "#b9f4ff",
-  padding: "7px 10px",
-  fontSize: "10px",
+  padding: "5px 8px",
+  fontSize: "9px",
   fontWeight: 900,
   letterSpacing: "0.10em",
   textTransform: "uppercase",
@@ -2369,15 +2546,15 @@ const scienceSkillBadge: CSSProperties = {
 
 function scienceIntroTitle(isMobile: boolean): CSSProperties {
   return {
-    margin: "20px 0 0",
-    fontSize: isMobile ? "34px" : "52px",
+    margin: "12px 0 0",
+    fontSize: isMobile ? "28px" : "42px",
     lineHeight: 1.03,
     letterSpacing: "-0.04em",
   };
 }
 
 const scienceIntroDescription: CSSProperties = {
-  margin: "14px 0 0",
+  margin: "8px 0 0",
   maxWidth: "800px",
   color: "rgba(255,255,255,0.60)",
   fontSize: "15px",
@@ -2386,7 +2563,7 @@ const scienceIntroDescription: CSSProperties = {
 
 function scienceIntroStats(isMobile: boolean): CSSProperties {
   return {
-    marginTop: "24px",
+    marginTop: "14px",
     display: "grid",
     gridTemplateColumns: isMobile
       ? "repeat(2, minmax(0, 1fr))"
@@ -2399,12 +2576,12 @@ const introStatCard: CSSProperties = {
   borderRadius: "16px",
   border: "1px solid rgba(255,255,255,0.10)",
   background: "rgba(0,0,0,0.16)",
-  padding: "14px",
+  padding: "10px",
 };
 
 const noticeBox: CSSProperties = {
-  marginTop: "18px",
-  borderRadius: "14px",
+  marginTop: "10px",
+  borderRadius: "12px",
   border: "1px solid rgba(52,211,153,0.23)",
   background: "rgba(52,211,153,0.08)",
   color: "#c9f8e8",
@@ -2414,7 +2591,7 @@ const noticeBox: CSSProperties = {
 };
 
 const termsText: CSSProperties = {
-  margin: "18px 0 0",
+  margin: "9px 0 0",
   color: "rgba(255,255,255,0.35)",
   fontSize: "11px",
 };
@@ -2425,7 +2602,8 @@ function scienceProgressHeader(isMobile: boolean): CSSProperties {
     flexDirection: isMobile ? "column" : "row",
     justifyContent: "space-between",
     alignItems: isMobile ? "stretch" : "center",
-    gap: "14px",
+    gap: isMobile ? "5px" : "8px",
+    flex: "0 0 auto",
   };
 }
 
@@ -2447,9 +2625,12 @@ const scienceQuestionMeta: CSSProperties = {
 function scienceQuestionNav(isMobile: boolean): CSSProperties {
   return {
     display: "flex",
-    gap: "7px",
+    gap: isMobile ? "3px" : "4px",
     flexWrap: "wrap",
     justifyContent: isMobile ? "flex-start" : "flex-end",
+    alignContent: "flex-start",
+    maxHeight: isMobile ? "58px" : "60px",
+    overflow: "hidden",
   };
 }
 
@@ -2459,9 +2640,9 @@ function scienceQuestionButton(
   checked: boolean,
 ): CSSProperties {
   return {
-    width: "36px",
-    height: "36px",
-    borderRadius: "11px",
+    width: "28px",
+    height: "28px",
+    borderRadius: "9px",
     border: active
       ? "1px solid rgba(126,232,255,0.70)"
       : "1px solid rgba(255,255,255,0.10)",
@@ -2475,12 +2656,14 @@ function scienceQuestionButton(
     color: active ? "#c5f7ff" : "white",
     cursor: "pointer",
     fontWeight: 900,
+    fontSize: "11px",
+    padding: 0,
   };
 }
 
 const scienceProgressTrack: CSSProperties = {
-  marginTop: "14px",
-  height: "5px",
+  marginTop: "7px",
+  height: "4px",
   borderRadius: "999px",
   overflow: "hidden",
   background: "rgba(255,255,255,0.07)",
@@ -2495,45 +2678,57 @@ const scienceProgressFill: CSSProperties = {
 
 function scienceQuestionCard(isMobile: boolean): CSSProperties {
   return {
-    marginTop: "18px",
-    borderRadius: isMobile ? "18px" : "24px",
+    marginTop: isMobile ? "7px" : "9px",
+    borderRadius: isMobile ? "15px" : "19px",
     border: "1px solid rgba(255,255,255,0.10)",
     background: "rgba(255,255,255,0.035)",
-    padding: isMobile ? "18px" : "26px",
+    padding: isMobile ? "10px" : "14px",
+    flex: 1,
+    minHeight: 0,
+    overflow: "hidden",
+    boxSizing: "border-box",
   };
 }
 
 const scienceInstruction: CSSProperties = {
-  margin: "16px 0 0",
+  margin: "7px 0 0",
   color: "rgba(255,255,255,0.45)",
-  fontSize: "12px",
+  fontSize: "11px",
   fontWeight: 700,
+  lineHeight: 1.35,
 };
 
 function scienceQuestionPrompt(isMobile: boolean): CSSProperties {
   return {
-    margin: "14px 0 18px",
-    fontSize: isMobile ? "23px" : "31px",
-    lineHeight: 1.28,
-    letterSpacing: "-0.025em",
+    margin: isMobile ? "7px 0 8px" : "8px 0 10px",
+    fontSize: isMobile ? "clamp(18px, 5vw, 21px)" : "clamp(21px, 2.3vw, 27px)",
+    lineHeight: 1.2,
+    letterSpacing: "-0.02em",
   };
 }
 
-const optionGrid: CSSProperties = {
-  display: "grid",
-  gap: "10px",
-  marginTop: "16px",
-};
+function optionGrid(imageLayout: boolean): CSSProperties {
+  return {
+    display: "grid",
+    gridTemplateColumns: imageLayout ? "repeat(2, minmax(0, 1fr))" : "1fr",
+    gap: imageLayout ? "6px" : "7px",
+    marginTop: "8px",
+  };
+}
 
-function optionButton(active: boolean, locked: boolean): CSSProperties {
+function optionButton(
+  active: boolean,
+  locked: boolean,
+  withImage = false,
+): CSSProperties {
   return {
     width: "100%",
-    minHeight: "58px",
+    minHeight: withImage ? "0" : "44px",
     display: "flex",
     alignItems: "center",
-    gap: "12px",
-    padding: "11px 13px",
-    borderRadius: "16px",
+    gap: withImage ? "7px" : "10px",
+    padding: withImage ? "7px 8px" : "8px 10px",
+    borderRadius: "13px",
     border: active
       ? "1px solid rgba(126,232,255,0.58)"
       : "1px solid rgba(255,255,255,0.10)",
@@ -2549,11 +2744,11 @@ function optionButton(active: boolean, locked: boolean): CSSProperties {
 
 const optionLetter: CSSProperties = {
   flex: "0 0 auto",
-  width: "34px",
-  height: "34px",
+  width: "28px",
+  height: "28px",
   display: "grid",
   placeItems: "center",
-  borderRadius: "11px",
+  borderRadius: "9px",
   background: "rgba(126,232,255,0.10)",
   color: "#bff6ff",
   fontWeight: 950,
@@ -2563,24 +2758,29 @@ const optionContent: CSSProperties = {
   minWidth: 0,
   flex: 1,
   display: "grid",
-  gap: "8px",
-  fontSize: "14px",
-  lineHeight: 1.5,
+  gap: "5px",
+  fontSize: "13px",
+  lineHeight: 1.35,
 };
 
-const optionImage: CSSProperties = {
-  display: "block",
-  maxWidth: "100%",
-  maxHeight: "260px",
-  objectFit: "contain",
-  borderRadius: "12px",
-  background: "rgba(255,255,255,0.96)",
-};
+function optionImage(screenMode: ScreenMode): CSSProperties {
+  return {
+    display: "block",
+    width: "100%",
+    maxWidth: "100%",
+    height: screenMode === "mobile" ? "84px" : screenMode === "tablet" ? "104px" : "116px",
+    maxHeight: screenMode === "mobile" ? "84px" : screenMode === "tablet" ? "104px" : "116px",
+    objectFit: "contain",
+    objectPosition: "center",
+    borderRadius: "9px",
+    background: "rgba(255,255,255,0.96)",
+  };
+}
 
 const textInput: CSSProperties = {
   width: "100%",
   boxSizing: "border-box",
-  minHeight: "52px",
+  minHeight: "44px",
   borderRadius: "14px",
   border: "1px solid rgba(126,232,255,0.18)",
   background: "rgba(0,0,0,0.20)",
@@ -2592,7 +2792,8 @@ const textInput: CSSProperties = {
 
 const textArea: CSSProperties = {
   ...textInput,
-  minHeight: "160px",
+  minHeight: "104px",
+  maxHeight: "116px",
   padding: "14px",
   resize: "vertical",
   fontFamily: "inherit",
@@ -2606,8 +2807,8 @@ const selectInput: CSSProperties = {
 
 const editorStack: CSSProperties = {
   display: "grid",
-  gap: "10px",
-  marginTop: "14px",
+  gap: "7px",
+  marginTop: "8px",
 };
 
 const matchingRow: CSSProperties = {
@@ -2624,7 +2825,7 @@ const matchingLabel: CSSProperties = {
 };
 
 const reorderAnswerBox: CSSProperties = {
-  minHeight: "74px",
+  minHeight: "54px",
   display: "flex",
   flexWrap: "wrap",
   gap: "8px",
@@ -2632,7 +2833,7 @@ const reorderAnswerBox: CSSProperties = {
   borderRadius: "16px",
   border: "1px dashed rgba(126,232,255,0.25)",
   background: "rgba(0,0,0,0.12)",
-  padding: "12px",
+  padding: "8px",
 };
 
 const chipWrap: CSSProperties = {
@@ -2643,7 +2844,7 @@ const chipWrap: CSSProperties = {
 
 function chipButton(selected: boolean, locked: boolean): CSSProperties {
   return {
-    minHeight: "40px",
+    minHeight: "34px",
     borderRadius: "12px",
     border: selected
       ? "1px solid rgba(126,232,255,0.42)"
@@ -2665,8 +2866,8 @@ const placeholderText: CSSProperties = {
 
 function feedbackCard(correct: boolean | null): CSSProperties {
   return {
-    marginTop: "16px",
-    borderRadius: "14px",
+    marginTop: "8px",
+    borderRadius: "12px",
     border:
       correct === true
         ? "1px solid rgba(52,211,153,0.28)"
@@ -2687,8 +2888,8 @@ function feedbackCard(correct: boolean | null): CSSProperties {
 }
 
 const errorBox: CSSProperties = {
-  marginTop: "14px",
-  borderRadius: "13px",
+  marginTop: "8px",
+  borderRadius: "11px",
   border: "1px solid rgba(248,113,113,0.30)",
   background: "rgba(239,68,68,0.10)",
   color: "#fecaca",
@@ -2699,17 +2900,18 @@ const errorBox: CSSProperties = {
 
 function scienceActionRow(isMobile: boolean): CSSProperties {
   return {
-    marginTop: "18px",
+    marginTop: isMobile ? "7px" : "9px",
     display: "flex",
-    flexDirection: isMobile ? "column" : "row",
+    flexDirection: "row",
     justifyContent: "flex-end",
-    gap: "10px",
+    gap: isMobile ? "6px" : "8px",
+    flex: "0 0 auto",
   };
 }
 
 const sciencePreviousButton: CSSProperties = {
-  minHeight: "48px",
-  borderRadius: "14px",
+  minHeight: "42px",
+  borderRadius: "12px",
   border: "1px solid rgba(255,255,255,0.12)",
   background: "rgba(255,255,255,0.05)",
   color: "white",
