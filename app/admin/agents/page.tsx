@@ -14,6 +14,8 @@ import {
   supabase,
 } from "@/lib/supabase";
 
+import InitialPopulationProvisioner from "@/components/admin/agents/InitialPopulationProvisioner";
+
 type AgentSettings = {
   agentsEnabled: boolean;
   publicVisibilityEnabled: boolean;
@@ -51,9 +53,7 @@ type AgentRow = {
 
   provisioned: boolean;
 
-  userId:
-    | string
-    | null;
+  userId: string | null;
 
   agentCode: string;
   internalHandle: string;
@@ -71,26 +71,18 @@ type AgentRow = {
 
   educationSystem: string;
 
-  educationLevel:
-    | string
-    | null;
+  educationLevel: string | null;
 
-  primaryLevel:
-    | number
-    | null;
+  primaryLevel: number | null;
 
   archetype: string;
 
   startingDtTarget: number;
   startingDgTarget: number;
 
-  currentDt:
-    | number
-    | null;
+  currentDt: number | null;
 
-  currentDg:
-    | number
-    | null;
+  currentDg: number | null;
 
   simulationAccessTier:
     | string
@@ -218,10 +210,9 @@ function Toggle({
   disabled?: boolean;
   title: string;
   description: string;
-  onChange:
-    (
-      checked: boolean,
-    ) => void;
+  onChange: (
+    checked: boolean,
+  ) => void;
 }) {
   return (
     <button
@@ -333,13 +324,10 @@ export default function AgentsAdminPage() {
         session,
       },
     } =
-      await supabase
-        .auth
-        .getSession();
+      await supabase.auth.getSession();
 
     return (
-      session
-        ?.access_token ||
+      session?.access_token ||
       null
     );
   }
@@ -378,14 +366,10 @@ export default function AgentsAdminPage() {
 
       const payload =
         (
-          await response
-            .json()
-        ) as
-          AgentOverviewResponse;
+          await response.json()
+        ) as AgentOverviewResponse;
 
-      if (
-        !response.ok
-      ) {
+      if (!response.ok) {
         throw new Error(
           payload.error ||
             "Agent Control Centre could not be loaded.",
@@ -399,8 +383,7 @@ export default function AgentsAdminPage() {
       loadError
     ) {
       setError(
-        loadError instanceof
-          Error
+        loadError instanceof Error
           ? loadError.message
           : "Agent Control Centre could not be loaded.",
       );
@@ -421,9 +404,7 @@ export default function AgentsAdminPage() {
 
     value: boolean,
   ) {
-    if (
-      !overview
-    ) {
+    if (!overview) {
       return;
     }
 
@@ -468,8 +449,7 @@ export default function AgentsAdminPage() {
 
       const payload =
         (
-          await response
-            .json()
+          await response.json()
         ) as {
           ok?: boolean;
           error?: string;
@@ -502,8 +482,7 @@ export default function AgentsAdminPage() {
       updateError
     ) {
       setError(
-        updateError instanceof
-          Error
+        updateError instanceof Error
           ? updateError.message
           : "Agent setting could not be updated.",
       );
@@ -516,9 +495,7 @@ export default function AgentsAdminPage() {
 
   const filteredAgents =
     useMemo(() => {
-      if (
-        !overview
-      ) {
+      if (!overview) {
         return [];
       }
 
@@ -527,57 +504,49 @@ export default function AgentsAdminPage() {
           .trim()
           .toLowerCase();
 
-      return overview
-        .agents
-        .filter(
-          (agent) => {
-            if (
-              filterStatus !==
-                "all" &&
-              agent.lifecycleStatus !==
-                filterStatus
-            ) {
-              return false;
-            }
+      return overview.agents.filter(
+        (agent) => {
+          if (
+            filterStatus !==
+              "all" &&
+            agent.lifecycleStatus !==
+              filterStatus
+          ) {
+            return false;
+          }
 
-            if (
-              filterWorld !==
-                "all" &&
-              agent.worldAffinity !==
-                filterWorld
-            ) {
-              return false;
-            }
+          if (
+            filterWorld !==
+              "all" &&
+            agent.worldAffinity !==
+              filterWorld
+          ) {
+            return false;
+          }
 
-            if (
-              !cleanSearch
-            ) {
-              return true;
-            }
+          if (!cleanSearch) {
+            return true;
+          }
 
-            const haystack =
-              [
-                agent.agentCode,
-                agent.internalHandle,
-                agent.naturalName,
-                agent.username,
-                agent.email,
-                agent.archetype,
-                agent.educationLevel,
-              ]
-                .filter(
-                  Boolean,
-                )
-                .join(
-                  " ",
-                )
-                .toLowerCase();
+          const haystack =
+            [
+              agent.agentCode,
+              agent.internalHandle,
+              agent.naturalName,
+              agent.username,
+              agent.email,
+              agent.archetype,
+              agent.educationLevel,
+            ]
+              .filter(Boolean)
+              .join(" ")
+              .toLowerCase();
 
-            return haystack.includes(
-              cleanSearch,
-            );
-          },
-        );
+          return haystack.includes(
+            cleanSearch,
+          );
+        },
+      );
     }, [
       overview,
       search,
@@ -597,9 +566,7 @@ export default function AgentsAdminPage() {
     );
   }
 
-  if (
-    !overview
-  ) {
+  if (!overview) {
     return (
       <main className="min-h-screen bg-[#020813] px-5 py-12 text-white">
         <div className="mx-auto max-w-3xl rounded-3xl border border-rose-300/20 bg-rose-400/[0.06] p-7">
@@ -635,14 +602,31 @@ export default function AgentsAdminPage() {
     overview;
 
   const globalVisible =
-    settings
-      .publicVisibilityEnabled;
+    settings.publicVisibilityEnabled;
+
+  const provisionProgress =
+    summary.planned > 0
+      ? Math.min(
+          100,
+          Math.max(
+            0,
+            (
+              summary.provisioned /
+              summary.planned
+            ) * 100,
+          ),
+        )
+      : 0;
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#020813] px-4 py-6 text-white sm:px-7 sm:py-8">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_14%_0%,rgba(83,215,255,0.11),transparent_30%),radial-gradient(circle_at_90%_10%,rgba(139,92,246,0.10),transparent_30%),linear-gradient(180deg,#041124_0%,#020813_100%)]" />
 
       <div className="relative z-10 mx-auto max-w-[1600px]">
+        {/* =========================================================
+            HEADER
+            ========================================================= */}
+
         <header className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-xs font-extrabold uppercase tracking-[0.22em] text-[#7ee8ff]">
@@ -654,7 +638,9 @@ export default function AgentsAdminPage() {
             </h1>
 
             <p className="mt-4 max-w-3xl text-sm leading-6 text-white/52 sm:text-base">
-              Manage the synthetic DREAMSCAPE population, visibility state and future simulation engine.
+              Manage the synthetic DREAMSCAPE population,
+              visibility state and future autonomous simulation
+              engine.
             </p>
           </div>
 
@@ -666,7 +652,7 @@ export default function AgentsAdminPage() {
                   "/admin/dream-tokens",
                 )
               }
-              className="min-h-11 rounded-full border border-violet-200/25 bg-violet-400/10 px-5 text-xs font-extrabold uppercase tracking-[0.12em]"
+              className="min-h-11 rounded-full border border-violet-200/25 bg-violet-400/10 px-5 text-xs font-extrabold uppercase tracking-[0.12em] transition hover:bg-violet-400/20"
             >
               Admin Panel
             </button>
@@ -678,7 +664,7 @@ export default function AgentsAdminPage() {
                   "/profile",
                 )
               }
-              className="min-h-11 rounded-full border border-white/12 bg-white/[0.05] px-5 text-xs font-extrabold uppercase tracking-[0.12em]"
+              className="min-h-11 rounded-full border border-white/12 bg-white/[0.05] px-5 text-xs font-extrabold uppercase tracking-[0.12em] transition hover:bg-white/[0.09]"
             >
               Profile
             </button>
@@ -688,7 +674,7 @@ export default function AgentsAdminPage() {
               onClick={() =>
                 void loadOverview()
               }
-              className="min-h-11 rounded-full border border-cyan-200/25 bg-cyan-300/[0.08] px-5 text-xs font-extrabold uppercase tracking-[0.12em]"
+              className="min-h-11 rounded-full border border-cyan-200/25 bg-cyan-300/[0.08] px-5 text-xs font-extrabold uppercase tracking-[0.12em] transition hover:bg-cyan-300/[0.14]"
             >
               Refresh
             </button>
@@ -701,7 +687,9 @@ export default function AgentsAdminPage() {
           </div>
         )}
 
-        {/* Population summary */}
+        {/* =========================================================
+            POPULATION SUMMARY
+            ========================================================= */}
 
         <section className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           {[
@@ -745,13 +733,11 @@ export default function AgentsAdminPage() {
               "Current agent DG",
             ],
           ].map(
-            (
-              [
-                label,
-                value,
-                description,
-              ],
-            ) => (
+            ([
+              label,
+              value,
+              description,
+            ]) => (
               <article
                 key={String(
                   label,
@@ -774,8 +760,45 @@ export default function AgentsAdminPage() {
           )}
         </section>
 
+        {/* =========================================================
+            INITIAL POPULATION PROGRESS
+            ========================================================= */}
+
+        <section className="mt-4 rounded-[24px] border border-white/10 bg-white/[0.035] px-5 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-white/35">
+                Initial Population Provisioning
+              </p>
+
+              <p className="mt-1 text-sm font-semibold text-white/70">
+                {summary.provisioned} of {summary.planned} identities
+                currently exist
+              </p>
+            </div>
+
+            <strong className="text-sm text-cyan-100">
+              {provisionProgress.toFixed(0)}%
+            </strong>
+          </div>
+
+          <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-white/[0.07]">
+            <div
+              className="h-full rounded-full bg-cyan-300 transition-all duration-300"
+              style={{
+                width:
+                  `${provisionProgress}%`,
+              }}
+            />
+          </div>
+        </section>
+
+        {/* =========================================================
+            SYSTEM STATE + VISIBILITY
+            ========================================================= */}
+
         <section className="mt-6 grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
-          {/* Engine */}
+          {/* SYSTEM STATE */}
 
           <article className="rounded-[28px] border border-white/10 bg-white/[0.045] p-6 backdrop-blur-xl">
             <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-[#7ee8ff]">
@@ -840,10 +863,25 @@ export default function AgentsAdminPage() {
                   }
                 </strong>
               </div>
+
+              <div className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
+                <span className="text-sm text-white/55">
+                  Current population state
+                </span>
+
+                <strong>
+                  {summary.provisioned === 0
+                    ? "Planned"
+                    : summary.provisioned >=
+                        summary.planned
+                      ? "Provisioned"
+                      : "Partial"}
+                </strong>
+              </div>
             </div>
           </article>
 
-          {/* Visibility */}
+          {/* PUBLIC VISIBILITY */}
 
           <article className="rounded-[28px] border border-violet-200/12 bg-[linear-gradient(145deg,rgba(33,21,69,0.48),rgba(5,18,40,0.72))] p-6 backdrop-blur-xl">
             <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-violet-200">
@@ -855,7 +893,9 @@ export default function AgentsAdminPage() {
             </h2>
 
             <p className="mt-2 text-sm leading-6 text-white/45">
-              These switches control whether eligible active agents may appear to real users. Dormant agents remain hidden regardless of these settings.
+              These switches control whether eligible active
+              agents may appear to real users. Dormant agents
+              remain hidden regardless of these settings.
             </p>
 
             <div className="mt-5 grid gap-3">
@@ -863,8 +903,7 @@ export default function AgentsAdminPage() {
                 title="Global agent visibility"
                 description="Master switch for any user-facing agent presence."
                 checked={
-                  settings
-                    .publicVisibilityEnabled
+                  settings.publicVisibilityEnabled
                 }
                 disabled={
                   savingSetting !==
@@ -888,8 +927,7 @@ export default function AgentsAdminPage() {
                     : "Stored setting only; global visibility is currently off."
                 }
                 checked={
-                  settings
-                    .leaderboardVisibilityEnabled
+                  settings.leaderboardVisibilityEnabled
                 }
                 disabled={
                   savingSetting !==
@@ -913,8 +951,7 @@ export default function AgentsAdminPage() {
                     : "Stored setting only; global visibility is currently off."
                 }
                 checked={
-                  settings
-                    .exchangeVisibilityEnabled
+                  settings.exchangeVisibilityEnabled
                 }
                 disabled={
                   savingSetting !==
@@ -932,12 +969,22 @@ export default function AgentsAdminPage() {
             </div>
 
             <div className="mt-4 rounded-xl border border-amber-200/14 bg-amber-200/[0.05] px-4 py-3 text-xs leading-5 text-amber-50/60">
-              Phase 1 recommendation: leave all three visibility switches OFF until the 100 dormant identities have passed final QA.
+              During Phase 1, keep all public visibility switches
+              OFF. The initial identities should remain invisible
+              while they are provisioned and verified.
             </div>
           </article>
         </section>
 
-        {/* Distribution */}
+        {/* =========================================================
+            PHASE 1G PROVISIONING
+            ========================================================= */}
+
+        <InitialPopulationProvisioner />
+
+        {/* =========================================================
+            DISTRIBUTION
+            ========================================================= */}
 
         <section className="mt-6 grid gap-4 md:grid-cols-3">
           <article className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
@@ -950,6 +997,7 @@ export default function AgentsAdminPage() {
                 <strong className="text-2xl">
                   {summary.students}
                 </strong>
+
                 <p className="text-xs text-white/40">
                   Student
                 </p>
@@ -959,6 +1007,7 @@ export default function AgentsAdminPage() {
                 <strong className="text-2xl">
                   {summary.regular}
                 </strong>
+
                 <p className="text-xs text-white/40">
                   Regular
                 </p>
@@ -976,6 +1025,7 @@ export default function AgentsAdminPage() {
                 <strong className="text-2xl">
                   {summary.nova}
                 </strong>
+
                 <p className="text-xs text-white/40">
                   Nova
                 </p>
@@ -985,6 +1035,7 @@ export default function AgentsAdminPage() {
                 <strong className="text-2xl">
                   {summary.milo}
                 </strong>
+
                 <p className="text-xs text-white/40">
                   Milo
                 </p>
@@ -994,6 +1045,7 @@ export default function AgentsAdminPage() {
                 <strong className="text-2xl">
                   {summary.both}
                 </strong>
+
                 <p className="text-xs text-white/40">
                   Both
                 </p>
@@ -1011,6 +1063,7 @@ export default function AgentsAdminPage() {
                 <strong className="text-2xl">
                   {summary.dormant}
                 </strong>
+
                 <p className="text-xs text-white/40">
                   Dormant
                 </p>
@@ -1020,6 +1073,7 @@ export default function AgentsAdminPage() {
                 <strong className="text-2xl">
                   {summary.paused}
                 </strong>
+
                 <p className="text-xs text-white/40">
                   Paused
                 </p>
@@ -1029,6 +1083,7 @@ export default function AgentsAdminPage() {
                 <strong className="text-2xl">
                   {summary.retired}
                 </strong>
+
                 <p className="text-xs text-white/40">
                   Retired
                 </p>
@@ -1037,7 +1092,9 @@ export default function AgentsAdminPage() {
           </article>
         </section>
 
-        {/* Population */}
+        {/* =========================================================
+            POPULATION REGISTRY
+            ========================================================= */}
 
         <section className="mt-7 rounded-[30px] border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xl sm:p-6">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
@@ -1050,8 +1107,11 @@ export default function AgentsAdminPage() {
                 Initial 100
               </h2>
 
-              <p className="mt-2 text-sm text-white/42">
-                Planned identities are shown before provisioning. Their row changes to Dormant after the real Supabase identity exists.
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-white/42">
+                Planned identities appear before provisioning. Once
+                an actual Supabase simulation account exists, the
+                same row automatically changes from Planned to
+                Dormant and displays its live DT/DG balances.
               </p>
             </div>
 
@@ -1062,8 +1122,7 @@ export default function AgentsAdminPage() {
                   event,
                 ) =>
                   setSearch(
-                    event.target
-                      .value,
+                    event.target.value,
                   )
                 }
                 placeholder="Search agents..."
@@ -1078,9 +1137,7 @@ export default function AgentsAdminPage() {
                   event,
                 ) =>
                   setFilterStatus(
-                    event.target
-                      .value as
-                      FilterStatus,
+                    event.target.value as FilterStatus,
                   )
                 }
                 className="min-h-11 rounded-xl border border-white/10 bg-[#061632] px-4 text-sm text-white"
@@ -1088,18 +1145,23 @@ export default function AgentsAdminPage() {
                 <option value="all">
                   All statuses
                 </option>
+
                 <option value="planned">
                   Planned
                 </option>
+
                 <option value="dormant">
                   Dormant
                 </option>
+
                 <option value="active">
                   Active
                 </option>
+
                 <option value="paused">
                   Paused
                 </option>
+
                 <option value="retired">
                   Retired
                 </option>
@@ -1113,9 +1175,7 @@ export default function AgentsAdminPage() {
                   event,
                 ) =>
                   setFilterWorld(
-                    event.target
-                      .value as
-                      FilterWorld,
+                    event.target.value as FilterWorld,
                   )
                 }
                 className="min-h-11 rounded-xl border border-white/10 bg-[#061632] px-4 text-sm text-white"
@@ -1123,12 +1183,15 @@ export default function AgentsAdminPage() {
                 <option value="all">
                   All worlds
                 </option>
+
                 <option value="nova">
                   Nova
                 </option>
+
                 <option value="milo">
                   Milo
                 </option>
+
                 <option value="both">
                   Both
                 </option>
@@ -1138,20 +1201,14 @@ export default function AgentsAdminPage() {
 
           <p className="mt-4 text-xs text-white/34">
             Showing{" "}
-            {
-              filteredAgents.length
-            }{" "}
+            {filteredAgents.length}{" "}
             of{" "}
-            {
-              overview
-                .agents
-                .length
-            }{" "}
+            {overview.agents.length}{" "}
             agents
           </p>
 
           <div className="mt-4 overflow-x-auto rounded-2xl border border-white/8">
-            <table className="min-w-[1180px] w-full border-collapse text-left">
+            <table className="w-full min-w-[1180px] border-collapse text-left">
               <thead className="bg-[#061632]/90">
                 <tr className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-white/40">
                   <th className="px-4 py-4">
@@ -1199,6 +1256,8 @@ export default function AgentsAdminPage() {
                       }
                       className="border-t border-white/[0.07] align-top transition hover:bg-white/[0.025]"
                     >
+                      {/* AGENT */}
+
                       <td className="px-4 py-4">
                         <strong className="block text-sm text-white">
                           {
@@ -1212,6 +1271,8 @@ export default function AgentsAdminPage() {
                           }
                         </span>
                       </td>
+
+                      {/* PUBLIC IDENTITY */}
 
                       <td className="px-4 py-4">
                         <strong className="block text-sm">
@@ -1233,6 +1294,8 @@ export default function AgentsAdminPage() {
                           }
                         </span>
                       </td>
+
+                      {/* ROLE */}
 
                       <td className="px-4 py-4">
                         <strong className="block text-xs capitalize">
@@ -1256,6 +1319,8 @@ export default function AgentsAdminPage() {
                         </span>
                       </td>
 
+                      {/* WORLD */}
+
                       <td className="px-4 py-4">
                         <span className="inline-flex rounded-full border border-cyan-300/16 bg-cyan-300/[0.06] px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.1em] text-cyan-100">
                           {
@@ -1266,6 +1331,8 @@ export default function AgentsAdminPage() {
                         </span>
                       </td>
 
+                      {/* PERSONA */}
+
                       <td className="px-4 py-4">
                         <span className="text-xs font-semibold text-white/72">
                           {
@@ -1275,6 +1342,8 @@ export default function AgentsAdminPage() {
                           }
                         </span>
                       </td>
+
+                      {/* ECONOMY */}
 
                       <td className="px-4 py-4">
                         <strong className="block text-xs text-[#ffd18a]">
@@ -1298,6 +1367,8 @@ export default function AgentsAdminPage() {
                         </span>
                       </td>
 
+                      {/* ACCESS */}
+
                       <td className="px-4 py-4">
                         <span className="text-xs capitalize text-white/65">
                           {
@@ -1305,6 +1376,8 @@ export default function AgentsAdminPage() {
                           }
                         </span>
                       </td>
+
+                      {/* STATE */}
 
                       <td className="px-4 py-4">
                         <span
@@ -1341,14 +1414,71 @@ export default function AgentsAdminPage() {
           </div>
         </section>
 
+        {/* =========================================================
+            PHASE STATE
+            ========================================================= */}
+
         <section className="mt-6 rounded-3xl border border-cyan-300/12 bg-cyan-300/[0.035] p-5">
           <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-cyan-100">
-            Phase 1F Safety State
+            Phase 1 Safety State
           </p>
 
           <p className="mt-3 text-sm leading-6 text-white/48">
-            This page intentionally has no Activate, Reset or Run Simulation buttons yet. Agent decision-making remains disabled until Phase 3, and the initial 100 identities are not provisioned until the final Phase 1 provisioning/QA step.
+            Provisioning creates real simulation identities and
+            starting economy balances, but it does not activate
+            autonomous behaviour. All initial agents remain Dormant.
+            The autonomous engine stays disabled until Phase 3.
           </p>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3">
+              <span className="block text-[10px] uppercase tracking-[0.12em] text-white/30">
+                Engine
+              </span>
+
+              <strong className="mt-1 block text-sm">
+                {settings.agentsEnabled
+                  ? "Enabled"
+                  : "Off"}
+              </strong>
+            </div>
+
+            <div className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3">
+              <span className="block text-[10px] uppercase tracking-[0.12em] text-white/30">
+                Public
+              </span>
+
+              <strong className="mt-1 block text-sm">
+                {settings.publicVisibilityEnabled
+                  ? "Visible"
+                  : "Hidden"}
+              </strong>
+            </div>
+
+            <div className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3">
+              <span className="block text-[10px] uppercase tracking-[0.12em] text-white/30">
+                Leaderboards
+              </span>
+
+              <strong className="mt-1 block text-sm">
+                {settings.leaderboardVisibilityEnabled
+                  ? "Visible"
+                  : "Hidden"}
+              </strong>
+            </div>
+
+            <div className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3">
+              <span className="block text-[10px] uppercase tracking-[0.12em] text-white/30">
+                Exchange
+              </span>
+
+              <strong className="mt-1 block text-sm">
+                {settings.exchangeVisibilityEnabled
+                  ? "Visible"
+                  : "Hidden"}
+              </strong>
+            </div>
+          </div>
         </section>
       </div>
     </main>

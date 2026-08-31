@@ -71,6 +71,13 @@ export default function CoreLevelClient({
     useState<string | null>(null);
   const [reviewError, setReviewError] = useState("");
 
+  const [editingTopic, setEditingTopic] =
+    useState<TopicWithCounts | null>(null);
+  const [editTopicTitle, setEditTopicTitle] = useState("");
+  const [editTopicShortTitle, setEditTopicShortTitle] = useState("");
+  const [renameTopicSaving, setRenameTopicSaving] = useState(false);
+  const [renameTopicError, setRenameTopicError] = useState("");
+
   const isAdmin = normaliseRole(role) === "admin";
 
   useEffect(() => {
@@ -190,6 +197,67 @@ export default function CoreLevelClient({
     }
 
     setSavingTopicId(null);
+  }
+
+  function openTopicRename(topic: TopicWithCounts) {
+    if (!isAdmin) return;
+    setEditingTopic(topic);
+    setEditTopicTitle(topic.title);
+    setEditTopicShortTitle(topic.short_title || topic.title);
+    setRenameTopicError("");
+  }
+
+  function closeTopicRename() {
+    if (renameTopicSaving) return;
+    setEditingTopic(null);
+    setEditTopicTitle("");
+    setEditTopicShortTitle("");
+    setRenameTopicError("");
+  }
+
+  async function saveTopicRename() {
+    if (!isAdmin || !editingTopic || renameTopicSaving) return;
+
+    const nextTitle = editTopicTitle.trim();
+    const nextShortTitle = editTopicShortTitle.trim() || nextTitle;
+
+    if (!nextTitle) {
+      setRenameTopicError("Enter a topic name.");
+      return;
+    }
+
+    setRenameTopicSaving(true);
+    setRenameTopicError("");
+
+    const { error } = await supabase.rpc("rename_core_topic", {
+      p_subject: subject,
+      p_topic_id: editingTopic.id,
+      p_title: nextTitle,
+      p_short_title: nextShortTitle,
+    });
+
+    if (error) {
+      setRenameTopicError(`Could not rename topic: ${error.message}`);
+      setRenameTopicSaving(false);
+      return;
+    }
+
+    setTopics((current) =>
+      current.map((topic) =>
+        topic.id === editingTopic.id
+          ? {
+              ...topic,
+              title: nextTitle,
+              short_title: nextShortTitle,
+            }
+          : topic,
+      ),
+    );
+
+    setRenameTopicSaving(false);
+    setEditingTopic(null);
+    setEditTopicTitle("");
+    setEditTopicShortTitle("");
   }
 
   const totalPublished = useMemo(
@@ -673,6 +741,15 @@ export default function CoreLevelClient({
                           >
                             Gold
                           </button>
+
+                          <button
+                            type="button"
+                            disabled={isSaving}
+                            onClick={() => openTopicRename(topic)}
+                            className="rounded-lg px-2.5 py-2 text-[9px] font-black uppercase tracking-[0.06em] text-white/60 transition hover:bg-white/[0.08] hover:text-white disabled:cursor-wait disabled:opacity-50"
+                          >
+                            ✎ Edit
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -696,6 +773,77 @@ export default function CoreLevelClient({
           </div>
         </section>
       )}
+
+      {editingTopic ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Edit topic name"
+          className="fixed inset-0 z-[120] grid place-items-center bg-slate-950/80 p-4 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeTopicRename();
+          }}
+        >
+          <div className="w-full max-w-lg rounded-[1.75rem] border border-cyan-200/20 bg-[#08172f] p-6 text-white shadow-[0_30px_100px_rgba(0,0,0,0.55)] sm:p-7">
+            <p className="m-0 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">
+              Admin edit
+            </p>
+            <h2 className="mt-2 text-2xl font-black tracking-[-0.03em]">
+              Rename Topic
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-white/50">
+              This changes only the displayed names. The topic slug, ID,
+              ordering and status stay unchanged.
+            </p>
+
+            <label className="mt-5 grid gap-2 text-xs font-black uppercase tracking-[0.08em] text-white/55">
+              Topic name
+              <input
+                autoFocus
+                value={editTopicTitle}
+                disabled={renameTopicSaving}
+                onChange={(event) => setEditTopicTitle(event.target.value)}
+                className="min-h-12 rounded-xl border border-white/15 bg-white/[0.055] px-4 text-base font-bold normal-case tracking-normal text-white outline-none focus:border-cyan-200/45 disabled:opacity-50"
+              />
+            </label>
+
+            <label className="mt-4 grid gap-2 text-xs font-black uppercase tracking-[0.08em] text-white/55">
+              Short name
+              <input
+                value={editTopicShortTitle}
+                disabled={renameTopicSaving}
+                onChange={(event) => setEditTopicShortTitle(event.target.value)}
+                className="min-h-12 rounded-xl border border-white/15 bg-white/[0.055] px-4 text-base font-bold normal-case tracking-normal text-white outline-none focus:border-cyan-200/45 disabled:opacity-50"
+              />
+            </label>
+
+            {renameTopicError ? (
+              <p className="mt-4 rounded-xl border border-red-300/30 bg-red-400/10 px-3 py-2 text-xs font-bold text-red-200">
+                {renameTopicError}
+              </p>
+            ) : null}
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                disabled={renameTopicSaving}
+                onClick={closeTopicRename}
+                className="min-h-11 rounded-xl border border-white/12 bg-white/[0.05] px-5 text-sm font-black text-white/75 disabled:opacity-40"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={renameTopicSaving || !editTopicTitle.trim()}
+                onClick={() => void saveTopicRename()}
+                className="min-h-11 rounded-xl border border-cyan-200/35 bg-gradient-to-r from-cyan-400 to-blue-500 px-5 text-sm font-black text-slate-950 disabled:opacity-40"
+              >
+                {renameTopicSaving ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </CoreMissionPageShell>
   );
 }
