@@ -1983,13 +1983,23 @@ Thank you.`;
               )}
 
               {isAdmin && (
-                <button
-                  type="button"
-                  onClick={() => router.push("/admin/dream-tokens")}
-                  className="min-h-[46px] rounded-full border border-violet-200/28 bg-violet-500/20 px-5 text-xs font-extrabold uppercase tracking-[0.12em] text-white transition hover:scale-[1.02] hover:bg-violet-500/30"
-                >
-                  Admin Panel
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => router.push("/admin/dream-tokens")}
+                    className="min-h-[46px] rounded-full border border-violet-200/28 bg-violet-500/20 px-5 text-xs font-extrabold uppercase tracking-[0.12em] text-white transition hover:scale-[1.02] hover:bg-violet-500/30"
+                  >
+                    Admin Panel
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => router.push("/admin/agents")}
+                    className="min-h-[46px] rounded-full border border-cyan-200/28 bg-cyan-400/16 px-5 text-xs font-extrabold uppercase tracking-[0.12em] text-white transition hover:scale-[1.02] hover:bg-cyan-400/24"
+                  >
+                    Agents
+                  </button>
+                </>
               )}
             </div>
           </section>
