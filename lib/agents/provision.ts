@@ -5,7 +5,9 @@ import {
   randomUUID,
 } from "crypto";
 
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type {
+  SupabaseClient,
+} from "@supabase/supabase-js";
 
 export type AgentAccountRole =
   | "student"
@@ -30,14 +32,30 @@ export type AgentGoalSource =
 
 export type AgentGoalSpec = {
   goalSlot: AgentGoalSlot;
+
   goalScope: string;
+
   goalType: string;
+
   title: string;
-  description?: string | null;
+
+  description?:
+    | string
+    | null;
+
   priority: number;
+
   source?: AgentGoalSource;
-  targetData?: Record<string, unknown>;
-  progressData?: Record<string, unknown>;
+
+  targetData?: Record<
+    string,
+    unknown
+  >;
+
+  progressData?: Record<
+    string,
+    unknown
+  >;
 };
 
 export type AgentPersonaSpec = {
@@ -51,18 +69,27 @@ export type AgentPersonaSpec = {
   spendingTendency: number;
 
   riskTolerance: number;
+
   socialTendency: number;
+
   explorationTendency: number;
 
   collectionTendency: number;
+
   progressionTendency: number;
 
   activityLevel: number;
+
   quizSkill: number;
+
   impulsiveness: number;
+
   planningHorizon: number;
 
-  interests?: Record<string, unknown>;
+  interests?: Record<
+    string,
+    unknown
+  >;
 
   economicPreferences?: Record<
     string,
@@ -77,26 +104,40 @@ export type AgentPersonaSpec = {
 
 export type AgentProvisionSpec = {
   agentCode: string;
+
   internalHandle: string;
 
   email: string;
 
   naturalName: string;
+
   username: string;
 
-  accountRole: AgentAccountRole;
+  accountRole:
+    AgentAccountRole;
 
   dateOfBirth: string;
+
   syntheticAge: number;
 
   educationSystem: string;
-  educationLevel?: string | null;
-  primaryLevel?: number | null;
 
-  worldAffinity: AgentWorldAffinity;
+  educationLevel?:
+    | string
+    | null;
 
-  startingDtTarget: number;
-  startingDgTarget: number;
+  primaryLevel?:
+    | number
+    | null;
+
+  worldAffinity:
+    AgentWorldAffinity;
+
+  startingDtTarget:
+    number;
+
+  startingDgTarget:
+    number;
 
   simulationAccessTier?:
     | "basic"
@@ -110,13 +151,19 @@ export type AgentProvisionSpec = {
   cohortKey?: string;
 
   policyKey?: string;
+
   policyVersion?: number;
 
-  persona: AgentPersonaSpec;
+  persona:
+    AgentPersonaSpec;
 
-  goals: AgentGoalSpec[];
+  goals:
+    AgentGoalSpec[];
 
-  metadata?: Record<string, unknown>;
+  metadata?: Record<
+    string,
+    unknown
+  >;
 };
 
 export type AgentProvisionResult = {
@@ -127,8 +174,11 @@ export type AgentProvisionResult = {
   userId?: string;
 
   agentCode?: string;
+
   internalHandle?: string;
+
   email?: string;
+
   username?: string;
 
   status:
@@ -142,13 +192,23 @@ export type AgentProvisionResult = {
 };
 
 type ProvisionContext = {
-  admin: SupabaseClient;
+  admin:
+    SupabaseClient;
+
   initiatedBy: string;
 };
 
 type AuthUserSummary = {
   id: string;
-  email?: string | null;
+
+  email?:
+    | string
+    | null;
+
+  appMetadata: Record<
+    string,
+    unknown
+  >;
 };
 
 const AGENT_EMAIL_REGEX =
@@ -164,13 +224,17 @@ const USERNAME_REGEX =
   /^[a-z0-9_]{3,20}$/;
 
 const VALID_ROLES =
-  new Set<AgentAccountRole>([
+  new Set<
+    AgentAccountRole
+  >([
     "student",
     "regular",
   ]);
 
 const VALID_AFFINITIES =
-  new Set<AgentWorldAffinity>([
+  new Set<
+    AgentWorldAffinity
+  >([
     "nova",
     "milo",
     "both",
@@ -211,8 +275,12 @@ const TRAIT_KEYS: Array<
   "planningHorizon",
 ];
 
-function normalizeUsername(value: string) {
-  return String(value || "")
+function normalizeUsername(
+  value: string,
+) {
+  return String(
+    value || "",
+  )
     .trim()
     .toLowerCase();
 }
@@ -222,7 +290,9 @@ function calculateAge(
   now = new Date(),
 ) {
   const birthDate =
-    new Date(`${dateOfBirth}T00:00:00Z`);
+    new Date(
+      `${dateOfBirth}T00:00:00Z`,
+    );
 
   if (
     Number.isNaN(
@@ -256,15 +326,18 @@ function calculateAge(
 
 function createDiscardedPassword() {
   /*
-   * This password exists only so Supabase creates a password
-   * identity. It is NEVER stored or returned.
+   * Agents never log in interactively.
    *
-   * Future agent actions will use the controlled agent action
-   * layer, not password login.
+   * This password only satisfies Supabase Auth account creation.
+   * It is never persisted or returned.
    */
-  return `${randomBytes(48).toString(
-    "base64url",
-  )}Aa1!`;
+  return `${
+    randomBytes(
+      48,
+    ).toString(
+      "base64url",
+    )
+  }Aa1!`;
 }
 
 function ensureObject(
@@ -272,8 +345,11 @@ function ensureObject(
 ) {
   if (
     value &&
-    typeof value === "object" &&
-    !Array.isArray(value)
+    typeof value ===
+      "object" &&
+    !Array.isArray(
+      value,
+    )
   ) {
     return value as Record<
       string,
@@ -289,8 +365,11 @@ function validateTrait(
   value: unknown,
 ) {
   if (
-    typeof value !== "number" ||
-    !Number.isFinite(value) ||
+    typeof value !==
+      "number" ||
+    !Number.isFinite(
+      value,
+    ) ||
     value < 0 ||
     value > 1
   ) {
@@ -301,7 +380,8 @@ function validateTrait(
 }
 
 export function validateAgentProvisionSpec(
-  input: AgentProvisionSpec,
+  input:
+    AgentProvisionSpec,
 ) {
   if (!input) {
     throw new Error(
@@ -311,7 +391,10 @@ export function validateAgentProvisionSpec(
 
   if (
     !AGENT_CODE_REGEX.test(
-      String(input.agentCode || ""),
+      String(
+        input.agentCode ||
+        "",
+      ),
     )
   ) {
     throw new Error(
@@ -322,7 +405,8 @@ export function validateAgentProvisionSpec(
   if (
     !INTERNAL_HANDLE_REGEX.test(
       String(
-        input.internalHandle || "",
+        input.internalHandle ||
+        "",
       ),
     )
   ) {
@@ -332,7 +416,10 @@ export function validateAgentProvisionSpec(
   }
 
   const cleanEmail =
-    String(input.email || "")
+    String(
+      input.email ||
+      "",
+    )
       .trim()
       .toLowerCase();
 
@@ -348,8 +435,11 @@ export function validateAgentProvisionSpec(
 
   if (
     String(
-      input.naturalName || "",
-    ).trim().length < 2
+      input.naturalName ||
+      "",
+    )
+      .trim()
+      .length < 2
   ) {
     throw new Error(
       "Natural agent name is required.",
@@ -394,7 +484,8 @@ export function validateAgentProvisionSpec(
   if (
     !/^\d{4}-\d{2}-\d{2}$/.test(
       String(
-        input.dateOfBirth || "",
+        input.dateOfBirth ||
+        "",
       ),
     )
   ) {
@@ -409,7 +500,8 @@ export function validateAgentProvisionSpec(
     );
 
   if (
-    calculatedAge === null ||
+    calculatedAge ===
+      null ||
     calculatedAge < 4 ||
     calculatedAge > 120
   ) {
@@ -431,14 +523,18 @@ export function validateAgentProvisionSpec(
   }
 
   if (
-    input.primaryLevel !== null &&
-    input.primaryLevel !== undefined &&
+    input.primaryLevel !==
+      null &&
+    input.primaryLevel !==
+      undefined &&
     (
       !Number.isInteger(
         input.primaryLevel,
       ) ||
-      input.primaryLevel < 1 ||
-      input.primaryLevel > 6
+      input.primaryLevel <
+        1 ||
+      input.primaryLevel >
+        6
     )
   ) {
     throw new Error(
@@ -450,8 +546,10 @@ export function validateAgentProvisionSpec(
     !Number.isInteger(
       input.startingDtTarget,
     ) ||
-    input.startingDtTarget < 100 ||
-    input.startingDtTarget > 10000
+    input.startingDtTarget <
+      100 ||
+    input.startingDtTarget >
+      10000
   ) {
     throw new Error(
       "Starting DT target must be between 100 and 10,000.",
@@ -462,8 +560,10 @@ export function validateAgentProvisionSpec(
     !Number.isInteger(
       input.startingDgTarget,
     ) ||
-    input.startingDgTarget < 1 ||
-    input.startingDgTarget > 10
+    input.startingDgTarget <
+      1 ||
+    input.startingDgTarget >
+      10
   ) {
     throw new Error(
       "Starting DG target must be between 1 and 10.",
@@ -486,7 +586,8 @@ export function validateAgentProvisionSpec(
   if (
     !persona ||
     !String(
-      persona.archetype || "",
+      persona.archetype ||
+      "",
     ).trim()
   ) {
     throw new Error(
@@ -500,7 +601,9 @@ export function validateAgentProvisionSpec(
   ) {
     validateTrait(
       traitKey,
-      persona[traitKey],
+      persona[
+        traitKey
+      ],
     );
   }
 
@@ -509,11 +612,14 @@ export function validateAgentProvisionSpec(
 
   for (
     const goal
-    of input.goals || []
+    of input.goals ||
+      []
   ) {
     if (
-      !goal.title?.trim() ||
-      !goal.goalType?.trim()
+      !goal.title
+        ?.trim() ||
+      !goal.goalType
+        ?.trim()
     ) {
       throw new Error(
         "Every agent goal requires a title and goal type.",
@@ -537,7 +643,7 @@ export function validateAgentProvisionSpec(
 
     if (
       goal.goalSlot !==
-        "other"
+      "other"
     ) {
       if (
         activeNamedSlots.has(
@@ -558,8 +664,10 @@ export function validateAgentProvisionSpec(
       !Number.isInteger(
         goal.priority,
       ) ||
-      goal.priority < 1 ||
-      goal.priority > 100
+      goal.priority <
+        1 ||
+      goal.priority >
+        100
     ) {
       throw new Error(
         "Goal priority must be between 1 and 100.",
@@ -570,18 +678,20 @@ export function validateAgentProvisionSpec(
   return {
     ...input,
 
-    email: cleanEmail,
+    email:
+      cleanEmail,
 
     username:
       cleanUsername,
 
     naturalName:
-      input.naturalName.trim(),
+      input.naturalName
+        .trim(),
 
     educationSystem:
       String(
         input.educationSystem ||
-          "SG",
+        "SG",
       ).trim(),
 
     educationLevel:
@@ -624,7 +734,8 @@ export function validateAgentProvisionSpec(
       ...persona,
 
       archetype:
-        persona.archetype.trim(),
+        persona.archetype
+          .trim(),
 
       interests:
         ensureObject(
@@ -643,14 +754,19 @@ export function validateAgentProvisionSpec(
     },
 
     goals:
-      (input.goals || []).map(
-        (goal) => ({
+      (
+        input.goals ||
+        []
+      ).map(
+        (
+          goal,
+        ) => ({
           ...goal,
 
           goalScope:
             String(
               goal.goalScope ||
-                "global",
+              "global",
             ).trim(),
 
           source:
@@ -675,31 +791,46 @@ export function validateAgentProvisionSpec(
   };
 }
 
+/* =====================================================================
+   AUTH USER LOOKUP
+   ===================================================================== */
+
 async function findAuthUserByEmail(
-  admin: SupabaseClient,
-  email: string,
-): Promise<AuthUserSummary | null> {
+  admin:
+    SupabaseClient,
+
+  email:
+    string,
+): Promise<
+  AuthUserSummary |
+  null
+> {
   const wanted =
-    email.trim().toLowerCase();
+    email
+      .trim()
+      .toLowerCase();
 
   /*
-   * Auth admin listUsers is paginated.
-   * This protects against an orphan auth identity left from an
-   * earlier failed provisioning attempt.
+   * Supabase Admin Auth does not expose direct
+   * lookup-by-email here, so scan paginated users.
    */
   for (
     let page = 1;
-    page <= 20;
+    page <= 100;
     page += 1
   ) {
     const {
       data,
       error,
     } =
-      await admin.auth.admin.listUsers({
-        page,
-        perPage: 1000,
-      });
+      await admin
+        .auth
+        .admin
+        .listUsers({
+          page,
+          perPage:
+            1000,
+        });
 
     if (error) {
       throw new Error(
@@ -708,13 +839,17 @@ async function findAuthUserByEmail(
     }
 
     const users =
-      data.users || [];
+      data.users ||
+      [];
 
     const match =
       users.find(
-        (user) =>
+        (
+          user,
+        ) =>
           String(
-            user.email || "",
+            user.email ||
+            "",
           )
             .trim()
             .toLowerCase() ===
@@ -723,14 +858,31 @@ async function findAuthUserByEmail(
 
     if (match) {
       return {
-        id: match.id,
+        id:
+          match.id,
+
         email:
           match.email,
+
+        appMetadata:
+          (
+            match.app_metadata &&
+            typeof match.app_metadata ===
+              "object"
+          )
+            ? (
+                match.app_metadata as Record<
+                  string,
+                  unknown
+                >
+              )
+            : {},
       };
     }
 
     if (
-      users.length < 1000
+      users.length <
+      1000
     ) {
       break;
     }
@@ -739,12 +891,31 @@ async function findAuthUserByEmail(
   return null;
 }
 
+/* =====================================================================
+   PRE-PROVISION COLLISION / ADOPTION CHECK
+   ===================================================================== */
+
 async function assertNoCollision(
-  admin: SupabaseClient,
-  spec: ReturnType<
-    typeof validateAgentProvisionSpec
-  >,
+  admin:
+    SupabaseClient,
+
+  spec:
+    ReturnType<
+      typeof validateAgentProvisionSpec
+    >,
 ) {
+  /*
+   * Check Auth first.
+   *
+   * A valid orphan auth identity from an earlier interrupted
+   * provisioning attempt may be adopted.
+   */
+  const existingAuth =
+    await findAuthUserByEmail(
+      admin,
+      spec.email,
+    );
+
   const [
     agentCodeResult,
     handleResult,
@@ -778,20 +949,28 @@ async function assertNoCollision(
         .maybeSingle(),
 
       admin
-        .from("profiles")
-        .select("id,username")
+        .from(
+          "profiles",
+        )
+        .select(
+          "id,username",
+        )
         .ilike(
           "username",
           spec.username,
         )
-        .limit(1),
+        .limit(
+          2,
+        ),
     ]);
 
   if (
     agentCodeResult.error
   ) {
     throw new Error(
-      agentCodeResult.error.message,
+      agentCodeResult
+        .error
+        .message,
     );
   }
 
@@ -799,7 +978,9 @@ async function assertNoCollision(
     handleResult.error
   ) {
     throw new Error(
-      handleResult.error.message,
+      handleResult
+        .error
+        .message,
     );
   }
 
@@ -807,7 +988,9 @@ async function assertNoCollision(
     usernameResult.error
   ) {
     throw new Error(
-      usernameResult.error.message,
+      usernameResult
+        .error
+        .message,
     );
   }
 
@@ -827,45 +1010,162 @@ async function assertNoCollision(
     );
   }
 
+  /*
+   * Username collision is allowed only if it belongs to the same
+   * trusted orphan Auth user we are about to adopt.
+   */
+  const usernameCollisions =
+    usernameResult.data ||
+    [];
+
+  const foreignUsernameCollision =
+    usernameCollisions.some(
+      (
+        profile,
+      ) =>
+        !existingAuth ||
+        String(
+          profile.id,
+        ) !==
+          existingAuth.id,
+    );
+
   if (
-    (
-      usernameResult.data ||
-      []
-    ).length > 0
+    foreignUsernameCollision
   ) {
     throw new Error(
       `Public username ${spec.username} is already in use.`,
     );
   }
 
-  const existingAuth =
-    await findAuthUserByEmail(
-      admin,
-      spec.email,
-    );
+  let adoptableAuth:
+    | AuthUserSummary
+    | null =
+      null;
 
-  if (existingAuth) {
-    throw new Error(
-      `Auth identity ${spec.email} already exists.`,
-    );
+  if (
+    existingAuth
+  ) {
+    const accountType =
+      String(
+        existingAuth
+          .appMetadata
+          .account_type ||
+        "",
+      )
+        .trim()
+        .toLowerCase();
+
+    const agentCode =
+      String(
+        existingAuth
+          .appMetadata
+          .agent_code ||
+        "",
+      )
+        .trim()
+        .toUpperCase();
+
+    const agentRole =
+      String(
+        existingAuth
+          .appMetadata
+          .agent_profile_role ||
+        "",
+      )
+        .trim()
+        .toLowerCase();
+
+    const expectedCode =
+      spec.agentCode
+        .trim()
+        .toUpperCase();
+
+    if (
+      accountType !==
+        "dreamscape_agent" ||
+      agentCode !==
+        expectedCode ||
+      agentRole !==
+        spec.accountRole
+    ) {
+      throw new Error(
+        `Auth identity ${spec.email} already exists but does not match the trusted DREAMSCAPE agent specification.`,
+      );
+    }
+
+    const {
+      data:
+        existingRegistry,
+
+      error:
+        registryError,
+    } =
+      await admin
+        .from(
+          "agent_profiles",
+        )
+        .select(
+          "user_id,agent_code",
+        )
+        .eq(
+          "user_id",
+          existingAuth.id,
+        )
+        .maybeSingle();
+
+    if (
+      registryError
+    ) {
+      throw new Error(
+        registryError.message,
+      );
+    }
+
+    if (
+      existingRegistry
+    ) {
+      throw new Error(
+        `Auth identity ${spec.email} is already registered as an agent.`,
+      );
+    }
+
+    /*
+     * Trusted interrupted identity.
+     *
+     * It may be safely adopted.
+     */
+    adoptableAuth =
+      existingAuth;
   }
 
+  /* =================================================================
+     COHORT
+     ================================================================= */
+
   const {
-    data: cohort,
-    error: cohortError,
+    data:
+      cohort,
+
+    error:
+      cohortError,
   } =
     await admin
       .from(
         "agent_cohorts",
       )
-      .select("id,is_active")
+      .select(
+        "id,is_active",
+      )
       .eq(
         "cohort_key",
         spec.cohortKey,
       )
       .maybeSingle();
 
-  if (cohortError) {
+  if (
+    cohortError
+  ) {
     throw new Error(
       cohortError.message,
     );
@@ -880,9 +1180,16 @@ async function assertNoCollision(
     );
   }
 
+  /* =================================================================
+     POLICY
+     ================================================================= */
+
   const {
-    data: policy,
-    error: policyError,
+    data:
+      policy,
+
+    error:
+      policyError,
   } =
     await admin
       .from(
@@ -901,7 +1208,9 @@ async function assertNoCollision(
       )
       .maybeSingle();
 
-  if (policyError) {
+  if (
+    policyError
+  ) {
     throw new Error(
       policyError.message,
     );
@@ -916,8 +1225,15 @@ async function assertNoCollision(
   return {
     cohort,
     policy,
+
+    existingAuth:
+      adoptableAuth,
   };
 }
+
+/* =====================================================================
+   PROVISIONING AUDIT
+   ===================================================================== */
 
 async function createAuditEvent({
   admin,
@@ -925,12 +1241,19 @@ async function createAuditEvent({
   spec,
   initiatedBy,
 }: {
-  admin: SupabaseClient;
-  requestId: string;
-  spec: ReturnType<
-    typeof validateAgentProvisionSpec
-  >;
-  initiatedBy: string;
+  admin:
+    SupabaseClient;
+
+  requestId:
+    string;
+
+  spec:
+    ReturnType<
+      typeof validateAgentProvisionSpec
+    >;
+
+  initiatedBy:
+    string;
 }) {
   const {
     error,
@@ -999,12 +1322,17 @@ async function createAuditEvent({
 }
 
 async function updateAuditEvent(
-  admin: SupabaseClient,
-  requestId: string,
-  values: Record<
+  admin:
+    SupabaseClient,
+
+  requestId:
     string,
-    unknown
-  >,
+
+  values:
+    Record<
+      string,
+      unknown
+    >,
 ) {
   const {
     error,
@@ -1013,7 +1341,9 @@ async function updateAuditEvent(
       .from(
         "agent_provisioning_events",
       )
-      .update(values)
+      .update(
+        values,
+      )
       .eq(
         "request_id",
         requestId,
@@ -1027,12 +1357,19 @@ async function updateAuditEvent(
   }
 }
 
+/* =====================================================================
+   VALIDATION-ONLY PUBLIC FUNCTION
+   ===================================================================== */
+
 export async function validateAgentProvisioning({
   admin,
   spec,
 }: {
-  admin: SupabaseClient;
-  spec: AgentProvisionSpec;
+  admin:
+    SupabaseClient;
+
+  spec:
+    AgentProvisionSpec;
 }) {
   const cleanSpec =
     validateAgentProvisionSpec(
@@ -1047,21 +1384,50 @@ export async function validateAgentProvisioning({
   return cleanSpec;
 }
 
+/* =====================================================================
+   MAIN AGENT PROVISIONER
+   ===================================================================== */
+
 export async function provisionAgent({
   admin,
   initiatedBy,
   spec,
 }: ProvisionContext & {
-  spec: AgentProvisionSpec;
-}): Promise<AgentProvisionResult> {
+  spec:
+    AgentProvisionSpec;
+}): Promise<
+  AgentProvisionResult
+> {
   const requestId =
     randomUUID();
 
   let userId:
     | string
-    | null = null;
+    | null =
+      null;
 
   let auditStarted =
+    false;
+
+  /*
+   * Important distinction:
+   *
+   * createdAuthThisAttempt
+   *   -> this request owns the new auth user and may roll it back.
+   *
+   * adoptedExistingAuth
+   *   -> auth user existed before this request and MUST NOT be deleted.
+   */
+  let createdAuthThisAttempt =
+    false;
+
+  let adoptedExistingAuth =
+    false;
+
+  /*
+   * Used to distinguish failure before/after agent registry creation.
+   */
+  let agentRegistryInserted =
     false;
 
   try {
@@ -1073,6 +1439,7 @@ export async function provisionAgent({
     const {
       cohort,
       policy,
+      existingAuth,
     } =
       await assertNoCollision(
         admin,
@@ -1082,122 +1449,237 @@ export async function provisionAgent({
     await createAuditEvent({
       admin,
       requestId,
-      spec: cleanSpec,
+      spec:
+        cleanSpec,
       initiatedBy,
     });
 
-    auditStarted = true;
+    auditStarted =
+      true;
 
-    await updateAuditEvent(
-      admin,
-      requestId,
-      {
-        status:
-          "running",
-        stage:
-          "creating_auth_user",
-      },
-    );
-
-    const password =
-      createDiscardedPassword();
-
-    const {
-      data:
-        authCreateData,
-      error:
-        authCreateError,
-    } =
-      await admin.auth.admin.createUser({
-        email:
-          cleanSpec.email,
-
-        password,
-
-        email_confirm:
-          true,
-
-        /*
-         * raw_user_meta_data:
-         * DOB is intentionally placed here because the existing
-         * DREAMSCAPE auth trigger syncs it into profiles.
-         */
-        user_metadata: {
-          full_name:
-            cleanSpec.naturalName,
-
-          date_of_birth:
-            cleanSpec.dateOfBirth,
-
-          account_source:
-            "dreamscape-agent-framework",
-
-          synthetic_identity:
-            true,
-        },
-
-        /*
-         * Trusted backend-owned metadata.
-         *
-         * Phase 1A uses account_type + agent_profile_role
-         * to create the profile safely.
-         *
-         * Do not put full persona data here. App metadata is
-         * intentionally minimal.
-         */
-        app_metadata: {
-          account_type:
-            "dreamscape_agent",
-
-          agent_code:
-            cleanSpec.agentCode,
-
-          agent_profile_role:
-            cleanSpec.accountRole,
-
-          provisioning_version:
-            "phase1c-v1",
-        },
-      });
+    /* =================================================================
+       AUTH IDENTITY
+       ================================================================= */
 
     if (
-      authCreateError ||
-      !authCreateData.user
+      existingAuth
     ) {
-      throw new Error(
-        authCreateError?.message ||
+      /*
+       * Recover a trusted orphan from an earlier interrupted attempt.
+       */
+      adoptedExistingAuth =
+        true;
+
+      userId =
+        existingAuth.id;
+
+      await updateAuditEvent(
+        admin,
+        requestId,
+        {
+          user_id:
+            userId,
+
+          status:
+            "running",
+
+          stage:
+            "adopting_existing_auth_user",
+
+          message:
+            "Adopting a trusted DREAMSCAPE agent identity left by an earlier interrupted provisioning attempt.",
+        },
+      );
+
+      /*
+       * Reassert the canonical profile state.
+       *
+       * Phase 1G database guards only permit this for a trusted
+       * simulation identity.
+       */
+      const {
+        error:
+          profileRepairError,
+      } =
+        await admin
+          .from(
+            "profiles",
+          )
+          .update({
+            email:
+              cleanSpec.email,
+
+            role:
+              cleanSpec.accountRole,
+
+            is_simulation_user:
+              true,
+
+            referral_code:
+              null,
+          })
+          .eq(
+            "id",
+            userId,
+          );
+
+      if (
+        profileRepairError
+      ) {
+        throw new Error(
+          `Could not repair interrupted agent profile: ${profileRepairError.message}`,
+        );
+      }
+
+      await updateAuditEvent(
+        admin,
+        requestId,
+        {
+          stage:
+            "auth_user_adopted",
+        },
+      );
+
+    } else {
+      /*
+       * Normal new agent creation.
+       */
+      await updateAuditEvent(
+        admin,
+        requestId,
+        {
+          status:
+            "running",
+
+          stage:
+            "creating_auth_user",
+        },
+      );
+
+      const password =
+        createDiscardedPassword();
+
+      const {
+        data:
+          authCreateData,
+
+        error:
+          authCreateError,
+      } =
+        await admin
+          .auth
+          .admin
+          .createUser({
+            email:
+              cleanSpec.email,
+
+            password,
+
+            email_confirm:
+              true,
+
+            /*
+             * This metadata is not trusted for authorization.
+             *
+             * It supplies learner/profile information such as DOB.
+             */
+            user_metadata: {
+              full_name:
+                cleanSpec.naturalName,
+
+              date_of_birth:
+                cleanSpec.dateOfBirth,
+
+              account_source:
+                "dreamscape-agent-framework",
+
+              synthetic_identity:
+                true,
+            },
+
+            /*
+             * Trusted backend-owned simulation identity metadata.
+             */
+            app_metadata: {
+              account_type:
+                "dreamscape_agent",
+
+              agent_code:
+                cleanSpec.agentCode,
+
+              agent_profile_role:
+                cleanSpec.accountRole,
+
+              provisioning_version:
+                "phase1g-v1",
+            },
+          });
+
+      if (
+        authCreateError ||
+        !authCreateData.user
+      ) {
+        throw new Error(
+          authCreateError
+            ?.message ||
           "Supabase did not return the created agent auth user.",
+        );
+      }
+
+      userId =
+        authCreateData
+          .user
+          .id;
+
+      createdAuthThisAttempt =
+        true;
+
+      await updateAuditEvent(
+        admin,
+        requestId,
+        {
+          user_id:
+            userId,
+
+          stage:
+            "auth_user_created",
+        },
       );
     }
 
-    userId =
-      authCreateData.user.id;
+    if (!userId) {
+      throw new Error(
+        "Agent Auth identity could not be resolved.",
+      );
+    }
 
-    await updateAuditEvent(
-      admin,
-      requestId,
-      {
-        user_id:
-          userId,
+    /* =================================================================
+       PROFILE VERIFICATION
+       ================================================================= */
 
-        stage:
-          "auth_user_created",
-      },
-    );
-
-    /*
-     * handle_new_user() runs as part of the auth-user insertion.
-     * Verify rather than assuming that the profile trigger worked.
-     */
     const {
-      data: profile,
+      data:
+        profile,
+
       error:
         profileError,
     } =
       await admin
-        .from("profiles")
+        .from(
+          "profiles",
+        )
         .select(
-          "id,email,role,is_simulation_user,referral_code,date_of_birth",
+          `
+          id,
+          email,
+          role,
+          username,
+          is_simulation_user,
+          referral_code,
+          date_of_birth,
+          dream_token_balance,
+          dream_gem_balance
+        `,
         )
         .eq(
           "id",
@@ -1205,7 +1687,9 @@ export async function provisionAgent({
         )
         .maybeSingle();
 
-    if (profileError) {
+    if (
+      profileError
+    ) {
       throw new Error(
         `Could not verify generated profile: ${profileError.message}`,
       );
@@ -1213,13 +1697,12 @@ export async function provisionAgent({
 
     if (!profile) {
       throw new Error(
-        "Agent auth user was created but DREAMSCAPE profile creation failed.",
+        "Agent Auth user exists but DREAMSCAPE profile creation failed.",
       );
     }
 
     if (
-      profile
-        .is_simulation_user !==
+      profile.is_simulation_user !==
       true
     ) {
       throw new Error(
@@ -1229,14 +1712,18 @@ export async function provisionAgent({
 
     if (
       String(
-        profile.role || "",
+        profile.role ||
+        "",
       )
         .trim()
         .toLowerCase() !==
       cleanSpec.accountRole
     ) {
       throw new Error(
-        "Generated profile role does not match the requested agent role.",
+        `Generated profile role does not match the requested agent role. Expected ${cleanSpec.accountRole}, found ${String(
+          profile.role ||
+          "null",
+        )}.`,
       );
     }
 
@@ -1257,16 +1744,18 @@ export async function provisionAgent({
       },
     );
 
-    /*
-     * Use the same username format that the current Profile page
-     * accepts: lowercase letters, numbers and underscore.
-     */
+    /* =================================================================
+       PUBLIC USERNAME
+       ================================================================= */
+
     const {
       error:
         usernameUpdateError,
     } =
       await admin
-        .from("profiles")
+        .from(
+          "profiles",
+        )
         .update({
           username:
             cleanSpec.username,
@@ -1292,6 +1781,14 @@ export async function provisionAgent({
           "registering_agent",
       },
     );
+
+    /* =================================================================
+       AGENT REGISTRY
+
+       Phase 1G database trigger seeds:
+       - exact initial DT target
+       - exact initial DG target
+       ================================================================= */
 
     const {
       error:
@@ -1365,6 +1862,22 @@ export async function provisionAgent({
       );
     }
 
+    agentRegistryInserted =
+      true;
+
+    await updateAuditEvent(
+      admin,
+      requestId,
+      {
+        stage:
+          "agent_registry_created",
+      },
+    );
+
+    /* =================================================================
+       COHORT
+       ================================================================= */
+
     const {
       error:
         cohortInsertError,
@@ -1385,7 +1898,10 @@ export async function provisionAgent({
 
           metadata: {
             source:
-              "phase1c-provisioning",
+              "phase1g-provisioning",
+
+            request_id:
+              requestId,
           },
         });
 
@@ -1396,6 +1912,19 @@ export async function provisionAgent({
         `Could not assign agent cohort: ${cohortInsertError.message}`,
       );
     }
+
+    await updateAuditEvent(
+      admin,
+      requestId,
+      {
+        stage:
+          "cohort_assigned",
+      },
+    );
+
+    /* =================================================================
+       PERSONA
+       ================================================================= */
 
     const persona =
       cleanSpec.persona;
@@ -1475,6 +2004,19 @@ export async function provisionAgent({
       );
     }
 
+    await updateAuditEvent(
+      admin,
+      requestId,
+      {
+        stage:
+          "persona_created",
+      },
+    );
+
+    /* =================================================================
+       GOALS
+       ================================================================= */
+
     if (
       cleanSpec.goals.length >
       0
@@ -1489,7 +2031,9 @@ export async function provisionAgent({
           )
           .insert(
             cleanSpec.goals.map(
-              (goal) => ({
+              (
+                goal,
+              ) => ({
                 agent_user_id:
                   userId,
 
@@ -1503,7 +2047,8 @@ export async function provisionAgent({
                   goal.goalType,
 
                 title:
-                  goal.title.trim(),
+                  goal.title
+                    .trim(),
 
                 description:
                   goal.description,
@@ -1534,6 +2079,19 @@ export async function provisionAgent({
         );
       }
     }
+
+    await updateAuditEvent(
+      admin,
+      requestId,
+      {
+        stage:
+          "goals_created",
+      },
+    );
+
+    /* =================================================================
+       POLICY
+       ================================================================= */
 
     const {
       error:
@@ -1568,6 +2126,19 @@ export async function provisionAgent({
       );
     }
 
+    await updateAuditEvent(
+      admin,
+      requestId,
+      {
+        stage:
+          "policy_assigned",
+      },
+    );
+
+    /* =================================================================
+       LIFECYCLE AUDIT
+       ================================================================= */
+
     const {
       error:
         lifecycleError,
@@ -1601,6 +2172,9 @@ export async function provisionAgent({
 
             policy:
               `${cleanSpec.policyKey}:v${cleanSpec.policyVersion}`,
+
+            adopted_existing_auth:
+              adoptedExistingAuth,
           },
 
           created_by:
@@ -1626,11 +2200,42 @@ export async function provisionAgent({
           "complete",
 
         message:
-          "Agent identity provisioned successfully.",
+          adoptedExistingAuth
+            ? "Existing trusted agent Auth identity adopted and provisioned successfully."
+            : "Agent identity provisioned successfully.",
+
+        metadata: {
+          username:
+            cleanSpec.username,
+
+          natural_name:
+            cleanSpec.naturalName,
+
+          account_role:
+            cleanSpec.accountRole,
+
+          world_affinity:
+            cleanSpec.worldAffinity,
+
+          seed_version:
+            cleanSpec.seedVersion,
+
+          cohort_key:
+            cleanSpec.cohortKey,
+
+          policy_key:
+            cleanSpec.policyKey,
+
+          policy_version:
+            cleanSpec.policyVersion,
+
+          adopted_existing_auth:
+            adoptedExistingAuth,
+        },
       },
     );
 
-    return {
+        return {
       ok: true,
 
       requestId,
@@ -1653,29 +2258,83 @@ export async function provisionAgent({
         "provisioned",
 
       message:
-        "Agent identity provisioned successfully.",
+        adoptedExistingAuth
+          ? "Existing trusted agent identity adopted and provisioned successfully."
+          : "Agent identity provisioned successfully.",
     };
+
   } catch (error) {
     const message =
       error instanceof Error
         ? error.message
         : "Agent provisioning failed.";
 
-    /*
-     * If auth.users was already created, delete that identity.
-     *
-     * The existing FK cascade then removes:
-     * profiles
-     * agent_profiles
-     * persona
-     * cohort memberships
-     * goals
-     * policy assignments
-     * lifecycle events
-     *
-     * The separate provisioning audit row remains.
-     */
-    if (userId) {
+    /* =================================================================
+       ADOPTED AUTH FAILURE
+
+       NEVER delete an Auth identity that existed before this request.
+       ================================================================= */
+
+    if (
+      userId &&
+      adoptedExistingAuth
+    ) {
+      if (auditStarted) {
+        await updateAuditEvent(
+          admin,
+          requestId,
+          {
+            status:
+              agentRegistryInserted
+                ? "cleanup_required"
+                : "failed",
+
+            stage:
+              agentRegistryInserted
+                ? "adopted_identity_partial_registration"
+                : "adopted_identity_failed_before_registration",
+
+            error_detail:
+              message,
+
+            rollback_attempted:
+              false,
+
+            rollback_succeeded:
+              null,
+          },
+        );
+      }
+
+      return {
+        ok: false,
+
+        requestId,
+
+        userId,
+
+        status:
+          agentRegistryInserted
+            ? "cleanup_required"
+            : "failed",
+
+        message:
+          agentRegistryInserted
+            ? `The adopted agent identity reached partial registration and requires inspection: ${message}`
+            : `The adopted agent identity remains safe and may be retried: ${message}`,
+      };
+    }
+
+    /* =================================================================
+       NEW AUTH FAILURE
+
+       Only accounts created by THIS request may be deleted.
+       ================================================================= */
+
+    if (
+      userId &&
+      createdAuthThisAttempt
+    ) {
       if (auditStarted) {
         await updateAuditEvent(
           admin,
@@ -1699,9 +2358,12 @@ export async function provisionAgent({
         error:
           deleteError,
       } =
-        await admin.auth.admin.deleteUser(
-          userId,
-        );
+        await admin
+          .auth
+          .admin
+          .deleteUser(
+            userId,
+          );
 
       if (!deleteError) {
         if (auditStarted) {
@@ -1775,6 +2437,10 @@ export async function provisionAgent({
       };
     }
 
+    /* =================================================================
+       FAILURE BEFORE AUTH CREATION
+       ================================================================= */
+
     if (auditStarted) {
       await updateAuditEvent(
         admin,
@@ -1788,6 +2454,12 @@ export async function provisionAgent({
 
           error_detail:
             message,
+
+          rollback_attempted:
+            false,
+
+          rollback_succeeded:
+            null,
         },
       );
     }
