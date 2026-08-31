@@ -20,16 +20,6 @@ type MediaTableSet = {
     | "math_question_assets";
 };
 
-const ALL_STIMULUS_TABLES = [
-  "english_stimuli",
-  "math_stimuli",
-] as const;
-
-const ALL_QUESTION_ASSET_TABLES = [
-  "english_question_assets",
-  "math_question_assets",
-] as const;
-
 function mediaTablesFor(subject: CoreSubject): MediaTableSet {
   if (subject === "english") {
     return {
@@ -100,10 +90,8 @@ export type SyncQuestionMediaInput = {
   content: JsonObject;
   media: QuestionMediaDraft;
   /**
-   * Phase 3 deliberately defaults this to false. Storage files are only
-   * unlinked from the database here; physical orphan cleanup is deferred to
-   * the dedicated media-cleanup phase so a shared/previous question can never
-   * be broken by a live edit.
+   * Phase 4 uses reference-safe cleanup by default. Set false only for a
+   * workflow that deliberately wants to retain replaced Storage objects.
    */
   cleanupReplacedFiles?: boolean;
 };
@@ -218,6 +206,88 @@ export function publicMediaUrl(
   return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
 }
 
+export type CoreManagedImageUpload = {
+  bucket: string;
+  path: string;
+  url: string;
+};
+
+export async function uploadCoreManagedImage({
+  subject,
+  primaryLevel,
+  questionCode,
+  group,
+  file,
+}: {
+  subject: CoreSubject;
+  primaryLevel: number;
+  questionCode: string;
+  group: string;
+  file: File;
+}): Promise<CoreManagedImageUpload> {
+  if (
+    !file.type.startsWith("image/") &&
+    !file.name.toLowerCase().endsWith(".svg")
+  ) {
+    throw new Error("Choose a PNG, JPG, WebP, GIF or SVG image file.");
+  }
+
+  const path = mediaPath({
+    subject,
+    primaryLevel,
+    questionCode,
+    group,
+    file,
+  });
+
+  await uploadFile(path, file);
+
+  return {
+    bucket: CORE_MEDIA_BUCKET,
+    path,
+    url: publicMediaUrl(CORE_MEDIA_BUCKET, path) || "",
+  };
+}
+
+export async function safeCleanupCoreMediaFile(
+  bucket: string | null | undefined,
+  path: string | null | undefined,
+) {
+  if (!bucket || !path) return false;
+
+  const { data, error } = await supabase.rpc(
+    "curriculum_core_media_reference_count",
+    {
+      p_bucket: bucket,
+      p_path: path,
+    },
+  );
+
+  if (error) {
+    console.warn(
+      "Could not verify curriculum media references; file retained:",
+      error.message,
+    );
+    return false;
+  }
+
+  if (Number(data || 0) > 0) return false;
+
+  const { error: removeError } = await supabase.storage
+    .from(bucket)
+    .remove([path]);
+
+  if (removeError) {
+    console.warn(
+      "Could not remove unreferenced curriculum media file:",
+      removeError.message,
+    );
+    return false;
+  }
+
+  return true;
+}
+
 export function assetTypeFromFile(file: File): CoreMediaAssetType {
   if (file.type === "image/svg+xml" || file.name.toLowerCase().endsWith(".svg")) {
     return "svg";
@@ -270,48 +340,11 @@ async function uploadFile(path: string, file: File) {
   return path;
 }
 
-async function removeStoredFile(
-  bucket: string | null | undefined,
-  path: string | null | undefined,
-) {
-  if (!bucket || !path) return;
-  const { error } = await supabase.storage.from(bucket).remove([path]);
-  if (error) console.warn("Could not remove old curriculum media file:", error.message);
-}
-
 async function removeQuestionAssetFileIfUnreferenced(
   bucket: string | null | undefined,
   path: string | null | undefined,
 ) {
-  if (!bucket || !path) return;
-
-  const checks = await Promise.all(
-    ALL_QUESTION_ASSET_TABLES.map((table) =>
-      supabase
-        .from(table)
-        .select("id", { count: "exact", head: true })
-        .eq("storage_bucket", bucket)
-        .eq("storage_path", path),
-    ),
-  );
-
-  const firstError = checks.find((result) => result.error)?.error;
-  if (firstError) {
-    console.warn(
-      "Could not verify question-asset file usage:",
-      firstError.message,
-    );
-    return;
-  }
-
-  const totalReferences = checks.reduce(
-    (sum, result) => sum + Number(result.count || 0),
-    0,
-  );
-
-  if (totalReferences === 0) {
-    await removeStoredFile(bucket, path);
-  }
+  await safeCleanupCoreMediaFile(bucket, path);
 }
 
 function stimulusBody(draft: StimulusDraft): JsonObject {
@@ -338,35 +371,7 @@ async function removeStimulusFileIfUnreferenced(
   bucket: string | null | undefined,
   path: string | null | undefined,
 ) {
-  if (!bucket || !path) return;
-
-  const checks = await Promise.all(
-    ALL_STIMULUS_TABLES.map((table) =>
-      supabase
-        .from(table)
-        .select("id", { count: "exact", head: true })
-        .eq("storage_bucket", bucket)
-        .eq("storage_path", path),
-    ),
-  );
-
-  const firstError = checks.find((result) => result.error)?.error;
-  if (firstError) {
-    console.warn(
-      "Could not verify shared stimulus file usage:",
-      firstError.message,
-    );
-    return;
-  }
-
-  const totalReferences = checks.reduce(
-    (sum, result) => sum + Number(result.count || 0),
-    0,
-  );
-
-  if (totalReferences === 0) {
-    await removeStoredFile(bucket, path);
-  }
+  await safeCleanupCoreMediaFile(bucket, path);
 }
 
 function stimulusFileKind(type: CoreStimulusType) {
@@ -779,18 +784,35 @@ async function syncOptionImages({
   primaryLevel,
   content,
   optionImages,
-  cleanupReplacedFiles,
 }: {
   questionCode: string;
   subject: CoreSubject;
   primaryLevel: number;
   content: JsonObject;
   optionImages: Record<string, OptionImageDraft>;
-  cleanupReplacedFiles: boolean;
 }) {
-  if (!Array.isArray(content.options)) return content;
+  if (!Array.isArray(content.options)) {
+    return {
+      content,
+      cleanupCandidates: [] as Array<{ bucket: string; path: string }>,
+      uploadedCandidates: [] as Array<{ bucket: string; path: string }>,
+    };
+  }
 
   const nextOptions: JsonObject[] = [];
+  const cleanupCandidates: Array<{ bucket: string; path: string }> = [];
+  const uploadedCandidates: Array<{ bucket: string; path: string }> = [];
+
+  function rememberCleanup(
+    bucket: string | null | undefined,
+    path: string | null | undefined,
+  ) {
+    if (!bucket || !path) return;
+    if (cleanupCandidates.some((item) => item.bucket === bucket && item.path === path)) {
+      return;
+    }
+    cleanupCandidates.push({ bucket, path });
+  }
 
   for (const rawOption of content.options) {
     const option = { ...(rawOption as JsonObject) };
@@ -798,8 +820,8 @@ async function syncOptionImages({
     const draft = optionImages[optionId];
 
     if (!draft || draft.removed) {
-      if (draft?.removed && cleanupReplacedFiles) {
-        await removeStoredFile(draft.existingBucket, draft.existingPath);
+      if (draft?.removed) {
+        rememberCleanup(draft.existingBucket, draft.existingPath);
       }
       delete option.image_url;
       delete option.image_bucket;
@@ -811,7 +833,10 @@ async function syncOptionImages({
     }
 
     if (draft.file) {
-      if (!draft.file.type.startsWith("image/") && !draft.file.name.toLowerCase().endsWith(".svg")) {
+      if (
+        !draft.file.type.startsWith("image/") &&
+        !draft.file.name.toLowerCase().endsWith(".svg")
+      ) {
         throw new Error(`Option ${optionId.toUpperCase()} needs an image file.`);
       }
 
@@ -823,19 +848,17 @@ async function syncOptionImages({
         file: draft.file,
       });
       await uploadFile(path, draft.file);
+      uploadedCandidates.push({ bucket: CORE_MEDIA_BUCKET, path });
 
       option.image_bucket = CORE_MEDIA_BUCKET;
       option.image_path = path;
       option.image_url = publicMediaUrl(CORE_MEDIA_BUCKET, path);
-      option.image_alt = draft.altText.trim() || option.text || "Answer option image";
+      option.image_alt =
+        draft.altText.trim() || option.text || "Answer option image";
       option.show_text_with_image = draft.showTextWithImage;
 
-      if (
-        cleanupReplacedFiles &&
-        draft.existingPath &&
-        draft.existingPath !== path
-      ) {
-        await removeStoredFile(draft.existingBucket, draft.existingPath);
+      if (draft.existingPath && draft.existingPath !== path) {
+        rememberCleanup(draft.existingBucket, draft.existingPath);
       }
     } else if (draft.existingUrl || draft.existingPath) {
       option.image_bucket = draft.existingBucket || CORE_MEDIA_BUCKET;
@@ -843,55 +866,79 @@ async function syncOptionImages({
       option.image_url =
         draft.existingUrl ||
         publicMediaUrl(option.image_bucket, option.image_path);
-      option.image_alt = draft.altText.trim() || option.text || "Answer option image";
+      option.image_alt =
+        draft.altText.trim() || option.text || "Answer option image";
       option.show_text_with_image = draft.showTextWithImage;
     }
 
     nextOptions.push(option);
   }
 
-  return { ...content, options: nextOptions };
+  return {
+    content: { ...content, options: nextOptions },
+    cleanupCandidates,
+    uploadedCandidates,
+  };
 }
 
 export async function syncQuestionMedia(input: SyncQuestionMediaInput) {
   const tables = mediaTablesFor(input.subject);
-  const cleanupReplacedFiles = input.cleanupReplacedFiles === true;
+  const cleanupReplacedFiles = input.cleanupReplacedFiles !== false;
 
-  const contentWithOptionImages = await syncOptionImages({
+  const optionSync = await syncOptionImages({
     questionCode: input.questionCode,
     subject: input.subject,
     primaryLevel: input.primaryLevel,
     content: input.content,
     optionImages: input.media.optionImages,
-    cleanupReplacedFiles,
   });
 
-  const stimulusId = await syncStimulus({
-    questionId: input.questionId,
-    questionCode: input.questionCode,
-    subject: input.subject,
-    primaryLevel: input.primaryLevel,
-    draft: input.media.stimulus,
-    cleanupReplacedFiles,
-  });
+  let contentCommitted = false;
 
-  const { error: contentError } = await supabase
-    .from(tables.questions)
-    .update({
-      content: contentWithOptionImages,
-      stimulus_id: stimulusId,
-    })
-    .eq("id", input.questionId);
-  if (contentError) throw contentError;
+  try {
+    const stimulusId = await syncStimulus({
+      questionId: input.questionId,
+      questionCode: input.questionCode,
+      subject: input.subject,
+      primaryLevel: input.primaryLevel,
+      draft: input.media.stimulus,
+      cleanupReplacedFiles,
+    });
 
-  await syncAssets({
-    questionId: input.questionId,
-    questionCode: input.questionCode,
-    subject: input.subject,
-    primaryLevel: input.primaryLevel,
-    assets: input.media.assets,
-    cleanupReplacedFiles,
-  });
+    const { error: contentError } = await supabase
+      .from(tables.questions)
+      .update({
+        content: optionSync.content,
+        stimulus_id: stimulusId,
+      })
+      .eq("id", input.questionId);
+    if (contentError) throw contentError;
+    contentCommitted = true;
 
-  return contentWithOptionImages;
+    await syncAssets({
+      questionId: input.questionId,
+      questionCode: input.questionCode,
+      subject: input.subject,
+      primaryLevel: input.primaryLevel,
+      assets: input.media.assets,
+      cleanupReplacedFiles,
+    });
+
+    if (cleanupReplacedFiles) {
+      for (const candidate of optionSync.cleanupCandidates) {
+        await safeCleanupCoreMediaFile(candidate.bucket, candidate.path);
+      }
+    }
+
+    return optionSync.content;
+  } catch (error) {
+    // If the option-image upload happened but the content row never committed,
+    // the new object is unreferenced and can be safely removed immediately.
+    if (!contentCommitted) {
+      for (const candidate of optionSync.uploadedCandidates) {
+        await safeCleanupCoreMediaFile(candidate.bucket, candidate.path);
+      }
+    }
+    throw error;
+  }
 }

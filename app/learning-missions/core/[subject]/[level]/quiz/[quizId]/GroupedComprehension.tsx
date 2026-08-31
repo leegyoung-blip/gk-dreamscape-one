@@ -58,17 +58,24 @@ export default function GroupedComprehension({
   onExit,
 }: Props) {
   const current = questions[questionIndex];
-  const passage = String(
-    questions[0]?.content?.comprehension_passage ?? "",
+  const firstContent = questions[0]?.content ?? {};
+  const passage = String(firstContent.comprehension_passage ?? "");
+  const passageTitle = String(firstContent.passage_title ?? title);
+  const passageImageUrl = firstContent.comprehension_image_url
+    ? String(firstContent.comprehension_image_url)
+    : null;
+  const passageImageAlt = String(
+    firstContent.comprehension_image_alt ?? "Reading passage illustration",
   );
-  const passageTitle = String(
-    questions[0]?.content?.passage_title ?? title,
+  const passageImageCaption = String(
+    firstContent.comprehension_image_caption ?? "",
   );
+
   const options = getOptions(current?.content ?? {});
   const selected = String(answers[current?.id]?.option_id ?? "");
   const feedback = current ? feedbackByQuestion[current.id] : undefined;
-  const answeredCount = questions.filter(
-    (question) => Boolean(answers[question.id]?.option_id),
+  const answeredCount = questions.filter((question) =>
+    Boolean(answers[question.id]?.option_id),
   ).length;
   const isLast = questionIndex >= questions.length - 1;
   const complete = Boolean(selected);
@@ -102,11 +109,25 @@ export default function GroupedComprehension({
               <p style={panelEyebrow}>READING PASSAGE</p>
               <h1 style={passageHeading}>{passageTitle}</h1>
             </div>
-
             <span style={readBadge}>Read carefully</span>
           </div>
 
-          <div style={passageBody(isMobile)}>
+          <div style={passageBody}>
+            {passageImageUrl && (
+              <figure style={passageImageFigure}>
+                <img
+                  src={passageImageUrl}
+                  alt={passageImageAlt}
+                  style={passageImage}
+                />
+                {passageImageCaption && (
+                  <figcaption style={passageImageCaptionStyle}>
+                    {passageImageCaption}
+                  </figcaption>
+                )}
+              </figure>
+            )}
+
             {passage.split(/\n{2,}/).map((paragraph, index) => (
               <p key={index} style={passageParagraph}>
                 {paragraph}
@@ -125,10 +146,7 @@ export default function GroupedComprehension({
                 {answeredCount}/{questions.length} answered
               </p>
             </div>
-
-            <span style={skillBadge}>
-              {current.skill || "Reading"}
-            </span>
+            <span style={skillBadge}>{current.skill || "Reading"}</span>
           </div>
 
           <div style={progressTrack}>
@@ -144,7 +162,6 @@ export default function GroupedComprehension({
             {questions.map((question, index) => {
               const answered = Boolean(answers[question.id]?.option_id);
               const active = index === questionIndex;
-
               return (
                 <button
                   key={question.id}
@@ -160,56 +177,66 @@ export default function GroupedComprehension({
             })}
           </div>
 
-          <article style={questionCard}>
-            <h2 style={prompt}>{current.prompt}</h2>
+          <div style={questionScrollArea}>
+            <article style={questionCard}>
+              <h2 style={prompt}>{current.prompt}</h2>
 
-            <div style={optionGrid}>
-              {options.map((option, index) => {
-                const active = selected === option.id;
-                const locked = Boolean(feedback?.locked);
+              <div style={optionGrid(options.some((option) => Boolean(option.imageUrl)))}>
+                {options.map((option, index) => {
+                  const active = selected === option.id;
+                  const locked = Boolean(feedback?.locked);
 
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    disabled={busy || locked}
-                    onClick={() =>
-                      onAnswerChange(current.id, {
-                        option_id: option.id,
-                      })
-                    }
-                    style={optionButton(active, busy || locked)}
-                  >
-                    <span style={optionLetter}>
-                      {String.fromCharCode(65 + index)}
-                    </span>
-                    <span style={optionText}>{option.text}</span>
-                  </button>
-                );
-              })}
-            </div>
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      disabled={busy || locked}
+                      onClick={() =>
+                        onAnswerChange(current.id, { option_id: option.id })
+                      }
+                      style={optionButton(active, busy || locked)}
+                    >
+                      <span style={optionLetter}>
+                        {String.fromCharCode(65 + index)}
+                      </span>
 
-            {feedback && (
-              <div
-                style={
-                  feedback.is_correct === false
-                    ? feedbackWrong
-                    : feedbackGood
-                }
-              >
-                <strong>
-                  {feedback.is_correct === false
-                    ? "Check your answer"
-                    : "Answer saved"}
-                </strong>
-                {feedback.explanation && (
-                  <span style={feedbackText}>{feedback.explanation}</span>
-                )}
+                      <span style={optionBody}>
+                        {option.imageUrl && (
+                          <img
+                            src={option.imageUrl}
+                            alt={option.imageAlt || option.text || `Option ${index + 1}`}
+                            style={optionImage}
+                          />
+                        )}
+                        {(!option.imageUrl || option.showTextWithImage) && option.text && (
+                          <span style={optionText}>{option.text}</span>
+                        )}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
-            )}
 
-            {error && <div style={errorBox}>{error}</div>}
-          </article>
+              {feedback && (
+                <div
+                  style={
+                    feedback.is_correct === false ? feedbackWrong : feedbackGood
+                  }
+                >
+                  <strong>
+                    {feedback.is_correct === false
+                      ? "Check your answer"
+                      : "Answer saved"}
+                  </strong>
+                  {feedback.explanation && (
+                    <span style={feedbackText}>{feedback.explanation}</span>
+                  )}
+                </div>
+              )}
+
+              {error && <div style={errorBox}>{error}</div>}
+            </article>
+          </div>
 
           <div style={actions(isMobile)}>
             <button
@@ -219,7 +246,6 @@ export default function GroupedComprehension({
               style={{
                 ...secondaryButton,
                 opacity: busy || questionIndex === 0 ? 0.35 : 1,
-                width: isMobile ? "100%" : "auto",
               }}
             >
               ← Previous
@@ -232,14 +258,9 @@ export default function GroupedComprehension({
               style={{
                 ...primaryButton,
                 opacity: busy || !complete ? 0.35 : 1,
-                width: isMobile ? "100%" : "auto",
               }}
             >
-              {busy
-                ? "Saving..."
-                : isLast
-                  ? "Submit Quiz"
-                  : "Next Question →"}
+              {busy ? "Saving..." : isLast ? "Submit Quiz" : "Next Question →"}
             </button>
           </div>
         </section>
@@ -255,77 +276,75 @@ function getOptions(content: JsonObject) {
     .map((option: any, index: number) => ({
       id: String(option?.id ?? index + 1),
       text: String(option?.text ?? ""),
+      imageUrl: option?.image_url ? String(option.image_url) : null,
+      imageAlt: option?.image_alt ? String(option.image_alt) : null,
+      showTextWithImage: option?.show_text_with_image === true,
     }))
-    .filter((option: { text: string }) => option.text.trim().length > 0);
+    .filter(
+      (option: { text: string; imageUrl: string | null }) =>
+        option.text.trim().length > 0 || Boolean(option.imageUrl),
+    );
 }
 
 const page: CSSProperties = {
-  minHeight: "100dvh",
+  height: "100dvh",
+  overflow: "hidden",
   background:
     "radial-gradient(circle at 22% 12%,rgba(47,199,204,.12),transparent 34%),#061326",
   color: "white",
-  padding: "18px",
+  padding: "12px",
   boxSizing: "border-box",
+  display: "flex",
+  flexDirection: "column",
 };
 
 function header(isMobile: boolean): CSSProperties {
   return {
+    flex: "0 0 auto",
     maxWidth: 1540,
-    margin: "0 auto 16px",
+    width: "100%",
+    margin: "0 auto 10px",
     display: "grid",
-    gridTemplateColumns: isMobile ? "1fr auto" : "auto 1fr auto",
+    gridTemplateColumns: isMobile ? "auto 1fr" : "auto 1fr auto",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
   };
 }
 
-const headerTitleWrap: CSSProperties = {
-  minWidth: 0,
-  textAlign: "center",
-};
-
+const headerTitleWrap: CSSProperties = { minWidth: 0, textAlign: "center" };
 const eyebrow: CSSProperties = {
   margin: 0,
   color: "#78e8ff",
-  fontSize: 10,
+  fontSize: 9,
   fontWeight: 950,
   letterSpacing: ".18em",
 };
-
 const headerTitle: CSSProperties = {
-  margin: "4px 0 0",
-  color: "rgba(255,255,255,.66)",
-  fontSize: 12,
+  margin: "3px 0 0",
+  color: "rgba(255,255,255,.58)",
+  fontSize: 11,
   fontWeight: 800,
 };
-
 const backButton: CSSProperties = {
   minHeight: 38,
   borderRadius: 999,
   border: "1px solid rgba(126,232,255,.25)",
   background: "rgba(255,255,255,.055)",
   color: "white",
-  padding: "0 14px",
+  padding: "0 13px",
   cursor: "pointer",
   fontWeight: 850,
 };
-
-const balances: CSSProperties = {
-  display: "flex",
-  gap: 7,
-  justifyContent: "flex-end",
-};
-
+const balances: CSSProperties = { display: "flex", gap: 6, justifyContent: "flex-end" };
 const tokenPill: CSSProperties = {
   borderRadius: 999,
   border: "1px solid rgba(255,215,106,.25)",
   background: "rgba(255,215,106,.08)",
-  padding: "9px 11px",
-  fontSize: 11,
+  padding: "7px 9px",
+  fontSize: 10,
   fontWeight: 900,
   whiteSpace: "nowrap",
 };
-
 const gemPill: CSSProperties = {
   ...tokenPill,
   border: "1px solid rgba(210,160,255,.28)",
@@ -334,11 +353,16 @@ const gemPill: CSSProperties = {
 
 function shell(isMobile: boolean): CSSProperties {
   return {
+    flex: 1,
+    minHeight: 0,
     maxWidth: 1540,
+    width: "100%",
     margin: "0 auto",
     display: "grid",
-    gridTemplateColumns: isMobile ? "1fr" : "minmax(0,1.18fr) minmax(380px,.82fr)",
-    gap: 16,
+    gridTemplateColumns: isMobile
+      ? "minmax(0,.9fr) minmax(0,1.1fr)"
+      : "minmax(0,1.16fr) minmax(380px,.84fr)",
+    gap: 10,
     alignItems: "stretch",
   };
 }
@@ -346,142 +370,145 @@ function shell(isMobile: boolean): CSSProperties {
 function passagePanel(isMobile: boolean): CSSProperties {
   return {
     minWidth: 0,
-    borderRadius: isMobile ? 22 : 30,
+    minHeight: 0,
+    overflow: "hidden",
+    borderRadius: isMobile ? 18 : 24,
     border: "1px solid rgba(126,232,255,.15)",
     background: "rgba(9,28,51,.92)",
-    boxShadow: "0 26px 70px rgba(0,0,0,.25)",
-    padding: isMobile ? 20 : 28,
+    boxShadow: "0 20px 60px rgba(0,0,0,.22)",
+    padding: isMobile ? 12 : 18,
     display: "flex",
     flexDirection: "column",
-    maxHeight: isMobile ? "none" : "calc(100dvh - 100px)",
   };
 }
-
 const panelTop: CSSProperties = {
+  flex: "0 0 auto",
   display: "flex",
   alignItems: "flex-start",
   justifyContent: "space-between",
-  gap: 12,
-  paddingBottom: 16,
+  gap: 10,
+  paddingBottom: 10,
   borderBottom: "1px solid rgba(255,255,255,.08)",
 };
-
 const panelEyebrow: CSSProperties = {
   margin: 0,
   color: "#75e6ff",
-  fontSize: 10,
+  fontSize: 9,
   fontWeight: 950,
   letterSpacing: ".16em",
 };
-
 const passageHeading: CSSProperties = {
-  margin: "5px 0 0",
-  fontSize: "clamp(22px,2.2vw,30px)",
+  margin: "4px 0 0",
+  fontSize: "clamp(17px,1.8vw,24px)",
   lineHeight: 1.08,
 };
-
 const readBadge: CSSProperties = {
   borderRadius: 999,
   background: "rgba(52,211,153,.1)",
   color: "#b9f7dc",
-  padding: "7px 10px",
-  fontSize: 10,
+  padding: "5px 7px",
+  fontSize: 8,
   fontWeight: 900,
   whiteSpace: "nowrap",
 };
-
-function passageBody(isMobile: boolean): CSSProperties {
-  return {
-    marginTop: 18,
-    overflowY: isMobile ? "visible" : "auto",
-    paddingRight: isMobile ? 0 : 10,
-    minHeight: 0,
-  };
-}
-
+const passageBody: CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  marginTop: 10,
+  overflowY: "auto",
+  paddingRight: 5,
+};
 const passageParagraph: CSSProperties = {
-  margin: "0 0 18px",
+  margin: "0 0 12px",
   color: "rgba(255,255,255,.88)",
-  fontSize: "clamp(16px,1.25vw,19px)",
-  lineHeight: 1.85,
-  letterSpacing: ".005em",
+  fontSize: "clamp(13px,1.05vw,17px)",
+  lineHeight: 1.72,
+};
+const passageImageFigure: CSSProperties = { margin: "0 0 12px", textAlign: "center" };
+const passageImage: CSSProperties = {
+  display: "block",
+  width: "100%",
+  maxHeight: "170px",
+  objectFit: "contain",
+  borderRadius: 10,
+  background: "white",
+};
+const passageImageCaptionStyle: CSSProperties = {
+  marginTop: 5,
+  color: "rgba(255,255,255,.5)",
+  fontSize: 9,
 };
 
 function questionPanel(isMobile: boolean): CSSProperties {
   return {
     minWidth: 0,
-    borderRadius: isMobile ? 22 : 30,
+    minHeight: 0,
+    overflow: "hidden",
+    borderRadius: isMobile ? 18 : 24,
     border: "1px solid rgba(255,255,255,.11)",
     background: "rgba(13,25,45,.95)",
-    padding: isMobile ? 18 : 24,
+    padding: isMobile ? 12 : 16,
     display: "flex",
     flexDirection: "column",
-    maxHeight: isMobile ? "none" : "calc(100dvh - 100px)",
-    overflowY: isMobile ? "visible" : "auto",
   };
 }
-
 const questionTop: CSSProperties = {
+  flex: "0 0 auto",
   display: "flex",
   alignItems: "flex-start",
   justifyContent: "space-between",
-  gap: 12,
+  gap: 10,
 };
-
 const questionEyebrow: CSSProperties = {
   margin: 0,
   color: "#8befff",
-  fontSize: 11,
+  fontSize: 9,
   fontWeight: 950,
-  letterSpacing: ".14em",
+  letterSpacing: ".12em",
   textTransform: "uppercase",
 };
-
 const questionMeta: CSSProperties = {
-  margin: "5px 0 0",
+  margin: "3px 0 0",
   color: "rgba(255,255,255,.42)",
-  fontSize: 12,
+  fontSize: 10,
 };
-
 const skillBadge: CSSProperties = {
   borderRadius: 999,
   border: "1px solid rgba(126,232,255,.15)",
   background: "rgba(126,232,255,.055)",
   color: "rgba(255,255,255,.62)",
-  padding: "7px 9px",
-  fontSize: 9,
+  padding: "5px 7px",
+  fontSize: 8,
   fontWeight: 900,
   textTransform: "uppercase",
-  letterSpacing: ".08em",
-  maxWidth: "48%",
+  letterSpacing: ".07em",
+  maxWidth: "45%",
 };
-
 const progressTrack: CSSProperties = {
-  height: 7,
+  flex: "0 0 auto",
+  height: 5,
   borderRadius: 999,
   overflow: "hidden",
   background: "rgba(255,255,255,.07)",
-  marginTop: 15,
+  marginTop: 9,
 };
-
 const progressFill: CSSProperties = {
   height: "100%",
   borderRadius: 999,
   background: "linear-gradient(90deg,#56d8ff,#66e3bd)",
   transition: "width 180ms ease",
 };
-
 const questionNavigator: CSSProperties = {
+  flex: "0 0 auto",
   display: "flex",
   flexWrap: "wrap",
-  gap: 6,
-  marginTop: 14,
+  gap: 4,
+  marginTop: 8,
 };
-
 function navButton(active: boolean, answered: boolean): CSSProperties {
   return {
-    width: 34,
-    height: 34,
+    width: 28,
+    height: 28,
     borderRadius: 999,
     border: active
       ? "1px solid rgba(126,232,255,.7)"
@@ -492,125 +519,118 @@ function navButton(active: boolean, answered: boolean): CSSProperties {
         ? "rgba(52,211,153,.13)"
         : "rgba(255,255,255,.035)",
     color: active ? "#061326" : answered ? "#b8f7dc" : "rgba(255,255,255,.5)",
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: 950,
     cursor: "pointer",
   };
 }
-
-const questionCard: CSSProperties = {
-  marginTop: 18,
-  display: "grid",
-  gap: 16,
+const questionScrollArea: CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  overflowY: "auto",
+  paddingRight: 4,
 };
-
+const questionCard: CSSProperties = { marginTop: 10, display: "grid", gap: 10 };
 const prompt: CSSProperties = {
   margin: 0,
-  fontSize: "clamp(23px,2.2vw,32px)",
-  lineHeight: 1.2,
+  fontSize: "clamp(18px,1.8vw,26px)",
+  lineHeight: 1.18,
 };
-
-const optionGrid: CSSProperties = {
-  display: "grid",
-  gap: 10,
-};
-
+function optionGrid(hasImages: boolean): CSSProperties {
+  return {
+    display: "grid",
+    gridTemplateColumns: hasImages ? "repeat(2,minmax(0,1fr))" : "1fr",
+    gap: 7,
+  };
+}
 function optionButton(active: boolean, disabled: boolean): CSSProperties {
   return {
-    minHeight: 62,
+    minHeight: 52,
     width: "100%",
     display: "grid",
-    gridTemplateColumns: "38px 1fr",
-    gap: 11,
+    gridTemplateColumns: "30px minmax(0,1fr)",
+    gap: 8,
     alignItems: "center",
     textAlign: "left",
-    borderRadius: 15,
+    borderRadius: 12,
     border: active
       ? "1px solid rgba(116,232,247,.65)"
       : "1px solid rgba(255,255,255,.1)",
-    background: active
-      ? "rgba(74,205,227,.14)"
-      : "rgba(255,255,255,.035)",
+    background: active ? "rgba(74,205,227,.14)" : "rgba(255,255,255,.035)",
     color: "white",
-    padding: "10px 13px",
+    padding: "7px 9px",
     cursor: disabled ? "default" : "pointer",
   };
 }
-
 const optionLetter: CSSProperties = {
-  width: 34,
-  height: 34,
-  borderRadius: 10,
+  width: 28,
+  height: 28,
+  borderRadius: 8,
   display: "grid",
   placeItems: "center",
   border: "1px solid rgba(126,232,255,.16)",
   background: "rgba(4,17,33,.5)",
   color: "#d7fbff",
-  fontSize: 12,
+  fontSize: 10,
   fontWeight: 950,
 };
-
-const optionText: CSSProperties = {
-  fontSize: 14,
-  fontWeight: 780,
-  lineHeight: 1.45,
+const optionBody: CSSProperties = { minWidth: 0, display: "grid", gap: 5 };
+const optionImage: CSSProperties = {
+  display: "block",
+  width: "100%",
+  maxHeight: 105,
+  objectFit: "contain",
+  borderRadius: 8,
+  background: "white",
 };
-
+const optionText: CSSProperties = { fontSize: 12, fontWeight: 780, lineHeight: 1.35 };
 const feedbackGood: CSSProperties = {
-  borderRadius: 13,
+  borderRadius: 11,
   border: "1px solid rgba(52,211,153,.25)",
   background: "rgba(52,211,153,.08)",
   color: "#c7f9e5",
-  padding: 13,
+  padding: 9,
   display: "grid",
-  gap: 5,
-  fontSize: 12,
+  gap: 4,
+  fontSize: 10,
 };
-
 const feedbackWrong: CSSProperties = {
   ...feedbackGood,
   border: "1px solid rgba(248,113,113,.28)",
   background: "rgba(239,68,68,.08)",
   color: "#fecaca",
 };
-
-const feedbackText: CSSProperties = {
-  color: "rgba(255,255,255,.62)",
-  lineHeight: 1.5,
-};
-
+const feedbackText: CSSProperties = { color: "rgba(255,255,255,.62)", lineHeight: 1.4 };
 const errorBox: CSSProperties = {
-  borderRadius: 13,
+  borderRadius: 11,
   border: "1px solid rgba(248,113,113,.3)",
   background: "rgba(239,68,68,.1)",
   color: "#fecaca",
-  padding: 13,
-  fontSize: 12,
-  lineHeight: 1.5,
+  padding: 9,
+  fontSize: 10,
+  lineHeight: 1.4,
 };
-
 function actions(isMobile: boolean): CSSProperties {
   return {
-    marginTop: "auto",
-    paddingTop: 20,
+    flex: "0 0 auto",
+    paddingTop: 9,
     display: "flex",
-    flexDirection: isMobile ? "column" : "row",
+    flexDirection: "row",
     justifyContent: "space-between",
-    gap: 10,
+    gap: 7,
   };
 }
-
 const secondaryButton: CSSProperties = {
-  minHeight: 48,
-  borderRadius: 14,
+  minHeight: 40,
+  borderRadius: 11,
   border: "1px solid rgba(255,255,255,.12)",
-  background: "rgba(255,255,255,.055)",
+  background: "rgba(255,255,255,.05)",
   color: "white",
-  padding: "0 18px",
+  padding: "0 11px",
   cursor: "pointer",
   fontWeight: 900,
+  fontSize: 10,
 };
-
 const primaryButton: CSSProperties = {
   ...secondaryButton,
   border: "1px solid rgba(126,232,255,.4)",

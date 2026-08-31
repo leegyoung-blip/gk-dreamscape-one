@@ -6,7 +6,10 @@ import { supabase } from "@/lib/supabase";
 import QuestionMediaEditor from "@/app/curriculum-developer/components/QuestionMediaEditor";
 import {
   questionMediaDraftFromQuestion,
+  safeCleanupCoreMediaFile,
   syncQuestionMedia,
+  uploadCoreManagedImage,
+  type OptionImageDraft,
   type QuestionMediaDraft,
 } from "@/app/curriculum-developer/media";
 import type { SupportedQuestionType } from "@/app/curriculum-developer/types";
@@ -94,6 +97,126 @@ type SavedQuestionRef = {
   savedQuestionId: string;
   code: string;
 };
+
+type SharedGroupImageKind = "cloze_illustration" | "comprehension_image";
+
+type SharedGroupImageDraft = {
+  existingUrl: string | null;
+  existingBucket: string | null;
+  existingPath: string | null;
+  file: File | null;
+  altText: string;
+  caption: string;
+  removed: boolean;
+  dirty: boolean;
+};
+
+function sharedGroupImageDraftFromContent(
+  content: JsonObject | null | undefined,
+  kind: SharedGroupImageKind,
+): SharedGroupImageDraft {
+  const source = content || {};
+  const prefix =
+    kind === "cloze_illustration" ? "illustration" : "comprehension_image";
+
+  return {
+    existingUrl: source[`${prefix}_url`]
+      ? String(source[`${prefix}_url`])
+      : null,
+    existingBucket: source[`${prefix}_bucket`]
+      ? String(source[`${prefix}_bucket`])
+      : null,
+    existingPath: source[`${prefix}_path`]
+      ? String(source[`${prefix}_path`])
+      : null,
+    file: null,
+    altText: String(source[`${prefix}_alt`] ?? ""),
+    caption: String(source[`${prefix}_caption`] ?? ""),
+    removed: false,
+    dirty: false,
+  };
+}
+
+async function syncSharedGroupImage({
+  subject,
+  quizId,
+  kind,
+  primaryLevel,
+  questionCode,
+  draft,
+}: {
+  subject: CoreSubject;
+  quizId: string;
+  kind: SharedGroupImageKind;
+  primaryLevel: number;
+  questionCode: string;
+  draft: SharedGroupImageDraft;
+}) {
+  if (!draft.dirty) return;
+
+  let uploaded: { bucket: string; path: string; url: string } | null = null;
+
+  try {
+    if (draft.file && !draft.removed) {
+      uploaded = await uploadCoreManagedImage({
+        subject,
+        primaryLevel,
+        questionCode,
+        group:
+          kind === "cloze_illustration"
+            ? "grouped-cloze-illustration"
+            : "comprehension-shared-image",
+        file: draft.file,
+      });
+    }
+
+    const bucket = uploaded?.bucket || draft.existingBucket || null;
+    const path = uploaded?.path || draft.existingPath || null;
+    const url = uploaded?.url || draft.existingUrl || null;
+
+    if (!draft.removed && !url) {
+      throw new Error("Choose an image before saving this shared media block.");
+    }
+
+    const { data, error } = await supabase.rpc(
+      "curriculum_set_core_group_image",
+      {
+        p_subject: subject,
+        p_quiz_id: quizId,
+        p_kind: kind,
+        p_bucket: draft.removed ? null : bucket,
+        p_path: draft.removed ? null : path,
+        p_url: draft.removed ? null : url,
+        p_alt: draft.removed ? null : draft.altText.trim() || null,
+        p_caption: draft.removed ? null : draft.caption.trim() || null,
+        p_removed: draft.removed,
+      },
+    );
+
+    if (error) throw error;
+
+    const oldFiles = Array.isArray(data?.old_files) ? data.old_files : [];
+    for (const oldFile of oldFiles) {
+      const oldBucket = oldFile?.bucket ? String(oldFile.bucket) : null;
+      const oldPath = oldFile?.path ? String(oldFile.path) : null;
+
+      if (
+        oldBucket &&
+        oldPath &&
+        !(oldBucket === bucket && oldPath === path)
+      ) {
+        await safeCleanupCoreMediaFile(oldBucket, oldPath);
+      }
+    }
+  } catch (error) {
+    // If the Storage upload succeeded but the atomic group update failed, the
+    // new object has no DB reference and can be removed safely.
+    if (uploaded) {
+      await safeCleanupCoreMediaFile(uploaded.bucket, uploaded.path);
+    }
+    throw error;
+  }
+}
 
 export default function InlineCoreQuestionEditor({
   subject,
@@ -287,6 +410,9 @@ export default function InlineCoreQuestionEditor({
           <div style={errorCard}>No editable question was found.</div>
         ) : isGroupedCloze ? (
           <GroupedClozeEditor
+            subject={subject}
+            quizId={quizId}
+            primaryLevel={payload.quiz.primary_level}
             questions={orderedQuestions}
             saving={saving}
             setSaving={setSaving}
@@ -297,6 +423,7 @@ export default function InlineCoreQuestionEditor({
         ) : (
           <SingleQuestionEditor
             subject={subject}
+            quizId={quizId}
             primaryLevel={payload.quiz.primary_level}
             question={activeQuestion}
             allQuestions={orderedQuestions}
@@ -318,6 +445,7 @@ export default function InlineCoreQuestionEditor({
 
 function SingleQuestionEditor({
   subject,
+  quizId,
   primaryLevel,
   question,
   allQuestions,
@@ -328,6 +456,7 @@ function SingleQuestionEditor({
   onSaved,
 }: {
   subject: CoreSubject;
+  quizId: string;
   primaryLevel: number;
   question: EditorQuestion;
   allQuestions: EditorQuestion[];
@@ -434,6 +563,16 @@ function SingleQuestionEditor({
   const originalPassageTitle = String(question.content?.passage_title ?? "");
   const [passage, setPassage] = useState(originalPassage);
   const [passageTitle, setPassageTitle] = useState(originalPassageTitle);
+  const comprehensionFirstQuestion =
+    allQuestions.find((item) => item.content?.layout === "split_comprehension") ||
+    question;
+  const [sharedComprehensionImage, setSharedComprehensionImage] =
+    useState<SharedGroupImageDraft>(() =>
+      sharedGroupImageDraftFromContent(
+        comprehensionFirstQuestion.content,
+        "comprehension_image",
+      ),
+    );
 
   const hasOptions = originalOptions.length > 0;
   const hasAcceptedAnswers = Array.isArray(question.answer_data?.accepted_answers);
@@ -473,8 +612,22 @@ function SingleQuestionEditor({
     let nextAnswerData: JsonObject = { ...(question.answer_data || {}) };
 
     if (hasOptions) {
-      if (optionTexts.some((text) => !text.trim())) {
-        setError("Every answer option must contain text.");
+      const optionMissingContent = optionTexts.some((text, index) => {
+        if (text.trim()) return false;
+        const optionId = String(
+          originalOptions[index]?.id ?? String.fromCharCode(97 + index),
+        );
+        const media = mediaDraft.optionImages[optionId];
+        return !(
+          media?.file ||
+          (!media?.removed && (media?.existingUrl || media?.existingPath)) ||
+          originalOptions[index]?.image_url ||
+          originalOptions[index]?.image_path
+        );
+      });
+
+      if (optionMissingContent) {
+        setError("Every answer option needs text, an image, or both.");
         return;
       }
 
@@ -709,18 +862,26 @@ function SingleQuestionEditor({
       const savedQuestions = await saveQuestions(batch);
       const savedQuestion = savedQuestions.get(question.id);
 
-      // Normal-question media is synchronised only after the existing
-      // curriculum question-save RPC returns the actual question id. This is
-      // essential when a shared question is cloned for this quiz.
-      if (!isSplitComprehension) {
-        await syncQuestionMedia({
-          questionId: savedQuestion?.savedQuestionId || question.id,
-          questionCode: savedQuestion?.code || question.code,
+      // Phase 4 enables reference-safe cleanup. The DB content/stimulus/asset
+      // update happens before an old Storage object is considered for removal.
+      await syncQuestionMedia({
+        questionId: savedQuestion?.savedQuestionId || question.id,
+        questionCode: savedQuestion?.code || question.code,
+        subject,
+        primaryLevel,
+        content: nextContent,
+        media: mediaDraft,
+        cleanupReplacedFiles: true,
+      });
+
+      if (isSplitComprehension && sharedComprehensionImage.dirty) {
+        await syncSharedGroupImage({
           subject,
+          quizId,
+          kind: "comprehension_image",
           primaryLevel,
-          content: nextContent,
-          media: mediaDraft,
-          cleanupReplacedFiles: false,
+          questionCode: comprehensionFirstQuestion.code,
+          draft: sharedComprehensionImage,
         });
       }
 
@@ -1007,9 +1168,23 @@ function SingleQuestionEditor({
         )}
 
         {isSplitComprehension && (
-          <div style={preserveNotice}>
-            Comprehension/Cloze-specific image editing stays in Phase 4.
-          </div>
+          <>
+            <SharedGroupImageEditor
+              title="Shared passage image"
+              description="Optional image shown with the reading passage. Replacing it updates the whole comprehension quiz."
+              value={sharedComprehensionImage}
+              disabled={saving}
+              onChange={setSharedComprehensionImage}
+            />
+
+            <ComprehensionOptionImageEditor
+              options={originalOptions}
+              optionTexts={optionTexts}
+              value={mediaDraft}
+              disabled={saving}
+              onChange={setMediaDraft}
+            />
+          </>
         )}
 
         <div style={twoColumnGrid}>
@@ -1080,6 +1255,9 @@ function SingleQuestionEditor({
 }
 
 function GroupedClozeEditor({
+  subject,
+  quizId,
+  primaryLevel,
   questions,
   saving,
   setSaving,
@@ -1087,6 +1265,9 @@ function GroupedClozeEditor({
   saveQuestions,
   onSaved,
 }: {
+  subject: CoreSubject;
+  quizId: string;
+  primaryLevel: number;
   questions: EditorQuestion[];
   saving: boolean;
   setSaving: (value: boolean) => void;
@@ -1104,6 +1285,10 @@ function GroupedClozeEditor({
       ? first.content.word_bank.map(String).join("\n")
       : "",
   );
+  const [sharedClozeImage, setSharedClozeImage] =
+    useState<SharedGroupImageDraft>(() =>
+      sharedGroupImageDraftFromContent(first?.content, "cloze_illustration"),
+    );
 
   const [rows, setRows] = useState(() =>
     questions.map((question) => {
@@ -1205,6 +1390,18 @@ function GroupedClozeEditor({
       }
 
       await saveQuestions(batch);
+
+      if (sharedClozeImage.dirty) {
+        await syncSharedGroupImage({
+          subject,
+          quizId,
+          kind: "cloze_illustration",
+          primaryLevel,
+          questionCode: first.code,
+          draft: sharedClozeImage,
+        });
+      }
+
       await onSaved();
     } catch (saveError: any) {
       setSaving(false);
@@ -1252,6 +1449,14 @@ function GroupedClozeEditor({
             style={textarea}
           />
         </label>
+
+        <SharedGroupImageEditor
+          title="Cloze illustration"
+          description="Optional shared PNG/image shown beneath the Cloze passage."
+          value={sharedClozeImage}
+          disabled={saving}
+          onChange={setSharedClozeImage}
+        />
       </EditorSection>
 
       <EditorSection
@@ -1333,6 +1538,275 @@ function GroupedClozeEditor({
         </button>
       </div>
     </div>
+  );
+}
+
+function SharedGroupImageEditor({
+  title,
+  description,
+  value,
+  disabled,
+  onChange,
+}: {
+  title: string;
+  description: string;
+  value: SharedGroupImageDraft;
+  disabled: boolean;
+  onChange: (value: SharedGroupImageDraft) => void;
+}) {
+  const [localUrl, setLocalUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!value.file) {
+      setLocalUrl(null);
+      return;
+    }
+
+    const url = URL.createObjectURL(value.file);
+    setLocalUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [value.file]);
+
+  const previewUrl = value.removed ? null : localUrl || value.existingUrl;
+
+  function patch(next: Partial<SharedGroupImageDraft>) {
+    onChange({ ...value, ...next, dirty: true });
+  }
+
+  return (
+    <div style={specialMediaPanel}>
+      <div>
+        <p style={specialMediaEyebrow}>SHARED IMAGE</p>
+        <h4 style={specialMediaTitle}>{title}</h4>
+        <p style={specialMediaDescription}>{description}</p>
+      </div>
+
+      {previewUrl ? (
+        <img
+          src={previewUrl}
+          alt={value.altText || title}
+          style={specialMediaPreview}
+        />
+      ) : (
+        <div style={specialMediaEmpty}>No shared image</div>
+      )}
+
+      <div style={twoColumnGrid}>
+        <label style={fieldLabel}>
+          {previewUrl ? "Replace image" : "Add image"}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml"
+            disabled={disabled}
+            onChange={(event) => {
+              const file = event.target.files?.[0] || null;
+              if (!file) return;
+              patch({ file, removed: false });
+            }}
+            style={input}
+          />
+        </label>
+
+        <label style={fieldLabel}>
+          Alternative text
+          <input
+            value={value.altText}
+            disabled={disabled}
+            onChange={(event) => patch({ altText: event.target.value, removed: false })}
+            style={input}
+          />
+        </label>
+
+        <label style={{ ...fieldLabel, gridColumn: "1 / -1" }}>
+          Caption
+          <input
+            value={value.caption}
+            disabled={disabled}
+            onChange={(event) => patch({ caption: event.target.value, removed: false })}
+            style={input}
+          />
+        </label>
+      </div>
+
+      {previewUrl && (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => patch({ file: null, removed: true })}
+          style={specialRemoveButton}
+        >
+          Remove Image
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ComprehensionOptionImageEditor({
+  options,
+  optionTexts,
+  value,
+  disabled,
+  onChange,
+}: {
+  options: JsonObject[];
+  optionTexts: string[];
+  value: QuestionMediaDraft;
+  disabled: boolean;
+  onChange: (value: QuestionMediaDraft) => void;
+}) {
+  function defaultDraft(optionId: string, option: JsonObject): OptionImageDraft {
+    return {
+      optionId,
+      existingUrl: option.image_url ? String(option.image_url) : null,
+      existingBucket: option.image_bucket ? String(option.image_bucket) : null,
+      existingPath: option.image_path ? String(option.image_path) : null,
+      file: null,
+      altText: String(option.image_alt ?? option.text ?? ""),
+      showTextWithImage: option.show_text_with_image === true,
+      removed: false,
+    };
+  }
+
+  function updateOption(
+    optionId: string,
+    option: JsonObject,
+    patch: Partial<OptionImageDraft>,
+  ) {
+    const current = value.optionImages[optionId] || defaultDraft(optionId, option);
+    onChange({
+      ...value,
+      optionImages: {
+        ...value.optionImages,
+        [optionId]: { ...current, ...patch },
+      },
+    });
+  }
+
+  return (
+    <div style={specialMediaPanel}>
+      <div>
+        <p style={specialMediaEyebrow}>ANSWER-OPTION IMAGES</p>
+        <h4 style={specialMediaTitle}>Comprehension answer images</h4>
+        <p style={specialMediaDescription}>
+          Optional image for each answer choice on this question.
+        </p>
+      </div>
+
+      <div style={specialOptionGrid}>
+        {options.map((rawOption, index) => {
+          const option = rawOption || {};
+          const optionId = String(option.id ?? String.fromCharCode(97 + index));
+          const draft = value.optionImages[optionId] || defaultDraft(optionId, option);
+
+          return (
+            <SpecialOptionImageCard
+              key={optionId}
+              label={optionTexts[index] || `Option ${optionId.toUpperCase()}`}
+              optionId={optionId}
+              draft={draft}
+              disabled={disabled}
+              onChange={(patch) => updateOption(optionId, option, patch)}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function SpecialOptionImageCard({
+  label,
+  optionId,
+  draft,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  optionId: string;
+  draft: OptionImageDraft;
+  disabled: boolean;
+  onChange: (patch: Partial<OptionImageDraft>) => void;
+}) {
+  const [localUrl, setLocalUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!draft.file) {
+      setLocalUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(draft.file);
+    setLocalUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [draft.file]);
+
+  const previewUrl = draft.removed ? null : localUrl || draft.existingUrl;
+
+  return (
+    <article style={specialOptionCard}>
+      <div style={optionRow}>
+        <span style={optionLetter}>{optionId.toUpperCase()}</span>
+        <strong style={{ minWidth: 0, fontSize: 12 }}>{label}</strong>
+      </div>
+
+      {previewUrl ? (
+        <img
+          src={previewUrl}
+          alt={draft.altText || label}
+          style={specialOptionPreview}
+        />
+      ) : (
+        <div style={specialOptionEmpty}>No image</div>
+      )}
+
+      <label style={fieldLabel}>
+        {previewUrl ? "Replace image" : "Add image"}
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml"
+          disabled={disabled}
+          onChange={(event) => {
+            const file = event.target.files?.[0] || null;
+            if (!file) return;
+            onChange({ file, removed: false });
+          }}
+          style={input}
+        />
+      </label>
+
+      <label style={fieldLabel}>
+        Alternative text
+        <input
+          value={draft.altText}
+          disabled={disabled}
+          onChange={(event) => onChange({ altText: event.target.value, removed: false })}
+          style={input}
+        />
+      </label>
+
+      <label style={inlineCheckLabel}>
+        <input
+          type="checkbox"
+          checked={draft.showTextWithImage}
+          disabled={disabled}
+          onChange={(event) =>
+            onChange({ showTextWithImage: event.target.checked, removed: false })
+          }
+        />
+        Show answer text with image
+      </label>
+
+      {previewUrl && (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange({ file: null, removed: true })}
+          style={specialRemoveButton}
+        >
+          Remove Option Image
+        </button>
+      )}
+    </article>
   );
 }
 
@@ -1567,6 +2041,111 @@ const preserveNotice: CSSProperties = {
   padding: "12px",
   fontSize: "12px",
   lineHeight: 1.5,
+};
+
+const specialMediaPanel: CSSProperties = {
+  borderRadius: "16px",
+  border: "1px solid rgba(198,166,255,0.26)",
+  background: "linear-gradient(145deg,rgba(55,29,92,0.22),rgba(6,22,48,0.58))",
+  padding: "13px",
+  display: "grid",
+  gap: "11px",
+};
+
+const specialMediaEyebrow: CSSProperties = {
+  margin: 0,
+  color: "#e7b7ff",
+  fontSize: "9px",
+  fontWeight: 950,
+  letterSpacing: "0.14em",
+};
+
+const specialMediaTitle: CSSProperties = {
+  margin: "4px 0 0",
+  fontSize: "15px",
+};
+
+const specialMediaDescription: CSSProperties = {
+  margin: "5px 0 0",
+  color: "rgba(255,255,255,0.48)",
+  fontSize: "11px",
+  lineHeight: 1.45,
+};
+
+const specialMediaPreview: CSSProperties = {
+  display: "block",
+  width: "100%",
+  maxHeight: "250px",
+  objectFit: "contain",
+  borderRadius: "12px",
+  background: "white",
+};
+
+const specialMediaEmpty: CSSProperties = {
+  minHeight: "100px",
+  display: "grid",
+  placeItems: "center",
+  borderRadius: "12px",
+  border: "1px dashed rgba(126,232,255,0.18)",
+  background: "rgba(0,0,0,0.12)",
+  color: "rgba(255,255,255,0.36)",
+  fontSize: "11px",
+};
+
+const specialRemoveButton: CSSProperties = {
+  minHeight: "38px",
+  borderRadius: "10px",
+  border: "1px solid rgba(248,113,113,0.30)",
+  background: "rgba(239,68,68,0.08)",
+  color: "#fecaca",
+  padding: "0 12px",
+  cursor: "pointer",
+  fontSize: "11px",
+  fontWeight: 900,
+};
+
+const specialOptionGrid: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
+  gap: "10px",
+};
+
+const specialOptionCard: CSSProperties = {
+  minWidth: 0,
+  borderRadius: "13px",
+  border: "1px solid rgba(126,232,255,0.14)",
+  background: "rgba(2,12,29,0.48)",
+  padding: "10px",
+  display: "grid",
+  gap: "9px",
+};
+
+const specialOptionPreview: CSSProperties = {
+  display: "block",
+  width: "100%",
+  height: "150px",
+  objectFit: "contain",
+  borderRadius: "10px",
+  background: "white",
+};
+
+const specialOptionEmpty: CSSProperties = {
+  height: "90px",
+  display: "grid",
+  placeItems: "center",
+  borderRadius: "10px",
+  background: "rgba(255,255,255,0.035)",
+  color: "rgba(255,255,255,0.32)",
+  fontSize: "10px",
+};
+
+const inlineCheckLabel: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "7px",
+  color: "rgba(255,255,255,0.62)",
+  fontSize: "11px",
+  fontWeight: 800,
 };
 
 const twoColumnGrid: CSSProperties = {

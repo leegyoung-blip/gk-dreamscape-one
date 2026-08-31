@@ -59,12 +59,19 @@ export default function GroupedWordBankCloze({
   );
 
   const first = ordered[0];
-  const instruction = first?.instruction ||
+  const instruction =
+    first?.instruction ||
     "Fill in each blank with the most suitable word. Use each word only once.";
   const passage = String(first?.content?.cloze_passage ?? first?.prompt ?? "");
   const illustrationUrl = first?.content?.illustration_url
     ? String(first.content.illustration_url)
     : null;
+  const illustrationAlt = String(
+    first?.content?.illustration_alt ?? "Cloze passage illustration",
+  );
+  const illustrationCaption = String(
+    first?.content?.illustration_caption ?? "",
+  );
 
   const words = useMemo(() => {
     const raw = Array.isArray(first?.content?.word_bank)
@@ -108,13 +115,11 @@ export default function GroupedWordBankCloze({
 
   function clearWordEverywhere(next: AnswerMap, word: string) {
     const needle = normalise(word);
-
     for (const question of ordered) {
       const blankId = String(
         question.content?.blank_id ?? question.question_order,
       );
       const current = next[question.id]?.values?.[blankId];
-
       if (typeof current === "string" && normalise(current) === needle) {
         next[question.id] = { values: {} };
       }
@@ -127,12 +132,7 @@ export default function GroupedWordBankCloze({
 
     const next: AnswerMap = { ...answers };
     clearWordEverywhere(next, word);
-    next[targetQuestion.id] = {
-      values: {
-        [blankId]: word,
-      },
-    };
-
+    next[targetQuestion.id] = { values: { [blankId]: word } };
     onAnswersChange(next);
     setSelectedWord(null);
   }
@@ -163,13 +163,10 @@ export default function GroupedWordBankCloze({
 
     return pieces.map((piece, index) => {
       const marker = /^\{\{(\d+)\}\}$/.exec(piece);
-      if (!marker) {
-        return <span key={`text-${index}`}>{piece}</span>;
-      }
+      if (!marker) return <span key={`text-${index}`}>{piece}</span>;
 
       const blankId = marker[1];
       const placed = placedByBlank.get(blankId) || "";
-      const canUseSelected = Boolean(selectedWord);
 
       return (
         <span key={`blank-${blankId}-${index}`} style={blankWrap}>
@@ -178,7 +175,7 @@ export default function GroupedWordBankCloze({
             aria-label={
               placed
                 ? `Blank ${blankId}: ${placed}. Click to return this word.`
-                : `Blank ${blankId}. ${canUseSelected ? "Click to place selected word." : "Choose a helping word first."}`
+                : `Blank ${blankId}. ${selectedWord ? "Click to place selected word." : "Choose a helping word first."}`
             }
             draggable={Boolean(placed) && !busy}
             onDragStart={(event) => {
@@ -208,6 +205,11 @@ export default function GroupedWordBankCloze({
           ← Quiz List
         </button>
 
+        <div style={headerTitleWrap}>
+          <p style={eyebrow}>ENGLISH · PRIMARY {level}</p>
+          <p style={headerTitle}>{topicTitle}</p>
+        </div>
+
         <div style={balanceRow}>
           <span style={balancePill}>DT {tokenBalance}</span>
           <span style={balancePill}>DG {gemBalance}</span>
@@ -217,38 +219,36 @@ export default function GroupedWordBankCloze({
       <section style={outerWrap(isMobile)}>
         <div style={topCard}>
           <div style={{ minWidth: 0 }}>
-            <p style={eyebrow}>ENGLISH · PRIMARY {level}</p>
             <h1 style={titleStyle}>{title}</h1>
-            <p style={metaStyle}>{topicTitle}</p>
+            <p style={instructionText}>{instruction}</p>
           </div>
-
           <div style={progressPill}>
-            {answeredCount}/{ordered.length} blanks filled
+            {answeredCount}/{ordered.length} filled
           </div>
-        </div>
-
-        <div style={instructionCard}>
-          <strong>Instructions</strong>
-          <span>{instruction}</span>
-          <small>
-            Drag a word into a blank, or click a word and then click the blank.
-            Click a filled blank to return its word.
-          </small>
         </div>
 
         {error && <div style={errorCard}>{error}</div>}
 
         <div style={workspace(isMobile)}>
-          <article style={passageCard}>
-            <div style={passageText}>{renderPassage()}</div>
+          <article style={passageCard(isMobile)}>
+            <div style={passageScroller}>
+              <div style={passageText}>{renderPassage()}</div>
 
-            {illustrationUrl && (
-              <img
-                src={illustrationUrl}
-                alt="Cloze passage illustration"
-                style={illustration}
-              />
-            )}
+              {illustrationUrl && (
+                <figure style={illustrationFigure}>
+                  <img
+                    src={illustrationUrl}
+                    alt={illustrationAlt}
+                    style={illustration}
+                  />
+                  {illustrationCaption && (
+                    <figcaption style={illustrationCaptionStyle}>
+                      {illustrationCaption}
+                    </figcaption>
+                  )}
+                </figure>
+              )}
+            </div>
           </article>
 
           <aside
@@ -304,8 +304,7 @@ export default function GroupedWordBankCloze({
             </div>
 
             <p style={bankHint}>
-              A word can only occupy one blank. Moving it automatically clears
-              its previous position.
+              Drag a word to a blank, or select a word and tap the blank.
             </p>
           </aside>
         </div>
@@ -313,7 +312,7 @@ export default function GroupedWordBankCloze({
         <div style={actionBar(isMobile)}>
           <div style={completionText}>
             {complete
-              ? "All blanks are filled. You can submit your answers."
+              ? "All blanks are filled."
               : `${ordered.length - answeredCount} blank${ordered.length - answeredCount === 1 ? "" : "s"} remaining.`}
           </div>
           <button
@@ -331,150 +330,172 @@ export default function GroupedWordBankCloze({
 }
 
 const pageShell: CSSProperties = {
-  minHeight: "100vh",
+  height: "100dvh",
+  overflow: "hidden",
   background:
     "radial-gradient(circle at 18% 0%, rgba(147,74,255,0.18), transparent 34%), linear-gradient(180deg,#050a19 0%,#071124 100%)",
   color: "#f8fbff",
-  padding: "18px clamp(14px, 3vw, 38px) 36px",
+  padding: "12px clamp(10px, 2vw, 24px)",
+  boxSizing: "border-box",
+  display: "flex",
+  flexDirection: "column",
 };
 
 const header = (isMobile: boolean): CSSProperties => ({
+  flex: "0 0 auto",
   maxWidth: "1500px",
-  margin: "0 auto 18px",
-  display: "flex",
+  width: "100%",
+  margin: "0 auto 10px",
+  display: "grid",
+  gridTemplateColumns: isMobile ? "auto 1fr" : "auto 1fr auto",
   alignItems: "center",
-  justifyContent: "space-between",
-  gap: "12px",
-  flexWrap: isMobile ? "wrap" : "nowrap",
+  gap: "10px",
 });
 
+const headerTitleWrap: CSSProperties = {
+  minWidth: 0,
+  textAlign: "center",
+};
+
+const headerTitle: CSSProperties = {
+  margin: "3px 0 0",
+  color: "rgba(255,255,255,0.56)",
+  fontSize: "11px",
+  fontWeight: 800,
+};
+
 const backButton: CSSProperties = {
+  minHeight: "38px",
   border: "1px solid rgba(255,255,255,0.16)",
   background: "rgba(255,255,255,0.06)",
   color: "#fff",
-  borderRadius: "14px",
-  padding: "10px 14px",
+  borderRadius: "999px",
+  padding: "0 13px",
   fontWeight: 800,
   cursor: "pointer",
 };
 
-const balanceRow: CSSProperties = {
-  display: "flex",
-  gap: "8px",
-};
-
+const balanceRow: CSSProperties = { display: "flex", gap: "6px" };
 const balancePill: CSSProperties = {
   border: "1px solid rgba(127,225,255,0.28)",
   background: "rgba(10,25,47,0.88)",
   borderRadius: "999px",
-  padding: "8px 12px",
+  padding: "7px 9px",
   fontWeight: 900,
-  fontSize: "13px",
+  fontSize: "11px",
 };
 
 const outerWrap = (isMobile: boolean): CSSProperties => ({
+  flex: 1,
+  minHeight: 0,
   maxWidth: "1500px",
+  width: "100%",
   margin: "0 auto",
   display: "grid",
-  gap: isMobile ? "12px" : "16px",
+  gridTemplateRows: "auto auto minmax(0,1fr) auto",
+  gap: isMobile ? "8px" : "10px",
 });
 
 const topCard: CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
-  gap: "18px",
-  flexWrap: "wrap",
+  gap: "12px",
   border: "1px solid rgba(162,196,255,0.14)",
-  borderRadius: "22px",
-  padding: "18px 20px",
+  borderRadius: "16px",
+  padding: "10px 14px",
   background: "rgba(7,16,34,0.76)",
-  boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
 };
 
 const eyebrow: CSSProperties = {
   margin: 0,
-  fontSize: "11px",
-  letterSpacing: "0.18em",
+  fontSize: "9px",
+  letterSpacing: "0.16em",
   fontWeight: 900,
   color: "#9eefff",
 };
 
 const titleStyle: CSSProperties = {
-  margin: "5px 0 2px",
-  fontSize: "clamp(22px, 3vw, 34px)",
-  lineHeight: 1.12,
+  margin: 0,
+  fontSize: "clamp(18px, 2.1vw, 27px)",
+  lineHeight: 1.1,
 };
 
-const metaStyle: CSSProperties = {
-  margin: 0,
-  color: "rgba(255,255,255,0.62)",
+const instructionText: CSSProperties = {
+  margin: "4px 0 0",
+  color: "rgba(255,255,255,0.58)",
+  fontSize: "11px",
+  lineHeight: 1.35,
 };
 
 const progressPill: CSSProperties = {
-  padding: "10px 14px",
+  padding: "7px 10px",
   borderRadius: "999px",
   background: "rgba(99,232,178,0.1)",
   border: "1px solid rgba(99,232,178,0.3)",
   color: "#bfffe3",
   fontWeight: 900,
-};
-
-const instructionCard: CSSProperties = {
-  display: "grid",
-  gap: "5px",
-  borderRadius: "18px",
-  padding: "14px 16px",
-  background: "rgba(86,127,255,0.08)",
-  border: "1px solid rgba(116,158,255,0.2)",
-  lineHeight: 1.5,
+  fontSize: "11px",
+  whiteSpace: "nowrap",
 };
 
 const errorCard: CSSProperties = {
-  borderRadius: "16px",
-  padding: "12px 14px",
+  borderRadius: "12px",
+  padding: "8px 11px",
   background: "rgba(255,88,109,0.1)",
   border: "1px solid rgba(255,88,109,0.3)",
   color: "#ffd6dc",
+  fontSize: "11px",
 };
 
 const workspace = (isMobile: boolean): CSSProperties => ({
+  minHeight: 0,
   display: "grid",
-  gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1fr) minmax(260px, 330px)",
-  gap: "16px",
-  alignItems: "start",
+  gridTemplateColumns: isMobile
+    ? "minmax(0,1fr) minmax(145px,0.48fr)"
+    : "minmax(0,1fr) minmax(230px,300px)",
+  gap: isMobile ? "8px" : "10px",
+  alignItems: "stretch",
 });
 
-const passageCard: CSSProperties = {
-  borderRadius: "24px",
+const passageCard = (isMobile: boolean): CSSProperties => ({
+  minWidth: 0,
+  minHeight: 0,
+  overflow: "hidden",
+  borderRadius: isMobile ? "16px" : "20px",
   border: "1px solid rgba(255,255,255,0.12)",
   background: "rgba(250,252,255,0.97)",
   color: "#172033",
-  padding: "clamp(18px, 3vw, 34px)",
-  minHeight: "420px",
-  boxShadow: "0 24px 70px rgba(0,0,0,0.28)",
+  padding: isMobile ? "12px" : "18px",
+});
+
+const passageScroller: CSSProperties = {
+  height: "100%",
+  minHeight: 0,
+  overflowY: "auto",
+  paddingRight: "5px",
 };
 
 const passageText: CSSProperties = {
   whiteSpace: "pre-wrap",
-  fontSize: "clamp(16px, 1.35vw, 20px)",
-  lineHeight: 2.1,
+  fontSize: "clamp(14px, 1.2vw, 18px)",
+  lineHeight: 1.85,
   fontFamily: "Georgia, 'Times New Roman', serif",
 };
 
 const blankWrap: CSSProperties = {
   display: "inline-flex",
   alignItems: "baseline",
-  gap: "5px",
-  margin: "0 3px",
+  gap: "4px",
+  margin: "0 2px",
   whiteSpace: "nowrap",
 };
 
 const blankButton = (filled: boolean, selected: boolean): CSSProperties => ({
-  minWidth: filled ? "118px" : "132px",
-  minHeight: "34px",
-  padding: "3px 10px 4px",
-  borderRadius: "8px",
+  minWidth: filled ? "92px" : "108px",
+  minHeight: "30px",
+  padding: "2px 7px 3px",
+  borderRadius: "7px",
   border: selected
     ? "2px solid #7b55ff"
     : filled
@@ -484,134 +505,124 @@ const blankButton = (filled: boolean, selected: boolean): CSSProperties => ({
   color: filled ? "#096c4a" : "#677185",
   fontFamily: "inherit",
   fontWeight: 800,
-  fontSize: "0.9em",
+  fontSize: "0.82em",
   cursor: "pointer",
-  verticalAlign: "baseline",
 });
 
 const blankNumber: CSSProperties = {
   fontFamily: "system-ui, sans-serif",
-  fontSize: "12px",
+  fontSize: "10px",
   color: "#687386",
   fontWeight: 800,
 };
 
+const illustrationFigure: CSSProperties = { margin: "16px auto 0", textAlign: "center" };
 const illustration: CSSProperties = {
   display: "block",
-  maxWidth: "390px",
+  maxWidth: "320px",
   width: "100%",
-  maxHeight: "260px",
+  maxHeight: "180px",
   objectFit: "contain",
-  margin: "26px auto 0",
+  margin: "0 auto",
+};
+const illustrationCaptionStyle: CSSProperties = {
+  marginTop: "5px",
+  color: "#657086",
+  fontSize: "10px",
 };
 
 const bankCard = (isMobile: boolean): CSSProperties => ({
-  position: isMobile ? "static" : "sticky",
-  top: "16px",
-  borderRadius: "24px",
+  minWidth: 0,
+  minHeight: 0,
+  overflowY: "auto",
+  borderRadius: isMobile ? "16px" : "20px",
   border: "1px solid rgba(127,232,255,0.2)",
   background: "linear-gradient(180deg,rgba(10,25,48,0.96),rgba(7,15,31,0.98))",
-  padding: "18px",
-  boxShadow: "0 24px 70px rgba(0,0,0,0.28)",
+  padding: isMobile ? "10px" : "14px",
 });
 
 const bankHeadingRow: CSSProperties = {
   display: "flex",
   alignItems: "start",
   justifyContent: "space-between",
-  gap: "12px",
-  marginBottom: "14px",
+  gap: "8px",
+  marginBottom: "9px",
 };
-
-const bankTitle: CSSProperties = {
-  margin: "5px 0 0",
-  fontSize: "22px",
-};
-
+const bankTitle: CSSProperties = { margin: "3px 0 0", fontSize: "17px" };
 const clearSelection: CSSProperties = {
   border: "1px solid rgba(255,255,255,0.16)",
   background: "rgba(255,255,255,0.06)",
   color: "#fff",
-  borderRadius: "10px",
-  padding: "7px 9px",
+  borderRadius: "8px",
+  padding: "5px 7px",
   fontWeight: 800,
   cursor: "pointer",
+  fontSize: "10px",
 };
 
 const wordGrid = (isMobile: boolean): CSSProperties => ({
   display: "grid",
-  gridTemplateColumns: isMobile ? "repeat(2,minmax(0,1fr))" : "1fr",
-  gap: "9px",
+  gridTemplateColumns: isMobile ? "1fr" : "1fr",
+  gap: "6px",
 });
 
 const wordButton = (selected: boolean, used: boolean): CSSProperties => ({
   width: "100%",
-  minHeight: "45px",
+  minHeight: "36px",
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
-  gap: "8px",
-  borderRadius: "13px",
+  gap: "6px",
+  borderRadius: "9px",
   border: selected
-    ? "1px solid rgba(185,147,255,0.9)"
+    ? "1px solid rgba(167,139,250,0.9)"
     : used
-      ? "1px solid rgba(103,231,184,0.28)"
-      : "1px solid rgba(255,255,255,0.14)",
+      ? "1px solid rgba(52,211,153,0.35)"
+      : "1px solid rgba(126,232,255,0.16)",
   background: selected
-    ? "rgba(145,89,255,0.22)"
+    ? "rgba(139,92,246,0.18)"
     : used
-      ? "rgba(53,171,125,0.09)"
-      : "rgba(255,255,255,0.055)",
-  color: used ? "rgba(228,255,244,0.72)" : "#fff",
-  padding: "10px 12px",
+      ? "rgba(52,211,153,0.08)"
+      : "rgba(255,255,255,0.04)",
+  color: used ? "rgba(255,255,255,0.48)" : "white",
+  padding: "0 9px",
+  cursor: "pointer",
   fontWeight: 850,
-  fontSize: "15px",
-  cursor: "grab",
-  opacity: used ? 0.72 : 1,
-  textAlign: "left",
+  fontSize: "11px",
 });
-
-const placedLabel: CSSProperties = {
-  fontSize: "10px",
-  textTransform: "uppercase",
-  letterSpacing: "0.08em",
-  color: "#7ff0bd",
-};
-
+const placedLabel: CSSProperties = { fontSize: "8px", color: "#9ff0cf" };
 const bankHint: CSSProperties = {
-  margin: "14px 0 0",
-  fontSize: "12px",
-  lineHeight: 1.5,
-  color: "rgba(255,255,255,0.52)",
+  margin: "9px 0 0",
+  color: "rgba(255,255,255,0.38)",
+  fontSize: "9px",
+  lineHeight: 1.35,
 };
 
 const actionBar = (isMobile: boolean): CSSProperties => ({
   display: "flex",
-  flexDirection: isMobile ? "column" : "row",
-  alignItems: isMobile ? "stretch" : "center",
+  alignItems: "center",
   justifyContent: "space-between",
-  gap: "12px",
-  borderRadius: "20px",
-  border: "1px solid rgba(255,255,255,0.1)",
-  background: "rgba(7,16,34,0.8)",
-  padding: "14px 16px",
-});
-
-const completionText: CSSProperties = {
-  color: "rgba(255,255,255,0.72)",
-  fontWeight: 700,
-};
-
-const submitButton = (disabled: boolean): CSSProperties => ({
-  minWidth: "190px",
-  border: 0,
+  gap: "10px",
   borderRadius: "14px",
-  padding: "13px 18px",
-  background: "linear-gradient(135deg,#7a5cff,#55d5ff)",
-  color: "#fff",
+  border: "1px solid rgba(255,255,255,0.10)",
+  background: "rgba(7,16,34,0.84)",
+  padding: isMobile ? "7px 9px" : "9px 12px",
+});
+const completionText: CSSProperties = {
+  color: "rgba(255,255,255,0.54)",
+  fontSize: "10px",
+  fontWeight: 800,
+};
+const submitButton = (disabled: boolean): CSSProperties => ({
+  minHeight: "40px",
+  borderRadius: "10px",
+  border: "1px solid rgba(126,232,255,0.38)",
+  background: disabled
+    ? "rgba(255,255,255,0.05)"
+    : "linear-gradient(135deg,#77e6f5,#74ddc4)",
+  color: disabled ? "rgba(255,255,255,0.35)" : "#061326",
+  padding: "0 14px",
+  cursor: disabled ? "default" : "pointer",
   fontWeight: 950,
-  fontSize: "15px",
-  cursor: disabled ? "not-allowed" : "pointer",
-  opacity: disabled ? 0.42 : 1,
-  boxShadow: disabled ? "none" : "0 14px 30px rgba(78,126,255,0.26)",
+  fontSize: "11px",
 });
