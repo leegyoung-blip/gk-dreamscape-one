@@ -227,9 +227,7 @@ export default function ScienceLevelPage() {
               <span className="rounded-full border border-cyan-200/20 bg-cyan-300/10 px-3 py-1.5 text-xs font-bold text-cyan-100">
                 Topic-based missions
               </span>
-              <span className="rounded-full border border-white/15 bg-white/[0.05] px-3 py-1.5 text-xs font-bold text-white/70">
-                {level?.planned_quiz_count ?? 250} planned quizzes
-              </span>
+              
             </div>
           </div>
 

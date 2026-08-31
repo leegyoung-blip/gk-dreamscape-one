@@ -319,9 +319,7 @@ export default function CoreMissionsPage() {
                 );
               })}
 
-              <span className="inline-flex min-h-10 items-center rounded-full border border-white/15 bg-white/[0.05] px-4 text-xs font-bold text-white/65">
-                {totals.planned || 1500} planned quizzes
-              </span>
+
             </div>
           </div>
 

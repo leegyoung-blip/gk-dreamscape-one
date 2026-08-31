@@ -513,14 +513,14 @@ export default function DreamTokensAdminPage() {
           onClick={() => router.push("/admin/billing")}
           className="rounded-full border border-emerald-200/30 bg-emerald-300/12 px-5 py-3 text-sm font-extrabold tracking-wide text-emerald-100 shadow-[0_16px_36px_rgba(0,0,0,0.28)] backdrop-blur-xl transition hover:scale-[1.03] hover:border-emerald-200/50 hover:bg-emerald-300/18"
         >
-          Open GKP Billing →
+          Open Billing →
         </button>
       </div>
 
       <div className="relative z-10 mx-auto mt-10 max-w-7xl">
         <section>
           <p className="m-0 text-xs font-bold uppercase tracking-[0.3em] text-[#7ee8ff]">
-            GKP Admin
+            Dreamscape Admin
           </p>
 
           <h1 className="mt-4 text-5xl font-extralight tracking-[-0.05em] text-white drop-shadow-[0_0_28px_rgba(126,232,255,0.18)] sm:text-7xl">
@@ -573,7 +573,7 @@ export default function DreamTokensAdminPage() {
                 : "border-white/10 bg-white/[0.035] text-white/58 hover:border-white/20 hover:text-white"
             }`}
           >
-            Legacy Teacher Rosters
+            Teacher Rosters
           </button>
 
           <button
