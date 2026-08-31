@@ -25,6 +25,11 @@ const ALL_STIMULUS_TABLES = [
   "math_stimuli",
 ] as const;
 
+const ALL_QUESTION_ASSET_TABLES = [
+  "english_question_assets",
+  "math_question_assets",
+] as const;
+
 function mediaTablesFor(subject: CoreSubject): MediaTableSet {
   if (subject === "english") {
     return {
@@ -77,6 +82,7 @@ export type OptionImageDraft = {
   existingPath: string | null;
   file: File | null;
   altText: string;
+  showTextWithImage: boolean;
   removed: boolean;
 };
 
@@ -93,6 +99,13 @@ export type SyncQuestionMediaInput = {
   primaryLevel: number;
   content: JsonObject;
   media: QuestionMediaDraft;
+  /**
+   * Phase 3 deliberately defaults this to false. Storage files are only
+   * unlinked from the database here; physical orphan cleanup is deferred to
+   * the dedicated media-cleanup phase so a shared/previous question can never
+   * be broken by a live edit.
+   */
+  cleanupReplacedFiles?: boolean;
 };
 
 export function emptyQuestionMediaDraft(): QuestionMediaDraft {
@@ -151,6 +164,7 @@ export function questionMediaDraftFromQuestion(
         existingPath,
         file: null,
         altText: String(option.image_alt ?? option.text ?? "Answer option image"),
+        showTextWithImage: option.show_text_with_image === true,
         removed: false,
       };
     }
@@ -265,6 +279,41 @@ async function removeStoredFile(
   if (error) console.warn("Could not remove old curriculum media file:", error.message);
 }
 
+async function removeQuestionAssetFileIfUnreferenced(
+  bucket: string | null | undefined,
+  path: string | null | undefined,
+) {
+  if (!bucket || !path) return;
+
+  const checks = await Promise.all(
+    ALL_QUESTION_ASSET_TABLES.map((table) =>
+      supabase
+        .from(table)
+        .select("id", { count: "exact", head: true })
+        .eq("storage_bucket", bucket)
+        .eq("storage_path", path),
+    ),
+  );
+
+  const firstError = checks.find((result) => result.error)?.error;
+  if (firstError) {
+    console.warn(
+      "Could not verify question-asset file usage:",
+      firstError.message,
+    );
+    return;
+  }
+
+  const totalReferences = checks.reduce(
+    (sum, result) => sum + Number(result.count || 0),
+    0,
+  );
+
+  if (totalReferences === 0) {
+    await removeStoredFile(bucket, path);
+  }
+}
+
 function stimulusBody(draft: StimulusDraft): JsonObject {
   if (["passage", "visual_text", "table"].includes(draft.type)) {
     return { text: draft.bodyText.trim() };
@@ -333,12 +382,14 @@ async function syncStimulus({
   subject,
   primaryLevel,
   draft,
+  cleanupReplacedFiles,
 }: {
   questionId: string;
   questionCode: string;
   subject: CoreSubject;
   primaryLevel: number;
   draft: StimulusDraft;
+  cleanupReplacedFiles: boolean;
 }) {
   const tables = mediaTablesFor(subject);
 
@@ -361,7 +412,7 @@ async function syncStimulus({
       .eq("id", questionId);
     if (error) throw error;
 
-    await removeUnusedStimulus(subject, oldStimulusId);
+    await removeUnusedStimulus(subject, oldStimulusId, cleanupReplacedFiles);
     return null;
   }
 
@@ -379,7 +430,7 @@ async function syncStimulus({
     if (error) throw error;
 
     if (oldStimulusId && oldStimulusId !== draft.existingId) {
-      await removeUnusedStimulus(subject, oldStimulusId);
+      await removeUnusedStimulus(subject, oldStimulusId, cleanupReplacedFiles);
     }
     return draft.existingId;
   }
@@ -504,6 +555,7 @@ async function syncStimulus({
 
   // Remove a replaced file only when no other stimulus row still references it.
   if (
+    cleanupReplacedFiles &&
     updateExisting &&
     existingStimulus?.storage_path &&
     (existingStimulus.storage_bucket !== row.storage_bucket ||
@@ -516,7 +568,7 @@ async function syncStimulus({
   }
 
   if (oldStimulusId && oldStimulusId !== stimulusId) {
-    await removeUnusedStimulus(subject, oldStimulusId);
+    await removeUnusedStimulus(subject, oldStimulusId, cleanupReplacedFiles);
   }
 
   return stimulusId;
@@ -525,6 +577,7 @@ async function syncStimulus({
 async function removeUnusedStimulus(
   subject: CoreSubject,
   stimulusId: string | null,
+  cleanupReplacedFiles: boolean,
 ) {
   if (!stimulusId) return;
 
@@ -547,7 +600,7 @@ async function removeUnusedStimulus(
     .delete()
     .eq("id", stimulusId);
 
-  if (!deleteError && data) {
+  if (!deleteError && data && cleanupReplacedFiles) {
     await removeStimulusFileIfUnreferenced(
       data.storage_bucket,
       data.storage_path,
@@ -561,17 +614,76 @@ async function syncAssets({
   subject,
   primaryLevel,
   assets,
+  cleanupReplacedFiles,
 }: {
   questionId: string;
   questionCode: string;
   subject: CoreSubject;
   primaryLevel: number;
   assets: QuestionAssetDraft[];
+  cleanupReplacedFiles: boolean;
 }) {
   const tables = mediaTablesFor(subject);
 
   for (let index = 0; index < assets.length; index += 1) {
     const asset = assets[index];
+
+    let existingAttachedToTarget = false;
+
+    if (asset.existingId) {
+      const { data, error } = await supabase
+        .from(tables.questionAssets)
+        .select("id")
+        .eq("id", asset.existingId)
+        .eq("question_id", questionId)
+        .maybeSingle();
+
+      if (error) throw error;
+      existingAttachedToTarget = Boolean(data?.id);
+    }
+
+    // If the question-save RPC created a quiz-specific clone, its source
+    // question_assets rows are not copied automatically. Treat an existing
+    // draft that is not attached to the returned questionId as a source asset
+    // and create a new row for the clone.
+    if (asset.existingId && !existingAttachedToTarget) {
+      if (asset.removed) continue;
+
+      let bucket = asset.existingBucket;
+      let path = asset.existingPath;
+      let assetType = asset.assetType;
+
+      if (asset.file) {
+        const nextPath = mediaPath({
+          subject,
+          primaryLevel,
+          questionCode,
+          group: "assets",
+          file: asset.file,
+        });
+        await uploadFile(nextPath, asset.file);
+        bucket = CORE_MEDIA_BUCKET;
+        path = nextPath;
+        assetType = assetTypeFromFile(asset.file);
+      }
+
+      if (!bucket || !path) {
+        throw new Error("The existing question attachment is missing its storage path.");
+      }
+
+      const { error } = await supabase.from(tables.questionAssets).insert({
+        question_id: questionId,
+        asset_type: assetType,
+        storage_bucket: bucket,
+        storage_path: path,
+        alt_text: asset.altText.trim() || null,
+        caption: asset.caption.trim() || null,
+        metadata: { object_fit: asset.objectFit, placement: "above_prompt" },
+        sort_order: index,
+      });
+      if (error) throw error;
+      continue;
+    }
 
     if (asset.existingId && asset.removed) {
       const { error } = await supabase
@@ -580,7 +692,13 @@ async function syncAssets({
         .eq("id", asset.existingId)
         .eq("question_id", questionId);
       if (error) throw error;
-      await removeStoredFile(asset.existingBucket, asset.existingPath);
+
+      if (cleanupReplacedFiles) {
+        await removeQuestionAssetFileIfUnreferenced(
+          asset.existingBucket,
+          asset.existingPath,
+        );
+      }
       continue;
     }
 
@@ -616,8 +734,16 @@ async function syncAssets({
         .eq("question_id", questionId);
       if (error) throw error;
 
-      if (asset.file && asset.existingPath && asset.existingPath !== path) {
-        await removeStoredFile(asset.existingBucket, asset.existingPath);
+      if (
+        cleanupReplacedFiles &&
+        asset.file &&
+        asset.existingPath &&
+        asset.existingPath !== path
+      ) {
+        await removeQuestionAssetFileIfUnreferenced(
+          asset.existingBucket,
+          asset.existingPath,
+        );
       }
       continue;
     }
@@ -653,12 +779,14 @@ async function syncOptionImages({
   primaryLevel,
   content,
   optionImages,
+  cleanupReplacedFiles,
 }: {
   questionCode: string;
   subject: CoreSubject;
   primaryLevel: number;
   content: JsonObject;
   optionImages: Record<string, OptionImageDraft>;
+  cleanupReplacedFiles: boolean;
 }) {
   if (!Array.isArray(content.options)) return content;
 
@@ -670,13 +798,14 @@ async function syncOptionImages({
     const draft = optionImages[optionId];
 
     if (!draft || draft.removed) {
-      if (draft?.removed) {
+      if (draft?.removed && cleanupReplacedFiles) {
         await removeStoredFile(draft.existingBucket, draft.existingPath);
       }
       delete option.image_url;
       delete option.image_bucket;
       delete option.image_path;
       delete option.image_alt;
+      delete option.show_text_with_image;
       nextOptions.push(option);
       continue;
     }
@@ -699,8 +828,13 @@ async function syncOptionImages({
       option.image_path = path;
       option.image_url = publicMediaUrl(CORE_MEDIA_BUCKET, path);
       option.image_alt = draft.altText.trim() || option.text || "Answer option image";
+      option.show_text_with_image = draft.showTextWithImage;
 
-      if (draft.existingPath && draft.existingPath !== path) {
+      if (
+        cleanupReplacedFiles &&
+        draft.existingPath &&
+        draft.existingPath !== path
+      ) {
         await removeStoredFile(draft.existingBucket, draft.existingPath);
       }
     } else if (draft.existingUrl || draft.existingPath) {
@@ -710,6 +844,7 @@ async function syncOptionImages({
         draft.existingUrl ||
         publicMediaUrl(option.image_bucket, option.image_path);
       option.image_alt = draft.altText.trim() || option.text || "Answer option image";
+      option.show_text_with_image = draft.showTextWithImage;
     }
 
     nextOptions.push(option);
@@ -720,6 +855,7 @@ async function syncOptionImages({
 
 export async function syncQuestionMedia(input: SyncQuestionMediaInput) {
   const tables = mediaTablesFor(input.subject);
+  const cleanupReplacedFiles = input.cleanupReplacedFiles === true;
 
   const contentWithOptionImages = await syncOptionImages({
     questionCode: input.questionCode,
@@ -727,6 +863,7 @@ export async function syncQuestionMedia(input: SyncQuestionMediaInput) {
     primaryLevel: input.primaryLevel,
     content: input.content,
     optionImages: input.media.optionImages,
+    cleanupReplacedFiles,
   });
 
   const stimulusId = await syncStimulus({
@@ -735,6 +872,7 @@ export async function syncQuestionMedia(input: SyncQuestionMediaInput) {
     subject: input.subject,
     primaryLevel: input.primaryLevel,
     draft: input.media.stimulus,
+    cleanupReplacedFiles,
   });
 
   const { error: contentError } = await supabase
@@ -752,6 +890,7 @@ export async function syncQuestionMedia(input: SyncQuestionMediaInput) {
     subject: input.subject,
     primaryLevel: input.primaryLevel,
     assets: input.media.assets,
+    cleanupReplacedFiles,
   });
 
   return contentWithOptionImages;

@@ -50,6 +50,7 @@ function defaultOptionImage(optionId: string): OptionImageDraft {
     existingPath: null,
     file: null,
     altText: "",
+    showTextWithImage: true,
     removed: false,
   };
 }
@@ -381,7 +382,7 @@ export default function QuestionMediaEditor({
         )}
       </div>
 
-      {questionType === "multiple_choice" && (
+      {["multiple_choice", "multiple_select"].includes(questionType) && (
         <div style={sectionBlock}>
           <div>
             <p style={smallEyebrow}>ANSWER-OPTION IMAGES</p>
@@ -446,6 +447,24 @@ export default function QuestionMediaEditor({
 
                   {(optionImage.file || optionImage.existingUrl || optionImage.existingPath) &&
                     !optionImage.removed && (
+                      <label style={checkLabel}>
+                        <input
+                          type="checkbox"
+                          checked={optionImage.showTextWithImage}
+                          disabled={disabled}
+                          onChange={(event) =>
+                            updateOptionImage(optionId, {
+                              showTextWithImage: event.target.checked,
+                              removed: false,
+                            })
+                          }
+                        />
+                        Show answer text together with the image
+                      </label>
+                    )}
+
+                  {(optionImage.file || optionImage.existingUrl || optionImage.existingPath) &&
+                    !optionImage.removed && (
                       <button
                         type="button"
                         disabled={disabled}
@@ -468,9 +487,9 @@ export default function QuestionMediaEditor({
       )}
 
       <div style={noticeBox}>
-        Use WebP for ordinary images, SVG or PNG for diagrams, MP3 or M4A for
-        audio, and MP4 for video. Add alternative text for every meaningful
-        image, diagram or graph.
+        PNG, WebP, JPEG and SVG images are supported. Replacing or removing an
+        image updates the live question reference; physical orphan-file cleanup
+        is intentionally deferred to the later storage-cleanup phase.
       </div>
     </section>
   );
@@ -740,6 +759,14 @@ const optionText: CSSProperties = {
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
   fontSize: "12px",
+};
+const checkLabel: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+  color: "rgba(255,255,255,0.66)",
+  fontSize: "11px",
+  fontWeight: 800,
 };
 const previewPlaceholder: CSSProperties = {
   minHeight: "110px",

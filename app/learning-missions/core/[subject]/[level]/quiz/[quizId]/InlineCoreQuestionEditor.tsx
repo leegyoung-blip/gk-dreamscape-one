@@ -3,9 +3,41 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
+import QuestionMediaEditor from "@/app/curriculum-developer/components/QuestionMediaEditor";
+import {
+  questionMediaDraftFromQuestion,
+  syncQuestionMedia,
+  type QuestionMediaDraft,
+} from "@/app/curriculum-developer/media";
+import type { SupportedQuestionType } from "@/app/curriculum-developer/types";
 
 type CoreSubject = "english" | "math";
 type JsonObject = Record<string, any>;
+
+type EditorStimulus = {
+  id: string;
+  stimulus_type: string;
+  title: string | null;
+  body: JsonObject;
+  storage_bucket: string | null;
+  storage_path: string | null;
+  alt_text: string | null;
+  transcript: string | null;
+} | null;
+
+type EditorAsset = {
+  id: string;
+  question_id: string;
+  asset_type: "image" | "svg" | "audio" | "video";
+  storage_bucket: string;
+  storage_path: string;
+  alt_text: string | null;
+  caption: string | null;
+  width: number | null;
+  height: number | null;
+  metadata: JsonObject;
+  sort_order: number;
+};
 
 type EditorQuestion = {
   id: string;
@@ -21,6 +53,8 @@ type EditorQuestion = {
   difficulty: number;
   marks: number;
   status: string;
+  stimulus: EditorStimulus;
+  assets: EditorAsset[];
 };
 
 type EditorPayload = {
@@ -53,6 +87,12 @@ type SavePatch = {
 type BatchEntry = {
   question: EditorQuestion;
   patch: SavePatch;
+};
+
+type SavedQuestionRef = {
+  sourceQuestionId: string;
+  savedQuestionId: string;
+  code: string;
 };
 
 export default function InlineCoreQuestionEditor({
@@ -134,7 +174,7 @@ export default function InlineCoreQuestionEditor({
     );
 
   async function saveQuestions(entries: BatchEntry[]) {
-    if (entries.length === 0) return;
+    if (entries.length === 0) return new Map<string, SavedQuestionRef>();
 
     const updates = entries.map(({ question, patch }) => {
       const nextInstruction =
@@ -164,7 +204,7 @@ export default function InlineCoreQuestionEditor({
       };
     });
 
-    const { error: saveError } = await supabase.rpc(
+    const { data, error: saveError } = await supabase.rpc(
       "curriculum_save_core_inline_question_batch",
       {
         p_subject: subject,
@@ -174,6 +214,31 @@ export default function InlineCoreQuestionEditor({
     );
 
     if (saveError) throw saveError;
+
+    const detailed = Array.isArray(data?.saved_questions)
+      ? data.saved_questions
+      : [];
+    const legacyIds = Array.isArray(data?.saved_question_ids)
+      ? data.saved_question_ids.map(String)
+      : [];
+
+    const map = new Map<string, SavedQuestionRef>();
+
+    entries.forEach((entry, index) => {
+      const row = detailed[index] || {};
+      const savedQuestionId = String(
+        row.saved_question_id ?? legacyIds[index] ?? entry.question.id,
+      );
+      const code = String(row.code ?? entry.question.code);
+
+      map.set(entry.question.id, {
+        sourceQuestionId: entry.question.id,
+        savedQuestionId,
+        code,
+      });
+    });
+
+    return map;
   }
 
   async function handleSaved() {
@@ -231,6 +296,8 @@ export default function InlineCoreQuestionEditor({
           />
         ) : (
           <SingleQuestionEditor
+            subject={subject}
+            primaryLevel={payload.quiz.primary_level}
             question={activeQuestion}
             allQuestions={orderedQuestions}
             saving={saving}
@@ -250,6 +317,8 @@ export default function InlineCoreQuestionEditor({
 }
 
 function SingleQuestionEditor({
+  subject,
+  primaryLevel,
   question,
   allQuestions,
   saving,
@@ -258,12 +327,14 @@ function SingleQuestionEditor({
   saveQuestions,
   onSaved,
 }: {
+  subject: CoreSubject;
+  primaryLevel: number;
   question: EditorQuestion;
   allQuestions: EditorQuestion[];
   saving: boolean;
   setSaving: (value: boolean) => void;
   setError: (value: string | null) => void;
-  saveQuestions: (entries: BatchEntry[]) => Promise<void>;
+  saveQuestions: (entries: BatchEntry[]) => Promise<Map<string, SavedQuestionRef>>;
   onSaved: () => Promise<void>;
 }) {
   const [instruction, setInstruction] = useState(question.instruction || "");
@@ -274,6 +345,9 @@ function SingleQuestionEditor({
   const [skill, setSkill] = useState(question.skill || "");
   const [difficulty, setDifficulty] = useState(Number(question.difficulty || 1));
   const [marks, setMarks] = useState(Number(question.marks || 1));
+  const [mediaDraft, setMediaDraft] = useState<QuestionMediaDraft>(() =>
+    questionMediaDraftFromQuestion(question as any),
+  );
 
   const originalOptions = Array.isArray(question.content?.options)
     ? question.content.options
@@ -492,7 +566,7 @@ function SingleQuestionEditor({
 
     if (hasValues) {
       const cleanValues = Object.fromEntries(
-        Object.entries(valueAnswers).map(([key, value]) => [key, value.trim()]),
+        Object.entries(valueAnswers).map(([key, value]) => [key, String(value).trim()]),
       );
 
       if (Object.values(cleanValues).some((value) => !value)) {
@@ -632,7 +706,24 @@ function SingleQuestionEditor({
         },
       });
 
-      await saveQuestions(batch);
+      const savedQuestions = await saveQuestions(batch);
+      const savedQuestion = savedQuestions.get(question.id);
+
+      // Normal-question media is synchronised only after the existing
+      // curriculum question-save RPC returns the actual question id. This is
+      // essential when a shared question is cloned for this quiz.
+      if (!isSplitComprehension) {
+        await syncQuestionMedia({
+          questionId: savedQuestion?.savedQuestionId || question.id,
+          questionCode: savedQuestion?.code || question.code,
+          subject,
+          primaryLevel,
+          content: nextContent,
+          media: mediaDraft,
+          cleanupReplacedFiles: false,
+        });
+      }
+
       await onSaved();
     } catch (saveError: any) {
       setSaving(false);
@@ -905,6 +996,22 @@ function SingleQuestionEditor({
             </div>
           )}
 
+        {!isSplitComprehension && (
+          <QuestionMediaEditor
+            value={mediaDraft}
+            questionType={question.question_type as SupportedQuestionType}
+            optionLabels={optionTexts}
+            disabled={saving}
+            onChange={setMediaDraft}
+          />
+        )}
+
+        {isSplitComprehension && (
+          <div style={preserveNotice}>
+            Comprehension/Cloze-specific image editing stays in Phase 4.
+          </div>
+        )}
+
         <div style={twoColumnGrid}>
           <label style={fieldLabel}>
             Skill label
@@ -984,7 +1091,7 @@ function GroupedClozeEditor({
   saving: boolean;
   setSaving: (value: boolean) => void;
   setError: (value: string | null) => void;
-  saveQuestions: (entries: BatchEntry[]) => Promise<void>;
+  saveQuestions: (entries: BatchEntry[]) => Promise<Map<string, SavedQuestionRef>>;
   onSaved: () => Promise<void>;
 }) {
   const first = questions[0];
