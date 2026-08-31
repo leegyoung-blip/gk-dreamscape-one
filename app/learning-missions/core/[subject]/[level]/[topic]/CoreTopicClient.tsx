@@ -16,6 +16,11 @@ import {
 import { useCoreMissionAccess } from "@/hooks/useCoreMissionAccess";
 import { supabase } from "@/lib/supabase";
 
+type TopicReviewStatus =
+  | "locked"
+  | "reviewing"
+  | "satisfied";
+
 type CoreTopic = {
   id: string;
   slug: string;
@@ -24,6 +29,7 @@ type CoreTopic = {
   description: string | null;
   icon: string | null;
   quiz_target: number;
+  review_status: TopicReviewStatus;
 };
 
 type CoreQuiz = {
@@ -54,6 +60,14 @@ const QUIZ_TYPES: CoreQuizType[] = [
   "assessment",
 ];
 
+function normalizeRole(value: unknown) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, "-")
+    .replace(/\s+/g, "-");
+}
+
 export default function CoreTopicClient({
   subject,
   level,
@@ -64,15 +78,33 @@ export default function CoreTopicClient({
   topicSlug: string;
 }) {
   const router = useRouter();
-  const { status, userId } = useCoreMissionAccess();
+
+  const { status, userId } =
+    useCoreMissionAccess();
+
   const theme = CORE_SUBJECT_THEMES[subject];
   const tables = CORE_TABLES[subject];
 
-  const [topic, setTopic] = useState<CoreTopic | null>(null);
-  const [quizzes, setQuizzes] = useState<CoreQuiz[]>([]);
-  const [attempts, setAttempts] = useState<AttemptRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
+  const [topic, setTopic] =
+    useState<CoreTopic | null>(null);
+
+  const [quizzes, setQuizzes] =
+    useState<CoreQuiz[]>([]);
+
+  const [attempts, setAttempts] =
+    useState<AttemptRow[]>([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [message, setMessage] =
+    useState("");
+
+  const [isAdmin, setIsAdmin] =
+    useState(false);
+
+  const [topicLocked, setTopicLocked] =
+    useState(false);
 
   useEffect(() => {
     if (status !== "allowed") return;
@@ -85,10 +117,17 @@ export default function CoreTopicClient({
       setTopic(null);
       setQuizzes([]);
       setAttempts([]);
+      setTopicLocked(false);
+
+      // ================================================================
+      // LOAD TOPIC
+      // ================================================================
 
       const topicResult = await supabase
         .from(tables.topics)
-        .select("id,slug,title,short_title,description,icon,quiz_target")
+        .select(
+          "id,slug,title,short_title,description,icon,quiz_target,review_status",
+        )
         .eq("subject", subject)
         .eq("primary_level", level)
         .eq("slug", topicSlug)
@@ -97,16 +136,72 @@ export default function CoreTopicClient({
 
       if (cancelled) return;
 
-      if (topicResult.error || !topicResult.data) {
+      if (
+        topicResult.error ||
+        !topicResult.data
+      ) {
         setMessage(
-          topicResult.error?.message || "This Core topic could not be found.",
+          topicResult.error?.message ||
+            "This Core topic could not be found.",
         );
+
         setLoading(false);
         return;
       }
 
-      const loadedTopic = topicResult.data as CoreTopic;
+      const loadedTopic =
+        topicResult.data as CoreTopic;
+
       setTopic(loadedTopic);
+
+      // ================================================================
+      // CHECK ADMIN
+      // ================================================================
+
+      let currentUserIsAdmin = false;
+
+      if (userId) {
+        const profileResult = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", userId)
+          .maybeSingle();
+
+        if (cancelled) return;
+
+        if (profileResult.error) {
+          console.warn(
+            "Could not determine Core Mission admin status:",
+            profileResult.error.message,
+          );
+        } else {
+          currentUserIsAdmin =
+            normalizeRole(
+              profileResult.data?.role,
+            ) === "admin";
+        }
+      }
+
+      setIsAdmin(currentUserIsAdmin);
+
+      // ================================================================
+      // LOCKED TOPIC
+      // Stop here BEFORE fetching quizzes.
+      // ================================================================
+
+      if (
+        loadedTopic.review_status ===
+          "locked" &&
+        !currentUserIsAdmin
+      ) {
+        setTopicLocked(true);
+        setLoading(false);
+        return;
+      }
+
+      // ================================================================
+      // LOAD QUIZZES
+      // ================================================================
 
       const quizResult = await supabase
         .from(tables.quizzes)
@@ -116,7 +211,9 @@ export default function CoreTopicClient({
         .eq("topic_id", loadedTopic.id)
         .eq("is_published", true)
         .eq("status", "published")
-        .order("quiz_order", { ascending: true });
+        .order("quiz_order", {
+          ascending: true,
+        });
 
       if (cancelled) return;
 
@@ -126,20 +223,33 @@ export default function CoreTopicClient({
         return;
       }
 
-      const loadedQuizzes = (quizResult.data || []) as CoreQuiz[];
+      const loadedQuizzes =
+        (quizResult.data || []) as CoreQuiz[];
+
       setQuizzes(loadedQuizzes);
 
-      const quizIds = loadedQuizzes.map((quiz) => quiz.id);
+      // ================================================================
+      // LOAD ATTEMPTS
+      // ================================================================
+
+      const quizIds = loadedQuizzes.map(
+        (quiz) => quiz.id,
+      );
 
       const attemptResult =
         userId && quizIds.length
           ? await supabase
               .from(tables.attempts)
-              .select("quiz_id,percentage,correct_count,total_questions")
+              .select(
+                "quiz_id,percentage,correct_count,total_questions",
+              )
               .eq("user_id", userId)
               .eq("status", "marked")
               .in("quiz_id", quizIds)
-          : { data: [], error: null };
+          : {
+              data: [],
+              error: null,
+            };
 
       if (cancelled) return;
 
@@ -150,7 +260,10 @@ export default function CoreTopicClient({
         );
       }
 
-      setAttempts((attemptResult.data || []) as AttemptRow[]);
+      setAttempts(
+        (attemptResult.data || []) as AttemptRow[],
+      );
+
       setLoading(false);
     }
 
@@ -171,16 +284,22 @@ export default function CoreTopicClient({
   ]);
 
   const bestAttemptByQuiz = useMemo(() => {
-    const map = new Map<string, AttemptRow>();
+    const map =
+      new Map<string, AttemptRow>();
 
     for (const attempt of attempts) {
-      const current = map.get(attempt.quiz_id);
+      const current =
+        map.get(attempt.quiz_id);
 
       if (
         !current ||
-        Number(attempt.percentage || 0) > Number(current.percentage || 0)
+        Number(attempt.percentage || 0) >
+          Number(current.percentage || 0)
       ) {
-        map.set(attempt.quiz_id, attempt);
+        map.set(
+          attempt.quiz_id,
+          attempt,
+        );
       }
     }
 
@@ -192,18 +311,27 @@ export default function CoreTopicClient({
       new Map(
         QUIZ_TYPES.map((type) => [
           type,
-          quizzes.filter((quiz) => quiz.quiz_type === type),
+          quizzes.filter(
+            (quiz) =>
+              quiz.quiz_type === type,
+          ),
         ]),
       ),
     [quizzes],
   );
 
-  const completedCount = quizzes.filter((quiz) =>
-    bestAttemptByQuiz.has(quiz.id),
-  ).length;
+  const completedCount =
+    quizzes.filter((quiz) =>
+      bestAttemptByQuiz.has(quiz.id),
+    ).length;
+
   const progress =
     quizzes.length > 0
-      ? Math.round((completedCount / quizzes.length) * 100)
+      ? Math.round(
+          (completedCount /
+            quizzes.length) *
+            100,
+        )
       : 0;
 
   if (status === "checking") {
@@ -213,6 +341,7 @@ export default function CoreTopicClient({
           backHref={`/learning-missions/core/${subject}/p${level}`}
           backLabel={`P${level} Topics`}
         />
+
         <StatusPanel text="Checking Core Missions access…" />
       </CoreMissionPageShell>
     );
@@ -225,6 +354,7 @@ export default function CoreTopicClient({
           backHref={`/learning-missions/core/${subject}/p${level}`}
           backLabel={`P${level} Topics`}
         />
+
         <MessagePanel text="Log in with the learner account connected to Dreamscape access." />
       </CoreMissionPageShell>
     );
@@ -237,7 +367,8 @@ export default function CoreTopicClient({
           backHref={`/learning-missions/core/${subject}/p${level}`}
           backLabel={`P${level} Topics`}
         />
-        <MessagePanel text="Complete the learner profile before using unpaid or manually unavailable Core access." />
+
+        <MessagePanel text="Complete the learner profile before using Core Missions." />
       </CoreMissionPageShell>
     );
   }
@@ -249,7 +380,60 @@ export default function CoreTopicClient({
           backHref={`/learning-missions/core/${subject}/p${level}`}
           backLabel={`P${level} Topics`}
         />
+
         <MessagePanel text="This account does not currently have Core Missions access." />
+      </CoreMissionPageShell>
+    );
+  }
+
+  if (loading) {
+    return (
+      <CoreMissionPageShell>
+        <CoreMissionTopBar
+          backHref={`/learning-missions/core/${subject}/p${level}`}
+          backLabel={`P${level} Topics`}
+        />
+
+        <StatusPanel text="Loading topic…" />
+      </CoreMissionPageShell>
+    );
+  }
+
+  // ==================================================================
+  // TOPIC-LEVEL ADMIN LOCK
+  // ==================================================================
+
+  if (topicLocked) {
+    return (
+      <CoreMissionPageShell>
+        <CoreMissionTopBar
+          backHref={`/learning-missions/core/${subject}/p${level}`}
+          backLabel={`P${level} Topics`}
+        />
+
+        <section className="mt-7 rounded-[2.2rem] border border-red-400/60 bg-[linear-gradient(145deg,rgba(60,10,18,0.34),rgba(8,12,23,0.96))] p-7 text-center shadow-[0_25px_80px_rgba(239,68,68,0.10)] sm:p-10">
+          <div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl border border-red-300/40 bg-red-400/10 text-3xl">
+            🔒
+          </div>
+
+          <p className="mt-6 text-xs font-black uppercase tracking-[0.18em] text-red-300">
+            Topic Locked
+          </p>
+
+          <h1 className="mt-2 text-3xl font-black tracking-[-0.04em] text-red-50 sm:text-5xl">
+            {topic?.title ||
+              "Core Mission Topic"}
+          </h1>
+
+          <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-red-50/60 sm:text-base">
+            This topic is currently locked while
+            its curriculum is being prepared.
+          </p>
+
+          <p className="mt-4 text-xs font-black uppercase tracking-[0.12em] text-red-300/75">
+            Admin access only
+          </p>
+        </section>
       </CoreMissionPageShell>
     );
   }
@@ -279,18 +463,45 @@ export default function CoreTopicClient({
             </p>
 
             <h1 className="mt-2 text-4xl font-black tracking-[-0.05em] sm:text-6xl">
-              {topic?.title || `${theme.name} Topic`}
+              {topic?.title ||
+                `${theme.name} Topic`}
             </h1>
 
             <p className="mt-4 max-w-3xl text-base leading-7 text-white/60">
-              {topic?.description || "Loading topic details…"}
+              {topic?.description ||
+                "Loading topic details…"}
             </p>
+
+            {isAdmin &&
+            topic?.review_status ===
+              "locked" ? (
+              <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-red-300/35 bg-red-400/10 px-3 py-1.5 text-xs font-black uppercase tracking-[0.1em] text-red-200">
+                🔒 Admin preview · Topic locked
+              </div>
+            ) : null}
           </div>
 
           <div className="grid min-w-[230px] grid-cols-2 gap-3 lg:grid-cols-1">
-            <Metric label="Published quizzes" value={String(quizzes.length)} />
-            <Metric label="Completed" value={String(completedCount)} />
-            <Metric label="Planned" value={String(topic?.quiz_target || 0)} />
+            <Metric
+              label="Published quizzes"
+              value={String(
+                quizzes.length,
+              )}
+            />
+
+            <Metric
+              label="Completed"
+              value={String(
+                completedCount,
+              )}
+            />
+
+            <Metric
+              label="Planned"
+              value={String(
+                topic?.quiz_target || 0,
+              )}
+            />
           </div>
         </div>
 
@@ -316,18 +527,21 @@ export default function CoreTopicClient({
         </div>
       </section>
 
-      {loading ? (
-        <StatusPanel text="Loading topic quizzes…" />
-      ) : message ? (
+      {message ? (
         <MessagePanel text={message} />
       ) : quizzes.length === 0 ? (
         <StatusPanel text="No published quizzes are available in this topic yet." />
       ) : (
         <section className="mt-8 grid gap-5">
           {QUIZ_TYPES.map((type) => {
-            const typeQuizzes = groupedQuizzes.get(type) || [];
+            const typeQuizzes =
+              groupedQuizzes.get(type) || [];
 
-            if (typeQuizzes.length === 0) return null;
+            if (
+              typeQuizzes.length === 0
+            ) {
+              return null;
+            }
 
             return (
               <article
@@ -342,107 +556,170 @@ export default function CoreTopicClient({
                         theme.eyebrowClass,
                       ].join(" ")}
                     >
-                      {CORE_QUIZ_TYPE_LABELS[type]}
+                      {
+                        CORE_QUIZ_TYPE_LABELS[
+                          type
+                        ]
+                      }
                     </p>
 
                     <h2 className="mt-2 text-2xl font-black tracking-[-0.03em] sm:text-3xl">
-                      {CORE_QUIZ_TYPE_LABELS[type]} Missions
+                      {
+                        CORE_QUIZ_TYPE_LABELS[
+                          type
+                        ]
+                      }{" "}
+                      Missions
                     </h2>
 
                     <p className="mt-2 max-w-2xl text-sm leading-6 text-white/50">
-                      {CORE_QUIZ_TYPE_DESCRIPTIONS[type]}
+                      {
+                        CORE_QUIZ_TYPE_DESCRIPTIONS[
+                          type
+                        ]
+                      }
                     </p>
                   </div>
 
                   <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-white/50">
-                    {typeQuizzes.length} published
+                    {typeQuizzes.length}{" "}
+                    published
                   </span>
                 </div>
 
                 <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {typeQuizzes.map((quiz) => {
-                    const attempt = bestAttemptByQuiz.get(quiz.id);
-                    const completed = Boolean(attempt);
+                  {typeQuizzes.map(
+                    (quiz) => {
+                      const attempt =
+                        bestAttemptByQuiz.get(
+                          quiz.id,
+                        );
 
-                    return (
-                      <button
-                        key={quiz.id}
-                        type="button"
-                        onClick={() =>
-                          router.push(
-                            `/learning-missions/core/${subject}/p${level}/quiz/${quiz.id}`,
-                          )
-                        }
-                        className={[
-                          "group flex min-h-[270px] flex-col rounded-[1.55rem] border p-5 text-left text-white shadow-[0_18px_50px_rgba(0,0,0,0.2)] transition hover:-translate-y-1",
-                          completed
-                            ? "border-emerald-200/25 bg-[linear-gradient(145deg,rgba(8,54,49,0.68),rgba(4,19,34,0.92))]"
-                            : `border-white/10 ${theme.cardBackground}`,
-                        ].join(" ")}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <span
-                            className={[
-                              "rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.11em]",
-                              theme.borderClass,
-                              theme.softClass,
-                              theme.textClass,
-                            ].join(" ")}
-                          >
-                            {CORE_QUIZ_TYPE_LABELS[type]}
-                          </span>
+                      const completed =
+                        Boolean(attempt);
 
-                          <span
-                            className={[
-                              "rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.08em]",
-                              completed
-                                ? "border-emerald-200/25 bg-emerald-300/10 text-emerald-100"
-                                : "border-white/10 bg-white/[0.04] text-white/50",
-                            ].join(" ")}
-                          >
-                            {completed ? "✓ Completed" : `Level ${quiz.difficulty}`}
-                          </span>
-                        </div>
+                      return (
+                        <button
+                          key={quiz.id}
+                          type="button"
+                          onClick={() =>
+                            router.push(
+                              `/learning-missions/core/${subject}/p${level}/quiz/${quiz.id}`,
+                            )
+                          }
+                          className={[
+                            "group flex min-h-[270px] flex-col rounded-[1.55rem] border p-5 text-left text-white",
+                            "shadow-[0_18px_50px_rgba(0,0,0,0.2)] transition hover:-translate-y-1",
+                            completed
+                              ? "border-emerald-200/25 bg-[linear-gradient(145deg,rgba(8,54,49,0.68),rgba(4,19,34,0.92))]"
+                              : `border-white/10 ${theme.cardBackground}`,
+                          ].join(" ")}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <span
+                              className={[
+                                "rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.11em]",
+                                theme.borderClass,
+                                theme.softClass,
+                                theme.textClass,
+                              ].join(" ")}
+                            >
+                              {
+                                CORE_QUIZ_TYPE_LABELS[
+                                  type
+                                ]
+                              }
+                            </span>
 
-                        <h3 className="mt-5 text-xl font-black tracking-[-0.025em]">
-                          {quiz.title}
-                        </h3>
-
-                        <p className="mt-2 line-clamp-3 text-sm leading-6 text-white/55">
-                          {quiz.description ||
-                            "Complete this curriculum mission and review your answers."}
-                        </p>
-
-                        <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-xs font-bold text-white/50">
-                          <span>{quiz.question_count} questions</span>
-                          <span>{quiz.estimated_minutes} min</span>
-                          <span>
-                            {quiz.reward_tokens} DT · {quiz.reward_gems} DG
-                          </span>
-                        </div>
-
-                        <div className="mt-auto pt-5">
-                          {attempt && (
-                            <p className="mb-3 text-xs font-extrabold text-emerald-200">
-                              Best score: {Math.round(Number(attempt.percentage || 0))}% ·{" "}
-                              {attempt.correct_count}/{attempt.total_questions}
-                            </p>
-                          )}
-
-                          <div
-                            className={[
-                              "flex min-h-11 items-center justify-center rounded-xl text-sm font-black",
-                              completed
-                                ? "bg-gradient-to-r from-emerald-400 to-teal-400 text-emerald-950"
-                                : theme.barClass,
-                            ].join(" ")}
-                          >
-                            {completed ? "Replay Mission" : "Start Mission"} →
+                            <span
+                              className={[
+                                "rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.08em]",
+                                completed
+                                  ? "border-emerald-200/25 bg-emerald-300/10 text-emerald-100"
+                                  : "border-white/10 bg-white/[0.04] text-white/50",
+                              ].join(" ")}
+                            >
+                              {completed
+                                ? "✓ Completed"
+                                : `Level ${quiz.difficulty}`}
+                            </span>
                           </div>
-                        </div>
-                      </button>
-                    );
-                  })}
+
+                          <h3 className="mt-5 text-xl font-black tracking-[-0.025em]">
+                            {quiz.title}
+                          </h3>
+
+                          <p className="mt-2 line-clamp-3 text-sm leading-6 text-white/55">
+                            {quiz.description ||
+                              "Complete this curriculum mission and review your answers."}
+                          </p>
+
+                          <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-xs font-bold text-white/50">
+                            <span>
+                              {
+                                quiz.question_count
+                              }{" "}
+                              questions
+                            </span>
+
+                            <span>
+                              {
+                                quiz.estimated_minutes
+                              }{" "}
+                              min
+                            </span>
+
+                            <span>
+                              {
+                                quiz.reward_tokens
+                              }{" "}
+                              DT ·{" "}
+                              {
+                                quiz.reward_gems
+                              }{" "}
+                              DG
+                            </span>
+                          </div>
+
+                          <div className="mt-auto pt-5">
+                            {attempt ? (
+                              <p className="mb-3 text-xs font-extrabold text-emerald-200">
+                                Best score:{" "}
+                                {Math.round(
+                                  Number(
+                                    attempt.percentage ||
+                                      0,
+                                  ),
+                                )}
+                                % ·{" "}
+                                {
+                                  attempt.correct_count
+                                }
+                                /
+                                {
+                                  attempt.total_questions
+                                }
+                              </p>
+                            ) : null}
+
+                            <div
+                              className={[
+                                "flex min-h-11 items-center justify-center rounded-xl text-sm font-black",
+                                completed
+                                  ? "bg-gradient-to-r from-emerald-400 to-teal-400 text-emerald-950"
+                                  : theme.barClass,
+                              ].join(" ")}
+                            >
+                              {completed
+                                ? "Replay Mission"
+                                : "Start Mission"}{" "}
+                              →
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    },
+                  )}
                 </div>
               </article>
             );
@@ -453,10 +730,19 @@ export default function CoreTopicClient({
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
   return (
     <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-      <strong className="block text-2xl font-black">{value}</strong>
+      <strong className="block text-2xl font-black">
+        {value}
+      </strong>
+
       <span className="mt-1 block text-[10px] font-black uppercase tracking-[0.13em] text-white/40">
         {label}
       </span>
@@ -464,7 +750,11 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatusPanel({ text }: { text: string }) {
+function StatusPanel({
+  text,
+}: {
+  text: string;
+}) {
   return (
     <div className="mt-7 rounded-3xl border border-white/10 bg-white/[0.04] p-8 text-center text-white/55">
       {text}
@@ -472,7 +762,11 @@ function StatusPanel({ text }: { text: string }) {
   );
 }
 
-function MessagePanel({ text }: { text: string }) {
+function MessagePanel({
+  text,
+}: {
+  text: string;
+}) {
   return (
     <div className="mt-7 rounded-3xl border border-amber-200/25 bg-amber-300/10 p-6 text-amber-100">
       {text}

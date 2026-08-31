@@ -4,6 +4,48 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
+type MessageType = "info" | "success" | "error";
+
+const RECOVERY_SESSION_MARKER =
+  "dreamscape-password-recovery-active";
+
+function safeNextPath(value: string | null) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+    return "/profile";
+  }
+
+  return value;
+}
+
+function getRequestedNextPath() {
+  if (typeof window === "undefined") {
+    return "/profile";
+  }
+
+  return safeNextPath(
+    new URLSearchParams(window.location.search).get("next")
+  );
+}
+
+function hasRecoveryEntryHint() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const searchParams = new URLSearchParams(window.location.search);
+  const hashParams = new URLSearchParams(
+    window.location.hash.replace(/^#/, "")
+  );
+
+  return (
+    searchParams.has("next") ||
+    searchParams.get("type") === "recovery" ||
+    searchParams.has("code") ||
+    searchParams.has("token_hash") ||
+    hashParams.get("type") === "recovery"
+  );
+}
+
 export default function ResetPasswordPage() {
   const router = useRouter();
 
@@ -26,12 +68,50 @@ export default function ResetPasswordPage() {
     "Opening your secure password-reset session..."
   );
 
-  const [messageType, setMessageType] = useState<
-    "info" | "success" | "error"
-  >("info");
+  const [messageType, setMessageType] =
+    useState<MessageType>("info");
 
   useEffect(() => {
     let isMounted = true;
+
+    function openPasswordForm() {
+      if (!isMounted) return;
+
+      setRecoveryReady(true);
+      setCheckingSession(false);
+      setMessage(
+        "Enter and confirm your new password. If you originally joined with Google, this adds password login to the same Dreamscape account."
+      );
+      setMessageType("info");
+    }
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (!isMounted || !session) return;
+
+        if (event === "PASSWORD_RECOVERY") {
+          window.sessionStorage.setItem(
+            RECOVERY_SESSION_MARKER,
+            "1"
+          );
+
+          openPasswordForm();
+          return;
+        }
+
+        if (
+          event === "SIGNED_IN" &&
+          (window.sessionStorage.getItem(
+            RECOVERY_SESSION_MARKER
+          ) === "1" ||
+            hasRecoveryEntryHint())
+        ) {
+          openPasswordForm();
+        }
+      }
+    );
 
     async function checkRecoverySession() {
       const {
@@ -48,49 +128,35 @@ export default function ResetPasswordPage() {
         );
       }
 
-      if (session) {
-        setRecoveryReady(true);
-        setMessage(
-          "Enter and confirm your new password."
-        );
-        setMessageType("info");
-      } else {
-        setMessage(
-          "This password-reset link is invalid or has expired. Request a new link from the login page."
-        );
-        setMessageType("error");
+      const recoveryMarker =
+        window.sessionStorage.getItem(
+          RECOVERY_SESSION_MARKER
+        ) === "1";
+
+      if (
+        session &&
+        (recoveryMarker || hasRecoveryEntryHint())
+      ) {
+        openPasswordForm();
+        return;
       }
 
+      setRecoveryReady(false);
       setCheckingSession(false);
+      setMessage(
+        "This password-reset link is invalid or has expired. Request a new link from the login page."
+      );
+      setMessageType("error");
     }
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (!isMounted) return;
-
-        if (
-          event === "PASSWORD_RECOVERY" ||
-          (event === "SIGNED_IN" && session)
-        ) {
-          setRecoveryReady(true);
-          setCheckingSession(false);
-          setMessage(
-            "Enter and confirm your new password."
-          );
-          setMessageType("info");
-        }
-      }
-    );
-
     /*
-     * Give Supabase a moment to read the recovery token
-     * from the URL before checking the session.
+     * Supabase automatically processes auth redirects during client
+     * initialisation. The brief delay gives the recovery redirect time
+     * to establish its authenticated session before the fallback check.
      */
     const timer = window.setTimeout(() => {
-      checkRecoverySession();
-    }, 500);
+      void checkRecoverySession();
+    }, 650);
 
     return () => {
       isMounted = false;
@@ -160,15 +226,41 @@ export default function ResetPasswordPage() {
       setPassword("");
       setConfirmPassword("");
 
+      window.sessionStorage.removeItem(
+        RECOVERY_SESSION_MARKER
+      );
+
+      const nextPath = getRequestedNextPath();
+
+      const {
+        data: learningProfileStatus,
+        error: learningProfileError,
+      } = await supabase.rpc(
+        "get_my_learning_profile_status"
+      );
+
+      const resolvedLearningProfile =
+        (learningProfileStatus || {}) as {
+          complete?: boolean;
+        };
+
+      const destination =
+        !learningProfileError &&
+        resolvedLearningProfile.complete
+          ? nextPath
+          : `/complete-profile?next=${encodeURIComponent(
+              nextPath
+            )}`;
+
       setMessage(
-        "Your password has been updated successfully. Opening your profile..."
+        "Your password has been updated successfully. Opening Dreamscape..."
       );
       setMessageType("success");
 
       window.setTimeout(() => {
-        router.replace("/profile");
+        router.replace(destination);
         router.refresh();
-      }, 1200);
+      }, 900);
     } catch (error) {
       console.error("Password update error:", error);
 
@@ -205,6 +297,11 @@ export default function ResetPasswordPage() {
             <h1 className="mt-4 text-4xl font-light tracking-[-0.05em] sm:text-5xl">
               Choose a New Password
             </h1>
+
+            <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-white/55">
+              This can also be used to add password login to an account that
+              was originally created with Google.
+            </p>
           </header>
 
           <div
@@ -247,12 +344,17 @@ export default function ResetPasswordPage() {
 
                   <button
                     type="button"
+                    disabled={
+                      checkingSession ||
+                      !recoveryReady ||
+                      isSaving
+                    }
                     onClick={() =>
                       setShowPasswords(
                         (current) => !current
                       )
                     }
-                    className="absolute right-2 top-1/2 h-10 -translate-y-1/2 rounded-xl px-3 text-xs font-bold uppercase text-cyan-100/75 hover:bg-white/8"
+                    className="absolute right-2 top-1/2 h-10 -translate-y-1/2 rounded-xl px-3 text-xs font-bold uppercase text-cyan-100/75 hover:bg-white/8 disabled:opacity-45"
                   >
                     {showPasswords ? "Hide" : "Show"}
                   </button>

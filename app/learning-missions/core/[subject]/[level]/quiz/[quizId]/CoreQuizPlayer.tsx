@@ -409,6 +409,15 @@ function friendlyCorrectResponse(value: JsonObject | string | null) {
   return JSON.stringify(value);
 }
 
+function isCoreTopicLockError(value: unknown) {
+  const message = String(value ?? "").trim().toLowerCase();
+
+  return (
+    message.includes("topic is currently locked") ||
+    message.includes("admin access only")
+  );
+}
+
 function formatCoreQuestionType(type: QuestionType) {
   const labels: Record<QuestionType, string> = {
     multiple_choice: "Multiple Choice",
@@ -458,6 +467,7 @@ export default function CoreQuizPlayer({
   const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [expandedResultId, setExpandedResultId] = useState<string | null>(null);
+  const [topicAccessLocked, setTopicAccessLocked] = useState(false);
 
   const questionOpenedAtRef = useRef<number>(Date.now());
   const quizStartedAtRef = useRef<number>(Date.now());
@@ -480,6 +490,7 @@ export default function CoreQuizPlayer({
 
       setStage("loading");
       setError(null);
+      setTopicAccessLocked(false);
       setActionBusy(false);
       setExpandedResultId(null);
 
@@ -493,6 +504,14 @@ export default function CoreQuizPlayer({
       if (loadError || !data) {
         loadedQuizIdentityRef.current = null;
         console.warn("Could not load Core quiz payload:", loadError);
+
+        if (isCoreTopicLockError(loadError?.message)) {
+          setTopicAccessLocked(true);
+          setError(null);
+          setStage("error");
+          return;
+        }
+
         setError(
           loadError?.message ||
             "This quiz could not be loaded. Check that it is published and has the correct number of questions.",
@@ -827,6 +846,14 @@ export default function CoreQuizPlayer({
 
     if (saveError || !data) {
       console.warn("Could not save Core quiz answer:", saveError);
+
+      if (isCoreTopicLockError(saveError?.message)) {
+        setTopicAccessLocked(true);
+        setError(null);
+        setStage("error");
+        return false;
+      }
+
       setError(saveError?.message || "This answer could not be saved.");
       return false;
     }
@@ -962,6 +989,14 @@ export default function CoreQuizPlayer({
 
     if (submitError || !data) {
       console.warn("Could not submit Core quiz:", submitError);
+
+      if (isCoreTopicLockError(submitError?.message)) {
+        setTopicAccessLocked(true);
+        setError(null);
+        setStage("error");
+        return;
+      }
+
       setError(submitError?.message || "The quiz could not be submitted.");
       setStage("playing");
       return;
@@ -1048,6 +1083,70 @@ export default function CoreQuizPlayer({
               Exit
             </button>
           </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (topicAccessLocked) {
+    return (
+      <main style={pageShell}>
+        <div
+          style={{
+            ...lockedCard,
+            border: "1px solid rgba(248,113,113,0.52)",
+            background:
+              "linear-gradient(145deg, rgba(60,10,18,0.92), rgba(5,18,42,0.96))",
+            boxShadow: "0 26px 70px rgba(239,68,68,0.14)",
+          }}
+        >
+          <button type="button" onClick={returnToQuizList} style={backButton}>
+            ← Quiz List
+          </button>
+
+          <div
+            style={{
+              marginTop: "22px",
+              width: "58px",
+              height: "58px",
+              display: "grid",
+              placeItems: "center",
+              borderRadius: "18px",
+              border: "1px solid rgba(248,113,113,0.42)",
+              background: "rgba(239,68,68,0.10)",
+              fontSize: "28px",
+            }}
+          >
+            🔒
+          </div>
+
+          <p
+            style={{
+              margin: "18px 0 0",
+              color: "#fca5a5",
+              fontSize: "11px",
+              fontWeight: 900,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+            }}
+          >
+            Topic Locked
+          </p>
+
+          <h1 style={{ margin: "8px 0 0" }}>Admin access only</h1>
+
+          <p style={mutedText}>
+            This topic is currently locked while its curriculum is being
+            reviewed. Only administrators can open or continue its quizzes.
+          </p>
+
+          <button
+            type="button"
+            onClick={returnToQuizList}
+            style={primaryButton}
+          >
+            Back to Topics
+          </button>
         </div>
       </main>
     );

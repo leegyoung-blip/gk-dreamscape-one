@@ -8,6 +8,9 @@ import { supabase } from "@/lib/supabase";
 type MessageType = "success" | "error" | "info";
 type AuthMode = "login" | "signup";
 
+const EXISTING_EMAIL_MESSAGE =
+  "This email is already registered. Choose how you would like to continue.";
+
 function normaliseEmail(value: string) {
   return value.trim().toLowerCase();
 }
@@ -56,6 +59,19 @@ function getCompleteProfilePath(nextPath: string) {
   return `/complete-profile?next=${encodeURIComponent(nextPath)}`;
 }
 
+function isExistingEmailError(error: unknown) {
+  const authError = error as {
+    code?: string;
+    message?: string;
+  };
+
+  return (
+    authError.code === "email_exists" ||
+    authError.code === "user_already_exists" ||
+    authError.message?.toLowerCase().includes("already registered") === true
+  );
+}
+
 function getAuthErrorMessage(error: unknown) {
   const authError = error as {
     code?: string;
@@ -68,6 +84,10 @@ function getAuthErrorMessage(error: unknown) {
 
     case "email_not_confirmed":
       return "Please confirm your email address before logging in.";
+
+    case "email_exists":
+    case "user_already_exists":
+      return EXISTING_EMAIL_MESSAGE;
 
     case "user_banned":
       return "This account is currently unavailable. Please contact support.";
@@ -102,6 +122,8 @@ export default function LoginPage() {
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] =
     useState<MessageType>("info");
+  const [existingEmailDetected, setExistingEmailDetected] =
+    useState(false);
 
   const [loadingAction, setLoadingAction] = useState<
     "login" | "signup" | "google" | "reset" | null
@@ -125,6 +147,12 @@ export default function LoginPage() {
 
   function clearMessage() {
     setMessage("");
+    setExistingEmailDetected(false);
+  }
+
+  function showExistingEmailOptions() {
+    setExistingEmailDetected(true);
+    displayMessage(EXISTING_EMAIL_MESSAGE, "error");
   }
 
   function switchAuthMode(mode: AuthMode) {
@@ -285,7 +313,27 @@ export default function LoginPage() {
       });
 
       if (error) {
+        if (isExistingEmailError(error)) {
+          showExistingEmailOptions();
+          return;
+        }
+
         displayMessage(getAuthErrorMessage(error), "error");
+        return;
+      }
+
+      // Supabase may intentionally return an obfuscated/fake user instead of
+      // an error when signUp() is called for an already-confirmed email.
+      // In that response there are no identities, so stop here before any
+      // referral, profile, DOB, or onboarding logic runs.
+      const returnedIdentities = data.user?.identities;
+
+      if (
+        data.user &&
+        Array.isArray(returnedIdentities) &&
+        returnedIdentities.length === 0
+      ) {
+        showExistingEmailOptions();
         return;
       }
 
@@ -347,12 +395,16 @@ export default function LoginPage() {
     }
   }
 
-  async function loginWithGoogle() {
+  async function loginWithGoogle(options?: {
+    existingAccount?: boolean;
+  }) {
     clearMessage();
 
     const cleanReferralCode = referralCode.trim().toUpperCase();
+    const treatAsNewSignup =
+      authMode === "signup" && !options?.existingAccount;
 
-    if (authMode === "signup") {
+    if (treatAsNewSignup) {
       if (cleanReferralCode) {
         localStorage.setItem(
           "pending-referral-code",
@@ -432,7 +484,11 @@ export default function LoginPage() {
     try {
       const { error } =
         await supabase.auth.resetPasswordForEmail(cleanEmail, {
-          redirectTo: `${window.location.origin}/login/reset-password`,
+          redirectTo: `${
+            window.location.origin
+          }/login/reset-password?next=${encodeURIComponent(
+            getRequestedNextPath()
+          )}`,
         });
 
       if (error) {
@@ -441,7 +497,7 @@ export default function LoginPage() {
       }
 
       displayMessage(
-        "If an account exists for this email, a password-reset link has been sent. Please also check the spam or junk folder.",
+        "If an account exists for this email, a secure password link has been sent. If you first joined with Google, the same link can be used to add a password to that Dreamscape account. Please also check spam or junk.",
         "success"
       );
     } catch (error) {
@@ -765,7 +821,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 disabled={isLoading}
-                onClick={loginWithGoogle}
+                onClick={() => void loginWithGoogle()}
                 className="h-14 w-full rounded-full border border-violet-200/32 bg-violet-500/15 px-5 text-sm font-extrabold uppercase tracking-[0.17em] text-white transition hover:scale-[1.01] hover:bg-violet-500/22 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loadingAction === "google"
@@ -789,6 +845,55 @@ export default function LoginPage() {
               }`}
             >
               {message}
+            </div>
+          )}
+
+          {existingEmailDetected && !showResetForm && (
+            <div className="mt-4 rounded-3xl border border-rose-200/18 bg-[#0b1022]/78 p-4 sm:p-5">
+              <p className="m-0 text-sm font-bold text-white">
+                This email already belongs to a Dreamscape account.
+              </p>
+
+              <p className="mt-2 text-sm leading-6 text-white/55">
+                Continue with the method you already use, or set a password for
+                this same account.
+              </p>
+
+              <div className="mt-4 grid gap-3">
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() =>
+                    void loginWithGoogle({ existingAccount: true })
+                  }
+                  className="h-12 w-full rounded-full border border-violet-200/30 bg-violet-500/16 px-4 text-xs font-extrabold uppercase tracking-[0.14em] text-white transition hover:bg-violet-500/24 disabled:opacity-50"
+                >
+                  Continue with Google
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => switchAuthMode("login")}
+                  className="h-12 w-full rounded-full border border-cyan-200/24 bg-cyan-300/8 px-4 text-xs font-extrabold uppercase tracking-[0.14em] text-white transition hover:bg-cyan-300/12 disabled:opacity-50"
+                >
+                  Log in with password
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => {
+                    setShowResetForm(true);
+                    setPassword("");
+                    setExistingEmailDetected(false);
+                    setMessage("");
+                  }}
+                  className="h-12 w-full rounded-full border border-white/14 bg-white/5 px-4 text-xs font-extrabold uppercase tracking-[0.14em] text-white/85 transition hover:bg-white/8 disabled:opacity-50"
+                >
+                  Set or reset password
+                </button>
+              </div>
             </div>
           )}
 

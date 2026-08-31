@@ -124,7 +124,21 @@ function CompleteProfileContent() {
       const status = (data || {}) as ProfileStatus;
 
       if (status.complete) {
+        /*
+         * An existing user can arrive here after Google OAuth or after
+         * choosing Google from the duplicate-email recovery card.
+         * If the learner profile is already complete, do not re-run
+         * onboarding and discard any stale "new signup" browser state.
+         */
+        window.localStorage.removeItem(
+          "pending-date-of-birth"
+        );
+        window.localStorage.removeItem(
+          "pending-referral-code"
+        );
+
         router.replace(nextPath);
+        router.refresh();
         return;
       }
 

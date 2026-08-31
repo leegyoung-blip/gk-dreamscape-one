@@ -14,6 +14,11 @@ import {
 import { useCoreMissionAccess } from "@/hooks/useCoreMissionAccess";
 import { supabase } from "@/lib/supabase";
 
+type TopicReviewStatus =
+  | "locked"
+  | "reviewing"
+  | "satisfied";
+
 type CoreTopic = {
   id: string;
   subject: CoreSubject;
@@ -26,7 +31,7 @@ type CoreTopic = {
   quiz_target: number;
   sort_order: number;
   is_assessment_topic: boolean;
-  review_satisfied: boolean;
+  review_status: TopicReviewStatus;
 };
 
 type CoreQuiz = {
@@ -65,16 +70,15 @@ export default function CoreLevelClient({
 
   const [topics, setTopics] = useState<CoreTopic[]>([]);
   const [quizzes, setQuizzes] = useState<CoreQuiz[]>([]);
-
-  const [completedQuizIds, setCompletedQuizIds] = useState<Set<string>>(
-    new Set(),
-  );
+  const [completedQuizIds, setCompletedQuizIds] =
+    useState<Set<string>>(new Set());
 
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
   const [isAdmin, setIsAdmin] = useState(false);
-  const [savingTopicId, setSavingTopicId] = useState<string | null>(null);
+  const [savingTopicId, setSavingTopicId] =
+    useState<string | null>(null);
   const [reviewError, setReviewError] = useState("");
 
   useEffect(() => {
@@ -92,13 +96,13 @@ export default function CoreLevelClient({
       setCompletedQuizIds(new Set());
 
       // ================================================================
-      // 1. LOAD TOPICS
+      // TOPICS
       // ================================================================
 
       const topicResult = await supabase
         .from(tables.topics)
         .select(
-          "id,subject,primary_level,slug,title,short_title,description,icon,quiz_target,sort_order,is_assessment_topic,review_satisfied",
+          "id,subject,primary_level,slug,title,short_title,description,icon,quiz_target,sort_order,is_assessment_topic,review_status",
         )
         .eq("subject", subject)
         .eq("primary_level", level)
@@ -113,12 +117,13 @@ export default function CoreLevelClient({
         return;
       }
 
-      const loadedTopics = (topicResult.data || []) as CoreTopic[];
+      const loadedTopics =
+        (topicResult.data || []) as CoreTopic[];
 
       setTopics(loadedTopics);
 
       // ================================================================
-      // 2. DETERMINE WHETHER CURRENT USER IS ADMIN
+      // ADMIN STATUS
       // ================================================================
 
       if (userId) {
@@ -135,7 +140,6 @@ export default function CoreLevelClient({
             "Could not determine Core Mission admin status:",
             profileResult.error.message,
           );
-
           setIsAdmin(false);
         } else {
           setIsAdmin(
@@ -147,10 +151,12 @@ export default function CoreLevelClient({
       }
 
       // ================================================================
-      // 3. LOAD PUBLISHED QUIZZES FOR THESE TOPICS
+      // PUBLISHED QUIZZES
       // ================================================================
 
-      const topicIds = loadedTopics.map((topic) => topic.id);
+      const topicIds = loadedTopics.map(
+        (topic) => topic.id,
+      );
 
       const quizResult = topicIds.length
         ? await supabase
@@ -159,7 +165,9 @@ export default function CoreLevelClient({
             .in("topic_id", topicIds)
             .eq("is_published", true)
             .eq("status", "published")
-            .order("quiz_order", { ascending: true })
+            .order("quiz_order", {
+              ascending: true,
+            })
         : { data: [], error: null };
 
       if (cancelled) return;
@@ -170,15 +178,18 @@ export default function CoreLevelClient({
         return;
       }
 
-      const loadedQuizzes = (quizResult.data || []) as CoreQuiz[];
+      const loadedQuizzes =
+        (quizResult.data || []) as CoreQuiz[];
 
       setQuizzes(loadedQuizzes);
 
       // ================================================================
-      // 4. LOAD COMPLETED QUIZZES FOR CURRENT USER
+      // USER PROGRESS
       // ================================================================
 
-      const quizIds = loadedQuizzes.map((quiz) => quiz.id);
+      const quizIds = loadedQuizzes.map(
+        (quiz) => quiz.id,
+      );
 
       const attemptResult =
         userId && quizIds.length
@@ -225,13 +236,9 @@ export default function CoreLevelClient({
     tables.attempts,
   ]);
 
-  // ====================================================================
-  // ADMIN REVIEW STATUS
-  // ====================================================================
-
   async function setTopicReviewStatus(
     topicId: string,
-    satisfied: boolean,
+    nextStatus: TopicReviewStatus,
   ) {
     if (!isAdmin) return;
     if (savingTopicId) return;
@@ -242,20 +249,19 @@ export default function CoreLevelClient({
 
     if (!previousTopic) return;
 
-    if (previousTopic.review_satisfied === satisfied) {
+    if (previousTopic.review_status === nextStatus) {
       return;
     }
 
     setSavingTopicId(topicId);
     setReviewError("");
 
-    // Optimistic UI update.
     setTopics((current) =>
       current.map((topic) =>
         topic.id === topicId
           ? {
               ...topic,
-              review_satisfied: satisfied,
+              review_status: nextStatus,
             }
           : topic,
       ),
@@ -266,35 +272,30 @@ export default function CoreLevelClient({
       {
         p_subject: subject,
         p_topic_id: topicId,
-        p_satisfied: satisfied,
+        p_status: nextStatus,
       },
     );
 
     if (error) {
-      // Roll back if database save fails.
       setTopics((current) =>
         current.map((topic) =>
           topic.id === topicId
             ? {
                 ...topic,
-                review_satisfied:
-                  previousTopic.review_satisfied,
+                review_status:
+                  previousTopic.review_status,
               }
             : topic,
         ),
       );
 
       setReviewError(
-        `Could not update review status: ${error.message}`,
+        `Could not update topic status: ${error.message}`,
       );
     }
 
     setSavingTopicId(null);
   }
-
-  // ====================================================================
-  // TOPIC COUNTS
-  // ====================================================================
 
   const topicRows = useMemo<TopicWithCounts[]>(
     () =>
@@ -305,11 +306,10 @@ export default function CoreLevelClient({
 
         return {
           ...topic,
-
           publishedCount: topicQuizzes.length,
-
-          completedCount: topicQuizzes.filter((quiz) =>
-            completedQuizIds.has(quiz.id),
+          completedCount: topicQuizzes.filter(
+            (quiz) =>
+              completedQuizIds.has(quiz.id),
           ).length,
         };
       }),
@@ -327,7 +327,8 @@ export default function CoreLevelClient({
   );
 
   const totalPlanned = topicRows.reduce(
-    (sum, topic) => sum + Number(topic.quiz_target || 0),
+    (sum, topic) =>
+      sum + Number(topic.quiz_target || 0),
     0,
   );
 
@@ -340,10 +341,6 @@ export default function CoreLevelClient({
 
   const levelCopy = CORE_LEVEL_COPY[level];
 
-  // ====================================================================
-  // ACCESS STATES
-  // ====================================================================
-
   if (status === "checking") {
     return (
       <CoreMissionPageShell>
@@ -351,7 +348,6 @@ export default function CoreLevelClient({
           backHref={`/learning-missions/core?subject=${subject}`}
           backLabel={`${theme.shortName} Levels`}
         />
-
         <StatusPanel text="Checking Core Missions access…" />
       </CoreMissionPageShell>
     );
@@ -380,10 +376,6 @@ export default function CoreLevelClient({
       </CoreMissionPageShell>
     );
   }
-
-  // ====================================================================
-  // PAGE
-  // ====================================================================
 
   return (
     <CoreMissionPageShell>
@@ -417,8 +409,8 @@ export default function CoreLevelClient({
             </h1>
 
             <p className="mt-4 max-w-3xl text-base leading-7 text-white/65 sm:text-lg">
-              {levelCopy.subtitle} Choose a curriculum topic and continue
-              into its mission bank.
+              {levelCopy.subtitle} Choose a curriculum topic
+              and continue into its mission bank.
             </p>
 
             <div className="mt-6 flex flex-wrap gap-2">
@@ -448,12 +440,10 @@ export default function CoreLevelClient({
               label="Published"
               value={String(totalPublished)}
             />
-
             <Metric
               label="Completed"
               value={String(totalCompleted)}
             />
-
             <Metric
               label="Progress"
               value={`${progress}%`}
@@ -482,23 +472,23 @@ export default function CoreLevelClient({
             </div>
 
             <p className="m-0 max-w-xl text-sm leading-6 text-white/50">
-              Quiz cards appear inside each topic after a Curriculum Lead
-              or Admin publishes them.
+              Quiz cards appear inside each topic after a
+              Curriculum Lead or Admin publishes them.
             </p>
           </div>
-
-          {/* ============================================================
-              ADMIN REVIEW LEGEND
-          ============================================================ */}
 
           {isAdmin ? (
             <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="m-0 text-xs font-bold text-white/55">
-                  Admin curriculum review
+                  Admin curriculum status
                 </p>
 
-                <div className="flex items-center gap-3 text-[11px] font-black uppercase tracking-[0.1em]">
+                <div className="flex flex-wrap items-center gap-4 text-[11px] font-black uppercase tracking-[0.1em]">
+                  <span className="text-red-300">
+                    ● Red = Locked
+                  </span>
+
                   <span className="text-cyan-200">
                     ● Blue = Reviewing
                   </span>
@@ -517,10 +507,6 @@ export default function CoreLevelClient({
             </div>
           ) : null}
 
-          {/* ============================================================
-              TOPIC CARDS
-          ============================================================ */}
-
           <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {topicRows.map((topic) => {
               const topicProgress =
@@ -532,277 +518,295 @@ export default function CoreLevelClient({
                     )
                   : 0;
 
+              const topicStatus =
+                topic.review_status || "reviewing";
+
+              const isLocked =
+                topicStatus === "locked";
+
               const isSatisfied =
-                topic.review_satisfied === true;
+                topicStatus === "satisfied";
+
+              const isReviewing =
+                topicStatus === "reviewing";
 
               const isSaving =
                 savingTopicId === topic.id;
+
+              const canOpen =
+                !isLocked || isAdmin;
+
+              const cardClasses = isLocked
+                ? [
+                    "border-red-400/70",
+                    "bg-[linear-gradient(145deg,rgba(50,12,18,0.32),rgba(8,12,23,0.96))]",
+                    "shadow-[0_20px_58px_rgba(239,68,68,0.08)]",
+                    "hover:border-red-300",
+                  ].join(" ")
+                : isSatisfied
+                  ? [
+                      "border-amber-200/35",
+                      "bg-[linear-gradient(145deg,rgba(120,78,12,0.38),rgba(22,14,4,0.94))]",
+                      "shadow-[0_20px_58px_rgba(245,158,11,0.12)]",
+                      "hover:border-amber-200/60",
+                    ].join(" ")
+                  : [
+                      "border-cyan-200/20",
+                      "bg-[linear-gradient(145deg,rgba(14,59,104,0.48),rgba(4,15,34,0.95))]",
+                      "shadow-[0_20px_58px_rgba(0,0,0,0.24)]",
+                      "hover:border-cyan-200/45",
+                    ].join(" ");
+
+              const cardContents = (
+                <>
+                  <div className="flex items-start justify-between gap-4">
+                    <div
+                      className={[
+                        "grid h-14 w-14 place-items-center rounded-2xl border text-2xl",
+                        isLocked
+                          ? "border-red-300/50 bg-red-400/10 text-red-100"
+                          : isSatisfied
+                            ? "border-amber-200/35 bg-amber-300/10 text-amber-100"
+                            : "border-cyan-200/30 bg-cyan-300/10 text-cyan-100",
+                      ].join(" ")}
+                    >
+                      {isLocked && !isAdmin
+                        ? "🔒"
+                        : topic.icon || theme.icon}
+                    </div>
+
+                    <span
+                      className={[
+                        "rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em]",
+                        isLocked
+                          ? "border-red-300/40 bg-red-400/10 text-red-200"
+                          : isSatisfied
+                            ? "border-amber-200/25 bg-amber-300/10 text-amber-100/80"
+                            : "border-cyan-200/20 bg-cyan-300/[0.07] text-cyan-100/70",
+                      ].join(" ")}
+                    >
+                      {isLocked
+                        ? "Locked"
+                        : `${topic.quiz_target} planned`}
+                    </span>
+                  </div>
+
+                  <h3
+                    className={[
+                      "mt-5 text-xl font-black tracking-[-0.025em]",
+                      isLocked
+                        ? "text-red-50"
+                        : isSatisfied
+                          ? "text-amber-50"
+                          : "text-white",
+                    ].join(" ")}
+                  >
+                    {topic.title}
+                  </h3>
+
+                  <p
+                    className={[
+                      "mt-2 min-h-[66px] text-sm leading-6",
+                      isLocked
+                        ? "text-red-50/55"
+                        : isSatisfied
+                          ? "text-amber-50/62"
+                          : "text-white/55",
+                    ].join(" ")}
+                  >
+                    {isLocked && !isAdmin
+                      ? "This topic is currently locked."
+                      : topic.description ||
+                        "Focused curriculum practice for this topic."}
+                  </p>
+
+                  <div className="mt-5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span
+                        className={
+                          isLocked
+                            ? "text-red-100/40"
+                            : isSatisfied
+                              ? "text-amber-50/45"
+                              : "text-white/45"
+                        }
+                      >
+                        {topic.publishedCount} published ·{" "}
+                        {topic.completedCount} completed
+                      </span>
+
+                      <strong
+                        className={
+                          isLocked
+                            ? "text-red-300"
+                            : isSatisfied
+                              ? "text-amber-200"
+                              : "text-cyan-200"
+                        }
+                      >
+                        {topicProgress}%
+                      </strong>
+                    </div>
+
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/[0.07]">
+                      <div
+                        className={[
+                          "h-full rounded-full",
+                          isLocked
+                            ? "bg-gradient-to-r from-red-600 to-red-300"
+                            : isSatisfied
+                              ? "bg-gradient-to-r from-amber-500 via-yellow-300 to-amber-200"
+                              : "bg-gradient-to-r from-blue-500 via-cyan-300 to-sky-200",
+                        ].join(" ")}
+                        style={{
+                          width: `${topicProgress}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div
+                    className={[
+                      "mt-5 text-sm font-extrabold",
+                      isLocked
+                        ? "text-red-300"
+                        : isSatisfied
+                          ? "text-amber-200"
+                          : "text-cyan-200",
+                    ].join(" ")}
+                  >
+                    {isLocked && !isAdmin
+                      ? "🔒 Admin access only"
+                      : "Open topic →"}
+                  </div>
+                </>
+              );
 
               return (
                 <article
                   key={topic.id}
                   className={[
-                    "group overflow-hidden rounded-[1.75rem] border text-white",
-                    "transition duration-200 hover:-translate-y-1",
-
-                    isSatisfied
-                      ? [
-                          "border-amber-200/35",
-                          "bg-[linear-gradient(145deg,rgba(120,78,12,0.38),rgba(22,14,4,0.94))]",
-                          "shadow-[0_20px_58px_rgba(245,158,11,0.12)]",
-                          "hover:border-amber-200/60",
-                          "hover:shadow-[0_22px_64px_rgba(245,158,11,0.18)]",
-                        ].join(" ")
-                      : [
-                          "border-cyan-200/20",
-                          "bg-[linear-gradient(145deg,rgba(14,59,104,0.48),rgba(4,15,34,0.95))]",
-                          "shadow-[0_20px_58px_rgba(0,0,0,0.24)]",
-                          "hover:border-cyan-200/45",
-                          "hover:shadow-[0_22px_64px_rgba(34,211,238,0.10)]",
-                        ].join(" "),
+                    "group overflow-hidden rounded-[1.75rem] border text-white transition duration-200",
+                    canOpen
+                      ? "hover:-translate-y-1"
+                      : "cursor-not-allowed",
+                    cardClasses,
                   ].join(" ")}
                 >
-                  {/* ====================================================
-                      ADMIN-ONLY BLUE / GOLD CONTROL
-                  ==================================================== */}
-
                   {isAdmin ? (
                     <div
                       className={[
-                        "flex items-center justify-between gap-3",
                         "border-b px-4 py-3",
-
-                        isSatisfied
-                          ? "border-amber-200/15 bg-amber-950/25"
-                          : "border-cyan-200/15 bg-slate-950/25",
+                        isLocked
+                          ? "border-red-300/20 bg-red-950/20"
+                          : isSatisfied
+                            ? "border-amber-200/15 bg-amber-950/25"
+                            : "border-cyan-200/15 bg-slate-950/25",
                       ].join(" ")}
                     >
-                      <div>
-                        <p className="m-0 text-[9px] font-black uppercase tracking-[0.16em] text-white/35">
-                          Admin review
-                        </p>
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="m-0 text-[9px] font-black uppercase tracking-[0.16em] text-white/35">
+                            Admin status
+                          </p>
 
-                        <p
-                          className={[
-                            "mt-0.5 text-xs font-black",
+                          <p
+                            className={[
+                              "mt-0.5 text-xs font-black",
+                              isLocked
+                                ? "text-red-300"
+                                : isSatisfied
+                                  ? "text-amber-200"
+                                  : "text-cyan-200",
+                            ].join(" ")}
+                          >
+                            {isSaving
+                              ? "Saving…"
+                              : isLocked
+                                ? "Locked"
+                                : isSatisfied
+                                  ? "Satisfied"
+                                  : "Reviewing"}
+                          </p>
+                        </div>
 
-                            isSatisfied
-                              ? "text-amber-200"
-                              : "text-cyan-200",
-                          ].join(" ")}
-                        >
-                          {isSaving
-                            ? "Saving…"
-                            : isSatisfied
-                              ? "Satisfied"
-                              : "Reviewing"}
-                        </p>
-                      </div>
+                        <div className="flex rounded-xl border border-white/10 bg-black/25 p-1">
+                          <button
+                            type="button"
+                            disabled={isSaving}
+                            onClick={() =>
+                              void setTopicReviewStatus(
+                                topic.id,
+                                "locked",
+                              )
+                            }
+                            className={[
+                              "rounded-lg px-2.5 py-2 text-[9px] font-black uppercase tracking-[0.06em] transition",
+                              "disabled:cursor-wait disabled:opacity-50",
+                              isLocked
+                                ? "bg-red-400/20 text-red-200"
+                                : "text-white/35 hover:bg-white/[0.06] hover:text-white/70",
+                            ].join(" ")}
+                          >
+                            Red
+                          </button>
 
-                      <div className="flex rounded-xl border border-white/10 bg-black/25 p-1">
-                        <button
-                          type="button"
-                          disabled={isSaving}
-                          onClick={() =>
-                            void setTopicReviewStatus(
-                              topic.id,
-                              false,
-                            )
-                          }
-                          className={[
-                            "rounded-lg px-3 py-2",
-                            "text-[10px] font-black uppercase tracking-[0.08em]",
-                            "transition",
-                            "disabled:cursor-wait disabled:opacity-50",
+                          <button
+                            type="button"
+                            disabled={isSaving}
+                            onClick={() =>
+                              void setTopicReviewStatus(
+                                topic.id,
+                                "reviewing",
+                              )
+                            }
+                            className={[
+                              "rounded-lg px-2.5 py-2 text-[9px] font-black uppercase tracking-[0.06em] transition",
+                              "disabled:cursor-wait disabled:opacity-50",
+                              isReviewing
+                                ? "bg-cyan-300/20 text-cyan-100"
+                                : "text-white/35 hover:bg-white/[0.06] hover:text-white/70",
+                            ].join(" ")}
+                          >
+                            Blue
+                          </button>
 
-                            !isSatisfied
-                              ? [
-                                  "bg-cyan-300/20",
-                                  "text-cyan-100",
-                                  "shadow-[0_0_18px_rgba(34,211,238,0.14)]",
-                                ].join(" ")
-                              : [
-                                  "text-white/35",
-                                  "hover:bg-white/[0.06]",
-                                  "hover:text-white/70",
-                                ].join(" "),
-                          ].join(" ")}
-                        >
-                          Blue
-                        </button>
-
-                        <button
-                          type="button"
-                          disabled={isSaving}
-                          onClick={() =>
-                            void setTopicReviewStatus(
-                              topic.id,
-                              true,
-                            )
-                          }
-                          className={[
-                            "rounded-lg px-3 py-2",
-                            "text-[10px] font-black uppercase tracking-[0.08em]",
-                            "transition",
-                            "disabled:cursor-wait disabled:opacity-50",
-
-                            isSatisfied
-                              ? [
-                                  "bg-amber-300/20",
-                                  "text-amber-100",
-                                  "shadow-[0_0_18px_rgba(251,191,36,0.14)]",
-                                ].join(" ")
-                              : [
-                                  "text-white/35",
-                                  "hover:bg-white/[0.06]",
-                                  "hover:text-white/70",
-                                ].join(" "),
-                          ].join(" ")}
-                        >
-                          Gold
-                        </button>
+                          <button
+                            type="button"
+                            disabled={isSaving}
+                            onClick={() =>
+                              void setTopicReviewStatus(
+                                topic.id,
+                                "satisfied",
+                              )
+                            }
+                            className={[
+                              "rounded-lg px-2.5 py-2 text-[9px] font-black uppercase tracking-[0.06em] transition",
+                              "disabled:cursor-wait disabled:opacity-50",
+                              isSatisfied
+                                ? "bg-amber-300/20 text-amber-100"
+                                : "text-white/35 hover:bg-white/[0.06] hover:text-white/70",
+                            ].join(" ")}
+                          >
+                            Gold
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ) : null}
 
-                  {/* ====================================================
-                      CLICKABLE TOPIC AREA
-                  ==================================================== */}
-
-                  <Link
-                    href={`/learning-missions/core/${subject}/p${level}/${topic.slug}`}
-                    className="block p-5 text-white no-underline"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div
-                        className={[
-                          "grid h-14 w-14 place-items-center rounded-2xl border text-2xl",
-
-                          isSatisfied
-                            ? [
-                                "border-amber-200/35",
-                                "bg-amber-300/10",
-                                "text-amber-100",
-                                "shadow-[0_0_26px_rgba(251,191,36,0.10)]",
-                              ].join(" ")
-                            : [
-                                "border-cyan-200/30",
-                                "bg-cyan-300/10",
-                                "text-cyan-100",
-                                "shadow-[0_0_26px_rgba(34,211,238,0.08)]",
-                              ].join(" "),
-                        ].join(" ")}
-                      >
-                        {topic.icon || theme.icon}
-                      </div>
-
-                      <span
-                        className={[
-                          "rounded-full border px-3 py-1",
-                          "text-[10px] font-black uppercase tracking-[0.12em]",
-
-                          isSatisfied
-                            ? [
-                                "border-amber-200/25",
-                                "bg-amber-300/10",
-                                "text-amber-100/80",
-                              ].join(" ")
-                            : [
-                                "border-cyan-200/20",
-                                "bg-cyan-300/[0.07]",
-                                "text-cyan-100/70",
-                              ].join(" "),
-                        ].join(" ")}
-                      >
-                        {topic.quiz_target} planned
-                      </span>
-                    </div>
-
-                    <h3
-                      className={[
-                        "mt-5 text-xl font-black tracking-[-0.025em]",
-
-                        isSatisfied
-                          ? "text-amber-50"
-                          : "text-white",
-                      ].join(" ")}
+                  {canOpen ? (
+                    <Link
+                      href={`/learning-missions/core/${subject}/p${level}/${topic.slug}`}
+                      className="block p-5 text-white no-underline"
                     >
-                      {topic.title}
-                    </h3>
-
-                    <p
-                      className={[
-                        "mt-2 min-h-[66px] text-sm leading-6",
-
-                        isSatisfied
-                          ? "text-amber-50/62"
-                          : "text-white/55",
-                      ].join(" ")}
-                    >
-                      {topic.description ||
-                        "Focused curriculum practice for this topic."}
-                    </p>
-
-                    <div className="mt-5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span
-                          className={
-                            isSatisfied
-                              ? "text-amber-50/45"
-                              : "text-white/45"
-                          }
-                        >
-                          {topic.publishedCount} published ·{" "}
-                          {topic.completedCount} completed
-                        </span>
-
-                        <strong
-                          className={
-                            isSatisfied
-                              ? "text-amber-200"
-                              : "text-cyan-200"
-                          }
-                        >
-                          {topicProgress}%
-                        </strong>
-                      </div>
-
-                      <div
-                        className={[
-                          "mt-2 h-2 overflow-hidden rounded-full",
-
-                          isSatisfied
-                            ? "bg-amber-50/[0.08]"
-                            : "bg-white/[0.07]",
-                        ].join(" ")}
-                      >
-                        <div
-                          className={[
-                            "h-full rounded-full",
-
-                            isSatisfied
-                              ? "bg-gradient-to-r from-amber-500 via-yellow-300 to-amber-200"
-                              : "bg-gradient-to-r from-blue-500 via-cyan-300 to-sky-200",
-                          ].join(" ")}
-                          style={{
-                            width: `${topicProgress}%`,
-                          }}
-                        />
-                      </div>
+                      {cardContents}
+                    </Link>
+                  ) : (
+                    <div className="p-5">
+                      {cardContents}
                     </div>
-
-                    <div
-                      className={[
-                        "mt-5 text-sm font-extrabold",
-
-                        isSatisfied
-                          ? "text-amber-200"
-                          : "text-cyan-200",
-                      ].join(" ")}
-                    >
-                      Open topic →
-                    </div>
-                  </Link>
+                  )}
                 </article>
               );
             })}
