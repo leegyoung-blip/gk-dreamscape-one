@@ -8,6 +8,7 @@ import { useCoreMissionAccess } from "@/hooks/useCoreMissionAccess";
 import QuestionMediaRenderer from "@/components/core-media/QuestionMediaRenderer";
 import GroupedWordBankCloze from "./GroupedWordBankCloze";
 import GroupedComprehension from "./GroupedComprehension";
+import InlineCoreQuestionEditor from "./InlineCoreQuestionEditor";
 
 type CoreSubject = "english" | "math";
 type ScreenMode = "desktop" | "tablet" | "mobile";
@@ -418,6 +419,14 @@ function isCoreTopicLockError(value: unknown) {
   );
 }
 
+function normaliseCurriculumRole(value: unknown) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/-/g, "_")
+    .replace(/\s+/g, "_");
+}
+
 function formatCoreQuestionType(type: QuestionType) {
   const labels: Record<QuestionType, string> = {
     multiple_choice: "Multiple Choice",
@@ -454,8 +463,13 @@ export default function CoreQuizPlayer({
   const rpcNames = CORE_RPCS[subject];
   const quizIdentity = `${subject}:p${level}:${quizId}`;
 
-  const { status, tokenBalance, dreamGemBalance, refreshBalances } =
-    useCoreMissionAccess();
+  const {
+    status,
+    userId,
+    tokenBalance,
+    dreamGemBalance,
+    refreshBalances,
+  } = useCoreMissionAccess();
 
   const [stage, setStage] = useState<QuizStage>("loading");
   const [payload, setPayload] = useState<QuizPayload | null>(null);
@@ -468,6 +482,12 @@ export default function CoreQuizPlayer({
   const [actionBusy, setActionBusy] = useState(false);
   const [expandedResultId, setExpandedResultId] = useState<string | null>(null);
   const [topicAccessLocked, setTopicAccessLocked] = useState(false);
+  const [curriculumRole, setCurriculumRole] = useState<
+    "admin" | "curriculum_lead" | null
+  >(null);
+  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(
+    null,
+  );
 
   const questionOpenedAtRef = useRef<number>(Date.now());
   const quizStartedAtRef = useRef<number>(Date.now());
@@ -642,6 +662,47 @@ export default function CoreQuizPlayer({
     if (status !== "allowed") return;
     void loadQuiz();
   }, [status, loadQuiz]);
+
+  useEffect(() => {
+    if (status !== "allowed" || !userId) {
+      setCurriculumRole(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadCurriculumRole() {
+      const { data, error: roleError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      if (roleError) {
+        console.warn(
+          "Could not determine inline curriculum editor role:",
+          roleError.message,
+        );
+        setCurriculumRole(null);
+        return;
+      }
+
+      const role = normaliseCurriculumRole(data?.role);
+      setCurriculumRole(
+        role === "admin" || role === "curriculum_lead" ? role : null,
+      );
+    }
+
+    void loadCurriculumRole();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [status, userId]);
+
+  const canInlineEdit = curriculumRole !== null;
 
   useEffect(() => {
     return () => {
@@ -1034,6 +1095,26 @@ export default function CoreQuizPlayer({
     await loadQuiz({ force: true });
   }
 
+  async function handleInlineEditorSaved() {
+    setEditingQuestionId(null);
+    loadedQuizIdentityRef.current = null;
+    await loadQuiz({ force: true });
+  }
+
+  function renderInlineEditor() {
+    if (!canInlineEdit || !editingQuestionId) return null;
+
+    return (
+      <InlineCoreQuestionEditor
+        subject={subject}
+        quizId={quizId}
+        questionId={editingQuestionId}
+        onClose={() => setEditingQuestionId(null)}
+        onSaved={handleInlineEditorSaved}
+      />
+    );
+  }
+
   if ((status === "checking" && !payload) || stage === "loading") {
     return (
       <main style={pageShell}>
@@ -1305,59 +1386,89 @@ export default function CoreQuizPlayer({
 
   if (isGroupedWordBankQuiz) {
     return (
-      <GroupedWordBankCloze
-        title={payload.quiz.title}
-        topicTitle={payload.quiz.topic_title}
-        level={level}
-        questions={payload.questions}
-        answers={answers}
-        tokenBalance={tokenBalance}
-        gemBalance={dreamGemBalance}
-        isMobile={isMobile}
-        busy={actionBusy}
-        error={error}
-        onAnswersChange={(nextAnswers) => {
-          setAnswers(nextAnswers);
-          setError(null);
-        }}
-        onSubmit={() => void submitQuiz()}
-        onExit={returnToQuizList}
-      />
+      <>
+        <GroupedWordBankCloze
+          title={payload.quiz.title}
+          topicTitle={payload.quiz.topic_title}
+          level={level}
+          questions={payload.questions}
+          answers={answers}
+          tokenBalance={tokenBalance}
+          gemBalance={dreamGemBalance}
+          isMobile={isMobile}
+          busy={actionBusy}
+          error={error}
+          onAnswersChange={(nextAnswers) => {
+            setAnswers(nextAnswers);
+            setError(null);
+          }}
+          onSubmit={() => void submitQuiz()}
+          onExit={returnToQuizList}
+        />
+
+        {canInlineEdit && (
+          <button
+            type="button"
+            onClick={() =>
+              setEditingQuestionId(payload.questions[0]?.id ?? null)
+            }
+            style={floatingStaffEditButton(isMobile)}
+          >
+            ✎ Edit Cloze
+          </button>
+        )}
+
+        {renderInlineEditor()}
+      </>
     );
   }
 
   if (isSplitComprehensionQuiz) {
     return (
-      <GroupedComprehension
-        title={payload.quiz.title}
-        topicTitle={payload.quiz.topic_title}
-        level={level}
-        questions={payload.questions}
-        questionIndex={questionIndex}
-        answers={answers}
-        feedbackByQuestion={feedbackByQuestion}
-        tokenBalance={tokenBalance}
-        gemBalance={dreamGemBalance}
-        isMobile={isMobile}
-        busy={actionBusy}
-        error={error}
-        onAnswerChange={(questionId, response) => {
-          const feedback = feedbackByQuestion[questionId];
-          if (feedback?.locked) return;
+      <>
+        <GroupedComprehension
+          title={payload.quiz.title}
+          topicTitle={payload.quiz.topic_title}
+          level={level}
+          questions={payload.questions}
+          questionIndex={questionIndex}
+          answers={answers}
+          feedbackByQuestion={feedbackByQuestion}
+          tokenBalance={tokenBalance}
+          gemBalance={dreamGemBalance}
+          isMobile={isMobile}
+          busy={actionBusy}
+          error={error}
+          onAnswerChange={(questionId, response) => {
+            const feedback = feedbackByQuestion[questionId];
+            if (feedback?.locked) return;
 
-          setAnswers((current) => ({
-            ...current,
-            [questionId]: response,
-          }));
-          setError(null);
-        }}
-        onQuestionChange={(index) => {
-          if (actionBusy) return;
-          void moveToQuestion(index);
-        }}
-        onPrimaryAction={() => void handlePrimaryQuestionAction()}
-        onExit={returnToQuizList}
-      />
+            setAnswers((current) => ({
+              ...current,
+              [questionId]: response,
+            }));
+            setError(null);
+          }}
+          onQuestionChange={(index) => {
+            if (actionBusy) return;
+            void moveToQuestion(index);
+          }}
+          onPrimaryAction={() => void handlePrimaryQuestionAction()}
+          onExit={returnToQuizList}
+        />
+
+        {canInlineEdit && (
+          <button
+            type="button"
+            onClick={() => setEditingQuestionId(currentQuestion.id)}
+            style={floatingStaffEditButton(isMobile)}
+          >
+            ✎ Edit Question
+          </button>
+        )}
+
+        {renderInlineEditor()}
+      </>
     );
   }
 
@@ -1370,18 +1481,31 @@ export default function CoreQuizPlayer({
         : "Next Question";
 
   return (
-    <main style={scienceQuizPage}>
-      <header style={scienceQuizHeader(isMobile)}>
-        <button type="button" onClick={returnToQuizList} style={backButton}>
-          ← Quiz List
-        </button>
+    <>
+      <main style={scienceQuizPage}>
+        <header style={scienceQuizHeader(isMobile)}>
+          <button type="button" onClick={returnToQuizList} style={backButton}>
+            ← Quiz List
+          </button>
 
-        <BalanceDisplay
-          compact
-          tokenBalance={tokenBalance}
-          gemBalance={dreamGemBalance}
-        />
-      </header>
+          <div style={quizHeaderActions(isMobile)}>
+            {canInlineEdit && (
+              <button
+                type="button"
+                onClick={() => setEditingQuestionId(currentQuestion.id)}
+                style={staffEditButton}
+              >
+                ✎ Edit Question
+              </button>
+            )}
+
+            <BalanceDisplay
+              compact
+              tokenBalance={tokenBalance}
+              gemBalance={dreamGemBalance}
+            />
+          </div>
+        </header>
 
       <section style={scienceQuizWrap(isMobile)}>
         <div style={scienceQuizPanel(isMobile)}>
@@ -1506,7 +1630,10 @@ export default function CoreQuizPlayer({
           </div>
         </div>
       </section>
-    </main>
+      </main>
+
+      {renderInlineEditor()}
+    </>
   );
 }
 
@@ -2128,6 +2255,43 @@ const scienceQuizPage: CSSProperties = {
   padding: "18px",
   boxSizing: "border-box",
 };
+
+function quizHeaderActions(isMobile: boolean): CSSProperties {
+  return {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: isMobile ? "8px" : "10px",
+    flexWrap: "wrap",
+  };
+}
+
+const staffEditButton: CSSProperties = {
+  minHeight: "38px",
+  borderRadius: "999px",
+  border: "1px solid rgba(126,232,255,0.36)",
+  background: "rgba(83,215,255,0.12)",
+  color: "#c5f7ff",
+  padding: "0 13px",
+  cursor: "pointer",
+  fontSize: "12px",
+  fontWeight: 900,
+  whiteSpace: "nowrap",
+  boxShadow: "0 8px 22px rgba(0,0,0,0.18)",
+};
+
+function floatingStaffEditButton(isMobile: boolean): CSSProperties {
+  return {
+    ...staffEditButton,
+    position: "fixed",
+    top: isMobile ? "70px" : "68px",
+    right: "18px",
+    zIndex: 80,
+    minHeight: "40px",
+    background: "rgba(9,28,51,0.96)",
+    backdropFilter: "blur(10px)",
+  };
+}
 
 function scienceQuizHeader(isMobile: boolean): CSSProperties {
   return {
