@@ -10,6 +10,7 @@ import GroupedWordBankCloze from "./GroupedWordBankCloze";
 import GroupedComprehension from "./GroupedComprehension";
 import InlineCoreQuestionEditor from "./InlineCoreQuestionEditor";
 import MathWorkingWorkspace from "./MathWorkingWorkspace";
+import FractionText from "@/components/core-missions/FractionText";
 
 type CoreSubject = "english" | "math";
 type ScreenMode = "desktop" | "tablet" | "mobile";
@@ -510,6 +511,20 @@ function formatCoreQuestionType(type: QuestionType) {
   };
 
   return labels[type];
+}
+
+function getQuestionVisualMediaCount(question: QuizQuestion) {
+  const stimulusType = question.stimulus?.stimulus_type;
+  const stimulusIsVisual =
+    stimulusType === "image" ||
+    stimulusType === "diagram" ||
+    stimulusType === "graph";
+
+  const attachmentCount = (question.assets || []).filter(
+    (asset) => asset.asset_type === "image" || asset.asset_type === "svg",
+  ).length;
+
+  return (stimulusIsVisual ? 1 : 0) + attachmentCount;
 }
 
 export default function CoreQuizPlayer({
@@ -1601,6 +1616,8 @@ export default function CoreQuizPlayer({
         ? "Submit Quiz"
         : "Next Question";
 
+  const visualMediaCount = getQuestionVisualMediaCount(currentQuestion);
+
   return (
     <>
       <main style={sciencePlayingPage}>
@@ -1721,14 +1738,24 @@ export default function CoreQuizPlayer({
             </div>
 
             {currentQuestion.instruction && (
-              <p style={scienceInstruction}>{currentQuestion.instruction}</p>
+              <p style={scienceInstruction}>
+                <FractionText text={currentQuestion.instruction} />
+              </p>
             )}
 
             <h1 style={scienceQuestionPrompt(isMobile, mathWorkspaceOpen)}>
-              {currentQuestion.prompt}
+              <FractionText text={currentQuestion.prompt} />
             </h1>
 
-            <div className="core-quiz-media-compact">
+            <div
+              className={[
+                "core-quiz-media-compact",
+                visualMediaCount > 0 ? "core-quiz-media-has-image" : "",
+                visualMediaCount > 1 ? "core-quiz-media-multiple-images" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
               <QuestionMediaRenderer
                 stimulus={currentQuestion.stimulus}
                 assets={currentQuestion.assets}
@@ -1802,8 +1829,8 @@ function CoreQuizResponsiveStyles() {
   return (
     <style jsx global>{`
       .core-quiz-media-compact > div {
-        gap: 6px !important;
-        margin: 6px 0 8px !important;
+        gap: 7px !important;
+        margin: 7px 0 10px !important;
       }
 
       .core-quiz-media-compact section,
@@ -1817,17 +1844,32 @@ function CoreQuizResponsiveStyles() {
         font-size: 14px !important;
       }
 
-      .core-quiz-media-compact img {
-        width: auto !important;
+      /*
+       * Main Core-question imagery is intentionally given a taller frame.
+       * Most curriculum diagrams are square-ish rather than panoramic, so a
+       * fixed-height contain box lets the artwork use the available vertical
+       * space without stretching it. The answer choices naturally move below
+       * this frame.
+       */
+      .core-quiz-media-has-image img {
+        display: block !important;
+        width: 100% !important;
         max-width: 100% !important;
+        height: clamp(210px, 31dvh, 310px) !important;
         min-height: 0 !important;
-        max-height: 150px !important;
+        max-height: none !important;
         margin: 0 auto !important;
         object-fit: contain !important;
+        object-position: center !important;
+      }
+
+      /* Multiple separate images share the vertical budget. */
+      .core-quiz-media-multiple-images img {
+        height: clamp(145px, 21dvh, 205px) !important;
       }
 
       .core-quiz-media-compact video {
-        max-height: 165px !important;
+        max-height: 190px !important;
       }
 
       .core-quiz-media-compact audio {
@@ -1850,7 +1892,7 @@ function CoreQuizResponsiveStyles() {
       }
 
       .core-quiz-workspace-open .core-quiz-media-compact > div {
-        margin: 4px 0 6px !important;
+        margin: 5px 0 9px !important;
       }
 
       .core-quiz-workspace-open .core-quiz-media-compact section,
@@ -1858,51 +1900,100 @@ function CoreQuizResponsiveStyles() {
         padding: 5px !important;
       }
 
-      .core-quiz-workspace-open .core-quiz-media-compact img {
-        max-height: 105px !important;
+      /* The Math workspace narrows the question column, but the image remains
+         substantially taller than the old 105px banner. */
+      .core-quiz-workspace-open .core-quiz-media-has-image img {
+        height: clamp(180px, 27dvh, 250px) !important;
+      }
+
+      .core-quiz-workspace-open .core-quiz-media-multiple-images img {
+        height: clamp(125px, 18dvh, 175px) !important;
       }
 
       .core-quiz-workspace-open .core-quiz-media-compact video {
-        max-height: 118px !important;
+        max-height: 150px !important;
+      }
+
+      /* Never let the compact thumbnail rule shrink the Expand lightbox. */
+      .core-quiz-media-compact [role="dialog"] img,
+      .core-quiz-workspace-open .core-quiz-media-compact [role="dialog"] img {
+        width: auto !important;
+        max-width: 100% !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: 84dvh !important;
+        object-fit: contain !important;
+      }
+
+      .core-quiz-media-compact [role="dialog"] figure {
+        padding: 0 !important;
       }
 
       @media (max-width: 1180px) {
-        .core-quiz-workspace-open .core-quiz-media-compact img {
-          max-height: 82px !important;
+        .core-quiz-media-has-image img {
+          height: clamp(180px, 28dvh, 260px) !important;
+        }
+
+        .core-quiz-media-multiple-images img {
+          height: clamp(130px, 19dvh, 180px) !important;
+        }
+
+        .core-quiz-workspace-open .core-quiz-media-has-image img {
+          height: clamp(165px, 24dvh, 220px) !important;
+        }
+
+        .core-quiz-workspace-open .core-quiz-media-multiple-images img {
+          height: clamp(115px, 17dvh, 155px) !important;
         }
 
         .core-quiz-workspace-open .core-quiz-media-compact video {
-          max-height: 94px !important;
+          max-height: 125px !important;
         }
       }
 
       @media (max-width: 720px) {
-        .core-quiz-media-compact img {
-          max-height: 104px !important;
+        .core-quiz-media-has-image img {
+          height: clamp(135px, 23dvh, 190px) !important;
+        }
+
+        .core-quiz-media-multiple-images img {
+          height: clamp(105px, 17dvh, 140px) !important;
         }
 
         .core-quiz-media-compact video {
-          max-height: 120px !important;
+          max-height: 135px !important;
         }
       }
 
       @media (max-height: 720px) {
-        .core-quiz-media-compact img {
-          max-height: 118px !important;
+        .core-quiz-media-has-image img {
+          height: clamp(145px, 27dvh, 195px) !important;
+        }
+
+        .core-quiz-media-multiple-images img {
+          height: clamp(105px, 18dvh, 135px) !important;
+        }
+
+        .core-quiz-workspace-open .core-quiz-media-has-image img {
+          height: clamp(135px, 23dvh, 170px) !important;
         }
 
         .core-quiz-media-compact video {
-          max-height: 132px !important;
+          max-height: 140px !important;
         }
       }
 
       @media (max-width: 720px) and (max-height: 720px) {
-        .core-quiz-media-compact img {
-          max-height: 88px !important;
+        .core-quiz-media-has-image img {
+          height: clamp(120px, 22dvh, 155px) !important;
+        }
+
+        .core-quiz-media-multiple-images img {
+          height: clamp(90px, 15dvh, 115px) !important;
         }
 
         .core-quiz-media-compact video {
-          max-height: 104px !important;
+          max-height: 115px !important;
         }
       }
     `}</style>
@@ -1927,6 +2018,7 @@ function QuestionResponseEditor({
   const options = asOptions(question.content);
   const hasImageOptions = options.some((option) => Boolean(option.image_url));
   const imageOptionLayout = hasImageOptions && options.length >= 3;
+  const hasMainQuestionImage = getQuestionVisualMediaCount(question) > 0;
 
   switch (question.question_type) {
     case "multiple_choice":
@@ -1934,7 +2026,7 @@ function QuestionResponseEditor({
     case "listening_comprehension": {
       const selected = String(response?.option_id ?? "");
       return (
-        <div style={optionGrid(imageOptionLayout)}>
+        <div style={optionGrid(imageOptionLayout, hasMainQuestionImage)}>
           {options.map((option, index) => {
             const active = selected === option.id;
             return (
@@ -1955,7 +2047,9 @@ function QuestionResponseEditor({
                     />
                   )}
                   {(!option.image_url || option.show_text_with_image) &&
-                    option.text && <span>{option.text}</span>}
+                    option.text && (
+                      <span><FractionText text={option.text} /></span>
+                    )}
                 </span>
               </button>
             );
@@ -1972,7 +2066,7 @@ function QuestionResponseEditor({
       );
 
       return (
-        <div style={optionGrid(imageOptionLayout)}>
+        <div style={optionGrid(imageOptionLayout, hasMainQuestionImage)}>
           {options.map((option, index) => {
             const active = selected.has(option.id);
             return (
@@ -1998,7 +2092,9 @@ function QuestionResponseEditor({
                     />
                   )}
                   {(!option.image_url || option.show_text_with_image) &&
-                    option.text && <span>{option.text}</span>}
+                    option.text && (
+                      <span><FractionText text={option.text} /></span>
+                    )}
                 </span>
               </button>
             );
@@ -2125,7 +2221,7 @@ function SentenceReorderingEditor({
               }
               style={chipButton(true, locked)}
             >
-              {token.text}
+              <FractionText text={token.text} />
             </button>
           ))
         )}
@@ -2142,7 +2238,7 @@ function SentenceReorderingEditor({
             }
             style={chipButton(false, locked)}
           >
-            {token.text}
+            <FractionText text={token.text} />
           </button>
         ))}
       </div>
@@ -2173,7 +2269,9 @@ function MatchingEditor({
         const id = String(item?.id ?? index + 1);
         return (
           <label key={id} style={matchingRow}>
-            <span style={matchingLabel}>{String(item?.text ?? item)}</span>
+            <span style={matchingLabel}>
+              <FractionText text={String(item?.text ?? item)} />
+            </span>
             <select
               value={String(matches[id] ?? "")}
               disabled={locked}
@@ -2288,12 +2386,12 @@ function ImmediateFeedbackCard({
       </p>
       {feedback.explanation && (
         <p style={{ margin: "6px 0 0", lineHeight: 1.5 }}>
-          {feedback.explanation}
+          <FractionText text={feedback.explanation} />
         </p>
       )}
       {!feedback.is_correct && feedback.correct_response && (
         <p style={{ margin: "6px 0 0", opacity: 0.82 }}>
-          Correct answer: {friendlyCorrectResponse(feedback.correct_response)}
+          Correct answer: <FractionText text={friendlyCorrectResponse(feedback.correct_response)} />
         </p>
       )}
     </div>
@@ -2429,7 +2527,7 @@ function ResultsScreen({
                           </span>
                           <span style={{ flex: 1, textAlign: "left" }}>
                             <strong>Question {item.question_order}</strong>
-                            <span style={reviewPrompt}>{item.prompt}</span>
+                            <span style={reviewPrompt}><FractionText text={item.prompt} /></span>
                           </span>
                           <span>{expanded ? "−" : "+"}</span>
                         </button>
@@ -2438,18 +2536,18 @@ function ResultsScreen({
                           <div style={reviewDetails}>
                             <p style={reviewLine}>
                               <strong>Your response:</strong>{" "}
-                              {friendlyCorrectResponse(item.response_data)}
+                              <FractionText text={friendlyCorrectResponse(item.response_data)} />
                             </p>
                             {!item.pending_manual_review &&
                               item.correct_response && (
                                 <p style={reviewLine}>
                                   <strong>Correct response:</strong>{" "}
-                                  {friendlyCorrectResponse(item.correct_response)}
+                                  <FractionText text={friendlyCorrectResponse(item.correct_response)} />
                                 </p>
                               )}
                             {item.explanation && (
                               <p style={reviewLine}>
-                                <strong>Explanation:</strong> {item.explanation}
+                                <strong>Explanation:</strong> <FractionText text={item.explanation} />
                               </p>
                             )}
                             <p style={reviewLine}>
@@ -2941,12 +3039,15 @@ function scienceQuestionPrompt(
   };
 }
 
-function optionGrid(imageLayout: boolean): CSSProperties {
+function optionGrid(
+  imageLayout: boolean,
+  hasMainQuestionImage = false,
+): CSSProperties {
   return {
     display: "grid",
     gridTemplateColumns: imageLayout ? "repeat(2, minmax(0, 1fr))" : "1fr",
     gap: imageLayout ? "6px" : "7px",
-    marginTop: "8px",
+    marginTop: hasMainQuestionImage ? "14px" : "8px",
   };
 }
 

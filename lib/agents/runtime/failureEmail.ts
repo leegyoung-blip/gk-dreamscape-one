@@ -116,8 +116,15 @@ export async function sendAgentFailureEmail(failureId: string): Promise<FailureE
     if (error) throw new Error(error.message);
   }
 
-  const from = requiredEnv("DREAMSCAPE_FROM_EMAIL");
-  const apiKey = requiredEnv("RESEND_API_KEY");
+  const from =
+  requiredEnv(
+    "AGENT_FAILURE_FROM_EMAIL",
+  );
+
+const apiKey =
+  requiredEnv(
+    "AGENT_FAILURE_RESEND_API_KEY",
+  );
   const context = failure.context && typeof failure.context === "object"
     ? JSON.stringify(failure.context, null, 2)
     : "{}";

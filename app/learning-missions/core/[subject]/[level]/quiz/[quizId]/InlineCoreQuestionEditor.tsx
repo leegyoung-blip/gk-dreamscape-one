@@ -15,6 +15,7 @@ import {
   type QuestionMediaDraft,
 } from "@/app/curriculum-developer/media";
 import type { SupportedQuestionType } from "@/app/curriculum-developer/types";
+import FractionText, { hasRenderableFraction } from "@/components/core-missions/FractionText";
 
 type CoreSubject = "english" | "math";
 type JsonObject = Record<string, any>;
@@ -921,6 +922,7 @@ function SingleQuestionEditor({
                 rows={10}
                 style={textarea}
               />
+              <FractionFieldPreview text={passage} />
               <small style={helperText}>
                 Changing this passage updates every question in this comprehension quiz.
               </small>
@@ -936,6 +938,7 @@ function SingleQuestionEditor({
             onChange={(event) => setInstruction(event.target.value)}
             style={input}
           />
+          <FractionFieldPreview text={instruction} />
         </label>
 
         <label style={fieldLabel}>
@@ -947,6 +950,7 @@ function SingleQuestionEditor({
             rows={4}
             style={textarea}
           />
+          <FractionFieldPreview text={prompt} />
         </label>
 
         {hasOptions && (
@@ -958,18 +962,21 @@ function SingleQuestionEditor({
               return (
                 <label key={optionId} style={optionRow}>
                   <span style={optionLetter}>{optionId.toUpperCase()}</span>
-                  <input
-                    value={optionTexts[index] ?? ""}
-                    disabled={saving}
-                    onChange={(event) =>
-                      setOptionTexts((current) =>
-                        current.map((text, itemIndex) =>
-                          itemIndex === index ? event.target.value : text,
-                        ),
-                      )
-                    }
-                    style={{ ...input, flex: 1 }}
-                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <input
+                      value={optionTexts[index] ?? ""}
+                      disabled={saving}
+                      onChange={(event) =>
+                        setOptionTexts((current) =>
+                          current.map((text, itemIndex) =>
+                            itemIndex === index ? event.target.value : text,
+                          ),
+                        )
+                      }
+                      style={input}
+                    />
+                    <FractionFieldPreview text={optionTexts[index] ?? ""} compact />
+                  </div>
                   <input
                     type={allowsMultipleCorrect ? "checkbox" : "radio"}
                     name={`inline-correct-${question.id}`}
@@ -1239,6 +1246,7 @@ function SingleQuestionEditor({
             rows={4}
             style={textarea}
           />
+          <FractionFieldPreview text={explanation} />
         </label>
       </EditorSection>
 
@@ -1425,6 +1433,7 @@ function GroupedClozeEditor({
             onChange={(event) => setInstruction(event.target.value)}
             style={input}
           />
+          <FractionFieldPreview text={instruction} />
         </label>
 
         <label style={fieldLabel}>
@@ -1436,6 +1445,7 @@ function GroupedClozeEditor({
             rows={12}
             style={textarea}
           />
+          <FractionFieldPreview text={passage} />
           <small style={helperText}>
             Keep the existing markers such as {"{{1}}"}, {"{{2}}"} and so on.
           </small>
@@ -1842,6 +1852,25 @@ function SpecialOptionImageCard({
   );
 }
 
+function FractionFieldPreview({
+  text,
+  compact = false,
+}: {
+  text: string;
+  compact?: boolean;
+}) {
+  if (!hasRenderableFraction(text)) return null;
+
+  return (
+    <div style={compact ? fractionPreviewCompact : fractionPreview}>
+      <span style={fractionPreviewLabel}>Learner view</span>
+      <span style={fractionPreviewText}>
+        <FractionText text={text} />
+      </span>
+    </div>
+  );
+}
+
 function EditorSection({
   title,
   subtitle,
@@ -1859,6 +1888,40 @@ function EditorSection({
     </section>
   );
 }
+
+const fractionPreview: CSSProperties = {
+  marginTop: "2px",
+  borderRadius: "10px",
+  border: "1px solid rgba(126,232,255,0.16)",
+  background: "rgba(126,232,255,0.055)",
+  padding: "8px 10px",
+  display: "flex",
+  alignItems: "center",
+  gap: "9px",
+  minWidth: 0,
+};
+
+const fractionPreviewCompact: CSSProperties = {
+  ...fractionPreview,
+  marginTop: "5px",
+  padding: "6px 8px",
+};
+
+const fractionPreviewLabel: CSSProperties = {
+  flex: "0 0 auto",
+  color: "#8ee8ff",
+  fontSize: "9px",
+  fontWeight: 950,
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+};
+
+const fractionPreviewText: CSSProperties = {
+  minWidth: 0,
+  color: "white",
+  fontSize: "13px",
+  lineHeight: 1.45,
+};
 
 const overlay: CSSProperties = {
   position: "fixed",

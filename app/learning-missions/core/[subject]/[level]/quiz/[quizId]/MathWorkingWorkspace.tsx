@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import FractionText from "@/components/core-missions/FractionText";
 
 type Tool = "pen" | "eraser" | "text";
 type PenColor = "#111827" | "#2563eb" | "#dc2626" | "#16a34a";
@@ -431,24 +432,42 @@ export default function MathWorkingWorkspace({
               top: `${item.y * 100}%`,
             }}
           >
-            <textarea
-              autoFocus={activeTextId === item.id}
-              value={item.text}
-              onFocus={() => setActiveTextId(item.id)}
-              onChange={(event) => {
-                const nextText = event.target.value;
-                setDocumentState((current) => ({
-                  ...current,
-                  texts: current.texts.map((textItem) =>
-                    textItem.id === item.id
-                      ? { ...textItem, text: nextText }
-                      : textItem,
-                  ),
-                }));
-              }}
-              placeholder="Type working…"
-              style={textBox(item.color, item.size)}
-            />
+            {activeTextId === item.id ? (
+              <textarea
+                autoFocus
+                value={item.text}
+                onFocus={() => setActiveTextId(item.id)}
+                onBlur={() => setActiveTextId(null)}
+                onChange={(event) => {
+                  const nextText = event.target.value;
+                  setDocumentState((current) => ({
+                    ...current,
+                    texts: current.texts.map((textItem) =>
+                      textItem.id === item.id
+                        ? { ...textItem, text: nextText }
+                        : textItem,
+                    ),
+                  }));
+                }}
+                placeholder="Type working…"
+                style={textBox(item.color, item.size)}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setActiveTextId(item.id)}
+                style={formattedTextBox(item.color, item.size)}
+                aria-label="Edit typed working"
+              >
+                {item.text ? (
+                  <FractionText text={item.text} />
+                ) : (
+                  <span style={{ color: "rgba(100,116,139,0.62)" }}>
+                    Type working…
+                  </span>
+                )}
+              </button>
+            )}
             <button
               type="button"
               aria-label="Remove typed note"
@@ -545,6 +564,30 @@ function textBox(color: PenColor, size: BrushSize): CSSProperties {
     lineHeight: 1.35,
     outline: "none",
     boxShadow: "0 5px 16px rgba(15,23,42,0.08)",
+  };
+}
+
+function formattedTextBox(color: PenColor, size: BrushSize): CSSProperties {
+  const fontSize = size === 2 ? 14 : size === 5 ? 17 : 21;
+
+  return {
+    width: "min(220px, 30vw)",
+    minWidth: 120,
+    minHeight: 46,
+    maxHeight: 130,
+    overflow: "auto",
+    borderRadius: 8,
+    border: "1px dashed rgba(30,64,175,0.34)",
+    background: "rgba(255,255,255,0.78)",
+    color,
+    padding: "7px 24px 7px 8px",
+    fontFamily: "Arial, Helvetica, sans-serif",
+    fontSize,
+    lineHeight: 1.35,
+    textAlign: "left",
+    whiteSpace: "pre-wrap",
+    boxShadow: "0 5px 16px rgba(15,23,42,0.08)",
+    cursor: "text",
   };
 }
 
