@@ -1773,7 +1773,12 @@ export default function CoreQuizPlayer({
             </div>
 
             <div
-              className={mathWorkspaceOpen ? "core-quiz-workspace-open" : undefined}
+              className={[
+                mathWorkspaceOpen ? "core-quiz-workspace-open" : "",
+                currentFeedback ? "core-quiz-feedback-visible" : "",
+              ]
+                .filter(Boolean)
+                .join(" ") || undefined}
               style={questionExperience}
             >
           <div style={scienceProgressHeader(isMobile)}>
@@ -1826,7 +1831,13 @@ export default function CoreQuizPlayer({
             />
           </div>
 
-          <article style={scienceQuestionCard(isMobile, mathWorkspaceOpen)}>
+          <article
+            style={scienceQuestionCard(
+              isMobile,
+              mathWorkspaceOpen,
+              Boolean(currentFeedback),
+            )}
+          >
             <div style={scienceQuestionBadgeRow}>
               <span style={scienceQuestionTypeBadge}>
                 {formatCoreQuestionType(currentQuestion.question_type)}
@@ -1870,10 +1881,10 @@ export default function CoreQuizPlayer({
               onChange={updateResponse}
             />
 
-            <ImmediateFeedbackCard feedback={currentFeedback} />
-
             {error && <div style={errorBox}>{error}</div>}
           </article>
+
+          <ImmediateFeedbackCard feedback={currentFeedback} />
 
           <div style={scienceActionRow(isMobile)}>
             <button
@@ -2013,6 +2024,26 @@ function CoreQuizResponsiveStyles() {
         max-height: 150px !important;
       }
 
+      /*
+       * Once immediate feedback is visible, give that bar guaranteed room by
+       * trimming only the media height. The image remains large, while the
+       * newly compact 2x2 options and feedback can all stay on-screen.
+       */
+      @media (min-width: 721px) {
+        .core-quiz-feedback-visible .core-quiz-media-has-image img {
+          height: clamp(245px, 32dvh, 305px) !important;
+        }
+
+        .core-quiz-feedback-visible.core-quiz-workspace-open
+          .core-quiz-media-has-image img {
+          height: clamp(220px, 29dvh, 275px) !important;
+        }
+
+        .core-quiz-feedback-visible .core-quiz-media-multiple-images img {
+          height: clamp(145px, 20dvh, 185px) !important;
+        }
+      }
+
       /* Never let the compact thumbnail rule shrink the Expand lightbox. */
       .core-quiz-media-compact [role="dialog"] img,
       .core-quiz-workspace-open .core-quiz-media-compact [role="dialog"] img {
@@ -2095,6 +2126,17 @@ function CoreQuizResponsiveStyles() {
           max-height: 115px !important;
         }
       }
+
+      @media (min-width: 721px) and (max-height: 720px) {
+        .core-quiz-feedback-visible .core-quiz-media-has-image img {
+          height: clamp(155px, 25dvh, 195px) !important;
+        }
+
+        .core-quiz-feedback-visible.core-quiz-workspace-open
+          .core-quiz-media-has-image img {
+          height: clamp(145px, 23dvh, 180px) !important;
+        }
+      }
     `}</style>
   );
 }
@@ -2116,7 +2158,12 @@ function QuestionResponseEditor({
 }) {
   const options = asOptions(question.content);
   const hasImageOptions = options.some((option) => Boolean(option.image_url));
-  const imageOptionLayout = hasImageOptions && options.length >= 3;
+  // Four-choice Core questions use a compact 2 × 2 grid on desktop/tablet.
+  // This frees enough vertical room for the larger media area plus immediate
+  // Correct/Wrong feedback without sacrificing the fixed no-page-scroll shell.
+  const twoColumnOptionLayout =
+    screenMode !== "mobile" &&
+    (options.length === 4 || (hasImageOptions && options.length >= 3));
   const hasMainQuestionImage = getQuestionVisualMediaCount(question) > 0;
 
   switch (question.question_type) {
@@ -2125,7 +2172,7 @@ function QuestionResponseEditor({
     case "listening_comprehension": {
       const selected = String(response?.option_id ?? "");
       return (
-        <div style={optionGrid(imageOptionLayout, hasMainQuestionImage)}>
+        <div style={optionGrid(twoColumnOptionLayout, hasMainQuestionImage)}>
           {options.map((option, index) => {
             const active = selected === option.id;
             return (
@@ -2165,7 +2212,7 @@ function QuestionResponseEditor({
       );
 
       return (
-        <div style={optionGrid(imageOptionLayout, hasMainQuestionImage)}>
+        <div style={optionGrid(twoColumnOptionLayout, hasMainQuestionImage)}>
           {options.map((option, index) => {
             const active = selected.has(option.id);
             return (
@@ -3096,6 +3143,7 @@ const scienceProgressFill: CSSProperties = {
 function scienceQuestionCard(
   isMobile: boolean,
   workspaceOpen = false,
+  feedbackVisible = false,
 ): CSSProperties {
   return {
     marginTop: isMobile ? "7px" : workspaceOpen ? "6px" : "9px",
@@ -3105,8 +3153,13 @@ function scienceQuestionCard(
     padding: isMobile ? "10px" : workspaceOpen ? "10px" : "14px",
     flex: 1,
     minHeight: 0,
-    overflow: "hidden",
+    overflowX: "hidden",
+    // The 2x2 answer layout keeps normal questions fully visible. This is a
+    // final safety valve for unusually long prompts/media so content is never
+    // clipped behind the fixed-height quiz shell.
+    overflowY: "auto",
     boxSizing: "border-box",
+    paddingBottom: feedbackVisible ? (isMobile ? "8px" : "10px") : undefined,
   };
 }
 
@@ -3139,13 +3192,15 @@ function scienceQuestionPrompt(
 }
 
 function optionGrid(
-  imageLayout: boolean,
+  twoColumnLayout: boolean,
   hasMainQuestionImage = false,
 ): CSSProperties {
   return {
     display: "grid",
-    gridTemplateColumns: imageLayout ? "repeat(2, minmax(0, 1fr))" : "1fr",
-    gap: imageLayout ? "6px" : "7px",
+    gridTemplateColumns: twoColumnLayout
+      ? "repeat(2, minmax(0, 1fr))"
+      : "1fr",
+    gap: twoColumnLayout ? "8px 10px" : "7px",
     marginTop: hasMainQuestionImage ? "22px" : "8px",
   };
 }
@@ -3309,6 +3364,10 @@ const placeholderText: CSSProperties = {
 function feedbackCard(correct: boolean | null): CSSProperties {
   return {
     marginTop: "8px",
+    flex: "0 0 auto",
+    maxHeight: "118px",
+    overflowY: "auto",
+    boxSizing: "border-box",
     borderRadius: "12px",
     border:
       correct === true
