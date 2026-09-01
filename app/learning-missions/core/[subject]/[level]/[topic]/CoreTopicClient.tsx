@@ -17,7 +17,7 @@ import { useCoreMissionAccess } from "@/hooks/useCoreMissionAccess";
 import { supabase } from "@/lib/supabase";
 
 type TopicReviewStatus = "locked" | "reviewing" | "satisfied";
-type QuizStudentVisibility = "locked" | "shown";
+type QuizStudentVisibility = "locked" | "reviewing" | "satisfied";
 
 type CoreTopic = {
   id: string;
@@ -88,6 +88,7 @@ export default function CoreTopicClient({
   const [message, setMessage] = useState("");
 
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isCurriculumStaff, setIsCurriculumStaff] = useState(false);
   const [topicLocked, setTopicLocked] = useState(false);
 
   const [savingQuizId, setSavingQuizId] = useState<string | null>(null);
@@ -143,11 +144,12 @@ export default function CoreTopicClient({
       // ================================================================
       // CHECK CURRENT ROLE
       // Topic RED remains admin-only.
-      // Quiz RED remains available to curriculum staff through DB policies,
-      // while the Red/Blue toggle itself is shown only to admins.
+      // Quiz RED / BLUE / GOLD are visible to admin + curriculum_lead.
+      // Only admins can change the quiz verification state.
       // ================================================================
 
       let currentUserIsAdmin = false;
+      let currentUserIsCurriculumStaff = false;
 
       if (userId) {
         const profileResult = await supabase
@@ -164,12 +166,15 @@ export default function CoreTopicClient({
             profileResult.error.message,
           );
         } else {
-          currentUserIsAdmin =
-            normalizeRole(profileResult.data?.role) === "admin";
+          const currentRole = normalizeRole(profileResult.data?.role);
+          currentUserIsAdmin = currentRole === "admin";
+          currentUserIsCurriculumStaff =
+            currentRole === "admin" || currentRole === "curriculum-lead";
         }
       }
 
       setIsAdmin(currentUserIsAdmin);
+      setIsCurriculumStaff(currentUserIsCurriculumStaff);
 
       // ================================================================
       // TOPIC-LEVEL RED LOCK
@@ -184,20 +189,27 @@ export default function CoreTopicClient({
       // ================================================================
       // LOAD PUBLISHED QUIZZES
       //
-      // RLS now hides quiz-level RED rows from ordinary students.
-      // Admin/curriculum_lead can still read them through the existing
-      // curriculum-editor policy, so staff can inspect locked quizzes.
+      // RLS now exposes only GOLD / human-verified published quizzes to
+      // teachers, students and other ordinary users. Admin/curriculum_lead
+      // can still read RED / BLUE / GOLD through the curriculum policy.
       // ================================================================
 
-      const quizResult = await supabase
+      let quizQuery = supabase
         .from(tables.quizzes)
         .select(
           "id,topic_id,title,description,quiz_type,difficulty,question_count,estimated_minutes,reward_tokens,reward_gems,quiz_order,student_visibility",
         )
         .eq("topic_id", loadedTopic.id)
         .eq("is_published", true)
-        .eq("status", "published")
-        .order("quiz_order", { ascending: true });
+        .eq("status", "published");
+
+      // Defence in depth: ordinary users explicitly request GOLD rows only.
+      // RLS and the quiz RPC access guard enforce the same rule server-side.
+      if (!currentUserIsCurriculumStaff) {
+        quizQuery = quizQuery.eq("student_visibility", "satisfied");
+      }
+
+      const quizResult = await quizQuery.order("quiz_order", { ascending: true });
 
       if (cancelled) return;
 
@@ -256,7 +268,7 @@ export default function CoreTopicClient({
   ]);
 
   // ====================================================================
-  // ADMIN-ONLY QUIZ RED / BLUE CONTROL
+  // ADMIN-ONLY QUIZ RED / BLUE / GOLD CONTROL
   // ====================================================================
 
   async function setQuizStudentVisibility(
@@ -274,7 +286,7 @@ export default function CoreTopicClient({
     setSavingQuizId(quizId);
     setQuizVisibilityError("");
 
-    // Optimistic update so Red/Blue changes immediately.
+    // Optimistic update so Red/Blue/Gold changes immediately.
     setQuizzes((current) =>
       current.map((quiz) =>
         quiz.id === quizId
@@ -573,24 +585,32 @@ export default function CoreTopicClient({
         </div>
       </section>
 
-      {isAdmin ? (
+      {isCurriculumStaff ? (
         <section className="mt-5 rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="m-0 text-xs font-black uppercase tracking-[0.12em] text-white/65">
-                Admin quiz visibility
+                Quiz verification status
               </p>
               <p className="mt-1 text-xs text-white/40">
-                This is separate from Archive. Red keeps a published quiz for
-                staff review but hides and blocks it from students.
+                Red = locked, Blue = under human review, Gold = human verified.
+                Teachers and students receive only Gold quizzes, shown to them
+                with the normal blue learner styling.
               </p>
             </div>
 
             <div className="flex items-center gap-4 text-[11px] font-black uppercase tracking-[0.1em]">
               <span className="text-red-300">● Red = Locked</span>
-              <span className="text-cyan-200">● Blue = Shown</span>
+              <span className="text-cyan-200">● Blue = Reviewing</span>
+              <span className="text-amber-200">● Gold = Verified</span>
             </div>
           </div>
+
+          {!isAdmin ? (
+            <p className="mt-2 text-[11px] font-bold text-white/35">
+              Curriculum Lead view · verification status is read-only here.
+            </p>
+          ) : null}
 
           {quizVisibilityError ? (
             <p className="mt-2 text-xs font-bold text-red-300">
@@ -603,7 +623,13 @@ export default function CoreTopicClient({
       {message ? (
         <MessagePanel text={message} />
       ) : quizzes.length === 0 ? (
-        <StatusPanel text="No published quizzes are available in this topic yet." />
+        <StatusPanel
+          text={
+            isCurriculumStaff
+              ? "No published quizzes are available in this topic yet."
+              : "No verified quizzes are available in this topic yet."
+          }
+        />
       ) : (
         <section className="mt-8 grid gap-5">
           {QUIZ_TYPES.map((type) => {
@@ -646,6 +672,10 @@ export default function CoreTopicClient({
                     const attempt = bestAttemptByQuiz.get(quiz.id);
                     const completed = Boolean(attempt);
                     const quizLocked = quiz.student_visibility === "locked";
+                    const quizReviewing =
+                      quiz.student_visibility === "reviewing";
+                    const quizSatisfied =
+                      quiz.student_visibility === "satisfied";
                     const saving = savingQuizId === quiz.id;
 
                     return (
@@ -653,88 +683,133 @@ export default function CoreTopicClient({
                         key={quiz.id}
                         className={[
                           "overflow-hidden rounded-[1.55rem] border text-white shadow-[0_18px_50px_rgba(0,0,0,0.2)] transition",
-                          quizLocked
+                          isCurriculumStaff && quizLocked
                             ? "border-red-400/65 bg-[linear-gradient(145deg,rgba(62,15,24,0.34),rgba(4,19,34,0.94))] shadow-[0_18px_50px_rgba(239,68,68,0.08)]"
-                            : completed
-                              ? "border-emerald-200/25 bg-[linear-gradient(145deg,rgba(8,54,49,0.68),rgba(4,19,34,0.92))]"
+                            : isCurriculumStaff && quizSatisfied
+                              ? "border-amber-200/40 bg-[linear-gradient(145deg,rgba(120,78,12,0.34),rgba(4,19,34,0.94))] shadow-[0_18px_50px_rgba(245,158,11,0.10)]"
                               : `border-cyan-200/20 ${theme.cardBackground}`,
                         ].join(" ")}
                       >
-                        {isAdmin ? (
+                        {isCurriculumStaff ? (
                           <div
                             className={[
                               "flex items-center justify-between gap-3 border-b px-4 py-3",
                               quizLocked
                                 ? "border-red-300/20 bg-red-950/25"
-                                : "border-cyan-200/15 bg-slate-950/25",
+                                : quizSatisfied
+                                  ? "border-amber-200/20 bg-amber-950/25"
+                                  : "border-cyan-200/15 bg-slate-950/25",
                             ].join(" ")}
                           >
                             <div>
                               <p className="m-0 text-[9px] font-black uppercase tracking-[0.16em] text-white/35">
-                                Student visibility
+                                Verification status
                               </p>
                               <p
                                 className={[
                                   "mt-0.5 text-xs font-black",
-                                  quizLocked ? "text-red-300" : "text-cyan-200",
+                                  quizLocked
+                                    ? "text-red-300"
+                                    : quizSatisfied
+                                      ? "text-amber-200"
+                                      : "text-cyan-200",
                                 ].join(" ")}
                               >
                                 {saving
                                   ? "Saving…"
                                   : quizLocked
                                     ? "Locked"
-                                    : "Shown"}
+                                    : quizSatisfied
+                                      ? "Human Verified"
+                                      : "Reviewing"}
                               </p>
                             </div>
 
-                            <div className="flex rounded-xl border border-white/10 bg-black/25 p-1">
-                              <button
-                                type="button"
-                                disabled={saving}
-                                onClick={() =>
-                                  void setQuizStudentVisibility(
-                                    quiz.id,
-                                    "locked",
-                                  )
-                                }
+                            {isAdmin ? (
+                              <div className="flex rounded-xl border border-white/10 bg-black/25 p-1">
+                                <button
+                                  type="button"
+                                  disabled={saving}
+                                  onClick={() =>
+                                    void setQuizStudentVisibility(
+                                      quiz.id,
+                                      "locked",
+                                    )
+                                  }
+                                  className={[
+                                    "rounded-lg px-3 py-2 text-[9px] font-black uppercase tracking-[0.06em] transition",
+                                    "disabled:cursor-wait disabled:opacity-50",
+                                    quizLocked
+                                      ? "bg-red-400/20 text-red-200 shadow-[0_0_16px_rgba(239,68,68,0.12)]"
+                                      : "text-white/35 hover:bg-white/[0.06] hover:text-white/70",
+                                  ].join(" ")}
+                                >
+                                  Red
+                                </button>
+
+                                <button
+                                  type="button"
+                                  disabled={saving}
+                                  onClick={() =>
+                                    void setQuizStudentVisibility(
+                                      quiz.id,
+                                      "reviewing",
+                                    )
+                                  }
+                                  className={[
+                                    "rounded-lg px-3 py-2 text-[9px] font-black uppercase tracking-[0.06em] transition",
+                                    "disabled:cursor-wait disabled:opacity-50",
+                                    quizReviewing
+                                      ? "bg-cyan-300/20 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.12)]"
+                                      : "text-white/35 hover:bg-white/[0.06] hover:text-white/70",
+                                  ].join(" ")}
+                                >
+                                  Blue
+                                </button>
+
+                                <button
+                                  type="button"
+                                  disabled={saving}
+                                  onClick={() =>
+                                    void setQuizStudentVisibility(
+                                      quiz.id,
+                                      "satisfied",
+                                    )
+                                  }
+                                  className={[
+                                    "rounded-lg px-3 py-2 text-[9px] font-black uppercase tracking-[0.06em] transition",
+                                    "disabled:cursor-wait disabled:opacity-50",
+                                    quizSatisfied
+                                      ? "bg-amber-300/20 text-amber-100 shadow-[0_0_16px_rgba(245,158,11,0.12)]"
+                                      : "text-white/35 hover:bg-white/[0.06] hover:text-white/70",
+                                  ].join(" ")}
+                                >
+                                  Gold
+                                </button>
+
+                                <button
+                                  type="button"
+                                  disabled={saving}
+                                  onClick={() => openQuizRename(quiz)}
+                                  className="rounded-lg px-3 py-2 text-[9px] font-black uppercase tracking-[0.06em] text-white/60 transition hover:bg-white/[0.08] hover:text-white disabled:cursor-wait disabled:opacity-50"
+                                >
+                                  ✎ Edit
+                                </button>
+                              </div>
+                            ) : (
+                              <span
                                 className={[
-                                  "rounded-lg px-3 py-2 text-[9px] font-black uppercase tracking-[0.06em] transition",
-                                  "disabled:cursor-wait disabled:opacity-50",
+                                  "rounded-full border px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.08em]",
                                   quizLocked
-                                    ? "bg-red-400/20 text-red-200 shadow-[0_0_16px_rgba(239,68,68,0.12)]"
-                                    : "text-white/35 hover:bg-white/[0.06] hover:text-white/70",
+                                    ? "border-red-300/25 bg-red-400/10 text-red-200"
+                                    : quizSatisfied
+                                      ? "border-amber-200/25 bg-amber-300/10 text-amber-100"
+                                      : "border-cyan-200/20 bg-cyan-300/10 text-cyan-100",
                                 ].join(" ")}
                               >
-                                Red
-                              </button>
-
-                              <button
-                                type="button"
-                                disabled={saving}
-                                onClick={() =>
-                                  void setQuizStudentVisibility(quiz.id, "shown")
-                                }
-                                className={[
-                                  "rounded-lg px-3 py-2 text-[9px] font-black uppercase tracking-[0.06em] transition",
-                                  "disabled:cursor-wait disabled:opacity-50",
-                                  !quizLocked
-                                    ? "bg-cyan-300/20 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.12)]"
-                                    : "text-white/35 hover:bg-white/[0.06] hover:text-white/70",
-                                ].join(" ")}
-                              >
-                                Blue
-                              </button>
-
-
-                              <button
-                                type="button"
-                                disabled={saving}
-                                onClick={() => openQuizRename(quiz)}
-                                className="rounded-lg px-3 py-2 text-[9px] font-black uppercase tracking-[0.06em] text-white/60 transition hover:bg-white/[0.08] hover:text-white disabled:cursor-wait disabled:opacity-50"
-                              >
-                                ✎ Edit
-                              </button>
-                            </div>
+                                Read only
+                              </span>
+                            )}
                           </div>
                         ) : null}
 
@@ -751,9 +826,11 @@ export default function CoreTopicClient({
                             <span
                               className={[
                                 "rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.11em]",
-                                quizLocked
+                                isCurriculumStaff && quizLocked
                                   ? "border-red-300/30 bg-red-400/10 text-red-200"
-                                  : [
+                                  : isCurriculumStaff && quizSatisfied
+                                    ? "border-amber-200/30 bg-amber-300/10 text-amber-100"
+                                    : [
                                       theme.borderClass,
                                       theme.softClass,
                                       theme.textClass,
@@ -766,25 +843,37 @@ export default function CoreTopicClient({
                             <span
                               className={[
                                 "rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.08em]",
-                                quizLocked
+                                isCurriculumStaff && quizLocked
                                   ? "border-red-300/35 bg-red-400/10 text-red-200"
-                                  : completed
-                                    ? "border-emerald-200/25 bg-emerald-300/10 text-emerald-100"
-                                    : "border-white/10 bg-white/[0.04] text-white/50",
+                                  : isCurriculumStaff && quizSatisfied
+                                    ? "border-amber-200/30 bg-amber-300/10 text-amber-100"
+                                    : isCurriculumStaff && quizReviewing
+                                      ? "border-cyan-200/20 bg-cyan-300/10 text-cyan-100"
+                                      : completed
+                                        ? "border-cyan-200/25 bg-cyan-300/10 text-cyan-100"
+                                        : "border-white/10 bg-white/[0.04] text-white/50",
                               ].join(" ")}
                             >
-                              {quizLocked
-                                ? "🔒 Locked from students"
-                                : completed
-                                  ? "✓ Completed"
-                                  : `Level ${quiz.difficulty}`}
+                              {isCurriculumStaff && quizLocked
+                                ? "🔒 Locked"
+                                : isCurriculumStaff && quizSatisfied
+                                  ? "✓ Human Verified"
+                                  : isCurriculumStaff && quizReviewing
+                                    ? "Reviewing"
+                                    : completed
+                                      ? "✓ Completed"
+                                      : `Level ${quiz.difficulty}`}
                             </span>
                           </div>
 
                           <h3
                             className={[
                               "mt-5 text-xl font-black tracking-[-0.025em]",
-                              quizLocked ? "text-red-50" : "",
+                              isCurriculumStaff && quizLocked
+                                ? "text-red-50"
+                                : isCurriculumStaff && quizSatisfied
+                                  ? "text-amber-50"
+                                  : "",
                             ].join(" ")}
                           >
                             {quiz.title}
@@ -793,7 +882,11 @@ export default function CoreTopicClient({
                           <p
                             className={[
                               "mt-2 line-clamp-3 text-sm leading-6",
-                              quizLocked ? "text-red-50/55" : "text-white/55",
+                              isCurriculumStaff && quizLocked
+                                ? "text-red-50/55"
+                                : isCurriculumStaff && quizSatisfied
+                                  ? "text-amber-50/60"
+                                  : "text-white/55",
                             ].join(" ")}
                           >
                             {quiz.description ||
@@ -803,7 +896,11 @@ export default function CoreTopicClient({
                           <div
                             className={[
                               "mt-5 flex flex-wrap gap-x-4 gap-y-2 text-xs font-bold",
-                              quizLocked ? "text-red-100/45" : "text-white/50",
+                              isCurriculumStaff && quizLocked
+                                ? "text-red-100/45"
+                                : isCurriculumStaff && quizSatisfied
+                                  ? "text-amber-100/50"
+                                  : "text-white/50",
                             ].join(" ")}
                           >
                             <span>{quiz.question_count} questions</span>
@@ -826,18 +923,20 @@ export default function CoreTopicClient({
                             <div
                               className={[
                                 "flex min-h-11 items-center justify-center rounded-xl text-sm font-black",
-                                quizLocked
+                                isCurriculumStaff && quizLocked
                                   ? "border border-red-300/30 bg-red-400/10 text-red-200"
-                                  : completed
-                                    ? "bg-gradient-to-r from-emerald-400 to-teal-400 text-emerald-950"
+                                  : isCurriculumStaff && quizReviewing
+                                    ? "border border-cyan-200/25 bg-cyan-300/10 text-cyan-100"
                                     : theme.barClass,
                               ].join(" ")}
                             >
-                              {quizLocked
+                              {isCurriculumStaff && quizLocked
                                 ? "Staff Preview →"
-                                : completed
-                                  ? "Replay Mission →"
-                                  : "Start Mission →"}
+                                : isCurriculumStaff && quizReviewing
+                                  ? "Staff Review →"
+                                  : completed
+                                    ? "Replay Mission →"
+                                    : "Start Mission →"}
                             </div>
                           </div>
                         </button>
