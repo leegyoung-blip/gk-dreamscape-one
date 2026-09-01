@@ -1,5 +1,7 @@
 "use client";
 
+// DREAMSCAPE Phase 5.1 SVG CROP — FULL FIXED VERSION 2026-09-01
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   CSSProperties,
