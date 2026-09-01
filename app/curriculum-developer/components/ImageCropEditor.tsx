@@ -67,8 +67,8 @@ export function CropImageButton({
   if (obviousUnsupported) {
     return (
       <div style={unsupportedNote}>
-        Crop is unavailable for SVG/GIF because cropping would rasterise or
-        flatten the original media.
+        Crop is unavailable for animated GIF files because a browser canvas
+        crop would flatten the animation.
       </div>
     );
   }
@@ -128,6 +128,7 @@ export default function ImageCropEditor({
   const interactionRef = useRef<Interaction | null>(null);
 
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
+  const [sourceSvgText, setSourceSvgText] = useState<string | null>(null);
   const [sourceMime, setSourceMime] = useState<string>(file?.type || "");
   const [sourceName, setSourceName] = useState<string>(
     file?.name || filenameHint || "image",
@@ -154,6 +155,7 @@ export default function ImageCropEditor({
     async function prepareSource() {
       setLoadingSource(true);
       setError(null);
+      setSourceSvgText(null);
 
       try {
         let blob: Blob;
@@ -175,15 +177,30 @@ export default function ImageCropEditor({
 
         if (cancelled) return;
 
-        if (!isStaticRasterMime(blob.type, name)) {
+        const resolvedMime = normaliseMime(blob.type, name);
+
+        if (!isCropSupportedMime(resolvedMime)) {
           throw new Error(
-            "Crop supports PNG, JPEG and WebP images. SVG and GIF are left unchanged to preserve their original format.",
+            "Crop supports PNG, JPEG, WebP and SVG images. Animated GIF files are not cropped because that would flatten the animation.",
           );
         }
 
-        objectUrl = URL.createObjectURL(blob);
+        let previewBlob = blob;
+
+        if (resolvedMime === "image/svg+xml") {
+          const svgText = await blob.text();
+          if (cancelled) return;
+          setSourceSvgText(svgText);
+          previewBlob = new Blob([normaliseSvgForPreview(svgText)], {
+            type: "image/svg+xml",
+          });
+        } else {
+          setSourceSvgText(null);
+        }
+
+        objectUrl = URL.createObjectURL(previewBlob);
         setSourceUrl(objectUrl);
-        setSourceMime(normaliseMime(blob.type, name));
+        setSourceMime(resolvedMime);
         setSourceName(name);
       } catch (loadError: any) {
         if (!cancelled) {
@@ -425,6 +442,23 @@ export default function ImageCropEditor({
     setError(null);
 
     try {
+      if (sourceMime === "image/svg+xml") {
+        if (!sourceSvgText) {
+          throw new Error("The SVG source could not be read for vector cropping.");
+        }
+
+        const nextFile = cropSvgSource({
+          svgText: sourceSvgText,
+          sourceName: sourceName || filenameHint || "image.svg",
+          crop,
+          naturalWidth,
+          naturalHeight,
+        });
+
+        onApply(nextFile);
+        return;
+      }
+
       const cropWidth = Math.max(1, Math.round(crop.width));
       const cropHeight = Math.max(1, Math.round(crop.height));
       const outputScale = Math.min(
@@ -506,7 +540,8 @@ export default function ImageCropEditor({
             <h3 style={titleStyle}>{title}</h3>
             <p style={subtitleStyle}>
               Drag the crop area to reposition it. Drag a corner to resize.
-              Auto Trim removes transparent or near-white outer margins.
+              Auto Trim removes transparent or near-white outer margins. SVG crops
+              preserve vector quality by changing the SVG viewBox rather than rasterising it.
             </p>
           </div>
 
@@ -594,8 +629,9 @@ export default function ImageCropEditor({
             <div style={hintBox}>
               Tip: for diagrams with a large white or transparent canvas, try
               <strong> Auto Trim</strong> first, then fine-tune the crop manually.
-              The crop creates a new image file; the original is not overwritten
-              until the normal save flow succeeds.
+              For SVGs, the crop updates the SVG viewBox and keeps the file vector.
+              For raster images, a new cropped image file is created. The original
+              is not replaced until the normal save flow succeeds.
             </div>
 
             <footer style={footerRow}>
@@ -623,17 +659,16 @@ export default function ImageCropEditor({
 function isObviouslyUnsupported(file?: File | null, url?: string | null) {
   const type = String(file?.type || "").toLowerCase();
   const name = String(file?.name || url || "").toLowerCase();
-  return (
-    type === "image/svg+xml" ||
-    type === "image/gif" ||
-    /\.svg(?:$|\?)/.test(name) ||
-    /\.gif(?:$|\?)/.test(name)
-  );
+  return type === "image/gif" || /\.gif(?:$|\?)/.test(name);
 }
 
-function isStaticRasterMime(mime: string, name: string) {
-  const resolved = normaliseMime(mime, name);
-  return ["image/png", "image/jpeg", "image/webp"].includes(resolved);
+function isCropSupportedMime(mime: string) {
+  return [
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+    "image/svg+xml",
+  ].includes(mime);
 }
 
 function normaliseMime(mime: string, name: string) {
@@ -641,11 +676,15 @@ function normaliseMime(mime: string, name: string) {
   if (value === "image/png") return "image/png";
   if (value === "image/jpeg" || value === "image/jpg") return "image/jpeg";
   if (value === "image/webp") return "image/webp";
+  if (value === "image/svg+xml") return "image/svg+xml";
+  if (value === "image/gif") return "image/gif";
 
   const lower = name.toLowerCase();
   if (/\.png(?:$|\?)/.test(lower)) return "image/png";
   if (/\.jpe?g(?:$|\?)/.test(lower)) return "image/jpeg";
   if (/\.webp(?:$|\?)/.test(lower)) return "image/webp";
+  if (/\.svg(?:$|\?)/.test(lower)) return "image/svg+xml";
+  if (/\.gif(?:$|\?)/.test(lower)) return "image/gif";
   return value || "image/png";
 }
 
@@ -667,9 +706,147 @@ function filenameFromUrl(url: string) {
 }
 
 function croppedFilename(original: string, mime: string) {
-  const base = original.replace(/\.(png|jpe?g|webp)$/i, "") || "image";
-  const extension = mime === "image/jpeg" ? "jpg" : mime.split("/")[1] || "png";
+  const base = original.replace(/\.(png|jpe?g|webp|svg)$/i, "") || "image";
+  const extension =
+    mime === "image/jpeg"
+      ? "jpg"
+      : mime === "image/svg+xml"
+        ? "svg"
+        : mime.split("/")[1] || "png";
   return `${base}-cropped.${extension}`;
+}
+
+type SvgViewBox = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+function parseSvgDocument(svgText: string) {
+  const parser = new DOMParser();
+  const document = parser.parseFromString(svgText, "image/svg+xml");
+  const parserError = document.querySelector("parsererror");
+  if (parserError || document.documentElement.tagName.toLowerCase() !== "svg") {
+    throw new Error("The SVG file could not be parsed.");
+  }
+  return document;
+}
+
+function numericSvgLength(value: string | null) {
+  if (!value) return null;
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function svgBaseViewBox(svg: SVGSVGElement): SvgViewBox | null {
+  const raw = svg.getAttribute("viewBox");
+  if (raw) {
+    const parts = raw
+      .trim()
+      .split(/[\s,]+/)
+      .map(Number);
+    if (
+      parts.length === 4 &&
+      parts.every(Number.isFinite) &&
+      parts[2] > 0 &&
+      parts[3] > 0
+    ) {
+      return {
+        x: parts[0],
+        y: parts[1],
+        width: parts[2],
+        height: parts[3],
+      };
+    }
+  }
+
+  const width = numericSvgLength(svg.getAttribute("width"));
+  const height = numericSvgLength(svg.getAttribute("height"));
+  if (width && height) {
+    return { x: 0, y: 0, width, height };
+  }
+
+  return null;
+}
+
+function normaliseSvgForPreview(svgText: string) {
+  const document = parseSvgDocument(svgText);
+  const svg = document.documentElement as unknown as SVGSVGElement;
+  const base = svgBaseViewBox(svg);
+
+  if (base) {
+    if (!svg.getAttribute("viewBox")) {
+      svg.setAttribute(
+        "viewBox",
+        `${formatSvgNumber(base.x)} ${formatSvgNumber(base.y)} ${formatSvgNumber(base.width)} ${formatSvgNumber(base.height)}`,
+      );
+    }
+    // Give the browser a predictable intrinsic viewport with exactly the same
+    // aspect ratio as the vector coordinate system used by the crop overlay.
+    svg.setAttribute("width", formatSvgNumber(base.width));
+    svg.setAttribute("height", formatSvgNumber(base.height));
+  }
+
+  return new XMLSerializer().serializeToString(document);
+}
+
+function cropSvgSource({
+  svgText,
+  sourceName,
+  crop,
+  naturalWidth,
+  naturalHeight,
+}: {
+  svgText: string;
+  sourceName: string;
+  crop: CropRect;
+  naturalWidth: number;
+  naturalHeight: number;
+}) {
+  if (!naturalWidth || !naturalHeight) {
+    throw new Error("The SVG dimensions are not available for cropping.");
+  }
+
+  const document = parseSvgDocument(svgText);
+  const svg = document.documentElement as unknown as SVGSVGElement;
+  const base = svgBaseViewBox(svg) || {
+    x: 0,
+    y: 0,
+    width: naturalWidth,
+    height: naturalHeight,
+  };
+
+  const x = base.x + (crop.x / naturalWidth) * base.width;
+  const y = base.y + (crop.y / naturalHeight) * base.height;
+  const width = Math.max(0.0001, (crop.width / naturalWidth) * base.width);
+  const height = Math.max(0.0001, (crop.height / naturalHeight) * base.height);
+
+  svg.setAttribute(
+    "viewBox",
+    `${formatSvgNumber(x)} ${formatSvgNumber(y)} ${formatSvgNumber(width)} ${formatSvgNumber(height)}`,
+  );
+
+  // Keep the SVG's intrinsic aspect ratio aligned with the new viewBox. The
+  // vector shapes themselves are untouched; only the visible canvas bounds move.
+  svg.setAttribute("width", formatSvgNumber(Math.max(1, crop.width)));
+  svg.setAttribute("height", formatSvgNumber(Math.max(1, crop.height)));
+
+  const serialised = new XMLSerializer().serializeToString(document);
+  const blob = new Blob([serialised], { type: "image/svg+xml" });
+
+  return new File(
+    [blob],
+    croppedFilename(sourceName || "image.svg", "image/svg+xml"),
+    {
+      type: "image/svg+xml",
+      lastModified: Date.now(),
+    },
+  );
+}
+
+function formatSvgNumber(value: number) {
+  return Number(value.toFixed(4)).toString();
 }
 
 function canvasToBlob(canvas: HTMLCanvasElement, mime: string) {

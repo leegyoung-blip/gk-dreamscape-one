@@ -322,7 +322,7 @@ export default function QuestionMediaEditor({
                   alt={asset.altText || "Question media preview"}
                 />
 
-                {asset.assetType === "image" && !asset.removed && (
+                {(asset.assetType === "image" || asset.assetType === "svg") && !asset.removed && (
                   <div style={{ padding: "0 11px 2px" }}>
                     <CropImageButton
                       file={asset.file}
@@ -334,7 +334,7 @@ export default function QuestionMediaEditor({
                       onCropped={(file) =>
                         updateAsset(asset.localId, {
                           file,
-                          assetType: "image",
+                          assetType: assetTypeFromFile(file),
                         })
                       }
                     />
