@@ -1,7 +1,11 @@
 import "server-only";
 
-export const AGENT_WORLD_SNAPSHOT_VERSION =
-  1;
+import {
+  WORLD_OBSERVATION_SOURCE_KEYS,
+  type WorldObservationSourceKey,
+} from "@/lib/agents/world/types";
+
+export const AGENT_WORLD_SNAPSHOT_VERSION = 1;
 
 export const FOUNDATION_OBSERVATION_SOURCE_KEYS = [
   "identity.profile",
@@ -16,77 +20,48 @@ export const FOUNDATION_OBSERVATION_SOURCE_KEYS = [
   "system.agent_settings",
 ] as const;
 
+export const ALL_OBSERVATION_SOURCE_KEYS = [
+  ...FOUNDATION_OBSERVATION_SOURCE_KEYS,
+  ...WORLD_OBSERVATION_SOURCE_KEYS,
+] as const;
+
 export type FoundationObservationSourceKey =
   (typeof FOUNDATION_OBSERVATION_SOURCE_KEYS)[number];
 
+export type AgentObservationSourceKey =
+  | FoundationObservationSourceKey
+  | WorldObservationSourceKey;
+
 export type AgentObservationSection = {
-  source_key:
-    FoundationObservationSourceKey;
-
-  source_version:
-    number;
-
-  payload:
-    Record<
-      string,
-      unknown
-    >;
-
-  payload_hash:
-    string;
+  source_key: AgentObservationSourceKey;
+  source_version: number;
+  payload: Record<string, unknown>;
+  payload_hash: string;
 };
 
 export type AgentWorldObservationSummary = {
-  agentCode:
-    string;
-
-  lifecycleStatus:
-    string;
-
-  worldAffinity:
-    string;
-
-  dtBalance:
-    number;
-
-  dgBalance:
-    number;
-
-  activeGoalCount:
-    number;
-
-  simulationAccessTier:
-    string;
-
-  engineEnabled:
-    boolean;
-
-  observedSourceCount:
-    number;
+  agentCode: string;
+  lifecycleStatus: string;
+  worldAffinity: string;
+  dtBalance: number;
+  dgBalance: number;
+  activeGoalCount: number;
+  simulationAccessTier: string;
+  engineEnabled: boolean;
+  observedSourceCount: number;
+  foundationSourceCount: number;
+  worldSourceCount: number;
+  partialWorldSourceCount: number;
+  unavailableWorldSourceCount: number;
 };
 
 export type CapturedAgentWorldSnapshot = {
-  snapshotId:
-    string;
-
-  runId:
-    string;
-
-  agentUserId:
-    string;
-
-  agentCode:
-    string;
-
-  observedAt:
-    string;
-
-  stateHash:
-    string;
-
-  summary:
-    AgentWorldObservationSummary;
-
-  sections:
-    AgentObservationSection[];
+  snapshotId: string;
+  runId: string;
+  agentUserId: string;
+  agentCode: string;
+  observedAt: string;
+  stateHash: string;
+  summary: AgentWorldObservationSummary;
+  sections: AgentObservationSection[];
 };
