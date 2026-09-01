@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import QuestionMediaEditor from "@/app/curriculum-developer/components/QuestionMediaEditor";
+import { CropImageButton } from "@/app/curriculum-developer/components/ImageCropEditor";
 import {
   questionMediaDraftFromQuestion,
+  publicMediaUrl,
   safeCleanupCoreMediaFile,
   syncQuestionMedia,
   uploadCoreManagedImage,
@@ -1591,6 +1593,21 @@ function SharedGroupImageEditor({
         <div style={specialMediaEmpty}>No shared image</div>
       )}
 
+      {previewUrl ? (
+        <CropImageButton
+          file={value.file}
+          url={
+            value.existingUrl ||
+            publicMediaUrl(value.existingBucket, value.existingPath)
+          }
+          alt={value.altText || title}
+          title={`Crop / Reposition ${title}`}
+          disabled={disabled}
+          filenameHint={title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
+          onCropped={(file) => patch({ file, removed: false })}
+        />
+      ) : null}
+
       <div style={twoColumnGrid}>
         <label style={fieldLabel}>
           {previewUrl ? "Replace image" : "Add image"}
@@ -1758,6 +1775,21 @@ function SpecialOptionImageCard({
       ) : (
         <div style={specialOptionEmpty}>No image</div>
       )}
+
+      {previewUrl ? (
+        <CropImageButton
+          file={draft.file}
+          url={
+            draft.existingUrl ||
+            publicMediaUrl(draft.existingBucket, draft.existingPath)
+          }
+          alt={draft.altText || label}
+          title={`Crop / Reposition Option ${optionId.toUpperCase()}`}
+          disabled={disabled}
+          filenameHint={`option-${optionId}`}
+          onCropped={(file) => onChange({ file, removed: false })}
+        />
+      ) : null}
 
       <label style={fieldLabel}>
         {previewUrl ? "Replace image" : "Add image"}

@@ -11,6 +11,7 @@ import {
   type StimulusDraft,
 } from "../media";
 import type { CoreStimulusType, SupportedQuestionType } from "../types";
+import { CropImageButton } from "./ImageCropEditor";
 
 const STIMULUS_TYPES: Array<[CoreStimulusType, string]> = [
   ["passage", "Passage"],
@@ -236,6 +237,21 @@ export default function QuestionMediaEditor({
                   mediaType={value.stimulus.type}
                   alt={value.stimulus.altText || "Stimulus preview"}
                 />
+
+                {["image", "diagram", "graph"].includes(value.stimulus.type) && (
+                  <CropImageButton
+                    file={value.stimulus.file}
+                    url={publicMediaUrl(
+                      value.stimulus.existingBucket,
+                      value.stimulus.existingPath,
+                    )}
+                    alt={value.stimulus.altText || "Stimulus preview"}
+                    title="Crop / Reposition Shared Stimulus"
+                    disabled={disabled}
+                    filenameHint={`stimulus-${value.stimulus.type}`}
+                    onCropped={(file) => updateStimulus({ file })}
+                  />
+                )}
               </>
             )}
 
@@ -305,6 +321,25 @@ export default function QuestionMediaEditor({
                   mediaType={asset.assetType}
                   alt={asset.altText || "Question media preview"}
                 />
+
+                {asset.assetType === "image" && !asset.removed && (
+                  <div style={{ padding: "0 11px 2px" }}>
+                    <CropImageButton
+                      file={asset.file}
+                      url={publicMediaUrl(asset.existingBucket, asset.existingPath)}
+                      alt={asset.altText || "Question media preview"}
+                      title="Crop / Reposition Question Image"
+                      disabled={disabled}
+                      filenameHint={`question-image-${asset.localId}`}
+                      onCropped={(file) =>
+                        updateAsset(asset.localId, {
+                          file,
+                          assetType: "image",
+                        })
+                      }
+                    />
+                  </div>
+                )}
 
                 <div style={assetFields}>
                   <p style={assetTypeLabel}>{asset.assetType}</p>
@@ -411,6 +446,30 @@ export default function QuestionMediaEditor({
                         path={optionImage.existingPath}
                         mediaType="image"
                         alt={optionImage.altText || label || "Answer option image"}
+                      />
+                    )}
+
+                  {!optionImage.removed &&
+                    (optionImage.file || optionImage.existingUrl || optionImage.existingPath) && (
+                      <CropImageButton
+                        file={optionImage.file}
+                        url={
+                          optionImage.existingUrl ||
+                          publicMediaUrl(
+                            optionImage.existingBucket,
+                            optionImage.existingPath,
+                          )
+                        }
+                        alt={optionImage.altText || label || "Answer option image"}
+                        title={`Crop / Reposition Option ${optionId.toUpperCase()}`}
+                        disabled={disabled}
+                        filenameHint={`option-${optionId}`}
+                        onCropped={(file) =>
+                          updateOptionImage(optionId, {
+                            file,
+                            removed: false,
+                          })
+                        }
                       />
                     )}
 
