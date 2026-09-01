@@ -54,6 +54,12 @@ type PreviewResult = {
   error?:
     string;
 
+  failureId?:
+    string;
+
+  httpStatus?:
+    number;
+
   decision?:
     {
       agentCode:
@@ -91,30 +97,52 @@ type PreviewResult = {
     };
 };
 
-type Payload = {
+type PilotMember = {
+  userId:
+    string;
+
+  agentCode:
+    string;
+
+  naturalName:
+    string;
+
+  worldAffinity:
+    string;
+
+  pilotOrder:
+    number;
+
+  pilotStatus:
+    string;
+
+  lifecycleStatus:
+    string;
+};
+
+type OverviewPayload = {
   ok?:
     boolean;
 
   error?:
     string;
 
-  previewOnly?:
+  runtime?:
+    {
+      pilotMembers?:
+        PilotMember[];
+    };
+};
+
+type SinglePreviewPayload = {
+  ok?:
     boolean;
 
-  executionOccurred?:
-    boolean;
+  error?:
+    string;
 
-  pilotSize?:
-    number;
-
-  passed?:
-    number;
-
-  failed?:
-    number;
-
-  results?:
-    PreviewResult[];
+  failureId?:
+    string;
 
   result?:
     PreviewResult;
@@ -139,6 +167,44 @@ function titleCase(
     );
 }
 
+async function readJsonResponse<T>(
+  response:
+    Response,
+): Promise<T> {
+  const text =
+    await response.text();
+
+  if (
+    !text.trim()
+  ) {
+    throw new Error(
+      `Server returned HTTP ${response.status} with an empty response.`,
+    );
+  }
+
+  try {
+    return JSON.parse(
+      text,
+    ) as T;
+  } catch {
+    const compact =
+      text
+        .replace(
+          /\s+/g,
+          " ",
+        )
+        .trim()
+        .slice(
+          0,
+          500,
+        );
+
+    throw new Error(
+      `Server returned HTTP ${response.status} instead of JSON. ${compact}`,
+    );
+  }
+}
+
 export default function BrainPreviewPage() {
   const [
     loading,
@@ -149,99 +215,324 @@ export default function BrainPreviewPage() {
     );
 
   const [
-    payload,
-    setPayload,
+    results,
+    setResults,
   ] =
     useState<
-      Payload |
-      null
+      PreviewResult[]
     >(
-      null,
+      [],
     );
+
+  const [
+    currentAgent,
+    setCurrentAgent,
+  ] =
+    useState<
+      string
+    >(
+      "",
+    );
+
+  const [
+    pageError,
+    setPageError,
+  ] =
+    useState<
+      string
+    >(
+      "",
+    );
+
+  const [
+    started,
+    setStarted,
+  ] =
+    useState(
+      false,
+    );
+
+  async function getAccessToken() {
+    const {
+      data: {
+        session,
+      },
+      error:
+        sessionError,
+    } =
+      await supabase
+        .auth
+        .getSession();
+
+    if (
+      sessionError
+    ) {
+      throw sessionError;
+    }
+
+    if (
+      !session
+        ?.access_token
+    ) {
+      throw new Error(
+        "Please sign in again as an administrator.",
+      );
+    }
+
+    return session
+      .access_token;
+  }
+
+  async function loadPilotMembers(
+    accessToken:
+      string,
+  ) {
+    const response =
+      await fetch(
+        "/api/admin/agents/overview",
+        {
+          method:
+            "GET",
+
+          headers: {
+            Authorization:
+              `Bearer ${accessToken}`,
+          },
+
+          cache:
+            "no-store",
+        },
+      );
+
+    const payload =
+      await readJsonResponse<
+        OverviewPayload
+      >(
+        response,
+      );
+
+    if (
+      !response.ok ||
+      payload.ok !==
+        true
+    ) {
+      throw new Error(
+        payload.error ||
+        `Could not load pilot members. HTTP ${response.status}.`,
+      );
+    }
+
+    const members =
+      payload.runtime
+        ?.pilotMembers ||
+      [];
+
+    if (
+      members.length !==
+      10
+    ) {
+      throw new Error(
+        `Phase 3B expected exactly 10 pilot members; found ${members.length}.`,
+      );
+    }
+
+    return [
+      ...members,
+    ].sort(
+      (
+        left,
+        right,
+      ) =>
+        left.pilotOrder -
+        right.pilotOrder,
+    );
+  }
+
+  async function previewOneAgent({
+    accessToken,
+    member,
+  }: {
+    accessToken:
+      string;
+
+    member:
+      PilotMember;
+  }): Promise<PreviewResult> {
+    const response =
+      await fetch(
+        "/api/admin/agents/brain-preview",
+        {
+          method:
+            "POST",
+
+          headers: {
+            Authorization:
+              `Bearer ${accessToken}`,
+
+            "Content-Type":
+              "application/json",
+          },
+
+          body:
+            JSON.stringify({
+              agentCode:
+                member.agentCode,
+            }),
+        },
+      );
+
+    let payload:
+      SinglePreviewPayload;
+
+    try {
+      payload =
+        await readJsonResponse<
+          SinglePreviewPayload
+        >(
+          response,
+        );
+    } catch (
+      error
+    ) {
+      return {
+        ok: false,
+
+        pilotOrder:
+          member.pilotOrder,
+
+        agentUserId:
+          member.userId,
+
+        httpStatus:
+          response.status,
+
+        error:
+          error instanceof Error
+            ? error.message
+            : `Agent preview returned HTTP ${response.status}.`,
+      };
+    }
+
+    if (
+      !response.ok ||
+      payload.ok !==
+        true ||
+      !payload.result
+    ) {
+      return {
+        ok: false,
+
+        pilotOrder:
+          member.pilotOrder,
+
+        agentUserId:
+          member.userId,
+
+        failureId:
+          payload.failureId,
+
+        httpStatus:
+          response.status,
+
+        error:
+          payload.error ||
+          `Agent preview failed with HTTP ${response.status}.`,
+      };
+    }
+
+    return {
+      ...payload.result,
+
+      ok: true,
+
+      pilotOrder:
+        member.pilotOrder,
+
+      agentUserId:
+        member.userId,
+
+      httpStatus:
+        response.status,
+    };
+  }
 
   async function runPilotPreview() {
     setLoading(
       true,
     );
 
-    setPayload(
-      null,
+    setStarted(
+      true,
+    );
+
+    setResults(
+      [],
+    );
+
+    setPageError(
+      "",
+    );
+
+    setCurrentAgent(
+      "",
     );
 
     try {
-      const {
-        data: {
-          session,
-        },
-        error:
-          sessionError,
-      } =
-        await supabase
-          .auth
-          .getSession();
+      const accessToken =
+        await getAccessToken();
 
-      if (
-        sessionError
-      ) {
-        throw sessionError;
-      }
+      const members =
+        await loadPilotMembers(
+          accessToken,
+        );
 
-      if (
-        !session
-          ?.access_token
+      /*
+       * IMPORTANT
+       * ---------
+       * Do NOT send all ten agents through one serverless request.
+       *
+       * Each agent gets its own request so:
+       * - one slow WorldObserver run cannot time out the whole pilot,
+       * - successful agents are retained if a later agent fails,
+       * - HTTP/server errors are visible per agent,
+       * - Vercel has a fresh execution window for each agent.
+       */
+      for (
+        const member
+        of members
       ) {
-        throw new Error(
-          "Please sign in again as an administrator.",
+        setCurrentAgent(
+          member.agentCode,
+        );
+
+        const result =
+          await previewOneAgent({
+            accessToken,
+            member,
+          });
+
+        setResults(
+          (
+            current,
+          ) => [
+            ...current,
+            result,
+          ],
         );
       }
 
-      const response =
-        await fetch(
-          "/api/admin/agents/brain-preview",
-          {
-            method:
-              "POST",
-
-            headers: {
-              Authorization:
-                `Bearer ${session.access_token}`,
-
-              "Content-Type":
-                "application/json",
-            },
-
-            body:
-              JSON.stringify({
-                allPilot:
-                  true,
-              }),
-          },
-        );
-
-      const data =
-        (
-          await response
-            .json()
-            .catch(
-              () => ({}),
-            )
-        ) as Payload;
-
-      setPayload(
-        data,
+      setCurrentAgent(
+        "",
       );
 
     } catch (
       error
     ) {
-      setPayload({
-        ok: false,
-
-        error:
-          error instanceof Error
-            ? error.message
-            : "Brain preview failed.",
-      });
+      setPageError(
+        error instanceof Error
+          ? error.message
+          : "Brain preview could not start.",
+      );
     }
 
     setLoading(
@@ -249,10 +540,32 @@ export default function BrainPreviewPage() {
     );
   }
 
-  const results =
-    payload
-      ?.results ||
-    [];
+  const passed =
+    results.filter(
+      (
+        result,
+      ) =>
+        result.ok ===
+        true,
+    ).length;
+
+  const failed =
+    results.filter(
+      (
+        result,
+      ) =>
+        result.ok !==
+        true,
+    ).length;
+
+  const complete =
+    results.length ===
+    10;
+
+  const overallPass =
+    complete &&
+    failed ===
+      0;
 
   return (
     <main className="min-h-screen bg-[#020813] px-4 py-8 text-white sm:px-6">
@@ -274,9 +587,10 @@ export default function BrainPreviewPage() {
           </h1>
 
           <p className="mt-4 max-w-4xl text-sm leading-7 text-white/55">
-            Preview what the 10-agent pilot brain would choose from a fresh
-            18-source world snapshot and recalled memory. Decisions are stored
-            for analysis but cannot execute.
+            Preview what the 10-agent pilot brain would choose from fresh
+            18-source world snapshots and recalled memory. Each pilot member is
+            processed in its own server request so one slow observation cannot
+            terminate the entire run.
           </p>
 
           <div className="mt-6 rounded-2xl border border-amber-300/15 bg-amber-300/[0.05] p-4 text-sm text-amber-100/80">
@@ -295,12 +609,16 @@ export default function BrainPreviewPage() {
             className="mt-6 min-h-12 rounded-2xl border border-cyan-200/25 bg-cyan-300/10 px-7 text-sm font-black text-cyan-100 transition hover:bg-cyan-300/15 disabled:opacity-40"
           >
             {loading
-              ? "Running 10-Agent Brain Preview…"
+              ? `Running ${results.length + 1}/10${
+                  currentAgent
+                    ? ` · ${currentAgent}`
+                    : ""
+                }…`
               : "Preview 10-Agent Brain"}
           </button>
         </div>
 
-        {payload && (
+        {started && (
           <section className="mt-6 rounded-[30px] border border-white/10 bg-white/[0.035] p-5 sm:p-6">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
@@ -310,31 +628,41 @@ export default function BrainPreviewPage() {
 
                 <h2
                   className={`mt-2 text-3xl font-black ${
-                    payload.ok
+                    overallPass
                       ? "text-emerald-200"
-                      : "text-red-200"
+                      : complete ||
+                          pageError
+                        ? "text-red-200"
+                        : "text-amber-100"
                   }`}
                 >
-                  {payload.ok
+                  {overallPass
                     ? "PASS"
-                    : "CHECK REQUIRED"}
+                    : complete ||
+                        pageError
+                      ? "CHECK REQUIRED"
+                      : "RUNNING"}
                 </h2>
               </div>
 
-              <div className="flex gap-2 text-xs font-black">
+              <div className="flex flex-wrap gap-2 text-xs font-black">
                 <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-2">
-                  Passed {payload.passed ?? 0}
+                  Processed {results.length}/10
                 </span>
 
-                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-2">
-                  Failed {payload.failed ?? 0}
+                <span className="rounded-full border border-emerald-200/15 bg-emerald-300/[0.05] px-3 py-2 text-emerald-100">
+                  Passed {passed}
+                </span>
+
+                <span className="rounded-full border border-red-200/15 bg-red-300/[0.05] px-3 py-2 text-red-100">
+                  Failed {failed}
                 </span>
               </div>
             </div>
 
-            {payload.error && (
+            {pageError && (
               <p className="mt-5 rounded-2xl border border-red-300/20 bg-red-300/[0.06] p-4 text-sm text-red-100">
-                {payload.error}
+                {pageError}
               </p>
             )}
 
@@ -342,11 +670,12 @@ export default function BrainPreviewPage() {
               {results.map(
                 (
                   result,
+                  index,
                 ) => (
                   <article
                     key={
                       result.decisionId ||
-                      `${result.pilotOrder}:${result.agentUserId}`
+                      `${result.pilotOrder}:${result.agentUserId}:${index}`
                     }
                     className={`rounded-[24px] border p-5 ${
                       result.ok
@@ -356,13 +685,27 @@ export default function BrainPreviewPage() {
                   >
                     {!result.ok ? (
                       <>
-                        <p className="font-black text-red-100">
-                          Pilot #{result.pilotOrder ?? "—"} failed
-                        </p>
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <p className="font-black text-red-100">
+                            Pilot #{result.pilotOrder ?? "—"} failed
+                          </p>
 
-                        <p className="mt-2 text-sm text-red-100/70">
+                          {result.httpStatus !== undefined && (
+                            <span className="rounded-full border border-red-200/15 bg-red-300/[0.06] px-3 py-1 text-[10px] font-black text-red-100">
+                              HTTP {result.httpStatus}
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="mt-2 break-words text-sm leading-6 text-red-100/70">
                           {result.error}
                         </p>
+
+                        {result.failureId && (
+                          <p className="mt-2 break-all text-[10px] text-red-100/40">
+                            Failure ID: {result.failureId}
+                          </p>
+                        )}
                       </>
                     ) : (
                       <>
@@ -441,16 +784,16 @@ export default function BrainPreviewPage() {
                               ).map(
                                 (
                                   candidate,
-                                  index,
+                                  candidateIndex,
                                 ) => (
                                   <tr
                                     key={
-                                      candidate.actionKey
+                                      `${candidate.actionKey}:${candidateIndex}`
                                     }
                                     className="border-t border-white/[0.06]"
                                   >
                                     <td className="px-3 py-3">
-                                      #{index + 1}
+                                      #{candidateIndex + 1}
                                     </td>
 
                                     <td className="px-3 py-3 font-bold">
