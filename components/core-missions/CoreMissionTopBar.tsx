@@ -522,7 +522,7 @@ export default function CoreMissionTopBar({
           </button>
 
           <Link
-            href="/learning-missions/core/rover"
+            href="/learning-missions/core/rover?from=core"
             className="inline-flex items-center justify-center rounded-full border border-cyan-200/40 bg-[#020813]/65 px-[20px] text-sm font-extrabold text-white no-underline shadow-[0_16px_36px_rgba(0,0,0,0.28)] backdrop-blur-2xl"
             style={{ height: buttonHeight }}
           >
@@ -603,7 +603,7 @@ export default function CoreMissionTopBar({
               )}
 
               <Link
-                href="/learning-missions/core/rover"
+                href="/learning-missions/core/rover?from=core"
                 onClick={closeEverything}
                 style={compactMenuLink}
               >

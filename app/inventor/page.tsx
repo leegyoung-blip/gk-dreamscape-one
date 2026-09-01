@@ -184,6 +184,20 @@ type WalkthroughStep = {
 };
 
 const WALKTHROUGH_STORAGE_KEY = "nova-world-walkthrough-completed-v5";
+const ROVER_ORIGIN_STORAGE_KEY = "dreamscape-rover-origin";
+const ROVER_NOVA_RETURN_PATH_STORAGE_KEY =
+  "dreamscape-rover-nova-return-path";
+const ROVER_FROM_NOVA_HREF = "/learning-missions/core/rover?from=nova";
+
+function rememberNovaRoverOrigin() {
+  if (typeof window === "undefined") return;
+
+  window.sessionStorage.setItem(ROVER_ORIGIN_STORAGE_KEY, "nova");
+  window.sessionStorage.setItem(
+    ROVER_NOVA_RETURN_PATH_STORAGE_KEY,
+    window.location.pathname,
+  );
+}
 
 const zones: Zone[] = [
   {
@@ -227,7 +241,7 @@ const zones: Zone[] = [
     number: "5",
     title: "Skyforge Hangar",
     description: "Head straight to your rover, upgrades, and driving challenges.",
-    href: "/learning-missions/core/rover",
+    href: ROVER_FROM_NOVA_HREF,
     icon: "⇧",
     accent: "#8effc1",
   },
@@ -868,6 +882,9 @@ export default function NovaWorldPage() {
                 if (!walkthroughOpen) setHoveredZone(null);
               }}
               onClick={() => {
+                if (zone.id === "skyforge-hangar") {
+                  rememberNovaRoverOrigin();
+                }
                 window.location.href = zone.href;
               }}
             />
@@ -2574,7 +2591,15 @@ function ZoneCard({
   }
 
   return (
-    <Link href={zone.href} {...commonProps}>
+    <Link
+      href={zone.href}
+      onClick={
+        zone.id === "skyforge-hangar"
+          ? rememberNovaRoverOrigin
+          : undefined
+      }
+      {...commonProps}
+    >
       {content}
     </Link>
   );
@@ -3513,8 +3538,11 @@ function GuidedWalkthrough({
                   Keep touring
                 </button>
                 <Link
-                  href="/learning-missions/core/rover"
-                  onClick={onClose}
+                  href={ROVER_FROM_NOVA_HREF}
+                  onClick={() => {
+                    rememberNovaRoverOrigin();
+                    onClose();
+                  }}
                   style={actionStyle}
                 >
                   Go to My Rover
@@ -3551,8 +3579,11 @@ function GuidedWalkthrough({
                   Knowledge Arena
                 </Link>
                 <Link
-                  href="/learning-missions/core/rover"
-                  onClick={onClose}
+                  href={ROVER_FROM_NOVA_HREF}
+                  onClick={() => {
+                    rememberNovaRoverOrigin();
+                    onClose();
+                  }}
                   style={actionStyle}
                 >
                   Skyforge Hangar
