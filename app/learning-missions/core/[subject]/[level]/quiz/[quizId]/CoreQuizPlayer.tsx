@@ -112,6 +112,10 @@ type QuizPayload = {
     subject: CoreSubject;
     primary_level: number;
     topic_title: string;
+    // Newer payloads may expose these directly. Keep them optional so this
+    // player remains compatible with the current RPC payload.
+    topic_id?: string;
+    topic_slug?: string;
   };
   questions: QuizQuestion[];
   saved_answers: Array<{
@@ -574,6 +578,7 @@ export default function CoreQuizPlayer({
   const quizElapsedBeforeRef = useRef(0);
   const loadedQuizIdentityRef = useRef<string | null>(null);
   const loadRequestIdRef = useRef(0);
+  const topicHrefRef = useRef<string | null>(null);
 
   const loadQuiz = useCallback(
     async (options: { force?: boolean } = {}) => {
@@ -1206,11 +1211,105 @@ export default function CoreQuizPlayer({
     window.dispatchEvent(new Event("core-missions-progress-updated"));
   }
 
-  function returnToQuizList() {
+  async function resolveCurrentTopicHref() {
+    const levelHref = `/learning-missions/core/${subject}/p${level}`;
+
+    if (topicHrefRef.current) return topicHrefRef.current;
+
+    const directSlug = String(payload?.quiz.topic_slug ?? "").trim();
+    if (directSlug) {
+      const href = `${levelHref}/${directSlug}`;
+      topicHrefRef.current = href;
+      return href;
+    }
+
+    const topicTable = subject === "english" ? "english_topics" : "math_topics";
+    const quizTable = subject === "english" ? "english_quizzes" : "math_quizzes";
+
+    // First resolve by the topic metadata already present in the loaded quiz
+    // payload. This still works if a staff member has changed quiz visibility
+    // while the learner is inside the attempt.
+    const topicTitle = String(payload?.quiz.topic_title ?? "").trim();
+
+    if (topicTitle) {
+      const { data, error: topicLookupError } = await supabase
+        .from(topicTable)
+        .select("slug")
+        .eq("subject", subject)
+        .eq("primary_level", level)
+        .eq("title", topicTitle)
+        .eq("is_active", true)
+        .limit(1);
+
+      if (topicLookupError) {
+        console.warn(
+          "Could not resolve Core topic route from quiz metadata:",
+          topicLookupError.message,
+        );
+      } else {
+        const slug = String(data?.[0]?.slug ?? "").trim();
+        if (slug) {
+          const href = `${levelHref}/${slug}`;
+          topicHrefRef.current = href;
+          return href;
+        }
+      }
+    }
+
+    // Fallback: resolve the quiz's topic id first, then its slug. This covers
+    // renamed topics and older payloads that do not include topic_slug.
+    const payloadTopicId = String(payload?.quiz.topic_id ?? "").trim();
+    let topicId = payloadTopicId;
+
+    if (!topicId) {
+      const { data: quizRow, error: quizLookupError } = await supabase
+        .from(quizTable)
+        .select("topic_id")
+        .eq("id", quizId)
+        .maybeSingle();
+
+      if (quizLookupError) {
+        console.warn(
+          "Could not resolve Core quiz topic id:",
+          quizLookupError.message,
+        );
+      } else {
+        topicId = String(quizRow?.topic_id ?? "").trim();
+      }
+    }
+
+    if (topicId) {
+      const { data: topicRow, error: topicIdLookupError } = await supabase
+        .from(topicTable)
+        .select("slug")
+        .eq("id", topicId)
+        .maybeSingle();
+
+      if (topicIdLookupError) {
+        console.warn(
+          "Could not resolve Core topic slug:",
+          topicIdLookupError.message,
+        );
+      } else {
+        const slug = String(topicRow?.slug ?? "").trim();
+        if (slug) {
+          const href = `${levelHref}/${slug}`;
+          topicHrefRef.current = href;
+          return href;
+        }
+      }
+    }
+
+    return levelHref;
+  }
+
+  async function returnToQuizList() {
     if (payload && (stage === "intro" || stage === "playing")) {
       persistCheckpoint();
     }
-    router.push(`/learning-missions/core/${subject}/p${level}`);
+
+    const href = await resolveCurrentTopicHref();
+    router.push(href);
   }
 
   async function replayQuiz() {
