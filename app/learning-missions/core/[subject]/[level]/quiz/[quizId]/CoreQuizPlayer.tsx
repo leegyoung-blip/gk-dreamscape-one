@@ -1945,16 +1945,16 @@ function CoreQuizResponsiveStyles() {
 
       /*
        * Main Core-question imagery is intentionally given a taller frame.
-       * Most curriculum diagrams are square-ish rather than panoramic, so a
-       * fixed-height contain box lets the artwork use the available vertical
-       * space without stretching it. The answer choices naturally move below
-       * this frame.
+       * Most curriculum diagrams are square-ish rather than panoramic. Use a
+       * deliberately tall contain frame so the artwork occupies the large
+       * unused vertical area in the quiz card. Answer choices are pushed well
+       * below the media instead of crowding immediately underneath it.
        */
       .core-quiz-media-has-image img {
         display: block !important;
         width: 100% !important;
         max-width: 100% !important;
-        height: clamp(210px, 31dvh, 310px) !important;
+        height: clamp(285px, 39dvh, 365px) !important;
         min-height: 0 !important;
         max-height: none !important;
         margin: 0 auto !important;
@@ -1964,7 +1964,7 @@ function CoreQuizResponsiveStyles() {
 
       /* Multiple separate images share the vertical budget. */
       .core-quiz-media-multiple-images img {
-        height: clamp(145px, 21dvh, 205px) !important;
+        height: clamp(180px, 25dvh, 235px) !important;
       }
 
       .core-quiz-media-compact video {
@@ -1999,14 +1999,14 @@ function CoreQuizResponsiveStyles() {
         padding: 5px !important;
       }
 
-      /* The Math workspace narrows the question column, but the image remains
-         substantially taller than the old 105px banner. */
+      /* The Math workspace narrows the question column, but there is still a large
+         vertical budget. Keep the main image tall and let the choices sit lower. */
       .core-quiz-workspace-open .core-quiz-media-has-image img {
-        height: clamp(180px, 27dvh, 250px) !important;
+        height: clamp(275px, 36dvh, 330px) !important;
       }
 
       .core-quiz-workspace-open .core-quiz-media-multiple-images img {
-        height: clamp(125px, 18dvh, 175px) !important;
+        height: clamp(165px, 23dvh, 210px) !important;
       }
 
       .core-quiz-workspace-open .core-quiz-media-compact video {
@@ -2030,19 +2030,19 @@ function CoreQuizResponsiveStyles() {
 
       @media (max-width: 1180px) {
         .core-quiz-media-has-image img {
-          height: clamp(180px, 28dvh, 260px) !important;
+          height: clamp(240px, 34dvh, 305px) !important;
         }
 
         .core-quiz-media-multiple-images img {
-          height: clamp(130px, 19dvh, 180px) !important;
+          height: clamp(155px, 22dvh, 200px) !important;
         }
 
         .core-quiz-workspace-open .core-quiz-media-has-image img {
-          height: clamp(165px, 24dvh, 220px) !important;
+          height: clamp(225px, 31dvh, 280px) !important;
         }
 
         .core-quiz-workspace-open .core-quiz-media-multiple-images img {
-          height: clamp(115px, 17dvh, 155px) !important;
+          height: clamp(145px, 20dvh, 185px) !important;
         }
 
         .core-quiz-workspace-open .core-quiz-media-compact video {
@@ -2052,11 +2052,11 @@ function CoreQuizResponsiveStyles() {
 
       @media (max-width: 720px) {
         .core-quiz-media-has-image img {
-          height: clamp(135px, 23dvh, 190px) !important;
+          height: clamp(165px, 26dvh, 220px) !important;
         }
 
         .core-quiz-media-multiple-images img {
-          height: clamp(105px, 17dvh, 140px) !important;
+          height: clamp(120px, 19dvh, 155px) !important;
         }
 
         .core-quiz-media-compact video {
@@ -2066,15 +2066,15 @@ function CoreQuizResponsiveStyles() {
 
       @media (max-height: 720px) {
         .core-quiz-media-has-image img {
-          height: clamp(145px, 27dvh, 195px) !important;
+          height: clamp(180px, 31dvh, 230px) !important;
         }
 
         .core-quiz-media-multiple-images img {
-          height: clamp(105px, 18dvh, 135px) !important;
+          height: clamp(125px, 20dvh, 155px) !important;
         }
 
         .core-quiz-workspace-open .core-quiz-media-has-image img {
-          height: clamp(135px, 23dvh, 170px) !important;
+          height: clamp(170px, 28dvh, 215px) !important;
         }
 
         .core-quiz-media-compact video {
@@ -2084,11 +2084,11 @@ function CoreQuizResponsiveStyles() {
 
       @media (max-width: 720px) and (max-height: 720px) {
         .core-quiz-media-has-image img {
-          height: clamp(120px, 22dvh, 155px) !important;
+          height: clamp(145px, 25dvh, 180px) !important;
         }
 
         .core-quiz-media-multiple-images img {
-          height: clamp(90px, 15dvh, 115px) !important;
+          height: clamp(105px, 17dvh, 130px) !important;
         }
 
         .core-quiz-media-compact video {
@@ -3146,7 +3146,7 @@ function optionGrid(
     display: "grid",
     gridTemplateColumns: imageLayout ? "repeat(2, minmax(0, 1fr))" : "1fr",
     gap: imageLayout ? "6px" : "7px",
-    marginTop: hasMainQuestionImage ? "14px" : "8px",
+    marginTop: hasMainQuestionImage ? "22px" : "8px",
   };
 }
 
