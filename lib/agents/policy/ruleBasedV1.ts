@@ -1297,15 +1297,6 @@ function buildNovaLearningCandidate({
             data.math,
           ),
       },
-      {
-        subject:
-          "science",
-
-        payload:
-          asObject(
-            data.science,
-          ),
-      },
     ];
 
   type LearningTarget = {
@@ -1888,11 +1879,13 @@ function buildRoverTarget(
    * the deterministic starting target. 3C will bind this to the canonical
    * Rover execution adapter before activation.
    */
+  /*
+   * Phase 3C initial Rover scope is Level 1 only. This is the canonical
+   * live course id used by submit_rover_level_result.
+   */
   const defaultCourseIds =
     [
-      "level-1",
-      "level-2",
-      "level-3",
+      "skyforge-test-track-01",
     ];
 
   const candidates =
@@ -2181,7 +2174,14 @@ export function runRuleBasedPolicyV1(
       `${seed}:arena`,
     );
 
-  const thinkTarget =
+  const accountRole =
+    stringValue(
+      agent.accountRole ??
+      agent.account_role,
+    )
+      .toLowerCase();
+
+  const observedThinkTarget =
     buildThinkTarget(
       worldData(
         sections,
@@ -2189,6 +2189,21 @@ export function runRuleBasedPolicyV1(
       ),
       `${seed}:think`,
     );
+
+  /*
+   * The current canonical Think RPC allows student/staff roles, not regular.
+   * Initial autonomous execution is intentionally student-only.
+   */
+  const thinkTarget =
+    accountRole ===
+      "student"
+      ? observedThinkTarget
+      : {
+          parameters: {},
+          targetLabel: null,
+          repeatCount: 0,
+          availableTargets: 0,
+        };
 
   const roverTarget =
     buildRoverTarget(

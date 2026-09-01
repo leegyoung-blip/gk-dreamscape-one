@@ -15,6 +15,22 @@ import type {
 
 const COURSE_ID = "skyforge-test-track-01";
 
+const ROVER_ENTRY_ORIGIN_KEY = "dreamscape-rover-entry-origin";
+const ROVER_RETURNING_FROM_GAME_KEY =
+  "dreamscape-rover-returning-from-game";
+
+type RoverEntryOrigin = "core" | "nova";
+
+function parseRoverEntryOrigin(
+  value: string | null,
+): RoverEntryOrigin | null {
+  if (value === "core" || value === "nova") {
+    return value;
+  }
+
+  return null;
+}
+
 type GarageTab = "courses" | "upgrades" | "custom";
 type ScreenMode = "desktop" | "tablet" | "mobile";
 
@@ -325,14 +341,129 @@ export default function RoverGarageClient() {
   const isMobile = screenMode === "mobile";
   const isCompact = screenMode !== "desktop";
 
-  function goBack() {
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      router.back();
+  const [roverEntryOrigin, setRoverEntryOrigin] =
+    useState<RoverEntryOrigin>("core");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+
+    const requestedOrigin = parseRoverEntryOrigin(
+      params.get("from"),
+    );
+
+    if (requestedOrigin) {
+      sessionStorage.setItem(
+        ROVER_ENTRY_ORIGIN_KEY,
+        requestedOrigin,
+      );
+
+      sessionStorage.removeItem(
+        ROVER_RETURNING_FROM_GAME_KEY,
+      );
+
+      setRoverEntryOrigin(requestedOrigin);
       return;
     }
 
-    // Safe fallback for direct visits with no usable browser history.
-    router.push("/learning-missions/core");
+    const returningFromGame =
+      sessionStorage.getItem(
+        ROVER_RETURNING_FROM_GAME_KEY,
+      ) === "1";
+
+    const savedOrigin = parseRoverEntryOrigin(
+      sessionStorage.getItem(ROVER_ENTRY_ORIGIN_KEY),
+    );
+
+    if (returningFromGame && savedOrigin) {
+      setRoverEntryOrigin(savedOrigin);
+      return;
+    }
+
+    /*
+     * Direct / unknown entry:
+     * default safely to Core Missions instead of relying on
+     * browser history or a stale previous destination.
+     */
+    setRoverEntryOrigin("core");
+
+    sessionStorage.setItem(
+      ROVER_ENTRY_ORIGIN_KEY,
+      "core",
+    );
+  }, []);
+
+  function getCurrentRoverOrigin(): RoverEntryOrigin {
+    if (typeof window === "undefined") {
+      return roverEntryOrigin;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+
+    const requestedOrigin = parseRoverEntryOrigin(
+      params.get("from"),
+    );
+
+    if (requestedOrigin) {
+      return requestedOrigin;
+    }
+
+    const savedOrigin = parseRoverEntryOrigin(
+      sessionStorage.getItem(ROVER_ENTRY_ORIGIN_KEY),
+    );
+
+    const returningFromGame =
+      sessionStorage.getItem(
+        ROVER_RETURNING_FROM_GAME_KEY,
+      ) === "1";
+
+    if (returningFromGame && savedOrigin) {
+      return savedOrigin;
+    }
+
+    return roverEntryOrigin;
+  }
+
+  function goBack() {
+    const origin = getCurrentRoverOrigin();
+
+    const destination =
+      origin === "nova"
+        ? "/inventor"
+        : "/learning-missions/core";
+
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem(
+        ROVER_ENTRY_ORIGIN_KEY,
+      );
+
+      sessionStorage.removeItem(
+        ROVER_RETURNING_FROM_GAME_KEY,
+      );
+    }
+
+    router.push(destination);
+  }
+
+  function openRoverChallenge(level: RoverLevelId) {
+    const origin = getCurrentRoverOrigin();
+
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(
+        ROVER_ENTRY_ORIGIN_KEY,
+        origin,
+      );
+
+      sessionStorage.setItem(
+        ROVER_RETURNING_FROM_GAME_KEY,
+        "1",
+      );
+    }
+
+    router.push(
+      `/learning-missions/core/rover-challenge/${level}`,
+    );
   }
 
   const [tab, setTab] = useState<GarageTab>("courses");
@@ -705,7 +836,9 @@ export default function RoverGarageClient() {
 
       if (dreamGemBalance < access.early_unlock_price) {
         setCourseActionMessage(
-          `You need ${access.early_unlock_price - dreamGemBalance} more Dream Gems to unlock Level ${levelId}.`,
+          `You need ${
+            access.early_unlock_price - dreamGemBalance
+          } more Dream Gems to unlock Level ${levelId}.`,
         );
         return;
       }
@@ -715,7 +848,9 @@ export default function RoverGarageClient() {
           `Unlock Level ${levelId} — ${access.title} early?`,
           "",
           `Cost: ${access.early_unlock_price} Dream Gems`,
-          `Balance: ${dreamGemBalance} → ${dreamGemBalance - access.early_unlock_price}`,
+          `Balance: ${dreamGemBalance} → ${
+            dreamGemBalance - access.early_unlock_price
+          }`,
           "",
           "This permanent unlock bypasses the normal Rover Stage requirement. The previous Rover Level must still be completed first.",
         ].join("\n"),
@@ -795,15 +930,21 @@ export default function RoverGarageClient() {
             ← Back
           </button>
         </header>
+
         <div style={loadingFill}>
           <div style={loginCard}>
             <h1 style={{ margin: 0 }}>My Rover</h1>
+
             <p style={{ opacity: 0.7, lineHeight: 1.5 }}>
               Log in to view your rover, upgrades and custom build.
             </p>
+
             <a
               href="/login"
-              style={{ ...primaryButton, textDecoration: "none" }}
+              style={{
+                ...primaryButton,
+                textDecoration: "none",
+              }}
             >
               Log In
             </a>
@@ -832,20 +973,36 @@ export default function RoverGarageClient() {
         <div style={headerRight(isMobile)}>
           <div style={balancePill("dt")}>
             <span style={pillIcon("dt")}>◇</span>
-            {!isMobile && <span style={pillLabel}>PROFILE ASSETS</span>}
+
+            {!isMobile && (
+              <span style={pillLabel}>
+                PROFILE ASSETS
+              </span>
+            )}
+
             <strong style={pillValue("dt")}>
               {tokenBalance.toLocaleString("en-SG")} DT
             </strong>
+
             <span style={pillChevron}>⌄</span>
           </div>
+
           <div style={balancePill("dg")}>
             <span style={pillIcon("dg")}>◆</span>
-            {!isMobile && <span style={pillLabel}>DREAM GEMS</span>}
+
+            {!isMobile && (
+              <span style={pillLabel}>
+                DREAM GEMS
+              </span>
+            )}
+
             <strong style={pillValue("dg")}>
               {dreamGemBalance.toLocaleString("en-SG")} DG
             </strong>
+
             <span style={pillChevron}>⌄</span>
           </div>
+
           <button
             type="button"
             onClick={() => router.push("/profile")}
@@ -866,10 +1023,13 @@ export default function RoverGarageClient() {
                     ? "EQUIPPED BUILD"
                     : "VIEWING ROVER BUILD"}
                 </p>
+
                 <h2 style={currentBuildTitle}>
-                  Stage {displayedUpgrade.stage} · {displayedUpgrade.name}
+                  Stage {displayedUpgrade.stage} ·{" "}
+                  {displayedUpgrade.name}
                 </h2>
               </div>
+
               <div style={rankPill(rank)}>
                 {rank ? `Rank #${rank}` : "Unranked"}
               </div>
@@ -880,7 +1040,9 @@ export default function RoverGarageClient() {
               isMobile={isMobile}
             />
 
-            <p style={upgradeDescription}>{displayedUpgrade.description}</p>
+            <p style={upgradeDescription}>
+              {displayedUpgrade.description}
+            </p>
 
             <RoverBuildStats
               stage={displayedUpgrade.stage}
@@ -888,14 +1050,20 @@ export default function RoverGarageClient() {
             />
 
             {loadoutMessage && (
-              <div style={courseNotice}>{loadoutMessage}</div>
+              <div style={courseNotice}>
+                {loadoutMessage}
+              </div>
             )}
 
             <div style={progressTrack}>
               <div
                 style={{
                   ...progressFill,
-                  width: `${isAdmin ? 100 : progress.progressPercentage}%`,
+                  width: `${
+                    isAdmin
+                      ? 100
+                      : progress.progressPercentage
+                  }%`,
                   background: `linear-gradient(90deg, ${progress.currentUpgrade.accent}, #35c5ff)`,
                 }}
               />
@@ -907,6 +1075,7 @@ export default function RoverGarageClient() {
                   ? "Admin access · all rover stages unlocked"
                   : `${completedMissionCount} counted Core Missions`}
               </p>
+
               <p style={progressText}>
                 {isAdmin
                   ? `Equipped: Stage ${equippedStage}`
@@ -921,27 +1090,38 @@ export default function RoverGarageClient() {
                 label="Current Rank"
                 value={rank ? `#${rank}` : "—"}
               />
+
               <SummaryStat
                 label="Best Score"
-                value={bestScore === null ? "—" : bestScore.toLocaleString()}
+                value={
+                  bestScore === null
+                    ? "—"
+                    : bestScore.toLocaleString()
+                }
               />
+
               <SummaryStat
                 label="Best Time"
                 value={
-                  bestTimeMs === null ? "—" : formatMilliseconds(bestTimeMs)
+                  bestTimeMs === null
+                    ? "—"
+                    : formatMilliseconds(bestTimeMs)
                 }
               />
+
               <SummaryStat
                 label="Best Orbs"
-                value={orbsCollected === null ? "—" : `${orbsCollected}/8`}
+                value={
+                  orbsCollected === null
+                    ? "—"
+                    : `${orbsCollected}/8`
+                }
               />
             </div>
 
             <button
               type="button"
-              onClick={() =>
-                router.push("/learning-missions/core/rover-challenge/1")
-              }
+              onClick={() => openRoverChallenge(1)}
               style={largeChallengeButton}
             >
               Enter Rover Challenge ›
@@ -958,6 +1138,7 @@ export default function RoverGarageClient() {
             >
               Rover Courses
             </button>
+
             <button
               type="button"
               onClick={() => setTab("upgrades")}
@@ -965,6 +1146,7 @@ export default function RoverGarageClient() {
             >
               Rover Upgrades
             </button>
+
             <button
               type="button"
               onClick={() => setTab("custom")}
@@ -982,14 +1164,16 @@ export default function RoverGarageClient() {
               actionMessage={courseActionMessage}
               currentStage={
                 isAdmin
-                  ? coreUpgradeTrack[coreUpgradeTrack.length - 1].stage
+                  ? coreUpgradeTrack[
+                      coreUpgradeTrack.length - 1
+                    ].stage
                   : progress.currentUpgrade.stage
               }
               dreamGemBalance={dreamGemBalance}
               purchasingLevel={purchasingLevel}
               userId={userId}
               onOpenLevel={(level) =>
-                router.push(`/learning-missions/core/rover-challenge/${level}`)
+                openRoverChallenge(level)
               }
               onPurchaseEarlyUnlock={(level) =>
                 void purchaseEarlyUnlock(level)
@@ -1002,10 +1186,15 @@ export default function RoverGarageClient() {
               equippedStage={equippedStage}
               selectedStage={displayedUpgrade.stage}
               savingStage={savingRoverStage}
-              onSelectStage={(stage) => void selectAndEquipRover(stage)}
+              onSelectStage={(stage) =>
+                void selectAndEquipRover(stage)
+              }
             />
           ) : (
-            <CustomBuildPanel tokenBalance={tokenBalance} isMobile={isMobile} />
+            <CustomBuildPanel
+              tokenBalance={tokenBalance}
+              isMobile={isMobile}
+            />
           )}
         </div>
       </section>
@@ -1039,26 +1228,43 @@ function RoverCoursesPanel({
   const [leaderboardLevel, setLeaderboardLevel] =
     useState<RoverLevelId>(1);
 
-  const leaderboardRows = leaderboards[leaderboardLevel];
+  const leaderboardRows =
+    leaderboards[leaderboardLevel];
+
   const selectedLeaderboardCourse =
-    ROVER_COURSES.find((course) => course.id === leaderboardLevel) ??
-    ROVER_COURSES[0];
+    ROVER_COURSES.find(
+      (course) => course.id === leaderboardLevel,
+    ) ?? ROVER_COURSES[0];
 
   return (
     <div style={coursesPanel}>
       <div>
         <p style={smallEyebrow}>COURSE SELECT</p>
-        <h2 style={{ margin: "7px 0 0" }}>Rover Challenge</h2>
+
+        <h2 style={{ margin: "7px 0 0" }}>
+          Rover Challenge
+        </h2>
+
         <p style={coursesIntro}>
-          Every current Rover Level is shown here. Complete levels in order.
-          If your Rover Stage is behind schedule, Dream Gems can permanently
-          unlock the next eligible level early. Admin accounts can enter every
-          level immediately.
+          Every current Rover Level is shown here.
+          Complete levels in order. If your Rover Stage
+          is behind schedule, Dream Gems can permanently
+          unlock the next eligible level early. Admin
+          accounts can enter every level immediately.
         </p>
       </div>
 
-      {loadMessage && <div style={courseNotice}>{loadMessage}</div>}
-      {actionMessage && <div style={courseNotice}>{actionMessage}</div>}
+      {loadMessage && (
+        <div style={courseNotice}>
+          {loadMessage}
+        </div>
+      )}
+
+      {actionMessage && (
+        <div style={courseNotice}>
+          {actionMessage}
+        </div>
+      )}
 
       <div style={courseGrid}>
         {ROVER_COURSES.map((course) => (
@@ -1068,12 +1274,18 @@ function RoverCoursesPanel({
             title={course.title}
             description={course.description}
             access={access.find(
-              (row) => Number(row.level_id) === Number(course.id),
+              (row) =>
+                Number(row.level_id) ===
+                Number(course.id),
             )}
             currentStage={currentStage}
             dreamGemBalance={dreamGemBalance}
-            purchasing={purchasingLevel === course.id}
-            onOpen={() => onOpenLevel(course.id)}
+            purchasing={
+              purchasingLevel === course.id
+            }
+            onOpen={() =>
+              onOpenLevel(course.id)
+            }
             onPurchaseEarlyUnlock={() =>
               onPurchaseEarlyUnlock(course.id)
             }
@@ -1084,9 +1296,15 @@ function RoverCoursesPanel({
       <div style={leaderboardPanel}>
         <div style={leaderboardHeadingRow}>
           <div>
-            <p style={smallEyebrow}>LEVEL {leaderboardLevel}</p>
-            <h3 style={{ margin: "5px 0 0" }}>Top Explorers</h3>
+            <p style={smallEyebrow}>
+              LEVEL {leaderboardLevel}
+            </p>
+
+            <h3 style={{ margin: "5px 0 0" }}>
+              Top Explorers
+            </h3>
           </div>
+
           <span style={leaderboardCoursePill}>
             {selectedLeaderboardCourse.title}
           </span>
@@ -1095,14 +1313,17 @@ function RoverCoursesPanel({
         <div
           style={{
             ...leaderboardLevelTabs,
-            gridTemplateColumns: "repeat(4,minmax(0,1fr))",
+            gridTemplateColumns:
+              "repeat(4,minmax(0,1fr))",
           }}
         >
           {ROVER_COURSES.map((course) => (
             <button
               key={course.id}
               type="button"
-              onClick={() => setLeaderboardLevel(course.id)}
+              onClick={() =>
+                setLeaderboardLevel(course.id)
+              }
               style={leaderboardLevelButton(
                 leaderboardLevel === course.id,
               )}
@@ -1114,36 +1335,51 @@ function RoverCoursesPanel({
 
         {leaderboardRows.length === 0 ? (
           <p style={emptyLeaderboard}>
-            No completed runs yet. Finish Level {leaderboardLevel} to set the
-            first score.
+            No completed runs yet. Finish Level{" "}
+            {leaderboardLevel} to set the first score.
           </p>
         ) : (
           <div style={leaderboardList}>
             {leaderboardRows.map((row) => {
-              const isCurrentUser = row.user_id === userId;
+              const isCurrentUser =
+                row.user_id === userId;
 
               return (
                 <div
                   key={`${row.user_id}-${row.rank}`}
-                  style={leaderboardRow(isCurrentUser)}
+                  style={leaderboardRow(
+                    isCurrentUser,
+                  )}
                 >
-                  <strong style={leaderboardRank}>#{row.rank}</strong>
+                  <strong style={leaderboardRank}>
+                    #{row.rank}
+                  </strong>
 
                   <div style={{ minWidth: 0 }}>
                     <p style={leaderboardName}>
                       {row.username || "Explorer"}
-                      {isCurrentUser ? " · You" : ""}
+                      {isCurrentUser
+                        ? " · You"
+                        : ""}
                     </p>
 
                     <p style={leaderboardMeta}>
-                      Stage {row.rover_stage} · {row.orbs_collected}/
-                      {selectedLeaderboardCourse.orbTotal} orbs ·{" "}
-                      {formatMilliseconds(Number(row.best_time_ms))}
+                      Stage {row.rover_stage} ·{" "}
+                      {row.orbs_collected}/
+                      {
+                        selectedLeaderboardCourse.orbTotal
+                      }{" "}
+                      orbs ·{" "}
+                      {formatMilliseconds(
+                        Number(row.best_time_ms),
+                      )}
                     </p>
                   </div>
 
                   <strong style={leaderboardScore}>
-                    {Number(row.best_score).toLocaleString()}
+                    {Number(
+                      row.best_score,
+                    ).toLocaleString()}
                   </strong>
                 </div>
               );
@@ -1178,15 +1414,27 @@ function CourseCard({
 }) {
   const unlocked = Boolean(access?.unlocked);
   const completed = Boolean(access?.completed);
-  const adminAccess = Boolean(access?.admin_access);
-  const earlyUnlockPurchased = Boolean(access?.early_unlock_purchased);
-  const canEarlyUnlock = Boolean(access?.can_early_unlock);
-  const earlyUnlockPrice = Number(access?.early_unlock_price ?? 0);
+  const adminAccess = Boolean(
+    access?.admin_access,
+  );
+  const earlyUnlockPurchased = Boolean(
+    access?.early_unlock_purchased,
+  );
+  const canEarlyUnlock = Boolean(
+    access?.can_early_unlock,
+  );
+  const earlyUnlockPrice = Number(
+    access?.early_unlock_price ?? 0,
+  );
   const hasEnoughGems =
-    canEarlyUnlock && dreamGemBalance >= earlyUnlockPrice;
+    canEarlyUnlock &&
+    dreamGemBalance >= earlyUnlockPrice;
 
-  // get_rover_level_access() is authoritative. Admin and purchased early
-  // unlocks intentionally bypass stage_ready, so do not re-check it here.
+  /*
+   * get_rover_level_access() is authoritative.
+   * Admin and purchased early unlocks intentionally
+   * bypass stage_ready, so do not re-check it here.
+   */
   const canOpen = unlocked;
 
   let status = "ACCESS DATA UNAVAILABLE";
@@ -1197,9 +1445,11 @@ function CourseCard({
         ? "COMPLETED · ADMIN REPLAY"
         : "ADMIN ACCESS · READY TO DRIVE";
     } else if (completed) {
-      status = "COMPLETED · REPLAY AVAILABLE";
+      status =
+        "COMPLETED · REPLAY AVAILABLE";
     } else if (earlyUnlockPurchased) {
-      status = "EARLY UNLOCK · PERMANENT";
+      status =
+        "EARLY UNLOCK · PERMANENT";
     } else if (!access.prerequisite_completed) {
       status = `LOCKED · COMPLETE LEVEL ${access.prerequisite_level}`;
     } else if (canEarlyUnlock) {
@@ -1211,21 +1461,43 @@ function CourseCard({
     }
   }
 
-  const highlighted = canOpen || canEarlyUnlock;
+  const highlighted =
+    canOpen || canEarlyUnlock;
 
   return (
-    <article style={courseCard(highlighted, completed)}>
-      <div style={courseNumber(highlighted)}>{number}</div>
+    <article
+      style={courseCard(
+        highlighted,
+        completed,
+      )}
+    >
+      <div style={courseNumber(highlighted)}>
+        {number}
+      </div>
 
       <div style={{ minWidth: 0 }}>
-        <p style={courseStatus(highlighted)}>{status}</p>
-        <h3 style={courseTitle}>{title}</h3>
-        <p style={courseDescription}>{description}</p>
+        <p style={courseStatus(highlighted)}>
+          {status}
+        </p>
+
+        <h3 style={courseTitle}>
+          {title}
+        </h3>
+
+        <p style={courseDescription}>
+          {description}
+        </p>
 
         {access?.best_score != null && (
           <p style={courseBest}>
-            Best {Number(access.best_score).toLocaleString()} points ·{" "}
-            {formatMilliseconds(Number(access.best_time_ms))}
+            Best{" "}
+            {Number(
+              access.best_score,
+            ).toLocaleString()}{" "}
+            points ·{" "}
+            {formatMilliseconds(
+              Number(access.best_time_ms),
+            )}
           </p>
         )}
 
@@ -1233,10 +1505,13 @@ function CourseCard({
           <p
             style={{
               ...courseBest,
-              color: hasEnoughGems ? "#e7d2ff" : "#ffc9b5",
+              color: hasEnoughGems
+                ? "#e7d2ff"
+                : "#ffc9b5",
             }}
           >
-            Early unlock: ◆ {earlyUnlockPrice} DG · Balance:{" "}
+            Early unlock: ◆{" "}
+            {earlyUnlockPrice} DG · Balance:{" "}
             {dreamGemBalance} DG
           </p>
         )}
@@ -1246,14 +1521,19 @@ function CourseCard({
         <button
           type="button"
           onClick={onOpen}
-          style={courseButton(true, "play")}
+          style={courseButton(
+            true,
+            "play",
+          )}
         >
           {completed ? "Replay" : "Play"}
         </button>
       ) : canEarlyUnlock ? (
         <button
           type="button"
-          disabled={!hasEnoughGems || purchasing}
+          disabled={
+            !hasEnoughGems || purchasing
+          }
           onClick={onPurchaseEarlyUnlock}
           style={courseButton(
             hasEnoughGems && !purchasing,
@@ -1270,7 +1550,10 @@ function CourseCard({
         <button
           type="button"
           disabled
-          style={courseButton(false, "locked")}
+          style={courseButton(
+            false,
+            "locked",
+          )}
         >
           Locked
         </button>
@@ -1304,8 +1587,15 @@ function RoverPreview({
   );
 }
 
-function RoverBuildStats({ stage, accent }: { stage: number; accent: string }) {
-  const stats = getRoverBuildStats(stage);
+function RoverBuildStats({
+  stage,
+  accent,
+}: {
+  stage: number;
+  accent: string;
+}) {
+  const stats =
+    getRoverBuildStats(stage);
 
   return (
     <section
@@ -1313,22 +1603,38 @@ function RoverBuildStats({ stage, accent }: { stage: number; accent: string }) {
       style={buildStatsPanel}
     >
       <div style={buildStatsHeadingRow}>
-        <p style={smallEyebrow}>BUILD STATS</p>
-        <span style={buildStatsScale}>1–5</span>
+        <p style={smallEyebrow}>
+          BUILD STATS
+        </p>
+
+        <span style={buildStatsScale}>
+          1–5
+        </span>
       </div>
 
       <div style={buildStatsGrid}>
         {stats.map((stat) => (
-          <div key={stat.label} style={buildStatRow}>
+          <div
+            key={stat.label}
+            style={buildStatRow}
+          >
             <div style={buildStatLabelRow}>
               <span>{stat.label}</span>
-              <strong style={{ color: accent }}>{stat.value}/5</strong>
+
+              <strong
+                style={{ color: accent }}
+              >
+                {stat.value}/5
+              </strong>
             </div>
+
             <div style={buildStatTrack}>
               <div
                 style={{
                   ...buildStatFill,
-                  width: `${stat.value * 20}%`,
+                  width: `${
+                    stat.value * 20
+                  }%`,
                   background: `linear-gradient(90deg, ${accent}, #35c5ff)`,
                   boxShadow: `0 0 12px ${accent}55`,
                 }}
@@ -1359,99 +1665,143 @@ function UpgradeTrack({
   return (
     <div style={scrollPanel}>
       <div style={panelHeading}>
-        <p style={smallEyebrow}>MISSION UNLOCKS</p>
+        <p style={smallEyebrow}>
+          MISSION UNLOCKS
+        </p>
 
-        <h2 style={{ margin: "7px 0 0" }}>Rover Upgrade Track</h2>
+        <h2 style={{ margin: "7px 0 0" }}>
+          Rover Upgrade Track
+        </h2>
 
         <p style={panelDescription}>
-          Complete new Core Mission quizzes to unlock performance upgrades.
-          Selecting an available rover equips it immediately, and that exact
-          build is used in Rover Challenge. Admin accounts can equip every
-          stage. Replays do not add progress.
+          Complete new Core Mission quizzes
+          to unlock performance upgrades.
+          Selecting an available rover equips
+          it immediately, and that exact build
+          is used in Rover Challenge. Admin
+          accounts can equip every stage.
+          Replays do not add progress.
         </p>
       </div>
 
       <div style={upgradeList}>
-        {coreUpgradeTrack.map((upgrade) => {
-          const unlocked =
-            isAdmin ||
-            completedMissionCount >= upgrade.missionsRequired;
+        {coreUpgradeTrack.map(
+          (upgrade) => {
+            const unlocked =
+              isAdmin ||
+              completedMissionCount >=
+                upgrade.missionsRequired;
 
-          const equipped = equippedStage === upgrade.stage;
-          const selected = selectedStage === upgrade.stage;
-          const saving = savingStage === upgrade.stage;
+            const equipped =
+              equippedStage ===
+              upgrade.stage;
 
-          return (
-            <button
-              key={upgrade.stage}
-              type="button"
-              disabled={!unlocked || savingStage !== null}
-              onClick={() => {
-                if (unlocked && savingStage === null) {
-                  onSelectStage(upgrade.stage);
+            const selected =
+              selectedStage ===
+              upgrade.stage;
+
+            const saving =
+              savingStage ===
+              upgrade.stage;
+
+            return (
+              <button
+                key={upgrade.stage}
+                type="button"
+                disabled={
+                  !unlocked ||
+                  savingStage !== null
                 }
-              }}
-              aria-pressed={equipped}
-              style={upgradeRow(unlocked, equipped, selected, upgrade.accent)}
-            >
-              <div style={stageNumber(unlocked, upgrade.accent)}>
-                {upgrade.stage}
-              </div>
-
-              <img
-                src={upgrade.imageSrc}
-                alt={upgrade.name}
-                draggable={false}
-                style={{
-                  width: "110px",
-                  height: "76px",
-                  objectFit: "contain",
-                  opacity: unlocked ? 1 : 0.35,
+                onClick={() => {
+                  if (
+                    unlocked &&
+                    savingStage === null
+                  ) {
+                    onSelectStage(
+                      upgrade.stage,
+                    );
+                  }
                 }}
-              />
-
-              <div
-                style={{
-                  minWidth: 0,
-                  flex: 1,
-                  textAlign: "left",
-                }}
+                aria-pressed={equipped}
+                style={upgradeRow(
+                  unlocked,
+                  equipped,
+                  selected,
+                  upgrade.accent,
+                )}
               >
-                <p
-                  style={upgradeStatus(
+                <div
+                  style={stageNumber(
                     unlocked,
-                    equipped,
-                    selected,
                     upgrade.accent,
                   )}
                 >
-                  {equipped
-                    ? "EQUIPPED · USED IN CHALLENGE"
-                    : saving
-                      ? "EQUIPPING..."
-                      : selected
-                        ? "SELECTED"
-                        : unlocked
-                          ? isAdmin
-                            ? "ADMIN UNLOCKED · SELECT TO EQUIP"
-                            : "UNLOCKED · SELECT TO EQUIP"
-                          : `${upgrade.missionsRequired} MISSIONS`}
-                </p>
+                  {upgrade.stage}
+                </div>
 
-                <h3
+                <img
+                  src={upgrade.imageSrc}
+                  alt={upgrade.name}
+                  draggable={false}
                   style={{
-                    margin: "5px 0 0",
-                    fontSize: "18px",
+                    width: "110px",
+                    height: "76px",
+                    objectFit: "contain",
+                    opacity: unlocked
+                      ? 1
+                      : 0.35,
+                  }}
+                />
+
+                <div
+                  style={{
+                    minWidth: 0,
+                    flex: 1,
+                    textAlign: "left",
                   }}
                 >
-                  {upgrade.name}
-                </h3>
+                  <p
+                    style={upgradeStatus(
+                      unlocked,
+                      equipped,
+                      selected,
+                      upgrade.accent,
+                    )}
+                  >
+                    {equipped
+                      ? "EQUIPPED · USED IN CHALLENGE"
+                      : saving
+                        ? "EQUIPPING..."
+                        : selected
+                          ? "SELECTED"
+                          : unlocked
+                            ? isAdmin
+                              ? "ADMIN UNLOCKED · SELECT TO EQUIP"
+                              : "UNLOCKED · SELECT TO EQUIP"
+                            : `${upgrade.missionsRequired} MISSIONS`}
+                  </p>
 
-                <p style={upgradeRowDescription}>{upgrade.description}</p>
-              </div>
-            </button>
-          );
-        })}
+                  <h3
+                    style={{
+                      margin: "5px 0 0",
+                      fontSize: "18px",
+                    }}
+                  >
+                    {upgrade.name}
+                  </h3>
+
+                  <p
+                    style={
+                      upgradeRowDescription
+                    }
+                  >
+                    {upgrade.description}
+                  </p>
+                </div>
+              </button>
+            );
+          },
+        )}
       </div>
     </div>
   );
@@ -1467,14 +1817,22 @@ function CustomBuildPanel({
   return (
     <div style={scrollPanel}>
       <div style={panelHeading}>
-        <p style={smallEyebrow}>COSMETIC CUSTOMISATION</p>
+        <p style={smallEyebrow}>
+          COSMETIC CUSTOMISATION
+        </p>
 
-        <h2 style={{ margin: "7px 0 0" }}>Custom Build</h2>
+        <h2 style={{ margin: "7px 0 0" }}>
+          Custom Build
+        </h2>
 
         <p style={panelDescription}>
-          The standard build currently uses no tint, no energy trail and no
-          decal. Additional cosmetic options are locked for now. Balance:{" "}
-          <strong>{tokenBalance} DT</strong>
+          The standard build currently uses
+          no tint, no energy trail and no decal.
+          Additional cosmetic options are
+          locked for now. Balance:{" "}
+          <strong>
+            {tokenBalance} DT
+          </strong>
         </p>
       </div>
 
@@ -1484,75 +1842,116 @@ function CustomBuildPanel({
           gap: "18px",
         }}
       >
-        {garageCustomisationGroups.map((group) => (
-          <section key={group.id}>
-            <h3
-              style={{
-                margin: 0,
-                fontSize: "19px",
-              }}
-            >
-              {group.title}
-            </h3>
+        {garageCustomisationGroups.map(
+          (group) => (
+            <section key={group.id}>
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: "19px",
+                }}
+              >
+                {group.title}
+              </h3>
 
-            <p
-              style={{
-                margin: "5px 0 10px",
-                opacity: 0.58,
-                fontSize: "13px",
-              }}
-            >
-              {group.description}
-            </p>
+              <p
+                style={{
+                  margin: "5px 0 10px",
+                  opacity: 0.58,
+                  fontSize: "13px",
+                }}
+              >
+                {group.description}
+              </p>
 
-            <div style={customGrid(isMobile)}>
-              {group.options.map((item) => (
-                <div
-                  key={item.key}
-                  style={customCard(Boolean(item.isDefault), item.previewColor)}
-                >
-                  <CustomSwatch item={item} />
+              <div
+                style={customGrid(
+                  isMobile,
+                )}
+              >
+                {group.options.map(
+                  (item) => (
+                    <div
+                      key={item.key}
+                      style={customCard(
+                        Boolean(
+                          item.isDefault,
+                        ),
+                        item.previewColor,
+                      )}
+                    >
+                      <CustomSwatch
+                        item={item}
+                      />
 
-                  <div
-                    style={{
-                      minWidth: 0,
-                    }}
-                  >
-                    <p style={customName}>{item.name}</p>
+                      <div
+                        style={{
+                          minWidth: 0,
+                        }}
+                      >
+                        <p
+                          style={
+                            customName
+                          }
+                        >
+                          {item.name}
+                        </p>
 
-                    <p style={customDescription}>{item.description}</p>
-                  </div>
+                        <p
+                          style={
+                            customDescription
+                          }
+                        >
+                          {
+                            item.description
+                          }
+                        </p>
+                      </div>
 
-                  <button
-                    type="button"
-                    disabled
-                    style={customActionButton(Boolean(item.isDefault))}
-                  >
-                    {item.isDefault ? "Default" : "Locked"}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </section>
-        ))}
+                      <button
+                        type="button"
+                        disabled
+                        style={customActionButton(
+                          Boolean(
+                            item.isDefault,
+                          ),
+                        )}
+                      >
+                        {item.isDefault
+                          ? "Default"
+                          : "Locked"}
+                      </button>
+                    </div>
+                  ),
+                )}
+              </div>
+            </section>
+          ),
+        )}
       </div>
     </div>
   );
 }
 
-function CustomSwatch({ item }: { item: GarageCustomOption }) {
+function CustomSwatch({
+  item,
+}: {
+  item: GarageCustomOption;
+}) {
   if (item.category === "decal") {
     return (
       <div
         style={{
           ...swatch,
           color:
-            item.previewColor === "transparent"
+            item.previewColor ===
+            "transparent"
               ? "rgba(255,255,255,0.55)"
               : item.previewColor,
           fontSize: "28px",
           textShadow:
-            item.previewColor === "transparent"
+            item.previewColor ===
+            "transparent"
               ? "none"
               : `0 0 14px ${item.previewColor}`,
         }}
@@ -1562,7 +1961,10 @@ function CustomSwatch({ item }: { item: GarageCustomOption }) {
     );
   }
 
-  if (item.category === "trail" && !item.isDefault) {
+  if (
+    item.category === "trail" &&
+    !item.isDefault
+  ) {
     return (
       <div style={swatch}>
         <div
@@ -1572,7 +1974,10 @@ function CustomSwatch({ item }: { item: GarageCustomOption }) {
             borderRadius: "999px",
             background: `linear-gradient(90deg, transparent, ${
               item.previewColor
-            }, ${item.secondaryColor || item.previewColor})`,
+            }, ${
+              item.secondaryColor ||
+              item.previewColor
+            })`,
             boxShadow: `0 0 16px ${item.previewColor}`,
           }}
         />
@@ -1588,13 +1993,18 @@ function CustomSwatch({ item }: { item: GarageCustomOption }) {
           height: "30px",
           borderRadius: "999px",
           background:
-            item.previewColor === "transparent"
+            item.previewColor ===
+            "transparent"
               ? "rgba(255,255,255,0.025)"
-              : `linear-gradient(135deg, ${item.previewColor}, ${
-                  item.secondaryColor || item.previewColor
+              : `linear-gradient(135deg, ${
+                  item.previewColor
+                }, ${
+                  item.secondaryColor ||
+                  item.previewColor
                 })`,
           border:
-            item.previewColor === "transparent"
+            item.previewColor ===
+            "transparent"
               ? "1px dashed rgba(255,255,255,0.32)"
               : "1px solid rgba(255,255,255,0.25)",
         }}
@@ -1603,21 +2013,41 @@ function CustomSwatch({ item }: { item: GarageCustomOption }) {
   );
 }
 
-function SummaryStat({ label, value }: { label: string; value: string }) {
+function SummaryStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
   return (
     <div style={summaryStat}>
-      <p style={summaryLabel}>{label}</p>
-      <p style={summaryValue}>{value}</p>
+      <p style={summaryLabel}>
+        {label}
+      </p>
+
+      <p style={summaryValue}>
+        {value}
+      </p>
     </div>
   );
 }
 
-function formatMilliseconds(milliseconds: number) {
-  const totalSeconds = Math.max(0, milliseconds) / 1000;
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
+function formatMilliseconds(
+  milliseconds: number,
+) {
+  const totalSeconds =
+    Math.max(0, milliseconds) / 1000;
 
-  return `${minutes.toString().padStart(2, "0")}:${seconds
+  const minutes =
+    Math.floor(totalSeconds / 60);
+
+  const seconds =
+    totalSeconds % 60;
+
+  return `${minutes
+    .toString()
+    .padStart(2, "0")}:${seconds
     .toFixed(1)
     .padStart(4, "0")}`;
 }
@@ -1633,29 +2063,46 @@ const pageBackground: CSSProperties = {
     repeating-linear-gradient(0deg, rgba(126,232,255,0.018) 0 1px, transparent 1px 96px),
     linear-gradient(180deg, #09172b 0%, #050d1d 48%, #020711 100%)
   `,
-  backgroundSize: "cover, cover, cover, auto, auto, cover",
+  backgroundSize:
+    "cover, cover, cover, auto, auto, cover",
   backgroundPosition: "center",
   backgroundAttachment: "fixed",
   backgroundColor: "#020711",
   color: "white",
-  fontFamily: "Arial, Helvetica, sans-serif",
+  fontFamily:
+    "Arial, Helvetica, sans-serif",
 };
 
-function topHeader(isMobile: boolean): CSSProperties {
+function topHeader(
+  isMobile: boolean,
+): CSSProperties {
   return {
     position: "sticky",
     top: 0,
     zIndex: 30,
-    minHeight: isMobile ? "112px" : "72px",
-    padding: isMobile ? "9px 12px 10px" : "10px 20px",
+    minHeight: isMobile
+      ? "112px"
+      : "72px",
+    padding: isMobile
+      ? "9px 12px 10px"
+      : "10px 20px",
     display: "grid",
-    gridTemplateColumns: isMobile ? "1fr auto" : "1fr auto 1fr",
-    gridTemplateRows: isMobile ? "auto auto" : "auto",
+    gridTemplateColumns: isMobile
+      ? "1fr auto"
+      : "1fr auto 1fr",
+    gridTemplateRows: isMobile
+      ? "auto auto"
+      : "auto",
     alignItems: "center",
-    gap: isMobile ? "8px 10px" : "14px",
-    borderBottom: "1px solid rgba(126,232,255,0.14)",
-    background: "rgba(3,11,25,0.9)",
-    boxShadow: "0 12px 35px rgba(0,0,0,0.22)",
+    gap: isMobile
+      ? "8px 10px"
+      : "14px",
+    borderBottom:
+      "1px solid rgba(126,232,255,0.14)",
+    background:
+      "rgba(3,11,25,0.9)",
+    boxShadow:
+      "0 12px 35px rgba(0,0,0,0.22)",
     backdropFilter: "blur(18px)",
   };
 }
@@ -1664,8 +2111,10 @@ const headerButton: CSSProperties = {
   justifySelf: "start",
   minHeight: "44px",
   borderRadius: "999px",
-  border: "1px solid rgba(126,232,255,0.38)",
-  background: "rgba(4,16,35,0.82)",
+  border:
+    "1px solid rgba(126,232,255,0.38)",
+  background:
+    "rgba(4,16,35,0.82)",
   color: "white",
   padding: "0 19px",
   cursor: "pointer",
@@ -1676,7 +2125,9 @@ const headerButton: CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-function headerIdentity(isMobile: boolean): CSSProperties {
+function headerIdentity(
+  isMobile: boolean,
+): CSSProperties {
   return {
     textAlign: "center",
     minWidth: 0,
@@ -1704,7 +2155,9 @@ const headerTitle: CSSProperties = {
   lineHeight: 1,
 };
 
-function headerRight(isMobile: boolean): CSSProperties {
+function headerRight(
+  isMobile: boolean,
+): CSSProperties {
   return {
     justifySelf: "end",
     display: "flex",
@@ -1725,8 +2178,11 @@ function headerRight(isMobile: boolean): CSSProperties {
   };
 }
 
-function balancePill(kind: "dt" | "dg"): CSSProperties {
-  const isDreamGem = kind === "dg";
+function balancePill(
+  kind: "dt" | "dg",
+): CSSProperties {
+  const isDreamGem =
+    kind === "dg";
 
   return {
     minHeight: "44px",
@@ -1737,7 +2193,8 @@ function balancePill(kind: "dt" | "dg"): CSSProperties {
     background: isDreamGem
       ? "linear-gradient(135deg, rgba(99,54,137,0.34), rgba(20,10,42,0.88))"
       : "linear-gradient(135deg, rgba(5,42,62,0.88), rgba(2,14,31,0.9))",
-    padding: "0 13px 0 9px",
+    padding:
+      "0 13px 0 9px",
     display: "flex",
     alignItems: "center",
     gap: "9px",
@@ -1749,8 +2206,11 @@ function balancePill(kind: "dt" | "dg"): CSSProperties {
   };
 }
 
-function pillIcon(kind: "dt" | "dg"): CSSProperties {
-  const isDreamGem = kind === "dg";
+function pillIcon(
+  kind: "dt" | "dg",
+): CSSProperties {
+  const isDreamGem =
+    kind === "dg";
 
   return {
     width: "26px",
@@ -1763,7 +2223,9 @@ function pillIcon(kind: "dt" | "dg"): CSSProperties {
     background: isDreamGem
       ? "rgba(192,132,252,0.18)"
       : "rgba(53,197,255,0.14)",
-    color: isDreamGem ? "#f0ddff" : "#98efff",
+    color: isDreamGem
+      ? "#f0ddff"
+      : "#98efff",
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
@@ -1782,9 +2244,14 @@ const pillLabel: CSSProperties = {
   letterSpacing: "0.06em",
 };
 
-function pillValue(kind: "dt" | "dg"): CSSProperties {
+function pillValue(
+  kind: "dt" | "dg",
+): CSSProperties {
   return {
-    color: kind === "dg" ? "#ead6ff" : "#78e7ff",
+    color:
+      kind === "dg"
+        ? "#ead6ff"
+        : "#78e7ff",
     fontSize: "12px",
     letterSpacing: "0.03em",
   };
@@ -1798,18 +2265,24 @@ const pillChevron: CSSProperties = {
 
 const accountHeaderButton: CSSProperties = {
   ...headerButton,
-  border: "1px solid rgba(126,232,255,0.45)",
-  background: "rgba(4,16,35,0.88)",
+  border:
+    "1px solid rgba(126,232,255,0.45)",
+  background:
+    "rgba(4,16,35,0.88)",
   backdropFilter: "blur(16px)",
   letterSpacing: "0.06em",
   whiteSpace: "nowrap",
 };
 
-function garageShell(isMobile: boolean): CSSProperties {
+function garageShell(
+  isMobile: boolean,
+): CSSProperties {
   return {
     width: "min(1500px,100%)",
     margin: "0 auto",
-    padding: isMobile ? "12px" : "22px",
+    padding: isMobile
+      ? "12px"
+      : "22px",
     display: "grid",
     gridTemplateColumns: isMobile
       ? "1fr"
@@ -1819,14 +2292,22 @@ function garageShell(isMobile: boolean): CSSProperties {
   };
 }
 
-function previewColumn(isCompact: boolean): CSSProperties {
+function previewColumn(
+  isCompact: boolean,
+): CSSProperties {
   return {
-    position: isCompact ? "relative" : "sticky",
-    top: isCompact ? "auto" : "90px",
+    position: isCompact
+      ? "relative"
+      : "sticky",
+    top: isCompact
+      ? "auto"
+      : "90px",
   };
 }
 
-function previewCard(accent: string): CSSProperties {
+function previewCard(
+  accent: string,
+): CSSProperties {
   return {
     borderRadius: "28px",
     border: `1px solid ${accent}77`,
@@ -1859,7 +2340,9 @@ const currentBuildTitle: CSSProperties = {
   lineHeight: 1.1,
 };
 
-function rankPill(rank: number | null): CSSProperties {
+function rankPill(
+  rank: number | null,
+): CSSProperties {
   return {
     flexShrink: 0,
     borderRadius: "999px",
@@ -1868,21 +2351,31 @@ function rankPill(rank: number | null): CSSProperties {
         ? "1px solid rgba(255,215,106,0.62)"
         : "1px solid rgba(126,232,255,0.35)",
     background:
-      rank === 1 ? "rgba(255,215,106,0.12)" : "rgba(126,232,255,0.08)",
-    color: rank === 1 ? "#ffd76a" : "#c9f9ff",
+      rank === 1
+        ? "rgba(255,215,106,0.12)"
+        : "rgba(126,232,255,0.08)",
+    color:
+      rank === 1
+        ? "#ffd76a"
+        : "#c9f9ff",
     padding: "9px 12px",
     fontSize: "12px",
     fontWeight: 900,
   };
 }
 
-function previewStage(isMobile: boolean): CSSProperties {
+function previewStage(
+  isMobile: boolean,
+): CSSProperties {
   return {
     position: "relative",
     marginTop: "16px",
-    height: isMobile ? "245px" : "330px",
+    height: isMobile
+      ? "245px"
+      : "330px",
     borderRadius: "22px",
-    border: "1px solid rgba(255,255,255,0.1)",
+    border:
+      "1px solid rgba(255,255,255,0.1)",
     background:
       "radial-gradient(circle at 50% 48%, rgba(126,232,255,0.15), rgba(255,255,255,0.035) 46%, rgba(0,0,0,0.18))",
     overflow: "hidden",
@@ -1898,7 +2391,8 @@ const roverImage: CSSProperties = {
   width: "88%",
   height: "80%",
   objectFit: "contain",
-  filter: "drop-shadow(0 24px 34px rgba(0,0,0,0.55))",
+  filter:
+    "drop-shadow(0 24px 34px rgba(0,0,0,0.55))",
 };
 
 const loadoutLabels: CSSProperties = {
@@ -1925,8 +2419,10 @@ const upgradeDescription: CSSProperties = {
 const buildStatsPanel: CSSProperties = {
   marginTop: "14px",
   borderRadius: "16px",
-  border: "1px solid rgba(126,232,255,0.16)",
-  background: "rgba(255,255,255,0.035)",
+  border:
+    "1px solid rgba(126,232,255,0.16)",
+  background:
+    "rgba(255,255,255,0.035)",
   padding: "13px",
 };
 
@@ -1947,7 +2443,8 @@ const buildStatsScale: CSSProperties = {
 const buildStatsGrid: CSSProperties = {
   marginTop: "10px",
   display: "grid",
-  gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+  gridTemplateColumns:
+    "repeat(2,minmax(0,1fr))",
   gap: "11px 14px",
 };
 
@@ -1968,7 +2465,8 @@ const buildStatTrack: CSSProperties = {
   marginTop: "6px",
   height: "7px",
   borderRadius: "999px",
-  background: "rgba(255,255,255,0.08)",
+  background:
+    "rgba(255,255,255,0.08)",
   overflow: "hidden",
 };
 
@@ -1982,9 +2480,11 @@ const progressTrack: CSSProperties = {
   marginTop: "15px",
   height: "12px",
   borderRadius: "999px",
-  background: "rgba(255,255,255,0.08)",
+  background:
+    "rgba(255,255,255,0.08)",
   overflow: "hidden",
-  border: "1px solid rgba(126,232,255,0.2)",
+  border:
+    "1px solid rgba(126,232,255,0.2)",
 };
 
 const progressFill: CSSProperties = {
@@ -2005,7 +2505,9 @@ const progressText: CSSProperties = {
   fontSize: "11px",
 };
 
-function summaryGrid(isMobile: boolean): CSSProperties {
+function summaryGrid(
+  isMobile: boolean,
+): CSSProperties {
   return {
     marginTop: "15px",
     display: "grid",
@@ -2018,8 +2520,10 @@ function summaryGrid(isMobile: boolean): CSSProperties {
 
 const summaryStat: CSSProperties = {
   borderRadius: "13px",
-  border: "1px solid rgba(126,232,255,0.17)",
-  background: "rgba(255,255,255,0.05)",
+  border:
+    "1px solid rgba(126,232,255,0.17)",
+  background:
+    "rgba(255,255,255,0.05)",
   padding: "10px",
 };
 
@@ -2042,8 +2546,10 @@ const largeChallengeButton: CSSProperties = {
   width: "100%",
   minHeight: "50px",
   borderRadius: "14px",
-  border: "1px solid rgba(255,255,255,0.32)",
-  background: "linear-gradient(135deg, #31d3ff, #4c6dff)",
+  border:
+    "1px solid rgba(255,255,255,0.32)",
+  background:
+    "linear-gradient(135deg, #31d3ff, #4c6dff)",
   color: "white",
   fontWeight: 900,
   cursor: "pointer",
@@ -2052,21 +2558,28 @@ const largeChallengeButton: CSSProperties = {
 const controlColumn: CSSProperties = {
   minWidth: 0,
   borderRadius: "26px",
-  border: "1px solid rgba(126,232,255,0.2)",
-  background: "linear-gradient(145deg, rgba(5,18,42,0.88), rgba(8,26,58,0.94))",
-  boxShadow: "0 24px 70px rgba(0,0,0,0.3)",
+  border:
+    "1px solid rgba(126,232,255,0.2)",
+  background:
+    "linear-gradient(145deg, rgba(5,18,42,0.88), rgba(8,26,58,0.94))",
+  boxShadow:
+    "0 24px 70px rgba(0,0,0,0.3)",
   overflow: "hidden",
 };
 
 const tabBar: CSSProperties = {
   padding: "12px",
   display: "grid",
-  gridTemplateColumns: "repeat(3,minmax(0,1fr))",
+  gridTemplateColumns:
+    "repeat(3,minmax(0,1fr))",
   gap: "8px",
-  borderBottom: "1px solid rgba(126,232,255,0.12)",
+  borderBottom:
+    "1px solid rgba(126,232,255,0.12)",
 };
 
-function tabButton(active: boolean): CSSProperties {
+function tabButton(
+  active: boolean,
+): CSSProperties {
   return {
     minHeight: "45px",
     borderRadius: "12px",
@@ -2076,7 +2589,9 @@ function tabButton(active: boolean): CSSProperties {
     background: active
       ? "linear-gradient(135deg, rgba(53,197,255,0.22), rgba(76,109,255,0.22))"
       : "rgba(255,255,255,0.04)",
-    color: active ? "white" : "rgba(255,255,255,0.58)",
+    color: active
+      ? "white"
+      : "rgba(255,255,255,0.58)",
     fontWeight: 800,
     cursor: "pointer",
   };
@@ -2130,22 +2645,38 @@ function upgradeRow(
     opacity: unlocked ? 1 : 0.58,
     color: "white",
     fontFamily: "inherit",
-    cursor: unlocked ? "pointer" : "not-allowed",
-    boxShadow: selected ? `0 0 22px ${accent}22` : "none",
+    cursor:
+      unlocked
+        ? "pointer"
+        : "not-allowed",
+    boxShadow: selected
+      ? `0 0 22px ${accent}22`
+      : "none",
     transition:
       "border 160ms ease, background 160ms ease, box-shadow 160ms ease",
   };
 }
 
-function stageNumber(unlocked: boolean, accent: string): CSSProperties {
+function stageNumber(
+  unlocked: boolean,
+  accent: string,
+): CSSProperties {
   return {
     flexShrink: 0,
     width: "34px",
     height: "34px",
     borderRadius: "999px",
-    border: `1px solid ${unlocked ? accent : "rgba(255,255,255,0.18)"}`,
-    background: unlocked ? `${accent}20` : "rgba(255,255,255,0.04)",
-    color: unlocked ? accent : "rgba(255,255,255,0.42)",
+    border: `1px solid ${
+      unlocked
+        ? accent
+        : "rgba(255,255,255,0.18)"
+    }`,
+    background: unlocked
+      ? `${accent}20`
+      : "rgba(255,255,255,0.04)",
+    color: unlocked
+      ? accent
+      : "rgba(255,255,255,0.42)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -2181,16 +2712,26 @@ const upgradeRowDescription: CSSProperties = {
   lineHeight: 1.4,
 };
 
-function customGrid(isMobile: boolean): CSSProperties {
+function customGrid(
+  isMobile: boolean,
+): CSSProperties {
   return {
     display: "grid",
-    gridTemplateColumns: isMobile ? "1fr" : "repeat(2,minmax(0,1fr))",
+    gridTemplateColumns: isMobile
+      ? "1fr"
+      : "repeat(2,minmax(0,1fr))",
     gap: "9px",
   };
 }
 
-function customCard(isDefault: boolean, accent: string): CSSProperties {
-  const effectiveAccent = accent === "transparent" ? "#7ee8ff" : accent;
+function customCard(
+  isDefault: boolean,
+  accent: string,
+): CSSProperties {
+  const effectiveAccent =
+    accent === "transparent"
+      ? "#7ee8ff"
+      : accent;
 
   return {
     borderRadius: "15px",
@@ -2202,10 +2743,13 @@ function customCard(isDefault: boolean, accent: string): CSSProperties {
       : "rgba(255,255,255,0.025)",
     padding: "10px",
     display: "grid",
-    gridTemplateColumns: "50px minmax(0,1fr) auto",
+    gridTemplateColumns:
+      "50px minmax(0,1fr) auto",
     gap: "10px",
     alignItems: "center",
-    opacity: isDefault ? 1 : 0.48,
+    opacity: isDefault
+      ? 1
+      : 0.48,
   };
 }
 
@@ -2213,8 +2757,10 @@ const swatch: CSSProperties = {
   width: "50px",
   height: "50px",
   borderRadius: "12px",
-  border: "1px solid rgba(255,255,255,0.1)",
-  background: "rgba(255,255,255,0.04)",
+  border:
+    "1px solid rgba(255,255,255,0.1)",
+  background:
+    "rgba(255,255,255,0.04)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -2233,7 +2779,9 @@ const customDescription: CSSProperties = {
   lineHeight: 1.35,
 };
 
-function customActionButton(isDefault: boolean): CSSProperties {
+function customActionButton(
+  isDefault: boolean,
+): CSSProperties {
   return {
     minWidth: "78px",
     minHeight: "36px",
@@ -2241,8 +2789,12 @@ function customActionButton(isDefault: boolean): CSSProperties {
     border: isDefault
       ? "1px solid rgba(134,239,172,0.36)"
       : "1px solid rgba(255,255,255,0.1)",
-    background: isDefault ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.04)",
-    color: isDefault ? "#86efac" : "rgba(255,255,255,0.42)",
+    background: isDefault
+      ? "rgba(34,197,94,0.15)"
+      : "rgba(255,255,255,0.04)",
+    color: isDefault
+      ? "#86efac"
+      : "rgba(255,255,255,0.42)",
     padding: "0 10px",
     fontSize: "11px",
     fontWeight: 900,
@@ -2252,8 +2804,10 @@ function customActionButton(isDefault: boolean): CSSProperties {
 
 const coursesPanel: CSSProperties = {
   borderRadius: "22px",
-  border: "1px solid rgba(126,232,255,0.18)",
-  background: "rgba(5,18,42,0.72)",
+  border:
+    "1px solid rgba(126,232,255,0.18)",
+  background:
+    "rgba(5,18,42,0.72)",
   padding: "22px",
   display: "grid",
   gap: "18px",
@@ -2268,8 +2822,10 @@ const coursesIntro: CSSProperties = {
 
 const courseNotice: CSSProperties = {
   borderRadius: "12px",
-  border: "1px solid rgba(255,190,102,0.3)",
-  background: "rgba(255,160,66,0.08)",
+  border:
+    "1px solid rgba(255,190,102,0.3)",
+  background:
+    "rgba(255,160,66,0.08)",
   color: "#ffd9a0",
   padding: "12px 14px",
   fontSize: "12px",
@@ -2280,7 +2836,10 @@ const courseGrid: CSSProperties = {
   gap: "12px",
 };
 
-function courseCard(canOpen: boolean, completed: boolean): CSSProperties {
+function courseCard(
+  canOpen: boolean,
+  completed: boolean,
+): CSSProperties {
   return {
     borderRadius: "17px",
     border: `1px solid ${
@@ -2295,21 +2854,32 @@ function courseCard(canOpen: boolean, completed: boolean): CSSProperties {
       : "rgba(255,255,255,0.025)",
     padding: "15px",
     display: "grid",
-    gridTemplateColumns: "46px minmax(0,1fr) auto",
+    gridTemplateColumns:
+      "46px minmax(0,1fr) auto",
     alignItems: "center",
     gap: "14px",
     opacity: canOpen ? 1 : 0.62,
   };
 }
 
-function courseNumber(canOpen: boolean): CSSProperties {
+function courseNumber(
+  canOpen: boolean,
+): CSSProperties {
   return {
     width: "46px",
     height: "46px",
     borderRadius: "12px",
-    border: `1px solid ${canOpen ? "rgba(126,232,255,0.55)" : "rgba(255,255,255,0.12)"}`,
-    background: canOpen ? "rgba(53,197,255,0.13)" : "rgba(255,255,255,0.03)",
-    color: canOpen ? "#9af2ff" : "rgba(255,255,255,0.45)",
+    border: `1px solid ${
+      canOpen
+        ? "rgba(126,232,255,0.55)"
+        : "rgba(255,255,255,0.12)"
+    }`,
+    background: canOpen
+      ? "rgba(53,197,255,0.13)"
+      : "rgba(255,255,255,0.03)",
+    color: canOpen
+      ? "#9af2ff"
+      : "rgba(255,255,255,0.45)",
     display: "grid",
     placeItems: "center",
     fontSize: "20px",
@@ -2317,10 +2887,14 @@ function courseNumber(canOpen: boolean): CSSProperties {
   };
 }
 
-function courseStatus(canOpen: boolean): CSSProperties {
+function courseStatus(
+  canOpen: boolean,
+): CSSProperties {
   return {
     margin: 0,
-    color: canOpen ? "#77efdc" : "rgba(255,255,255,0.38)",
+    color: canOpen
+      ? "#77efdc"
+      : "rgba(255,255,255,0.38)",
     fontSize: "9px",
     fontWeight: 900,
     letterSpacing: "0.13em",
@@ -2348,7 +2922,10 @@ const courseBest: CSSProperties = {
 
 function courseButton(
   enabled: boolean,
-  kind: "play" | "gem" | "locked" = "play",
+  kind:
+    | "play"
+    | "gem"
+    | "locked" = "play",
 ): CSSProperties {
   const activeBackground =
     kind === "gem"
@@ -2356,7 +2933,10 @@ function courseButton(
       : "linear-gradient(135deg,#35c5ff,#5c6cff)";
 
   return {
-    minWidth: kind === "gem" ? "96px" : "78px",
+    minWidth:
+      kind === "gem"
+        ? "96px"
+        : "78px",
     minHeight: "40px",
     borderRadius: "11px",
     border: enabled
@@ -2364,16 +2944,23 @@ function courseButton(
         ? "1px solid rgba(225,200,255,0.52)"
         : "1px solid rgba(126,232,255,0.42)"
       : "1px solid rgba(255,255,255,0.08)",
-    background: enabled ? activeBackground : "rgba(255,255,255,0.03)",
-    color: enabled ? "white" : "rgba(255,255,255,0.3)",
+    background: enabled
+      ? activeBackground
+      : "rgba(255,255,255,0.03)",
+    color: enabled
+      ? "white"
+      : "rgba(255,255,255,0.3)",
     padding: "0 13px",
     fontWeight: 900,
-    cursor: enabled ? "pointer" : "not-allowed",
+    cursor: enabled
+      ? "pointer"
+      : "not-allowed",
   };
 }
 
 const leaderboardPanel: CSSProperties = {
-  borderTop: "1px solid rgba(255,255,255,0.08)",
+  borderTop:
+    "1px solid rgba(255,255,255,0.08)",
   paddingTop: "18px",
 };
 
@@ -2386,8 +2973,10 @@ const leaderboardHeadingRow: CSSProperties = {
 
 const leaderboardCoursePill: CSSProperties = {
   borderRadius: "999px",
-  border: "1px solid rgba(126,232,255,0.22)",
-  color: "rgba(174,240,255,0.7)",
+  border:
+    "1px solid rgba(126,232,255,0.22)",
+  color:
+    "rgba(174,240,255,0.7)",
   padding: "7px 10px",
   fontSize: "9px",
   fontWeight: 800,
@@ -2396,11 +2985,14 @@ const leaderboardCoursePill: CSSProperties = {
 const leaderboardLevelTabs: CSSProperties = {
   marginTop: "12px",
   display: "grid",
-  gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+  gridTemplateColumns:
+    "repeat(2,minmax(0,1fr))",
   gap: "7px",
 };
 
-function leaderboardLevelButton(active: boolean): CSSProperties {
+function leaderboardLevelButton(
+  active: boolean,
+): CSSProperties {
   return {
     minHeight: "36px",
     borderRadius: "10px",
@@ -2410,7 +3002,9 @@ function leaderboardLevelButton(active: boolean): CSSProperties {
     background: active
       ? "rgba(53,197,255,0.16)"
       : "rgba(255,255,255,0.025)",
-    color: active ? "#c8f8ff" : "rgba(255,255,255,0.46)",
+    color: active
+      ? "#c8f8ff"
+      : "rgba(255,255,255,0.46)",
     fontSize: "11px",
     fontWeight: 850,
     cursor: "pointer",
@@ -2423,7 +3017,9 @@ const leaderboardList: CSSProperties = {
   gap: "7px",
 };
 
-function leaderboardRow(isCurrentUser: boolean): CSSProperties {
+function leaderboardRow(
+  isCurrentUser: boolean,
+): CSSProperties {
   return {
     borderRadius: "12px",
     border: isCurrentUser
@@ -2434,7 +3030,8 @@ function leaderboardRow(isCurrentUser: boolean): CSSProperties {
       : "rgba(255,255,255,0.025)",
     padding: "10px 12px",
     display: "grid",
-    gridTemplateColumns: "38px minmax(0,1fr) auto",
+    gridTemplateColumns:
+      "38px minmax(0,1fr) auto",
     alignItems: "center",
     gap: "9px",
   };
@@ -2468,7 +3065,8 @@ const leaderboardScore: CSSProperties = {
 const emptyLeaderboard: CSSProperties = {
   margin: "12px 0 0",
   borderRadius: "12px",
-  background: "rgba(255,255,255,0.025)",
+  background:
+    "rgba(255,255,255,0.025)",
   padding: "16px",
   color: "rgba(255,255,255,0.45)",
   fontSize: "11px",
@@ -2486,8 +3084,10 @@ const loadingFill: CSSProperties = {
 const loginCard: CSSProperties = {
   width: "min(520px,calc(100% - 28px))",
   borderRadius: "22px",
-  border: "1px solid rgba(126,232,255,0.28)",
-  background: "rgba(5,18,42,0.9)",
+  border:
+    "1px solid rgba(126,232,255,0.28)",
+  background:
+    "rgba(5,18,42,0.9)",
   padding: "28px",
   textAlign: "center",
 };
@@ -2495,8 +3095,10 @@ const loginCard: CSSProperties = {
 const primaryButton: CSSProperties = {
   minHeight: "46px",
   borderRadius: "12px",
-  border: "1px solid rgba(255,255,255,0.3)",
-  background: "linear-gradient(135deg, #35c5ff, #4c6dff)",
+  border:
+    "1px solid rgba(255,255,255,0.3)",
+  background:
+    "linear-gradient(135deg, #35c5ff, #4c6dff)",
   color: "white",
   padding: "0 20px",
   display: "inline-flex",
