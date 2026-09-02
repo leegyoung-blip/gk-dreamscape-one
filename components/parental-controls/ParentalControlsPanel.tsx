@@ -46,7 +46,6 @@ async function readJson<T>(response: Response): Promise<T> {
 export default function ParentalControlsPanel({
   studentUserId,
   studentLabel,
-  viewerRole,
 }: {
   studentUserId: string | null;
   studentLabel: string;
@@ -66,10 +65,10 @@ export default function ParentalControlsPanel({
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const isAdmin = viewerRole.trim().toLowerCase() === "admin";
   const canEditSettings = Boolean(
     policy?.canManage
-      && (isAdmin || (settingsUnlocked && (policy.hasPolicy ? verifiedPin : creationPin))),
+      && settingsUnlocked
+      && (policy.hasPolicy ? verifiedPin : creationPin),
   );
 
   useEffect(() => {
@@ -98,9 +97,7 @@ export default function ParentalControlsPanel({
         setStatus(statusPayload.status);
         setMode(policyPayload.policy.mode);
         setLimitMinutes(policyPayload.policy.dailyLimitMinutes ?? 60);
-        setSettingsUnlocked(
-          viewerRole.trim().toLowerCase() === "admin" && policyPayload.policy.hasPolicy,
-        );
+        setSettingsUnlocked(false);
       } catch (error) {
         if (!cancelled) {
           setMessage(error instanceof Error ? error.message : "Controls could not be loaded.");
@@ -114,7 +111,7 @@ export default function ParentalControlsPanel({
     return () => {
       cancelled = true;
     };
-  }, [studentUserId, viewerRole]);
+  }, [studentUserId]);
 
   function openPin(action: Exclude<PinAction, null>) {
     setPinError("");
@@ -133,7 +130,7 @@ export default function ParentalControlsPanel({
   }
 
   function requestSettingsUnlock() {
-    if (!policy?.canManage || isAdmin) return;
+    if (!policy?.canManage) return;
     openPin(policy.hasPolicy ? "unlock" : "create");
   }
 
@@ -231,7 +228,7 @@ export default function ParentalControlsPanel({
           mode,
           dailyLimitMinutes: mode === "off" ? null : limitMinutes,
           timeZone: "Asia/Singapore",
-          currentPassword: policy.hasPolicy && !isAdmin ? verifiedPin : null,
+          currentPassword: policy.hasPolicy ? verifiedPin : null,
           newPassword: policy.hasPolicy ? null : creationPin,
         }),
       });
@@ -241,7 +238,7 @@ export default function ParentalControlsPanel({
       setLimitMinutes(payload.policy.dailyLimitMinutes ?? limitMinutes);
       setVerifiedPin("");
       setCreationPin("");
-      setSettingsUnlocked(isAdmin);
+      setSettingsUnlocked(false);
       await refreshStatus();
       setMessage("Screen-time controls saved and settings locked.");
     } catch (error) {
@@ -283,7 +280,7 @@ export default function ParentalControlsPanel({
         body: JSON.stringify({
           studentUserId,
           additionalMinutes: extraMinutes,
-          password: isAdmin ? null : pin,
+          password: pin,
           reason: "Granted from parent dashboard",
         }),
       });
@@ -366,8 +363,7 @@ export default function ParentalControlsPanel({
       ) : policy ? (
         policy.canManage ? (
           <form className="mt-6 grid gap-5" onSubmit={savePolicy}>
-            {!isAdmin && (
-              <div className={`rounded-2xl border p-4 ${canEditSettings ? "border-emerald-300/25 bg-emerald-300/[0.06]" : "border-violet-300/25 bg-violet-300/[0.06]"}`}>
+            <div className={`rounded-2xl border p-4 ${canEditSettings ? "border-emerald-300/25 bg-emerald-300/[0.06]" : "border-violet-300/25 bg-violet-300/[0.06]"}`}>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="m-0 text-sm font-black">{canEditSettings ? "Settings unlocked" : policy.hasPolicy ? "Settings locked" : "Create a parent PIN"}</p>
@@ -398,7 +394,6 @@ export default function ParentalControlsPanel({
                   </button>
                 </div>
               </div>
-            )}
 
             <fieldset className="grid gap-2 md:grid-cols-3">
               <legend className="mb-2 text-sm font-black">Daily limit applies to</legend>
@@ -471,8 +466,7 @@ export default function ParentalControlsPanel({
                     type="button"
                     disabled={loading}
                     onClick={() => {
-                      if (isAdmin) void grantExtraTime(null);
-                      else if (verifiedPin && settingsUnlocked) void grantExtraTime(verifiedPin);
+                      if (verifiedPin && settingsUnlocked) void grantExtraTime(verifiedPin);
                       else openPin("extra");
                     }}
                     className="min-h-10 rounded-full bg-violet-500 px-5 text-sm font-black disabled:opacity-40"
