@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  createHash,
   randomUUID,
 } from "crypto";
 
@@ -990,7 +991,7 @@ async function processOneDecision({
       message,
       context: {
         phase:
-          "3E",
+          "3E/3F",
         decisionId:
           decision?.decisionId ||
           null,
@@ -1048,12 +1049,32 @@ async function processOneDecision({
   }
 }
 
+function shardForAgent(
+  agentUserId: string,
+  shardCount: number,
+) {
+  if (shardCount <= 1) {
+    return 0;
+  }
+
+  const digest =
+    createHash("sha256")
+      .update(agentUserId)
+      .digest();
+
+  return (
+    digest.readUInt32BE(0) %
+    shardCount
+  );
+}
+
 async function closeCompletedStartedSessions(
   admin: SupabaseClient,
+  shardIndex: number,
+  shardCount: number,
 ) {
   const {
-    data:
-      sessions,
+    data: sessions,
     error,
   } =
     await admin
@@ -1061,7 +1082,7 @@ async function closeCompletedStartedSessions(
         "agent_run_sessions",
       )
       .select(
-        "id,planned_decisions,attempted_decisions,failed_decisions",
+        "id,agent_user_id,planned_decisions,attempted_decisions,failed_decisions",
       )
       .eq(
         "status",
@@ -1078,6 +1099,17 @@ async function closeCompletedStartedSessions(
     const session
     of sessions || []
   ) {
+    if (
+      shardForAgent(
+        String(
+          session.agent_user_id,
+        ),
+        shardCount,
+      ) !== shardIndex
+    ) {
+      continue;
+    }
+
     if (
       Number(
         session.attempted_decisions,
@@ -1112,6 +1144,10 @@ export async function runAgentOrchestratorTick({
     "scheduler",
   maxDecisionsPerTick =
     2,
+  shardIndex =
+    0,
+  shardCount =
+    1,
 }: {
   admin?: SupabaseClient;
   triggerSource?:
@@ -1121,13 +1157,50 @@ export async function runAgentOrchestratorTick({
     | "test";
   maxDecisionsPerTick?:
     number;
+  shardIndex?:
+    number;
+  shardCount?:
+    number;
 } = {}): Promise<OrchestratorTickSummary> {
   const admin =
     suppliedAdmin ||
     createAdminClient();
 
+  const safeShardCount =
+    Math.max(
+      1,
+      Math.min(
+        32,
+        Math.floor(
+          Number.isFinite(
+            shardCount,
+          )
+            ? shardCount
+            : 1,
+        ),
+      ),
+    );
+
+  const safeShardIndex =
+    Math.max(
+      0,
+      Math.min(
+        safeShardCount - 1,
+        Math.floor(
+          Number.isFinite(
+            shardIndex,
+          )
+            ? shardIndex
+            : 0,
+        ),
+      ),
+    );
+
   const leaseToken =
     randomUUID();
+
+  const useShardLease =
+    safeShardCount > 1;
 
   const {
     data:
@@ -1136,13 +1209,26 @@ export async function runAgentOrchestratorTick({
       leaseError,
   } =
     await admin.rpc(
-      "agent_claim_orchestrator_lease",
-      {
-        p_lease_token:
-          leaseToken,
-        p_ttl_seconds:
-          240,
-      },
+      useShardLease
+        ? "agent_claim_orchestrator_shard_lease"
+        : "agent_claim_orchestrator_lease",
+      useShardLease
+        ? {
+            p_shard_index:
+              safeShardIndex,
+            p_shard_count:
+              safeShardCount,
+            p_lease_token:
+              leaseToken,
+            p_ttl_seconds:
+              240,
+          }
+        : {
+            p_lease_token:
+              leaseToken,
+            p_ttl_seconds:
+              240,
+          },
     );
 
   if (leaseError) {
@@ -1159,7 +1245,9 @@ export async function runAgentOrchestratorTick({
       ok: true,
       skipped: true,
       reason:
-        "Another orchestrator tick currently owns the runtime lease.",
+        useShardLease
+          ? `Another orchestrator tick currently owns shard ${safeShardIndex}/${safeShardCount}.`
+          : "Another orchestrator tick currently owns the runtime lease.",
       agentsConsidered: 0,
       sessionsClaimed: 0,
       sessionsCompleted: 0,
@@ -1209,6 +1297,7 @@ export async function runAgentOrchestratorTick({
           )
           .select(
             `
+            phase,
             pilot_key,
             activation_unlocked,
             simulation_epoch_at,
@@ -1304,6 +1393,10 @@ export async function runAgentOrchestratorTick({
         .insert({
           trigger_source:
             triggerSource,
+          shard_index:
+            safeShardIndex,
+          shard_count:
+            safeShardCount,
           simulation_day_index:
             clock.simulationDayIndex,
           minute_in_simulation_day:
@@ -1312,7 +1405,16 @@ export async function runAgentOrchestratorTick({
             "running",
           metadata: {
             orchestrator:
-              "OrchestratorV1-resumable",
+              "OrchestratorV1-sharded",
+            runtimePhase:
+              String(
+                runtimeSettings.phase ||
+                "3E",
+              ),
+            shardIndex:
+              safeShardIndex,
+            shardCount:
+              safeShardCount,
             maxDecisionsPerTick:
               Math.max(
                 1,
@@ -1345,6 +1447,8 @@ export async function runAgentOrchestratorTick({
 
     await closeCompletedStartedSessions(
       admin,
+      safeShardIndex,
+      safeShardCount,
     );
 
     const maxWork =
@@ -1395,6 +1499,21 @@ export async function runAgentOrchestratorTick({
       );
     }
 
+    const shardOpenSessions =
+      (
+        openSessions ||
+        []
+      ).filter(
+        (session) =>
+          shardForAgent(
+            String(
+              session.agent_user_id,
+            ),
+            safeShardCount,
+          ) ===
+          safeShardIndex,
+      );
+
     const touchedSessions =
       new Set<
         string
@@ -1402,7 +1521,7 @@ export async function runAgentOrchestratorTick({
 
     for (
       const openSession
-      of openSessions || []
+      of shardOpenSessions
     ) {
       if (
         workDone >=
@@ -1447,50 +1566,133 @@ export async function runAgentOrchestratorTick({
       workDone <
       maxWork
     ) {
-      const {
-        data:
-          pilotRows,
-        error:
-          pilotError,
-      } =
-        await admin
-          .from(
-            "agent_pilot_memberships",
-          )
-          .select(
-            "agent_user_id,pilot_order,status",
-          )
-          .eq(
-            "pilot_key",
-            runtimeSettings.pilot_key,
-          )
-          .eq(
-            "status",
-            "active",
-          )
-          .order(
-            "pilot_order",
-            {
-              ascending:
-                true,
-            },
-          );
+      let runtimeRows: Array<{
+        agent_user_id: string;
+      }> = [];
 
-      if (pilotError) {
-        throw new Error(
-          pilotError.message,
-        );
+      if (
+        String(
+          runtimeSettings.phase ||
+          "3E",
+        ) === "3F"
+      ) {
+        const {
+          data:
+            populationRows,
+          error:
+            populationError,
+        } =
+          await admin
+            .from(
+              "agent_runtime_population_memberships",
+            )
+            .select(
+              "agent_user_id,activation_order,status,join_simulation_day_index",
+            )
+            .eq(
+              "population_key",
+              "phase3-full-100",
+            )
+            .eq(
+              "status",
+              "active",
+            )
+            .lte(
+              "join_simulation_day_index",
+              clock.simulationDayIndex,
+            )
+            .order(
+              "activation_order",
+              {
+                ascending:
+                  true,
+              },
+            );
+
+        if (populationError) {
+          throw new Error(
+            populationError.message,
+          );
+        }
+
+        runtimeRows =
+          (
+            populationRows ||
+            []
+          ).map(
+            (row) => ({
+              agent_user_id:
+                String(
+                  row.agent_user_id,
+                ),
+            }),
+          );
+      } else {
+        const {
+          data:
+            pilotRows,
+          error:
+            pilotError,
+        } =
+          await admin
+            .from(
+              "agent_pilot_memberships",
+            )
+            .select(
+              "agent_user_id,pilot_order,status",
+            )
+            .eq(
+              "pilot_key",
+              runtimeSettings.pilot_key,
+            )
+            .eq(
+              "status",
+              "active",
+            )
+            .order(
+              "pilot_order",
+              {
+                ascending:
+                  true,
+              },
+            );
+
+        if (pilotError) {
+          throw new Error(
+            pilotError.message,
+          );
+        }
+
+        runtimeRows =
+          (
+            pilotRows ||
+            []
+          ).map(
+            (row) => ({
+              agent_user_id:
+                String(
+                  row.agent_user_id,
+                ),
+            }),
+          );
       }
 
+      const shardRuntimeRows =
+        runtimeRows.filter(
+          (row) =>
+            shardForAgent(
+              row.agent_user_id,
+              safeShardCount,
+            ) ===
+            safeShardIndex,
+        );
+
       summary.agentsConsidered =
-        (
-          pilotRows ||
-          []
-        ).length;
+        shardRuntimeRows.length;
 
       for (
-        const pilot
-        of pilotRows || []
+        const runtimeMember
+        of shardRuntimeRows
       ) {
         if (
           workDone >=
@@ -1501,7 +1703,7 @@ export async function runAgentOrchestratorTick({
 
         const agentUserId =
           String(
-            pilot.agent_user_id,
+            runtimeMember.agent_user_id,
           );
 
         const [
@@ -1752,6 +1954,8 @@ export async function runAgentOrchestratorTick({
 
     await closeCompletedStartedSessions(
       admin,
+      safeShardIndex,
+      safeShardCount,
     );
 
     if (tickId) {
@@ -1868,7 +2072,7 @@ export async function runAgentOrchestratorTick({
       message,
       context: {
         phase:
-          "3E",
+          "3E/3F",
         tickId,
         summary,
       },
@@ -1883,11 +2087,22 @@ export async function runAgentOrchestratorTick({
 
   } finally {
     await admin.rpc(
-      "agent_release_orchestrator_lease",
-      {
-        p_lease_token:
-          leaseToken,
-      },
+      useShardLease
+        ? "agent_release_orchestrator_shard_lease"
+        : "agent_release_orchestrator_lease",
+      useShardLease
+        ? {
+            p_shard_index:
+              safeShardIndex,
+            p_shard_count:
+              safeShardCount,
+            p_lease_token:
+              leaseToken,
+          }
+        : {
+            p_lease_token:
+              leaseToken,
+          },
     );
   }
 }

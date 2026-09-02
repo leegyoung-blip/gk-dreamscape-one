@@ -31,6 +31,36 @@ function json(
   );
 }
 
+function boundedInteger(
+  raw: string | null,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+) {
+  const parsed =
+    Number(
+      raw,
+    );
+
+  if (
+    !Number.isFinite(
+      parsed,
+    )
+  ) {
+    return fallback;
+  }
+
+  return Math.max(
+    minimum,
+    Math.min(
+      maximum,
+      Math.floor(
+        parsed,
+      ),
+    ),
+  );
+}
+
 export async function GET(
   request: Request,
 ) {
@@ -67,16 +97,47 @@ export async function GET(
     );
   }
 
+  const url =
+    new URL(
+      request.url,
+    );
+
+  const shardCount =
+    boundedInteger(
+      url.searchParams.get(
+        "shards",
+      ),
+      1,
+      1,
+      32,
+    );
+
+  const shardIndex =
+    boundedInteger(
+      url.searchParams.get(
+        "shard",
+      ),
+      0,
+      0,
+      shardCount - 1,
+    );
+
   const summary =
     await runAgentOrchestratorTick({
       triggerSource:
         "scheduler",
       maxDecisionsPerTick:
         2,
+      shardIndex,
+      shardCount,
     });
 
   return json(
-    summary,
+    {
+      ...summary,
+      shardIndex,
+      shardCount,
+    },
     summary.ok
       ? 200
       : 500,
