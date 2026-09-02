@@ -9,6 +9,7 @@ import QuestionMediaRenderer from "@/components/core-media/QuestionMediaRenderer
 import GroupedWordBankCloze from "./GroupedWordBankCloze";
 import GroupedComprehension from "./GroupedComprehension";
 import InlineCoreQuestionEditor from "./InlineCoreQuestionEditor";
+import AddCoreQuestionEditor from "./AddCoreQuestionEditor";
 import MathWorkingWorkspace from "./MathWorkingWorkspace";
 import FractionText from "@/components/core-missions/FractionText";
 
@@ -571,6 +572,7 @@ export default function CoreQuizPlayer({
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(
     null,
   );
+  const [addingQuestion, setAddingQuestion] = useState(false);
   const [mathWorkspaceOpen, setMathWorkspaceOpen] = useState(false);
 
   const questionOpenedAtRef = useRef<number>(Date.now());
@@ -581,8 +583,10 @@ export default function CoreQuizPlayer({
   const topicHrefRef = useRef<string | null>(null);
 
   const loadQuiz = useCallback(
-    async (options: { force?: boolean } = {}) => {
-      const { force = false } = options;
+    async (
+      options: { force?: boolean; focusQuestionId?: string } = {},
+    ) => {
+      const { force = false, focusQuestionId } = options;
 
       // Critical anti-reset guard: access/auth revalidation may rerun the
       // effect below, but it cannot reload the same quiz identity.
@@ -730,15 +734,27 @@ export default function CoreQuizPlayer({
       setAnswers(restoredAnswers);
       setFeedbackByQuestion(restoredFeedback);
       setTimeByQuestion(restoredTime);
-      setQuestionIndex(restoredQuestionIndex);
+      const focusIndex = focusQuestionId
+        ? nextPayload.questions.findIndex(
+            (question) => question.id === focusQuestionId,
+          )
+        : -1;
+
+      setQuestionIndex(focusIndex >= 0 ? focusIndex : restoredQuestionIndex);
       setResult(null);
 
       quizStartedAtRef.current = Date.now();
       questionOpenedAtRef.current = Date.now();
 
-      // If the browser checkpoint says the learner was already playing,
-      // return straight to the exact question rather than the intro screen.
-      setStage(checkpoint?.stage === "playing" ? "playing" : "intro");
+      // After an editor appends a question, open that new question directly.
+      // Otherwise preserve the normal checkpoint/intro behaviour.
+      setStage(
+        focusIndex >= 0
+          ? "playing"
+          : checkpoint?.stage === "playing"
+            ? "playing"
+            : "intro",
+      );
     },
     [level, quizId, quizIdentity, rpcNames.getPayload, subject],
   );
@@ -1334,6 +1350,26 @@ export default function CoreQuizPlayer({
     await loadQuiz({ force: true });
   }
 
+  async function handleQuestionAdded(questionId: string, warning?: string) {
+    setAddingQuestion(false);
+    setEditingQuestionId(null);
+
+    // The append RPC abandons this editor's old preview attempt because its
+    // total_questions snapshot predates the new question. Remove the matching
+    // browser checkpoint/workspace as well before loading a fresh attempt.
+    if (payload) {
+      removeCheckpoint(subject, level, quizId, payload.attempt_id);
+      if (subject === "math") {
+        clearMathWorkspaceAttempt(quizId, payload.attempt_id);
+        setMathWorkspaceOpen(false);
+      }
+    }
+
+    loadedQuizIdentityRef.current = null;
+    await loadQuiz({ force: true, focusQuestionId: questionId });
+    if (warning) setError(warning);
+  }
+
   function renderInlineEditor() {
     if (!canInlineEdit || !editingQuestionId) return null;
 
@@ -1344,6 +1380,33 @@ export default function CoreQuizPlayer({
         questionId={editingQuestionId}
         onClose={() => setEditingQuestionId(null)}
         onSaved={handleInlineEditorSaved}
+      />
+    );
+  }
+
+  function renderAddQuestionEditor() {
+    if (!canInlineEdit || !addingQuestion || !payload) return null;
+
+    const template = payload.questions[0] || null;
+    const mode = isGroupedWordBankQuiz
+      ? "grouped_cloze"
+      : isSplitComprehensionQuiz
+        ? "split_comprehension"
+        : "standard";
+
+    return (
+      <AddCoreQuestionEditor
+        subject={subject}
+        quizId={quizId}
+        quizTitle={payload.quiz.title}
+        mode={mode}
+        templateContent={template?.content || {}}
+        templateInstruction={template?.instruction || ""}
+        existingBlankIds={payload.questions.map((question) =>
+          String(question.content?.blank_id ?? ""),
+        )}
+        onClose={() => setAddingQuestion(false)}
+        onAdded={handleQuestionAdded}
       />
     );
   }
@@ -1642,18 +1705,28 @@ export default function CoreQuizPlayer({
         />
 
         {canInlineEdit && (
-          <button
-            type="button"
-            onClick={() =>
-              setEditingQuestionId(payload.questions[0]?.id ?? null)
-            }
-            style={floatingStaffEditButton(isMobile)}
-          >
-            ✎ Edit Cloze
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => setAddingQuestion(true)}
+              style={floatingStaffAddButton(isMobile)}
+            >
+              + Add Blank
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setEditingQuestionId(payload.questions[0]?.id ?? null)
+              }
+              style={floatingStaffEditButton(isMobile)}
+            >
+              ✎ Edit Cloze
+            </button>
+          </>
         )}
 
         {renderInlineEditor()}
+        {renderAddQuestionEditor()}
       </>
     );
   }
@@ -1693,16 +1766,26 @@ export default function CoreQuizPlayer({
         />
 
         {canInlineEdit && (
-          <button
-            type="button"
-            onClick={() => setEditingQuestionId(currentQuestion.id)}
-            style={floatingStaffEditButton(isMobile)}
-          >
-            ✎ Edit Question
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => setAddingQuestion(true)}
+              style={floatingStaffAddButton(isMobile)}
+            >
+              + Add Question
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditingQuestionId(currentQuestion.id)}
+              style={floatingStaffEditButton(isMobile)}
+            >
+              ✎ Edit Question
+            </button>
+          </>
         )}
 
         {renderInlineEditor()}
+        {renderAddQuestionEditor()}
       </>
     );
   }
@@ -1737,13 +1820,22 @@ export default function CoreQuizPlayer({
             )}
 
             {canInlineEdit && (
-              <button
-                type="button"
-                onClick={() => setEditingQuestionId(currentQuestion.id)}
-                style={staffEditButton}
-              >
-                ✎ Edit Question
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setAddingQuestion(true)}
+                  style={staffAddButton}
+                >
+                  + Add Question
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingQuestionId(currentQuestion.id)}
+                  style={staffEditButton}
+                >
+                  ✎ Edit Question
+                </button>
+              </>
             )}
 
             <BalanceDisplay
@@ -1819,6 +1911,18 @@ export default function CoreQuizPlayer({
                   </button>
                 );
               })}
+
+              {canInlineEdit && (
+                <button
+                  type="button"
+                  onClick={() => setAddingQuestion(true)}
+                  aria-label="Add a new question to this quiz"
+                  title="Add question"
+                  style={scienceAddQuestionButton}
+                >
+                  +
+                </button>
+              )}
             </div>
           </div>
 
@@ -1931,6 +2035,7 @@ export default function CoreQuizPlayer({
 
       <CoreQuizResponsiveStyles />
       {renderInlineEditor()}
+      {renderAddQuestionEditor()}
     </>
   );
 }
@@ -2886,6 +2991,13 @@ const staffEditButton: CSSProperties = {
   boxShadow: "0 8px 22px rgba(0,0,0,0.18)",
 };
 
+const staffAddButton: CSSProperties = {
+  ...staffEditButton,
+  border: "1px solid rgba(134,239,172,0.38)",
+  background: "rgba(34,197,94,0.10)",
+  color: "#d1fae5",
+};
+
 function floatingStaffEditButton(isMobile: boolean): CSSProperties {
   return {
     ...staffEditButton,
@@ -2895,6 +3007,21 @@ function floatingStaffEditButton(isMobile: boolean): CSSProperties {
     zIndex: 80,
     minHeight: "40px",
     background: "rgba(9,28,51,0.96)",
+    backdropFilter: "blur(10px)",
+  };
+}
+
+function floatingStaffAddButton(isMobile: boolean): CSSProperties {
+  return {
+    ...staffEditButton,
+    position: "fixed",
+    top: isMobile ? "70px" : "68px",
+    right: isMobile ? "150px" : "172px",
+    zIndex: 80,
+    minHeight: "40px",
+    border: "1px solid rgba(134,239,172,0.38)",
+    background: "rgba(16,82,67,0.94)",
+    color: "#d1fae5",
     backdropFilter: "blur(10px)",
   };
 }
@@ -3124,6 +3251,21 @@ function scienceQuestionButton(
     padding: 0,
   };
 }
+
+const scienceAddQuestionButton: CSSProperties = {
+  width: "28px",
+  height: "28px",
+  borderRadius: "9px",
+  border: "1px solid rgba(134,239,172,0.46)",
+  background: "rgba(34,197,94,0.12)",
+  color: "#bbf7d0",
+  cursor: "pointer",
+  fontWeight: 950,
+  fontSize: "17px",
+  lineHeight: 1,
+  padding: 0,
+  boxShadow: "0 0 14px rgba(34,197,94,0.08)",
+};
 
 const scienceProgressTrack: CSSProperties = {
   marginTop: "7px",
