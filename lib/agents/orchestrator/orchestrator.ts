@@ -612,45 +612,61 @@ async function processOneDecision({
         validation.valid !==
         true
       ) {
+        const validationCode =
+          String(
+            validation.code ||
+            "ACTION_VALIDATION_FAILED",
+          );
+
         const message =
           String(
             validation.message ||
-            validation.code ||
+            validationCode ||
             "ActionValidatorV1 rejected the action.",
           );
 
-        await reportAgentFailure({
-          admin,
-          agentUserId,
-          sessionId,
-          actionRequestId:
-            String(
-              request.id,
-            ),
-          scope:
-            "action",
-          severity:
-            "error",
-          errorCode:
-            String(
-              validation.code ||
-              "ACTION_VALIDATION_FAILED",
-            ),
-          message,
-          context: {
-            phase:
-              "3E",
-            orchestrator:
-              "OrchestratorV1-resumable",
-            decisionId:
-              decision.decisionId,
-            actionKey:
-              decision.selectedActionKey,
-            validation,
-          },
-          idempotencyKey:
-            `runtime-validation:${request.id}`,
-        });
+        /*
+         * A quiz can be made unavailable by curriculum/admin between the
+         * observation snapshot and execution. That is a stale opportunity,
+         * not an agent/runtime failure. We reject it, block Core Learning for
+         * the remainder of this session, and let the next fresh observation
+         * choose another learner-visible target.
+         */
+        const expectedAvailabilitySkip =
+          validationCode ===
+          "LEARNING_QUIZ_NOT_LEARNER_VISIBLE";
+
+        if (!expectedAvailabilitySkip) {
+          await reportAgentFailure({
+            admin,
+            agentUserId,
+            sessionId,
+            actionRequestId:
+              String(
+                request.id,
+              ),
+            scope:
+              "action",
+            severity:
+              "error",
+            errorCode:
+              validationCode,
+            message,
+            context: {
+              phase:
+                "3E",
+              orchestrator:
+                "OrchestratorV1-resumable",
+              decisionId:
+                decision.decisionId,
+              actionKey:
+                decision.selectedActionKey,
+              validation,
+            },
+            idempotencyKey:
+              `runtime-validation:${request.id}`,
+          });
+        }
 
         await recordDecisionResult({
           admin,

@@ -15,6 +15,7 @@ type TopicRow = {
   title?: string | null;
   slug?: string | null;
   is_active?: boolean | null;
+  review_status?: string | null;
 };
 
 type ScienceLevelRow = {
@@ -40,6 +41,7 @@ type QuizRow = {
   quiz_type?: string | null;
   difficulty?: number | null;
   is_published?: boolean | null;
+  student_visibility?: string | null;
   slug?: string | null;
   mission_type?: string | null;
   status?: string | null;
@@ -80,7 +82,7 @@ export const observeNovaLearning: WorldAdapter = async ({
       "english_topics",
       admin
         .from("english_topics")
-        .select("id,primary_level,title,slug,is_active")
+        .select("id,primary_level,title,slug,is_active,review_status")
         .eq("is_active", true)
         .order("primary_level", { ascending: true }),
     ),
@@ -88,8 +90,9 @@ export const observeNovaLearning: WorldAdapter = async ({
       "english_quizzes",
       admin
         .from("english_quizzes")
-        .select("id,topic_id,title,quiz_type,difficulty,is_published")
+        .select("id,topic_id,title,quiz_type,difficulty,is_published,student_visibility")
         .eq("is_published", true)
+        .eq("student_visibility", "satisfied")
         .limit(1000),
     ),
     safeQuery<AttemptRow[]>(
@@ -107,7 +110,7 @@ export const observeNovaLearning: WorldAdapter = async ({
       "math_topics",
       admin
         .from("math_topics")
-        .select("id,primary_level,title,slug,is_active")
+        .select("id,primary_level,title,slug,is_active,review_status")
         .eq("is_active", true)
         .order("primary_level", { ascending: true }),
     ),
@@ -115,8 +118,9 @@ export const observeNovaLearning: WorldAdapter = async ({
       "math_quizzes",
       admin
         .from("math_quizzes")
-        .select("id,topic_id,title,quiz_type,difficulty,is_published")
+        .select("id,topic_id,title,quiz_type,difficulty,is_published,student_visibility")
         .eq("is_published", true)
+        .eq("student_visibility", "satisfied")
         .limit(1000),
     ),
     safeQuery<AttemptRow[]>(
@@ -162,10 +166,24 @@ export const observeNovaLearning: WorldAdapter = async ({
   ]);
 
   const englishTopics = rows(englishTopicsResult.data);
-  const englishQuizzes = rows(englishQuizzesResult.data);
+  const learnerEnglishTopicIds = new Set(
+    englishTopics
+      .filter((row) => String(row.review_status ?? "reviewing").toLowerCase() !== "locked")
+      .map((row) => String(row.id)),
+  );
+  const englishQuizzes = rows(englishQuizzesResult.data).filter((row) =>
+    learnerEnglishTopicIds.has(String(row.topic_id ?? "")),
+  );
   const englishAttempts = rows(englishAttemptsResult.data);
   const mathTopics = rows(mathTopicsResult.data);
-  const mathQuizzes = rows(mathQuizzesResult.data);
+  const learnerMathTopicIds = new Set(
+    mathTopics
+      .filter((row) => String(row.review_status ?? "reviewing").toLowerCase() !== "locked")
+      .map((row) => String(row.id)),
+  );
+  const mathQuizzes = rows(mathQuizzesResult.data).filter((row) =>
+    learnerMathTopicIds.has(String(row.topic_id ?? "")),
+  );
   const mathAttempts = rows(mathAttemptsResult.data);
   const scienceLevels = rows(scienceLevelsResult.data);
   const scienceTopics = rows(scienceTopicsResult.data);
