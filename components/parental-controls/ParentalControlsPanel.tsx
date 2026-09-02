@@ -30,7 +30,9 @@ type Status = {
 const LIMIT_PRESETS = [30, 60, 120, 180];
 
 function formatDuration(seconds = 0) {
-  const minutes = Math.floor(Math.max(0, seconds) / 60);
+  const safeSeconds = Math.floor(Math.max(0, seconds));
+  if (safeSeconds > 0 && safeSeconds < 60) return `${safeSeconds}s`;
+  const minutes = Math.floor(safeSeconds / 60);
   const hours = Math.floor(minutes / 60);
   const remainder = minutes % 60;
   if (!hours) return `${minutes}m`;
