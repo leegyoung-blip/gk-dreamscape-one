@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import NovaVirtualTeacherPopup from "@/components/dashboard/NovaVirtualTeacherPopup";
 import DashboardTopControls from "@/components/dashboard/DashboardTopControls";
+import ParentalControlsPanel from "@/components/parental-controls/ParentalControlsPanel";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 type AttemptSource = "core" | "english" | "math" | "science" | "knowledge";
@@ -437,6 +438,7 @@ export default function TeachingDashboardPage() {
   const [selectedLearningMonthIndex, setSelectedLearningMonthIndex] =
     useState(0);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const [parentalControlsOpen, setParentalControlsOpen] = useState(false);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsMessage, setAnalyticsMessage] = useState("");
   const [analyticsSkillRows, setAnalyticsSkillRows] = useState<
@@ -496,6 +498,7 @@ export default function TeachingDashboardPage() {
         .from("learning_dashboard_access")
         .select("student_user_id,student_label,relationship")
         .eq("viewer_user_id", user.id)
+        .eq("is_active", true)
         .order("student_label", { ascending: true });
 
       if (!accessError) {
@@ -1463,6 +1466,18 @@ export default function TeachingDashboardPage() {
 
       <section className="dashboard-shell">
         <div className="dashboard-context-row">
+          {viewerId && (
+            <button
+              type="button"
+              className="parental-controls-button"
+              aria-expanded={parentalControlsOpen}
+              onClick={() => setParentalControlsOpen((current) => !current)}
+            >
+              <span aria-hidden="true">⚙</span>
+              {parentalControlsOpen ? "Close parental controls" : "Parental controls"}
+            </button>
+          )}
+
           {students.length > 1 && (
             <label className="student-picker">
               <span>Student</span>
@@ -1519,6 +1534,14 @@ export default function TeachingDashboardPage() {
             </div>
           </div>
         </header>
+
+        {parentalControlsOpen && viewerId && (
+          <ParentalControlsPanel
+            studentUserId={selectedStudentId}
+            studentLabel={selectedStudent?.label || "Student"}
+            viewerRole={viewerRole}
+          />
+        )}
 
         {isLoading && <div className="notice-card">Loading learning records…</div>}
 
@@ -2084,6 +2107,47 @@ export default function TeachingDashboardPage() {
           background: rgba(12, 31, 57, 0.72);
           box-shadow: 0 14px 30px rgba(0, 0, 0, 0.24);
           backdrop-filter: blur(16px);
+        }
+
+        .parental-controls-button {
+          min-height: 42px;
+          padding: 7px 16px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          border-radius: 999px;
+          border: 1px solid rgba(216, 180, 254, 0.36);
+          background: linear-gradient(
+            135deg,
+            rgba(113, 64, 176, 0.28),
+            rgba(19, 13, 55, 0.8)
+          );
+          color: #f1ddff;
+          font: inherit;
+          font-size: 12px;
+          font-weight: 900;
+          letter-spacing: 0.04em;
+          cursor: pointer;
+          box-shadow: 0 14px 30px rgba(0, 0, 0, 0.24);
+          backdrop-filter: blur(16px);
+          transition:
+            border-color 160ms ease,
+            transform 160ms ease,
+            box-shadow 160ms ease;
+        }
+
+        .parental-controls-button:hover {
+          border-color: rgba(216, 180, 254, 0.68);
+          transform: translateY(-1px);
+          box-shadow:
+            0 16px 34px rgba(0, 0, 0, 0.28),
+            0 0 20px rgba(192, 132, 252, 0.12);
+        }
+
+        .parental-controls-button:focus-visible {
+          outline: 2px solid #d8b4fe;
+          outline-offset: 3px;
         }
 
         .viewer-pill {
@@ -3341,6 +3405,11 @@ export default function TeachingDashboardPage() {
 
           .viewer-pill {
             padding: 7px 11px;
+          }
+
+          .parental-controls-button {
+            padding: 7px 12px;
+            font-size: 11px;
           }
 
           .viewer-pill strong {
