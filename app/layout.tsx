@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import PostLoginWelcome from "@/components/PostLoginWelcome";
 import MarketingConsentModal from "./components/MarketingConsentModal";
+import ScreenTimeController from "@/components/parental-controls/ScreenTimeController";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -31,6 +32,7 @@ export default function RootLayout({
     >
       <body className="min-h-full">
         {children}
+        <ScreenTimeController />
         <PostLoginWelcome />
         <MarketingConsentModal />
       </body>
