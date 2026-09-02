@@ -28,6 +28,13 @@ export async function GET(request: NextRequest) {
   );
 
   if (error) return rpcErrorResponse(error);
+  const result = data as { errorCode?: string; message?: string } | null;
+  if (result?.errorCode) {
+    return NextResponse.json(
+      { error: result.message || "The parent PIN is incorrect." },
+      { status: result.errorCode === "invalid_pin" ? 401 : 400 },
+    );
+  }
   return NextResponse.json({ policy: data });
 }
 

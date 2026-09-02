@@ -5,15 +5,17 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 
 export const studentUserIdSchema = z.string().uuid();
-export const parentalPasswordSchema = z.string().min(6).max(72);
+export const parentalPinSchema = z
+  .string()
+  .regex(/^\d{4}$/, "Enter a 4-digit parent PIN.");
 
 export const policyUpdateSchema = z.object({
   studentUserId: studentUserIdSchema,
   mode: z.enum(["off", "total", "games"]),
   dailyLimitMinutes: z.number().int().min(15).max(1440).nullable(),
   timeZone: z.string().trim().min(1).max(100).default("Asia/Singapore"),
-  currentPassword: z.string().max(72).nullable().optional(),
-  newPassword: parentalPasswordSchema.nullable().optional(),
+  currentPassword: parentalPinSchema.nullable().optional(),
+  newPassword: parentalPinSchema.nullable().optional(),
 }).superRefine((value, context) => {
   if (value.mode === "off" && value.dailyLimitMinutes !== null) {
     context.addIssue({
@@ -34,13 +36,13 @@ export const policyUpdateSchema = z.object({
 
 export const verifyPasswordSchema = z.object({
   studentUserId: studentUserIdSchema,
-  password: z.string().min(1).max(72),
+  password: parentalPinSchema,
 });
 
 export const grantExtraTimeSchema = z.object({
   studentUserId: studentUserIdSchema,
   additionalMinutes: z.number().int().min(15).max(180),
-  password: z.string().max(72),
+  password: parentalPinSchema.nullable().optional(),
   reason: z.string().trim().max(300).nullable().optional(),
 });
 
@@ -50,7 +52,7 @@ export const requestResetSchema = z.object({
 
 export const completeResetSchema = z.object({
   token: z.string().regex(/^[a-f0-9]{64}$/i),
-  newPassword: parentalPasswordSchema,
+  newPassword: parentalPinSchema,
 });
 
 export async function requireAuthenticatedUser() {

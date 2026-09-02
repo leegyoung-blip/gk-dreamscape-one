@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
   const result = data as { success?: boolean } | null;
   if (!result?.success) {
     return NextResponse.json(
-      { error: "This reset link is invalid, expired, or has already been used." },
+      { error: "This PIN-change link is invalid, expired, or has already been used." },
       { status: 400 },
     );
   }

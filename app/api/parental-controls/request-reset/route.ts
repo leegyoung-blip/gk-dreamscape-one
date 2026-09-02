@@ -13,7 +13,7 @@ export const runtime = "nodejs";
 const GENERIC_RESPONSE = {
   accepted: true,
   message:
-    "If a parental password exists and you are authorised, a reset link will be sent to the controlling parent's verified account email.",
+    "If a parent PIN exists and you are authorised, a change link will be sent to the controlling parent's verified account email.",
 };
 
 function getResetOrigin(request: NextRequest) {

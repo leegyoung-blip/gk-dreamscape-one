@@ -70,7 +70,7 @@ type EditorPayload = {
     title: string;
     status: string;
     is_published: boolean;
-    student_visibility: "locked" | "shown";
+    student_visibility: "locked" | "reviewing" | "satisfied" | "shown";
     topic_id: string;
     topic_title: string;
     primary_level: number;
@@ -430,6 +430,7 @@ export default function InlineCoreQuestionEditor({
             primaryLevel={payload.quiz.primary_level}
             question={activeQuestion}
             allQuestions={orderedQuestions}
+            questionCount={orderedQuestions.length}
             saving={saving}
             setSaving={setSaving}
             setError={setError}
@@ -452,6 +453,7 @@ function SingleQuestionEditor({
   primaryLevel,
   question,
   allQuestions,
+  questionCount,
   saving,
   setSaving,
   setError,
@@ -463,6 +465,7 @@ function SingleQuestionEditor({
   primaryLevel: number;
   question: EditorQuestion;
   allQuestions: EditorQuestion[];
+  questionCount: number;
   saving: boolean;
   setSaving: (value: boolean) => void;
   setError: (value: string | null) => void;
@@ -587,6 +590,41 @@ function SingleQuestionEditor({
     "fraction",
     "money",
   ].includes(answerKind);
+
+  async function handleDeleteQuestion() {
+    if (saving) return;
+
+    if (questionCount <= 1) {
+      setError("A quiz must keep at least one question.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete ${question.code} from this quiz?\n\nThis changes the live quiz structure. If the quiz is Gold, it will return to Blue for human re-verification. Historical completed attempts are preserved.`,
+    );
+
+    if (!confirmed) return;
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const { error: deleteError } = await supabase.rpc(
+        "curriculum_delete_core_inline_question",
+        {
+          p_subject: subject,
+          p_quiz_id: quizId,
+          p_question_id: question.id,
+        },
+      );
+
+      if (deleteError) throw deleteError;
+      await onSaved();
+    } catch (deleteError: any) {
+      setSaving(false);
+      setError(deleteError?.message || "Could not delete this question.");
+    }
+  }
 
   async function handleSave() {
     setError(null);
@@ -1248,6 +1286,36 @@ function SingleQuestionEditor({
           />
           <FractionFieldPreview text={explanation} />
         </label>
+
+        <div style={dangerPanel}>
+          <div style={{ minWidth: 0 }}>
+            <p style={dangerEyebrow}>STRUCTURAL ACTION</p>
+            <p style={dangerTitle}>Delete this question</p>
+            <p style={dangerDescription}>
+              Removes this question from the quiz and automatically resequences
+              the remaining questions. Gold quizzes return to Blue for human
+              re-verification. Completed historical attempts are kept.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            disabled={saving || questionCount <= 1}
+            onClick={() => void handleDeleteQuestion()}
+            style={{
+              ...deleteButton,
+              opacity: saving || questionCount <= 1 ? 0.45 : 1,
+            }}
+          >
+            🗑 Delete Question
+          </button>
+
+          {questionCount <= 1 ? (
+            <small style={{ ...helperText, color: "#fecaca" }}>
+              The final question cannot be deleted.
+            </small>
+          ) : null}
+        </div>
       </EditorSection>
 
       <div style={actionRow}>
@@ -1314,6 +1382,47 @@ function GroupedClozeEditor({
       };
     }),
   );
+
+  async function handleDeleteBlank(row: {
+    questionId: string;
+    blankId: string;
+    answer: string;
+    explanation: string;
+    skill: string;
+  }) {
+    if (saving) return;
+
+    if (questions.length <= 1) {
+      setError("A grouped Cloze quiz must keep at least one blank.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete Blank ${row.blankId} from this Cloze quiz?\n\nThe blank marker will be replaced by its correct answer in the shared passage. Remaining blanks stay intact. If the quiz is Gold, it will return to Blue for human re-verification.`,
+    );
+
+    if (!confirmed) return;
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const { error: deleteError } = await supabase.rpc(
+        "curriculum_delete_core_inline_question",
+        {
+          p_subject: subject,
+          p_quiz_id: quizId,
+          p_question_id: row.questionId,
+        },
+      );
+
+      if (deleteError) throw deleteError;
+      await onSaved();
+    } catch (deleteError: any) {
+      setSaving(false);
+      setError(deleteError?.message || `Could not delete Blank ${row.blankId}.`);
+    }
+  }
 
   async function handleSave() {
     setError(null);
@@ -1534,6 +1643,18 @@ function GroupedClozeEditor({
                   style={input}
                 />
               </label>
+
+              <button
+                type="button"
+                disabled={saving || questions.length <= 1}
+                onClick={() => void handleDeleteBlank(row)}
+                style={{
+                  ...deleteBlankButton,
+                  opacity: saving || questions.length <= 1 ? 0.45 : 1,
+                }}
+              >
+                🗑 Delete Blank
+              </button>
             </div>
           ))}
         </div>
@@ -2138,6 +2259,60 @@ const preserveNotice: CSSProperties = {
   lineHeight: 1.5,
 };
 
+const dangerPanel: CSSProperties = {
+  borderRadius: "14px",
+  border: "1px solid rgba(248,113,113,0.28)",
+  background: "rgba(239,68,68,0.065)",
+  padding: "13px",
+  display: "grid",
+  gridTemplateColumns: "minmax(0,1fr) auto",
+  alignItems: "center",
+  gap: "12px",
+};
+
+const dangerEyebrow: CSSProperties = {
+  margin: 0,
+  color: "#fca5a5",
+  fontSize: "9px",
+  fontWeight: 950,
+  letterSpacing: "0.13em",
+};
+
+const dangerTitle: CSSProperties = {
+  margin: "4px 0 0",
+  color: "#fee2e2",
+  fontSize: "14px",
+  fontWeight: 950,
+};
+
+const dangerDescription: CSSProperties = {
+  margin: "5px 0 0",
+  color: "rgba(254,226,226,0.58)",
+  fontSize: "11px",
+  lineHeight: 1.45,
+};
+
+const deleteButton: CSSProperties = {
+  minHeight: "42px",
+  borderRadius: "11px",
+  border: "1px solid rgba(248,113,113,0.42)",
+  background: "rgba(239,68,68,0.12)",
+  color: "#fecaca",
+  padding: "0 14px",
+  cursor: "pointer",
+  fontSize: "12px",
+  fontWeight: 950,
+  whiteSpace: "nowrap",
+};
+
+const deleteBlankButton: CSSProperties = {
+  ...deleteButton,
+  alignSelf: "end",
+  minHeight: "42px",
+  padding: "0 10px",
+  fontSize: "10px",
+};
+
 const specialMediaPanel: CSSProperties = {
   borderRadius: "16px",
   border: "1px solid rgba(198,166,255,0.26)",
@@ -2279,7 +2454,7 @@ const clozeRows: CSSProperties = {
 
 const clozeRow: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "110px minmax(150px,.7fr) minmax(220px,1.3fr) minmax(170px,1fr)",
+  gridTemplateColumns: "95px minmax(140px,.7fr) minmax(210px,1.25fr) minmax(150px,.9fr) 118px",
   gap: "10px",
   alignItems: "start",
   borderRadius: "13px",
