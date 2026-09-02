@@ -20,6 +20,34 @@ function objectValue(value: unknown): JsonObject {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonObject) : {};
 }
 
+async function markPreExecutionFailure({
+  admin,
+  actionRequestId,
+  errorCode,
+  message,
+}: {
+  admin: SupabaseClient;
+  actionRequestId: string;
+  errorCode: string;
+  message: string;
+}) {
+  const { error } = await admin.rpc(
+    "agent_fail_unstarted_runtime_action_request",
+    {
+      p_action_request_id: actionRequestId,
+      p_error_code: errorCode,
+      p_error_message: message,
+    },
+  );
+
+  if (error) {
+    console.error(
+      "Could not mark pre-execution agent request as failed:",
+      error.message,
+    );
+  }
+}
+
 export async function executeValidatedAgentAction({
   actionRequestId,
   admin: suppliedAdmin,
@@ -180,6 +208,19 @@ export async function executeValidatedAgentAction({
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Agent execution gateway failed.";
+
+    /*
+     * If payload construction failed before the canonical execution RPC ran,
+     * leave no validated request stranded. If execution already started, the
+     * RPC is idempotent and leaves the execution-run-owned state untouched.
+     */
+    await markPreExecutionFailure({
+      admin,
+      actionRequestId,
+      errorCode: "AGENT_EXECUTION_GATEWAY_FAILED",
+      message,
+    });
+
     const failure = await reportAgentFailure({
       admin,
       agentUserId,
