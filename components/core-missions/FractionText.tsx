@@ -51,7 +51,7 @@ export default function FractionText({
   const fractions = findFractions(source);
 
   if (fractions.length === 0) {
-    return <span style={style}>{source}</span>;
+    return <span style={{ ...textShell, ...style }}>{source}</span>;
   }
 
   const nodes: ReactNode[] = [];

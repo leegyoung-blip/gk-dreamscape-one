@@ -785,16 +785,22 @@ export default function PricingPage() {
                   <span
                     style={{
                       position: "absolute",
-                      top: "18px",
+                      top: "-14px",
                       right: "18px",
+                      zIndex: 2,
                       padding: "8px 11px",
                       borderRadius: "999px",
-                      background: plan.comingSoon ? plan.accent : "#ffae5c",
+                      background:
+                        plan.key === "core"
+                          ? "#c58cff"
+                          : plan.accent,
                       color: "#1b0c26",
                       fontSize: "10px",
                       fontWeight: 900,
                       letterSpacing: "0.1em",
                       textTransform: "uppercase",
+                      whiteSpace: "nowrap",
+                      boxShadow: "0 8px 22px rgba(0,0,0,0.26)",
                     }}
                   >
                     {plan.badge}

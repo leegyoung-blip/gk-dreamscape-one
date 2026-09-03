@@ -69,6 +69,39 @@ function stringArray(
     : [];
 }
 
+/*
+ * Phase 3F stop-race protection.
+ *
+ * The administrator can stop the runtime while a serverless shard is still
+ * processing an observation, policy decision or database request.
+ *
+ * In that case the stop RPC may already have closed/cancelled the session.
+ * Errors saying the session is no longer open are therefore expected
+ * cancellation races, not critical runtime failures.
+ */
+function isClosedSessionRaceMessage(
+  message: string,
+) {
+  const normalized =
+    String(
+      message ||
+      "",
+    )
+      .toLowerCase();
+
+  return (
+    normalized.includes(
+      "session is not an open session",
+    ) ||
+    normalized.includes(
+      "session is not open",
+    ) ||
+    normalized.includes(
+      "run session is not open",
+    )
+  );
+}
+
 async function recordDecisionResult({
   admin,
   sessionId,
@@ -109,6 +142,26 @@ async function recordDecisionResult({
     );
 
   if (error) {
+    /*
+     * The administrator may have stopped Phase 3F after the decision began
+     * but before its result was recorded.
+     *
+     * The session has already been safely cancelled, so this is not an
+     * orchestrator failure.
+     */
+    if (
+      isClosedSessionRaceMessage(
+        error.message,
+      )
+    ) {
+      return {
+        skipped:
+          true,
+        reason:
+          "session_closed",
+      };
+    }
+
     throw new Error(
       error.message,
     );
@@ -151,6 +204,19 @@ async function closeSession({
     );
 
   if (error) {
+    /*
+     * Another control path may already have cancelled the session.
+     * Closing an already-closed session during Stop is idempotent from the
+     * orchestrator's perspective.
+     */
+    if (
+      isClosedSessionRaceMessage(
+        error.message,
+      )
+    ) {
+      return;
+    }
+
     throw new Error(
       error.message,
     );
@@ -201,6 +267,212 @@ async function getSession(
   }
 
   return data;
+}
+
+/*
+ * Re-read every gate that is relevant to executing a live agent action.
+ *
+ * This is intentionally separate from the first gate check in
+ * processOneDecision().
+ *
+ * Observation/policy generation can take several seconds, so the original
+ * values may be stale by the time an action is ready to run.
+ */
+async function getRuntimeGateState({
+  admin,
+  sessionId,
+  agentUserId,
+}: {
+  admin: SupabaseClient;
+  sessionId: string;
+  agentUserId: string;
+}) {
+  const [
+    sessionResult,
+    agentResult,
+    stateResult,
+    systemResult,
+    runtimeSettingsResult,
+  ] =
+    await Promise.all([
+      admin
+        .from(
+          "agent_run_sessions",
+        )
+        .select(
+          "status",
+        )
+        .eq(
+          "id",
+          sessionId,
+        )
+        .maybeSingle(),
+
+      admin
+        .from(
+          "agent_profiles",
+        )
+        .select(
+          "lifecycle_status",
+        )
+        .eq(
+          "user_id",
+          agentUserId,
+        )
+        .maybeSingle(),
+
+      admin
+        .from(
+          "agent_runtime_state",
+        )
+        .select(
+          "execution_enabled",
+        )
+        .eq(
+          "agent_user_id",
+          agentUserId,
+        )
+        .maybeSingle(),
+
+      admin
+        .from(
+          "agent_system_settings",
+        )
+        .select(
+          "agents_enabled",
+        )
+        .eq(
+          "singleton_key",
+          "global",
+        )
+        .maybeSingle(),
+
+      admin
+        .from(
+          "agent_runtime_settings",
+        )
+        .select(
+          "activation_unlocked",
+        )
+        .eq(
+          "singleton_key",
+          "global",
+        )
+        .maybeSingle(),
+    ]);
+
+  const errors =
+    [
+      sessionResult.error,
+      agentResult.error,
+      stateResult.error,
+      systemResult.error,
+      runtimeSettingsResult.error,
+    ].filter(
+      Boolean,
+    );
+
+  if (
+    errors.length >
+    0
+  ) {
+    throw new Error(
+      errors
+        .map(
+          (
+            error,
+          ) =>
+            error?.message ||
+            "Runtime gate read failed.",
+        )
+        .join(
+          " | ",
+        ),
+    );
+  }
+
+  const sessionStatus =
+    String(
+      sessionResult
+        .data
+        ?.status ||
+      "",
+    );
+
+  if (
+    sessionStatus !==
+    "started"
+  ) {
+    return {
+      open: false,
+      sessionStatus,
+      reason:
+        "session_closed",
+    };
+  }
+
+  if (
+    agentResult
+      .data
+      ?.lifecycle_status !==
+    "active"
+  ) {
+    return {
+      open: false,
+      sessionStatus,
+      reason:
+        "agent_not_active",
+    };
+  }
+
+  if (
+    stateResult
+      .data
+      ?.execution_enabled !==
+    true
+  ) {
+    return {
+      open: false,
+      sessionStatus,
+      reason:
+        "execution_disabled",
+    };
+  }
+
+  if (
+    systemResult
+      .data
+      ?.agents_enabled !==
+    true
+  ) {
+    return {
+      open: false,
+      sessionStatus,
+      reason:
+        "global_agents_disabled",
+    };
+  }
+
+  if (
+    runtimeSettingsResult
+      .data
+      ?.activation_unlocked !==
+    true
+  ) {
+    return {
+      open: false,
+      sessionStatus,
+      reason:
+        "activation_locked",
+    };
+  }
+
+  return {
+    open: true,
+    sessionStatus,
+    reason:
+      "open",
+  };
 }
 
 async function getOrCreateRuntimeDecision({
@@ -511,6 +783,50 @@ async function processOneDecision({
         blockedActionKeys,
       });
 
+    /*
+     * Observation + policy selection may take several seconds.
+     *
+     * The administrator can press Stop while that work is running. Re-read
+     * the live runtime/session gates before creating, validating or executing
+     * anything from the decision.
+     */
+    const postDecisionGate =
+      await getRuntimeGateState({
+        admin,
+        sessionId,
+        agentUserId,
+      });
+
+    if (
+      !postDecisionGate.open
+    ) {
+      /*
+       * If the Stop RPC already closed the session, leave it alone.
+       * If another gate was closed but the session itself is still started,
+       * cancel it here.
+       */
+      if (
+        postDecisionGate.sessionStatus ===
+        "started"
+      ) {
+        await closeSession({
+          admin,
+          sessionId,
+          status:
+            "cancelled",
+          reason:
+            `Runtime gate closed after observation/policy: ${postDecisionGate.reason}.`,
+        });
+      }
+
+      return {
+        attempted: 0,
+        completed: 0,
+        failed: 0,
+        closed: true,
+      };
+    }
+
     if (
       decision.selectedActionKey ===
       "system.wait"
@@ -629,9 +945,7 @@ async function processOneDecision({
         /*
          * A quiz can be made unavailable by curriculum/admin between the
          * observation snapshot and execution. That is a stale opportunity,
-         * not an agent/runtime failure. We reject it, block Core Learning for
-         * the remainder of this session, and let the next fresh observation
-         * choose another learner-visible target.
+         * not an agent/runtime failure.
          */
         const expectedAvailabilitySkip =
           validationCode ===
@@ -706,6 +1020,43 @@ async function processOneDecision({
       request.status ===
       "validated"
     ) {
+      /*
+       * Validation itself can take long enough for an administrator to press
+       * Stop. This is the final gate before a real action reaches the
+       * execution gateway.
+       */
+      const preExecutionGate =
+        await getRuntimeGateState({
+          admin,
+          sessionId,
+          agentUserId,
+        });
+
+      if (
+        !preExecutionGate.open
+      ) {
+        if (
+          preExecutionGate.sessionStatus ===
+          "started"
+        ) {
+          await closeSession({
+            admin,
+            sessionId,
+            status:
+              "cancelled",
+            reason:
+              `Runtime gate closed before action execution: ${preExecutionGate.reason}.`,
+          });
+        }
+
+        return {
+          attempted: 0,
+          completed: 0,
+          failed: 0,
+          closed: true,
+        };
+      }
+
       const execution =
         await executeValidatedAgentAction({
           admin,
@@ -955,7 +1306,9 @@ async function processOneDecision({
         };
       }
 
-      /* A non-stale executing request is left alone for the next tick. */
+      /*
+       * A non-stale executing request is left alone for the next tick.
+       */
       return {
         attempted: 0,
         completed: 0,
@@ -975,6 +1328,24 @@ async function processOneDecision({
       error instanceof Error
         ? error.message
         : "Runtime decision processing failed.";
+
+    /*
+     * There is an unavoidable microscopic race between the final gate read
+     * and a database RPC. If Stop closed the session inside that gap, treat
+     * the resulting closed-session response as a clean cancellation.
+     */
+    if (
+      isClosedSessionRaceMessage(
+        message,
+      )
+    ) {
+      return {
+        attempted: 0,
+        completed: 0,
+        failed: 0,
+        closed: true,
+      };
+    }
 
     await reportAgentFailure({
       admin,
@@ -1058,12 +1429,18 @@ function shardForAgent(
   }
 
   const digest =
-    createHash("sha256")
-      .update(agentUserId)
+    createHash(
+      "sha256",
+    )
+      .update(
+        agentUserId,
+      )
       .digest();
 
   return (
-    digest.readUInt32BE(0) %
+    digest.readUInt32BE(
+      0,
+    ) %
     shardCount
   );
 }
@@ -1074,7 +1451,8 @@ async function closeCompletedStartedSessions(
   shardCount: number,
 ) {
   const {
-    data: sessions,
+    data:
+      sessions,
     error,
   } =
     await admin
@@ -1097,7 +1475,8 @@ async function closeCompletedStartedSessions(
 
   for (
     const session
-    of sessions || []
+    of sessions ||
+    []
   ) {
     if (
       shardForAgent(
@@ -1105,7 +1484,8 @@ async function closeCompletedStartedSessions(
           session.agent_user_id,
         ),
         shardCount,
-      ) !== shardIndex
+      ) !==
+      shardIndex
     ) {
       continue;
     }
@@ -1200,7 +1580,8 @@ export async function runAgentOrchestratorTick({
     randomUUID();
 
   const useShardLease =
-    safeShardCount > 1;
+    safeShardCount >
+    1;
 
   const {
     data:
@@ -1377,6 +1758,7 @@ export async function runAgentOrchestratorTick({
 
     summary.simulationDayIndex =
       clock.simulationDayIndex;
+
     summary.minuteInSimulationDay =
       clock.minuteInSimulationDay;
 
@@ -1393,28 +1775,38 @@ export async function runAgentOrchestratorTick({
         .insert({
           trigger_source:
             triggerSource,
+
           shard_index:
             safeShardIndex,
+
           shard_count:
             safeShardCount,
+
           simulation_day_index:
             clock.simulationDayIndex,
+
           minute_in_simulation_day:
             clock.minuteInSimulationDay,
+
           status:
             "running",
+
           metadata: {
             orchestrator:
               "OrchestratorV1-sharded",
+
             runtimePhase:
               String(
                 runtimeSettings.phase ||
                 "3E",
               ),
+
             shardIndex:
               safeShardIndex,
+
             shardCount:
               safeShardCount,
+
             maxDecisionsPerTick:
               Math.max(
                 1,
@@ -1464,9 +1856,10 @@ export async function runAgentOrchestratorTick({
       0;
 
     /*
-     * Resume existing sessions first. One decision per session per tick keeps
-     * the serverless request bounded and gives the global stop switch frequent
-     * opportunities to intervene.
+     * Resume existing sessions first.
+     *
+     * One decision per session per tick keeps the serverless request bounded
+     * and gives the global Stop switch frequent opportunities to intervene.
      */
     const {
       data:
@@ -1504,7 +1897,9 @@ export async function runAgentOrchestratorTick({
         openSessions ||
         []
       ).filter(
-        (session) =>
+        (
+          session,
+        ) =>
           shardForAgent(
             String(
               session.agent_user_id,
@@ -1547,8 +1942,10 @@ export async function runAgentOrchestratorTick({
 
       summary.decisionsAttempted +=
         result.attempted;
+
       summary.decisionsCompleted +=
         result.completed;
+
       summary.decisionsFailed +=
         result.failed;
 
@@ -1558,7 +1955,8 @@ export async function runAgentOrchestratorTick({
         result.failed >
           0
       ) {
-        workDone += 1;
+        workDone +=
+          1;
       }
     }
 
@@ -1574,7 +1972,8 @@ export async function runAgentOrchestratorTick({
         String(
           runtimeSettings.phase ||
           "3E",
-        ) === "3F"
+        ) ===
+        "3F"
       ) {
         const {
           data:
@@ -1620,7 +2019,9 @@ export async function runAgentOrchestratorTick({
             populationRows ||
             []
           ).map(
-            (row) => ({
+            (
+              row,
+            ) => ({
               agent_user_id:
                 String(
                   row.agent_user_id,
@@ -1668,7 +2069,9 @@ export async function runAgentOrchestratorTick({
             pilotRows ||
             []
           ).map(
-            (row) => ({
+            (
+              row,
+            ) => ({
               agent_user_id:
                 String(
                   row.agent_user_id,
@@ -1679,7 +2082,9 @@ export async function runAgentOrchestratorTick({
 
       const shardRuntimeRows =
         runtimeRows.filter(
-          (row) =>
+          (
+            row,
+          ) =>
             shardForAgent(
               row.agent_user_id,
               safeShardCount,
@@ -1784,24 +2189,30 @@ export async function runAgentOrchestratorTick({
         const plan =
           buildOrchestratorDayPlan({
             agentUserId,
+
             simulationDayIndex:
               clock.simulationDayIndex,
+
             simulationDayDurationMinutes:
               Number(
                 runtimeSettings.simulation_day_duration_minutes,
               ),
+
             minSessions:
               Number(
                 runtimeSettings.min_sessions_per_sim_day,
               ),
+
             maxSessions:
               Number(
                 runtimeSettings.max_sessions_per_sim_day,
               ),
+
             minDecisions:
               Number(
                 runtimeSettings.min_decisions_per_session,
               ),
+
             maxDecisions:
               Number(
                 runtimeSettings.max_decisions_per_session,
@@ -1844,9 +2255,10 @@ export async function runAgentOrchestratorTick({
             ).map(
               (
                 row,
-              ) => Number(
-                row.session_number,
-              ),
+              ) =>
+                Number(
+                  row.session_number,
+                ),
             ),
           );
 
@@ -1877,12 +2289,16 @@ export async function runAgentOrchestratorTick({
             {
               p_agent_user_id:
                 agentUserId,
+
               p_simulation_day_index:
                 clock.simulationDayIndex,
+
               p_session_number:
                 due.sessionNumber,
+
               p_due_minute:
                 due.dueMinute,
+
               p_planned_decisions:
                 due.plannedDecisions,
             },
@@ -1936,8 +2352,10 @@ export async function runAgentOrchestratorTick({
 
         summary.decisionsAttempted +=
           result.attempted;
+
         summary.decisionsCompleted +=
           result.completed;
+
         summary.decisionsFailed +=
           result.failed;
 
@@ -1947,7 +2365,8 @@ export async function runAgentOrchestratorTick({
           result.failed >
             0
         ) {
-          workDone += 1;
+          workDone +=
+            1;
         }
       }
     }
@@ -1997,18 +2416,25 @@ export async function runAgentOrchestratorTick({
         .update({
           status:
             "completed",
+
           agents_considered:
             summary.agentsConsidered,
+
           sessions_claimed:
             summary.sessionsClaimed,
+
           sessions_completed:
             summary.sessionsCompleted,
+
           decisions_attempted:
             summary.decisionsAttempted,
+
           decisions_completed:
             summary.decisionsCompleted,
+
           decisions_failed:
             summary.decisionsFailed,
+
           finished_at:
             new Date().toISOString(),
         })
@@ -2036,20 +2462,28 @@ export async function runAgentOrchestratorTick({
         .update({
           status:
             "failed",
+
           error_message:
             message,
+
           agents_considered:
             summary.agentsConsidered,
+
           sessions_claimed:
             summary.sessionsClaimed,
+
           sessions_completed:
             summary.sessionsCompleted,
+
           decisions_attempted:
             summary.decisionsAttempted,
+
           decisions_completed:
             summary.decisionsCompleted,
+
           decisions_failed:
             summary.decisionsFailed,
+
           finished_at:
             new Date().toISOString(),
         })
@@ -2061,21 +2495,30 @@ export async function runAgentOrchestratorTick({
 
     await reportAgentFailure({
       admin,
+
       agentUserId:
         null,
+
       scope:
         "orchestrator",
+
       severity:
         "critical",
+
       errorCode:
         "ORCHESTRATOR_TICK_FAILED",
+
       message,
+
       context: {
         phase:
           "3E/3F",
+
         tickId,
+
         summary,
       },
+
       idempotencyKey:
         `orchestrator-tick:${tickId || leaseToken}:failure`,
     });
@@ -2090,12 +2533,15 @@ export async function runAgentOrchestratorTick({
       useShardLease
         ? "agent_release_orchestrator_shard_lease"
         : "agent_release_orchestrator_lease",
+
       useShardLease
         ? {
             p_shard_index:
               safeShardIndex,
+
             p_shard_count:
               safeShardCount,
+
             p_lease_token:
               leaseToken,
           }
