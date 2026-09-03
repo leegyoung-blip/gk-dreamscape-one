@@ -59,6 +59,8 @@ const plans: Plan[] = [
     eyebrow: "English + Mathematics",
     monthlyPrice: 19.9,
     annualPrice: 199,
+    regularMonthlyPrice: 24.9,
+    regularAnnualPrice: 249,
     description:
       "Structured English and Mathematics learning across Dreamscape, with practice, thinking activities, rewards, and clear progress tracking.",
     features: [
@@ -70,13 +72,15 @@ const plans: Plan[] = [
       "Regular content and platform updates",
     ],
     accent: "#c58cff",
+    featured: true,
+    badge: "Launch Price",
   },
   {
     key: "full",
     name: "Full Access",
     eyebrow: "English + Mathematics + Science",
-    monthlyPrice: 24.9,
-    annualPrice: 249,
+    monthlyPrice: 29.9,
+    annualPrice: 299,
     description:
       "The complete three-subject Dreamscape learning experience, combining English, Mathematics, and Science with the wider learning world.",
     features: [
@@ -88,8 +92,8 @@ const plans: Plan[] = [
       "Regular content and platform updates",
     ],
     accent: "#ffae5c",
-    featured: true,
-    badge: "Best Value",
+    badge: "Coming Soon",
+    comingSoon: true,
   },
   {
     key: "nova",
@@ -182,7 +186,7 @@ const faqItems = [
   {
     question: "How does the 7-day free trial work?",
     answer:
-      `All first-time Dreamscape users can start an eligible Core Missions or Full Access subscription with ${STANDARD_TRIAL_DAYS} days free. The trial applies to both monthly and annual billing. Your selected paid subscription begins after the trial unless it is cancelled before the trial ends. The introductory trial may be redeemed once per eligible first-time user.`,
+      `All first-time Dreamscape users can start an eligible Core Missions subscription with ${STANDARD_TRIAL_DAYS} days free. The trial applies to both monthly and annual billing. Your selected paid subscription begins after the trial unless it is cancelled before the trial ends. The introductory trial may be redeemed once per eligible first-time user. Full Access and Nova+ are coming soon.`,
   },
   {
     question: "Does the 7-day trial also apply to Guru Kids Pro students?",
@@ -203,6 +207,11 @@ const faqItems = [
     question: "What does the annual option mean?",
     answer:
       "Annual access is paid upfront for a 12-month subscription after the 7-day free trial. The annual prices shown are lower than paying the equivalent monthly plan for 12 months.",
+  },
+  {
+    question: "What is Full Access?",
+    answer:
+      "Full Access is Dreamscape’s planned three-subject tier with English, Mathematics, and Science. It is not yet open for subscription. The planned price is SGD 29.90 per month or SGD 299 per year.",
   },
   {
     question: "What is Nova+?",
@@ -598,9 +607,9 @@ export default function PricingPage() {
           }}
         >
           Every first-time Dreamscape user can begin with a 7-day free trial
-          on Core Missions or Full Access, whether you choose monthly or annual
-          billing. Explore the learning world first, then continue only if it
-          is right for your family.
+          on Core Missions, whether you choose monthly or annual billing.
+          Full Access and Nova+ are coming soon. Explore the learning world
+          first, then continue only if it is right for your family.
         </p>
 
         <div
@@ -716,9 +725,9 @@ export default function PricingPage() {
             }}
           >
             <strong style={{ color: "#8ee8ff" }}>Public Preview:</strong>{" "}
-            Free activity zones are available now. Student Access subscriptions
-            open on 1 October, with a 7-day free trial for first-time users on
-            Core Missions and Full Access.
+            Free activity zones are available now. Core Missions subscriptions
+            open on 1 October, with a 7-day free trial for first-time users.
+            Full Access and Nova+ are coming soon.
           </div>
         )}
 
@@ -740,10 +749,10 @@ export default function PricingPage() {
                 ? plan.monthlyPrice
                 : plan.annualPrice;
             const checkoutHref =
-              plan.key === "nova"
+              plan.comingSoon
                 ? null
                 : dreamscapeSubscriptionHref(
-                    plan.key,
+                    plan.key as "core" | "full",
                     regularBillingCycle,
                   );
 
@@ -765,10 +774,10 @@ export default function PricingPage() {
                     ? `1px solid ${plan.accent}`
                     : "1px solid rgba(142,232,255,0.22)",
                   background: plan.featured
-                    ? "radial-gradient(circle at 50% 0%, rgba(255,174,92,0.14), transparent 32%), linear-gradient(145deg, rgba(255,255,255,0.09), rgba(255,255,255,0.025))"
+                    ? "radial-gradient(circle at 50% 0%, rgba(197,140,255,0.15), transparent 32%), linear-gradient(145deg, rgba(255,255,255,0.09), rgba(255,255,255,0.025))"
                     : "linear-gradient(145deg, rgba(255,255,255,0.065), rgba(255,255,255,0.02))",
                   boxShadow: plan.featured
-                    ? "0 30px 90px rgba(0,0,0,0.42), 0 0 35px rgba(255,174,92,0.11)"
+                    ? "0 30px 90px rgba(0,0,0,0.42), 0 0 35px rgba(197,140,255,0.12)"
                     : "0 25px 70px rgba(0,0,0,0.3)",
                 }}
               >
@@ -816,9 +825,53 @@ export default function PricingPage() {
                   {plan.name}
                 </h2>
 
+                {plan.regularMonthlyPrice !== undefined &&
+                  plan.regularAnnualPrice !== undefined &&
+                  !plan.comingSoon && (
+                    <div
+                      style={{
+                        marginTop: "25px",
+                        display: "flex",
+                        alignItems: "baseline",
+                        gap: "9px",
+                        color: "rgba(255,255,255,0.48)",
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: 800,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.08em",
+                        }}
+                      >
+                        Regular
+                      </span>
+                      <span
+                        style={{
+                          fontSize: isMobile ? "24px" : "27px",
+                          fontWeight: 800,
+                          textDecoration: "line-through",
+                          textDecorationThickness: "2px",
+                        }}
+                      >
+                        SGD {money(
+                          regularBillingCycle === "monthly"
+                            ? plan.regularMonthlyPrice
+                            : plan.regularAnnualPrice,
+                        )}
+                      </span>
+                    </div>
+                  )}
+
                 <div
                   style={{
-                    marginTop: "25px",
+                    marginTop:
+                      plan.regularMonthlyPrice !== undefined &&
+                      plan.regularAnnualPrice !== undefined &&
+                      !plan.comingSoon
+                        ? "9px"
+                        : "25px",
                     display: "flex",
                     alignItems: "flex-end",
                     gap: "8px",
@@ -853,14 +906,15 @@ export default function PricingPage() {
                 >
                   {plan.comingSoon
                     ? regularBillingCycle === "monthly"
-                      ? "planned founding monthly price"
-                      : "planned founding annual price"
+                      ? "planned monthly price"
+                      : "planned annual price"
                     : regularBillingCycle === "monthly"
                       ? "per month"
                       : "per year, paid upfront"}
                 </p>
 
-                {plan.comingSoon &&
+                {plan.key === "nova" &&
+                  plan.comingSoon &&
                   plan.regularMonthlyPrice !== undefined &&
                   plan.regularAnnualPrice !== undefined && (
                     <p
@@ -881,7 +935,7 @@ export default function PricingPage() {
                     </p>
                   )}
 
-                {regularBillingCycle === "annual" && (
+                {regularBillingCycle === "annual" && !plan.comingSoon && (
                   <p
                     style={{
                       margin: "12px 0 0",
@@ -903,14 +957,14 @@ export default function PricingPage() {
                       borderRadius: "17px",
                       border: `1px solid ${plan.accent}3d`,
                       background: plan.featured
-                        ? "linear-gradient(90deg, rgba(255,174,92,0.12), rgba(197,140,255,0.08))"
+                        ? "linear-gradient(90deg, rgba(197,140,255,0.13), rgba(83,215,255,0.08))"
                         : "linear-gradient(90deg, rgba(83,215,255,0.1), rgba(197,140,255,0.07))",
                     }}
                   >
                     <p
                       style={{
                         margin: 0,
-                        color: plan.featured ? "#ffcb92" : "#8ee8ff",
+                        color: plan.featured ? "#dcbcff" : "#8ee8ff",
                         fontSize: "11px",
                         fontWeight: 900,
                         letterSpacing: "0.13em",
@@ -1050,7 +1104,7 @@ export default function PricingPage() {
                     }}
                   >
                     {plan.comingSoon
-                      ? "Nova+ Coming Soon"
+                      ? `${plan.name} Coming Soon`
                       : checkoutAccessLoading
                         ? "Checking access..."
                         : publicPreviewActive
@@ -1703,7 +1757,7 @@ export default function PricingPage() {
             All prices are in Singapore dollars. Public Dreamscape
             subscription payments are processed securely by Stripe. The 7-day
             introductory trial is available once to eligible first-time users
-            on Core Missions and Full Access. Prices and plan details are shown
+            on Core Missions. Full Access and Nova+ are coming soon. Prices and plan details are shown
             during the Dreamscape One public preview period, and subscriptions,
             trials and rewards remain subject to the applicable Terms & Conditions.
           </p>
@@ -2044,10 +2098,10 @@ export default function PricingPage() {
               }}
             >
               Free activity zones are open now. Public Student Access
-              subscriptions open on 1 October, with 7 days free for first-time
-              users on Core Missions and Full Access. Authorised staff accounts
-              can continue testing the secure Stripe subscription flow during
-              the preview.
+              Core Missions subscriptions open on 1 October, with 7 days free
+              for first-time users. Full Access and Nova+ are coming soon.
+              Authorised staff accounts can continue testing the secure Stripe
+              subscription flow during the preview.
             </p>
 
             <div
@@ -2112,7 +2166,7 @@ export default function PricingPage() {
                 lineHeight: 1.6,
               }}
             >
-              Staff testing access remains available to authorised admin, teacher and curriculum lead accounts. Eligible first-time users receive the 7-day introductory trial automatically when Stripe Checkout is opened.
+              Staff testing access remains available to authorised admin, teacher and curriculum lead accounts. Eligible first-time Core Missions users receive the 7-day introductory trial automatically when Stripe Checkout is opened.
             </p>
           </div>
         </div>
