@@ -3,21 +3,18 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { reportAgentFailure } from "@/lib/agents/runtime/failures";
-import { AGENT_EXECUTION_ADAPTERS, isAgentExecutableActionKey } from "@/lib/agents/execution/registry";
-import { buildSyntheticPerformanceProfile } from "@/lib/agents/execution/syntheticPerformance";
 import {
-  buildKnowledgeArenaPayload,
-  buildMiloCategoriesPayload,
-  buildNovaLearningPayload,
-  buildRoverPayload,
-  buildThinkPayload,
-} from "@/lib/agents/execution/answerBuilder";
+  AGENT_EXECUTION_ADAPTERS,
+  isAgentExecutableActionKey,
+} from "@/lib/agents/execution/registry";
 import type { AgentExecutionResult } from "@/lib/agents/execution/types";
 
 type JsonObject = Record<string, unknown>;
 
 function objectValue(value: unknown): JsonObject {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonObject) : {};
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as JsonObject)
+    : {};
 }
 
 async function markPreExecutionFailure({
@@ -57,149 +54,165 @@ export async function executeValidatedAgentAction({
 }): Promise<AgentExecutionResult> {
   const admin = suppliedAdmin || createAdminClient();
 
+  /*
+   * Keep this lookup deliberately tiny.
+   *
+   * We only need:
+   *   - agent identity for failure reporting
+   *   - action key for registry validation / result reporting
+   *
+   * We no longer load:
+   *   - persona
+   *   - primary level
+   *   - synthetic performance
+   *   - quiz questions
+   *   - answer keys
+   *   - game state
+   */
   const { data: requestRow, error: requestError } = await admin
     .from("agent_action_requests")
-    .select("id,agent_user_id,action_key,action_version,status,requested_mode,parameters")
+    .select("id,agent_user_id,action_key")
     .eq("id", actionRequestId)
     .maybeSingle();
 
   if (requestError || !requestRow) {
-    throw new Error(requestError?.message || "Agent action request was not found.");
+    throw new Error(
+      requestError?.message || "Agent action request was not found.",
+    );
   }
 
   const actionKey = String(requestRow.action_key || "");
-  if (!isAgentExecutableActionKey(actionKey)) {
-    throw new Error(`No Phase 3C execution adapter is registered for ${actionKey}.`);
+  const agentUserId = String(requestRow.agent_user_id || "");
+
+  if (!agentUserId) {
+    throw new Error(
+      `Agent action request ${actionRequestId} has no agent_user_id.`,
+    );
   }
 
-  const agentUserId = String(requestRow.agent_user_id);
-  const [{ data: agent, error: agentError }, { data: persona, error: personaError }] = await Promise.all([
-    admin
-      .from("agent_profiles")
-      .select("user_id,agent_code,account_role,primary_level,lifecycle_status")
-      .eq("user_id", agentUserId)
-      .maybeSingle(),
-    admin.from("agent_personas").select("archetype").eq("agent_user_id", agentUserId).maybeSingle(),
-  ]);
-
-  if (agentError || !agent) throw new Error(agentError?.message || "Agent registry row was not found.");
-  if (personaError) throw new Error(personaError.message);
+  /*
+   * Preserve the executable-action registry as a code-side safety boundary.
+   *
+   * Current supported synthetic actions:
+   *
+   *   nova.learning.attempt_quiz
+   *   nova.knowledge_arena.attempt_quiz
+   *   nova.think.attempt_activity
+   *   nova.rover.run_challenge
+   *   milo.categories.attempt_quiz
+   */
+  if (!isAgentExecutableActionKey(actionKey)) {
+    throw new Error(
+      `No Phase 3F synthetic execution adapter is registered for ${actionKey}.`,
+    );
+  }
 
   const adapter = AGENT_EXECUTION_ADAPTERS[actionKey];
-  if (adapter.requiresStudentRole && String(agent.account_role) !== "student") {
-    throw new Error(`${actionKey} is restricted to student-role agents in the initial pilot.`);
-  }
-
-  const performance = buildSyntheticPerformanceProfile({
-    agentCode: String(agent.agent_code),
-    accountRole: String(agent.account_role),
-    archetype: persona?.archetype ? String(persona.archetype) : null,
-    primaryLevel: agent.primary_level === null ? null : Number(agent.primary_level),
-    actionKey,
-    actionRequestId,
-  });
-
-  const parameters = objectValue(requestRow.parameters);
 
   try {
-    let rpcName = "";
-    let rpcArgs: JsonObject = {};
+    /*
+     * ------------------------------------------------------------------------
+     * SYNTHETIC COMPLETION ARCHITECTURE
+     * ------------------------------------------------------------------------
+     *
+     * ALL supported simulation actions now use this ONE RPC.
+     *
+     * There is deliberately no switch(actionKey) here.
+     *
+     * The database RPC:
+     *   - validates simulation-agent identity
+     *   - validates Full-100 membership
+     *   - validates runtime gates
+     *   - uses the normal agent execution lifecycle
+     *   - records one synthetic completion
+     *   - awards DT
+     *   - awards DG
+     *   - marks the runtime execution succeeded
+     *
+     * It does NOT:
+     *   - create real quiz attempts
+     *   - create answer rows
+     *   - calculate scores
+     *   - update learner mastery
+     *   - update learner analytics
+     *   - write Rover gameplay results
+     *   - write Knowledge Arena answers
+     *   - write Milo Category answers
+     */
+    const { data, error } = await admin.rpc(
+      "agent_execute_synthetic_activity_v1",
+      {
+        p_action_request_id: actionRequestId,
+      },
+    );
 
-    switch (actionKey) {
-      case "nova.learning.attempt_quiz": {
-        const quizId = String(parameters.quizId || "");
-        const payload = await buildNovaLearningPayload({ admin, quizId, performance });
-        rpcName = "agent_execute_nova_learning_v1";
-        rpcArgs = {
-          p_action_request_id: actionRequestId,
-          p_subject: payload.subject,
-          p_quiz_id: payload.quizId,
-          p_answers: payload.answers,
-          p_duration_seconds: payload.durationSeconds,
-        };
-        break;
-      }
-
-      case "nova.knowledge_arena.attempt_quiz": {
-        const topic = String(parameters.topic || "");
-        const payload = await buildKnowledgeArenaPayload({ admin, topic, performance });
-        rpcName = "agent_execute_nova_knowledge_arena_v1";
-        rpcArgs = {
-          p_action_request_id: actionRequestId,
-          p_topic: payload.topic,
-          p_answers: payload.answers,
-        };
-        break;
-      }
-
-      case "nova.think.attempt_activity": {
-        const activityId = String(parameters.activityId || parameters.quizId || "");
-        const payload = await buildThinkPayload({ admin, activityId, performance });
-        rpcName = "agent_execute_nova_think_v1";
-        rpcArgs = {
-          p_action_request_id: actionRequestId,
-          p_activity_id: payload.activityId,
-          p_answers: payload.answers,
-          p_duration_seconds: payload.durationSeconds,
-        };
-        break;
-      }
-
-      case "nova.rover.run_challenge": {
-        const payload = buildRoverPayload({ performance });
-        rpcName = "agent_execute_nova_rover_v1";
-        rpcArgs = {
-          p_action_request_id: actionRequestId,
-          p_score: payload.score,
-          p_completion_time_ms: payload.completionTimeMs,
-          p_orbs_collected: payload.orbsCollected,
-          p_checkpoints_reached: payload.checkpointsReached,
-          p_crash_penalty: payload.crashPenalty,
-        };
-        break;
-      }
-
-      case "milo.categories.attempt_quiz": {
-        const category = String(parameters.category || "");
-        const payload = await buildMiloCategoriesPayload({ admin, category, performance });
-        rpcName = "agent_execute_milo_categories_v1";
-        rpcArgs = {
-          p_action_request_id: actionRequestId,
-          p_category: payload.category,
-          p_started_at: payload.startedAt,
-          p_duration_seconds: payload.durationSeconds,
-          p_answers: payload.answers,
-        };
-        break;
-      }
+    if (error) {
+      throw new Error(error.message);
     }
 
-    const { data, error } = await admin.rpc(rpcName, rpcArgs);
-    if (error) throw new Error(error.message);
-
     const result = objectValue(data);
+
+    /*
+     * The RPC normally throws on validation/execution errors.
+     *
+     * Keep this branch as a defensive guard in case a future RPC version
+     * returns { ok: false } instead.
+     */
     if (result.ok !== true) {
-      const message = String(result.error || "Agent action adapter returned a failure.");
+      const message = String(
+        result.error ||
+          "Synthetic agent activity executor returned a failure.",
+      );
+
       const failure = await reportAgentFailure({
         admin,
         agentUserId,
         actionRequestId,
         scope: "action",
         severity: "error",
-        errorCode: String(result.error_code || "AGENT_ACTION_EXECUTION_FAILED"),
+        errorCode: String(
+          result.error_code ||
+            "AGENT_SYNTHETIC_ACTIVITY_EXECUTION_FAILED",
+        ),
         message,
         context: {
-          phase: "3C+",
+          phase: "3F-synthetic",
           actionKey,
           adapterKey: adapter.adapterKey,
-          expectedAccuracyPercent: performance.expectedAccuracyPercent,
+          executionArchitecture: "synthetic_completion_only",
+          realScoreGenerated: false,
+          learnerAnalyticsWritten: false,
         },
-        idempotencyKey: `agent-action:${actionRequestId}:failure`,
+        idempotencyKey:
+          `agent-action:${actionRequestId}:synthetic-failure`,
       });
 
-      return { ok: false, actionRequestId, actionKey, failureId: failure.failureId, error: message };
+      return {
+        ok: false,
+        actionRequestId,
+        actionKey,
+        failureId: failure.failureId,
+        error: message,
+      };
     }
 
+    /*
+     * A successful result looks roughly like:
+     *
+     * {
+     *   ok: true,
+     *   synthetic: true,
+     *   action_key: "...",
+     *   dt_awarded: 1-5,
+     *   dg_awarded: 1,
+     *   result: {
+     *     synthetic: true,
+     *     score: null,
+     *     analytics_written: false,
+     *     ...
+     *   }
+     * }
+     */
     return {
       ok: true,
       actionRequestId,
@@ -207,12 +220,17 @@ export async function executeValidatedAgentAction({
       result: objectValue(result.result || result),
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Agent execution gateway failed.";
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Synthetic agent execution gateway failed.";
 
     /*
-     * If payload construction failed before the canonical execution RPC ran,
-     * leave no validated request stranded. If execution already started, the
-     * RPC is idempotent and leaves the execution-run-owned state untouched.
+     * The synthetic RPC executes transactionally.
+     *
+     * If the RPC throws, its internal execution-begin/reward writes roll back.
+     * We can therefore safely mark the still-unstarted request as failed using
+     * the existing runtime helper.
      */
     await markPreExecutionFailure({
       admin,
@@ -229,10 +247,24 @@ export async function executeValidatedAgentAction({
       severity: "critical",
       errorCode: "AGENT_EXECUTION_GATEWAY_FAILED",
       message,
-      context: { phase: "3C+", actionKey, adapterKey: adapter.adapterKey },
-      idempotencyKey: `agent-action:${actionRequestId}:gateway-failure`,
+      context: {
+        phase: "3F-synthetic",
+        actionKey,
+        adapterKey: adapter.adapterKey,
+        executionArchitecture: "synthetic_completion_only",
+        realScoreGenerated: false,
+        learnerAnalyticsWritten: false,
+      },
+      idempotencyKey:
+        `agent-action:${actionRequestId}:gateway-failure`,
     });
 
-    return { ok: false, actionRequestId, actionKey, failureId: failure.failureId, error: message };
+    return {
+      ok: false,
+      actionRequestId,
+      actionKey,
+      failureId: failure.failureId,
+      error: message,
+    };
   }
 }
