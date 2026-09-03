@@ -20,12 +20,7 @@ import {
 
 import {
   WORLD_OBSERVATION_SOURCE_KEYS,
-  type WorldObservationSourceKey,
 } from "@/lib/agents/world/types";
-
-import {
-  observeWorldSource,
-} from "@/lib/agents/world/registry";
 
 type CaptureAgentObservationArgs = {
   admin: SupabaseClient;
@@ -46,8 +41,16 @@ type SourceVersionRow = {
   status: string;
 };
 
-const WORLD_ADAPTER_CONCURRENCY =
-  2;
+type SyntheticCompletionRow = {
+  action_key: string;
+  simulation_day_index: number;
+  dt_awarded: number;
+  dg_awarded: number;
+  completed_at: string;
+};
+
+const RECENT_SYNTHETIC_COMPLETION_LIMIT =
+  20;
 
 function sortForStableJson(
   value: unknown,
@@ -230,96 +233,542 @@ function simulationEntitlementFromTier(
 
     anyPaidAccess:
       false,
+
+    syntheticActivityMode:
+      true,
   };
 }
 
-/*
- * Limit concurrent world adapters.
- *
- * Every adapter can itself contain several Supabase queries. Running all eight
- * adapters through Promise.all() caused a large query burst for each agent.
- *
- * With Phase 3F Cron already staggered, a concurrency of 2 keeps useful
- * parallelism without recreating the database spike inside each observation.
- */
-async function mapWithConcurrency<
-  T,
-  R
->(
-  items: readonly T[],
-  concurrency: number,
-  worker: (
-    item: T,
-    index: number,
-  ) => Promise<R>,
+function recentForAction(
+  rows:
+    SyntheticCompletionRow[],
+  actionKey:
+    string,
 ) {
+  return rows.filter(
+    (
+      row,
+    ) =>
+      row.action_key ===
+      actionKey,
+  );
+}
+
+function cycleSyntheticHistory({
+  rows,
+  keys,
+  field,
+}: {
+  rows:
+    SyntheticCompletionRow[];
+
+  keys:
+    string[];
+
+  field:
+    string;
+}) {
   if (
-    items.length ===
+    keys.length ===
     0
   ) {
-    return [] as R[];
+    return [];
   }
 
-  const results =
-    new Array<R>(
-      items.length,
-    );
+  return rows.map(
+    (
+      row,
+      index,
+    ) => ({
+      [field]:
+        keys[
+          index %
+          keys.length
+        ],
 
-  let nextIndex =
-    0;
+      synthetic:
+        true,
 
-  async function runWorker() {
-    while (
-      true
-    ) {
-      const index =
-        nextIndex;
+      simulation_day_index:
+        row.simulation_day_index,
 
-      nextIndex +=
-        1;
-
-      if (
-        index >=
-        items.length
-      ) {
-        return;
-      }
-
-      results[index] =
-        await worker(
-          items[index],
-          index,
-        );
-    }
-  }
-
-  const workerCount =
-    Math.min(
-      Math.max(
-        1,
-        concurrency,
-      ),
-      items.length,
-    );
-
-  await Promise.all(
-    Array.from(
-      {
-        length:
-          workerCount,
-      },
-      () =>
-        runWorker(),
-    ),
+      completed_at:
+        row.completed_at,
+    }),
   );
+}
 
-  return results;
+/*
+ * ---------------------------------------------------------------------------
+ * SYNTHETIC WORLD DATA
+ * ---------------------------------------------------------------------------
+ *
+ * RuleBasedPolicyV1 currently expects small pieces of data from five world
+ * sections in order to create candidate actions.
+ *
+ * Since execution is now fully synthetic, these do NOT need to correspond to
+ * real quizzes, questions, game runs, topics or curriculum rows.
+ *
+ * They are deliberately tiny deterministic placeholders.
+ *
+ * The gateway ignores these target parameters and routes the action to:
+ *
+ *   agent_execute_synthetic_activity_v1
+ *
+ * So no real learning/game tables are touched.
+ * ---------------------------------------------------------------------------
+ */
+
+function buildSyntheticWorldData({
+  sourceKey,
+  recentCompletions,
+  primaryLevel,
+}: {
+  sourceKey:
+    string;
+
+  recentCompletions:
+    SyntheticCompletionRow[];
+
+  primaryLevel:
+    number;
+}): Record<
+  string,
+  unknown
+> {
+  switch (
+    sourceKey
+  ) {
+    /*
+     * -----------------------------------------------------------------------
+     * CORE MISSIONS
+     *
+     * RuleBasedPolicyV1 expects:
+     *   english.activeTopics
+     *   english.publishedQuizzes
+     *   english.recentAttempts
+     *   math.activeTopics
+     *   math.publishedQuizzes
+     *   math.recentAttempts
+     *
+     * These quiz ids are intentionally synthetic.
+     * -----------------------------------------------------------------------
+     */
+    case "nova.learning": {
+      const history =
+        recentForAction(
+          recentCompletions,
+          "nova.learning.attempt_quiz",
+        );
+
+      const englishQuizId =
+        "agent-synthetic-core-english";
+
+      const mathQuizId =
+        "agent-synthetic-core-math";
+
+      const englishTopicId =
+        "agent-synthetic-topic-english";
+
+      const mathTopicId =
+        "agent-synthetic-topic-math";
+
+      const englishAttempts =
+        history
+          .filter(
+            (
+              _row,
+              index,
+            ) =>
+              index %
+                2 ===
+              0,
+          )
+          .map(
+            (
+              row,
+            ) => ({
+              quiz_id:
+                englishQuizId,
+
+              synthetic:
+                true,
+
+              simulation_day_index:
+                row.simulation_day_index,
+
+              completed_at:
+                row.completed_at,
+            }),
+          );
+
+      const mathAttempts =
+        history
+          .filter(
+            (
+              _row,
+              index,
+            ) =>
+              index %
+                2 ===
+              1,
+          )
+          .map(
+            (
+              row,
+            ) => ({
+              quiz_id:
+                mathQuizId,
+
+              synthetic:
+                true,
+
+              simulation_day_index:
+                row.simulation_day_index,
+
+              completed_at:
+                row.completed_at,
+            }),
+          );
+
+      return {
+        syntheticMode:
+          true,
+
+        executionMode:
+          "reward_only",
+
+        realQuizLookup:
+          false,
+
+        realAttemptHistory:
+          false,
+
+        english: {
+          activeTopics: [
+            {
+              id:
+                englishTopicId,
+
+              primary_level:
+                primaryLevel,
+
+              title:
+                "Synthetic English Mission",
+            },
+          ],
+
+          publishedQuizzes: [
+            {
+              id:
+                englishQuizId,
+
+              topic_id:
+                englishTopicId,
+
+              title:
+                "Synthetic English Core Mission",
+            },
+          ],
+
+          recentAttempts:
+            englishAttempts,
+        },
+
+        math: {
+          activeTopics: [
+            {
+              id:
+                mathTopicId,
+
+              primary_level:
+                primaryLevel,
+
+              title:
+                "Synthetic Math Mission",
+            },
+          ],
+
+          publishedQuizzes: [
+            {
+              id:
+                mathQuizId,
+
+              topic_id:
+                mathTopicId,
+
+              title:
+                "Synthetic Math Core Mission",
+            },
+          ],
+
+          recentAttempts:
+            mathAttempts,
+        },
+      };
+    }
+
+    /*
+     * -----------------------------------------------------------------------
+     * KNOWLEDGE ARENA
+     *
+     * Policy only requires activeTopics + recentAttempts.
+     * -----------------------------------------------------------------------
+     */
+    case "nova.knowledge_arena": {
+      const topics = [
+        "World Explorer",
+        "Earth & Space",
+        "Life & Nature",
+        "History & Heritage",
+      ];
+
+      const history =
+        recentForAction(
+          recentCompletions,
+          "nova.knowledge_arena.attempt_quiz",
+        );
+
+      return {
+        syntheticMode:
+          true,
+
+        executionMode:
+          "reward_only",
+
+        activeTopics:
+          topics,
+
+        recentAttempts:
+          cycleSyntheticHistory({
+            rows:
+              history,
+
+            keys:
+              topics,
+
+            field:
+              "topic",
+          }),
+      };
+    }
+
+    /*
+     * -----------------------------------------------------------------------
+     * THINK LAB
+     *
+     * Policy expects activeQuizzes with:
+     *   id
+     *   title
+     *   activeQuestionCount > 0
+     * -----------------------------------------------------------------------
+     */
+    case "nova.think": {
+      const activities = [
+        {
+          id:
+            "agent-synthetic-think-colour-code",
+
+          title:
+            "Colour Code",
+
+          activeQuestionCount:
+            1,
+        },
+        {
+          id:
+            "agent-synthetic-think-sets",
+
+          title:
+            "Sets",
+
+          activeQuestionCount:
+            1,
+        },
+        {
+          id:
+            "agent-synthetic-think-tower-memory",
+
+          title:
+            "Tower Memory",
+
+          activeQuestionCount:
+            1,
+        },
+      ];
+
+      const history =
+        recentForAction(
+          recentCompletions,
+          "nova.think.attempt_activity",
+        );
+
+      return {
+        syntheticMode:
+          true,
+
+        executionMode:
+          "reward_only",
+
+        activeQuizzes:
+          activities,
+
+        recentAttempts:
+          cycleSyntheticHistory({
+            rows:
+              history,
+
+            keys:
+              activities.map(
+                (
+                  activity,
+                ) =>
+                  activity.id,
+              ),
+
+            field:
+              "quiz_id",
+          }),
+      };
+    }
+
+    /*
+     * -----------------------------------------------------------------------
+     * ROVER
+     *
+     * Policy already has a Level 1 fallback, but providing tiny synthetic
+     * progress lets its repeat/novelty logic continue to work.
+     * -----------------------------------------------------------------------
+     */
+    case "nova.rover": {
+      const courseId =
+        "skyforge-test-track-01";
+
+      const history =
+        recentForAction(
+          recentCompletions,
+          "nova.rover.run_challenge",
+        );
+
+      return {
+        syntheticMode:
+          true,
+
+        executionMode:
+          "reward_only",
+
+        progress:
+          history.map(
+            (
+              row,
+            ) => ({
+              course_id:
+                courseId,
+
+              synthetic:
+                true,
+
+              simulation_day_index:
+                row.simulation_day_index,
+
+              completed_at:
+                row.completed_at,
+            }),
+          ),
+
+        completedCourseIds:
+          [],
+      };
+    }
+
+    /*
+     * -----------------------------------------------------------------------
+     * MILO CATEGORIES
+     *
+     * Policy reads activeQuestionCountByCategory keys only.
+     * Counts are synthetic availability markers, NOT real question counts.
+     * -----------------------------------------------------------------------
+     */
+    case "milo.categories": {
+      const categories = [
+        "World Explorer",
+        "Earth & Space",
+        "Life & Nature",
+        "History & Heritage",
+      ];
+
+      const history =
+        recentForAction(
+          recentCompletions,
+          "milo.categories.attempt_quiz",
+        );
+
+      return {
+        syntheticMode:
+          true,
+
+        executionMode:
+          "reward_only",
+
+        activeQuestionCountByCategory: {
+          "World Explorer":
+            1,
+
+          "Earth & Space":
+            1,
+
+          "Life & Nature":
+            1,
+
+          "History & Heritage":
+            1,
+        },
+
+        recentAttempts:
+          cycleSyntheticHistory({
+            rows:
+              history,
+
+            keys:
+              categories,
+
+            field:
+              "category",
+          }),
+      };
+    }
+
+    /*
+     * -----------------------------------------------------------------------
+     * ALL OTHER ACTIVE WORLD SOURCES
+     *
+     * Nova Home, Business Builder, Exchange, etc. can remain represented in
+     * the observation contract without querying their real tables.
+     * -----------------------------------------------------------------------
+     */
+    default:
+      return {
+        syntheticMode:
+          true,
+
+        executionMode:
+          "observation_only",
+
+        realWorldQueryPerformed:
+          false,
+      };
+  }
 }
 
 async function markRunFailed(
-  admin: SupabaseClient,
-  runId: string,
-  errorMessage: string,
+  admin:
+    SupabaseClient,
+
+  runId:
+    string,
+
+  errorMessage:
+    string,
 ) {
   const {
     error,
@@ -365,9 +814,11 @@ export async function captureAgentWorldObservation({
     new Date()
       .toISOString();
 
-  /* ===============================================================
-     1. VERIFY REGISTERED AGENT
-     =============================================================== */
+  /*
+   * =========================================================================
+   * 1. VERIFY REGISTERED SIMULATION AGENT
+   * =========================================================================
+   */
 
   const [
     agentResult,
@@ -391,15 +842,10 @@ export async function captureAgentWorldObservation({
           education_system,
           education_level,
           primary_level,
-          starting_dt_target,
-          starting_dg_target,
           simulation_access_tier,
           public_visibility_override,
-          generation_seed,
           seed_version,
-          metadata,
-          created_at,
-          updated_at
+          metadata
         `,
         )
         .eq(
@@ -472,9 +918,23 @@ export async function captureAgentWorldObservation({
   const profile =
     profileResult.data;
 
-  /* ===============================================================
-     2. ACTIVE OBSERVATION CONTRACTS
-     =============================================================== */
+  const primaryLevel =
+    Math.max(
+      1,
+      Math.min(
+        6,
+        numberValue(
+          agent.primary_level ||
+          1,
+        ),
+      ),
+    );
+
+  /*
+   * =========================================================================
+   * 2. ACTIVE OBSERVATION CONTRACTS
+   * =========================================================================
+   */
 
   const {
     data:
@@ -559,7 +1019,7 @@ export async function captureAgentWorldObservation({
         sourceKey,
       ) =>
         sourceVersionMap.has(
-          sourceKey,
+          sourceKey as AgentObservationSourceKey,
         ),
     );
 
@@ -567,12 +1027,20 @@ export async function captureAgentWorldObservation({
     AgentObservationSourceKey[] =
     [
       ...FOUNDATION_OBSERVATION_SOURCE_KEYS,
-      ...activeWorldSourceKeys,
+
+      ...activeWorldSourceKeys.map(
+        (
+          sourceKey,
+        ) =>
+          sourceKey as AgentObservationSourceKey,
+      ),
     ];
 
-  /* ===============================================================
-     3. START AUDIT RUN
-     =============================================================== */
+  /*
+   * =========================================================================
+   * 3. START AUDIT RUN
+   * =========================================================================
+   */
 
   const {
     data:
@@ -602,10 +1070,13 @@ export async function captureAgentWorldObservation({
 
         metadata: {
           observer_version:
-            "WorldObserverV2.1",
+            "SyntheticObserverV3.0",
 
           snapshot_version:
             AGENT_WORLD_SNAPSHOT_VERSION,
+
+          synthetic_activity_mode:
+            true,
 
           foundation_source_count:
             FOUNDATION_OBSERVATION_SOURCE_KEYS.length,
@@ -613,8 +1084,23 @@ export async function captureAgentWorldObservation({
           active_world_source_count:
             activeWorldSourceKeys.length,
 
-          world_adapter_concurrency:
-            WORLD_ADAPTER_CONCURRENCY,
+          real_world_adapter_calls:
+            0,
+
+          real_quiz_catalog_queries:
+            0,
+
+          real_game_state_queries:
+            0,
+
+          full_dt_ledger_scan:
+            false,
+
+          full_dg_ledger_scan:
+            false,
+
+          recent_synthetic_completion_limit:
+            RECENT_SYNTHETIC_COMPLETION_LIMIT,
         },
       })
       .select(
@@ -640,18 +1126,25 @@ export async function captureAgentWorldObservation({
     );
 
   try {
-    /* =============================================================
-       4. READ ONLY — FOUNDATION STATE
-       ============================================================= */
+    /*
+     * =======================================================================
+     * 4. LIGHTWEIGHT FOUNDATION STATE
+     *
+     * Only data still useful to the synthetic agent policy is read.
+     *
+     * REMOVED:
+     *   - full DT transaction history
+     *   - full DG transaction history
+     *   - cohort detail lookup
+     *   - policy version detail lookup
+     * =======================================================================
+     */
 
     const [
       personaResult,
       goalsResult,
-      membershipsResult,
-      policiesResult,
-      dtResult,
-      dgResult,
       settingsResult,
+      recentSyntheticResult,
     ] =
       await Promise.all([
         admin
@@ -688,72 +1181,9 @@ export async function captureAgentWorldObservation({
               ascending:
                 false,
             },
-          ),
-
-        admin
-          .from(
-            "agent_cohort_memberships",
           )
-          .select(
-            "*",
-          )
-          .eq(
-            "agent_user_id",
-            agentUserId,
-          ),
-
-        admin
-          .from(
-            "agent_policy_assignments",
-          )
-          .select(
-            "*",
-          )
-          .eq(
-            "agent_user_id",
-            agentUserId,
-          ),
-
-        admin
-          .from(
-            "dream_token_transactions",
-          )
-          .select(
-            "id,amount,type,title,token_kind,created_at",
-          )
-          .eq(
-            "user_id",
-            agentUserId,
-          )
-          .eq(
-            "token_kind",
-            "virtual",
-          )
-          .order(
-            "created_at",
-            {
-              ascending:
-                false,
-            },
-          ),
-
-        admin
-          .from(
-            "dream_gem_transactions",
-          )
-          .select(
-            "id,amount,type,source,title,description,balance_after,created_at",
-          )
-          .eq(
-            "user_id",
-            agentUserId,
-          )
-          .order(
-            "created_at",
-            {
-              ascending:
-                false,
-            },
+          .limit(
+            10,
           ),
 
         admin
@@ -775,6 +1205,34 @@ export async function captureAgentWorldObservation({
             "global",
           )
           .maybeSingle(),
+
+        admin
+          .from(
+            "agent_synthetic_activity_completions",
+          )
+          .select(
+            `
+            action_key,
+            simulation_day_index,
+            dt_awarded,
+            dg_awarded,
+            completed_at
+          `,
+          )
+          .eq(
+            "agent_user_id",
+            agentUserId,
+          )
+          .order(
+            "completed_at",
+            {
+              ascending:
+                false,
+            },
+          )
+          .limit(
+            RECENT_SYNTHETIC_COMPLETION_LIMIT,
+          ),
       ]);
 
     if (
@@ -794,38 +1252,6 @@ export async function captureAgentWorldObservation({
     }
 
     if (
-      membershipsResult.error
-    ) {
-      throw new Error(
-        `Cohort observation failed: ${membershipsResult.error.message}`,
-      );
-    }
-
-    if (
-      policiesResult.error
-    ) {
-      throw new Error(
-        `Policy observation failed: ${policiesResult.error.message}`,
-      );
-    }
-
-    if (
-      dtResult.error
-    ) {
-      throw new Error(
-        `DT observation failed: ${dtResult.error.message}`,
-      );
-    }
-
-    if (
-      dgResult.error
-    ) {
-      throw new Error(
-        `DG observation failed: ${dgResult.error.message}`,
-      );
-    }
-
-    if (
       settingsResult.error ||
       !settingsResult.data
     ) {
@@ -837,269 +1263,19 @@ export async function captureAgentWorldObservation({
       );
     }
 
-    /* =============================================================
-       5. COHORT DETAILS
-       ============================================================= */
-
-    const membershipRows =
-      membershipsResult.data ||
-      [];
-
-    const currentMembershipRows =
-      membershipRows.filter(
-        (
-          membership,
-        ) => {
-          const row =
-            membership as Record<
-              string,
-              unknown
-            >;
-
-          if (
-            Object.prototype.hasOwnProperty.call(
-              row,
-              "left_at",
-            )
-          ) {
-            return (
-              row.left_at ==
-              null
-            );
-          }
-
-          if (
-            Object.prototype.hasOwnProperty.call(
-              row,
-              "is_active",
-            )
-          ) {
-            return (
-              row.is_active !==
-              false
-            );
-          }
-
-          return true;
-        },
-      );
-
-    const cohortIds =
-      currentMembershipRows
-        .map(
-          (
-            membership,
-          ) =>
-            String(
-              (
-                membership as Record<
-                  string,
-                  unknown
-                >
-              ).cohort_id ||
-              "",
-            ),
-        )
-        .filter(
-          Boolean,
-        );
-
-    let cohortRows:
-      Record<
-        string,
-        unknown
-      >[] = [];
-
     if (
-      cohortIds.length >
-      0
+      recentSyntheticResult.error
     ) {
-      const {
-        data,
-        error,
-      } =
-        await admin
-          .from(
-            "agent_cohorts",
-          )
-          .select(
-            "*",
-          )
-          .in(
-            "id",
-            cohortIds,
-          );
-
-      if (
-        error
-      ) {
-        throw new Error(
-          `Cohort detail observation failed: ${error.message}`,
-        );
-      }
-
-      cohortRows =
-        (
-          data ||
-          []
-        ) as Record<
-          string,
-          unknown
-        >[];
+      throw new Error(
+        `Synthetic activity observation failed: ${recentSyntheticResult.error.message}`,
+      );
     }
 
-    /* =============================================================
-       6. POLICY DETAILS
-       ============================================================= */
-
-    const policyRows =
-      policiesResult.data ||
-      [];
-
-    const currentPolicyRows =
-      policyRows.filter(
-        (
-          assignment,
-        ) => {
-          const row =
-            assignment as Record<
-              string,
-              unknown
-            >;
-
-          if (
-            Object.prototype.hasOwnProperty.call(
-              row,
-              "effective_to",
-            )
-          ) {
-            return (
-              row.effective_to ==
-              null
-            );
-          }
-
-          if (
-            Object.prototype.hasOwnProperty.call(
-              row,
-              "is_current",
-            )
-          ) {
-            return (
-              row.is_current ===
-              true
-            );
-          }
-
-          return true;
-        },
-      );
-
-    const policyAssignment =
-      currentPolicyRows[
-        currentPolicyRows.length -
-        1
-      ] ||
-      policyRows[
-        policyRows.length -
-        1
-      ] ||
-      null;
-
-    let policyVersion:
-      Record<
-        string,
-        unknown
-      > |
-      null =
-      null;
-
-    const policyVersionId =
-      policyAssignment
-        ? String(
-            (
-              policyAssignment as Record<
-                string,
-                unknown
-              >
-            ).policy_version_id ||
-            "",
-          )
-        : "";
-
-    if (
-      policyVersionId
-    ) {
-      const {
-        data,
-        error,
-      } =
-        await admin
-          .from(
-            "agent_policy_versions",
-          )
-          .select(
-            "*",
-          )
-          .eq(
-            "id",
-            policyVersionId,
-          )
-          .maybeSingle();
-
-      if (
-        error
-      ) {
-        throw new Error(
-          `Policy-version observation failed: ${error.message}`,
-        );
-      }
-
-      policyVersion =
-        data as Record<
-          string,
-          unknown
-        > |
-        null;
-    }
-
-    /* =============================================================
-       7. ECONOMY CONSISTENCY
-       ============================================================= */
-
-    const dtRows =
-      dtResult.data ||
-      [];
-
-    const dgRows =
-      dgResult.data ||
-      [];
-
-    const dtLedgerBalance =
-      dtRows.reduce(
-        (
-          total,
-          row,
-        ) =>
-          total +
-          numberValue(
-            row.amount,
-          ),
-        0,
-      );
-
-    const dgLedgerBalance =
-      dgRows.reduce(
-        (
-          total,
-          row,
-        ) =>
-          total +
-          numberValue(
-            row.amount,
-          ),
-        0,
-      );
+    const recentCompletions =
+      (
+        recentSyntheticResult.data ||
+        []
+      ) as SyntheticCompletionRow[];
 
     const cachedDt =
       numberValue(
@@ -1111,9 +1287,37 @@ export async function captureAgentWorldObservation({
         profile.dream_gem_balance,
       );
 
-    /* =============================================================
-       8. FOUNDATION SECTIONS
-       ============================================================= */
+    const recentDtAwarded =
+      recentCompletions.reduce(
+        (
+          total,
+          row,
+        ) =>
+          total +
+          numberValue(
+            row.dt_awarded,
+          ),
+        0,
+      );
+
+    const recentDgAwarded =
+      recentCompletions.reduce(
+        (
+          total,
+          row,
+        ) =>
+          total +
+          numberValue(
+            row.dg_awarded,
+          ),
+        0,
+      );
+
+    /*
+     * =======================================================================
+     * 5. FOUNDATION SECTIONS
+     * =======================================================================
+     */
 
     const sections:
       AgentObservationSection[] =
@@ -1200,6 +1404,9 @@ export async function captureAgentWorldObservation({
             objectValue(
               agent.metadata,
             ),
+
+          executionArchitecture:
+            "synthetic_completion_only",
         },
       ),
     );
@@ -1236,6 +1443,10 @@ export async function captureAgentWorldObservation({
       ),
     );
 
+    /*
+     * Cohort details are not used by the current rule-based action selector.
+     * Preserve the observation contract without extra database reads.
+     */
     sections.push(
       makeSection(
         "identity.cohort",
@@ -1243,15 +1454,25 @@ export async function captureAgentWorldObservation({
           "identity.cohort",
         )!,
         {
+          syntheticObservation:
+            true,
+
           memberships:
-            currentMembershipRows,
+            [],
 
           cohorts:
-            cohortRows,
+            [],
+
+          detailQuerySkipped:
+            true,
         },
       ),
     );
 
+    /*
+     * Policy assignment details are not needed here because the orchestrator
+     * already resolves which policy is executing.
+     */
     sections.push(
       makeSection(
         "identity.policy",
@@ -1259,14 +1480,27 @@ export async function captureAgentWorldObservation({
           "identity.policy",
         )!,
         {
-          assignment:
-            policyAssignment,
+          syntheticObservation:
+            true,
 
-          policyVersion,
+          assignment:
+            null,
+
+          policyVersion:
+            null,
+
+          detailQuerySkipped:
+            true,
         },
       ),
     );
 
+    /*
+     * Do NOT recalculate balances by scanning the complete ledgers.
+     *
+     * The cached profile balances are the canonical lightweight values for
+     * synthetic-agent observation.
+     */
     sections.push(
       makeSection(
         "economy.wallet",
@@ -1279,11 +1513,13 @@ export async function captureAgentWorldObservation({
               cachedDt,
 
             ledgerBalance:
-              dtLedgerBalance,
+              null,
 
             consistent:
-              cachedDt ===
-              dtLedgerBalance,
+              null,
+
+            ledgerCheckSkipped:
+              true,
           },
 
           dg: {
@@ -1291,16 +1527,25 @@ export async function captureAgentWorldObservation({
               cachedDg,
 
             ledgerBalance:
-              dgLedgerBalance,
+              null,
 
             consistent:
-              cachedDg ===
-              dgLedgerBalance,
+              null,
+
+            ledgerCheckSkipped:
+              true,
           },
+
+          syntheticMode:
+            true,
         },
       ),
     );
 
+    /*
+     * Preserve the existing economy section without hitting either transaction
+     * ledger. Recent synthetic completions provide enough behavioural memory.
+     */
     sections.push(
       makeSection(
         "economy.recent_transactions",
@@ -1308,17 +1553,27 @@ export async function captureAgentWorldObservation({
           "economy.recent_transactions",
         )!,
         {
+          syntheticMode:
+            true,
+
           dreamTokens:
-            dtRows.slice(
-              0,
-              20,
-            ),
+            [],
 
           dreamGems:
-            dgRows.slice(
-              0,
-              20,
-            ),
+            [],
+
+          ledgerQueriesSkipped:
+            true,
+
+          recentSyntheticActivities:
+            recentCompletions,
+
+          recentSyntheticActivityCount:
+            recentCompletions.length,
+
+          recentDtAwarded,
+
+          recentDgAwarded,
         },
       ),
     );
@@ -1373,127 +1628,90 @@ export async function captureAgentWorldObservation({
           updatedAt:
             settingsResult.data
               .updated_at,
+
+          observationArchitecture:
+            "synthetic_lightweight",
         },
       ),
     );
 
-    /* =============================================================
-       9. READ-ONLY DREAMSCAPE WORLD ADAPTERS
-       ============================================================= */
-
-    const worldPayloads =
-      await mapWithConcurrency(
-        activeWorldSourceKeys,
-        WORLD_ADAPTER_CONCURRENCY,
-        (
-          sourceKey,
-        ) =>
-          observeWorldSource(
-            sourceKey as WorldObservationSourceKey,
-            {
-              admin,
-              agentUserId,
-              observedAt,
-            },
-          ),
-      );
-
-    const unavailableWorldPayloads =
-      worldPayloads.filter(
-        (
-          payload,
-        ) =>
-          !payload.available,
-      );
-
-    if (
-      unavailableWorldPayloads.length >
-      0
-    ) {
-      const details =
-        unavailableWorldPayloads
-          .map(
-            (
-              payload,
-            ) => {
-              const errorText =
-                payload.errors.length >
-                0
-                  ? payload.errors.join(
-                      " | ",
-                    )
-                  : "adapter reported unavailable";
-
-              return `${payload.sourceKey}: ${errorText}`;
-            },
-          )
-          .join(
-            "; ",
-          );
-
-      throw new Error(
-        `World observation adapter unavailable. ${details}`,
-      );
-    }
+    /*
+     * =======================================================================
+     * 6. SYNTHETIC WORLD SECTIONS
+     *
+     * ZERO calls to observeWorldSource().
+     *
+     * Every active world observation contract remains represented so the
+     * downstream snapshot/policy framework stays compatible.
+     * =======================================================================
+     */
 
     for (
-      const payload
-      of worldPayloads
+      const sourceKey
+      of activeWorldSourceKeys
     ) {
+      const typedSourceKey =
+        sourceKey as AgentObservationSourceKey;
+
       const sourceVersion =
         sourceVersionMap.get(
-          payload.sourceKey,
+          typedSourceKey,
         );
 
       if (
         !sourceVersion
       ) {
         throw new Error(
-          `Active world source ${payload.sourceKey} has no source version.`,
+          `Active world source ${sourceKey} has no source version.`,
         );
       }
 
+      const data =
+        buildSyntheticWorldData({
+          sourceKey:
+            String(
+              sourceKey,
+            ),
+
+          recentCompletions,
+
+          primaryLevel,
+        });
+
       sections.push(
         makeSection(
-          payload.sourceKey,
+          typedSourceKey,
           sourceVersion,
           {
             schemaVersion:
-              payload.schemaVersion,
-
-            observedAt:
-              payload.observedAt,
+              "synthetic-world-observation-v1",
 
             available:
-              payload.available,
+              true,
 
             partial:
-              payload.partial,
+              false,
 
             errors:
-              payload.errors,
+              [],
 
-            data:
-              payload.data,
+            synthetic:
+              true,
+
+            realWorldQueryPerformed:
+              false,
+
+            data,
           },
         ),
       );
     }
 
-    /* =============================================================
-       10. SUMMARY + FULL STATE HASH
-       ============================================================= */
-
-    const partialWorldSourceCount =
-      worldPayloads.filter(
-        (
-          payload,
-        ) =>
-          payload.partial,
-      ).length;
-
-    const unavailableWorldSourceCount =
-      unavailableWorldPayloads.length;
+    /*
+     * =======================================================================
+     * 7. SUMMARY + STATE HASH
+     * =======================================================================
+     */
 
     const summary:
       AgentWorldObservationSummary =
@@ -1544,17 +1762,26 @@ export async function captureAgentWorldObservation({
           FOUNDATION_OBSERVATION_SOURCE_KEYS.length,
 
         worldSourceCount:
-          worldPayloads.length,
+          activeWorldSourceKeys.length,
 
-        partialWorldSourceCount,
+        partialWorldSourceCount:
+          0,
 
-        unavailableWorldSourceCount,
+        unavailableWorldSourceCount:
+          0,
       };
 
+    /*
+     * No observation timestamp is embedded inside the synthetic world section
+     * payloads, so state hashes only change when meaningful state changes.
+     */
     const stateHash =
       sha256({
         snapshotVersion:
           AGENT_WORLD_SNAPSHOT_VERSION,
+
+        observationArchitecture:
+          "synthetic_lightweight",
 
         agentUserId,
 
@@ -1587,9 +1814,11 @@ export async function captureAgentWorldObservation({
         ),
       );
 
-    /* =============================================================
-       11. ATOMIC PERSISTENCE
-       ============================================================= */
+    /*
+     * =======================================================================
+     * 8. ATOMIC SNAPSHOT PERSISTENCE
+     * =======================================================================
+     */
 
     const {
       data:
@@ -1661,14 +1890,13 @@ export async function captureAgentWorldObservation({
 
       sections,
     };
-
   } catch (
     observationError
   ) {
     const message =
       observationError instanceof Error
         ? observationError.message
-        : "Agent world observation failed.";
+        : "Synthetic agent world observation failed.";
 
     await markRunFailed(
       admin,
