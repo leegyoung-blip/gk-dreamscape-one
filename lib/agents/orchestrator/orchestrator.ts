@@ -93,10 +93,14 @@ async function recordDecisionResult({
   );
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(
+      error.message,
+    );
   }
 
-  return objectValue(data);
+  return objectValue(
+    data,
+  );
 }
 
 
@@ -130,7 +134,9 @@ async function closeSession({
   );
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(
+      error.message,
+    );
   }
 }
 
@@ -147,7 +153,9 @@ async function getSession(
     data,
     error,
   } = await admin
-    .from("agent_run_sessions")
+    .from(
+      "agent_run_sessions",
+    )
     .select(
       `
       id,
@@ -232,19 +240,25 @@ async function getOrCreateRuntimeDecision({
     )
     .maybeSingle();
 
+
   if (existingError) {
     throw new Error(
       existingError.message,
     );
   }
 
+
   if (existing) {
     return {
       decisionId:
-        String(existing.id),
+        String(
+          existing.id,
+        ),
 
       snapshotId:
-        String(existing.snapshot_id),
+        String(
+          existing.snapshot_id,
+        ),
 
       selectedActionKey:
         String(
@@ -272,6 +286,7 @@ async function getOrCreateRuntimeDecision({
         ),
     };
   }
+
 
   return runRuleBasedRuntimeDecision({
     admin,
@@ -317,11 +332,13 @@ async function resolveExistingActionRequest({
     )
     .maybeSingle();
 
+
   if (error) {
     throw new Error(
       error.message,
     );
   }
+
 
   return data;
 }
@@ -344,8 +361,10 @@ async function processOneDecision({
       sessionId,
     );
 
+
   if (
-    session.status !== "started"
+    session.status !==
+    "started"
   ) {
     return {
       attempted: 0,
@@ -354,6 +373,7 @@ async function processOneDecision({
       closed: true,
     };
   }
+
 
   const agentUserId =
     String(
@@ -375,46 +395,47 @@ async function processOneDecision({
     {
       data: system,
     },
-  ] = await Promise.all([
-    admin
-      .from(
-        "agent_profiles",
-      )
-      .select(
-        "lifecycle_status",
-      )
-      .eq(
-        "user_id",
-        agentUserId,
-      )
-      .maybeSingle(),
+  ] =
+    await Promise.all([
+      admin
+        .from(
+          "agent_profiles",
+        )
+        .select(
+          "lifecycle_status",
+        )
+        .eq(
+          "user_id",
+          agentUserId,
+        )
+        .maybeSingle(),
 
-    admin
-      .from(
-        "agent_runtime_state",
-      )
-      .select(
-        "execution_enabled",
-      )
-      .eq(
-        "agent_user_id",
-        agentUserId,
-      )
-      .maybeSingle(),
+      admin
+        .from(
+          "agent_runtime_state",
+        )
+        .select(
+          "execution_enabled",
+        )
+        .eq(
+          "agent_user_id",
+          agentUserId,
+        )
+        .maybeSingle(),
 
-    admin
-      .from(
-        "agent_system_settings",
-      )
-      .select(
-        "agents_enabled",
-      )
-      .eq(
-        "singleton_key",
-        "global",
-      )
-      .maybeSingle(),
-  ]);
+      admin
+        .from(
+          "agent_system_settings",
+        )
+        .select(
+          "agents_enabled",
+        )
+        .eq(
+          "singleton_key",
+          "global",
+        )
+        .maybeSingle(),
+    ]);
 
 
   if (
@@ -428,11 +449,14 @@ async function processOneDecision({
     await closeSession({
       admin,
       sessionId,
+
       status:
         "cancelled",
+
       reason:
         "Runtime gate closed before the next session decision.",
     });
+
 
     return {
       attempted: 0,
@@ -458,8 +482,10 @@ async function processOneDecision({
     await closeSession({
       admin,
       sessionId,
+
       status:
         "completed",
+
       reason:
         Number(
           session.failed_decisions,
@@ -467,6 +493,7 @@ async function processOneDecision({
           ? "Session completed with one or more failed decisions."
           : "Session completed successfully.",
     });
+
 
     return {
       attempted: 0,
@@ -523,13 +550,20 @@ async function processOneDecision({
       await recordDecisionResult({
         admin,
         sessionId,
+
         decisionId:
           decision.decisionId,
+
         actionKey:
           decision.selectedActionKey,
-        succeeded: true,
-        blockAction: false,
+
+        succeeded:
+          true,
+
+        blockAction:
+          false,
       });
+
 
       return {
         attempted: 1,
@@ -541,12 +575,13 @@ async function processOneDecision({
 
 
     /* ------------------------------------------------------------------------
-       Resolve or create action request.
+       Resolve/create action request.
        ------------------------------------------------------------------------ */
 
     let request =
       await resolveExistingActionRequest({
         admin,
+
         decisionId:
           decision.decisionId,
       });
@@ -556,13 +591,15 @@ async function processOneDecision({
       const {
         data: requestId,
         error: requestError,
-      } = await admin.rpc(
-        "agent_create_runtime_action_request",
-        {
-          p_policy_decision_id:
-            decision.decisionId,
-        },
-      );
+      } =
+        await admin.rpc(
+          "agent_create_runtime_action_request",
+          {
+            p_policy_decision_id:
+              decision.decisionId,
+          },
+        );
+
 
       if (
         requestError ||
@@ -574,9 +611,11 @@ async function processOneDecision({
         );
       }
 
+
       request =
         await resolveExistingActionRequest({
           admin,
+
           decisionId:
             decision.decisionId,
         });
@@ -601,13 +640,14 @@ async function processOneDecision({
       const {
         data: validationData,
         error: validationError,
-      } = await admin.rpc(
-        "agent_validate_runtime_action_request",
-        {
-          p_action_request_id:
-            request.id,
-        },
-      );
+      } =
+        await admin.rpc(
+          "agent_validate_runtime_action_request",
+          {
+            p_action_request_id:
+              request.id,
+          },
+        );
 
 
       if (validationError) {
@@ -624,7 +664,8 @@ async function processOneDecision({
 
 
       if (
-        validation.valid !== true
+        validation.valid !==
+        true
       ) {
         const validationCode =
           String(
@@ -642,10 +683,10 @@ async function processOneDecision({
 
 
         /*
-         * Historical real-Core availability skip.
+         * Historical availability skip.
          *
-         * Synthetic runtime should no longer encounter this because
-         * ActionValidatorV2Synthetic skips real target validation.
+         * ActionValidatorV2Synthetic should no longer produce this for
+         * synthetic agents, but preserve compatibility.
          */
         const expectedAvailabilitySkip =
           validationCode ===
@@ -659,28 +700,39 @@ async function processOneDecision({
             admin,
             agentUserId,
             sessionId,
+
             actionRequestId:
               String(
                 request.id,
               ),
+
             scope:
               "action",
+
             severity:
               "error",
+
             errorCode:
               validationCode,
+
             message,
+
             context: {
               phase:
-                "3E/3F",
+                "3F",
+
               orchestrator:
-                "OrchestratorV1-resumable",
+                "OrchestratorV1-sharded-fair-v2",
+
               decisionId:
                 decision.decisionId,
+
               actionKey:
                 decision.selectedActionKey,
+
               validation,
             },
+
             idempotencyKey:
               `runtime-validation:${request.id}`,
           });
@@ -690,12 +742,18 @@ async function processOneDecision({
         await recordDecisionResult({
           admin,
           sessionId,
+
           decisionId:
             decision.decisionId,
+
           actionKey:
             decision.selectedActionKey,
-          succeeded: false,
-          blockAction: true,
+
+          succeeded:
+            false,
+
+          blockAction:
+            true,
         });
 
 
@@ -711,6 +769,7 @@ async function processOneDecision({
       request =
         await resolveExistingActionRequest({
           admin,
+
           decisionId:
             decision.decisionId,
         });
@@ -735,6 +794,7 @@ async function processOneDecision({
       const execution =
         await executeValidatedAgentAction({
           admin,
+
           actionRequestId:
             String(
               request.id,
@@ -746,13 +806,20 @@ async function processOneDecision({
         await recordDecisionResult({
           admin,
           sessionId,
+
           decisionId:
             decision.decisionId,
+
           actionKey:
             decision.selectedActionKey,
-          succeeded: false,
-          blockAction: true,
+
+          succeeded:
+            false,
+
+          blockAction:
+            true,
         });
+
 
         return {
           attempted: 1,
@@ -766,12 +833,18 @@ async function processOneDecision({
       await recordDecisionResult({
         admin,
         sessionId,
+
         decisionId:
           decision.decisionId,
+
         actionKey:
           decision.selectedActionKey,
-        succeeded: true,
-        blockAction: false,
+
+        succeeded:
+          true,
+
+        blockAction:
+          false,
       });
 
 
@@ -795,13 +868,20 @@ async function processOneDecision({
       await recordDecisionResult({
         admin,
         sessionId,
+
         decisionId:
           decision.decisionId,
+
         actionKey:
           decision.selectedActionKey,
-        succeeded: true,
-        blockAction: false,
+
+        succeeded:
+          true,
+
+        blockAction:
+          false,
       });
+
 
       return {
         attempted: 1,
@@ -830,13 +910,20 @@ async function processOneDecision({
       await recordDecisionResult({
         admin,
         sessionId,
+
         decisionId:
           decision.decisionId,
+
         actionKey:
           decision.selectedActionKey,
-        succeeded: false,
-        blockAction: true,
+
+        succeeded:
+          false,
+
+        blockAction:
+          true,
       });
+
 
       return {
         attempted: 1,
@@ -858,18 +945,19 @@ async function processOneDecision({
       const {
         data: executionRun,
         error: executionRunError,
-      } = await admin
-        .from(
-          "agent_action_execution_runs",
-        )
-        .select(
-          "status,started_at,error_message",
-        )
-        .eq(
-          "action_request_id",
-          request.id,
-        )
-        .maybeSingle();
+      } =
+        await admin
+          .from(
+            "agent_action_execution_runs",
+          )
+          .select(
+            "status,started_at,error_message",
+          )
+          .eq(
+            "action_request_id",
+            request.id,
+          )
+          .maybeSingle();
 
 
       if (executionRunError) {
@@ -886,13 +974,20 @@ async function processOneDecision({
         await recordDecisionResult({
           admin,
           sessionId,
+
           decisionId:
             decision.decisionId,
+
           actionKey:
             decision.selectedActionKey,
-          succeeded: true,
-          blockAction: false,
+
+          succeeded:
+            true,
+
+          blockAction:
+            false,
         });
+
 
         return {
           attempted: 1,
@@ -910,13 +1005,20 @@ async function processOneDecision({
         await recordDecisionResult({
           admin,
           sessionId,
+
           decisionId:
             decision.decisionId,
+
           actionKey:
             decision.selectedActionKey,
-          succeeded: false,
-          blockAction: true,
+
+          succeeded:
+            false,
+
+          blockAction:
+            true,
         });
+
 
         return {
           attempted: 1,
@@ -947,8 +1049,10 @@ async function processOneDecision({
           {
             p_action_request_id:
               request.id,
+
             p_error_code:
               "EXECUTION_STALE_TIMEOUT",
+
             p_error_message:
               "Execution remained in-progress for more than 10 minutes.",
           },
@@ -959,26 +1063,35 @@ async function processOneDecision({
           admin,
           agentUserId,
           sessionId,
+
           actionRequestId:
             String(
               request.id,
             ),
+
           scope:
             "action",
+
           severity:
             "critical",
+
           errorCode:
             "EXECUTION_STALE_TIMEOUT",
+
           message:
             "Execution remained in-progress for more than 10 minutes.",
+
           context: {
             phase:
-              "3E/3F",
+              "3F",
+
             decisionId:
               decision.decisionId,
+
             actionKey:
               decision.selectedActionKey,
           },
+
           idempotencyKey:
             `execution-stale:${request.id}`,
         });
@@ -987,12 +1100,18 @@ async function processOneDecision({
         await recordDecisionResult({
           admin,
           sessionId,
+
           decisionId:
             decision.decisionId,
+
           actionKey:
             decision.selectedActionKey,
-          succeeded: false,
-          blockAction: true,
+
+          succeeded:
+            false,
+
+          blockAction:
+            true,
         });
 
 
@@ -1005,10 +1124,6 @@ async function processOneDecision({
       }
 
 
-      /*
-       * Non-stale execution.
-       * Leave it untouched until the next tick.
-       */
       return {
         attempted: 0,
         completed: 0,
@@ -1035,44 +1150,61 @@ async function processOneDecision({
       admin,
       agentUserId,
       sessionId,
+
       actionRequestId:
         null,
+
       scope:
         "orchestrator",
+
       severity:
         "critical",
+
       errorCode:
         "ORCHESTRATOR_DECISION_FAILED",
+
       message,
+
       context: {
         phase:
-          "3E/3F",
+          "3F",
+
+        orchestrator:
+          "OrchestratorV1-sharded-fair-v2",
+
         decisionId:
           decision?.decisionId ||
           null,
+
         decisionIndex,
+
         sessionId,
       },
+
       idempotencyKey:
         `orchestrator-decision:${sessionId}:${decisionIndex}:failure`,
     });
 
 
-    /*
-     * If a durable policy decision exists, account for the failure once.
-     */
     if (decision) {
       try {
         await recordDecisionResult({
           admin,
           sessionId,
+
           decisionId:
             decision.decisionId,
+
           actionKey:
             decision.selectedActionKey,
-          succeeded: false,
-          blockAction: true,
+
+          succeeded:
+            false,
+
+          blockAction:
+            true,
         });
+
 
         return {
           attempted: 1,
@@ -1080,8 +1212,9 @@ async function processOneDecision({
           failed: 1,
           closed: false,
         };
+
       } catch {
-        // Fall through and fail the session.
+        // Fall through and close the session.
       }
     }
 
@@ -1089,8 +1222,10 @@ async function processOneDecision({
     await closeSession({
       admin,
       sessionId,
+
       status:
         "failed",
+
       reason:
         message,
     });
@@ -1120,6 +1255,7 @@ function shardForAgent(
     return 0;
   }
 
+
   const digest =
     createHash(
       "sha256",
@@ -1129,8 +1265,11 @@ function shardForAgent(
       )
       .digest();
 
+
   return (
-    digest.readUInt32BE(0) %
+    digest.readUInt32BE(
+      0,
+    ) %
     shardCount
   );
 }
@@ -1148,17 +1287,24 @@ async function closeCompletedStartedSessions(
   const {
     data: sessions,
     error,
-  } = await admin
-    .from(
-      "agent_run_sessions",
-    )
-    .select(
-      "id,agent_user_id,planned_decisions,attempted_decisions,failed_decisions",
-    )
-    .eq(
-      "status",
-      "started",
-    );
+  } =
+    await admin
+      .from(
+        "agent_run_sessions",
+      )
+      .select(
+        `
+        id,
+        agent_user_id,
+        planned_decisions,
+        attempted_decisions,
+        failed_decisions
+      `,
+      )
+      .eq(
+        "status",
+        "started",
+      );
 
 
   if (error) {
@@ -1195,12 +1341,15 @@ async function closeCompletedStartedSessions(
     ) {
       await closeSession({
         admin,
+
         sessionId:
           String(
             session.id,
           ),
+
         status:
           "completed",
+
         reason:
           Number(
             session.failed_decisions,
@@ -1216,18 +1365,7 @@ async function closeCompletedStartedSessions(
 /* ============================================================================
    FAIR SHARD ROTATION
 
-   IMPORTANT:
-   This is the starvation fix.
-
-   The source population remains ordered by activation_order, but every
-   orchestrator tick starts scanning that shard from a different position.
-
-   maxWork is NOT increased.
-
-   Therefore:
-   - Supabase workload remains bounded.
-   - earlier agents cannot permanently monopolise the shard.
-   - later agents eventually reach the front of the queue.
+   Prevents agents at the end of activation_order from permanently starving.
    ============================================================================ */
 
 function rotateShardRuntimeRows<T>({
@@ -1248,10 +1386,6 @@ function rotateShardRuntimeRows<T>({
   }
 
 
-  /*
-   * Each shard currently receives a scheduling opportunity approximately
-   * once every five real minutes.
-   */
   const rotationBucket =
     Math.floor(
       minuteInSimulationDay /
@@ -1259,10 +1393,6 @@ function rotateShardRuntimeRows<T>({
     );
 
 
-  /*
-   * 31 is intentionally used as a prime multiplier so the start position
-   * also changes when a new simulation day begins.
-   */
   const rotationOffset =
     (
       simulationDayIndex *
@@ -1313,7 +1443,8 @@ export async function runAgentOrchestratorTick({
   shardCount =
     1,
 }: {
-  admin?: SupabaseClient;
+  admin?:
+    SupabaseClient;
 
   triggerSource?:
     | "scheduler"
@@ -1336,10 +1467,6 @@ export async function runAgentOrchestratorTick({
     suppliedAdmin ||
     createAdminClient();
 
-
-  /* --------------------------------------------------------------------------
-     Sanitise shard config.
-     -------------------------------------------------------------------------- */
 
   const safeShardCount =
     Math.max(
@@ -1373,48 +1500,51 @@ export async function runAgentOrchestratorTick({
     );
 
 
-  /* --------------------------------------------------------------------------
-     Lease.
-     -------------------------------------------------------------------------- */
+  /* ==========================================================================
+     LEASE
+     ========================================================================== */
 
   const leaseToken =
     randomUUID();
 
 
   const useShardLease =
-    safeShardCount > 1;
+    safeShardCount >
+    1;
 
 
   const {
     data: leaseClaimed,
     error: leaseError,
-  } = await admin.rpc(
-    useShardLease
-      ? "agent_claim_orchestrator_shard_lease"
-      : "agent_claim_orchestrator_lease",
+  } =
+    await admin.rpc(
+      useShardLease
+        ? "agent_claim_orchestrator_shard_lease"
+        : "agent_claim_orchestrator_lease",
 
-    useShardLease
-      ? {
-          p_shard_index:
-            safeShardIndex,
+      useShardLease
+        ? {
+            p_shard_index:
+              safeShardIndex,
 
-          p_shard_count:
-            safeShardCount,
+            p_shard_count:
+              safeShardCount,
 
-          p_lease_token:
-            leaseToken,
+            p_lease_token:
+              leaseToken,
 
-          p_ttl_seconds:
-            240,
-        }
-      : {
-          p_lease_token:
-            leaseToken,
+            p_ttl_seconds:
+              240,
+          }
 
-          p_ttl_seconds:
-            240,
-        },
-  );
+        : {
+            p_lease_token:
+              leaseToken,
+
+            p_ttl_seconds:
+              240,
+          },
+    );
 
 
   if (leaseError) {
@@ -1425,23 +1555,38 @@ export async function runAgentOrchestratorTick({
 
 
   if (
-    leaseClaimed !== true
+    leaseClaimed !==
+    true
   ) {
     return {
-      ok: true,
-      skipped: true,
+      ok:
+        true,
+
+      skipped:
+        true,
 
       reason:
         useShardLease
           ? `Another orchestrator tick currently owns shard ${safeShardIndex}/${safeShardCount}.`
           : "Another orchestrator tick currently owns the runtime lease.",
 
-      agentsConsidered: 0,
-      sessionsClaimed: 0,
-      sessionsCompleted: 0,
-      decisionsAttempted: 0,
-      decisionsCompleted: 0,
-      decisionsFailed: 0,
+      agentsConsidered:
+        0,
+
+      sessionsClaimed:
+        0,
+
+      sessionsCompleted:
+        0,
+
+      decisionsAttempted:
+        0,
+
+      decisionsCompleted:
+        0,
+
+      decisionsFailed:
+        0,
     };
   }
 
@@ -1455,24 +1600,36 @@ export async function runAgentOrchestratorTick({
   const summary:
     OrchestratorTickSummary =
     {
-      ok: true,
-      skipped: false,
+      ok:
+        true,
 
-      agentsConsidered: 0,
+      skipped:
+        false,
 
-      sessionsClaimed: 0,
-      sessionsCompleted: 0,
+      agentsConsidered:
+        0,
 
-      decisionsAttempted: 0,
-      decisionsCompleted: 0,
-      decisionsFailed: 0,
+      sessionsClaimed:
+        0,
+
+      sessionsCompleted:
+        0,
+
+      decisionsAttempted:
+        0,
+
+      decisionsCompleted:
+        0,
+
+      decisionsFailed:
+        0,
     };
 
 
   try {
-    /* ------------------------------------------------------------------------
-       Runtime settings.
-       ------------------------------------------------------------------------ */
+    /* ========================================================================
+       RUNTIME SETTINGS
+       ======================================================================== */
 
     const [
       {
@@ -1483,43 +1640,44 @@ export async function runAgentOrchestratorTick({
         data: systemSettings,
         error: systemError,
       },
-    ] = await Promise.all([
-      admin
-        .from(
-          "agent_runtime_settings",
-        )
-        .select(
-          `
-          phase,
-          pilot_key,
-          activation_unlocked,
-          simulation_epoch_at,
-          simulation_day_duration_minutes,
-          min_sessions_per_sim_day,
-          max_sessions_per_sim_day,
-          min_decisions_per_session,
-          max_decisions_per_session
-        `,
-        )
-        .eq(
-          "singleton_key",
-          "global",
-        )
-        .maybeSingle(),
+    ] =
+      await Promise.all([
+        admin
+          .from(
+            "agent_runtime_settings",
+          )
+          .select(
+            `
+            phase,
+            pilot_key,
+            activation_unlocked,
+            simulation_epoch_at,
+            simulation_day_duration_minutes,
+            min_sessions_per_sim_day,
+            max_sessions_per_sim_day,
+            min_decisions_per_session,
+            max_decisions_per_session
+          `,
+          )
+          .eq(
+            "singleton_key",
+            "global",
+          )
+          .maybeSingle(),
 
-      admin
-        .from(
-          "agent_system_settings",
-        )
-        .select(
-          "agents_enabled",
-        )
-        .eq(
-          "singleton_key",
-          "global",
-        )
-        .maybeSingle(),
-    ]);
+        admin
+          .from(
+            "agent_system_settings",
+          )
+          .select(
+            "agents_enabled",
+          )
+          .eq(
+            "singleton_key",
+            "global",
+          )
+          .maybeSingle(),
+      ]);
 
 
     if (
@@ -1544,10 +1702,6 @@ export async function runAgentOrchestratorTick({
     }
 
 
-    /* ------------------------------------------------------------------------
-       Global runtime gate.
-       ------------------------------------------------------------------------ */
-
     if (
       systemSettings.agents_enabled !==
         true ||
@@ -1557,16 +1711,19 @@ export async function runAgentOrchestratorTick({
     ) {
       return {
         ...summary,
-        skipped: true,
+
+        skipped:
+          true,
+
         reason:
           "Agent runtime activation gates are closed.",
       };
     }
 
 
-    /* ------------------------------------------------------------------------
-       Simulation clock.
-       ------------------------------------------------------------------------ */
+    /* ========================================================================
+       SIMULATION CLOCK
+       ======================================================================== */
 
     const clock =
       simulationClock({
@@ -1590,69 +1747,104 @@ export async function runAgentOrchestratorTick({
       clock.minuteInSimulationDay;
 
 
-    /* ------------------------------------------------------------------------
-       Tick audit row.
-       ------------------------------------------------------------------------ */
+    /* ========================================================================
+       CREATE TICK
+       ======================================================================== */
+
+    const maxWork =
+      Math.max(
+        1,
+        Math.min(
+          4,
+          maxDecisionsPerTick,
+        ),
+      );
+
+
+    /*
+     * SECOND FAIRNESS FIX
+     *
+     * If maxWork >= 2, reserve one unit of capacity for creating/progressing
+     * a NEW due session.
+     *
+     * Existing sessions therefore cannot consume every slot before new agents
+     * are considered.
+     *
+     * maxWork itself remains unchanged.
+     */
+    const reservedNewSessionCapacity =
+      maxWork >= 2
+        ? 1
+        : 0;
+
+
+    const initialExistingWorkLimit =
+      Math.max(
+        0,
+        maxWork -
+          reservedNewSessionCapacity,
+      );
+
 
     const {
       data: tickRow,
       error: tickError,
-    } = await admin
-      .from(
-        "agent_orchestrator_ticks",
-      )
-      .insert({
-        trigger_source:
-          triggerSource,
+    } =
+      await admin
+        .from(
+          "agent_orchestrator_ticks",
+        )
+        .insert({
+          trigger_source:
+            triggerSource,
 
-        shard_index:
-          safeShardIndex,
-
-        shard_count:
-          safeShardCount,
-
-        simulation_day_index:
-          clock.simulationDayIndex,
-
-        minute_in_simulation_day:
-          clock.minuteInSimulationDay,
-
-        status:
-          "running",
-
-        metadata: {
-          orchestrator:
-            "OrchestratorV1-sharded-fair",
-
-          runtimePhase:
-            String(
-              runtimeSettings.phase ||
-              "3E",
-            ),
-
-          shardIndex:
+          shard_index:
             safeShardIndex,
 
-          shardCount:
+          shard_count:
             safeShardCount,
 
-          fairShardRotation:
-            true,
+          simulation_day_index:
+            clock.simulationDayIndex,
 
-          maxDecisionsPerTick:
-            Math.max(
-              1,
-              Math.min(
-                4,
-                maxDecisionsPerTick,
+          minute_in_simulation_day:
+            clock.minuteInSimulationDay,
+
+          status:
+            "running",
+
+          metadata: {
+            orchestrator:
+              "OrchestratorV1-sharded-fair-v2",
+
+            runtimePhase:
+              String(
+                runtimeSettings.phase ||
+                "3F",
               ),
-            ),
-        },
-      })
-      .select(
-        "id",
-      )
-      .single();
+
+            shardIndex:
+              safeShardIndex,
+
+            shardCount:
+              safeShardCount,
+
+            fairShardRotation:
+              true,
+
+            newSessionCapacityReservation:
+              reservedNewSessionCapacity,
+
+            initialExistingWorkLimit,
+
+            maxDecisionsPerTick:
+              maxWork,
+          },
+        })
+        .select(
+          "id",
+        )
+        .single();
 
 
     if (
@@ -1672,10 +1864,6 @@ export async function runAgentOrchestratorTick({
       );
 
 
-    /* ------------------------------------------------------------------------
-       Close completed sessions before processing new work.
-       ------------------------------------------------------------------------ */
-
     await closeCompletedStartedSessions(
       admin,
       safeShardIndex,
@@ -1683,45 +1871,47 @@ export async function runAgentOrchestratorTick({
     );
 
 
-    const maxWork =
-      Math.max(
-        1,
-        Math.min(
-          4,
-          maxDecisionsPerTick,
-        ),
-      );
-
-
     let workDone =
       0;
 
 
+    const touchedSessions =
+      new Set<string>();
+
+
     /* ========================================================================
-       1. RESUME EXISTING OPEN SESSIONS FIRST
+       1. EXISTING OPEN SESSIONS — INITIAL LIMITED PASS
+
+       OLD:
+         Existing sessions could consume all maxWork slots.
+
+       NEW:
+         With maxWork = 2, only 1 slot is initially available to existing work.
+         The second slot remains available for a new due session.
        ======================================================================== */
 
     const {
       data: openSessions,
       error: openError,
-    } = await admin
-      .from(
-        "agent_run_sessions",
-      )
-      .select(
-        "id,agent_user_id,started_at",
-      )
-      .eq(
-        "status",
-        "started",
-      )
-      .order(
-        "started_at",
-        {
-          ascending:
-            true,
-        },
-      );
+    } =
+      await admin
+        .from(
+          "agent_run_sessions",
+        )
+        .select(
+          "id,agent_user_id,started_at",
+        )
+        .eq(
+          "status",
+          "started",
+        )
+        .order(
+          "started_at",
+          {
+            ascending:
+              true,
+          },
+        );
 
 
     if (openError) {
@@ -1749,8 +1939,8 @@ export async function runAgentOrchestratorTick({
       );
 
 
-    const touchedSessions =
-      new Set<string>();
+    let initialExistingWorkDone =
+      0;
 
 
     for (
@@ -1758,27 +1948,30 @@ export async function runAgentOrchestratorTick({
       of shardOpenSessions
     ) {
       if (
-        workDone >= maxWork
+        workDone >=
+          maxWork ||
+        initialExistingWorkDone >=
+          initialExistingWorkLimit
       ) {
         break;
       }
 
 
+      const sessionId =
+        String(
+          openSession.id,
+        );
+
+
       const result =
         await processOneDecision({
           admin,
-
-          sessionId:
-            String(
-              openSession.id,
-            ),
+          sessionId,
         });
 
 
       touchedSessions.add(
-        String(
-          openSession.id,
-        ),
+        sessionId,
       );
 
 
@@ -1796,63 +1989,80 @@ export async function runAgentOrchestratorTick({
         result.attempted > 0 ||
         result.failed > 0
       ) {
-        workDone += 1;
+        workDone +=
+          1;
+
+        initialExistingWorkDone +=
+          1;
       }
     }
 
 
     /* ========================================================================
-       2. CLAIM NEW DUE SESSIONS
+       2. NEW DUE SESSIONS
+
+       This runs BEFORE allowing existing sessions to consume remaining spare
+       capacity.
        ======================================================================== */
 
     if (
-      workDone < maxWork
+      workDone <
+      maxWork
     ) {
-      let runtimeRows: Array<{
-        agent_user_id: string;
-      }> = [];
+      let runtimeRows:
+        Array<{
+          agent_user_id:
+            string;
+        }> =
+        [];
 
 
       /* ----------------------------------------------------------------------
-         Phase 3F Full-100 population.
+         FULL-100
          ---------------------------------------------------------------------- */
 
       if (
         String(
           runtimeSettings.phase ||
-          "3E",
+          "3F",
         ) ===
         "3F"
       ) {
         const {
           data: populationRows,
           error: populationError,
-        } = await admin
-          .from(
-            "agent_runtime_population_memberships",
-          )
-          .select(
-            "agent_user_id,activation_order,status,join_simulation_day_index",
-          )
-          .eq(
-            "population_key",
-            "phase3-full-100",
-          )
-          .eq(
-            "status",
-            "active",
-          )
-          .lte(
-            "join_simulation_day_index",
-            clock.simulationDayIndex,
-          )
-          .order(
-            "activation_order",
-            {
-              ascending:
-                true,
-            },
-          );
+        } =
+          await admin
+            .from(
+              "agent_runtime_population_memberships",
+            )
+            .select(
+              `
+              agent_user_id,
+              activation_order,
+              status,
+              join_simulation_day_index
+            `,
+            )
+            .eq(
+              "population_key",
+              "phase3-full-100",
+            )
+            .eq(
+              "status",
+              "active",
+            )
+            .lte(
+              "join_simulation_day_index",
+              clock.simulationDayIndex,
+            )
+            .order(
+              "activation_order",
+              {
+                ascending:
+                  true,
+              },
+            );
 
 
         if (populationError) {
@@ -1879,35 +2089,40 @@ export async function runAgentOrchestratorTick({
 
 
       /* ----------------------------------------------------------------------
-         Legacy pilot population.
+         LEGACY PILOT
          ---------------------------------------------------------------------- */
 
       } else {
         const {
           data: pilotRows,
           error: pilotError,
-        } = await admin
-          .from(
-            "agent_pilot_memberships",
-          )
-          .select(
-            "agent_user_id,pilot_order,status",
-          )
-          .eq(
-            "pilot_key",
-            runtimeSettings.pilot_key,
-          )
-          .eq(
-            "status",
-            "active",
-          )
-          .order(
-            "pilot_order",
-            {
-              ascending:
-                true,
-            },
-          );
+        } =
+          await admin
+            .from(
+              "agent_pilot_memberships",
+            )
+            .select(
+              `
+              agent_user_id,
+              pilot_order,
+              status
+            `,
+            )
+            .eq(
+              "pilot_key",
+              runtimeSettings.pilot_key,
+            )
+            .eq(
+              "status",
+              "active",
+            )
+            .order(
+              "pilot_order",
+              {
+                ascending:
+                  true,
+              },
+            );
 
 
         if (pilotError) {
@@ -1935,7 +2150,7 @@ export async function runAgentOrchestratorTick({
 
 
       /* ----------------------------------------------------------------------
-         Select only this shard.
+         THIS SHARD
          ---------------------------------------------------------------------- */
 
       const shardRuntimeRows =
@@ -1951,26 +2166,10 @@ export async function runAgentOrchestratorTick({
         );
 
 
-      /*
-       * ======================================================================
-       * FAIRNESS FIX
-       * ======================================================================
-       *
-       * OLD:
-       *
-       * for (const runtimeMember of shardRuntimeRows)
-       *
-       * Every tick began from the same activation-order position.
-       * Because maxWork is bounded, agents later in a busy shard could
-       * permanently starve.
-       *
-       * NEW:
-       *
-       * Rotate the shard's starting position on every scheduling bucket.
-       *
-       * Work capacity is NOT increased.
-       * Supabase load therefore remains bounded at the same level.
-       */
+      /* ----------------------------------------------------------------------
+         FIRST FAIRNESS FIX — ROTATE START POSITION
+         ---------------------------------------------------------------------- */
+
       const fairShardRuntimeRows =
         rotateShardRuntimeRows({
           rows:
@@ -1992,7 +2191,7 @@ export async function runAgentOrchestratorTick({
 
 
       /* ----------------------------------------------------------------------
-         Process candidate agents in FAIR rotated order.
+         CLAIM DUE SESSION
          ---------------------------------------------------------------------- */
 
       for (
@@ -2000,7 +2199,8 @@ export async function runAgentOrchestratorTick({
         of fairShardRuntimeRows
       ) {
         if (
-          workDone >= maxWork
+          workDone >=
+          maxWork
         ) {
           break;
         }
@@ -2012,10 +2212,6 @@ export async function runAgentOrchestratorTick({
           );
 
 
-        /* --------------------------------------------------------------------
-           Eligibility state.
-           -------------------------------------------------------------------- */
-
         const [
           {
             data: agent,
@@ -2026,52 +2222,53 @@ export async function runAgentOrchestratorTick({
           {
             data: openForAgent,
           },
-        ] = await Promise.all([
-          admin
-            .from(
-              "agent_profiles",
-            )
-            .select(
-              "lifecycle_status",
-            )
-            .eq(
-              "user_id",
-              agentUserId,
-            )
-            .maybeSingle(),
+        ] =
+          await Promise.all([
+            admin
+              .from(
+                "agent_profiles",
+              )
+              .select(
+                "lifecycle_status",
+              )
+              .eq(
+                "user_id",
+                agentUserId,
+              )
+              .maybeSingle(),
 
-          admin
-            .from(
-              "agent_runtime_state",
-            )
-            .select(
-              "execution_enabled",
-            )
-            .eq(
-              "agent_user_id",
-              agentUserId,
-            )
-            .maybeSingle(),
+            admin
+              .from(
+                "agent_runtime_state",
+              )
+              .select(
+                "execution_enabled",
+              )
+              .eq(
+                "agent_user_id",
+                agentUserId,
+              )
+              .maybeSingle(),
 
-          admin
-            .from(
-              "agent_run_sessions",
-            )
-            .select(
-              "id",
-            )
-            .eq(
-              "agent_user_id",
-              agentUserId,
-            )
-            .eq(
-              "status",
-              "started",
-            )
-            .limit(
-              1,
-            ),
-        ]);
+            admin
+              .from(
+                "agent_run_sessions",
+              )
+              .select(
+                "id",
+              )
+              .eq(
+                "agent_user_id",
+                agentUserId,
+              )
+              .eq(
+                "status",
+                "started",
+              )
+              .limit(
+                1,
+              ),
+          ]);
 
 
         if (
@@ -2088,10 +2285,6 @@ export async function runAgentOrchestratorTick({
           continue;
         }
 
-
-        /* --------------------------------------------------------------------
-           Deterministic daily schedule.
-           -------------------------------------------------------------------- */
 
         const plan =
           buildOrchestratorDayPlan({
@@ -2132,28 +2325,28 @@ export async function runAgentOrchestratorTick({
           });
 
 
-        /* --------------------------------------------------------------------
-           Sessions already created today.
-           -------------------------------------------------------------------- */
-
         const {
-          data: existingSessions,
-          error: sessionsError,
-        } = await admin
-          .from(
-            "agent_run_sessions",
-          )
-          .select(
-            "session_number",
-          )
-          .eq(
-            "agent_user_id",
-            agentUserId,
-          )
-          .eq(
-            "simulation_day_index",
-            clock.simulationDayIndex,
-          );
+          data:
+            existingSessions,
+
+          error:
+            sessionsError,
+        } =
+          await admin
+            .from(
+              "agent_run_sessions",
+            )
+            .select(
+              "session_number",
+            )
+            .eq(
+              "agent_user_id",
+              agentUserId,
+            )
+            .eq(
+              "simulation_day_index",
+              clock.simulationDayIndex,
+            );
 
 
         if (sessionsError) {
@@ -2179,10 +2372,6 @@ export async function runAgentOrchestratorTick({
           );
 
 
-        /* --------------------------------------------------------------------
-           Find first due session not already claimed.
-           -------------------------------------------------------------------- */
-
         const due =
           plan.sessions.find(
             (
@@ -2201,32 +2390,29 @@ export async function runAgentOrchestratorTick({
         }
 
 
-        /* --------------------------------------------------------------------
-           Claim session atomically.
-           -------------------------------------------------------------------- */
-
         const {
           data: claimData,
           error: claimError,
-        } = await admin.rpc(
-          "agent_claim_run_session",
-          {
-            p_agent_user_id:
-              agentUserId,
+        } =
+          await admin.rpc(
+            "agent_claim_run_session",
+            {
+              p_agent_user_id:
+                agentUserId,
 
-            p_simulation_day_index:
-              clock.simulationDayIndex,
+              p_simulation_day_index:
+                clock.simulationDayIndex,
 
-            p_session_number:
-              due.sessionNumber,
+              p_session_number:
+                due.sessionNumber,
 
-            p_due_minute:
-              due.dueMinute,
+              p_due_minute:
+                due.dueMinute,
 
-            p_planned_decisions:
-              due.plannedDecisions,
-          },
-        );
+              p_planned_decisions:
+                due.plannedDecisions,
+            },
+          );
 
 
         if (claimError) {
@@ -2243,7 +2429,8 @@ export async function runAgentOrchestratorTick({
 
 
         if (
-          claim.claimed !== true ||
+          claim.claimed !==
+            true ||
           !claim.session_id
         ) {
           continue;
@@ -2260,22 +2447,10 @@ export async function runAgentOrchestratorTick({
           );
 
 
-        if (
-          touchedSessions.has(
-            claimedSessionId,
-          )
-        ) {
-          continue;
-        }
-
-
-        /* --------------------------------------------------------------------
-           Process first decision immediately.
-           -------------------------------------------------------------------- */
-
         const result =
           await processOneDecision({
             admin,
+
             sessionId:
               claimedSessionId,
           });
@@ -2300,14 +2475,88 @@ export async function runAgentOrchestratorTick({
           result.attempted > 0 ||
           result.failed > 0
         ) {
-          workDone += 1;
+          workDone +=
+            1;
         }
       }
     }
 
 
     /* ========================================================================
-       3. CLOSE SESSIONS THAT FINISHED THIS TICK
+       3. FALLBACK EXISTING-SESSION PASS
+
+       If no new due agent used the reserved capacity, return the unused slot
+       to existing sessions.
+
+       Therefore throughput is not unnecessarily reduced.
+       ======================================================================== */
+
+    if (
+      workDone <
+      maxWork
+    ) {
+      for (
+        const openSession
+        of shardOpenSessions
+      ) {
+        if (
+          workDone >=
+          maxWork
+        ) {
+          break;
+        }
+
+
+        const sessionId =
+          String(
+            openSession.id,
+          );
+
+
+        if (
+          touchedSessions.has(
+            sessionId,
+          )
+        ) {
+          continue;
+        }
+
+
+        const result =
+          await processOneDecision({
+            admin,
+            sessionId,
+          });
+
+
+        touchedSessions.add(
+          sessionId,
+        );
+
+
+        summary.decisionsAttempted +=
+          result.attempted;
+
+        summary.decisionsCompleted +=
+          result.completed;
+
+        summary.decisionsFailed +=
+          result.failed;
+
+
+        if (
+          result.attempted > 0 ||
+          result.failed > 0
+        ) {
+          workDone +=
+            1;
+        }
+      }
+    }
+
+
+    /* ========================================================================
+       4. CLOSE FINISHED SESSIONS
        ======================================================================== */
 
     await closeCompletedStartedSessions(
@@ -2318,26 +2567,29 @@ export async function runAgentOrchestratorTick({
 
 
     /* ========================================================================
-       4. COMPLETE TICK AUDIT
+       5. COMPLETE TICK
        ======================================================================== */
 
     if (tickId) {
       const {
         data: sessionCounts,
-      } = await admin
-        .from(
-          "agent_run_sessions",
-        )
-        .select(
-          "status",
-        )
-        .gte(
-          "started_at",
-          new Date(
-            Date.now() -
-              10 * 60 * 1000,
-          ).toISOString(),
-        );
+      } =
+        await admin
+          .from(
+            "agent_run_sessions",
+          )
+          .select(
+            "status",
+          )
+          .gte(
+            "started_at",
+            new Date(
+              Date.now() -
+                10 *
+                60 *
+                1000,
+            ).toISOString(),
+          );
 
 
       summary.sessionsCompleted =
@@ -2392,7 +2644,6 @@ export async function runAgentOrchestratorTick({
 
     return summary;
 
-
   } catch (
     error
   ) {
@@ -2401,10 +2652,6 @@ export async function runAgentOrchestratorTick({
         ? error.message
         : "Orchestrator tick failed.";
 
-
-    /* ------------------------------------------------------------------------
-       Mark tick failed.
-       ------------------------------------------------------------------------ */
 
     if (tickId) {
       await admin
@@ -2447,10 +2694,6 @@ export async function runAgentOrchestratorTick({
     }
 
 
-    /* ------------------------------------------------------------------------
-       Durable failure.
-       ------------------------------------------------------------------------ */
-
     await reportAgentFailure({
       admin,
 
@@ -2470,9 +2713,18 @@ export async function runAgentOrchestratorTick({
 
       context: {
         phase:
-          "3E/3F",
+          "3F",
+
+        orchestrator:
+          "OrchestratorV1-sharded-fair-v2",
 
         tickId,
+
+        shardIndex:
+          safeShardIndex,
+
+        shardCount:
+          safeShardCount,
 
         summary,
       },
@@ -2487,12 +2739,7 @@ export async function runAgentOrchestratorTick({
       ok: false,
     };
 
-
   } finally {
-    /* ------------------------------------------------------------------------
-       Always release orchestrator lease.
-       ------------------------------------------------------------------------ */
-
     await admin.rpc(
       useShardLease
         ? "agent_release_orchestrator_shard_lease"
@@ -2509,6 +2756,7 @@ export async function runAgentOrchestratorTick({
             p_lease_token:
               leaseToken,
           }
+
         : {
             p_lease_token:
               leaseToken,
