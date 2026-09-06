@@ -351,9 +351,11 @@ async function resolveExistingActionRequest({
 async function processOneDecision({
   admin,
   sessionId,
+  runtimePhase,
 }: {
   admin: SupabaseClient;
   sessionId: string;
+  runtimePhase: string;
 }) {
   const session =
     await getSession(
@@ -719,10 +721,10 @@ async function processOneDecision({
 
             context: {
               phase:
-                "3F",
+                runtimePhase,
 
               orchestrator:
-                "OrchestratorV1-sharded-fair-v2",
+                "OrchestratorV1-sharded-fair-v2-phase4a",
 
               decisionId:
                 decision.decisionId,
@@ -1083,7 +1085,7 @@ async function processOneDecision({
 
           context: {
             phase:
-              "3F",
+              runtimePhase,
 
             decisionId:
               decision.decisionId,
@@ -1167,10 +1169,10 @@ async function processOneDecision({
 
       context: {
         phase:
-          "3F",
+          runtimePhase,
 
         orchestrator:
-          "OrchestratorV1-sharded-fair-v2",
+          "OrchestratorV1-sharded-fair-v2-phase4a",
 
         decisionId:
           decision?.decisionId ||
@@ -1626,6 +1628,14 @@ export async function runAgentOrchestratorTick({
     };
 
 
+  /*
+   * Keep the resolved runtime phase available to the whole tick, including
+   * failure reporting in the outer catch block.
+   */
+  let runtimePhase =
+    "UNKNOWN";
+
+
   try {
     /* ========================================================================
        RUNTIME SETTINGS
@@ -1700,6 +1710,15 @@ export async function runAgentOrchestratorTick({
         "Agent system settings missing.",
       );
     }
+
+
+    runtimePhase =
+      String(
+        runtimeSettings.phase ||
+        "3F",
+      )
+        .trim()
+        .toUpperCase();
 
 
     if (
@@ -1815,13 +1834,9 @@ export async function runAgentOrchestratorTick({
 
           metadata: {
             orchestrator:
-              "OrchestratorV1-sharded-fair-v2",
+              "OrchestratorV1-sharded-fair-v2-phase4a",
 
-            runtimePhase:
-              String(
-                runtimeSettings.phase ||
-                "3F",
-              ),
+            runtimePhase,
 
             shardIndex:
               safeShardIndex,
@@ -1967,6 +1982,8 @@ export async function runAgentOrchestratorTick({
         await processOneDecision({
           admin,
           sessionId,
+
+          runtimePhase,
         });
 
 
@@ -2022,11 +2039,10 @@ export async function runAgentOrchestratorTick({
          ---------------------------------------------------------------------- */
 
       if (
-        String(
-          runtimeSettings.phase ||
-          "3F",
-        ) ===
-        "3F"
+        runtimePhase ===
+          "3F" ||
+        runtimePhase ===
+          "4A"
       ) {
         const {
           data: populationRows,
@@ -2453,6 +2469,8 @@ export async function runAgentOrchestratorTick({
 
             sessionId:
               claimedSessionId,
+
+            runtimePhase,
           });
 
 
@@ -2526,6 +2544,8 @@ export async function runAgentOrchestratorTick({
           await processOneDecision({
             admin,
             sessionId,
+
+            runtimePhase,
           });
 
 
@@ -2713,10 +2733,10 @@ export async function runAgentOrchestratorTick({
 
       context: {
         phase:
-          "3F",
+          runtimePhase,
 
         orchestrator:
-          "OrchestratorV1-sharded-fair-v2",
+          "OrchestratorV1-sharded-fair-v2-phase4a",
 
         tickId,
 

@@ -22,17 +22,31 @@ import {
   WORLD_OBSERVATION_SOURCE_KEYS,
 } from "@/lib/agents/world/types";
 
+
 type CaptureAgentObservationArgs = {
   admin: SupabaseClient;
+
   agentUserId: string;
+
   initiatedBy: string;
+
   triggerType?:
     | "admin"
     | "policy"
     | "scheduler"
     | "system"
     | "test";
+
+  /*
+   * When observation is created from a runtime session, pass that session's
+   * simulation day.
+   *
+   * This is important because a session may cross a simulated-day boundary.
+   * Economy eligibility must use the SESSION day, not the wall-clock day.
+   */
+  simulationDayIndex?: number;
 };
+
 
 type SourceVersionRow = {
   id: string;
@@ -40,6 +54,7 @@ type SourceVersionRow = {
   version: number;
   status: string;
 };
+
 
 type SyntheticCompletionRow = {
   action_key: string;
@@ -49,8 +64,24 @@ type SyntheticCompletionRow = {
   completed_at: string;
 };
 
+
+type SyntheticEconomySpendRow = {
+  simulation_day_index: number;
+  currency_code: string;
+  amount_spent: number;
+  balance_before: number;
+  balance_after: number;
+  spent_at: string;
+};
+
+
 const RECENT_SYNTHETIC_COMPLETION_LIMIT =
   20;
+
+
+const RECENT_SYNTHETIC_SPEND_LIMIT =
+  10;
+
 
 function sortForStableJson(
   value: unknown,
@@ -80,7 +111,8 @@ function sortForStableJson(
       Record<
         string,
         unknown
-      > = {};
+      > =
+      {};
 
     for (
       const key
@@ -100,6 +132,7 @@ function sortForStableJson(
   return value;
 }
 
+
 function stableStringify(
   value: unknown,
 ) {
@@ -109,6 +142,7 @@ function stableStringify(
     ),
   );
 }
+
 
 function sha256(
   value: unknown,
@@ -127,6 +161,7 @@ function sha256(
     );
 }
 
+
 function numberValue(
   value: unknown,
 ) {
@@ -142,6 +177,7 @@ function numberValue(
     ? parsed
     : 0;
 }
+
 
 function objectValue(
   value: unknown,
@@ -166,11 +202,14 @@ function objectValue(
   return {};
 }
 
+
 function makeSection(
   sourceKey:
     AgentObservationSourceKey,
+
   sourceVersion:
     number,
+
   payload:
     Record<
       string,
@@ -192,6 +231,7 @@ function makeSection(
       ),
   };
 }
+
 
 function simulationEntitlementFromTier(
   value: unknown,
@@ -236,12 +276,17 @@ function simulationEntitlementFromTier(
 
     syntheticActivityMode:
       true,
+
+    syntheticEconomyMode:
+      true,
   };
 }
+
 
 function recentForAction(
   rows:
     SyntheticCompletionRow[],
+
   actionKey:
     string,
 ) {
@@ -253,6 +298,7 @@ function recentForAction(
       actionKey,
   );
 }
+
 
 function cycleSyntheticHistory({
   rows,
@@ -298,25 +344,25 @@ function cycleSyntheticHistory({
   );
 }
 
+
 /*
- * ---------------------------------------------------------------------------
+ * ===========================================================================
  * SYNTHETIC WORLD DATA
- * ---------------------------------------------------------------------------
+ * ===========================================================================
  *
- * RuleBasedPolicyV1 currently expects small pieces of data from five world
- * sections in order to create candidate actions.
+ * RuleBasedPolicyV1 still expects small pieces of world data in order to
+ * construct the five gameplay candidates.
  *
- * Since execution is now fully synthetic, these do NOT need to correspond to
- * real quizzes, questions, game runs, topics or curriculum rows.
+ * No real quiz / game state is queried.
  *
- * They are deliberately tiny deterministic placeholders.
+ * Phase 4A economy information is NOT added as another world source.
+ * It lives in the existing:
  *
- * The gateway ignores these target parameters and routes the action to:
+ *   economy.wallet
+ *   economy.recent_transactions
  *
- *   agent_execute_synthetic_activity_v1
- *
- * So no real learning/game tables are touched.
- * ---------------------------------------------------------------------------
+ * foundation sections.
+ * ===========================================================================
  */
 
 function buildSyntheticWorldData({
@@ -342,16 +388,6 @@ function buildSyntheticWorldData({
     /*
      * -----------------------------------------------------------------------
      * CORE MISSIONS
-     *
-     * RuleBasedPolicyV1 expects:
-     *   english.activeTopics
-     *   english.publishedQuizzes
-     *   english.recentAttempts
-     *   math.activeTopics
-     *   math.publishedQuizzes
-     *   math.recentAttempts
-     *
-     * These quiz ids are intentionally synthetic.
      * -----------------------------------------------------------------------
      */
     case "nova.learning": {
@@ -508,20 +544,20 @@ function buildSyntheticWorldData({
       };
     }
 
+
     /*
      * -----------------------------------------------------------------------
      * KNOWLEDGE ARENA
-     *
-     * Policy only requires activeTopics + recentAttempts.
      * -----------------------------------------------------------------------
      */
     case "nova.knowledge_arena": {
-      const topics = [
-        "World Explorer",
-        "Earth & Space",
-        "Life & Nature",
-        "History & Heritage",
-      ];
+      const topics =
+        [
+          "World Explorer",
+          "Earth & Space",
+          "Life & Nature",
+          "History & Heritage",
+        ];
 
       const history =
         recentForAction(
@@ -553,49 +589,48 @@ function buildSyntheticWorldData({
       };
     }
 
+
     /*
      * -----------------------------------------------------------------------
      * THINK LAB
-     *
-     * Policy expects activeQuizzes with:
-     *   id
-     *   title
-     *   activeQuestionCount > 0
      * -----------------------------------------------------------------------
      */
     case "nova.think": {
-      const activities = [
-        {
-          id:
-            "agent-synthetic-think-colour-code",
+      const activities =
+        [
+          {
+            id:
+              "agent-synthetic-think-colour-code",
 
-          title:
-            "Colour Code",
+            title:
+              "Colour Code",
 
-          activeQuestionCount:
-            1,
-        },
-        {
-          id:
-            "agent-synthetic-think-sets",
+            activeQuestionCount:
+              1,
+          },
 
-          title:
-            "Sets",
+          {
+            id:
+              "agent-synthetic-think-sets",
 
-          activeQuestionCount:
-            1,
-        },
-        {
-          id:
-            "agent-synthetic-think-tower-memory",
+            title:
+              "Sets",
 
-          title:
-            "Tower Memory",
+            activeQuestionCount:
+              1,
+          },
 
-          activeQuestionCount:
-            1,
-        },
-      ];
+          {
+            id:
+              "agent-synthetic-think-tower-memory",
+
+            title:
+              "Tower Memory",
+
+            activeQuestionCount:
+              1,
+          },
+        ];
 
       const history =
         recentForAction(
@@ -632,12 +667,10 @@ function buildSyntheticWorldData({
       };
     }
 
+
     /*
      * -----------------------------------------------------------------------
      * ROVER
-     *
-     * Policy already has a Level 1 fallback, but providing tiny synthetic
-     * progress lets its repeat/novelty logic continue to work.
      * -----------------------------------------------------------------------
      */
     case "nova.rover": {
@@ -681,21 +714,20 @@ function buildSyntheticWorldData({
       };
     }
 
+
     /*
      * -----------------------------------------------------------------------
      * MILO CATEGORIES
-     *
-     * Policy reads activeQuestionCountByCategory keys only.
-     * Counts are synthetic availability markers, NOT real question counts.
      * -----------------------------------------------------------------------
      */
     case "milo.categories": {
-      const categories = [
-        "World Explorer",
-        "Earth & Space",
-        "Life & Nature",
-        "History & Heritage",
-      ];
+      const categories =
+        [
+          "World Explorer",
+          "Earth & Space",
+          "Life & Nature",
+          "History & Heritage",
+        ];
 
       const history =
         recentForAction(
@@ -738,12 +770,10 @@ function buildSyntheticWorldData({
       };
     }
 
+
     /*
      * -----------------------------------------------------------------------
      * ALL OTHER ACTIVE WORLD SOURCES
-     *
-     * Nova Home, Business Builder, Exchange, etc. can remain represented in
-     * the observation contract without querying their real tables.
      * -----------------------------------------------------------------------
      */
     default:
@@ -759,6 +789,7 @@ function buildSyntheticWorldData({
       };
   }
 }
+
 
 async function markRunFailed(
   admin:
@@ -803,16 +834,31 @@ async function markRunFailed(
   }
 }
 
+
 export async function captureAgentWorldObservation({
   admin,
   agentUserId,
   initiatedBy,
   triggerType =
     "admin",
+  simulationDayIndex,
 }: CaptureAgentObservationArgs): Promise<CapturedAgentWorldSnapshot> {
   const observedAt =
     new Date()
       .toISOString();
+
+
+  const requestedSimulationDayIndex =
+    Number.isFinite(
+      simulationDayIndex,
+    )
+      ? Math.floor(
+          Number(
+            simulationDayIndex,
+          ),
+        )
+      : null;
+
 
   /*
    * =========================================================================
@@ -877,6 +923,7 @@ export async function captureAgentWorldObservation({
         .maybeSingle(),
     ]);
 
+
   if (
     agentResult.error
   ) {
@@ -884,6 +931,7 @@ export async function captureAgentWorldObservation({
       `Could not load agent registry state: ${agentResult.error.message}`,
     );
   }
+
 
   if (
     profileResult.error
@@ -893,6 +941,7 @@ export async function captureAgentWorldObservation({
     );
   }
 
+
   if (
     !agentResult.data ||
     !profileResult.data
@@ -901,6 +950,7 @@ export async function captureAgentWorldObservation({
       "Observation target is not a complete DREAMSCAPE agent identity.",
     );
   }
+
 
   if (
     profileResult.data
@@ -912,11 +962,14 @@ export async function captureAgentWorldObservation({
     );
   }
 
+
   const agent =
     agentResult.data;
 
+
   const profile =
     profileResult.data;
+
 
   const primaryLevel =
     Math.max(
@@ -930,6 +983,7 @@ export async function captureAgentWorldObservation({
       ),
     );
 
+
   /*
    * =========================================================================
    * 2. ACTIVE OBSERVATION CONTRACTS
@@ -939,6 +993,7 @@ export async function captureAgentWorldObservation({
   const {
     data:
       sourceVersionData,
+
     error:
       sourceVersionError,
   } =
@@ -960,6 +1015,7 @@ export async function captureAgentWorldObservation({
         ],
       );
 
+
   if (
     sourceVersionError
   ) {
@@ -968,17 +1024,20 @@ export async function captureAgentWorldObservation({
     );
   }
 
+
   const sourceVersions =
     (
       sourceVersionData ||
       []
     ) as SourceVersionRow[];
 
+
   const sourceVersionMap =
     new Map<
       AgentObservationSourceKey,
       number
     >();
+
 
   for (
     const source
@@ -991,12 +1050,14 @@ export async function captureAgentWorldObservation({
     ) {
       sourceVersionMap.set(
         source.source_key as AgentObservationSourceKey,
+
         Number(
           source.version,
         ),
       );
     }
   }
+
 
   for (
     const sourceKey
@@ -1013,6 +1074,7 @@ export async function captureAgentWorldObservation({
     }
   }
 
+
   const activeWorldSourceKeys =
     WORLD_OBSERVATION_SOURCE_KEYS.filter(
       (
@@ -1022,6 +1084,7 @@ export async function captureAgentWorldObservation({
           sourceKey as AgentObservationSourceKey,
         ),
     );
+
 
   const requestedSourceKeys:
     AgentObservationSourceKey[] =
@@ -1036,6 +1099,7 @@ export async function captureAgentWorldObservation({
       ),
     ];
 
+
   /*
    * =========================================================================
    * 3. START AUDIT RUN
@@ -1045,6 +1109,7 @@ export async function captureAgentWorldObservation({
   const {
     data:
       runData,
+
     error:
       runError,
   } =
@@ -1070,12 +1135,15 @@ export async function captureAgentWorldObservation({
 
         metadata: {
           observer_version:
-            "SyntheticObserverV3.0",
+            "SyntheticObserverV3.1-Phase4A",
 
           snapshot_version:
             AGENT_WORLD_SNAPSHOT_VERSION,
 
           synthetic_activity_mode:
+            true,
+
+          synthetic_economy_mode:
             true,
 
           foundation_source_count:
@@ -1101,12 +1169,19 @@ export async function captureAgentWorldObservation({
 
           recent_synthetic_completion_limit:
             RECENT_SYNTHETIC_COMPLETION_LIMIT,
+
+          recent_synthetic_spend_limit:
+            RECENT_SYNTHETIC_SPEND_LIMIT,
+
+          session_simulation_day_index:
+            requestedSimulationDayIndex,
         },
       })
       .select(
         "id",
       )
       .single();
+
 
   if (
     runError ||
@@ -1120,23 +1195,17 @@ export async function captureAgentWorldObservation({
     );
   }
 
+
   const runId =
     String(
       runData.id,
     );
 
+
   try {
     /*
      * =======================================================================
      * 4. LIGHTWEIGHT FOUNDATION STATE
-     *
-     * Only data still useful to the synthetic agent policy is read.
-     *
-     * REMOVED:
-     *   - full DT transaction history
-     *   - full DG transaction history
-     *   - cohort detail lookup
-     *   - policy version detail lookup
      * =======================================================================
      */
 
@@ -1145,6 +1214,7 @@ export async function captureAgentWorldObservation({
       goalsResult,
       settingsResult,
       recentSyntheticResult,
+      recentEconomySpendResult,
     ] =
       await Promise.all([
         admin
@@ -1233,7 +1303,81 @@ export async function captureAgentWorldObservation({
           .limit(
             RECENT_SYNTHETIC_COMPLETION_LIMIT,
           ),
+
+        admin
+          .from(
+            "agent_synthetic_economy_spends",
+          )
+          .select(
+            `
+            simulation_day_index,
+            currency_code,
+            amount_spent,
+            balance_before,
+            balance_after,
+            spent_at
+          `,
+          )
+          .eq(
+            "agent_user_id",
+            agentUserId,
+          )
+          .order(
+            "spent_at",
+            {
+              ascending:
+                false,
+            },
+          )
+          .limit(
+            RECENT_SYNTHETIC_SPEND_LIMIT,
+          ),
       ]);
+
+
+    /*
+     * Budget query is intentionally tied to the linked runtime session day.
+     *
+     * For admin/manual observations that do not have a session day, no budget
+     * is loaded and economy spending simply appears unavailable.
+     */
+    const budgetResult =
+      requestedSimulationDayIndex !==
+      null
+        ? await admin
+            .from(
+              "agent_daily_budgets",
+            )
+            .select(
+              `
+              id,
+              simulation_day_index,
+              max_dt_spend,
+              max_dg_spend,
+              minimum_dt_reserve,
+              minimum_dg_reserve,
+              dt_spent,
+              dg_spent,
+              updated_at
+            `,
+            )
+            .eq(
+              "agent_user_id",
+              agentUserId,
+            )
+            .eq(
+              "simulation_day_index",
+              requestedSimulationDayIndex,
+            )
+            .maybeSingle()
+        : {
+            data:
+              null,
+
+            error:
+              null,
+          };
+
 
     if (
       personaResult.error
@@ -1243,6 +1387,7 @@ export async function captureAgentWorldObservation({
       );
     }
 
+
     if (
       goalsResult.error
     ) {
@@ -1250,6 +1395,7 @@ export async function captureAgentWorldObservation({
         `Goal observation failed: ${goalsResult.error.message}`,
       );
     }
+
 
     if (
       settingsResult.error ||
@@ -1263,6 +1409,7 @@ export async function captureAgentWorldObservation({
       );
     }
 
+
     if (
       recentSyntheticResult.error
     ) {
@@ -1271,21 +1418,54 @@ export async function captureAgentWorldObservation({
       );
     }
 
+
+    if (
+      recentEconomySpendResult.error
+    ) {
+      throw new Error(
+        `Synthetic economy observation failed: ${recentEconomySpendResult.error.message}`,
+      );
+    }
+
+
+    if (
+      budgetResult.error
+    ) {
+      throw new Error(
+        `Synthetic economy budget observation failed: ${budgetResult.error.message}`,
+      );
+    }
+
+
     const recentCompletions =
       (
         recentSyntheticResult.data ||
         []
       ) as SyntheticCompletionRow[];
 
+
+    const recentEconomySpends =
+      (
+        recentEconomySpendResult.data ||
+        []
+      ) as SyntheticEconomySpendRow[];
+
+
+    const budget =
+      budgetResult.data;
+
+
     const cachedDt =
       numberValue(
         profile.dream_token_balance,
       );
 
+
     const cachedDg =
       numberValue(
         profile.dream_gem_balance,
       );
+
 
     const recentDtAwarded =
       recentCompletions.reduce(
@@ -1300,6 +1480,7 @@ export async function captureAgentWorldObservation({
         0,
       );
 
+
     const recentDgAwarded =
       recentCompletions.reduce(
         (
@@ -1313,6 +1494,88 @@ export async function captureAgentWorldObservation({
         0,
       );
 
+
+    const budgetMaxDt =
+      numberValue(
+        budget?.max_dt_spend,
+      );
+
+
+    const budgetMaxDg =
+      numberValue(
+        budget?.max_dg_spend,
+      );
+
+
+    const budgetDtSpent =
+      numberValue(
+        budget?.dt_spent,
+      );
+
+
+    const budgetDgSpent =
+      numberValue(
+        budget?.dg_spent,
+      );
+
+
+    const minimumDtReserve =
+      numberValue(
+        budget?.minimum_dt_reserve,
+      );
+
+
+    const minimumDgReserve =
+      numberValue(
+        budget?.minimum_dg_reserve,
+      );
+
+
+    const availableDtToSpend =
+      budget
+        ? Math.max(
+            0,
+            Math.min(
+              budgetMaxDt -
+                budgetDtSpent,
+
+              cachedDt -
+                minimumDtReserve,
+            ),
+          )
+        : 0;
+
+
+    const availableDgToSpend =
+      budget
+        ? Math.max(
+            0,
+            Math.min(
+              budgetMaxDg -
+                budgetDgSpent,
+
+              cachedDg -
+                minimumDgReserve,
+            ),
+          )
+        : 0;
+
+
+    const recentSpendCountThisDay =
+      requestedSimulationDayIndex !==
+      null
+        ? recentEconomySpends.filter(
+            (
+              row,
+            ) =>
+              Number(
+                row.simulation_day_index,
+              ) ===
+              requestedSimulationDayIndex,
+          ).length
+        : 0;
+
+
     /*
      * =======================================================================
      * 5. FOUNDATION SECTIONS
@@ -1323,12 +1586,15 @@ export async function captureAgentWorldObservation({
       AgentObservationSection[] =
       [];
 
+
     sections.push(
       makeSection(
         "identity.profile",
+
         sourceVersionMap.get(
           "identity.profile",
         )!,
+
         {
           userId:
             profile.id,
@@ -1351,12 +1617,15 @@ export async function captureAgentWorldObservation({
       ),
     );
 
+
     sections.push(
       makeSection(
         "identity.agent",
+
         sourceVersionMap.get(
           "identity.agent",
         )!,
+
         {
           userId:
             agent.user_id,
@@ -1406,29 +1675,35 @@ export async function captureAgentWorldObservation({
             ),
 
           executionArchitecture:
-            "synthetic_completion_only",
+            "synthetic_completion_plus_economy",
         },
       ),
     );
 
+
     sections.push(
       makeSection(
         "identity.persona",
+
         sourceVersionMap.get(
           "identity.persona",
         )!,
+
         objectValue(
           personaResult.data,
         ),
       ),
     );
 
+
     sections.push(
       makeSection(
         "identity.goals",
+
         sourceVersionMap.get(
           "identity.goals",
         )!,
+
         {
           count:
             (
@@ -1443,16 +1718,15 @@ export async function captureAgentWorldObservation({
       ),
     );
 
-    /*
-     * Cohort details are not used by the current rule-based action selector.
-     * Preserve the observation contract without extra database reads.
-     */
+
     sections.push(
       makeSection(
         "identity.cohort",
+
         sourceVersionMap.get(
           "identity.cohort",
         )!,
+
         {
           syntheticObservation:
             true,
@@ -1469,16 +1743,15 @@ export async function captureAgentWorldObservation({
       ),
     );
 
-    /*
-     * Policy assignment details are not needed here because the orchestrator
-     * already resolves which policy is executing.
-     */
+
     sections.push(
       makeSection(
         "identity.policy",
+
         sourceVersionMap.get(
           "identity.policy",
         )!,
+
         {
           syntheticObservation:
             true,
@@ -1495,18 +1768,26 @@ export async function captureAgentWorldObservation({
       ),
     );
 
+
     /*
-     * Do NOT recalculate balances by scanning the complete ledgers.
+     * -----------------------------------------------------------------------
+     * PHASE 4A ECONOMY WALLET
      *
-     * The cached profile balances are the canonical lightweight values for
-     * synthetic-agent observation.
+     * Still no full ledger scans.
+     *
+     * Cached balances + the prepared session-day budget are enough for policy
+     * eligibility. The execution RPC re-validates everything transactionally.
+     * -----------------------------------------------------------------------
      */
+
     sections.push(
       makeSection(
         "economy.wallet",
+
         sourceVersionMap.get(
           "economy.wallet",
         )!,
+
         {
           dt: {
             cachedBalance:
@@ -1536,24 +1817,80 @@ export async function captureAgentWorldObservation({
               true,
           },
 
+          spendBudget: {
+            available:
+              Boolean(
+                budget,
+              ),
+
+            budgetId:
+              budget?.id ||
+              null,
+
+            simulationDayIndex:
+              budget
+                ? Number(
+                    budget.simulation_day_index,
+                  )
+                : requestedSimulationDayIndex,
+
+            maxDtSpend:
+              budgetMaxDt,
+
+            dtSpent:
+              budgetDtSpent,
+
+            minimumDtReserve,
+
+            availableDt:
+              availableDtToSpend,
+
+            maxDgSpend:
+              budgetMaxDg,
+
+            dgSpent:
+              budgetDgSpent,
+
+            minimumDgReserve,
+
+            availableDg:
+              availableDgToSpend,
+
+            recentSpendCountThisDay,
+
+            canSpend:
+              availableDtToSpend >
+                0 ||
+              availableDgToSpend >
+                0,
+          },
+
           syntheticMode:
             true,
+
+          syntheticEconomyMode:
+            true,
+
+          realInventoryMutation:
+            false,
         },
       ),
     );
 
-    /*
-     * Preserve the existing economy section without hitting either transaction
-     * ledger. Recent synthetic completions provide enough behavioural memory.
-     */
+
     sections.push(
       makeSection(
         "economy.recent_transactions",
+
         sourceVersionMap.get(
           "economy.recent_transactions",
         )!,
+
         {
           syntheticMode:
+            true,
+
+          syntheticEconomyMode:
             true,
 
           dreamTokens:
@@ -1574,28 +1911,43 @@ export async function captureAgentWorldObservation({
           recentDtAwarded,
 
           recentDgAwarded,
+
+          recentSyntheticEconomySpends:
+            recentEconomySpends,
+
+          recentSyntheticEconomySpendCount:
+            recentEconomySpends.length,
+
+          realInventoryMutation:
+            false,
         },
       ),
     );
 
+
     sections.push(
       makeSection(
         "access.simulation_entitlement",
+
         sourceVersionMap.get(
           "access.simulation_entitlement",
         )!,
+
         simulationEntitlementFromTier(
           agent.simulation_access_tier,
         ),
       ),
     );
 
+
     sections.push(
       makeSection(
         "system.agent_settings",
+
         sourceVersionMap.get(
           "system.agent_settings",
         )!,
+
         {
           agentsEnabled:
             Boolean(
@@ -1630,19 +1982,17 @@ export async function captureAgentWorldObservation({
               .updated_at,
 
           observationArchitecture:
-            "synthetic_lightweight",
+            "synthetic_lightweight_phase4a",
         },
       ),
     );
+
 
     /*
      * =======================================================================
      * 6. SYNTHETIC WORLD SECTIONS
      *
-     * ZERO calls to observeWorldSource().
-     *
-     * Every active world observation contract remains represented so the
-     * downstream snapshot/policy framework stays compatible.
+     * Still ZERO observeWorldSource() calls.
      * =======================================================================
      */
 
@@ -1653,10 +2003,12 @@ export async function captureAgentWorldObservation({
       const typedSourceKey =
         sourceKey as AgentObservationSourceKey;
 
+
       const sourceVersion =
         sourceVersionMap.get(
           typedSourceKey,
         );
+
 
       if (
         !sourceVersion
@@ -1665,6 +2017,7 @@ export async function captureAgentWorldObservation({
           `Active world source ${sourceKey} has no source version.`,
         );
       }
+
 
       const data =
         buildSyntheticWorldData({
@@ -1678,10 +2031,13 @@ export async function captureAgentWorldObservation({
           primaryLevel,
         });
 
+
       sections.push(
         makeSection(
           typedSourceKey,
+
           sourceVersion,
+
           {
             schemaVersion:
               "synthetic-world-observation-v1",
@@ -1706,6 +2062,7 @@ export async function captureAgentWorldObservation({
         ),
       );
     }
+
 
     /*
      * =======================================================================
@@ -1771,19 +2128,19 @@ export async function captureAgentWorldObservation({
           0,
       };
 
-    /*
-     * No observation timestamp is embedded inside the synthetic world section
-     * payloads, so state hashes only change when meaningful state changes.
-     */
+
     const stateHash =
       sha256({
         snapshotVersion:
           AGENT_WORLD_SNAPSHOT_VERSION,
 
         observationArchitecture:
-          "synthetic_lightweight",
+          "synthetic_lightweight_phase4a",
 
         agentUserId,
+
+        sessionSimulationDayIndex:
+          requestedSimulationDayIndex,
 
         sections:
           sections.map(
@@ -1802,6 +2159,7 @@ export async function captureAgentWorldObservation({
           ),
       });
 
+
     const sourceVersionsObject =
       Object.fromEntries(
         sections.map(
@@ -1814,6 +2172,7 @@ export async function captureAgentWorldObservation({
         ),
       );
 
+
     /*
      * =======================================================================
      * 8. ATOMIC SNAPSHOT PERSISTENCE
@@ -1823,6 +2182,7 @@ export async function captureAgentWorldObservation({
     const {
       data:
         snapshotId,
+
       error:
         storeError,
     } =
@@ -1855,6 +2215,7 @@ export async function captureAgentWorldObservation({
         },
       );
 
+
     if (
       storeError ||
       !snapshotId
@@ -1866,6 +2227,7 @@ export async function captureAgentWorldObservation({
         }`,
       );
     }
+
 
     return {
       snapshotId:
@@ -1890,6 +2252,7 @@ export async function captureAgentWorldObservation({
 
       sections,
     };
+
   } catch (
     observationError
   ) {
@@ -1898,11 +2261,13 @@ export async function captureAgentWorldObservation({
         ? observationError.message
         : "Synthetic agent world observation failed.";
 
+
     await markRunFailed(
       admin,
       runId,
       message,
     );
+
 
     throw observationError;
   }

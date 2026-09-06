@@ -6,7 +6,8 @@ export type PolicyActionKey =
   | "nova.knowledge_arena.attempt_quiz"
   | "nova.think.attempt_activity"
   | "nova.rover.run_challenge"
-  | "milo.categories.attempt_quiz";
+  | "milo.categories.attempt_quiz"
+  | "economy.synthetic_spend";
 
 export type PolicyCandidate = {
   actionKey:

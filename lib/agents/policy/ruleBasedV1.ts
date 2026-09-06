@@ -26,6 +26,7 @@ const INITIAL_ACTION_KEYS:
     "nova.think.attempt_activity",
     "nova.rover.run_challenge",
     "milo.categories.attempt_quiz",
+    "economy.synthetic_spend",
   ];
 
 function asObject(
@@ -137,6 +138,7 @@ function sectionMap(
         section,
       ) => [
         section.source_key,
+
         asObject(
           section.payload,
         ),
@@ -310,8 +312,10 @@ function firstNumericTrait(
         );
 
       if (
-        value >= 0 &&
-        value <= 1
+        value >=
+          0 &&
+        value <=
+          1
       ) {
         return value;
       }
@@ -456,12 +460,16 @@ function recentAttemptCounts(
           ],
         );
 
-      if (key) {
+      if (
+        key
+      ) {
         break;
       }
     }
 
-    if (!key) {
+    if (
+      !key
+    ) {
       continue;
     }
 
@@ -480,7 +488,9 @@ function recentAttemptCounts(
   return result;
 }
 
-function chooseLeastRepeated<T extends JsonObject>(
+function chooseLeastRepeated<
+  T extends JsonObject
+>(
   items:
     T[],
 
@@ -615,7 +625,8 @@ function keywordScore(
         word,
       )
     ) {
-      hits += 1;
+      hits +=
+        1;
     }
   }
 
@@ -635,6 +646,20 @@ function worldAffinityScore(
   actionKey:
     PolicyActionKey,
 ) {
+  if (
+    actionKey ===
+    "system.wait"
+  ) {
+    return 0.35;
+  }
+
+  if (
+    actionKey ===
+    "economy.synthetic_spend"
+  ) {
+    return 0.68;
+  }
+
   const isNova =
     actionKey.startsWith(
       "nova.",
@@ -644,13 +669,6 @@ function worldAffinityScore(
     actionKey.startsWith(
       "milo.",
     );
-
-  if (
-    actionKey ===
-    "system.wait"
-  ) {
-    return 0.35;
-  }
 
   if (
     affinity ===
@@ -686,8 +704,41 @@ function archetypeActionScore(
     PolicyActionKey,
 ) {
   if (
+    actionKey ===
+    "economy.synthetic_spend"
+  ) {
+    switch (
+      archetype
+    ) {
+      case "spender":
+        return 1;
+
+      case "collector":
+        return 0.88;
+
+      case "explorer":
+        return 0.66;
+
+      case "competitive":
+        return 0.56;
+
+      case "strategist":
+        return 0.46;
+
+      case "casual":
+        return 0.40;
+
+      case "saver":
+        return 0.16;
+
+      default:
+        return 0.52;
+    }
+  }
+
+  if (
     archetype ===
-      "rover_specialist"
+    "rover_specialist"
   ) {
     return actionKey ===
       "nova.rover.run_challenge"
@@ -701,7 +752,7 @@ function archetypeActionScore(
 
   if (
     archetype ===
-      "competitive"
+    "competitive"
   ) {
     if (
       actionKey ===
@@ -720,7 +771,7 @@ function archetypeActionScore(
 
   if (
     archetype ===
-      "strategist"
+    "strategist"
   ) {
     if (
       actionKey ===
@@ -739,7 +790,7 @@ function archetypeActionScore(
 
   if (
     archetype ===
-      "explorer"
+    "explorer"
   ) {
     if (
       actionKey ===
@@ -760,7 +811,7 @@ function archetypeActionScore(
 
   if (
     archetype ===
-      "casual"
+    "casual"
   ) {
     return actionKey ===
       "system.wait"
@@ -770,7 +821,7 @@ function archetypeActionScore(
 
   if (
     archetype ===
-      "collector"
+    "collector"
   ) {
     return actionKey ===
       "system.wait"
@@ -780,7 +831,7 @@ function archetypeActionScore(
 
   if (
     archetype ===
-      "saver"
+    "saver"
   ) {
     return actionKey ===
       "system.wait"
@@ -790,12 +841,8 @@ function archetypeActionScore(
 
   if (
     archetype ===
-      "spender"
+    "spender"
   ) {
-    /*
-     * Spending actions are deliberately unavailable in the initial
-     * pilot, so this archetype expresses activity/novelty instead.
-     */
     return actionKey ===
       "system.wait"
       ? 0.22
@@ -862,6 +909,19 @@ function actionKeywords(
         "nature",
         "space",
         "quiz",
+      ];
+
+    case "economy.synthetic_spend":
+      return [
+        "spend",
+        "shop",
+        "purchase",
+        "token",
+        "gem",
+        "reward",
+        "economy",
+        "collect",
+        "upgrade",
       ];
 
     default:
@@ -932,6 +992,19 @@ function actionTraitFit(
           0.34 +
         traits.competitiveness *
           0.28,
+      );
+
+    case "economy.synthetic_spend":
+      return clamp(
+        (
+          1 -
+          traits.caution
+        ) *
+          0.55 +
+        traits.novelty *
+          0.30 +
+        traits.exploration *
+          0.15,
       );
 
     case "system.wait":
@@ -1164,7 +1237,8 @@ function scoreCandidate({
       1,
     );
 
-  const reasons: string[] =
+  const reasons:
+    string[] =
     [];
 
   if (
@@ -1215,6 +1289,15 @@ function scoreCandidate({
   }
 
   if (
+    actionKey ===
+    "economy.synthetic_spend"
+  ) {
+    reasons.push(
+      "safe synthetic economy budget is available",
+    );
+  }
+
+  if (
     reasons.length ===
     0
   ) {
@@ -1255,7 +1338,6 @@ function scoreCandidate({
 function buildNovaLearningCandidate({
   data,
   agent,
-  contractStatus,
   seed,
 }: {
   data:
@@ -1274,6 +1356,7 @@ function buildNovaLearningCandidate({
     numberValue(
       agent.primaryLevel ??
       agent.primary_level,
+
       0,
     );
 
@@ -1288,6 +1371,7 @@ function buildNovaLearningCandidate({
             data.english,
           ),
       },
+
       {
         subject:
           "math",
@@ -1350,21 +1434,13 @@ function buildNovaLearningCandidate({
       );
 
     let allowedTopicIds:
-      Set<
-        string
-      > |
+      Set<string> |
       null =
         null;
 
     if (
       primaryLevel >
-        0 &&
-      (
-        bucket.subject ===
-          "english" ||
-        bucket.subject ===
-          "math"
-      )
+      0
     ) {
       const topics =
         asArray(
@@ -1403,98 +1479,6 @@ function buildNovaLearningCandidate({
         );
     }
 
-    if (
-      primaryLevel >
-        0 &&
-      bucket.subject ===
-        "science"
-    ) {
-      const levels =
-        asArray(
-          bucket
-            .payload
-            .activeLevels,
-        ).map(
-          asObject,
-        );
-
-      const matchingLevelIds =
-        new Set(
-          levels
-            .filter(
-              (
-                level,
-              ) => {
-                const text =
-                  `${stringValue(
-                    level.school_level,
-                  )} ${stringValue(
-                    level.slug,
-                  )} ${stringValue(
-                    level.display_name,
-                  )}`
-                    .toLowerCase();
-
-                return (
-                  text.includes(
-                    `p${primaryLevel}`,
-                  ) ||
-                  text.includes(
-                    `primary ${primaryLevel}`,
-                  )
-                );
-              },
-            )
-            .map(
-              (
-                level,
-              ) =>
-                stringValue(
-                  level.id,
-                ),
-            )
-            .filter(
-              Boolean,
-            ),
-        );
-
-      const topics =
-        asArray(
-          bucket
-            .payload
-            .topics,
-        )
-          .map(
-            asObject,
-          )
-          .filter(
-            (
-              topic,
-            ) =>
-              matchingLevelIds.has(
-                stringValue(
-                  topic.level_id,
-                ),
-              ),
-          );
-
-      allowedTopicIds =
-        new Set(
-          topics
-            .map(
-              (
-                topic,
-              ) =>
-                stringValue(
-                  topic.id,
-                ),
-            )
-            .filter(
-              Boolean,
-            ),
-        );
-    }
-
     const eligible =
       quizzes.filter(
         (
@@ -1505,7 +1489,9 @@ function buildNovaLearningCandidate({
               quiz.id,
             );
 
-          if (!quizId) {
+          if (
+            !quizId
+          ) {
             return false;
           }
 
@@ -1528,13 +1514,16 @@ function buildNovaLearningCandidate({
     const selected =
       chooseLeastRepeated(
         eligible,
+
         (
           quiz,
         ) =>
           stringValue(
             quiz.id,
           ),
+
         repeats,
+
         `${seed}:${bucket.subject}`,
       );
 
@@ -1670,23 +1659,23 @@ function buildKnowledgeArenaTarget(
       ],
     );
 
-  const topicObjects =
-    topics.map(
-      (
-        topic,
-      ) => ({
-        topic,
-      }),
-    );
-
   const selected =
     chooseLeastRepeated(
-      topicObjects,
+      topics.map(
+        (
+          topic,
+        ) => ({
+          topic,
+        }),
+      ),
+
       (
         item,
       ) =>
         item.topic,
+
       repeats,
+
       seed,
     );
 
@@ -1752,34 +1741,42 @@ function buildThinkTarget(
       ],
     );
 
+  const eligible =
+    quizzes.filter(
+      (
+        quiz,
+      ) =>
+        Boolean(
+          stringValue(
+            quiz.id,
+          ),
+        ) &&
+        numberValue(
+          quiz.activeQuestionCount,
+          0,
+        ) >
+          0,
+    );
+
   const selected =
     chooseLeastRepeated(
-      quizzes.filter(
-        (
-          quiz,
-        ) =>
-          Boolean(
-            stringValue(
-              quiz.id,
-            ),
-          ) &&
-          numberValue(
-            quiz.activeQuestionCount,
-            0,
-          ) >
-            0,
-      ),
+      eligible,
+
       (
         quiz,
       ) =>
         stringValue(
           quiz.id,
         ),
+
       repeats,
+
       seed,
     );
 
-  if (!selected) {
+  if (
+    !selected
+  ) {
     return {
       parameters:
         {},
@@ -1819,7 +1816,7 @@ function buildThinkTarget(
       0,
 
     availableTargets:
-      quizzes.length,
+      eligible.length,
   };
 }
 
@@ -1873,16 +1870,6 @@ function buildRoverTarget(
       ),
     ];
 
-  /*
-   * The live Rover currently has numbered levels. Observation history
-   * may be empty on a new agent, so use the first course identifier as
-   * the deterministic starting target. 3C will bind this to the canonical
-   * Rover execution adapter before activation.
-   */
-  /*
-   * Phase 3C initial Rover scope is Level 1 only. This is the canonical
-   * live course id used by submit_rover_level_result.
-   */
   const defaultCourseIds =
     [
       "skyforge-test-track-01",
@@ -2026,11 +2013,14 @@ function buildMiloCategoryTarget(
           category,
         }),
       ),
+
       (
         item,
       ) =>
         item.category,
+
       repeats,
+
       seed,
     );
 
@@ -2068,6 +2058,79 @@ function buildMiloCategoryTarget(
       };
 }
 
+function buildSyntheticEconomyTarget(
+  wallet:
+    JsonObject,
+) {
+  const budget =
+    asObject(
+      wallet.spendBudget,
+    );
+
+  const canSpend =
+    Boolean(
+      budget.canSpend,
+    );
+
+  const availableDt =
+    numberValue(
+      budget.availableDt,
+      0,
+    );
+
+  const availableDg =
+    numberValue(
+      budget.availableDg,
+      0,
+    );
+
+  const recentSpendCount =
+    numberValue(
+      budget.recentSpendCountThisDay,
+      0,
+    );
+
+  if (
+    !canSpend ||
+    (
+      availableDt <=
+        0 &&
+      availableDg <=
+        0
+    )
+  ) {
+    return {
+      parameters:
+        {},
+
+      targetLabel:
+        null,
+
+      repeatCount:
+        recentSpendCount,
+
+      availableTargets:
+        0,
+    };
+  }
+
+  return {
+    parameters: {
+      currency:
+        "AUTO",
+    },
+
+    targetLabel:
+      "Synthetic economy purchase",
+
+    repeatCount:
+      recentSpendCount,
+
+    availableTargets:
+      1,
+  };
+}
+
 export function runRuleBasedPolicyV1(
   input:
     RuleBasedPolicyInput,
@@ -2092,6 +2155,12 @@ export function runRuleBasedPolicyV1(
   const goals =
     sections.get(
       "identity.goals",
+    ) ||
+    {};
+
+  const wallet =
+    sections.get(
+      "economy.wallet",
     ) ||
     {};
 
@@ -2171,6 +2240,7 @@ export function runRuleBasedPolicyV1(
         sections,
         "nova.knowledge_arena",
       ),
+
       `${seed}:arena`,
     );
 
@@ -2187,22 +2257,26 @@ export function runRuleBasedPolicyV1(
         sections,
         "nova.think",
       ),
+
       `${seed}:think`,
     );
 
-  /*
-   * The current canonical Think RPC allows student/staff roles, not regular.
-   * Initial autonomous execution is intentionally student-only.
-   */
   const thinkTarget =
     accountRole ===
       "student"
       ? observedThinkTarget
       : {
-          parameters: {},
-          targetLabel: null,
-          repeatCount: 0,
-          availableTargets: 0,
+          parameters:
+            {},
+
+          targetLabel:
+            null,
+
+          repeatCount:
+            0,
+
+          availableTargets:
+            0,
         };
 
   const roverTarget =
@@ -2211,6 +2285,7 @@ export function runRuleBasedPolicyV1(
         sections,
         "nova.rover",
       ),
+
       `${seed}:rover`,
     );
 
@@ -2220,7 +2295,13 @@ export function runRuleBasedPolicyV1(
         sections,
         "milo.categories",
       ),
+
       `${seed}:milo-categories`,
+    );
+
+  const economyTarget =
+    buildSyntheticEconomyTarget(
+      wallet,
     );
 
   const targets:
@@ -2262,9 +2343,15 @@ export function runRuleBasedPolicyV1(
 
       "milo.categories.attempt_quiz":
         miloTarget,
+
+      "economy.synthetic_spend":
+        economyTarget,
     };
 
-  let availableRealTargetCount =
+  let availableActionTargetCount =
+    0;
+
+  let availableGameplayTargetCount =
     0;
 
   for (
@@ -2295,16 +2382,29 @@ export function runRuleBasedPolicyV1(
       candidates.push(
         makeUnavailableCandidate(
           actionKey,
+
           status,
-          "No eligible target is visible in the current world snapshot.",
+
+          actionKey ===
+            "economy.synthetic_spend"
+            ? "No safe synthetic economy budget is available for this session day."
+            : "No eligible target is visible in the current world snapshot.",
         ),
       );
 
       continue;
     }
 
-    availableRealTargetCount +=
+    availableActionTargetCount +=
       1;
+
+    if (
+      actionKey !==
+      "economy.synthetic_spend"
+    ) {
+      availableGameplayTargetCount +=
+        1;
+    }
 
     candidates.push(
       scoreCandidate({
@@ -2371,7 +2471,7 @@ export function runRuleBasedPolicyV1(
         0,
 
       availableTargets:
-        availableRealTargetCount,
+        availableActionTargetCount,
 
       seed,
     }),
@@ -2467,7 +2567,7 @@ export function runRuleBasedPolicyV1(
           : ""
       } with score ${selected.score.toFixed(
         3,
-      )}. Main reasons: ${topReasons}. This Phase 3B decision is preview-only and cannot execute.`,
+      )}. Main reasons: ${topReasons}. Candidate scoring is deterministic; runtime execution is controlled separately by active contracts, ready adapters and safety validation.`,
 
     inputSummary: {
       worldAffinity:
@@ -2489,9 +2589,20 @@ export function runRuleBasedPolicyV1(
           .length,
 
       visibleRealActionFamilies:
-        availableRealTargetCount,
+        availableGameplayTargetCount,
+
+      visibleActionFamilies:
+        availableActionTargetCount,
 
       spendingActionsConsidered:
+        economyTarget.availableTargets >
+        0,
+
+      syntheticEconomyAvailable:
+        economyTarget.availableTargets >
+        0,
+
+      realInventoryMutationAllowed:
         false,
 
       answerKeysAvailableToPolicy:
