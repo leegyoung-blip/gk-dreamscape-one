@@ -70,33 +70,38 @@ export type AgentExecutionResult =
 
 
 /*
- * Retained for the legacy execution-QA and payload-builder tooling.
+ * Legacy execution-QA compatibility type.
  *
- * The Phase 3F / Phase 4A live runtime does NOT generate real quiz scores,
- * but the admin QA route still compiles against this type.
+ * The live Phase 3F / Phase 4A runtime no longer generates real quiz scores,
+ * but older QA/payload tooling still imports this shape and must continue
+ * compiling.
  */
 export type SyntheticPerformanceProfile = {
   /*
-   * Stable deterministic seed used by the old QA payload builders.
-   */
-  seed:
-    string;
-
-  /*
-   * 0–1 probability used by the old QA payload builders.
+   * 0–1 synthetic accuracy probability.
    */
   accuracy:
     number;
 
   /*
-   * Human-readable percentage used by:
-   *
-   *   app/api/admin/agents/execution-qa/route.ts
-   *
-   * Example:
-   *   accuracy = 0.82
-   *   expectedAccuracyPercent = 82
+   * Human-readable equivalent of accuracy.
+   * Example: 0.82 -> 82.
    */
   expectedAccuracyPercent:
     number;
+
+  /*
+   * Deterministic seed used by legacy synthetic payload generators.
+   */
+  seed:
+    string;
+
+  /*
+   * Diagnostic information explaining how the synthetic accuracy was derived.
+   *
+   * Kept as unknown deliberately because it is compatibility/QA metadata and
+   * is not consumed by the Phase 4A live runtime.
+   */
+  basis:
+    unknown;
 };
