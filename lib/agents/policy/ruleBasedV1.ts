@@ -2090,7 +2090,21 @@ function buildSyntheticEconomyTarget(
       0,
     );
 
+  /*
+   * Phase 4A I/O guard:
+   *
+   * Once an agent has made one economy spend on this simulation day,
+   * economy becomes unavailable to the policy for the rest of that day.
+   *
+   * This avoids:
+   *   - repeat validation attempts
+   *   - rejected action requests
+   *   - unnecessary failure rows
+   *   - unnecessary execution lifecycle writes
+   */
   if (
+    recentSpendCount >=
+      1 ||
     !canSpend ||
     (
       availableDt <=
@@ -2124,7 +2138,7 @@ function buildSyntheticEconomyTarget(
       "Synthetic economy purchase",
 
     repeatCount:
-      recentSpendCount,
+      0,
 
     availableTargets:
       1,
