@@ -3,6 +3,7 @@ export type ExpeditionLandmark = {
   name: string;
   location: string;
   year: string;
+  story: string;
   thresholdMetres: number;
   mapX: number;
   mapY: number;
@@ -28,6 +29,7 @@ export const EXPEDITION_LANDMARKS: ExpeditionLandmark[] = [
     name: "Acropolis of Athens",
     location: "Athens, Greece",
     year: "432 BCE",
+    story: "High above Athens, the Parthenon has watched the city for almost 2,500 years. Its builders used tiny curves and adjustments in the columns so the temple looks beautifully balanced from a distance.",
     thresholdMetres: 300,
     mapX: 6.0,
     mapY: 38.2,
@@ -41,6 +43,7 @@ export const EXPEDITION_LANDMARKS: ExpeditionLandmark[] = [
     name: "Pyramids of Giza",
     location: "Giza, Egypt",
     year: "c. 2560 BCE",
+    story: "The Great Pyramid was the tallest human-made structure on Earth for nearly 4,000 years. Even today, its enormous stone blocks make the desert skyline feel almost unreal.",
     thresholdMetres: 1500,
     mapX: 20.5,
     mapY: 52.4,
@@ -53,6 +56,7 @@ export const EXPEDITION_LANDMARKS: ExpeditionLandmark[] = [
     name: "Petra — Ad Deir",
     location: "Petra, Jordan",
     year: "c. 100 CE",
+    story: "Ad Deir was carved directly into Petra’s sandstone cliff. After climbing hundreds of rock-cut steps, travellers suddenly meet a giant façade emerging from the mountain itself.",
     thresholdMetres: 2800,
     mapX: 35.0,
     mapY: 57.0,
@@ -65,6 +69,7 @@ export const EXPEDITION_LANDMARKS: ExpeditionLandmark[] = [
     name: "Pont du Gard",
     location: "Occitanie, France",
     year: "c. 50 CE",
+    story: "Roman engineers built this huge bridge to carry water across the Gardon valley on its journey to Nîmes. Its stacked arches turned a practical waterway into something monumental.",
     thresholdMetres: 3600,
     mapX: 49.0,
     mapY: 53.2,
@@ -77,6 +82,7 @@ export const EXPEDITION_LANDMARKS: ExpeditionLandmark[] = [
     name: "Machu Picchu",
     location: "Cusco Region, Peru",
     year: "c. 1450 CE",
+    story: "Machu Picchu sits high among the Andes, where terraces seem to tumble down the mountain. On misty mornings, the stone city can appear to float above the clouds.",
     thresholdMetres: 4850,
     mapX: 64.3,
     mapY: 29.8,
@@ -89,6 +95,7 @@ export const EXPEDITION_LANDMARKS: ExpeditionLandmark[] = [
     name: "Morro Castle & Lighthouse",
     location: "Havana, Cuba",
     year: "1589 CE",
+    story: "Ships entering Havana Bay have sailed past this fortress for centuries. Its lighthouse still watches over the harbour, turning an old defensive position into one of Havana’s best-known sights.",
     thresholdMetres: 5900,
     mapX: 69.4,
     mapY: 45.0,
@@ -101,6 +108,7 @@ export const EXPEDITION_LANDMARKS: ExpeditionLandmark[] = [
     name: "Tikal",
     location: "Petén, Guatemala",
     year: "c. 200 CE",
+    story: "Tikal’s temples rise above the rainforest canopy like stone mountains. From their heights, the ancient Maya could look across a vast city hidden among the trees.",
     thresholdMetres: 6950,
     mapX: 79.0,
     mapY: 56.0,
@@ -113,6 +121,7 @@ export const EXPEDITION_LANDMARKS: ExpeditionLandmark[] = [
     name: "Mesa Verde Cliff Palace",
     location: "Colorado, USA",
     year: "c. 1200 CE",
+    story: "Cliff Palace is tucked beneath a huge sandstone overhang. Ancestral Pueblo people built rooms and round ceremonial spaces into the cliff, making the settlement feel hidden inside the canyon wall.",
     thresholdMetres: 8200,
     mapX: 91.8,
     mapY: 45.2,
@@ -126,6 +135,7 @@ export const EXPEDITION_LANDMARKS: ExpeditionLandmark[] = [
     name: "Registan",
     location: "Samarkand, Uzbekistan",
     year: "1417 CE",
+    story: "The Registan was once the grand heart of Samarkand, where travellers and merchants crossed paths along the Silk Road. Its tiled madrasas still make the square feel like the entrance to a storybook city.",
     thresholdMetres: 9250,
     mapX: 94.0,
     mapY: 18.6,

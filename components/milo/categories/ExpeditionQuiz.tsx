@@ -21,6 +21,7 @@ type ExpeditionQuestion = {
 };
 
 type ExpeditionMotion = "idle" | "cruise" | "boost" | "turbo" | "stall";
+type ExpeditionTravelPhase = "idle" | "driving" | "coasting";
 
 type ExpeditionQuizProps = {
   category: string;
@@ -57,7 +58,7 @@ const WORLD_SCENES = [
   },
   {
     src: "/milo-world/activities/categories/expedition/world-02.png",
-    roadOffsetPercent: 6.2,
+    roadOffsetPercent: 5.6,
   },
   {
     src: "/milo-world/activities/categories/expedition/world-03.png",
@@ -118,7 +119,9 @@ export default function ExpeditionQuiz({
   onNext,
 }: ExpeditionQuizProps) {
   const [displayPoints, setDisplayPoints] = useState(points);
+  const [travelPhase, setTravelPhase] = useState<ExpeditionTravelPhase>("idle");
   const displayPointsRef = useRef(points);
+  const travelPhaseRef = useRef<ExpeditionTravelPhase>("idle");
   const animationFrameRef = useRef<number | null>(null);
   const motion = stage === "answered" ? getExpeditionMotion(lastPoints) : "idle";
   const isCorrect = selectedAnswer === question.correct_option;
@@ -148,12 +151,19 @@ export default function ExpeditionQuiz({
 
     if (paused) return;
 
+    const setTravelPhaseSafely = (nextPhase: ExpeditionTravelPhase) => {
+      if (travelPhaseRef.current === nextPhase) return;
+      travelPhaseRef.current = nextPhase;
+      setTravelPhase(nextPhase);
+    };
+
     const target = points;
     const start = displayPointsRef.current;
 
     if (target <= start || stage !== "answered") {
       displayPointsRef.current = target;
       setDisplayPoints(target);
+      setTravelPhaseSafely("idle");
       return;
     }
 
@@ -161,11 +171,14 @@ export default function ExpeditionQuiz({
     if (reduceMotion) {
       displayPointsRef.current = target;
       setDisplayPoints(target);
+      setTravelPhaseSafely("idle");
       return;
     }
 
     const duration = motion === "turbo" ? 1750 : motion === "boost" ? 1500 : 1250;
+    const coastStartProgress = 0.58;
     const startedAt = performance.now();
+    setTravelPhaseSafely("driving");
 
     const animate = (now: number) => {
       const elapsed = now - startedAt;
@@ -173,6 +186,7 @@ export default function ExpeditionQuiz({
       const eased = 1 - Math.pow(1 - progress, 3);
       const next = start + (target - start) * eased;
 
+      setTravelPhaseSafely(progress >= coastStartProgress ? "coasting" : "driving");
       displayPointsRef.current = next;
       setDisplayPoints(next);
 
@@ -181,6 +195,7 @@ export default function ExpeditionQuiz({
       } else {
         displayPointsRef.current = target;
         setDisplayPoints(target);
+        setTravelPhaseSafely("idle");
         animationFrameRef.current = null;
       }
     };
@@ -189,6 +204,7 @@ export default function ExpeditionQuiz({
   }, [points, stage, motion, paused]);
 
   const progress = Math.min(Math.max(displayPoints / MAX_EXPEDITION_POINTS, 0), 1);
+  const wheelRotationDeg = displayPoints * 12;
   const worldOffsetVh = progress * WORLD_CYCLE_WIDTH_VH;
   const displayMetres = displayPoints * EXPEDITION_METRES_PER_POINT;
   const earnedMetres = lastPoints * EXPEDITION_METRES_PER_POINT;
@@ -198,7 +214,7 @@ export default function ExpeditionQuiz({
     : Math.min(1, Math.max(0, countdown / timerSeconds));
 
   return (
-    <div className={`expedition-root expedition-motion--${motion} ${paused ? "is-paused" : ""}`}>
+    <div className={`expedition-root expedition-motion--${motion} expedition-travel--${travelPhase} ${paused ? "is-paused" : ""}`}>
       <div className="expedition-world" aria-hidden="true">
         <div
           className="expedition-world-track"
@@ -403,6 +419,7 @@ export default function ExpeditionQuiz({
             alt=""
             draggable={false}
             className="expedition-wheel-image"
+            style={{ transform: `rotate(${wheelRotationDeg}deg)` }}
           />
         </div>
 
@@ -412,6 +429,7 @@ export default function ExpeditionQuiz({
             alt=""
             draggable={false}
             className="expedition-wheel-image"
+            style={{ transform: `rotate(${wheelRotationDeg}deg)` }}
           />
         </div>
 
@@ -509,15 +527,25 @@ export default function ExpeditionQuiz({
           pointer-events: none;
         }
 
-        .expedition-motion--boost .expedition-speed-lines,
-        .expedition-motion--turbo .expedition-speed-lines {
-          opacity: 1;
-          animation: expeditionSpeedLines 360ms linear infinite;
+        .expedition-speed-lines {
+          transition: opacity 220ms ease;
         }
 
-        .expedition-motion--turbo .expedition-speed-lines {
-          opacity: 0.9;
-          animation-duration: 190ms;
+        .expedition-travel--driving.expedition-motion--boost .expedition-speed-lines,
+        .expedition-travel--driving.expedition-motion--turbo .expedition-speed-lines {
+          opacity: 0.82;
+          animation: expeditionSpeedLines 430ms linear infinite;
+        }
+
+        .expedition-travel--driving.expedition-motion--turbo .expedition-speed-lines {
+          opacity: 0.92;
+          animation-duration: 260ms;
+        }
+
+        .expedition-travel--coasting.expedition-motion--boost .expedition-speed-lines,
+        .expedition-travel--coasting.expedition-motion--turbo .expedition-speed-lines {
+          opacity: 0.32;
+          animation: expeditionSpeedLines 760ms linear infinite;
         }
 
         .expedition-live-landmark {
@@ -1222,40 +1250,34 @@ export default function ExpeditionQuiz({
           animation: expeditionStall 120ms ease-in-out 5;
         }
 
-        .expedition-motion--cruise .expedition-wheel,
-        .expedition-motion--boost .expedition-wheel,
-        .expedition-motion--turbo .expedition-wheel {
-          animation-name: expeditionWheelSpin;
-          animation-timing-function: linear;
-          animation-iteration-count: infinite;
-        }
-
-        .expedition-motion--cruise .expedition-wheel {
-          animation-duration: 2400ms;
-        }
-
-        .expedition-motion--boost .expedition-wheel {
-          animation-duration: 1500ms;
-        }
-
-        .expedition-motion--turbo .expedition-wheel {
-          animation-duration: 900ms;
+        .expedition-wheel-image {
+          transform-origin: 50% 50%;
+          will-change: transform;
         }
 
         .expedition-motion--stall .expedition-wheel {
-          animation: expeditionWheelStall 140ms ease-in-out 4;
+          animation: none;
         }
 
-        .expedition-motion--cruise .expedition-dust,
-        .expedition-motion--boost .expedition-dust,
-        .expedition-motion--turbo .expedition-dust {
-          opacity: 1;
-          animation: expeditionDust 720ms ease-out infinite;
+        .expedition-dust {
+          transition: opacity 260ms ease;
         }
 
-        .expedition-motion--turbo .expedition-dust {
-          opacity: 0.95;
-          animation-duration: 430ms;
+        .expedition-travel--driving.expedition-motion--cruise .expedition-dust,
+        .expedition-travel--driving.expedition-motion--boost .expedition-dust,
+        .expedition-travel--driving.expedition-motion--turbo .expedition-dust {
+          opacity: 0.9;
+          animation: expeditionDust 760ms ease-out infinite;
+        }
+
+        .expedition-travel--driving.expedition-motion--turbo .expedition-dust {
+          opacity: 0.98;
+          animation-duration: 520ms;
+        }
+
+        .expedition-travel--coasting .expedition-dust {
+          opacity: 0.28;
+          animation: expeditionDust 980ms ease-out infinite;
         }
 
         .expedition-motion-callout {
@@ -1330,16 +1352,6 @@ export default function ExpeditionQuiz({
           75% { transform: translate3d(4px, -1px, 0) rotate(0.8deg); }
         }
 
-        @keyframes expeditionWheelSpin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-
-        @keyframes expeditionWheelStall {
-          0%, 100% { transform: rotate(0deg); }
-          35% { transform: rotate(8deg); }
-          70% { transform: rotate(-6deg); }
-        }
 
         @keyframes expeditionDust {
           0% { transform: translate3d(16px, 0, 0) scale(0.65); opacity: 0.1; }

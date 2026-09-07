@@ -37,6 +37,7 @@ export default function ExpeditionComplete({
   onContinue,
 }: ExpeditionCompleteProps) {
   const [showMapOnly, setShowMapOnly] = useState(false);
+  const [activeLandmarkId, setActiveLandmarkId] = useState<string | null>(null);
 
   const metres = Math.min(
     MAX_EXPEDITION_METRES,
@@ -52,7 +53,7 @@ export default function ExpeditionComplete({
 
   return (
     <div className={`expedition-complete-root ${showMapOnly ? "is-map-only" : ""}`}>
-      <div className="expedition-map-camera" aria-hidden="true">
+      <div className="expedition-map-camera">
         <img
           src={EXPEDITION_MAP_IMAGE}
           alt=""
@@ -95,19 +96,62 @@ export default function ExpeditionComplete({
 
         {EXPEDITION_LANDMARKS.map((landmark, index) => {
           const passed = metres >= landmark.thresholdMetres;
+          const isActive = activeLandmarkId === landmark.id;
+          const storyVertical = landmark.mapY >= 45 ? "is-above" : "is-below";
+
           return (
             <div
               key={landmark.id}
               className={`expedition-map-landmark ${passed ? "is-passed" : "is-future"}`}
               style={{ left: `${landmark.mapX}%`, top: `${landmark.mapY}%` }}
             >
-              <span className="expedition-map-landmark-dot">{index + 1}</span>
-              {passed && showMapOnly && (
-                <span
-                  className={`expedition-map-landmark-card is-${landmark.cardAlign || "center"}`}
+              <button
+                type="button"
+                className="expedition-map-landmark-trigger"
+                disabled={!passed || !showMapOnly}
+                aria-label={passed ? `Learn about ${landmark.name}` : `${landmark.name} not reached`}
+                aria-expanded={passed && showMapOnly ? isActive : false}
+                onPointerEnter={() => {
+                  if (passed && showMapOnly) setActiveLandmarkId(landmark.id);
+                }}
+                onFocus={() => {
+                  if (passed && showMapOnly) setActiveLandmarkId(landmark.id);
+                }}
+                onClick={() => {
+                  if (passed && showMapOnly) setActiveLandmarkId(landmark.id);
+                }}
+              >
+                <span className="expedition-map-landmark-dot">{index + 1}</span>
+                {passed && showMapOnly && (
+                  <span
+                    className={`expedition-map-landmark-card is-${landmark.cardAlign || "center"}`}
+                  >
+                    {landmark.name}
+                  </span>
+                )}
+              </button>
+
+              {passed && showMapOnly && isActive && (
+                <div
+                  className={`expedition-map-landmark-story ${storyVertical} is-${landmark.cardAlign || "center"}`}
+                  role="dialog"
+                  aria-label={`${landmark.name} story`}
                 >
-                  {landmark.name}
-                </span>
+                  <button
+                    type="button"
+                    className="expedition-map-landmark-story-close"
+                    aria-label={`Close ${landmark.name} story`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setActiveLandmarkId(null);
+                    }}
+                  >
+                    ×
+                  </button>
+                  <small>{landmark.location} · {landmark.year}</small>
+                  <strong>{landmark.name}</strong>
+                  <p>{landmark.story}</p>
+                </div>
               )}
             </div>
           );
@@ -156,7 +200,7 @@ export default function ExpeditionComplete({
             <button
               type="button"
               className="expedition-complete-button is-secondary"
-              onClick={() => setShowMapOnly(true)}
+              onClick={() => { setActiveLandmarkId(null); setShowMapOnly(true); }}
             >
               See Map
             </button>
@@ -256,6 +300,36 @@ export default function ExpeditionComplete({
           pointer-events: none;
         }
 
+        .expedition-map-landmark.is-passed {
+          z-index: 8;
+        }
+
+        .expedition-map-landmark-trigger {
+          position: relative;
+          display: grid;
+          place-items: center;
+          border: 0;
+          background: transparent;
+          padding: 0;
+          color: inherit;
+          pointer-events: none;
+        }
+
+        .is-map-only .expedition-map-landmark.is-passed .expedition-map-landmark-trigger {
+          pointer-events: auto;
+          cursor: pointer;
+        }
+
+        .expedition-map-landmark-trigger:disabled {
+          cursor: default;
+        }
+
+        .expedition-map-landmark-trigger:focus-visible {
+          outline: 2px solid #9bf5ff;
+          outline-offset: 4px;
+          border-radius: 999px;
+        }
+
         .expedition-map-landmark-dot {
           display: grid;
           width: clamp(20px, 1.8vw, 30px);
@@ -312,6 +386,96 @@ export default function ExpeditionComplete({
           right: 0;
           left: auto;
           transform: none;
+        }
+
+        .expedition-map-landmark-story {
+          position: absolute;
+          z-index: 24;
+          left: 50%;
+          width: clamp(190px, 19vw, 270px);
+          transform: translateX(-50%);
+          border: 1px solid rgba(255,209,138,0.34);
+          border-radius: 14px;
+          background: linear-gradient(150deg, rgba(5,18,40,0.98), rgba(4,12,29,0.96));
+          padding: 13px 14px 12px;
+          color: white;
+          box-shadow: 0 18px 44px rgba(0,0,0,0.42), 0 0 24px rgba(255,209,138,0.08);
+          text-align: left;
+          backdrop-filter: blur(14px);
+          animation: expeditionLandmarkStoryIn 180ms ease-out both;
+          pointer-events: auto;
+        }
+
+        .expedition-map-landmark-story.is-below {
+          top: calc(100% + 38px);
+        }
+
+        .expedition-map-landmark-story.is-above {
+          bottom: calc(100% + 20px);
+        }
+
+        .expedition-map-landmark-story.is-left {
+          left: -4px;
+          transform: none;
+        }
+
+        .expedition-map-landmark-story.is-right {
+          right: -4px;
+          left: auto;
+          transform: none;
+        }
+
+        .expedition-map-landmark-story small {
+          display: block;
+          padding-right: 26px;
+          color: #9bf5ff;
+          font-size: clamp(7px, 0.65vw, 9px);
+          font-weight: 900;
+          letter-spacing: 0.07em;
+          line-height: 1.35;
+          text-transform: uppercase;
+        }
+
+        .expedition-map-landmark-story strong {
+          display: block;
+          margin-top: 4px;
+          padding-right: 24px;
+          color: #ffd18a;
+          font-size: clamp(11px, 1vw, 14px);
+          font-weight: 950;
+          line-height: 1.2;
+        }
+
+        .expedition-map-landmark-story p {
+          margin: 8px 0 0;
+          color: rgba(255,255,255,0.72);
+          font-size: clamp(9px, 0.82vw, 11px);
+          font-weight: 650;
+          line-height: 1.48;
+        }
+
+        .expedition-map-landmark-story-close {
+          position: absolute;
+          top: 7px;
+          right: 7px;
+          display: grid;
+          width: 26px;
+          height: 26px;
+          place-items: center;
+          border: 1px solid rgba(255,255,255,0.14);
+          border-radius: 999px;
+          background: rgba(255,255,255,0.06);
+          color: rgba(255,255,255,0.78);
+          font-size: 17px;
+          line-height: 1;
+          cursor: pointer;
+        }
+
+        .expedition-map-landmark-story-close:hover,
+        .expedition-map-landmark-story-close:focus-visible {
+          border-color: rgba(255,209,138,0.52);
+          color: #ffd18a;
+          outline: none;
         }
 
         .expedition-map-vehicle-position {
@@ -540,6 +704,11 @@ export default function ExpeditionComplete({
           to { transform: scale(1); filter: saturate(1) brightness(1); }
         }
 
+        @keyframes expeditionLandmarkStoryIn {
+          from { opacity: 0; margin-top: 5px; }
+          to { opacity: 1; margin-top: 0; }
+        }
+
         @keyframes expeditionCompleteHudIn {
           from { opacity: 0; transform: translate(-50%, -44%) scale(0.96); }
           to { opacity: 1; transform: translate(-50%, -48%) scale(1); }
@@ -586,6 +755,16 @@ export default function ExpeditionComplete({
             max-width: 110px;
             padding: 3px 5px;
             font-size: 7px;
+          }
+
+          .expedition-map-landmark-story {
+            width: min(220px, 34vw);
+            padding: 10px 11px;
+          }
+
+          .expedition-map-landmark-story p {
+            font-size: 8px;
+            line-height: 1.4;
           }
         }
 
