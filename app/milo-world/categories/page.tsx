@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import ExpeditionQuiz from "@/components/milo/categories/ExpeditionQuiz";
+import ExpeditionComplete from "@/components/milo/categories/ExpeditionComplete";
 
 type CategoryQuizQuestion = {
   id: string;
@@ -157,6 +158,7 @@ type CategoriesStage =
   | "category"
   | "playing"
   | "answered"
+  | "expedition-finish"
   | "finished"
   | "results"
   | "mastery"
@@ -776,11 +778,13 @@ export default function MiloCategoriesPage() {
     ("A" | "B" | "C" | "D")[]
   >([]);
 
-  const [singleQuestionTimerSeconds, setSingleQuestionTimerSeconds] = useState<10 | 20>(10);
-  const [activeQuestionTimerSeconds, setActiveQuestionTimerSeconds] = useState<10 | 20>(10);
-  const [questionCountdown, setQuestionCountdown] = useState(10);
+  const [singleQuestionTimerSeconds, setSingleQuestionTimerSeconds] = useState<10 | 20>(20);
+  const [activeQuestionTimerSeconds, setActiveQuestionTimerSeconds] = useState<10 | 20>(20);
+  const [questionCountdown, setQuestionCountdown] = useState(20);
   const [nextQuestionCountdown, setNextQuestionCountdown] = useState(3);
   const [categoryMessage, setCategoryMessage] = useState("");
+  const [singlePlayerPaused, setSinglePlayerPaused] = useState(false);
+  const [isFinalizingExpedition, setIsFinalizingExpedition] = useState(false);
   const [isLoadingCategoryQuiz, setIsLoadingCategoryQuiz] = useState(false);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
 
@@ -814,8 +818,8 @@ export default function MiloCategoriesPage() {
   const [multiplayerPoints, setMultiplayerPoints] = useState(0);
   const [multiplayerLastQuestionPoints, setMultiplayerLastQuestionPoints] =
     useState(0);
-  const [multiplayerQuestionTimerSeconds, setMultiplayerQuestionTimerSeconds] = useState<10 | 20>(10);
-  const [multiplayerCountdown, setMultiplayerCountdown] = useState(10);
+  const [multiplayerQuestionTimerSeconds, setMultiplayerQuestionTimerSeconds] = useState<10 | 20>(20);
+  const [multiplayerCountdown, setMultiplayerCountdown] = useState(20);
   const [multiplayerNextCountdown, setMultiplayerNextCountdown] = useState(3);
   const [multiplayerMessage, setMultiplayerMessage] = useState("");
   const [joinLobbyCode, setJoinLobbyCode] = useState("");
@@ -1213,7 +1217,7 @@ export default function MiloCategoriesPage() {
 
   useEffect(() => {
     if (categoriesStage !== "playing") return;
-    if (miloGuideOpen) return;
+    if (miloGuideOpen || singlePlayerPaused) return;
     if (!currentCategoryQuestion) return;
 
     if (questionCountdown <= 0) {
@@ -1226,11 +1230,11 @@ export default function MiloCategoriesPage() {
     }, 1000);
 
     return () => window.clearTimeout(timer);
-  }, [categoriesStage, questionCountdown, currentCategoryQuestion, miloGuideOpen]);
+  }, [categoriesStage, questionCountdown, currentCategoryQuestion, miloGuideOpen, singlePlayerPaused]);
 
   useEffect(() => {
     if (categoriesStage !== "answered") return;
-    if (miloGuideOpen) return;
+    if (miloGuideOpen || singlePlayerPaused) return;
 
     if (nextQuestionCountdown <= 0) {
       void goToNextCategoryQuestion();
@@ -1242,7 +1246,7 @@ export default function MiloCategoriesPage() {
     }, 1000);
 
     return () => window.clearTimeout(timer);
-  }, [categoriesStage, nextQuestionCountdown, miloGuideOpen]);
+  }, [categoriesStage, nextQuestionCountdown, miloGuideOpen, singlePlayerPaused]);
 
   useEffect(() => {
     if (categoriesStage !== "multiplayer-playing") return;
@@ -1511,6 +1515,8 @@ export default function MiloCategoriesPage() {
     setAlreadyRewardedThisWeek(false);
     setEarnedTokens(0);
     setTargetResultAfterQuiz(null);
+    setSinglePlayerPaused(false);
+    setIsFinalizingExpedition(false);
 
     let resolvedStyle: SinglePlayStyle = singlePlayStyle;
     let targetForQuiz: LearningTarget | null = null;
@@ -1625,9 +1631,11 @@ export default function MiloCategoriesPage() {
     setBeatBestTargetPoints(null);
     setGuestHintUsed(false);
     setHiddenCategoryOptions([]);
-    setSingleQuestionTimerSeconds(10);
-    setActiveQuestionTimerSeconds(10);
-    setQuestionCountdown(10);
+    setSingleQuestionTimerSeconds(20);
+    setActiveQuestionTimerSeconds(20);
+    setQuestionCountdown(20);
+    setSinglePlayerPaused(false);
+    setIsFinalizingExpedition(false);
     setNextQuestionCountdown(3);
     setCategoryMessage("");
     setRewardMessage("");
@@ -1648,8 +1656,8 @@ export default function MiloCategoriesPage() {
     setMultiplayerScore(0);
     setMultiplayerPoints(0);
     setMultiplayerLastQuestionPoints(0);
-    setMultiplayerQuestionTimerSeconds(10);
-    setMultiplayerCountdown(10);
+    setMultiplayerQuestionTimerSeconds(20);
+    setMultiplayerCountdown(20);
     setMultiplayerNextCountdown(3);
     setMultiplayerMessage("");
     setJoinLobbyCode("");
@@ -1682,7 +1690,7 @@ export default function MiloCategoriesPage() {
 
   function submitCategoryAnswer(answer: "A" | "B" | "C" | "D" | null) {
     if (!currentCategoryQuestion) return;
-    if (categoriesStage !== "playing") return;
+    if (categoriesStage !== "playing" || singlePlayerPaused) return;
 
     const finalAnswer = answer || selectedCategoryAnswer;
     const isCorrect = finalAnswer === currentCategoryQuestion.correct_option;
@@ -1829,12 +1837,15 @@ export default function MiloCategoriesPage() {
     const nextIndex = categoryQuestionIndex + 1;
 
     if (nextIndex >= categoryQuestions.length) {
-      // Move to the completion screen immediately, but await analytics before
-      // allowing the user to leave/replay. This prevents mobile navigation or
-      // a fast tap from interrupting the Challenge record/target update.
-      setCategoriesStage("finished");
+      // First reveal the full expedition result. Keep the player on this
+      // zoomed-out view while analytics/rewards finish so navigation cannot
+      // interrupt the final save.
+      setSinglePlayerPaused(false);
+      setIsFinalizingExpedition(true);
+      setCategoriesStage("expedition-finish");
       await saveSinglePlayerAnalytics([...singlePlayerAnswers]);
       await checkAndAwardWeeklyTokens(categoryScore, categoryPoints);
+      setIsFinalizingExpedition(false);
       return;
     }
 
@@ -1959,7 +1970,7 @@ export default function MiloCategoriesPage() {
 
     setMultiplayerLobby(lobby);
     setMultiplayerQuestionTimerSeconds(
-      lobby.question_timer_seconds === 20 ? 20 : 10,
+      lobby.question_timer_seconds === 10 ? 10 : 20,
     );
     setMultiplayerPlayers(players);
 
@@ -2169,7 +2180,7 @@ export default function MiloCategoriesPage() {
 
     setMultiplayerLobby(lobby);
     setMultiplayerQuestionTimerSeconds(
-      lobby.question_timer_seconds === 20 ? 20 : 10,
+      lobby.question_timer_seconds === 10 ? 10 : 20,
     );
     setMultiplayerPlayer(playerData as MultiplayerPlayer);
     await loadLobbyState(lobby.id);
@@ -2221,10 +2232,10 @@ export default function MiloCategoriesPage() {
     setMultiplayerPoints(0);
     setMultiplayerLastQuestionPoints(0);
     setMultiplayerQuestionTimerSeconds(
-      multiplayerLobby.question_timer_seconds === 20 ? 20 : 10,
+      multiplayerLobby.question_timer_seconds === 10 ? 10 : 20,
     );
     setMultiplayerCountdown(
-      multiplayerLobby.question_timer_seconds === 20 ? 20 : 10,
+      multiplayerLobby.question_timer_seconds === 10 ? 10 : 20,
     );
     setMultiplayerNextCountdown(3);
     setMultiplayerMessage("");
@@ -2251,9 +2262,9 @@ export default function MiloCategoriesPage() {
     setMultiplayerPoints(0);
     setMultiplayerLastQuestionPoints(0);
     setMultiplayerQuestionTimerSeconds(
-      lobby.question_timer_seconds === 20 ? 20 : 10,
+      lobby.question_timer_seconds === 10 ? 10 : 20,
     );
-    setMultiplayerCountdown(lobby.question_timer_seconds === 20 ? 20 : 10);
+    setMultiplayerCountdown(lobby.question_timer_seconds === 10 ? 10 : 20);
     setMultiplayerNextCountdown(3);
     setMultiplayerMessage("");
     setMultiplayerAnswerDrafts([]);
@@ -2609,11 +2620,14 @@ export default function MiloCategoriesPage() {
   const selectedBestPoints = masteryData[selectedCategory]?.best_points ?? null;
 
   const isExpeditionStage =
-    categoriesStage === "playing" || categoriesStage === "answered";
+    categoriesStage === "playing" ||
+    categoriesStage === "answered" ||
+    categoriesStage === "expedition-finish";
 
   const isQuizStage = [
     "playing",
     "answered",
+    "expedition-finish",
     "finished",
     "results",
     "mastery",
@@ -2643,6 +2657,14 @@ export default function MiloCategoriesPage() {
           'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       }}
     >
+      <div className="categories-landscape-gate" role="dialog" aria-modal="true" aria-label="Rotate device to landscape">
+        <div className="categories-landscape-gate-card">
+          <div className="categories-landscape-phone" aria-hidden="true">↻</div>
+          <p>Turn your device sideways</p>
+          <span>Milo Categories is designed for landscape play.</span>
+        </div>
+      </div>
+
       <header className="categories-topbar relative z-10 flex shrink-0 items-center justify-between gap-3 px-3 py-3 sm:px-5 sm:py-5">
         <Link
           href="/milo-world/quiz-hall"
@@ -2698,7 +2720,7 @@ export default function MiloCategoriesPage() {
                 </p>
                 <p className="mt-1 text-sm font-black text-[#ffd18a]">
                   {categoryMode === "multiplayer"
-                    ? `${multiplayerLobby?.question_timer_seconds === 20 || multiplayerQuestionTimerSeconds === 20 ? 20 : 10} seconds/question`
+                    ? `${multiplayerLobby?.question_timer_seconds === 10 || multiplayerQuestionTimerSeconds === 10 ? 10 : 20} seconds/question`
                     : `${["playing", "answered", "finished", "results"].includes(categoriesStage)
                         ? activeQuestionTimerSeconds
                         : singleQuestionTimerSeconds} seconds/question`}
@@ -3173,7 +3195,7 @@ export default function MiloCategoriesPage() {
                       </h2>
 
                       <p className="mt-4 text-sm text-white/58">
-                        Category: {multiplayerLobby.category} · {multiplayerLobby.question_timer_seconds === 20 ? 20 : 10}s per question
+                        Category: {multiplayerLobby.category} · {multiplayerLobby.question_timer_seconds === 10 ? 10 : 20}s per question
                       </p>
                     </div>
 
@@ -3234,11 +3256,25 @@ export default function MiloCategoriesPage() {
                     message={categoryMessage}
                     isGuest={!userAccess.isLoggedIn}
                     guestHintUsed={guestHintUsed}
+                    canPause={userAccess.role === "admin"}
+                    paused={singlePlayerPaused}
+                    onTogglePause={() => setSinglePlayerPaused((current) => !current)}
                     onAnswer={submitCategoryAnswer}
                     onHint={useGuestCategoryHint}
                     onNext={() => void goToNextCategoryQuestion()}
                   />
                 )}
+
+              {categoriesStage === "expedition-finish" && (
+                <ExpeditionComplete
+                  category={selectedCategory}
+                  score={categoryScore}
+                  questionCount={10}
+                  points={categoryPoints}
+                  isFinalizing={isFinalizingExpedition}
+                  onContinue={() => setCategoriesStage("finished")}
+                />
+              )}
 
               {(categoriesStage === "multiplayer-playing" ||
                 categoriesStage === "multiplayer-answered") &&
@@ -4791,6 +4827,65 @@ export default function MiloCategoriesPage() {
               0 0 0 7px rgba(255, 209, 138, 0.18),
               0 0 48px rgba(255, 209, 138, 0.96),
               inset 0 0 30px rgba(255, 209, 138, 0.10);
+          }
+        }
+
+        .categories-landscape-gate {
+          display: none;
+        }
+
+        @media (max-width: 900px) and (orientation: portrait) {
+          .categories-landscape-gate {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            display: grid;
+            place-items: center;
+            background:
+              radial-gradient(circle at 50% 36%, rgba(83,215,255,0.12), transparent 32%),
+              linear-gradient(180deg, rgba(2,8,23,0.98), rgba(3,12,29,0.995));
+            padding: max(24px, env(safe-area-inset-top)) max(22px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(22px, env(safe-area-inset-left));
+          }
+
+          .categories-landscape-gate-card {
+            display: grid;
+            width: min(360px, 92vw);
+            place-items: center;
+            gap: 10px;
+            border: 1px solid rgba(155,245,255,0.20);
+            border-radius: 24px;
+            background: linear-gradient(155deg, rgba(8,25,52,0.96), rgba(4,13,31,0.98));
+            padding: 28px 24px;
+            text-align: center;
+            box-shadow: 0 26px 80px rgba(0,0,0,0.52), 0 0 48px rgba(83,215,255,0.08);
+          }
+
+          .categories-landscape-phone {
+            display: grid;
+            width: 76px;
+            height: 48px;
+            place-items: center;
+            border: 3px solid rgba(255,209,138,0.88);
+            border-radius: 12px;
+            color: #ffd18a;
+            font-size: 26px;
+            font-weight: 900;
+            transform: rotate(-90deg);
+            box-shadow: 0 0 28px rgba(255,209,138,0.14);
+          }
+
+          .categories-landscape-gate-card p {
+            margin: 8px 0 0;
+            color: white;
+            font-size: 22px;
+            font-weight: 950;
+          }
+
+          .categories-landscape-gate-card span {
+            color: rgba(255,255,255,0.58);
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1.5;
           }
         }
 

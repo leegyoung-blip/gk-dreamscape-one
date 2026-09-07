@@ -35,6 +35,9 @@ type ExpeditionQuizProps = {
   message?: string;
   isGuest: boolean;
   guestHintUsed: boolean;
+  canPause: boolean;
+  paused: boolean;
+  onTogglePause: () => void;
   onAnswer: (answer: AnswerLetter) => void;
   onHint: () => void;
   onNext: () => void;
@@ -94,6 +97,9 @@ export default function ExpeditionQuiz({
   message,
   isGuest,
   guestHintUsed,
+  canPause,
+  paused,
+  onTogglePause,
   onAnswer,
   onHint,
   onNext,
@@ -126,6 +132,8 @@ export default function ExpeditionQuiz({
       window.cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
     }
+
+    if (paused) return;
 
     const target = points;
     const start = displayPointsRef.current;
@@ -165,7 +173,7 @@ export default function ExpeditionQuiz({
     };
 
     animationFrameRef.current = window.requestAnimationFrame(animate);
-  }, [points, stage, motion]);
+  }, [points, stage, motion, paused]);
 
   const progress = Math.min(Math.max(displayPoints / MAX_EXPEDITION_POINTS, 0), 1);
   const worldOffsetVh = progress * WORLD_CYCLE_WIDTH_VH;
@@ -176,7 +184,7 @@ export default function ExpeditionQuiz({
     : Math.min(1, Math.max(0, countdown / timerSeconds));
 
   return (
-    <div className={`expedition-root expedition-motion--${motion}`}>
+    <div className={`expedition-root expedition-motion--${motion} ${paused ? "is-paused" : ""}`}>
       <div className="expedition-world" aria-hidden="true">
         <div
           className="expedition-world-track"
@@ -233,15 +241,29 @@ export default function ExpeditionQuiz({
           </div>
         </div>
 
-        <div
-          className={`expedition-timer ${countdown <= Math.ceil(timerSeconds * 0.3) && stage === "playing" ? "is-low" : ""}`}
-          style={{
-            background: `conic-gradient(#ffd18a ${timerProgress * 360}deg, rgba(255,255,255,0.10) 0deg)`,
-          }}
-        >
-          <div>
-            <strong>{stage === "answered" ? nextCountdown : countdown}</strong>
-            <small>{stage === "answered" ? "NEXT" : "SEC"}</small>
+        <div className="expedition-timer-stack">
+          {canPause && (
+            <button
+              type="button"
+              className={`expedition-pause-button ${paused ? "is-paused" : ""}`}
+              onClick={onTogglePause}
+              aria-pressed={paused}
+            >
+              <span aria-hidden="true">{paused ? "▶" : "Ⅱ"}</span>
+              <strong>{paused ? "Resume" : "Pause"}</strong>
+            </button>
+          )}
+
+          <div
+            className={`expedition-timer ${countdown <= Math.ceil(timerSeconds * 0.3) && stage === "playing" && !paused ? "is-low" : ""}`}
+            style={{
+              background: `conic-gradient(#ffd18a ${timerProgress * 360}deg, rgba(255,255,255,0.10) 0deg)`,
+            }}
+          >
+            <div>
+              <strong>{paused ? "Ⅱ" : stage === "answered" ? nextCountdown : countdown}</strong>
+              <small>{paused ? "PAUSED" : stage === "answered" ? "NEXT" : "SEC"}</small>
+            </div>
           </div>
         </div>
       </div>
@@ -254,7 +276,7 @@ export default function ExpeditionQuiz({
               <button
                 type="button"
                 onClick={onHint}
-                disabled={guestHintUsed || stage === "answered"}
+                disabled={paused || guestHintUsed || stage === "answered"}
                 className="expedition-hint-button"
               >
                 {guestHintUsed ? "50:50 used" : "50:50 hint"}
@@ -271,7 +293,7 @@ export default function ExpeditionQuiz({
             <div className={`expedition-answer-feedback ${isCorrect ? "is-correct" : "is-wrong"}`}>
               <strong>{isCorrect ? "Correct" : selectedAnswer ? "Not quite" : "Time's up"}</strong>
               {question.explanation && <span>{question.explanation}</span>}
-              <button type="button" onClick={onNext}>
+              <button type="button" onClick={onNext} disabled={paused}>
                 {questionNumber >= questionCount ? "See Results →" : "Next Question →"}
               </button>
             </div>
@@ -297,7 +319,7 @@ export default function ExpeditionQuiz({
               <button
                 key={letter}
                 type="button"
-                disabled={stage === "answered" || isEliminated}
+                disabled={paused || stage === "answered" || isEliminated}
                 onClick={() => onAnswer(letter)}
                 className={`expedition-option ${stateClass} ${isEliminated ? "is-eliminated" : ""}`}
               >
@@ -310,14 +332,43 @@ export default function ExpeditionQuiz({
         </div>
       </div>
 
+      {paused && (
+        <div className="expedition-paused-overlay" role="status" aria-live="polite">
+          <div>
+            <span aria-hidden="true">Ⅱ</span>
+            <strong>Expedition Paused</strong>
+            <small>Admin pause is active. The timer and question are frozen.</small>
+          </div>
+        </div>
+      )}
+
       <div className="expedition-vehicle-zone" aria-hidden="true">
         <div className="expedition-dust expedition-dust--one" />
         <div className="expedition-dust expedition-dust--two" />
+
+        <div className="expedition-wheel expedition-wheel--rear">
+          <img
+            src="/milo-world/activities/categories/expedition/milo-vehicle-rear-wheel.png"
+            alt=""
+            draggable={false}
+            className="expedition-wheel-image"
+          />
+        </div>
+
+        <div className="expedition-wheel expedition-wheel--front">
+          <img
+            src="/milo-world/activities/categories/expedition/milo-vehicle-front-wheel.png"
+            alt=""
+            draggable={false}
+            className="expedition-wheel-image"
+          />
+        </div>
+
         <img
-          src="/milo-world/activities/categories/expedition/milo-vehicle.png"
+          src="/milo-world/activities/categories/expedition/milo-vehicle-body.png"
           alt=""
           draggable={false}
-          className="expedition-vehicle"
+          className="expedition-vehicle-body"
         />
       </div>
 
@@ -414,7 +465,7 @@ export default function ExpeditionQuiz({
           right: 168px;
           z-index: 8;
           display: grid;
-          grid-template-columns: minmax(210px, 1.1fr) minmax(210px, 0.8fr) minmax(360px, 1.5fr) 76px;
+          grid-template-columns: minmax(210px, 1.1fr) minmax(210px, 0.8fr) minmax(360px, 1.5fr) minmax(76px, auto);
           align-items: center;
           gap: 12px;
           pointer-events: none;
@@ -572,6 +623,48 @@ export default function ExpeditionQuiz({
           color: #ffd18a;
         }
 
+        .expedition-timer-stack {
+          display: flex;
+          align-items: center;
+          justify-self: end;
+          gap: 8px;
+          pointer-events: auto;
+        }
+
+        .expedition-pause-button {
+          display: flex;
+          min-height: 38px;
+          align-items: center;
+          gap: 6px;
+          border: 1px solid rgba(155,245,255,0.22);
+          border-radius: 12px;
+          background: rgba(4,14,32,0.86);
+          padding: 7px 10px;
+          color: rgba(255,255,255,0.76);
+          box-shadow: 0 10px 24px rgba(0,0,0,0.18);
+          backdrop-filter: blur(12px);
+          cursor: pointer;
+        }
+
+        .expedition-pause-button:hover,
+        .expedition-pause-button.is-paused {
+          border-color: rgba(255,209,138,0.42);
+          background: rgba(255,209,138,0.12);
+          color: #ffd18a;
+        }
+
+        .expedition-pause-button span {
+          font-size: 12px;
+          font-weight: 950;
+        }
+
+        .expedition-pause-button strong {
+          font-size: 8px;
+          font-weight: 950;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+
         .expedition-timer {
           display: grid;
           width: 62px;
@@ -620,7 +713,7 @@ export default function ExpeditionQuiz({
           right: clamp(22px, 4vw, 66px);
           z-index: 7;
           display: grid;
-          grid-template-columns: minmax(0, 0.93fr) minmax(0, 1.07fr);
+          grid-template-columns: minmax(280px, 0.76fr) minmax(0, 1.24fr);
           gap: 18px;
           height: min(48%, 420px);
           pointer-events: auto;
@@ -636,10 +729,12 @@ export default function ExpeditionQuiz({
 
         .expedition-question-card {
           position: relative;
-          min-height: 0;
+          min-height: 150px;
+          max-height: 230px;
+          align-self: start;
           overflow: hidden;
           border-radius: 22px;
-          padding: clamp(18px, 2.4vw, 30px);
+          padding: clamp(16px, 2vw, 24px);
         }
 
         .expedition-question-topline {
@@ -677,11 +772,11 @@ export default function ExpeditionQuiz({
         }
 
         .expedition-question-card h2 {
-          max-height: calc(100% - 44px);
+          max-height: 142px;
           margin: 14px 0 0;
           overflow-y: auto;
           color: white;
-          font-size: clamp(22px, 2.4vw, 34px);
+          font-size: clamp(20px, 2.05vw, 30px);
           font-weight: 850;
           line-height: 1.30;
           scrollbar-width: none;
@@ -840,6 +935,56 @@ export default function ExpeditionQuiz({
           text-transform: uppercase;
         }
 
+        .expedition-paused-overlay {
+          position: absolute;
+          inset: 0;
+          z-index: 20;
+          display: grid;
+          place-items: center;
+          background: rgba(2,8,23,0.34);
+          backdrop-filter: blur(2px);
+          pointer-events: none;
+        }
+
+        .expedition-paused-overlay > div {
+          display: grid;
+          min-width: 240px;
+          place-items: center;
+          gap: 6px;
+          border: 1px solid rgba(255,209,138,0.34);
+          border-radius: 18px;
+          background: rgba(4,14,32,0.92);
+          padding: 18px 22px;
+          box-shadow: 0 20px 54px rgba(0,0,0,0.36), 0 0 32px rgba(255,209,138,0.08);
+        }
+
+        .expedition-paused-overlay span {
+          color: #ffd18a;
+          font-size: 22px;
+          font-weight: 950;
+        }
+
+        .expedition-paused-overlay strong {
+          color: white;
+          font-size: 15px;
+          font-weight: 950;
+        }
+
+        .expedition-paused-overlay small {
+          color: rgba(255,255,255,0.48);
+          font-size: 9px;
+          font-weight: 700;
+        }
+
+        .expedition-root.is-paused .expedition-vehicle-zone,
+        .expedition-root.is-paused .expedition-wheel,
+        .expedition-root.is-paused .expedition-dust,
+        .expedition-root.is-paused .expedition-speed-lines,
+        .expedition-root.is-paused .expedition-motion-callout,
+        .expedition-root.is-paused .expedition-timer {
+          animation-play-state: paused !important;
+        }
+
         .expedition-vehicle-zone {
           position: absolute;
           left: clamp(20px, 4.5vw, 78px);
@@ -851,13 +996,42 @@ export default function ExpeditionQuiz({
           will-change: transform;
         }
 
-        .expedition-vehicle {
+        .expedition-vehicle-body {
           position: relative;
-          z-index: 2;
+          z-index: 3;
           display: block;
           width: 100%;
           height: auto;
           filter: drop-shadow(0 20px 18px rgba(0,0,0,0.30));
+          user-select: none;
+        }
+
+        .expedition-wheel {
+          position: absolute;
+          z-index: 2;
+          display: grid;
+          place-items: center;
+          will-change: transform;
+          transform-origin: 50% 50%;
+          filter: drop-shadow(0 12px 10px rgba(0,0,0,0.20));
+        }
+
+        .expedition-wheel--rear {
+          left: 2.8%;
+          top: 59.7%;
+          width: 27.0%;
+        }
+
+        .expedition-wheel--front {
+          left: 69.4%;
+          top: 61.1%;
+          width: 25.2%;
+        }
+
+        .expedition-wheel-image {
+          display: block;
+          width: 100%;
+          height: auto;
           user-select: none;
         }
 
@@ -895,6 +1069,30 @@ export default function ExpeditionQuiz({
 
         .expedition-motion--stall .expedition-vehicle-zone {
           animation: expeditionStall 120ms ease-in-out 5;
+        }
+
+        .expedition-motion--cruise .expedition-wheel,
+        .expedition-motion--boost .expedition-wheel,
+        .expedition-motion--turbo .expedition-wheel {
+          animation-name: expeditionWheelSpin;
+          animation-timing-function: linear;
+          animation-iteration-count: infinite;
+        }
+
+        .expedition-motion--cruise .expedition-wheel {
+          animation-duration: 950ms;
+        }
+
+        .expedition-motion--boost .expedition-wheel {
+          animation-duration: 520ms;
+        }
+
+        .expedition-motion--turbo .expedition-wheel {
+          animation-duration: 260ms;
+        }
+
+        .expedition-motion--stall .expedition-wheel {
+          animation: expeditionWheelStall 140ms ease-in-out 4;
         }
 
         .expedition-motion--cruise .expedition-dust,
@@ -981,6 +1179,17 @@ export default function ExpeditionQuiz({
           75% { transform: translate3d(4px, -1px, 0) rotate(0.8deg); }
         }
 
+        @keyframes expeditionWheelSpin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+        @keyframes expeditionWheelStall {
+          0%, 100% { transform: rotate(0deg); }
+          35% { transform: rotate(8deg); }
+          70% { transform: rotate(-6deg); }
+        }
+
         @keyframes expeditionDust {
           0% { transform: translate3d(16px, 0, 0) scale(0.65); opacity: 0.1; }
           45% { opacity: 0.55; }
@@ -1032,8 +1241,10 @@ export default function ExpeditionQuiz({
           }
 
           .expedition-question-card {
+            min-height: 138px;
+            max-height: 205px;
             border-radius: 17px;
-            padding: 16px;
+            padding: 14px 16px;
           }
 
           .expedition-option {
@@ -1102,6 +1313,15 @@ export default function ExpeditionQuiz({
             font-size: 13px;
           }
 
+          .expedition-pause-button {
+            min-height: 34px;
+            padding: 5px 8px;
+          }
+
+          .expedition-pause-button strong {
+            display: none;
+          }
+
           .expedition-quiz-layer {
             top: 56px;
             left: 10px;
@@ -1111,12 +1331,15 @@ export default function ExpeditionQuiz({
           }
 
           .expedition-question-card {
-            padding: 11px;
+            min-height: 112px;
+            max-height: 148px;
+            padding: 10px 11px;
           }
 
           .expedition-question-card h2 {
-            margin-top: 7px;
-            font-size: clamp(15px, 2.5vw, 21px);
+            max-height: 88px;
+            margin-top: 6px;
+            font-size: clamp(14px, 2.25vw, 19px);
           }
 
           .expedition-question-topline > span {
@@ -1235,7 +1458,9 @@ export default function ExpeditionQuiz({
           }
 
           .expedition-question-card {
-            padding: 14px;
+            min-height: 130px;
+            max-height: 180px;
+            padding: 12px 14px;
           }
 
           .expedition-question-card h2 {
@@ -1267,6 +1492,7 @@ export default function ExpeditionQuiz({
 
         @media (prefers-reduced-motion: reduce) {
           .expedition-vehicle-zone,
+          .expedition-wheel,
           .expedition-dust,
           .expedition-speed-lines,
           .expedition-motion-callout,
