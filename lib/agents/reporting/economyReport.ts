@@ -1011,23 +1011,21 @@ export async function sendAgentEconomyReportEmail({
 
   const resendApiKey =
     process.env
-      .RESEND_API_KEY;
+      .RESEND_API_KEY
+      ?.trim();
 
   const fromEmail =
     process.env
-      .RESEND_FROM_EMAIL;
+      .RESEND_FROM
+      ?.trim() ||
+    "Guru Kids Pro <admin@gurukidspro.com>";
 
   if (!resendApiKey) {
     throw new Error(
       "RESEND_API_KEY is not configured.",
     );
   }
-
-  if (!fromEmail) {
-    throw new Error(
-      "RESEND_FROM_EMAIL is not configured.",
-    );
-  }
+  
 
   const csv =
     agentTransactionsToCsv(
