@@ -46,10 +46,19 @@ type ExpeditionQuizProps = {
 const EXPEDITION_METRES_PER_POINT = 10;
 const MAX_EXPEDITION_POINTS = 1000;
 const WORLD_CYCLE_WIDTH_VH = 900;
-const WORLD_IMAGES = [
-  "/milo-world/activities/categories/expedition/world-01.png",
-  "/milo-world/activities/categories/expedition/world-02.png",
-  "/milo-world/activities/categories/expedition/world-03.png",
+const WORLD_SCENES = [
+  {
+    src: "/milo-world/activities/categories/expedition/world-01.png",
+    roadOffsetPercent: 0,
+  },
+  {
+    src: "/milo-world/activities/categories/expedition/world-02.png",
+    roadOffsetPercent: 6.2,
+  },
+  {
+    src: "/milo-world/activities/categories/expedition/world-03.png",
+    roadOffsetPercent: 8.2,
+  },
 ] as const;
 
 function getExpeditionMotion(points: number): ExpeditionMotion {
@@ -190,14 +199,19 @@ export default function ExpeditionQuiz({
           className="expedition-world-track"
           style={{ transform: `translate3d(-${worldOffsetVh}vh, 0, 0)` }}
         >
-          {[...WORLD_IMAGES, ...WORLD_IMAGES].map((src, index) => (
-            <img
-              key={`${src}-${index}`}
-              src={src}
-              alt=""
-              draggable={false}
+          {[...WORLD_SCENES, ...WORLD_SCENES].map((scene, index) => (
+            <div
+              key={`${scene.src}-${index}`}
               className="expedition-world-tile"
-            />
+            >
+              <img
+                src={scene.src}
+                alt=""
+                draggable={false}
+                className="expedition-world-image"
+                style={{ top: `${scene.roadOffsetPercent}%` }}
+              />
+            </div>
           ))}
         </div>
         <div className="expedition-world-shade" />
@@ -269,25 +283,27 @@ export default function ExpeditionQuiz({
       </div>
 
       <div className="expedition-quiz-layer">
-        <section className="expedition-question-card">
-          <div className="expedition-question-topline">
-            <span>Question</span>
-            {isGuest && (
-              <button
-                type="button"
-                onClick={onHint}
-                disabled={paused || guestHintUsed || stage === "answered"}
-                className="expedition-hint-button"
-              >
-                {guestHintUsed ? "50:50 used" : "50:50 hint"}
-              </button>
-            )}
-          </div>
-          <h2>{question.question}</h2>
+        <div className="expedition-question-column">
+          <section className="expedition-question-card">
+            <div className="expedition-question-topline">
+              <span>Question</span>
+              {isGuest && (
+                <button
+                  type="button"
+                  onClick={onHint}
+                  disabled={paused || guestHintUsed || stage === "answered"}
+                  className="expedition-hint-button"
+                >
+                  {guestHintUsed ? "50:50 used" : "50:50 hint"}
+                </button>
+              )}
+            </div>
+            <h2>{question.question}</h2>
 
-          {message && stage === "playing" && guestHintUsed && (
-            <p className="expedition-inline-message">{message}</p>
-          )}
+            {message && stage === "playing" && guestHintUsed && (
+              <p className="expedition-inline-message">{message}</p>
+            )}
+          </section>
 
           {stage === "answered" && (
             <div className={`expedition-answer-feedback ${isCorrect ? "is-correct" : "is-wrong"}`}>
@@ -298,7 +314,7 @@ export default function ExpeditionQuiz({
               </button>
             </div>
           )}
-        </section>
+        </div>
 
         <div className="expedition-options-grid">
           {options.map(({ letter, text }) => {
@@ -412,10 +428,21 @@ export default function ExpeditionQuiz({
         }
 
         .expedition-world-tile {
-          display: block;
+          position: relative;
           width: 300vh;
           height: 100%;
           flex: 0 0 300vh;
+          overflow: hidden;
+          background: #061936;
+          user-select: none;
+          pointer-events: none;
+        }
+
+        .expedition-world-image {
+          position: absolute;
+          left: 0;
+          width: 100%;
+          height: 100%;
           object-fit: fill;
           user-select: none;
           pointer-events: none;
@@ -463,7 +490,7 @@ export default function ExpeditionQuiz({
           top: 10px;
           left: 18px;
           right: 168px;
-          z-index: 8;
+          z-index: 24;
           display: grid;
           grid-template-columns: minmax(210px, 1.1fr) minmax(210px, 0.8fr) minmax(360px, 1.5fr) minmax(76px, auto);
           align-items: center;
@@ -653,6 +680,14 @@ export default function ExpeditionQuiz({
           color: #ffd18a;
         }
 
+        .expedition-root.is-paused .expedition-pause-button {
+          position: relative;
+          z-index: 30;
+          backdrop-filter: none;
+          background: #10223d;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.38), 0 0 20px rgba(255,209,138,0.12);
+        }
+
         .expedition-pause-button span {
           font-size: 12px;
           font-weight: 950;
@@ -717,6 +752,14 @@ export default function ExpeditionQuiz({
           gap: 18px;
           height: min(48%, 420px);
           pointer-events: auto;
+        }
+
+        .expedition-question-column {
+          display: flex;
+          min-height: 0;
+          flex-direction: column;
+          align-self: start;
+          gap: 10px;
         }
 
         .expedition-question-card,
@@ -787,11 +830,7 @@ export default function ExpeditionQuiz({
         }
 
         .expedition-inline-message {
-          position: absolute;
-          right: 18px;
-          bottom: 14px;
-          left: 18px;
-          margin: 0;
+          margin: 10px 0 0;
           color: #ffd18a;
           font-size: 10px;
           font-weight: 800;
@@ -799,10 +838,6 @@ export default function ExpeditionQuiz({
         }
 
         .expedition-answer-feedback {
-          position: absolute;
-          right: 14px;
-          bottom: 14px;
-          left: 14px;
           display: grid;
           grid-template-columns: auto minmax(0, 1fr) auto;
           align-items: center;
@@ -810,8 +845,9 @@ export default function ExpeditionQuiz({
           border: 1px solid rgba(255,255,255,0.12);
           border-radius: 14px;
           background: rgba(3, 12, 28, 0.90);
-          padding: 9px 10px;
+          padding: 10px 12px;
           box-shadow: 0 10px 28px rgba(0,0,0,0.24);
+          backdrop-filter: blur(12px);
         }
 
         .expedition-answer-feedback.is-correct {
@@ -990,7 +1026,7 @@ export default function ExpeditionQuiz({
           left: clamp(20px, 4.5vw, 78px);
           bottom: 25.4%;
           z-index: 5;
-          width: clamp(250px, 28vw, 520px);
+          width: clamp(220px, 24vw, 450px);
           pointer-events: none;
           transform-origin: 45% 100%;
           will-change: transform;
@@ -1080,15 +1116,15 @@ export default function ExpeditionQuiz({
         }
 
         .expedition-motion--cruise .expedition-wheel {
-          animation-duration: 950ms;
+          animation-duration: 2400ms;
         }
 
         .expedition-motion--boost .expedition-wheel {
-          animation-duration: 520ms;
+          animation-duration: 1500ms;
         }
 
         .expedition-motion--turbo .expedition-wheel {
-          animation-duration: 260ms;
+          animation-duration: 900ms;
         }
 
         .expedition-motion--stall .expedition-wheel {
@@ -1253,7 +1289,7 @@ export default function ExpeditionQuiz({
           }
 
           .expedition-vehicle-zone {
-            width: clamp(230px, 31vw, 420px);
+            width: clamp(205px, 27vw, 365px);
           }
         }
 
@@ -1371,9 +1407,6 @@ export default function ExpeditionQuiz({
           }
 
           .expedition-answer-feedback {
-            right: 8px;
-            bottom: 8px;
-            left: 8px;
             gap: 6px;
             padding: 6px 7px;
           }
@@ -1394,7 +1427,7 @@ export default function ExpeditionQuiz({
           .expedition-vehicle-zone {
             left: 18px;
             bottom: 24.8%;
-            width: clamp(190px, 28vw, 320px);
+            width: clamp(170px, 24vw, 280px);
           }
 
           .expedition-motion-callout {
@@ -1474,7 +1507,7 @@ export default function ExpeditionQuiz({
           .expedition-vehicle-zone {
             left: 10px;
             bottom: 18%;
-            width: min(58vw, 330px);
+            width: min(50vw, 290px);
           }
 
           .expedition-motion-callout {
