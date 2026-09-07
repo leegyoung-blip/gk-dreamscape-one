@@ -6,7 +6,7 @@ import {
   EXPEDITION_METRES_PER_POINT,
   EXPEDITION_ROUTE_POINTS,
   MAX_EXPEDITION_METRES,
-  getExpeditionPosition,
+  getExpeditionPose,
 } from "./expeditionLandmarks";
 
 type ExpeditionCompleteProps = {
@@ -43,7 +43,7 @@ export default function ExpeditionComplete({
     Math.max(0, points * EXPEDITION_METRES_PER_POINT),
   );
   const progress = Math.min(Math.max(metres / MAX_EXPEDITION_METRES, 0), 1);
-  const vehiclePosition = getExpeditionPosition(metres);
+  const vehiclePose = getExpeditionPose(metres);
   const landmarksCovered = useMemo(
     () => EXPEDITION_LANDMARKS.filter((landmark) => metres >= landmark.thresholdMetres).length,
     [metres],
@@ -63,7 +63,7 @@ export default function ExpeditionComplete({
 
         <div
           className="expedition-map-unreached-area"
-          style={{ left: `${Math.min(100, Math.max(0, vehiclePosition.x))}%` }}
+          style={{ left: `${Math.min(100, Math.max(0, vehiclePose.x))}%` }}
         />
 
         <svg
@@ -115,7 +115,7 @@ export default function ExpeditionComplete({
 
         <div
           className="expedition-map-vehicle-position"
-          style={{ left: `${vehiclePosition.x}%`, top: `${vehiclePosition.y}%` }}
+          style={{ left: `${vehiclePose.x}%`, top: `${vehiclePose.y}%` }}
         >
           <span className="expedition-map-vehicle-glow" />
           <img
@@ -123,7 +123,9 @@ export default function ExpeditionComplete({
             alt=""
             draggable={false}
             className="expedition-map-vehicle"
+            style={{ transform: `rotate(${vehiclePose.angle}deg)` }}
           />
+          <span className="expedition-map-vehicle-distance">{formatDistance(metres)}</span>
         </div>
       </div>
 
@@ -318,6 +320,7 @@ export default function ExpeditionComplete({
           width: clamp(64px, 8vw, 130px);
           transform: translate(-50%, -50%);
           transition: left 900ms ease, top 900ms ease;
+          animation: expeditionMapVehicleArrive 650ms ease-out 450ms both;
         }
 
         .expedition-map-vehicle {
@@ -328,7 +331,28 @@ export default function ExpeditionComplete({
           height: auto;
           filter: drop-shadow(0 10px 14px rgba(0,0,0,0.42));
           user-select: none;
-          animation: expeditionMapVehicleArrive 650ms ease-out 450ms both;
+          transform-origin: 50% 55%;
+          transition: transform 700ms cubic-bezier(.2,.75,.25,1);
+        }
+
+        .expedition-map-vehicle-distance {
+          position: absolute;
+          top: calc(100% + 3px);
+          left: 50%;
+          z-index: 4;
+          min-width: max-content;
+          transform: translateX(-50%);
+          border: 1px solid rgba(255,209,138,0.34);
+          border-radius: 999px;
+          background: rgba(4,14,32,0.92);
+          padding: 4px 8px;
+          color: #ffd18a;
+          box-shadow: 0 7px 18px rgba(0,0,0,0.30);
+          font-size: clamp(7px, 0.72vw, 10px);
+          font-weight: 950;
+          line-height: 1;
+          white-space: nowrap;
+          backdrop-filter: blur(8px);
         }
 
         .expedition-map-vehicle-glow {
@@ -522,8 +546,8 @@ export default function ExpeditionComplete({
         }
 
         @keyframes expeditionMapVehicleArrive {
-          from { opacity: 0; transform: translateY(8px) scale(0.86); }
-          to { opacity: 1; transform: translateY(0) scale(1); }
+          from { opacity: 0; transform: translate(-50%, calc(-50% + 8px)) scale(0.86); }
+          to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
         }
 
         @media (max-width: 900px) and (orientation: landscape) {

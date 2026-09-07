@@ -5,7 +5,6 @@ import {
   EXPEDITION_LANDMARKS,
   EXPEDITION_METRES_PER_POINT,
   MAX_EXPEDITION_POINTS,
-  type ExpeditionLandmark,
 } from "./expeditionLandmarks";
 
 type AnswerLetter = "A" | "B" | "C" | "D";
@@ -121,9 +120,6 @@ export default function ExpeditionQuiz({
   const [displayPoints, setDisplayPoints] = useState(points);
   const displayPointsRef = useRef(points);
   const animationFrameRef = useRef<number | null>(null);
-  const landmarkPopupTimerRef = useRef<number | null>(null);
-  const seenLandmarkIdsRef = useRef<Set<string>>(new Set());
-  const [landmarkPopup, setLandmarkPopup] = useState<ExpeditionLandmark | null>(null);
   const motion = stage === "answered" ? getExpeditionMotion(lastPoints) : "idle";
   const isCorrect = selectedAnswer === question.correct_option;
 
@@ -140,9 +136,6 @@ export default function ExpeditionQuiz({
     return () => {
       if (animationFrameRef.current !== null) {
         window.cancelAnimationFrame(animationFrameRef.current);
-      }
-      if (landmarkPopupTimerRef.current !== null) {
-        window.clearTimeout(landmarkPopupTimerRef.current);
       }
     };
   }, []);
@@ -200,29 +193,6 @@ export default function ExpeditionQuiz({
   const displayMetres = displayPoints * EXPEDITION_METRES_PER_POINT;
   const earnedMetres = lastPoints * EXPEDITION_METRES_PER_POINT;
 
-  useEffect(() => {
-    if (paused) return;
-
-    const newlyReached = EXPEDITION_LANDMARKS.find(
-      (landmark) =>
-        displayMetres >= landmark.thresholdMetres &&
-        !seenLandmarkIdsRef.current.has(landmark.id),
-    );
-
-    if (!newlyReached) return;
-
-    seenLandmarkIdsRef.current.add(newlyReached.id);
-    setLandmarkPopup(newlyReached);
-
-    if (landmarkPopupTimerRef.current !== null) {
-      window.clearTimeout(landmarkPopupTimerRef.current);
-    }
-
-    landmarkPopupTimerRef.current = window.setTimeout(() => {
-      setLandmarkPopup(null);
-      landmarkPopupTimerRef.current = null;
-    }, 1900);
-  }, [displayMetres, paused]);
   const timerProgress = stage === "answered"
     ? Math.min(1, Math.max(0, nextCountdown / NEXT_QUESTION_DELAY_SECONDS))
     : Math.min(1, Math.max(0, countdown / timerSeconds));
@@ -234,20 +204,50 @@ export default function ExpeditionQuiz({
           className="expedition-world-track"
           style={{ transform: `translate3d(-${worldOffsetVh}vh, 0, 0)` }}
         >
-          {[...WORLD_SCENES, ...WORLD_SCENES].map((scene, index) => (
-            <div
-              key={`${scene.src}-${index}`}
-              className="expedition-world-tile"
-            >
-              <img
-                src={scene.src}
-                alt=""
-                draggable={false}
-                className="expedition-world-image"
-                style={{ top: `${scene.roadOffsetPercent}%` }}
-              />
-            </div>
-          ))}
+          {[...WORLD_SCENES, ...WORLD_SCENES].map((scene, index) => {
+            const sceneIndex = (index % WORLD_SCENES.length) as 0 | 1 | 2;
+            const isPrimaryRouteCycle = index < WORLD_SCENES.length;
+            const sceneLandmarks = isPrimaryRouteCycle
+              ? EXPEDITION_LANDMARKS.filter((landmark) => landmark.liveSceneIndex === sceneIndex)
+              : [];
+
+            return (
+              <div
+                key={`${scene.src}-${index}`}
+                className="expedition-world-tile"
+              >
+                <img
+                  src={scene.src}
+                  alt=""
+                  draggable={false}
+                  className="expedition-world-image"
+                  style={{ top: `${scene.roadOffsetPercent}%` }}
+                />
+
+                {sceneLandmarks.map((landmark) => {
+                  const passed = displayMetres >= landmark.thresholdMetres;
+                  const nearLandmark = Math.abs(displayMetres - landmark.thresholdMetres) <= 250;
+
+                  return (
+                    <div
+                      key={landmark.id}
+                      className={`expedition-live-landmark ${passed ? "is-passed" : "is-ahead"} ${nearLandmark ? "is-near" : ""}`}
+                      style={{
+                        left: `${landmark.liveXPercent}%`,
+                        top: `calc(${landmark.liveYPercent}% + ${scene.roadOffsetPercent}%)`,
+                      }}
+                    >
+                      <span className="expedition-live-landmark-pin" />
+                      <span className="expedition-live-landmark-card">
+                        <strong>{landmark.name}</strong>
+                        <small>{landmark.year}</small>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
         <div className="expedition-world-shade" />
         <div className="expedition-horizon-glow" />
@@ -423,13 +423,6 @@ export default function ExpeditionQuiz({
         />
       </div>
 
-      {landmarkPopup && (
-        <div className="expedition-landmark-popup" role="status" aria-live="polite">
-          <strong>{landmarkPopup.name}</strong>
-          <span>{landmarkPopup.year}</span>
-        </div>
-      )}
-
       {stage === "answered" && (
         <div className={`expedition-motion-callout is-${motion}`} aria-live="polite">
           <strong>{getMotionLabel(motion)}</strong>
@@ -525,6 +518,82 @@ export default function ExpeditionQuiz({
         .expedition-motion--turbo .expedition-speed-lines {
           opacity: 0.9;
           animation-duration: 190ms;
+        }
+
+        .expedition-live-landmark {
+          position: absolute;
+          z-index: 3;
+          transform: translate(-50%, 0);
+          pointer-events: none;
+        }
+
+        .expedition-live-landmark-pin {
+          position: absolute;
+          top: -16px;
+          left: 50%;
+          width: 1px;
+          height: 16px;
+          transform: translateX(-50%);
+          background: linear-gradient(180deg, rgba(255,209,138,0.08), rgba(255,209,138,0.75));
+          box-shadow: 0 0 7px rgba(255,209,138,0.20);
+        }
+
+        .expedition-live-landmark-pin::after {
+          content: "";
+          position: absolute;
+          top: -3px;
+          left: 50%;
+          width: 7px;
+          height: 7px;
+          transform: translateX(-50%);
+          border: 1px solid rgba(255,209,138,0.92);
+          border-radius: 999px;
+          background: #ffd18a;
+          box-shadow: 0 0 10px rgba(255,209,138,0.50);
+        }
+
+        .expedition-live-landmark-card {
+          display: grid;
+          min-width: 118px;
+          max-width: 178px;
+          gap: 2px;
+          border: 1px solid rgba(155,245,255,0.20);
+          border-radius: 11px;
+          background: rgba(4,14,32,0.84);
+          padding: 6px 9px;
+          box-shadow: 0 8px 22px rgba(0,0,0,0.25);
+          text-align: center;
+          backdrop-filter: blur(9px);
+          transition: border-color 180ms ease, background 180ms ease, opacity 180ms ease, transform 180ms ease;
+        }
+
+        .expedition-live-landmark-card strong {
+          color: white;
+          font-size: 9px;
+          font-weight: 900;
+          line-height: 1.15;
+        }
+
+        .expedition-live-landmark-card small {
+          color: #ffd18a;
+          font-size: 7px;
+          font-weight: 900;
+          letter-spacing: 0.05em;
+        }
+
+        .expedition-live-landmark.is-ahead .expedition-live-landmark-card {
+          opacity: 0.90;
+        }
+
+        .expedition-live-landmark.is-near .expedition-live-landmark-card {
+          transform: translateY(-2px);
+          border-color: rgba(255,209,138,0.62);
+          background: rgba(24,31,45,0.94);
+          box-shadow: 0 8px 24px rgba(0,0,0,0.28), 0 0 18px rgba(255,209,138,0.22);
+        }
+
+        .expedition-live-landmark.is-passed .expedition-live-landmark-card {
+          opacity: 0.62;
         }
 
         .expedition-hud {
@@ -792,7 +861,7 @@ export default function ExpeditionQuiz({
           display: grid;
           grid-template-columns: minmax(280px, 0.76fr) minmax(0, 1.24fr);
           gap: 18px;
-          height: min(48%, 420px);
+          height: min(36%, 300px);
           pointer-events: auto;
         }
 
@@ -934,7 +1003,8 @@ export default function ExpeditionQuiz({
         .expedition-options-grid {
           display: grid;
           min-height: 0;
-          grid-template-rows: repeat(4, minmax(0, 1fr));
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          grid-template-rows: repeat(2, minmax(0, 1fr));
           gap: 10px;
         }
 
@@ -942,10 +1012,10 @@ export default function ExpeditionQuiz({
           display: flex;
           min-height: 0;
           align-items: center;
-          gap: 12px;
+          gap: 10px;
           overflow: hidden;
           border-radius: 18px;
-          padding: 10px 18px;
+          padding: 10px 14px;
           color: rgba(255,255,255,0.88);
           text-align: left;
           cursor: pointer;
@@ -998,10 +1068,13 @@ export default function ExpeditionQuiz({
           min-width: 0;
           flex: 1;
           overflow: hidden;
-          font-size: clamp(12px, 1.25vw, 16px);
+          display: -webkit-box;
+          font-size: clamp(11px, 1.08vw, 15px);
           font-weight: 800;
-          line-height: 1.35;
+          line-height: 1.3;
           text-overflow: ellipsis;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 3;
         }
 
         .expedition-eliminated-label {
@@ -1185,49 +1258,6 @@ export default function ExpeditionQuiz({
           animation-duration: 430ms;
         }
 
-        .expedition-landmark-popup {
-          position: absolute;
-          left: clamp(20px, 4.5vw, 78px);
-          bottom: 10.5%;
-          z-index: 12;
-          display: flex;
-          width: clamp(220px, 24vw, 450px);
-          min-height: 40px;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          border: 1px solid rgba(255, 209, 138, 0.44);
-          border-radius: 13px;
-          background: linear-gradient(145deg, rgba(5, 20, 45, 0.94), rgba(17, 24, 45, 0.92));
-          padding: 7px 11px;
-          box-shadow: 0 12px 34px rgba(0,0,0,0.34), 0 0 22px rgba(255,209,138,0.13);
-          backdrop-filter: blur(10px);
-          animation: expeditionLandmarkIn 280ms cubic-bezier(.18,.78,.22,1) both;
-          pointer-events: none;
-          text-align: center;
-        }
-
-        .expedition-landmark-popup strong {
-          min-width: 0;
-          overflow: hidden;
-          color: white;
-          font-size: 11px;
-          font-weight: 950;
-          line-height: 1.1;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-        .expedition-landmark-popup span {
-          flex: 0 0 auto;
-          border-left: 1px solid rgba(255,209,138,0.22);
-          padding-left: 8px;
-          color: #ffd18a;
-          font-size: 9px;
-          font-weight: 900;
-          white-space: nowrap;
-        }
-
         .expedition-motion-callout {
           position: absolute;
           left: 50%;
@@ -1241,7 +1271,7 @@ export default function ExpeditionQuiz({
           border: 1px solid rgba(255, 209, 138, 0.34);
           border-radius: 18px;
           background: rgba(4, 14, 32, 0.84);
-          padding: 10px 18px;
+          padding: 10px 14px;
           box-shadow: 0 14px 36px rgba(0,0,0,0.28), 0 0 28px rgba(255,209,138,0.10);
           backdrop-filter: blur(12px);
           animation: expeditionCalloutIn 260ms ease-out both;
@@ -1363,7 +1393,7 @@ export default function ExpeditionQuiz({
             left: 18px;
             right: 18px;
             gap: 12px;
-            height: min(49%, 380px);
+            height: min(37%, 280px);
           }
 
           .expedition-question-card {
@@ -1452,7 +1482,7 @@ export default function ExpeditionQuiz({
             top: 56px;
             left: 10px;
             right: 10px;
-            height: 51%;
+            height: 39%;
             gap: 8px;
           }
 
@@ -1519,19 +1549,6 @@ export default function ExpeditionQuiz({
             bottom: 24.8%;
             width: clamp(170px, 24vw, 280px);
           }
-
-          .expedition-landmark-popup {
-            left: 18px;
-            bottom: 7.5%;
-            width: clamp(170px, 24vw, 280px);
-            min-width: 0;
-            min-height: 31px;
-            gap: 6px;
-            padding: 5px 8px;
-          }
-
-          .expedition-landmark-popup strong { font-size: 9px; }
-          .expedition-landmark-popup span { font-size: 7px; padding-left: 6px; }
 
           .expedition-motion-callout {
             bottom: 18%;
@@ -1624,6 +1641,20 @@ export default function ExpeditionQuiz({
             from { opacity: 0; transform: translateY(10px) scale(0.94); }
             to { opacity: 1; transform: translateY(0) scale(1); }
           }
+        }
+
+
+        @media (max-width: 900px) and (orientation: landscape) {
+          .expedition-live-landmark-card {
+            min-width: 92px;
+            max-width: 132px;
+            border-radius: 8px;
+            padding: 4px 6px;
+          }
+
+          .expedition-live-landmark-card strong { font-size: 7px; }
+          .expedition-live-landmark-card small { font-size: 6px; }
+          .expedition-live-landmark-pin { height: 11px; }
         }
 
         @media (prefers-reduced-motion: reduce) {
