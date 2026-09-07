@@ -10,11 +10,27 @@ import {
 
 import type {
   AgentEconomyHealthReport,
+  AgentReportMode,
   AgentReportTransaction,
 } from "@/lib/agents/reporting/types";
 
+type GeneratedRequest = {
+  mode:
+    AgentReportMode;
+
+  startDate:
+    string | null;
+
+  endDate:
+    string | null;
+
+  asOf:
+    string;
+};
+
 function numberLabel(
-  value: number |
+  value:
+    number |
     null |
     undefined,
 ) {
@@ -26,12 +42,15 @@ function numberLabel(
 }
 
 function signedLabel(
-  value: number |
+  value:
+    number |
     null |
     undefined,
 ) {
   const number =
-    Number(value || 0);
+    Number(
+      value || 0,
+    );
 
   if (number > 0) {
     return `+${number.toLocaleString(
@@ -61,19 +80,88 @@ function dateTimeSg(
         "short",
     },
   ).format(
-    new Date(value),
+    new Date(
+      value,
+    ),
   );
+}
+
+function singaporeDateString(
+  value =
+    new Date(),
+) {
+  const parts =
+    new Intl.DateTimeFormat(
+      "en-GB",
+      {
+        timeZone:
+          "Asia/Singapore",
+
+        year:
+          "numeric",
+
+        month:
+          "2-digit",
+
+        day:
+          "2-digit",
+      },
+    )
+      .formatToParts(
+        value,
+      );
+
+  const map =
+    Object.fromEntries(
+      parts.map(
+        (
+          part,
+        ) => [
+          part.type,
+          part.value,
+        ],
+      ),
+    );
+
+  return `${map.year}-${map.month}-${map.day}`;
+}
+
+function shiftDate(
+  date:
+    string,
+  days:
+    number,
+) {
+  const value =
+    new Date(
+      `${date}T00:00:00Z`,
+    );
+
+  value.setUTCDate(
+    value.getUTCDate() +
+      days,
+  );
+
+  return value
+    .toISOString()
+    .slice(
+      0,
+      10,
+    );
 }
 
 function healthClass(
   status: string,
 ) {
   const clean =
-    String(status || "")
+    String(
+      status || "",
+    )
       .toUpperCase();
 
   if (
-    clean === "HEALTHY"
+    clean ===
+    "HEALTHY"
   ) {
     return "border-emerald-300/25 bg-emerald-400/[0.08] text-emerald-100";
   }
@@ -132,88 +220,31 @@ function Metric({
   );
 }
 
-const CSV_COLUMNS:
-  Array<
-    keyof AgentReportTransaction
-  > = [
-    "occurred_at",
-    "agent_user_id",
-    "agent_code",
-    "agent_name",
-    "currency_code",
-    "transaction_id",
-    "transaction_type",
-    "direction",
-    "amount",
-    "title",
-    "source",
-    "description",
-    "balance_after",
-    "source_id",
-    "source_table",
-  ];
-
-function csvCell(
-  value: unknown,
-) {
-  if (
-    value === null ||
-    value === undefined
-  ) {
-    return "";
-  }
-
-  const text =
-    String(value);
-
-  if (
-    text.includes(",") ||
-    text.includes("\"") ||
-    text.includes("\n") ||
-    text.includes("\r")
-  ) {
-    return `"${text.replaceAll(
-      "\"",
-      "\"\"",
-    )}"`;
-  }
-
-  return text;
-}
-
-function transactionsToCsv(
-  rows: AgentReportTransaction[],
-) {
-  return [
-    CSV_COLUMNS.join(
-      ",",
-    ),
-
-    ...rows.map(
-      (
-        row,
-      ) =>
-        CSV_COLUMNS
-          .map(
-            (
-              column,
-            ) =>
-              csvCell(
-                row[column],
-              ),
-          )
-          .join(","),
-    ),
-  ].join(
-    "\r\n",
-  );
-}
-
 export default function AgentEconomyReportPanel({
   failureEmailRecipient,
 }: {
-  failureEmailRecipient: string;
+  failureEmailRecipient:
+    string;
 }) {
+  const today =
+    singaporeDateString();
+
+  const [
+    startDate,
+    setStartDate,
+  ] =
+    useState(
+      today,
+    );
+
+  const [
+    endDate,
+    setEndDate,
+  ] =
+    useState(
+      today,
+    );
+
   const [
     report,
     setReport,
@@ -221,7 +252,9 @@ export default function AgentEconomyReportPanel({
     useState<
       AgentEconomyHealthReport |
       null
-    >(null);
+    >(
+      null,
+    );
 
   const [
     transactions,
@@ -229,29 +262,57 @@ export default function AgentEconomyReportPanel({
   ] =
     useState<
       AgentReportTransaction[]
-    >([]);
+    >(
+      [],
+    );
+
+  const [
+    generatedRequest,
+    setGeneratedRequest,
+  ] =
+    useState<
+      GeneratedRequest |
+      null
+    >(
+      null,
+    );
+
+  const [
+    previewTruncated,
+    setPreviewTruncated,
+  ] =
+    useState(
+      false,
+    );
 
   const [
     busy,
     setBusy,
   ] =
     useState<
-      "generate" |
-      "email" |
-      null
-    >(null);
+      | "generate"
+      | "email"
+      | "csv"
+      | null
+    >(
+      null,
+    );
 
   const [
     error,
     setError,
   ] =
-    useState("");
+    useState(
+      "",
+    );
 
   const [
     notice,
     setNotice,
   ] =
-    useState("");
+    useState(
+      "",
+    );
 
   async function token() {
     const {
@@ -270,13 +331,31 @@ export default function AgentEconomyReportPanel({
     );
   }
 
-  async function generateCurrentReport() {
+  async function generateReport({
+    mode,
+    customStart,
+    customEnd,
+  }: {
+    mode:
+      AgentReportMode;
+
+    customStart?:
+      string;
+
+    customEnd?:
+      string;
+  }) {
     setBusy(
       "generate",
     );
 
-    setError("");
-    setNotice("");
+    setError(
+      "",
+    );
+
+    setNotice(
+      "",
+    );
 
     try {
       const accessToken =
@@ -288,9 +367,55 @@ export default function AgentEconomyReportPanel({
         );
       }
 
+      if (
+        mode ===
+        "RANGE"
+      ) {
+        if (
+          !customStart ||
+          !customEnd
+        ) {
+          throw new Error(
+            "Choose both a start date and an end date.",
+          );
+        }
+
+        if (
+          customStart >
+          customEnd
+        ) {
+          throw new Error(
+            "The start date cannot be after the end date.",
+          );
+        }
+      }
+
+      const params =
+        new URLSearchParams();
+
+      params.set(
+        "mode",
+        mode,
+      );
+
+      if (
+        mode ===
+        "RANGE"
+      ) {
+        params.set(
+          "startDate",
+          customStart!,
+        );
+
+        params.set(
+          "endDate",
+          customEnd!,
+        );
+      }
+
       const response =
         await fetch(
-          "/api/admin/agents/report?mode=CURRENT",
+          `/api/admin/agents/report?${params.toString()}`,
           {
             method:
               "GET",
@@ -319,6 +444,9 @@ export default function AgentEconomyReportPanel({
 
           transactions?:
             AgentReportTransaction[];
+
+          transactionPreviewTruncated?:
+            boolean;
         };
 
       if (
@@ -327,7 +455,7 @@ export default function AgentEconomyReportPanel({
       ) {
         throw new Error(
           payload.error ||
-          "Current report could not be generated.",
+          "Report could not be generated.",
         );
       }
 
@@ -340,13 +468,37 @@ export default function AgentEconomyReportPanel({
         [],
       );
 
+      setPreviewTruncated(
+        Boolean(
+          payload.transactionPreviewTruncated,
+        ),
+      );
+
+      setGeneratedRequest({
+        mode,
+
+        startDate:
+          mode ===
+          "RANGE"
+            ? customStart ||
+              null
+            : null,
+
+        endDate:
+          mode ===
+          "RANGE"
+            ? customEnd ||
+              null
+            : null,
+
+        asOf:
+          payload
+            .report
+            .generated_at,
+      });
+
       setNotice(
-        `Current report generated with ${
-          (
-            payload.transactions ||
-            []
-          ).length
-        } transaction rows.`,
+        `Report generated for ${payload.report.window.label}.`,
       );
     } catch (
       generateError
@@ -355,7 +507,7 @@ export default function AgentEconomyReportPanel({
         generateError instanceof
           Error
           ? generateError.message
-          : "Current report could not be generated.",
+          : "Report could not be generated.",
       );
     }
 
@@ -364,86 +516,198 @@ export default function AgentEconomyReportPanel({
     );
   }
 
-  function downloadTransactions() {
+  async function preset(
+    days:
+      number,
+  ) {
+    const end =
+      singaporeDateString();
+
+    const start =
+      shiftDate(
+        end,
+        -(days - 1),
+      );
+
+    setStartDate(
+      start,
+    );
+
+    setEndDate(
+      end,
+    );
+
+    await generateReport({
+      mode:
+        "RANGE",
+
+      customStart:
+        start,
+
+      customEnd:
+        end,
+    });
+  }
+
+  async function yesterday() {
+    const date =
+      shiftDate(
+        singaporeDateString(),
+        -1,
+      );
+
+    setStartDate(
+      date,
+    );
+
+    setEndDate(
+      date,
+    );
+
+    await generateReport({
+      mode:
+        "RANGE",
+
+      customStart:
+        date,
+
+      customEnd:
+        date,
+    });
+  }
+
+  async function downloadCsv() {
     if (
-      !report ||
-      transactions.length === 0
+      !generatedRequest
     ) {
       return;
     }
 
-    const csv =
-      transactionsToCsv(
-        transactions,
-      );
-
-    const blob =
-      new Blob(
-        [
-          csv,
-        ],
-        {
-          type:
-            "text/csv;charset=utf-8",
-        },
-      );
-
-    const url =
-      URL.createObjectURL(
-        blob,
-      );
-
-    const anchor =
-      document.createElement(
-        "a",
-      );
-
-    const date =
-      new Intl.DateTimeFormat(
-        "en-CA",
-        {
-          timeZone:
-            "Asia/Singapore",
-
-          year:
-            "numeric",
-
-          month:
-            "2-digit",
-
-          day:
-            "2-digit",
-        },
-      )
-        .format(
-          new Date(
-            report
-              .window
-              .start,
-          ),
-        );
-
-    anchor.href =
-      url;
-
-    anchor.download =
-      `dreamscape-agent-current-transactions-${date}.csv`;
-
-    document.body.appendChild(
-      anchor,
+    setBusy(
+      "csv",
     );
 
-    anchor.click();
+    setError(
+      "",
+    );
 
-    anchor.remove();
+    try {
+      const accessToken =
+        await token();
 
-    URL.revokeObjectURL(
-      url,
+      if (!accessToken) {
+        throw new Error(
+          "Please sign in again.",
+        );
+      }
+
+      const params =
+        new URLSearchParams({
+          mode:
+            generatedRequest.mode,
+
+          asOf:
+            generatedRequest.asOf,
+        });
+
+      if (
+        generatedRequest.mode ===
+        "RANGE"
+      ) {
+        params.set(
+          "startDate",
+          generatedRequest
+            .startDate!,
+        );
+
+        params.set(
+          "endDate",
+          generatedRequest
+            .endDate!,
+        );
+      }
+
+      const response =
+        await fetch(
+          `/api/admin/agents/report/csv?${params.toString()}`,
+          {
+            method:
+              "GET",
+
+            cache:
+              "no-store",
+
+            headers: {
+              Authorization:
+                `Bearer ${accessToken}`,
+            },
+          },
+        );
+
+      if (
+        !response.ok
+      ) {
+        throw new Error(
+          await response.text() ||
+          "CSV could not be generated.",
+        );
+      }
+
+      const blob =
+        await response
+          .blob();
+
+      const url =
+        URL.createObjectURL(
+          blob,
+        );
+
+      const anchor =
+        document.createElement(
+          "a",
+        );
+
+      anchor.href =
+        url;
+
+      anchor.download =
+        generatedRequest.mode ===
+        "RANGE"
+          ? `dreamscape-agent-transactions-${generatedRequest.startDate}-to-${generatedRequest.endDate}.csv`
+          : `dreamscape-agent-${generatedRequest.mode.toLowerCase()}-transactions.csv`;
+
+      document.body.appendChild(
+        anchor,
+      );
+
+      anchor.click();
+
+      anchor.remove();
+
+      URL.revokeObjectURL(
+        url,
+      );
+    } catch (
+      csvError
+    ) {
+      setError(
+        csvError instanceof
+          Error
+          ? csvError.message
+          : "CSV could not be downloaded.",
+      );
+    }
+
+    setBusy(
+      null,
     );
   }
 
   async function sendToEmail() {
-    if (!report) {
+    if (
+      !report ||
+      !generatedRequest
+    ) {
       return;
     }
 
@@ -451,8 +715,13 @@ export default function AgentEconomyReportPanel({
       "email",
     );
 
-    setError("");
-    setNotice("");
+    setError(
+      "",
+    );
+
+    setNotice(
+      "",
+    );
 
     try {
       const accessToken =
@@ -485,17 +754,16 @@ export default function AgentEconomyReportPanel({
                   "send_email",
 
                 mode:
-                  "CURRENT",
+                  generatedRequest.mode,
 
-                /*
-                 * Keep the emailed report
-                 * on the exact same snapshot
-                 * as the report currently
-                 * displayed on screen.
-                 */
+                startDate:
+                  generatedRequest.startDate,
+
+                endDate:
+                  generatedRequest.endDate,
+
                 asOf:
-                  report
-                    .generated_at,
+                  generatedRequest.asOf,
               }),
           },
         );
@@ -529,7 +797,7 @@ export default function AgentEconomyReportPanel({
       }
 
       setNotice(
-        `Current report emailed to ${
+        `Report emailed to ${
           payload
             .result
             .recipient ||
@@ -538,8 +806,10 @@ export default function AgentEconomyReportPanel({
           payload
             .result
             .transactionCount ||
-          transactions.length
-        } transaction rows attached.`,
+          report
+            .export
+            .transaction_rows
+        } transaction rows.`,
       );
     } catch (
       sendError
@@ -559,10 +829,12 @@ export default function AgentEconomyReportPanel({
 
   return (
     <section className="mt-6 rounded-[30px] border border-cyan-300/14 bg-[linear-gradient(145deg,rgba(8,48,71,0.48),rgba(5,18,40,0.82))] p-5 backdrop-blur-xl sm:p-6">
+
       <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+
         <div>
           <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-[#7ee8ff]">
-            Phase 4B-2 Economy Reporting
+            Phase 4B-2 Reporting
           </p>
 
           <h2 className="mt-2 text-3xl font-bold tracking-[-0.04em]">
@@ -570,11 +842,9 @@ export default function AgentEconomyReportPanel({
           </h2>
 
           <p className="mt-3 max-w-3xl text-sm leading-6 text-white/48">
-            Generate a read-only snapshot of
-            bot earnings, spending, wallet
-            integrity, stocks, property and
-            runtime health. Report generation
-            does not pause or modify the agents.
+            Generate current or custom-range reports covering
+            agent earnings, spending, wallet integrity,
+            market health, property health and runtime state.
           </p>
         </div>
 
@@ -585,7 +855,10 @@ export default function AgentEconomyReportPanel({
             null
           }
           onClick={() =>
-            void generateCurrentReport()
+            void generateReport({
+              mode:
+                "CURRENT",
+            })
           }
           className="min-h-12 rounded-2xl border border-cyan-200/28 bg-cyan-300/12 px-6 text-xs font-black uppercase tracking-[0.12em] text-cyan-50 transition hover:bg-cyan-300/18 disabled:opacity-40"
         >
@@ -594,7 +867,158 @@ export default function AgentEconomyReportPanel({
             ? "Generating..."
             : "Generate Current Report"}
         </button>
+
       </div>
+
+
+      <div className="mt-5 rounded-2xl border border-white/8 bg-black/15 p-4">
+
+        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
+          Custom Timeframe
+        </p>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+
+          <button
+            type="button"
+            disabled={
+              busy !==
+              null
+            }
+            onClick={() =>
+              void preset(
+                1,
+              )
+            }
+            className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-bold"
+          >
+            Today
+          </button>
+
+          <button
+            type="button"
+            disabled={
+              busy !==
+              null
+            }
+            onClick={() =>
+              void yesterday()
+            }
+            className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-bold"
+          >
+            Yesterday
+          </button>
+
+          <button
+            type="button"
+            disabled={
+              busy !==
+              null
+            }
+            onClick={() =>
+              void preset(
+                7,
+              )
+            }
+            className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-bold"
+          >
+            Last 7 Days
+          </button>
+
+          <button
+            type="button"
+            disabled={
+              busy !==
+              null
+            }
+            onClick={() =>
+              void preset(
+                30,
+              )
+            }
+            className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-bold"
+          >
+            Last 30 Days
+          </button>
+
+        </div>
+
+
+        <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+
+          <label className="block">
+            <span className="mb-2 block text-[10px] font-black uppercase tracking-[0.12em] text-white/35">
+              Start Date
+            </span>
+
+            <input
+              type="date"
+              value={
+                startDate
+              }
+              onChange={(
+                event,
+              ) =>
+                setStartDate(
+                  event
+                    .target
+                    .value,
+                )
+              }
+              className="min-h-11 w-full rounded-xl border border-white/10 bg-[#061632] px-4 text-sm text-white"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-2 block text-[10px] font-black uppercase tracking-[0.12em] text-white/35">
+              End Date
+            </span>
+
+            <input
+              type="date"
+              value={
+                endDate
+              }
+              onChange={(
+                event,
+              ) =>
+                setEndDate(
+                  event
+                    .target
+                    .value,
+                )
+              }
+              className="min-h-11 w-full rounded-xl border border-white/10 bg-[#061632] px-4 text-sm text-white"
+            />
+          </label>
+
+          <button
+            type="button"
+            disabled={
+              busy !==
+              null
+            }
+            onClick={() =>
+              void generateReport({
+                mode:
+                  "RANGE",
+
+                customStart:
+                  startDate,
+
+                customEnd:
+                  endDate,
+              })
+            }
+            className="mt-auto min-h-11 rounded-xl border border-violet-300/25 bg-violet-300/[0.09] px-5 text-xs font-black uppercase tracking-[0.1em] text-violet-100 disabled:opacity-40"
+          >
+            Generate Custom Report
+          </button>
+
+        </div>
+
+      </div>
+
 
       <div className="mt-4 rounded-2xl border border-white/8 bg-black/15 px-4 py-3 text-xs leading-5 text-white/40">
         Email recipient:{" "}
@@ -603,9 +1027,10 @@ export default function AgentEconomyReportPanel({
             "Not configured"}
         </strong>
         {" · "}
-        Current report window:
-        today 00:00 Singapore Time → now.
+        Daily automatic report:
+        8:00 AM Singapore Time.
       </div>
+
 
       {error ? (
         <div className="mt-4 rounded-2xl border border-rose-300/20 bg-rose-400/[0.08] px-4 py-3 text-sm text-rose-100">
@@ -613,41 +1038,30 @@ export default function AgentEconomyReportPanel({
         </div>
       ) : null}
 
+
       {notice ? (
         <div className="mt-4 rounded-2xl border border-emerald-300/20 bg-emerald-400/[0.07] px-4 py-3 text-sm text-emerald-100">
           {notice}
         </div>
       ) : null}
 
+
       {!report ? (
         <div className="mt-5 rounded-2xl border border-white/8 bg-white/[0.025] p-6 text-sm leading-6 text-white/38">
           No report has been generated yet.
-          Press{" "}
-          <strong className="text-white/65">
-            Generate Current Report
-          </strong>{" "}
-          whenever you want a live snapshot.
         </div>
       ) : (
         <>
+
           <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-white/8 bg-white/[0.03] p-4 sm:flex-row sm:items-center sm:justify-between">
+
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
-                Report window
+                Report Window
               </p>
 
               <strong className="mt-2 block text-sm text-white/75">
-                {dateTimeSg(
-                  report
-                    .window
-                    .start,
-                )}
-                {" → "}
-                {dateTimeSg(
-                  report
-                    .window
-                    .end,
-                )}
+                {report.window.label}
               </strong>
             </div>
 
@@ -665,9 +1079,12 @@ export default function AgentEconomyReportPanel({
                   .status
               }
             </span>
+
           </div>
 
+
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+
             <HealthCard
               label="Economy"
               status={
@@ -703,9 +1120,12 @@ export default function AgentEconomyReportPanel({
                   .status
               }
             />
+
           </div>
 
+
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+
             <Metric
               label="Transactions"
               value={numberLabel(
@@ -717,7 +1137,7 @@ export default function AgentEconomyReportPanel({
             />
 
             <Metric
-              label="Agents Active in Economy"
+              label="Agents with Transactions"
               value={numberLabel(
                 report
                   .economy
@@ -745,15 +1165,20 @@ export default function AgentEconomyReportPanel({
                   .total_dg_balance,
               )} DG`}
             />
+
           </div>
 
+
           <div className="mt-4 grid gap-5 xl:grid-cols-3">
+
             <article className="rounded-2xl border border-white/8 bg-white/[0.03] p-5">
+
               <p className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100/55">
                 DT Economy
               </p>
 
               <div className="mt-4 space-y-3 text-sm">
+
                 <div className="flex justify-between gap-4">
                   <span className="text-white/40">
                     Earned
@@ -801,15 +1226,20 @@ export default function AgentEconomyReportPanel({
                     DT
                   </strong>
                 </div>
+
               </div>
+
             </article>
 
+
             <article className="rounded-2xl border border-white/8 bg-white/[0.03] p-5">
+
               <p className="text-[10px] font-black uppercase tracking-[0.14em] text-violet-100/55">
                 DG Economy
               </p>
 
               <div className="mt-4 space-y-3 text-sm">
+
                 <div className="flex justify-between gap-4">
                   <span className="text-white/40">
                     Earned
@@ -857,15 +1287,20 @@ export default function AgentEconomyReportPanel({
                     DG
                   </strong>
                 </div>
+
               </div>
+
             </article>
 
+
             <article className="rounded-2xl border border-white/8 bg-white/[0.03] p-5">
+
               <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100/55">
                 Integrity
               </p>
 
               <div className="mt-4 space-y-3 text-sm">
+
                 <div className="flex justify-between gap-4">
                   <span className="text-white/40">
                     DT mismatches
@@ -914,17 +1349,24 @@ export default function AgentEconomyReportPanel({
                     )}
                   </strong>
                 </div>
+
               </div>
+
             </article>
+
           </div>
 
+
           <div className="mt-4 grid gap-5 xl:grid-cols-2">
+
             <article className="rounded-2xl border border-white/8 bg-white/[0.03] p-5">
+
               <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
                 Stock Market
               </p>
 
               <div className="mt-4 grid grid-cols-2 gap-3">
+
                 <Metric
                   label="Active Stocks"
                   value={numberLabel(
@@ -964,15 +1406,20 @@ export default function AgentEconomyReportPanel({
                       .total_market_value,
                   )}
                 />
+
               </div>
+
             </article>
 
+
             <article className="rounded-2xl border border-white/8 bg-white/[0.03] p-5">
+
               <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
                 Property Market
               </p>
 
               <div className="mt-4 grid grid-cols-2 gap-3">
+
                 <Metric
                   label="Property Units"
                   value={numberLabel(
@@ -1012,16 +1459,22 @@ export default function AgentEconomyReportPanel({
                       .total_market_value,
                   )}
                 />
+
               </div>
+
             </article>
+
           </div>
 
+
           <article className="mt-4 rounded-2xl border border-white/8 bg-white/[0.03] p-5">
+
             <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
               Runtime Health
             </p>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+
               <Metric
                 label="Active Agents"
                 value={numberLabel(
@@ -1071,72 +1524,61 @@ export default function AgentEconomyReportPanel({
                     .stale_open_sessions,
                 )}
               />
+
             </div>
+
           </article>
 
-          <article className="mt-4 rounded-2xl border border-white/8 bg-white/[0.03] p-5">
-            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
-              Health Notes
-            </p>
-
-            {report
-              .overall_health
-              .reasons
-              ?.length ? (
-              <div className="mt-3 space-y-2">
-                {report
-                  .overall_health
-                  .reasons
-                  .map(
-                    (
-                      reason,
-                      index,
-                    ) => (
-                      <p
-                        key={`${reason}-${index}`}
-                        className="text-sm leading-6 text-white/55"
-                      >
-                        • {reason}
-                      </p>
-                    ),
-                  )}
-              </div>
-            ) : (
-              <p className="mt-3 text-sm text-emerald-100/70">
-                No health warnings detected.
-              </p>
-            )}
-          </article>
 
           <article className="mt-4 rounded-2xl border border-white/8 bg-black/15 p-5">
+
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+
               <div>
+
                 <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
                   Transaction Ledger
                 </p>
 
                 <strong className="mt-2 block text-lg">
-                  {transactions.length.toLocaleString(
-                    "en-SG",
+                  {numberLabel(
+                    report
+                      .export
+                      .transaction_rows,
                   )}{" "}
                   transactions
                 </strong>
+
+                {previewTruncated ? (
+                  <p className="mt-1 text-xs text-white/35">
+                    Showing the latest{" "}
+                    {transactions.length}.
+                    Full export is available below.
+                  </p>
+                ) : null}
+
               </div>
 
+
               <div className="flex flex-wrap gap-2">
+
                 <button
                   type="button"
                   disabled={
-                    transactions.length ===
-                    0
+                    busy !==
+                    null
                   }
-                  onClick={
-                    downloadTransactions
+                  onClick={() =>
+                    void downloadCsv()
                   }
                   className="min-h-11 rounded-xl border border-white/12 bg-white/[0.05] px-4 text-xs font-black uppercase tracking-[0.1em] disabled:opacity-40"
                 >
-                  Download Transactions CSV
+                  {busy ===
+                  "csv"
+                    ? "Preparing CSV..."
+                    : "Download Full CSV"}
                 </button>
+
 
                 <button
                   type="button"
@@ -1154,12 +1596,18 @@ export default function AgentEconomyReportPanel({
                     ? "Sending..."
                     : "Send to Email"}
                 </button>
+
               </div>
+
             </div>
 
+
             <div className="mt-4 max-h-[430px] overflow-auto rounded-xl border border-white/8">
+
               <table className="w-full min-w-[1050px] border-collapse text-left">
+
                 <thead className="sticky top-0 bg-[#061632] text-[10px] font-black uppercase tracking-[0.1em] text-white/40">
+
                   <tr>
                     <th className="px-3 py-3">
                       Time
@@ -1189,9 +1637,12 @@ export default function AgentEconomyReportPanel({
                       Description
                     </th>
                   </tr>
+
                 </thead>
 
+
                 <tbody>
+
                   {transactions.map(
                     (
                       transaction,
@@ -1200,6 +1651,7 @@ export default function AgentEconomyReportPanel({
                         key={`${transaction.currency_code}-${transaction.transaction_id}`}
                         className="border-t border-white/[0.06]"
                       >
+
                         <td className="whitespace-nowrap px-3 py-3 text-xs text-white/45">
                           {dateTimeSg(
                             transaction
@@ -1208,6 +1660,7 @@ export default function AgentEconomyReportPanel({
                         </td>
 
                         <td className="px-3 py-3">
+
                           <strong className="block text-xs">
                             {
                               transaction
@@ -1221,6 +1674,7 @@ export default function AgentEconomyReportPanel({
                                 .agent_name
                             }
                           </span>
+
                         </td>
 
                         <td className="px-3 py-3 text-xs font-black">
@@ -1260,15 +1714,22 @@ export default function AgentEconomyReportPanel({
                             "—"
                           }
                         </td>
+
                       </tr>
                     ),
                   )}
+
                 </tbody>
+
               </table>
+
             </div>
+
           </article>
+
         </>
       )}
+
     </section>
   );
 }

@@ -12,7 +12,8 @@ import {
 
 import {
   loadAgentEconomyReport,
-  loadAgentReportTransactions,
+  loadAgentReportTransactionPreview,
+  safeReportMode,
   sendAgentEconomyReportEmail,
 } from "@/lib/agents/reporting/economyReport";
 
@@ -43,47 +44,89 @@ function json(
   );
 }
 
-function reportMode(
-  value: unknown,
-): AgentReportMode {
-  return String(value || "")
-    .trim()
-    .toUpperCase() === "DAILY"
-    ? "DAILY"
-    : "CURRENT";
-}
-
-function safeAsOf(
-  value: unknown,
+function dateValue(
+  value:
+    string |
+    null,
 ) {
   const clean =
-    typeof value === "string"
-      ? value.trim()
-      : "";
+    String(
+      value || "",
+    )
+      .trim();
 
-  if (!clean) {
+  return /^\d{4}-\d{2}-\d{2}$/
+    .test(
+      clean,
+    )
+      ? clean
+      : null;
+}
+
+function asOfValue(
+  value:
+    string |
+    null,
+) {
+  if (!value) {
     return new Date()
       .toISOString();
   }
 
   const parsed =
-    new Date(clean);
+    new Date(
+      value,
+    );
 
-  if (
-    Number.isNaN(
-      parsed.getTime(),
-    )
-  ) {
-    return new Date()
-      .toISOString();
-  }
+  return Number.isNaN(
+    parsed.getTime(),
+  )
+    ? new Date()
+        .toISOString()
+    : parsed
+        .toISOString();
+}
 
-  return parsed
-    .toISOString();
+function requestValues(
+  url:
+    URL,
+) {
+  const mode =
+    safeReportMode(
+      url.searchParams.get(
+        "mode",
+      ),
+    );
+
+  return {
+    mode,
+
+    startDate:
+      dateValue(
+        url.searchParams.get(
+          "startDate",
+        ),
+      ),
+
+    endDate:
+      dateValue(
+        url.searchParams.get(
+          "endDate",
+        ),
+      ),
+
+    asOf:
+      asOfValue(
+        url.searchParams.get(
+          "asOf",
+        ),
+      ),
+  };
 }
 
 export async function GET(
-  request: Request,
+  request:
+    Request,
 ) {
   const access =
     await checkAdminFromRequest(
@@ -113,18 +156,9 @@ export async function GET(
         request.url,
       );
 
-    const mode =
-      reportMode(
-        url.searchParams.get(
-          "mode",
-        ),
-      );
-
-    const asOf =
-      safeAsOf(
-        url.searchParams.get(
-          "asOf",
-        ),
+    const values =
+      requestValues(
+        url,
       );
 
     const admin =
@@ -137,14 +171,14 @@ export async function GET(
       await Promise.all([
         loadAgentEconomyReport({
           admin,
-          mode,
-          asOf,
+          ...values,
         }),
 
-        loadAgentReportTransactions({
+        loadAgentReportTransactionPreview({
           admin,
-          mode,
-          asOf,
+          ...values,
+          limit:
+            250,
         }),
       ]);
 
@@ -155,6 +189,18 @@ export async function GET(
       report,
 
       transactions,
+
+      transactionPreviewLimit:
+        250,
+
+      transactionPreviewTruncated:
+        Number(
+          report
+            .export
+            .transaction_rows ||
+          0,
+        ) >
+        transactions.length,
     });
   } catch (
     error
@@ -170,9 +216,10 @@ export async function GET(
           false,
 
         error:
-          error instanceof Error
+          error instanceof
+            Error
             ? error.message
-            : "Agent economy report could not be generated.",
+            : "Agent report could not be generated.",
       },
       500,
     );
@@ -180,7 +227,8 @@ export async function GET(
 }
 
 export async function POST(
-  request: Request,
+  request:
+    Request,
 ) {
   const access =
     await checkAdminFromRequest(
@@ -211,8 +259,18 @@ export async function POST(
           .json()
       ) as {
         action?: string;
-        mode?: AgentReportMode;
-        asOf?: string;
+
+        mode?:
+          AgentReportMode;
+
+        startDate?:
+          string | null;
+
+        endDate?:
+          string | null;
+
+        asOf?:
+          string | null;
       };
 
     if (
@@ -239,14 +297,26 @@ export async function POST(
         admin,
 
         mode:
-          reportMode(
+          safeReportMode(
             body.mode,
           ),
 
-        asOf:
-          safeAsOf(
-            body.asOf,
+        startDate:
+          dateValue(
+            body.startDate ||
+            null,
           ),
+
+        endDate:
+          dateValue(
+            body.endDate ||
+            null,
+          ),
+
+        asOf:
+          body.asOf ||
+          new Date()
+            .toISOString(),
       });
 
     return json({
@@ -269,9 +339,10 @@ export async function POST(
           false,
 
         error:
-          error instanceof Error
+          error instanceof
+            Error
             ? error.message
-            : "Agent economy report email could not be sent.",
+            : "Agent report email could not be sent.",
       },
       500,
     );

@@ -10,6 +10,38 @@ import type {
   AgentReportTransaction,
 } from "@/lib/agents/reporting/types";
 
+export const TRANSACTION_COLUMNS:
+  Array<
+    keyof AgentReportTransaction
+  > = [
+    "occurred_at",
+    "agent_user_id",
+    "agent_code",
+    "agent_name",
+    "currency_code",
+    "transaction_id",
+    "transaction_type",
+    "direction",
+    "amount",
+    "title",
+    "source",
+    "description",
+    "balance_after",
+    "source_id",
+    "source_table",
+  ];
+
+type ReportRequest = {
+  mode:
+    AgentReportMode;
+
+  startDate?: string | null;
+
+  endDate?: string | null;
+
+  asOf?: string | null;
+};
+
 type JsonObject =
   Record<string, unknown>;
 
@@ -18,50 +50,131 @@ function isObject(
 ): value is JsonObject {
   return Boolean(
     value &&
-    typeof value === "object" &&
-    !Array.isArray(value),
+    typeof value ===
+      "object" &&
+    !Array.isArray(
+      value,
+    ),
   );
 }
 
-function safeMode(
+export function safeReportMode(
   value: unknown,
 ): AgentReportMode {
-  return String(value || "")
-    .trim()
-    .toUpperCase() === "DAILY"
-    ? "DAILY"
-    : "CURRENT";
+  const clean =
+    String(
+      value || "",
+    )
+      .trim()
+      .toUpperCase();
+
+  if (clean === "DAILY") {
+    return "DAILY";
+  }
+
+  if (clean === "RANGE") {
+    return "RANGE";
+  }
+
+  return "CURRENT";
+}
+
+function safeDate(
+  value: unknown,
+) {
+  const clean =
+    String(
+      value || "",
+    )
+      .trim();
+
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/
+      .test(
+        clean,
+      )
+  ) {
+    return null;
+  }
+
+  return clean;
+}
+
+function safeAsOf(
+  value: unknown,
+) {
+  const clean =
+    typeof value ===
+      "string"
+      ? value.trim()
+      : "";
+
+  if (!clean) {
+    return new Date()
+      .toISOString();
+  }
+
+  const parsed =
+    new Date(
+      clean,
+    );
+
+  if (
+    Number.isNaN(
+      parsed.getTime(),
+    )
+  ) {
+    return new Date()
+      .toISOString();
+  }
+
+  return parsed
+    .toISOString();
+}
+
+function rpcParameters(
+  request:
+    ReportRequest,
+) {
+  return {
+    p_mode:
+      safeReportMode(
+        request.mode,
+      ),
+
+    p_start_date:
+      safeDate(
+        request.startDate,
+      ),
+
+    p_end_date:
+      safeDate(
+        request.endDate,
+      ),
+
+    p_as_of:
+      safeAsOf(
+        request.asOf,
+      ),
+  };
 }
 
 export async function loadAgentEconomyReport({
   admin,
-  mode,
-  asOf,
+  ...request
 }: {
-  admin: SupabaseClient;
-  mode: AgentReportMode;
-  asOf?: string;
-}) {
-  const reportMode =
-    safeMode(mode);
-
-  const timestamp =
-    asOf ||
-    new Date().toISOString();
-
+  admin:
+    SupabaseClient;
+} & ReportRequest) {
   const {
     data,
     error,
   } =
     await admin.rpc(
-      "agent_generate_economy_health_report_v1",
-      {
-        p_mode:
-          reportMode,
-
-        p_as_of:
-          timestamp,
-      },
+      "agent_generate_economy_health_report_v2",
+      rpcParameters(
+        request,
+      ),
     );
 
   if (error) {
@@ -83,33 +196,20 @@ export async function loadAgentEconomyReport({
 
 export async function loadAgentReportTransactions({
   admin,
-  mode,
-  asOf,
+  ...request
 }: {
-  admin: SupabaseClient;
-  mode: AgentReportMode;
-  asOf?: string;
-}) {
-  const reportMode =
-    safeMode(mode);
-
-  const timestamp =
-    asOf ||
-    new Date().toISOString();
-
+  admin:
+    SupabaseClient;
+} & ReportRequest) {
   const {
     data,
     error,
   } =
     await admin.rpc(
-      "agent_report_transactions_v1",
-      {
-        p_mode:
-          reportMode,
-
-        p_as_of:
-          timestamp,
-      },
+      "agent_report_transactions_v2",
+      rpcParameters(
+        request,
+      ),
     );
 
   if (error) {
@@ -124,7 +224,130 @@ export async function loadAgentReportTransactions({
   ) as AgentReportTransaction[];
 }
 
-function csvCell(
+export async function loadAgentReportTransactionPreview({
+  admin,
+  limit = 250,
+  ...request
+}: {
+  admin:
+    SupabaseClient;
+
+  limit?: number;
+} & ReportRequest) {
+  const safeLimit =
+    Math.max(
+      1,
+      Math.min(
+        Number(limit) ||
+          250,
+        500,
+      ),
+    );
+
+  const {
+    data,
+    error,
+  } =
+    await admin
+      .rpc(
+        "agent_report_transactions_v2",
+        rpcParameters(
+          request,
+        ),
+      )
+      .order(
+        "occurred_at",
+        {
+          ascending:
+            false,
+        },
+      )
+      .limit(
+        safeLimit,
+      );
+
+  if (error) {
+    throw new Error(
+      `Could not load transaction preview: ${error.message}`,
+    );
+  }
+
+  return (
+    data ||
+    []
+  ) as AgentReportTransaction[];
+}
+
+export async function loadAgentReportTransactionPage({
+  admin,
+  offset,
+  limit,
+  ...request
+}: {
+  admin:
+    SupabaseClient;
+
+  offset: number;
+
+  limit: number;
+} & ReportRequest) {
+  const safeOffset =
+    Math.max(
+      0,
+      Math.floor(
+        offset,
+      ),
+    );
+
+  const safeLimit =
+    Math.max(
+      1,
+      Math.min(
+        Math.floor(
+          limit,
+        ),
+        5000,
+      ),
+    );
+
+  const {
+    data,
+    error,
+  } =
+    await admin
+      .rpc(
+        "agent_report_transactions_v2",
+        rpcParameters(
+          request,
+        ),
+      )
+      .order(
+        "occurred_at",
+        {
+          ascending:
+            true,
+        },
+      )
+      .range(
+        safeOffset,
+        safeOffset +
+          safeLimit -
+          1,
+      );
+
+  if (error) {
+    throw new Error(
+      `Could not load transaction page: ${error.message}`,
+    );
+  }
+
+  return (
+    data ||
+    []
+  ) as AgentReportTransaction[];
+}
+
+export function csvCell(
   value: unknown,
 ) {
   if (
@@ -135,15 +358,28 @@ function csvCell(
   }
 
   const text =
-    typeof value === "object"
-      ? JSON.stringify(value)
-      : String(value);
+    typeof value ===
+      "object"
+      ? JSON.stringify(
+          value,
+        )
+      : String(
+          value,
+        );
 
   if (
-    text.includes(",") ||
-    text.includes("\"") ||
-    text.includes("\n") ||
-    text.includes("\r")
+    text.includes(
+      ",",
+    ) ||
+    text.includes(
+      "\"",
+    ) ||
+    text.includes(
+      "\n",
+    ) ||
+    text.includes(
+      "\r",
+    )
   ) {
     return `"${text.replaceAll(
       "\"",
@@ -154,51 +390,44 @@ function csvCell(
   return text;
 }
 
-const TRANSACTION_COLUMNS:
-  Array<
-    keyof AgentReportTransaction
-  > = [
-    "occurred_at",
-    "agent_user_id",
-    "agent_code",
-    "agent_name",
-    "currency_code",
-    "transaction_id",
-    "transaction_type",
-    "direction",
-    "amount",
-    "title",
-    "source",
-    "description",
-    "balance_after",
-    "source_id",
-    "source_table",
-  ];
-
 export function agentTransactionsToCsv(
-  rows: AgentReportTransaction[],
+  rows:
+    AgentReportTransaction[],
+  includeHeader = true,
 ) {
-  const lines = [
-    TRANSACTION_COLUMNS.join(
-      ",",
-    ),
+  const lines:
+    string[] = [];
 
-    ...rows.map(
-      (
-        row,
-      ) =>
-        TRANSACTION_COLUMNS
-          .map(
-            (
-              column,
-            ) =>
-              csvCell(
-                row[column],
-              ),
-          )
-          .join(","),
-    ),
-  ];
+  if (includeHeader) {
+    lines.push(
+      TRANSACTION_COLUMNS
+        .join(
+          ",",
+        ),
+    );
+  }
+
+  for (
+    const row
+    of rows
+  ) {
+    lines.push(
+      TRANSACTION_COLUMNS
+        .map(
+          (
+            column,
+          ) =>
+            csvCell(
+              row[
+                column
+              ],
+            ),
+        )
+        .join(
+          ",",
+        ),
+    );
+  }
 
   return lines.join(
     "\r\n",
@@ -237,7 +466,9 @@ function numberLabel(
   value: unknown,
 ) {
   const number =
-    Number(value || 0);
+    Number(
+      value || 0,
+    );
 
   return Number.isFinite(
     number,
@@ -254,7 +485,9 @@ function signedNumberLabel(
   value: unknown,
 ) {
   const number =
-    Number(value || 0);
+    Number(
+      value || 0,
+    );
 
   if (
     !Number.isFinite(
@@ -268,7 +501,9 @@ function signedNumberLabel(
     new Intl.NumberFormat(
       "en-SG",
     ).format(
-      Math.abs(number),
+      Math.abs(
+        number,
+      ),
     );
 
   if (number > 0) {
@@ -298,24 +533,9 @@ function dateTimeSingapore(
         "short",
     },
   ).format(
-    new Date(value),
-  );
-}
-
-function dateSingapore(
-  value: string,
-) {
-  return new Intl.DateTimeFormat(
-    "en-SG",
-    {
-      timeZone:
-        "Asia/Singapore",
-
-      dateStyle:
-        "medium",
-    },
-  ).format(
-    new Date(value),
+    new Date(
+      value,
+    ),
   );
 }
 
@@ -323,11 +543,14 @@ function healthColour(
   status: string,
 ) {
   const clean =
-    String(status || "")
+    String(
+      status || "",
+    )
       .toUpperCase();
 
   if (
-    clean === "HEALTHY"
+    clean ===
+    "HEALTHY"
   ) {
     return "#16a34a";
   }
@@ -352,34 +575,18 @@ function healthCard(
     );
 
   return `
-    <td style="
-      width:25%;
-      padding:8px;
-      vertical-align:top;
-    ">
-      <div style="
-        border:1px solid #e2e8f0;
-        border-radius:14px;
-        padding:14px;
-        background:#ffffff;
-      ">
-        <div style="
-          color:#64748b;
-          font-size:11px;
-          font-weight:800;
-          text-transform:uppercase;
-          letter-spacing:.08em;
-        ">
-          ${htmlEscape(label)}
+    <td style="width:25%;padding:8px;vertical-align:top;">
+      <div style="border:1px solid #e2e8f0;border-radius:14px;padding:14px;background:#ffffff;">
+        <div style="color:#64748b;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;">
+          ${htmlEscape(
+            label,
+          )}
         </div>
 
-        <div style="
-          margin-top:8px;
-          color:${colour};
-          font-size:18px;
-          font-weight:900;
-        ">
-          ${htmlEscape(status)}
+        <div style="margin-top:8px;color:${colour};font-size:18px;font-weight:900;">
+          ${htmlEscape(
+            status,
+          )}
         </div>
       </div>
     </td>
@@ -392,22 +599,16 @@ function metricRow(
 ) {
   return `
     <tr>
-      <td style="
-        padding:9px 12px;
-        border-bottom:1px solid #edf2f7;
-        color:#64748b;
-      ">
-        ${htmlEscape(label)}
+      <td style="padding:9px 12px;border-bottom:1px solid #edf2f7;color:#64748b;">
+        ${htmlEscape(
+          label,
+        )}
       </td>
 
-      <td style="
-        padding:9px 12px;
-        border-bottom:1px solid #edf2f7;
-        text-align:right;
-        font-weight:800;
-        color:#0f172a;
-      ">
-        ${htmlEscape(value)}
+      <td style="padding:9px 12px;border-bottom:1px solid #edf2f7;text-align:right;font-weight:800;color:#0f172a;">
+        ${htmlEscape(
+          value,
+        )}
       </td>
     </tr>
   `;
@@ -417,8 +618,11 @@ export function buildAgentEconomyReportHtml({
   report,
   transactionCount,
 }: {
-  report: AgentEconomyHealthReport;
-  transactionCount: number;
+  report:
+    AgentEconomyHealthReport;
+
+  transactionCount:
+    number;
 }) {
   const reasons =
     report
@@ -433,20 +637,18 @@ export function buildAgentEconomyReportHtml({
             (
               reason,
             ) => `
-              <li style="
-                margin:6px 0;
-                color:#475569;
-              ">
-                ${htmlEscape(reason)}
+              <li style="margin:6px 0;color:#475569;">
+                ${htmlEscape(
+                  reason,
+                )}
               </li>
             `,
           )
-          .join("")
+          .join(
+            "",
+          )
       : `
-          <li style="
-            margin:6px 0;
-            color:#475569;
-          ">
+          <li style="margin:6px 0;color:#475569;">
             No health warnings detected.
           </li>
         `;
@@ -461,471 +663,395 @@ export function buildAgentEconomyReportHtml({
   return `
 <!doctype html>
 <html>
-  <body style="
-    margin:0;
-    background:#f1f5f9;
-    font-family:Arial,Helvetica,sans-serif;
-    color:#0f172a;
-  ">
-    <div style="
-      max-width:760px;
-      margin:0 auto;
-      padding:28px 18px;
-    ">
-      <div style="
-        border-radius:22px;
-        padding:26px;
-        background:#041124;
-        color:white;
-      ">
-        <div style="
-          color:#7ee8ff;
-          font-size:11px;
-          font-weight:900;
-          letter-spacing:.16em;
-          text-transform:uppercase;
-        ">
-          Dreamscape Agent Economy
-        </div>
+<body style="margin:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
 
-        <h1 style="
-          margin:12px 0 0;
-          font-size:30px;
-          line-height:1.1;
-        ">
-          ${
-            report.report_mode ===
-            "DAILY"
-              ? "Daily Economy Health Report"
-              : "Current Economy Health Report"
-          }
-        </h1>
+<div style="max-width:760px;margin:0 auto;padding:28px 18px;">
 
-        <p style="
-          margin:12px 0 0;
-          color:#94a3b8;
-          font-size:14px;
-          line-height:1.6;
-        ">
-          ${htmlEscape(
-            dateTimeSingapore(
-              report.window.start,
-            ),
-          )}
-          →
-          ${htmlEscape(
-            dateTimeSingapore(
-              report.window.end,
-            ),
-          )}
-          · Singapore Time
-        </p>
+  <div style="border-radius:22px;padding:26px;background:#041124;color:white;">
 
-        <div style="
-          display:inline-block;
-          margin-top:20px;
-          border-radius:999px;
-          padding:9px 14px;
-          background:${overallColour};
-          color:white;
-          font-size:12px;
-          font-weight:900;
-        ">
-          OVERALL ${htmlEscape(
-            report
-              .overall_health
-              .status,
-          )}
-        </div>
-      </div>
-
-      <table
-        width="100%"
-        cellpadding="0"
-        cellspacing="0"
-        style="
-          margin-top:14px;
-          table-layout:fixed;
-        "
-      >
-        <tr>
-          ${healthCard(
-            "Economy",
-            report.economy.status,
-          )}
-
-          ${healthCard(
-            "Stocks",
-            report.stocks.status,
-          )}
-
-          ${healthCard(
-            "Property",
-            report.property.status,
-          )}
-
-          ${healthCard(
-            "Runtime",
-            report.runtime.status,
-          )}
-        </tr>
-      </table>
-
-      <div style="
-        margin-top:14px;
-        border-radius:18px;
-        background:white;
-        padding:20px;
-      ">
-        <h2 style="
-          margin:0 0 12px;
-          font-size:20px;
-        ">
-          Economy activity
-        </h2>
-
-        <table
-          width="100%"
-          cellpadding="0"
-          cellspacing="0"
-          style="font-size:14px;"
-        >
-          ${metricRow(
-            "Transactions",
-            numberLabel(
-              report
-                .economy
-                .transactions
-                .total,
-            ),
-          )}
-
-          ${metricRow(
-            "Agents with transactions",
-            numberLabel(
-              report
-                .economy
-                .transactions
-                .agents_with_transactions,
-            ),
-          )}
-
-          ${metricRow(
-            "DT earned",
-            numberLabel(
-              report
-                .economy
-                .transactions
-                .dt_earned,
-            ),
-          )}
-
-          ${metricRow(
-            "DT spent",
-            numberLabel(
-              report
-                .economy
-                .transactions
-                .dt_spent,
-            ),
-          )}
-
-          ${metricRow(
-            "DT net",
-            signedNumberLabel(
-              report
-                .economy
-                .transactions
-                .dt_net,
-            ),
-          )}
-
-          ${metricRow(
-            "DG earned",
-            numberLabel(
-              report
-                .economy
-                .transactions
-                .dg_earned,
-            ),
-          )}
-
-          ${metricRow(
-            "DG spent",
-            numberLabel(
-              report
-                .economy
-                .transactions
-                .dg_spent,
-            ),
-          )}
-
-          ${metricRow(
-            "DG net",
-            signedNumberLabel(
-              report
-                .economy
-                .transactions
-                .dg_net,
-            ),
-          )}
-
-          ${metricRow(
-            "Total bot DT held",
-            numberLabel(
-              report
-                .economy
-                .wallet_integrity
-                .total_dt_balance,
-            ),
-          )}
-
-          ${metricRow(
-            "Total bot DG held",
-            numberLabel(
-              report
-                .economy
-                .wallet_integrity
-                .total_dg_balance,
-            ),
-          )}
-        </table>
-      </div>
-
-      <div style="
-        margin-top:14px;
-        border-radius:18px;
-        background:white;
-        padding:20px;
-      ">
-        <h2 style="
-          margin:0 0 12px;
-          font-size:20px;
-        ">
-          Market health
-        </h2>
-
-        <table
-          width="100%"
-          cellpadding="0"
-          cellspacing="0"
-          style="font-size:14px;"
-        >
-          ${metricRow(
-            "Active stocks",
-            numberLabel(
-              report
-                .stocks
-                .market
-                .active_stocks,
-            ),
-          )}
-
-          ${metricRow(
-            "Average stock movement",
-            `${
-              report
-                .stocks
-                .market
-                .average_change_pct
-            }%`,
-          )}
-
-          ${metricRow(
-            "Largest stock movement",
-            `${
-              report
-                .stocks
-                .market
-                .largest_absolute_move_pct
-            }%`,
-          )}
-
-          ${metricRow(
-            "Bot stock exposure",
-            numberLabel(
-              report
-                .stocks
-                .bot_exposure
-                .total_market_value,
-            ),
-          )}
-
-          ${metricRow(
-            "Property units",
-            numberLabel(
-              report
-                .property
-                .market
-                .total_units,
-            ),
-          )}
-
-          ${metricRow(
-            "Property availability",
-            `${
-              report
-                .property
-                .market
-                .availability_pct
-            }%`,
-          )}
-
-          ${metricRow(
-            "Bot property exposure",
-            numberLabel(
-              report
-                .property
-                .bot_exposure
-                .total_market_value,
-            ),
-          )}
-        </table>
-      </div>
-
-      <div style="
-        margin-top:14px;
-        border-radius:18px;
-        background:white;
-        padding:20px;
-      ">
-        <h2 style="
-          margin:0 0 12px;
-          font-size:20px;
-        ">
-          Runtime health
-        </h2>
-
-        <table
-          width="100%"
-          cellpadding="0"
-          cellspacing="0"
-          style="font-size:14px;"
-        >
-          ${metricRow(
-            "Total agents",
-            numberLabel(
-              report
-                .runtime
-                .population
-                .total_agents,
-            ),
-          )}
-
-          ${metricRow(
-            "Active agents",
-            numberLabel(
-              report
-                .runtime
-                .population
-                .active_agents,
-            ),
-          )}
-
-          ${metricRow(
-            "Execution enabled",
-            numberLabel(
-              report
-                .runtime
-                .population
-                .execution_enabled_agents,
-            ),
-          )}
-
-          ${metricRow(
-            "Auto-paused",
-            numberLabel(
-              report
-                .runtime
-                .population
-                .auto_paused_agents,
-            ),
-          )}
-
-          ${metricRow(
-            "Open critical failures",
-            numberLabel(
-              report
-                .runtime
-                .failures
-                .open_critical_failures,
-            ),
-          )}
-
-          ${metricRow(
-            "Stale sessions",
-            numberLabel(
-              report
-                .runtime
-                .sessions
-                .stale_open_sessions,
-            ),
-          )}
-        </table>
-      </div>
-
-      <div style="
-        margin-top:14px;
-        border-radius:18px;
-        background:white;
-        padding:20px;
-      ">
-        <h2 style="
-          margin:0 0 10px;
-          font-size:20px;
-        ">
-          Health notes
-        </h2>
-
-        <ul style="
-          margin:0;
-          padding-left:20px;
-          font-size:14px;
-          line-height:1.6;
-        ">
-          ${reasonHtml}
-        </ul>
-      </div>
-
-      <div style="
-        margin-top:14px;
-        border-radius:18px;
-        background:#e0f2fe;
-        padding:18px 20px;
-        color:#0c4a6e;
-        font-size:13px;
-        line-height:1.6;
-      ">
-        <strong>
-          Full transaction ledger attached
-        </strong>
-
-        <br/>
-
-        The attached CSV contains all
-        ${htmlEscape(
-          transactionCount,
-        )}
-        bot transactions within this report window,
-        including earnings and spending.
-
-        <br/><br/>
-
-        Report generated
-        ${htmlEscape(
-          dateTimeSingapore(
-            report.generated_at,
-          ),
-        )}.
-      </div>
+    <div style="color:#7ee8ff;font-size:11px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;">
+      Dreamscape Agent Economy
     </div>
-  </body>
+
+    <h1 style="margin:12px 0 0;font-size:30px;line-height:1.1;">
+      ${
+        report.report_mode ===
+        "DAILY"
+          ? "Daily Economy Health Report"
+          : report.report_mode ===
+              "RANGE"
+            ? "Custom Economy Health Report"
+            : "Current Economy Health Report"
+      }
+    </h1>
+
+    <p style="margin:12px 0 0;color:#94a3b8;font-size:14px;line-height:1.6;">
+      ${htmlEscape(
+        report.window.label,
+      )}
+    </p>
+
+    <div style="display:inline-block;margin-top:20px;border-radius:999px;padding:9px 14px;background:${overallColour};color:white;font-size:12px;font-weight:900;">
+      OVERALL
+      ${htmlEscape(
+        report
+          .overall_health
+          .status,
+      )}
+    </div>
+  </div>
+
+  <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;table-layout:fixed;">
+    <tr>
+      ${healthCard(
+        "Economy",
+        report
+          .economy
+          .status,
+      )}
+
+      ${healthCard(
+        "Stocks",
+        report
+          .stocks
+          .status,
+      )}
+
+      ${healthCard(
+        "Property",
+        report
+          .property
+          .status,
+      )}
+
+      ${healthCard(
+        "Runtime",
+        report
+          .runtime
+          .status,
+      )}
+    </tr>
+  </table>
+
+  <div style="margin-top:14px;border-radius:18px;background:white;padding:20px;">
+    <h2 style="margin:0 0 12px;font-size:20px;">
+      Economy activity
+    </h2>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;">
+
+      ${metricRow(
+        "Transactions",
+        numberLabel(
+          report
+            .economy
+            .transactions
+            .total,
+        ),
+      )}
+
+      ${metricRow(
+        "Agents with transactions",
+        numberLabel(
+          report
+            .economy
+            .transactions
+            .agents_with_transactions,
+        ),
+      )}
+
+      ${metricRow(
+        "DT earned",
+        numberLabel(
+          report
+            .economy
+            .transactions
+            .dt_earned,
+        ),
+      )}
+
+      ${metricRow(
+        "DT spent",
+        numberLabel(
+          report
+            .economy
+            .transactions
+            .dt_spent,
+        ),
+      )}
+
+      ${metricRow(
+        "DT net",
+        signedNumberLabel(
+          report
+            .economy
+            .transactions
+            .dt_net,
+        ),
+      )}
+
+      ${metricRow(
+        "DG earned",
+        numberLabel(
+          report
+            .economy
+            .transactions
+            .dg_earned,
+        ),
+      )}
+
+      ${metricRow(
+        "DG spent",
+        numberLabel(
+          report
+            .economy
+            .transactions
+            .dg_spent,
+        ),
+      )}
+
+      ${metricRow(
+        "DG net",
+        signedNumberLabel(
+          report
+            .economy
+            .transactions
+            .dg_net,
+        ),
+      )}
+
+      ${metricRow(
+        "Total bot DT held",
+        numberLabel(
+          report
+            .economy
+            .wallet_integrity
+            .total_dt_balance,
+        ),
+      )}
+
+      ${metricRow(
+        "Total bot DG held",
+        numberLabel(
+          report
+            .economy
+            .wallet_integrity
+            .total_dg_balance,
+        ),
+      )}
+
+    </table>
+  </div>
+
+  <div style="margin-top:14px;border-radius:18px;background:white;padding:20px;">
+
+    <h2 style="margin:0 0 12px;font-size:20px;">
+      Market health
+    </h2>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;">
+
+      ${metricRow(
+        "Active stocks",
+        numberLabel(
+          report
+            .stocks
+            .market
+            .active_stocks,
+        ),
+      )}
+
+      ${metricRow(
+        "Average stock movement",
+        `${
+          report
+            .stocks
+            .market
+            .average_change_pct
+        }%`,
+      )}
+
+      ${metricRow(
+        "Largest stock movement",
+        `${
+          report
+            .stocks
+            .market
+            .largest_absolute_move_pct
+        }%`,
+      )}
+
+      ${metricRow(
+        "Bot stock exposure",
+        numberLabel(
+          report
+            .stocks
+            .bot_exposure
+            .total_market_value,
+        ),
+      )}
+
+      ${metricRow(
+        "Property units",
+        numberLabel(
+          report
+            .property
+            .market
+            .total_units,
+        ),
+      )}
+
+      ${metricRow(
+        "Property availability",
+        `${
+          report
+            .property
+            .market
+            .availability_pct
+        }%`,
+      )}
+
+      ${metricRow(
+        "Bot property exposure",
+        numberLabel(
+          report
+            .property
+            .bot_exposure
+            .total_market_value,
+        ),
+      )}
+
+    </table>
+  </div>
+
+  <div style="margin-top:14px;border-radius:18px;background:white;padding:20px;">
+
+    <h2 style="margin:0 0 12px;font-size:20px;">
+      Runtime health
+    </h2>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;">
+
+      ${metricRow(
+        "Total agents",
+        numberLabel(
+          report
+            .runtime
+            .population
+            .total_agents,
+        ),
+      )}
+
+      ${metricRow(
+        "Active agents",
+        numberLabel(
+          report
+            .runtime
+            .population
+            .active_agents,
+        ),
+      )}
+
+      ${metricRow(
+        "Execution enabled",
+        numberLabel(
+          report
+            .runtime
+            .population
+            .execution_enabled_agents,
+        ),
+      )}
+
+      ${metricRow(
+        "Auto-paused",
+        numberLabel(
+          report
+            .runtime
+            .population
+            .auto_paused_agents,
+        ),
+      )}
+
+      ${metricRow(
+        "Open critical failures",
+        numberLabel(
+          report
+            .runtime
+            .failures
+            .open_critical_failures,
+        ),
+      )}
+
+      ${metricRow(
+        "Failures in report window",
+        numberLabel(
+          report
+            .runtime
+            .failures
+            .failures_created_in_window,
+        ),
+      )}
+
+      ${metricRow(
+        "Stale sessions",
+        numberLabel(
+          report
+            .runtime
+            .sessions
+            .stale_open_sessions,
+        ),
+      )}
+
+    </table>
+  </div>
+
+  <div style="margin-top:14px;border-radius:18px;background:white;padding:20px;">
+
+    <h2 style="margin:0 0 10px;font-size:20px;">
+      Health notes
+    </h2>
+
+    <ul style="margin:0;padding-left:20px;font-size:14px;line-height:1.6;">
+      ${reasonHtml}
+    </ul>
+
+  </div>
+
+  <div style="margin-top:14px;border-radius:18px;background:#e0f2fe;padding:18px 20px;color:#0c4a6e;font-size:13px;line-height:1.6;">
+
+    <strong>
+      Full transaction ledger attached
+    </strong>
+
+    <br/>
+
+    The attached CSV contains all
+    ${htmlEscape(
+      transactionCount,
+    )}
+    bot transactions within the selected report window.
+
+    <br/><br/>
+
+    Report generated
+    ${htmlEscape(
+      dateTimeSingapore(
+        report.generated_at,
+      ),
+    )}.
+
+  </div>
+
+</div>
+
+</body>
 </html>
   `;
 }
 
-async function loadReportRecipient(
-  admin: SupabaseClient,
+export async function loadAgentReportRecipient(
+  admin:
+    SupabaseClient,
 ) {
   const {
     data,
@@ -968,43 +1094,33 @@ async function loadReportRecipient(
 
 export async function sendAgentEconomyReportEmail({
   admin,
-  mode,
-  asOf,
+  preloadedReport,
+  ...request
 }: {
-  admin: SupabaseClient;
-  mode: AgentReportMode;
-  asOf?: string;
-}) {
-  const reportMode =
-    safeMode(mode);
+  admin:
+    SupabaseClient;
 
-  const timestamp =
-    asOf ||
-    new Date().toISOString();
+  preloadedReport?:
+    AgentEconomyHealthReport;
+} & ReportRequest) {
+  const report =
+    preloadedReport ||
+    await loadAgentEconomyReport({
+      admin,
+      ...request,
+    });
 
   const [
-    report,
     transactions,
     recipient,
   ] =
     await Promise.all([
-      loadAgentEconomyReport({
-        admin,
-        mode:
-          reportMode,
-        asOf:
-          timestamp,
-      }),
-
       loadAgentReportTransactions({
         admin,
-        mode:
-          reportMode,
-        asOf:
-          timestamp,
+        ...request,
       }),
 
-      loadReportRecipient(
+      loadAgentReportRecipient(
         admin,
       ),
     ]);
@@ -1025,51 +1141,82 @@ export async function sendAgentEconomyReportEmail({
       "RESEND_API_KEY is not configured.",
     );
   }
-  
 
   const csv =
     agentTransactionsToCsv(
       transactions,
+      true,
     );
 
-  const reportDate =
-    dateSingapore(
-      report.window.start,
+  /*
+   * Custom date ranges may eventually become extremely large.
+   *
+   * Report generation itself remains unrestricted.
+   * Only email attachment size is guarded.
+   */
+  const csvBytes =
+    Buffer.byteLength(
+      csv,
+      "utf8",
     );
+
+  const maxCsvBytes =
+    15 *
+    1024 *
+    1024;
+
+  if (
+    csvBytes >
+    maxCsvBytes
+  ) {
+    throw new Error(
+      "This report was generated successfully, but its transaction CSV is too large to email safely. Download the CSV from the admin report instead.",
+    );
+  }
+
+  const subjectMode =
+    report.report_mode ===
+    "DAILY"
+      ? "Daily"
+      : report.report_mode ===
+          "RANGE"
+        ? "Custom"
+        : "Current";
 
   const subject =
-    `Dreamscape Agent ${
-      reportMode === "DAILY"
-        ? "Daily"
-        : "Current"
-    } Report · ${reportDate} · ${
+    `Dreamscape Agent ${subjectMode} Report · ${
       report
         .overall_health
         .status
     }`;
 
-  const filenameDate =
-    new Intl.DateTimeFormat(
-      "en-CA",
-      {
-        timeZone:
-          "Asia/Singapore",
-
-        year:
-          "numeric",
-
-        month:
-          "2-digit",
-
-        day:
-          "2-digit",
-      },
+  const startDate =
+    String(
+      report.window.start,
     )
-      .format(
-        new Date(
-          report.window.start,
-        ),
+      .slice(
+        0,
+        10,
       );
+
+  const endDate =
+    new Date(
+      new Date(
+        report.window.end,
+      ).getTime() -
+      1,
+    )
+      .toISOString()
+      .slice(
+        0,
+        10,
+      );
+
+  const filename =
+    report.report_mode ===
+    "RANGE"
+      ? `dreamscape-agent-transactions-${startDate}-to-${endDate}.csv`
+      : `dreamscape-agent-transactions-${startDate}.csv`;
 
   const response =
     await fetch(
@@ -1107,8 +1254,7 @@ export async function sendAgentEconomyReportEmail({
 
             attachments: [
               {
-                filename:
-                  `dreamscape-agent-transactions-${filenameDate}.csv`,
+                filename,
 
                 content:
                   Buffer
@@ -1136,10 +1282,13 @@ export async function sendAgentEconomyReportEmail({
                   "type",
 
                 value:
-                  reportMode ===
+                  report.report_mode ===
                   "DAILY"
                     ? "daily_economy_report"
-                    : "current_economy_report",
+                    : report.report_mode ===
+                        "RANGE"
+                      ? "custom_economy_report"
+                      : "current_economy_report",
               },
             ],
           }),
@@ -1155,7 +1304,9 @@ export async function sendAgentEconomyReportEmail({
         )
     ) as {
       id?: string;
+
       message?: string;
+
       error?: {
         message?: string;
       };
@@ -1183,7 +1334,8 @@ export async function sendAgentEconomyReportEmail({
     resendEmailId:
       payload.id,
 
-    reportMode,
+    reportMode:
+      report.report_mode,
 
     generatedAt:
       report.generated_at,

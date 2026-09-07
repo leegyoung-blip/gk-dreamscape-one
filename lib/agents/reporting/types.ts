@@ -1,6 +1,7 @@
 export type AgentReportMode =
   | "CURRENT"
-  | "DAILY";
+  | "DAILY"
+  | "RANGE";
 
 export type AgentReportHealthStatus =
   | "HEALTHY"
@@ -30,8 +31,12 @@ export type AgentReportTransaction = {
 
 export type AgentEconomyHealthReport = {
   schema_version: string;
-  report_mode: AgentReportMode;
+
+  report_mode:
+    AgentReportMode;
+
   timezone: string;
+
   generated_at: string;
 
   window: {
@@ -41,12 +46,16 @@ export type AgentEconomyHealthReport = {
   };
 
   overall_health: {
-    status: AgentReportHealthStatus;
-    reasons: string[];
+    status:
+      AgentReportHealthStatus;
+
+    reasons:
+      string[];
   };
 
   economy: {
-    status: AgentReportHealthStatus;
+    status:
+      AgentReportHealthStatus;
 
     transactions: {
       total: number;
@@ -64,8 +73,7 @@ export type AgentEconomyHealthReport = {
       dg_net: number;
 
       dt_earn_to_spend_ratio:
-        | number
-        | null;
+        number | null;
     };
 
     synthetic_activity: {
@@ -88,6 +96,7 @@ export type AgentEconomyHealthReport = {
 
     wallet_integrity: {
       agents_checked: number;
+
       total_dt_balance: number;
       total_dg_balance: number;
 
@@ -100,20 +109,26 @@ export type AgentEconomyHealthReport = {
 
     controls: {
       max_spends_per_agent_day: number;
+
       agent_days_over_spend_limit: number;
+
       invalid_spend_rows: number;
       missing_budget_links: number;
+
       dt_budget_violations: number;
       dg_budget_violations: number;
+
       dt_reserve_violations: number;
       dg_reserve_violations: number;
+
       dt_spend_ledger_match: boolean;
       dg_spend_ledger_match: boolean;
     };
   };
 
   stocks: {
-    status: AgentReportHealthStatus;
+    status:
+      AgentReportHealthStatus;
 
     market: {
       active_stocks: number;
@@ -121,6 +136,7 @@ export type AgentEconomyHealthReport = {
       advancers: number;
       decliners: number;
       unchanged: number;
+
       average_change_pct: number;
       largest_absolute_move_pct: number;
       unusually_large_moves: number;
@@ -129,41 +145,51 @@ export type AgentEconomyHealthReport = {
     bot_exposure: {
       holding_rows: number;
       bot_holders: number;
+
       total_market_value: number;
+
       top5_holder_concentration_pct:
-        | number
-        | null;
+        number | null;
+
       invalid_holdings: number;
       inactive_stock_holdings: number;
     };
   };
 
   property: {
-    status: AgentReportHealthStatus;
+    status:
+      AgentReportHealthStatus;
 
     market: {
       active_properties: number;
       invalid_property_rows: number;
+
       total_units: number;
       available_units: number;
+
       availability_pct: number;
+
       average_listing_premium_pct: number;
     };
 
     bot_exposure: {
       holding_rows: number;
       bot_holders: number;
+
       total_market_value: number;
+
       top5_holder_concentration_pct:
-        | number
-        | null;
+        number | null;
+
       invalid_holdings: number;
+
       inactive_property_holdings: number;
     };
   };
 
   runtime: {
-    status: AgentReportHealthStatus;
+    status:
+      AgentReportHealthStatus;
 
     population: {
       total_agents: number;
@@ -186,14 +212,17 @@ export type AgentEconomyHealthReport = {
     scheduler: {
       recent_shards: number;
       failed_latest_shards: number;
+
       oldest_latest_tick_minutes:
-        | number
-        | null;
+        number | null;
     };
 
     agents_enabled: boolean;
+
     public_visibility_enabled: boolean;
+
     leaderboard_visibility_enabled: boolean;
+
     exchange_visibility_enabled: boolean;
   };
 
@@ -202,8 +231,9 @@ export type AgentEconomyHealthReport = {
     transaction_function: string;
   };
 
-  architecture: Record<
-    string,
-    unknown
-  >;
+  architecture:
+    Record<
+      string,
+      unknown
+    >;
 };
