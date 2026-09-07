@@ -61,6 +61,11 @@ export default function ExpeditionComplete({
         />
         <div className="expedition-map-vignette" />
 
+        <div
+          className="expedition-map-unreached-area"
+          style={{ left: `${Math.min(100, Math.max(0, vehiclePosition.x))}%` }}
+        />
+
         <svg
           className="expedition-map-route-overlay"
           viewBox="0 0 100 100"
@@ -217,6 +222,17 @@ export default function ExpeditionComplete({
           background:
             radial-gradient(circle at 48% 51%, transparent 0 38%, rgba(1,6,18,0.10) 67%, rgba(1,6,18,0.48) 100%),
             linear-gradient(180deg, rgba(2,8,23,0.08), rgba(2,8,23,0.18));
+          pointer-events: none;
+        }
+
+        .expedition-map-unreached-area {
+          position: absolute;
+          top: 0;
+          right: 0;
+          bottom: 0;
+          z-index: 5;
+          background: linear-gradient(90deg, rgba(1, 6, 18, 0.28) 0%, rgba(1, 6, 18, 0.74) 4%, rgba(1, 6, 18, 0.82) 100%);
+          box-shadow: -18px 0 28px rgba(1, 6, 18, 0.32);
           pointer-events: none;
         }
 

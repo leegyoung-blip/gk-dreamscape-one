@@ -212,6 +212,7 @@ type MultiplayerAnswer = {
 };
 
 const fallbackCategoryNames = ["History", "Geography", "Science"];
+const SINGLE_PLAYER_NEXT_QUESTION_SECONDS = 5;
 
 const CATEGORY_BACKGROUNDS: Record<string, string> = {
   History: "/milo-world/activities/categories/history-time-journey.png",
@@ -781,7 +782,7 @@ export default function MiloCategoriesPage() {
   const [singleQuestionTimerSeconds, setSingleQuestionTimerSeconds] = useState<10 | 20>(20);
   const [activeQuestionTimerSeconds, setActiveQuestionTimerSeconds] = useState<10 | 20>(20);
   const [questionCountdown, setQuestionCountdown] = useState(20);
-  const [nextQuestionCountdown, setNextQuestionCountdown] = useState(3);
+  const [nextQuestionCountdown, setNextQuestionCountdown] = useState(SINGLE_PLAYER_NEXT_QUESTION_SECONDS);
   const [categoryMessage, setCategoryMessage] = useState("");
   const [singlePlayerPaused, setSinglePlayerPaused] = useState(false);
   const [isFinalizingExpedition, setIsFinalizingExpedition] = useState(false);
@@ -1605,7 +1606,7 @@ export default function MiloCategoriesPage() {
     setHiddenCategoryOptions([]);
     setActiveQuestionTimerSeconds(singleQuestionTimerSeconds);
     setQuestionCountdown(singleQuestionTimerSeconds);
-    setNextQuestionCountdown(3);
+    setNextQuestionCountdown(SINGLE_PLAYER_NEXT_QUESTION_SECONDS);
     setCategoriesStage("playing");
     setIsLoadingCategoryQuiz(false);
   }
@@ -1636,7 +1637,7 @@ export default function MiloCategoriesPage() {
     setQuestionCountdown(20);
     setSinglePlayerPaused(false);
     setIsFinalizingExpedition(false);
-    setNextQuestionCountdown(3);
+    setNextQuestionCountdown(SINGLE_PLAYER_NEXT_QUESTION_SECONDS);
     setCategoryMessage("");
     setRewardMessage("");
     setRewardChecked(false);
@@ -1732,7 +1733,7 @@ export default function MiloCategoriesPage() {
         : "Time is up. +0 points."
     );
 
-    setNextQuestionCountdown(3);
+    setNextQuestionCountdown(SINGLE_PLAYER_NEXT_QUESTION_SECONDS);
     setCategoriesStage("answered");
   }
 
@@ -1853,7 +1854,7 @@ export default function MiloCategoriesPage() {
     setSelectedCategoryAnswer(null);
     setHiddenCategoryOptions([]);
     setQuestionCountdown(activeQuestionTimerSeconds);
-    setNextQuestionCountdown(3);
+    setNextQuestionCountdown(SINGLE_PLAYER_NEXT_QUESTION_SECONDS);
     setCategoryMessage("");
     setLastQuestionPoints(0);
     setCategoriesStage("playing");

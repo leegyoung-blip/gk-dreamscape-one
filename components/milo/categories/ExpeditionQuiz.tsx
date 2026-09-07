@@ -50,6 +50,7 @@ type ExpeditionQuizProps = {
 };
 
 const WORLD_CYCLE_WIDTH_VH = 900;
+const NEXT_QUESTION_DELAY_SECONDS = 5;
 const WORLD_SCENES = [
   {
     src: "/milo-world/activities/categories/expedition/world-01.png",
@@ -223,7 +224,7 @@ export default function ExpeditionQuiz({
     }, 1900);
   }, [displayMetres, paused]);
   const timerProgress = stage === "answered"
-    ? Math.min(1, Math.max(0, nextCountdown / 3))
+    ? Math.min(1, Math.max(0, nextCountdown / NEXT_QUESTION_DELAY_SECONDS))
     : Math.min(1, Math.max(0, countdown / timerSeconds));
 
   return (
@@ -424,12 +425,8 @@ export default function ExpeditionQuiz({
 
       {landmarkPopup && (
         <div className="expedition-landmark-popup" role="status" aria-live="polite">
-          <span className="expedition-landmark-popup-icon" aria-hidden="true">⌖</span>
-          <div>
-            <small>Landmark reached</small>
-            <strong>{landmarkPopup.name}</strong>
-            <p>{landmarkPopup.location} · {landmarkPopup.year}</p>
-          </div>
+          <strong>{landmarkPopup.name}</strong>
+          <span>{landmarkPopup.year}</span>
         </div>
       )}
 
@@ -1190,67 +1187,45 @@ export default function ExpeditionQuiz({
 
         .expedition-landmark-popup {
           position: absolute;
-          left: 50%;
-          bottom: 36.5%;
+          left: clamp(20px, 4.5vw, 78px);
+          bottom: 10.5%;
           z-index: 12;
           display: flex;
-          min-width: min(360px, calc(100vw - 36px));
-          max-width: 460px;
+          width: clamp(220px, 24vw, 450px);
+          min-height: 40px;
           align-items: center;
-          gap: 12px;
-          transform: translateX(-50%);
-          border: 1px solid rgba(255, 209, 138, 0.52);
-          border-radius: 18px;
+          justify-content: center;
+          gap: 8px;
+          border: 1px solid rgba(255, 209, 138, 0.44);
+          border-radius: 13px;
           background: linear-gradient(145deg, rgba(5, 20, 45, 0.94), rgba(17, 24, 45, 0.92));
-          padding: 12px 16px;
-          box-shadow: 0 18px 50px rgba(0,0,0,0.36), 0 0 34px rgba(255,209,138,0.18);
-          backdrop-filter: blur(14px);
+          padding: 7px 11px;
+          box-shadow: 0 12px 34px rgba(0,0,0,0.34), 0 0 22px rgba(255,209,138,0.13);
+          backdrop-filter: blur(10px);
           animation: expeditionLandmarkIn 280ms cubic-bezier(.18,.78,.22,1) both;
           pointer-events: none;
-        }
-
-        .expedition-landmark-popup-icon {
-          display: grid;
-          width: 42px;
-          height: 42px;
-          place-items: center;
-          flex: 0 0 auto;
-          border: 1px solid rgba(255,209,138,0.42);
-          border-radius: 14px;
-          background: rgba(255,209,138,0.11);
-          color: #ffd18a;
-          font-size: 20px;
-          box-shadow: 0 0 22px rgba(255,209,138,0.12);
-        }
-
-        .expedition-landmark-popup > div {
-          display: grid;
-          min-width: 0;
-          gap: 2px;
-        }
-
-        .expedition-landmark-popup small {
-          color: #9bf5ff;
-          font-size: 8px;
-          font-weight: 950;
-          letter-spacing: 0.15em;
-          text-transform: uppercase;
+          text-align: center;
         }
 
         .expedition-landmark-popup strong {
+          min-width: 0;
           overflow: hidden;
           color: white;
-          font-size: 15px;
+          font-size: 11px;
           font-weight: 950;
+          line-height: 1.1;
           text-overflow: ellipsis;
           white-space: nowrap;
         }
 
-        .expedition-landmark-popup p {
-          margin: 0;
+        .expedition-landmark-popup span {
+          flex: 0 0 auto;
+          border-left: 1px solid rgba(255,209,138,0.22);
+          padding-left: 8px;
           color: #ffd18a;
-          font-size: 10px;
-          font-weight: 800;
+          font-size: 9px;
+          font-weight: 900;
+          white-space: nowrap;
         }
 
         .expedition-motion-callout {
@@ -1348,8 +1323,8 @@ export default function ExpeditionQuiz({
         }
 
         @keyframes expeditionLandmarkIn {
-          from { opacity: 0; transform: translate(-50%, 12px) scale(0.94); }
-          to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+          from { opacity: 0; transform: translateY(8px) scale(0.96); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
         }
 
         @keyframes expeditionCalloutIn {
@@ -1546,20 +1521,17 @@ export default function ExpeditionQuiz({
           }
 
           .expedition-landmark-popup {
-            bottom: 31%;
-            min-width: min(320px, calc(100vw - 22px));
-            padding: 9px 11px;
+            left: 18px;
+            bottom: 7.5%;
+            width: clamp(170px, 24vw, 280px);
+            min-width: 0;
+            min-height: 31px;
+            gap: 6px;
+            padding: 5px 8px;
           }
 
-          .expedition-landmark-popup-icon {
-            width: 34px;
-            height: 34px;
-            border-radius: 11px;
-            font-size: 15px;
-          }
-
-          .expedition-landmark-popup strong { font-size: 12px; }
-          .expedition-landmark-popup p { font-size: 8px; }
+          .expedition-landmark-popup strong { font-size: 9px; }
+          .expedition-landmark-popup span { font-size: 7px; padding-left: 6px; }
 
           .expedition-motion-callout {
             bottom: 18%;
