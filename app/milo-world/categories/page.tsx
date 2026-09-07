@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import ExpeditionQuiz from "@/components/milo/categories/ExpeditionQuiz";
 
 type CategoryQuizQuestion = {
   id: string;
@@ -2607,6 +2608,9 @@ export default function MiloCategoriesPage() {
   const masteryLearningTarget = learningTargets[masteryCategory] || null;
   const selectedBestPoints = masteryData[selectedCategory]?.best_points ?? null;
 
+  const isExpeditionStage =
+    categoriesStage === "playing" || categoriesStage === "answered";
+
   const isQuizStage = [
     "playing",
     "answered",
@@ -2623,7 +2627,7 @@ export default function MiloCategoriesPage() {
     <main
       className={`categories-page relative text-white ${
         isQuizStage ? "categories-page--quiz" : ""
-      }`}
+      } ${isExpeditionStage ? "categories-page--expedition" : ""}`}
       style={{
         backgroundImage: `
           linear-gradient(
@@ -3212,143 +3216,28 @@ export default function MiloCategoriesPage() {
 
               {(categoriesStage === "playing" || categoriesStage === "answered") &&
                 currentCategoryQuestion && (
-                  <div className="quiz-screen flex h-full min-h-0 flex-col">
-                    <div className="quiz-statusbar flex shrink-0 items-center justify-between gap-2">
-                      <span className="quiz-pill rounded-full border border-white/14 bg-white/[0.07] px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-[#ffd18a]">
-                        {selectedCategory}
-                      </span>
-
-                      <span className="quiz-pill quiz-style-pill rounded-full border border-[#9bf5ff]/16 bg-[#9bf5ff]/[0.055] px-4 py-2 text-xs font-bold text-[#9bf5ff]">
-                        {getPlayStyleLabel(activeQuizPlayStyle)}
-                      </span>
-
-                      <span className="quiz-pill rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-xs font-bold text-white/72">
-                        Question {categoryQuestionIndex + 1} / 10
-                      </span>
-
-                      <span className="quiz-pill rounded-full border border-[#ffd18a]/24 bg-[#ffd18a]/10 px-4 py-2 text-xs font-bold text-[#ffd18a]">
-                        {categoriesStage === "answered"
-                          ? `Next in ${nextQuestionCountdown}s`
-                          : `${questionCountdown}s`}
-                      </span>
-                    </div>
-
-                    <div className="quiz-score-strip mt-3 grid shrink-0 grid-cols-3 gap-3">
-                      <div className="quiz-stat rounded-[14px] border border-white/12 bg-white/[0.045] p-4">
-                        <p className="quiz-stat-label text-xs uppercase tracking-[0.18em] text-white/40">
-                          Score
-                        </p>
-                        <p className="quiz-stat-value mt-1 text-xl font-bold">
-                          {categoryScore}/10
-                        </p>
-                      </div>
-
-                      <div className="quiz-stat rounded-[14px] border border-white/12 bg-white/[0.045] p-4">
-                        <p className="quiz-stat-label text-xs uppercase tracking-[0.18em] text-white/40">
-                          Points
-                        </p>
-                        <p className="quiz-stat-value mt-1 text-xl font-bold">
-                          {categoryPoints}
-                        </p>
-                      </div>
-
-                      <div className="quiz-stat rounded-[14px] border border-yellow-200/14 bg-yellow-300/10 p-4">
-                        <p className="quiz-stat-label text-xs uppercase tracking-[0.18em] text-white/40">
-                          Last
-                        </p>
-                        <p className="quiz-stat-value mt-1 text-xl font-bold text-[#ffd18a]">
-                          +{lastQuestionPoints}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="quiz-play-layout mt-4 grid min-h-0 flex-1 gap-4">
-                      <div className="quiz-question-panel min-h-0 rounded-[20px] border border-white/12 bg-[#050d1c]/58 p-5">
-                        <div className="quiz-question-scroll min-h-0">
-                          <p className="quiz-question-label text-xs font-black uppercase tracking-[0.18em] text-[#ffd18a]">
-                            Question
-                          </p>
-                          <h2 className="quiz-question mt-3 font-bold leading-snug text-white">
-                            {currentCategoryQuestion.question}
-                          </h2>
-
-                          {!userAccess.isLoggedIn && (
-                            <button
-                              type="button"
-                              onClick={useGuestCategoryHint}
-                              disabled={guestHintUsed || categoriesStage === "answered"}
-                              className="quiz-hint mt-5 min-h-[44px] w-full rounded-[14px] border border-[#ffd18a]/28 bg-[#ffd18a]/10 px-4 py-2.5 text-sm font-black text-[#ffd18a] transition hover:bg-[#ffd18a]/16 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              {guestHintUsed
-                                ? "Guest Hint Used"
-                                : "Guest Hint · Remove 2 Answers"}
-                            </button>
-                          )}
-
-                          {categoryMessage && (
-                            <div className="quiz-feedback mt-4 text-sm font-bold leading-5 text-[#ffd18a]">
-                              <p>{categoryMessage}</p>
-                              {categoriesStage === "answered" &&
-                                currentCategoryQuestion.explanation && (
-                                  <p className="mt-2 font-normal text-white/56">
-                                    {currentCategoryQuestion.explanation}
-                                  </p>
-                                )}
-                              {categoriesStage === "answered" && (
-                                <button
-                                  type="button"
-                                  onClick={() => void goToNextCategoryQuestion()}
-                                  className="mt-3 min-h-[42px] w-full rounded-[12px] border-2 border-[#ffd18a]/70 bg-[#ffd18a]/14 px-4 text-xs font-black uppercase tracking-[0.1em] text-[#ffd18a] transition hover:bg-[#ffd18a]/20"
-                                >
-                                  {categoryQuestionIndex + 1 >= categoryQuestions.length
-                                    ? "See Results →"
-                                    : "Next Question →"}
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="quiz-options-panel grid min-h-0 gap-3">
-                        {[
-                          ["A", currentCategoryQuestion.option_a],
-                          ["B", currentCategoryQuestion.option_b],
-                          ["C", currentCategoryQuestion.option_c],
-                          ["D", currentCategoryQuestion.option_d],
-                        ].map(([letter, answer]) => {
-                          const typedLetter = letter as "A" | "B" | "C" | "D";
-                          const isEliminated = hiddenCategoryOptions.includes(typedLetter);
-
-                          return (
-                            <button
-                              key={letter}
-                              type="button"
-                              disabled={categoriesStage === "answered" || isEliminated}
-                              onClick={() => submitCategoryAnswer(typedLetter)}
-                              className={`quiz-option min-h-0 rounded-[14px] border px-5 py-3 text-left text-sm font-bold transition ${getCategoryOptionClass(
-                                typedLetter
-                              )} ${
-                                isEliminated
-                                  ? "cursor-not-allowed opacity-30 line-through"
-                                  : ""
-                              }`}
-                            >
-                              <span className="quiz-option-letter mr-2 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-current/20 text-xs font-black">
-                                {letter}
-                              </span>
-                              <span className="quiz-option-text">{answer}</span>
-                              {isEliminated && (
-                                <span className="ml-2 text-[10px] font-black uppercase tracking-[0.1em] text-[#ffd18a]">
-                                  Eliminated
-                                </span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
+                  <ExpeditionQuiz
+                    category={selectedCategory}
+                    playStyleLabel={getPlayStyleLabel(activeQuizPlayStyle)}
+                    question={currentCategoryQuestion}
+                    questionNumber={categoryQuestionIndex + 1}
+                    questionCount={10}
+                    score={categoryScore}
+                    points={categoryPoints}
+                    lastPoints={lastQuestionPoints}
+                    timerSeconds={activeQuestionTimerSeconds}
+                    countdown={questionCountdown}
+                    nextCountdown={nextQuestionCountdown}
+                    stage={categoriesStage}
+                    selectedAnswer={selectedCategoryAnswer}
+                    hiddenOptions={hiddenCategoryOptions}
+                    message={categoryMessage}
+                    isGuest={!userAccess.isLoggedIn}
+                    guestHintUsed={guestHintUsed}
+                    onAnswer={submitCategoryAnswer}
+                    onHint={useGuestCategoryHint}
+                    onNext={() => void goToNextCategoryQuestion()}
+                  />
                 )}
 
               {(categoriesStage === "multiplayer-playing" ||
@@ -4417,6 +4306,49 @@ export default function MiloCategoriesPage() {
 
         .categories-page--quiz .categories-hero {
           display: none;
+        }
+
+        /* Phase 1A–1D: the single-player quiz becomes a full-screen Dreamway Expedition. */
+        .categories-page--expedition .categories-topbar {
+          position: absolute;
+          top: 0;
+          right: 0;
+          left: 0;
+          z-index: 40;
+          background: linear-gradient(180deg, rgba(2, 8, 23, 0.42), rgba(2, 8, 23, 0));
+          pointer-events: none;
+        }
+
+        .categories-page--expedition .categories-back-button {
+          pointer-events: auto;
+        }
+
+        .categories-page--expedition .categories-viewport {
+          padding: 0;
+        }
+
+        .categories-page--expedition .categories-content,
+        .categories-page--expedition.categories-page--quiz .categories-content {
+          padding: 0;
+        }
+
+        .categories-page--expedition .categories-stage-card {
+          position: relative;
+          height: 100%;
+          border: 0;
+          border-radius: 0;
+          background: transparent;
+          padding: 0;
+          box-shadow: none;
+          overflow: hidden;
+        }
+
+        .categories-page--expedition .categories-shell {
+          border-radius: 0;
+        }
+
+        .categories-page--expedition .categories-guide-launcher {
+          z-index: 80;
         }
 
         .categories-content {
