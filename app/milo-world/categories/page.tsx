@@ -3381,7 +3381,7 @@ export default function MiloCategoriesPage() {
                 )}
 
               {categoriesStage === "finished" && (
-                <div className="finished-stage stage-fill flex h-full min-h-0 flex-col text-center">
+                <div className="finished-stage single-expedition-summary stage-fill flex h-full min-h-0 flex-col text-center">
                   <div className="finished-scroll min-h-0 flex-1 overflow-y-auto">
                     <p className="stage-kicker text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
                       Quiz Complete
@@ -4974,6 +4974,53 @@ export default function MiloCategoriesPage() {
             grid-template-columns: 1fr;
             grid-template-rows: minmax(0, 0.72fr) minmax(0, 1.28fr);
           }
+        }
+
+        .single-expedition-summary {
+          position: relative;
+          isolation: isolate;
+          overflow: hidden;
+          border-radius: 20px;
+          background:
+            linear-gradient(180deg, rgba(2,8,23,0.34), rgba(2,8,23,0.62)),
+            url('/milo-world/activities/categories/expedition/world-map.png') center / cover no-repeat;
+          padding: 12px;
+        }
+
+        .single-expedition-summary::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          z-index: 0;
+          background:
+            radial-gradient(circle at 50% 45%, rgba(5,20,45,0.05), rgba(2,8,23,0.48) 76%),
+            linear-gradient(90deg, rgba(2,8,23,0.22), transparent 26%, transparent 74%, rgba(2,8,23,0.22));
+          pointer-events: none;
+        }
+
+        .single-expedition-summary > .finished-scroll,
+        .single-expedition-summary > .finished-actions {
+          position: relative;
+          z-index: 2;
+          width: min(900px, 100%);
+          margin-inline: auto;
+        }
+
+        .single-expedition-summary > .finished-scroll {
+          border: 1px solid rgba(155,245,255,0.18);
+          border-radius: 20px;
+          background: linear-gradient(145deg, rgba(4,16,37,0.86), rgba(5,12,28,0.76));
+          padding: 16px;
+          box-shadow: 0 24px 64px rgba(0,0,0,0.34);
+          backdrop-filter: blur(16px);
+        }
+
+        .single-expedition-summary > .finished-actions {
+          border: 1px solid rgba(255,255,255,0.10);
+          border-radius: 16px;
+          background: rgba(4,14,32,0.72);
+          padding: 7px;
+          backdrop-filter: blur(12px);
         }
 
         .finished-scroll,

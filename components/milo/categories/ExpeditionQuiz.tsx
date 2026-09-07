@@ -1,6 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  EXPEDITION_LANDMARKS,
+  EXPEDITION_METRES_PER_POINT,
+  MAX_EXPEDITION_POINTS,
+  type ExpeditionLandmark,
+} from "./expeditionLandmarks";
 
 type AnswerLetter = "A" | "B" | "C" | "D";
 
@@ -43,8 +49,6 @@ type ExpeditionQuizProps = {
   onNext: () => void;
 };
 
-const EXPEDITION_METRES_PER_POINT = 10;
-const MAX_EXPEDITION_POINTS = 1000;
 const WORLD_CYCLE_WIDTH_VH = 900;
 const WORLD_SCENES = [
   {
@@ -116,6 +120,9 @@ export default function ExpeditionQuiz({
   const [displayPoints, setDisplayPoints] = useState(points);
   const displayPointsRef = useRef(points);
   const animationFrameRef = useRef<number | null>(null);
+  const landmarkPopupTimerRef = useRef<number | null>(null);
+  const seenLandmarkIdsRef = useRef<Set<string>>(new Set());
+  const [landmarkPopup, setLandmarkPopup] = useState<ExpeditionLandmark | null>(null);
   const motion = stage === "answered" ? getExpeditionMotion(lastPoints) : "idle";
   const isCorrect = selectedAnswer === question.correct_option;
 
@@ -132,6 +139,9 @@ export default function ExpeditionQuiz({
     return () => {
       if (animationFrameRef.current !== null) {
         window.cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (landmarkPopupTimerRef.current !== null) {
+        window.clearTimeout(landmarkPopupTimerRef.current);
       }
     };
   }, []);
@@ -188,6 +198,30 @@ export default function ExpeditionQuiz({
   const worldOffsetVh = progress * WORLD_CYCLE_WIDTH_VH;
   const displayMetres = displayPoints * EXPEDITION_METRES_PER_POINT;
   const earnedMetres = lastPoints * EXPEDITION_METRES_PER_POINT;
+
+  useEffect(() => {
+    if (paused) return;
+
+    const newlyReached = EXPEDITION_LANDMARKS.find(
+      (landmark) =>
+        displayMetres >= landmark.thresholdMetres &&
+        !seenLandmarkIdsRef.current.has(landmark.id),
+    );
+
+    if (!newlyReached) return;
+
+    seenLandmarkIdsRef.current.add(newlyReached.id);
+    setLandmarkPopup(newlyReached);
+
+    if (landmarkPopupTimerRef.current !== null) {
+      window.clearTimeout(landmarkPopupTimerRef.current);
+    }
+
+    landmarkPopupTimerRef.current = window.setTimeout(() => {
+      setLandmarkPopup(null);
+      landmarkPopupTimerRef.current = null;
+    }, 1900);
+  }, [displayMetres, paused]);
   const timerProgress = stage === "answered"
     ? Math.min(1, Math.max(0, nextCountdown / 3))
     : Math.min(1, Math.max(0, countdown / timerSeconds));
@@ -387,6 +421,17 @@ export default function ExpeditionQuiz({
           className="expedition-vehicle-body"
         />
       </div>
+
+      {landmarkPopup && (
+        <div className="expedition-landmark-popup" role="status" aria-live="polite">
+          <span className="expedition-landmark-popup-icon" aria-hidden="true">⌖</span>
+          <div>
+            <small>Landmark reached</small>
+            <strong>{landmarkPopup.name}</strong>
+            <p>{landmarkPopup.location} · {landmarkPopup.year}</p>
+          </div>
+        </div>
+      )}
 
       {stage === "answered" && (
         <div className={`expedition-motion-callout is-${motion}`} aria-live="polite">
@@ -1143,6 +1188,71 @@ export default function ExpeditionQuiz({
           animation-duration: 430ms;
         }
 
+        .expedition-landmark-popup {
+          position: absolute;
+          left: 50%;
+          bottom: 36.5%;
+          z-index: 12;
+          display: flex;
+          min-width: min(360px, calc(100vw - 36px));
+          max-width: 460px;
+          align-items: center;
+          gap: 12px;
+          transform: translateX(-50%);
+          border: 1px solid rgba(255, 209, 138, 0.52);
+          border-radius: 18px;
+          background: linear-gradient(145deg, rgba(5, 20, 45, 0.94), rgba(17, 24, 45, 0.92));
+          padding: 12px 16px;
+          box-shadow: 0 18px 50px rgba(0,0,0,0.36), 0 0 34px rgba(255,209,138,0.18);
+          backdrop-filter: blur(14px);
+          animation: expeditionLandmarkIn 280ms cubic-bezier(.18,.78,.22,1) both;
+          pointer-events: none;
+        }
+
+        .expedition-landmark-popup-icon {
+          display: grid;
+          width: 42px;
+          height: 42px;
+          place-items: center;
+          flex: 0 0 auto;
+          border: 1px solid rgba(255,209,138,0.42);
+          border-radius: 14px;
+          background: rgba(255,209,138,0.11);
+          color: #ffd18a;
+          font-size: 20px;
+          box-shadow: 0 0 22px rgba(255,209,138,0.12);
+        }
+
+        .expedition-landmark-popup > div {
+          display: grid;
+          min-width: 0;
+          gap: 2px;
+        }
+
+        .expedition-landmark-popup small {
+          color: #9bf5ff;
+          font-size: 8px;
+          font-weight: 950;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+        }
+
+        .expedition-landmark-popup strong {
+          overflow: hidden;
+          color: white;
+          font-size: 15px;
+          font-weight: 950;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .expedition-landmark-popup p {
+          margin: 0;
+          color: #ffd18a;
+          font-size: 10px;
+          font-weight: 800;
+        }
+
         .expedition-motion-callout {
           position: absolute;
           left: 50%;
@@ -1235,6 +1345,11 @@ export default function ExpeditionQuiz({
         @keyframes expeditionSpeedLines {
           from { background-position: 0 0; }
           to { background-position: -180px 0; }
+        }
+
+        @keyframes expeditionLandmarkIn {
+          from { opacity: 0; transform: translate(-50%, 12px) scale(0.94); }
+          to { opacity: 1; transform: translate(-50%, 0) scale(1); }
         }
 
         @keyframes expeditionCalloutIn {
@@ -1429,6 +1544,22 @@ export default function ExpeditionQuiz({
             bottom: 24.8%;
             width: clamp(170px, 24vw, 280px);
           }
+
+          .expedition-landmark-popup {
+            bottom: 31%;
+            min-width: min(320px, calc(100vw - 22px));
+            padding: 9px 11px;
+          }
+
+          .expedition-landmark-popup-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 11px;
+            font-size: 15px;
+          }
+
+          .expedition-landmark-popup strong { font-size: 12px; }
+          .expedition-landmark-popup p { font-size: 8px; }
 
           .expedition-motion-callout {
             bottom: 18%;
