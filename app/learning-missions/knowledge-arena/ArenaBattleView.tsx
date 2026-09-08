@@ -380,6 +380,7 @@ function containedImageRect(image: HTMLImageElement) {
 }
 
 
+
 export function ArenaBattleView({
   topic,
   topicTitle,
@@ -467,6 +468,8 @@ export function ArenaBattleView({
   const stageRef = useRef<HTMLDivElement | null>(null);
   const novaImageRef = useRef<HTMLImageElement | null>(null);
   const monsterImageRef = useRef<HTMLImageElement | null>(null);
+  const muzzleAnchorRef = useRef<HTMLSpanElement | null>(null);
+  const impactAnchorRef = useRef<HTMLSpanElement | null>(null);
   const lastVisualShotRef = useRef(0);
   const [projectiles, setProjectiles] = useState<ShotVisual[]>([]);
   const [damagePopups, setDamagePopups] = useState<
@@ -483,33 +486,34 @@ export function ArenaBattleView({
     }
 
     const stage = stageRef.current;
+    const muzzle = muzzleAnchorRef.current;
+    const impact = impactAnchorRef.current;
     const novaImage = novaImageRef.current;
     const monsterImage = monsterImageRef.current;
-    if (!stage || !novaImage || !monsterImage) return;
+    if (!stage || !muzzle || !impact || !novaImage || !monsterImage) return;
 
     const stageBox = stage.getBoundingClientRect();
-    const barrelPagePoint = imageHotspot(
-      novaImage,
-      NOVA_FIRING_BARREL_HOTSPOT,
-    );
-    const monsterPagePoint = imageHotspot(
-      monsterImage,
-      MONSTER_IMPACT_HOTSPOTS[monster.slug] ?? { x: 0.34, y: 0.46 },
-    );
+    const muzzleBox = muzzle.getBoundingClientRect();
+    const impactBox = impact.getBoundingClientRect();
 
     for (let shot = lastVisualShotRef.current + 1; shot <= shotsThisTurn; shot += 1) {
-      // Convert the calibrated page-space hotspots into the arena's local
-      // coordinate system for this exact frame. This is recalculated for
-      // every shot, so orientation/responsive resizing cannot leave the
-      // projectile behind at an old screen position.
-      const startX = barrelPagePoint.x - stageBox.left;
-      const startY = barrelPagePoint.y - stageBox.top;
-      const endX = monsterPagePoint.x - stageBox.left;
-      const endY = monsterPagePoint.y - stageBox.top;
+      const startX = muzzleBox.left - stageBox.left + muzzleBox.width / 2;
+      const startY = muzzleBox.top - stageBox.top + muzzleBox.height / 2;
+      const endX = impactBox.left - stageBox.left + impactBox.width / 2;
+      const endY = impactBox.top - stageBox.top + impactBox.height / 2;
       const deltaX = endX - startX;
       const deltaY = endY - startY;
       const angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
-      const visual = { id: Date.now() + shot, startX, startY, deltaX, deltaY, endX, endY, angle };
+      const visual = {
+        id: Date.now() + shot,
+        startX,
+        startY,
+        deltaX,
+        deltaY,
+        endX,
+        endY,
+        angle,
+      };
       setProjectiles((current) => [...current, visual]);
       window.setTimeout(() => {
         setProjectiles((current) => current.filter((item) => item.id !== visual.id));
@@ -536,24 +540,35 @@ export function ArenaBattleView({
   return (
     <div
       ref={stageRef}
-      className="kab-stage kab-stage-v2"
+      className="kab-stage kab-stage-v3"
       style={{ backgroundImage: `url("${arenaBackgrounds[topic]}")` }}
     >
       <div className="kab-vignette" />
 
+      <div className="kab-top-strip">
+        <div className="kab-top-left">
+          <span className="kab-chip">Q {questionIndex + 1}/10</span>
+          <span className="kab-chip">Score {score}</span>
+          <span className="kab-chip kab-chip--hide-mobile">Correct {correctCount}</span>
+        </div>
+        <div className="kab-top-right">
+          {isAdmin && (
+            <button
+              type="button"
+              className={`kab-chip kab-chip-button ${isPaused ? "is-paused" : ""}`}
+              onClick={onTogglePause}
+            >
+              {isPaused ? "▶ Resume" : "Ⅱ Pause"}
+            </button>
+          )}
+          <span className={`kab-chip kab-timer-chip ${timeLeft <= 3 ? "is-low" : ""}`}>{timeLeft}s</span>
+        </div>
+      </div>
+
       <div className="kab-overlay-top">
         <div className="kab-question-panel">
-          <div className="kab-mini-row">
-            <span>{challengeLabel}</span>
-            <span>{topicTitle}</span>
-            <span>Q {questionIndex + 1}/10</span>
-            <span>Correct {correctCount}</span>
-            <span>Score {score}</span>
-          </div>
           <div className="kab-question-card">
-            <small>
-              {question.difficulty} · {timerSeconds}s timer
-            </small>
+            <small>{timerSeconds}s timer</small>
             <h2>{question.question_text}</h2>
             {question.question_image && (
               <img
@@ -564,21 +579,17 @@ export function ArenaBattleView({
               />
             )}
           </div>
+          {feedback && answerLocked && (
+            <div className={`kab-feedback ${correct ? "is-correct" : "is-wrong"}`}>
+              {feedback}
+              {wrongStreak > 1 && !correct && monsterHp > 0 && (
+                <strong> Wrong streak: {wrongStreak}</strong>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="kab-right-panel">
-          <div className="kab-top-controls">
-            {isAdmin && (
-              <button
-                type="button"
-                className={`kab-admin-pause ${isPaused ? "is-paused" : ""}`}
-                onClick={onTogglePause}
-              >
-                {isPaused ? "▶ Resume" : "Ⅱ Pause"}
-              </button>
-            )}
-            <strong className={`kab-timer-chip ${timeLeft <= 3 ? "is-low" : ""}`}>{timeLeft}s</strong>
-          </div>
           <div className="kab-answer-grid kab-answer-grid--top">
             {options.map(([label, optionText]) => (
               <button
@@ -594,20 +605,13 @@ export function ArenaBattleView({
               </button>
             ))}
           </div>
-          {feedback && answerLocked && (
-            <div className={`kab-feedback ${correct ? "is-correct" : "is-wrong"}`}>
-              {feedback}
-              {wrongStreak > 1 && !correct && monsterHp > 0 && (
-                <strong> Wrong streak: {wrongStreak}</strong>
-              )}
-            </div>
-          )}
         </div>
       </div>
 
       <div className="kab-battle-center">
         <div className="kab-fighter kab-fighter-left">
           <NovaSprite phase={phase} imageRef={novaImageRef} />
+          <span ref={muzzleAnchorRef} className="kab-muzzle-anchor" aria-hidden="true" />
           {damagePopups
             .filter((item) => item.target === "nova")
             .map((item) => (
@@ -621,7 +625,7 @@ export function ArenaBattleView({
             <div className="kab-fire-panel">
               <strong>{monsterDefeated ? "TARGET PRACTICE" : "FIRE!"}</strong>
               <span>{fireSecondsLeft.toFixed(1)}s</span>
-              <small>{shotsThisTurn} shots · tap repeatedly</small>
+              <small>{shotsThisTurn} shots</small>
             </div>
           )}
           {phase === "monster_defeated" && (
@@ -637,6 +641,7 @@ export function ArenaBattleView({
             damageFlash={damageFlash}
             imageRef={monsterImageRef}
           />
+          <span ref={impactAnchorRef} className={`kab-impact-anchor kab-impact-anchor--${monster.slug}`} aria-hidden="true" />
           {damagePopups
             .filter((item) => item.target === "monster")
             .map((item) => (
@@ -677,6 +682,20 @@ export function ArenaBattleView({
           </div>
         </div>
 
+        <button
+          type="button"
+          className={`kab-floating-fire ${phase === "firing" && !isPaused ? "is-ready" : "is-idle"}`}
+          disabled={phase !== "firing" || isPaused}
+          aria-label={phase === "firing" ? "Fire Nova's blaster" : "Fire becomes available after a correct answer"}
+          onClick={() => {
+            onStartFiring();
+            onStopFiring();
+          }}
+        >
+          <span>FIRE</span>
+          <small>{phase === "firing" ? `${fireSecondsLeft.toFixed(1)}s` : "TAP"}</small>
+        </button>
+
         <div className="kab-hp-card kab-bottom-card kab-monster-card">
           <div className="kab-hp-title">
             <strong>{monster.name}</strong>
@@ -692,20 +711,6 @@ export function ArenaBattleView({
           </div>
         </div>
       </div>
-
-      <button
-        type="button"
-        className={`kab-floating-fire ${phase === "firing" && !isPaused ? "is-ready" : "is-idle"}`}
-        disabled={phase !== "firing" || isPaused}
-        aria-label={phase === "firing" ? "Fire Nova's blaster" : "Fire becomes available after a correct answer"}
-        onClick={() => {
-          onStartFiring();
-          onStopFiring();
-        }}
-      >
-        <span>FIRE</span>
-        <small>{phase === "firing" ? `${fireSecondsLeft.toFixed(1)}s` : "TAP"}</small>
-      </button>
 
       {isPaused && (
         <div className="kab-pause-layer">
@@ -769,7 +774,7 @@ export function ArenaBattleView({
         .kab-stage {
           position: relative;
           display: grid;
-          grid-template-rows: auto minmax(0, 1fr) auto;
+          grid-template-rows: auto auto minmax(0, 1fr) auto;
           width: 100%;
           height: 100%;
           min-height: 0;
@@ -786,31 +791,43 @@ export function ArenaBattleView({
           inset: 0;
           z-index: -1;
           background:
-            linear-gradient(180deg, rgba(1, 5, 15, 0.34), rgba(1, 5, 15, 0.1) 35%, rgba(1, 5, 15, 0.46)),
-            radial-gradient(circle at 50% 64%, transparent 0 28%, rgba(0, 0, 0, 0.18) 82%);
+            linear-gradient(180deg, rgba(1, 5, 15, 0.30), rgba(1, 5, 15, 0.06) 34%, rgba(1, 5, 15, 0.42)),
+            radial-gradient(circle at 50% 68%, transparent 0 28%, rgba(0, 0, 0, 0.14) 82%);
         }
-        .kab-overlay-top {
-          display: grid;
-          grid-template-columns: minmax(0, 1.1fr) minmax(340px, 0.9fr);
-          gap: 14px;
-          padding: 14px;
-          align-items: start;
-        }
-        .kab-question-panel, .kab-right-panel { min-width: 0; }
-        .kab-mini-row {
+        .kab-top-strip {
           display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          margin-bottom: 8px;
+          justify-content: space-between;
+          align-items: center;
+          gap: 10px;
+          padding: 10px 14px 0;
         }
-        .kab-mini-row span, .kab-timer-chip, .kab-admin-pause {
+        .kab-top-left,
+        .kab-top-right {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+        .kab-chip {
           border: 1px solid rgba(255,255,255,.12);
           border-radius: 999px;
           background: rgba(5,10,24,.68);
           padding: 8px 12px;
           font-size: 12px;
           font-weight: 800;
+          backdrop-filter: blur(6px);
         }
+        .kab-chip-button { color: white; }
+        .kab-timer-chip.is-low { color: #ff8d8d; }
+        .kab-overlay-top {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(340px, 0.92fr);
+          gap: 14px;
+          padding: 10px 14px 0;
+          align-items: start;
+        }
+        .kab-question-panel, .kab-right-panel { min-width: 0; }
+        .kab-question-panel { display: grid; gap: 10px; }
         .kab-question-card {
           border: 1px solid rgba(126,232,255,.18);
           border-radius: 18px;
@@ -839,13 +856,6 @@ export function ArenaBattleView({
           border-radius: 12px;
         }
         .kab-right-panel { display: grid; gap: 10px; }
-        .kab-top-controls {
-          display: flex;
-          justify-content: flex-end;
-          gap: 8px;
-          align-items: center;
-        }
-        .kab-timer-chip.is-low { color: #ff8d8d; }
         .kab-answer-grid--top {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -890,8 +900,8 @@ export function ArenaBattleView({
           display: flex;
           align-items: flex-end;
           justify-content: center;
-          gap: clamp(50px, 9vw, 140px);
-          padding: 10px 40px 8px;
+          gap: clamp(50px, 9vw, 120px);
+          padding: 2px 40px 0;
           min-height: 0;
         }
         .kab-fighter {
@@ -899,9 +909,11 @@ export function ArenaBattleView({
           display: flex;
           align-items: flex-end;
           justify-content: center;
-          width: min(28vw, 360px);
-          height: min(44vh, 420px);
+          width: min(22vw, 270px);
+          height: min(36vh, 310px);
         }
+        .kab-fighter-left { transform: translateY(-14px); }
+        .kab-fighter-right { transform: translateY(-6px); }
         .kab-character,
         .kab-character img {
           width: 100%;
@@ -925,7 +937,7 @@ export function ArenaBattleView({
           justify-content: center;
           gap: 10px;
           align-self: center;
-          margin-top: 40px;
+          margin-top: 8px;
         }
         .kab-battle-message,
         .kab-fire-panel,
@@ -938,6 +950,24 @@ export function ArenaBattleView({
           backdrop-filter: blur(8px);
         }
         .kab-fire-panel { display: grid; gap: 3px; }
+        .kab-muzzle-anchor,
+        .kab-impact-anchor {
+          position: absolute;
+          width: 10px;
+          height: 10px;
+          border-radius: 999px;
+          opacity: 0;
+          pointer-events: none;
+        }
+        /* Calibrated against the actual combat layout rather than the img box. */
+        .kab-muzzle-anchor {
+          left: 67.2%;
+          top: 24.8%;
+        }
+        .kab-impact-anchor--atlas-golem { left: 29%; top: 34%; }
+        .kab-impact-anchor--tempest-roc { left: 38%; top: 36%; }
+        .kab-impact-anchor--worldbreaker-leviathan { left: 26%; top: 44%; }
+        .kab-impact-anchor--verdant-sabertooth { left: 31%; top: 45%; }
         .kab-shot-layer {
           position: absolute;
           inset: 0;
@@ -950,20 +980,21 @@ export function ArenaBattleView({
           margin-left: -5px;
           margin-top: -5px;
           border-radius: 999px;
-          background: radial-gradient(circle, #ffffff 0 15%, #90efff 40%, rgba(117,227,255,.1) 70%, transparent 72%);
-          animation: kabMuzzle .24s ease-out forwards;
+          background: radial-gradient(circle, #ffffff 0 16%, #ffc6a0 44%, rgba(255,120,54,.12) 74%, transparent 76%);
+          animation: kabMuzzle .18s ease-out forwards;
         }
         .kab-blaster-bolt {
           position: absolute;
-          width: 24px;
+          width: 18px;
           height: 8px;
-          margin-left: -12px;
+          margin-left: -9px;
           margin-top: -4px;
           border-radius: 999px;
-          background: linear-gradient(90deg, rgba(255,255,255,.95), #63e9ff 44%, #2078ff 100%);
-          box-shadow: 0 0 12px rgba(99,233,255,.95), 0 0 24px rgba(32,120,255,.5);
+          background: linear-gradient(90deg, #ffe3d6 0%, #ff7156 18%, #ff3030 58%, #b60000 100%);
+          box-shadow: 0 0 8px rgba(255,84,66,.95), 0 0 16px rgba(255,84,66,.35);
           transform: translate3d(0,0,0) rotate(var(--shot-angle));
-          animation: kabBolt .26s linear forwards;
+          transform-origin: center;
+          animation: kabBolt .20s linear forwards;
         }
         .kab-shot-impact {
           position: absolute;
@@ -973,20 +1004,20 @@ export function ArenaBattleView({
           margin-top: -9px;
           border-radius: 999px;
           opacity: 0;
-          animation: kabImpact .34s ease-out .22s forwards;
+          animation: kabImpact .32s ease-out .16s forwards;
         }
         .kab-shot-impact b {
           position: absolute;
           inset: 0;
-          border: 2px solid rgba(133,238,255,.9);
+          border: 2px solid rgba(255,132,102,.95);
           border-radius: 999px;
         }
-        .kab-shot-impact b:nth-child(2) { transform: scale(1.5); opacity: .6; }
-        .kab-shot-impact b:nth-child(3) { transform: scale(2); opacity: .32; }
+        .kab-shot-impact b:nth-child(2) { transform: scale(1.45); opacity: .58; }
+        .kab-shot-impact b:nth-child(3) { transform: scale(2.02); opacity: .28; }
         .kab-damage-float {
           position: absolute;
           top: 18%;
-          padding: 6px 10px;
+          padding: 5px 9px;
           border-radius: 999px;
           background: rgba(160,0,0,.55);
           color: #ff8f8f;
@@ -996,12 +1027,13 @@ export function ArenaBattleView({
           animation: kabDamageFloat 1.5s ease-out forwards;
           pointer-events: none;
         }
-        .kab-damage-float--nova { right: 8%; }
-        .kab-damage-float--monster { left: 8%; }
+        .kab-damage-float--nova { right: 10%; }
+        .kab-damage-float--monster { left: 9%; }
         .kab-bottom-hud {
+          position: relative;
           display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 12px;
+          grid-template-columns: minmax(0,1fr) auto minmax(0,1fr);
+          gap: 14px;
           padding: 0 14px 14px;
           align-items: end;
         }
@@ -1045,32 +1077,21 @@ export function ArenaBattleView({
           font-weight: 800;
         }
         .kab-floating-fire {
-          position: absolute;
-          right: 18px;
-          bottom: 106px;
           z-index: 5;
           display: grid;
-          width: 96px;
-          height: 96px;
+          width: 92px;
+          height: 92px;
           place-items: center;
-          border: 1px solid rgba(126,232,255,.34);
+          border: 1px solid rgba(255,145,145,.45);
           border-radius: 999px;
-          background: radial-gradient(circle at 35% 30%, rgba(124, 237, 255, .95), rgba(70, 98, 255, .86));
+          background: radial-gradient(circle at 35% 30%, rgba(255, 175, 175, .95), rgba(220, 22, 22, .94));
           color: white;
           font-weight: 950;
-          box-shadow: 0 12px 28px rgba(27,85,255,.34);
+          box-shadow: 0 12px 28px rgba(220,22,22,.34);
         }
-        .kab-floating-fire:disabled {
-          opacity: .5;
-        }
-        .kab-floating-fire span {
-          font-size: 20px;
-          letter-spacing: .08em;
-        }
-        .kab-floating-fire small {
-          font-size: 11px;
-          letter-spacing: .14em;
-        }
+        .kab-floating-fire:disabled { opacity: .45; }
+        .kab-floating-fire span { font-size: 20px; letter-spacing: .08em; }
+        .kab-floating-fire small { font-size: 11px; letter-spacing: .14em; }
         .kab-pause-layer,
         .kab-defeat-layer {
           position: absolute;
@@ -1109,7 +1130,7 @@ export function ArenaBattleView({
           gap: 10px;
         }
         @keyframes kabBolt {
-          from { transform: translate3d(0,0,0) scale(.75) rotate(var(--shot-angle)); }
+          from { transform: translate3d(0,0,0) scale(.85) rotate(var(--shot-angle)); }
           to { transform: translate3d(var(--shot-x), var(--shot-y), 0) scale(1.05) rotate(var(--shot-angle)); }
         }
         @keyframes kabImpact {
@@ -1119,7 +1140,7 @@ export function ArenaBattleView({
         }
         @keyframes kabMuzzle {
           from { opacity: 1; transform: scale(.4); }
-          to { opacity: 0; transform: scale(2.4); }
+          to { opacity: 0; transform: scale(2.1); }
         }
         @keyframes kabDamageFloat {
           0% { opacity: 0; transform: translateY(14px) scale(.8); }
@@ -1128,45 +1149,60 @@ export function ArenaBattleView({
         }
         @media (max-width: 1100px) {
           .kab-overlay-top { grid-template-columns: 1fr 1fr; }
-          .kab-fighter { width: min(30vw, 300px); height: min(34vh, 280px); }
-          .kab-floating-fire { bottom: 98px; width: 88px; height: 88px; }
+          .kab-fighter { width: min(20vw, 220px); height: min(28vh, 220px); }
+          .kab-bottom-hud { gap: 10px; }
+          .kab-floating-fire { width: 82px; height: 82px; }
         }
         @media (max-width: 850px) {
+          .kab-top-strip { padding: 8px 10px 0; }
+          .kab-chip { padding: 6px 10px; font-size: 11px; }
+          .kab-chip--hide-mobile { display: none; }
           .kab-overlay-top {
             grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            padding: 10px;
+            gap: 8px;
+            padding: 8px 10px 0;
           }
           .kab-question-card { padding: 12px; }
-          .kab-question-card h2 { font-size: clamp(16px, 3vw, 24px); }
-          .kab-answer { min-height: 70px; padding: 10px 12px; }
-          .kab-answer span { font-size: 14px; }
+          .kab-question-card h2 { font-size: clamp(14px, 2.9vw, 20px); }
+          .kab-question-card small { font-size: 10px; }
+          .kab-answer { min-height: 62px; padding: 8px 10px; border-radius: 14px; }
+          .kab-answer strong { width: 28px; height: 28px; font-size: 13px; }
+          .kab-answer span { font-size: 13px; }
+          .kab-feedback { font-size: 12px; padding: 8px 10px; }
           .kab-battle-center {
-            gap: 26px;
-            padding: 8px 18px 4px;
+            gap: 18px;
+            padding: 0 12px 0;
           }
           .kab-fighter {
-            width: min(30vw, 220px);
-            height: min(26vh, 190px);
+            width: min(18vw, 110px);
+            height: min(20vh, 110px);
           }
-          .kab-damage-float { font-size: 18px; top: 12%; }
-          .kab-bottom-hud { gap: 8px; padding: 0 10px 10px; }
-          .kab-hp-title { font-size: 11px; }
-          .kab-hp-track { height: 10px; }
+          .kab-fighter-left { transform: translateY(-4px); }
+          .kab-fighter-right { transform: translateY(0); }
+          .kab-muzzle-anchor { left: 67.5%; top: 25%; }
+          .kab-center-status { gap: 6px; margin-top: 0; }
+          .kab-battle-message, .kab-fire-panel, .kab-target-eliminated { padding: 8px 10px; font-size: 11px; }
+          .kab-damage-float { font-size: 16px; top: 10%; }
+          .kab-bottom-hud {
+            grid-template-columns: minmax(0,1fr) auto minmax(0,1fr);
+            gap: 8px;
+            padding: 0 10px 10px;
+          }
+          .kab-hp-card { padding: 8px 8px; border-radius: 12px; }
+          .kab-hp-title { font-size: 10px; margin-bottom: 6px; }
+          .kab-hp-track { height: 8px; }
+          .kab-monster-stats { display: none; }
           .kab-floating-fire {
-            right: 12px;
-            bottom: 78px;
-            width: 76px;
-            height: 76px;
+            width: 68px;
+            height: 68px;
           }
-          .kab-floating-fire span { font-size: 16px; }
-          .kab-floating-fire small { font-size: 9px; }
+          .kab-floating-fire span { font-size: 15px; }
+          .kab-floating-fire small { font-size: 8px; }
         }
       `}</style>
     </div>
   );
 }
-
 export function ArenaBattleResultCard({
   outcome,
   monster,
