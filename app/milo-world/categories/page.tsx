@@ -836,8 +836,6 @@ export default function MiloCategoriesPage() {
   const [isSavingMultiplayerAnalytics, setIsSavingMultiplayerAnalytics] = useState(false);
 
   const [miloGuideOpen, setMiloGuideOpen] = useState(false);
-  const [isCategoriesFullscreen, setIsCategoriesFullscreen] = useState(false);
-  const [mobileFullscreenMessage, setMobileFullscreenMessage] = useState("");
   const [isMobileGameplayViewport, setIsMobileGameplayViewport] = useState(false);
   const [miloGuideStep, setMiloGuideStep] = useState(0);
   const [miloGuideTargetRect, setMiloGuideTargetRect] = useState<{
@@ -904,22 +902,6 @@ export default function MiloCategoriesPage() {
     } catch {
       // The guide still works manually if storage is unavailable.
     }
-  }, []);
-
-  useEffect(() => {
-    function syncFullscreenState() {
-      const doc = document as Document & { webkitFullscreenElement?: Element | null };
-      setIsCategoriesFullscreen(Boolean(document.fullscreenElement || doc.webkitFullscreenElement));
-    }
-
-    document.addEventListener("fullscreenchange", syncFullscreenState);
-    document.addEventListener("webkitfullscreenchange", syncFullscreenState as EventListener);
-    syncFullscreenState();
-
-    return () => {
-      document.removeEventListener("fullscreenchange", syncFullscreenState);
-      document.removeEventListener("webkitfullscreenchange", syncFullscreenState as EventListener);
-    };
   }, []);
 
   useEffect(() => {
@@ -1384,43 +1366,6 @@ export default function MiloCategoriesPage() {
     allMultiplayerPlayersAnswered,
     multiplayerQuestionIndex,
   ]);
-
-  async function toggleCategoriesFullscreen() {
-    const doc = document as Document & {
-      webkitFullscreenElement?: Element | null;
-      webkitExitFullscreen?: () => Promise<void> | void;
-    };
-    const root = document.documentElement as HTMLElement & {
-      webkitRequestFullscreen?: () => Promise<void> | void;
-    };
-
-    try {
-      if (document.fullscreenElement || doc.webkitFullscreenElement) {
-        if (document.exitFullscreen) {
-          await document.exitFullscreen();
-        } else if (doc.webkitExitFullscreen) {
-          await doc.webkitExitFullscreen();
-        }
-        return;
-      }
-
-      if (root.requestFullscreen) {
-        await root.requestFullscreen({ navigationUI: "hide" });
-      } else if (root.webkitRequestFullscreen) {
-        await root.webkitRequestFullscreen();
-      } else {
-        setMobileFullscreenMessage(
-          "Safari cannot enter app-style full screen here. Use Share → Add to Home Screen for the cleanest view.",
-        );
-        window.setTimeout(() => setMobileFullscreenMessage(""), 4200);
-      }
-    } catch {
-      setMobileFullscreenMessage(
-        "Safari did not enter full screen. You can still play here, or use Add to Home Screen for a cleaner view.",
-      );
-      window.setTimeout(() => setMobileFullscreenMessage(""), 4200);
-    }
-  }
 
   function rememberMiloGuideSeen() {
     try {
@@ -2953,20 +2898,7 @@ export default function MiloCategoriesPage() {
           </Link>
         )}
 
-        <div className="categories-mobile-title" aria-hidden="true">Categories</div>
-
         <div className="categories-mobile-top-controls">
-          <button
-            type="button"
-            onClick={() => void toggleCategoriesFullscreen()}
-            className="categories-mobile-fullscreen"
-            aria-label={isCategoriesFullscreen ? "Exit full screen" : "Enter full screen"}
-            title={isCategoriesFullscreen ? "Exit full screen" : "Full screen"}
-          >
-            <span aria-hidden="true">{isCategoriesFullscreen ? "↙" : "⛶"}</span>
-            <strong>{isCategoriesFullscreen ? "Exit" : "Full"}</strong>
-          </button>
-
           {isCategorySetupStage && categoryMode === "single" && (
             <div className="categories-mobile-timer" aria-label="Question timer">
               {([10, 20] as const).map((seconds) => (
@@ -2983,12 +2915,6 @@ export default function MiloCategoriesPage() {
           )}
         </div>
       </header>
-
-      {mobileFullscreenMessage && (
-        <div className="categories-mobile-fullscreen-message" role="status">
-          {mobileFullscreenMessage}
-        </div>
-      )}
 
       <section className="categories-viewport relative z-10 flex min-h-0 flex-1 px-0 pb-9 pt-2 sm:pb-14 sm:pt-5">
         <div className="categories-shell flex w-full flex-col overflow-hidden">
@@ -4693,6 +4619,18 @@ export default function MiloCategoriesPage() {
           z-index: 80;
         }
 
+
+        /* V15: the expedition owns its own HUD; remove the page chrome while playing. */
+        .categories-page--expedition .categories-topbar {
+          display: none;
+        }
+
+        .categories-mobile-title,
+        .categories-mobile-fullscreen,
+        .categories-mobile-fullscreen-message {
+          display: none !important;
+        }
+
         .categories-content {
           min-height: 0;
           flex: 1 1 0;
@@ -4720,9 +4658,7 @@ export default function MiloCategoriesPage() {
           display: none;
         }
 
-        .categories-mobile-title,
-        .categories-mobile-top-controls,
-        .categories-mobile-fullscreen-message {
+        .categories-mobile-top-controls {
           display: none;
         }
 
@@ -6026,6 +5962,28 @@ export default function MiloCategoriesPage() {
           .quiz-play-layout {
             grid-template-columns: 1fr;
             grid-template-rows: minmax(0, 0.68fr) minmax(0, 1.32fr);
+          }
+        }
+
+
+        /* Phones in portrait: keep Milo Guide reachable at the top-right. */
+        @media (max-width: 720px) and (orientation: portrait) {
+          .categories-guide-launcher {
+            top: max(8px, env(safe-area-inset-top));
+            right: max(8px, env(safe-area-inset-right));
+            bottom: auto;
+            left: auto;
+            z-index: 96;
+          }
+
+          /* When the single-player timer selector is present, park it just
+             to the left of Milo Guide instead of letting the controls overlap. */
+          .categories-mobile-top-controls {
+            position: fixed;
+            top: max(10px, env(safe-area-inset-top));
+            right: max(104px, calc(env(safe-area-inset-right) + 104px));
+            z-index: 95;
+            margin: 0;
           }
         }
 

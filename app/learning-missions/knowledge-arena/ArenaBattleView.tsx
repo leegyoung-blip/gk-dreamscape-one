@@ -337,6 +337,33 @@ type ShotVisual = {
   angle: number;
 };
 
+// Exact barrel calibration for nova-battle-firing.png.
+// Source asset: 1122 × 1402 px. The centre of the visible muzzle opening
+// is at approximately pixel (898, 376). Keeping this as a normalized
+// hotspot means it remains aligned after responsive scaling/object-fit.
+const NOVA_FIRING_BARREL_HOTSPOT = {
+  x: 898 / 1122,
+  y: 376 / 1402,
+} as const;
+
+const MONSTER_IMPACT_HOTSPOTS: Record<string, { x: number; y: number }> = {
+  "atlas-golem": { x: 0.36, y: 0.46 },
+  "tempest-roc": { x: 0.42, y: 0.46 },
+  "worldbreaker-leviathan": { x: 0.30, y: 0.46 },
+  "verdant-sabertooth": { x: 0.34, y: 0.46 },
+};
+
+function imageHotspot(
+  image: HTMLImageElement,
+  hotspot: { x: number; y: number },
+) {
+  const rect = containedImageRect(image);
+  return {
+    x: rect.left + rect.width * hotspot.x,
+    y: rect.top + rect.height * hotspot.y,
+  };
+}
+
 function containedImageRect(image: HTMLImageElement) {
   const box = image.getBoundingClientRect();
   const naturalWidth = image.naturalWidth || box.width || 1;
@@ -351,6 +378,7 @@ function containedImageRect(image: HTMLImageElement) {
     height,
   };
 }
+
 
 export function ArenaBattleView({
   topic,
@@ -440,17 +468,19 @@ export function ArenaBattleView({
   const novaImageRef = useRef<HTMLImageElement | null>(null);
   const monsterImageRef = useRef<HTMLImageElement | null>(null);
   const lastVisualShotRef = useRef(0);
-  const [shotVisual, setShotVisual] = useState<ShotVisual | null>(null);
+  const [projectiles, setProjectiles] = useState<ShotVisual[]>([]);
+  const [damagePopups, setDamagePopups] = useState<
+    Array<{ id: number; target: "nova" | "monster"; value: number }>
+  >([]);
 
   useEffect(() => {
-    if (phase !== "firing" || shotsThisTurn <= 0) {
-      lastVisualShotRef.current = shotsThisTurn;
-      if (phase !== "firing") setShotVisual(null);
+    if (phase !== "firing" || shotsThisTurn <= lastVisualShotRef.current) {
+      if (phase !== "firing") {
+        lastVisualShotRef.current = 0;
+        setProjectiles([]);
+      }
       return;
     }
-
-    if (shotsThisTurn === lastVisualShotRef.current) return;
-    lastVisualShotRef.current = shotsThisTurn;
 
     const stage = stageRef.current;
     const novaImage = novaImageRef.current;
@@ -458,218 +488,223 @@ export function ArenaBattleView({
     if (!stage || !novaImage || !monsterImage) return;
 
     const stageBox = stage.getBoundingClientRect();
-    const novaBox = containedImageRect(novaImage);
-    const monsterBox = containedImageRect(monsterImage);
+    const barrelPagePoint = imageHotspot(
+      novaImage,
+      NOVA_FIRING_BARREL_HOTSPOT,
+    );
+    const monsterPagePoint = imageHotspot(
+      monsterImage,
+      MONSTER_IMPACT_HOTSPOTS[monster.slug] ?? { x: 0.34, y: 0.46 },
+    );
 
-    // Calibrated against Nova's firing PNG: the barrel mouth is near the
-    // upper-right edge of the rendered art. Because this is derived from
-    // the live image box, it stays aligned when the arena resizes.
-    const startX = novaBox.left - stageBox.left + novaBox.width * 0.833;
-    const startY = novaBox.top - stageBox.top + novaBox.height * 0.271;
+    for (let shot = lastVisualShotRef.current + 1; shot <= shotsThisTurn; shot += 1) {
+      // Convert the calibrated page-space hotspots into the arena's local
+      // coordinate system for this exact frame. This is recalculated for
+      // every shot, so orientation/responsive resizing cannot leave the
+      // projectile behind at an old screen position.
+      const startX = barrelPagePoint.x - stageBox.left;
+      const startY = barrelPagePoint.y - stageBox.top;
+      const endX = monsterPagePoint.x - stageBox.left;
+      const endY = monsterPagePoint.y - stageBox.top;
+      const deltaX = endX - startX;
+      const deltaY = endY - startY;
+      const angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
+      const visual = { id: Date.now() + shot, startX, startY, deltaX, deltaY, endX, endY, angle };
+      setProjectiles((current) => [...current, visual]);
+      window.setTimeout(() => {
+        setProjectiles((current) => current.filter((item) => item.id !== visual.id));
+      }, 620);
+    }
 
-    // Aim at the near-side torso of whatever monster pose is currently
-    // rendered. This also follows responsive movement and monster sizing.
-    const endX = monsterBox.left - stageBox.left + monsterBox.width * 0.34;
-    const endY = monsterBox.top - stageBox.top + monsterBox.height * 0.48;
-    const deltaX = endX - startX;
-    const deltaY = endY - startY;
-    const angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
+    lastVisualShotRef.current = shotsThisTurn;
+  }, [shotsThisTurn, phase, monster.slug]);
 
-    setShotVisual({
-      id: shotsThisTurn,
-      startX,
-      startY,
-      deltaX,
-      deltaY,
-      endX,
-      endY,
-      angle,
-    });
-  }, [phase, shotsThisTurn, monster.slug]);
+  useEffect(() => {
+    if (damageFlash === null) return;
+    const target: "nova" | "monster" = phase === "firing" || phase === "monster_defeated" ? "monster" : "nova";
+    const id = Date.now() + Math.random();
+    setDamagePopups((current) => [...current, { id, target, value: damageFlash }]);
+    window.setTimeout(() => {
+      setDamagePopups((current) => current.filter((item) => item.id !== id));
+    }, 1500);
+  }, [damageFlash, phase]);
 
   const correct = selectedAnswer !== null && selectedAnswer === question.correct_answer;
   const fireSecondsLeft = Math.max(0, fireMsRemaining / 1000);
-  const novaCritical = novaHp <= 250;
   const monsterDefeated = monsterHp <= 0;
-
-  function stopFire(event?: ReactPointerEvent<HTMLButtonElement>) {
-    event?.preventDefault();
-    onStopFiring();
-  }
 
   return (
     <div
       ref={stageRef}
-      className={`kab-stage ${novaCritical ? "is-nova-critical" : ""}`}
+      className="kab-stage kab-stage-v2"
       style={{ backgroundImage: `url("${arenaBackgrounds[topic]}")` }}
     >
       <div className="kab-vignette" />
 
-      <div className="kab-topbar">
-        <span>{challengeLabel}</span>
-        <span>{topicTitle}</span>
-        <span>Q {questionIndex + 1}/10</span>
-        <span>Correct {correctCount}</span>
-        <span>Score {score}</span>
-        {isAdmin && (
-          <button
-            type="button"
-            className={`kab-admin-pause ${isPaused ? "is-paused" : ""}`}
-            onClick={onTogglePause}
-            disabled={!isPaused && phase !== "question" && phase !== "firing"}
-          >
-            {isPaused ? "▶ Resume" : "Ⅱ Pause"}
-          </button>
-        )}
-        <strong className={timeLeft <= 3 ? "is-low" : ""}>{timeLeft}s</strong>
+      <div className="kab-overlay-top">
+        <div className="kab-question-panel">
+          <div className="kab-mini-row">
+            <span>{challengeLabel}</span>
+            <span>{topicTitle}</span>
+            <span>Q {questionIndex + 1}/10</span>
+            <span>Correct {correctCount}</span>
+            <span>Score {score}</span>
+          </div>
+          <div className="kab-question-card">
+            <small>
+              {question.difficulty} · {timerSeconds}s timer
+            </small>
+            <h2>{question.question_text}</h2>
+            {question.question_image && (
+              <img
+                src={question.question_image}
+                alt={`Question ${questionIndex + 1}`}
+                draggable={false}
+                className="kab-question-image"
+              />
+            )}
+          </div>
+        </div>
+
+        <div className="kab-right-panel">
+          <div className="kab-top-controls">
+            {isAdmin && (
+              <button
+                type="button"
+                className={`kab-admin-pause ${isPaused ? "is-paused" : ""}`}
+                onClick={onTogglePause}
+              >
+                {isPaused ? "▶ Resume" : "Ⅱ Pause"}
+              </button>
+            )}
+            <strong className={`kab-timer-chip ${timeLeft <= 3 ? "is-low" : ""}`}>{timeLeft}s</strong>
+          </div>
+          <div className="kab-answer-grid kab-answer-grid--top">
+            {options.map(([label, optionText]) => (
+              <button
+                key={label}
+                type="button"
+                disabled={answerLocked || isPaused}
+                onClick={() => onChoose(label)}
+                className="kab-answer"
+                style={getAnswerStyle(label)}
+              >
+                <strong>{label}</strong>
+                <span>{optionText}</span>
+              </button>
+            ))}
+          </div>
+          {feedback && answerLocked && (
+            <div className={`kab-feedback ${correct ? "is-correct" : "is-wrong"}`}>
+              {feedback}
+              {wrongStreak > 1 && !correct && monsterHp > 0 && (
+                <strong> Wrong streak: {wrongStreak}</strong>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
-      <section className="kab-question-hud">
-        <div className="kab-question-copy">
-          <small>{question.difficulty} · Question {questionIndex + 1}</small>
-          <p>{question.question_text}</p>
-        </div>
-        {question.question_image && (
-          <img
-            src={question.question_image}
-            alt={`Question ${questionIndex + 1}`}
-            draggable={false}
-            className="kab-question-image"
-          />
-        )}
-      </section>
-
-      <section className="kab-battlefield">
-        <div className="kab-fighter-side kab-fighter-left">
-          <div className="kab-hp-card">
-            <div className="kab-hp-title">
-              <strong>NOVA</strong>
-              <span>{novaHp} / 1000 HP</span>
-            </div>
-            <div className="kab-hp-track">
-              <i style={{ width: `${hpPercent(novaHp, 1000)}%` }} />
-            </div>
-          </div>
+      <div className="kab-battle-center">
+        <div className="kab-fighter kab-fighter-left">
           <NovaSprite phase={phase} imageRef={novaImageRef} />
+          {damagePopups
+            .filter((item) => item.target === "nova")
+            .map((item) => (
+              <div key={item.id} className="kab-damage-float kab-damage-float--nova">-{item.value}</div>
+            ))}
         </div>
 
-        <div className="kab-combat-center">
+        <div className="kab-center-status">
           {battleMessage && <div className="kab-battle-message">{battleMessage}</div>}
-
           {phase === "firing" && (
             <div className="kab-fire-panel">
               <strong>{monsterDefeated ? "TARGET PRACTICE" : "FIRE!"}</strong>
               <span>{fireSecondsLeft.toFixed(1)}s</span>
-              <small>{shotsThisTurn} shots</small>
-              <em>Hold SPACEBAR or use the FIRE button</em>
+              <small>{shotsThisTurn} shots · tap repeatedly</small>
             </div>
           )}
-
-          {damageFlash !== null && phase !== "firing" && (
-            <div className="kab-damage-number">-{damageFlash}</div>
-          )}
-
           {phase === "monster_defeated" && (
             <div className="kab-target-eliminated">TARGET ELIMINATED</div>
           )}
         </div>
 
-        {phase === "firing" && shotVisual && (
-          <div key={`blaster-shot-${shotVisual.id}`} className="kab-shot-layer" aria-hidden="true">
-            <i
-              className="kab-shot-muzzle"
-              style={{ left: shotVisual.startX, top: shotVisual.startY }}
-            />
+        <div className="kab-fighter kab-fighter-right">
+          <MonsterSprite
+            monster={monster}
+            phase={phase}
+            monsterHp={monsterHp}
+            damageFlash={damageFlash}
+            imageRef={monsterImageRef}
+          />
+          {damagePopups
+            .filter((item) => item.target === "monster")
+            .map((item) => (
+              <div key={item.id} className="kab-damage-float kab-damage-float--monster">-{item.value}</div>
+            ))}
+        </div>
+
+        {projectiles.map((shot) => (
+          <div key={shot.id} className="kab-shot-layer" aria-hidden="true">
+            <i className="kab-shot-muzzle" style={{ left: shot.startX, top: shot.startY }} />
             <span
-              className="kab-blaster-shot"
+              className="kab-blaster-bolt"
               style={{
-                left: shotVisual.startX,
-                top: shotVisual.startY,
-                "--shot-x": `${shotVisual.deltaX}px`,
-                "--shot-y": `${shotVisual.deltaY}px`,
-                "--shot-angle": `${shotVisual.angle}deg`,
+                left: shot.startX,
+                top: shot.startY,
+                "--shot-x": `${shot.deltaX}px`,
+                "--shot-y": `${shot.deltaY}px`,
+                "--shot-angle": `${shot.angle}deg`,
               } as CSSProperties}
-            >
-              <i />
-            </span>
-            <i
-              className="kab-shot-impact"
-              style={{ left: shotVisual.endX, top: shotVisual.endY }}
-            >
+            />
+            <i className="kab-shot-impact" style={{ left: shot.endX, top: shot.endY }}>
               <b />
               <b />
               <b />
             </i>
           </div>
-        )}
+        ))}
+      </div>
 
-        <div className="kab-fighter-side kab-fighter-right">
-          <div className="kab-hp-card kab-monster-card">
-            <div className="kab-hp-title">
-              <strong>{monster.name}</strong>
-              <span>{monsterHp} / {monster.hp} HP</span>
-            </div>
-            <div className="kab-hp-track kab-monster-hp">
-              <i style={{ width: `${hpPercent(monsterHp, monster.hp)}%` }} />
-            </div>
-            <div className="kab-monster-stats">
-              <span>{rarityLabel(monster.rarity)}</span>
-              <span>ATK {stars(monster.attack_rating)}</span>
-              <span>DEF {stars(monster.defense_rating)}</span>
-            </div>
+      <div className="kab-bottom-hud">
+        <div className="kab-hp-card kab-bottom-card">
+          <div className="kab-hp-title">
+            <strong>NOVA</strong>
+            <span>{novaHp} / 1000 HP</span>
           </div>
-          <MonsterSprite monster={monster} phase={phase} monsterHp={monsterHp} damageFlash={damageFlash} imageRef={monsterImageRef} />
-        </div>
-      </section>
-
-      <section className="kab-answer-zone">
-        {feedback && answerLocked && (
-          <div className={`kab-feedback ${correct ? "is-correct" : "is-wrong"}`}>
-            {feedback}
-            {wrongStreak > 1 && !correct && monsterHp > 0 && (
-              <strong> Wrong streak: {wrongStreak}</strong>
-            )}
+          <div className="kab-hp-track">
+            <i style={{ width: `${hpPercent(novaHp, 1000)}%` }} />
           </div>
-        )}
-
-        <div className="kab-answer-grid">
-          {options.map(([label, optionText]) => (
-            <button
-              key={label}
-              type="button"
-              disabled={answerLocked || isPaused}
-              onClick={() => onChoose(label)}
-              className="kab-answer"
-              style={getAnswerStyle(label)}
-            >
-              <strong>{label}</strong>
-              <span>{optionText}</span>
-            </button>
-          ))}
         </div>
-      </section>
+
+        <div className="kab-hp-card kab-bottom-card kab-monster-card">
+          <div className="kab-hp-title">
+            <strong>{monster.name}</strong>
+            <span>{monsterHp} / {monster.hp} HP</span>
+          </div>
+          <div className="kab-hp-track kab-monster-hp">
+            <i style={{ width: `${hpPercent(monsterHp, monster.hp)}%` }} />
+          </div>
+          <div className="kab-monster-stats">
+            <span>{rarityLabel(monster.rarity)}</span>
+            <span>ATK {stars(monster.attack_rating)}</span>
+            <span>DEF {stars(monster.defense_rating)}</span>
+          </div>
+        </div>
+      </div>
 
       <button
         type="button"
         className={`kab-floating-fire ${phase === "firing" && !isPaused ? "is-ready" : "is-idle"}`}
         disabled={phase !== "firing" || isPaused}
         aria-label={phase === "firing" ? "Fire Nova's blaster" : "Fire becomes available after a correct answer"}
-        onPointerDown={(event) => {
-          event.preventDefault();
-          try {
-            event.currentTarget.setPointerCapture(event.pointerId);
-          } catch {
-            // Pointer capture is optional; firing still works without it.
-          }
+        onClick={() => {
           onStartFiring();
+          onStopFiring();
         }}
-        onPointerUp={stopFire}
-        onPointerCancel={stopFire}
-        onLostPointerCapture={stopFire}
-        onContextMenu={(event) => event.preventDefault()}
       >
         <span>FIRE</span>
-        <small>{phase === "firing" ? `${fireSecondsLeft.toFixed(1)}s` : "READY"}</small>
+        <small>{phase === "firing" ? `${fireSecondsLeft.toFixed(1)}s` : "TAP"}</small>
       </button>
 
       {isPaused && (
@@ -734,11 +769,10 @@ export function ArenaBattleView({
         .kab-stage {
           position: relative;
           display: grid;
+          grid-template-rows: auto minmax(0, 1fr) auto;
           width: 100%;
           height: 100%;
           min-height: 0;
-          grid-template-rows: auto auto minmax(0, 1fr) auto;
-          gap: 8px;
           overflow: hidden;
           border: 1px solid rgba(126, 232, 255, 0.18);
           border-radius: 18px;
@@ -747,623 +781,386 @@ export function ArenaBattleView({
           color: white;
           isolation: isolate;
         }
-
         .kab-vignette {
           position: absolute;
           inset: 0;
           z-index: -1;
           background:
-            linear-gradient(180deg, rgba(1, 5, 15, 0.52), rgba(1, 5, 15, 0.18) 44%, rgba(1, 5, 15, 0.6)),
-            radial-gradient(circle at 50% 55%, transparent 0 34%, rgba(0, 0, 0, 0.28) 78%);
-          pointer-events: none;
+            linear-gradient(180deg, rgba(1, 5, 15, 0.34), rgba(1, 5, 15, 0.1) 35%, rgba(1, 5, 15, 0.46)),
+            radial-gradient(circle at 50% 64%, transparent 0 28%, rgba(0, 0, 0, 0.18) 82%);
         }
-
-        .kab-stage.is-nova-critical::after {
-          position: absolute;
-          inset: 0;
-          z-index: 20;
-          border: 2px solid rgba(248, 113, 113, 0.32);
-          box-shadow: inset 0 0 54px rgba(239, 68, 68, 0.13);
-          content: "";
-          pointer-events: none;
-          animation: kabCritical 0.8s ease-in-out infinite alternate;
-        }
-
-        .kab-topbar {
-          display: flex;
-          z-index: 4;
-          align-items: center;
-          gap: 6px;
-          padding: 8px 10px 0;
-        }
-
-        .kab-topbar > span,
-        .kab-topbar > strong,
-        .kab-admin-pause {
-          min-height: 32px;
-          display: inline-flex;
-          align-items: center;
-          border: 1px solid rgba(255,255,255,.13);
-          border-radius: 999px;
-          background: rgba(2, 9, 24, .7);
-          padding: 0 10px;
-          color: rgba(255,255,255,.78);
-          font-size: 10px;
-          font-weight: 850;
-          backdrop-filter: blur(12px);
-          white-space: nowrap;
-        }
-
-        .kab-admin-pause { cursor:pointer; color:#fde68a; border-color:rgba(253,230,138,.25); }
-        .kab-admin-pause.is-paused { color:#a7f3d0; border-color:rgba(167,243,208,.3); }
-        .kab-admin-pause:disabled { cursor:not-allowed; opacity:.35; }
-        .kab-topbar > strong { margin-left: auto; color: #7ee8ff; font-size: 14px; }
-        .kab-topbar > strong.is-low { color: #fca5a5; }
-
-        .kab-question-hud {
+        .kab-overlay-top {
           display: grid;
-          z-index: 4;
-          grid-template-columns: minmax(0, 1fr) auto;
-          gap: 10px;
-          align-items: center;
-          margin: 0 10px;
-          border: 1px solid rgba(126,232,255,.18);
-          border-radius: 15px;
-          background: rgba(2, 9, 24, .73);
-          padding: 10px 13px;
-          backdrop-filter: blur(14px);
+          grid-template-columns: minmax(0, 1.1fr) minmax(340px, 0.9fr);
+          gap: 14px;
+          padding: 14px;
+          align-items: start;
         }
-
-        .kab-question-copy small {
+        .kab-question-panel, .kab-right-panel { min-width: 0; }
+        .kab-mini-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-bottom: 8px;
+        }
+        .kab-mini-row span, .kab-timer-chip, .kab-admin-pause {
+          border: 1px solid rgba(255,255,255,.12);
+          border-radius: 999px;
+          background: rgba(5,10,24,.68);
+          padding: 8px 12px;
+          font-size: 12px;
+          font-weight: 800;
+        }
+        .kab-question-card {
+          border: 1px solid rgba(126,232,255,.18);
+          border-radius: 18px;
+          background: linear-gradient(180deg, rgba(4, 13, 29, .88), rgba(6, 18, 38, .75));
+          padding: 16px;
+          backdrop-filter: blur(8px);
+        }
+        .kab-question-card small {
+          display: block;
           color: #7ee8ff;
-          font-size: 9px;
+          font-size: 11px;
           font-weight: 900;
-          letter-spacing: .11em;
+          letter-spacing: .12em;
           text-transform: uppercase;
         }
-
-        .kab-question-copy p {
-          margin: 4px 0 0;
-          font-size: clamp(18px, 2vw, 30px);
-          font-weight: 850;
-          line-height: 1.17;
+        .kab-question-card h2 {
+          margin: 8px 0 0;
+          font-size: clamp(20px, 2vw, 34px);
+          line-height: 1.16;
         }
-
         .kab-question-image {
-          width: min(180px, 20vw);
-          max-height: 92px;
+          margin-top: 10px;
+          max-width: 100%;
+          max-height: 110px;
           object-fit: contain;
-          border-radius: 10px;
-          background: rgba(255,255,255,.94);
+          border-radius: 12px;
         }
-
-        .kab-battlefield {
-          position: relative;
+        .kab-right-panel { display: grid; gap: 10px; }
+        .kab-top-controls {
+          display: flex;
+          justify-content: flex-end;
+          gap: 8px;
+          align-items: center;
+        }
+        .kab-timer-chip.is-low { color: #ff8d8d; }
+        .kab-answer-grid--top {
           display: grid;
-          min-height: 0;
-          grid-template-columns: minmax(0, 1fr) minmax(92px, .22fr) minmax(0, 1fr);
-          align-items: stretch;
-          padding: 0 clamp(24px, 5vw, 78px);
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
         }
-
-        .kab-fighter-side {
+        .kab-answer {
+          min-height: 86px;
+          display: grid;
+          grid-template-columns: auto 1fr;
+          gap: 12px;
+          align-items: center;
+          border-radius: 18px;
+          padding: 14px 16px;
+          text-align: left;
+          backdrop-filter: blur(6px);
+        }
+        .kab-answer strong {
+          display: grid;
+          width: 34px;
+          height: 34px;
+          place-items: center;
+          border-radius: 999px;
+          background: rgba(255,255,255,.12);
+          font-size: 16px;
+        }
+        .kab-answer span {
+          font-size: clamp(16px, 1.35vw, 20px);
+          line-height: 1.25;
+          font-weight: 800;
+        }
+        .kab-feedback {
+          border-radius: 14px;
+          padding: 10px 12px;
+          font-size: 14px;
+          font-weight: 800;
+          background: rgba(8,12,26,.76);
+        }
+        .kab-feedback.is-correct { border: 1px solid rgba(75, 255, 171, .35); }
+        .kab-feedback.is-wrong { border: 1px solid rgba(255, 102, 130, .35); }
+        .kab-battle-center {
           position: relative;
           display: flex;
-          min-width: 0;
+          align-items: flex-end;
+          justify-content: center;
+          gap: clamp(50px, 9vw, 140px);
+          padding: 10px 40px 8px;
           min-height: 0;
+        }
+        .kab-fighter {
+          position: relative;
+          display: flex;
+          align-items: flex-end;
+          justify-content: center;
+          width: min(28vw, 360px);
+          height: min(44vh, 420px);
+        }
+        .kab-character,
+        .kab-character img {
+          width: 100%;
+          height: 100%;
+        }
+        .kab-character {
+          display: flex;
+          align-items: flex-end;
+          justify-content: center;
+        }
+        .kab-character img {
+          object-fit: contain;
+          object-position: center bottom;
+          filter: drop-shadow(0 12px 24px rgba(0,0,0,.28));
+        }
+        .kab-character-fallback { display: none; }
+        .kab-center-status {
+          display: flex;
           flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          align-self: center;
+          margin-top: 40px;
         }
-
+        .kab-battle-message,
+        .kab-fire-panel,
+        .kab-target-eliminated {
+          border: 1px solid rgba(255,255,255,.12);
+          border-radius: 16px;
+          background: rgba(6, 11, 25, .78);
+          padding: 10px 14px;
+          text-align: center;
+          backdrop-filter: blur(8px);
+        }
+        .kab-fire-panel { display: grid; gap: 3px; }
+        .kab-shot-layer {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+        }
+        .kab-shot-muzzle {
+          position: absolute;
+          width: 10px;
+          height: 10px;
+          margin-left: -5px;
+          margin-top: -5px;
+          border-radius: 999px;
+          background: radial-gradient(circle, #ffffff 0 15%, #90efff 40%, rgba(117,227,255,.1) 70%, transparent 72%);
+          animation: kabMuzzle .24s ease-out forwards;
+        }
+        .kab-blaster-bolt {
+          position: absolute;
+          width: 24px;
+          height: 8px;
+          margin-left: -12px;
+          margin-top: -4px;
+          border-radius: 999px;
+          background: linear-gradient(90deg, rgba(255,255,255,.95), #63e9ff 44%, #2078ff 100%);
+          box-shadow: 0 0 12px rgba(99,233,255,.95), 0 0 24px rgba(32,120,255,.5);
+          transform: translate3d(0,0,0) rotate(var(--shot-angle));
+          animation: kabBolt .26s linear forwards;
+        }
+        .kab-shot-impact {
+          position: absolute;
+          width: 18px;
+          height: 18px;
+          margin-left: -9px;
+          margin-top: -9px;
+          border-radius: 999px;
+          opacity: 0;
+          animation: kabImpact .34s ease-out .22s forwards;
+        }
+        .kab-shot-impact b {
+          position: absolute;
+          inset: 0;
+          border: 2px solid rgba(133,238,255,.9);
+          border-radius: 999px;
+        }
+        .kab-shot-impact b:nth-child(2) { transform: scale(1.5); opacity: .6; }
+        .kab-shot-impact b:nth-child(3) { transform: scale(2); opacity: .32; }
+        .kab-damage-float {
+          position: absolute;
+          top: 18%;
+          padding: 6px 10px;
+          border-radius: 999px;
+          background: rgba(160,0,0,.55);
+          color: #ff8f8f;
+          font-size: 28px;
+          font-weight: 950;
+          text-shadow: 0 0 8px rgba(0,0,0,.45);
+          animation: kabDamageFloat 1.5s ease-out forwards;
+          pointer-events: none;
+        }
+        .kab-damage-float--nova { right: 8%; }
+        .kab-damage-float--monster { left: 8%; }
+        .kab-bottom-hud {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+          padding: 0 14px 14px;
+          align-items: end;
+        }
         .kab-hp-card {
-          z-index: 4;
-          width: min(390px, 92%);
-          border: 1px solid rgba(126,232,255,.2);
-          border-radius: 13px;
-          background: rgba(2, 9, 24, .72);
-          padding: 8px 10px;
-          backdrop-filter: blur(12px);
+          border: 1px solid rgba(255,255,255,.12);
+          border-radius: 16px;
+          background: rgba(6, 11, 25, .84);
+          padding: 10px 12px;
+          backdrop-filter: blur(8px);
         }
-
-        .kab-fighter-right .kab-hp-card { align-self: flex-end; }
-
         .kab-hp-title {
           display: flex;
-          align-items: center;
           justify-content: space-between;
           gap: 10px;
-          font-size: 10px;
+          margin-bottom: 8px;
+          font-size: 14px;
+          font-weight: 800;
         }
-
-        .kab-hp-title strong { font-size: 13px; }
-        .kab-hp-title span { color: rgba(255,255,255,.62); font-weight: 800; }
-
         .kab-hp-track {
-          height: 9px;
-          margin-top: 6px;
-          overflow: hidden;
+          height: 14px;
           border-radius: 999px;
-          background: rgba(255,255,255,.1);
+          background: rgba(255,255,255,.08);
+          overflow: hidden;
         }
-
         .kab-hp-track i {
           display: block;
           height: 100%;
           border-radius: inherit;
-          background: linear-gradient(90deg, #34d399, #a7f3d0);
-          transition: width 260ms ease;
+          background: linear-gradient(90deg, #3ad991, #a8ffcf);
         }
-
-        .kab-monster-hp i { background: linear-gradient(90deg, #f97316, #facc15); }
-
+        .kab-monster-hp i {
+          background: linear-gradient(90deg, #ff9d29, #ffd257);
+        }
         .kab-monster-stats {
           display: flex;
           flex-wrap: wrap;
-          gap: 5px 10px;
-          margin-top: 5px;
-          color: rgba(255,255,255,.53);
-          font-size: 8px;
-          font-weight: 850;
-          text-transform: uppercase;
-        }
-
-        .kab-character {
-          position: absolute;
-          inset: 42px 0 0;
-          display: flex;
-          min-height: 0;
-          align-items: flex-end;
-          justify-content: center;
-          transition: transform 180ms ease, opacity 180ms ease;
-        }
-
-        .kab-character img {
-          position: relative;
-          z-index: 2;
-          width: min(88%, 390px);
-          height: 94%;
-          object-fit: contain;
-          object-position: center bottom;
-          filter: drop-shadow(0 18px 26px rgba(0,0,0,.42));
-          user-select: none;
-        }
-
-        /* Fighters are deliberately small and raised into the arena floor plane.
-           They should read as characters standing IN the arena, not foreground overlays. */
-        .kab-character.kab-nova {
-          inset: 34px 0 18% 18%;
-          justify-content: flex-end;
-          padding-right: 7%;
-        }
-        .kab-character.kab-nova img {
-          width: min(54%, 188px);
-          height: auto;
-          max-height: 62%;
-          object-position: right bottom;
-        }
-
-        .kab-character.kab-monster {
-          inset: 34px 18% 18% 0;
-          justify-content: flex-start;
-          padding-left: 7%;
-        }
-        .kab-character.kab-monster img {
-          width: min(60%, 225px);
-          height: auto;
-          max-height: 67%;
-          object-position: left bottom;
-        }
-
-        .kab-character-fallback {
-          position: absolute;
-          bottom: 16%;
-          display: grid;
-          width: min(230px, 58%);
-          aspect-ratio: 1;
-          place-items: center;
-          border: 2px solid rgba(126,232,255,.24);
-          border-radius: 48% 52% 44% 56%;
-          background: radial-gradient(circle at 35% 30%, rgba(126,232,255,.28), rgba(76,109,255,.16) 45%, rgba(2,9,24,.76));
+          gap: 8px 12px;
+          margin-top: 8px;
           color: rgba(255,255,255,.72);
-          font-size: 13px;
-          font-weight: 950;
-          letter-spacing: .1em;
-          text-align: center;
-          box-shadow: 0 0 48px rgba(83,215,255,.12);
+          font-size: 12px;
+          font-weight: 800;
         }
-
-        .kab-monster .kab-character-fallback {
-          border-color: rgba(251,146,60,.28);
-          background: radial-gradient(circle at 35% 30%, rgba(251,146,60,.26), rgba(126,34,206,.16) 45%, rgba(2,9,24,.8));
-        }
-
-        .kab-nova.is-firing { transform: translateX(2%); }
-        .kab-nova.is-hit { animation: kabNovaHit 300ms ease; }
-        .kab-nova.is-defeated { transform: rotate(-5deg) translateY(5%); opacity: .78; }
-        .kab-monster.is-attack { animation: kabMonsterAttack 520ms ease; }
-        .kab-monster.is-defense { animation: kabMonsterDefense 820ms ease-in-out infinite alternate; }
-        .kab-monster.is-hit { animation: kabMonsterHit 180ms ease; }
-        .kab-monster.is-defeated { transform: translateY(8%) rotate(4deg); opacity: .62; filter: saturate(.55); }
-
-        .kab-shot-layer {
-          pointer-events: none;
-          position: absolute;
-          inset: 0;
-          z-index: 14;
-          overflow: visible;
-        }
-
-        .kab-blaster-shot {
-          position: absolute;
-          width: 0;
-          height: 0;
-          animation: kabShotTravel 165ms linear forwards;
-          will-change: transform;
-        }
-
-        .kab-blaster-shot i {
-          position: absolute;
-          left: 0;
-          top: 0;
-          width: 24px;
-          height: 5px;
-          transform: translate(-4px,-50%) rotate(var(--shot-angle));
-          transform-origin: 4px center;
-          border-radius: 999px;
-          background: linear-gradient(90deg,#fff 0 18%,#baf7ff 30%,#4fd9ff 62%,rgba(56,189,248,.08));
-          box-shadow: 0 0 5px rgba(255,255,255,.95), 0 0 10px rgba(103,232,249,.9);
-        }
-
-        .kab-shot-muzzle {
-          position: absolute;
-          width: 17px;
-          height: 17px;
-          transform: translate(-50%,-50%);
-          border-radius: 50%;
-          background: radial-gradient(circle,#fff 0 17%,#8ff4ff 25%,rgba(56,189,248,.55) 48%,transparent 72%);
-          box-shadow: 0 0 12px rgba(103,232,249,.9);
-          animation: kabMuzzlePop 105ms ease-out both;
-        }
-
-        .kab-shot-impact {
-          position: absolute;
-          width: 30px;
-          height: 30px;
-          transform: translate(-50%,-50%);
-          opacity: 0;
-          animation: kabImpactBurst 210ms ease-out 135ms both;
-        }
-
-        .kab-shot-impact::before,
-        .kab-shot-impact::after {
-          position:absolute;
-          inset:7px;
-          border:2px solid rgba(139,238,255,.95);
-          border-radius:50%;
-          content:"";
-          box-shadow:0 0 13px rgba(56,189,248,.85);
-        }
-        .kab-shot-impact::after { inset:2px; border-width:1px; opacity:.58; }
-        .kab-shot-impact b {
-          position:absolute;
-          left:50%;
-          top:50%;
-          width:24px;
-          height:2px;
-          transform-origin:left center;
-          border-radius:999px;
-          background:linear-gradient(90deg,#fff,#67e8f9,transparent);
-          box-shadow:0 0 7px #67e8f9;
-        }
-        .kab-shot-impact b:nth-child(1) { transform:rotate(12deg); }
-        .kab-shot-impact b:nth-child(2) { transform:rotate(132deg); }
-        .kab-shot-impact b:nth-child(3) { transform:rotate(252deg); }
-
-        @keyframes kabShotTravel {
-          from { transform: translate(0,0); opacity:1; }
-          82% { opacity:1; }
-          to { transform: translate(var(--shot-x),var(--shot-y)); opacity:.15; }
-        }
-        @keyframes kabMuzzlePop {
-          from { opacity:0; transform:translate(-50%,-50%) scale(.3); }
-          30% { opacity:1; }
-          to { opacity:0; transform:translate(-50%,-50%) scale(1.35); }
-        }
-        @keyframes kabImpactBurst {
-          from { opacity:0; transform:translate(-50%,-50%) scale(.25); }
-          20% { opacity:1; }
-          to { opacity:0; transform:translate(-50%,-50%) scale(1.65); }
-        }
-
-        .kab-combat-center {
-          position: relative;
-          z-index: 6;
-          display: flex;
-          min-width: 0;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .kab-battle-message,
-        .kab-target-eliminated {
-          position: absolute;
-          top: 10%;
-          width: max-content;
-          max-width: min(360px, 34vw);
-          border: 1px solid rgba(126,232,255,.25);
-          border-radius: 999px;
-          background: rgba(2,9,24,.82);
-          padding: 8px 12px;
-          color: #bff3ff;
-          font-size: 10px;
-          font-weight: 950;
-          letter-spacing: .08em;
-          text-align: center;
-          text-transform: uppercase;
-          backdrop-filter: blur(12px);
-        }
-
-        .kab-target-eliminated {
-          top: 42%;
-          border-color: rgba(74,222,128,.4);
-          color: #a7f3d0;
-          font-size: 15px;
-          box-shadow: 0 0 30px rgba(74,222,128,.15);
-        }
-
-        .kab-fire-panel {
-          display: grid;
-          width: min(220px, 100%);
-          place-items: center;
-          border: 1px solid rgba(126,232,255,.3);
-          border-radius: 18px;
-          background: rgba(2,9,24,.82);
-          padding: 10px;
-          text-align: center;
-          box-shadow: 0 0 30px rgba(83,215,255,.12);
-          backdrop-filter: blur(14px);
-        }
-
-        .kab-fire-panel > strong { color: #7ee8ff; font-size: 16px; letter-spacing: .08em; }
-        .kab-fire-panel > span { margin-top: 2px; font-size: 26px; font-weight: 950; }
-        .kab-fire-panel > small { color: rgba(255,255,255,.55); font-size: 9px; }
-        .kab-fire-panel > em { margin-top: 5px; color: rgba(255,255,255,.42); font-size: 8px; font-style: normal; }
-
         .kab-floating-fire {
           position: absolute;
-          right: 14px;
-          bottom: 12px;
-          z-index: 42;
+          right: 18px;
+          bottom: 106px;
+          z-index: 5;
           display: grid;
-          width: clamp(70px, 8vw, 92px);
-          aspect-ratio: 1;
+          width: 96px;
+          height: 96px;
           place-items: center;
-          align-content: center;
-          border: 2px solid rgba(255,255,255,.32);
-          border-radius: 50%;
-          background: radial-gradient(circle at 35% 28%, #42e8ff, #2577f0 48%, #4020b9 100%);
-          color: white;
-          cursor: pointer;
-          touch-action: none;
-          user-select: none;
-          box-shadow: 0 10px 30px rgba(37,119,240,.38), inset 0 0 18px rgba(255,255,255,.16);
-          transition: transform 120ms ease, opacity 160ms ease, filter 160ms ease;
-        }
-        .kab-floating-fire span { font-size: clamp(12px,1.2vw,16px); font-weight:1000; letter-spacing:.09em; }
-        .kab-floating-fire small { margin-top:-2px; font-size:8px; font-weight:850; color:rgba(255,255,255,.76); }
-        .kab-floating-fire.is-ready { animation: kabFireReady .72s ease-in-out infinite alternate; }
-        .kab-floating-fire.is-ready:active { transform: scale(.9); }
-        .kab-floating-fire:disabled {
-          cursor: default;
-          opacity: .44;
-          filter: grayscale(.55) brightness(.7);
-          box-shadow: 0 6px 18px rgba(0,0,0,.25);
-        }
-
-        .kab-damage-number {
-          color: #fca5a5;
-          font-size: 30px;
-          font-weight: 950;
-          text-shadow: 0 4px 18px rgba(239,68,68,.45);
-          animation: kabDamage 360ms ease forwards;
-        }
-
-        .kab-answer-zone {
-          z-index: 7;
-          display: grid;
-          gap: 5px;
-          padding: 0 102px 10px 10px;
-        }
-
-        .kab-feedback {
-          overflow: hidden;
-          border: 1px solid rgba(126,232,255,.14);
-          border-radius: 10px;
-          background: rgba(2,9,24,.78);
-          padding: 6px 9px;
-          color: rgba(255,255,255,.7);
-          font-size: 9px;
-          line-height: 1.35;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          backdrop-filter: blur(10px);
-        }
-        .kab-feedback.is-correct { border-color: rgba(74,222,128,.24); }
-        .kab-feedback.is-wrong { border-color: rgba(248,113,113,.24); }
-
-        .kab-answer-grid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 6px;
-        }
-
-        .kab-answer {
-          display: grid;
-          min-height: 54px;
-          grid-template-columns: 32px minmax(0, 1fr);
-          align-items: center;
-          gap: 9px;
-          border-radius: 13px !important;
-          padding: 8px 11px !important;
-          text-align: left;
-          backdrop-filter: blur(11px);
-          cursor: pointer;
-        }
-
-        .kab-answer > strong {
-          display: grid;
-          width: 30px;
-          height: 30px;
-          place-items: center;
+          border: 1px solid rgba(126,232,255,.34);
           border-radius: 999px;
-          background: rgba(255,255,255,.13);
+          background: radial-gradient(circle at 35% 30%, rgba(124, 237, 255, .95), rgba(70, 98, 255, .86));
+          color: white;
+          font-weight: 950;
+          box-shadow: 0 12px 28px rgba(27,85,255,.34);
+        }
+        .kab-floating-fire:disabled {
+          opacity: .5;
+        }
+        .kab-floating-fire span {
+          font-size: 20px;
+          letter-spacing: .08em;
+        }
+        .kab-floating-fire small {
           font-size: 11px;
+          letter-spacing: .14em;
         }
-
-        .kab-answer > span {
-          overflow: hidden;
-          font-size: clamp(13px, 1.2vw, 17px);
-          font-weight: 750;
-          line-height: 1.2;
-        }
-
-        .kab-pause-layer {
-          position:absolute;
-          inset:0;
-          z-index:48;
-          display:grid;
-          place-items:center;
-          background:rgba(1,5,15,.56);
-          backdrop-filter:blur(5px);
-        }
-        .kab-pause-card {
-          width:min(420px,88vw);
-          border:1px solid rgba(126,232,255,.28);
-          border-radius:22px;
-          background:rgba(4,17,38,.95);
-          padding:22px;
-          text-align:center;
-          box-shadow:0 24px 70px rgba(0,0,0,.5);
-        }
-        .kab-pause-card small { display:block; color:#7ee8ff; font-size:9px; font-weight:950; letter-spacing:.15em; }
-        .kab-pause-card strong { display:block; margin-top:7px; font-size:28px; }
-        .kab-pause-card span { display:block; margin-top:5px; color:rgba(255,255,255,.55); font-size:10px; }
-        .kab-pause-card button { margin-top:14px; min-height:44px; border:1px solid rgba(167,243,208,.28); border-radius:999px; background:rgba(52,211,153,.14); padding:0 22px; color:#d1fae5; font-weight:900; cursor:pointer; }
-
+        .kab-pause-layer,
         .kab-defeat-layer {
           position: absolute;
           inset: 0;
-          z-index: 50;
           display: grid;
           place-items: center;
-          background: rgba(1,5,15,.74);
-          padding: 18px;
-          backdrop-filter: blur(6px);
+          padding: 24px;
+          background: rgba(2, 5, 15, .62);
+          backdrop-filter: blur(8px);
+          z-index: 8;
         }
-
+        .kab-pause-card,
         .kab-defeat-card {
-          width: min(560px, 96vw);
-          border: 1px solid rgba(248,113,113,.28);
-          border-radius: 24px;
-          background: linear-gradient(145deg, rgba(50,10,24,.94), rgba(4,13,32,.97));
-          padding: 22px;
+          width: min(520px, 100%);
+          display: grid;
+          gap: 10px;
+          border: 1px solid rgba(126,232,255,.22);
+          border-radius: 20px;
+          background: linear-gradient(180deg, rgba(5, 14, 29, .95), rgba(6, 11, 24, .92));
+          padding: 20px;
           text-align: center;
-          box-shadow: 0 26px 70px rgba(0,0,0,.5);
         }
-
-        .kab-defeat-card > p { margin: 0; color: #fca5a5; font-size: 11px; font-weight: 950; letter-spacing: .16em; }
-        .kab-defeat-card h2 { margin: 7px 0 0; font-size: 30px; }
-        .kab-defeat-card > span,
-        .kab-defeat-card > small { display: block; margin-top: 6px; color: rgba(255,255,255,.55); font-size: 10px; }
-
+        .kab-pause-card button,
+        .kab-accept-defeat,
+        .kab-revive-grid button {
+          border: 1px solid rgba(126,232,255,.22);
+          border-radius: 14px;
+          background: rgba(126,232,255,.12);
+          color: white;
+          padding: 12px 14px;
+          font-weight: 900;
+        }
         .kab-revive-grid {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 8px;
-          margin-top: 15px;
+          gap: 10px;
         }
-
-        .kab-revive-grid button,
-        .kab-accept-defeat {
-          min-height: 54px;
-          border: 1px solid rgba(126,232,255,.2);
-          border-radius: 14px;
-          background: rgba(126,232,255,.08);
-          color: white;
-          cursor: pointer;
+        @keyframes kabBolt {
+          from { transform: translate3d(0,0,0) scale(.75) rotate(var(--shot-angle)); }
+          to { transform: translate3d(var(--shot-x), var(--shot-y), 0) scale(1.05) rotate(var(--shot-angle)); }
         }
-
-        .kab-revive-grid button strong,
-        .kab-revive-grid button small { display: block; }
-        .kab-revive-grid button strong { font-size: 11px; }
-        .kab-revive-grid button small { margin-top: 3px; color: rgba(255,255,255,.5); font-size: 8px; }
-        .kab-revive-grid button:disabled { cursor: not-allowed; opacity: .35; }
-
-        .kab-accept-defeat {
-          width: 100%;
-          margin-top: 9px;
-          border-color: rgba(248,113,113,.24);
-          background: rgba(239,68,68,.1);
-          color: #fecaca;
-          font-size: 10px;
-          font-weight: 950;
-          letter-spacing: .1em;
+        @keyframes kabImpact {
+          0% { opacity: 0; transform: scale(.35); }
+          25% { opacity: 1; }
+          100% { opacity: 0; transform: scale(2.35); }
         }
-
-        .kab-revive-error {
-          margin-top: 9px;
-          border-radius: 10px;
-          background: rgba(239,68,68,.1);
-          padding: 8px;
-          color: #fecaca;
-          font-size: 9px;
+        @keyframes kabMuzzle {
+          from { opacity: 1; transform: scale(.4); }
+          to { opacity: 0; transform: scale(2.4); }
         }
-
-        @keyframes kabCritical { from { opacity: .65; } to { opacity: 1; } }
-        @keyframes kabNovaHit { 0% { transform: translateX(0); } 35% { transform: translateX(-7%); } 100% { transform: translateX(0); } }
-        @keyframes kabMonsterAttack { 0% { transform: translateX(0) scale(1); } 45% { transform: translateX(-10%) scale(1.04); } 100% { transform: translateX(0) scale(1); } }
-        @keyframes kabMonsterDefense { from { transform:scale(1); filter:drop-shadow(0 0 3px rgba(126,232,255,.2)); } to { transform:scale(1.018); filter:drop-shadow(0 0 15px rgba(126,232,255,.45)); } }
-        @keyframes kabMonsterHit { 0% { transform:translateX(0); } 45% { transform:translateX(5%); filter:brightness(1.35); } 100% { transform:translateX(0); } }
-        @keyframes kabFireReady { from { transform:scale(1); box-shadow:0 10px 30px rgba(37,119,240,.34), inset 0 0 18px rgba(255,255,255,.16); } to { transform:scale(1.05); box-shadow:0 10px 42px rgba(66,232,255,.62), inset 0 0 22px rgba(255,255,255,.24); } }
-        @keyframes kabDamage { from { transform: translateY(8px) scale(.85); opacity: 0; } 50% { opacity: 1; } to { transform: translateY(-18px) scale(1.06); opacity: 0; } }
-
-        @media (max-width: 850px), (hover: none) and (pointer: coarse) {
-          .kab-topbar > span:nth-of-type(1),
-          .kab-topbar > span:nth-of-type(2) { display: none; }
-          .kab-topbar > span, .kab-admin-pause { min-height: 27px; padding: 0 7px; font-size: 8px; }
-          .kab-question-hud { padding: 7px 9px; }
-          .kab-question-copy p { font-size: clamp(15px, 3.2vw, 21px); }
-          .kab-question-image { max-height: 65px; }
-          .kab-battlefield { grid-template-columns: minmax(0, 1fr) minmax(70px, .18fr) minmax(0, 1fr); padding-inline: 24px; }
-          .kab-hp-card { padding: 5px 7px; }
-          .kab-hp-title { font-size: 8px; }
-          .kab-hp-title strong { font-size: 10px; }
-          .kab-hp-track { height: 6px; margin-top: 4px; }
-          .kab-monster-stats { font-size: 6px; }
-          .kab-character { top: 36px; }
-          .kab-character-fallback { font-size: 9px; }
-          .kab-battle-message { max-width: 32vw; padding: 5px 7px; font-size: 7px; }
-          .kab-fire-panel { width: 118px; padding: 6px; }
-          .kab-fire-panel > strong { font-size: 10px; }
-          .kab-fire-panel > span { font-size: 18px; }
-          .kab-fire-panel > em { display: none; }
-          .kab-floating-fire { right:8px; bottom:8px; width:68px; }
-          .kab-answer-zone { padding-right:80px; }
-          .kab-character.kab-nova { inset:30px 0 17% 18%; padding-right:7%; }
-          .kab-character.kab-nova img { width:min(50%,155px); height:auto; max-height:58%; }
-          .kab-character.kab-monster { inset:30px 18% 17% 0; padding-left:7%; }
-          .kab-character.kab-monster img { width:min(56%,190px); height:auto; max-height:63%; }
-          .kab-answer { min-height: 43px; grid-template-columns: 25px minmax(0,1fr); padding: 5px 7px !important; }
-          .kab-answer > strong { width: 24px; height: 24px; font-size: 8px; }
-          .kab-answer > span { font-size: clamp(10px, 2.5vw, 13px); }
-          .kab-feedback { font-size: 7px; }
+        @keyframes kabDamageFloat {
+          0% { opacity: 0; transform: translateY(14px) scale(.8); }
+          12% { opacity: 1; transform: translateY(0) scale(1); }
+          100% { opacity: 0; transform: translateY(-42px) scale(1.05); }
         }
-
-        @media (max-height: 620px) and (orientation: landscape) {
-          .kab-stage { gap: 4px; }
-          .kab-topbar { padding-top: 4px; }
-          .kab-question-hud { padding-block: 6px; }
-          .kab-question-copy p { font-size: clamp(14px, 2vw, 20px); }
-          .kab-answer { min-height: 40px; }
+        @media (max-width: 1100px) {
+          .kab-overlay-top { grid-template-columns: 1fr 1fr; }
+          .kab-fighter { width: min(30vw, 300px); height: min(34vh, 280px); }
+          .kab-floating-fire { bottom: 98px; width: 88px; height: 88px; }
+        }
+        @media (max-width: 850px) {
+          .kab-overlay-top {
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            padding: 10px;
+          }
+          .kab-question-card { padding: 12px; }
+          .kab-question-card h2 { font-size: clamp(16px, 3vw, 24px); }
+          .kab-answer { min-height: 70px; padding: 10px 12px; }
+          .kab-answer span { font-size: 14px; }
+          .kab-battle-center {
+            gap: 26px;
+            padding: 8px 18px 4px;
+          }
+          .kab-fighter {
+            width: min(30vw, 220px);
+            height: min(26vh, 190px);
+          }
+          .kab-damage-float { font-size: 18px; top: 12%; }
+          .kab-bottom-hud { gap: 8px; padding: 0 10px 10px; }
+          .kab-hp-title { font-size: 11px; }
+          .kab-hp-track { height: 10px; }
+          .kab-floating-fire {
+            right: 12px;
+            bottom: 78px;
+            width: 76px;
+            height: 76px;
+          }
+          .kab-floating-fire span { font-size: 16px; }
+          .kab-floating-fire small { font-size: 9px; }
         }
       `}</style>
     </div>

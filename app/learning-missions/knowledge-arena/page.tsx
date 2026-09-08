@@ -2306,7 +2306,7 @@ export default function KnowledgeArenaPage() {
 
   return (
     <main
-      className={`ka-page ${hideHero ? "ka-page--hero-hidden" : ""}`}
+      className={`ka-page ka-screen-${screenMode} ${hideHero ? "ka-page--hero-hidden" : ""}`}
       style={{
         backgroundImage: `
           linear-gradient(180deg, rgba(2,8,19,0.72), rgba(2,8,19,0.91)),
@@ -2317,7 +2317,7 @@ export default function KnowledgeArenaPage() {
     >
       <header className="ka-topbar">
         <div className="ka-top-left">
-          {stage !== "solo-quiz" && stage !== "multiplayer-quiz" && (
+          {stage === "mode" && (
             <button
               type="button"
               onClick={goBack}
@@ -2337,8 +2337,8 @@ export default function KnowledgeArenaPage() {
           >
             <span className="ka-guide-mark">✦</span>
             <span className="ka-guide-copy">
-              <strong>Nova Guide</strong>
-              <small>How Knowledge Arena works</small>
+              <strong>{screenMode === "mobile" ? "Guide" : "Nova Guide"}</strong>
+              <small>{screenMode === "mobile" ? "" : "How Knowledge Arena works"}</small>
             </span>
           </button>
         </div>
@@ -6850,6 +6850,65 @@ export default function KnowledgeArenaPage() {
           }
         }
 
+
+
+/* ================================================================
+   KNOWLEDGE ARENA v8 — MOBILE SETUP CLEANUP
+   ================================================================ */
+
+@media (max-width: 850px), (hover: none) and (pointer: coarse) {
+  .ka-screen-mobile .ka-hero {
+    display: none;
+  }
+
+  .ka-screen-mobile .ka-stage-toolbar .ka-inline-back,
+  .ka-screen-mobile .ka-profile-strip,
+  .ka-screen-mobile .ka-hero,
+  .ka-screen-mobile .ka-kicker:not(.ka-results-stage .ka-kicker) {
+    display: none;
+  }
+
+  .ka-screen-mobile .ka-guide-copy small {
+    display: none;
+  }
+
+  .ka-screen-mobile .ka-guide-copy strong {
+    font-size: 14px;
+  }
+
+  .ka-screen-mobile .ka-solo-setup {
+    padding-top: 10px;
+  }
+
+  .ka-screen-mobile .ka-world-content > small,
+  .ka-screen-mobile .ka-world-content > span,
+  .ka-screen-mobile .ka-world-content > p {
+    display: none;
+  }
+
+  .ka-screen-mobile .ka-world-content {
+    padding: 12px 10px;
+    justify-content: flex-end;
+  }
+
+  .ka-screen-mobile .ka-world-content > strong {
+    font-size: clamp(18px, 4vw, 22px);
+  }
+}
+
+@media (max-width: 560px) and (orientation: portrait) {
+  .ka-screen-mobile .ka-world-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(3, minmax(170px, 1fr));
+  }
+}
+
+@media (max-width: 850px) and (orientation: landscape) {
+  .ka-screen-mobile .ka-world-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: minmax(170px, 1fr);
+  }
+}
       `}</style>
     </main>
   );

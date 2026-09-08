@@ -26,7 +26,7 @@ type ExpeditionQuestion = {
 
 type ExpeditionMotion = "idle" | "cruise" | "boost" | "turbo" | "stall";
 type ExpeditionTravelPhase = "idle" | "driving" | "coasting";
-type MobileAnswerPhase = "question" | "travel";
+type MobileAnswerPhase = "question" | "feedback" | "travel";
 
 type ExpeditionQuizProps = {
   category: string;
@@ -185,9 +185,15 @@ export default function ExpeditionQuiz({
       return;
     }
 
-    // Mobile should react immediately: hide the question/options and start
-    // the rover movement (or stall) as soon as the answer is submitted.
-    setMobileAnswerPhase("travel");
+    // Mobile: keep the answered question/options visible for one second so
+    // the learner can register the correct/wrong state, then clear the cards
+    // and let the rover move (or stall).
+    setMobileAnswerPhase("feedback");
+    const timer = window.setTimeout(() => {
+      setMobileAnswerPhase("travel");
+    }, 1000);
+
+    return () => window.clearTimeout(timer);
   }, [mobileSequencing, stage, question.id]);
 
   useEffect(() => {
@@ -416,7 +422,7 @@ export default function ExpeditionQuiz({
         </div>
       </div>
 
-      <div className={`expedition-quiz-layer ${mobileSequencing && stage === "answered" ? "is-mobile-travel-hidden" : ""}`}>
+      <div className={`expedition-quiz-layer ${mobileSequencing && stage === "answered" && mobileAnswerPhase === "travel" ? "is-mobile-travel-hidden" : ""}`}>
         <div className="expedition-question-column">
           <section className="expedition-question-card">
             <div className="expedition-question-topline">
@@ -1450,12 +1456,14 @@ export default function ExpeditionQuiz({
           animation: expeditionEffectBurst 520ms ease-out 1 both;
         }
 
-        .expedition-motion--stall .expedition-effect--stall-smoke {
+        .expedition-root:not(.is-mobile-sequenced).expedition-motion--stall .expedition-effect--stall-smoke,
+        .expedition-mobile-phase--travel.expedition-motion--stall .expedition-effect--stall-smoke {
           opacity: .82;
           animation: expeditionSmokePuff 720ms ease-out 1 both;
         }
 
-        .expedition-motion--stall .expedition-effect--wrong-sputter {
+        .expedition-root:not(.is-mobile-sequenced).expedition-motion--stall .expedition-effect--wrong-sputter,
+        .expedition-mobile-phase--travel.expedition-motion--stall .expedition-effect--wrong-sputter {
           opacity: .92;
           animation: expeditionEffectBurst 520ms ease-out 1 both;
         }
@@ -1515,19 +1523,20 @@ export default function ExpeditionQuiz({
           transform: scale(0.7);
         }
 
-        .expedition-motion--cruise .expedition-vehicle-zone {
+        .expedition-travel--driving.expedition-motion--cruise .expedition-vehicle-zone {
           animation: expeditionCruise 520ms ease-in-out 2;
         }
 
-        .expedition-motion--boost .expedition-vehicle-zone {
+        .expedition-travel--driving.expedition-motion--boost .expedition-vehicle-zone {
           animation: expeditionBoost 430ms ease-in-out 3;
         }
 
-        .expedition-motion--turbo .expedition-vehicle-zone {
+        .expedition-travel--driving.expedition-motion--turbo .expedition-vehicle-zone {
           animation: expeditionTurbo 320ms ease-in-out 4;
         }
 
-        .expedition-motion--stall .expedition-vehicle-zone {
+        .expedition-root:not(.is-mobile-sequenced).expedition-motion--stall .expedition-vehicle-zone,
+        .expedition-mobile-phase--travel.expedition-motion--stall .expedition-vehicle-zone {
           animation: expeditionStall 150ms ease-in-out 3;
         }
 
@@ -1537,7 +1546,8 @@ export default function ExpeditionQuiz({
           will-change: transform;
         }
 
-        .expedition-motion--stall .expedition-wheel {
+        .expedition-root:not(.is-mobile-sequenced).expedition-motion--stall .expedition-wheel,
+        .expedition-mobile-phase--travel.expedition-motion--stall .expedition-wheel {
           animation: none;
         }
 
@@ -1964,6 +1974,28 @@ export default function ExpeditionQuiz({
           .expedition-live-landmark-card strong { font-size: 7px; }
           .expedition-live-landmark-card small { font-size: 6px; }
           .expedition-live-landmark-pin { height: 11px; }
+        }
+
+
+        /* Touch landscape: keep the timer fully above the answer cards. */
+        @media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+          .expedition-timer {
+            width: 46px;
+            height: 46px;
+          }
+
+          .expedition-timer > div {
+            width: 38px;
+            height: 38px;
+          }
+
+          .expedition-timer strong {
+            font-size: 13px;
+          }
+
+          .expedition-quiz-layer {
+            top: 64px;
+          }
         }
 
         @media (prefers-reduced-motion: reduce) {

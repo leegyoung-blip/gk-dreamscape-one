@@ -52,6 +52,7 @@ export default function MiloQuizHallPage() {
 
   const landscape = width >= 980 && width > height * 1.15;
   const compact = width <= 720;
+  const portraitCompact = compact && height >= width;
   const alwaysShowLandscapeDescriptions = landscape && touchLike;
   const creatorSideActive = activeSide === "clubs" || alwaysShowLandscapeDescriptions;
   const categoriesSideActive = activeSide === "categories" || alwaysShowLandscapeDescriptions;
@@ -590,14 +591,16 @@ export default function MiloQuizHallPage() {
         <section
           style={{
             position: "absolute",
-            left: compact ? "10px" : "18px",
-            right: compact ? "10px" : "18px",
-            bottom: compact ? "10px" : "16px",
+            left: compact ? "14px" : "18px",
+            right: compact ? "14px" : "18px",
+            top: portraitCompact ? "60%" : undefined,
+            bottom: portraitCompact ? "auto" : compact ? "10px" : "16px",
+            transform: portraitCompact ? "translateY(-50%)" : undefined,
             zIndex: 20,
             display: "grid",
             gridTemplateColumns:
               width >= 720 ? "repeat(2, minmax(0, 1fr))" : "1fr",
-            gap: compact ? "8px" : "12px",
+            gap: portraitCompact ? "14px" : compact ? "8px" : "12px",
           }}
         >
           {clubsCanEnter ? (
@@ -605,8 +608,15 @@ export default function MiloQuizHallPage() {
               href="/milo-world/quiz-hall/communities"
               style={{
                 ...infoCard("clubs", { mobile: true }),
+                ...(portraitCompact
+                  ? {
+                      background: "linear-gradient(145deg, rgba(36,22,11,0.54), rgba(3,11,24,0.62))",
+                      backdropFilter: "blur(10px)",
+                      WebkitBackdropFilter: "blur(10px)",
+                    }
+                  : {}),
                 textDecoration: "none",
-                minHeight: compact ? "122px" : "144px",
+                minHeight: portraitCompact ? "176px" : compact ? "122px" : "144px",
                 display: "flex",
                 flexDirection: "column",
                 justifyContent: "center",
@@ -624,7 +634,14 @@ export default function MiloQuizHallPage() {
               aria-disabled="true"
               style={{
                 ...infoCard("clubs", { mobile: true }),
-                minHeight: compact ? "122px" : "144px",
+                ...(portraitCompact
+                  ? {
+                      background: "linear-gradient(145deg, rgba(36,22,11,0.54), rgba(3,11,24,0.62))",
+                      backdropFilter: "blur(10px)",
+                      WebkitBackdropFilter: "blur(10px)",
+                    }
+                  : {}),
+                minHeight: portraitCompact ? "176px" : compact ? "122px" : "144px",
                 display: "flex",
                 flexDirection: "column",
                 justifyContent: "center",
@@ -644,8 +661,15 @@ export default function MiloQuizHallPage() {
             href="/milo-world/categories"
             style={{
               ...infoCard("categories", { mobile: true }),
+              ...(portraitCompact
+                ? {
+                    background: "linear-gradient(145deg, rgba(5,31,51,0.52), rgba(3,11,24,0.62))",
+                    backdropFilter: "blur(10px)",
+                    WebkitBackdropFilter: "blur(10px)",
+                  }
+                : {}),
               textDecoration: "none",
-              minHeight: compact ? "122px" : "144px",
+              minHeight: portraitCompact ? "176px" : compact ? "122px" : "144px",
               display: "flex",
               flexDirection: "column",
               justifyContent: "center",
