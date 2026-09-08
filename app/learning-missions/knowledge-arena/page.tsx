@@ -417,6 +417,37 @@ function useResponsiveMode() {
   return screenMode;
 }
 
+function usePortraitOrientation() {
+  const [isPortrait, setIsPortrait] = useState(false);
+
+  useEffect(() => {
+    function updateOrientation() {
+      setIsPortrait(window.innerHeight > window.innerWidth);
+    }
+
+    updateOrientation();
+    window.addEventListener("resize", updateOrientation);
+    window.addEventListener("orientationchange", updateOrientation);
+
+    return () => {
+      window.removeEventListener("resize", updateOrientation);
+      window.removeEventListener("orientationchange", updateOrientation);
+    };
+  }, []);
+
+  return isPortrait;
+}
+
+function arenaBackgroundForTopic(topic: KnowledgeArenaTopic) {
+  return `/activities/learning-missions/knowledge-arena/arenas/${
+    topic === "world_explorer"
+      ? "world-explorer"
+      : topic === "time_traveller"
+        ? "time-traveller"
+        : "science-sparks"
+  }-arena.png`;
+}
+
 function generateLobbyCode() {
   const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code = "";
@@ -463,6 +494,7 @@ function sortQuestionsByIds(
 export default function KnowledgeArenaPage() {
   const router = useRouter();
   const screenMode = useResponsiveMode();
+  const isPortrait = usePortraitOrientation();
   const isDesktop = screenMode === "desktop";
   const isMobile = screenMode === "mobile";
   const isCompact = !isDesktop;
@@ -491,6 +523,8 @@ export default function KnowledgeArenaPage() {
   const [stage, setStage] = useState<PageStage>("mode");
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAdminPaused, setIsAdminPaused] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [tokenBalance, setTokenBalance] = useState(0);
   const [gemBalance, setGemBalance] = useState(0);
@@ -540,6 +574,8 @@ export default function KnowledgeArenaPage() {
 
   const recordedAnswersRef = useRef<RecordedArenaAnswer[]>([]);
   const attemptSaveStartedRef = useRef(false);
+  const gameplayBlockedRef = useRef(false);
+  const pendingBattleTransitionRef = useRef(false);
 
   const [lobby, setLobby] = useState<Lobby | null>(null);
   const [players, setPlayers] = useState<LobbyPlayer[]>([]);
@@ -574,8 +610,22 @@ export default function KnowledgeArenaPage() {
     selectedChallengeMode: ChallengeMode;
   } | null>(null);
 
+  const landscapeRequired = ["loading", "solo-quiz", "multiplayer-quiz"].includes(stage);
+  const landscapeBlocked = landscapeRequired && isPortrait;
+  const gameplayBlocked = isAdminPaused || landscapeBlocked;
+
+  useEffect(() => {
+    gameplayBlockedRef.current = gameplayBlocked;
+
+    if (!gameplayBlocked && pendingBattleTransitionRef.current) {
+      pendingBattleTransitionRef.current = false;
+      void nextQuestion();
+    }
+  }, [gameplayBlocked]);
+
   const battle = useKnowledgeArenaBattle({
     userId,
+    isPaused: gameplayBlocked,
     onBattleTransitionComplete: handleBattleTransitionComplete,
     onBattleDefeat: handleBattleDefeat,
   });
@@ -766,6 +816,7 @@ export default function KnowledgeArenaPage() {
       if (!user) {
         setUserId(null);
         setUserEmail(null);
+        setIsAdmin(false);
         setTokenBalance(0);
         setGemBalance(0);
         return;
@@ -773,6 +824,14 @@ export default function KnowledgeArenaPage() {
 
       setUserId(user.id);
       setUserEmail(user.email ?? null);
+
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      setIsAdmin(String(profileRow?.role || "").trim().toLowerCase() === "admin");
 
       const { data: balances, error: balancesError } = await supabase.rpc(
         "get_my_dreamscape_balances"
@@ -814,7 +873,7 @@ export default function KnowledgeArenaPage() {
 
   useEffect(() => {
     if (stage !== "solo-quiz" && stage !== "multiplayer-quiz") return;
-    if (novaGuideOpen) return;
+    if (novaGuideOpen || gameplayBlocked) return;
     if (answerLocked || !currentQuestion) return;
 
     if (timeLeft <= 0) {
@@ -827,12 +886,12 @@ export default function KnowledgeArenaPage() {
     }, 1000);
 
     return () => window.clearTimeout(timer);
-  }, [stage, timeLeft, answerLocked, currentQuestion, novaGuideOpen]);
+  }, [stage, timeLeft, answerLocked, currentQuestion, novaGuideOpen, gameplayBlocked]);
 
   useEffect(() => {
     // Solo transitions are now controlled by the battle engine.
     if (stage !== "multiplayer-quiz") return;
-    if (novaGuideOpen) return;
+    if (novaGuideOpen || gameplayBlocked) return;
     if (!answerLocked) return;
 
     if (nextCountdown <= 0) {
@@ -845,10 +904,11 @@ export default function KnowledgeArenaPage() {
     }, 1000);
 
     return () => window.clearTimeout(timer);
-  }, [stage, answerLocked, nextCountdown, novaGuideOpen]);
+  }, [stage, answerLocked, nextCountdown, novaGuideOpen, gameplayBlocked]);
 
   useEffect(() => {
     if (stage !== "loading") return;
+    if (isPortrait) return;
     if (!battle.encounter?.monster?.id) return;
     if (questions.length < 10) return;
 
@@ -876,7 +936,7 @@ export default function KnowledgeArenaPage() {
       window.clearInterval(rouletteTimer);
       if (revealTimer) window.clearTimeout(revealTimer);
     };
-  }, [stage, battle.encounter?.monster?.id, questions.length]);
+  }, [stage, battle.encounter?.monster?.id, questions.length, isPortrait]);
 
   useEffect(() => {
     if (!lobby?.id) return;
@@ -1656,7 +1716,7 @@ export default function KnowledgeArenaPage() {
   }
 
   async function lockAnswer(answer: KnowledgeArenaAnswer | null) {
-    if (!currentQuestion || answerLocked) return;
+    if (!currentQuestion || answerLocked || gameplayBlocked) return;
 
     const isCorrect = answer === currentQuestion.correct_answer;
     const points = calculatePoints(isCorrect, timeLeft, activeTimerSeconds);
@@ -1807,6 +1867,11 @@ export default function KnowledgeArenaPage() {
   }
 
   function handleBattleTransitionComplete() {
+    if (gameplayBlockedRef.current) {
+      pendingBattleTransitionRef.current = true;
+      return;
+    }
+
     void nextQuestion();
   }
 
@@ -1839,6 +1904,8 @@ export default function KnowledgeArenaPage() {
       }
     }
 
+    setIsAdminPaused(false);
+    pendingBattleTransitionRef.current = false;
     battle.resetBattle();
     resetQuestionState(soloTimerSeconds);
     setLastBattleResult(null);
@@ -1936,6 +2003,8 @@ export default function KnowledgeArenaPage() {
     setEncounterRevealIndex(0);
     setEncounterLocked(false);
     setLastBattleResult(null);
+    setIsAdminPaused(false);
+    pendingBattleTransitionRef.current = false;
     battle.resetBattle();
     resetQuestionState(20);
   }
@@ -2651,6 +2720,9 @@ export default function KnowledgeArenaPage() {
               tokenBalance={tokenBalance}
               gemBalance={gemBalance}
               isAuthenticated={Boolean(userId)}
+              isAdmin={isAdmin}
+              isPaused={isAdminPaused}
+              onTogglePause={() => setIsAdminPaused((current) => !current)}
               onStartFiring={battle.startFiring}
               onStopFiring={battle.stopFiring}
               onReviveDT={() => void reviveNova("DT")}
@@ -2701,6 +2773,7 @@ export default function KnowledgeArenaPage() {
               answers={recordedAnswersRef.current}
               battleMonster={battle.monster}
               battleResult={lastBattleResult}
+              battleTopic={battleTopic}
               onStartFocus={startFocusFromResults}
               onNextChallenge={() => {
                 battle.resetBattle();
@@ -2768,6 +2841,17 @@ export default function KnowledgeArenaPage() {
           )}
         </div>
       </section>
+
+      {landscapeBlocked && (
+        <div className="ka-landscape-gate" role="dialog" aria-modal="true" aria-label="Rotate device to landscape">
+          <div className="ka-landscape-card">
+            <div className="ka-rotate-icon" aria-hidden="true">↻</div>
+            <p>KNOWLEDGE ARENA</p>
+            <h2>Rotate to landscape</h2>
+            <span>The battle only starts and runs in landscape mode. Your quiz is paused until you rotate your device.</span>
+          </div>
+        </div>
+      )}
 
       {novaGuideOpen && (
         <div className="ka-guide-layer" role="presentation">
@@ -4902,6 +4986,46 @@ export default function KnowledgeArenaPage() {
           }
         }
 
+        .ka-landscape-gate {
+          position: fixed;
+          inset: 0;
+          z-index: 260;
+          display: grid;
+          place-items: center;
+          background: rgba(2,8,19,.94);
+          padding: 24px;
+          backdrop-filter: blur(12px);
+        }
+
+        .ka-landscape-card {
+          width: min(430px, 90vw);
+          border: 1px solid rgba(126,232,255,.28);
+          border-radius: 26px;
+          background: linear-gradient(145deg, rgba(8,31,58,.96), rgba(20,15,55,.96));
+          padding: 28px 24px;
+          text-align: center;
+          box-shadow: 0 30px 90px rgba(0,0,0,.58);
+        }
+
+        .ka-rotate-icon {
+          display: grid;
+          width: 72px;
+          height: 72px;
+          margin: 0 auto;
+          place-items: center;
+          border: 1px solid rgba(126,232,255,.28);
+          border-radius: 22px;
+          background: rgba(126,232,255,.08);
+          color: #7ee8ff;
+          font-size: 42px;
+          animation: kaRotatePrompt 1.4s ease-in-out infinite alternate;
+        }
+
+        .ka-landscape-card p { margin: 16px 0 0; color: #7ee8ff; font-size: 10px; font-weight: 900; letter-spacing: .18em; }
+        .ka-landscape-card h2 { margin: 7px 0 0; font-size: 30px; letter-spacing: -.035em; }
+        .ka-landscape-card span { display: block; margin-top: 8px; color: rgba(255,255,255,.58); font-size: 13px; line-height: 1.55; }
+        @keyframes kaRotatePrompt { from { transform: rotate(-12deg) scale(.96); } to { transform: rotate(12deg) scale(1.04); } }
+
         @media (max-width: 850px) and (orientation: portrait),
           (hover: none) and (pointer: coarse) and (orientation: portrait) {
           .ka-mode-grid {
@@ -7026,6 +7150,7 @@ function ArenaResultsPanel({
   answers,
   battleMonster,
   battleResult,
+  battleTopic,
   onStartFocus,
   onNextChallenge,
   onExit,
@@ -7045,6 +7170,7 @@ function ArenaResultsPanel({
   answers: RecordedArenaAnswer[];
   battleMonster: KnowledgeArenaBattleMonster | null;
   battleResult: KnowledgeArenaBattleResultState | null;
+  battleTopic: KnowledgeArenaTopic;
   onStartFocus: () => void;
   onNextChallenge: () => void;
   onExit: () => void;
@@ -7052,7 +7178,12 @@ function ArenaResultsPanel({
   const academicComplete = answers.length === 10;
 
   return (
-    <div className="ka-stage ka-results-stage">
+    <div
+      className="ka-results-arena-backdrop"
+      style={{ backgroundImage: `url("${arenaBackgroundForTopic(battleTopic)}")` }}
+    >
+      <div className="ka-results-vignette" />
+      <div className="ka-stage ka-results-stage ka-results-popup">
       <div className="ka-results-heading">
         <div>
           <p className="ka-kicker">{challengeModeMeta[challengeMode].title}</p>
@@ -7133,6 +7264,46 @@ function ArenaResultsPanel({
           Exit Knowledge Arena
         </button>
       </div>
+      </div>
+      <style jsx>{`
+        .ka-results-arena-backdrop {
+          position: relative;
+          display: flex;
+          width: 100%;
+          height: 100%;
+          min-height: 0;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          border-radius: 18px;
+          background-position: center;
+          background-size: cover;
+          padding: clamp(10px, 2vw, 22px);
+          isolation: isolate;
+        }
+        .ka-results-vignette {
+          position:absolute;
+          inset:0;
+          z-index:0;
+          background:linear-gradient(180deg,rgba(1,5,15,.18),rgba(1,5,15,.52)), radial-gradient(circle at 50% 52%,transparent 12%,rgba(0,0,0,.38) 82%);
+        }
+        .ka-results-popup {
+          position: relative;
+          z-index: 1;
+          width: min(980px, 95%);
+          height: min(92%, 760px);
+          min-height: 0;
+          border: 1px solid rgba(126,232,255,.27);
+          border-radius: 24px;
+          background: rgba(3,13,31,.9);
+          box-shadow: 0 30px 90px rgba(0,0,0,.58), 0 0 44px rgba(83,215,255,.09);
+          backdrop-filter: blur(16px);
+        }
+        @media (max-width: 700px) {
+          .ka-results-arena-backdrop { padding: 8px; }
+          .ka-results-popup { width: 98%; height: 96%; border-radius: 18px; }
+        }
+      `}</style>
     </div>
   );
 }

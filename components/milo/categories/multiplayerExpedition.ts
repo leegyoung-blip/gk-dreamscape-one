@@ -90,6 +90,11 @@ export function getMultiplayerVehicleVariant(userId: string) {
   return MULTIPLAYER_VEHICLE_VARIANTS[index];
 }
 
+export function getVehicleVariantByKey(key: string) {
+  return MULTIPLAYER_VEHICLE_VARIANTS.find((variant) => variant.key === key)
+    ?? MULTIPLAYER_VEHICLE_VARIANTS[0];
+}
+
 export function shortenMultiplayerName(name: string, maxLength = 12) {
   const clean = name.trim() || "Player";
   return clean.length <= maxLength ? clean : `${clean.slice(0, Math.max(1, maxLength - 1))}…`;

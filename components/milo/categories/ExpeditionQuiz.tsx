@@ -26,7 +26,7 @@ type ExpeditionQuestion = {
 
 type ExpeditionMotion = "idle" | "cruise" | "boost" | "turbo" | "stall";
 type ExpeditionTravelPhase = "idle" | "driving" | "coasting";
-type MobileAnswerPhase = "question" | "feedback" | "travel" | "wrong-wait";
+type MobileAnswerPhase = "question" | "travel";
 
 type ExpeditionQuizProps = {
   category: string;
@@ -52,6 +52,8 @@ type ExpeditionQuizProps = {
   mobileSequencing: boolean;
   racePlayers?: MultiplayerExpeditionPlayer[];
   currentPlayerId?: string | null;
+  vehicleBodyAsset?: string;
+  waitingForPlayers?: number | null;
   onTogglePause: () => void;
   onAnswer: (answer: AnswerLetter) => void;
   onHint: () => void;
@@ -138,6 +140,8 @@ export default function ExpeditionQuiz({
   mobileSequencing,
   racePlayers = [],
   currentPlayerId = null,
+  vehicleBodyAsset,
+  waitingForPlayers = null,
   onTogglePause,
   onAnswer,
   onHint,
@@ -146,8 +150,6 @@ export default function ExpeditionQuiz({
   const [displayPoints, setDisplayPoints] = useState(points);
   const [travelPhase, setTravelPhase] = useState<ExpeditionTravelPhase>("idle");
   const [mobileAnswerPhase, setMobileAnswerPhase] = useState<MobileAnswerPhase>("question");
-  const [mobileFeedbackCountdown, setMobileFeedbackCountdown] = useState(3);
-  const [mobileWrongCountdown, setMobileWrongCountdown] = useState(5);
   const displayPointsRef = useRef(points);
   const travelPhaseRef = useRef<ExpeditionTravelPhase>("idle");
   const animationFrameRef = useRef<number | null>(null);
@@ -157,7 +159,7 @@ export default function ExpeditionQuiz({
   const currentPlayerVariant = currentPlayerId
     ? getMultiplayerVehicleVariant(currentPlayerId)
     : null;
-  const currentVehicleBodyAsset = currentPlayerVariant?.sideAsset || DEFAULT_SIDE_VEHICLE;
+  const currentVehicleBodyAsset = vehicleBodyAsset || currentPlayerVariant?.sideAsset || DEFAULT_SIDE_VEHICLE;
 
   const options = useMemo(
     () =>
@@ -180,58 +182,26 @@ export default function ExpeditionQuiz({
 
     if (stage === "playing") {
       setMobileAnswerPhase("question");
-      setMobileFeedbackCountdown(3);
-      setMobileWrongCountdown(5);
       return;
     }
 
-    setMobileAnswerPhase("feedback");
-    setMobileFeedbackCountdown(3);
-    setMobileWrongCountdown(5);
+    // Mobile should react immediately: hide the question/options and start
+    // the rover movement (or stall) as soon as the answer is submitted.
+    setMobileAnswerPhase("travel");
   }, [mobileSequencing, stage, question.id]);
 
   useEffect(() => {
-    if (!mobileSequencing || stage !== "answered" || mobileAnswerPhase !== "feedback" || paused) return;
+    if (!mobileSequencing || stage !== "answered" || mobileAnswerPhase !== "travel" || paused) return;
+    if (isCorrect && lastPoints > 0) return;
 
-    if (mobileFeedbackCountdown <= 0) {
-      if (isCorrect && lastPoints > 0) {
-        setMobileAnswerPhase("travel");
-      } else {
-        setMobileAnswerPhase("wrong-wait");
-        setMobileWrongCountdown(5);
-      }
-      return;
-    }
-
+    // Wrong answer / timeout: show the short stall reaction, then immediately
+    // reveal the next question. No extra five-second dead period on mobile.
     const timer = window.setTimeout(() => {
-      setMobileFeedbackCountdown((current) => Math.max(0, current - 1));
-    }, 1000);
-
-    return () => window.clearTimeout(timer);
-  }, [
-    mobileSequencing,
-    stage,
-    mobileAnswerPhase,
-    mobileFeedbackCountdown,
-    paused,
-    isCorrect,
-    lastPoints,
-  ]);
-
-  useEffect(() => {
-    if (!mobileSequencing || stage !== "answered" || mobileAnswerPhase !== "wrong-wait" || paused) return;
-
-    if (mobileWrongCountdown <= 0) {
       onNextRef.current();
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setMobileWrongCountdown((current) => Math.max(0, current - 1));
-    }, 1000);
+    }, 720);
 
     return () => window.clearTimeout(timer);
-  }, [mobileSequencing, stage, mobileAnswerPhase, mobileWrongCountdown, paused]);
+  }, [mobileSequencing, stage, mobileAnswerPhase, paused, isCorrect, lastPoints]);
 
   useEffect(() => {
     return () => {
@@ -316,27 +286,11 @@ export default function ExpeditionQuiz({
   const displayMetres = displayPoints * EXPEDITION_METRES_PER_POINT;
   const earnedMetres = lastPoints * EXPEDITION_METRES_PER_POINT;
 
-  const mobileTimerValue = stage === "answered"
-    ? mobileAnswerPhase === "feedback"
-      ? mobileFeedbackCountdown
-      : mobileAnswerPhase === "wrong-wait"
-        ? mobileWrongCountdown
-        : null
-    : countdown;
-  const mobileTimerLabel = stage === "answered"
-    ? mobileAnswerPhase === "feedback"
-      ? "RESULT"
-      : mobileAnswerPhase === "wrong-wait"
-        ? "NEXT"
-        : "MOVE"
-    : "SEC";
+  const mobileTimerValue = stage === "answered" ? null : countdown;
+  const mobileTimerLabel = stage === "answered" ? "MOVE" : "SEC";
   const timerProgress = mobileSequencing
     ? stage === "answered"
-      ? mobileAnswerPhase === "feedback"
-        ? Math.min(1, Math.max(0, mobileFeedbackCountdown / 3))
-        : mobileAnswerPhase === "wrong-wait"
-          ? Math.min(1, Math.max(0, mobileWrongCountdown / 5))
-          : 0
+      ? 0
       : Math.min(1, Math.max(0, countdown / timerSeconds))
     : stage === "answered"
       ? Math.min(1, Math.max(0, nextCountdown / nextDelaySeconds))
@@ -455,14 +409,14 @@ export default function ExpeditionQuiz({
             }}
           >
             <div>
-              <strong>{paused ? "Ⅱ" : mobileSequencing ? (mobileTimerValue ?? "→") : stage === "answered" ? nextCountdown : countdown}</strong>
-              <small>{paused ? "PAUSED" : mobileSequencing ? mobileTimerLabel : stage === "answered" ? "NEXT" : "SEC"}</small>
+              <strong>{paused ? "Ⅱ" : waitingForPlayers !== null && stage === "answered" ? (waitingForPlayers > 0 ? waitingForPlayers : "✓") : mobileSequencing ? (mobileTimerValue ?? "→") : stage === "answered" ? nextCountdown : countdown}</strong>
+              <small>{paused ? "PAUSED" : waitingForPlayers !== null && stage === "answered" ? (waitingForPlayers > 0 ? "WAIT" : "READY") : mobileSequencing ? mobileTimerLabel : stage === "answered" ? "NEXT" : "SEC"}</small>
             </div>
           </div>
         </div>
       </div>
 
-      <div className={`expedition-quiz-layer ${mobileSequencing && stage === "answered" && mobileAnswerPhase !== "feedback" ? "is-mobile-travel-hidden" : ""}`}>
+      <div className={`expedition-quiz-layer ${mobileSequencing && stage === "answered" ? "is-mobile-travel-hidden" : ""}`}>
         <div className="expedition-question-column">
           <section className="expedition-question-card">
             <div className="expedition-question-topline">
@@ -485,11 +439,17 @@ export default function ExpeditionQuiz({
             )}
           </section>
 
-          {stage === "answered" && (!mobileSequencing || mobileAnswerPhase === "feedback") && (
+          {stage === "answered" && !mobileSequencing && (
             <div className={`expedition-answer-feedback ${isCorrect ? "is-correct" : "is-wrong"}`}>
               <strong>{isCorrect ? "Correct" : selectedAnswer ? "Not quite" : "Time's up"}</strong>
               {question.explanation && <span>{question.explanation}</span>}
-              {!mobileSequencing && (
+              {waitingForPlayers !== null ? (
+                <em className="expedition-waiting-copy">
+                  {waitingForPlayers > 0
+                    ? `Waiting for ${waitingForPlayers} player${waitingForPlayers === 1 ? "" : "s"}…`
+                    : "Everyone answered — moving on…"}
+                </em>
+              ) : (
                 <button type="button" onClick={onNext} disabled={paused}>
                   {questionNumber >= questionCount ? "See Results →" : "Next Question →"}
                 </button>
@@ -596,7 +556,7 @@ export default function ExpeditionQuiz({
         )}
       </div>
 
-      {stage === "answered" && (!mobileSequencing || mobileAnswerPhase === "travel" || mobileAnswerPhase === "wrong-wait") && (
+      {stage === "answered" && (!mobileSequencing || mobileAnswerPhase === "travel") && (
         <div className={`expedition-motion-callout is-${motion}`} aria-live="polite">
           <strong>{getMotionLabel(motion)}</strong>
           <span>+{formatDistance(earnedMetres)}</span>
@@ -1176,6 +1136,16 @@ export default function ExpeditionQuiz({
           white-space: nowrap;
         }
 
+        .expedition-waiting-copy {
+          justify-self: end;
+          color: #ffd18a;
+          font-size: 8px;
+          font-style: normal;
+          font-weight: 900;
+          letter-spacing: 0.04em;
+          white-space: nowrap;
+        }
+
         .expedition-answer-feedback button {
           min-height: 30px;
           border: 1px solid rgba(255, 209, 138, 0.35);
@@ -1384,7 +1354,10 @@ export default function ExpeditionQuiz({
           opacity: 0;
           pointer-events: none;
           user-select: none;
-          transition: opacity 180ms ease, transform 420ms ease;
+          mix-blend-mode: screen;
+          filter: saturate(1.18) brightness(1.08) drop-shadow(0 0 10px rgba(155,245,255,0.22));
+          transition: opacity 150ms ease, transform 280ms ease, filter 220ms ease;
+          will-change: transform, opacity, filter;
         }
 
         .expedition-effect--cruise {
@@ -1426,6 +1399,8 @@ export default function ExpeditionQuiz({
           top: 24%;
           width: 42%;
           z-index: 4;
+          mix-blend-mode: normal;
+          filter: drop-shadow(0 0 9px rgba(255,132,54,0.22));
         }
 
         .expedition-effect--wrong-sputter {
@@ -1433,6 +1408,7 @@ export default function ExpeditionQuiz({
           top: 34%;
           width: 27%;
           z-index: 5;
+          filter: brightness(1.18) drop-shadow(0 0 12px rgba(255,124,38,0.64));
         }
 
         .expedition-effect--correct-spark {
@@ -1441,11 +1417,12 @@ export default function ExpeditionQuiz({
           width: 25%;
           z-index: 5;
           transform: scale(.72);
+          filter: brightness(1.22) drop-shadow(0 0 13px rgba(255,209,138,0.62)) drop-shadow(0 0 7px rgba(34,211,238,0.45));
         }
 
         .expedition-travel--driving.expedition-motion--cruise .expedition-effect--cruise {
-          opacity: .62;
-          transform: scaleX(1);
+          opacity: .54;
+          animation: expeditionTrailGlow 620ms ease-in-out infinite alternate;
         }
 
         .expedition-travel--coasting.expedition-motion--cruise .expedition-effect--cruise {
@@ -1454,8 +1431,9 @@ export default function ExpeditionQuiz({
         }
 
         .expedition-travel--driving.expedition-motion--boost .expedition-effect--boost {
-          opacity: .80;
-          transform: scaleX(1);
+          opacity: .72;
+          animation: expeditionTrailGlow 430ms ease-in-out infinite alternate;
+          filter: saturate(1.25) brightness(1.18) drop-shadow(0 0 15px rgba(255,209,138,0.34));
         }
 
         .expedition-travel--coasting.expedition-motion--boost .expedition-effect--boost {
@@ -1464,8 +1442,9 @@ export default function ExpeditionQuiz({
         }
 
         .expedition-travel--driving.expedition-motion--turbo .expedition-effect--turbo {
-          opacity: .88;
-          transform: scaleX(1);
+          opacity: .84;
+          animation: expeditionTurboTrailFlow 310ms ease-in-out infinite alternate;
+          filter: saturate(1.35) brightness(1.26) drop-shadow(0 0 18px rgba(34,211,238,0.58)) drop-shadow(0 0 9px rgba(255,209,138,0.40));
         }
 
         .expedition-travel--coasting.expedition-motion--turbo .expedition-effect--turbo {
@@ -1473,14 +1452,16 @@ export default function ExpeditionQuiz({
           transform: scaleX(.72);
         }
 
-        .expedition-travel--driving:not(.expedition-motion--stall) .expedition-effect--wheel-dust,
-        .expedition-travel--coasting:not(.expedition-motion--stall) .expedition-effect--wheel-dust {
-          opacity: .42;
+        .expedition-travel--driving:not(.expedition-motion--stall) .expedition-effect--wheel-dust {
+          opacity: .34;
+          animation: expeditionWheelDustFlow 520ms ease-in-out infinite alternate;
         }
 
-        .expedition-travel--coasting .expedition-effect--wheel-dust {
-          opacity: .14;
+        .expedition-travel--coasting:not(.expedition-motion--stall) .expedition-effect--wheel-dust {
+          opacity: .16;
+          transform: translateX(-6px) scale(.96);
         }
+
 
         .expedition-travel--driving.expedition-motion--turbo .expedition-effect--turbo-burst {
           animation: expeditionEffectBurst 520ms ease-out 1 both;
@@ -1552,33 +1533,21 @@ export default function ExpeditionQuiz({
         }
 
         .expedition-motion--cruise .expedition-vehicle-zone {
-          animation: expeditionCruise 420ms ease-in-out 3;
+          animation: expeditionCruise 520ms ease-in-out 2;
         }
 
         .expedition-motion--boost .expedition-vehicle-zone {
-          animation: expeditionBoost 350ms ease-in-out 4;
+          animation: expeditionBoost 430ms ease-in-out 3;
         }
 
         .expedition-motion--turbo .expedition-vehicle-zone {
-          animation: expeditionTurbo 220ms ease-in-out 7;
+          animation: expeditionTurbo 320ms ease-in-out 4;
         }
 
         .expedition-motion--stall .expedition-vehicle-zone {
-          animation: expeditionStall 120ms ease-in-out 5;
+          animation: expeditionStall 150ms ease-in-out 3;
         }
 
-        /* Mobile: keep the rover completely still during the 3-second answer reveal.
-           Correct answers begin moving only after the quiz cards disappear; wrong
-           answers get their brief stall once the separate 5-second wait begins. */
-        .expedition-root.is-mobile-sequenced.expedition-mobile-phase--feedback .expedition-vehicle-zone {
-          animation: none !important;
-        }
-
-        .expedition-root.is-mobile-sequenced.expedition-mobile-phase--feedback .expedition-speed-lines,
-        .expedition-root.is-mobile-sequenced.expedition-mobile-phase--feedback .expedition-dust {
-          opacity: 0 !important;
-          animation: none !important;
-        }
 
         .expedition-wheel-image {
           transform-origin: 50% 50%;
@@ -1662,26 +1631,41 @@ export default function ExpeditionQuiz({
 
         @keyframes expeditionCruise {
           0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
-          50% { transform: translate3d(5px, -3px, 0) rotate(-0.6deg); }
+          50% { transform: translate3d(2px, -1px, 0) rotate(-0.2deg); }
         }
 
         @keyframes expeditionBoost {
           0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
-          45% { transform: translate3d(12px, -5px, 0) rotate(-1.2deg); }
-          70% { transform: translate3d(7px, 1px, 0) rotate(0.5deg); }
+          45% { transform: translate3d(5px, -2px, 0) rotate(-0.45deg); }
+          70% { transform: translate3d(3px, 0, 0) rotate(0.18deg); }
         }
 
         @keyframes expeditionTurbo {
-          0%, 100% { transform: translate3d(4px, 0, 0) rotate(-0.4deg); }
-          50% { transform: translate3d(20px, -5px, 0) rotate(-1.5deg); }
+          0%, 100% { transform: translate3d(2px, 0, 0) rotate(-0.15deg); }
+          50% { transform: translate3d(7px, -2px, 0) rotate(-0.55deg); }
         }
 
         @keyframes expeditionStall {
           0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
-          25% { transform: translate3d(-4px, 1px, 0) rotate(-0.8deg); }
-          75% { transform: translate3d(4px, -1px, 0) rotate(0.8deg); }
+          30% { transform: translate3d(-2px, 0, 0) rotate(-0.3deg); }
+          70% { transform: translate3d(2px, 0, 0) rotate(0.3deg); }
         }
 
+
+        @keyframes expeditionWheelDustFlow {
+          from { transform: translate3d(5px, 1px, 0) scale(.96); filter: brightness(.98) drop-shadow(0 0 4px rgba(255,209,138,0.12)); }
+          to { transform: translate3d(-7px, -1px, 0) scale(1.03); filter: brightness(1.12) drop-shadow(0 0 8px rgba(255,209,138,0.24)); }
+        }
+
+        @keyframes expeditionTrailGlow {
+          from { transform: translate3d(8px, 0, 0) scaleX(.96) scaleY(.96); filter: saturate(1.08) brightness(1.02) drop-shadow(0 0 7px rgba(255,209,138,0.16)); }
+          to { transform: translate3d(-8px, -1px, 0) scaleX(1.04) scaleY(1.02); filter: saturate(1.24) brightness(1.16) drop-shadow(0 0 14px rgba(255,209,138,0.34)); }
+        }
+
+        @keyframes expeditionTurboTrailFlow {
+          from { transform: translate3d(10px, 0, 0) scaleX(.94) scaleY(.97); opacity: .66; }
+          to { transform: translate3d(-12px, -2px, 0) scaleX(1.06) scaleY(1.03); opacity: .92; }
+        }
 
         @keyframes expeditionDust {
           0% { transform: translate3d(16px, 0, 0) scale(0.65); opacity: 0.1; }

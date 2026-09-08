@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import ExpeditionQuiz from "@/components/milo/categories/ExpeditionQuiz";
 import ExpeditionComplete from "@/components/milo/categories/ExpeditionComplete";
 import MultiplayerExpeditionComplete from "@/components/milo/categories/MultiplayerExpeditionComplete";
+import { MULTIPLAYER_VEHICLE_VARIANTS, getVehicleVariantByKey } from "@/components/milo/categories/multiplayerExpedition";
 
 type CategoryQuizQuestion = {
   id: string;
@@ -770,6 +771,7 @@ export default function MiloCategoriesPage() {
   const [historicalAttemptDetail, setHistoricalAttemptDetail] = useState<HistoricalAttemptDetail | null>(null);
   const [isLoadingHistoricalAttempt, setIsLoadingHistoricalAttempt] = useState(false);
   const [singlePlayStyle, setSinglePlayStyle] = useState<SinglePlayStyle>("quick");
+  const [singleVehicleVariantKey, setSingleVehicleVariantKey] = useState("blue");
   const [activeQuizPlayStyle, setActiveQuizPlayStyle] = useState<SinglePlayStyle>("quick");
   const [learningTargets, setLearningTargets] = useState<Record<string, LearningTarget>>({});
   const [isLoadingTarget, setIsLoadingTarget] = useState(false);
@@ -1101,6 +1103,24 @@ export default function MiloCategoriesPage() {
     return mapped;
   })();
 
+  const selectedSingleVehicleVariant = getVehicleVariantByKey(singleVehicleVariantKey);
+  const multiplayerRoundPlayers = (() => {
+    const active = multiplayerPlayers.filter((player) => player.status === "playing");
+    if (
+      multiplayerPlayer?.status === "playing"
+      && !active.some((player) => player.id === multiplayerPlayer.id)
+    ) {
+      active.push(multiplayerPlayer);
+    }
+    return active;
+  })();
+  const multiplayerWaitingForCount = categoriesStage === "multiplayer-answered"
+    ? multiplayerRoundPlayers.filter((player) => !Array.isArray(player.answers) || player.answers.length <= multiplayerQuestionIndex).length
+    : 0;
+  const allMultiplayerPlayersAnswered = categoriesStage === "multiplayer-answered"
+    && multiplayerRoundPlayers.length > 0
+    && multiplayerWaitingForCount === 0;
+
   useEffect(() => {
     async function loadUserAccess() {
       const {
@@ -1348,19 +1368,22 @@ export default function MiloCategoriesPage() {
 
   useEffect(() => {
     if (categoriesStage !== "multiplayer-answered") return;
-    if (miloGuideOpen) return;
+    if (miloGuideOpen || !allMultiplayerPlayersAnswered) return;
 
-    if (multiplayerNextCountdown <= 0) {
-      goToNextMultiplayerQuestion();
-      return;
-    }
-
+    // Every client stays on the current question until every active player has
+    // submitted an answer. Once the final answer arrives, allow enough time
+    // for the last rover animation to finish before revealing the next question.
     const timer = window.setTimeout(() => {
-      setMultiplayerNextCountdown((current) => current - 1);
-    }, 1000);
+      void goToNextMultiplayerQuestion();
+    }, 1900);
 
     return () => window.clearTimeout(timer);
-  }, [categoriesStage, multiplayerNextCountdown, miloGuideOpen]);
+  }, [
+    categoriesStage,
+    miloGuideOpen,
+    allMultiplayerPlayersAnswered,
+    multiplayerQuestionIndex,
+  ]);
 
   async function toggleCategoriesFullscreen() {
     const doc = document as Document & {
@@ -2433,6 +2456,12 @@ export default function MiloCategoriesPage() {
         : "Time is up. +0 points."
     );
 
+    // Enter answered state before the database round-trip. Previously the
+    // points changed while the component was still in `playing`, which caused
+    // the rover to snap to its new position before the movement animation ran.
+    setMultiplayerNextCountdown(3);
+    setCategoriesStage("multiplayer-answered");
+
     if (multiplayerPlayer) {
       const existingAnswers = Array.isArray(multiplayerPlayer.answers)
         ? multiplayerPlayer.answers
@@ -2447,6 +2476,14 @@ export default function MiloCategoriesPage() {
           points: pointsEarned,
         },
       ];
+
+      setMultiplayerPlayers((current) =>
+        current.map((player) =>
+          player.id === multiplayerPlayer.id
+            ? { ...player, score: nextScore, points: nextPoints, answers: nextAnswers }
+            : player,
+        ),
+      );
 
       const { error } = await supabase
         .from("milo_category_lobby_players")
@@ -2473,8 +2510,6 @@ export default function MiloCategoriesPage() {
       }
     }
 
-    setMultiplayerNextCountdown(3);
-    setCategoriesStage("multiplayer-answered");
   }
 
   async function saveMultiplayerAnalytics() {
@@ -3202,6 +3237,32 @@ export default function MiloCategoriesPage() {
                     </span>
                   </div>
 
+                  <div className="vehicle-choice mt-2 flex shrink-0 items-center justify-between gap-3 rounded-[14px] border border-white/10 bg-white/[0.035] px-3 py-2">
+                    <span className="min-w-0">
+                      <span className="block text-[9px] font-black uppercase tracking-[0.14em] text-white/42">
+                        Rover Colour
+                      </span>
+                      <span className="vehicle-choice-name mt-0.5 block text-[9px] font-bold text-[#ffd18a]">
+                        {selectedSingleVehicleVariant.key}
+                      </span>
+                    </span>
+                    <span className="vehicle-swatch-grid flex shrink-0 items-center gap-1.5">
+                      {MULTIPLAYER_VEHICLE_VARIANTS.map((variant) => (
+                        <button
+                          key={variant.key}
+                          type="button"
+                          onClick={() => setSingleVehicleVariantKey(variant.key)}
+                          aria-label={`Use ${variant.key} rover`}
+                          aria-pressed={singleVehicleVariantKey === variant.key}
+                          className={`vehicle-swatch ${singleVehicleVariantKey === variant.key ? "is-selected" : ""}`}
+                          style={{ "--vehicle-swatch": variant.color } as { [key: string]: string }}
+                        >
+                          <span />
+                        </button>
+                      ))}
+                    </span>
+                  </div>
+
                   <div className="adaptive-mode-grid mt-3 grid shrink-0 grid-cols-3 gap-2">
                     {([
                       { key: "quick" as const, title: "Quick Play", icon: "⚡" },
@@ -3612,6 +3673,7 @@ export default function MiloCategoriesPage() {
                     canPause={userAccess.role === "admin"}
                     paused={singlePlayerPaused}
                     mobileSequencing={isMobileGameplayViewport}
+                    vehicleBodyAsset={selectedSingleVehicleVariant.sideAsset}
                     onTogglePause={() => setSinglePlayerPaused((current) => !current)}
                     onAnswer={submitCategoryAnswer}
                     onHint={useGuestCategoryHint}
@@ -3657,6 +3719,7 @@ export default function MiloCategoriesPage() {
                     mobileSequencing={false}
                     racePlayers={multiplayerExpeditionPlayers}
                     currentPlayerId={userAccess.userId}
+                    waitingForPlayers={multiplayerWaitingForCount}
                     onTogglePause={() => {}}
                     onAnswer={submitMultiplayerAnswer}
                     onHint={() => {}}
@@ -5137,6 +5200,49 @@ export default function MiloCategoriesPage() {
           }
         }
 
+        .vehicle-swatch {
+          display: grid;
+          width: 29px;
+          height: 29px;
+          place-items: center;
+          border: 1px solid rgba(255,255,255,0.14);
+          border-radius: 999px;
+          background: rgba(3,12,28,0.72);
+          padding: 4px;
+          transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+        }
+
+        .vehicle-swatch > span {
+          width: 100%;
+          height: 100%;
+          border-radius: 999px;
+          background: var(--vehicle-swatch);
+          box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18), 0 0 8px var(--vehicle-swatch);
+        }
+
+        .vehicle-swatch:hover,
+        .vehicle-swatch.is-selected {
+          transform: translateY(-1px) scale(1.06);
+          border-color: #ffd18a;
+          box-shadow: 0 0 0 2px rgba(255,209,138,0.12), 0 0 14px rgba(255,209,138,0.16);
+        }
+
+        .vehicle-choice-name {
+          text-transform: capitalize;
+        }
+
+        /* Touch tablets do not have hover. Keep explanatory copy visible from
+           the first frame instead of requiring a tap to reveal it. */
+        @media (hover: none) and (pointer: coarse) and (min-width: 700px) {
+          .mode-card .mode-description,
+          .category-card .category-description {
+            display: block !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+            transform: none !important;
+          }
+        }
+
         @media (max-height: 760px) and (min-width: 1025px) {
           .categories-topbar {
             min-height: 46px;
@@ -6153,6 +6259,27 @@ export default function MiloCategoriesPage() {
             margin-top: 3px !important;
             font-size: 8px !important;
             line-height: 1.1;
+          }
+
+          .categories-page--category-setup .vehicle-choice {
+            min-height: 34px;
+            margin-top: 5px;
+            border-radius: 10px;
+            padding: 4px 7px;
+          }
+
+          .categories-page--category-setup .vehicle-choice-name {
+            display: none;
+          }
+
+          .categories-page--category-setup .vehicle-swatch-grid {
+            gap: 4px;
+          }
+
+          .categories-page--category-setup .vehicle-swatch {
+            width: 24px;
+            height: 24px;
+            padding: 3px;
           }
 
           .categories-page--category-setup .adaptive-mode-grid {

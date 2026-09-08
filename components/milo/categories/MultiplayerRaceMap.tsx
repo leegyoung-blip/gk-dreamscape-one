@@ -27,6 +27,10 @@ export default function MultiplayerRaceMap({
   const [remoteDisplayPoints, setRemoteDisplayPoints] = useState<Record<string, number>>(() =>
     Object.fromEntries(players.map((player) => [player.userId, player.points])),
   );
+  const playersSignature = players
+    .map((player) => `${player.userId}:${Number(player.points || 0).toFixed(3)}`)
+    .sort()
+    .join("|");
   const remoteDisplayPointsRef = useRef(remoteDisplayPoints);
   const animationFrameRef = useRef<number | null>(null);
 
@@ -100,7 +104,7 @@ export default function MultiplayerRaceMap({
         animationFrameRef.current = null;
       }
     };
-  }, [players, currentUserId]);
+  }, [playersSignature, currentUserId]);
 
   return (
     <aside className="multiplayer-race-map" aria-label="Live multiplayer expedition map">
