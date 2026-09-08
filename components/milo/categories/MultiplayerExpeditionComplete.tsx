@@ -265,12 +265,17 @@ export default function MultiplayerExpeditionComplete({
         .multiplayer-complete-route {
           z-index: 5;
           pointer-events: none;
+          opacity: 0;
+          visibility: hidden;
         }
 
         .multiplayer-complete-landmark {
           position: absolute;
           z-index: 6;
           transform: translate(-50%, -50%);
+          opacity: 0;
+          visibility: hidden;
+          pointer-events: none;
         }
 
         .multiplayer-complete-landmark span {

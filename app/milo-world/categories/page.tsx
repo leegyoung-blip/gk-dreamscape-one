@@ -2900,6 +2900,15 @@ export default function MiloCategoriesPage() {
 
   const requiresLandscapeGate = isExpeditionStage;
   const isCategorySetupStage = categoriesStage === "category";
+  const showQuizHallBackButton = [
+    "mode",
+    "category",
+    "multiplayer-menu",
+    "multiplayer-create",
+    "multiplayer-join",
+    "multiplayer-waiting",
+    "multiplayer-topic-select",
+  ].includes(categoriesStage);
 
   return (
     <main
@@ -2934,13 +2943,15 @@ export default function MiloCategoriesPage() {
       )}
 
       <header className="categories-topbar relative z-10 flex shrink-0 items-center justify-between gap-3 px-3 py-3 sm:px-5 sm:py-5">
-        <Link
-          href="/milo-world/quiz-hall"
-          className="categories-back-button inline-flex h-[42px] items-center justify-center rounded-[14px] border border-white/16 bg-[#050d1c]/90 px-[18px] text-sm font-black text-white no-underline shadow-[0_14px_32px_rgba(0,0,0,0.22)] transition hover:bg-white/10"
-        >
-          <span className="categories-back-full">← Back to Quiz Hall</span>
-          <span className="categories-back-short">← Quiz Hall</span>
-        </Link>
+        {showQuizHallBackButton && (
+          <Link
+            href="/milo-world/quiz-hall"
+            className="categories-back-button inline-flex h-[42px] items-center justify-center rounded-[14px] border border-white/16 bg-[#050d1c]/90 px-[18px] text-sm font-black text-white no-underline shadow-[0_14px_32px_rgba(0,0,0,0.22)] transition hover:bg-white/10"
+          >
+            <span className="categories-back-full">← Back to Quiz Hall</span>
+            <span className="categories-back-short">← Quiz Hall</span>
+          </Link>
+        )}
 
         <div className="categories-mobile-title" aria-hidden="true">Categories</div>
 
@@ -5907,8 +5918,10 @@ export default function MiloCategoriesPage() {
 
         @media (max-width: 1024px), (hover: none) and (pointer: coarse) {
           .categories-guide-launcher {
-            top: max(7px, env(safe-area-inset-top));
-            right: max(9px, env(safe-area-inset-right));
+            top: auto;
+            right: auto;
+            left: max(7px, env(safe-area-inset-left));
+            bottom: max(9px, env(safe-area-inset-bottom));
             min-height: 42px;
             border-radius: 13px;
             padding: 5px 8px 5px 5px;
@@ -6086,7 +6099,8 @@ export default function MiloCategoriesPage() {
 
           .categories-mobile-fullscreen {
             position: fixed;
-            right: max(112px, calc(env(safe-area-inset-right) + 112px));
+            right: auto;
+            left: max(112px, calc(env(safe-area-inset-left) + 112px));
             bottom: max(9px, env(safe-area-inset-bottom));
             z-index: 89;
             display: flex;
@@ -6119,7 +6133,8 @@ export default function MiloCategoriesPage() {
 
           .categories-mobile-fullscreen-message {
             position: fixed;
-            right: 8px;
+            right: auto;
+            left: 8px;
             bottom: max(56px, calc(env(safe-area-inset-bottom) + 56px));
             z-index: 95;
             display: block;
@@ -6317,7 +6332,8 @@ export default function MiloCategoriesPage() {
 
           .categories-guide-launcher {
             top: auto;
-            right: max(7px, env(safe-area-inset-right));
+            right: auto;
+            left: max(7px, env(safe-area-inset-left));
             bottom: max(9px, env(safe-area-inset-bottom));
             z-index: 90;
             min-height: 38px;

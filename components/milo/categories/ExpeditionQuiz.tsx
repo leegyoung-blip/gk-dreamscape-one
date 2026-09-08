@@ -551,9 +551,6 @@ export default function ExpeditionQuiz({
           draggable={false}
           className="expedition-vehicle-body"
         />
-        {currentPlayerVariant && (
-          <span className="expedition-player-accent-ring" />
-        )}
       </div>
 
       {stage === "answered" && (!mobileSequencing || mobileAnswerPhase === "travel") && (
@@ -1331,20 +1328,6 @@ export default function ExpeditionQuiz({
           background: radial-gradient(ellipse, var(--player-soft), transparent 68%);
           filter: blur(7px);
           opacity: 0.9;
-        }
-
-        .expedition-player-accent-ring {
-          position: absolute;
-          z-index: 4;
-          left: 43%;
-          bottom: 18%;
-          width: 17%;
-          aspect-ratio: 1;
-          border: 3px solid var(--player-color);
-          border-radius: 999px;
-          box-shadow: 0 0 22px var(--player-color), inset 0 0 15px var(--player-soft);
-          opacity: 0.82;
-          pointer-events: none;
         }
         .expedition-effect {
           position: absolute;

@@ -21,6 +21,7 @@ function useQuizHallViewport() {
   const [viewport, setViewport] = useState({
     width: 1440,
     height: 900,
+    touchLike: false,
   });
 
   useEffect(() => {
@@ -28,6 +29,7 @@ function useQuizHallViewport() {
       setViewport({
         width: window.innerWidth,
         height: window.innerHeight,
+        touchLike: window.matchMedia("(hover: none), (pointer: coarse)").matches,
       });
     }
 
@@ -40,7 +42,7 @@ function useQuizHallViewport() {
 }
 
 export default function MiloQuizHallPage() {
-  const { width, height } = useQuizHallViewport();
+  const { width, height, touchLike } = useQuizHallViewport();
   const [activeSide, setActiveSide] = useState<HallSide>(null);
   const [creatorAccess, setCreatorAccess] =
     useState<MiloQuizHallCreatorClubsAccess>(FAIL_CLOSED_ACCESS);
@@ -50,6 +52,9 @@ export default function MiloQuizHallPage() {
 
   const landscape = width >= 980 && width > height * 1.15;
   const compact = width <= 720;
+  const alwaysShowLandscapeDescriptions = landscape && touchLike;
+  const creatorSideActive = activeSide === "clubs" || alwaysShowLandscapeDescriptions;
+  const categoriesSideActive = activeSide === "categories" || alwaysShowLandscapeDescriptions;
 
   useEffect(() => {
     const previousBodyOverflow = document.body.style.overflow;
@@ -422,7 +427,7 @@ export default function MiloQuizHallPage() {
               }}
             >
               <CreatorSideContent
-                active={activeSide === "clubs"}
+                active={creatorSideActive}
                 infoCard={infoCard("clubs")}
                 eyebrow={clubsEyebrow}
                 description={clubsDescription}
@@ -452,7 +457,7 @@ export default function MiloQuizHallPage() {
               }}
             >
               <CreatorSideContent
-                active={activeSide === "clubs"}
+                active={creatorSideActive}
                 infoCard={infoCard("clubs")}
                 eyebrow={clubsEyebrow}
                 description={clubsDescription}
@@ -484,15 +489,15 @@ export default function MiloQuizHallPage() {
                 inset: "18% 2% 10% 3%",
                 borderRadius: "30px",
                 border:
-                  activeSide === "categories"
+                  categoriesSideActive
                     ? "1px solid rgba(126,232,255,0.38)"
                     : "1px solid transparent",
                 background:
-                  activeSide === "categories"
+                  categoriesSideActive
                     ? "linear-gradient(270deg, rgba(83,215,255,0.08), rgba(83,215,255,0.015))"
                     : "transparent",
                 boxShadow:
-                  activeSide === "categories"
+                  categoriesSideActive
                     ? "inset 0 0 70px rgba(83,215,255,0.055), 0 0 42px rgba(83,215,255,0.07)"
                     : "none",
                 transition: "all 220ms ease",
@@ -504,9 +509,9 @@ export default function MiloQuizHallPage() {
                 position: "absolute",
                 right: "3.4%",
                 bottom: "4.5%",
-                opacity: activeSide === "categories" ? 1 : 0,
+                opacity: categoriesSideActive ? 1 : 0,
                 transform:
-                  activeSide === "categories"
+                  categoriesSideActive
                     ? "translateY(0)"
                     : "translateY(12px)",
                 pointerEvents: "none",

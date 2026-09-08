@@ -1,6 +1,7 @@
 "use client";
 
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { CSSProperties, PointerEvent as ReactPointerEvent, Ref } from "react";
 import type {
   BattlePhase,
   KnowledgeArenaBattleMonster,
@@ -42,18 +43,32 @@ type MonsterPose = "idle" | "defense" | "attack" | "hit" | "defeated";
 
 const monsterPoseSprites: Record<string, Record<MonsterPose, string>> = {
   "atlas-golem": {
-    idle: "/activities/learning-missions/knowledge-arena/monsters/world-explorer/atlas-golem/idle.png",
-    defense: "/activities/learning-missions/knowledge-arena/monsters/world-explorer/atlas-golem/defense.png",
-    attack: "/activities/learning-missions/knowledge-arena/monsters/world-explorer/atlas-golem/attack.png",
-    hit: "/activities/learning-missions/knowledge-arena/monsters/world-explorer/atlas-golem/hit.png",
-    defeated: "/activities/learning-missions/knowledge-arena/monsters/world-explorer/atlas-golem/defeated.png",
+    idle: "/activities/learning-missions/knowledge-arena/monsters/atlas-golem/idle.png",
+    defense: "/activities/learning-missions/knowledge-arena/monsters/atlas-golem/defense.png",
+    attack: "/activities/learning-missions/knowledge-arena/monsters/atlas-golem/attack.png",
+    hit: "/activities/learning-missions/knowledge-arena/monsters/atlas-golem/hit.png",
+    defeated: "/activities/learning-missions/knowledge-arena/monsters/atlas-golem/defeated.png",
   },
   "tempest-roc": {
-    idle: "/activities/learning-missions/knowledge-arena/monsters/world-explorer/tempest-roc/idle.png",
-    defense: "/activities/learning-missions/knowledge-arena/monsters/world-explorer/tempest-roc/defense.png",
-    attack: "/activities/learning-missions/knowledge-arena/monsters/world-explorer/tempest-roc/attack.png",
-    hit: "/activities/learning-missions/knowledge-arena/monsters/world-explorer/tempest-roc/hit.png",
-    defeated: "/activities/learning-missions/knowledge-arena/monsters/world-explorer/tempest-roc/defeated.png",
+    idle: "/activities/learning-missions/knowledge-arena/monsters/tempest-roc/idle.png",
+    defense: "/activities/learning-missions/knowledge-arena/monsters/tempest-roc/defense.png",
+    attack: "/activities/learning-missions/knowledge-arena/monsters/tempest-roc/attack.png",
+    hit: "/activities/learning-missions/knowledge-arena/monsters/tempest-roc/hit.png",
+    defeated: "/activities/learning-missions/knowledge-arena/monsters/tempest-roc/defeated.png",
+  },
+  "worldbreaker-leviathan": {
+    idle: "/activities/learning-missions/knowledge-arena/monsters/worldbreaker-leviathan/idle.png",
+    defense: "/activities/learning-missions/knowledge-arena/monsters/worldbreaker-leviathan/defense.png",
+    attack: "/activities/learning-missions/knowledge-arena/monsters/worldbreaker-leviathan/attack.png",
+    hit: "/activities/learning-missions/knowledge-arena/monsters/worldbreaker-leviathan/hit.png",
+    defeated: "/activities/learning-missions/knowledge-arena/monsters/worldbreaker-leviathan/defeated.png",
+  },
+  "verdant-sabertooth": {
+    idle: "/activities/learning-missions/knowledge-arena/monsters/verdant-sabertooth/idle.png",
+    defense: "/activities/learning-missions/knowledge-arena/monsters/verdant-sabertooth/defense.png",
+    attack: "/activities/learning-missions/knowledge-arena/monsters/verdant-sabertooth/attack.png",
+    hit: "/activities/learning-missions/knowledge-arena/monsters/verdant-sabertooth/hit.png",
+    defeated: "/activities/learning-missions/knowledge-arena/monsters/verdant-sabertooth/defeated.png",
   },
 };
 
@@ -71,7 +86,7 @@ function hpPercent(current: number, max: number) {
   return Math.max(0, Math.min(100, (current / max) * 100));
 }
 
-function NovaSprite({ phase }: { phase: BattlePhase }) {
+function NovaSprite({ phase, imageRef }: { phase: BattlePhase; imageRef?: Ref<HTMLImageElement> }) {
   const key =
     phase === "firing"
       ? "firing"
@@ -85,6 +100,7 @@ function NovaSprite({ phase }: { phase: BattlePhase }) {
     <div className={`kab-character kab-nova is-${key}`}>
       <div className="kab-character-fallback">NOVA</div>
       <img
+        ref={imageRef}
         src={novaSprites[key]}
         alt="Nova"
         draggable={false}
@@ -101,11 +117,13 @@ function MonsterSprite({
   phase,
   monsterHp,
   damageFlash,
+  imageRef,
 }: {
   monster: KnowledgeArenaBattleMonster;
   phase: BattlePhase;
   monsterHp: number;
   damageFlash: number | null;
+  imageRef?: Ref<HTMLImageElement>;
 }) {
   const pose: MonsterPose =
     monsterHp <= 0 || phase === "monster_defeated"
@@ -120,12 +138,11 @@ function MonsterSprite({
 
   const sprite = monsterPoseSprites[monster.slug]?.[pose] || monster.sprite_url;
 
-  const mirrorClass = monster.slug === "tempest-roc" ? " is-mirrored" : "";
-
   return (
-    <div className={`kab-character kab-monster is-${pose}${mirrorClass}`}>
+    <div className={`kab-character kab-monster is-${pose}`}>
       <div className="kab-character-fallback">{monster.name}</div>
       <img
+        ref={imageRef}
         key={`${monster.slug}-${pose}`}
         src={sprite}
         alt={`${monster.name} ${pose}`}
@@ -309,6 +326,32 @@ export function ArenaEncounterLoader({
   );
 }
 
+type ShotVisual = {
+  id: number;
+  startX: number;
+  startY: number;
+  deltaX: number;
+  deltaY: number;
+  endX: number;
+  endY: number;
+  angle: number;
+};
+
+function containedImageRect(image: HTMLImageElement) {
+  const box = image.getBoundingClientRect();
+  const naturalWidth = image.naturalWidth || box.width || 1;
+  const naturalHeight = image.naturalHeight || box.height || 1;
+  const scale = Math.min(box.width / naturalWidth, box.height / naturalHeight);
+  const width = naturalWidth * scale;
+  const height = naturalHeight * scale;
+  return {
+    left: box.left + (box.width - width) / 2,
+    top: box.top + (box.height - height) / 2,
+    width,
+    height,
+  };
+}
+
 export function ArenaBattleView({
   topic,
   topicTitle,
@@ -324,7 +367,6 @@ export function ArenaBattleView({
   feedback,
   getAnswerStyle,
   onChoose,
-  onBack,
   monster,
   phase,
   novaHp,
@@ -363,7 +405,6 @@ export function ArenaBattleView({
   feedback: string | null;
   getAnswerStyle: (answer: Answer) => CSSProperties;
   onChoose: (answer: Answer) => void;
-  onBack: () => void;
   monster: KnowledgeArenaBattleMonster;
   phase: BattlePhase;
   novaHp: number;
@@ -395,6 +436,57 @@ export function ArenaBattleView({
     ["D", question.option_d],
   ];
 
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const novaImageRef = useRef<HTMLImageElement | null>(null);
+  const monsterImageRef = useRef<HTMLImageElement | null>(null);
+  const lastVisualShotRef = useRef(0);
+  const [shotVisual, setShotVisual] = useState<ShotVisual | null>(null);
+
+  useEffect(() => {
+    if (phase !== "firing" || shotsThisTurn <= 0) {
+      lastVisualShotRef.current = shotsThisTurn;
+      if (phase !== "firing") setShotVisual(null);
+      return;
+    }
+
+    if (shotsThisTurn === lastVisualShotRef.current) return;
+    lastVisualShotRef.current = shotsThisTurn;
+
+    const stage = stageRef.current;
+    const novaImage = novaImageRef.current;
+    const monsterImage = monsterImageRef.current;
+    if (!stage || !novaImage || !monsterImage) return;
+
+    const stageBox = stage.getBoundingClientRect();
+    const novaBox = containedImageRect(novaImage);
+    const monsterBox = containedImageRect(monsterImage);
+
+    // Calibrated against Nova's firing PNG: the barrel mouth is near the
+    // upper-right edge of the rendered art. Because this is derived from
+    // the live image box, it stays aligned when the arena resizes.
+    const startX = novaBox.left - stageBox.left + novaBox.width * 0.833;
+    const startY = novaBox.top - stageBox.top + novaBox.height * 0.271;
+
+    // Aim at the near-side torso of whatever monster pose is currently
+    // rendered. This also follows responsive movement and monster sizing.
+    const endX = monsterBox.left - stageBox.left + monsterBox.width * 0.34;
+    const endY = monsterBox.top - stageBox.top + monsterBox.height * 0.48;
+    const deltaX = endX - startX;
+    const deltaY = endY - startY;
+    const angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
+
+    setShotVisual({
+      id: shotsThisTurn,
+      startX,
+      startY,
+      deltaX,
+      deltaY,
+      endX,
+      endY,
+      angle,
+    });
+  }, [phase, shotsThisTurn, monster.slug]);
+
   const correct = selectedAnswer !== null && selectedAnswer === question.correct_answer;
   const fireSecondsLeft = Math.max(0, fireMsRemaining / 1000);
   const novaCritical = novaHp <= 250;
@@ -407,15 +499,13 @@ export function ArenaBattleView({
 
   return (
     <div
+      ref={stageRef}
       className={`kab-stage ${novaCritical ? "is-nova-critical" : ""}`}
       style={{ backgroundImage: `url("${arenaBackgrounds[topic]}")` }}
     >
       <div className="kab-vignette" />
 
       <div className="kab-topbar">
-        <button type="button" className="kab-back" onClick={onBack}>
-          ← Back
-        </button>
         <span>{challengeLabel}</span>
         <span>{topicTitle}</span>
         <span>Q {questionIndex + 1}/10</span>
@@ -460,7 +550,7 @@ export function ArenaBattleView({
               <i style={{ width: `${hpPercent(novaHp, 1000)}%` }} />
             </div>
           </div>
-          <NovaSprite phase={phase} />
+          <NovaSprite phase={phase} imageRef={novaImageRef} />
         </div>
 
         <div className="kab-combat-center">
@@ -484,15 +574,32 @@ export function ArenaBattleView({
           )}
         </div>
 
-        {phase === "firing" && shotsThisTurn > 0 && (
-          <div
-            key={`blaster-beam-${shotsThisTurn}`}
-            className="kab-blaster-beam"
-            aria-hidden="true"
-          >
-            <i className="kab-blaster-beam-core" />
-            <i className="kab-blaster-muzzle" />
-            <i className="kab-blaster-impact" />
+        {phase === "firing" && shotVisual && (
+          <div key={`blaster-shot-${shotVisual.id}`} className="kab-shot-layer" aria-hidden="true">
+            <i
+              className="kab-shot-muzzle"
+              style={{ left: shotVisual.startX, top: shotVisual.startY }}
+            />
+            <span
+              className="kab-blaster-shot"
+              style={{
+                left: shotVisual.startX,
+                top: shotVisual.startY,
+                "--shot-x": `${shotVisual.deltaX}px`,
+                "--shot-y": `${shotVisual.deltaY}px`,
+                "--shot-angle": `${shotVisual.angle}deg`,
+              } as CSSProperties}
+            >
+              <i />
+            </span>
+            <i
+              className="kab-shot-impact"
+              style={{ left: shotVisual.endX, top: shotVisual.endY }}
+            >
+              <b />
+              <b />
+              <b />
+            </i>
           </div>
         )}
 
@@ -511,7 +618,7 @@ export function ArenaBattleView({
               <span>DEF {stars(monster.defense_rating)}</span>
             </div>
           </div>
-          <MonsterSprite monster={monster} phase={phase} monsterHp={monsterHp} damageFlash={damageFlash} />
+          <MonsterSprite monster={monster} phase={phase} monsterHp={monsterHp} damageFlash={damageFlash} imageRef={monsterImageRef} />
         </div>
       </section>
 
@@ -672,7 +779,6 @@ export function ArenaBattleView({
 
         .kab-topbar > span,
         .kab-topbar > strong,
-        .kab-back,
         .kab-admin-pause {
           min-height: 32px;
           display: inline-flex;
@@ -688,7 +794,6 @@ export function ArenaBattleView({
           white-space: nowrap;
         }
 
-        .kab-back { cursor: pointer; color: white; }
         .kab-admin-pause { cursor:pointer; color:#fde68a; border-color:rgba(253,230,138,.25); }
         .kab-admin-pause.is-paused { color:#a7f3d0; border-color:rgba(167,243,208,.3); }
         .kab-admin-pause:disabled { cursor:not-allowed; opacity:.35; }
@@ -822,30 +927,30 @@ export function ArenaBattleView({
           user-select: none;
         }
 
-        /* Both fighters sit farther back and closer to the arena centre. */
+        /* Fighters are deliberately small and raised into the arena floor plane.
+           They should read as characters standing IN the arena, not foreground overlays. */
         .kab-character.kab-nova {
-          inset: 54px 0 7% 8%;
+          inset: 34px 0 18% 18%;
           justify-content: flex-end;
-          padding-right: 2%;
+          padding-right: 7%;
         }
         .kab-character.kab-nova img {
-          width: min(70%, 245px);
-          height: 74%;
+          width: min(54%, 188px);
+          height: auto;
+          max-height: 62%;
           object-position: right bottom;
         }
 
         .kab-character.kab-monster {
-          inset: 54px 8% 7% 0;
+          inset: 34px 18% 18% 0;
           justify-content: flex-start;
-          padding-left: 2%;
+          padding-left: 7%;
         }
         .kab-character.kab-monster img {
-          width: min(74%, 275px);
-          height: 79%;
+          width: min(60%, 225px);
+          height: auto;
+          max-height: 67%;
           object-position: left bottom;
-        }
-        .kab-character.kab-monster.is-mirrored img {
-          transform: scaleX(-1);
         }
 
         .kab-character-fallback {
@@ -879,50 +984,94 @@ export function ArenaBattleView({
         .kab-monster.is-hit { animation: kabMonsterHit 180ms ease; }
         .kab-monster.is-defeated { transform: translateY(8%) rotate(4deg); opacity: .62; filter: saturate(.55); }
 
-        .kab-blaster-beam {
+        .kab-shot-layer {
           pointer-events: none;
           position: absolute;
-          z-index: 12;
-          left: 35%;
-          right: 35%;
-          top: 62%;
-          height: 14px;
-          transform: rotate(-2deg);
-          transform-origin: left center;
-          animation: kabBeamFlash 180ms ease-out both;
+          inset: 0;
+          z-index: 14;
+          overflow: visible;
         }
 
-        .kab-blaster-beam-core {
+        .kab-blaster-shot {
+          position: absolute;
+          width: 0;
+          height: 0;
+          animation: kabShotTravel 165ms linear forwards;
+          will-change: transform;
+        }
+
+        .kab-blaster-shot i {
           position: absolute;
           left: 0;
-          right: 0;
-          top: 50%;
+          top: 0;
+          width: 24px;
           height: 5px;
-          transform: translateY(-50%);
+          transform: translate(-4px,-50%) rotate(var(--shot-angle));
+          transform-origin: 4px center;
           border-radius: 999px;
-          background: linear-gradient(90deg, rgba(255,255,255,.98), #8ff4ff 24%, #38bdf8 72%, rgba(125,211,252,.25));
-          box-shadow: 0 0 6px #fff, 0 0 14px #67e8f9, 0 0 26px rgba(14,165,233,.95);
+          background: linear-gradient(90deg,#fff 0 18%,#baf7ff 30%,#4fd9ff 62%,rgba(56,189,248,.08));
+          box-shadow: 0 0 5px rgba(255,255,255,.95), 0 0 10px rgba(103,232,249,.9);
         }
 
-        .kab-blaster-muzzle,
-        .kab-blaster-impact {
+        .kab-shot-muzzle {
           position: absolute;
-          top: 50%;
-          width: 22px;
-          height: 22px;
-          transform: translate(-50%, -50%);
-          border-radius: 999px;
-          background: radial-gradient(circle, #fff 0 18%, #67e8f9 28%, rgba(14,165,233,.45) 55%, transparent 72%);
-          box-shadow: 0 0 18px rgba(103,232,249,.95);
+          width: 17px;
+          height: 17px;
+          transform: translate(-50%,-50%);
+          border-radius: 50%;
+          background: radial-gradient(circle,#fff 0 17%,#8ff4ff 25%,rgba(56,189,248,.55) 48%,transparent 72%);
+          box-shadow: 0 0 12px rgba(103,232,249,.9);
+          animation: kabMuzzlePop 105ms ease-out both;
         }
-        .kab-blaster-muzzle { left: 0; }
-        .kab-blaster-impact { left: 100%; width: 30px; height: 30px; }
 
-        @keyframes kabBeamFlash {
-          0% { opacity: 0; transform: rotate(-2deg) scaleX(.08); }
-          18% { opacity: 1; transform: rotate(-2deg) scaleX(1); }
-          72% { opacity: 1; }
-          100% { opacity: 0; transform: rotate(-2deg) scaleX(1.04); }
+        .kab-shot-impact {
+          position: absolute;
+          width: 30px;
+          height: 30px;
+          transform: translate(-50%,-50%);
+          opacity: 0;
+          animation: kabImpactBurst 210ms ease-out 135ms both;
+        }
+
+        .kab-shot-impact::before,
+        .kab-shot-impact::after {
+          position:absolute;
+          inset:7px;
+          border:2px solid rgba(139,238,255,.95);
+          border-radius:50%;
+          content:"";
+          box-shadow:0 0 13px rgba(56,189,248,.85);
+        }
+        .kab-shot-impact::after { inset:2px; border-width:1px; opacity:.58; }
+        .kab-shot-impact b {
+          position:absolute;
+          left:50%;
+          top:50%;
+          width:24px;
+          height:2px;
+          transform-origin:left center;
+          border-radius:999px;
+          background:linear-gradient(90deg,#fff,#67e8f9,transparent);
+          box-shadow:0 0 7px #67e8f9;
+        }
+        .kab-shot-impact b:nth-child(1) { transform:rotate(12deg); }
+        .kab-shot-impact b:nth-child(2) { transform:rotate(132deg); }
+        .kab-shot-impact b:nth-child(3) { transform:rotate(252deg); }
+
+        @keyframes kabShotTravel {
+          from { transform: translate(0,0); opacity:1; }
+          82% { opacity:1; }
+          to { transform: translate(var(--shot-x),var(--shot-y)); opacity:.15; }
+        }
+        @keyframes kabMuzzlePop {
+          from { opacity:0; transform:translate(-50%,-50%) scale(.3); }
+          30% { opacity:1; }
+          to { opacity:0; transform:translate(-50%,-50%) scale(1.35); }
+        }
+        @keyframes kabImpactBurst {
+          from { opacity:0; transform:translate(-50%,-50%) scale(.25); }
+          20% { opacity:1; }
+          to { opacity:0; transform:translate(-50%,-50%) scale(1.65); }
         }
 
         .kab-combat-center {
@@ -1180,7 +1329,7 @@ export function ArenaBattleView({
         @media (max-width: 850px), (hover: none) and (pointer: coarse) {
           .kab-topbar > span:nth-of-type(1),
           .kab-topbar > span:nth-of-type(2) { display: none; }
-          .kab-topbar > span, .kab-back { min-height: 27px; padding: 0 7px; font-size: 8px; }
+          .kab-topbar > span, .kab-admin-pause { min-height: 27px; padding: 0 7px; font-size: 8px; }
           .kab-question-hud { padding: 7px 9px; }
           .kab-question-copy p { font-size: clamp(15px, 3.2vw, 21px); }
           .kab-question-image { max-height: 65px; }
@@ -1199,11 +1348,10 @@ export function ArenaBattleView({
           .kab-fire-panel > em { display: none; }
           .kab-floating-fire { right:8px; bottom:8px; width:68px; }
           .kab-answer-zone { padding-right:80px; }
-          .kab-character.kab-nova { inset:38px 0 7% 7%; }
-          .kab-character.kab-nova img { width:min(66%,205px); height:70%; }
-          .kab-character.kab-monster { inset:38px 7% 7% 0; }
-          .kab-character.kab-monster img { width:min(70%,235px); height:75%; }
-          .kab-blaster-beam { left:36%; right:36%; top:63%; }
+          .kab-character.kab-nova { inset:30px 0 17% 18%; padding-right:7%; }
+          .kab-character.kab-nova img { width:min(50%,155px); height:auto; max-height:58%; }
+          .kab-character.kab-monster { inset:30px 18% 17% 0; padding-left:7%; }
+          .kab-character.kab-monster img { width:min(56%,190px); height:auto; max-height:63%; }
           .kab-answer { min-height: 43px; grid-template-columns: 25px minmax(0,1fr); padding: 5px 7px !important; }
           .kab-answer > strong { width: 24px; height: 24px; font-size: 8px; }
           .kab-answer > span { font-size: clamp(10px, 2.5vw, 13px); }
@@ -1302,11 +1450,7 @@ export function ArenaBattleResultCard({
         </div>
       </div>
 
-      <div
-        className={`kab-result-fighter kab-result-monster${
-          monster.slug === "tempest-roc" ? " is-mirrored" : ""
-        }`}
-      >
+      <div className="kab-result-fighter kab-result-monster">
         <img src={monsterResultSprite} alt={monster.name} />
         <small>{monster.name}</small>
       </div>
@@ -1320,7 +1464,6 @@ export function ArenaBattleResultCard({
         .kab-result-fighter small { position:absolute; bottom:5px; max-width:92%; overflow:hidden; border-radius:999px; background:rgba(2,9,24,.78); padding:3px 7px; color:rgba(255,255,255,.72); font-size:7px; font-weight:950; letter-spacing:.08em; text-overflow:ellipsis; text-transform:uppercase; white-space:nowrap; }
         .kab-result-nova img { transform:scale(.88); transform-origin:center bottom; }
         .kab-result-monster img { transform:scale(.92); transform-origin:center bottom; }
-        .kab-result-monster.is-mirrored img { transform:scale(-.92,.92); }
         .kab-result-center { display:flex; min-width:0; flex-direction:column; justify-content:center; }
         .kab-result-copy { text-align:center; }
         .kab-result-copy > small { color:#7ee8ff; font-size:8px; font-weight:900; letter-spacing:.09em; text-transform:uppercase; }

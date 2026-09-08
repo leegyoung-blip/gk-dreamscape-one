@@ -2317,15 +2317,17 @@ export default function KnowledgeArenaPage() {
     >
       <header className="ka-topbar">
         <div className="ka-top-left">
-          <button
-            type="button"
-            onClick={goBack}
-            className="ka-nav-button ka-back-button"
-            aria-label="Go back to the previous page"
-          >
-            <span className="ka-back-full">← Back</span>
-            <span className="ka-back-short">← Back</span>
-          </button>
+          {stage !== "solo-quiz" && stage !== "multiplayer-quiz" && (
+            <button
+              type="button"
+              onClick={goBack}
+              className="ka-nav-button ka-back-button"
+              aria-label="Go back to the previous page"
+            >
+              <span className="ka-back-full">← Back</span>
+              <span className="ka-back-short">← Back</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -2804,7 +2806,6 @@ export default function KnowledgeArenaPage() {
               feedback={feedback}
               getAnswerStyle={getAnswerStyle}
               onChoose={(answer) => void lockAnswer(answer)}
-              onBack={() => void leaveSoloBattleToSetup()}
               monster={battle.monster}
               phase={battle.phase}
               novaHp={battle.novaHp}
@@ -2852,7 +2853,6 @@ export default function KnowledgeArenaPage() {
               getAnswerStyle={getAnswerStyle}
               onChoose={(answer) => void lockAnswer(answer)}
               onNext={() => void nextQuestion()}
-              onBack={resetAll}
             />
           )}
 
@@ -7089,7 +7089,6 @@ function ArenaQuizView({
   getAnswerStyle,
   onChoose,
   onNext,
-  onBack,
 }: {
   isSolo: boolean;
   topicTitle: string;
@@ -7107,7 +7106,6 @@ function ArenaQuizView({
   getAnswerStyle: (answer: KnowledgeArenaAnswer) => CSSProperties;
   onChoose: (answer: KnowledgeArenaAnswer) => void;
   onNext: () => void;
-  onBack: () => void;
 }) {
   const options: [KnowledgeArenaAnswer, string][] = [
     ["A", question.option_a],
@@ -7122,9 +7120,6 @@ function ArenaQuizView({
   return (
     <div className="ka-stage ka-quiz-stage">
       <div className="ka-quiz-status">
-        <button type="button" className="ka-inline-back" onClick={onBack}>
-          ← Back
-        </button>
         <span className="ka-status-chip">
           Mode <strong>{challengeLabel}</strong>
         </span>
