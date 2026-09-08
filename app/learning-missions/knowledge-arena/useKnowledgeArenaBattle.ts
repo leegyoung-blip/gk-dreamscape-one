@@ -143,8 +143,13 @@ export function useKnowledgeArenaBattle({
   const lastShotAtRef = useRef(0);
   const shotsRef = useRef(0);
   const combatLogRef = useRef<CombatLogEntry[]>([]);
+  const encounterRef = useRef<KnowledgeArenaEncounter | null>(null);
   const monsterHpRef = useRef(0);
   const novaHpRef = useRef(NOVA_START_HP);
+  const revivesUsedRef = useRef(0);
+  const damageDealtRef = useRef(0);
+  const damageReceivedRef = useRef(0);
+  const maxWrongStreakRef = useRef(0);
   const phaseRef = useRef<BattlePhase>("idle");
   const pausedRef = useRef(isPaused);
   const currentResolutionRef = useRef<BattleResolution | null>(null);
@@ -215,8 +220,13 @@ export function useKnowledgeArenaBattle({
     lastShotAtRef.current = 0;
     shotsRef.current = 0;
     combatLogRef.current = [];
+    encounterRef.current = null;
     monsterHpRef.current = 0;
     novaHpRef.current = NOVA_START_HP;
+    revivesUsedRef.current = 0;
+    damageDealtRef.current = 0;
+    damageReceivedRef.current = 0;
+    maxWrongStreakRef.current = 0;
     setEncounter(null);
     setPhase("idle");
     setNovaHp(NOVA_START_HP);
@@ -262,6 +272,7 @@ export function useKnowledgeArenaBattle({
       }
 
       const nextEncounter = data as KnowledgeArenaEncounter;
+      encounterRef.current = nextEncounter;
       setEncounter(nextEncounter);
       setNovaHp(Number(nextEncounter.nova_hp || NOVA_START_HP));
       setMonsterHp(Number(nextEncounter.monster.hp || 0));
@@ -357,7 +368,8 @@ export function useKnowledgeArenaBattle({
     const actualDamage = monsterHpRef.current - nextHp;
     monsterHpRef.current = nextHp;
     setMonsterHp(nextHp);
-    setDamageDealt((current) => current + actualDamage);
+    damageDealtRef.current += actualDamage;
+    setDamageDealt(damageDealtRef.current);
     setDamageFlash(monsterDamagePerShot);
     window.setTimeout(() => setDamageFlash(null), 150);
 
@@ -483,7 +495,8 @@ export function useKnowledgeArenaBattle({
       const multiplier = wrongStreakMultiplier(nextWrongStreak);
       const attackDamage = Math.round(monster.attack_damage * multiplier);
       setWrongStreak(nextWrongStreak);
-      setMaxWrongStreak((current) => Math.max(current, nextWrongStreak));
+      maxWrongStreakRef.current = Math.max(maxWrongStreakRef.current, nextWrongStreak);
+      setMaxWrongStreak(maxWrongStreakRef.current);
       setPhase("monster_attack");
       setBattleMessage(
         nextWrongStreak > 1
@@ -501,7 +514,8 @@ export function useKnowledgeArenaBattle({
             const actualDamage = novaHpRef.current - nextNovaHp;
             novaHpRef.current = nextNovaHp;
             setNovaHp(nextNovaHp);
-            setDamageReceived((current) => current + actualDamage);
+            damageReceivedRef.current += actualDamage;
+            setDamageReceived(damageReceivedRef.current);
             setDamageFlash(attackDamage);
             setPhase("hit");
             window.setTimeout(() => setDamageFlash(null), 300);
@@ -529,7 +543,8 @@ export function useKnowledgeArenaBattle({
         const actualDamage = novaHpRef.current - nextNovaHp;
         novaHpRef.current = nextNovaHp;
         setNovaHp(nextNovaHp);
-        setDamageReceived((current) => current + actualDamage);
+        damageReceivedRef.current += actualDamage;
+        setDamageReceived(damageReceivedRef.current);
         setDamageFlash(attackDamage);
         setPhase("hit");
 
@@ -598,6 +613,7 @@ export function useKnowledgeArenaBattle({
       }
 
       const result = data as ReviveResponse;
+      revivesUsedRef.current = 1;
       setRevivesUsed(1);
       setWrongStreak(0);
       setNovaHp(NOVA_REVIVE_HP);
@@ -624,6 +640,22 @@ export function useKnowledgeArenaBattle({
     setBattleMessage("DEFEAT");
     onBattleDefeat();
   }, [clearCompletionTimer, onBattleDefeat]);
+
+  const getSnapshot = useCallback(() => {
+    const currentEncounter = encounterRef.current;
+    return {
+      battleId: currentEncounter?.battle_id ?? null,
+      monster: currentEncounter?.monster ?? null,
+      novaHp: novaHpRef.current,
+      monsterHp: monsterHpRef.current,
+      combatLog: [...combatLogRef.current],
+      revivesUsed: revivesUsedRef.current,
+      damageDealt: damageDealtRef.current,
+      damageReceived: damageReceivedRef.current,
+      maxWrongStreak: maxWrongStreakRef.current,
+      phase: phaseRef.current,
+    };
+  }, []);
 
   const snapshot = useMemo(
     () => ({
@@ -674,6 +706,7 @@ export function useKnowledgeArenaBattle({
     reviveWorking,
     monsterDamagePerShot,
     snapshot,
+    getSnapshot,
     prepareEncounter,
     beginQuestion,
     resolveAnswer,

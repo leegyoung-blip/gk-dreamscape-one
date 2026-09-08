@@ -120,8 +120,10 @@ function MonsterSprite({
 
   const sprite = monsterPoseSprites[monster.slug]?.[pose] || monster.sprite_url;
 
+  const mirrorClass = monster.slug === "tempest-roc" ? " is-mirrored" : "";
+
   return (
-    <div className={`kab-character kab-monster is-${pose}`}>
+    <div className={`kab-character kab-monster is-${pose}${mirrorClass}`}>
       <div className="kab-character-fallback">{monster.name}</div>
       <img
         key={`${monster.slug}-${pose}`}
@@ -482,6 +484,18 @@ export function ArenaBattleView({
           )}
         </div>
 
+        {phase === "firing" && shotsThisTurn > 0 && (
+          <div
+            key={`blaster-beam-${shotsThisTurn}`}
+            className="kab-blaster-beam"
+            aria-hidden="true"
+          >
+            <i className="kab-blaster-beam-core" />
+            <i className="kab-blaster-muzzle" />
+            <i className="kab-blaster-impact" />
+          </div>
+        )}
+
         <div className="kab-fighter-side kab-fighter-right">
           <div className="kab-hp-card kab-monster-card">
             <div className="kab-hp-title">
@@ -722,9 +736,9 @@ export function ArenaBattleView({
           position: relative;
           display: grid;
           min-height: 0;
-          grid-template-columns: minmax(0, 1fr) minmax(150px, .42fr) minmax(0, 1fr);
+          grid-template-columns: minmax(0, 1fr) minmax(92px, .22fr) minmax(0, 1fr);
           align-items: stretch;
-          padding: 0 12px;
+          padding: 0 clamp(24px, 5vw, 78px);
         }
 
         .kab-fighter-side {
@@ -808,25 +822,30 @@ export function ArenaBattleView({
           user-select: none;
         }
 
-        /* Nova is intentionally smaller and farther back so her complete body/feet remain visible. */
+        /* Both fighters sit farther back and closer to the arena centre. */
         .kab-character.kab-nova {
-          inset: 48px 10% 2% 2%;
-          justify-content: flex-start;
+          inset: 54px 0 7% 8%;
+          justify-content: flex-end;
+          padding-right: 2%;
         }
         .kab-character.kab-nova img {
-          width: min(64%, 300px);
-          height: 82%;
-          object-position: left bottom;
+          width: min(70%, 245px);
+          height: 74%;
+          object-position: right bottom;
         }
 
         .kab-character.kab-monster {
-          inset: 46px 1% 1% 4%;
-          justify-content: flex-end;
+          inset: 54px 8% 7% 0;
+          justify-content: flex-start;
+          padding-left: 2%;
         }
         .kab-character.kab-monster img {
-          width: min(82%, 390px);
-          height: 91%;
-          object-position: right bottom;
+          width: min(74%, 275px);
+          height: 79%;
+          object-position: left bottom;
+        }
+        .kab-character.kab-monster.is-mirrored img {
+          transform: scaleX(-1);
         }
 
         .kab-character-fallback {
@@ -859,6 +878,52 @@ export function ArenaBattleView({
         .kab-monster.is-defense { animation: kabMonsterDefense 820ms ease-in-out infinite alternate; }
         .kab-monster.is-hit { animation: kabMonsterHit 180ms ease; }
         .kab-monster.is-defeated { transform: translateY(8%) rotate(4deg); opacity: .62; filter: saturate(.55); }
+
+        .kab-blaster-beam {
+          pointer-events: none;
+          position: absolute;
+          z-index: 12;
+          left: 35%;
+          right: 35%;
+          top: 62%;
+          height: 14px;
+          transform: rotate(-2deg);
+          transform-origin: left center;
+          animation: kabBeamFlash 180ms ease-out both;
+        }
+
+        .kab-blaster-beam-core {
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: 50%;
+          height: 5px;
+          transform: translateY(-50%);
+          border-radius: 999px;
+          background: linear-gradient(90deg, rgba(255,255,255,.98), #8ff4ff 24%, #38bdf8 72%, rgba(125,211,252,.25));
+          box-shadow: 0 0 6px #fff, 0 0 14px #67e8f9, 0 0 26px rgba(14,165,233,.95);
+        }
+
+        .kab-blaster-muzzle,
+        .kab-blaster-impact {
+          position: absolute;
+          top: 50%;
+          width: 22px;
+          height: 22px;
+          transform: translate(-50%, -50%);
+          border-radius: 999px;
+          background: radial-gradient(circle, #fff 0 18%, #67e8f9 28%, rgba(14,165,233,.45) 55%, transparent 72%);
+          box-shadow: 0 0 18px rgba(103,232,249,.95);
+        }
+        .kab-blaster-muzzle { left: 0; }
+        .kab-blaster-impact { left: 100%; width: 30px; height: 30px; }
+
+        @keyframes kabBeamFlash {
+          0% { opacity: 0; transform: rotate(-2deg) scaleX(.08); }
+          18% { opacity: 1; transform: rotate(-2deg) scaleX(1); }
+          72% { opacity: 1; }
+          100% { opacity: 0; transform: rotate(-2deg) scaleX(1.04); }
+        }
 
         .kab-combat-center {
           position: relative;
@@ -1119,7 +1184,7 @@ export function ArenaBattleView({
           .kab-question-hud { padding: 7px 9px; }
           .kab-question-copy p { font-size: clamp(15px, 3.2vw, 21px); }
           .kab-question-image { max-height: 65px; }
-          .kab-battlefield { grid-template-columns: minmax(0, 1fr) minmax(105px, .34fr) minmax(0, 1fr); padding-inline: 7px; }
+          .kab-battlefield { grid-template-columns: minmax(0, 1fr) minmax(70px, .18fr) minmax(0, 1fr); padding-inline: 24px; }
           .kab-hp-card { padding: 5px 7px; }
           .kab-hp-title { font-size: 8px; }
           .kab-hp-title strong { font-size: 10px; }
@@ -1134,9 +1199,11 @@ export function ArenaBattleView({
           .kab-fire-panel > em { display: none; }
           .kab-floating-fire { right:8px; bottom:8px; width:68px; }
           .kab-answer-zone { padding-right:80px; }
-          .kab-character.kab-nova { inset:34px 8% 1% 1%; }
-          .kab-character.kab-nova img { width:min(58%,240px); height:78%; }
-          .kab-character.kab-monster img { width:min(76%,310px); height:87%; }
+          .kab-character.kab-nova { inset:38px 0 7% 7%; }
+          .kab-character.kab-nova img { width:min(66%,205px); height:70%; }
+          .kab-character.kab-monster { inset:38px 7% 7% 0; }
+          .kab-character.kab-monster img { width:min(70%,235px); height:75%; }
+          .kab-blaster-beam { left:36%; right:36%; top:63%; }
           .kab-answer { min-height: 43px; grid-template-columns: 25px minmax(0,1fr); padding: 5px 7px !important; }
           .kab-answer > strong { width: 24px; height: 24px; font-size: 8px; }
           .kab-answer > span { font-size: clamp(10px, 2.5vw, 13px); }
@@ -1185,55 +1252,101 @@ export function ArenaBattleResultCard({
           ? "DEFEAT"
           : "BATTLE COMPLETE";
 
+  const novaResultSprite =
+    outcome === "defeat" ? novaSprites.defeated : novaSprites.idle;
+  const monsterResultPose: MonsterPose =
+    outcome === "victory" ? "defeated" : "idle";
+  const monsterResultSprite =
+    monsterPoseSprites[monster.slug]?.[monsterResultPose] || monster.sprite_url;
+
   return (
     <section className={`kab-result-card is-${outcome}`}>
-      <div className="kab-result-monster">
-        <div className="kab-result-image-fallback">{monster.name}</div>
-        <img
-          src={monster.collection_image_url || monster.sprite_url}
-          alt={monster.name}
-          onError={(event) => {
-            event.currentTarget.style.display = "none";
-          }}
-        />
+      <div className="kab-result-fighter kab-result-nova">
+        <img src={novaResultSprite} alt="Nova" />
+        <small>NOVA</small>
       </div>
-      <div className="kab-result-copy">
-        <small>{rarityLabel(monster.rarity)} encounter</small>
-        <h3>{title}</h3>
-        <strong>{monster.name}</strong>
-        {outcome === "victory" && collection && (
-          <p>
-            {collection.is_new
-              ? "New monster added to Collections."
-              : `Monster defeated again ×${collection.quantity ?? 1}.`}
-          </p>
-        )}
-        {outcome === "victory" && !collection && (
-          <p>Log in to save defeated monsters to your Collection.</p>
-        )}
+
+      <div className="kab-result-center">
+        <div className="kab-result-copy">
+          <small>{rarityLabel(monster.rarity)} encounter</small>
+          <h3>{title}</h3>
+          <strong>{monster.name}</strong>
+
+          {outcome === "victory" && collection && (
+            <div className={`kab-collection-notice ${collection.is_new ? "is-new" : "is-owned"}`}>
+              {collection.is_new ? (
+                <>
+                  <b>MONSTER ADDED TO COLLECTION</b>
+                  <span>{monster.name} is now in your Knowledge Arena collection.</span>
+                </>
+              ) : (
+                <>
+                  <b>MONSTER ALREADY COLLECTED</b>
+                  <span>Defeat count ×{collection.quantity ?? 1}</span>
+                </>
+              )}
+            </div>
+          )}
+
+          {outcome === "victory" && !collection && (
+            <p>Log in to save defeated monsters to your Collection.</p>
+          )}
+        </div>
+
+        <div className="kab-result-stats">
+          <span>Nova HP <strong>{novaHp}</strong></span>
+          <span>Monster HP <strong>{monsterHp}</strong></span>
+          <span>Damage dealt <strong>{damageDealt}</strong></span>
+          <span>Damage received <strong>{damageReceived}</strong></span>
+          <span>Revives <strong>{revivesUsed}</strong></span>
+        </div>
       </div>
-      <div className="kab-result-stats">
-        <span>Nova HP <strong>{novaHp}</strong></span>
-        <span>Monster HP <strong>{monsterHp}</strong></span>
-        <span>Damage dealt <strong>{damageDealt}</strong></span>
-        <span>Damage received <strong>{damageReceived}</strong></span>
-        <span>Revives <strong>{revivesUsed}</strong></span>
+
+      <div
+        className={`kab-result-fighter kab-result-monster${
+          monster.slug === "tempest-roc" ? " is-mirrored" : ""
+        }`}
+      >
+        <img src={monsterResultSprite} alt={monster.name} />
+        <small>{monster.name}</small>
       </div>
+
       <style jsx>{`
-        .kab-result-card { display:grid; grid-template-columns:100px minmax(0,1fr) minmax(280px,.85fr); gap:12px; align-items:center; border:1px solid rgba(126,232,255,.17); border-radius:15px; background:linear-gradient(135deg,rgba(8,37,60,.58),rgba(24,18,57,.6)); padding:11px; }
-        .kab-result-card.is-victory { border-color:rgba(74,222,128,.25); }
-        .kab-result-card.is-defeat { border-color:rgba(248,113,113,.25); }
-        .kab-result-monster { position:relative; display:grid; width:90px; height:90px; place-items:center; overflow:hidden; border-radius:14px; background:rgba(255,255,255,.04); }
-        .kab-result-monster img { position:relative; z-index:2; width:100%; height:100%; object-fit:contain; }
-        .kab-result-image-fallback { position:absolute; inset:0; display:grid; place-items:center; padding:7px; color:rgba(255,255,255,.45); font-size:9px; font-weight:900; text-align:center; }
-        .kab-result-copy small { color:#7ee8ff; font-size:8px; font-weight:900; text-transform:uppercase; }
-        .kab-result-copy h3 { margin:3px 0 0; font-size:22px; }
-        .kab-result-copy > strong { display:block; margin-top:2px; font-size:13px; }
-        .kab-result-copy p { margin:5px 0 0; color:rgba(255,255,255,.56); font-size:9px; }
-        .kab-result-stats { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px; }
-        .kab-result-stats span { border-radius:8px; background:rgba(255,255,255,.04); padding:6px 8px; color:rgba(255,255,255,.45); font-size:8px; }
-        .kab-result-stats strong { display:block; margin-top:2px; color:white; font-size:12px; }
-        @media (max-width:850px) { .kab-result-card { grid-template-columns:70px minmax(0,1fr); } .kab-result-monster{width:64px;height:64px}.kab-result-stats{grid-column:1/-1;grid-template-columns:repeat(5,minmax(0,1fr))}.kab-result-stats span{padding:4px;font-size:6px}.kab-result-stats strong{font-size:9px}.kab-result-copy h3{font-size:16px} }
+        .kab-result-card { display:grid; grid-template-columns:minmax(105px,.7fr) minmax(310px,1.65fr) minmax(105px,.7fr); gap:14px; align-items:stretch; min-height:175px; border:1px solid rgba(126,232,255,.17); border-radius:18px; background:linear-gradient(135deg,rgba(8,37,60,.66),rgba(24,18,57,.68)); padding:12px; overflow:hidden; }
+        .kab-result-card.is-victory { border-color:rgba(74,222,128,.3); }
+        .kab-result-card.is-defeat { border-color:rgba(248,113,113,.3); }
+        .kab-result-fighter { position:relative; display:flex; min-width:0; min-height:150px; flex-direction:column; align-items:center; justify-content:flex-end; overflow:hidden; border-radius:14px; background:radial-gradient(circle at 50% 65%,rgba(126,232,255,.13),rgba(255,255,255,.025) 56%,transparent 74%); }
+        .kab-result-fighter img { width:100%; height:132px; object-fit:contain; object-position:center bottom; filter:drop-shadow(0 12px 18px rgba(0,0,0,.4)); }
+        .kab-result-fighter small { position:absolute; bottom:5px; max-width:92%; overflow:hidden; border-radius:999px; background:rgba(2,9,24,.78); padding:3px 7px; color:rgba(255,255,255,.72); font-size:7px; font-weight:950; letter-spacing:.08em; text-overflow:ellipsis; text-transform:uppercase; white-space:nowrap; }
+        .kab-result-nova img { transform:scale(.88); transform-origin:center bottom; }
+        .kab-result-monster img { transform:scale(.92); transform-origin:center bottom; }
+        .kab-result-monster.is-mirrored img { transform:scale(-.92,.92); }
+        .kab-result-center { display:flex; min-width:0; flex-direction:column; justify-content:center; }
+        .kab-result-copy { text-align:center; }
+        .kab-result-copy > small { color:#7ee8ff; font-size:8px; font-weight:900; letter-spacing:.09em; text-transform:uppercase; }
+        .kab-result-copy h3 { margin:3px 0 0; font-size:24px; letter-spacing:-.03em; }
+        .kab-result-copy > strong { display:block; margin-top:2px; font-size:14px; }
+        .kab-result-copy p { margin:6px 0 0; color:rgba(255,255,255,.58); font-size:9px; }
+        .kab-collection-notice { margin:8px auto 0; max-width:430px; border:1px solid rgba(126,232,255,.22); border-radius:11px; background:rgba(126,232,255,.07); padding:7px 9px; }
+        .kab-collection-notice.is-new { border-color:rgba(74,222,128,.34); background:rgba(74,222,128,.09); }
+        .kab-collection-notice b { display:block; color:#d9fbff; font-size:8px; letter-spacing:.08em; }
+        .kab-collection-notice.is-new b { color:#bbf7d0; }
+        .kab-collection-notice span { display:block; margin-top:2px; color:rgba(255,255,255,.56); font-size:8px; }
+        .kab-result-stats { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:5px; margin-top:9px; }
+        .kab-result-stats span { border-radius:8px; background:rgba(255,255,255,.045); padding:6px 5px; color:rgba(255,255,255,.45); font-size:7px; text-align:center; }
+        .kab-result-stats strong { display:block; margin-top:2px; color:white; font-size:11px; }
+        @media (max-width:850px) {
+          .kab-result-card { grid-template-columns:88px minmax(0,1fr) 88px; min-height:142px; gap:7px; padding:8px; }
+          .kab-result-fighter { min-height:124px; }
+          .kab-result-fighter img { height:112px; }
+          .kab-result-copy h3 { font-size:17px; }
+          .kab-result-copy > strong { font-size:11px; }
+          .kab-collection-notice { margin-top:5px; padding:5px 6px; }
+          .kab-collection-notice span { display:none; }
+          .kab-result-stats { gap:3px; margin-top:5px; }
+          .kab-result-stats span { padding:4px 2px; font-size:5px; }
+          .kab-result-stats strong { font-size:8px; }
+        }
       `}</style>
     </section>
   );

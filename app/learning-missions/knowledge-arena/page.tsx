@@ -214,6 +214,28 @@ type KnowledgeArenaBattleResultState = {
   collection: KnowledgeArenaCollectionGrant | null;
 };
 
+function normalizeBattleCombatLog(
+  answers: Array<{ question_id: string }>,
+  combatLog: Array<{ question_id: string; shots_fired: number }>
+) {
+  const shotsByQuestion = new Map<string, number>();
+
+  for (const entry of combatLog) {
+    if (!entry?.question_id) continue;
+    shotsByQuestion.set(
+      String(entry.question_id),
+      Math.max(0, Math.floor(Number(entry.shots_fired || 0)))
+    );
+  }
+
+  // The server requires exactly one combat row for every genuine answered question.
+  // Normalising here removes duplicates and safely fills a zero-shot row when needed.
+  return answers.map((answer) => ({
+    question_id: String(answer.question_id),
+    shots_fired: shotsByQuestion.get(String(answer.question_id)) ?? 0,
+  }));
+}
+
 type LobbyPlayer = {
   id: string;
   lobby_id: string;
@@ -574,6 +596,8 @@ export default function KnowledgeArenaPage() {
 
   const recordedAnswersRef = useRef<RecordedArenaAnswer[]>([]);
   const attemptSaveStartedRef = useRef(false);
+  const monsterClaimStartedRef = useRef(false);
+  const currentBattleCollectionRef = useRef<KnowledgeArenaCollectionGrant | null>(null);
   const gameplayBlockedRef = useRef(false);
   const pendingBattleTransitionRef = useRef(false);
 
@@ -629,6 +653,60 @@ export default function KnowledgeArenaPage() {
     onBattleTransitionComplete: handleBattleTransitionComplete,
     onBattleDefeat: handleBattleDefeat,
   });
+
+  useEffect(() => {
+    if (
+      stage !== "solo-quiz" ||
+      !userId ||
+      !battle.battleId ||
+      !battle.monster ||
+      battle.phase !== "monster_defeated" ||
+      monsterClaimStartedRef.current
+    ) {
+      return;
+    }
+
+    monsterClaimStartedRef.current = true;
+
+    void (async () => {
+      const answerPayload = getAnswerPayload();
+      const latestBattle = battle.getSnapshot();
+      const combatLog = normalizeBattleCombatLog(
+        answerPayload,
+        latestBattle.combatLog
+      );
+
+      const { data, error } = await supabase.rpc(
+        "claim_knowledge_arena_monster_defeat_v1",
+        {
+          p_battle_id: latestBattle.battleId ?? battle.battleId,
+          p_answers: answerPayload,
+          p_combat_log: combatLog,
+        }
+      );
+
+      if (error || !data) {
+        // Final save still performs the same authoritative collection grant,
+        // so a transient claim failure does not end the quiz.
+        console.warn("Could not immediately claim defeated monster:", error);
+        return;
+      }
+
+      const grant = data as KnowledgeArenaCollectionGrant;
+      currentBattleCollectionRef.current = grant;
+      setLastBattleResult((current) =>
+        current?.outcome === "victory" ? { ...current, collection: grant } : current
+      );
+      window.dispatchEvent(new Event("dreamscape-collections-updated"));
+    })();
+  }, [
+    stage,
+    userId,
+    battle.battleId,
+    battle.monster?.id,
+    battle.phase,
+    battle.getSnapshot,
+  ]);
 
   const currentQuestion = questions[questionIndex];
   const selectedTopicInfo = topics.find((topic) => topic.id === selectedTopic);
@@ -1130,6 +1208,8 @@ export default function KnowledgeArenaPage() {
     setTokensEarned(0);
     setRewardSaved(false);
     setLastBattleResult(null);
+    currentBattleCollectionRef.current = null;
+    monsterClaimStartedRef.current = false;
     setEncounterRevealIndex(0);
     setEncounterLocked(false);
     recordedAnswersRef.current = [];
@@ -1531,6 +1611,11 @@ export default function KnowledgeArenaPage() {
     }
 
     const answerPayload = getAnswerPayload();
+    const latestBattle = mode === "solo" ? battle.getSnapshot() : null;
+    const normalizedCombatLog =
+      mode === "solo"
+        ? normalizeBattleCombatLog(answerPayload, latestBattle?.combatLog ?? [])
+        : [];
 
     const selectionContext =
       mode === "solo"
@@ -1569,8 +1654,8 @@ export default function KnowledgeArenaPage() {
             p_challenge_mode: challengeMode,
             p_selection_context: selectionContext,
             p_completion_status: completionStatus,
-            p_battle_id: battle.battleId,
-            p_combat_log: battle.combatLog,
+            p_battle_id: latestBattle?.battleId ?? battle.battleId,
+            p_combat_log: normalizedCombatLog,
           }
         : {
             p_topic: attemptTopic,
@@ -1654,28 +1739,38 @@ export default function KnowledgeArenaPage() {
     );
 
     const authoritativeBattle = saved.battle ?? receipt.battle ?? null;
-    if (mode === "solo" && battle.monster) {
-      setLastBattleResult({
-        outcome:
-          authoritativeBattle?.outcome ??
-          (battle.monsterHp <= 0
-            ? "victory"
-            : battle.novaHp <= 0
-            ? "defeat"
-            : "escaped"),
-        novaHp: Number(authoritativeBattle?.nova_hp ?? battle.novaHp),
-        monsterHp: Number(authoritativeBattle?.monster_hp ?? battle.monsterHp),
-        damageDealt: Number(
-          authoritativeBattle?.damage_dealt ?? battle.damageDealt
-        ),
-        damageReceived: Number(
-          authoritativeBattle?.damage_received ?? battle.damageReceived
-        ),
-        revivesUsed: Number(
-          authoritativeBattle?.revives_used ?? battle.revivesUsed
-        ),
-        collection: saved.collection ?? null,
-      });
+    if (mode === "solo") {
+      const finalLocalBattle = battle.getSnapshot();
+      const finalCollection =
+        saved.collection ?? currentBattleCollectionRef.current ?? null;
+
+      if (finalCollection) {
+        currentBattleCollectionRef.current = finalCollection;
+      }
+
+      if (finalLocalBattle.monster) {
+        setLastBattleResult({
+          outcome:
+            authoritativeBattle?.outcome ??
+            (finalLocalBattle.monsterHp <= 0
+              ? "victory"
+              : finalLocalBattle.novaHp <= 0
+              ? "defeat"
+              : "escaped"),
+          novaHp: Number(authoritativeBattle?.nova_hp ?? finalLocalBattle.novaHp),
+          monsterHp: Number(authoritativeBattle?.monster_hp ?? finalLocalBattle.monsterHp),
+          damageDealt: Number(
+            authoritativeBattle?.damage_dealt ?? finalLocalBattle.damageDealt
+          ),
+          damageReceived: Number(
+            authoritativeBattle?.damage_received ?? finalLocalBattle.damageReceived
+          ),
+          revivesUsed: Number(
+            authoritativeBattle?.revives_used ?? finalLocalBattle.revivesUsed
+          ),
+          collection: finalCollection,
+        });
+      }
     }
 
     if (mode === "solo" && savedReward > 0) {
@@ -1832,10 +1927,11 @@ export default function KnowledgeArenaPage() {
         ? calculateTokenReward(localSummary.score, localSummary.correctCount)
         : 0;
 
+    const latestBattle = battle.getSnapshot();
     const localOutcome =
-      battle.monsterHp <= 0
+      latestBattle.monsterHp <= 0
         ? "victory"
-        : battle.novaHp <= 0
+        : latestBattle.novaHp <= 0
         ? "defeat"
         : "escaped";
 
@@ -1845,12 +1941,12 @@ export default function KnowledgeArenaPage() {
     setRewardSaved(false);
     setLastBattleResult({
       outcome: localOutcome,
-      novaHp: battle.novaHp,
-      monsterHp: battle.monsterHp,
-      damageDealt: battle.damageDealt,
-      damageReceived: battle.damageReceived,
-      revivesUsed: battle.revivesUsed,
-      collection: null,
+      novaHp: latestBattle.novaHp,
+      monsterHp: latestBattle.monsterHp,
+      damageDealt: latestBattle.damageDealt,
+      damageReceived: latestBattle.damageReceived,
+      revivesUsed: latestBattle.revivesUsed,
+      collection: currentBattleCollectionRef.current,
     });
     setAttemptSaveMessage(
       userId
@@ -1909,6 +2005,8 @@ export default function KnowledgeArenaPage() {
     battle.resetBattle();
     resetQuestionState(soloTimerSeconds);
     setLastBattleResult(null);
+    currentBattleCollectionRef.current = null;
+    monsterClaimStartedRef.current = false;
     setStage("solo-mode");
   }
 
@@ -2003,6 +2101,8 @@ export default function KnowledgeArenaPage() {
     setEncounterRevealIndex(0);
     setEncounterLocked(false);
     setLastBattleResult(null);
+    currentBattleCollectionRef.current = null;
+    monsterClaimStartedRef.current = false;
     setIsAdminPaused(false);
     pendingBattleTransitionRef.current = false;
     battle.resetBattle();
