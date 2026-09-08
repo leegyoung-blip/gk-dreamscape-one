@@ -168,6 +168,7 @@ type CategoriesStage =
   | "multiplayer-create"
   | "multiplayer-join"
   | "multiplayer-waiting"
+  | "multiplayer-topic-select"
   | "multiplayer-playing"
   | "multiplayer-answered"
   | "multiplayer-finished";
@@ -1265,7 +1266,8 @@ export default function MiloCategoriesPage() {
 
     if (
       multiplayerLobby.status === "playing" &&
-      categoriesStage === "multiplayer-waiting"
+      categoriesStage === "multiplayer-waiting" &&
+      multiplayerPlayer?.status !== "finished"
     ) {
       prepareMultiplayerGame(multiplayerLobby);
     }
@@ -1276,7 +1278,7 @@ export default function MiloCategoriesPage() {
     ) {
       setCategoriesStage("multiplayer-finished");
     }
-  }, [multiplayerLobby?.status, categoriesStage]);
+  }, [multiplayerLobby?.status, categoriesStage, multiplayerPlayer?.status]);
 
   useEffect(() => {
     if (categoriesStage !== "playing") return;
@@ -2561,12 +2563,142 @@ export default function MiloCategoriesPage() {
 
     await supabase
       .from("milo_category_lobbies")
+      .update({ status: "finished" })
+      .eq("id", multiplayerLobby.id);
+
+    await supabase
+      .from("milo_category_lobby_players")
+      .update({ status: "finished" })
+      .eq("lobby_id", multiplayerLobby.id);
+
+    await loadLobbyState(multiplayerLobby.id);
+  }
+
+  async function endMultiplayerLobbyAndExit() {
+    if (!multiplayerLobby || !isMultiplayerHost) return;
+    await finishLobbyForEveryone();
+    resetMultiplayerState();
+    setCategoriesStage("multiplayer-menu");
+  }
+
+  function openMultiplayerTopicSelect() {
+    if (!multiplayerLobby || !isMultiplayerHost) return;
+    setSelectedCategory(multiplayerLobby.category || selectedCategory);
+    setMultiplayerQuestionTimerSeconds(
+      multiplayerLobby.question_timer_seconds === 10 ? 10 : 20,
+    );
+    setMultiplayerMessage("");
+    setCategoriesStage("multiplayer-topic-select");
+  }
+
+  async function applyNewMultiplayerTopic() {
+    if (!multiplayerLobby || !isMultiplayerHost) return;
+
+    setIsCreatingLobby(true);
+    setMultiplayerMessage("");
+
+    const { data: questionsData, error: questionsError } = await supabase.rpc(
+      "get_milo_category_quiz",
+      {
+        p_category: selectedCategory,
+        p_limit: 10,
+      },
+    );
+
+    if (questionsError) {
+      setMultiplayerMessage(`Could not load the new topic: ${questionsError.message}`);
+      setIsCreatingLobby(false);
+      return;
+    }
+
+    const questions = (questionsData || []) as CategoryQuizQuestion[];
+
+    if (questions.length < 10) {
+      setMultiplayerMessage(
+        `This category needs at least 10 active questions. It currently has ${questions.length}.`,
+      );
+      setIsCreatingLobby(false);
+      return;
+    }
+
+    const { error: lobbyError } = await supabase
+      .from("milo_category_lobbies")
       .update({
-        status: "finished",
+        category: selectedCategory,
+        question_ids: questions.map((question) => question.id),
+        question_timer_seconds: multiplayerQuestionTimerSeconds,
+        status: "waiting",
       })
       .eq("id", multiplayerLobby.id);
 
+    if (lobbyError) {
+      setMultiplayerMessage(`Could not update lobby: ${lobbyError.message}`);
+      setIsCreatingLobby(false);
+      return;
+    }
+
+    const { error: playersError } = await supabase
+      .from("milo_category_lobby_players")
+      .update({
+        status: "waiting",
+        score: 0,
+        points: 0,
+        answers: [],
+      })
+      .eq("lobby_id", multiplayerLobby.id);
+
+    if (playersError) {
+      setMultiplayerMessage(`Topic changed, but player reset failed: ${playersError.message}`);
+      setIsCreatingLobby(false);
+      return;
+    }
+
+    setMultiplayerQuestions(questions);
+    setMultiplayerQuestionIndex(0);
+    setMultiplayerSelectedAnswer(null);
+    setMultiplayerScore(0);
+    setMultiplayerPoints(0);
+    setMultiplayerLastQuestionPoints(0);
+    setMultiplayerCountdown(multiplayerQuestionTimerSeconds);
+    setMultiplayerNextCountdown(3);
+    setMultiplayerAnswerDrafts([]);
+    setSavedMultiplayerAttemptId(null);
+    setIsSavingMultiplayerAnalytics(false);
+
     await loadLobbyState(multiplayerLobby.id);
+    setCategoriesStage("multiplayer-waiting");
+    setIsCreatingLobby(false);
+  }
+
+  async function leaveMultiplayerLobby() {
+    if (multiplayerPlayer) {
+      const { error } = await supabase
+        .from("milo_category_lobby_players")
+        .delete()
+        .eq("id", multiplayerPlayer.id);
+
+      if (error) {
+        console.warn("Could not leave multiplayer lobby:", error.message);
+      }
+    }
+
+    resetMultiplayerState();
+    setCategoriesStage("multiplayer-menu");
+  }
+
+  function backToMultiplayerLobby() {
+    if (!multiplayerLobby || multiplayerLobby.status === "finished") {
+      resetMultiplayerState();
+      setCategoriesStage("multiplayer-menu");
+      return;
+    }
+
+    setMultiplayerMessage(
+      multiplayerLobby.status === "playing"
+        ? "Waiting for the host to choose the next topic."
+        : "",
+    );
+    setCategoriesStage("multiplayer-waiting");
   }
 
   function getCategoryOptionClass(optionLetter: "A" | "B" | "C" | "D") {
@@ -3311,11 +3443,93 @@ export default function MiloCategoriesPage() {
                 </div>
               )}
 
+              {categoriesStage === "multiplayer-topic-select" && multiplayerLobby && isMultiplayerHost && (
+                <div className="form-stage stage-fill flex h-full min-h-0 flex-col">
+                  <button
+                    type="button"
+                    onClick={() => setCategoriesStage("multiplayer-finished")}
+                    className="stage-back self-start text-sm font-bold text-[#ffd18a]"
+                  >
+                    ← Back to results
+                  </button>
+
+                  <div className="form-grid mt-7 grid min-h-0 flex-1 content-center gap-5">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ffd18a]">
+                        Next Expedition
+                      </p>
+                      <h2 className="mt-2 text-3xl font-black text-white">Choose a new topic</h2>
+                      <p className="mt-2 text-sm text-white/52">
+                        Lobby {multiplayerLobby.code} stays together. Everyone will return to the lobby before the next race starts.
+                      </p>
+                    </div>
+
+                    <label className="grid gap-3">
+                      <span className="text-xs font-bold uppercase tracking-[0.18em] text-white/44">
+                        Topic
+                      </span>
+                      <select
+                        value={selectedCategory}
+                        onChange={(event) => setSelectedCategory(event.target.value)}
+                        className="form-control h-12 rounded-[14px] border border-white/14 bg-[#050d1c] px-4 text-white outline-none"
+                      >
+                        {availableCategories.map((category) => (
+                          <option key={category} value={category}>
+                            {category}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <div className="grid gap-3">
+                      <span className="text-xs font-bold uppercase tracking-[0.18em] text-white/44">
+                        Question Timer
+                      </span>
+                      <div className="grid grid-cols-2 gap-2">
+                        {([10, 20] as const).map((seconds) => (
+                          <button
+                            key={seconds}
+                            type="button"
+                            onClick={() => setMultiplayerQuestionTimerSeconds(seconds)}
+                            className={`min-h-[46px] rounded-[12px] px-4 text-xs font-black uppercase tracking-[0.1em] transition ${
+                              multiplayerQuestionTimerSeconds === seconds
+                                ? "border-2 border-[#ffd18a]/75 bg-[#ffd18a]/14 text-[#ffd18a]"
+                                : "border border-white/12 bg-[#050d1c] text-white/64"
+                            }`}
+                          >
+                            {seconds} seconds
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => void applyNewMultiplayerTopic()}
+                      disabled={isCreatingLobby}
+                      className="primary-action w-full rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white disabled:cursor-wait disabled:opacity-50"
+                    >
+                      {isCreatingLobby ? "Preparing Topic..." : "Set Topic & Return to Lobby"}
+                    </button>
+
+                    {multiplayerMessage && (
+                      <p className="text-sm font-bold text-[#ffd18a]">{multiplayerMessage}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {categoriesStage === "multiplayer-waiting" && multiplayerLobby && (
                 <div className="waiting-stage stage-fill flex h-full min-h-0 flex-col">
                   <button
                     type="button"
-                    onClick={resetCategoriesQuiz}
+                    onClick={() => {
+                      if (isMultiplayerHost) {
+                        void endMultiplayerLobbyAndExit();
+                      } else {
+                        void leaveMultiplayerLobby();
+                      }
+                    }}
                     className="stage-back self-start text-sm font-bold text-[#ffd18a]"
                   >
                     ← Leave lobby
@@ -3357,7 +3571,7 @@ export default function MiloCategoriesPage() {
                     </div>
                   </div>
 
-                  {isMultiplayerHost ? (
+                  {isMultiplayerHost && multiplayerLobby.status === "waiting" ? (
                     <button
                       type="button"
                       onClick={startMultiplayerGame}
@@ -3367,7 +3581,9 @@ export default function MiloCategoriesPage() {
                     </button>
                   ) : (
                     <p className="waiting-message mt-5 shrink-0 rounded-[24px] border border-[#ffd18a]/24 bg-[#ffd18a]/10 p-5 text-sm font-bold text-[#ffd18a]">
-                      Waiting for the host to start the game.
+                      {multiplayerLobby.status === "playing" || multiplayerPlayer?.status === "finished"
+                        ? "Waiting for the host to choose the next topic."
+                        : "Waiting for the host to start the game."}
                     </p>
                   )}
                 </div>
@@ -4074,8 +4290,10 @@ export default function MiloCategoriesPage() {
                   currentUserId={userAccess.userId}
                   isHost={Boolean(isMultiplayerHost)}
                   lobbyFinished={multiplayerLobby?.status === "finished"}
-                  onEndLobby={() => void finishLobbyForEveryone()}
-                  onBack={resetCategoriesQuiz}
+                  onEndLobby={() => void endMultiplayerLobbyAndExit()}
+                  onChooseNewTopic={openMultiplayerTopicSelect}
+                  onLeaveLobby={() => void leaveMultiplayerLobby()}
+                  onBackToLobby={backToMultiplayerLobby}
                 />
               )}
 

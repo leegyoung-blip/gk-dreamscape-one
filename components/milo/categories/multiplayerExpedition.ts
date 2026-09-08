@@ -9,23 +9,71 @@ export type MultiplayerVehicleVariant = {
   key: string;
   color: string;
   softColor: string;
-  // When the dedicated recoloured rover PNGs are created, set these paths
-  // and switch `useDedicatedAsset` to true. Until then the shared rover art
-  // is used with a strongly coloured ring/nameplate so every player remains
-  // visually distinct without distorting Milo, the brass, tyres or lights.
+  sideAsset: string;
   topAsset: string;
-  useDedicatedAsset: boolean;
+  useDedicatedTopAsset: boolean;
 };
 
+const EXPEDITION_BASE = "/milo-world/activities/categories/expedition";
+const VEHICLE_BASE = `${EXPEDITION_BASE}/vehicles`;
+
 export const MULTIPLAYER_VEHICLE_VARIANTS: MultiplayerVehicleVariant[] = [
-  { key: "blue", color: "#60a5fa", softColor: "rgba(96,165,250,.28)", topAsset: "/milo-world/activities/categories/expedition/milo-vehicle-top.png", useDedicatedAsset: false },
-  { key: "emerald", color: "#34d399", softColor: "rgba(52,211,153,.28)", topAsset: "/milo-world/activities/categories/expedition/milo-vehicle-top.png", useDedicatedAsset: false },
-  { key: "crimson", color: "#fb7185", softColor: "rgba(251,113,133,.28)", topAsset: "/milo-world/activities/categories/expedition/milo-vehicle-top.png", useDedicatedAsset: false },
-  { key: "violet", color: "#c084fc", softColor: "rgba(192,132,252,.28)", topAsset: "/milo-world/activities/categories/expedition/milo-vehicle-top.png", useDedicatedAsset: false },
-  { key: "amber", color: "#fbbf24", softColor: "rgba(251,191,36,.28)", topAsset: "/milo-world/activities/categories/expedition/milo-vehicle-top.png", useDedicatedAsset: false },
-  { key: "cyan", color: "#22d3ee", softColor: "rgba(34,211,238,.28)", topAsset: "/milo-world/activities/categories/expedition/milo-vehicle-top.png", useDedicatedAsset: false },
-  { key: "rose", color: "#f472b6", softColor: "rgba(244,114,182,.28)", topAsset: "/milo-world/activities/categories/expedition/milo-vehicle-top.png", useDedicatedAsset: false },
-  { key: "silver", color: "#cbd5e1", softColor: "rgba(203,213,225,.28)", topAsset: "/milo-world/activities/categories/expedition/milo-vehicle-top.png", useDedicatedAsset: false },
+  {
+    key: "blue",
+    color: "#60a5fa",
+    softColor: "rgba(96,165,250,.28)",
+    sideAsset: `${VEHICLE_BASE}/vehicle-body-blue.png`,
+    topAsset: `${EXPEDITION_BASE}/milo-vehicle-top.png`,
+    useDedicatedTopAsset: false,
+  },
+  {
+    key: "emerald",
+    color: "#34d399",
+    softColor: "rgba(52,211,153,.28)",
+    sideAsset: `${VEHICLE_BASE}/vehicle-body-emerald.png`,
+    topAsset: `${EXPEDITION_BASE}/milo-vehicle-top.png`,
+    useDedicatedTopAsset: false,
+  },
+  {
+    key: "crimson",
+    color: "#fb7185",
+    softColor: "rgba(251,113,133,.28)",
+    sideAsset: `${VEHICLE_BASE}/vehicle-body-crimson.png`,
+    topAsset: `${EXPEDITION_BASE}/milo-vehicle-top.png`,
+    useDedicatedTopAsset: false,
+  },
+  {
+    key: "violet",
+    color: "#c084fc",
+    softColor: "rgba(192,132,252,.28)",
+    sideAsset: `${VEHICLE_BASE}/vehicle-body-violet.png`,
+    topAsset: `${EXPEDITION_BASE}/milo-vehicle-top.png`,
+    useDedicatedTopAsset: false,
+  },
+  {
+    key: "amber",
+    color: "#fbbf24",
+    softColor: "rgba(251,191,36,.28)",
+    sideAsset: `${VEHICLE_BASE}/vehicle-body-amber.png`,
+    topAsset: `${EXPEDITION_BASE}/milo-vehicle-top.png`,
+    useDedicatedTopAsset: false,
+  },
+  {
+    key: "cyan",
+    color: "#22d3ee",
+    softColor: "rgba(34,211,238,.28)",
+    sideAsset: `${VEHICLE_BASE}/vehicle-body-cyan.png`,
+    topAsset: `${EXPEDITION_BASE}/milo-vehicle-top.png`,
+    useDedicatedTopAsset: false,
+  },
+  {
+    key: "rose",
+    color: "#f472b6",
+    softColor: "rgba(244,114,182,.28)",
+    sideAsset: `${VEHICLE_BASE}/vehicle-body-rose.png`,
+    topAsset: `${EXPEDITION_BASE}/milo-vehicle-top.png`,
+    useDedicatedTopAsset: false,
+  },
 ];
 
 function stablePlayerHash(value: string) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import {
   EXPEDITION_LANDMARKS,
@@ -19,7 +19,9 @@ type MultiplayerExpeditionCompleteProps = {
   isHost: boolean;
   lobbyFinished: boolean;
   onEndLobby: () => void;
-  onBack: () => void;
+  onChooseNewTopic: () => void;
+  onLeaveLobby: () => void;
+  onBackToLobby: () => void;
 };
 
 const MAP_IMAGE = "/milo-world/activities/categories/expedition/world-map.png";
@@ -40,8 +42,11 @@ export default function MultiplayerExpeditionComplete({
   isHost,
   lobbyFinished,
   onEndLobby,
-  onBack,
+  onChooseNewTopic,
+  onLeaveLobby,
+  onBackToLobby,
 }: MultiplayerExpeditionCompleteProps) {
+  const [resultsOpen, setResultsOpen] = useState(true);
   const rankedPlayers = useMemo(
     () => [...players].sort((a, b) => b.points - a.points || b.score - a.score),
     [players],
@@ -134,8 +139,17 @@ export default function MultiplayerExpeditionComplete({
         })}
       </div>
 
-      <section className="multiplayer-complete-panel">
-        <div className="multiplayer-complete-heading">
+      {resultsOpen ? (
+        <section className="multiplayer-complete-panel">
+          <button
+            type="button"
+            className="multiplayer-complete-close"
+            onClick={() => setResultsOpen(false)}
+            aria-label="Close results and view the map"
+          >
+            ×
+          </button>
+          <div className="multiplayer-complete-heading">
           <div>
             <p>{category} · Multiplayer Expedition</p>
             <h1>Expedition Results</h1>
@@ -171,17 +185,37 @@ export default function MultiplayerExpeditionComplete({
           })}
         </div>
 
-        <div className="multiplayer-complete-actions">
-          {isHost && !lobbyFinished && (
-            <button type="button" className="is-secondary" onClick={onEndLobby}>
-              End Lobby for Everyone
-            </button>
-          )}
-          <button type="button" className="is-primary" onClick={onBack}>
-            Back to Mode Select
-          </button>
-        </div>
-      </section>
+          <div className="multiplayer-complete-actions">
+            {isHost ? (
+              <>
+                <button type="button" className="is-secondary" onClick={onEndLobby}>
+                  End Lobby
+                </button>
+                <button type="button" className="is-primary" onClick={onChooseNewTopic} disabled={lobbyFinished}>
+                  Choose New Topic
+                </button>
+              </>
+            ) : (
+              <>
+                <button type="button" className="is-secondary" onClick={onLeaveLobby}>
+                  Leave Lobby
+                </button>
+                <button type="button" className="is-primary" onClick={onBackToLobby}>
+                  Back to Lobby
+                </button>
+              </>
+            )}
+          </div>
+        </section>
+      ) : (
+        <button
+          type="button"
+          className="multiplayer-complete-show-results"
+          onClick={() => setResultsOpen(true)}
+        >
+          Show Results
+        </button>
+      )}
 
       <style jsx>{`
         .multiplayer-complete-root {
@@ -259,6 +293,8 @@ export default function MultiplayerExpeditionComplete({
           width: clamp(54px, 6.4vw, 104px);
           transform: translate(-50%, -50%);
           pointer-events: none;
+          transition: left 1050ms cubic-bezier(.18,.78,.22,1), top 1050ms cubic-bezier(.18,.78,.22,1);
+          will-change: left, top;
         }
 
         .multiplayer-complete-player-glow {
@@ -331,6 +367,49 @@ export default function MultiplayerExpeditionComplete({
           padding: 20px;
           box-shadow: 0 26px 80px rgba(0,0,0,0.48);
           backdrop-filter: blur(18px);
+        }
+
+        .multiplayer-complete-close {
+          position: absolute;
+          top: 12px;
+          right: 12px;
+          z-index: 4;
+          display: grid;
+          width: 34px;
+          height: 34px;
+          place-items: center;
+          border: 1px solid rgba(255,255,255,0.16);
+          border-radius: 999px;
+          background: rgba(2,9,23,0.88);
+          color: rgba(255,255,255,0.78);
+          font-size: 22px;
+          line-height: 1;
+          cursor: pointer;
+        }
+
+        .multiplayer-complete-close:hover {
+          border-color: rgba(255,209,138,0.48);
+          color: #ffd18a;
+        }
+
+        .multiplayer-complete-show-results {
+          position: absolute;
+          right: 18px;
+          top: 18px;
+          z-index: 50;
+          min-height: 40px;
+          border: 1px solid rgba(255,209,138,0.38);
+          border-radius: 999px;
+          background: rgba(2,9,23,0.90);
+          padding: 8px 14px;
+          color: #ffd18a;
+          font-size: 9px;
+          font-weight: 950;
+          letter-spacing: .08em;
+          text-transform: uppercase;
+          cursor: pointer;
+          box-shadow: 0 10px 28px rgba(0,0,0,.3);
+          backdrop-filter: blur(10px);
         }
 
         .multiplayer-complete-heading {
@@ -475,10 +554,21 @@ export default function MultiplayerExpeditionComplete({
           color: #ffd18a;
         }
 
+        .multiplayer-complete-actions button:disabled {
+          cursor: not-allowed;
+          opacity: .42;
+        }
+
         .multiplayer-complete-actions .is-primary {
           border: 1px solid rgba(255,209,138,0.42);
           background: linear-gradient(90deg, #c47a25, #e5b75e);
           color: white;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .multiplayer-complete-player {
+            transition: none;
+          }
         }
 
         @media (max-width: 900px) and (orientation: landscape) {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { EXPEDITION_METRES_PER_POINT, MAX_EXPEDITION_METRES, getExpeditionPose } from "./expeditionLandmarks";
 import type { MultiplayerExpeditionPlayer } from "./multiplayerExpedition";
@@ -12,6 +13,7 @@ type MultiplayerRaceMapProps = {
 };
 
 const MAP_IMAGE = "/milo-world/activities/categories/expedition/world-map.png";
+const REMOTE_MOVE_DURATION_MS = 1050;
 
 function clampMetres(points: number) {
   return Math.min(MAX_EXPEDITION_METRES, Math.max(0, points * EXPEDITION_METRES_PER_POINT));
@@ -22,13 +24,83 @@ export default function MultiplayerRaceMap({
   currentUserId,
   currentDisplayPoints,
 }: MultiplayerRaceMapProps) {
-  const resolvedPlayers = players.map((player) => ({
-    ...player,
-    points:
-      currentUserId && player.userId === currentUserId && currentDisplayPoints !== undefined
-        ? currentDisplayPoints
-        : player.points,
-  }));
+  const [remoteDisplayPoints, setRemoteDisplayPoints] = useState<Record<string, number>>(() =>
+    Object.fromEntries(players.map((player) => [player.userId, player.points])),
+  );
+  const remoteDisplayPointsRef = useRef(remoteDisplayPoints);
+  const animationFrameRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    remoteDisplayPointsRef.current = remoteDisplayPoints;
+  }, [remoteDisplayPoints]);
+
+  useEffect(() => {
+    if (animationFrameRef.current !== null) {
+      window.cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+
+    const startValues = { ...remoteDisplayPointsRef.current };
+    const targetValues: Record<string, number> = {};
+    let hasMovement = false;
+
+    players.forEach((player) => {
+      if (player.userId === currentUserId) return;
+      const start = startValues[player.userId] ?? player.points;
+      targetValues[player.userId] = player.points;
+      if (Math.abs(player.points - start) > 0.01) hasMovement = true;
+    });
+
+    if (!hasMovement) {
+      setRemoteDisplayPoints((current) => {
+        const next = { ...current };
+        players.forEach((player) => {
+          if (player.userId !== currentUserId && next[player.userId] === undefined) {
+            next[player.userId] = player.points;
+          }
+        });
+        return next;
+      });
+      return;
+    }
+
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) {
+      setRemoteDisplayPoints((current) => ({ ...current, ...targetValues }));
+      return;
+    }
+
+    const startedAt = performance.now();
+
+    const animate = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / REMOTE_MOVE_DURATION_MS);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const next = { ...remoteDisplayPointsRef.current };
+
+      Object.entries(targetValues).forEach(([userId, target]) => {
+        const start = startValues[userId] ?? target;
+        next[userId] = start + (target - start) * eased;
+      });
+
+      remoteDisplayPointsRef.current = next;
+      setRemoteDisplayPoints(next);
+
+      if (progress < 1) {
+        animationFrameRef.current = window.requestAnimationFrame(animate);
+      } else {
+        animationFrameRef.current = null;
+      }
+    };
+
+    animationFrameRef.current = window.requestAnimationFrame(animate);
+
+    return () => {
+      if (animationFrameRef.current !== null) {
+        window.cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+    };
+  }, [players, currentUserId]);
 
   return (
     <aside className="multiplayer-race-map" aria-label="Live multiplayer expedition map">
@@ -39,9 +111,13 @@ export default function MultiplayerRaceMap({
         <span>{players.length} player{players.length === 1 ? "" : "s"}</span>
       </div>
 
-      {resolvedPlayers.map((player) => {
+      {players.map((player) => {
+        const displayPoints =
+          player.userId === currentUserId && currentDisplayPoints !== undefined
+            ? currentDisplayPoints
+            : remoteDisplayPoints[player.userId] ?? player.points;
         const variant = getMultiplayerVehicleVariant(player.userId);
-        const pose = getExpeditionPose(clampMetres(player.points));
+        const pose = getExpeditionPose(clampMetres(displayPoints));
         const isYou = player.userId === currentUserId;
 
         return (
@@ -137,7 +213,7 @@ export default function MultiplayerRaceMap({
           z-index: 3;
           width: clamp(25px, 3.2vw, 48px);
           transform: translate(-50%, -50%);
-          transition: left 900ms cubic-bezier(.18,.78,.22,1), top 900ms cubic-bezier(.18,.78,.22,1);
+          will-change: left, top;
         }
 
         .multiplayer-race-player-glow {
@@ -164,7 +240,7 @@ export default function MultiplayerRaceMap({
           height: auto;
           filter: drop-shadow(0 3px 3px rgba(0,0,0,0.48));
           transform-origin: 50% 50%;
-          transition: transform 400ms ease;
+          transition: transform 420ms ease;
         }
 
         .multiplayer-race-player-label {
@@ -218,7 +294,6 @@ export default function MultiplayerRaceMap({
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .multiplayer-race-player,
           .multiplayer-race-player-vehicle {
             transition: none;
           }

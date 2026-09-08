@@ -74,6 +74,19 @@ const WORLD_SCENES = [
   },
 ] as const;
 
+const EXPEDITION_EFFECTS = {
+  cruiseDust: "/milo-world/activities/categories/expedition/effects/cruise-dust.png",
+  boostTrail: "/milo-world/activities/categories/expedition/effects/boost-trail.png",
+  turboTrail: "/milo-world/activities/categories/expedition/effects/turbo-trail.png",
+  stallSmoke: "/milo-world/activities/categories/expedition/effects/stall-smoke.png",
+  turboBurst: "/milo-world/activities/categories/expedition/effects/turbo-burst.png",
+  wheelDust: "/milo-world/activities/categories/expedition/effects/wheel-dust.png",
+  correctSpark: "/milo-world/activities/categories/expedition/effects/correct-spark.png",
+  wrongSputter: "/milo-world/activities/categories/expedition/effects/wrong-sputter.png",
+} as const;
+
+const DEFAULT_SIDE_VEHICLE = "/milo-world/activities/categories/expedition/vehicles/vehicle-body-blue.png";
+
 function getExpeditionMotion(points: number): ExpeditionMotion {
   if (points <= 0) return "stall";
   if (points >= 80) return "turbo";
@@ -144,6 +157,7 @@ export default function ExpeditionQuiz({
   const currentPlayerVariant = currentPlayerId
     ? getMultiplayerVehicleVariant(currentPlayerId)
     : null;
+  const currentVehicleBodyAsset = currentPlayerVariant?.sideAsset || DEFAULT_SIDE_VEHICLE;
 
   const options = useMemo(
     () =>
@@ -516,6 +530,14 @@ export default function ExpeditionQuiz({
         </div>
       </div>
 
+      {racePlayers.length > 0 && (
+        <MultiplayerRaceMap
+          players={racePlayers}
+          currentUserId={currentPlayerId}
+          currentDisplayPoints={displayPoints}
+        />
+      )}
+
       {paused && (
         <div className="expedition-paused-overlay" role="status" aria-live="polite">
           <div>
@@ -534,8 +556,14 @@ export default function ExpeditionQuiz({
           "--player-soft": currentPlayerVariant.softColor,
         } as CSSProperties) : undefined}
       >
-        <div className="expedition-dust expedition-dust--one" />
-        <div className="expedition-dust expedition-dust--two" />
+        <img src={EXPEDITION_EFFECTS.cruiseDust} alt="" draggable={false} className="expedition-effect expedition-effect--cruise" />
+        <img src={EXPEDITION_EFFECTS.boostTrail} alt="" draggable={false} className="expedition-effect expedition-effect--boost" />
+        <img src={EXPEDITION_EFFECTS.turboTrail} alt="" draggable={false} className="expedition-effect expedition-effect--turbo" />
+        <img src={EXPEDITION_EFFECTS.wheelDust} alt="" draggable={false} className="expedition-effect expedition-effect--wheel-dust" />
+        <img src={EXPEDITION_EFFECTS.turboBurst} alt="" draggable={false} className="expedition-effect expedition-effect--turbo-burst" />
+        <img src={EXPEDITION_EFFECTS.stallSmoke} alt="" draggable={false} className="expedition-effect expedition-effect--stall-smoke" />
+        <img src={EXPEDITION_EFFECTS.wrongSputter} alt="" draggable={false} className="expedition-effect expedition-effect--wrong-sputter" />
+        <img src={EXPEDITION_EFFECTS.correctSpark} alt="" draggable={false} className="expedition-effect expedition-effect--correct-spark" />
 
         <div className="expedition-wheel expedition-wheel--rear">
           <img
@@ -558,7 +586,7 @@ export default function ExpeditionQuiz({
         </div>
 
         <img
-          src="/milo-world/activities/categories/expedition/milo-vehicle-body.png"
+          src={currentVehicleBodyAsset}
           alt=""
           draggable={false}
           className="expedition-vehicle-body"
@@ -1291,6 +1319,7 @@ export default function ExpeditionQuiz({
 
         .expedition-root.is-paused .expedition-vehicle-zone,
         .expedition-root.is-paused .expedition-wheel,
+        .expedition-root.is-paused .expedition-effect,
         .expedition-root.is-paused .expedition-dust,
         .expedition-root.is-paused .expedition-speed-lines,
         .expedition-root.is-paused .expedition-motion-callout,
@@ -1347,6 +1376,132 @@ export default function ExpeditionQuiz({
           opacity: 0.82;
           pointer-events: none;
         }
+        .expedition-effect {
+          position: absolute;
+          z-index: 1;
+          display: block;
+          height: auto;
+          opacity: 0;
+          pointer-events: none;
+          user-select: none;
+          transition: opacity 180ms ease, transform 420ms ease;
+        }
+
+        .expedition-effect--cruise {
+          left: -76%;
+          bottom: -1%;
+          width: 125%;
+          transform-origin: 100% 65%;
+        }
+
+        .expedition-effect--boost {
+          left: -100%;
+          bottom: -3%;
+          width: 165%;
+          transform-origin: 100% 60%;
+        }
+
+        .expedition-effect--turbo {
+          left: -125%;
+          bottom: 3%;
+          width: 205%;
+          transform-origin: 100% 55%;
+        }
+
+        .expedition-effect--wheel-dust {
+          left: -24%;
+          bottom: -9%;
+          width: 148%;
+        }
+
+        .expedition-effect--turbo-burst {
+          left: -28%;
+          top: 30%;
+          width: 38%;
+          transform: scale(.55);
+        }
+
+        .expedition-effect--stall-smoke {
+          right: 1%;
+          top: 24%;
+          width: 42%;
+          z-index: 4;
+        }
+
+        .expedition-effect--wrong-sputter {
+          right: 6%;
+          top: 34%;
+          width: 27%;
+          z-index: 5;
+        }
+
+        .expedition-effect--correct-spark {
+          left: 43%;
+          top: 1%;
+          width: 25%;
+          z-index: 5;
+          transform: scale(.72);
+        }
+
+        .expedition-travel--driving.expedition-motion--cruise .expedition-effect--cruise {
+          opacity: .62;
+          transform: scaleX(1);
+        }
+
+        .expedition-travel--coasting.expedition-motion--cruise .expedition-effect--cruise {
+          opacity: .20;
+          transform: scaleX(.78);
+        }
+
+        .expedition-travel--driving.expedition-motion--boost .expedition-effect--boost {
+          opacity: .80;
+          transform: scaleX(1);
+        }
+
+        .expedition-travel--coasting.expedition-motion--boost .expedition-effect--boost {
+          opacity: .24;
+          transform: scaleX(.74);
+        }
+
+        .expedition-travel--driving.expedition-motion--turbo .expedition-effect--turbo {
+          opacity: .88;
+          transform: scaleX(1);
+        }
+
+        .expedition-travel--coasting.expedition-motion--turbo .expedition-effect--turbo {
+          opacity: .28;
+          transform: scaleX(.72);
+        }
+
+        .expedition-travel--driving:not(.expedition-motion--stall) .expedition-effect--wheel-dust,
+        .expedition-travel--coasting:not(.expedition-motion--stall) .expedition-effect--wheel-dust {
+          opacity: .42;
+        }
+
+        .expedition-travel--coasting .expedition-effect--wheel-dust {
+          opacity: .14;
+        }
+
+        .expedition-travel--driving.expedition-motion--turbo .expedition-effect--turbo-burst {
+          animation: expeditionEffectBurst 520ms ease-out 1 both;
+        }
+
+        .expedition-motion--stall .expedition-effect--stall-smoke {
+          opacity: .82;
+          animation: expeditionSmokePuff 720ms ease-out 1 both;
+        }
+
+        .expedition-motion--stall .expedition-effect--wrong-sputter {
+          opacity: .92;
+          animation: expeditionEffectBurst 520ms ease-out 1 both;
+        }
+
+        .expedition-motion--cruise.expedition-travel--driving .expedition-effect--correct-spark,
+        .expedition-motion--boost.expedition-travel--driving .expedition-effect--correct-spark,
+        .expedition-motion--turbo.expedition-travel--driving .expedition-effect--correct-spark {
+          animation: expeditionCorrectSpark 620ms ease-out 1 both;
+        }
+
         .expedition-wheel {
           position: absolute;
           z-index: 2;
@@ -1847,6 +2002,7 @@ export default function ExpeditionQuiz({
         @media (prefers-reduced-motion: reduce) {
           .expedition-vehicle-zone,
           .expedition-wheel,
+          .expedition-effect,
           .expedition-dust,
           .expedition-speed-lines,
           .expedition-motion-callout,
