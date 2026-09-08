@@ -1,11 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import {
   EXPEDITION_LANDMARKS,
   EXPEDITION_METRES_PER_POINT,
   MAX_EXPEDITION_POINTS,
 } from "./expeditionLandmarks";
+import MultiplayerRaceMap from "./MultiplayerRaceMap";
+import type { MultiplayerExpeditionPlayer } from "./multiplayerExpedition";
+import { getMultiplayerVehicleVariant } from "./multiplayerExpedition";
 
 type AnswerLetter = "A" | "B" | "C" | "D";
 
@@ -36,6 +40,7 @@ type ExpeditionQuizProps = {
   timerSeconds: 10 | 20;
   countdown: number;
   nextCountdown: number;
+  nextDelaySeconds?: number;
   stage: "playing" | "answered";
   selectedAnswer: AnswerLetter | null;
   hiddenOptions: AnswerLetter[];
@@ -45,6 +50,8 @@ type ExpeditionQuizProps = {
   canPause: boolean;
   paused: boolean;
   mobileSequencing: boolean;
+  racePlayers?: MultiplayerExpeditionPlayer[];
+  currentPlayerId?: string | null;
   onTogglePause: () => void;
   onAnswer: (answer: AnswerLetter) => void;
   onHint: () => void;
@@ -52,7 +59,6 @@ type ExpeditionQuizProps = {
 };
 
 const WORLD_CYCLE_WIDTH_VH = 900;
-const NEXT_QUESTION_DELAY_SECONDS = 5;
 const WORLD_SCENES = [
   {
     src: "/milo-world/activities/categories/expedition/world-01.png",
@@ -107,6 +113,7 @@ export default function ExpeditionQuiz({
   timerSeconds,
   countdown,
   nextCountdown,
+  nextDelaySeconds = 5,
   stage,
   selectedAnswer,
   hiddenOptions,
@@ -116,6 +123,8 @@ export default function ExpeditionQuiz({
   canPause,
   paused,
   mobileSequencing,
+  racePlayers = [],
+  currentPlayerId = null,
   onTogglePause,
   onAnswer,
   onHint,
@@ -132,6 +141,9 @@ export default function ExpeditionQuiz({
   const onNextRef = useRef(onNext);
   const motion = stage === "answered" ? getExpeditionMotion(lastPoints) : "idle";
   const isCorrect = selectedAnswer === question.correct_option;
+  const currentPlayerVariant = currentPlayerId
+    ? getMultiplayerVehicleVariant(currentPlayerId)
+    : null;
 
   const options = useMemo(
     () =>
@@ -313,7 +325,7 @@ export default function ExpeditionQuiz({
           : 0
       : Math.min(1, Math.max(0, countdown / timerSeconds))
     : stage === "answered"
-      ? Math.min(1, Math.max(0, nextCountdown / NEXT_QUESTION_DELAY_SECONDS))
+      ? Math.min(1, Math.max(0, nextCountdown / nextDelaySeconds))
       : Math.min(1, Math.max(0, countdown / timerSeconds));
 
   return (
@@ -514,7 +526,14 @@ export default function ExpeditionQuiz({
         </div>
       )}
 
-      <div className="expedition-vehicle-zone" aria-hidden="true">
+      <div
+        className={`expedition-vehicle-zone ${currentPlayerVariant ? "is-multiplayer-player" : ""}`}
+        aria-hidden="true"
+        style={currentPlayerVariant ? ({
+          "--player-color": currentPlayerVariant.color,
+          "--player-soft": currentPlayerVariant.softColor,
+        } as CSSProperties) : undefined}
+      >
         <div className="expedition-dust expedition-dust--one" />
         <div className="expedition-dust expedition-dust--two" />
 
@@ -544,6 +563,9 @@ export default function ExpeditionQuiz({
           draggable={false}
           className="expedition-vehicle-body"
         />
+        {currentPlayerVariant && (
+          <span className="expedition-player-accent-ring" />
+        )}
       </div>
 
       {stage === "answered" && (!mobileSequencing || mobileAnswerPhase === "travel" || mobileAnswerPhase === "wrong-wait") && (
@@ -1297,6 +1319,34 @@ export default function ExpeditionQuiz({
           user-select: none;
         }
 
+
+        .expedition-vehicle-zone.is-multiplayer-player::after {
+          content: "";
+          position: absolute;
+          z-index: 0;
+          left: 7%;
+          right: 8%;
+          bottom: -1%;
+          height: 19%;
+          border-radius: 999px;
+          background: radial-gradient(ellipse, var(--player-soft), transparent 68%);
+          filter: blur(7px);
+          opacity: 0.9;
+        }
+
+        .expedition-player-accent-ring {
+          position: absolute;
+          z-index: 4;
+          left: 43%;
+          bottom: 18%;
+          width: 17%;
+          aspect-ratio: 1;
+          border: 3px solid var(--player-color);
+          border-radius: 999px;
+          box-shadow: 0 0 22px var(--player-color), inset 0 0 15px var(--player-soft);
+          opacity: 0.82;
+          pointer-events: none;
+        }
         .expedition-wheel {
           position: absolute;
           z-index: 2;

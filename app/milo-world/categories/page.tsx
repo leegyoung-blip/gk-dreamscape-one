@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import ExpeditionQuiz from "@/components/milo/categories/ExpeditionQuiz";
 import ExpeditionComplete from "@/components/milo/categories/ExpeditionComplete";
+import MultiplayerExpeditionComplete from "@/components/milo/categories/MultiplayerExpeditionComplete";
 
 type CategoryQuizQuestion = {
   id: string;
@@ -1069,10 +1070,35 @@ export default function MiloCategoriesPage() {
     userAccess.userId &&
     multiplayerLobby.host_user_id === userAccess.userId;
 
-  const sortedMultiplayerPlayers = [...multiplayerPlayers].sort((a, b) => {
-    if (b.points !== a.points) return b.points - a.points;
-    return b.score - a.score;
-  });
+  const multiplayerExpeditionPlayers = (() => {
+    const mapped = multiplayerPlayers.map((player) => ({
+      userId: player.user_id,
+      displayName: player.display_name,
+      points:
+        userAccess.userId && player.user_id === userAccess.userId
+          ? multiplayerPoints
+          : Number(player.points || 0),
+      score:
+        userAccess.userId && player.user_id === userAccess.userId
+          ? multiplayerScore
+          : Number(player.score || 0),
+    }));
+
+    if (
+      userAccess.userId &&
+      multiplayerPlayer &&
+      !mapped.some((player) => player.userId === userAccess.userId)
+    ) {
+      mapped.push({
+        userId: userAccess.userId,
+        displayName: multiplayerPlayer.display_name || displayName || "You",
+        points: multiplayerPoints,
+        score: multiplayerScore,
+      });
+    }
+
+    return mapped;
+  })();
 
   useEffect(() => {
     async function loadUserAccess() {
@@ -2563,26 +2589,6 @@ export default function MiloCategoriesPage() {
     return "border-white/12 bg-white/[0.045] text-white/82 hover:border-[#ffd18a]/35 hover:bg-white/[0.075]";
   }
 
-  function getMultiplayerOptionClass(optionLetter: "A" | "B" | "C" | "D") {
-    const isSelected = multiplayerSelectedAnswer === optionLetter;
-    const isCorrect =
-      currentMultiplayerQuestion?.correct_option === optionLetter;
-    const showResult = categoriesStage === "multiplayer-answered";
-
-    if (showResult && isCorrect) {
-      return "border-green-300/70 bg-green-400/18 text-green-100";
-    }
-
-    if (showResult && isSelected && !isCorrect) {
-      return "border-red-300/70 bg-red-400/18 text-red-100";
-    }
-
-    if (!showResult && isSelected) {
-      return "border-[#ffd18a]/70 bg-[#ffd18a]/16 text-white";
-    }
-
-    return "border-white/12 bg-white/[0.045] text-white/82 hover:border-[#ffd18a]/35 hover:bg-white/[0.075]";
-  }
 
   const reviewAnswers: ReviewAnswer[] = categoryQuestions.map(
     (question, index) => {
@@ -2707,7 +2713,10 @@ export default function MiloCategoriesPage() {
   const isExpeditionStage =
     categoriesStage === "playing" ||
     categoriesStage === "answered" ||
-    categoriesStage === "expedition-finish";
+    categoriesStage === "expedition-finish" ||
+    categoriesStage === "multiplayer-playing" ||
+    categoriesStage === "multiplayer-answered" ||
+    categoriesStage === "multiplayer-finished";
 
   const isQuizStage = [
     "playing",
@@ -2722,9 +2731,7 @@ export default function MiloCategoriesPage() {
     "multiplayer-finished",
   ].includes(categoriesStage);
 
-  const requiresLandscapeGate =
-    isExpeditionStage ||
-    ["multiplayer-playing", "multiplayer-answered", "multiplayer-finished"].includes(categoriesStage);
+  const requiresLandscapeGate = isExpeditionStage;
   const isCategorySetupStage = categoriesStage === "category";
 
   return (
@@ -3410,105 +3417,35 @@ export default function MiloCategoriesPage() {
               {(categoriesStage === "multiplayer-playing" ||
                 categoriesStage === "multiplayer-answered") &&
                 currentMultiplayerQuestion && (
-                  <div className="quiz-screen flex h-full min-h-0 flex-col">
-                    <div className="quiz-statusbar flex shrink-0 items-center justify-between gap-2">
-                      <span className="quiz-pill rounded-full border border-white/14 bg-white/[0.07] px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-[#ffd18a]">
-                        {multiplayerLobby?.category}
-                      </span>
-
-                      <span className="quiz-pill rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-xs font-bold text-white/72">
-                        Question {multiplayerQuestionIndex + 1} / 10
-                      </span>
-
-                      <span className="quiz-pill rounded-full border border-[#ffd18a]/24 bg-[#ffd18a]/10 px-4 py-2 text-xs font-bold text-[#ffd18a]">
-                        {categoriesStage === "multiplayer-answered"
-                          ? `Next in ${multiplayerNextCountdown}s`
-                          : `${multiplayerCountdown}s`}
-                      </span>
-                    </div>
-
-                    <div className="quiz-score-strip mt-3 grid shrink-0 grid-cols-3 gap-3">
-                      <div className="quiz-stat rounded-[14px] border border-white/12 bg-white/[0.045] p-4">
-                        <p className="quiz-stat-label text-xs uppercase tracking-[0.18em] text-white/40">
-                          Score
-                        </p>
-                        <p className="quiz-stat-value mt-1 text-xl font-bold">
-                          {multiplayerScore}/10
-                        </p>
-                      </div>
-
-                      <div className="quiz-stat rounded-[14px] border border-white/12 bg-white/[0.045] p-4">
-                        <p className="quiz-stat-label text-xs uppercase tracking-[0.18em] text-white/40">
-                          Points
-                        </p>
-                        <p className="quiz-stat-value mt-1 text-xl font-bold">
-                          {multiplayerPoints}
-                        </p>
-                      </div>
-
-                      <div className="quiz-stat rounded-[14px] border border-yellow-200/14 bg-yellow-300/10 p-4">
-                        <p className="quiz-stat-label text-xs uppercase tracking-[0.18em] text-white/40">
-                          Last
-                        </p>
-                        <p className="quiz-stat-value mt-1 text-xl font-bold text-[#ffd18a]">
-                          +{multiplayerLastQuestionPoints}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="quiz-play-layout mt-4 grid min-h-0 flex-1 gap-4">
-                      <div className="quiz-question-panel min-h-0 rounded-[20px] border border-white/12 bg-[#050d1c]/58 p-5">
-                        <div className="quiz-question-scroll min-h-0">
-                          <p className="quiz-question-label text-xs font-black uppercase tracking-[0.18em] text-[#ffd18a]">
-                            Question
-                          </p>
-                          <h2 className="quiz-question mt-3 font-bold leading-snug text-white">
-                            {currentMultiplayerQuestion.question}
-                          </h2>
-
-                          {multiplayerMessage && (
-                            <div className="quiz-feedback mt-4 text-sm font-bold leading-5 text-[#ffd18a]">
-                              <p>{multiplayerMessage}</p>
-                              {categoriesStage === "multiplayer-answered" &&
-                                currentMultiplayerQuestion.explanation && (
-                                  <p className="mt-2 font-normal text-white/56">
-                                    {currentMultiplayerQuestion.explanation}
-                                  </p>
-                                )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="quiz-options-panel grid min-h-0 gap-3">
-                        {[
-                          ["A", currentMultiplayerQuestion.option_a],
-                          ["B", currentMultiplayerQuestion.option_b],
-                          ["C", currentMultiplayerQuestion.option_c],
-                          ["D", currentMultiplayerQuestion.option_d],
-                        ].map(([letter, answer]) => (
-                          <button
-                            key={letter}
-                            type="button"
-                            disabled={categoriesStage === "multiplayer-answered"}
-                            onClick={() =>
-                              submitMultiplayerAnswer(
-                                letter as "A" | "B" | "C" | "D"
-                              )
-                            }
-                            className={`quiz-option min-h-0 rounded-[14px] border px-5 py-3 text-left text-sm font-bold transition ${getMultiplayerOptionClass(
-                              letter as "A" | "B" | "C" | "D"
-                            )}`}
-                          >
-                            <span className="quiz-option-letter mr-2 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-current/20 text-xs font-black">
-                              {letter}
-                            </span>
-                            <span className="quiz-option-text">{answer}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+                  <ExpeditionQuiz
+                    category={multiplayerLobby?.category || selectedCategory}
+                    playStyleLabel="Multiplayer Race"
+                    question={currentMultiplayerQuestion}
+                    questionNumber={multiplayerQuestionIndex + 1}
+                    questionCount={10}
+                    score={multiplayerScore}
+                    points={multiplayerPoints}
+                    lastPoints={multiplayerLastQuestionPoints}
+                    timerSeconds={multiplayerQuestionTimerSeconds}
+                    countdown={multiplayerCountdown}
+                    nextCountdown={multiplayerNextCountdown}
+                    nextDelaySeconds={3}
+                    stage={categoriesStage === "multiplayer-playing" ? "playing" : "answered"}
+                    selectedAnswer={multiplayerSelectedAnswer}
+                    hiddenOptions={[]}
+                    message={multiplayerMessage}
+                    isGuest={false}
+                    guestHintUsed={false}
+                    canPause={false}
+                    paused={false}
+                    mobileSequencing={false}
+                    racePlayers={multiplayerExpeditionPlayers}
+                    currentPlayerId={userAccess.userId}
+                    onTogglePause={() => {}}
+                    onAnswer={submitMultiplayerAnswer}
+                    onHint={() => {}}
+                    onNext={() => void goToNextMultiplayerQuestion()}
+                  />
                 )}
 
               {categoriesStage === "finished" && (
@@ -4131,69 +4068,15 @@ export default function MiloCategoriesPage() {
               )}
 
               {categoriesStage === "multiplayer-finished" && (
-                <div className="finished-stage stage-fill flex h-full min-h-0 flex-col text-center">
-                  <p className="stage-kicker text-xs font-bold uppercase tracking-[0.2em] text-[#ffd18a]">
-                    Multiplayer Complete
-                  </p>
-
-                  <div className="finished-summary shrink-0">
-                    <h2 className="finished-score mt-4 text-5xl font-extrabold">
-                      {multiplayerScore} / 10
-                    </h2>
-
-                    <p className="finished-points mt-3 text-3xl font-extrabold text-[#ffd18a]">
-                      {multiplayerPoints} points
-                    </p>
-                  </div>
-
-                  <div className="leaderboard-card mt-5 min-h-0 flex-1 rounded-[24px] border border-white/14 bg-white/[0.045] p-5 text-left">
-                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ffd18a]">
-                      Leaderboard
-                    </p>
-
-                    <div className="leaderboard-list mt-4 grid min-h-0 gap-3 overflow-y-auto overscroll-contain">
-                      {sortedMultiplayerPlayers.map((player, index) => (
-                        <div
-                          key={player.id}
-                          className="flex items-center justify-between rounded-[14px] border border-white/12 bg-[#050d1c]/85 px-4 py-3"
-                        >
-                          <div>
-                            <p className="font-bold">
-                              #{index + 1} {player.display_name}
-                            </p>
-                            <p className="mt-1 text-xs text-white/46">
-                              {player.score}/10 correct
-                            </p>
-                          </div>
-
-                          <p className="text-xl font-black text-[#ffd18a]">
-                            {player.points}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="finished-actions shrink-0">
-                    {isMultiplayerHost && multiplayerLobby?.status !== "finished" && (
-                      <button
-                        type="button"
-                        onClick={finishLobbyForEveryone}
-                        className="secondary-action mt-4 w-full rounded-[14px] border border-[#ffd18a]/24 bg-[#ffd18a]/10 px-5 py-4 text-sm font-bold uppercase tracking-[0.12em] text-[#ffd18a] transition hover:scale-[1.01]"
-                      >
-                        End Lobby for Everyone
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={resetCategoriesQuiz}
-                      className="primary-action mt-4 w-full rounded-[14px] bg-gradient-to-r from-[#c47a25] to-[#e5b75e] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white shadow-[0_14px_32px_rgba(196,122,37,0.24)] transition hover:scale-[1.01]"
-                    >
-                      Back to Mode Select
-                    </button>
-                  </div>
-                </div>
+                <MultiplayerExpeditionComplete
+                  category={multiplayerLobby?.category || selectedCategory}
+                  players={multiplayerExpeditionPlayers}
+                  currentUserId={userAccess.userId}
+                  isHost={Boolean(isMultiplayerHost)}
+                  lobbyFinished={multiplayerLobby?.status === "finished"}
+                  onEndLobby={() => void finishLobbyForEveryone()}
+                  onBack={resetCategoriesQuiz}
+                />
               )}
 
               {categoryMessage && categoriesStage === "mode" && (

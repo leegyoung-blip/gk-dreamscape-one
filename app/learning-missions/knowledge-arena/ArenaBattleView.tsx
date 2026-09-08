@@ -31,11 +31,12 @@ const arenaBackgrounds: Record<KnowledgeArenaBattleTopic, string> = {
     "/activities/learning-missions/knowledge-arena/arenas/science-sparks-arena.png",
 };
 
-const novaSprites: Record<"idle" | "firing" | "hit" | "defeated", string> = {
+const novaSprites: Record<"idle" | "firing" | "hit" | "defeated" | "revive", string> = {
   idle: "/activities/learning-missions/knowledge-arena/nova/nova-battle-idle.png",
   firing: "/activities/learning-missions/knowledge-arena/nova/nova-battle-firing.png",
   hit: "/activities/learning-missions/knowledge-arena/nova/nova-battle-hit.png",
   defeated: "/activities/learning-missions/knowledge-arena/nova/nova-battle-defeated.png",
+  revive: "/activities/learning-missions/knowledge-arena/nova/nova-battle-revive.png",
 };
 
 function rarityLabel(value: string) {
@@ -58,9 +59,11 @@ function NovaSprite({ phase }: { phase: BattlePhase }) {
       ? "firing"
       : phase === "monster_attack" || phase === "hit"
         ? "hit"
-        : phase === "revive" || phase === "defeat"
-          ? "defeated"
-          : "idle";
+        : phase === "reviving"
+          ? "revive"
+          : phase === "revive" || phase === "defeat"
+            ? "defeated"
+            : "idle";
 
   return (
     <div className={`kab-character kab-nova is-${key}`}>
@@ -435,10 +438,20 @@ export function ArenaBattleView({
                 onPointerLeave={stopFire}
                 onContextMenu={(event) => event.preventDefault()}
               >
-                HOLD FIRE
+                TAP / HOLD FIRE
               </button>
-              <em>Desktop: hold SPACEBAR</em>
+              <em>Desktop: press or hold SPACEBAR · Touch: tap or hold</em>
             </div>
+          )}
+
+          {phase === "firing" && shotsThisTurn > 0 && (
+            <div key={`shot-${shotsThisTurn}`} className="kab-blaster-shot" aria-hidden="true">
+              <i />
+            </div>
+          )}
+
+          {damageFlash !== null && phase === "firing" && !monsterDefeated && (
+            <div className="kab-damage-number kab-monster-damage">-{damageFlash}</div>
           )}
 
           {damageFlash !== null && phase !== "firing" && (
@@ -762,6 +775,7 @@ export function ArenaBattleView({
 
         .kab-nova.is-firing { transform: translateX(4%); }
         .kab-nova.is-hit { animation: kabNovaHit 300ms ease; }
+        .kab-nova.is-revive { animation: kabNovaRevive 900ms ease both; }
         .kab-nova.is-defeated { transform: rotate(-7deg) translateY(8%); opacity: .74; }
         .kab-monster.is-attacking { animation: kabMonsterAttack 520ms ease; }
         .kab-monster.is-defeated { transform: translateY(12%) rotate(5deg); opacity: .28; filter: grayscale(.65); }
@@ -835,6 +849,37 @@ export function ArenaBattleView({
           touch-action: none;
           user-select: none;
           box-shadow: 0 12px 28px rgba(50,125,244,.22);
+        }
+
+        .kab-blaster-shot {
+          position: absolute;
+          left: -42%;
+          top: 52%;
+          width: 184%;
+          height: 18px;
+          pointer-events: none;
+          z-index: 8;
+        }
+
+        .kab-blaster-shot i {
+          position: absolute;
+          left: 0;
+          top: 50%;
+          width: 34px;
+          height: 7px;
+          border-radius: 999px;
+          background: linear-gradient(90deg, rgba(255,255,255,.96), #7ee8ff 46%, #327df4);
+          box-shadow: 0 0 9px #7ee8ff, 0 0 19px rgba(50,125,244,.9);
+          transform: translateY(-50%);
+          animation: kabBlasterShot 180ms linear both;
+        }
+
+        .kab-monster-damage {
+          position: absolute;
+          right: -24%;
+          top: 38%;
+          color: #fde68a;
+          text-shadow: 0 4px 18px rgba(250,204,21,.5);
         }
 
         .kab-damage-number {
@@ -976,6 +1021,18 @@ export function ArenaBattleView({
         @keyframes kabCritical { from { opacity: .65; } to { opacity: 1; } }
         @keyframes kabNovaHit { 0% { transform: translateX(0); } 35% { transform: translateX(-7%); } 100% { transform: translateX(0); } }
         @keyframes kabMonsterAttack { 0% { transform: translateX(0); } 45% { transform: translateX(-10%); } 100% { transform: translateX(0); } }
+        @keyframes kabBlasterShot {
+          from { left: 0; transform: translateY(-50%) scaleX(.72); opacity: .15; }
+          18% { opacity: 1; }
+          to { left: calc(100% - 34px); transform: translateY(-50%) scaleX(1.15); opacity: 0; }
+        }
+
+        @keyframes kabNovaRevive {
+          0% { transform: translateY(9%) scale(.92); opacity: .15; filter: brightness(1.8) drop-shadow(0 0 26px rgba(126,232,255,.65)); }
+          45% { transform: translateY(0) scale(1.04); opacity: 1; filter: brightness(1.35) drop-shadow(0 0 34px rgba(126,232,255,.72)); }
+          100% { transform: translateY(0) scale(1); opacity: 1; filter: drop-shadow(0 18px 26px rgba(0,0,0,.42)); }
+        }
+
         @keyframes kabDamage { from { transform: translateY(8px) scale(.85); opacity: 0; } 50% { opacity: 1; } to { transform: translateY(-18px) scale(1.06); opacity: 0; } }
 
         @media (max-width: 850px), (hover: none) and (pointer: coarse) {
