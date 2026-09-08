@@ -834,6 +834,7 @@ export default function MiloCategoriesPage() {
   const [miloGuideOpen, setMiloGuideOpen] = useState(false);
   const [isCategoriesFullscreen, setIsCategoriesFullscreen] = useState(false);
   const [mobileFullscreenMessage, setMobileFullscreenMessage] = useState("");
+  const [isMobileGameplayViewport, setIsMobileGameplayViewport] = useState(false);
   const [miloGuideStep, setMiloGuideStep] = useState(0);
   const [miloGuideTargetRect, setMiloGuideTargetRect] = useState<{
     top: number;
@@ -914,6 +915,23 @@ export default function MiloCategoriesPage() {
     return () => {
       document.removeEventListener("fullscreenchange", syncFullscreenState);
       document.removeEventListener("webkitfullscreenchange", syncFullscreenState as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    const query = window.matchMedia(
+      "(max-width: 1024px), (hover: none) and (pointer: coarse)",
+    );
+
+    const syncMobileGameplayViewport = () => {
+      setIsMobileGameplayViewport(query.matches);
+    };
+
+    syncMobileGameplayViewport();
+    query.addEventListener?.("change", syncMobileGameplayViewport);
+
+    return () => {
+      query.removeEventListener?.("change", syncMobileGameplayViewport);
     };
   }, []);
 
@@ -1255,6 +1273,11 @@ export default function MiloCategoriesPage() {
     if (categoriesStage !== "answered") return;
     if (miloGuideOpen || singlePlayerPaused) return;
 
+    // On touch/mobile gameplay the ExpeditionQuiz component owns the
+    // post-answer sequence: 3s result reveal, then travel (correct) or a
+    // separate 5s wait (wrong). Desktop keeps the normal page countdown.
+    if (isMobileGameplayViewport) return;
+
     if (nextQuestionCountdown <= 0) {
       void goToNextCategoryQuestion();
       return;
@@ -1265,7 +1288,13 @@ export default function MiloCategoriesPage() {
     }, 1000);
 
     return () => window.clearTimeout(timer);
-  }, [categoriesStage, nextQuestionCountdown, miloGuideOpen, singlePlayerPaused]);
+  }, [
+    categoriesStage,
+    nextQuestionCountdown,
+    miloGuideOpen,
+    singlePlayerPaused,
+    isMobileGameplayViewport,
+  ]);
 
   useEffect(() => {
     if (categoriesStage !== "multiplayer-playing") return;
@@ -3359,6 +3388,7 @@ export default function MiloCategoriesPage() {
                     guestHintUsed={guestHintUsed}
                     canPause={userAccess.role === "admin"}
                     paused={singlePlayerPaused}
+                    mobileSequencing={isMobileGameplayViewport}
                     onTogglePause={() => setSinglePlayerPaused((current) => !current)}
                     onAnswer={submitCategoryAnswer}
                     onHint={useGuestCategoryHint}
@@ -5844,22 +5874,26 @@ export default function MiloCategoriesPage() {
             align-items: center;
             gap: 6px;
             margin-left: auto;
-            margin-right: 94px;
+            margin-right: 0;
           }
 
           .categories-mobile-fullscreen {
+            position: fixed;
+            right: max(112px, calc(env(safe-area-inset-right) + 112px));
+            bottom: max(9px, env(safe-area-inset-bottom));
+            z-index: 89;
             display: flex;
-            min-width: 42px;
-            height: 36px;
+            min-width: 52px;
+            height: 38px;
             align-items: center;
             justify-content: center;
             gap: 4px;
             border: 1px solid rgba(155,245,255,0.20);
             border-radius: 11px;
-            background: rgba(5,18,40,0.90);
-            padding: 0 8px;
-            color: rgba(255,255,255,0.78);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.18);
+            background: rgba(5,18,40,0.94);
+            padding: 0 9px;
+            color: rgba(255,255,255,0.82);
+            box-shadow: 0 10px 26px rgba(0,0,0,0.28);
             backdrop-filter: blur(10px);
           }
 
@@ -5878,11 +5912,11 @@ export default function MiloCategoriesPage() {
 
           .categories-mobile-fullscreen-message {
             position: fixed;
-            top: 50px;
-            right: 10px;
+            right: 8px;
+            bottom: max(56px, calc(env(safe-area-inset-bottom) + 56px));
             z-index: 95;
             display: block;
-            width: min(300px, calc(100vw - 20px));
+            width: min(300px, calc(100vw - 16px));
             border: 1px solid rgba(255,209,138,0.26);
             border-radius: 11px;
             background: rgba(4,14,32,0.96);
@@ -6054,12 +6088,14 @@ export default function MiloCategoriesPage() {
           }
 
           .categories-guide-launcher {
-            top: max(5px, env(safe-area-inset-top));
+            top: auto;
             right: max(7px, env(safe-area-inset-right));
-            min-height: 36px;
+            bottom: max(9px, env(safe-area-inset-bottom));
+            z-index: 90;
+            min-height: 38px;
             border-radius: 11px;
             gap: 5px;
-            padding: 3px 7px 3px 3px;
+            padding: 3px 8px 3px 3px;
           }
 
           .categories-guide-launcher-mark {
@@ -6126,7 +6162,7 @@ export default function MiloCategoriesPage() {
 
           .categories-mobile-top-controls {
             gap: 4px;
-            margin-right: 78px;
+            margin-right: 0;
           }
 
           .categories-mobile-fullscreen {

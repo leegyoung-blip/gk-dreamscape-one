@@ -22,6 +22,7 @@ type ExpeditionQuestion = {
 
 type ExpeditionMotion = "idle" | "cruise" | "boost" | "turbo" | "stall";
 type ExpeditionTravelPhase = "idle" | "driving" | "coasting";
+type MobileAnswerPhase = "question" | "feedback" | "travel" | "wrong-wait";
 
 type ExpeditionQuizProps = {
   category: string;
@@ -43,6 +44,7 @@ type ExpeditionQuizProps = {
   guestHintUsed: boolean;
   canPause: boolean;
   paused: boolean;
+  mobileSequencing: boolean;
   onTogglePause: () => void;
   onAnswer: (answer: AnswerLetter) => void;
   onHint: () => void;
@@ -113,6 +115,7 @@ export default function ExpeditionQuiz({
   guestHintUsed,
   canPause,
   paused,
+  mobileSequencing,
   onTogglePause,
   onAnswer,
   onHint,
@@ -120,9 +123,13 @@ export default function ExpeditionQuiz({
 }: ExpeditionQuizProps) {
   const [displayPoints, setDisplayPoints] = useState(points);
   const [travelPhase, setTravelPhase] = useState<ExpeditionTravelPhase>("idle");
+  const [mobileAnswerPhase, setMobileAnswerPhase] = useState<MobileAnswerPhase>("question");
+  const [mobileFeedbackCountdown, setMobileFeedbackCountdown] = useState(3);
+  const [mobileWrongCountdown, setMobileWrongCountdown] = useState(5);
   const displayPointsRef = useRef(points);
   const travelPhaseRef = useRef<ExpeditionTravelPhase>("idle");
   const animationFrameRef = useRef<number | null>(null);
+  const onNextRef = useRef(onNext);
   const motion = stage === "answered" ? getExpeditionMotion(lastPoints) : "idle";
   const isCorrect = selectedAnswer === question.correct_option;
 
@@ -134,6 +141,71 @@ export default function ExpeditionQuiz({
       })),
     [question],
   );
+
+  useEffect(() => {
+    onNextRef.current = onNext;
+  }, [onNext]);
+
+  useEffect(() => {
+    if (!mobileSequencing) {
+      setMobileAnswerPhase("question");
+      return;
+    }
+
+    if (stage === "playing") {
+      setMobileAnswerPhase("question");
+      setMobileFeedbackCountdown(3);
+      setMobileWrongCountdown(5);
+      return;
+    }
+
+    setMobileAnswerPhase("feedback");
+    setMobileFeedbackCountdown(3);
+    setMobileWrongCountdown(5);
+  }, [mobileSequencing, stage, question.id]);
+
+  useEffect(() => {
+    if (!mobileSequencing || stage !== "answered" || mobileAnswerPhase !== "feedback" || paused) return;
+
+    if (mobileFeedbackCountdown <= 0) {
+      if (isCorrect && lastPoints > 0) {
+        setMobileAnswerPhase("travel");
+      } else {
+        setMobileAnswerPhase("wrong-wait");
+        setMobileWrongCountdown(5);
+      }
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setMobileFeedbackCountdown((current) => Math.max(0, current - 1));
+    }, 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    mobileSequencing,
+    stage,
+    mobileAnswerPhase,
+    mobileFeedbackCountdown,
+    paused,
+    isCorrect,
+    lastPoints,
+  ]);
+
+  useEffect(() => {
+    if (!mobileSequencing || stage !== "answered" || mobileAnswerPhase !== "wrong-wait" || paused) return;
+
+    if (mobileWrongCountdown <= 0) {
+      onNextRef.current();
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setMobileWrongCountdown((current) => Math.max(0, current - 1));
+    }, 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [mobileSequencing, stage, mobileAnswerPhase, mobileWrongCountdown, paused]);
 
   useEffect(() => {
     return () => {
@@ -159,6 +231,11 @@ export default function ExpeditionQuiz({
 
     const target = points;
     const start = displayPointsRef.current;
+
+    if (mobileSequencing && stage === "answered" && mobileAnswerPhase !== "travel") {
+      setTravelPhaseSafely("idle");
+      return;
+    }
 
     if (target <= start || stage !== "answered") {
       displayPointsRef.current = target;
@@ -197,11 +274,15 @@ export default function ExpeditionQuiz({
         setDisplayPoints(target);
         setTravelPhaseSafely("idle");
         animationFrameRef.current = null;
+
+        if (mobileSequencing && mobileAnswerPhase === "travel") {
+          window.setTimeout(() => onNextRef.current(), 120);
+        }
       }
     };
 
     animationFrameRef.current = window.requestAnimationFrame(animate);
-  }, [points, stage, motion, paused]);
+  }, [points, stage, motion, paused, mobileSequencing, mobileAnswerPhase]);
 
   const progress = Math.min(Math.max(displayPoints / MAX_EXPEDITION_POINTS, 0), 1);
   const wheelRotationDeg = displayPoints * 12;
@@ -209,12 +290,34 @@ export default function ExpeditionQuiz({
   const displayMetres = displayPoints * EXPEDITION_METRES_PER_POINT;
   const earnedMetres = lastPoints * EXPEDITION_METRES_PER_POINT;
 
-  const timerProgress = stage === "answered"
-    ? Math.min(1, Math.max(0, nextCountdown / NEXT_QUESTION_DELAY_SECONDS))
-    : Math.min(1, Math.max(0, countdown / timerSeconds));
+  const mobileTimerValue = stage === "answered"
+    ? mobileAnswerPhase === "feedback"
+      ? mobileFeedbackCountdown
+      : mobileAnswerPhase === "wrong-wait"
+        ? mobileWrongCountdown
+        : null
+    : countdown;
+  const mobileTimerLabel = stage === "answered"
+    ? mobileAnswerPhase === "feedback"
+      ? "RESULT"
+      : mobileAnswerPhase === "wrong-wait"
+        ? "NEXT"
+        : "MOVE"
+    : "SEC";
+  const timerProgress = mobileSequencing
+    ? stage === "answered"
+      ? mobileAnswerPhase === "feedback"
+        ? Math.min(1, Math.max(0, mobileFeedbackCountdown / 3))
+        : mobileAnswerPhase === "wrong-wait"
+          ? Math.min(1, Math.max(0, mobileWrongCountdown / 5))
+          : 0
+      : Math.min(1, Math.max(0, countdown / timerSeconds))
+    : stage === "answered"
+      ? Math.min(1, Math.max(0, nextCountdown / NEXT_QUESTION_DELAY_SECONDS))
+      : Math.min(1, Math.max(0, countdown / timerSeconds));
 
   return (
-    <div className={`expedition-root expedition-motion--${motion} expedition-travel--${travelPhase} ${paused ? "is-paused" : ""}`}>
+    <div className={`expedition-root expedition-motion--${motion} expedition-travel--${travelPhase} expedition-mobile-phase--${mobileAnswerPhase} ${mobileSequencing ? "is-mobile-sequenced" : ""} ${paused ? "is-paused" : ""}`}>
       <div className="expedition-world" aria-hidden="true">
         <div
           className="expedition-world-track"
@@ -326,14 +429,14 @@ export default function ExpeditionQuiz({
             }}
           >
             <div>
-              <strong>{paused ? "Ⅱ" : stage === "answered" ? nextCountdown : countdown}</strong>
-              <small>{paused ? "PAUSED" : stage === "answered" ? "NEXT" : "SEC"}</small>
+              <strong>{paused ? "Ⅱ" : mobileSequencing ? (mobileTimerValue ?? "→") : stage === "answered" ? nextCountdown : countdown}</strong>
+              <small>{paused ? "PAUSED" : mobileSequencing ? mobileTimerLabel : stage === "answered" ? "NEXT" : "SEC"}</small>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="expedition-quiz-layer">
+      <div className={`expedition-quiz-layer ${mobileSequencing && stage === "answered" && mobileAnswerPhase !== "feedback" ? "is-mobile-travel-hidden" : ""}`}>
         <div className="expedition-question-column">
           <section className="expedition-question-card">
             <div className="expedition-question-topline">
@@ -356,13 +459,15 @@ export default function ExpeditionQuiz({
             )}
           </section>
 
-          {stage === "answered" && (
+          {stage === "answered" && (!mobileSequencing || mobileAnswerPhase === "feedback") && (
             <div className={`expedition-answer-feedback ${isCorrect ? "is-correct" : "is-wrong"}`}>
               <strong>{isCorrect ? "Correct" : selectedAnswer ? "Not quite" : "Time's up"}</strong>
               {question.explanation && <span>{question.explanation}</span>}
-              <button type="button" onClick={onNext} disabled={paused}>
-                {questionNumber >= questionCount ? "See Results →" : "Next Question →"}
-              </button>
+              {!mobileSequencing && (
+                <button type="button" onClick={onNext} disabled={paused}>
+                  {questionNumber >= questionCount ? "See Results →" : "Next Question →"}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -441,7 +546,7 @@ export default function ExpeditionQuiz({
         />
       </div>
 
-      {stage === "answered" && (
+      {stage === "answered" && (!mobileSequencing || mobileAnswerPhase === "travel" || mobileAnswerPhase === "wrong-wait") && (
         <div className={`expedition-motion-callout is-${motion}`} aria-live="polite">
           <strong>{getMotionLabel(motion)}</strong>
           <span>+{formatDistance(earnedMetres)}</span>
@@ -880,6 +985,13 @@ export default function ExpeditionQuiz({
           animation: expeditionTimerPulse 600ms ease-in-out infinite alternate;
         }
 
+        .expedition-quiz-layer.is-mobile-travel-hidden {
+          opacity: 0;
+          visibility: hidden;
+          pointer-events: none;
+          transition: opacity 180ms ease, visibility 180ms ease;
+        }
+
         .expedition-quiz-layer {
           position: absolute;
           top: 82px;
@@ -1248,6 +1360,19 @@ export default function ExpeditionQuiz({
 
         .expedition-motion--stall .expedition-vehicle-zone {
           animation: expeditionStall 120ms ease-in-out 5;
+        }
+
+        /* Mobile: keep the rover completely still during the 3-second answer reveal.
+           Correct answers begin moving only after the quiz cards disappear; wrong
+           answers get their brief stall once the separate 5-second wait begins. */
+        .expedition-root.is-mobile-sequenced.expedition-mobile-phase--feedback .expedition-vehicle-zone {
+          animation: none !important;
+        }
+
+        .expedition-root.is-mobile-sequenced.expedition-mobile-phase--feedback .expedition-speed-lines,
+        .expedition-root.is-mobile-sequenced.expedition-mobile-phase--feedback .expedition-dust {
+          opacity: 0 !important;
+          animation: none !important;
         }
 
         .expedition-wheel-image {
