@@ -98,7 +98,6 @@ function NovaSprite({ phase, imageRef }: { phase: BattlePhase; imageRef?: Ref<HT
 
   return (
     <div className={`kab-character kab-nova is-${key}`}>
-      <div className="kab-character-fallback">NOVA</div>
       <img
         ref={imageRef}
         src={novaSprites[key]}
@@ -140,7 +139,6 @@ function MonsterSprite({
 
   return (
     <div className={`kab-character kab-monster is-${pose}`}>
-      <div className="kab-character-fallback">{monster.name}</div>
       <img
         ref={imageRef}
         key={`${monster.slug}-${pose}`}
@@ -912,8 +910,8 @@ export function ArenaBattleView({
           width: min(22vw, 270px);
           height: min(36vh, 310px);
         }
-        .kab-fighter-left { transform: translateY(-14px); }
-        .kab-fighter-right { transform: translateY(-6px); }
+        .kab-fighter-left { transform: translateY(8px); }
+        .kab-fighter-right { transform: translateY(10px); }
         .kab-character,
         .kab-character img {
           width: 100%;
@@ -929,7 +927,6 @@ export function ArenaBattleView({
           object-position: center bottom;
           filter: drop-shadow(0 12px 24px rgba(0,0,0,.28));
         }
-        .kab-character-fallback { display: none; }
         .kab-center-status {
           display: flex;
           flex-direction: column;
@@ -1174,11 +1171,11 @@ export function ArenaBattleView({
             padding: 0 12px 0;
           }
           .kab-fighter {
-            width: min(18vw, 110px);
-            height: min(20vh, 110px);
+            width: min(14vw, 88px);
+            height: min(16vh, 92px);
           }
-          .kab-fighter-left { transform: translateY(-4px); }
-          .kab-fighter-right { transform: translateY(0); }
+          .kab-fighter-left { transform: translateY(16px); }
+          .kab-fighter-right { transform: translateY(18px); }
           .kab-muzzle-anchor { left: 67.5%; top: 25%; }
           .kab-center-status { gap: 6px; margin-top: 0; }
           .kab-battle-message, .kab-fire-panel, .kab-target-eliminated { padding: 8px 10px; font-size: 11px; }
