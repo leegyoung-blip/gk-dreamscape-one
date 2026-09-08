@@ -832,6 +832,8 @@ export default function MiloCategoriesPage() {
   const [isSavingMultiplayerAnalytics, setIsSavingMultiplayerAnalytics] = useState(false);
 
   const [miloGuideOpen, setMiloGuideOpen] = useState(false);
+  const [isCategoriesFullscreen, setIsCategoriesFullscreen] = useState(false);
+  const [mobileFullscreenMessage, setMobileFullscreenMessage] = useState("");
   const [miloGuideStep, setMiloGuideStep] = useState(0);
   const [miloGuideTargetRect, setMiloGuideTargetRect] = useState<{
     top: number;
@@ -897,6 +899,22 @@ export default function MiloCategoriesPage() {
     } catch {
       // The guide still works manually if storage is unavailable.
     }
+  }, []);
+
+  useEffect(() => {
+    function syncFullscreenState() {
+      const doc = document as Document & { webkitFullscreenElement?: Element | null };
+      setIsCategoriesFullscreen(Boolean(document.fullscreenElement || doc.webkitFullscreenElement));
+    }
+
+    document.addEventListener("fullscreenchange", syncFullscreenState);
+    document.addEventListener("webkitfullscreenchange", syncFullscreenState as EventListener);
+    syncFullscreenState();
+
+    return () => {
+      document.removeEventListener("fullscreenchange", syncFullscreenState);
+      document.removeEventListener("webkitfullscreenchange", syncFullscreenState as EventListener);
+    };
   }, []);
 
   useEffect(() => {
@@ -1286,6 +1304,43 @@ export default function MiloCategoriesPage() {
 
     return () => window.clearTimeout(timer);
   }, [categoriesStage, multiplayerNextCountdown, miloGuideOpen]);
+
+  async function toggleCategoriesFullscreen() {
+    const doc = document as Document & {
+      webkitFullscreenElement?: Element | null;
+      webkitExitFullscreen?: () => Promise<void> | void;
+    };
+    const root = document.documentElement as HTMLElement & {
+      webkitRequestFullscreen?: () => Promise<void> | void;
+    };
+
+    try {
+      if (document.fullscreenElement || doc.webkitFullscreenElement) {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if (doc.webkitExitFullscreen) {
+          await doc.webkitExitFullscreen();
+        }
+        return;
+      }
+
+      if (root.requestFullscreen) {
+        await root.requestFullscreen({ navigationUI: "hide" });
+      } else if (root.webkitRequestFullscreen) {
+        await root.webkitRequestFullscreen();
+      } else {
+        setMobileFullscreenMessage(
+          "Safari cannot enter app-style full screen here. Use Share → Add to Home Screen for the cleanest view.",
+        );
+        window.setTimeout(() => setMobileFullscreenMessage(""), 4200);
+      }
+    } catch {
+      setMobileFullscreenMessage(
+        "Safari did not enter full screen. You can still play here, or use Add to Home Screen for a cleaner view.",
+      );
+      window.setTimeout(() => setMobileFullscreenMessage(""), 4200);
+    }
+  }
 
   function rememberMiloGuideSeen() {
     try {
@@ -2638,11 +2693,18 @@ export default function MiloCategoriesPage() {
     "multiplayer-finished",
   ].includes(categoriesStage);
 
+  const requiresLandscapeGate =
+    isExpeditionStage ||
+    ["multiplayer-playing", "multiplayer-answered", "multiplayer-finished"].includes(categoriesStage);
+  const isCategorySetupStage = categoriesStage === "category";
+
   return (
     <main
       className={`categories-page relative text-white ${
         isQuizStage ? "categories-page--quiz" : ""
-      } ${isExpeditionStage ? "categories-page--expedition" : ""}`}
+      } ${isExpeditionStage ? "categories-page--expedition" : ""} ${
+        isCategorySetupStage ? "categories-page--category-setup" : ""
+      } ${requiresLandscapeGate ? "categories-page--landscape-required" : ""}`}
       style={{
         backgroundImage: `
           linear-gradient(
@@ -2658,13 +2720,15 @@ export default function MiloCategoriesPage() {
           'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       }}
     >
-      <div className="categories-landscape-gate" role="dialog" aria-modal="true" aria-label="Rotate device to landscape">
-        <div className="categories-landscape-gate-card">
-          <div className="categories-landscape-phone" aria-hidden="true">↻</div>
-          <p>Turn your device sideways</p>
-          <span>Milo Categories is designed for landscape play.</span>
+      {requiresLandscapeGate && (
+        <div className="categories-landscape-gate" role="dialog" aria-modal="true" aria-label="Rotate device to landscape">
+          <div className="categories-landscape-gate-card">
+            <div className="categories-landscape-phone" aria-hidden="true">↻</div>
+            <p>Turn your device sideways</p>
+            <span>The expedition itself is designed for landscape play.</span>
+          </div>
         </div>
-      </div>
+      )}
 
       <header className="categories-topbar relative z-10 flex shrink-0 items-center justify-between gap-3 px-3 py-3 sm:px-5 sm:py-5">
         <Link
@@ -2674,7 +2738,43 @@ export default function MiloCategoriesPage() {
           <span className="categories-back-full">← Back to Quiz Hall</span>
           <span className="categories-back-short">← Quiz Hall</span>
         </Link>
+
+        <div className="categories-mobile-title" aria-hidden="true">Categories</div>
+
+        <div className="categories-mobile-top-controls">
+          <button
+            type="button"
+            onClick={() => void toggleCategoriesFullscreen()}
+            className="categories-mobile-fullscreen"
+            aria-label={isCategoriesFullscreen ? "Exit full screen" : "Enter full screen"}
+            title={isCategoriesFullscreen ? "Exit full screen" : "Full screen"}
+          >
+            <span aria-hidden="true">{isCategoriesFullscreen ? "↙" : "⛶"}</span>
+            <strong>{isCategoriesFullscreen ? "Exit" : "Full"}</strong>
+          </button>
+
+          {isCategorySetupStage && categoryMode === "single" && (
+            <div className="categories-mobile-timer" aria-label="Question timer">
+              {([10, 20] as const).map((seconds) => (
+                <button
+                  key={seconds}
+                  type="button"
+                  onClick={() => setSingleQuestionTimerSeconds(seconds)}
+                  className={singleQuestionTimerSeconds === seconds ? "is-active" : ""}
+                >
+                  {seconds}s
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </header>
+
+      {mobileFullscreenMessage && (
+        <div className="categories-mobile-fullscreen-message" role="status">
+          {mobileFullscreenMessage}
+        </div>
+      )}
 
       <section className="categories-viewport relative z-10 flex min-h-0 flex-1 px-0 pb-9 pt-2 sm:pb-14 sm:pt-5">
         <div className="categories-shell flex w-full flex-col overflow-hidden">
@@ -2887,7 +2987,7 @@ export default function MiloCategoriesPage() {
                             </span>
 
                             {userAccess.isLoggedIn && (
-                              <span className="mt-2 block text-[11px] font-black text-[#9bf5ff] drop-shadow-[0_1px_8px_rgba(0,0,0,0.8)]">
+                              <span className="category-mastery-line mt-2 block text-[11px] font-black text-[#9bf5ff] drop-shadow-[0_1px_8px_rgba(0,0,0,0.8)]">
                                 {masteryData[category]?.mastery_percent !== null && masteryData[category]?.mastery_percent !== undefined
                                   ? `${Math.round(masteryData[category].mastery_percent as number)}% Mastery${masteryData[category].trend === "improving" ? " · ↑ Improving" : ""}`
                                   : masteryData[category]?.single_quizzes
@@ -4415,6 +4515,12 @@ export default function MiloCategoriesPage() {
           display: none;
         }
 
+        .categories-mobile-title,
+        .categories-mobile-top-controls,
+        .categories-mobile-fullscreen-message {
+          display: none;
+        }
+
         .quiz-question {
           font-size: clamp(1.45rem, 2.7vw, 2rem);
         }
@@ -5713,6 +5819,391 @@ export default function MiloCategoriesPage() {
           .finished-stage {
             max-width: 880px;
             margin-inline: auto;
+          }
+        }
+
+        /* Mobile setup screens: fixed, non-scrollable and usable even with Safari browser chrome visible. */
+        @media (max-width: 1024px), (hover: none) and (pointer: coarse) {
+          .categories-mobile-title {
+            display: block;
+            min-width: 0;
+            flex: 0 1 auto;
+            overflow: hidden;
+            color: white;
+            font-family: Georgia, "Times New Roman", serif;
+            font-size: 20px;
+            font-weight: 500;
+            line-height: 1;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+
+          .categories-mobile-top-controls {
+            display: flex;
+            min-width: 0;
+            align-items: center;
+            gap: 6px;
+            margin-left: auto;
+            margin-right: 94px;
+          }
+
+          .categories-mobile-fullscreen {
+            display: flex;
+            min-width: 42px;
+            height: 36px;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            border: 1px solid rgba(155,245,255,0.20);
+            border-radius: 11px;
+            background: rgba(5,18,40,0.90);
+            padding: 0 8px;
+            color: rgba(255,255,255,0.78);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.18);
+            backdrop-filter: blur(10px);
+          }
+
+          .categories-mobile-fullscreen span {
+            color: #9bf5ff;
+            font-size: 15px;
+            line-height: 1;
+          }
+
+          .categories-mobile-fullscreen strong {
+            font-size: 8px;
+            font-weight: 900;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+          }
+
+          .categories-mobile-fullscreen-message {
+            position: fixed;
+            top: 50px;
+            right: 10px;
+            z-index: 95;
+            display: block;
+            width: min(300px, calc(100vw - 20px));
+            border: 1px solid rgba(255,209,138,0.26);
+            border-radius: 11px;
+            background: rgba(4,14,32,0.96);
+            padding: 8px 10px;
+            color: rgba(255,255,255,0.78);
+            box-shadow: 0 14px 34px rgba(0,0,0,0.30);
+            font-size: 9px;
+            font-weight: 750;
+            line-height: 1.35;
+          }
+
+          .categories-mobile-timer {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2px;
+            height: 36px;
+            border: 1px solid rgba(255,255,255,0.10);
+            border-radius: 11px;
+            background: rgba(4,14,32,0.90);
+            padding: 2px;
+          }
+
+          .categories-mobile-timer button {
+            min-width: 36px;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            background: transparent;
+            color: rgba(255,255,255,0.52);
+            font-size: 9px;
+            font-weight: 950;
+          }
+
+          .categories-mobile-timer button.is-active {
+            border-color: rgba(255,209,138,0.58);
+            background: rgba(255,209,138,0.12);
+            color: #ffd18a;
+          }
+
+          /* Categories is already in the top bar on phones/tablets. */
+          .categories-page:not(.categories-page--expedition) .categories-hero {
+            display: none;
+          }
+
+          .categories-page:not(.categories-page--expedition) .categories-topbar {
+            min-height: 46px;
+            gap: 8px;
+            padding-top: max(5px, env(safe-area-inset-top));
+            padding-right: max(8px, env(safe-area-inset-right));
+            padding-bottom: 5px;
+            padding-left: max(8px, env(safe-area-inset-left));
+          }
+
+          .categories-page:not(.categories-page--expedition) .categories-viewport {
+            padding-top: 2px;
+            padding-bottom: max(5px, env(safe-area-inset-bottom));
+          }
+
+          .categories-page:not(.categories-page--expedition) .categories-content {
+            padding: 4px 8px 0;
+          }
+
+          .categories-page:not(.categories-page--expedition) .categories-stage-card {
+            border-radius: 15px;
+            padding: 8px 10px;
+          }
+
+          .categories-page--category-setup .timer-choice {
+            display: none;
+          }
+
+          .categories-page--category-setup .stage-back {
+            min-height: 22px;
+            font-size: 10px;
+            line-height: 1.1;
+          }
+
+          .categories-page--category-setup .stage-header {
+            min-height: 30px;
+            align-items: center;
+            margin-top: 2px;
+          }
+
+          .categories-page--category-setup .stage-header > div:first-child > p:first-child {
+            font-size: 9px;
+            letter-spacing: 0.13em;
+          }
+
+          .categories-page--category-setup .stage-subtitle {
+            display: none;
+          }
+
+          .categories-page--category-setup [data-milo-guide-target="my-mastery"] {
+            min-height: 29px;
+            padding: 5px 10px;
+            font-size: 8px;
+          }
+
+          .categories-page--category-setup .category-grid {
+            min-height: 0;
+            flex: 1 1 0;
+            margin-top: 5px;
+            gap: 6px;
+          }
+
+          .categories-page--category-setup .category-card,
+          .categories-page--category-setup .category-card > span.relative {
+            min-height: 0 !important;
+            height: 100%;
+          }
+
+          .categories-page--category-setup .category-card {
+            border-radius: 13px;
+          }
+
+          .categories-page--category-setup .category-card > span.relative {
+            justify-content: flex-end;
+            padding: 8px 9px;
+          }
+
+          .categories-page--category-setup .category-index,
+          .categories-page--category-setup .category-description,
+          .categories-page--category-setup .selected-pill {
+            display: none;
+          }
+
+          .categories-page--category-setup .category-name {
+            margin-top: 0;
+            font-size: 14px;
+            line-height: 1.05;
+          }
+
+          .categories-page--category-setup .category-mastery-line {
+            margin-top: 3px !important;
+            font-size: 8px !important;
+            line-height: 1.1;
+          }
+
+          .categories-page--category-setup .adaptive-mode-grid {
+            flex: 0 0 auto;
+            margin-top: 6px;
+            gap: 5px;
+          }
+
+          .categories-page--category-setup .adaptive-mode-card {
+            min-height: 42px;
+            border-radius: 10px;
+            padding: 6px 7px;
+          }
+
+          .categories-page--category-setup .adaptive-mode-description {
+            display: none;
+          }
+
+          .categories-page--category-setup .adaptive-mode-heading {
+            justify-content: center;
+          }
+
+          .categories-page--category-setup .adaptive-mode-title {
+            font-size: 8px;
+            text-align: center;
+          }
+
+          .categories-page--category-setup .primary-action {
+            min-height: 38px;
+            margin-top: 6px !important;
+            border-radius: 11px;
+            padding: 7px 10px;
+            font-size: 9px;
+          }
+
+          .categories-guide-launcher {
+            top: max(5px, env(safe-area-inset-top));
+            right: max(7px, env(safe-area-inset-right));
+            min-height: 36px;
+            border-radius: 11px;
+            gap: 5px;
+            padding: 3px 7px 3px 3px;
+          }
+
+          .categories-guide-launcher-mark {
+            width: 29px;
+            height: 29px;
+            border-radius: 9px;
+            font-size: 13px;
+          }
+
+          .categories-guide-launcher-copy strong {
+            font-size: 9px;
+          }
+        }
+
+        @media (max-width: 1024px) and (orientation: landscape),
+          (hover: none) and (pointer: coarse) and (orientation: landscape) {
+          .categories-page--category-setup .category-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-rows: minmax(82px, 1fr);
+          }
+
+          .categories-page--category-setup .category-card {
+            padding: 0;
+            text-align: left;
+          }
+
+          .categories-page--category-setup .adaptive-mode-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+          }
+
+          .categories-page:not(.categories-page--expedition) .mode-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .categories-page:not(.categories-page--expedition) .reward-rules {
+            margin-top: 6px;
+            padding: 7px 9px;
+          }
+
+          .categories-page:not(.categories-page--expedition) .reward-rules-grid {
+            margin-top: 3px;
+            gap: 1px 10px;
+            font-size: 8px;
+            line-height: 1.2;
+          }
+        }
+
+        @media (max-width: 1024px) and (orientation: portrait),
+          (hover: none) and (pointer: coarse) and (orientation: portrait) {
+          .categories-page:not(.categories-page--landscape-required) {
+            overflow: hidden;
+          }
+
+          .categories-page:not(.categories-page--landscape-required) .categories-viewport,
+          .categories-page:not(.categories-page--landscape-required) .categories-content,
+          .categories-page:not(.categories-page--landscape-required) .categories-stage-card,
+          .categories-page:not(.categories-page--landscape-required) .stage-fill {
+            overflow: hidden;
+          }
+
+          .categories-mobile-title {
+            font-size: 17px;
+          }
+
+          .categories-mobile-top-controls {
+            gap: 4px;
+            margin-right: 78px;
+          }
+
+          .categories-mobile-fullscreen {
+            min-width: 34px;
+            width: 34px;
+            padding: 0;
+          }
+
+          .categories-mobile-fullscreen strong {
+            display: none;
+          }
+
+          .categories-mobile-timer button {
+            min-width: 30px;
+            font-size: 8px;
+          }
+
+          .categories-guide-launcher-copy strong {
+            font-size: 8px;
+          }
+
+          .categories-page--category-setup .category-grid {
+            grid-template-columns: 1fr;
+            grid-template-rows: repeat(3, minmax(70px, 1fr));
+          }
+
+          .categories-page--category-setup .category-card {
+            display: block;
+            padding: 0;
+            text-align: left;
+          }
+
+          .categories-page--category-setup .category-card > span.relative {
+            align-items: flex-start;
+            justify-content: flex-end;
+            text-align: left;
+          }
+
+          .categories-page--category-setup .adaptive-mode-grid {
+            min-height: 40px;
+          }
+
+          .categories-page--category-setup .adaptive-mode-card {
+            min-height: 40px;
+          }
+
+          .categories-page:not(.categories-page--expedition) .mode-grid {
+            margin-top: 6px;
+            gap: 6px;
+          }
+
+          .categories-page:not(.categories-page--expedition) .mode-card {
+            border-radius: 13px;
+            padding: 10px;
+          }
+
+          .categories-page:not(.categories-page--expedition) .mode-title {
+            font-size: 16px;
+          }
+
+          .categories-page:not(.categories-page--expedition) .mode-description {
+            margin-top: 3px;
+            font-size: 9px;
+            line-height: 1.25;
+          }
+
+          .categories-page:not(.categories-page--expedition) .reward-rules {
+            margin-top: 6px;
+            border-radius: 12px;
+            padding: 7px 8px;
+          }
+
+          .categories-page:not(.categories-page--expedition) .reward-rules-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 2px 8px;
+            font-size: 8px;
+            line-height: 1.2;
           }
         }
 

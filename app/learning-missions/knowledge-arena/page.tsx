@@ -5,6 +5,16 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
+import {
+  ArenaBattleResultCard,
+  ArenaBattleView,
+  ArenaEncounterLoader,
+} from "./ArenaBattleView";
+import {
+  useKnowledgeArenaBattle,
+  type KnowledgeArenaBattleTopic,
+  type KnowledgeArenaBattleMonster,
+} from "./useKnowledgeArenaBattle";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 type TimerSeconds = 10 | 20;
@@ -150,6 +160,32 @@ type SavedArenaAttempt = {
   timer_seconds?: number;
   topic_results?: TopicResult[];
   profile?: KnowledgeArenaProfile;
+  completion_status?: "completed" | "defeated" | "abandoned";
+  battle?: KnowledgeArenaBattleSave | null;
+  collection?: KnowledgeArenaCollectionGrant | null;
+};
+
+type KnowledgeArenaBattleSave = {
+  battle_id?: string;
+  monster_id?: string;
+  monster_slug?: string;
+  monster_name?: string;
+  monster_rarity?: string;
+  nova_hp?: number;
+  monster_hp?: number;
+  damage_dealt?: number;
+  damage_received?: number;
+  max_wrong_streak?: number;
+  revives_used?: number;
+  monster_defeated?: boolean;
+  nova_defeated?: boolean;
+  outcome?: "victory" | "escaped" | "defeat" | "in_progress";
+};
+
+type KnowledgeArenaCollectionGrant = {
+  collection_item_id?: string;
+  is_new?: boolean;
+  quantity?: number;
 };
 
 type KnowledgeArenaAttemptReceipt = {
@@ -161,9 +197,21 @@ type KnowledgeArenaAttemptReceipt = {
   correct_count: number;
   total_questions: number;
   tokens_earned: number;
+  completion_status?: "completed" | "defeated" | "abandoned";
   answer_rows: number;
   analytics_event_rows: number;
   created_at: string | null;
+  battle?: KnowledgeArenaBattleSave | null;
+};
+
+type KnowledgeArenaBattleResultState = {
+  outcome: "victory" | "escaped" | "defeat" | "in_progress";
+  novaHp: number;
+  monsterHp: number;
+  damageDealt: number;
+  damageReceived: number;
+  revivesUsed: number;
+  collection: KnowledgeArenaCollectionGrant | null;
 };
 
 type LobbyPlayer = {
@@ -419,7 +467,18 @@ export default function KnowledgeArenaPage() {
   const isMobile = screenMode === "mobile";
   const isCompact = !isDesktop;
 
-  function goBack() {
+  async function goBack() {
+    if (
+      (stage === "solo-quiz" || stage === "loading") &&
+      battle.battleId &&
+      userId
+    ) {
+      await supabase.rpc("abandon_knowledge_arena_battle_v1", {
+        p_battle_id: battle.battleId,
+      });
+      battle.resetBattle();
+    }
+
     if (typeof window !== "undefined" && window.history.length > 1) {
       router.back();
       return;
@@ -434,6 +493,7 @@ export default function KnowledgeArenaPage() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [tokenBalance, setTokenBalance] = useState(0);
+  const [gemBalance, setGemBalance] = useState(0);
 
   const [selectedTopic, setSelectedTopic] =
     useState<KnowledgeArenaTopic | null>("world_explorer");
@@ -470,6 +530,13 @@ export default function KnowledgeArenaPage() {
   const [loadingMessage, setLoadingMessage] = useState(
     "Loading Knowledge Arena questions..."
   );
+  const [battleTopic, setBattleTopic] = useState<KnowledgeArenaTopic>(
+    "world_explorer"
+  );
+  const [encounterRevealIndex, setEncounterRevealIndex] = useState(0);
+  const [encounterLocked, setEncounterLocked] = useState(false);
+  const [lastBattleResult, setLastBattleResult] =
+    useState<KnowledgeArenaBattleResultState | null>(null);
 
   const recordedAnswersRef = useRef<RecordedArenaAnswer[]>([]);
   const attemptSaveStartedRef = useRef(false);
@@ -507,6 +574,11 @@ export default function KnowledgeArenaPage() {
     selectedChallengeMode: ChallengeMode;
   } | null>(null);
 
+  const battle = useKnowledgeArenaBattle({
+    userId,
+    onBattleTransitionComplete: handleBattleTransitionComplete,
+    onBattleDefeat: handleBattleDefeat,
+  });
 
   const currentQuestion = questions[questionIndex];
   const selectedTopicInfo = topics.find((topic) => topic.id === selectedTopic);
@@ -695,31 +767,39 @@ export default function KnowledgeArenaPage() {
         setUserId(null);
         setUserEmail(null);
         setTokenBalance(0);
+        setGemBalance(0);
         return;
       }
 
       setUserId(user.id);
       setUserEmail(user.email ?? null);
 
-      const { data } = await supabase
-        .from("dream_token_transactions")
-        .select("amount")
-        .eq("user_id", user.id)
-        .eq("token_kind", "virtual");
+      const { data: balances, error: balancesError } = await supabase.rpc(
+        "get_my_dreamscape_balances"
+      );
 
-      const total =
-        data?.reduce((sum, row) => sum + (row.amount || 0), 0) || 0;
-
-      setTokenBalance(total);
+      if (!balancesError) {
+        const row = Array.isArray(balances) ? balances[0] : balances;
+        setTokenBalance(Number(row?.token_balance ?? 0));
+        setGemBalance(Number(row?.gem_balance ?? 0));
+      }
     }
 
-    loadUser();
+    void loadUser();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => loadUser());
+    } = supabase.auth.onAuthStateChange(() => void loadUser());
 
-    return () => subscription.unsubscribe();
+    const refreshBalances = () => void loadUser();
+    window.addEventListener("dream-tokens-updated", refreshBalances);
+    window.addEventListener("dream-gems-updated", refreshBalances);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener("dream-tokens-updated", refreshBalances);
+      window.removeEventListener("dream-gems-updated", refreshBalances);
+    };
   }, []);
 
   useEffect(() => {
@@ -750,7 +830,8 @@ export default function KnowledgeArenaPage() {
   }, [stage, timeLeft, answerLocked, currentQuestion, novaGuideOpen]);
 
   useEffect(() => {
-    if (stage !== "solo-quiz" && stage !== "multiplayer-quiz") return;
+    // Solo transitions are now controlled by the battle engine.
+    if (stage !== "multiplayer-quiz") return;
     if (novaGuideOpen) return;
     if (!answerLocked) return;
 
@@ -765,6 +846,37 @@ export default function KnowledgeArenaPage() {
 
     return () => window.clearTimeout(timer);
   }, [stage, answerLocked, nextCountdown, novaGuideOpen]);
+
+  useEffect(() => {
+    if (stage !== "loading") return;
+    if (!battle.encounter?.monster?.id) return;
+    if (questions.length < 10) return;
+
+    setEncounterRevealIndex(0);
+    setEncounterLocked(false);
+
+    let tick = 0;
+    let revealTimer = 0;
+
+    const rouletteTimer = window.setInterval(() => {
+      tick += 1;
+      setEncounterRevealIndex(tick);
+
+      if (tick >= 18) {
+        window.clearInterval(rouletteTimer);
+        setEncounterLocked(true);
+        revealTimer = window.setTimeout(() => {
+          battle.beginQuestion();
+          setStage("solo-quiz");
+        }, 1050);
+      }
+    }, 95);
+
+    return () => {
+      window.clearInterval(rouletteTimer);
+      if (revealTimer) window.clearTimeout(revealTimer);
+    };
+  }, [stage, battle.encounter?.monster?.id, questions.length]);
 
   useEffect(() => {
     if (!lobby?.id) return;
@@ -935,10 +1047,18 @@ export default function KnowledgeArenaPage() {
       return;
     }
 
+    const resolvedBattleTopic = (
+      plan.resolved_topic ??
+      plan.allocations?.[0]?.topic ??
+      topic ??
+      "world_explorer"
+    ) as KnowledgeArenaTopic;
+
     setActiveChallengePlan(plan);
     setProfileAtChallengeStart(knowledgeProfile);
     setQuestions(questionData as KnowledgeArenaQuestion[]);
     setSelectedTopic(plan.resolved_topic ?? null);
+    setBattleTopic(resolvedBattleTopic);
     setQuestionIndex(0);
     setSelectedAnswer(null);
     setScore(0);
@@ -949,9 +1069,29 @@ export default function KnowledgeArenaPage() {
     setNextCountdown(3);
     setTokensEarned(0);
     setRewardSaved(false);
+    setLastBattleResult(null);
+    setEncounterRevealIndex(0);
+    setEncounterLocked(false);
     recordedAnswersRef.current = [];
     attemptSaveStartedRef.current = false;
-    setStage("solo-quiz");
+
+    try {
+      setLoadingMessage("Nova is scanning the arena for a monster…");
+      await battle.prepareEncounter(
+        resolvedBattleTopic as KnowledgeArenaBattleTopic,
+        challengeMode,
+        soloTimerSeconds
+      );
+      setStage("loading");
+    } catch (encounterError) {
+      console.error("Knowledge Arena monster encounter failed:", encounterError);
+      setLoadError(
+        encounterError instanceof Error
+          ? encounterError.message
+          : "The arena monster encounter could not be prepared."
+      );
+      setStage("solo-mode");
+    }
   }
 
   function chooseSoloChallengeMode(challengeMode: ChallengeMode) {
@@ -1286,8 +1426,17 @@ export default function KnowledgeArenaPage() {
     return nextProfile;
   }
 
+  function getAnswerPayload() {
+    return recordedAnswersRef.current.map((answer) => ({
+      question_id: answer.question_id,
+      answer: answer.answer,
+      seconds_used: answer.seconds_used,
+    }));
+  }
+
   async function saveKnowledgeArenaAttempt(
-    mode: "solo" | "multiplayer"
+    mode: "solo" | "multiplayer",
+    completionStatus: "completed" | "defeated" = "completed"
   ): Promise<SavedArenaAttempt | null> {
     const challengeMode: ChallengeMode =
       mode === "multiplayer" ? "quick_play" : selectedChallengeMode;
@@ -1297,30 +1446,38 @@ export default function KnowledgeArenaPage() {
     if (!userId || !attemptTopic) {
       setAttemptSaveMessage(
         mode === "solo"
-          ? "Log in to save this attempt and receive Dreamscape Tokens."
+          ? completionStatus === "defeated"
+            ? "Defeat recorded locally. Log in to save battle evidence and Collections progress."
+            : "Log in to save this attempt and receive Dreamscape Tokens."
           : "This multiplayer attempt could not be linked to an account."
       );
       return null;
     }
 
-    if (recordedAnswersRef.current.length !== questions.length) {
+    const expectedAnswers =
+      mode === "solo" && completionStatus === "defeated"
+        ? recordedAnswersRef.current.length
+        : questions.length;
+
+    if (
+      expectedAnswers < 1 ||
+      recordedAnswersRef.current.length !== expectedAnswers ||
+      (completionStatus === "completed" && expectedAnswers !== 10)
+    ) {
       setAttemptSaveMessage(
-        "The quiz finished, but not all answer records were available to save."
+        "The quiz ended, but the available answer records do not match the expected save state."
       );
       return null;
     }
 
-    const answerPayload = recordedAnswersRef.current.map((answer) => ({
-      question_id: answer.question_id,
-      answer: answer.answer,
-      seconds_used: answer.seconds_used,
-    }));
+    const answerPayload = getAnswerPayload();
 
     const selectionContext =
       mode === "solo"
         ? {
-            source: "knowledge_arena_phase2B",
+            source: "knowledge_arena_battleground_phase1",
             selected_topic: selectedTopic,
+            battle_topic: battleTopic,
             challenge_plan: activeChallengePlan,
             profile_overall_mastery_before:
               profileAtChallengeStart?.overall_mastery ?? null,
@@ -1331,24 +1488,45 @@ export default function KnowledgeArenaPage() {
             lobby_id: lobby?.id ?? null,
           };
 
-    setAttemptSaveMessage("Saving your attempt and all 10 answer records…");
-
-    const { data, error } = await supabase.rpc(
-      "save_knowledge_arena_attempt_v3",
-      {
-        p_topic: attemptTopic,
-        p_mode: mode,
-        p_answers: answerPayload,
-        p_timer_seconds: activeTimerSeconds,
-        p_challenge_mode: challengeMode,
-        p_selection_context: selectionContext,
-      }
+    setAttemptSaveMessage(
+      completionStatus === "defeated"
+        ? `Saving ${expectedAnswers} genuine answers from this defeat…`
+        : "Saving your attempt and all 10 answer records…"
     );
+
+    const saveRpc =
+      mode === "solo"
+        ? "save_knowledge_arena_attempt_v4"
+        : "save_knowledge_arena_attempt_v3";
+
+    const saveParams =
+      mode === "solo"
+        ? {
+            p_topic: attemptTopic,
+            p_mode: mode,
+            p_answers: answerPayload,
+            p_timer_seconds: activeTimerSeconds,
+            p_challenge_mode: challengeMode,
+            p_selection_context: selectionContext,
+            p_completion_status: completionStatus,
+            p_battle_id: battle.battleId,
+            p_combat_log: battle.combatLog,
+          }
+        : {
+            p_topic: attemptTopic,
+            p_mode: mode,
+            p_answers: answerPayload,
+            p_timer_seconds: activeTimerSeconds,
+            p_challenge_mode: challengeMode,
+            p_selection_context: selectionContext,
+          };
+
+    const { data, error } = await supabase.rpc(saveRpc, saveParams);
 
     if (error) {
       console.error("Could not save Knowledge Arena attempt:", error);
       setAttemptSaveMessage(
-        `The quiz was completed, but the server could not save it: ${error.message}`
+        `The battle ended, but the server could not save it: ${error.message}`
       );
       setRewardSaved(false);
       return null;
@@ -1360,23 +1538,26 @@ export default function KnowledgeArenaPage() {
     if (!attemptId) {
       console.error("Knowledge Arena save RPC returned no attempt ID:", data);
       setAttemptSaveMessage(
-        "The server responded, but did not return a saved attempt ID. The result has not been marked as saved."
+        "The server responded, but did not return a saved attempt ID."
       );
       setRewardSaved(false);
       return null;
     }
 
-    // Confirm the parent attempt and all answer snapshots actually exist before
-    // telling the learner that the quiz was saved.
+    const receiptRpc =
+      mode === "solo"
+        ? "get_my_knowledge_arena_attempt_receipt_v2"
+        : "get_my_knowledge_arena_attempt_receipt";
+
     const { data: receiptData, error: receiptError } = await supabase.rpc(
-      "get_my_knowledge_arena_attempt_receipt",
+      receiptRpc,
       { p_attempt_id: attemptId }
     );
 
     if (receiptError) {
       console.error("Could not verify Knowledge Arena save receipt:", receiptError);
       setAttemptSaveMessage(
-        "The server created an attempt ID, but the saved record could not be verified. Please do not rely on this result yet."
+        "The attempt was created, but its saved answer receipt could not be verified."
       );
       setRewardSaved(false);
       return saved;
@@ -1386,11 +1567,11 @@ export default function KnowledgeArenaPage() {
 
     if (
       !receipt.attempt_saved ||
-      Number(receipt.answer_rows ?? 0) !== questions.length
+      Number(receipt.answer_rows ?? 0) !== expectedAnswers
     ) {
       console.error("Knowledge Arena save receipt is incomplete:", receipt);
       setAttemptSaveMessage(
-        `Save verification failed: ${Number(receipt.answer_rows ?? 0)}/${questions.length} answer records were found.`
+        `Save verification failed: ${Number(receipt.answer_rows ?? 0)}/${expectedAnswers} answer records were found.`
       );
       setRewardSaved(false);
       return saved;
@@ -1412,19 +1593,48 @@ export default function KnowledgeArenaPage() {
       Array.isArray(saved.topic_results) ? saved.topic_results : []
     );
 
+    const authoritativeBattle = saved.battle ?? receipt.battle ?? null;
+    if (mode === "solo" && battle.monster) {
+      setLastBattleResult({
+        outcome:
+          authoritativeBattle?.outcome ??
+          (battle.monsterHp <= 0
+            ? "victory"
+            : battle.novaHp <= 0
+            ? "defeat"
+            : "escaped"),
+        novaHp: Number(authoritativeBattle?.nova_hp ?? battle.novaHp),
+        monsterHp: Number(authoritativeBattle?.monster_hp ?? battle.monsterHp),
+        damageDealt: Number(
+          authoritativeBattle?.damage_dealt ?? battle.damageDealt
+        ),
+        damageReceived: Number(
+          authoritativeBattle?.damage_received ?? battle.damageReceived
+        ),
+        revivesUsed: Number(
+          authoritativeBattle?.revives_used ?? battle.revivesUsed
+        ),
+        collection: saved.collection ?? null,
+      });
+    }
+
     if (mode === "solo" && savedReward > 0) {
       setTokenBalance((current) => current + savedReward);
       window.dispatchEvent(new Event("dream-tokens-updated"));
+    }
+
+    if (completionStatus === "defeated") {
+      setAttemptSaveMessage(
+        `Defeat saved. ${receipt.answer_rows} genuine answers were recorded as learning evidence. No completion reward was issued.`
+      );
+      window.dispatchEvent(new Event("nova-analytics-updated"));
+      return saved;
     }
 
     setAttemptSaveMessage(
       `Saved. ${receipt.answer_rows}/10 answers are recorded. Updating your Knowledge Profile…`
     );
 
-    // Nova's full mastery processor is queue-based. Do not run the expensive
-    // mastery recalculation inside the browser request. The database queues it
-    // after the canonical attempt is committed, while this lightweight RPC
-    // immediately exposes the newly saved attempt as real evidence.
     const updatedProfile = await loadKnowledgeProfileAfterSave();
 
     if (updatedProfile?.mastery_refresh_pending) {
@@ -1442,7 +1652,6 @@ export default function KnowledgeArenaPage() {
     }
 
     window.dispatchEvent(new Event("nova-analytics-updated"));
-
     return saved;
   }
 
@@ -1481,6 +1690,16 @@ export default function KnowledgeArenaPage() {
       ),
       recordedAnswer,
     ];
+
+    if (stage === "solo-quiz") {
+      battle.resolveAnswer({
+        questionId: currentQuestion.id,
+        questionIndex,
+        isCorrect,
+        secondsUsed,
+      });
+      return;
+    }
 
     if (stage === "multiplayer-quiz" && myPlayer) {
       const existingAnswers = Array.isArray(myPlayer.answers) ? myPlayer.answers : [];
@@ -1522,11 +1741,10 @@ export default function KnowledgeArenaPage() {
   async function nextQuestion() {
     if (questionIndex >= questions.length - 1) {
       if (stage === "solo-quiz") {
-        await finishSoloQuiz();
+        await finishSoloQuiz("completed");
       } else {
         await finishMultiplayerQuiz();
       }
-
       return;
     }
 
@@ -1536,30 +1754,95 @@ export default function KnowledgeArenaPage() {
     setNextCountdown(3);
     setAnswerLocked(false);
     setFeedback(null);
+
+    if (stage === "solo-quiz") {
+      battle.beginQuestion();
+    }
   }
 
-  async function finishSoloQuiz() {
+  async function finishSoloQuiz(
+    completionStatus: "completed" | "defeated" = "completed"
+  ) {
     if (attemptSaveStartedRef.current) return;
     attemptSaveStartedRef.current = true;
 
     const localSummary = getRecordedAttemptSummary();
-    const localReward = calculateTokenReward(
-      localSummary.score,
-      localSummary.correctCount
-    );
+    const localReward =
+      completionStatus === "completed"
+        ? calculateTokenReward(localSummary.score, localSummary.correctCount)
+        : 0;
+
+    const localOutcome =
+      battle.monsterHp <= 0
+        ? "victory"
+        : battle.novaHp <= 0
+        ? "defeat"
+        : "escaped";
 
     setScore(localSummary.score);
     setCorrectCount(localSummary.correctCount);
     setTokensEarned(localReward);
     setRewardSaved(false);
+    setLastBattleResult({
+      outcome: localOutcome,
+      novaHp: battle.novaHp,
+      monsterHp: battle.monsterHp,
+      damageDealt: battle.damageDealt,
+      damageReceived: battle.damageReceived,
+      revivesUsed: battle.revivesUsed,
+      collection: null,
+    });
     setAttemptSaveMessage(
       userId
-        ? "Saving your attempt and refreshing Nova Analytics…"
-        : "Log in to save this attempt and receive Dreamscape Tokens."
+        ? completionStatus === "defeated"
+          ? "Saving the genuine answers completed before defeat…"
+          : "Saving your battle and refreshing Nova Analytics…"
+        : completionStatus === "defeated"
+        ? "Defeat recorded locally. Log in to save battle evidence."
+        : "Log in to save this attempt, rewards and monster Collection progress."
     );
     setStage("solo-results");
 
-    await saveKnowledgeArenaAttempt("solo");
+    await saveKnowledgeArenaAttempt("solo", completionStatus);
+  }
+
+  function handleBattleTransitionComplete() {
+    void nextQuestion();
+  }
+
+  function handleBattleDefeat() {
+    void finishSoloQuiz("defeated");
+  }
+
+  async function reviveNova(currency: "DT" | "DG") {
+    try {
+      const result = await battle.revive(currency, getAnswerPayload());
+      if (result.token_balance !== null && result.token_balance !== undefined) {
+        setTokenBalance(Number(result.token_balance));
+      }
+      if (result.gem_balance !== null && result.gem_balance !== undefined) {
+        setGemBalance(Number(result.gem_balance));
+      }
+    } catch (reviveError) {
+      console.warn("Knowledge Arena revive failed:", reviveError);
+    }
+  }
+
+  async function leaveSoloBattleToSetup() {
+    if (battle.battleId && userId) {
+      const { error } = await supabase.rpc(
+        "abandon_knowledge_arena_battle_v1",
+        { p_battle_id: battle.battleId }
+      );
+      if (error) {
+        console.warn("Could not mark Knowledge Arena battle abandoned:", error);
+      }
+    }
+
+    battle.resetBattle();
+    resetQuestionState(soloTimerSeconds);
+    setLastBattleResult(null);
+    setStage("solo-mode");
   }
 
   async function finishMultiplayerQuiz() {
@@ -1649,6 +1932,11 @@ export default function KnowledgeArenaPage() {
     setProfileAtChallengeStart(null);
     setProfileAfterAttempt(null);
     setLastTopicResults([]);
+    setBattleTopic("world_explorer");
+    setEncounterRevealIndex(0);
+    setEncounterLocked(false);
+    setLastBattleResult(null);
+    battle.resetBattle();
     resetQuestionState(20);
   }
 
@@ -2314,45 +2602,87 @@ export default function KnowledgeArenaPage() {
 
           {stage === "loading" && (
             <div className="ka-stage ka-loading-stage">
-              <div className="ka-loader-orb">✦</div>
-              <p className="ka-kicker">Nova is preparing your challenge</p>
-              <h2>{loadingMessage}</h2>
+              {battle.encounter?.monster ? (
+                <ArenaEncounterLoader
+                  monster={battle.encounter.monster}
+                  roulette={battle.encounter.roulette || []}
+                  revealIndex={encounterRevealIndex}
+                  locked={encounterLocked}
+                />
+              ) : (
+                <>
+                  <div className="ka-loader-orb">✦</div>
+                  <p className="ka-kicker">Nova is preparing your challenge</p>
+                  <h2>{loadingMessage}</h2>
+                </>
+              )}
             </div>
           )}
 
-          {(stage === "solo-quiz" || stage === "multiplayer-quiz") &&
-            currentQuestion && (
-              <ArenaQuizView
-                isSolo={stage === "solo-quiz"}
-                topicTitle={
-                  (currentQuestionTopicInfo || selectedTopicInfo)?.title ||
-                  "Knowledge Arena"
-                }
-                challengeLabel={
-                  stage === "solo-quiz"
-                    ? challengeModeMeta[selectedChallengeMode].title
-                    : "Multiplayer"
-                }
-                question={currentQuestion}
-                questionIndex={questionIndex}
-                score={score}
-                correctCount={correctCount}
-                timeLeft={timeLeft}
-                timerSeconds={activeTimerSeconds}
-                nextCountdown={nextCountdown}
-                answerLocked={answerLocked}
-                selectedAnswer={selectedAnswer}
-                feedback={feedback}
-                getAnswerStyle={getAnswerStyle}
-                onChoose={(answer) => void lockAnswer(answer)}
-                onNext={() => void nextQuestion()}
-                onBack={
-                  stage === "solo-quiz"
-                    ? () => setStage("solo-mode")
-                    : resetAll
-                }
-              />
-            )}
+          {stage === "solo-quiz" && currentQuestion && battle.monster && (
+            <ArenaBattleView
+              topic={battleTopic as KnowledgeArenaBattleTopic}
+              topicTitle={topicTitle(battleTopic)}
+              challengeLabel={challengeModeMeta[selectedChallengeMode].title}
+              question={currentQuestion}
+              questionIndex={questionIndex}
+              score={score}
+              correctCount={correctCount}
+              timeLeft={timeLeft}
+              timerSeconds={activeTimerSeconds}
+              answerLocked={answerLocked}
+              selectedAnswer={selectedAnswer}
+              feedback={feedback}
+              getAnswerStyle={getAnswerStyle}
+              onChoose={(answer) => void lockAnswer(answer)}
+              onBack={() => void leaveSoloBattleToSetup()}
+              monster={battle.monster}
+              phase={battle.phase}
+              novaHp={battle.novaHp}
+              monsterHp={battle.monsterHp}
+              wrongStreak={battle.wrongStreak}
+              fireMsRemaining={battle.fireMsRemaining}
+              shotsThisTurn={battle.shotsThisTurn}
+              battleMessage={battle.battleMessage}
+              damageFlash={battle.damageFlash}
+              revivesUsed={battle.revivesUsed}
+              reviveWorking={battle.reviveWorking}
+              reviveError={battle.reviveError}
+              tokenBalance={tokenBalance}
+              gemBalance={gemBalance}
+              isAuthenticated={Boolean(userId)}
+              onStartFiring={battle.startFiring}
+              onStopFiring={battle.stopFiring}
+              onReviveDT={() => void reviveNova("DT")}
+              onReviveDG={() => void reviveNova("DG")}
+              onAcceptDefeat={battle.acceptDefeat}
+            />
+          )}
+
+          {stage === "multiplayer-quiz" && currentQuestion && (
+            <ArenaQuizView
+              isSolo={false}
+              topicTitle={
+                (currentQuestionTopicInfo || selectedTopicInfo)?.title ||
+                "Knowledge Arena"
+              }
+              challengeLabel="Multiplayer"
+              question={currentQuestion}
+              questionIndex={questionIndex}
+              score={score}
+              correctCount={correctCount}
+              timeLeft={timeLeft}
+              timerSeconds={activeTimerSeconds}
+              nextCountdown={nextCountdown}
+              answerLocked={answerLocked}
+              selectedAnswer={selectedAnswer}
+              feedback={feedback}
+              getAnswerStyle={getAnswerStyle}
+              onChoose={(answer) => void lockAnswer(answer)}
+              onNext={() => void nextQuestion()}
+              onBack={resetAll}
+            />
+          )}
 
           {stage === "solo-results" && (
             <ArenaResultsPanel
@@ -2369,8 +2699,13 @@ export default function KnowledgeArenaPage() {
               topicResults={lastTopicResults}
               questions={questions}
               answers={recordedAnswersRef.current}
+              battleMonster={battle.monster}
+              battleResult={lastBattleResult}
               onStartFocus={startFocusFromResults}
-              onNextChallenge={() => setStage("solo-mode")}
+              onNextChallenge={() => {
+                battle.resetBattle();
+                setStage("solo-mode");
+              }}
               onExit={resetAll}
             />
           )}
@@ -6689,6 +7024,8 @@ function ArenaResultsPanel({
   topicResults,
   questions,
   answers,
+  battleMonster,
+  battleResult,
   onStartFocus,
   onNextChallenge,
   onExit,
@@ -6706,16 +7043,20 @@ function ArenaResultsPanel({
   topicResults: TopicResult[];
   questions: KnowledgeArenaQuestion[];
   answers: RecordedArenaAnswer[];
+  battleMonster: KnowledgeArenaBattleMonster | null;
+  battleResult: KnowledgeArenaBattleResultState | null;
   onStartFocus: () => void;
   onNextChallenge: () => void;
   onExit: () => void;
 }) {
+  const academicComplete = answers.length === 10;
+
   return (
     <div className="ka-stage ka-results-stage">
       <div className="ka-results-heading">
         <div>
           <p className="ka-kicker">{challengeModeMeta[challengeMode].title}</p>
-          <h2>Challenge Complete</h2>
+          <h2>{academicComplete ? "Challenge Complete" : "Challenge Interrupted"}</h2>
         </div>
         <div className="ka-result-score">
           <span>Score</span>
@@ -6723,10 +7064,23 @@ function ArenaResultsPanel({
         </div>
       </div>
 
+      {battleResult && (
+        <ArenaBattleResultCard
+          outcome={battleResult.outcome}
+          monster={battleMonster}
+          novaHp={battleResult.novaHp}
+          monsterHp={battleResult.monsterHp}
+          damageDealt={battleResult.damageDealt}
+          damageReceived={battleResult.damageReceived}
+          revivesUsed={battleResult.revivesUsed}
+          collection={battleResult.collection}
+        />
+      )}
+
       <div className="ka-result-stats">
         <div className="ka-result-stat">
           <span>Correct</span>
-          <strong>{correctCount}/10</strong>
+          <strong>{correctCount}/{answers.length || 10}</strong>
         </div>
         <div className="ka-result-stat">
           <span>Points</span>
@@ -6753,11 +7107,11 @@ function ArenaResultsPanel({
         </p>
 
         <ArenaQuestionReviewPanel
-          questions={questions}
+          questions={academicComplete ? questions : questions.slice(0, answers.length)}
           answers={answers}
         />
 
-        {(afterProfile || topicResults.length > 0) && (
+        {academicComplete && (afterProfile || topicResults.length > 0) && (
           <ArenaKnowledgeImpact
             beforeProfile={beforeProfile}
             afterProfile={afterProfile}

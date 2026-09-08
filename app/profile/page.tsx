@@ -1868,6 +1868,14 @@ Thank you.`;
           <div className="flex items-center gap-2 sm:gap-3">
             <button
               type="button"
+              onClick={() => router.push("/collections")}
+              className="min-h-[44px] rounded-full border border-cyan-200/24 bg-cyan-300/[0.08] px-4 text-[11px] font-extrabold uppercase tracking-[0.12em] text-white shadow-[0_12px_28px_rgba(0,0,0,0.2)] backdrop-blur-xl transition hover:scale-[1.02] hover:bg-cyan-300/[0.14] sm:px-5"
+            >
+              Collections
+            </button>
+
+            <button
+              type="button"
               onClick={() => setShowSettings(true)}
               className="min-h-[44px] rounded-full border border-cyan-200/24 bg-white/[0.07] px-4 text-[11px] font-extrabold uppercase tracking-[0.12em] text-white shadow-[0_12px_28px_rgba(0,0,0,0.2)] backdrop-blur-xl transition hover:scale-[1.02] hover:bg-white/[0.1] sm:px-5"
             >
