@@ -47,7 +47,6 @@ export type BattlePhase =
   | "monster_attack"
   | "hit"
   | "revive"
-  | "reviving"
   | "monster_defeated"
   | "transition"
   | "defeat";
@@ -76,6 +75,7 @@ export type ReviveResponse = {
 
 const BASE_SHOT_DAMAGE = 12;
 const SHOTS_PER_SECOND = 5;
+const SHOT_INTERVAL_MS = 1000 / SHOTS_PER_SECOND;
 const NOVA_START_HP = 1000;
 const NOVA_REVIVE_HP = 500;
 
@@ -108,10 +108,12 @@ function wrongStreakMultiplier(streak: number) {
 
 export function useKnowledgeArenaBattle({
   userId,
+  isPaused = false,
   onBattleTransitionComplete,
   onBattleDefeat,
 }: {
   userId: string | null;
+  isPaused?: boolean;
   onBattleTransitionComplete: () => void;
   onBattleDefeat: () => void;
 }) {
@@ -137,20 +139,16 @@ export function useKnowledgeArenaBattle({
 
   const fireHeldRef = useRef(false);
   const fireDeadlineRef = useRef(0);
+  const pausedFireRemainingRef = useRef(0);
+  const lastShotAtRef = useRef(0);
   const shotsRef = useRef(0);
   const combatLogRef = useRef<CombatLogEntry[]>([]);
   const monsterHpRef = useRef(0);
   const novaHpRef = useRef(NOVA_START_HP);
   const phaseRef = useRef<BattlePhase>("idle");
+  const pausedRef = useRef(isPaused);
   const currentResolutionRef = useRef<BattleResolution | null>(null);
   const completionTimerRef = useRef<number | null>(null);
-
-  // Keep the phase ref synchronous with React state so keyboard/pointer input
-  // works immediately when a correct answer opens the firing window.
-  const changePhase = useCallback((nextPhase: BattlePhase) => {
-    phaseRef.current = nextPhase;
-    setPhase(nextPhase);
-  }, []);
 
   useEffect(() => {
     monsterHpRef.current = monsterHp;
@@ -163,6 +161,32 @@ export function useKnowledgeArenaBattle({
   useEffect(() => {
     phaseRef.current = phase;
   }, [phase]);
+
+  useEffect(() => {
+    pausedRef.current = isPaused;
+
+    if (isPaused) {
+      fireHeldRef.current = false;
+      if (phaseRef.current === "firing" && fireDeadlineRef.current > 0) {
+        pausedFireRemainingRef.current = Math.max(
+          0,
+          fireDeadlineRef.current - performance.now(),
+        );
+        setFireMsRemaining(pausedFireRemainingRef.current);
+        fireDeadlineRef.current = 0;
+      }
+      return;
+    }
+
+    if (
+      phaseRef.current === "firing" &&
+      pausedFireRemainingRef.current > 0 &&
+      fireDeadlineRef.current <= 0
+    ) {
+      fireDeadlineRef.current = performance.now() + pausedFireRemainingRef.current;
+      pausedFireRemainingRef.current = 0;
+    }
+  }, [isPaused]);
 
   useEffect(() => {
     currentResolutionRef.current = currentResolution;
@@ -187,12 +211,14 @@ export function useKnowledgeArenaBattle({
     clearCompletionTimer();
     fireHeldRef.current = false;
     fireDeadlineRef.current = 0;
+    pausedFireRemainingRef.current = 0;
+    lastShotAtRef.current = 0;
     shotsRef.current = 0;
     combatLogRef.current = [];
     monsterHpRef.current = 0;
     novaHpRef.current = NOVA_START_HP;
     setEncounter(null);
-    changePhase("idle");
+    setPhase("idle");
     setNovaHp(NOVA_START_HP);
     setMonsterHp(0);
     setWrongStreak(0);
@@ -209,7 +235,7 @@ export function useKnowledgeArenaBattle({
     setReviveError("");
     setReviveWorking(false);
     setCurrentResolution(null);
-  }, [changePhase, clearCompletionTimer]);
+  }, [clearCompletionTimer]);
 
   const prepareEncounter = useCallback(
     async (
@@ -218,7 +244,7 @@ export function useKnowledgeArenaBattle({
       timerSeconds: 10 | 20,
     ) => {
       resetBattle();
-      changePhase("encounter");
+      setPhase("encounter");
       setBattleMessage("Scanning the arena for hostile lifeforms…");
 
       const { data, error } = await supabase.rpc(
@@ -244,21 +270,19 @@ export function useKnowledgeArenaBattle({
       setBattleMessage(`Encounter found: ${nextEncounter.monster.name}`);
       return nextEncounter;
     },
-    [changePhase, resetBattle],
+    [resetBattle],
   );
 
   const beginQuestion = useCallback(() => {
-    if (
-      phaseRef.current === "defeat" ||
-      phaseRef.current === "revive"
-    ) return;
+    if (phaseRef.current === "defeat" || phaseRef.current === "revive") return;
     setBattleMessage("");
     setDamageFlash(null);
     setShotsThisTurn(0);
     shotsRef.current = 0;
+    lastShotAtRef.current = 0;
     setCurrentResolution(null);
-    changePhase("question");
-  }, [changePhase]);
+    setPhase("question");
+  }, []);
 
   const addCombatEntry = useCallback((entry: CombatLogEntry) => {
     const next = [
@@ -281,15 +305,12 @@ export function useKnowledgeArenaBattle({
   );
 
   const finishFiringTurn = useCallback(() => {
-    // The clock and a killing shot can finish on nearly the same frame.
-    // Synchronously changing phase makes this idempotent.
-    if (phaseRef.current !== "firing") return;
-
     const resolution = currentResolutionRef.current;
     if (!resolution) return;
 
     fireHeldRef.current = false;
     fireDeadlineRef.current = 0;
+    pausedFireRemainingRef.current = 0;
     setFireMsRemaining(0);
     addCombatEntry({
       question_id: resolution.questionId,
@@ -297,20 +318,22 @@ export function useKnowledgeArenaBattle({
     });
 
     if (monsterHpRef.current <= 0) {
-      changePhase("monster_defeated");
+      setPhase("monster_defeated");
       setBattleMessage("TARGET ELIMINATED");
       completeTurnSoon(1200);
       return;
     }
 
-    changePhase("transition");
+    setPhase("transition");
     setBattleMessage("Nova disengages. Next question incoming…");
     completeTurnSoon(650);
-  }, [addCombatEntry, completeTurnSoon, changePhase]);
+  }, [addCombatEntry, completeTurnSoon]);
 
   const fireOneShot = useCallback(() => {
-    if (phaseRef.current !== "firing") return false;
-    if (performance.now() >= fireDeadlineRef.current) return false;
+    if (pausedRef.current || phaseRef.current !== "firing") return false;
+    if (fireDeadlineRef.current <= 0 || performance.now() >= fireDeadlineRef.current) {
+      return false;
+    }
 
     const resolution = currentResolutionRef.current;
     if (!resolution) return false;
@@ -318,10 +341,16 @@ export function useKnowledgeArenaBattle({
     const maxShots = fireWindowSeconds * SHOTS_PER_SECOND;
     if (shotsRef.current >= maxShots) return false;
 
+    const now = performance.now();
+    if (lastShotAtRef.current > 0 && now - lastShotAtRef.current < SHOT_INTERVAL_MS - 8) {
+      return false;
+    }
+    lastShotAtRef.current = now;
+
     shotsRef.current += 1;
     setShotsThisTurn(shotsRef.current);
 
-    // Once the monster is defeated, later shots are harmless target practice.
+    // Once the real monster is defeated, later firing is target practice.
     if (monsterHpRef.current <= 0) return true;
 
     const nextHp = Math.max(0, monsterHpRef.current - monsterDamagePerShot);
@@ -334,16 +363,17 @@ export function useKnowledgeArenaBattle({
 
     if (nextHp <= 0) {
       fireHeldRef.current = false;
-      finishFiringTurn();
+      window.setTimeout(() => finishFiringTurn(), 80);
     }
 
     return true;
   }, [fireWindowSeconds, finishFiringTurn, monsterDamagePerShot]);
 
   useEffect(() => {
-    if (phase !== "firing") return;
+    if (phase !== "firing" || isPaused) return;
 
     const clock = window.setInterval(() => {
+      if (fireDeadlineRef.current <= 0) return;
       const remaining = Math.max(0, fireDeadlineRef.current - performance.now());
       setFireMsRemaining(remaining);
       if (remaining <= 0) {
@@ -353,81 +383,66 @@ export function useKnowledgeArenaBattle({
     }, 50);
 
     return () => window.clearInterval(clock);
-  }, [phase, finishFiringTurn]);
+  }, [phase, isPaused, finishFiringTurn]);
 
   useEffect(() => {
-    if (phase !== "firing") return;
+    if (phase !== "firing" || isPaused) return;
 
     const fireTick = window.setInterval(() => {
       if (!fireHeldRef.current) return;
       fireOneShot();
-    }, 1000 / SHOTS_PER_SECOND);
+    }, 40);
 
     return () => window.clearInterval(fireTick);
-  }, [phase, fireOneShot]);
-
-  useEffect(() => {
-    function isSpace(event: KeyboardEvent) {
-      return event.code === "Space" || event.key === " ";
-    }
-
-    function keyDown(event: KeyboardEvent) {
-      if (!isSpace(event) || phaseRef.current !== "firing") return;
-      event.preventDefault();
-      event.stopPropagation();
-
-      // Register the first shot immediately. This avoids the old behaviour
-      // where a quick press could end before the 200 ms autofire tick.
-      if (!fireHeldRef.current && !event.repeat) {
-        fireOneShot();
-      }
-      fireHeldRef.current = phaseRef.current === "firing";
-    }
-
-    function keyUp(event: KeyboardEvent) {
-      if (!isSpace(event)) return;
-      if (phaseRef.current === "firing") {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-      fireHeldRef.current = false;
-    }
-
-    function stopOnBlur() {
-      fireHeldRef.current = false;
-    }
-
-    // Capture at document level so Space works even if a previous answer
-    // button still owns focus.
-    document.addEventListener("keydown", keyDown, { capture: true, passive: false });
-    document.addEventListener("keyup", keyUp, { capture: true, passive: false });
-    window.addEventListener("blur", stopOnBlur);
-    return () => {
-      document.removeEventListener("keydown", keyDown, true);
-      document.removeEventListener("keyup", keyUp, true);
-      window.removeEventListener("blur", stopOnBlur);
-      fireHeldRef.current = false;
-    };
-  }, [fireOneShot]);
+  }, [phase, isPaused, fireOneShot]);
 
   const startFiring = useCallback(() => {
-    if (phaseRef.current !== "firing") return;
+    if (pausedRef.current || phaseRef.current !== "firing") return;
 
-    // Pointer-down fires immediately, so a normal mouse click or quick tap
-    // always counts as one shot. Keeping the pointer down enables autofire.
-    if (!fireHeldRef.current) {
+    const wasHeld = fireHeldRef.current;
+    fireHeldRef.current = true;
+
+    // Critical UX fix: a tap or quick Space press always launches a shot immediately.
+    // Holding continues at the fixed 5 shots/sec rate.
+    if (!wasHeld) {
       fireOneShot();
     }
-    fireHeldRef.current = phaseRef.current === "firing";
   }, [fireOneShot]);
 
   const stopFiring = useCallback(() => {
     fireHeldRef.current = false;
   }, []);
 
+  useEffect(() => {
+    function keyDown(event: KeyboardEvent) {
+      if (event.code !== "Space" || phaseRef.current !== "firing") return;
+      event.preventDefault();
+      if (!event.repeat) startFiring();
+    }
+
+    function keyUp(event: KeyboardEvent) {
+      if (event.code !== "Space") return;
+      if (phaseRef.current === "firing") event.preventDefault();
+      stopFiring();
+    }
+
+    function stopOnBlur() {
+      stopFiring();
+    }
+
+    window.addEventListener("keydown", keyDown, { passive: false });
+    window.addEventListener("keyup", keyUp, { passive: false });
+    window.addEventListener("blur", stopOnBlur);
+    return () => {
+      window.removeEventListener("keydown", keyDown);
+      window.removeEventListener("keyup", keyUp);
+      window.removeEventListener("blur", stopOnBlur);
+    };
+  }, [startFiring, stopFiring]);
+
   const resolveAnswer = useCallback(
     (resolution: BattleResolution) => {
-      if (!monster) return;
+      if (!monster || pausedRef.current) return;
 
       clearCompletionTimer();
       setCurrentResolution(resolution);
@@ -439,12 +454,14 @@ export function useKnowledgeArenaBattle({
         setDamageFlash(null);
         setShotsThisTurn(0);
         shotsRef.current = 0;
+        lastShotAtRef.current = 0;
 
         const fireSeconds = fireWindowForSecondsUsed(resolution.secondsUsed);
         setFireWindowSeconds(fireSeconds);
         setFireMsRemaining(fireSeconds * 1000);
         fireDeadlineRef.current = performance.now() + fireSeconds * 1000;
-        changePhase("firing");
+        pausedFireRemainingRef.current = 0;
+        setPhase("firing");
         setBattleMessage(
           monsterHpRef.current > 0
             ? `CORRECT — FIRE! ${fireSeconds}s attack window`
@@ -456,7 +473,7 @@ export function useKnowledgeArenaBattle({
       addCombatEntry({ question_id: resolution.questionId, shots_fired: 0 });
 
       if (monsterHpRef.current <= 0) {
-        changePhase("transition");
+        setPhase("transition");
         setBattleMessage("The monster is already down. Next question incoming…");
         completeTurnSoon(700);
         return;
@@ -467,7 +484,7 @@ export function useKnowledgeArenaBattle({
       const attackDamage = Math.round(monster.attack_damage * multiplier);
       setWrongStreak(nextWrongStreak);
       setMaxWrongStreak((current) => Math.max(current, nextWrongStreak));
-      changePhase("monster_attack");
+      setPhase("monster_attack");
       setBattleMessage(
         nextWrongStreak > 1
           ? `WRONG STREAK ×${multiplier.toFixed(1)} — ${monster.name} attacks!`
@@ -475,36 +492,68 @@ export function useKnowledgeArenaBattle({
       );
 
       completionTimerRef.current = window.setTimeout(() => {
+        if (pausedRef.current) {
+          // If the admin pauses during this short attack wind-up, wait until resumed.
+          const waitForResume = window.setInterval(() => {
+            if (pausedRef.current) return;
+            window.clearInterval(waitForResume);
+            const nextNovaHp = Math.max(0, novaHpRef.current - attackDamage);
+            const actualDamage = novaHpRef.current - nextNovaHp;
+            novaHpRef.current = nextNovaHp;
+            setNovaHp(nextNovaHp);
+            setDamageReceived((current) => current + actualDamage);
+            setDamageFlash(attackDamage);
+            setPhase("hit");
+            window.setTimeout(() => setDamageFlash(null), 300);
+
+            if (nextNovaHp <= 0) {
+              if (resolution.questionIndex < 9) {
+                setPhase(userId && revivesUsed < 1 ? "revive" : "defeat");
+                setBattleMessage("NOVA HAS FALLEN");
+              } else {
+                setBattleMessage("NOVA HAS FALLEN — final answer recorded");
+                setPhase("transition");
+                completeTurnSoon(900);
+              }
+              return;
+            }
+
+            setBattleMessage(`Nova takes ${attackDamage} damage.`);
+            setPhase("transition");
+            completeTurnSoon(900);
+          }, 100);
+          return;
+        }
+
         const nextNovaHp = Math.max(0, novaHpRef.current - attackDamage);
         const actualDamage = novaHpRef.current - nextNovaHp;
         novaHpRef.current = nextNovaHp;
         setNovaHp(nextNovaHp);
         setDamageReceived((current) => current + actualDamage);
         setDamageFlash(attackDamage);
-        changePhase("hit");
+        setPhase("hit");
 
         window.setTimeout(() => setDamageFlash(null), 300);
 
         if (nextNovaHp <= 0) {
           if (resolution.questionIndex < 9) {
-            changePhase(userId && revivesUsed < 1 ? "revive" : "defeat");
+            setPhase(userId && revivesUsed < 1 ? "revive" : "defeat");
             setBattleMessage("NOVA HAS FALLEN");
           } else {
             setBattleMessage("NOVA HAS FALLEN — final answer recorded");
-            changePhase("transition");
+            setPhase("transition");
             completeTurnSoon(900);
           }
           return;
         }
 
         setBattleMessage(`Nova takes ${attackDamage} damage.`);
-        changePhase("transition");
+        setPhase("transition");
         completeTurnSoon(900);
       }, 650);
     },
     [
       addCombatEntry,
-      changePhase,
       clearCompletionTimer,
       completeTurnSoon,
       monster,
@@ -525,6 +574,7 @@ export function useKnowledgeArenaBattle({
     ) => {
       if (!battleId) throw new Error("This battle is not linked to an account.");
       if (phaseRef.current !== "revive") throw new Error("Nova is not awaiting revival.");
+      if (pausedRef.current) throw new Error("Resume the battle before reviving Nova.");
 
       setReviveWorking(true);
       setReviveError("");
@@ -554,7 +604,7 @@ export function useKnowledgeArenaBattle({
       novaHpRef.current = NOVA_REVIVE_HP;
       setMonsterHp(Number(result.monster_hp));
       monsterHpRef.current = Number(result.monster_hp);
-      changePhase("reviving");
+      setPhase("transition");
       setBattleMessage("NOVA REVIVED — 500 HP");
 
       window.dispatchEvent(new Event("dream-tokens-updated"));
@@ -563,16 +613,17 @@ export function useKnowledgeArenaBattle({
       completeTurnSoon(900);
       return result;
     },
-    [battleId, changePhase, completeTurnSoon],
+    [battleId, completeTurnSoon],
   );
 
   const acceptDefeat = useCallback(() => {
     if (phaseRef.current !== "defeat" && phaseRef.current !== "revive") return;
+    if (pausedRef.current) return;
     clearCompletionTimer();
-    changePhase("defeat");
+    setPhase("defeat");
     setBattleMessage("DEFEAT");
     onBattleDefeat();
-  }, [changePhase, clearCompletionTimer, onBattleDefeat]);
+  }, [clearCompletionTimer, onBattleDefeat]);
 
   const snapshot = useMemo(
     () => ({

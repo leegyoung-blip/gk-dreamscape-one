@@ -143,13 +143,20 @@ export default function CoreTopicClient({
 
       // ================================================================
       // CHECK CURRENT ROLE
-      // Topic RED remains admin-only.
-      // Quiz RED / BLUE / GOLD are visible to admin + curriculum_lead.
-      // Only admins can change the quiz verification state.
+      //
+      // Topic RED remains admin-only in this learner-facing page.
+      // Quiz visibility:
+      //   Student / ordinary learner = GOLD only
+      //   Teacher                    = BLUE + GOLD
+      //   Curriculum Lead / Admin    = existing curriculum preview access
+      //
+      // Teacher is deliberately NOT treated as curriculum staff, so teachers
+      // do not receive curriculum verification/edit controls.
       // ================================================================
 
       let currentUserIsAdmin = false;
       let currentUserIsCurriculumStaff = false;
+      let currentUserIsTeacher = false;
 
       if (userId) {
         const profileResult = await supabase
@@ -167,9 +174,15 @@ export default function CoreTopicClient({
           );
         } else {
           const currentRole = normalizeRole(profileResult.data?.role);
+
           currentUserIsAdmin = currentRole === "admin";
+
+          // Keep curriculum-management identity unchanged.
           currentUserIsCurriculumStaff =
             currentRole === "admin" || currentRole === "curriculum-lead";
+
+          // Read-only learner-style staff access: BLUE + GOLD only.
+          currentUserIsTeacher = currentRole === "teacher";
         }
       }
 
@@ -189,9 +202,12 @@ export default function CoreTopicClient({
       // ================================================================
       // LOAD PUBLISHED QUIZZES
       //
-      // RLS now exposes only GOLD / human-verified published quizzes to
-      // teachers, students and other ordinary users. Admin/curriculum_lead
-      // can still read RED / BLUE / GOLD through the curriculum policy.
+      // Defence in depth mirrors the server-side visibility rules:
+      //   Student / ordinary learner = GOLD only
+      //   Teacher                    = BLUE + GOLD
+      //   Curriculum Lead / Admin    = existing curriculum preview access
+      //
+      // RED remains hidden from teachers and students.
       // ================================================================
 
       let quizQuery = supabase
@@ -203,9 +219,15 @@ export default function CoreTopicClient({
         .eq("is_published", true)
         .eq("status", "published");
 
-      // Defence in depth: ordinary users explicitly request GOLD rows only.
-      // RLS and the quiz RPC access guard enforce the same rule server-side.
-      if (!currentUserIsCurriculumStaff) {
+      // Defence in depth: request only the rows the current role may use.
+      // RLS and the quiz payload/attempt access guards enforce the same rule
+      // server-side.
+      if (currentUserIsTeacher) {
+        quizQuery = quizQuery.in("student_visibility", [
+          "reviewing",
+          "satisfied",
+        ]);
+      } else if (!currentUserIsCurriculumStaff) {
         quizQuery = quizQuery.eq("student_visibility", "satisfied");
       }
 
@@ -594,8 +616,8 @@ export default function CoreTopicClient({
               </p>
               <p className="mt-1 text-xs text-white/40">
                 Red = locked, Blue = under human review, Gold = human verified.
-                Teachers and students receive only Gold quizzes, shown to them
-                with the normal blue learner styling.
+                Students receive Gold only. Teachers receive Blue and Gold,
+                both shown with the normal learner styling.
               </p>
             </div>
 
