@@ -119,7 +119,7 @@ export default function RoverChallengeProgressDock() {
           `Cost: ${access.early_unlock_price} Dream Gems`,
           `Balance: ${dreamGemBalance} → ${dreamGemBalance - access.early_unlock_price}`,
           "",
-          "This is a permanent unlock for this account. It bypasses the normal rover-stage requirement, but previous Rover Levels must still be completed in order.",
+          "This is a permanent unlock for this account. It bypasses the normal rover ownership requirement, but previous Rover Levels must still be completed in order.",
         ].join("\n"),
       );
 
@@ -194,7 +194,7 @@ export default function RoverChallengeProgressDock() {
           ) : (
             <>
               <div style={walletRow}>
-                <span>{isAdmin ? "ADMIN ACCESS" : `Stage ${currentStage}`}</span>
+                <span>{isAdmin ? "ADMIN ACCESS" : `Highest owned: Rover ${currentStage + 1}`}</span>
                 <span style={gemBalance}>◆ {dreamGemBalance} DG</span>
               </div>
 
@@ -226,11 +226,11 @@ export default function RoverChallengeProgressDock() {
                   } else if (!access.prerequisite_completed) {
                     status = `Complete Level ${access.prerequisite_level}`;
                   } else if (canEarlyUnlock && hasEnoughGems) {
-                    status = `Stage ${access.minimum_rover_stage} normally required · Early unlock available`;
+                    status = `Rover ${Number(access.minimum_rover_stage) + 1} normally required · Early unlock available`;
                   } else if (canEarlyUnlock) {
                     status = `Need ${access.early_unlock_price - dreamGemBalance} more DG for early unlock`;
                   } else if (!access.stage_ready) {
-                    status = `Stage ${access.minimum_rover_stage} required`;
+                    status = `Rover ${Number(access.minimum_rover_stage) + 1} required`;
                   }
 
                   const highlighted = playable || canEarlyUnlock;
@@ -301,7 +301,7 @@ export default function RoverChallengeProgressDock() {
             <p style={stageText}>
               {isAdmin
                 ? "Admins can enter every Rover Level without progression checks."
-                : "Dream Gems bypass only the rover-stage requirement. Previous levels must still be completed."}
+                : "Dream Gems bypass only the rover ownership requirement. Previous levels must still be completed."}
             </p>
           )}
         </>

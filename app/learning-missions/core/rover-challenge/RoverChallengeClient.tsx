@@ -81,7 +81,7 @@ export default function RoverChallengeClient({
   const [currentUpgrade, setCurrentUpgrade] = useState<CoreRoverUpgrade>(
     coreUpgradeTrack[0],
   );
-  const [highestUnlockedStage, setHighestUnlockedStage] = useState(0);
+  const [highestOwnedStage, setHighestOwnedStage] = useState(0);
   const [access, setAccess] = useState<RoverLevelAccess | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -186,7 +186,7 @@ export default function RoverChallengeClient({
          */
         if (showLoading) {
           setCurrentUpgrade(coreUpgradeTrack[0]);
-          setHighestUnlockedStage(0);
+          setHighestOwnedStage(0);
         }
       } else {
         const loadout = ((loadoutResult.data ?? []) as RoverLoadoutRow[])[0];
@@ -202,7 +202,7 @@ export default function RoverChallengeClient({
           ) ?? coreUpgradeTrack[0];
 
         setCurrentUpgrade(selectedUpgrade);
-        setHighestUnlockedStage(maxUnlockedStage);
+        setHighestOwnedStage(maxUnlockedStage);
       }
 
       if (accessResult.error) {
@@ -295,7 +295,7 @@ export default function RoverChallengeClient({
           : hasNextLevel
             ? nextIsReady
               ? `Level ${result.levelId} completion saved. Level ${result.levelId + 1} is ready.`
-              : `Level ${result.levelId} completion saved. Level ${result.levelId + 1} is now eligible for normal progression or a Dream Gem early unlock.`
+              : `Level ${result.levelId} completion saved. Level ${result.levelId + 1} now needs its required rover ownership or a Dream Gem early unlock.`
             : "Completion saved. You can replay this level at any time.",
       );
 
@@ -326,7 +326,7 @@ export default function RoverChallengeClient({
         `Cost: ${price} Dream Gems`,
         `Balance: ${balance} → ${balance - price}`,
         "",
-        "This permanently bypasses the normal rover-stage requirement for this level. Previous Rover Levels must still be completed in order.",
+        "This permanently bypasses the normal rover ownership requirement for this level. Previous Rover Levels must still be completed in order.",
       ].join("\n"),
     );
 
@@ -535,7 +535,7 @@ export default function RoverChallengeClient({
           <LevelGate
             level={levelConfig}
             access={access}
-            currentStage={highestUnlockedStage}
+            currentStage={highestOwnedStage}
             signedIn={Boolean(userId)}
             error={loadError}
             unlockingEarly={unlockingEarly}
@@ -619,16 +619,16 @@ function LevelGate({
     message = error;
   } else if (access?.admin_access) {
     title = `${level.title} · Admin access`;
-    message = "Admins can enter every Rover Level without quiz, rover-stage or prerequisite checks.";
+    message = "Admins can enter every Rover Level without rover ownership or prerequisite checks.";
   } else if (!access?.prerequisite_completed) {
     title = `Complete Level ${level.prerequisiteLevel} first`;
-    message = "Dream Gems can bypass the rover-stage schedule, but they do not skip Rover Levels themselves.";
+    message = "Dream Gems can bypass the rover ownership requirement, but they do not skip Rover Levels themselves.";
   } else if (access?.can_early_unlock) {
-    title = `Stage ${level.minimumRoverStage} normally required`;
-    message = `Your current rover is Stage ${currentStage}. Keep completing Core Missions, or permanently unlock this level early for ${access.early_unlock_price} Dream Gems.`;
+    title = `Rover ${level.minimumRoverStage + 1} normally required`;
+    message = `Your highest owned rover is Rover ${currentStage + 1}. Purchase Rover ${level.minimumRoverStage + 1}, or permanently unlock this level early for ${access.early_unlock_price} Dream Gems.`;
   } else if (!access?.unlocked && !access?.stage_ready) {
-    title = `Stage ${level.minimumRoverStage} rover required`;
-    message = `Your current rover is Stage ${currentStage}. Complete more Core Missions to unlock this level normally.`;
+    title = `Rover ${level.minimumRoverStage + 1} required`;
+    message = `Your highest owned rover is Rover ${currentStage + 1}. Purchase Rover ${level.minimumRoverStage + 1} from My Rover to unlock this course normally.`;
   } else if (level.status === "phase-2") {
     title = `${level.title} unlocked`;
     message = "This Rover Level is unlocked but is not yet playable.";

@@ -11,6 +11,8 @@ import {
   ArenaEncounterLoader,
 } from "./ArenaBattleView";
 import { ArenaCoopBattleView, type CoopMonsterView, type CoopRoundResult } from "./ArenaCoopBattleView";
+import { ArenaVersusCharacterSelect, type VersusMonsterChoice, type VersusPlayerChoice } from "./ArenaVersusCharacterSelect";
+import { ArenaVersusRaceView, type VersusRaceMonster, type VersusRacePlayer } from "./ArenaVersusRaceView";
 import {
   useKnowledgeArenaBattle,
   type KnowledgeArenaBattleTopic,
@@ -43,6 +45,7 @@ type PageStage =
   | "create-lobby"
   | "join-lobby"
   | "waiting-lobby"
+  | "versus-character-select"
   | "multiplayer-quiz"
   | "multiplayer-results";
 
@@ -80,6 +83,7 @@ type Lobby = {
   round_started_at: string | null;
   round_deadline: string | null;
   round_resolved_at: string | null;
+  versus_stage: "lobby" | "character_select" | "racing" | "finished";
   created_at: string;
   started_at: string | null;
 };
@@ -272,6 +276,17 @@ type LobbyPlayer = {
   last_damage_received: number;
   race_progress: number;
   answer_time_total: number;
+};
+
+type MultiplayerLeaderboardEntry = {
+  rank: number;
+  user_id: string;
+  display_name: string;
+  matches: number;
+  wins: number;
+  best_score: number;
+  total_score: number;
+  total_correct: number;
 };
 
 const topics: {
@@ -645,6 +660,10 @@ export default function KnowledgeArenaPage() {
   const [coopRoundResult, setCoopRoundResult] = useState<CoopRoundResult | null>(null);
   const [coopMyAttackScore, setCoopMyAttackScore] = useState(0);
   const [coopResolutionWorking, setCoopResolutionWorking] = useState(false);
+  const [versusMonsters, setVersusMonsters] = useState<VersusMonsterChoice[]>([]);
+  const [versusWorking, setVersusWorking] = useState(false);
+  const [versusRoundResolved, setVersusRoundResolved] = useState(false);
+  const [multiplayerLeaderboard, setMultiplayerLeaderboard] = useState<MultiplayerLeaderboardEntry[]>([]);
 
   const [novaGuideOpen, setNovaGuideOpen] = useState(false);
   const [novaGuideStep, setNovaGuideStep] = useState(0);
@@ -761,6 +780,7 @@ export default function KnowledgeArenaPage() {
     if (
       stage === "create-lobby" ||
       stage === "waiting-lobby" ||
+      stage === "versus-character-select" ||
       stage === "multiplayer-quiz" ||
       stage === "multiplayer-results"
     ) {
@@ -782,6 +802,16 @@ export default function KnowledgeArenaPage() {
     return Number(a.answer_time_total || 0) - Number(b.answer_time_total || 0);
   });
   const myCoopPlayer = players.find((player) => player.id === myPlayer?.id) || myPlayer;
+  const versusStandings = [...players].sort((a, b) => {
+    if (Number(b.race_progress || 0) !== Number(a.race_progress || 0)) {
+      return Number(b.race_progress || 0) - Number(a.race_progress || 0);
+    }
+    if (b.correct_count !== a.correct_count) return b.correct_count - a.correct_count;
+    return Number(a.answer_time_total || 0) - Number(b.answer_time_total || 0);
+  });
+  const allVersusCharactersSelected = players.length >= 2 && players.every(
+    (player) => Boolean(player.character_type && player.character_slug)
+  );
 
   // Knowledge Arena is a fixed-screen experience on every device.
   useEffect(() => {
@@ -1018,14 +1048,16 @@ export default function KnowledgeArenaPage() {
     if (novaGuideOpen || gameplayBlocked) return;
     if (!currentQuestion) return;
 
-    const isCoopRound = stage === "multiplayer-quiz" && lobby?.game_mode === "coop";
-    if (answerLocked && !isCoopRound) return;
+    const isServerRound = stage === "multiplayer-quiz" && (lobby?.game_mode === "coop" || lobby?.game_mode === "versus");
+    if (answerLocked && !isServerRound) return;
 
     if (timeLeft <= 0) {
       if (!answerLocked) {
         void lockAnswer(null);
-      } else if (isCoopRound) {
+      } else if (lobby?.game_mode === "coop") {
         void tryResolveCoopRound();
+      } else if (lobby?.game_mode === "versus") {
+        void tryResolveVersusRound();
       }
       return;
     }
@@ -1040,7 +1072,7 @@ export default function KnowledgeArenaPage() {
   useEffect(() => {
     // Solo transitions are now controlled by the battle engine.
     if (stage !== "multiplayer-quiz") return;
-    if (lobby?.game_mode === "coop") return;
+    if (lobby?.game_mode === "coop" || lobby?.game_mode === "versus") return;
     if (novaGuideOpen || gameplayBlocked) return;
     if (!answerLocked) return;
 
@@ -1133,7 +1165,13 @@ export default function KnowledgeArenaPage() {
   useEffect(() => {
     if (!lobby) return;
 
-    if (lobby.status === "playing" && stage === "waiting-lobby") {
+    if (lobby.game_mode === "versus" && lobby.versus_stage === "character_select" && stage === "waiting-lobby") {
+      setStage("versus-character-select");
+      void loadVersusMonsters();
+      return;
+    }
+
+    if (lobby.status === "playing" && (stage === "waiting-lobby" || stage === "versus-character-select")) {
       void prepareMultiplayerGame(lobby);
     }
 
@@ -1145,7 +1183,7 @@ export default function KnowledgeArenaPage() {
     if (lobby.status === "finished" && stage !== "multiplayer-results") {
       setStage("multiplayer-results");
     }
-  }, [lobby?.status, stage]);
+  }, [lobby?.status, lobby?.game_mode, lobby?.versus_stage, stage]);
 
   useEffect(() => {
     if (stage !== "multiplayer-quiz" || lobby?.game_mode !== "coop") return;
@@ -1185,6 +1223,46 @@ export default function KnowledgeArenaPage() {
 
     return () => window.clearTimeout(timer);
   }, [stage, lobby?.id, lobby?.game_mode, lobby?.round_status, lobby?.current_question_index]);
+
+  useEffect(() => {
+    if (stage !== "multiplayer-quiz" || lobby?.game_mode !== "versus") return;
+    if (lobby.round_status !== "answering") return;
+
+    const nextIndex = Number(lobby.current_question_index || 0);
+    if (questionIndex !== nextIndex) {
+      setQuestionIndex(nextIndex);
+      setSelectedAnswer(null);
+      setTimeLeft(lobby.timer_seconds);
+      setAnswerLocked(false);
+      setFeedback(null);
+      setVersusRoundResolved(false);
+    }
+  }, [stage, lobby?.game_mode, lobby?.round_status, lobby?.current_question_index, lobby?.timer_seconds, questionIndex]);
+
+  useEffect(() => {
+    if (stage !== "multiplayer-quiz" || lobby?.game_mode !== "versus") return;
+    if (lobby.round_status !== "answering" || !lobby.round_deadline) return;
+
+    const delay = Math.max(0, new Date(lobby.round_deadline).getTime() - Date.now() + 150);
+    const timer = window.setTimeout(() => void tryResolveVersusRound(), delay);
+    return () => window.clearTimeout(timer);
+  }, [stage, lobby?.id, lobby?.game_mode, lobby?.round_status, lobby?.round_deadline]);
+
+  useEffect(() => {
+    if (stage !== "multiplayer-quiz" || lobby?.game_mode !== "versus") return;
+    if (lobby.round_status !== "resolved") return;
+    setVersusRoundResolved(true);
+    const timer = window.setTimeout(() => void tryAdvanceVersusRound(), 1600);
+    return () => window.clearTimeout(timer);
+  }, [stage, lobby?.id, lobby?.game_mode, lobby?.round_status, lobby?.current_question_index]);
+
+  useEffect(() => {
+    if (stage !== "multiplayer-results" || !lobby?.id) return;
+    void (async () => {
+      await supabase.rpc("finalize_knowledge_arena_multiplayer_results_v1", { p_lobby_id: lobby.id });
+      await loadMultiplayerLeaderboard(lobby.game_mode);
+    })();
+  }, [stage, lobby?.id, lobby?.game_mode]);
 
   async function loadKnowledgeProfile() {
     if (!userId) {
@@ -1602,6 +1680,9 @@ export default function KnowledgeArenaPage() {
       const nextLobby = lobbyData as Lobby;
       setLobby(nextLobby);
       setMultiplayerGameMode(nextLobby.game_mode || "coop");
+      if (nextLobby.game_mode === "versus" && nextLobby.versus_stage === "character_select") {
+        void loadVersusMonsters();
+      }
       setLobbyTimerSecondsChoice(nextLobby.timer_seconds ?? 20);
 
       if (nextLobby.encounter_monster_id) {
@@ -1637,6 +1718,104 @@ export default function KnowledgeArenaPage() {
         setMyPlayer(current);
       }
     }
+  }
+
+  async function loadVersusMonsters() {
+    const { data } = await supabase
+      .from("knowledge_arena_monsters")
+      .select("slug,name,rarity,sprite_url")
+      .eq("is_active", true)
+      .order("name");
+    if (data) setVersusMonsters(data as VersusMonsterChoice[]);
+  }
+
+  async function beginVersusCharacterSelect() {
+    if (!lobby || !isHost || !allPlayersConfirmed || versusWorking) return;
+    setVersusWorking(true);
+    setMultiplayerMessage("");
+    const { error } = await supabase.rpc("begin_knowledge_arena_versus_character_select_v1", { p_lobby_id: lobby.id });
+    setVersusWorking(false);
+    if (error) {
+      setMultiplayerMessage(error.message || "Could not open character selection.");
+      return;
+    }
+    await loadVersusMonsters();
+    await loadLobbyState(lobby.id);
+    setStage("versus-character-select");
+  }
+
+  async function selectVersusCharacter(type: "nova" | "monster", slug: string) {
+    if (!lobby || versusWorking) return;
+    setVersusWorking(true);
+    setMultiplayerMessage("");
+    const { error } = await supabase.rpc("select_knowledge_arena_versus_character_v1", {
+      p_lobby_id: lobby.id,
+      p_character_type: type,
+      p_character_slug: slug,
+    });
+    setVersusWorking(false);
+    if (error) {
+      setMultiplayerMessage(error.message || "Could not select that racer.");
+      return;
+    }
+    await loadLobbyState(lobby.id);
+  }
+
+  async function startVersusRace() {
+    if (!lobby || !isHost || !allVersusCharactersSelected || versusWorking) return;
+    const loadedQuestions = await loadQuestionsByIds(lobby.question_ids);
+    if (loadedQuestions.length < 10) {
+      setMultiplayerMessage("Could not load the 10 shared race questions.");
+      return;
+    }
+    setVersusWorking(true);
+    const { error } = await supabase.rpc("start_knowledge_arena_versus_v1", { p_lobby_id: lobby.id });
+    setVersusWorking(false);
+    if (error) {
+      setMultiplayerMessage(error.message || "Could not start the Versus race.");
+      return;
+    }
+    setQuestions(loadedQuestions);
+    setQuestionIndex(0);
+    setSelectedAnswer(null);
+    setScore(0);
+    setCorrectCount(0);
+    setTimeLeft(lobby.timer_seconds);
+    setAnswerLocked(false);
+    setFeedback(null);
+    setVersusRoundResolved(false);
+    recordedAnswersRef.current = [];
+    attemptSaveStartedRef.current = false;
+    setStage("multiplayer-quiz");
+    await loadLobbyState(lobby.id);
+  }
+
+  async function tryResolveVersusRound() {
+    if (!lobby || lobby.game_mode !== "versus" || lobby.round_status !== "answering") return;
+    const { data, error } = await supabase.rpc("resolve_knowledge_arena_versus_round_v1", { p_lobby_id: lobby.id });
+    if (error) { console.warn("Could not resolve Versus round:", error); return; }
+    const result = Array.isArray(data) ? data[0] : data;
+    if (result?.resolved) {
+      setVersusRoundResolved(true);
+      await loadLobbyState(lobby.id);
+    }
+  }
+
+  async function tryAdvanceVersusRound() {
+    if (!lobby || lobby.game_mode !== "versus" || lobby.round_status !== "resolved") return;
+    const { error } = await supabase.rpc("advance_knowledge_arena_versus_round_v1", { p_lobby_id: lobby.id });
+    if (error) { console.warn("Could not advance Versus round:", error); return; }
+    await loadLobbyState(lobby.id);
+  }
+
+  async function loadMultiplayerLeaderboard(mode: "coop" | "versus") {
+    const { data, error } = await supabase.rpc("get_knowledge_arena_multiplayer_leaderboard_v1", {
+      p_game_mode: mode,
+      p_limit: 20,
+    });
+    if (error || !data) { setMultiplayerLeaderboard([]); return; }
+    const payload = Array.isArray(data) ? data[0] : data;
+    setMultiplayerLeaderboard((payload?.entries || []) as MultiplayerLeaderboardEntry[]);
   }
 
   async function tryResolveCoopRound() {
@@ -1720,7 +1899,7 @@ export default function KnowledgeArenaPage() {
     setMultiplayerMessage("");
 
     if (lobby.game_mode === "versus") {
-      setMultiplayerMessage("Versus character selection and racing arrive in Phase 3. Switch this lobby to Co-op to play now.");
+      await beginVersusCharacterSelect();
       return;
     }
 
@@ -1754,6 +1933,7 @@ export default function KnowledgeArenaPage() {
     setFeedback(null);
     setCoopRoundResult(null);
     setCoopMyAttackScore(0);
+    setVersusRoundResolved(false);
     recordedAnswersRef.current = [];
     attemptSaveStartedRef.current = false;
     setStage("multiplayer-quiz");
@@ -1761,6 +1941,9 @@ export default function KnowledgeArenaPage() {
   }
 
   async function prepareMultiplayerGame(nextLobby: Lobby) {
+    if (nextLobby.game_mode === "versus") {
+      await loadVersusMonsters();
+    }
     const loadedQuestions = await loadQuestionsByIds(nextLobby.question_ids);
     if (loadedQuestions.length < 10) return;
 
@@ -1775,6 +1958,7 @@ export default function KnowledgeArenaPage() {
     setFeedback(null);
     setCoopRoundResult(null);
     setCoopMyAttackScore(0);
+    setVersusRoundResolved(false);
     recordedAnswersRef.current = [];
     attemptSaveStartedRef.current = false;
     setStage("multiplayer-quiz");
@@ -2154,39 +2338,42 @@ export default function KnowledgeArenaPage() {
         return;
       }
 
+      if (lobby?.game_mode === "versus") {
+        const { data, error } = await supabase.rpc("submit_knowledge_arena_versus_answer_v1", {
+          p_lobby_id: lobby.id,
+          p_question_index: questionIndex,
+          p_question_id: currentQuestion.id,
+          p_answer: answer,
+          p_seconds_used: secondsUsed,
+        });
+        if (error) {
+          setFeedback(error.message || "Your race answer could not be locked.");
+          return;
+        }
+        const result = Array.isArray(data) ? data[0] : data;
+        const gained = Number(result?.distance_gained || 0);
+        setFeedback(
+          answer === null
+            ? `Time's up. No movement. The correct answer is ${currentQuestion.correct_answer}. ${currentQuestion.explanation}`
+            : isCorrect
+              ? `Correct! +${Math.round(gained)} race distance. ${currentQuestion.explanation}`
+              : `Not quite. No movement. The correct answer is ${currentQuestion.correct_answer}. ${currentQuestion.explanation}`
+        );
+        await loadLobbyState(lobby.id);
+        await tryResolveVersusRound();
+        return;
+      }
+
       const existingAnswers = Array.isArray(myPlayer.answers) ? myPlayer.answers : [];
       const nextAnswers = [
-        ...existingAnswers.filter(
-          (savedAnswer) => savedAnswer.questionId !== currentQuestion.id
-        ),
-        {
-          questionId: currentQuestion.id,
-          answer,
-          correct: isCorrect,
-          points,
-          secondsUsed,
-        },
+        ...existingAnswers.filter((savedAnswer) => savedAnswer.questionId !== currentQuestion.id),
+        { questionId: currentQuestion.id, answer, correct: isCorrect, points, secondsUsed },
       ];
-
-      await supabase
-        .from("knowledge_arena_lobby_players")
-        .update({
-          score: nextScore,
-          correct_count: nextCorrectCount,
-          answers: nextAnswers,
-        })
-        .eq("id", myPlayer.id);
-
-      setMyPlayer({
-        ...myPlayer,
-        score: nextScore,
-        correct_count: nextCorrectCount,
-        answers: nextAnswers,
-      });
-
-      if (lobby) {
-        await loadLobbyState(lobby.id);
-      }
+      await supabase.from("knowledge_arena_lobby_players").update({
+        score: nextScore, correct_count: nextCorrectCount, answers: nextAnswers,
+      }).eq("id", myPlayer.id);
+      setMyPlayer({ ...myPlayer, score: nextScore, correct_count: nextCorrectCount, answers: nextAnswers });
+      if (lobby) await loadLobbyState(lobby.id);
     }
   }
 
@@ -2361,6 +2548,8 @@ export default function KnowledgeArenaPage() {
 
     if (lobby) {
       await loadLobbyState(lobby.id);
+      await supabase.rpc("finalize_knowledge_arena_multiplayer_results_v1", { p_lobby_id: lobby.id });
+      await loadMultiplayerLeaderboard(lobby.game_mode);
     }
   }
 
@@ -2421,6 +2610,10 @@ export default function KnowledgeArenaPage() {
     setJoinCode("");
     setMultiplayerMessage("");
     setMultiplayerGameMode("coop");
+    setVersusMonsters([]);
+    setVersusWorking(false);
+    setVersusRoundResolved(false);
+    setMultiplayerLeaderboard([]);
     setCoopMonster(null);
     setCoopRoundResult(null);
     setCoopMyAttackScore(0);
@@ -2486,6 +2679,7 @@ export default function KnowledgeArenaPage() {
     "solo-quiz",
     "solo-results",
     "waiting-lobby",
+    "versus-character-select",
     "multiplayer-quiz",
     "multiplayer-results",
   ].includes(stage);
@@ -2495,6 +2689,7 @@ export default function KnowledgeArenaPage() {
     "create-lobby",
     "join-lobby",
     "waiting-lobby",
+    "versus-character-select",
     "multiplayer-quiz",
     "multiplayer-results",
   ].includes(stage);
@@ -3088,7 +3283,7 @@ export default function KnowledgeArenaPage() {
                   >
                     <span>🏁</span>
                     <strong>VERSUS</strong>
-                    <small>Race as a Nova or monster. Character selection arrives in Phase 3.</small>
+                    <small>Race as a Nova or monster. Faster correct answers move farther.</small>
                   </button>
                 </div>
                 {!isHost && <small className="ka-mode-owner-note">Only the host can change the multiplayer mode.</small>}
@@ -3155,9 +3350,10 @@ export default function KnowledgeArenaPage() {
                     <button
                       type="button"
                       className="ka-start-button"
-                      disabled
+                      disabled={!allPlayersConfirmed || versusWorking || players.length < 2}
+                      onClick={() => void beginVersusCharacterSelect()}
                     >
-                      Next · Character Select (Phase 3)
+                      {allPlayersConfirmed ? "Next · Character Select" : "Waiting for everyone to confirm"}
                     </button>
                   )
                 ) : (
@@ -3166,6 +3362,21 @@ export default function KnowledgeArenaPage() {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {stage === "versus-character-select" && lobby && (
+            <div className="ka-stage">
+              <ArenaVersusCharacterSelect
+                players={players as VersusPlayerChoice[]}
+                monsters={versusMonsters}
+                myPlayerId={myPlayer?.id || null}
+                isHost={isHost}
+                working={versusWorking}
+                message={multiplayerMessage}
+                onSelect={(type, slug) => void selectVersusCharacter(type, slug)}
+                onStart={() => void startVersusRace()}
+              />
             </div>
           )}
 
@@ -3255,26 +3466,20 @@ export default function KnowledgeArenaPage() {
                 myAttackScore={coopMyAttackScore}
               />
             ) : (
-              <ArenaQuizView
-                isSolo={false}
-                topicTitle={
-                  (currentQuestionTopicInfo || selectedTopicInfo)?.title ||
-                  "Knowledge Arena"
-                }
-                challengeLabel="Multiplayer"
+              <ArenaVersusRaceView
+                topic={currentQuestion.topic}
                 question={currentQuestion}
                 questionIndex={questionIndex}
-                score={score}
-                correctCount={correctCount}
                 timeLeft={timeLeft}
-                timerSeconds={activeTimerSeconds}
-                nextCountdown={nextCountdown}
                 answerLocked={answerLocked}
                 selectedAnswer={selectedAnswer}
                 feedback={feedback}
                 getAnswerStyle={getAnswerStyle}
                 onChoose={(answer) => void lockAnswer(answer)}
-                onNext={() => void nextQuestion()}
+                players={players as VersusRacePlayer[]}
+                monsters={versusMonsters as VersusRaceMonster[]}
+                myPlayerId={myPlayer?.id || null}
+                roundStatus={lobby?.round_status || (versusRoundResolved ? "resolved" : "answering")}
               />
             )
           )}
@@ -3318,12 +3523,12 @@ export default function KnowledgeArenaPage() {
             <div className="ka-stage ka-multi-results">
               <div className="ka-results-heading">
                 <div>
-                  <p className="ka-kicker">{lobby?.game_mode === "coop" ? "Co-op Complete" : "Multiplayer Complete"}</p>
-                  <h2>{lobby?.game_mode === "coop" ? (lobby?.dreamkeeper_active ? "Dreamkeeper Score Run Complete" : "Monster Battle Complete") : "Results"}</h2>
+                  <p className="ka-kicker">{lobby?.game_mode === "coop" ? "Co-op Complete" : "Versus Complete"}</p>
+                  <h2>{lobby?.game_mode === "coop" ? (lobby?.dreamkeeper_active ? "Dreamkeeper Score Run Complete" : "Monster Battle Complete") : "Race Complete"}</h2>
                 </div>
                 <div className="ka-result-score">
-                  <span>{lobby?.game_mode === "coop" ? "Your damage" : "Your score"}</span>
-                  <strong>{lobby?.game_mode === "coop" ? Number(myCoopPlayer?.battle_damage || 0) : score}</strong>
+                  <span>{lobby?.game_mode === "coop" ? "Your damage" : "Your distance"}</span>
+                  <strong>{lobby?.game_mode === "coop" ? Number(myCoopPlayer?.battle_damage || 0) : Math.round(Number(myPlayer?.race_progress || 0))}</strong>
                 </div>
               </div>
 
@@ -3348,6 +3553,23 @@ export default function KnowledgeArenaPage() {
                 </div>
               )}
 
+              {lobby?.game_mode === "versus" && versusStandings.length > 0 && (
+                <div className="ka-coop-result-summary">
+                  <div>
+                    <span>Winner</span>
+                    <strong>{versusStandings[0].display_name}</strong>
+                  </div>
+                  <div>
+                    <span>Winning distance</span>
+                    <strong>{Math.round(Number(versusStandings[0].race_progress || 0))}</strong>
+                  </div>
+                  <div>
+                    <span>Tie-break</span>
+                    <strong>Distance → correct → speed</strong>
+                  </div>
+                </div>
+              )}
+
               <ArenaQuestionReviewPanel
                 questions={questions}
                 answers={recordedAnswersRef.current}
@@ -3355,7 +3577,7 @@ export default function KnowledgeArenaPage() {
               />
 
               <div className="ka-leaderboard-scroll">
-                {(lobby?.game_mode === "coop" ? coopStandings : leaderboard).map((player, index) => (
+                {(lobby?.game_mode === "coop" ? coopStandings : versusStandings).map((player, index) => (
                   <div key={player.id} className="ka-leaderboard-row">
                     <strong>
                       #{index + 1} {player.display_name}
@@ -3363,15 +3585,28 @@ export default function KnowledgeArenaPage() {
                     <span>
                       {lobby?.game_mode === "coop"
                         ? `${Number(player.battle_damage || 0)} dmg · ${player.correct_count}/10${player.is_eliminated ? " · ghost" : ""}`
-                        : `${player.score} pts · ${player.correct_count}/10`}
+                        : `${Math.round(Number(player.race_progress || 0))} distance · ${player.correct_count}/10`}
                     </span>
                   </div>
                 ))}
               </div>
 
-              {lobby?.game_mode === "coop" && (
-                <p className="ka-coop-leaderboard-note">Persistent Co-op and Versus leaderboards are intentionally left for the final multiplayer phase.</p>
-              )}
+              <div className="ka-coop-result-summary">
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <span>{lobby?.game_mode === "coop" ? "GLOBAL CO-OP LEADERBOARD" : "GLOBAL VERSUS LEADERBOARD"}</span>
+                  <strong>Top Arena players</strong>
+                </div>
+                {multiplayerLeaderboard.slice(0, 8).map((entry) => (
+                  <div key={entry.user_id}>
+                    <span>#{entry.rank} · {entry.display_name}</span>
+                    <strong>
+                      {lobby?.game_mode === "versus"
+                        ? `${entry.wins} wins · best ${Math.round(Number(entry.best_score || 0))}`
+                        : `best ${Math.round(Number(entry.best_score || 0))} dmg`}
+                    </strong>
+                  </div>
+                ))}
+              </div>
 
               <div className="ka-results-actions">
                 <button

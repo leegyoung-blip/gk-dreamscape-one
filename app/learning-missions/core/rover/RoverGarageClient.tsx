@@ -4,10 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import {
-  coreUpgradeTrack,
-  getCoreRoverProgress,
-} from "@/lib/coreRoverProgress";
+import { coreUpgradeTrack } from "@/lib/coreRoverProgress";
 import type {
   RoverLevelAccess,
   RoverLevelId,
@@ -87,6 +84,34 @@ type RoverLoadoutRow = {
   selected_stage: number;
   max_unlocked_stage: number;
   admin_access: boolean;
+};
+
+type RoverCatalogRow = {
+  stage: number;
+  rover_number: number;
+  display_name: string;
+  price_dt: number;
+  owned: boolean;
+  equipped: boolean;
+  previous_stage_owned: boolean;
+  can_purchase: boolean;
+  can_afford: boolean;
+  dt_balance: number;
+  acquisition_method: "starter" | "legacy" | "purchase" | null;
+  dt_spent: number | null;
+  acquired_at: string | null;
+  admin_access: boolean;
+};
+
+type RoverPurchaseRow = {
+  success: boolean;
+  purchased_stage: number;
+  dt_cost: number;
+  new_balance: number;
+  transaction_id: string | null;
+  result_message: string;
+  equipped_stage: number;
+  max_owned_stage: number;
 };
 
 type RoverCourseMeta = {
@@ -403,37 +428,31 @@ export default function RoverGarageClient() {
   }
 
   const [tab, setTab] = useState<GarageTab>("courses");
-
   const [loading, setLoading] = useState(true);
-
   const [userId, setUserId] = useState<string | null>(null);
 
   const [tokenBalance, setTokenBalance] = useState(0);
-
   const [dreamGemBalance, setDreamGemBalance] = useState(0);
-
-  const [completedMissionCount, setCompletedMissionCount] = useState(0);
-
   const [isAdmin, setIsAdmin] = useState(false);
 
+  const [roverCatalog, setRoverCatalog] = useState<RoverCatalogRow[]>([]);
   const [equippedStage, setEquippedStage] = useState(0);
-
+  const [highestOwnedStage, setHighestOwnedStage] = useState(0);
   const [selectedUpgradeStage, setSelectedUpgradeStage] = useState<
     number | null
   >(null);
 
-  const [savingRoverStage, setSavingRoverStage] = useState<number | null>(
-    null,
-  );
+  const [savingRoverStage, setSavingRoverStage] = useState<number | null>(null);
+  const [purchasingRoverStage, setPurchasingRoverStage] = useState<
+    number | null
+  >(null);
 
   const [loadoutMessage, setLoadoutMessage] = useState("");
+  const [purchaseMessage, setPurchaseMessage] = useState("");
 
   const [rank, setRank] = useState<number | null>(null);
-
   const [bestScore, setBestScore] = useState<number | null>(null);
-
   const [bestTimeMs, setBestTimeMs] = useState<number | null>(null);
-
   const [orbsCollected, setOrbsCollected] = useState<number | null>(null);
 
   const [levelAccess, setLevelAccess] = useState<RoverLevelAccess[]>([]);
@@ -450,249 +469,316 @@ export default function RoverGarageClient() {
   const [purchasingLevel, setPurchasingLevel] =
     useState<RoverLevelId | null>(null);
 
-  const progress = useMemo(
-    () => getCoreRoverProgress(completedMissionCount),
-    [completedMissionCount],
-  );
-
   const displayedUpgrade = useMemo(() => {
-    const requestedStage =
-      selectedUpgradeStage ?? equippedStage ?? progress.currentUpgrade.stage;
+    const requestedStage = selectedUpgradeStage ?? equippedStage;
 
-    const requestedUpgrade = coreUpgradeTrack.find(
-      (upgrade) => upgrade.stage === requestedStage,
+    return (
+      coreUpgradeTrack.find(
+        (upgrade) => upgrade.stage === requestedStage,
+      ) ??
+      coreUpgradeTrack.find(
+        (upgrade) => upgrade.stage === equippedStage,
+      ) ??
+      coreUpgradeTrack[0]
     );
+  }, [equippedStage, selectedUpgradeStage]);
 
-    if (
-      requestedUpgrade &&
-      (isAdmin ||
-        completedMissionCount >= requestedUpgrade.missionsRequired)
-    ) {
-      return requestedUpgrade;
-    }
-
-    const equippedUpgrade = coreUpgradeTrack.find(
-      (upgrade) => upgrade.stage === equippedStage,
-    );
-
-    if (equippedUpgrade) {
-      return equippedUpgrade;
-    }
-
-    return progress.currentUpgrade;
-  }, [
-    completedMissionCount,
-    equippedStage,
-    isAdmin,
-    progress.currentUpgrade,
-    selectedUpgradeStage,
-  ]);
+  const displayedCatalog = useMemo(
+    () =>
+      roverCatalog.find(
+        (row) => Number(row.stage) === displayedUpgrade.stage,
+      ),
+    [displayedUpgrade.stage, roverCatalog],
+  );
 
   const viewingEquippedBuild = displayedUpgrade.stage === equippedStage;
 
-  const loadGarage = useCallback(async () => {
-    setLoading(true);
+  const ownedRoverCount = useMemo(() => {
+    if (isAdmin) return coreUpgradeTrack.length;
+    return roverCatalog.filter((row) => Boolean(row.owned)).length;
+  }, [isAdmin, roverCatalog]);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  const nextPurchasableRover = useMemo(
+    () =>
+      roverCatalog.find(
+        (row) => !row.owned && row.can_purchase,
+      ) ?? null,
+    [roverCatalog],
+  );
 
-    if (!user) {
-      setUserId(null);
-      setLoading(false);
-      return;
-    }
+  const loadGarage = useCallback(
+    async ({
+      showLoading = true,
+    }: {
+      showLoading?: boolean;
+    } = {}) => {
+      if (showLoading) {
+        setLoading(true);
+      }
 
-    setUserId(user.id);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    const [
-      tokensResult,
-      profileResult,
-      attemptsResult,
-      loadoutResult,
-      summaryResult,
-      accessResult,
-      levelOneLeaderboardResult,
-      levelTwoLeaderboardResult,
-      levelThreeLeaderboardResult,
-      levelFourLeaderboardResult,
-    ] = await Promise.all([
-      supabase
-        .from("dream_token_transactions")
-        .select("amount")
-        .eq("user_id", user.id)
-        .eq("token_kind", "virtual"),
+      if (!user) {
+        setUserId(null);
+        setLoading(false);
+        return;
+      }
 
-      supabase
-        .from("profiles")
-        .select("dream_gem_balance,role,tier")
-        .eq("id", user.id)
-        .maybeSingle(),
+      setUserId(user.id);
 
-      supabase
-        .from("core_mission_attempts")
-        .select("quiz_id, tokens_earned")
-        .eq("user_id", user.id)
-        .gt("tokens_earned", 0),
+      const [
+        catalogResult,
+        tokensResult,
+        profileResult,
+        loadoutResult,
+        summaryResult,
+        accessResult,
+        levelOneLeaderboardResult,
+        levelTwoLeaderboardResult,
+        levelThreeLeaderboardResult,
+        levelFourLeaderboardResult,
+      ] = await Promise.all([
+        supabase.rpc("get_my_core_rover_catalog"),
 
-      supabase.rpc("get_my_core_rover_loadout"),
+        supabase
+          .from("dream_token_transactions")
+          .select("amount")
+          .eq("user_id", user.id)
+          .eq("token_kind", "virtual"),
 
-      supabase.rpc("get_my_rover_challenge_summary", {
-        p_course_id: COURSE_ID,
-      }),
+        supabase
+          .from("profiles")
+          .select("dream_gem_balance,role,tier")
+          .eq("id", user.id)
+          .maybeSingle(),
 
-      supabase.rpc("get_rover_level_access"),
+        supabase.rpc("get_my_core_rover_loadout"),
 
-      supabase.rpc("get_rover_challenge_visible_leaderboard", {
-        p_course_id: "skyforge-test-track-01",
-        p_limit: 10,
-      }),
+        supabase.rpc("get_my_rover_challenge_summary", {
+          p_course_id: COURSE_ID,
+        }),
 
-      supabase.rpc("get_rover_challenge_visible_leaderboard", {
-        p_course_id: "dreamkeeper-divide-02",
-        p_limit: 10,
-      }),
+        supabase.rpc("get_rover_level_access"),
 
-      supabase.rpc("get_rover_challenge_visible_leaderboard", {
-        p_course_id: "dreamkeeper-gauntlet-03",
-        p_limit: 10,
-      }),
+        supabase.rpc("get_rover_challenge_visible_leaderboard", {
+          p_course_id: "skyforge-test-track-01",
+          p_limit: 10,
+        }),
 
-      supabase.rpc("get_rover_challenge_visible_leaderboard", {
-        p_course_id: "fracture-run-04",
-        p_limit: 10,
-      }),
-    ]);
+        supabase.rpc("get_rover_challenge_visible_leaderboard", {
+          p_course_id: "dreamkeeper-divide-02",
+          p_limit: 10,
+        }),
 
-    if (tokensResult.error) {
-      console.warn("Could not load DT balance:", tokensResult.error.message);
-    } else {
-      setTokenBalance(
-        tokensResult.data?.reduce(
-          (sum, row) => sum + Number(row.amount || 0),
-          0,
-        ) || 0,
-      );
-    }
+        supabase.rpc("get_rover_challenge_visible_leaderboard", {
+          p_course_id: "dreamkeeper-gauntlet-03",
+          p_limit: 10,
+        }),
 
-    const resolvedRole = String(
-      profileResult.data?.role ?? profileResult.data?.tier ?? "",
-    )
-      .trim()
-      .toLowerCase();
+        supabase.rpc("get_rover_challenge_visible_leaderboard", {
+          p_course_id: "fracture-run-04",
+          p_limit: 10,
+        }),
+      ]);
 
-    const resolvedAdmin = resolvedRole === "admin";
-    setIsAdmin(resolvedAdmin);
+      const resolvedRole = String(
+        profileResult.data?.role ?? profileResult.data?.tier ?? "",
+      )
+        .trim()
+        .toLowerCase();
 
-    if (profileResult.error) {
-      console.warn("Could not load DG balance:", profileResult.error.message);
-      setDreamGemBalance(0);
-    } else {
-      setDreamGemBalance(
-        Math.max(0, Number(profileResult.data?.dream_gem_balance || 0)),
-      );
-    }
+      const resolvedAdmin = resolvedRole === "admin";
 
-    let resolvedCompletedMissionCount = 0;
-
-    if (attemptsResult.error) {
-      console.warn(
-        "Could not load rover progress:",
-        attemptsResult.error.message,
-      );
-    } else {
-      const completed = new Set(
-        (attemptsResult.data ?? []).map((row) => row.quiz_id),
-      );
-
-      resolvedCompletedMissionCount = completed.size;
-      setCompletedMissionCount(resolvedCompletedMissionCount);
-    }
-
-    const fallbackStage = resolvedAdmin
-      ? coreUpgradeTrack[coreUpgradeTrack.length - 1].stage
-      : getCoreRoverProgress(resolvedCompletedMissionCount).currentUpgrade
-          .stage;
-
-    if (loadoutResult.error) {
-      console.warn(
-        "Could not load equipped rover:",
-        loadoutResult.error.message,
-      );
-
-      setEquippedStage(fallbackStage);
-      setSelectedUpgradeStage(fallbackStage);
-      setLoadoutMessage(
-        "Equipped rover could not be loaded. Run the Rover Loadout SQL in Supabase.",
-      );
-    } else {
-      const loadout = ((loadoutResult.data ?? []) as RoverLoadoutRow[])[0];
-      const resolvedStage = Number(
-        loadout?.selected_stage ?? fallbackStage,
-      );
-
-      setEquippedStage(resolvedStage);
-      setSelectedUpgradeStage(resolvedStage);
-      setIsAdmin(Boolean(loadout?.admin_access ?? resolvedAdmin));
-      setLoadoutMessage("");
-    }
-
-    if (summaryResult.error) {
-      console.warn(
-        "Could not load rover rank summary:",
-        summaryResult.error.message,
-      );
-      setRank(null);
-      setBestScore(null);
-      setBestTimeMs(null);
-      setOrbsCollected(null);
-    } else {
-      const summary = ((summaryResult.data ?? []) as SummaryRow[])[0];
-
-      if (summary) {
-        const parsedRank = Number(summary.rank);
-        setRank(Number.isFinite(parsedRank) ? parsedRank : null);
-        setBestScore(Number(summary.best_score));
-        setBestTimeMs(Number(summary.best_time_ms));
-        setOrbsCollected(Number(summary.orbs_collected));
+      if (profileResult.error) {
+        console.warn(
+          "Could not load profile balances:",
+          profileResult.error.message,
+        );
+        setDreamGemBalance(0);
       } else {
+        setDreamGemBalance(
+          Math.max(0, Number(profileResult.data?.dream_gem_balance || 0)),
+        );
+      }
+
+      let catalogRows: RoverCatalogRow[] = [];
+
+      if (catalogResult.error) {
+        console.warn(
+          "Could not load rover ownership catalogue:",
+          catalogResult.error.message,
+        );
+        setRoverCatalog([]);
+        setPurchaseMessage(
+          "Rover ownership could not be loaded. Check that Phase 1A is installed.",
+        );
+      } else {
+        catalogRows = (catalogResult.data ?? []) as RoverCatalogRow[];
+        setRoverCatalog(catalogRows);
+
+        const catalogBalance = Number(catalogRows[0]?.dt_balance);
+
+        if (Number.isFinite(catalogBalance)) {
+          setTokenBalance(Math.max(0, catalogBalance));
+        }
+
+        setPurchaseMessage("");
+      }
+
+      if (
+        catalogResult.error ||
+        catalogRows.length === 0 ||
+        !Number.isFinite(Number(catalogRows[0]?.dt_balance))
+      ) {
+        if (tokensResult.error) {
+          console.warn(
+            "Could not load fallback DT balance:",
+            tokensResult.error.message,
+          );
+        } else {
+          setTokenBalance(
+            tokensResult.data?.reduce(
+              (sum, row) => sum + Number(row.amount || 0),
+              0,
+            ) || 0,
+          );
+        }
+      }
+
+      if (loadoutResult.error) {
+        console.warn(
+          "Could not load equipped rover:",
+          loadoutResult.error.message,
+        );
+
+        const fallbackOwnedStages = catalogRows
+          .filter((row) => Boolean(row.owned))
+          .map((row) => Number(row.stage));
+
+        const fallbackHighest =
+          fallbackOwnedStages.length > 0
+            ? Math.max(...fallbackOwnedStages)
+            : 0;
+
+        const fallbackEquipped =
+          catalogRows.find((row) => Boolean(row.equipped))?.stage ??
+          fallbackHighest;
+
+        setHighestOwnedStage(fallbackHighest);
+        setEquippedStage(Number(fallbackEquipped));
+        setSelectedUpgradeStage(Number(fallbackEquipped));
+        setIsAdmin(
+          Boolean(
+            catalogRows.some((row) => row.admin_access) ||
+              resolvedAdmin,
+          ),
+        );
+        setLoadoutMessage(
+          "Equipped rover could not be loaded. Check the Phase 1A rover loadout RPC.",
+        );
+      } else {
+        const loadout = ((loadoutResult.data ?? []) as RoverLoadoutRow[])[0];
+
+        const resolvedStage = Number(loadout?.selected_stage ?? 0);
+        const resolvedHighest = Number(
+          loadout?.max_unlocked_stage ?? 0,
+        );
+        const adminAccess = Boolean(
+          loadout?.admin_access ||
+            catalogRows.some((row) => row.admin_access) ||
+            resolvedAdmin,
+        );
+
+        setEquippedStage(resolvedStage);
+        setHighestOwnedStage(
+          adminAccess
+            ? coreUpgradeTrack[coreUpgradeTrack.length - 1].stage
+            : Math.max(0, resolvedHighest),
+        );
+        setSelectedUpgradeStage((current) =>
+          current === null ? resolvedStage : current,
+        );
+        setIsAdmin(adminAccess);
+        setLoadoutMessage("");
+      }
+
+      if (summaryResult.error) {
+        console.warn(
+          "Could not load rover rank summary:",
+          summaryResult.error.message,
+        );
         setRank(null);
         setBestScore(null);
         setBestTimeMs(null);
         setOrbsCollected(null);
+      } else {
+        const summary = ((summaryResult.data ?? []) as SummaryRow[])[0];
+
+        if (summary) {
+          const parsedRank = Number(summary.rank);
+          setRank(Number.isFinite(parsedRank) ? parsedRank : null);
+          setBestScore(Number(summary.best_score));
+          setBestTimeMs(Number(summary.best_time_ms));
+          setOrbsCollected(Number(summary.orbs_collected));
+        } else {
+          setRank(null);
+          setBestScore(null);
+          setBestTimeMs(null);
+          setOrbsCollected(null);
+        }
       }
+
+      if (accessResult.error) {
+        console.warn(
+          "Could not load rover courses:",
+          accessResult.error.message,
+        );
+        setLevelAccess([]);
+        setCourseLoadMessage(
+          "Course access is unavailable. Check the Phase 1A rover-level functions.",
+        );
+      } else {
+        setLevelAccess((accessResult.data ?? []) as RoverLevelAccess[]);
+        setCourseLoadMessage("");
+      }
+
+      const leaderboardError =
+        levelOneLeaderboardResult.error ||
+        levelTwoLeaderboardResult.error ||
+        levelThreeLeaderboardResult.error ||
+        levelFourLeaderboardResult.error;
+
+      if (leaderboardError) {
+        console.warn(
+          "Could not load rover leaderboard:",
+          leaderboardError.message,
+        );
+        setLeaderboards({ 1: [], 2: [], 3: [], 4: [] });
+      } else {
+        setLeaderboards({
+          1: (levelOneLeaderboardResult.data ?? []) as LeaderboardRow[],
+          2: (levelTwoLeaderboardResult.data ?? []) as LeaderboardRow[],
+          3: (levelThreeLeaderboardResult.data ?? []) as LeaderboardRow[],
+          4: (levelFourLeaderboardResult.data ?? []) as LeaderboardRow[],
+        });
+      }
+
+      setLoading(false);
+    },
+    [],
+  );
+
+  const previewRover = useCallback((stage: number) => {
+    if (
+      coreUpgradeTrack.some(
+        (upgrade) => upgrade.stage === stage,
+      )
+    ) {
+      setSelectedUpgradeStage(stage);
+      setLoadoutMessage("");
     }
-
-    if (accessResult.error) {
-      console.warn("Could not load rover courses:", accessResult.error.message);
-      setLevelAccess([]);
-      setCourseLoadMessage(
-        "Course access is unavailable. Run the Phase 1 rover-level migration.",
-      );
-    } else {
-      setLevelAccess((accessResult.data ?? []) as RoverLevelAccess[]);
-      setCourseLoadMessage("");
-    }
-
-    const leaderboardError =
-      levelOneLeaderboardResult.error ||
-      levelTwoLeaderboardResult.error ||
-      levelThreeLeaderboardResult.error ||
-      levelFourLeaderboardResult.error;
-
-    if (leaderboardError) {
-      console.warn("Could not load rover leaderboard:", leaderboardError.message);
-      setLeaderboards({ 1: [], 2: [], 3: [], 4: [] });
-    } else {
-      setLeaderboards({
-        1: (levelOneLeaderboardResult.data ?? []) as LeaderboardRow[],
-        2: (levelTwoLeaderboardResult.data ?? []) as LeaderboardRow[],
-        3: (levelThreeLeaderboardResult.data ?? []) as LeaderboardRow[],
-        4: (levelFourLeaderboardResult.data ?? []) as LeaderboardRow[],
-      });
-    }
-
-    setLoading(false);
   }, []);
 
   const selectAndEquipRover = useCallback(
@@ -701,23 +787,20 @@ export default function RoverGarageClient() {
         (item) => item.stage === stage,
       );
 
+      const catalogRow = roverCatalog.find(
+        (row) => Number(row.stage) === stage,
+      );
+
       if (!upgrade) return;
 
-      const unlocked =
-        isAdmin ||
-        completedMissionCount >= upgrade.missionsRequired;
+      const owned = isAdmin || Boolean(catalogRow?.owned);
 
-      if (!unlocked || savingRoverStage !== null) {
+      if (!owned || savingRoverStage !== null) {
         return;
       }
 
       const previousEquippedStage = equippedStage;
 
-      /*
-       * Selection in Rover Upgrades now means EQUIP.
-       * Update the preview immediately, then persist the same stage through
-       * the validated Supabase RPC.
-       */
       setSelectedUpgradeStage(stage);
       setSavingRoverStage(stage);
       setLoadoutMessage("");
@@ -745,19 +828,123 @@ export default function RoverGarageClient() {
 
       setEquippedStage(savedStage);
       setSelectedUpgradeStage(savedStage);
-      setIsAdmin(Boolean(loadout?.admin_access ?? isAdmin));
-      setLoadoutMessage(
-        `${upgrade.name} equipped. Rover Challenge will use this build.`,
+      setHighestOwnedStage(
+        isAdmin
+          ? coreUpgradeTrack[coreUpgradeTrack.length - 1].stage
+          : Number(loadout?.max_unlocked_stage ?? highestOwnedStage),
       );
+      setIsAdmin(Boolean(loadout?.admin_access ?? isAdmin));
 
       window.dispatchEvent(new Event("rover-loadout-updated"));
+
+      await loadGarage({
+        showLoading: false,
+      });
+
+      setLoadoutMessage(
+        `Rover ${stage + 1} · ${upgrade.name} equipped. Rover Challenge will use this build.`,
+      );
     },
     [
-      completedMissionCount,
       equippedStage,
+      highestOwnedStage,
       isAdmin,
+      loadGarage,
+      roverCatalog,
       savingRoverStage,
     ],
+  );
+
+  const purchaseRover = useCallback(
+    async (stage: number) => {
+      const catalogRow = roverCatalog.find(
+        (row) => Number(row.stage) === stage,
+      );
+      const upgrade = coreUpgradeTrack.find(
+        (row) => row.stage === stage,
+      );
+
+      if (!catalogRow || !upgrade || catalogRow.owned || isAdmin) {
+        return;
+      }
+
+      if (!catalogRow.can_purchase) {
+        setPurchaseMessage(
+          `Purchase Rover ${stage} first to continue the upgrade track.`,
+        );
+        return;
+      }
+
+      const price = Number(catalogRow.price_dt || upgrade.priceDt);
+
+      if (tokenBalance < price) {
+        setPurchaseMessage(
+          `You need ${price - tokenBalance} more Dream Tokens to purchase Rover ${stage + 1}.`,
+        );
+        return;
+      }
+
+      const confirmed = window.confirm(
+        [
+          `Purchase Rover ${stage + 1} — ${upgrade.name}?`,
+          "",
+          `Cost: ${price.toLocaleString("en-SG")} Dream Tokens`,
+          `Balance: ${tokenBalance.toLocaleString("en-SG")} → ${(tokenBalance - price).toLocaleString("en-SG")} DT`,
+          "",
+          "This rover will be permanently owned. You can switch back to any rover you own at any time.",
+        ].join("\n"),
+      );
+
+      if (!confirmed) return;
+
+      setPurchasingRoverStage(stage);
+      setPurchaseMessage("");
+
+      const { data, error } = await supabase.rpc(
+        "purchase_core_rover_stage",
+        {
+          p_stage: stage,
+        },
+      );
+
+      setPurchasingRoverStage(null);
+
+      if (error) {
+        console.warn("Could not purchase rover:", error.message);
+        setPurchaseMessage(
+          error.message || "This rover could not be purchased.",
+        );
+        return;
+      }
+
+      const result = ((data ?? []) as RoverPurchaseRow[])[0];
+
+      if (!result?.success) {
+        setPurchaseMessage(
+          result?.result_message ||
+            `Rover ${stage + 1} could not be purchased.`,
+        );
+        return;
+      }
+
+      const successMessage =
+        result.result_message ||
+        `Rover ${stage + 1} purchased permanently.`;
+
+      setTokenBalance(Number(result.new_balance));
+      setHighestOwnedStage(Number(result.max_owned_stage));
+
+      window.dispatchEvent(new Event("dream-tokens-updated"));
+      window.dispatchEvent(new Event("rover-level-progress-updated"));
+
+      await loadGarage({
+        showLoading: false,
+      });
+
+      setSelectedUpgradeStage(stage);
+      setPurchaseMessage(successMessage);
+    },
+    [isAdmin, loadGarage, roverCatalog, tokenBalance],
   );
 
   const purchaseEarlyUnlock = useCallback(
@@ -784,7 +971,7 @@ export default function RoverGarageClient() {
           `Cost: ${access.early_unlock_price} Dream Gems`,
           `Balance: ${dreamGemBalance} → ${dreamGemBalance - access.early_unlock_price}`,
           "",
-          "This permanent unlock bypasses the normal Rover Stage requirement. The previous Rover Level must still be completed first.",
+          "This permanent unlock bypasses the normal rover ownership requirement. The previous Rover Level must still be completed first.",
         ].join("\n"),
       );
 
@@ -818,7 +1005,9 @@ export default function RoverGarageClient() {
         );
         window.dispatchEvent(new Event("dream-gems-updated"));
         window.dispatchEvent(new Event("rover-level-progress-updated"));
-        await loadGarage();
+        await loadGarage({
+          showLoading: false,
+        });
       } else {
         setCourseActionMessage(`Level ${levelId} could not be unlocked.`);
       }
@@ -827,18 +1016,24 @@ export default function RoverGarageClient() {
   );
 
   useEffect(() => {
-    void loadGarage();
+    void loadGarage({
+      showLoading: true,
+    });
 
     function handleBalanceUpdate() {
-      void loadGarage();
+      void loadGarage({
+        showLoading: false,
+      });
     }
 
     window.addEventListener("dream-tokens-updated", handleBalanceUpdate);
     window.addEventListener("dream-gems-updated", handleBalanceUpdate);
+    window.addEventListener("rover-loadout-updated", handleBalanceUpdate);
 
     return () => {
       window.removeEventListener("dream-tokens-updated", handleBalanceUpdate);
       window.removeEventListener("dream-gems-updated", handleBalanceUpdate);
+      window.removeEventListener("rover-loadout-updated", handleBalanceUpdate);
     };
   }, [loadGarage]);
 
@@ -866,7 +1061,7 @@ export default function RoverGarageClient() {
           <div style={loginCard}>
             <h1 style={{ margin: 0 }}>My Rover</h1>
             <p style={{ opacity: 0.7, lineHeight: 1.5 }}>
-              Log in to view your rover, upgrades and custom build.
+              Log in to view your rover collection, upgrades and custom build.
             </p>
             <a
               href="/login"
@@ -899,12 +1094,13 @@ export default function RoverGarageClient() {
         <div style={headerRight(isMobile)}>
           <div style={balancePill("dt")}>
             <span style={pillIcon("dt")}>◇</span>
-            {!isMobile && <span style={pillLabel}>PROFILE ASSETS</span>}
+            {!isMobile && <span style={pillLabel}>DREAM TOKENS</span>}
             <strong style={pillValue("dt")}>
               {tokenBalance.toLocaleString("en-SG")} DT
             </strong>
             <span style={pillChevron}>⌄</span>
           </div>
+
           <div style={balancePill("dg")}>
             <span style={pillIcon("dg")}>◆</span>
             {!isMobile && <span style={pillLabel}>DREAM GEMS</span>}
@@ -913,6 +1109,7 @@ export default function RoverGarageClient() {
             </strong>
             <span style={pillChevron}>⌄</span>
           </div>
+
           <button
             type="button"
             onClick={() => router.push("/profile")}
@@ -930,13 +1127,18 @@ export default function RoverGarageClient() {
               <div>
                 <p style={smallEyebrow}>
                   {viewingEquippedBuild
-                    ? "EQUIPPED BUILD"
-                    : "VIEWING ROVER BUILD"}
+                    ? "EQUIPPED ROVER"
+                    : displayedCatalog?.owned || isAdmin
+                      ? "OWNED ROVER"
+                      : "ROVER PREVIEW"}
                 </p>
+
                 <h2 style={currentBuildTitle}>
-                  Stage {displayedUpgrade.stage} · {displayedUpgrade.name}
+                  Rover {displayedUpgrade.stage + 1} ·{" "}
+                  {displayedUpgrade.name}
                 </h2>
               </div>
+
               <div style={rankPill(rank)}>
                 {rank ? `Rank #${rank}` : "Unranked"}
               </div>
@@ -947,7 +1149,9 @@ export default function RoverGarageClient() {
               isMobile={isMobile}
             />
 
-            <p style={upgradeDescription}>{displayedUpgrade.description}</p>
+            <p style={upgradeDescription}>
+              {displayedUpgrade.description}
+            </p>
 
             <RoverBuildStats
               stage={displayedUpgrade.stage}
@@ -958,29 +1162,42 @@ export default function RoverGarageClient() {
               <div style={courseNotice}>{loadoutMessage}</div>
             )}
 
-            <div style={progressTrack}>
-              <div
-                style={{
-                  ...progressFill,
-                  width: `${isAdmin ? 100 : progress.progressPercentage}%`,
-                  background: `linear-gradient(90deg, ${progress.currentUpgrade.accent}, #35c5ff)`,
-                }}
-              />
-            </div>
+            {purchaseMessage && (
+              <div style={purchaseNotice}>{purchaseMessage}</div>
+            )}
 
-            <div style={progressBottomRow}>
-              <p style={progressText}>
-                {isAdmin
-                  ? "Admin access · all rover stages unlocked"
-                  : `${completedMissionCount} counted Core Missions`}
-              </p>
-              <p style={progressText}>
-                {isAdmin
-                  ? `Equipped: Stage ${equippedStage}`
-                  : progress.nextUpgrade
-                    ? `${progress.missionsToNext} to ${progress.nextUpgrade.shortName}`
-                    : "All stages unlocked"}
-              </p>
+            <div style={ownershipPanel}>
+              <div style={ownershipRow}>
+                <span style={ownershipLabel}>ROVERS OWNED</span>
+                <strong style={ownershipValue}>
+                  {ownedRoverCount}/{coreUpgradeTrack.length}
+                </strong>
+              </div>
+
+              <div style={ownershipRow}>
+                <span style={ownershipLabel}>EQUIPPED</span>
+                <strong style={ownershipValue}>
+                  Rover {equippedStage + 1}
+                </strong>
+              </div>
+
+              <div style={ownershipRow}>
+                <span style={ownershipLabel}>
+                  {nextPurchasableRover
+                    ? "NEXT PURCHASE"
+                    : "COLLECTION"}
+                </span>
+
+                <strong style={ownershipValue}>
+                  {isAdmin
+                    ? "Admin access"
+                    : nextPurchasableRover
+                      ? `Rover ${nextPurchasableRover.rover_number} · ${Number(
+                          nextPurchasableRover.price_dt,
+                        ).toLocaleString("en-SG")} DT`
+                      : "All rovers owned"}
+                </strong>
+              </div>
             </div>
 
             <div style={summaryGrid(isMobile)}>
@@ -1023,6 +1240,7 @@ export default function RoverGarageClient() {
             >
               Rover Courses
             </button>
+
             <button
               type="button"
               onClick={() => setTab("upgrades")}
@@ -1030,6 +1248,7 @@ export default function RoverGarageClient() {
             >
               Rover Upgrades
             </button>
+
             <button
               type="button"
               onClick={() => setTab("custom")}
@@ -1048,7 +1267,7 @@ export default function RoverGarageClient() {
               currentStage={
                 isAdmin
                   ? coreUpgradeTrack[coreUpgradeTrack.length - 1].stage
-                  : progress.currentUpgrade.stage
+                  : highestOwnedStage
               }
               dreamGemBalance={dreamGemBalance}
               purchasingLevel={purchasingLevel}
@@ -1060,15 +1279,22 @@ export default function RoverGarageClient() {
             />
           ) : tab === "upgrades" ? (
             <UpgradeTrack
-              completedMissionCount={completedMissionCount}
+              catalog={roverCatalog}
+              tokenBalance={tokenBalance}
               isAdmin={isAdmin}
               equippedStage={equippedStage}
               selectedStage={displayedUpgrade.stage}
               savingStage={savingRoverStage}
-              onSelectStage={(stage) => void selectAndEquipRover(stage)}
+              purchasingStage={purchasingRoverStage}
+              onPreviewStage={previewRover}
+              onEquipStage={(stage) => void selectAndEquipRover(stage)}
+              onPurchaseStage={(stage) => void purchaseRover(stage)}
             />
           ) : (
-            <CustomBuildPanel tokenBalance={tokenBalance} isMobile={isMobile} />
+            <CustomBuildPanel
+              tokenBalance={tokenBalance}
+              isMobile={isMobile}
+            />
           )}
         </div>
       </section>
@@ -1113,10 +1339,10 @@ function RoverCoursesPanel({
         <p style={smallEyebrow}>COURSE SELECT</p>
         <h2 style={{ margin: "7px 0 0" }}>Rover Challenge</h2>
         <p style={coursesIntro}>
-          Every current Rover Level is shown here. Complete levels in order.
-          If your Rover Stage is behind schedule, Dream Gems can permanently
-          unlock the next eligible level early. Admin accounts can enter every
-          level immediately.
+          Complete Rover Challenge levels in order. Some courses require a
+          stronger rover that you own. Dream Gems can still permanently unlock
+          the next eligible course early without purchasing the required rover.
+          Admin accounts can enter every level immediately.
         </p>
       </div>
 
@@ -1199,7 +1425,7 @@ function RoverCoursesPanel({
                     </p>
 
                     <p style={leaderboardMeta}>
-                      Stage {row.rover_stage} · {row.orbs_collected}/
+                      Rover {Number(row.rover_stage) + 1} · {row.orbs_collected}/
                       {selectedLeaderboardCourse.orbTotal} orbs ·{" "}
                       {formatMilliseconds(Number(row.best_time_ms))}
                     </p>
@@ -1266,11 +1492,11 @@ function CourseCard({
     } else if (!access.prerequisite_completed) {
       status = `LOCKED · COMPLETE LEVEL ${access.prerequisite_level}`;
     } else if (canEarlyUnlock) {
-      status = `ROVER STAGE ${access.minimum_rover_stage} NORMALLY REQUIRED · EARLY UNLOCK AVAILABLE`;
+      status = `ROVER ${Number(access.minimum_rover_stage) + 1} NORMALLY REQUIRED · EARLY UNLOCK AVAILABLE`;
     } else if (canOpen) {
       status = "READY TO DRIVE";
     } else {
-      status = `ROVER STAGE ${access.minimum_rover_stage} REQUIRED · CURRENT ${currentStage}`;
+      status = `ROVER ${Number(access.minimum_rover_stage) + 1} REQUIRED · HIGHEST OWNED ROVER ${currentStage + 1}`;
     }
   }
 
@@ -1372,7 +1598,7 @@ function RoverBuildStats({ stage, accent }: { stage: number; accent: string }) {
 
   return (
     <section
-      aria-label={`Stage ${stage} rover build statistics`}
+      aria-label={`Rover ${stage + 1} build statistics`}
       style={buildStatsPanel}
     >
       <div style={buildStatsHeadingRow}>
@@ -1405,71 +1631,130 @@ function RoverBuildStats({ stage, accent }: { stage: number; accent: string }) {
 }
 
 function UpgradeTrack({
-  completedMissionCount,
+  catalog,
+  tokenBalance,
   isAdmin,
   equippedStage,
   selectedStage,
   savingStage,
-  onSelectStage,
+  purchasingStage,
+  onPreviewStage,
+  onEquipStage,
+  onPurchaseStage,
 }: {
-  completedMissionCount: number;
+  catalog: RoverCatalogRow[];
+  tokenBalance: number;
   isAdmin: boolean;
   equippedStage: number;
   selectedStage: number;
   savingStage: number | null;
-  onSelectStage: (stage: number) => void;
+  purchasingStage: number | null;
+  onPreviewStage: (stage: number) => void;
+  onEquipStage: (stage: number) => void;
+  onPurchaseStage: (stage: number) => void;
 }) {
   return (
     <div style={scrollPanel}>
       <div style={panelHeading}>
-        <p style={smallEyebrow}>MISSION UNLOCKS</p>
+        <p style={smallEyebrow}>PERMANENT ROVER UPGRADES</p>
 
         <h2 style={{ margin: "7px 0 0" }}>Rover Upgrade Track</h2>
 
         <p style={panelDescription}>
-          Complete new Core Mission quizzes to unlock performance upgrades.
-          Selecting an available rover equips it immediately, and that exact
-          build is used in Rover Challenge. Admin accounts can equip every
-          stage. Replays do not add progress.
+          Rover 1 is included free. Purchase stronger rovers permanently with
+          Dream Tokens, then switch freely between every rover you own.
+          Purchases unlock in order. Your current balance is{" "}
+          <strong>{tokenBalance.toLocaleString("en-SG")} DT</strong>.
         </p>
       </div>
 
       <div style={upgradeList}>
         {coreUpgradeTrack.map((upgrade) => {
-          const unlocked =
+          const catalogRow = catalog.find(
+            (row) => Number(row.stage) === upgrade.stage,
+          );
+
+          const owned =
             isAdmin ||
-            completedMissionCount >= upgrade.missionsRequired;
+            upgrade.stage === 0 ||
+            Boolean(catalogRow?.owned);
 
           const equipped = equippedStage === upgrade.stage;
           const selected = selectedStage === upgrade.stage;
           const saving = savingStage === upgrade.stage;
+          const purchasing = purchasingStage === upgrade.stage;
+
+          const price = Number(
+            catalogRow?.price_dt ?? upgrade.priceDt,
+          );
+
+          const canPurchase =
+            !isAdmin &&
+            !owned &&
+            Boolean(catalogRow?.can_purchase);
+
+          const canAfford =
+            canPurchase &&
+            tokenBalance >= price;
+
+          const previousRequiredRover = Math.max(
+            1,
+            upgrade.stage,
+          );
+
+          let status = "";
+
+          if (equipped) {
+            status = "EQUIPPED · USED IN ROVER CHALLENGE";
+          } else if (saving) {
+            status = "EQUIPPING...";
+          } else if (owned) {
+            status = isAdmin
+              ? "ADMIN ACCESS · SELECT TO EQUIP"
+              : catalogRow?.acquisition_method === "legacy"
+                ? "OWNED · LEGACY UNLOCK · SELECT TO EQUIP"
+                : catalogRow?.acquisition_method === "purchase"
+                  ? "OWNED · PERMANENT PURCHASE · SELECT TO EQUIP"
+                  : "OWNED · SELECT TO EQUIP";
+          } else if (purchasing) {
+            status = "PURCHASING...";
+          } else if (!catalogRow) {
+            status = "OWNERSHIP DATA UNAVAILABLE";
+          } else if (!catalogRow.previous_stage_owned) {
+            status = `LOCKED · PURCHASE ROVER ${previousRequiredRover} FIRST`;
+          } else if (canAfford) {
+            status = `AVAILABLE · ${price.toLocaleString("en-SG")} DT`;
+          } else {
+            status = `NEED ${Math.max(
+              0,
+              price - tokenBalance,
+            ).toLocaleString("en-SG")} MORE DT`;
+          }
 
           return (
-            <button
+            <article
               key={upgrade.stage}
-              type="button"
-              disabled={!unlocked || savingStage !== null}
-              onClick={() => {
-                if (unlocked && savingStage === null) {
-                  onSelectStage(upgrade.stage);
-                }
-              }}
-              aria-pressed={equipped}
-              style={upgradeRow(unlocked, equipped, selected, upgrade.accent)}
+              onClick={() => onPreviewStage(upgrade.stage)}
+              style={upgradeRow(
+                owned || canPurchase,
+                equipped,
+                selected,
+                upgrade.accent,
+              )}
             >
-              <div style={stageNumber(unlocked, upgrade.accent)}>
-                {upgrade.stage}
+              <div style={stageNumber(owned, upgrade.accent)}>
+                {upgrade.roverNumber}
               </div>
 
               <img
                 src={upgrade.imageSrc}
-                alt={upgrade.name}
+                alt={`Rover ${upgrade.roverNumber} · ${upgrade.name}`}
                 draggable={false}
                 style={{
                   width: "110px",
                   height: "76px",
                   objectFit: "contain",
-                  opacity: unlocked ? 1 : 0.35,
+                  opacity: owned || canPurchase ? 1 : 0.4,
                 }}
               />
 
@@ -1482,23 +1767,13 @@ function UpgradeTrack({
               >
                 <p
                   style={upgradeStatus(
-                    unlocked,
+                    owned || canPurchase,
                     equipped,
                     selected,
                     upgrade.accent,
                   )}
                 >
-                  {equipped
-                    ? "EQUIPPED · USED IN CHALLENGE"
-                    : saving
-                      ? "EQUIPPING..."
-                      : selected
-                        ? "SELECTED"
-                        : unlocked
-                          ? isAdmin
-                            ? "ADMIN UNLOCKED · SELECT TO EQUIP"
-                            : "UNLOCKED · SELECT TO EQUIP"
-                          : `${upgrade.missionsRequired} MISSIONS`}
+                  {status}
                 </p>
 
                 <h3
@@ -1507,12 +1782,77 @@ function UpgradeTrack({
                     fontSize: "18px",
                   }}
                 >
-                  {upgrade.name}
+                  Rover {upgrade.roverNumber} · {upgrade.name}
                 </h3>
 
-                <p style={upgradeRowDescription}>{upgrade.description}</p>
+                <p style={upgradeRowDescription}>
+                  {upgrade.description}
+                </p>
+
+                {upgrade.stage > 0 && (
+                  <p style={roverPriceText}>
+                    Permanent price:{" "}
+                    <strong>
+                      {price.toLocaleString("en-SG")} DT
+                    </strong>
+                  </p>
+                )}
               </div>
-            </button>
+
+              <div style={upgradeActionColumn}>
+                {equipped ? (
+                  <span style={equippedBadge}>Equipped</span>
+                ) : owned ? (
+                  <button
+                    type="button"
+                    disabled={
+                      savingStage !== null ||
+                      purchasingStage !== null
+                    }
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onEquipStage(upgrade.stage);
+                    }}
+                    style={equipRoverButton(
+                      savingStage === null &&
+                        purchasingStage === null,
+                    )}
+                  >
+                    {saving ? "Equipping..." : "Equip"}
+                  </button>
+                ) : canPurchase ? (
+                  <button
+                    type="button"
+                    disabled={
+                      !canAfford ||
+                      purchasingStage !== null ||
+                      savingStage !== null
+                    }
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onPurchaseStage(upgrade.stage);
+                    }}
+                    style={purchaseRoverButton(
+                      canAfford &&
+                        purchasingStage === null &&
+                        savingStage === null,
+                    )}
+                  >
+                    {purchasing
+                      ? "Purchasing..."
+                      : canAfford
+                        ? `${price.toLocaleString("en-SG")} DT`
+                        : "Need DT"}
+                  </button>
+                ) : (
+                  <span style={lockedRoverBadge}>
+                    {upgrade.stage === 0
+                      ? "Starter"
+                      : `Rover ${previousRequiredRover} first`}
+                  </span>
+                )}
+              </div>
+            </article>
           );
         })}
       </div>
@@ -2193,7 +2533,7 @@ function upgradeRow(
     opacity: unlocked ? 1 : 0.58,
     color: "white",
     fontFamily: "inherit",
-    cursor: unlocked ? "pointer" : "not-allowed",
+    cursor: "pointer",
     boxShadow: selected ? `0 0 22px ${accent}22` : "none",
     transition:
       "border 160ms ease, background 160ms ease, box-shadow 160ms ease",
@@ -2243,6 +2583,132 @@ const upgradeRowDescription: CSSProperties = {
   fontSize: "12px",
   lineHeight: 1.4,
 };
+
+
+const purchaseNotice: CSSProperties = {
+  marginTop: "12px",
+  borderRadius: "12px",
+  border: "1px solid rgba(126,232,255,0.28)",
+  background: "rgba(53,197,255,0.08)",
+  color: "#c9f9ff",
+  padding: "12px 14px",
+  fontSize: "12px",
+  lineHeight: 1.45,
+};
+
+const ownershipPanel: CSSProperties = {
+  marginTop: "15px",
+  borderRadius: "16px",
+  border: "1px solid rgba(126,232,255,0.16)",
+  background: "rgba(255,255,255,0.035)",
+  padding: "12px 13px",
+  display: "grid",
+  gap: "9px",
+};
+
+const ownershipRow: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "12px",
+};
+
+const ownershipLabel: CSSProperties = {
+  color: "rgba(255,255,255,0.42)",
+  fontSize: "9px",
+  letterSpacing: "0.12em",
+  fontWeight: 900,
+};
+
+const ownershipValue: CSSProperties = {
+  color: "#d8f9ff",
+  fontSize: "11px",
+  textAlign: "right",
+};
+
+const upgradeActionColumn: CSSProperties = {
+  flex: "0 0 auto",
+  minWidth: "102px",
+  display: "flex",
+  justifyContent: "flex-end",
+  alignItems: "center",
+};
+
+const roverPriceText: CSSProperties = {
+  margin: "7px 0 0",
+  color: "#9ceeff",
+  fontSize: "11px",
+};
+
+const equippedBadge: CSSProperties = {
+  minWidth: "88px",
+  minHeight: "38px",
+  borderRadius: "11px",
+  border: "1px solid rgba(134,239,172,0.36)",
+  background: "rgba(34,197,94,0.14)",
+  color: "#9af7bc",
+  padding: "0 12px",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "10px",
+  fontWeight: 900,
+  textTransform: "uppercase",
+};
+
+const lockedRoverBadge: CSSProperties = {
+  maxWidth: "108px",
+  borderRadius: "10px",
+  border: "1px solid rgba(255,255,255,0.09)",
+  background: "rgba(255,255,255,0.035)",
+  color: "rgba(255,255,255,0.38)",
+  padding: "9px 10px",
+  fontSize: "9px",
+  fontWeight: 900,
+  textAlign: "center",
+  textTransform: "uppercase",
+};
+
+function equipRoverButton(enabled: boolean): CSSProperties {
+  return {
+    minWidth: "88px",
+    minHeight: "40px",
+    borderRadius: "11px",
+    border: enabled
+      ? "1px solid rgba(126,232,255,0.44)"
+      : "1px solid rgba(255,255,255,0.08)",
+    background: enabled
+      ? "linear-gradient(135deg,#35c5ff,#5c6cff)"
+      : "rgba(255,255,255,0.035)",
+    color: enabled ? "white" : "rgba(255,255,255,0.35)",
+    padding: "0 13px",
+    fontSize: "11px",
+    fontWeight: 900,
+    cursor: enabled ? "pointer" : "not-allowed",
+  };
+}
+
+function purchaseRoverButton(enabled: boolean): CSSProperties {
+  return {
+    minWidth: "96px",
+    minHeight: "42px",
+    borderRadius: "11px",
+    border: enabled
+      ? "1px solid rgba(255,224,120,0.58)"
+      : "1px solid rgba(255,255,255,0.08)",
+    background: enabled
+      ? "linear-gradient(135deg,#ffd76a,#ff9f43)"
+      : "rgba(255,255,255,0.035)",
+    color: enabled ? "#241400" : "rgba(255,255,255,0.34)",
+    padding: "0 12px",
+    fontSize: "11px",
+    fontWeight: 950,
+    cursor: enabled ? "pointer" : "not-allowed",
+    boxShadow: enabled
+      ? "0 0 18px rgba(255,215,106,0.18)"
+      : "none",
+  };
+}
 
 function customGrid(isMobile: boolean): CSSProperties {
   return {

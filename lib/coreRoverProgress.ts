@@ -14,7 +14,8 @@ export type CoreRoverGameStats = {
 
 export type CoreRoverUpgrade = {
   stage: number;
-  missionsRequired: number;
+  roverNumber: number;
+  priceDt: number;
   name: string;
   shortName: string;
   description: string;
@@ -26,7 +27,8 @@ export type CoreRoverUpgrade = {
 export const coreUpgradeTrack: CoreRoverUpgrade[] = [
   {
     stage: 0,
-    missionsRequired: 0,
+    roverNumber: 1,
+    priceDt: 0,
     name: "Basic Rover Frame",
     shortName: "Frame",
     description: "Nova has the starting frame of her Skyforge Rover.",
@@ -49,7 +51,8 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
   },
   {
     stage: 1,
-    missionsRequired: 5,
+    roverNumber: 2,
+    priceDt: 100,
     name: "Energy Engine",
     shortName: "Engine",
     description:
@@ -73,7 +76,8 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
   },
   {
     stage: 2,
-    missionsRequired: 15,
+    roverNumber: 3,
+    priceDt: 250,
     name: "Navigation Console",
     shortName: "Navigation",
     description:
@@ -97,7 +101,8 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
   },
   {
     stage: 3,
-    missionsRequired: 30,
+    roverNumber: 4,
+    priceDt: 625,
     name: "Turbo Wheels",
     shortName: "Turbo Wheels",
     description:
@@ -121,7 +126,8 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
   },
   {
     stage: 4,
-    missionsRequired: 50,
+    roverNumber: 5,
+    priceDt: 1560,
     name: "Shield Plating",
     shortName: "Shield",
     description:
@@ -145,7 +151,8 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
   },
   {
     stage: 5,
-    missionsRequired: 75,
+    roverNumber: 6,
+    priceDt: 3900,
     name: "Hover Boosters",
     shortName: "Hover Rover",
     description:
@@ -169,46 +176,53 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
   },
 ];
 
-export function getCurrentCoreRoverUpgrade(completedCount: number) {
-  let currentUpgrade = coreUpgradeTrack[0];
+export function getCoreRoverByStage(stage: number) {
+  const normalisedStage = Math.min(
+    coreUpgradeTrack.length - 1,
+    Math.max(0, Math.floor(Number(stage) || 0)),
+  );
 
-  for (const upgrade of coreUpgradeTrack) {
-    if (completedCount >= upgrade.missionsRequired) {
-      currentUpgrade = upgrade;
-    }
-  }
-
-  return currentUpgrade;
-}
-
-export function getNextCoreRoverUpgrade(completedCount: number) {
-  return coreUpgradeTrack.find(
-    (upgrade) => completedCount < upgrade.missionsRequired,
+  return (
+    coreUpgradeTrack.find((upgrade) => upgrade.stage === normalisedStage) ??
+    coreUpgradeTrack[0]
   );
 }
 
-export function getCoreRoverProgress(completedCount: number) {
-  const currentUpgrade = getCurrentCoreRoverUpgrade(completedCount);
-  const nextUpgrade = getNextCoreRoverUpgrade(completedCount);
+/**
+ * Compatibility helper for any remaining callers.
+ * The argument is now a rover stage, NOT a completed-quiz count.
+ */
+export function getCurrentCoreRoverUpgrade(stage: number) {
+  return getCoreRoverByStage(stage);
+}
+
+/**
+ * Compatibility helper for any remaining callers.
+ * The argument is now a rover stage, NOT a completed-quiz count.
+ */
+export function getNextCoreRoverUpgrade(stage: number) {
+  const current = getCoreRoverByStage(stage);
+
+  return coreUpgradeTrack.find(
+    (upgrade) => upgrade.stage === current.stage + 1,
+  );
+}
+
+/**
+ * Compatibility helper for any remaining callers.
+ * Rover ownership is authoritative in Supabase; this only describes a stage.
+ */
+export function getCoreRoverProgress(stage: number) {
+  const currentUpgrade = getCoreRoverByStage(stage);
+  const nextUpgrade = getNextCoreRoverUpgrade(currentUpgrade.stage);
   const finalUpgrade = coreUpgradeTrack[coreUpgradeTrack.length - 1];
-
-  const progressTarget =
-    nextUpgrade?.missionsRequired ?? finalUpgrade.missionsRequired;
-
-  const previousTarget = currentUpgrade.missionsRequired;
-  const progressRange = Math.max(1, progressTarget - previousTarget);
-  const progressWithinRange = Math.max(0, completedCount - previousTarget);
 
   return {
     currentUpgrade,
     nextUpgrade,
-    progressPercentage: nextUpgrade
-      ? Math.min(100, Math.round((progressWithinRange / progressRange) * 100))
-      : 100,
+    progressPercentage: nextUpgrade ? 0 : 100,
     isComplete: !nextUpgrade,
     finalUpgrade,
-    missionsToNext: nextUpgrade
-      ? Math.max(0, nextUpgrade.missionsRequired - completedCount)
-      : 0,
+    missionsToNext: 0,
   };
 }
