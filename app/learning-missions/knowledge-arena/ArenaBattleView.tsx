@@ -97,11 +97,11 @@ function NovaSprite({ phase, imageRef }: { phase: BattlePhase; imageRef?: Ref<HT
           : "idle";
 
   return (
-    <div className={`kab-character kab-nova is-${key}`}>
+    <div className={`kab-character kab-nova is-${key}`} aria-label="Nova">
       <img
         ref={imageRef}
         src={novaSprites[key]}
-        alt="Nova"
+        alt=""
         draggable={false}
         onError={(event) => {
           event.currentTarget.style.display = "none";
@@ -138,12 +138,12 @@ function MonsterSprite({
   const sprite = monsterPoseSprites[monster.slug]?.[pose] || monster.sprite_url;
 
   return (
-    <div className={`kab-character kab-monster is-${pose}`}>
+    <div className={`kab-character kab-monster is-${pose}`} aria-label={monster.name}>
       <img
         ref={imageRef}
         key={`${monster.slug}-${pose}`}
         src={sprite}
-        alt={`${monster.name} ${pose}`}
+        alt=""
         draggable={false}
         onError={(event) => {
           event.currentTarget.style.display = "none";
@@ -793,6 +793,8 @@ export function ArenaBattleView({
             radial-gradient(circle at 50% 68%, transparent 0 28%, rgba(0, 0, 0, 0.14) 82%);
         }
         .kab-top-strip {
+          position: relative;
+          z-index: 6;
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -818,6 +820,8 @@ export function ArenaBattleView({
         .kab-chip-button { color: white; }
         .kab-timer-chip.is-low { color: #ff8d8d; }
         .kab-overlay-top {
+          position: relative;
+          z-index: 5;
           display: grid;
           grid-template-columns: minmax(0, 1fr) minmax(340px, 0.92fr);
           gap: 14px;
@@ -895,6 +899,8 @@ export function ArenaBattleView({
         .kab-feedback.is-wrong { border: 1px solid rgba(255, 102, 130, .35); }
         .kab-battle-center {
           position: relative;
+          z-index: 1;
+          overflow: hidden;
           display: flex;
           align-items: flex-end;
           justify-content: center;
@@ -907,11 +913,21 @@ export function ArenaBattleView({
           display: flex;
           align-items: flex-end;
           justify-content: center;
-          width: min(22vw, 270px);
-          height: min(36vh, 310px);
+          width: min(18vw, 225px);
+          height: min(30vh, 255px);
         }
-        .kab-fighter-left { transform: translateY(8px); }
-        .kab-fighter-right { transform: translateY(10px); }
+        .kab-fighter-left { transform: translateY(18px); }
+        .kab-fighter-right { transform: translateY(20px); }
+        .kab-character-fallback,
+        .kab-fighter [data-character-name],
+        .kab-fighter .character-name {
+          display: none !important;
+        }
+        .kab-character-fallback,
+        .kab-character-name,
+        .kab-fighter-name {
+          display: none !important;
+        }
         .kab-character,
         .kab-character img {
           width: 100%;
@@ -1146,15 +1162,24 @@ export function ArenaBattleView({
         }
         @media (max-width: 1100px) {
           .kab-overlay-top { grid-template-columns: 1fr 1fr; }
-          .kab-fighter { width: min(20vw, 220px); height: min(28vh, 220px); }
+          .kab-fighter { width: min(16vw, 175px); height: min(23vh, 175px); }
           .kab-bottom-hud { gap: 10px; }
           .kab-floating-fire { width: 82px; height: 82px; }
         }
         @media (max-width: 850px) {
+          .kab-character-fallback,
+          .kab-character-name,
+          .kab-fighter-name,
+          .kab-character > span:not(.kab-muzzle-anchor):not(.kab-impact-anchor) {
+            display: none !important;
+          }
+
           .kab-top-strip { padding: 8px 10px 0; }
           .kab-chip { padding: 6px 10px; font-size: 11px; }
           .kab-chip--hide-mobile { display: none; }
           .kab-overlay-top {
+          position: relative;
+          z-index: 5;
             grid-template-columns: 1fr 1fr;
             gap: 8px;
             padding: 8px 10px 0;
@@ -1165,7 +1190,20 @@ export function ArenaBattleView({
           .kab-answer { min-height: 62px; padding: 8px 10px; border-radius: 14px; }
           .kab-answer strong { width: 28px; height: 28px; font-size: 13px; }
           .kab-answer span { font-size: 13px; }
-          .kab-feedback { font-size: 12px; padding: 8px 10px; }
+          .kab-feedback {
+            font-size: 17px;
+            line-height: 1.42;
+            padding: 11px 13px;
+            font-weight: 900;
+          }
+          .kab-feedback strong {
+            font-size: 16px;
+          }
+          .kab-battle-message {
+            font-size: 15px;
+            line-height: 1.35;
+            font-weight: 900;
+          }
           .kab-battle-center {
             gap: 18px;
             padding: 0 12px 0;
@@ -1174,8 +1212,8 @@ export function ArenaBattleView({
             width: min(14vw, 88px);
             height: min(16vh, 92px);
           }
-          .kab-fighter-left { transform: translateY(16px); }
-          .kab-fighter-right { transform: translateY(18px); }
+          .kab-fighter-left { transform: translateY(24px); }
+          .kab-fighter-right { transform: translateY(26px); }
           .kab-muzzle-anchor { left: 67.5%; top: 25%; }
           .kab-center-status { gap: 6px; margin-top: 0; }
           .kab-battle-message, .kab-fire-panel, .kab-target-eliminated { padding: 8px 10px; font-size: 11px; }
@@ -1240,7 +1278,7 @@ export function ArenaBattleResultCard({
   return (
     <section className={`kab-result-card is-${outcome}`}>
       <div className="kab-result-fighter kab-result-nova">
-        <img src={novaResultSprite} alt="Nova" />
+        <img src={novaResultSprite} alt="" />
         <small>NOVA</small>
       </div>
 

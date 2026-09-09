@@ -18,6 +18,11 @@ type ProfileStatus = {
   age_band?: string | null;
 };
 
+type ReferralResult = {
+  success?: boolean;
+  message?: string;
+};
+
 function safeNextPath(value: string | null) {
   if (!value || !value.startsWith("/") || value.startsWith("//")) {
     return "/profile";
@@ -45,6 +50,50 @@ function calculateAge(dateOfBirth: string) {
   }
 
   return age;
+}
+
+async function applyPendingReferralForNewProfile(userId: string) {
+  const pendingReferralCode = window.localStorage
+    .getItem("pending-referral-code")
+    ?.trim()
+    .toUpperCase();
+
+  if (!pendingReferralCode) {
+    return {
+      ok: true,
+      message: "",
+    };
+  }
+
+  const { data, error } = await supabase.rpc(
+    "apply_referral_bonus",
+    {
+      new_user_id: userId,
+      input_referral_code: pendingReferralCode,
+    },
+  );
+
+  if (error) {
+    console.error(
+      "Referral error after learner-profile completion:",
+      error.message,
+    );
+
+    return {
+      ok: false,
+      message:
+        "Your learner profile was saved, but the referral reward could not be applied yet. Please tap Save and Continue again.",
+    };
+  }
+
+  const referralResult = (data || {}) as ReferralResult;
+
+  window.localStorage.removeItem("pending-referral-code");
+
+  return {
+    ok: true,
+    message: referralResult.message || "",
+  };
 }
 
 export default function CompleteProfilePage() {
@@ -128,13 +177,13 @@ function CompleteProfileContent() {
          * An existing user can arrive here after Google OAuth or after
          * choosing Google from the duplicate-email recovery card.
          * If the learner profile is already complete, do not re-run
-         * onboarding and discard any stale "new signup" browser state.
+         * onboarding or apply a referral from stale "new signup" state.
          */
         window.localStorage.removeItem(
-          "pending-date-of-birth"
+          "pending-date-of-birth",
         );
         window.localStorage.removeItem(
-          "pending-referral-code"
+          "pending-referral-code",
         );
 
         router.replace(nextPath);
@@ -194,15 +243,38 @@ function CompleteProfileContent() {
       },
     );
 
-    setSaving(false);
-
     if (error) {
-      setMessage(error.message || "The learner profile could not be saved.");
+      setSaving(false);
+      setMessage(
+        error.message || "The learner profile could not be saved.",
+      );
       return;
+    }
+
+    /*
+     * Google signup stores the referral code in localStorage before OAuth.
+     * Apply it here, before leaving onboarding, so the referral is not
+     * dependent on the user's next destination being /profile.
+     */
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) {
+      const referralApplication =
+        await applyPendingReferralForNewProfile(user.id);
+
+      if (!referralApplication.ok) {
+        setSaving(false);
+        setMessage(referralApplication.message);
+        return;
+      }
     }
 
     window.localStorage.removeItem("pending-date-of-birth");
     window.dispatchEvent(new Event("learning-profile-updated"));
+
+    setSaving(false);
     router.replace(nextPath);
     router.refresh();
   }

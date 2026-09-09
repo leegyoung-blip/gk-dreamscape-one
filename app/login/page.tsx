@@ -130,10 +130,19 @@ export default function LoginPage() {
   >(null);
 
   useEffect(() => {
-    const requestedMode = new URLSearchParams(window.location.search).get("mode");
+    const params = new URLSearchParams(window.location.search);
+    const requestedMode = params.get("mode");
+    const requestedReferralCode = params
+      .get("ref")
+      ?.trim()
+      .toUpperCase();
 
-    if (requestedMode === "signup") {
+    if (requestedMode === "signup" || requestedReferralCode) {
       setAuthMode("signup");
+    }
+
+    if (requestedReferralCode) {
+      setReferralCode(requestedReferralCode);
     }
   }, []);
 

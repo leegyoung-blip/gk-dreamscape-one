@@ -1701,7 +1701,7 @@ export default function ProfilePage() {
 
     const referralLink = `${
       window.location.origin
-    }/signup?ref=${encodeURIComponent(
+    }/login?mode=signup&ref=${encodeURIComponent(
       referralCode,
     )}`;
 

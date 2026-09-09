@@ -236,6 +236,61 @@ function ResponsiveScrollStyles() {
         }
       }
 
+      /* Mobile portrait only: keep charts/data inside the viewport. */
+      @media (max-width: 820px) and (orientation: portrait) {
+        .milo-responsive-chart {
+          width: 100% !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
+          overflow-x: auto !important;
+          overflow-y: hidden !important;
+          -webkit-overflow-scrolling: touch;
+          overscroll-behavior-x: contain;
+        }
+
+        .milo-responsive-chart svg {
+          display: block;
+          width: 100% !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
+          height: auto !important;
+        }
+
+        /* Any real HTML table added to this page will fit first, then scroll
+           horizontally only when its columns need more room. */
+        .milo-stock-page table {
+          width: 100%;
+          max-width: 100%;
+          border-collapse: collapse;
+        }
+
+        .milo-stock-page .milo-table-scroll,
+        .milo-stock-page .milo-data-scroll {
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
+          overflow-x: auto;
+          overflow-y: hidden;
+          -webkit-overflow-scrolling: touch;
+          overscroll-behavior-x: contain;
+        }
+
+        .milo-stock-page .milo-table-scroll > table,
+        .milo-stock-page .milo-data-scroll > table {
+          min-width: max-content;
+        }
+      }
+
+      /* On very narrow portrait phones, preserve readable chart labels and
+         allow the chart itself to scroll instead of widening the whole page. */
+      @media (max-width: 430px) and (orientation: portrait) {
+        .milo-responsive-chart svg {
+          width: 540px !important;
+          max-width: none !important;
+          min-width: 540px !important;
+        }
+      }
+
       @media (max-width: 620px) {
         .milo-market-strip {
           grid-template-columns: 1fr !important;
