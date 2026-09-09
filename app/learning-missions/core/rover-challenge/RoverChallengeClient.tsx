@@ -54,6 +54,7 @@ type PhaserGameProps = {
   levelConfig: RoverLevelConfig;
   roverStage: number;
   roverName: string;
+  roverImageSrc: string;
   gameStats: CoreRoverGameStats;
 };
 
@@ -529,6 +530,7 @@ export default function RoverChallengeClient({
             levelConfig={levelConfig}
             roverStage={currentUpgrade.stage}
             roverName={currentUpgrade.name}
+            roverImageSrc={currentUpgrade.gameImageSrc}
             gameStats={currentUpgrade.gameStats}
           />
         ) : (

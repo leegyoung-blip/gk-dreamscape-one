@@ -15,25 +15,32 @@ export type CoreRoverGameStats = {
 export type CoreRoverUpgrade = {
   stage: number;
   roverNumber: number;
+  slug: string;
   priceDt: number;
   name: string;
   shortName: string;
   description: string;
   imageSrc: string;
+  gameImageSrc: string;
   accent: string;
   gameStats: CoreRoverGameStats;
 };
+
+const ROVER_ASSET_ROOT =
+  "/activities/learning-missions/core/rover/vehicles";
 
 export const coreUpgradeTrack: CoreRoverUpgrade[] = [
   {
     stage: 0,
     roverNumber: 1,
+    slug: "scout-buggy",
     priceDt: 0,
-    name: "Basic Rover Frame",
-    shortName: "Frame",
-    description: "Nova has the starting frame of her Skyforge Rover.",
-    imageSrc:
-      "/activities/learning-missions/core/rover/rover-stage-0-frame.png",
+    name: "Scout Buggy",
+    shortName: "Scout",
+    description:
+      "A lightweight exploration buggy with exposed suspension, a compact cockpit and responsive handling for first expeditions.",
+    imageSrc: `${ROVER_ASSET_ROOT}/scout-buggy.png`,
+    gameImageSrc: `${ROVER_ASSET_ROOT}/side-scout-buggy.png`,
     accent: "#7ee8ff",
     gameStats: {
       normalSpeed: 8.5,
@@ -52,13 +59,14 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
   {
     stage: 1,
     roverNumber: 2,
+    slug: "ignition-runner",
     priceDt: 100,
-    name: "Energy Engine",
-    shortName: "Engine",
+    name: "Ignition Runner",
+    shortName: "Ignition",
     description:
-      "A stronger power system improves acceleration and gives the rover more usable boost energy.",
-    imageSrc:
-      "/activities/learning-missions/core/rover/rover-stage-1-engine.png",
+      "A low, aggressive performance rover built around oversized rear power units, stronger acceleration and a larger boost reserve.",
+    imageSrc: `${ROVER_ASSET_ROOT}/ignition-runner.png`,
+    gameImageSrc: `${ROVER_ASSET_ROOT}/side-ignition-runner.png`,
     accent: "#ffd76a",
     gameStats: {
       normalSpeed: 9.5,
@@ -77,13 +85,14 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
   {
     stage: 2,
     roverNumber: 3,
+    slug: "pathfinder-command",
     priceDt: 250,
-    name: "Navigation Console",
-    shortName: "Navigation",
+    name: "Pathfinder Command",
+    shortName: "Pathfinder",
     description:
-      "Improved navigation gives the rover sharper braking, steadier handling and better control in the air.",
-    imageSrc:
-      "/activities/learning-missions/core/rover/rover-stage-3-navigation.png",
+      "A long-range command rover packed with navigation arrays, communications equipment and steadier all-terrain control.",
+    imageSrc: `${ROVER_ASSET_ROOT}/pathfinder-command.png`,
+    gameImageSrc: `${ROVER_ASSET_ROOT}/side-pathfinder-command.png`,
     accent: "#60f0d0",
     gameStats: {
       normalSpeed: 10.2,
@@ -102,13 +111,14 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
   {
     stage: 3,
     roverNumber: 4,
+    slug: "turbo-striker",
     priceDt: 625,
-    name: "Turbo Wheels",
-    shortName: "Turbo Wheels",
+    name: "Turbo Striker",
+    shortName: "Striker",
     description:
-      "Turbo Wheels deliver the rover's major speed upgrade and the jump power needed for advanced routes.",
-    imageSrc:
-      "/activities/learning-missions/core/rover/rover-stage-5-turbo-wheels.png",
+      "A sleek high-speed rover with twin turbo assemblies, a low aerodynamic profile and major gains in speed and jump power.",
+    imageSrc: `${ROVER_ASSET_ROOT}/turbo-striker.png`,
+    gameImageSrc: `${ROVER_ASSET_ROOT}/side-turbo-striker.png`,
     accent: "#8da2ff",
     gameStats: {
       normalSpeed: 11.8,
@@ -127,13 +137,14 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
   {
     stage: 4,
     roverNumber: 5,
+    slug: "aegis-defender",
     priceDt: 1560,
-    name: "Shield Plating",
-    shortName: "Shield",
+    name: "Aegis Defender",
+    shortName: "Aegis",
     description:
-      "Shield Plating keeps Turbo performance while reducing damage penalties from crashes, traps and pulse gates.",
-    imageSrc:
-      "/activities/learning-missions/core/rover/rover-stage-8-shield.png",
+      "A heavily armoured expedition rover designed to absorb punishment from crashes, traps and hostile course hazards.",
+    imageSrc: `${ROVER_ASSET_ROOT}/aegis-defender.png`,
+    gameImageSrc: `${ROVER_ASSET_ROOT}/side-aegis-defender.png`,
     accent: "#ff9df0",
     gameStats: {
       normalSpeed: 11.8,
@@ -152,13 +163,14 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
   {
     stage: 5,
     roverNumber: 6,
+    slug: "nova-hover-x",
     priceDt: 3900,
-    name: "Hover Boosters",
-    shortName: "Hover Rover",
+    name: "Nova Hover X",
+    shortName: "Hover X",
     description:
-      "Hover Boosters add the strongest boost, jump and aerial control while retaining the rover's protective plating.",
-    imageSrc:
-      "/activities/learning-missions/core/rover/rover-stage-12-hover.png",
+      "The ultimate Skyforge vehicle: a high-output hover rover combining advanced propulsion, maximum aerial control and protective systems.",
+    imageSrc: `${ROVER_ASSET_ROOT}/nova-hover-x.png`,
+    gameImageSrc: `${ROVER_ASSET_ROOT}/side-nova-hover-x.png`,
     accent: "#53d7ff",
     gameStats: {
       normalSpeed: 13.2,
@@ -188,18 +200,10 @@ export function getCoreRoverByStage(stage: number) {
   );
 }
 
-/**
- * Compatibility helper for any remaining callers.
- * The argument is now a rover stage, NOT a completed-quiz count.
- */
 export function getCurrentCoreRoverUpgrade(stage: number) {
   return getCoreRoverByStage(stage);
 }
 
-/**
- * Compatibility helper for any remaining callers.
- * The argument is now a rover stage, NOT a completed-quiz count.
- */
 export function getNextCoreRoverUpgrade(stage: number) {
   const current = getCoreRoverByStage(stage);
 
@@ -208,10 +212,6 @@ export function getNextCoreRoverUpgrade(stage: number) {
   );
 }
 
-/**
- * Compatibility helper for any remaining callers.
- * Rover ownership is authoritative in Supabase; this only describes a stage.
- */
 export function getCoreRoverProgress(stage: number) {
   const currentUpgrade = getCoreRoverByStage(stage);
   const nextUpgrade = getNextCoreRoverUpgrade(currentUpgrade.stage);

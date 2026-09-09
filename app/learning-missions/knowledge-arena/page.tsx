@@ -2600,6 +2600,52 @@ export default function KnowledgeArenaPage() {
     novaGuideReturnState.current = null;
   }
 
+  async function returnToMultiplayerLobby() {
+    if (!lobby) return;
+
+    setMultiplayerMessage("");
+    const lobbyId = lobby.id;
+
+    const { error } = await supabase.rpc(
+      "return_knowledge_arena_multiplayer_to_lobby_v1",
+      { p_lobby_id: lobbyId }
+    );
+
+    if (error) {
+      setMultiplayerMessage(error.message || "Could not return to the multiplayer lobby.");
+      return;
+    }
+
+    resetQuestionState(lobby.timer_seconds);
+    setQuestions([]);
+    setCoopRoundResult(null);
+    setCoopMyAttackScore(0);
+    setVersusRoundResolved(false);
+    setVersusWorking(false);
+    setAttemptSaveMessage("");
+    await loadLobbyState(lobbyId);
+    setStage("waiting-lobby");
+  }
+
+  async function exitMultiplayerLobby() {
+    const lobbyId = lobby?.id || null;
+
+    if (lobbyId) {
+      const { error } = await supabase.rpc(
+        "exit_knowledge_arena_multiplayer_lobby_v1",
+        { p_lobby_id: lobbyId }
+      );
+
+      if (error) {
+        setMultiplayerMessage(error.message || "Could not exit the lobby.");
+        return;
+      }
+    }
+
+    resetAll();
+    setStage("multiplayer-menu");
+  }
+
   function resetAll() {
     setStage("mode");
     setSelectedTopic("world_explorer");
@@ -3608,13 +3654,20 @@ export default function KnowledgeArenaPage() {
                 ))}
               </div>
 
-              <div className="ka-results-actions">
+              <div className="ka-results-actions ka-multiplayer-result-actions">
                 <button
                   type="button"
                   className="ka-start-button"
-                  onClick={resetAll}
+                  onClick={() => void returnToMultiplayerLobby()}
                 >
-                  Back to Mode Select
+                  Back to Lobby
+                </button>
+                <button
+                  type="button"
+                  className="ka-secondary-button"
+                  onClick={() => void exitMultiplayerLobby()}
+                >
+                  Exit Lobby
                 </button>
               </div>
             </div>
@@ -7659,6 +7712,97 @@ export default function KnowledgeArenaPage() {
         .ka-coop-result-summary strong { font-size: 11px; }
         .ka-coop-leaderboard-note { margin: 0; color: rgba(255,255,255,.42); font-size: 8px; text-align: center; }
 
+        /* Multiplayer result screen readability */
+        .ka-multi-results {
+          gap: 12px;
+          overflow-y: auto;
+          padding-right: 4px;
+        }
+        .ka-multi-results .ka-kicker {
+          font-size: 11px;
+          letter-spacing: .12em;
+        }
+        .ka-multi-results .ka-results-heading h2 {
+          font-size: clamp(24px, 3vw, 34px);
+          line-height: 1.1;
+        }
+        .ka-multi-results .ka-result-score span {
+          font-size: 10px;
+        }
+        .ka-multi-results .ka-result-score strong {
+          font-size: clamp(30px, 4vw, 42px);
+        }
+        .ka-multi-results .ka-message-banner {
+          font-size: 13px;
+          line-height: 1.4;
+        }
+        .ka-multi-results .ka-coop-result-summary {
+          gap: 10px;
+        }
+        .ka-multi-results .ka-coop-result-summary > div {
+          gap: 5px;
+          padding: 11px 12px;
+        }
+        .ka-multi-results .ka-coop-result-summary span {
+          font-size: 10px;
+          line-height: 1.25;
+        }
+        .ka-multi-results .ka-coop-result-summary strong {
+          font-size: 16px;
+          line-height: 1.25;
+        }
+        .ka-multi-results .ka-leaderboard-scroll {
+          gap: 7px;
+        }
+        .ka-multi-results .ka-leaderboard-row {
+          min-height: 48px;
+          padding: 10px 12px;
+          font-size: 13px;
+        }
+        .ka-multi-results .ka-leaderboard-row > strong {
+          font-size: 14px;
+        }
+        .ka-multi-results .ka-leaderboard-row span {
+          font-size: 12px;
+          line-height: 1.3;
+        }
+        .ka-multi-results .ka-full-review-toggle {
+          min-height: 58px;
+          padding: 10px 12px;
+        }
+        .ka-multi-results .ka-full-review-toggle strong {
+          font-size: 15px;
+        }
+        .ka-multi-results .ka-full-review-toggle small {
+          font-size: 11px;
+        }
+        .ka-multi-results .ka-review-item-header span,
+        .ka-multi-results .ka-review-answer-grid span {
+          font-size: 10px;
+        }
+        .ka-multi-results .ka-review-item-header strong {
+          font-size: 15px;
+        }
+        .ka-multi-results .ka-review-answer-grid strong {
+          font-size: 12px;
+        }
+        .ka-multi-results .ka-review-explanation {
+          font-size: 12px;
+        }
+        .ka-multiplayer-result-actions {
+          position: sticky;
+          bottom: 0;
+          z-index: 3;
+          padding-top: 4px;
+          background: linear-gradient(180deg, transparent, rgba(3,8,18,.92) 28%);
+        }
+        .ka-multi-results .ka-results-actions .ka-start-button,
+        .ka-multi-results .ka-results-actions .ka-secondary-button {
+          min-height: 48px;
+          font-size: 14px;
+          font-weight: 950;
+        }
+
         @media (max-width: 850px) {
           .ka-mp-mode-picker { padding: 7px; gap: 5px; }
           .ka-mp-mode-card { min-height: 46px; padding: 6px 7px; gap: 5px; }
@@ -7668,6 +7812,30 @@ export default function KnowledgeArenaPage() {
           .ka-player-row-v2 { min-height: 35px; }
           .ka-lobby-actions-v2 { grid-template-columns: auto 1fr; }
           .ka-coop-result-summary { grid-template-columns: repeat(3,minmax(0,1fr)); }
+
+          .ka-multi-results {
+            gap: 9px;
+          }
+          .ka-multi-results .ka-kicker { font-size: 9px; }
+          .ka-multi-results .ka-results-heading h2 { font-size: 21px; }
+          .ka-multi-results .ka-result-score span { font-size: 9px; }
+          .ka-multi-results .ka-result-score strong { font-size: 30px; }
+          .ka-multi-results .ka-coop-result-summary > div { padding: 9px; }
+          .ka-multi-results .ka-coop-result-summary span { font-size: 9px; }
+          .ka-multi-results .ka-coop-result-summary strong { font-size: 13px; }
+          .ka-multi-results .ka-leaderboard-row { min-height: 44px; padding: 8px 10px; font-size: 11px; }
+          .ka-multi-results .ka-leaderboard-row > strong { font-size: 12px; }
+          .ka-multi-results .ka-leaderboard-row span { font-size: 10px; }
+          .ka-multi-results .ka-full-review-toggle strong { font-size: 13px; }
+          .ka-multi-results .ka-full-review-toggle small { font-size: 10px; }
+          .ka-multi-results .ka-review-item-header strong { font-size: 13px; }
+          .ka-multi-results .ka-review-answer-grid strong,
+          .ka-multi-results .ka-review-explanation { font-size: 11px; }
+          .ka-multi-results .ka-results-actions .ka-start-button,
+          .ka-multi-results .ka-results-actions .ka-secondary-button {
+            min-height: 44px;
+            font-size: 12px;
+          }
         }
       `}</style>
     </main>

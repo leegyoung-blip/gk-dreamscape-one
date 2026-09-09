@@ -15,20 +15,48 @@ export type VersusPlayerChoice = {
   character_slug: string | null;
 };
 
-const novaIdle = "/activities/learning-missions/knowledge-arena/nova/nova-battle-idle.png";
+const novaChoices = [
+  {
+    slug: "original",
+    label: "Original Nova",
+    subtitle: "Classic battle suit",
+    sprite: "/activities/learning-missions/knowledge-arena/nova/nova-battle-idle.png",
+  },
+  {
+    slug: "striker",
+    label: "Striker Nova",
+    subtitle: "Crimson speed suit",
+    sprite: "/activities/learning-missions/knowledge-arena/versus/novas/nova-striker.png",
+  },
+  {
+    slug: "pulse",
+    label: "Pulse Nova",
+    subtitle: "Violet tech suit",
+    sprite: "/activities/learning-missions/knowledge-arena/versus/novas/nova-pulse.png",
+  },
+  {
+    slug: "vanguard",
+    label: "Vanguard Nova",
+    subtitle: "Gold guardian suit",
+    sprite: "/activities/learning-missions/knowledge-arena/versus/novas/nova-vanguard.png",
+  },
+] as const;
 
-const colorways = [
-  { slug: "azure", label: "Azure Nova", filter: "none" },
-  { slug: "violet", label: "Violet Nova", filter: "hue-rotate(62deg) saturate(1.08)" },
-  { slug: "crimson", label: "Crimson Nova", filter: "hue-rotate(155deg) saturate(1.25)" },
-  { slug: "emerald", label: "Emerald Nova", filter: "hue-rotate(285deg) saturate(1.08)" },
-  { slug: "gold", label: "Gold Nova", filter: "sepia(.42) saturate(1.8) hue-rotate(355deg) brightness(1.12)" },
-];
+const monsterOrder = [
+  "atlas-golem",
+  "tempest-roc",
+  "worldbreaker-leviathan",
+  "verdant-sabertooth",
+] as const;
+
+const novaLabelBySlug = Object.fromEntries(
+  novaChoices.map((choice) => [choice.slug, choice.label]),
+) as Record<string, string>;
 
 function choiceLabel(player: VersusPlayerChoice, monsters: VersusMonsterChoice[]) {
   if (!player.character_type || !player.character_slug) return "Choosing…";
   if (player.character_type === "nova") {
-    return `${player.character_slug.charAt(0).toUpperCase()}${player.character_slug.slice(1)} Nova`;
+    return novaLabelBySlug[player.character_slug] || "Nova";
   }
   return monsters.find((monster) => monster.slug === player.character_slug)?.name || player.character_slug;
 }
@@ -53,6 +81,11 @@ export function ArenaVersusCharacterSelect({
   onStart: () => void;
 }) {
   const me = players.find((player) => player.id === myPlayerId) || null;
+  const orderedMonsters = monsterOrder
+    .map((slug) => monsters.find((monster) => monster.slug === slug))
+    .filter((monster): monster is VersusMonsterChoice => Boolean(monster));
+  const selectableMonsters =
+    orderedMonsters.length === 4 ? orderedMonsters : monsters.slice(0, 4);
   const allSelected = players.length >= 2 && players.every((player) => player.character_type && player.character_slug);
 
   return (
@@ -61,7 +94,7 @@ export function ArenaVersusCharacterSelect({
         <div>
           <p>VERSUS RACE</p>
           <h2>Choose your racer</h2>
-          <span>Pick a Nova colourway or one of the Arena monsters. The character only changes how you look in the race.</span>
+          <span>Choose one of four Nova suits or one of the four Arena monsters. Your choice changes your racer appearance only.</span>
         </div>
         <div className="kavs-ready-count">
           <strong>{players.filter((p) => p.character_type && p.character_slug).length}/{players.length}</strong>
@@ -70,9 +103,9 @@ export function ArenaVersusCharacterSelect({
       </div>
 
       <div className="kavs-choice-section">
-        <div className="kavs-section-title">Nova colourways</div>
+        <div className="kavs-section-title">Nova suits · 4 choices</div>
         <div className="kavs-grid kavs-nova-grid">
-          {colorways.map((item) => {
+          {novaChoices.map((item) => {
             const selected = me?.character_type === "nova" && me.character_slug === item.slug;
             return (
               <button
@@ -83,10 +116,10 @@ export function ArenaVersusCharacterSelect({
                 disabled={working}
               >
                 <div className="kavs-sprite-box">
-                  <img src={novaIdle} alt="" draggable={false} style={{ filter: item.filter }} />
+                  <img src={item.sprite} alt="" draggable={false} />
                 </div>
                 <strong>{item.label}</strong>
-                <span>{selected ? "Selected" : "Choose"}</span>
+                <span>{selected ? "Selected" : item.subtitle}</span>
               </button>
             );
           })}
@@ -94,9 +127,9 @@ export function ArenaVersusCharacterSelect({
       </div>
 
       <div className="kavs-choice-section">
-        <div className="kavs-section-title">Arena monsters</div>
+        <div className="kavs-section-title">Arena monsters · 4 choices</div>
         <div className="kavs-grid kavs-monster-grid">
-          {monsters.map((monster) => {
+          {selectableMonsters.map((monster) => {
             const selected = me?.character_type === "monster" && me.character_slug === monster.slug;
             return (
               <button
@@ -150,7 +183,7 @@ export function ArenaVersusCharacterSelect({
         .kavs-choice-section { margin-top:16px; }
         .kavs-section-title { margin-bottom:9px; font-size:12px; font-weight:950; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,255,255,.72); }
         .kavs-grid { display:grid; gap:10px; }
-        .kavs-nova-grid { grid-template-columns:repeat(5,minmax(0,1fr)); }
+        .kavs-nova-grid { grid-template-columns:repeat(4,minmax(0,1fr)); }
         .kavs-monster-grid { grid-template-columns:repeat(4,minmax(0,1fr)); }
         .kavs-choice { overflow:hidden; border:1px solid rgba(255,255,255,.11); border-radius:18px; background:rgba(255,255,255,.045); padding:10px; color:white; text-align:left; transition:.18s ease; }
         .kavs-choice:hover { transform:translateY(-2px); border-color:rgba(120,232,255,.35); }
@@ -172,7 +205,7 @@ export function ArenaVersusCharacterSelect({
         .kavs-waiting { border:1px solid rgba(255,255,255,.1); border-radius:14px; background:rgba(255,255,255,.04); padding:11px 14px; color:rgba(255,255,255,.7); font-size:12px; }
         @media(max-width:900px){
           .kavs-select-shell{padding:12px 14px 18px}.kavs-select-head{margin-bottom:11px}.kavs-select-head span{font-size:11px}.kavs-ready-count{padding:8px 10px}.kavs-ready-count strong{font-size:18px}
-          .kavs-nova-grid{grid-template-columns:repeat(5,minmax(100px,1fr));overflow-x:auto}.kavs-monster-grid{grid-template-columns:repeat(4,minmax(110px,1fr));overflow-x:auto}.kavs-sprite-box{height:90px}.kavs-choice{padding:7px;border-radius:13px}.kavs-roster{display:none}
+          .kavs-nova-grid{grid-template-columns:repeat(4,minmax(120px,1fr));overflow-x:auto}.kavs-monster-grid{grid-template-columns:repeat(4,minmax(110px,1fr));overflow-x:auto}.kavs-sprite-box{height:90px}.kavs-choice{padding:7px;border-radius:13px}.kavs-roster{display:none}
         }
       `}</style>
     </div>

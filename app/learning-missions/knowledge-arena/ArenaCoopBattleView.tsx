@@ -271,11 +271,15 @@ export function ArenaCoopBattleView({
                     <b className="kac-damage kac-damage-player">-{activeEvent.value}</b>
                   )}
                 </div>
+                <div className="kac-player-hp-copy">
+                  <span>{ghost ? "GHOST" : "HP"}</span>
+                  <strong>{ghost ? "0 / 1000" : `${Number(player.nova_hp || 0)} / 1000`}</strong>
+                </div>
                 <div className="kac-mini-hp">
                   <i style={{ width: `${clampHp(Number(player.nova_hp || 0), 1000)}%` }} />
                 </div>
                 <small className="kac-player-stat">
-                  {ghost ? "SKELETON GHOST · 0 DMG" : `${Number(player.nova_hp || 0)} HP · ${Number(player.battle_damage || 0)} DMG`}
+                  {ghost ? "SKELETON GHOST · 0 DMG" : `${Number(player.battle_damage || 0)} TOTAL DMG`}
                 </small>
               </div>
             );
@@ -400,7 +404,7 @@ export function ArenaCoopBattleView({
         .kac-player.is-attacking { transform: translateX(12px) translateY(-3px); }
         .kac-player.is-hit { animation: kacHit .3s ease; }
         .kac-player.is-ghost { opacity: .60; filter: grayscale(.7); }
-        .kac-player-name { display: flex; justify-content: center; gap: 5px; align-items: center; font-size: 10px; text-align: center; }
+        .kac-player-name { display: flex; justify-content: center; gap: 5px; align-items: center; font-size: 12px; text-align: center; font-weight: 900; }
         .kac-player-name small { border-radius: 999px; padding: 2px 5px; background: rgba(126,232,255,.18); font-size: 7px; }
         .kac-player-sprite { position: relative; height: min(25vh, 190px); display: flex; align-items: flex-end; justify-content: center; }
         .kac-player-sprite img { width: 100%; height: 100%; object-fit: contain; object-position: center bottom; filter: var(--nova-filter, none) drop-shadow(0 10px 18px rgba(0,0,0,.28)); }
@@ -410,20 +414,23 @@ export function ArenaCoopBattleView({
         .kac-color-emerald { --nova-filter: hue-rotate(255deg) saturate(1.18); }
         .kac-color-gold { --nova-filter: hue-rotate(185deg) saturate(1.45) brightness(1.08); }
         .kac-ghost-skull { position: absolute; left: 50%; top: 25%; transform: translate(-50%,-50%); font-size: 30px; filter: none; text-shadow: 0 0 18px rgba(208,247,255,.8); animation: kacGhost 1.7s ease-in-out infinite; }
-        .kac-mini-hp { height: 6px; border-radius: 999px; background: rgba(255,255,255,.10); overflow: hidden; }
+        .kac-player-hp-copy { display:flex; justify-content:space-between; gap:6px; align-items:center; margin:5px 1px 4px; font-size:10px; line-height:1; }
+        .kac-player-hp-copy span { color:rgba(255,255,255,.62); font-size:9px; font-weight:950; letter-spacing:.08em; }
+        .kac-player-hp-copy strong { color:#d8ffeb; font-size:11px; font-weight:950; }
+        .kac-mini-hp { height: 10px; border: 1px solid rgba(255,255,255,.22); border-radius: 999px; background: rgba(0,0,0,.42); overflow: hidden; box-shadow: inset 0 0 0 1px rgba(0,0,0,.18); }
         .kac-mini-hp i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#39dc90,#b6ffd3); }
-        .kac-player-stat { display: block; min-height: 20px; margin-top: 4px; color: rgba(255,255,255,.72); font-size: 8px; text-align: center; }
+        .kac-player-stat { display: block; min-height: 22px; margin-top: 5px; color: rgba(255,255,255,.82); font-size: 10px; font-weight:850; text-align: center; }
         .kac-enemy { min-width: 0; display: grid; justify-items: center; align-items: end; align-self: end; }
         .kac-enemy-title { text-align: center; margin-bottom: 2px; }
-        .kac-enemy-title span { display: block; color: #ffbd85; font-size: 8px; font-weight: 900; letter-spacing: .12em; }
-        .kac-enemy-title strong { font-size: 13px; }
+        .kac-enemy-title span { display: block; color: #ffbd85; font-size: 10px; font-weight: 950; letter-spacing: .12em; }
+        .kac-enemy-title strong { font-size: 17px; }
         .kac-enemy-image { width: min(21vw, 235px); height: min(29vh, 230px); object-fit: contain; object-position: center bottom; filter: drop-shadow(0 12px 24px rgba(0,0,0,.38)); }
         .kac-dreamkeeper-silhouette { position: relative; display: grid; width: min(19vw, 210px); height: min(27vh, 215px); place-items: center; border-radius: 46% 46% 34% 34%; background: radial-gradient(circle at 50% 35%, rgba(158,73,255,.40), rgba(17,4,40,.94) 48%, rgba(0,0,0,.95)); box-shadow: 0 0 48px rgba(145,61,255,.32); font-size: 58px; font-weight: 950; }
         .kac-dreamkeeper-eye { position: absolute; top: 31%; width: 54px; height: 20px; border-radius: 50%; background: #ff3f7c; box-shadow: 0 0 22px rgba(255,63,124,.95); }
-        .kac-enemy-hp { width: min(100%, 270px); border: 1px solid rgba(255,255,255,.12); border-radius: 12px; background: rgba(4,10,22,.82); padding: 7px 9px; }
-        .kac-enemy-hp-title { display: flex; justify-content: space-between; gap: 6px; align-items: center; margin-bottom: 5px; font-size: 9px; }
+        .kac-enemy-hp { width: min(100%, 300px); border: 1px solid rgba(255,255,255,.24); border-radius: 13px; background: rgba(4,10,22,.90); padding: 10px 11px; box-shadow:0 8px 20px rgba(0,0,0,.18); }
+        .kac-enemy-hp-title { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin-bottom: 7px; font-size: 12px; font-weight:900; }
         .kac-enemy-hp-title span { color: rgba(255,255,255,.65); }
-        .kac-enemy-track { height: 8px; border-radius: 999px; background: rgba(255,255,255,.09); overflow: hidden; }
+        .kac-enemy-track { height: 13px; border:1px solid rgba(255,255,255,.15); border-radius: 999px; background: rgba(0,0,0,.38); overflow: hidden; }
         .kac-enemy-track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#ff6f31,#ffd05c); }
         .is-dreamkeeper .kac-enemy-track i { background: linear-gradient(90deg,#8a37ff,#ff3f9b); }
         .kac-damage { position: absolute; z-index: 3; border-radius: 999px; background: rgba(156,0,0,.66); padding: 4px 7px; color: #ff8585; font-size: 17px; font-weight: 950; animation: kacDamage 1s ease-out forwards; }
@@ -431,8 +438,8 @@ export function ArenaCoopBattleView({
         .kac-damage-player { left: 50%; top: 24%; transform: translateX(-50%); }
         .kac-bottom-status { display: grid; gap: 6px; padding: 0 14px 12px; }
         .kac-status-card, .kac-round-result, .kac-feedback { justify-self: center; width: min(700px, 100%); border-radius: 12px; padding: 9px 12px; text-align: center; }
-        .kac-status-card strong, .kac-round-result strong { display: block; font-size: 13px; }
-        .kac-status-card span, .kac-round-result span, .kac-feedback { font-size: 11px; line-height: 1.35; }
+        .kac-status-card strong, .kac-round-result strong { display: block; font-size: 16px; }
+        .kac-status-card span, .kac-round-result span, .kac-feedback { font-size: 13px; line-height: 1.4; }
         .kac-round-result { border-color: rgba(255,197,95,.30); background: rgba(48,22,4,.82); }
         .is-ghost-status { border-color: rgba(170,232,255,.25); }
         @keyframes kacDamage { 0%{opacity:0;transform:translateY(8px) scale(.8)} 14%{opacity:1;transform:translateY(0) scale(1)} 100%{opacity:0;transform:translateY(-30px) scale(1.06)} }
@@ -451,23 +458,26 @@ export function ArenaCoopBattleView({
           .kac-team { gap: 2px; }
           .kac-player { width: min(11vw, 68px); min-width: 44px; }
           .kac-player-sprite { height: min(16vh, 84px); }
-          .kac-player-name strong { max-width: 62px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 7px; }
+          .kac-player-name strong { max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; }
           .kac-player-name small { display: none; }
-          .kac-player-stat { font-size: 6px; min-height: 14px; }
-          .kac-mini-hp { height: 4px; }
+          .kac-player-stat { font-size: 8px; min-height: 16px; }
+          .kac-player-hp-copy { margin:3px 0 3px; font-size:8px; }
+          .kac-player-hp-copy span { font-size:7px; }
+          .kac-player-hp-copy strong { font-size:8px; }
+          .kac-mini-hp { height: 7px; }
           .kac-ghost-skull { font-size: 18px; }
-          .kac-enemy-title span { font-size: 6px; }
-          .kac-enemy-title strong { font-size: 9px; }
+          .kac-enemy-title span { font-size: 8px; }
+          .kac-enemy-title strong { font-size: 12px; }
           .kac-enemy-image { width: min(17vw, 100px); height: min(18vh, 96px); }
           .kac-dreamkeeper-silhouette { width: min(16vw, 92px); height: min(17vh, 92px); font-size: 28px; }
           .kac-dreamkeeper-eye { width: 28px; height: 10px; }
-          .kac-enemy-hp { padding: 5px 6px; }
-          .kac-enemy-hp-title { font-size: 6px; }
-          .kac-enemy-track { height: 5px; }
+          .kac-enemy-hp { padding: 7px 8px; }
+          .kac-enemy-hp-title { font-size: 9px; }
+          .kac-enemy-track { height: 8px; }
           .kac-bottom-status { gap: 4px; padding: 0 8px 7px; }
           .kac-status-card, .kac-round-result, .kac-feedback { padding: 7px 9px; border-radius: 9px; }
-          .kac-status-card strong, .kac-round-result strong { font-size: 11px; }
-          .kac-status-card span, .kac-round-result span, .kac-feedback { font-size: 9px; }
+          .kac-status-card strong, .kac-round-result strong { font-size: 13px; }
+          .kac-status-card span, .kac-round-result span, .kac-feedback { font-size: 11px; }
         }
       `}</style>
     </div>
