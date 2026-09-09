@@ -30,6 +30,7 @@ export type KnowledgeArenaRouletteMonster = Pick<
 export type KnowledgeArenaEncounter = {
   battle_id: string | null;
   nova_hp: number;
+  nova_attack_level?: number;
   monster: KnowledgeArenaBattleMonster;
   roulette: KnowledgeArenaRouletteMonster[];
 };
@@ -84,10 +85,12 @@ function defenseReduction(defenseRating: number) {
   return (rating - 1) * 0.08;
 }
 
-function damagePerShot(defenseRating: number) {
+function damagePerShot(defenseRating: number, attackLevel: number) {
+  const safeLevel = Math.max(0, Math.min(10, Math.round(attackLevel || 0)));
+  const upgradedBaseDamage = BASE_SHOT_DAMAGE * (1 + safeLevel * 0.05);
   return Math.max(
     1,
-    Math.round(BASE_SHOT_DAMAGE * (1 - defenseReduction(defenseRating))),
+    Math.round(upgradedBaseDamage * (1 - defenseReduction(defenseRating))),
   );
 }
 
@@ -201,8 +204,11 @@ export function useKnowledgeArenaBattle({
   const battleId = encounter?.battle_id ?? null;
 
   const monsterDamagePerShot = useMemo(
-    () => (monster ? damagePerShot(monster.defense_rating) : BASE_SHOT_DAMAGE),
-    [monster],
+    () =>
+      monster
+        ? damagePerShot(monster.defense_rating, encounter?.nova_attack_level ?? 0)
+        : BASE_SHOT_DAMAGE,
+    [monster, encounter?.nova_attack_level],
   );
 
   const clearCompletionTimer = useCallback(() => {
@@ -411,14 +417,9 @@ export function useKnowledgeArenaBattle({
   const startFiring = useCallback(() => {
     if (pausedRef.current || phaseRef.current !== "firing") return;
 
-    const wasHeld = fireHeldRef.current;
-    fireHeldRef.current = true;
-
-    // Critical UX fix: a tap or quick Space press always launches a shot immediately.
-    // Holding continues at the fixed 5 shots/sec rate.
-    if (!wasHeld) {
-      fireOneShot();
-    }
+    // Tap/press only. Holding FIRE or Space must never sustain automatic fire.
+    fireHeldRef.current = false;
+    fireOneShot();
   }, [fireOneShot]);
 
   const stopFiring = useCallback(() => {

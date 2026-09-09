@@ -10,6 +10,7 @@ import {
   ArenaBattleView,
   ArenaEncounterLoader,
 } from "./ArenaBattleView";
+import { ArenaCoopBattleView, type CoopMonsterView, type CoopRoundResult } from "./ArenaCoopBattleView";
 import {
   useKnowledgeArenaBattle,
   type KnowledgeArenaBattleTopic,
@@ -67,6 +68,18 @@ type Lobby = {
   question_ids: string[];
   timer_seconds: TimerSeconds;
   status: "waiting" | "playing" | "finished";
+  game_mode: "coop" | "versus";
+  mode_locked: boolean;
+  encounter_monster_id: string | null;
+  monster_hp_start: number | null;
+  monster_hp_remaining: number | null;
+  dreamkeeper_active: boolean;
+  dreamkeeper_damage: number;
+  current_question_index: number;
+  round_status: "waiting" | "answering" | "resolved" | "finished";
+  round_started_at: string | null;
+  round_deadline: string | null;
+  round_resolved_at: string | null;
   created_at: string;
   started_at: string | null;
 };
@@ -247,6 +260,18 @@ type LobbyPlayer = {
   answers: LobbyAnswer[];
   status: "waiting" | "playing" | "finished";
   joined_at: string;
+  nova_colorway: string | null;
+  character_type: "nova" | "monster" | null;
+  character_slug: string | null;
+  confirmed: boolean;
+  nova_hp: number;
+  is_eliminated: boolean;
+  battle_damage: number;
+  attack_level_snapshot: number;
+  last_attack_score: number;
+  last_damage_received: number;
+  race_progress: number;
+  answer_time_total: number;
 };
 
 const topics: {
@@ -550,6 +575,13 @@ export default function KnowledgeArenaPage() {
   const [displayName, setDisplayName] = useState("");
   const [tokenBalance, setTokenBalance] = useState(0);
   const [gemBalance, setGemBalance] = useState(0);
+  const [novaAttackLevel, setNovaAttackLevel] = useState(0);
+  const [novaAttackBonusPct, setNovaAttackBonusPct] = useState(0);
+  const [novaAttackDamage, setNovaAttackDamage] = useState(12);
+  const [novaNextUpgradeCost, setNovaNextUpgradeCost] = useState(20);
+  const [novaAttackMaxLevel, setNovaAttackMaxLevel] = useState(10);
+  const [novaUpgradeWorking, setNovaUpgradeWorking] = useState(false);
+  const [novaUpgradeMessage, setNovaUpgradeMessage] = useState("");
 
   const [selectedTopic, setSelectedTopic] =
     useState<KnowledgeArenaTopic | null>("world_explorer");
@@ -608,6 +640,11 @@ export default function KnowledgeArenaPage() {
   const [isCreatingLobby, setIsCreatingLobby] = useState(false);
   const [isJoiningLobby, setIsJoiningLobby] = useState(false);
   const [multiplayerMessage, setMultiplayerMessage] = useState("");
+  const [multiplayerGameMode, setMultiplayerGameMode] = useState<"coop" | "versus">("coop");
+  const [coopMonster, setCoopMonster] = useState<CoopMonsterView | null>(null);
+  const [coopRoundResult, setCoopRoundResult] = useState<CoopRoundResult | null>(null);
+  const [coopMyAttackScore, setCoopMyAttackScore] = useState(0);
+  const [coopResolutionWorking, setCoopResolutionWorking] = useState(false);
 
   const [novaGuideOpen, setNovaGuideOpen] = useState(false);
   const [novaGuideStep, setNovaGuideStep] = useState(0);
@@ -714,6 +751,7 @@ export default function KnowledgeArenaPage() {
     (topic) => topic.id === currentQuestion?.topic
   );
   const isHost = Boolean(lobby && userId && lobby.host_user_id === userId);
+  const allPlayersConfirmed = players.length >= 2 && players.every((player) => Boolean(player.confirmed));
 
   const activeTimerSeconds: TimerSeconds = useMemo(() => {
     if (stage === "solo-quiz" || stage === "solo-results") {
@@ -736,6 +774,14 @@ export default function KnowledgeArenaPage() {
     if (b.score !== a.score) return b.score - a.score;
     return b.correct_count - a.correct_count;
   });
+  const coopStandings = [...players].sort((a, b) => {
+    if (Number(b.battle_damage || 0) !== Number(a.battle_damage || 0)) {
+      return Number(b.battle_damage || 0) - Number(a.battle_damage || 0);
+    }
+    if (b.correct_count !== a.correct_count) return b.correct_count - a.correct_count;
+    return Number(a.answer_time_total || 0) - Number(b.answer_time_total || 0);
+  });
+  const myCoopPlayer = players.find((player) => player.id === myPlayer?.id) || myPlayer;
 
   // Knowledge Arena is a fixed-screen experience on every device.
   useEffect(() => {
@@ -897,6 +943,11 @@ export default function KnowledgeArenaPage() {
         setIsAdmin(false);
         setTokenBalance(0);
         setGemBalance(0);
+        setNovaAttackLevel(0);
+        setNovaAttackBonusPct(0);
+        setNovaAttackDamage(12);
+        setNovaNextUpgradeCost(20);
+        setNovaUpgradeMessage("");
         return;
       }
 
@@ -919,6 +970,19 @@ export default function KnowledgeArenaPage() {
         const row = Array.isArray(balances) ? balances[0] : balances;
         setTokenBalance(Number(row?.token_balance ?? 0));
         setGemBalance(Number(row?.gem_balance ?? 0));
+      }
+
+      const { data: upgradeData, error: upgradeError } = await supabase.rpc(
+        "get_my_knowledge_arena_nova_upgrade_v1"
+      );
+
+      if (!upgradeError && upgradeData) {
+        const upgrade = Array.isArray(upgradeData) ? upgradeData[0] : upgradeData;
+        setNovaAttackLevel(Number(upgrade?.attack_level ?? 0));
+        setNovaAttackBonusPct(Number(upgrade?.attack_bonus_pct ?? 0));
+        setNovaAttackDamage(Number(upgrade?.effective_base_damage ?? 12));
+        setNovaNextUpgradeCost(Number(upgrade?.next_upgrade_cost ?? 20));
+        setNovaAttackMaxLevel(Number(upgrade?.max_level ?? 10));
       }
     }
 
@@ -952,10 +1016,17 @@ export default function KnowledgeArenaPage() {
   useEffect(() => {
     if (stage !== "solo-quiz" && stage !== "multiplayer-quiz") return;
     if (novaGuideOpen || gameplayBlocked) return;
-    if (answerLocked || !currentQuestion) return;
+    if (!currentQuestion) return;
+
+    const isCoopRound = stage === "multiplayer-quiz" && lobby?.game_mode === "coop";
+    if (answerLocked && !isCoopRound) return;
 
     if (timeLeft <= 0) {
-      void lockAnswer(null);
+      if (!answerLocked) {
+        void lockAnswer(null);
+      } else if (isCoopRound) {
+        void tryResolveCoopRound();
+      }
       return;
     }
 
@@ -964,11 +1035,12 @@ export default function KnowledgeArenaPage() {
     }, 1000);
 
     return () => window.clearTimeout(timer);
-  }, [stage, timeLeft, answerLocked, currentQuestion, novaGuideOpen, gameplayBlocked]);
+  }, [stage, timeLeft, answerLocked, currentQuestion, novaGuideOpen, gameplayBlocked, lobby?.game_mode]);
 
   useEffect(() => {
     // Solo transitions are now controlled by the battle engine.
     if (stage !== "multiplayer-quiz") return;
+    if (lobby?.game_mode === "coop") return;
     if (novaGuideOpen || gameplayBlocked) return;
     if (!answerLocked) return;
 
@@ -982,7 +1054,7 @@ export default function KnowledgeArenaPage() {
     }, 1000);
 
     return () => window.clearTimeout(timer);
-  }, [stage, answerLocked, nextCountdown, novaGuideOpen, gameplayBlocked]);
+  }, [stage, answerLocked, nextCountdown, novaGuideOpen, gameplayBlocked, lobby?.game_mode]);
 
   useEffect(() => {
     if (stage !== "loading") return;
@@ -1065,10 +1137,54 @@ export default function KnowledgeArenaPage() {
       void prepareMultiplayerGame(lobby);
     }
 
+    if (lobby.status === "finished" && stage === "multiplayer-quiz") {
+      void finishMultiplayerQuiz();
+      return;
+    }
+
     if (lobby.status === "finished" && stage !== "multiplayer-results") {
       setStage("multiplayer-results");
     }
   }, [lobby?.status, stage]);
+
+  useEffect(() => {
+    if (stage !== "multiplayer-quiz" || lobby?.game_mode !== "coop") return;
+    if (lobby.round_status !== "answering") return;
+
+    const nextIndex = Number(lobby.current_question_index || 0);
+    if (questionIndex !== nextIndex) {
+      setQuestionIndex(nextIndex);
+      setSelectedAnswer(null);
+      setTimeLeft(lobby.timer_seconds);
+      setAnswerLocked(false);
+      setFeedback(null);
+      setCoopRoundResult(null);
+      setCoopMyAttackScore(0);
+    }
+  }, [stage, lobby?.game_mode, lobby?.round_status, lobby?.current_question_index, lobby?.timer_seconds, questionIndex]);
+
+  useEffect(() => {
+    if (stage !== "multiplayer-quiz" || lobby?.game_mode !== "coop") return;
+    if (lobby.round_status !== "answering" || !lobby.round_deadline) return;
+
+    const delay = Math.max(0, new Date(lobby.round_deadline).getTime() - Date.now() + 150);
+    const timer = window.setTimeout(() => {
+      void tryResolveCoopRound();
+    }, delay);
+
+    return () => window.clearTimeout(timer);
+  }, [stage, lobby?.id, lobby?.game_mode, lobby?.round_status, lobby?.round_deadline]);
+
+  useEffect(() => {
+    if (stage !== "multiplayer-quiz" || lobby?.game_mode !== "coop") return;
+    if (lobby.round_status !== "resolved") return;
+
+    const timer = window.setTimeout(() => {
+      void tryAdvanceCoopRound();
+    }, 2600);
+
+    return () => window.clearTimeout(timer);
+  }, [stage, lobby?.id, lobby?.game_mode, lobby?.round_status, lobby?.current_question_index]);
 
   async function loadKnowledgeProfile() {
     if (!userId) {
@@ -1334,6 +1450,8 @@ export default function KnowledgeArenaPage() {
           topic,
           question_ids: loadedQuestions.map((question) => question.id),
           timer_seconds: lobbyTimerSecondsChoice,
+          game_mode: multiplayerGameMode,
+          mode_locked: false,
           status: "waiting",
         })
         .select("*")
@@ -1374,9 +1492,14 @@ export default function KnowledgeArenaPage() {
       return;
     }
 
+    await supabase.rpc("assign_knowledge_arena_coop_colorway_v1", {
+      p_lobby_id: createdLobby.id,
+    });
+
     setLobby(createdLobby);
     setMyPlayer(playerData as LobbyPlayer);
     setPlayers([playerData as LobbyPlayer]);
+    await loadLobbyState(createdLobby.id);
     setQuestions(loadedQuestions);
     setSelectedTopic(topic);
     setStage("waiting-lobby");
@@ -1448,7 +1571,12 @@ export default function KnowledgeArenaPage() {
       return;
     }
 
+    await supabase.rpc("assign_knowledge_arena_coop_colorway_v1", {
+      p_lobby_id: foundLobby.id,
+    });
+
     setLobby(foundLobby);
+    setMultiplayerGameMode(foundLobby.game_mode || "coop");
     setLobbyTimerSecondsChoice(foundLobby.timer_seconds ?? 20);
     setMyPlayer(playerData as LobbyPlayer);
     setSelectedTopic(foundLobby.topic);
@@ -1473,7 +1601,31 @@ export default function KnowledgeArenaPage() {
     if (lobbyData) {
       const nextLobby = lobbyData as Lobby;
       setLobby(nextLobby);
+      setMultiplayerGameMode(nextLobby.game_mode || "coop");
       setLobbyTimerSecondsChoice(nextLobby.timer_seconds ?? 20);
+
+      if (nextLobby.encounter_monster_id) {
+        const { data: monsterData } = await supabase
+          .from("knowledge_arena_monsters")
+          .select("id,slug,name,rarity,sprite_url,hp,attack_damage")
+          .eq("id", nextLobby.encounter_monster_id)
+          .maybeSingle();
+        setCoopMonster((monsterData || null) as CoopMonsterView | null);
+      } else {
+        setCoopMonster(null);
+      }
+
+      if (nextLobby.game_mode === "coop" && nextLobby.round_status === "resolved") {
+        const { data: roundData } = await supabase
+          .from("knowledge_arena_coop_round_results")
+          .select("result")
+          .eq("lobby_id", lobbyId)
+          .eq("question_index", nextLobby.current_question_index)
+          .maybeSingle();
+        setCoopRoundResult((roundData?.result || null) as CoopRoundResult | null);
+      } else if (nextLobby.round_status === "answering") {
+        setCoopRoundResult(null);
+      }
     }
 
     const nextPlayers = (playerData || []) as LobbyPlayer[];
@@ -1487,24 +1639,123 @@ export default function KnowledgeArenaPage() {
     }
   }
 
+  async function tryResolveCoopRound() {
+    if (!lobby || lobby.game_mode !== "coop" || lobby.round_status !== "answering") return;
+    if (coopResolutionWorking) return;
+
+    setCoopResolutionWorking(true);
+    const { data, error } = await supabase.rpc(
+      "resolve_knowledge_arena_coop_round_v1",
+      { p_lobby_id: lobby.id }
+    );
+    setCoopResolutionWorking(false);
+
+    if (error) {
+      console.warn("Could not resolve Knowledge Arena Co-op round:", error);
+      return;
+    }
+
+    const result = (Array.isArray(data) ? data[0] : data) as CoopRoundResult | null;
+    if (result?.resolved) {
+      setCoopRoundResult(result);
+      await loadLobbyState(lobby.id);
+    }
+  }
+
+  async function tryAdvanceCoopRound() {
+    if (!lobby || lobby.game_mode !== "coop" || lobby.round_status !== "resolved") return;
+
+    const { error } = await supabase.rpc(
+      "advance_knowledge_arena_coop_round_v1",
+      { p_lobby_id: lobby.id }
+    );
+
+    if (error) {
+      console.warn("Could not advance Knowledge Arena Co-op round:", error);
+      return;
+    }
+
+    await loadLobbyState(lobby.id);
+  }
+
+  async function setLobbyMode(nextMode: "coop" | "versus") {
+    if (!lobby || !isHost || lobby.mode_locked) return;
+    setMultiplayerMessage("");
+
+    const { error } = await supabase.rpc(
+      "set_knowledge_arena_multiplayer_mode_v1",
+      { p_lobby_id: lobby.id, p_game_mode: nextMode }
+    );
+
+    if (error) {
+      setMultiplayerMessage(error.message || "Could not change multiplayer mode.");
+      return;
+    }
+
+    setMultiplayerGameMode(nextMode);
+    await loadLobbyState(lobby.id);
+  }
+
+  async function toggleLobbyReady() {
+    if (!myPlayer || !lobby) return;
+    setMultiplayerMessage("");
+    const nextConfirmed = !Boolean(myPlayer.confirmed);
+
+    const { error } = await supabase
+      .from("knowledge_arena_lobby_players")
+      .update({ confirmed: nextConfirmed })
+      .eq("id", myPlayer.id)
+      .eq("user_id", userId);
+
+    if (error) {
+      setMultiplayerMessage(error.message || "Could not update ready status.");
+      return;
+    }
+
+    await loadLobbyState(lobby.id);
+  }
+
   async function startMultiplayerGame() {
     if (!lobby || !isHost) return;
+    setMultiplayerMessage("");
+
+    if (lobby.game_mode === "versus") {
+      setMultiplayerMessage("Versus character selection and racing arrive in Phase 3. Switch this lobby to Co-op to play now.");
+      return;
+    }
 
     const loadedQuestions = await loadQuestionsByIds(lobby.question_ids);
-    if (loadedQuestions.length < 10) return;
+    if (loadedQuestions.length < 10) {
+      setMultiplayerMessage("Could not load the 10 shared lobby questions.");
+      return;
+    }
 
-    await supabase
-      .from("knowledge_arena_lobbies")
-      .update({ status: "playing", started_at: new Date().toISOString() })
-      .eq("id", lobby.id);
+    const { data, error } = await supabase.rpc("start_knowledge_arena_coop_v1", {
+      p_lobby_id: lobby.id,
+    });
 
-    await supabase
-      .from("knowledge_arena_lobby_players")
-      .update({ status: "playing" })
-      .eq("lobby_id", lobby.id);
+    if (error) {
+      setMultiplayerMessage(error.message || "Could not start the Co-op encounter.");
+      return;
+    }
+
+    const result = Array.isArray(data) ? data[0] : data;
+    if (result?.monster) {
+      setCoopMonster(result.monster as CoopMonsterView);
+    }
 
     setQuestions(loadedQuestions);
-    resetQuestionState(lobby.timer_seconds);
+    setQuestionIndex(0);
+    setSelectedAnswer(null);
+    setScore(0);
+    setCorrectCount(0);
+    setTimeLeft(lobby.timer_seconds);
+    setAnswerLocked(false);
+    setFeedback(null);
+    setCoopRoundResult(null);
+    setCoopMyAttackScore(0);
+    recordedAnswersRef.current = [];
+    attemptSaveStartedRef.current = false;
     setStage("multiplayer-quiz");
     await loadLobbyState(lobby.id);
   }
@@ -1515,7 +1766,17 @@ export default function KnowledgeArenaPage() {
 
     setQuestions(loadedQuestions);
     setSelectedTopic(nextLobby.topic);
-    resetQuestionState(nextLobby.timer_seconds);
+    setQuestionIndex(nextLobby.current_question_index || 0);
+    setSelectedAnswer(null);
+    setScore(0);
+    setCorrectCount(0);
+    setTimeLeft(nextLobby.timer_seconds);
+    setAnswerLocked(false);
+    setFeedback(null);
+    setCoopRoundResult(null);
+    setCoopMyAttackScore(0);
+    recordedAnswersRef.current = [];
+    attemptSaveStartedRef.current = false;
     setStage("multiplayer-quiz");
   }
 
@@ -1857,6 +2118,42 @@ export default function KnowledgeArenaPage() {
     }
 
     if (stage === "multiplayer-quiz" && myPlayer) {
+      if (lobby?.game_mode === "coop") {
+        const { data, error } = await supabase.rpc(
+          "submit_knowledge_arena_coop_answer_v1",
+          {
+            p_lobby_id: lobby.id,
+            p_question_index: questionIndex,
+            p_question_id: currentQuestion.id,
+            p_answer: answer,
+            p_seconds_used: secondsUsed,
+          }
+        );
+
+        if (error) {
+          setFeedback(error.message || "Your answer could not be locked.");
+          return;
+        }
+
+        const result = Array.isArray(data) ? data[0] : data;
+        const attackScore = Number(result?.attack_score ?? 0);
+        const wasGhost = Boolean(result?.was_ghost);
+        setCoopMyAttackScore(attackScore);
+        setFeedback(
+          answer === null
+            ? `Time's up. The correct answer is ${currentQuestion.correct_answer}. ${currentQuestion.explanation}`
+            : isCorrect
+              ? wasGhost
+                ? `Correct! You are a skeleton ghost, so this answer deals 0 damage. ${currentQuestion.explanation}`
+                : `Correct! Attack ready: ${attackScore} damage. ${currentQuestion.explanation}`
+              : `Not quite. The correct answer is ${currentQuestion.correct_answer}. ${currentQuestion.explanation}`
+        );
+
+        await loadLobbyState(lobby.id);
+        await tryResolveCoopRound();
+        return;
+      }
+
       const existingAnswers = Array.isArray(myPlayer.answers) ? myPlayer.answers : [];
       const nextAnswers = [
         ...existingAnswers.filter(
@@ -2010,6 +2307,40 @@ export default function KnowledgeArenaPage() {
     setStage("solo-mode");
   }
 
+  async function upgradeNovaAttack() {
+    if (!userId || novaUpgradeWorking) return;
+
+    setNovaUpgradeWorking(true);
+    setNovaUpgradeMessage("");
+
+    const { data, error } = await supabase.rpc(
+      "upgrade_knowledge_arena_nova_attack_v1"
+    );
+
+    if (error || !data) {
+      setNovaUpgradeMessage(
+        error?.message || "Nova's attack upgrade could not be completed."
+      );
+      setNovaUpgradeWorking(false);
+      return;
+    }
+
+    const result = Array.isArray(data) ? data[0] : data;
+    setNovaAttackLevel(Number(result?.attack_level ?? novaAttackLevel));
+    setNovaAttackBonusPct(Number(result?.attack_bonus_pct ?? novaAttackBonusPct));
+    setNovaAttackDamage(Number(result?.effective_base_damage ?? novaAttackDamage));
+    setNovaNextUpgradeCost(Number(result?.next_upgrade_cost ?? 0));
+    setNovaAttackMaxLevel(Number(result?.max_level ?? novaAttackMaxLevel));
+    if (result?.token_balance !== null && result?.token_balance !== undefined) {
+      setTokenBalance(Number(result.token_balance));
+    }
+    setNovaUpgradeMessage(
+      `Nova Attack upgraded to Level ${Number(result?.attack_level ?? novaAttackLevel + 1)}.`
+    );
+    setNovaUpgradeWorking(false);
+    window.dispatchEvent(new CustomEvent("dream-tokens-updated"));
+  }
+
   async function finishMultiplayerQuiz() {
     if (attemptSaveStartedRef.current) return;
     attemptSaveStartedRef.current = true;
@@ -2089,6 +2420,11 @@ export default function KnowledgeArenaPage() {
     setMyPlayer(null);
     setJoinCode("");
     setMultiplayerMessage("");
+    setMultiplayerGameMode("coop");
+    setCoopMonster(null);
+    setCoopRoundResult(null);
+    setCoopMyAttackScore(0);
+    setCoopResolutionWorking(false);
     setLoadError(null);
     setSelectedChallengeMode("quick_play");
     setSoloTimerSeconds(20);
@@ -2723,9 +3059,39 @@ export default function KnowledgeArenaPage() {
                   ← Leave lobby
                 </button>
                 <div>
-                  <p className="ka-kicker">Waiting Room</p>
+                  <p className="ka-kicker">Multiplayer Lobby</p>
                   <strong>{topicTitle(lobby.topic)}</strong>
                 </div>
+              </div>
+
+              <div className="ka-mp-mode-picker">
+                <div className="ka-panel-heading">
+                  <span>Game Mode</span>
+                  <strong>{lobby.game_mode === "coop" ? "Co-op Battle" : "Versus Race"}</strong>
+                </div>
+                <div className="ka-mp-mode-grid">
+                  <button
+                    type="button"
+                    disabled={!isHost || lobby.mode_locked}
+                    className={`ka-mp-mode-card ${lobby.game_mode === "coop" ? "is-selected" : ""}`}
+                    onClick={() => void setLobbyMode("coop")}
+                  >
+                    <span>⚔</span>
+                    <strong>CO-OP</strong>
+                    <small>Fight one super-powered monster together. Correct players attack first.</small>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!isHost || lobby.mode_locked}
+                    className={`ka-mp-mode-card ${lobby.game_mode === "versus" ? "is-selected" : ""}`}
+                    onClick={() => void setLobbyMode("versus")}
+                  >
+                    <span>🏁</span>
+                    <strong>VERSUS</strong>
+                    <small>Race as a Nova or monster. Character selection arrives in Phase 3.</small>
+                  </button>
+                </div>
+                {!isHost && <small className="ka-mode-owner-note">Only the host can change the multiplayer mode.</small>}
               </div>
 
               <div className="ka-waiting-layout">
@@ -2733,6 +3099,9 @@ export default function KnowledgeArenaPage() {
                   <span>Lobby Code</span>
                   <strong>{lobby.code}</strong>
                   <small>{lobby.timer_seconds}s per question</small>
+                  <div className="ka-lobby-mode-badge">
+                    {lobby.game_mode === "coop" ? "CO-OP BATTLE" : "VERSUS RACE"}
+                  </div>
                 </div>
 
                 <div className="ka-player-panel">
@@ -2742,9 +3111,17 @@ export default function KnowledgeArenaPage() {
                   </div>
                   <div className="ka-player-scroll">
                     {players.map((player) => (
-                      <div key={player.id} className="ka-player-row">
-                        <strong>{player.display_name}</strong>
-                        <span>{player.is_host ? "Host" : "Player"}</span>
+                      <div key={player.id} className="ka-player-row ka-player-row-v2">
+                        <div className="ka-player-identity">
+                          <i className={`ka-color-dot is-${player.nova_colorway || "azure"}`} />
+                          <div>
+                            <strong>{player.display_name}</strong>
+                            <span>{player.is_host ? "Host" : "Player"} · {player.nova_colorway || "azure"} Nova</span>
+                          </div>
+                        </div>
+                        <span className={`ka-ready-pill ${player.confirmed ? "is-ready" : ""}`}>
+                          {player.confirmed ? "READY" : "NOT READY"}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -2755,19 +3132,40 @@ export default function KnowledgeArenaPage() {
                 <p className="ka-error-banner">{multiplayerMessage}</p>
               )}
 
-              {isHost ? (
+              <div className="ka-lobby-actions-v2">
                 <button
                   type="button"
-                  className="ka-start-button"
-                  onClick={() => void startMultiplayerGame()}
+                  className={myPlayer?.confirmed ? "ka-secondary-button" : "ka-start-button"}
+                  onClick={() => void toggleLobbyReady()}
                 >
-                  Start Game
+                  {myPlayer?.confirmed ? "Not Ready" : "I'm Ready"}
                 </button>
-              ) : (
-                <div className="ka-waiting-message">
-                  Waiting for the host to start the game.
-                </div>
-              )}
+
+                {isHost ? (
+                  lobby.game_mode === "coop" ? (
+                    <button
+                      type="button"
+                      className="ka-start-button"
+                      disabled={!allPlayersConfirmed || players.length < 2}
+                      onClick={() => void startMultiplayerGame()}
+                    >
+                      {allPlayersConfirmed ? "Start Co-op Battle" : "Waiting for everyone to confirm"}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="ka-start-button"
+                      disabled
+                    >
+                      Next · Character Select (Phase 3)
+                    </button>
+                  )
+                ) : (
+                  <div className="ka-waiting-message">
+                    {myPlayer?.confirmed ? "Ready. Waiting for the host." : "Confirm when you are ready to play."}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -2833,27 +3231,52 @@ export default function KnowledgeArenaPage() {
           )}
 
           {stage === "multiplayer-quiz" && currentQuestion && (
-            <ArenaQuizView
-              isSolo={false}
-              topicTitle={
-                (currentQuestionTopicInfo || selectedTopicInfo)?.title ||
-                "Knowledge Arena"
-              }
-              challengeLabel="Multiplayer"
-              question={currentQuestion}
-              questionIndex={questionIndex}
-              score={score}
-              correctCount={correctCount}
-              timeLeft={timeLeft}
-              timerSeconds={activeTimerSeconds}
-              nextCountdown={nextCountdown}
-              answerLocked={answerLocked}
-              selectedAnswer={selectedAnswer}
-              feedback={feedback}
-              getAnswerStyle={getAnswerStyle}
-              onChoose={(answer) => void lockAnswer(answer)}
-              onNext={() => void nextQuestion()}
-            />
+            lobby?.game_mode === "coop" ? (
+              <ArenaCoopBattleView
+                topic={currentQuestion.topic}
+                question={currentQuestion}
+                questionIndex={questionIndex}
+                timeLeft={timeLeft}
+                timerSeconds={activeTimerSeconds}
+                answerLocked={answerLocked}
+                selectedAnswer={selectedAnswer}
+                feedback={feedback}
+                getAnswerStyle={getAnswerStyle}
+                onChoose={(answer) => void lockAnswer(answer)}
+                players={players}
+                myPlayerId={myPlayer?.id || null}
+                monster={coopMonster}
+                monsterHp={Number(lobby.monster_hp_remaining || 0)}
+                monsterHpStart={Number(lobby.monster_hp_start || coopMonster?.hp || 1)}
+                dreamkeeperActive={Boolean(lobby.dreamkeeper_active)}
+                dreamkeeperDamage={Number(lobby.dreamkeeper_damage || 0)}
+                roundStatus={lobby.round_status}
+                roundResult={coopRoundResult}
+                myAttackScore={coopMyAttackScore}
+              />
+            ) : (
+              <ArenaQuizView
+                isSolo={false}
+                topicTitle={
+                  (currentQuestionTopicInfo || selectedTopicInfo)?.title ||
+                  "Knowledge Arena"
+                }
+                challengeLabel="Multiplayer"
+                question={currentQuestion}
+                questionIndex={questionIndex}
+                score={score}
+                correctCount={correctCount}
+                timeLeft={timeLeft}
+                timerSeconds={activeTimerSeconds}
+                nextCountdown={nextCountdown}
+                answerLocked={answerLocked}
+                selectedAnswer={selectedAnswer}
+                feedback={feedback}
+                getAnswerStyle={getAnswerStyle}
+                onChoose={(answer) => void lockAnswer(answer)}
+                onNext={() => void nextQuestion()}
+              />
+            )
           )}
 
           {stage === "solo-results" && (
@@ -2863,6 +3286,14 @@ export default function KnowledgeArenaPage() {
               correctCount={correctCount}
               tokensEarned={tokensEarned}
               tokenBalance={tokenBalance}
+              novaAttackLevel={novaAttackLevel}
+              novaAttackBonusPct={novaAttackBonusPct}
+              novaAttackDamage={novaAttackDamage}
+              novaNextUpgradeCost={novaNextUpgradeCost}
+              novaAttackMaxLevel={novaAttackMaxLevel}
+              novaUpgradeWorking={novaUpgradeWorking}
+              novaUpgradeMessage={novaUpgradeMessage}
+              onUpgradeNovaAttack={() => void upgradeNovaAttack()}
               rewardSaved={rewardSaved}
               saveMessage={attemptSaveMessage}
               isAuthenticated={Boolean(userId)}
@@ -2887,17 +3318,34 @@ export default function KnowledgeArenaPage() {
             <div className="ka-stage ka-multi-results">
               <div className="ka-results-heading">
                 <div>
-                  <p className="ka-kicker">Multiplayer Complete</p>
-                  <h2>Leaderboard</h2>
+                  <p className="ka-kicker">{lobby?.game_mode === "coop" ? "Co-op Complete" : "Multiplayer Complete"}</p>
+                  <h2>{lobby?.game_mode === "coop" ? (lobby?.dreamkeeper_active ? "Dreamkeeper Score Run Complete" : "Monster Battle Complete") : "Results"}</h2>
                 </div>
                 <div className="ka-result-score">
-                  <span>Your score</span>
-                  <strong>{score}</strong>
+                  <span>{lobby?.game_mode === "coop" ? "Your damage" : "Your score"}</span>
+                  <strong>{lobby?.game_mode === "coop" ? Number(myCoopPlayer?.battle_damage || 0) : score}</strong>
                 </div>
               </div>
 
               {attemptSaveMessage && (
                 <p className="ka-message-banner">{attemptSaveMessage}</p>
+              )}
+
+              {lobby?.game_mode === "coop" && (
+                <div className="ka-coop-result-summary">
+                  <div>
+                    <span>Original monster</span>
+                    <strong>{coopMonster?.name || "Arena Monster"}</strong>
+                  </div>
+                  <div>
+                    <span>Monster HP remaining</span>
+                    <strong>{Number(lobby.monster_hp_remaining || 0)}</strong>
+                  </div>
+                  <div>
+                    <span>Dreamkeeper damage</span>
+                    <strong>{Number(lobby.dreamkeeper_damage || 0)}</strong>
+                  </div>
+                </div>
               )}
 
               <ArenaQuestionReviewPanel
@@ -2907,28 +3355,25 @@ export default function KnowledgeArenaPage() {
               />
 
               <div className="ka-leaderboard-scroll">
-                {leaderboard.map((player, index) => (
+                {(lobby?.game_mode === "coop" ? coopStandings : leaderboard).map((player, index) => (
                   <div key={player.id} className="ka-leaderboard-row">
                     <strong>
                       #{index + 1} {player.display_name}
                     </strong>
                     <span>
-                      {player.score} pts · {player.correct_count}/10
+                      {lobby?.game_mode === "coop"
+                        ? `${Number(player.battle_damage || 0)} dmg · ${player.correct_count}/10${player.is_eliminated ? " · ghost" : ""}`
+                        : `${player.score} pts · ${player.correct_count}/10`}
                     </span>
                   </div>
                 ))}
               </div>
 
+              {lobby?.game_mode === "coop" && (
+                <p className="ka-coop-leaderboard-note">Persistent Co-op and Versus leaderboards are intentionally left for the final multiplayer phase.</p>
+              )}
+
               <div className="ka-results-actions">
-                {isHost && lobby?.status !== "finished" && (
-                  <button
-                    type="button"
-                    className="ka-secondary-button"
-                    onClick={() => void endLobby()}
-                  >
-                    End Lobby
-                  </button>
-                )}
                 <button
                   type="button"
                   className="ka-start-button"
@@ -6909,6 +7354,86 @@ export default function KnowledgeArenaPage() {
     grid-template-rows: minmax(170px, 1fr);
   }
 }
+
+
+        .ka-mp-mode-picker {
+          display: grid;
+          gap: 7px;
+          margin-top: 8px;
+          border: 1px solid rgba(126,232,255,.12);
+          border-radius: 14px;
+          background: rgba(4,13,32,.58);
+          padding: 10px;
+        }
+        .ka-mp-mode-grid {
+          display: grid;
+          grid-template-columns: repeat(2,minmax(0,1fr));
+          gap: 8px;
+        }
+        .ka-mp-mode-card {
+          display: grid;
+          grid-template-columns: auto auto 1fr;
+          gap: 7px;
+          align-items: center;
+          min-height: 58px;
+          border: 1px solid rgba(255,255,255,.09);
+          border-radius: 12px;
+          background: rgba(255,255,255,.035);
+          padding: 9px 11px;
+          color: white;
+          text-align: left;
+        }
+        .ka-mp-mode-card > span { font-size: 18px; }
+        .ka-mp-mode-card > strong { font-size: 11px; letter-spacing: .08em; }
+        .ka-mp-mode-card > small { color: rgba(255,255,255,.52); font-size: 8px; line-height: 1.3; }
+        .ka-mp-mode-card.is-selected {
+          border-color: rgba(126,232,255,.55);
+          background: linear-gradient(135deg,rgba(39,119,255,.20),rgba(129,72,255,.13));
+          box-shadow: 0 0 22px rgba(83,215,255,.08);
+        }
+        .ka-mp-mode-card:disabled:not(.is-selected) { opacity: .58; }
+        .ka-mode-owner-note { color: rgba(255,255,255,.42); font-size: 8px; }
+        .ka-lobby-mode-badge {
+          margin-top: 9px;
+          border: 1px solid rgba(126,232,255,.18);
+          border-radius: 999px;
+          background: rgba(126,232,255,.08);
+          padding: 5px 8px;
+          color: #bff5ff;
+          font-size: 7px;
+          font-weight: 950;
+          letter-spacing: .12em;
+        }
+        .ka-player-row-v2 { min-height: 43px; }
+        .ka-player-identity { display: flex; min-width: 0; align-items: center; gap: 8px; }
+        .ka-player-identity > div { display: grid; min-width: 0; gap: 2px; }
+        .ka-player-identity > div > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ka-player-identity > div > span { font-size: 7px; text-transform: capitalize; }
+        .ka-color-dot { width: 12px; height: 12px; flex: 0 0 auto; border: 2px solid rgba(255,255,255,.62); border-radius: 50%; box-shadow: 0 0 12px rgba(255,255,255,.12); }
+        .ka-color-dot.is-azure { background: #56c8ff; }
+        .ka-color-dot.is-violet { background: #a66bff; }
+        .ka-color-dot.is-crimson { background: #ff5d72; }
+        .ka-color-dot.is-emerald { background: #54dc9a; }
+        .ka-color-dot.is-gold { background: #ffd45e; }
+        .ka-ready-pill { flex: 0 0 auto; border: 1px solid rgba(255,255,255,.10); border-radius: 999px; padding: 4px 7px; color: rgba(255,255,255,.42) !important; font-size: 7px; font-weight: 950; letter-spacing: .08em; }
+        .ka-ready-pill.is-ready { border-color: rgba(86,255,169,.28); background: rgba(45,209,122,.10); color: #9dffc9 !important; }
+        .ka-lobby-actions-v2 { display: grid; grid-template-columns: auto minmax(220px,1fr); gap: 8px; margin-top: 8px; align-items: stretch; }
+        .ka-coop-result-summary { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 7px; }
+        .ka-coop-result-summary > div { display: grid; gap: 3px; border: 1px solid rgba(126,232,255,.10); border-radius: 11px; background: rgba(255,255,255,.035); padding: 8px 10px; }
+        .ka-coop-result-summary span { color: rgba(255,255,255,.45); font-size: 7px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+        .ka-coop-result-summary strong { font-size: 11px; }
+        .ka-coop-leaderboard-note { margin: 0; color: rgba(255,255,255,.42); font-size: 8px; text-align: center; }
+
+        @media (max-width: 850px) {
+          .ka-mp-mode-picker { padding: 7px; gap: 5px; }
+          .ka-mp-mode-card { min-height: 46px; padding: 6px 7px; gap: 5px; }
+          .ka-mp-mode-card > span { font-size: 14px; }
+          .ka-mp-mode-card > strong { font-size: 8px; }
+          .ka-mp-mode-card > small { font-size: 6px; }
+          .ka-player-row-v2 { min-height: 35px; }
+          .ka-lobby-actions-v2 { grid-template-columns: auto 1fr; }
+          .ka-coop-result-summary { grid-template-columns: repeat(3,minmax(0,1fr)); }
+        }
       `}</style>
     </main>
   );
@@ -7294,6 +7819,14 @@ function ArenaResultsPanel({
   correctCount,
   tokensEarned,
   tokenBalance,
+  novaAttackLevel,
+  novaAttackBonusPct,
+  novaAttackDamage,
+  novaNextUpgradeCost,
+  novaAttackMaxLevel,
+  novaUpgradeWorking,
+  novaUpgradeMessage,
+  onUpgradeNovaAttack,
   rewardSaved,
   saveMessage,
   isAuthenticated,
@@ -7314,6 +7847,14 @@ function ArenaResultsPanel({
   correctCount: number;
   tokensEarned: number;
   tokenBalance: number;
+  novaAttackLevel: number;
+  novaAttackBonusPct: number;
+  novaAttackDamage: number;
+  novaNextUpgradeCost: number;
+  novaAttackMaxLevel: number;
+  novaUpgradeWorking: boolean;
+  novaUpgradeMessage: string;
+  onUpgradeNovaAttack: () => void;
   rewardSaved: boolean;
   saveMessage: string;
   isAuthenticated: boolean;
@@ -7406,15 +7947,43 @@ function ArenaResultsPanel({
         )}
       </div>
 
+      {isAuthenticated && (
+        <div className="ka-nova-upgrade-card">
+          <div className="ka-nova-upgrade-copy">
+            <small>POST-CHALLENGE UPGRADE</small>
+            <strong>Nova Attack · Level {novaAttackLevel}</strong>
+            <span>
+              +{novaAttackBonusPct}% attack · {novaAttackDamage} base damage per shot before monster defence
+            </span>
+            {novaUpgradeMessage && (
+              <em className="ka-nova-upgrade-message">{novaUpgradeMessage}</em>
+            )}
+          </div>
+          {novaAttackLevel >= novaAttackMaxLevel ? (
+            <div className="ka-nova-upgrade-max">MAX LEVEL</div>
+          ) : (
+            <button
+              type="button"
+              className="ka-nova-upgrade-button"
+              disabled={novaUpgradeWorking || tokenBalance < novaNextUpgradeCost}
+              onClick={onUpgradeNovaAttack}
+            >
+              <strong>{novaUpgradeWorking ? "Upgrading…" : `Upgrade · ${novaNextUpgradeCost} DT`}</strong>
+              <small>{tokenBalance} DT available</small>
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="ka-results-actions">
         <button
           type="button"
-          className="ka-secondary-button"
+          className="ka-start-button"
           onClick={onNextChallenge}
         >
           Choose Next Challenge
         </button>
-        <button type="button" className="ka-start-button" onClick={onExit}>
+        <button type="button" className="ka-secondary-button" onClick={onExit}>
           Exit Knowledge Arena
         </button>
       </div>
@@ -7456,6 +8025,84 @@ function ArenaResultsPanel({
         @media (max-width: 700px) {
           .ka-results-arena-backdrop { padding: 8px; }
           .ka-results-popup { width: 98%; height: 96%; border-radius: 18px; }
+        }
+
+        .ka-nova-upgrade-card {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          margin-top: 14px;
+          border: 1px solid rgba(126,232,255,.26);
+          border-radius: 18px;
+          background: linear-gradient(135deg, rgba(13,34,62,.92), rgba(39,18,75,.9));
+          padding: 14px 16px;
+          box-shadow: 0 12px 30px rgba(0,0,0,.2);
+        }
+        .ka-nova-upgrade-copy {
+          display: grid;
+          gap: 4px;
+        }
+        .ka-nova-upgrade-copy small {
+          color: #7ee8ff;
+          font-size: 10px;
+          font-weight: 950;
+          letter-spacing: .12em;
+        }
+        .ka-nova-upgrade-copy strong {
+          font-size: 18px;
+        }
+        .ka-nova-upgrade-copy span {
+          color: rgba(255,255,255,.72);
+          font-size: 12px;
+          font-weight: 750;
+        }
+        .ka-nova-upgrade-message {
+          color: #c7ffd9;
+          font-size: 12px;
+          font-style: normal;
+          font-weight: 850;
+        }
+        .ka-nova-upgrade-button,
+        .ka-nova-upgrade-max {
+          flex: 0 0 auto;
+          min-width: 156px;
+          border: 1px solid rgba(126,232,255,.28);
+          border-radius: 15px;
+          padding: 11px 14px;
+          text-align: center;
+        }
+        .ka-nova-upgrade-button {
+          display: grid;
+          gap: 2px;
+          background: linear-gradient(135deg, #16a9e8, #6d48df);
+          color: white;
+          font-weight: 900;
+          cursor: pointer;
+        }
+        .ka-nova-upgrade-button:disabled {
+          cursor: not-allowed;
+          opacity: .48;
+        }
+        .ka-nova-upgrade-button small { font-size: 10px; }
+        .ka-nova-upgrade-max {
+          background: rgba(126,232,255,.1);
+          color: #7ee8ff;
+          font-size: 12px;
+          font-weight: 950;
+          letter-spacing: .1em;
+        }
+        @media (max-width: 850px) {
+          .ka-nova-upgrade-card {
+            align-items: stretch;
+            flex-direction: column;
+            gap: 10px;
+            padding: 12px;
+          }
+          .ka-nova-upgrade-button,
+          .ka-nova-upgrade-max { width: 100%; }
+          .ka-nova-upgrade-copy strong { font-size: 16px; }
+          .ka-nova-upgrade-copy span { font-size: 11px; }
         }
       `}</style>
     </div>
