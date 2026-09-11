@@ -68,6 +68,7 @@ type Lobby = {
   code: string;
   host_user_id: string;
   topic: KnowledgeArenaTopic;
+  topic_selected: boolean;
   question_ids: string[];
   timer_seconds: TimerSeconds;
   status: "waiting" | "playing" | "finished";
@@ -268,6 +269,7 @@ type LobbyPlayer = {
   character_type: "nova" | "monster" | null;
   character_slug: string | null;
   confirmed: boolean;
+  character_confirmed: boolean;
   nova_hp: number;
   is_eliminated: boolean;
   battle_damage: number;
@@ -810,7 +812,7 @@ export default function KnowledgeArenaPage() {
     return Number(a.answer_time_total || 0) - Number(b.answer_time_total || 0);
   });
   const allVersusCharactersSelected = players.length >= 2 && players.every(
-    (player) => Boolean(player.character_type && player.character_slug)
+    (player) => Boolean(player.character_confirmed && player.character_type && player.character_slug)
   );
 
   // Knowledge Arena is a fixed-screen experience on every device.
@@ -1493,7 +1495,7 @@ export default function KnowledgeArenaPage() {
     return sortQuestionsByIds(data as KnowledgeArenaQuestion[], questionIds);
   }
 
-  async function createLobby(topic: KnowledgeArenaTopic) {
+  async function createLobby() {
     setIsCreatingLobby(true);
     setMultiplayerMessage("");
 
@@ -1509,13 +1511,6 @@ export default function KnowledgeArenaPage() {
       return;
     }
 
-    const loadedQuestions = await loadQuestions(topic);
-
-    if (loadedQuestions.length < 10) {
-      setIsCreatingLobby(false);
-      return;
-    }
-
     let createdLobby: Lobby | null = null;
     let lastError = "";
 
@@ -1525,8 +1520,11 @@ export default function KnowledgeArenaPage() {
         .insert({
           code: generateLobbyCode(),
           host_user_id: userId,
-          topic,
-          question_ids: loadedQuestions.map((question) => question.id),
+          // The lobby now exists before topic selection. The placeholder topic
+          // satisfies the legacy NOT NULL column until the host selects one.
+          topic: "world_explorer",
+          topic_selected: false,
+          question_ids: [],
           timer_seconds: lobbyTimerSecondsChoice,
           game_mode: multiplayerGameMode,
           mode_locked: false,
@@ -1539,7 +1537,6 @@ export default function KnowledgeArenaPage() {
         createdLobby = data as Lobby;
         break;
       }
-
       lastError = error?.message || "";
     }
 
@@ -1552,34 +1549,23 @@ export default function KnowledgeArenaPage() {
 
     const { data: playerData, error: playerError } = await supabase
       .from("knowledge_arena_lobby_players")
-      .insert({
-        lobby_id: createdLobby.id,
-        user_id: userId,
-        display_name: displayName.trim(),
-        is_host: true,
-        status: "waiting",
-      })
+      .insert({ lobby_id: createdLobby.id, user_id: userId, display_name: displayName.trim(), is_host: true, status: "waiting" })
       .select("*")
       .single();
 
     if (playerError || !playerData) {
-      setMultiplayerMessage(
-        playerError?.message || "Lobby created, but player failed."
-      );
+      setMultiplayerMessage(playerError?.message || "Lobby created, but player failed.");
       setIsCreatingLobby(false);
       return;
     }
 
-    await supabase.rpc("assign_knowledge_arena_coop_colorway_v1", {
-      p_lobby_id: createdLobby.id,
-    });
-
+    await supabase.rpc("assign_knowledge_arena_coop_colorway_v1", { p_lobby_id: createdLobby.id });
     setLobby(createdLobby);
     setMyPlayer(playerData as LobbyPlayer);
     setPlayers([playerData as LobbyPlayer]);
+    setQuestions([]);
+    setSelectedTopic(null);
     await loadLobbyState(createdLobby.id);
-    setQuestions(loadedQuestions);
-    setSelectedTopic(topic);
     setStage("waiting-lobby");
     setIsCreatingLobby(false);
   }
@@ -1657,7 +1643,7 @@ export default function KnowledgeArenaPage() {
     setMultiplayerGameMode(foundLobby.game_mode || "coop");
     setLobbyTimerSecondsChoice(foundLobby.timer_seconds ?? 20);
     setMyPlayer(playerData as LobbyPlayer);
-    setSelectedTopic(foundLobby.topic);
+    setSelectedTopic(foundLobby.topic_selected ? foundLobby.topic : null);
     await loadLobbyState(foundLobby.id);
     setStage("waiting-lobby");
     setIsJoiningLobby(false);
@@ -1684,14 +1670,14 @@ export default function KnowledgeArenaPage() {
         void loadVersusMonsters();
       }
       setLobbyTimerSecondsChoice(nextLobby.timer_seconds ?? 20);
+      setSelectedTopic(nextLobby.topic_selected ? nextLobby.topic : null);
 
       if (nextLobby.encounter_monster_id) {
-        const { data: monsterData } = await supabase
-          .from("knowledge_arena_monsters")
-          .select("id,slug,name,rarity,sprite_url,hp,attack_damage")
-          .eq("id", nextLobby.encounter_monster_id)
-          .maybeSingle();
-        setCoopMonster((monsterData || null) as CoopMonsterView | null);
+        const { data: monsterData } = await supabase.rpc("get_knowledge_arena_multiplayer_monster_v1", {
+          p_monster_id: nextLobby.encounter_monster_id,
+        });
+        const monsterPayload = Array.isArray(monsterData) ? monsterData[0] : monsterData;
+        setCoopMonster((monsterPayload?.monster || null) as CoopMonsterView | null);
       } else {
         setCoopMonster(null);
       }
@@ -1721,12 +1707,47 @@ export default function KnowledgeArenaPage() {
   }
 
   async function loadVersusMonsters() {
-    const { data } = await supabase
-      .from("knowledge_arena_monsters")
-      .select("slug,name,rarity,sprite_url")
-      .eq("is_active", true)
-      .order("name");
-    if (data) setVersusMonsters(data as VersusMonsterChoice[]);
+    const { data, error } = await supabase.rpc("get_knowledge_arena_versus_roster_v1");
+    if (error || !data) {
+      setVersusMonsters([]);
+      return;
+    }
+    const payload = Array.isArray(data) ? data[0] : data;
+    setVersusMonsters((payload?.monsters || []) as VersusMonsterChoice[]);
+  }
+
+  async function setLobbyTopic(topic: KnowledgeArenaTopic) {
+    if (!lobby || !isHost || lobby.mode_locked) return;
+    setMultiplayerMessage("");
+    const { error } = await supabase.rpc("set_knowledge_arena_multiplayer_topic_v1", {
+      p_lobby_id: lobby.id,
+      p_topic: topic,
+    });
+    if (error) {
+      setMultiplayerMessage(error.message || "Could not change the lobby topic.");
+      return;
+    }
+    setSelectedTopic(topic);
+    setQuestions([]);
+    await loadLobbyState(lobby.id);
+  }
+
+  async function prepareFreshMultiplayerQuestions() {
+    if (!lobby) return [] as KnowledgeArenaQuestion[];
+    const { data, error } = await supabase.rpc("prepare_knowledge_arena_multiplayer_questions_v1", {
+      p_lobby_id: lobby.id,
+    });
+    if (error || !data) {
+      setMultiplayerMessage(error?.message || "Could not create a fresh multiplayer quiz.");
+      return [];
+    }
+    const payload = Array.isArray(data) ? data[0] : data;
+    const ids = (payload?.question_ids || []) as string[];
+    if (ids.length !== 10) {
+      setMultiplayerMessage("Could not create a fresh 10-question multiplayer quiz.");
+      return [];
+    }
+    return loadQuestionsByIds(ids);
   }
 
   async function beginVersusCharacterSelect() {
@@ -1761,20 +1782,40 @@ export default function KnowledgeArenaPage() {
     await loadLobbyState(lobby.id);
   }
 
-  async function startVersusRace() {
-    if (!lobby || !isHost || !allVersusCharactersSelected || versusWorking) return;
-    const loadedQuestions = await loadQuestionsByIds(lobby.question_ids);
-    if (loadedQuestions.length < 10) {
-      setMultiplayerMessage("Could not load the 10 shared race questions.");
+  async function confirmVersusCharacter() {
+    if (!lobby || versusWorking) return;
+    setVersusWorking(true);
+    setMultiplayerMessage("");
+    const { error } = await supabase.rpc("confirm_knowledge_arena_versus_character_v1", {
+      p_lobby_id: lobby.id,
+    });
+    setVersusWorking(false);
+    if (error) {
+      setMultiplayerMessage(error.message || "Could not confirm that racer.");
+      await loadLobbyState(lobby.id);
       return;
     }
+    await loadLobbyState(lobby.id);
+  }
+
+  async function startVersusRace() {
+    if (!lobby || !isHost || !allVersusCharactersSelected || versusWorking) return;
     setVersusWorking(true);
+    setMultiplayerMessage("");
+
+    const loadedQuestions = await prepareFreshMultiplayerQuestions();
+    if (loadedQuestions.length < 10) {
+      setVersusWorking(false);
+      return;
+    }
+
     const { error } = await supabase.rpc("start_knowledge_arena_versus_v1", { p_lobby_id: lobby.id });
     setVersusWorking(false);
     if (error) {
       setMultiplayerMessage(error.message || "Could not start the Versus race.");
       return;
     }
+
     setQuestions(loadedQuestions);
     setQuestionIndex(0);
     setSelectedAnswer(null);
@@ -1903,11 +1944,13 @@ export default function KnowledgeArenaPage() {
       return;
     }
 
-    const loadedQuestions = await loadQuestionsByIds(lobby.question_ids);
-    if (loadedQuestions.length < 10) {
-      setMultiplayerMessage("Could not load the 10 shared lobby questions.");
+    if (!lobby.topic_selected) {
+      setMultiplayerMessage("Choose a topic before starting the match.");
       return;
     }
+
+    const loadedQuestions = await prepareFreshMultiplayerQuestions();
+    if (loadedQuestions.length < 10) return;
 
     const { data, error } = await supabase.rpc("start_knowledge_arena_coop_v1", {
       p_lobby_id: lobby.id,
@@ -2606,6 +2649,8 @@ export default function KnowledgeArenaPage() {
     setMultiplayerMessage("");
     const lobbyId = lobby.id;
 
+    await supabase.rpc("finalize_knowledge_arena_multiplayer_results_v1", { p_lobby_id: lobbyId });
+
     const { error } = await supabase.rpc(
       "return_knowledge_arena_multiplayer_to_lobby_v1",
       { p_lobby_id: lobbyId }
@@ -2623,6 +2668,7 @@ export default function KnowledgeArenaPage() {
     setVersusRoundResolved(false);
     setVersusWorking(false);
     setAttemptSaveMessage("");
+    setSelectedTopic(null);
     await loadLobbyState(lobbyId);
     setStage("waiting-lobby");
   }
@@ -2631,6 +2677,8 @@ export default function KnowledgeArenaPage() {
     const lobbyId = lobby?.id || null;
 
     if (lobbyId) {
+      await supabase.rpc("finalize_knowledge_arena_multiplayer_results_v1", { p_lobby_id: lobbyId });
+
       const { error } = await supabase.rpc(
         "exit_knowledge_arena_multiplayer_lobby_v1",
         { p_lobby_id: lobbyId }
@@ -3133,7 +3181,7 @@ export default function KnowledgeArenaPage() {
                   <span className="ka-mode-copy">
                     <small>Host</small>
                     <strong>Create Lobby</strong>
-                    <span>Choose a world and timer, then share the code.</span>
+                    <span>Create the room first, then choose the topic inside the lobby.</span>
                   </span>
                   <span className="ka-mode-action">Create →</span>
                 </button>
@@ -3194,22 +3242,6 @@ export default function KnowledgeArenaPage() {
                 />
               </div>
 
-              <div className="ka-setup-section ka-create-worlds">
-                <div className="ka-setup-label-row">
-                  <div>
-                    <span>Choose World</span>
-                    <small>The host chooses one shared world for everyone.</small>
-                  </div>
-                </div>
-                <ArenaWorldGrid
-                  profile={knowledgeProfile}
-                  selectedTopic={selectedTopic}
-                  mixed={false}
-                  focusTopic={null}
-                  onSelect={setSelectedTopic}
-                  locked={false}
-                />
-              </div>
 
               {(loadError || multiplayerMessage) && (
                 <p className="ka-error-banner">
@@ -3220,10 +3252,8 @@ export default function KnowledgeArenaPage() {
               <button
                 type="button"
                 className="ka-start-button"
-                disabled={isCreatingLobby || !selectedTopic}
-                onClick={() =>
-                  selectedTopic && void createLobby(selectedTopic)
-                }
+                disabled={isCreatingLobby}
+                onClick={() => void createLobby()}
               >
                 {isCreatingLobby ? "Creating Lobby…" : "Create Lobby"}
               </button>
@@ -3301,8 +3331,25 @@ export default function KnowledgeArenaPage() {
                 </button>
                 <div>
                   <p className="ka-kicker">Multiplayer Lobby</p>
-                  <strong>{topicTitle(lobby.topic)}</strong>
+                  <strong>{lobby.topic_selected ? topicTitle(lobby.topic) : "Choose a topic"}</strong>
                 </div>
+              </div>
+
+              <div className="ka-setup-section ka-lobby-topic-picker">
+                <div className="ka-setup-label-row">
+                  <div>
+                    <span>Match Topic</span>
+                    <small>{isHost ? "Choose the topic for the next game. You can choose a different topic after every match." : (lobby.topic_selected ? `Host selected ${topicTitle(lobby.topic)}.` : "Waiting for the host to choose a topic.")}</small>
+                  </div>
+                </div>
+                <ArenaWorldGrid
+                  profile={knowledgeProfile}
+                  selectedTopic={lobby.topic_selected ? lobby.topic : null}
+                  mixed={false}
+                  focusTopic={null}
+                  onSelect={(topic) => { if (isHost) void setLobbyTopic(topic); }}
+                  locked={!isHost || lobby.mode_locked}
+                />
               </div>
 
               <div className="ka-mp-mode-picker">
@@ -3339,7 +3386,7 @@ export default function KnowledgeArenaPage() {
                 <div className="ka-lobby-code-card">
                   <span>Lobby Code</span>
                   <strong>{lobby.code}</strong>
-                  <small>{lobby.timer_seconds}s per question</small>
+                  <small>{lobby.topic_selected ? `${topicTitle(lobby.topic)} · ${lobby.timer_seconds}s per question` : `Choose topic · ${lobby.timer_seconds}s per question`}</small>
                   <div className="ka-lobby-mode-badge">
                     {lobby.game_mode === "coop" ? "CO-OP BATTLE" : "VERSUS RACE"}
                   </div>
@@ -3377,6 +3424,7 @@ export default function KnowledgeArenaPage() {
                 <button
                   type="button"
                   className={myPlayer?.confirmed ? "ka-secondary-button" : "ka-start-button"}
+                  disabled={!lobby.topic_selected}
                   onClick={() => void toggleLobbyReady()}
                 >
                   {myPlayer?.confirmed ? "Not Ready" : "I'm Ready"}
@@ -3387,7 +3435,7 @@ export default function KnowledgeArenaPage() {
                     <button
                       type="button"
                       className="ka-start-button"
-                      disabled={!allPlayersConfirmed || players.length < 2}
+                      disabled={!lobby.topic_selected || !allPlayersConfirmed || players.length < 2}
                       onClick={() => void startMultiplayerGame()}
                     >
                       {allPlayersConfirmed ? "Start Co-op Battle" : "Waiting for everyone to confirm"}
@@ -3396,7 +3444,7 @@ export default function KnowledgeArenaPage() {
                     <button
                       type="button"
                       className="ka-start-button"
-                      disabled={!allPlayersConfirmed || versusWorking || players.length < 2}
+                      disabled={!lobby.topic_selected || !allPlayersConfirmed || versusWorking || players.length < 2}
                       onClick={() => void beginVersusCharacterSelect()}
                     >
                       {allPlayersConfirmed ? "Next · Character Select" : "Waiting for everyone to confirm"}
@@ -3421,6 +3469,7 @@ export default function KnowledgeArenaPage() {
                 working={versusWorking}
                 message={multiplayerMessage}
                 onSelect={(type, slug) => void selectVersusCharacter(type, slug)}
+                onConfirm={() => void confirmVersusCharacter()}
                 onStart={() => void startVersusRace()}
               />
             </div>
@@ -3572,9 +3621,12 @@ export default function KnowledgeArenaPage() {
                   <p className="ka-kicker">{lobby?.game_mode === "coop" ? "Co-op Complete" : "Versus Complete"}</p>
                   <h2>{lobby?.game_mode === "coop" ? (lobby?.dreamkeeper_active ? "Dreamkeeper Score Run Complete" : "Monster Battle Complete") : "Race Complete"}</h2>
                 </div>
-                <div className="ka-result-score">
-                  <span>{lobby?.game_mode === "coop" ? "Your damage" : "Your distance"}</span>
-                  <strong>{lobby?.game_mode === "coop" ? Number(myCoopPlayer?.battle_damage || 0) : Math.round(Number(myPlayer?.race_progress || 0))}</strong>
+                <div className={`ka-result-score ka-mp-feature-score ${lobby?.game_mode === "coop" ? "is-damage" : "is-distance"}`}>
+                  <span>{lobby?.game_mode === "coop" ? "YOUR DAMAGE SCORE" : "YOUR RACE DISTANCE"}</span>
+                  <strong>
+                    {lobby?.game_mode === "coop" ? Number(myCoopPlayer?.battle_damage || 0) : Math.round(Number(myPlayer?.race_progress || 0))}
+                    <em>{lobby?.game_mode === "coop" ? " DMG" : "m"}</em>
+                  </strong>
                 </div>
               </div>
 
@@ -3637,22 +3689,24 @@ export default function KnowledgeArenaPage() {
                 ))}
               </div>
 
-              <div className="ka-coop-result-summary">
-                <div style={{ gridColumn: "1 / -1" }}>
+              <details className="ka-global-board">
+                <summary>
                   <span>{lobby?.game_mode === "coop" ? "GLOBAL CO-OP LEADERBOARD" : "GLOBAL VERSUS LEADERBOARD"}</span>
-                  <strong>Top Arena players</strong>
-                </div>
-                {multiplayerLeaderboard.slice(0, 8).map((entry) => (
-                  <div key={entry.user_id}>
-                    <span>#{entry.rank} · {entry.display_name}</span>
-                    <strong>
-                      {lobby?.game_mode === "versus"
-                        ? `${entry.wins} wins · best ${Math.round(Number(entry.best_score || 0))}`
-                        : `best ${Math.round(Number(entry.best_score || 0))} dmg`}
-                    </strong>
+                  <strong>View rankings</strong>
+                </summary>
+                <div className="ka-global-board-table">
+                  <div className="ka-global-board-head">
+                    <span>Rank</span><span>Player</span><span>Score</span>
                   </div>
-                ))}
-              </div>
+                  {multiplayerLeaderboard.slice(0, 10).map((entry) => (
+                    <div key={entry.user_id} className={`ka-global-board-row is-rank-${entry.rank}`}>
+                      <span className="ka-board-rank"><i>{entry.rank}</i></span>
+                      <strong>{entry.display_name}</strong>
+                      <b>{Math.round(Number(entry.best_score || 0))}{lobby?.game_mode === "coop" ? " DMG" : ""}</b>
+                    </div>
+                  ))}
+                </div>
+              </details>
 
               <div className="ka-results-actions ka-multiplayer-result-actions">
                 <button
@@ -7712,6 +7766,38 @@ export default function KnowledgeArenaPage() {
         .ka-coop-result-summary strong { font-size: 11px; }
         .ka-coop-leaderboard-note { margin: 0; color: rgba(255,255,255,.42); font-size: 8px; text-align: center; }
 
+        .ka-mp-feature-score {
+          min-width: 190px;
+          border: 1px solid rgba(255,213,94,.45);
+          border-radius: 18px;
+          background: radial-gradient(circle at 50% 0%,rgba(255,212,85,.20),rgba(7,12,25,.86) 64%);
+          padding: 12px 16px;
+          box-shadow: 0 12px 30px rgba(0,0,0,.22), inset 0 0 22px rgba(255,204,70,.05);
+          text-align:center;
+        }
+        .ka-mp-feature-score span { color:#ffd86c !important; font-size:11px !important; font-weight:950; letter-spacing:.11em; }
+        .ka-mp-feature-score strong { display:block; margin-top:4px; font-size:clamp(40px,5vw,58px) !important; line-height:.95; color:white; }
+        .ka-mp-feature-score em { color:#ffd86c; font-size:.34em; font-style:normal; letter-spacing:.05em; }
+        .ka-global-board { overflow:hidden; border:1px solid rgba(255,255,255,.13); border-radius:18px; background:linear-gradient(180deg,rgba(11,20,38,.94),rgba(5,10,22,.92)); }
+        .ka-global-board summary { display:flex; align-items:center; justify-content:space-between; gap:14px; cursor:pointer; list-style:none; padding:13px 15px; }
+        .ka-global-board summary::-webkit-details-marker { display:none; }
+        .ka-global-board summary span { color:#aeeeff; font-size:11px; font-weight:950; letter-spacing:.12em; }
+        .ka-global-board summary strong { color:white; font-size:13px; }
+        .ka-global-board[open] summary { border-bottom:1px solid rgba(255,255,255,.09); }
+        .ka-global-board-table { display:grid; padding:8px 10px 11px; }
+        .ka-global-board-head,.ka-global-board-row { display:grid; grid-template-columns:64px minmax(0,1fr) 120px; align-items:center; gap:10px; }
+        .ka-global-board-head { padding:5px 8px 7px; color:rgba(255,255,255,.5); font-size:9px; font-weight:900; letter-spacing:.1em; text-transform:uppercase; }
+        .ka-global-board-row { min-height:44px; border-top:1px solid rgba(255,255,255,.06); padding:7px 8px; }
+        .ka-global-board-row strong { font-size:13px; }
+        .ka-global-board-row b { justify-self:end; font-size:13px; color:#dff8ff; }
+        .ka-board-rank i { display:grid; width:29px; height:29px; place-items:center; border-radius:999px; background:rgba(255,255,255,.08); font-style:normal; font-size:12px; font-weight:950; }
+        .ka-global-board-row.is-rank-1 { background:linear-gradient(90deg,rgba(255,201,48,.18),transparent); }
+        .ka-global-board-row.is-rank-1 .ka-board-rank i { background:#e5b928; color:#211700; box-shadow:0 0 18px rgba(229,185,40,.28); }
+        .ka-global-board-row.is-rank-2 { background:linear-gradient(90deg,rgba(213,224,239,.13),transparent); }
+        .ka-global-board-row.is-rank-2 .ka-board-rank i { background:#c4cedc; color:#18202b; }
+        .ka-global-board-row.is-rank-3 { background:linear-gradient(90deg,rgba(196,123,63,.14),transparent); }
+        .ka-global-board-row.is-rank-3 .ka-board-rank i { background:#b97843; color:#fff6ed; }
+
         /* Multiplayer result screen readability */
         .ka-multi-results {
           gap: 12px;
@@ -7816,6 +7902,16 @@ export default function KnowledgeArenaPage() {
           .ka-multi-results {
             gap: 9px;
           }
+          .ka-mp-feature-score { min-width:150px; padding:9px 12px; }
+          .ka-mp-feature-score span { font-size:9px !important; }
+          .ka-mp-feature-score strong { font-size:34px !important; }
+          .ka-global-board summary { padding:10px 12px; }
+          .ka-global-board summary span { font-size:9px; }
+          .ka-global-board summary strong { font-size:10px; }
+          .ka-global-board-head,.ka-global-board-row { grid-template-columns:46px minmax(0,1fr) 88px; gap:6px; }
+          .ka-global-board-row { min-height:38px; padding:5px 6px; }
+          .ka-global-board-row strong,.ka-global-board-row b { font-size:10px; }
+          .ka-board-rank i { width:24px; height:24px; font-size:10px; }
           .ka-multi-results .ka-kicker { font-size: 9px; }
           .ka-multi-results .ka-results-heading h2 { font-size: 21px; }
           .ka-multi-results .ka-result-score span { font-size: 9px; }
