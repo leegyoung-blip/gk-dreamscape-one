@@ -86,7 +86,7 @@ function defenseReduction(defenseRating: number) {
 }
 
 function damagePerShot(defenseRating: number, attackLevel: number) {
-  const safeLevel = Math.max(0, Math.min(10, Math.round(attackLevel || 0)));
+  const safeLevel = Math.max(0, Math.min(50, Math.round(attackLevel || 0)));
   const upgradedBaseDamage = BASE_SHOT_DAMAGE * (1 + safeLevel * 0.05);
   return Math.max(
     1,

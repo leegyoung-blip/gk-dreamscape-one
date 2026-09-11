@@ -10,6 +10,11 @@ import {
   type CoreRoverUpgrade,
 } from "@/lib/coreRoverProgress";
 import {
+  applyRoverPerformanceUpgrades,
+  performanceLevelsFromRows,
+  type RoverPerformanceBuildRow,
+} from "@/lib/coreRoverPerformance";
+import {
   getRoverLevel,
   type RoverLevelAccess,
   type RoverLevelConfig,
@@ -84,6 +89,9 @@ export default function RoverChallengeClient({
   const [userId, setUserId] = useState<string | null>(null);
   const [currentUpgrade, setCurrentUpgrade] = useState<CoreRoverUpgrade>(
     coreUpgradeTrack[0],
+  );
+  const [currentGameStats, setCurrentGameStats] = useState<CoreRoverGameStats>(
+    coreUpgradeTrack[0].gameStats,
   );
   const [highestOwnedStage, setHighestOwnedStage] = useState(0);
   const [access, setAccess] = useState<RoverLevelAccess | null>(null);
@@ -168,9 +176,10 @@ export default function RoverChallengeClient({
 
       setUserId(user.id);
 
-      const [loadoutResult, accessResult] = await Promise.all([
+      const [loadoutResult, accessResult, performanceResult] = await Promise.all([
         supabase.rpc("get_my_core_rover_loadout"),
         supabase.rpc("get_rover_level_access"),
+        supabase.rpc("get_my_rover_performance_build"),
       ]);
 
       if (requestId !== playerStateRequestIdRef.current) {
@@ -190,6 +199,7 @@ export default function RoverChallengeClient({
          */
         if (showLoading) {
           setCurrentUpgrade(coreUpgradeTrack[0]);
+          setCurrentGameStats(coreUpgradeTrack[0].gameStats);
           setHighestOwnedStage(0);
         }
       } else {
@@ -207,6 +217,24 @@ export default function RoverChallengeClient({
 
         setCurrentUpgrade(selectedUpgrade);
         setHighestOwnedStage(maxUnlockedStage);
+
+        if (performanceResult.error) {
+          console.warn(
+            "Could not load equipped rover performance upgrades:",
+            performanceResult.error.message,
+          );
+          setCurrentGameStats(selectedUpgrade.gameStats);
+        } else {
+          const buildRows =
+            (performanceResult.data ?? []) as RoverPerformanceBuildRow[];
+          const performanceLevels = performanceLevelsFromRows(buildRows);
+          setCurrentGameStats(
+            applyRoverPerformanceUpgrades(
+              selectedUpgrade.gameStats,
+              performanceLevels,
+            ),
+          );
+        }
       }
 
       if (accessResult.error) {
@@ -420,12 +448,20 @@ export default function RoverChallengeClient({
       "rover-loadout-updated",
       handleLoadoutUpdate,
     );
+    window.addEventListener(
+      "rover-performance-updated",
+      handleLoadoutUpdate,
+    );
 
     return () => {
       playerStateRequestIdRef.current += 1;
       subscription.unsubscribe();
       window.removeEventListener(
         "rover-loadout-updated",
+        handleLoadoutUpdate,
+      );
+      window.removeEventListener(
+        "rover-performance-updated",
         handleLoadoutUpdate,
       );
     };
@@ -540,7 +576,7 @@ export default function RoverChallengeClient({
             roverFrontWheelSrc={currentUpgrade.gameFrontWheelSrc}
             roverBackWheelSrc={currentUpgrade.gameBackWheelSrc}
             roverGameMode={currentUpgrade.gameMode}
-            gameStats={currentUpgrade.gameStats}
+            gameStats={currentGameStats}
           />
         ) : (
           <LevelGate

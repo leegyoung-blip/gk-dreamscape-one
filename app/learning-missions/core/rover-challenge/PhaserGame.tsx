@@ -244,6 +244,9 @@ class RoverMatterScene extends Phaser.Scene {
   private accelerationRate = 4.2;
   private brakingRate = 6.2;
   private groundAlignmentRate = 8.5;
+  private slopeAssistMultiplier = 1;
+  private landingToleranceMultiplier = 1;
+  private overturnToleranceMultiplier = 1;
   private jumpVelocity = 0;
   private airTiltStrength = 0.006;
   private crashPenaltyMultiplier = 1;
@@ -300,6 +303,11 @@ class RoverMatterScene extends Phaser.Scene {
     this.crashPenaltyMultiplier = gameStats.crashPenaltyMultiplier ?? 1;
 
     this.trapPenaltyMultiplier = gameStats.trapPenaltyMultiplier ?? 1;
+
+    this.groundAlignmentRate *= gameStats.groundAlignmentMultiplier ?? 1;
+    this.slopeAssistMultiplier = gameStats.slopeAssistMultiplier ?? 1;
+    this.landingToleranceMultiplier = gameStats.landingToleranceMultiplier ?? 1;
+    this.overturnToleranceMultiplier = gameStats.overturnToleranceMultiplier ?? 1;
 
     this.boostEnergy = gameStats.boostCapacity;
   }
@@ -2233,9 +2241,7 @@ class RoverMatterScene extends Phaser.Scene {
       direction === 0 ? this.brakingRate : this.accelerationRate;
 
     const slopeResponseMultiplier = uphill
-      ? usingBoost
-        ? 2.35
-        : 1.45
+      ? (usingBoost ? 2.35 : 1.45) * this.slopeAssistMultiplier
       : 1;
 
     const responseRate =
@@ -2272,6 +2278,7 @@ class RoverMatterScene extends Phaser.Scene {
 
       const verticalFollowRate =
         (usingBoost ? 10.5 : 6.2) *
+        this.slopeAssistMultiplier *
         (0.55 + slopeSeverity * 0.45);
 
       const verticalSmoothing =
@@ -2727,7 +2734,7 @@ class RoverMatterScene extends Phaser.Scene {
 
     this.maximumAirborneDownwardVelocity = 0;
 
-    if (landingVelocity >= 13.5) {
+    if (landingVelocity >= 13.5 * this.landingToleranceMultiplier) {
       const appliedPenalty = this.getCrashPenalty(250);
       this.crashPenalty += appliedPenalty;
 
@@ -2743,7 +2750,7 @@ class RoverMatterScene extends Phaser.Scene {
       return;
     }
 
-    if (landingVelocity >= 8.5) {
+    if (landingVelocity >= 8.5 * this.landingToleranceMultiplier) {
       const appliedPenalty = this.getCrashPenalty(100);
       this.crashPenalty += appliedPenalty;
 
@@ -3148,7 +3155,11 @@ class RoverMatterScene extends Phaser.Scene {
 
     const rotation = Math.abs(Phaser.Math.Angle.Wrap(this.roverBody.rotation));
 
-    const badlyOverturned = rotation > Phaser.Math.DegToRad(48);
+    const badlyOverturned =
+      rotation >
+      Phaser.Math.DegToRad(
+        Math.min(68, 48 * this.overturnToleranceMultiplier),
+      );
 
     const movingSlowly =
       Math.abs(body.velocity.x) < 0.8 && Math.abs(body.velocity.y) < 0.8;

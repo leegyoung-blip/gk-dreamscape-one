@@ -596,7 +596,7 @@ export default function KnowledgeArenaPage() {
   const [novaAttackBonusPct, setNovaAttackBonusPct] = useState(0);
   const [novaAttackDamage, setNovaAttackDamage] = useState(12);
   const [novaNextUpgradeCost, setNovaNextUpgradeCost] = useState(20);
-  const [novaAttackMaxLevel, setNovaAttackMaxLevel] = useState(10);
+  const [novaAttackMaxLevel, setNovaAttackMaxLevel] = useState(50);
   const [novaUpgradeWorking, setNovaUpgradeWorking] = useState(false);
   const [novaUpgradeMessage, setNovaUpgradeMessage] = useState("");
 
@@ -1021,7 +1021,7 @@ export default function KnowledgeArenaPage() {
         setNovaAttackBonusPct(Number(upgrade?.attack_bonus_pct ?? 0));
         setNovaAttackDamage(Number(upgrade?.effective_base_damage ?? 12));
         setNovaNextUpgradeCost(Number(upgrade?.next_upgrade_cost ?? 20));
-        setNovaAttackMaxLevel(Number(upgrade?.max_level ?? 10));
+        setNovaAttackMaxLevel(Number(upgrade?.max_level ?? 50));
       }
     }
 
@@ -2975,6 +2975,14 @@ export default function KnowledgeArenaPage() {
           </button>
         </div>
 
+        {screenMode === "mobile" && stage === "solo-quiz" && (
+          <div className="ka-mobile-battle-metrics" aria-label="Battle status">
+            <span>Q {questionIndex + 1}/10</span>
+            <span>Score {score}</span>
+            <span className={timeLeft <= 3 ? "is-low" : ""}>{timeLeft}s</span>
+          </div>
+        )}
+
         <div className="ka-top-actions">
           <Link href={userEmail ? "/profile" : "/login"} className="ka-nav-button">
             {userEmail ? "My Account" : "Log In"}
@@ -3540,6 +3548,7 @@ export default function KnowledgeArenaPage() {
               onReviveDT={() => void reviveNova("DT")}
               onReviveDG={() => void reviveNova("DG")}
               onAcceptDefeat={battle.acceptDefeat}
+              isMobile={screenMode === "mobile"}
             />
           )}
 
@@ -3964,6 +3973,36 @@ export default function KnowledgeArenaPage() {
           display: flex;
           align-items: center;
           gap: 7px;
+        }
+
+        .ka-mobile-battle-metrics {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          z-index: 2;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          transform: translate(-50%, -50%);
+        }
+        .ka-mobile-battle-metrics span {
+          display: inline-flex;
+          min-height: 33px;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid rgba(126,232,255,.22);
+          border-radius: 999px;
+          background: rgba(5,13,28,.80);
+          padding: 0 10px;
+          color: white;
+          font-size: 10px;
+          font-weight: 900;
+          box-shadow: 0 8px 20px rgba(0,0,0,.18);
+          backdrop-filter: blur(14px);
+        }
+        .ka-mobile-battle-metrics span.is-low {
+          border-color: rgba(255,111,111,.40);
+          color: #ff9b9b;
         }
 
         .ka-nav-button {
@@ -8684,7 +8723,7 @@ function ArenaResultsPanel({
         <div className="ka-nova-upgrade-card">
           <div className="ka-nova-upgrade-copy">
             <small>POST-CHALLENGE UPGRADE</small>
-            <strong>Nova Attack · Level {novaAttackLevel}</strong>
+            <strong>Nova Attack · Level {novaAttackLevel} / {novaAttackMaxLevel}</strong>
             <span>
               +{novaAttackBonusPct}% attack · {novaAttackDamage} base damage per shot before monster defence
             </span>
@@ -8758,6 +8797,14 @@ function ArenaResultsPanel({
         @media (max-width: 700px) {
           .ka-results-arena-backdrop { padding: 8px; }
           .ka-results-popup { width: 98%; height: 96%; border-radius: 18px; }
+        }
+
+        @media (max-height: 700px) and (orientation: landscape) {
+          .ka-results-arena-backdrop { align-items: stretch; padding: 5px 8px; }
+          .ka-results-popup { width: min(1180px,100%); height:100%; max-height:100%; overflow-x:hidden; overflow-y:auto; border-radius:17px; padding:10px; scrollbar-width:thin; scrollbar-color:rgba(126,232,255,.30) transparent; }
+          .ka-results-popup .ka-results-scroll { flex:0 0 auto; min-height:auto; overflow:visible; padding-right:0; }
+          .ka-results-popup .ka-nova-upgrade-card { flex:0 0 auto; margin-top:8px; }
+          .ka-results-popup .ka-results-actions { position:sticky; bottom:-10px; z-index:5; flex:0 0 auto; padding:8px 0 2px; background:linear-gradient(180deg,transparent,rgba(3,13,31,.97) 34%); }
         }
 
         .ka-nova-upgrade-card {

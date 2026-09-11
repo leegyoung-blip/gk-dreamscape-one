@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 
 type Answer = "A" | "B" | "C" | "D";
@@ -90,6 +90,26 @@ function monsterSprite(slug: string, pose: "idle" | "attack" | "hit") {
 function clampHp(value: number, max: number) {
   if (max <= 0) return 0;
   return Math.max(0, Math.min(100, (value / max) * 100));
+}
+
+const COOP_NOVA_BARREL = { x: 898 / 1122, y: 376 / 1402 } as const;
+const COOP_MONSTER_HOTSPOTS: Record<string, { x: number; y: number }> = {
+  "atlas-golem": { x: .36, y: .46 },
+  "tempest-roc": { x: .42, y: .46 },
+  "worldbreaker-leviathan": { x: .30, y: .46 },
+  "verdant-sabertooth": { x: .34, y: .46 },
+};
+function containedRect(image: HTMLImageElement, source?: {width:number;height:number}) {
+  const box=image.getBoundingClientRect();
+  const nw=source?.width || image.naturalWidth || box.width || 1;
+  const nh=source?.height || image.naturalHeight || box.height || 1;
+  const scale=Math.min(box.width/nw,box.height/nh);
+  const width=nw*scale, height=nh*scale;
+  return {left:box.left+(box.width-width)/2,top:box.top+(box.height-height)/2,width,height};
+}
+function hotspot(image:HTMLImageElement, point:{x:number;y:number}, source?:{width:number;height:number}) {
+  const r=containedRect(image,source);
+  return {x:r.left+r.width*point.x,y:r.top+r.height*point.y};
 }
 
 function answerEntries(question: CoopQuestion): [Answer, string][] {
@@ -190,6 +210,11 @@ export function ArenaCoopBattleView({
       ? sequence[sequenceIndex]
       : null;
   const options = answerEntries(question);
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const novaImageRefs = useRef<Record<string, HTMLImageElement | null>>({});
+  const enemyImageRef = useRef<HTMLImageElement | null>(null);
+  const enemyBoxRef = useRef<HTMLDivElement | null>(null);
+  const [attackBeam, setAttackBeam] = useState<{x:number;y:number;length:number;angle:number} | null>(null);
   const myPlayer = players.find((player) => player.id === myPlayerId) || null;
   const myGhost = Boolean(myPlayer?.is_eliminated);
 
@@ -207,8 +232,37 @@ export function ArenaCoopBattleView({
         ? "hit"
         : "idle";
 
+  useEffect(() => {
+    if (activeEvent?.type !== "attack") {
+      setAttackBeam(null);
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      const stage=stageRef.current;
+      const nova=novaImageRefs.current[activeEvent.playerId];
+      if (!stage || !nova) return;
+      const stageBox=stage.getBoundingClientRect();
+      const start=hotspot(nova,COOP_NOVA_BARREL,{width:1122,height:1402});
+      let end:{x:number;y:number} | null=null;
+      if (!showDreamkeeper && enemyImageRef.current) {
+        end=hotspot(enemyImageRef.current,COOP_MONSTER_HOTSPOTS[monster?.slug || ""] || {x:.4,y:.45});
+      } else if (enemyBoxRef.current) {
+        const r=enemyBoxRef.current.getBoundingClientRect();
+        end={x:r.left+r.width*.5,y:r.top+r.height*.42};
+      }
+      if (!end) return;
+      const x=start.x-stageBox.left;
+      const y=start.y-stageBox.top;
+      const dx=end.x-start.x;
+      const dy=end.y-start.y;
+      setAttackBeam({x,y,length:Math.hypot(dx,dy),angle:Math.atan2(dy,dx)*180/Math.PI});
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeEvent, showDreamkeeper, monster?.slug]);
+
   return (
     <div
+      ref={stageRef}
       className="kac-stage"
       style={{ backgroundImage: `url("${arenaBackgrounds[topic] || arenaBackgrounds.world_explorer}")` }}
     >
@@ -243,6 +297,8 @@ export function ArenaCoopBattleView({
         </div>
       </div>
 
+      <div className="kac-arena-divider" aria-hidden="true" />
+
       <div className="kac-battlefield">
         <div className="kac-team">
           {players.map((player) => {
@@ -262,7 +318,12 @@ export function ArenaCoopBattleView({
                   {player.id === myPlayerId && <small>YOU</small>}
                 </div>
                 <div className="kac-player-sprite">
-                  <img src={sprite} alt="" draggable={false} />
+                  <img
+                    ref={(node) => { novaImageRefs.current[player.id] = node; }}
+                    src={sprite}
+                    alt=""
+                    draggable={false}
+                  />
                   {ghost && <span className="kac-ghost-skull">☠</span>}
                   {isAttacking && activeEvent?.type === "attack" && (
                     <b className="kac-damage kac-damage-enemy">-{activeEvent.value}</b>
@@ -286,7 +347,7 @@ export function ArenaCoopBattleView({
           })}
         </div>
 
-        <div className={`kac-enemy ${showDreamkeeper ? "is-dreamkeeper" : ""}`}>
+        <div ref={enemyBoxRef} className={`kac-enemy ${showDreamkeeper ? "is-dreamkeeper" : ""}`}>
           <div className="kac-enemy-title">
             <span>{showDreamkeeper ? "FINAL TARGET" : "CO-OP MONSTER"}</span>
             <strong>{showDreamkeeper ? "DREAMKEEPER" : monster?.name || "Monster"}</strong>
@@ -299,6 +360,7 @@ export function ArenaCoopBattleView({
             </div>
           ) : monster ? (
             <img
+              ref={enemyImageRef}
               src={monsterSprite(monster.slug, enemyPose)}
               alt=""
               className="kac-enemy-image"
@@ -322,6 +384,16 @@ export function ArenaCoopBattleView({
           </div>
         </div>
       </div>
+
+      {attackBeam && (
+        <div className="kac-laser-layer" aria-hidden="true">
+          <i className="kac-laser-muzzle" style={{left:attackBeam.x,top:attackBeam.y}} />
+          <span
+            className="kac-laser-beam"
+            style={{left:attackBeam.x,top:attackBeam.y,width:`${attackBeam.length}px`,"--beam-angle":`${attackBeam.angle}deg`} as CSSProperties}
+          />
+        </div>
+      )}
 
       <div className="kac-bottom-status">
         {roundStatus === "answering" && !answerLocked && (
@@ -356,7 +428,7 @@ export function ArenaCoopBattleView({
         .kac-stage {
           position: relative;
           display: grid;
-          grid-template-rows: auto minmax(0, 1fr) auto;
+          grid-template-rows: auto auto minmax(0, 1fr) auto;
           width: 100%;
           height: 100%;
           min-height: 0;
@@ -389,6 +461,7 @@ export function ArenaCoopBattleView({
           background: rgba(5,12,27,.82);
           backdrop-filter: blur(8px);
         }
+        .kac-arena-divider { height:2px; margin:7px 14px 0; border-radius:999px; background:linear-gradient(90deg,transparent,rgba(126,232,255,.72) 12%,rgba(126,232,255,.96) 50%,rgba(126,232,255,.72) 88%,transparent); box-shadow:0 0 12px rgba(126,232,255,.34); }
         .kac-question-card { border-radius: 16px; padding: 14px 16px; }
         .kac-question-meta { display: flex; justify-content: space-between; gap: 10px; color: #86eaff; font-size: 11px; font-weight: 900; letter-spacing: .08em; }
         .kac-question-meta .is-low { color: #ff8d8d; }
@@ -420,12 +493,12 @@ export function ArenaCoopBattleView({
         .kac-mini-hp { height: 10px; border: 1px solid rgba(255,255,255,.22); border-radius: 999px; background: rgba(0,0,0,.42); overflow: hidden; box-shadow: inset 0 0 0 1px rgba(0,0,0,.18); }
         .kac-mini-hp i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#39dc90,#b6ffd3); }
         .kac-player-stat { display: block; min-height: 22px; margin-top: 5px; color: rgba(255,255,255,.82); font-size: 10px; font-weight:850; text-align: center; }
-        .kac-enemy { min-width: 0; display: grid; justify-items: center; align-items: end; align-self: end; }
+        .kac-enemy { min-width:0; height:100%; display:grid; grid-template-rows:auto minmax(0,1fr) auto; justify-items:center; align-items:end; align-self:stretch; }
         .kac-enemy-title { text-align: center; margin-bottom: 2px; }
         .kac-enemy-title span { display: block; color: #ffbd85; font-size: 10px; font-weight: 950; letter-spacing: .12em; }
         .kac-enemy-title strong { font-size: 17px; }
-        .kac-enemy-image { width: min(21vw, 235px); height: min(29vh, 230px); object-fit: contain; object-position: center bottom; filter: drop-shadow(0 12px 24px rgba(0,0,0,.38)); }
-        .kac-dreamkeeper-silhouette { position: relative; display: grid; width: min(19vw, 210px); height: min(27vh, 215px); place-items: center; border-radius: 46% 46% 34% 34%; background: radial-gradient(circle at 50% 35%, rgba(158,73,255,.40), rgba(17,4,40,.94) 48%, rgba(0,0,0,.95)); box-shadow: 0 0 48px rgba(145,61,255,.32); font-size: 58px; font-weight: 950; }
+        .kac-enemy-image { width:min(30vw,360px); height:100%; max-height:100%; object-fit:contain; object-position:center bottom; filter:drop-shadow(0 12px 24px rgba(0,0,0,.38)); }
+        .kac-dreamkeeper-silhouette { position: relative; display: grid; width:min(28vw,330px); height:100%; max-height:100%; place-items: center; border-radius: 46% 46% 34% 34%; background: radial-gradient(circle at 50% 35%, rgba(158,73,255,.40), rgba(17,4,40,.94) 48%, rgba(0,0,0,.95)); box-shadow: 0 0 48px rgba(145,61,255,.32); font-size: 58px; font-weight: 950; }
         .kac-dreamkeeper-eye { position: absolute; top: 31%; width: 54px; height: 20px; border-radius: 50%; background: #ff3f7c; box-shadow: 0 0 22px rgba(255,63,124,.95); }
         .kac-enemy-hp { width: min(100%, 300px); border: 1px solid rgba(255,255,255,.24); border-radius: 13px; background: rgba(4,10,22,.90); padding: 10px 11px; box-shadow:0 8px 20px rgba(0,0,0,.18); }
         .kac-enemy-hp-title { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin-bottom: 7px; font-size: 12px; font-weight:900; }
@@ -433,6 +506,9 @@ export function ArenaCoopBattleView({
         .kac-enemy-track { height: 13px; border:1px solid rgba(255,255,255,.15); border-radius: 999px; background: rgba(0,0,0,.38); overflow: hidden; }
         .kac-enemy-track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#ff6f31,#ffd05c); }
         .is-dreamkeeper .kac-enemy-track i { background: linear-gradient(90deg,#8a37ff,#ff3f9b); }
+        .kac-laser-layer { position:absolute; inset:0; z-index:4; pointer-events:none; }
+        .kac-laser-muzzle { position:absolute; width:12px; height:12px; margin:-6px 0 0 -6px; border-radius:50%; background:#fff; box-shadow:0 0 8px #fff,0 0 18px #38cfff; animation:kacLaserPulse .34s ease-out infinite alternate; }
+        .kac-laser-beam { position:absolute; height:5px; margin-top:-2.5px; border-radius:999px; transform:rotate(var(--beam-angle)); transform-origin:left center; background:linear-gradient(180deg,#fff 0 20%,#87efff 24% 65%,#23a9ff 70% 100%); box-shadow:0 0 6px #fff,0 0 12px rgba(56,200,255,.95),0 0 22px rgba(38,130,255,.58); animation:kacLaserPulse .34s ease-out infinite alternate; }
         .kac-damage { position: absolute; z-index: 3; border-radius: 999px; background: rgba(156,0,0,.66); padding: 4px 7px; color: #ff8585; font-size: 17px; font-weight: 950; animation: kacDamage 1s ease-out forwards; }
         .kac-damage-enemy { right: -10%; top: 24%; }
         .kac-damage-player { left: 50%; top: 24%; transform: translateX(-50%); }
@@ -442,6 +518,7 @@ export function ArenaCoopBattleView({
         .kac-status-card span, .kac-round-result span, .kac-feedback { font-size: 13px; line-height: 1.4; }
         .kac-round-result { border-color: rgba(255,197,95,.30); background: rgba(48,22,4,.82); }
         .is-ghost-status { border-color: rgba(170,232,255,.25); }
+        @keyframes kacLaserPulse { from{opacity:.68;filter:brightness(1)} to{opacity:1;filter:brightness(1.6)} }
         @keyframes kacDamage { 0%{opacity:0;transform:translateY(8px) scale(.8)} 14%{opacity:1;transform:translateY(0) scale(1)} 100%{opacity:0;transform:translateY(-30px) scale(1.06)} }
         @keyframes kacHit { 0%,100%{transform:translateX(0)} 40%{transform:translateX(-8px)} 70%{transform:translateX(4px)} }
         @keyframes kacGhost { 0%,100%{transform:translate(-50%,-50%) translateY(0)} 50%{transform:translate(-50%,-50%) translateY(-6px)} }
@@ -468,8 +545,8 @@ export function ArenaCoopBattleView({
           .kac-ghost-skull { font-size: 18px; }
           .kac-enemy-title span { font-size: 8px; }
           .kac-enemy-title strong { font-size: 12px; }
-          .kac-enemy-image { width: min(17vw, 100px); height: min(18vh, 96px); }
-          .kac-dreamkeeper-silhouette { width: min(16vw, 92px); height: min(17vh, 92px); font-size: 28px; }
+          .kac-enemy-image { width:min(24vw,155px); height:100%; max-height:100%; }
+          .kac-dreamkeeper-silhouette { width:min(22vw,145px); height:100%; max-height:100%; font-size:28px; }
           .kac-dreamkeeper-eye { width: 28px; height: 10px; }
           .kac-enemy-hp { padding: 7px 8px; }
           .kac-enemy-hp-title { font-size: 9px; }

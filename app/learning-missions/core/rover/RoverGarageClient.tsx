@@ -5,6 +5,14 @@ import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { coreUpgradeTrack } from "@/lib/coreRoverProgress";
+import {
+  getEffectiveRoverRatings,
+  getRoverBaseRatings,
+  roverPerformanceCategories,
+  type RoverPerformanceBuildRow,
+  type RoverPerformanceCategory,
+  type RoverPerformancePurchaseRow,
+} from "@/lib/coreRoverPerformance";
 import type {
   RoverLevelAccess,
   RoverLevelId,
@@ -148,212 +156,6 @@ const ROVER_COURSES: RoverCourseMeta[] = [
   },
 ];
 
-type RoverBuildStat = {
-  label: string;
-  value: number;
-};
-
-const roverBuildStatsByStage: Record<number, RoverBuildStat[]> = {
-  0: [
-    { label: "Speed", value: 2 },
-    { label: "Handling", value: 2 },
-    { label: "Balance", value: 2 },
-    { label: "Jump", value: 1 },
-  ],
-  1: [
-    { label: "Speed", value: 3 },
-    { label: "Handling", value: 2 },
-    { label: "Balance", value: 2 },
-    { label: "Jump", value: 2 },
-  ],
-  2: [
-    { label: "Speed", value: 3 },
-    { label: "Handling", value: 4 },
-    { label: "Balance", value: 3 },
-    { label: "Jump", value: 2 },
-  ],
-  3: [
-    { label: "Speed", value: 5 },
-    { label: "Handling", value: 4 },
-    { label: "Balance", value: 3 },
-    { label: "Jump", value: 4 },
-  ],
-  4: [
-    { label: "Speed", value: 5 },
-    { label: "Handling", value: 4 },
-    { label: "Balance", value: 5 },
-    { label: "Jump", value: 4 },
-  ],
-  5: [
-    { label: "Speed", value: 5 },
-    { label: "Handling", value: 5 },
-    { label: "Balance", value: 5 },
-    { label: "Jump", value: 5 },
-  ],
-};
-
-function getRoverBuildStats(stage: number): RoverBuildStat[] {
-  const configuredStats = roverBuildStatsByStage[stage];
-
-  if (configuredStats) return configuredStats;
-
-  return [
-    { label: "Speed", value: Math.min(5, 2 + Math.ceil(stage / 2)) },
-    { label: "Handling", value: Math.min(5, 2 + Math.floor(stage / 2)) },
-    { label: "Balance", value: Math.min(5, 2 + Math.floor((stage + 1) / 3)) },
-    { label: "Jump", value: Math.min(5, 1 + Math.floor(stage / 2)) },
-  ];
-}
-
-type GarageCustomCategory = "color" | "trail" | "decal";
-
-type GarageCustomOption = {
-  key: string;
-  category: GarageCustomCategory;
-  name: string;
-  description: string;
-  previewColor: string;
-  secondaryColor?: string;
-  icon?: string;
-  isDefault?: boolean;
-};
-
-const garageCustomisationGroups: {
-  id: GarageCustomCategory;
-  title: string;
-  description: string;
-  options: GarageCustomOption[];
-}[] = [
-  {
-    id: "color",
-    title: "Rover Colour",
-    description: "The standard rover artwork is used with no colour overlay.",
-    options: [
-      {
-        key: "color-none",
-        category: "color",
-        name: "No Tint",
-        description: "Use the original rover colours with no added tint.",
-        previewColor: "transparent",
-        isDefault: true,
-      },
-      {
-        key: "color-sky",
-        category: "color",
-        name: "Sky Blue",
-        description: "A blue Skyforge finish.",
-        previewColor: "#8ee8ff",
-      },
-      {
-        key: "color-crimson",
-        category: "color",
-        name: "Crimson",
-        description: "A bold red expedition finish.",
-        previewColor: "#ff7184",
-      },
-      {
-        key: "color-emerald",
-        category: "color",
-        name: "Emerald",
-        description: "A bright green exploration finish.",
-        previewColor: "#73efb6",
-      },
-      {
-        key: "color-violet",
-        category: "color",
-        name: "Violet",
-        description: "A futuristic purple energy finish.",
-        previewColor: "#b28cff",
-      },
-      {
-        key: "color-gold",
-        category: "color",
-        name: "Solar Gold",
-        description: "A premium gold Skyforge finish.",
-        previewColor: "#ffd76a",
-      },
-    ],
-  },
-  {
-    id: "trail",
-    title: "Energy Trail",
-    description: "The rover currently runs without a cosmetic energy trail.",
-    options: [
-      {
-        key: "trail-none",
-        category: "trail",
-        name: "No Energy Trail",
-        description: "No cosmetic trail is shown behind the rover.",
-        previewColor: "transparent",
-        isDefault: true,
-      },
-      {
-        key: "trail-plasma",
-        category: "trail",
-        name: "Plasma Trail",
-        description: "A bright cyan trail behind the rover.",
-        previewColor: "#6ef4ff",
-      },
-      {
-        key: "trail-spark",
-        category: "trail",
-        name: "Spark Trail",
-        description: "A charged yellow energy trail.",
-        previewColor: "#ffe57c",
-        secondaryColor: "#ff8fcf",
-      },
-      {
-        key: "trail-starlight",
-        category: "trail",
-        name: "Starlight Trail",
-        description: "A violet and blue light trail.",
-        previewColor: "#a978ff",
-        secondaryColor: "#6edaff",
-      },
-    ],
-  },
-  {
-    id: "decal",
-    title: "Body Decal",
-    description: "The standard rover body is shown without an emblem.",
-    options: [
-      {
-        key: "decal-none",
-        category: "decal",
-        name: "No Decal",
-        description: "Keep the rover body clean and unmarked.",
-        previewColor: "transparent",
-        icon: "—",
-        isDefault: true,
-      },
-      {
-        key: "decal-star",
-        category: "decal",
-        name: "Sky Star",
-        description: "A bright explorer star emblem.",
-        previewColor: "#ffd76a",
-        icon: "★",
-      },
-      {
-        key: "decal-bolt",
-        category: "decal",
-        name: "Energy Bolt",
-        description: "A lightning emblem for the rover body.",
-        previewColor: "#6ef4ff",
-        icon: "ϟ",
-      },
-      {
-        key: "decal-crest",
-        category: "decal",
-        name: "Explorer Crest",
-        description: "Nova's expedition crest.",
-        previewColor: "#66f0d0",
-        icon: "◇",
-      },
-    ],
-  },
-];
-
 function useResponsiveMode() {
   const [mode, setMode] = useState<ScreenMode>("desktop");
 
@@ -460,6 +262,11 @@ export default function RoverGarageClient() {
   const [purchasingLevel, setPurchasingLevel] =
     useState<RoverLevelId | null>(null);
 
+  const [performanceBuild, setPerformanceBuild] = useState<RoverPerformanceBuildRow[]>([]);
+  const [performanceMessage, setPerformanceMessage] = useState("");
+  const [purchasingPerformanceCategory, setPurchasingPerformanceCategory] =
+    useState<RoverPerformanceCategory | null>(null);
+
   const displayedUpgrade = useMemo(() => {
     const requestedStage = selectedUpgradeStage ?? equippedStage;
 
@@ -526,6 +333,7 @@ export default function RoverGarageClient() {
         loadoutResult,
         summaryResult,
         accessResult,
+        performanceResult,
         levelOneLeaderboardResult,
         levelTwoLeaderboardResult,
         levelThreeLeaderboardResult,
@@ -552,6 +360,8 @@ export default function RoverGarageClient() {
         }),
 
         supabase.rpc("get_rover_level_access"),
+
+        supabase.rpc("get_my_rover_performance_build"),
 
         supabase.rpc("get_rover_challenge_visible_leaderboard", {
           p_course_id: "skyforge-test-track-01",
@@ -693,6 +503,26 @@ export default function RoverGarageClient() {
         );
         setIsAdmin(adminAccess);
         setLoadoutMessage("");
+      }
+
+      if (performanceResult.error) {
+        console.warn(
+          "Could not load rover performance build:",
+          performanceResult.error.message,
+        );
+        setPerformanceBuild([]);
+        setPerformanceMessage(
+          "Custom Build could not be loaded. Run the Rover Performance Custom Build SQL in Supabase.",
+        );
+      } else {
+        const rows = (performanceResult.data ?? []) as RoverPerformanceBuildRow[];
+        setPerformanceBuild(rows);
+        setPerformanceMessage("");
+
+        const performanceBalance = Number(rows[0]?.dt_balance);
+        if (Number.isFinite(performanceBalance)) {
+          setTokenBalance(Math.max(0, performanceBalance));
+        }
       }
 
       if (summaryResult.error) {
@@ -938,6 +768,90 @@ export default function RoverGarageClient() {
     [isAdmin, loadGarage, roverCatalog, tokenBalance],
   );
 
+  const purchasePerformanceUpgrade = useCallback(
+    async (category: RoverPerformanceCategory) => {
+      if (purchasingPerformanceCategory !== null) return;
+
+      const buildRow = performanceBuild.find(
+        (row) => row.category === category,
+      );
+
+      if (!buildRow?.can_purchase || !buildRow.next_level) {
+        setPerformanceMessage(
+          "This performance stat is already at its maximum for the equipped rover.",
+        );
+        return;
+      }
+
+      const price = Number(buildRow.next_price_dt ?? 0);
+
+      if (!isAdmin && tokenBalance < price) {
+        setPerformanceMessage(
+          `You need ${price - tokenBalance} more Dream Tokens for ${buildRow.next_name}.`,
+        );
+        return;
+      }
+
+      const confirmed = window.confirm(
+        [
+          `Install ${buildRow.next_name} on Rover ${equippedStage + 1}?`,
+          "",
+          isAdmin
+            ? "Admin test install: 0 DT"
+            : `Cost: ${price.toLocaleString("en-SG")} Dream Tokens`,
+          `This upgrade belongs only to Rover ${equippedStage + 1}.`,
+          "Switching to another rover will use that rover's own Custom Build purchases.",
+        ].join("\n"),
+      );
+
+      if (!confirmed) return;
+
+      setPurchasingPerformanceCategory(category);
+      setPerformanceMessage("");
+
+      const { data, error } = await supabase.rpc(
+        "purchase_my_rover_performance_upgrade",
+        { p_category: category },
+      );
+
+      setPurchasingPerformanceCategory(null);
+
+      if (error) {
+        console.warn("Could not purchase rover performance upgrade:", error.message);
+        setPerformanceMessage(
+          error.message || "The Custom Build upgrade could not be purchased.",
+        );
+        return;
+      }
+
+      const result = ((data ?? []) as RoverPerformancePurchaseRow[])[0];
+
+      if (!result?.success) {
+        setPerformanceMessage(
+          result?.result_message || "The Custom Build upgrade could not be purchased.",
+        );
+        return;
+      }
+
+      const successMessage = result.result_message;
+
+      setTokenBalance(Number(result.new_balance));
+      window.dispatchEvent(new Event("dream-tokens-updated"));
+      window.dispatchEvent(new Event("rover-performance-updated"));
+
+      await loadGarage({ showLoading: false });
+      setPerformanceMessage(successMessage);
+    },
+    [
+      equippedStage,
+      isAdmin,
+      loadGarage,
+      performanceBuild,
+      purchasingPerformanceCategory,
+      tokenBalance,
+    ],
+  );
+
   const purchaseEarlyUnlock = useCallback(
     async (levelId: RoverLevelId) => {
       const access = levelAccess.find(
@@ -1020,11 +934,13 @@ export default function RoverGarageClient() {
     window.addEventListener("dream-tokens-updated", handleBalanceUpdate);
     window.addEventListener("dream-gems-updated", handleBalanceUpdate);
     window.addEventListener("rover-loadout-updated", handleBalanceUpdate);
+    window.addEventListener("rover-performance-updated", handleBalanceUpdate);
 
     return () => {
       window.removeEventListener("dream-tokens-updated", handleBalanceUpdate);
       window.removeEventListener("dream-gems-updated", handleBalanceUpdate);
       window.removeEventListener("rover-loadout-updated", handleBalanceUpdate);
+      window.removeEventListener("rover-performance-updated", handleBalanceUpdate);
     };
   }, [loadGarage]);
 
@@ -1147,6 +1063,9 @@ export default function RoverGarageClient() {
             <RoverBuildStats
               stage={displayedUpgrade.stage}
               accent={displayedUpgrade.accent}
+              performanceBuild={
+                viewingEquippedBuild ? performanceBuild : []
+              }
             />
 
             {loadoutMessage && (
@@ -1242,7 +1161,10 @@ export default function RoverGarageClient() {
 
             <button
               type="button"
-              onClick={() => setTab("custom")}
+              onClick={() => {
+                setTab("custom");
+                setSelectedUpgradeStage(equippedStage);
+              }}
               style={tabButton(tab === "custom")}
             >
               Custom Build
@@ -1285,6 +1207,14 @@ export default function RoverGarageClient() {
             <CustomBuildPanel
               tokenBalance={tokenBalance}
               isMobile={isMobile}
+              equippedStage={equippedStage}
+              performanceBuild={performanceBuild}
+              message={performanceMessage}
+              purchasingCategory={purchasingPerformanceCategory}
+              isAdmin={isAdmin}
+              onPurchase={(category) =>
+                void purchasePerformanceUpgrade(category)
+              }
             />
           )}
         </div>
@@ -1584,8 +1514,38 @@ function RoverPreview({
   );
 }
 
-function RoverBuildStats({ stage, accent }: { stage: number; accent: string }) {
-  const stats = getRoverBuildStats(stage);
+function RoverBuildStats({
+  stage,
+  accent,
+  performanceBuild,
+}: {
+  stage: number;
+  accent: string;
+  performanceBuild: RoverPerformanceBuildRow[];
+}) {
+  const base = getRoverBaseRatings(stage);
+
+  const levels = {
+    engine:
+      performanceBuild.find((row) => row.category === "engine")?.current_level ?? 0,
+    traction:
+      performanceBuild.find((row) => row.category === "traction")?.current_level ?? 0,
+    stability:
+      performanceBuild.find((row) => row.category === "stability")?.current_level ?? 0,
+    suspension:
+      performanceBuild.find((row) => row.category === "suspension")?.current_level ?? 0,
+    energy:
+      performanceBuild.find((row) => row.category === "energy")?.current_level ?? 0,
+  } as const;
+
+  const effective = getEffectiveRoverRatings(stage, levels);
+  const stats = [
+    { label: "Speed", base: base.speed, value: effective.speed },
+    { label: "Handling", base: base.handling, value: effective.handling },
+    { label: "Balance", base: base.balance, value: effective.balance },
+    { label: "Air Mobility", base: base.airMobility, value: effective.airMobility },
+    { label: "Boost", base: base.boost, value: effective.boost },
+  ];
 
   return (
     <section
@@ -1594,28 +1554,35 @@ function RoverBuildStats({ stage, accent }: { stage: number; accent: string }) {
     >
       <div style={buildStatsHeadingRow}>
         <p style={smallEyebrow}>BUILD STATS</p>
-        <span style={buildStatsScale}>1–5</span>
+        <span style={buildStatsScale}>0–100</span>
       </div>
 
       <div style={buildStatsGrid}>
-        {stats.map((stat) => (
-          <div key={stat.label} style={buildStatRow}>
-            <div style={buildStatLabelRow}>
-              <span>{stat.label}</span>
-              <strong style={{ color: accent }}>{stat.value}/5</strong>
+        {stats.map((stat) => {
+          const bonus = Math.max(0, stat.value - stat.base);
+
+          return (
+            <div key={stat.label} style={buildStatRow}>
+              <div style={buildStatLabelRow}>
+                <span>{stat.label}</span>
+                <strong style={{ color: accent }}>
+                  {stat.value}/100
+                  {bonus > 0 ? `  +${bonus}` : ""}
+                </strong>
+              </div>
+              <div style={buildStatTrack}>
+                <div
+                  style={{
+                    ...buildStatFill,
+                    width: `${stat.value}%`,
+                    background: `linear-gradient(90deg, ${accent}, #35c5ff)`,
+                    boxShadow: `0 0 12px ${accent}55`,
+                  }}
+                />
+              </div>
             </div>
-            <div style={buildStatTrack}>
-              <div
-                style={{
-                  ...buildStatFill,
-                  width: `${stat.value * 20}%`,
-                  background: `linear-gradient(90deg, ${accent}, #35c5ff)`,
-                  boxShadow: `0 0 12px ${accent}55`,
-                }}
-              />
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
@@ -1854,145 +1821,152 @@ function UpgradeTrack({
 function CustomBuildPanel({
   tokenBalance,
   isMobile,
+  equippedStage,
+  performanceBuild,
+  message,
+  purchasingCategory,
+  isAdmin,
+  onPurchase,
 }: {
   tokenBalance: number;
   isMobile: boolean;
+  equippedStage: number;
+  performanceBuild: RoverPerformanceBuildRow[];
+  message: string;
+  purchasingCategory: RoverPerformanceCategory | null;
+  isAdmin: boolean;
+  onPurchase: (category: RoverPerformanceCategory) => void;
 }) {
+  const rover =
+    coreUpgradeTrack.find((item) => item.stage === equippedStage) ??
+    coreUpgradeTrack[0];
+
   return (
     <div style={scrollPanel}>
       <div style={panelHeading}>
-        <p style={smallEyebrow}>COSMETIC CUSTOMISATION</p>
+        <p style={smallEyebrow}>PER-ROVER PERFORMANCE TUNING</p>
 
-        <h2 style={{ margin: "7px 0 0" }}>Custom Build</h2>
+        <h2 style={{ margin: "7px 0 0" }}>
+          {rover.name} · Custom Build
+        </h2>
 
         <p style={panelDescription}>
-          The standard build currently uses no tint, no energy trail and no
-          decal. Additional cosmetic options are locked for now. Balance:{" "}
-          <strong>{tokenBalance} DT</strong>
+          Performance parts are permanently attached to this rover only. The
+          highest purchased tier in each category is installed automatically
+          whenever Rover {equippedStage + 1} enters Rover Challenge. Balance:{" "}
+          <strong>{tokenBalance.toLocaleString("en-SG")} DT</strong>
         </p>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gap: "18px",
-        }}
-      >
-        {garageCustomisationGroups.map((group) => (
-          <section key={group.id}>
-            <h3
-              style={{
-                margin: 0,
-                fontSize: "19px",
-              }}
-            >
-              {group.title}
-            </h3>
+      {message && <div style={purchaseNotice}>{message}</div>}
 
-            <p
-              style={{
-                margin: "5px 0 10px",
-                opacity: 0.58,
-                fontSize: "13px",
-              }}
-            >
-              {group.description}
-            </p>
+      {performanceBuild.length === 0 ? (
+        <div style={courseNotice}>
+          Custom Build data is unavailable. Run the Rover Performance Custom
+          Build SQL in Supabase.
+        </div>
+      ) : (
+        <div style={{ display: "grid", gap: "16px" }}>
+          {roverPerformanceCategories.map((category) => {
+            const row = performanceBuild.find(
+              (item) => item.category === category.id,
+            );
 
-            <div style={customGrid(isMobile)}>
-              {group.options.map((item) => (
-                <div
-                  key={item.key}
-                  style={customCard(Boolean(item.isDefault), item.previewColor)}
-                >
-                  <CustomSwatch item={item} />
+            if (!row) return null;
 
-                  <div
-                    style={{
-                      minWidth: 0,
-                    }}
-                  >
-                    <p style={customName}>{item.name}</p>
+            const currentLevel = Number(row.current_level ?? 0);
+            const currentRating = Number(row.current_rating ?? row.base_rating);
+            const maxed = !row.can_purchase || row.next_level == null;
+            const purchasing = purchasingCategory === category.id;
+            const canAfford = isAdmin || Boolean(row.can_afford);
 
-                    <p style={customDescription}>{item.description}</p>
+            return (
+              <section key={category.id} style={performanceCategoryCard}>
+                <div style={performanceCategoryHeader}>
+                  <div>
+                    <p style={performanceCategoryEyebrow}>
+                      {category.effectSummary.toUpperCase()}
+                    </p>
+                    <h3 style={performanceCategoryTitle}>{category.title}</h3>
+                    <p style={performanceCategoryDescription}>
+                      {category.shortDescription}
+                    </p>
                   </div>
 
-                  <button
-                    type="button"
-                    disabled
-                    style={customActionButton(Boolean(item.isDefault))}
-                  >
-                    {item.isDefault ? "Default" : "Locked"}
-                  </button>
+                  <div style={performanceRatingBadge}>
+                    <strong>{currentRating}</strong>
+                    <span>/100</span>
+                  </div>
                 </div>
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
-    </div>
-  );
-}
 
-function CustomSwatch({ item }: { item: GarageCustomOption }) {
-  if (item.category === "decal") {
-    return (
-      <div
-        style={{
-          ...swatch,
-          color:
-            item.previewColor === "transparent"
-              ? "rgba(255,255,255,0.55)"
-              : item.previewColor,
-          fontSize: "28px",
-          textShadow:
-            item.previewColor === "transparent"
-              ? "none"
-              : `0 0 14px ${item.previewColor}`,
-        }}
-      >
-        {item.icon || "—"}
-      </div>
-    );
-  }
+                <div style={performanceTierGrid(isMobile)}>
+                  {category.tiers.map((tier) => {
+                    const owned = tier.level <= currentLevel;
+                    const next = tier.level === row.next_level;
+                    const unavailable = tier.level > Number(row.max_useful_level);
 
-  if (item.category === "trail" && !item.isDefault) {
-    return (
-      <div style={swatch}>
-        <div
-          style={{
-            width: "42px",
-            height: "8px",
-            borderRadius: "999px",
-            background: `linear-gradient(90deg, transparent, ${
-              item.previewColor
-            }, ${item.secondaryColor || item.previewColor})`,
-            boxShadow: `0 0 16px ${item.previewColor}`,
-          }}
-        />
-      </div>
-    );
-  }
+                    return (
+                      <div
+                        key={tier.level}
+                        style={performanceTierCard(owned, next, unavailable)}
+                      >
+                        <div style={performanceTierNumber}>{tier.level}</div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <p style={performanceTierName}>{tier.name}</p>
+                          <p style={performanceTierDescription}>
+                            {tier.description}
+                          </p>
+                        </div>
+                        <strong style={performanceTierStatus(owned, next)}>
+                          {unavailable
+                            ? "MAX NOT NEEDED"
+                            : owned
+                              ? "INSTALLED"
+                              : next
+                                ? isAdmin
+                                  ? "ADMIN"
+                                  : `${tier.priceDt} DT`
+                                : "LOCKED"}
+                        </strong>
+                      </div>
+                    );
+                  })}
+                </div>
 
-  return (
-    <div style={swatch}>
-      <div
-        style={{
-          width: "30px",
-          height: "30px",
-          borderRadius: "999px",
-          background:
-            item.previewColor === "transparent"
-              ? "rgba(255,255,255,0.025)"
-              : `linear-gradient(135deg, ${item.previewColor}, ${
-                  item.secondaryColor || item.previewColor
-                })`,
-          border:
-            item.previewColor === "transparent"
-              ? "1px dashed rgba(255,255,255,0.32)"
-              : "1px solid rgba(255,255,255,0.25)",
-        }}
-      />
+                <div style={performanceCategoryFooter}>
+                  <span>
+                    Installed tier: <strong>{currentLevel}/5</strong>
+                    {Number(row.max_useful_level) < 5
+                      ? ` · Rover reaches 100 at Tier ${row.max_useful_level}`
+                      : ""}
+                  </span>
+
+                  {maxed ? (
+                    <span style={performanceMaxBadge}>MAXIMUM</span>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={!canAfford || purchasingCategory !== null}
+                      onClick={() => onPurchase(category.id)}
+                      style={purchaseRoverButton(
+                        canAfford && purchasingCategory === null,
+                      )}
+                    >
+                      {purchasing
+                        ? "Installing..."
+                        : isAdmin
+                          ? `Install ${row.next_name}`
+                          : canAfford
+                            ? `${Number(row.next_price_dt).toLocaleString("en-SG")} DT · Install`
+                            : "Need DT"}
+                    </button>
+                  )}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -2706,74 +2680,147 @@ function purchaseRoverButton(enabled: boolean): CSSProperties {
   };
 }
 
-function customGrid(isMobile: boolean): CSSProperties {
-  return {
-    display: "grid",
-    gridTemplateColumns: isMobile ? "1fr" : "repeat(2,minmax(0,1fr))",
-    gap: "9px",
-  };
-}
 
-function customCard(isDefault: boolean, accent: string): CSSProperties {
-  const effectiveAccent = accent === "transparent" ? "#7ee8ff" : accent;
+const performanceCategoryCard: CSSProperties = {
+  borderRadius: "18px",
+  border: "1px solid rgba(126,232,255,0.13)",
+  background: "rgba(255,255,255,0.028)",
+  padding: "16px",
+};
 
-  return {
-    borderRadius: "15px",
-    border: isDefault
-      ? `1px solid ${effectiveAccent}88`
-      : "1px solid rgba(255,255,255,0.07)",
-    background: isDefault
-      ? "rgba(126,232,255,0.08)"
-      : "rgba(255,255,255,0.025)",
-    padding: "10px",
-    display: "grid",
-    gridTemplateColumns: "50px minmax(0,1fr) auto",
-    gap: "10px",
-    alignItems: "center",
-    opacity: isDefault ? 1 : 0.48,
-  };
-}
-
-const swatch: CSSProperties = {
-  width: "50px",
-  height: "50px",
-  borderRadius: "12px",
-  border: "1px solid rgba(255,255,255,0.1)",
-  background: "rgba(255,255,255,0.04)",
+const performanceCategoryHeader: CSSProperties = {
   display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: "18px",
 };
 
-const customName: CSSProperties = {
+const performanceCategoryEyebrow: CSSProperties = {
   margin: 0,
-  fontWeight: 800,
-  fontSize: "14px",
+  color: "#7ee8ff",
+  fontSize: "9px",
+  fontWeight: 900,
+  letterSpacing: "0.12em",
 };
 
-const customDescription: CSSProperties = {
+const performanceCategoryTitle: CSSProperties = {
+  margin: "5px 0 0",
+  fontSize: "20px",
+};
+
+const performanceCategoryDescription: CSSProperties = {
+  margin: "6px 0 0",
+  maxWidth: "680px",
+  color: "rgba(255,255,255,0.58)",
+  fontSize: "12px",
+  lineHeight: 1.45,
+};
+
+const performanceRatingBadge: CSSProperties = {
+  flex: "0 0 auto",
+  minWidth: "80px",
+  borderRadius: "14px",
+  border: "1px solid rgba(126,232,255,0.24)",
+  background: "rgba(83,215,255,0.07)",
+  padding: "9px 12px",
+  color: "#9af6ff",
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "baseline",
+  gap: "3px",
+};
+
+function performanceTierGrid(isMobile: boolean): CSSProperties {
+  return {
+    display: "grid",
+    gridTemplateColumns: isMobile
+      ? "1fr"
+      : "repeat(auto-fit,minmax(150px,1fr))",
+    gap: "9px",
+    marginTop: "14px",
+  };
+}
+
+function performanceTierCard(
+  owned: boolean,
+  next: boolean,
+  unavailable: boolean,
+): CSSProperties {
+  return {
+    minHeight: "132px",
+    borderRadius: "14px",
+    border: owned
+      ? "1px solid rgba(111,255,184,0.28)"
+      : next
+        ? "1px solid rgba(255,215,106,0.36)"
+        : "1px solid rgba(255,255,255,0.07)",
+    background: owned
+      ? "rgba(70,210,140,0.07)"
+      : next
+        ? "rgba(255,215,106,0.055)"
+        : "rgba(255,255,255,0.018)",
+    padding: "11px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "7px",
+    opacity: unavailable ? 0.34 : 1,
+  };
+}
+
+const performanceTierNumber: CSSProperties = {
+  width: "25px",
+  height: "25px",
+  borderRadius: "8px",
+  display: "grid",
+  placeItems: "center",
+  background: "rgba(126,232,255,0.08)",
+  color: "#8ee8ff",
+  fontSize: "10px",
+  fontWeight: 900,
+};
+
+const performanceTierName: CSSProperties = {
+  margin: 0,
+  fontSize: "12px",
+  fontWeight: 900,
+};
+
+const performanceTierDescription: CSSProperties = {
   margin: "4px 0 0",
   color: "rgba(255,255,255,0.48)",
   fontSize: "10px",
   lineHeight: 1.35,
 };
 
-function customActionButton(isDefault: boolean): CSSProperties {
+function performanceTierStatus(owned: boolean, next: boolean): CSSProperties {
   return {
-    minWidth: "78px",
-    minHeight: "36px",
-    borderRadius: "10px",
-    border: isDefault
-      ? "1px solid rgba(134,239,172,0.36)"
-      : "1px solid rgba(255,255,255,0.1)",
-    background: isDefault ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.04)",
-    color: isDefault ? "#86efac" : "rgba(255,255,255,0.42)",
-    padding: "0 10px",
-    fontSize: "11px",
-    fontWeight: 900,
-    cursor: "default",
+    marginTop: "auto",
+    color: owned ? "#8dffbf" : next ? "#ffd76a" : "rgba(255,255,255,0.28)",
+    fontSize: "9px",
+    letterSpacing: "0.07em",
   };
 }
+
+const performanceCategoryFooter: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "12px",
+  marginTop: "13px",
+  color: "rgba(255,255,255,0.53)",
+  fontSize: "11px",
+};
+
+const performanceMaxBadge: CSSProperties = {
+  borderRadius: "10px",
+  border: "1px solid rgba(111,255,184,0.24)",
+  background: "rgba(70,210,140,0.08)",
+  color: "#8dffbf",
+  padding: "9px 12px",
+  fontSize: "9px",
+  fontWeight: 900,
+  letterSpacing: "0.08em",
+};
 
 const coursesPanel: CSSProperties = {
   borderRadius: "22px",
