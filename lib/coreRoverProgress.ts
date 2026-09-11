@@ -21,7 +21,10 @@ export type CoreRoverUpgrade = {
   shortName: string;
   description: string;
   imageSrc: string;
-  gameImageSrc: string;
+  gameBodySrc: string;
+  gameFrontWheelSrc: string | null;
+  gameBackWheelSrc: string | null;
+  gameMode: "wheeled" | "hover";
   accent: string;
   gameStats: CoreRoverGameStats;
 };
@@ -40,7 +43,10 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
     description:
       "A lightweight exploration buggy with exposed suspension, a compact cockpit and responsive handling for first expeditions.",
     imageSrc: `${ROVER_ASSET_ROOT}/scout-buggy.png`,
-    gameImageSrc: `${ROVER_ASSET_ROOT}/side-scout-buggy.png`,
+    gameBodySrc: `${ROVER_ASSET_ROOT}/side-scout-buggy-body.png`,
+    gameFrontWheelSrc: `${ROVER_ASSET_ROOT}/side-scout-buggy-front-wheel.png`,
+    gameBackWheelSrc: `${ROVER_ASSET_ROOT}/side-scout-buggy-back-wheel.png`,
+    gameMode: "wheeled",
     accent: "#7ee8ff",
     gameStats: {
       normalSpeed: 8.5,
@@ -66,7 +72,10 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
     description:
       "A low, aggressive performance rover built around oversized rear power units, stronger acceleration and a larger boost reserve.",
     imageSrc: `${ROVER_ASSET_ROOT}/ignition-runner.png`,
-    gameImageSrc: `${ROVER_ASSET_ROOT}/side-ignition-runner.png`,
+    gameBodySrc: `${ROVER_ASSET_ROOT}/side-ignition-runner-body.png`,
+    gameFrontWheelSrc: `${ROVER_ASSET_ROOT}/side-ignition-runner-front-wheel.png`,
+    gameBackWheelSrc: `${ROVER_ASSET_ROOT}/side-ignition-runner-back-wheel.png`,
+    gameMode: "wheeled",
     accent: "#ffd76a",
     gameStats: {
       normalSpeed: 9.5,
@@ -92,7 +101,10 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
     description:
       "A long-range command rover packed with navigation arrays, communications equipment and steadier all-terrain control.",
     imageSrc: `${ROVER_ASSET_ROOT}/pathfinder-command.png`,
-    gameImageSrc: `${ROVER_ASSET_ROOT}/side-pathfinder-command.png`,
+    gameBodySrc: `${ROVER_ASSET_ROOT}/side-pathfinder-command-body.png`,
+    gameFrontWheelSrc: `${ROVER_ASSET_ROOT}/side-pathfinder-command-front-wheel.png`,
+    gameBackWheelSrc: `${ROVER_ASSET_ROOT}/side-pathfinder-command-back-wheel.png`,
+    gameMode: "wheeled",
     accent: "#60f0d0",
     gameStats: {
       normalSpeed: 10.2,
@@ -118,7 +130,10 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
     description:
       "A sleek high-speed rover with twin turbo assemblies, a low aerodynamic profile and major gains in speed and jump power.",
     imageSrc: `${ROVER_ASSET_ROOT}/turbo-striker.png`,
-    gameImageSrc: `${ROVER_ASSET_ROOT}/side-turbo-striker.png`,
+    gameBodySrc: `${ROVER_ASSET_ROOT}/side-turbo-striker-body.png`,
+    gameFrontWheelSrc: `${ROVER_ASSET_ROOT}/side-turbo-striker-front-wheel.png`,
+    gameBackWheelSrc: `${ROVER_ASSET_ROOT}/side-turbo-striker-back-wheel.png`,
+    gameMode: "wheeled",
     accent: "#8da2ff",
     gameStats: {
       normalSpeed: 11.8,
@@ -144,7 +159,10 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
     description:
       "A heavily armoured expedition rover designed to absorb punishment from crashes, traps and hostile course hazards.",
     imageSrc: `${ROVER_ASSET_ROOT}/aegis-defender.png`,
-    gameImageSrc: `${ROVER_ASSET_ROOT}/side-aegis-defender.png`,
+    gameBodySrc: `${ROVER_ASSET_ROOT}/side-aegis-defender-body.png`,
+    gameFrontWheelSrc: `${ROVER_ASSET_ROOT}/side-aegis-defender-front-wheel.png`,
+    gameBackWheelSrc: `${ROVER_ASSET_ROOT}/side-aegis-defender-back-wheel.png`,
+    gameMode: "wheeled",
     accent: "#ff9df0",
     gameStats: {
       normalSpeed: 11.8,
@@ -170,7 +188,10 @@ export const coreUpgradeTrack: CoreRoverUpgrade[] = [
     description:
       "The ultimate Skyforge vehicle: a high-output hover rover combining advanced propulsion, maximum aerial control and protective systems.",
     imageSrc: `${ROVER_ASSET_ROOT}/nova-hover-x.png`,
-    gameImageSrc: `${ROVER_ASSET_ROOT}/side-nova-hover-x.png`,
+    gameBodySrc: `${ROVER_ASSET_ROOT}/side-nova-hover-x.png`,
+    gameFrontWheelSrc: null,
+    gameBackWheelSrc: null,
+    gameMode: "hover",
     accent: "#53d7ff",
     gameStats: {
       normalSpeed: 13.2,

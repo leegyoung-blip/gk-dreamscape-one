@@ -417,6 +417,7 @@ export function ArenaBattleView({
   onReviveDT,
   onReviveDG,
   onAcceptDefeat,
+  isMobile = false,
 }: {
   topic: KnowledgeArenaBattleTopic;
   topicTitle: string;
@@ -455,6 +456,7 @@ export function ArenaBattleView({
   onReviveDT: () => void;
   onReviveDG: () => void;
   onAcceptDefeat: () => void;
+  isMobile?: boolean;
 }) {
   const options: [Answer, string][] = [
     ["A", question.option_a],
@@ -538,7 +540,7 @@ export function ArenaBattleView({
   return (
     <div
       ref={stageRef}
-      className="kab-stage kab-stage-v3"
+      className={`kab-stage kab-stage-v3 ${isMobile ? "kab-is-mobile" : ""}`}
       style={{ backgroundImage: `url("${arenaBackgrounds[topic]}")` }}
     >
       <div className="kab-vignette" />
@@ -1166,6 +1168,128 @@ export function ArenaBattleView({
           .kab-bottom-hud { gap: 10px; }
           .kab-floating-fire { width: 82px; height: 82px; }
         }
+
+        /* Device-mode mobile rules: these do not depend on CSS viewport width.
+           This matters on landscape phones/tablets whose CSS width can exceed 850px. */
+        .kab-is-mobile .kab-top-strip {
+          display: none;
+        }
+        .kab-is-mobile .kab-overlay-top {
+          z-index: 5;
+          grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr);
+          gap: 6px;
+          padding: 4px 8px 0;
+        }
+        .kab-is-mobile .kab-question-panel {
+          gap: 5px;
+        }
+        .kab-is-mobile .kab-question-card {
+          border-radius: 13px;
+          padding: 9px 11px;
+        }
+        .kab-is-mobile .kab-question-card small {
+          font-size: 8px;
+          letter-spacing: .10em;
+        }
+        .kab-is-mobile .kab-question-card h2 {
+          margin-top: 5px;
+          font-size: clamp(13px, 2.15vw, 17px);
+          line-height: 1.18;
+        }
+        .kab-is-mobile .kab-question-image {
+          max-height: 74px;
+          margin-top: 6px;
+        }
+        .kab-is-mobile .kab-answer-grid--top {
+          gap: 6px;
+        }
+        .kab-is-mobile .kab-answer {
+          min-height: 48px;
+          gap: 7px;
+          border-radius: 13px;
+          padding: 7px 9px;
+        }
+        .kab-is-mobile .kab-answer strong {
+          width: 25px;
+          height: 25px;
+          font-size: 11px;
+        }
+        .kab-is-mobile .kab-answer span {
+          font-size: clamp(10px, 1.55vw, 12px);
+          line-height: 1.18;
+        }
+        .kab-is-mobile .kab-feedback {
+          padding: 8px 10px;
+          font-size: 14px;
+          line-height: 1.32;
+        }
+
+        /* The fighter row starts only after the question/option row.
+           Fighters are capped to the remaining row height, so the whole sprite
+           scales down instead of being hidden behind or clipped by the cards. */
+        .kab-is-mobile .kab-battle-center {
+          z-index: 1;
+          overflow: hidden;
+          align-items: flex-end;
+          gap: clamp(24px, 9vw, 78px);
+          padding: 2px 10px 0;
+        }
+        .kab-is-mobile .kab-fighter {
+          width: min(13vw, 92px);
+          height: min(22vh, 118px);
+          max-height: 100%;
+          flex: 0 1 auto;
+          transform: none;
+        }
+        .kab-is-mobile .kab-fighter-left,
+        .kab-is-mobile .kab-fighter-right {
+          transform: none;
+        }
+        .kab-is-mobile .kab-character,
+        .kab-is-mobile .kab-character img {
+          max-width: 100%;
+          max-height: 100%;
+        }
+        .kab-is-mobile .kab-character img {
+          object-position: center bottom;
+        }
+
+        .kab-is-mobile .kab-bottom-hud {
+          grid-template-columns: minmax(0,1fr) auto minmax(0,1fr);
+          gap: 7px;
+          padding: 0 8px 8px;
+          align-items: stretch;
+        }
+        .kab-is-mobile .kab-hp-card {
+          display: flex;
+          min-height: 48px;
+          flex-direction: column;
+          justify-content: center;
+          border-radius: 11px;
+          padding: 7px 9px;
+        }
+        .kab-is-mobile .kab-hp-title {
+          margin-bottom: 5px;
+          font-size: 10px;
+        }
+        .kab-is-mobile .kab-hp-track {
+          height: 8px;
+        }
+        .kab-is-mobile .kab-monster-stats {
+          display: none !important;
+        }
+        .kab-is-mobile .kab-floating-fire {
+          width: 60px;
+          height: 60px;
+          align-self: center;
+        }
+        .kab-is-mobile .kab-floating-fire span {
+          font-size: 13px;
+        }
+        .kab-is-mobile .kab-floating-fire small {
+          font-size: 7px;
+        }
+
         @media (max-width: 850px) {
           .kab-character-fallback,
           .kab-character-name,
@@ -1234,6 +1358,16 @@ export function ArenaBattleView({
           .kab-floating-fire span { font-size: 15px; }
           .kab-floating-fire small { font-size: 8px; }
         }
+
+        /* Final mobile device-mode guard so viewport-based rules cannot reintroduce overlap. */
+        .kab-is-mobile .kab-top-strip { display:none; }
+        .kab-is-mobile .kab-fighter,
+        .kab-is-mobile .kab-fighter-left,
+        .kab-is-mobile .kab-fighter-right {
+          transform:none;
+          max-height:100%;
+        }
+        .kab-is-mobile .kab-monster-stats { display:none !important; }
       `}</style>
     </div>
   );
@@ -1263,7 +1397,7 @@ export function ArenaBattleResultCard({
     outcome === "victory"
       ? "VICTORY"
       : outcome === "escaped"
-        ? "MONSTER ESCAPED"
+        ? "MONSTER ESCAPED!"
         : outcome === "defeat"
           ? "DEFEAT"
           : "BATTLE COMPLETE";
@@ -1327,6 +1461,27 @@ export function ArenaBattleResultCard({
         .kab-result-card { display:grid; grid-template-columns:minmax(105px,.7fr) minmax(310px,1.65fr) minmax(105px,.7fr); gap:14px; align-items:stretch; min-height:175px; border:1px solid rgba(126,232,255,.17); border-radius:18px; background:linear-gradient(135deg,rgba(8,37,60,.66),rgba(24,18,57,.68)); padding:12px; overflow:hidden; }
         .kab-result-card.is-victory { border-color:rgba(74,222,128,.3); }
         .kab-result-card.is-defeat { border-color:rgba(248,113,113,.3); }
+        .kab-result-card.is-escaped {
+          border-color: rgba(255,178,72,.46);
+          background:
+            radial-gradient(circle at 50% 32%,rgba(255,116,38,.12),transparent 34%),
+            linear-gradient(135deg,rgba(8,37,60,.72),rgba(50,20,42,.78));
+          box-shadow: inset 0 0 32px rgba(255,133,47,.05);
+        }
+        .kab-result-card.is-escaped .kab-result-copy h3 {
+          display: inline-block;
+          margin-top: 7px;
+          border: 1px solid rgba(255,199,92,.48);
+          border-radius: 999px;
+          background: linear-gradient(180deg,rgba(255,145,44,.20),rgba(255,71,71,.12));
+          padding: 7px 16px;
+          color: #ffd46f;
+          font-size: clamp(25px,3vw,34px);
+          font-weight: 1000;
+          letter-spacing: .035em;
+          text-shadow: 0 0 12px rgba(255,121,46,.78), 0 2px 0 rgba(0,0,0,.46);
+          box-shadow: 0 0 24px rgba(255,116,38,.12);
+        }
         .kab-result-fighter { position:relative; display:flex; min-width:0; min-height:150px; flex-direction:column; align-items:center; justify-content:flex-end; overflow:hidden; border-radius:14px; background:radial-gradient(circle at 50% 65%,rgba(126,232,255,.13),rgba(255,255,255,.025) 56%,transparent 74%); }
         .kab-result-fighter img { width:100%; height:132px; object-fit:contain; object-position:center bottom; filter:drop-shadow(0 12px 18px rgba(0,0,0,.4)); }
         .kab-result-fighter small { position:absolute; bottom:5px; max-width:92%; overflow:hidden; border-radius:999px; background:rgba(2,9,24,.78); padding:3px 7px; color:rgba(255,255,255,.72); font-size:7px; font-weight:950; letter-spacing:.08em; text-overflow:ellipsis; text-transform:uppercase; white-space:nowrap; }
@@ -1351,6 +1506,10 @@ export function ArenaBattleResultCard({
           .kab-result-fighter { min-height:124px; }
           .kab-result-fighter img { height:112px; }
           .kab-result-copy h3 { font-size:17px; }
+          .kab-result-card.is-escaped .kab-result-copy h3 {
+            padding:5px 10px;
+            font-size:19px;
+          }
           .kab-result-copy > strong { font-size:11px; }
           .kab-collection-notice { margin-top:5px; padding:5px 6px; }
           .kab-collection-notice span { display:none; }

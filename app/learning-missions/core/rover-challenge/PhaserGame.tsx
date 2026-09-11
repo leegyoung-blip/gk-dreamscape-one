@@ -16,32 +16,70 @@ const ROVER_COLLISION_WIDTH = 238;
 const ROVER_COLLISION_HEIGHT = 82;
 
 /*
- * The new side-view rover PNGs already contain the complete vehicle,
- * including their wheels / hover hardware. Matter still uses one
- * invisible rectangular chassis so gameplay physics remain identical
- * across the six cosmetic vehicle silhouettes.
+ * Rover rendering uses the user's full-canvas exports.
+ *
+ * WHEELED ROVERS
+ * - body PNG: full original transparent canvas, wheels removed
+ * - front wheel PNG: SAME canvas size/position, only the front wheel visible
+ * - back wheel PNG: SAME canvas size/position, only the back wheel visible
+ *
+ * Phaser scans the alpha bounds of each wheel layer at runtime. This gives us
+ * the actual wheel centre and bottom edge without hard-coded wheel coordinates.
+ * Each wheel layer is then pivoted around its own detected centre and rotated.
+ * The entire visual assembly is vertically shifted so the wheel bottoms sit on
+ * the invisible Matter chassis road-contact line.
+ *
+ * NOVA HOVER X
+ * Uses one complete side-nova-hover-x.png and no wheel layers. Its visible
+ * vehicle is lifted above the road-contact line and given a subtle hover bob.
  */
-const ROVER_VISUAL_LAYOUT: Record<
-  number,
-  {
-    maxWidth: number;
-    maxHeight: number;
-    offsetY: number;
-  }
-> = {
-  0: { maxWidth: 300, maxHeight: 188, offsetY: -30 },
-  1: { maxWidth: 320, maxHeight: 188, offsetY: -30 },
-  2: { maxWidth: 330, maxHeight: 205, offsetY: -36 },
-  3: { maxWidth: 330, maxHeight: 188, offsetY: -30 },
-  4: { maxWidth: 325, maxHeight: 192, offsetY: -31 },
-  5: { maxWidth: 330, maxHeight: 195, offsetY: -38 },
+type RoverVisualLayout = {
+  bodyMaxWidth: number;
+  bodyMaxHeight: number;
+};
+
+const ROVER_VISUAL_LAYOUT: Record<number, RoverVisualLayout> = {
+  0: { bodyMaxWidth: 300, bodyMaxHeight: 188 }, // Scout Buggy
+  1: { bodyMaxWidth: 320, bodyMaxHeight: 188 }, // Ignition Runner
+  2: { bodyMaxWidth: 330, bodyMaxHeight: 205 }, // Pathfinder Command
+  3: { bodyMaxWidth: 330, bodyMaxHeight: 188 }, // Turbo Striker
+  4: { bodyMaxWidth: 325, bodyMaxHeight: 192 }, // Aegis Defender
+  5: { bodyMaxWidth: 330, bodyMaxHeight: 195 }, // Nova Hover X
+};
+
+const WHEEL_ALPHA_THRESHOLD = 24;
+const ROAD_CONTACT_VISUAL_OFFSET = -1;
+const HOVER_CLEARANCE = 48;
+const HOVER_BOB_AMOUNT = 4;
+const HOVER_BOB_SPEED = 0.0042;
+
+type OpaqueBounds = {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  centerX: number;
+  centerY: number;
+  width: number;
+  height: number;
+  sourceWidth: number;
+  sourceHeight: number;
+};
+
+type WheelVisualItem = {
+  sprite: Phaser.GameObjects.Image;
+  localX: number;
+  localY: number;
 };
 
 export type PhaserGameProps = {
   levelConfig: RoverLevelWithPulseGates;
   roverStage: number;
   roverName: string;
-  roverImageSrc: string;
+  roverBodySrc: string;
+  roverFrontWheelSrc: string | null;
+  roverBackWheelSrc: string | null;
+  roverGameMode: "wheeled" | "hover";
   gameStats: CoreRoverGameStats;
 };
 
@@ -126,6 +164,11 @@ class RoverMatterScene extends Phaser.Scene {
   private backgroundTile?: Phaser.GameObjects.TileSprite;
   private roverBody?: Phaser.Physics.Matter.Image;
   private roverBodyVisual?: Phaser.GameObjects.Image;
+  private roverWheelVisuals: WheelVisualItem[] = [];
+  private wheelSpin = 0;
+  private roverBodyDisplayWidth = ROVER_BODY_WIDTH;
+  private roverBodyDisplayHeight = ROVER_BODY_HEIGHT;
+  private roverVisualOffsetY = 0;
 
   private terrainSections: Array<Array<{ x: number; y: number }>> = [];
 
@@ -190,7 +233,10 @@ class RoverMatterScene extends Phaser.Scene {
 
   private roverStage = 0;
   private roverName = "Scout Buggy";
-  private roverImageSrc = "";
+  private roverBodySrc = "";
+  private roverFrontWheelSrc: string | null = null;
+  private roverBackWheelSrc: string | null = null;
+  private roverGameMode: "wheeled" | "hover" = "wheeled";
   private levelConfig: RoverLevelWithPulseGates;
 
   private normalMaximumSpeed = 5.5;
@@ -213,7 +259,10 @@ class RoverMatterScene extends Phaser.Scene {
     levelConfig,
     roverStage,
     roverName,
-    roverImageSrc,
+    roverBodySrc,
+    roverFrontWheelSrc,
+    roverBackWheelSrc,
+    roverGameMode,
     gameStats,
   }: PhaserGameProps) {
     super({
@@ -223,7 +272,10 @@ class RoverMatterScene extends Phaser.Scene {
     this.levelConfig = levelConfig;
     this.roverStage = roverStage;
     this.roverName = roverName;
-    this.roverImageSrc = roverImageSrc;
+    this.roverBodySrc = roverBodySrc;
+    this.roverFrontWheelSrc = roverFrontWheelSrc;
+    this.roverBackWheelSrc = roverBackWheelSrc;
+    this.roverGameMode = roverGameMode;
 
     this.normalMaximumSpeed = gameStats.normalSpeed;
 
@@ -273,7 +325,17 @@ class RoverMatterScene extends Phaser.Scene {
      * My Rover. The URL comes from coreRoverProgress.ts via
      * RoverChallengeClient.
      */
-    this.load.image("selected-rover", this.roverImageSrc);
+    this.load.image("selected-rover-body", this.roverBodySrc);
+
+    if (this.roverGameMode === "wheeled") {
+      if (this.roverFrontWheelSrc) {
+        this.load.image("selected-rover-front-wheel", this.roverFrontWheelSrc);
+      }
+
+      if (this.roverBackWheelSrc) {
+        this.load.image("selected-rover-back-wheel", this.roverBackWheelSrc);
+      }
+    }
 
     this.load.on(
       Phaser.Loader.Events.FILE_LOAD_ERROR,
@@ -396,17 +458,40 @@ class RoverMatterScene extends Phaser.Scene {
     this.overturnedTime = 0;
     this.lastJumpAt = -1000;
     this.restartRequested = false;
+    this.roverWheelVisuals = [];
+    this.wheelSpin = 0;
+    this.roverBodyDisplayWidth = ROVER_BODY_WIDTH;
+    this.roverBodyDisplayHeight = ROVER_BODY_HEIGHT;
+    this.roverVisualOffsetY = 0;
   }
 
   private verifyRoverAssets() {
     const missingAssets: string[] = [];
 
-    if (!this.textures.exists("selected-rover")) {
+    if (!this.textures.exists("selected-rover-body")) {
       missingAssets.push(
-        this.roverImageSrc
-          ? `public${this.roverImageSrc}`
-          : "selected rover image path is empty",
+        this.roverBodySrc
+          ? `public${this.roverBodySrc}`
+          : "selected rover body PNG",
       );
+    }
+
+    if (this.roverGameMode === "wheeled") {
+      if (!this.textures.exists("selected-rover-front-wheel")) {
+        missingAssets.push(
+          this.roverFrontWheelSrc
+            ? `public${this.roverFrontWheelSrc}`
+            : "selected rover front-wheel PNG",
+        );
+      }
+
+      if (!this.textures.exists("selected-rover-back-wheel")) {
+        missingAssets.push(
+          this.roverBackWheelSrc
+            ? `public${this.roverBackWheelSrc}`
+            : "selected rover back-wheel PNG",
+        );
+      }
     }
 
     if (!this.textures.exists("skyforge-background")) {
@@ -1355,26 +1440,208 @@ class RoverMatterScene extends Phaser.Scene {
     });
   }
 
+  private getOpaqueBounds(textureKey: string): OpaqueBounds | null {
+    const texture = this.textures.get(textureKey);
+    const sourceImage = texture.getSourceImage() as
+      | HTMLImageElement
+      | HTMLCanvasElement;
+
+    const sourceWidth = Math.max(1, Number(sourceImage.width) || 1);
+    const sourceHeight = Math.max(1, Number(sourceImage.height) || 1);
+
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = sourceWidth;
+      canvas.height = sourceHeight;
+
+      const context = canvas.getContext("2d", {
+        willReadFrequently: true,
+      });
+
+      if (!context) return null;
+
+      context.clearRect(0, 0, sourceWidth, sourceHeight);
+      context.drawImage(sourceImage, 0, 0, sourceWidth, sourceHeight);
+
+      const pixels = context.getImageData(
+        0,
+        0,
+        sourceWidth,
+        sourceHeight,
+      ).data;
+
+      let minX = sourceWidth;
+      let minY = sourceHeight;
+      let maxX = -1;
+      let maxY = -1;
+
+      for (let y = 0; y < sourceHeight; y += 1) {
+        const rowStart = y * sourceWidth * 4;
+
+        for (let x = 0; x < sourceWidth; x += 1) {
+          const alpha = pixels[rowStart + x * 4 + 3];
+          if (alpha <= WHEEL_ALPHA_THRESHOLD) continue;
+
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+
+      if (maxX < minX || maxY < minY) {
+        return null;
+      }
+
+      return {
+        minX,
+        minY,
+        maxX,
+        maxY,
+        centerX: (minX + maxX) / 2,
+        centerY: (minY + maxY) / 2,
+        width: maxX - minX + 1,
+        height: maxY - minY + 1,
+        sourceWidth,
+        sourceHeight,
+      };
+    } catch (error) {
+      console.warn(
+        `[Rover Challenge] Could not inspect ${textureKey} transparency:`,
+        error,
+      );
+      return null;
+    }
+  }
+
+  private getFallbackWheelBounds(
+    textureKey: string,
+    front: boolean,
+  ): OpaqueBounds {
+    const sourceImage = this.textures
+      .get(textureKey)
+      .getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+
+    const sourceWidth = Math.max(1, Number(sourceImage.width) || 1);
+    const sourceHeight = Math.max(1, Number(sourceImage.height) || 1);
+    const centreX = sourceWidth * (front ? 0.76 : 0.24);
+    const centreY = sourceHeight * 0.72;
+    const diameter = Math.min(sourceWidth, sourceHeight) * 0.22;
+
+    return {
+      minX: centreX - diameter / 2,
+      minY: centreY - diameter / 2,
+      maxX: centreX + diameter / 2,
+      maxY: centreY + diameter / 2,
+      centerX: centreX,
+      centerY: centreY,
+      width: diameter,
+      height: diameter,
+      sourceWidth,
+      sourceHeight,
+    };
+  }
+
+  private createFullCanvasWheelVisual(
+    textureKey: string,
+    front: boolean,
+    bodyDisplayWidth: number,
+    bodyDisplayHeight: number,
+    visualOffsetY: number,
+  ): WheelVisualItem {
+    const bounds =
+      this.getOpaqueBounds(textureKey) ??
+      this.getFallbackWheelBounds(textureKey, front);
+
+    const originX = Phaser.Math.Clamp(
+      bounds.centerX / bounds.sourceWidth,
+      0,
+      1,
+    );
+    const originY = Phaser.Math.Clamp(
+      bounds.centerY / bounds.sourceHeight,
+      0,
+      1,
+    );
+
+    const localX =
+      (originX - 0.5) * bodyDisplayWidth;
+    const localY =
+      (originY - 0.5) * bodyDisplayHeight + visualOffsetY;
+
+    const sprite = this.add.image(
+      this.levelConfig.start.x + localX,
+      this.levelConfig.start.y + localY,
+      textureKey,
+    );
+
+    sprite.setDisplaySize(bodyDisplayWidth, bodyDisplayHeight);
+    sprite.setOrigin(originX, originY);
+    sprite.setFlipX(false);
+    sprite.setDepth(20);
+
+    return {
+      sprite,
+      localX,
+      localY,
+    };
+  }
+
+  private getRoadAlignedVisualOffset(
+    bodyDisplayHeight: number,
+    frontBounds: OpaqueBounds,
+    backBounds: OpaqueBounds,
+  ) {
+    const frontBottom =
+      (frontBounds.maxY / frontBounds.sourceHeight - 0.5) *
+      bodyDisplayHeight;
+
+    const backBottom =
+      (backBounds.maxY / backBounds.sourceHeight - 0.5) *
+      bodyDisplayHeight;
+
+    const lowestWheelBottom = Math.max(frontBottom, backBottom);
+
+    return (
+      ROVER_COLLISION_HEIGHT / 2 +
+      ROAD_CONTACT_VISUAL_OFFSET -
+      lowestWheelBottom
+    );
+  }
+
+  private getHoverVisualOffset(bodyDisplayHeight: number) {
+    const bounds = this.getOpaqueBounds("selected-rover-body");
+
+    if (!bounds) {
+      return -86;
+    }
+
+    const bodyBottom =
+      (bounds.maxY / bounds.sourceHeight - 0.5) * bodyDisplayHeight;
+
+    return (
+      ROVER_COLLISION_HEIGHT / 2 -
+      HOVER_CLEARANCE -
+      bodyBottom
+    );
+  }
+
   private createRover() {
     /*
-     * The selected side-view PNG contains the complete rover artwork.
-     * We therefore keep one invisible Matter chassis for physics and one
-     * visible image for rendering. This preserves every existing movement,
-     * slope, jump, crash and trap calculation without rebuilding physics for
-     * six differently shaped vehicles.
+     * Matter provides the shared invisible chassis. Wheeled rovers render a
+     * body layer plus separate full-canvas front/back wheel layers. Hover X
+     * renders only its complete vehicle image above the contact surface.
      */
     const roverBody = this.matter.add.image(
       this.levelConfig.start.x,
       this.levelConfig.start.y,
-      "selected-rover",
+      "selected-rover-body",
     );
 
     roverBody.setDisplaySize(ROVER_BODY_WIDTH, ROVER_BODY_HEIGHT);
-
     roverBody.setRectangle(ROVER_COLLISION_WIDTH, ROVER_COLLISION_HEIGHT, {
       label: "rover-chassis",
     });
-
     roverBody.setMass(12);
     roverBody.setFriction(0.88);
     roverBody.setFrictionStatic(1);
@@ -1382,48 +1649,87 @@ class RoverMatterScene extends Phaser.Scene {
     roverBody.setBounce(0.01);
     roverBody.setAlpha(0);
     roverBody.setDepth(18);
-
     this.roverBody = roverBody;
 
     const layout =
       ROVER_VISUAL_LAYOUT[this.roverStage] ??
       ROVER_VISUAL_LAYOUT[0];
 
-    this.roverBodyVisual = this.add.image(
-      this.levelConfig.start.x,
-      this.levelConfig.start.y + layout.offsetY,
-      "selected-rover",
-    );
-
-    /*
-     * Preserve the PNG's intrinsic aspect ratio. The six new vehicles have
-     * deliberately different silhouettes, so forcing every image into the
-     * old 300 × 188 box would visibly squash tall / long rovers.
-     */
     const sourceImage = this.textures
-      .get("selected-rover")
+      .get("selected-rover-body")
       .getSourceImage() as HTMLImageElement | HTMLCanvasElement;
 
     const sourceWidth = Math.max(1, Number(sourceImage.width) || 1);
     const sourceHeight = Math.max(1, Number(sourceImage.height) || 1);
     const fitScale = Math.min(
-      layout.maxWidth / sourceWidth,
-      layout.maxHeight / sourceHeight,
+      layout.bodyMaxWidth / sourceWidth,
+      layout.bodyMaxHeight / sourceHeight,
+    );
+
+    this.roverBodyDisplayWidth = Math.max(1, sourceWidth * fitScale);
+    this.roverBodyDisplayHeight = Math.max(1, sourceHeight * fitScale);
+
+    if (this.roverGameMode === "hover") {
+      this.roverVisualOffsetY = this.getHoverVisualOffset(
+        this.roverBodyDisplayHeight,
+      );
+    } else {
+      const frontBounds =
+        this.getOpaqueBounds("selected-rover-front-wheel") ??
+        this.getFallbackWheelBounds(
+          "selected-rover-front-wheel",
+          true,
+        );
+
+      const backBounds =
+        this.getOpaqueBounds("selected-rover-back-wheel") ??
+        this.getFallbackWheelBounds(
+          "selected-rover-back-wheel",
+          false,
+        );
+
+      this.roverVisualOffsetY = this.getRoadAlignedVisualOffset(
+        this.roverBodyDisplayHeight,
+        frontBounds,
+        backBounds,
+      );
+    }
+
+    this.roverBodyVisual = this.add.image(
+      this.levelConfig.start.x,
+      this.levelConfig.start.y + this.roverVisualOffsetY,
+      "selected-rover-body",
     );
 
     this.roverBodyVisual.setDisplaySize(
-      Math.max(1, sourceWidth * fitScale),
-      Math.max(1, sourceHeight * fitScale),
+      this.roverBodyDisplayWidth,
+      this.roverBodyDisplayHeight,
     );
-
-    /*
-     * All six new side-view PNGs face right, which is the course's forward
-     * direction. Do not apply the old rover-body flip.
-     */
     this.roverBodyVisual.setFlipX(false);
-    this.roverBodyVisual.setDepth(20);
+    this.roverBodyVisual.setDepth(21);
 
-    this.updateRoverVisuals();
+    this.roverWheelVisuals = [];
+
+    if (this.roverGameMode === "wheeled") {
+      this.roverWheelVisuals = [
+        this.createFullCanvasWheelVisual(
+          "selected-rover-back-wheel",
+          false,
+          this.roverBodyDisplayWidth,
+          this.roverBodyDisplayHeight,
+          this.roverVisualOffsetY,
+        ),
+        this.createFullCanvasWheelVisual(
+          "selected-rover-front-wheel",
+          true,
+          this.roverBodyDisplayWidth,
+          this.roverBodyDisplayHeight,
+          this.roverVisualOffsetY,
+        ),
+      ];
+    }
+
+    this.updateRoverVisuals(0);
   }
 
   private createControls() {
@@ -2225,20 +2531,26 @@ class RoverMatterScene extends Phaser.Scene {
     );
   }
 
-  private updateRoverVisuals(_delta?: number) {
+  private updateRoverVisuals(delta = 0) {
     if (!this.roverBody || !this.roverBodyVisual) {
+      return;
+    }
+
+    const body = this.roverBody.body as MatterJS.BodyType | null;
+    if (!body) {
       return;
     }
 
     const rotation = this.roverBody.rotation;
 
-    const layout =
-      ROVER_VISUAL_LAYOUT[this.roverStage] ??
-      ROVER_VISUAL_LAYOUT[0];
+    const hoverBob =
+      this.roverGameMode === "hover"
+        ? Math.sin(this.time.now * HOVER_BOB_SPEED) * HOVER_BOB_AMOUNT
+        : 0;
 
     const bodyOffset = this.rotateOffset(
       0,
-      layout.offsetY,
+      this.roverVisualOffsetY + hoverBob,
       rotation,
     );
 
@@ -2246,13 +2558,28 @@ class RoverMatterScene extends Phaser.Scene {
       this.roverBody.x + bodyOffset.x,
       this.roverBody.y + bodyOffset.y,
     );
-
-    /*
-     * Rotate the complete side-view vehicle with the Matter chassis. Since
-     * wheels are baked into the PNG there are no generic wheel sprites to
-     * rotate separately.
-     */
     this.roverBodyVisual.setRotation(rotation);
+
+    if (this.roverGameMode === "hover") {
+      return;
+    }
+
+    this.wheelSpin += body.velocity.x * 0.012 * (delta / 16.667);
+
+    this.roverWheelVisuals.forEach((wheel) => {
+      const offset = this.rotateOffset(
+        wheel.localX,
+        wheel.localY,
+        rotation,
+      );
+
+      wheel.sprite.setPosition(
+        this.roverBody!.x + offset.x,
+        this.roverBody!.y + offset.y,
+      );
+
+      wheel.sprite.setRotation(rotation + this.wheelSpin);
+    });
   }
 
   private rotateOffset(offsetX: number, offsetY: number, rotation: number) {
@@ -2811,7 +3138,10 @@ export default function PhaserGame({
   levelConfig,
   roverStage,
   roverName,
-  roverImageSrc,
+  roverBodySrc,
+  roverFrontWheelSrc,
+  roverBackWheelSrc,
+  roverGameMode,
   gameStats,
 }: PhaserGameProps) {
   const gameContainerRef =
@@ -2825,7 +3155,7 @@ export default function PhaserGame({
    * allowing ordinary React prop refreshes to destroy the current run.
    *
    * The old implementation placed levelConfig, roverStage, roverName,
-   * roverImageSrc and gameStats in the Phaser creation effect dependency list. Any refreshed
+   * roverBodySrc, roverFrontWheelSrc, roverBackWheelSrc, roverGameMode and gameStats in the Phaser creation effect dependency list. Any refreshed
    * object identity could therefore destroy Phaser.Game and create a new one.
    */
   const latestGamePropsRef =
@@ -2833,7 +3163,10 @@ export default function PhaserGame({
       levelConfig,
       roverStage,
       roverName,
-      roverImageSrc,
+      roverBodySrc,
+      roverFrontWheelSrc,
+      roverBackWheelSrc,
+      roverGameMode,
       gameStats,
     });
 
@@ -2841,7 +3174,10 @@ export default function PhaserGame({
     levelConfig,
     roverStage,
     roverName,
-    roverImageSrc,
+    roverBodySrc,
+    roverFrontWheelSrc,
+    roverBackWheelSrc,
+    roverGameMode,
     gameStats,
   };
 
@@ -2902,8 +3238,14 @@ export default function PhaserGame({
           currentProps.roverStage,
         roverName:
           currentProps.roverName,
-        roverImageSrc:
-          currentProps.roverImageSrc,
+        roverBodySrc:
+          currentProps.roverBodySrc,
+        roverFrontWheelSrc:
+          currentProps.roverFrontWheelSrc,
+        roverBackWheelSrc:
+          currentProps.roverBackWheelSrc,
+        roverGameMode:
+          currentProps.roverGameMode,
         gameStats:
           currentProps.gameStats,
       });

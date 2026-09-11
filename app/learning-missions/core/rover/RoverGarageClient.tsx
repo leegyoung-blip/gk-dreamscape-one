@@ -33,23 +33,14 @@ function getStoredRoverOrigin(): RoverOrigin | null {
 }
 
 function getNovaReturnPath() {
-  if (typeof window === "undefined") return "/nova-world";
-
-  const storedPath = window.sessionStorage.getItem(
-    ROVER_NOVA_RETURN_PATH_STORAGE_KEY,
-  );
-
-  if (!storedPath) return "/nova-world";
-
-  const normalisedPath = storedPath.replace(/\/+$/, "") || "/";
-
-  // Only Nova's two known main-page route forms are accepted. This keeps the
-  // Rover back button restricted to Nova's main page or Core Missions.
-  if (normalisedPath === "/nova" || normalisedPath === "/nova-world") {
-    return normalisedPath;
-  }
-
-  return "/nova-world";
+  /*
+   * Nova's World now lives at /inventor.
+   *
+   * Older sessions may still contain /nova or /nova-world in
+   * dreamscape-rover-nova-return-path. Do not trust those legacy values:
+   * they point to retired routes and can produce a 404.
+   */
+  return "/inventor";
 }
 
 type GarageTab = "courses" | "upgrades" | "custom";

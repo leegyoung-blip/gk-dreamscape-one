@@ -54,7 +54,10 @@ type PhaserGameProps = {
   levelConfig: RoverLevelConfig;
   roverStage: number;
   roverName: string;
-  roverImageSrc: string;
+  roverBodySrc: string;
+  roverFrontWheelSrc: string | null;
+  roverBackWheelSrc: string | null;
+  roverGameMode: "wheeled" | "hover";
   gameStats: CoreRoverGameStats;
 };
 
@@ -530,7 +533,10 @@ export default function RoverChallengeClient({
             levelConfig={levelConfig}
             roverStage={currentUpgrade.stage}
             roverName={currentUpgrade.name}
-            roverImageSrc={currentUpgrade.gameImageSrc}
+            roverBodySrc={currentUpgrade.gameBodySrc}
+            roverFrontWheelSrc={currentUpgrade.gameFrontWheelSrc}
+            roverBackWheelSrc={currentUpgrade.gameBackWheelSrc}
+            roverGameMode={currentUpgrade.gameMode}
             gameStats={currentUpgrade.gameStats}
           />
         ) : (
