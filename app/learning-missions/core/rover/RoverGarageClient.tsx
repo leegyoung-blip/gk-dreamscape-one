@@ -1910,13 +1910,38 @@ function CustomBuildPanel({
                         key={tier.level}
                         style={performanceTierCard(owned, next, unavailable)}
                       >
-                        <div style={performanceTierNumber}>{tier.level}</div>
+                        <div style={performanceTierTopRow}>
+                          <div style={performanceTierNumber}>{tier.level}</div>
+
+                          <strong style={performanceTierMiniStatus(owned, next)}>
+                            {unavailable
+                              ? "NOT NEEDED"
+                              : owned
+                                ? "INSTALLED"
+                                : next
+                                  ? "NEXT"
+                                  : "LOCKED"}
+                          </strong>
+                        </div>
+
+                        {tier.imageSrc && (
+                          <div style={performanceTierImageStage}>
+                            <img
+                              src={tier.imageSrc}
+                              alt={tier.name}
+                              draggable={false}
+                              style={performanceTierImage}
+                            />
+                          </div>
+                        )}
+
                         <div style={{ minWidth: 0, flex: 1 }}>
                           <p style={performanceTierName}>{tier.name}</p>
                           <p style={performanceTierDescription}>
                             {tier.description}
                           </p>
                         </div>
+
                         <strong style={performanceTierStatus(owned, next)}>
                           {unavailable
                             ? "MAX NOT NEEDED"
@@ -2735,7 +2760,7 @@ function performanceTierGrid(isMobile: boolean): CSSProperties {
     display: "grid",
     gridTemplateColumns: isMobile
       ? "1fr"
-      : "repeat(auto-fit,minmax(150px,1fr))",
+      : "repeat(auto-fit,minmax(190px,1fr))",
     gap: "9px",
     marginTop: "14px",
   };
@@ -2747,7 +2772,7 @@ function performanceTierCard(
   unavailable: boolean,
 ): CSSProperties {
   return {
-    minHeight: "132px",
+    minHeight: "280px",
     borderRadius: "14px",
     border: owned
       ? "1px solid rgba(111,255,184,0.28)"
@@ -2766,6 +2791,47 @@ function performanceTierCard(
     opacity: unavailable ? 0.34 : 1,
   };
 }
+
+const performanceTierTopRow: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "8px",
+};
+
+const performanceTierMiniStatus = (
+  owned: boolean,
+  next: boolean,
+): CSSProperties => ({
+  color: owned
+    ? "#8dffbf"
+    : next
+      ? "#ffd76a"
+      : "rgba(255,255,255,0.33)",
+  fontSize: "8px",
+  fontWeight: 900,
+  letterSpacing: "0.08em",
+});
+
+const performanceTierImageStage: CSSProperties = {
+  height: "126px",
+  width: "100%",
+  borderRadius: "11px",
+  border: "1px solid rgba(126,232,255,0.09)",
+  background:
+    "radial-gradient(circle at 50% 45%, rgba(126,232,255,0.09), rgba(255,255,255,0.015) 68%)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  overflow: "hidden",
+};
+
+const performanceTierImage: CSSProperties = {
+  width: "96%",
+  height: "96%",
+  objectFit: "contain",
+  filter: "drop-shadow(0 10px 16px rgba(0,0,0,0.45))",
+};
 
 const performanceTierNumber: CSSProperties = {
   width: "25px",

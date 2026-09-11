@@ -55,6 +55,7 @@ export type RoverPerformanceTier = {
   name: string;
   description: string;
   priceDt: number;
+  imageSrc?: string;
 };
 
 export type RoverPerformanceCategoryConfig = {
@@ -68,44 +69,109 @@ export type RoverPerformanceCategoryConfig = {
 
 const PRICE_BY_LEVEL = [50, 100, 200, 400, 800] as const;
 
+const ROVER_CUSTOM_BUILD_ASSET_ROOT =
+  "/activities/learning-missions/core/rover/custom-build";
+
 export const roverPerformanceCategories: RoverPerformanceCategoryConfig[] = [
   {
     id: "engine",
     title: "Engine",
     statLabel: "speed",
-    shortDescription: "Higher-output engines increase sustained speed and acceleration.",
+    shortDescription:
+      "Higher-output engines increase sustained speed and acceleration.",
     effectSummary: "Speed · Acceleration · Small boost-speed gain",
     tiers: [
-      ["SparkDrive Engine", "Compact high-efficiency drive unit for a sharper first step."],
-      ["Twin Ion Engine", "Dual ion chambers deliver stronger sustained propulsion."],
-      ["Pulse Turbine", "A high-frequency turbine keeps power delivery strong under load."],
-      ["Vector Fusion Engine", "Fusion-vector control pushes the drivetrain toward elite speed."],
-      ["Nova Flux Engine", "Skyforge's highest-output conventional rover engine."],
-    ].map(([name, description], index) => ({
-      level: index + 1,
-      name,
-      description,
-      priceDt: PRICE_BY_LEVEL[index],
-    })),
+      {
+        level: 1,
+        name: "SparkDrive Engine",
+        description:
+          "Compact high-efficiency performance engine for a sharper first step.",
+        priceDt: PRICE_BY_LEVEL[0],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/engine/sparkdrive-engine.png`,
+      },
+      {
+        level: 2,
+        name: "Twin Ion Engine",
+        description:
+          "Twin performance units deliver stronger sustained propulsion and response.",
+        priceDt: PRICE_BY_LEVEL[1],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/engine/twin-ion-engine.png`,
+      },
+      {
+        level: 3,
+        name: "Pulse Turbine",
+        description:
+          "A turbine-assisted performance engine keeps power delivery strong under load.",
+        priceDt: PRICE_BY_LEVEL[2],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/engine/pulse-turbine.png`,
+      },
+      {
+        level: 4,
+        name: "Vector Fusion Engine",
+        description:
+          "A high-output fusion drivetrain pushes the rover toward elite speed.",
+        priceDt: PRICE_BY_LEVEL[3],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/engine/vector-fusion-engine.png`,
+      },
+      {
+        level: 5,
+        name: "Nova Flux Engine",
+        description:
+          "Skyforge's ultimate high-performance rover engine.",
+        priceDt: PRICE_BY_LEVEL[4],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/engine/nova-flux-engine.png`,
+      },
+    ],
   },
   {
     id: "traction",
     title: "Traction System",
     statLabel: "handling",
-    shortDescription: "Improves braking, terrain grip, slope response and road alignment.",
+    shortDescription:
+      "Improves braking, terrain grip, slope response and road alignment.",
     effectSummary: "Handling · Braking · Uphill grip",
     tiers: [
-      ["Grip Controller", "Rebalances torque delivery when the road begins to climb."],
-      ["Terrain Vectoring", "Actively distributes drive response across uneven terrain."],
-      ["Adaptive Traction", "Responds faster to changing gradients and surface angles."],
-      ["Quantum Steering", "Precision terrain correction for high-speed course control."],
-      ["Nova Precision Array", "Maximum Skyforge terrain response and directional control."],
-    ].map(([name, description], index) => ({
-      level: index + 1,
-      name,
-      description,
-      priceDt: PRICE_BY_LEVEL[index],
-    })),
+      {
+        level: 1,
+        name: "Grip Controller",
+        description:
+          "Compact electronic drivetrain controller that improves torque delivery and basic grip.",
+        priceDt: PRICE_BY_LEVEL[0],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/traction/grip-controller.png`,
+      },
+      {
+        level: 2,
+        name: "Terrain Vectoring Unit",
+        description:
+          "Active torque-vectoring hardware distributes drive response across uneven terrain.",
+        priceDt: PRICE_BY_LEVEL[1],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/traction/terrain-vectoring-unit.png`,
+      },
+      {
+        level: 3,
+        name: "Adaptive Traction System",
+        description:
+          "Integrated traction and suspension control responds rapidly to changing gradients.",
+        priceDt: PRICE_BY_LEVEL[2],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/traction/adaptive-traction-system.png`,
+      },
+      {
+        level: 4,
+        name: "Quantum Steering Matrix",
+        description:
+          "Advanced steer-by-wire control delivers precise correction at high speed.",
+        priceDt: PRICE_BY_LEVEL[3],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/traction/quantum-steering-matrix.png`,
+      },
+      {
+        level: 5,
+        name: "Nova Precision Array",
+        description:
+          "Ultimate integrated steering and torque-vectoring system for maximum course control.",
+        priceDt: PRICE_BY_LEVEL[4],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/traction/nova-precision-array.png`,
+      },
+    ],
   },
   {
     id: "stability",
