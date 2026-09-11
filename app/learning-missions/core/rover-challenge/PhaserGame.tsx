@@ -2202,11 +2202,47 @@ class RoverMatterScene extends Phaser.Scene {
       : this.normalMaximumSpeed;
 
     const targetVelocityX = direction * maximumSpeed;
+    const grounded = this.activeTerrainContacts.size > 0;
+    const terrainAngle = grounded
+      ? (this.getTerrainAngleAtX(roverBody.x) ?? 0)
+      : 0;
 
-    const responseRate =
+    /*
+     * Positive screen Y points downward, so travelling uphill means the
+     * terrain tangent has a vertical component opposite the travel direction.
+     *
+     * The old controller only targeted world-X velocity. On a hill, Matter
+     * contact + gravity consumed most of that velocity and Boost barely
+     * changed the result. Grounded uphill driving now follows the terrain
+     * tangent as well as maintaining horizontal speed.
+     */
+    const uphill =
+      grounded &&
+      direction !== 0 &&
+      direction * Math.sin(terrainAngle) < -0.035;
+
+    const slopeSeverity = uphill
+      ? Phaser.Math.Clamp(
+          Math.abs(Math.sin(terrainAngle)) / 0.55,
+          0,
+          1,
+        )
+      : 0;
+
+    const baseResponseRate =
       direction === 0 ? this.brakingRate : this.accelerationRate;
 
-    const horizontalSmoothing = 1 - Math.exp(-responseRate * (delta / 1000));
+    const slopeResponseMultiplier = uphill
+      ? usingBoost
+        ? 2.35
+        : 1.45
+      : 1;
+
+    const responseRate =
+      baseResponseRate * slopeResponseMultiplier;
+
+    const horizontalSmoothing =
+      1 - Math.exp(-responseRate * (delta / 1000));
 
     const nextVelocityX = Phaser.Math.Linear(
       body.velocity.x,
@@ -2214,12 +2250,41 @@ class RoverMatterScene extends Phaser.Scene {
       horizontalSmoothing,
     );
 
-    /*
-     * Matter gravity controls vertical movement. We only smooth the
-     * horizontal drive speed, preventing slopes from draining power or
-     * forcing the rover to hover above the course.
-     */
     roverBody.setVelocityX(nextVelocityX);
+
+    if (uphill) {
+      /*
+       * Match the rover's vertical velocity to the road tangent. This is
+       * deliberately applied only while grounded and climbing, so jumps,
+       * descents and airborne physics remain natural.
+       *
+       * Boost receives the strongest tangent lock. Normal drive still gets
+       * enough assistance that ordinary hills do not require jumping.
+       */
+      const maximumSlopeVelocity =
+        maximumSpeed * (usingBoost ? 0.95 : 0.78);
+
+      const desiredSlopeVelocityY = Phaser.Math.Clamp(
+        targetVelocityX * Math.tan(terrainAngle),
+        -maximumSlopeVelocity,
+        maximumSlopeVelocity,
+      );
+
+      const verticalFollowRate =
+        (usingBoost ? 10.5 : 6.2) *
+        (0.55 + slopeSeverity * 0.45);
+
+      const verticalSmoothing =
+        1 - Math.exp(-verticalFollowRate * (delta / 1000));
+
+      roverBody.setVelocityY(
+        Phaser.Math.Linear(
+          body.velocity.y,
+          desiredSlopeVelocityY,
+          verticalSmoothing,
+        ),
+      );
+    }
 
     /*
      * Only provide gentle air tilt after the rover has
@@ -3281,7 +3346,13 @@ export default function PhaserGame({
       },
 
       scale: {
-        mode: Phaser.Scale.FIT,
+        /*
+         * EXPAND gives the canvas the full parent area (like RESIZE) while
+         * retaining the configured 1600×900 game coordinate system for the
+         * scene (like FIT). This removes the unused side bands on wide
+         * desktop screens without stretching the game artwork.
+         */
+        mode: Phaser.Scale.EXPAND,
 
         autoCenter:
           Phaser.Scale.CENTER_BOTH,
@@ -3345,11 +3416,13 @@ export default function PhaserGame({
   return (
     <div
       ref={gameContainerRef}
-      className="h-full w-full overflow-hidden bg-[#070a18]"
+      className="absolute inset-0 h-full w-full overflow-hidden bg-[#070a18]"
       aria-label="Rover Challenge game"
       style={{
-        width: "100vw",
-        height: "100dvh",
+        width: "100%",
+        height: "100%",
+        minWidth: "100%",
+        minHeight: "100%",
         touchAction: "none",
         overscrollBehavior: "none",
       }}

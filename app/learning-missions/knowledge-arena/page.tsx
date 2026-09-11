@@ -804,6 +804,13 @@ export default function KnowledgeArenaPage() {
     return Number(a.answer_time_total || 0) - Number(b.answer_time_total || 0);
   });
   const myCoopPlayer = players.find((player) => player.id === myPlayer?.id) || myPlayer;
+  const coopVictory = Boolean(
+    lobby?.game_mode === "coop" &&
+    (lobby.dreamkeeper_active || Number(lobby.monster_hp_remaining || 0) <= 0)
+  );
+  const coopWinningImage = coopVictory
+    ? "/activities/learning-missions/knowledge-arena/nova/nova-battle-idle.png"
+    : (coopMonster?.sprite_url || "");
   const versusStandings = [...players].sort((a, b) => {
     if (Number(b.race_progress || 0) !== Number(a.race_progress || 0)) {
       return Number(b.race_progress || 0) - Number(a.race_progress || 0);
@@ -2968,14 +2975,6 @@ export default function KnowledgeArenaPage() {
           </button>
         </div>
 
-        {screenMode === "mobile" && stage === "solo-quiz" && (
-          <div className="ka-mobile-battle-metrics" aria-label="Battle status">
-            <span>Q {questionIndex + 1}/10</span>
-            <span>Score {score}</span>
-            <span className={timeLeft <= 3 ? "is-low" : ""}>{timeLeft}s</span>
-          </div>
-        )}
-
         <div className="ka-top-actions">
           <Link href={userEmail ? "/profile" : "/login"} className="ka-nav-button">
             {userEmail ? "My Account" : "Log In"}
@@ -3541,7 +3540,6 @@ export default function KnowledgeArenaPage() {
               onReviveDT={() => void reviveNova("DT")}
               onReviveDG={() => void reviveNova("DG")}
               onAcceptDefeat={battle.acceptDefeat}
-              isMobile={screenMode === "mobile"}
             />
           )}
 
@@ -3625,39 +3623,78 @@ export default function KnowledgeArenaPage() {
 
           {stage === "multiplayer-results" && (
             <div className="ka-stage ka-multi-results">
-              <div className="ka-results-heading">
-                <div>
-                  <p className="ka-kicker">{lobby?.game_mode === "coop" ? "Co-op Complete" : "Versus Complete"}</p>
-                  <h2>{lobby?.game_mode === "coop" ? (lobby?.dreamkeeper_active ? "Dreamkeeper Score Run Complete" : "Monster Battle Complete") : "Race Complete"}</h2>
+              {lobby?.game_mode === "coop" ? (
+                <div className={`ka-coop-result-hero ${coopVictory ? "is-win" : "is-defeat"}`}>
+                  <div className="ka-coop-result-left">
+                    <div className="ka-coop-result-title">
+                      <div>
+                        <p className="ka-kicker">Co-op Complete</p>
+                        <h2>{lobby?.dreamkeeper_active ? "Dreamkeeper Score Run Complete" : "Monster Battle Complete"}</h2>
+                      </div>
+                      <div className="ka-result-score ka-mp-feature-score is-damage">
+                        <span>YOUR DAMAGE SCORE</span>
+                        <strong>
+                          {Number(myCoopPlayer?.battle_damage || 0)}
+                          <em> DMG</em>
+                        </strong>
+                      </div>
+                    </div>
+
+                    <div className="ka-coop-score-list">
+                      {coopStandings.map((player, index) => (
+                        <div key={player.id} className={`ka-coop-score-row ${player.id === myCoopPlayer?.id ? "is-me" : ""}`}>
+                          <span>#{index + 1}</span>
+                          <strong>{player.display_name}</strong>
+                          <b>{Number(player.battle_damage || 0)} DMG</b>
+                          <small>{player.correct_count}/10{player.is_eliminated ? " · ghost" : ""}</small>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="ka-coop-result-summary">
+                      <div>
+                        <span>Original monster</span>
+                        <strong>{coopMonster?.name || "Arena Monster"}</strong>
+                      </div>
+                      <div>
+                        <span>Monster HP remaining</span>
+                        <strong>{Number(lobby.monster_hp_remaining || 0)}</strong>
+                      </div>
+                      <div>
+                        <span>Dreamkeeper damage</span>
+                        <strong>{Number(lobby.dreamkeeper_damage || 0)}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="ka-coop-result-visual">
+                    <span className={`ka-coop-outcome ${coopVictory ? "is-win" : "is-defeat"}`}>
+                      {coopVictory ? "WIN" : "DEFEAT"}
+                    </span>
+                    <div className="ka-coop-winner-image">
+                      {coopWinningImage && <img src={coopWinningImage} alt="" draggable={false} />}
+                    </div>
+                    <strong>{coopVictory ? "TEAM NOVA" : (coopMonster?.name || "ARENA MONSTER")}</strong>
+                  </div>
                 </div>
-                <div className={`ka-result-score ka-mp-feature-score ${lobby?.game_mode === "coop" ? "is-damage" : "is-distance"}`}>
-                  <span>{lobby?.game_mode === "coop" ? "YOUR DAMAGE SCORE" : "YOUR RACE DISTANCE"}</span>
-                  <strong>
-                    {lobby?.game_mode === "coop" ? Number(myCoopPlayer?.battle_damage || 0) : Math.round(Number(myPlayer?.race_progress || 0))}
-                    <em>{lobby?.game_mode === "coop" ? " DMG" : "m"}</em>
-                  </strong>
+              ) : (
+                <div className="ka-results-heading">
+                  <div>
+                    <p className="ka-kicker">Versus Complete</p>
+                    <h2>Race Complete</h2>
+                  </div>
+                  <div className="ka-result-score ka-mp-feature-score is-distance">
+                    <span>YOUR RACE DISTANCE</span>
+                    <strong>
+                      {Math.round(Number(myPlayer?.race_progress || 0))}
+                      <em>m</em>
+                    </strong>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {attemptSaveMessage && (
                 <p className="ka-message-banner">{attemptSaveMessage}</p>
-              )}
-
-              {lobby?.game_mode === "coop" && (
-                <div className="ka-coop-result-summary">
-                  <div>
-                    <span>Original monster</span>
-                    <strong>{coopMonster?.name || "Arena Monster"}</strong>
-                  </div>
-                  <div>
-                    <span>Monster HP remaining</span>
-                    <strong>{Number(lobby.monster_hp_remaining || 0)}</strong>
-                  </div>
-                  <div>
-                    <span>Dreamkeeper damage</span>
-                    <strong>{Number(lobby.dreamkeeper_damage || 0)}</strong>
-                  </div>
-                </div>
               )}
 
               {lobby?.game_mode === "versus" && versusStandings.length > 0 && (
@@ -3683,20 +3720,16 @@ export default function KnowledgeArenaPage() {
                 compact
               />
 
-              <div className="ka-leaderboard-scroll">
-                {(lobby?.game_mode === "coop" ? coopStandings : versusStandings).map((player, index) => (
-                  <div key={player.id} className="ka-leaderboard-row">
-                    <strong>
-                      #{index + 1} {player.display_name}
-                    </strong>
-                    <span>
-                      {lobby?.game_mode === "coop"
-                        ? `${Number(player.battle_damage || 0)} dmg · ${player.correct_count}/10${player.is_eliminated ? " · ghost" : ""}`
-                        : `${Math.round(Number(player.race_progress || 0))} distance · ${player.correct_count}/10`}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              {lobby?.game_mode === "versus" && (
+                <div className="ka-leaderboard-scroll">
+                  {versusStandings.map((player, index) => (
+                    <div key={player.id} className="ka-leaderboard-row">
+                      <strong>#{index + 1} {player.display_name}</strong>
+                      <span>{Math.round(Number(player.race_progress || 0))}m · {player.correct_count}/10</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <details className="ka-global-board">
                 <summary>
@@ -3931,38 +3964,6 @@ export default function KnowledgeArenaPage() {
           display: flex;
           align-items: center;
           gap: 7px;
-        }
-
-        .ka-mobile-battle-metrics {
-          position: absolute;
-          left: 50%;
-          top: 50%;
-          z-index: 2;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          transform: translate(-50%, -50%);
-        }
-
-        .ka-mobile-battle-metrics span {
-          display: inline-flex;
-          min-height: 33px;
-          align-items: center;
-          justify-content: center;
-          border: 1px solid rgba(126,232,255,.22);
-          border-radius: 999px;
-          background: rgba(5,13,28,.80);
-          padding: 0 10px;
-          color: white;
-          font-size: 10px;
-          font-weight: 900;
-          box-shadow: 0 8px 20px rgba(0,0,0,.18);
-          backdrop-filter: blur(14px);
-        }
-
-        .ka-mobile-battle-metrics span.is-low {
-          border-color: rgba(255,111,111,.40);
-          color: #ff9b9b;
         }
 
         .ka-nav-button {
@@ -6030,12 +6031,6 @@ export default function KnowledgeArenaPage() {
             min-height: 30px;
           }
 
-          .ka-mobile-battle-metrics span {
-            min-height: 30px;
-            padding-inline: 9px;
-            font-size: 9px;
-          }
-
           .ka-hero {
             min-height: 40px;
             padding-top: 4px;
@@ -7813,6 +7808,142 @@ export default function KnowledgeArenaPage() {
         .ka-coop-result-summary strong { font-size: 11px; }
         .ka-coop-leaderboard-note { margin: 0; color: rgba(255,255,255,.42); font-size: 8px; text-align: center; }
 
+
+        /* Co-op desktop result hero */
+        .ka-coop-result-hero {
+          display: grid;
+          grid-template-columns: minmax(0, 1.08fr) minmax(280px, .72fr);
+          gap: 16px;
+          min-height: 0;
+        }
+        .ka-coop-result-left {
+          display: grid;
+          min-width: 0;
+          align-content: start;
+          gap: 11px;
+        }
+        .ka-coop-result-title {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 14px;
+        }
+        .ka-coop-result-title h2 {
+          margin: 4px 0 0;
+          font-size: clamp(27px, 3vw, 40px);
+          line-height: 1.05;
+        }
+        .ka-coop-result-title .ka-mp-feature-score {
+          min-width: 235px;
+        }
+        .ka-coop-result-title .ka-mp-feature-score strong {
+          font-size: clamp(54px, 6vw, 78px) !important;
+        }
+        .ka-coop-score-list {
+          display: grid;
+          gap: 7px;
+        }
+        .ka-coop-score-row {
+          display: grid;
+          grid-template-columns: 40px minmax(0,1fr) auto auto;
+          gap: 10px;
+          align-items: center;
+          min-height: 54px;
+          border: 1px solid rgba(255,255,255,.10);
+          border-radius: 14px;
+          background: rgba(255,255,255,.035);
+          padding: 9px 12px;
+        }
+        .ka-coop-score-row.is-me {
+          border-color: rgba(126,232,255,.34);
+          background: linear-gradient(90deg,rgba(79,209,255,.10),rgba(255,255,255,.025));
+        }
+        .ka-coop-score-row > span {
+          color:#7ee8ff;
+          font-size:14px;
+          font-weight:950;
+        }
+        .ka-coop-score-row > strong {
+          font-size:16px;
+        }
+        .ka-coop-score-row > b {
+          color:#ffd86c;
+          font-size:24px;
+          line-height:1;
+        }
+        .ka-coop-score-row > small {
+          color:rgba(255,255,255,.52);
+          font-size:10px;
+          white-space:nowrap;
+        }
+        .ka-coop-result-visual {
+          display: flex;
+          min-height: 290px;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          border: 1px solid rgba(255,255,255,.10);
+          border-radius: 22px;
+          background:
+            radial-gradient(circle at 50% 40%,rgba(126,232,255,.12),transparent 42%),
+            rgba(255,255,255,.025);
+          padding: 15px;
+          text-align: center;
+        }
+        .ka-coop-result-hero.is-win .ka-coop-result-visual {
+          border-color: rgba(74,222,128,.34);
+          background:
+            radial-gradient(circle at 50% 42%,rgba(74,222,128,.16),transparent 44%),
+            rgba(14,53,38,.20);
+        }
+        .ka-coop-result-hero.is-defeat .ka-coop-result-visual {
+          border-color: rgba(248,113,113,.34);
+          background:
+            radial-gradient(circle at 50% 42%,rgba(248,113,113,.16),transparent 44%),
+            rgba(60,19,26,.20);
+        }
+        .ka-coop-outcome {
+          display:inline-flex;
+          align-items:center;
+          justify-content:center;
+          min-width:150px;
+          border-radius:999px;
+          padding:8px 18px;
+          font-size:clamp(28px,3vw,42px);
+          font-weight:1000;
+          letter-spacing:.08em;
+        }
+        .ka-coop-outcome.is-win {
+          border:1px solid rgba(74,222,128,.5);
+          background:rgba(74,222,128,.14);
+          color:#7bffad;
+          text-shadow:0 0 16px rgba(74,222,128,.46);
+        }
+        .ka-coop-outcome.is-defeat {
+          border:1px solid rgba(248,113,113,.5);
+          background:rgba(248,113,113,.13);
+          color:#ff8888;
+          text-shadow:0 0 16px rgba(248,113,113,.42);
+        }
+        .ka-coop-winner-image {
+          display:grid;
+          width:min(100%,310px);
+          height:220px;
+          place-items:center;
+          margin:8px auto;
+        }
+        .ka-coop-winner-image img {
+          width:100%;
+          height:100%;
+          object-fit:contain;
+          filter:drop-shadow(0 16px 24px rgba(0,0,0,.36));
+        }
+        .ka-coop-result-visual > strong {
+          font-size:18px;
+          letter-spacing:.05em;
+        }
+
         .ka-mp-feature-score {
           min-width: 190px;
           border: 1px solid rgba(255,213,94,.45);
@@ -7936,7 +8067,63 @@ export default function KnowledgeArenaPage() {
           font-weight: 950;
         }
 
+
+        @media (max-width: 700px) and (orientation: portrait) {
+          .ka-lobby-topic-picker {
+            flex: 0 0 auto;
+            min-height: 0;
+            overflow: visible;
+          }
+          .ka-lobby-topic-picker .ka-world-grid {
+            display:grid;
+            grid-template-columns:1fr;
+            grid-template-rows:none;
+            gap:7px;
+            max-height:34vh;
+            overflow-y:auto;
+            overscroll-behavior:contain;
+            padding-right:4px;
+            scrollbar-width:thin;
+            scrollbar-color:rgba(126,232,255,.28) transparent;
+          }
+          .ka-lobby-topic-picker .ka-world-card {
+            min-height:96px;
+          }
+        }
+
+        @media (max-width: 850px) and (orientation: landscape) {
+          .ka-multi-results {
+            overflow-y:auto;
+            padding-bottom:12px;
+          }
+          .ka-multiplayer-result-actions {
+            position:static;
+            bottom:auto;
+            padding-top:8px;
+            background:none;
+          }
+          .ka-global-board[open] .ka-global-board-table {
+            max-height:42vh;
+            overflow-y:auto;
+          }
+        }
+
         @media (max-width: 850px) {
+.ka-coop-result-hero { grid-template-columns:1fr; gap:9px; }
+          .ka-coop-result-title { align-items:center; }
+          .ka-coop-result-title h2 { font-size:21px; }
+          .ka-coop-result-title .ka-mp-feature-score { min-width:145px; }
+          .ka-coop-result-title .ka-mp-feature-score strong { font-size:36px !important; }
+          .ka-coop-score-row { min-height:42px; grid-template-columns:28px minmax(0,1fr) auto; gap:6px; padding:7px 8px; }
+          .ka-coop-score-row > span { font-size:11px; }
+          .ka-coop-score-row > strong { font-size:12px; }
+          .ka-coop-score-row > b { font-size:17px; }
+          .ka-coop-score-row > small { display:none; }
+          .ka-coop-result-visual { min-height:180px; padding:9px; }
+          .ka-coop-outcome { min-width:110px; padding:5px 12px; font-size:24px; }
+          .ka-coop-winner-image { height:115px; width:min(100%,190px); }
+          .ka-coop-result-visual > strong { font-size:13px; }
+
           .ka-mp-mode-picker { padding: 7px; gap: 5px; }
           .ka-mp-mode-card { min-height: 46px; padding: 6px 7px; gap: 5px; }
           .ka-mp-mode-card > span { font-size: 14px; }
@@ -8571,55 +8758,6 @@ function ArenaResultsPanel({
         @media (max-width: 700px) {
           .ka-results-arena-backdrop { padding: 8px; }
           .ka-results-popup { width: 98%; height: 96%; border-radius: 18px; }
-        }
-
-        @media (max-height: 700px) and (orientation: landscape) {
-          .ka-results-arena-backdrop {
-            align-items: stretch;
-            padding: 5px 8px;
-          }
-
-          .ka-results-popup {
-            width: min(1180px, 100%);
-            height: 100%;
-            max-height: 100%;
-            overflow-x: hidden;
-            overflow-y: auto;
-            border-radius: 17px;
-            padding: 10px;
-            scrollbar-width: thin;
-            scrollbar-color: rgba(126,232,255,.30) transparent;
-          }
-
-          .ka-results-popup::-webkit-scrollbar {
-            width: 7px;
-          }
-
-          .ka-results-popup::-webkit-scrollbar-thumb {
-            border-radius: 999px;
-            background: rgba(126,232,255,.28);
-          }
-
-          .ka-results-popup .ka-results-scroll {
-            flex: 0 0 auto;
-            min-height: auto;
-            overflow: visible;
-            padding-right: 0;
-          }
-
-          .ka-results-popup .ka-nova-upgrade-card {
-            flex: 0 0 auto;
-            margin-top: 8px;
-          }
-
-          .ka-results-popup .ka-results-actions {
-            position: sticky;
-            bottom: -10px;
-            z-index: 5;
-            flex: 0 0 auto;
-            padding: 8px 0 2px;
-            background: linear-gradient(180deg,transparent,rgba(3,13,31,.97) 34%);
-          }
         }
 
         .ka-nova-upgrade-card {

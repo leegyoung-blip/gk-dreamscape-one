@@ -167,6 +167,17 @@ export function ArenaVersusCharacterSelect({
         .kavs-roster{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-top:18px}.kavs-roster-row{border:1px solid rgba(255,255,255,.1);border-radius:13px;background:rgba(255,255,255,.035);padding:9px 11px}.kavs-roster-row.is-me{border-color:rgba(120,232,255,.32)}.kavs-roster-row.is-confirmed{background:rgba(73,216,155,.07)}.kavs-roster-row strong,.kavs-roster-row span{display:block}.kavs-roster-row strong{font-size:11px}.kavs-roster-row span{margin-top:3px;color:rgba(255,255,255,.58);font-size:10px}.kavs-message{margin-top:12px;border-radius:12px;background:rgba(255,92,92,.1);padding:10px 12px;color:#ffb6b6;font-size:12px;font-weight:800}
         .kavs-actions{margin-top:16px;display:flex;justify-content:flex-end;align-items:center;gap:10px}.kavs-confirm,.kavs-start{min-width:210px;border:0;border-radius:15px;padding:13px 18px;font-weight:950}.kavs-confirm{background:linear-gradient(135deg,#ffd56a,#ff9c39);color:#251100}.kavs-start{background:linear-gradient(135deg,#6be6ff,#8676ff);color:#03111d}.kavs-confirm:disabled,.kavs-start:disabled{opacity:.42}.kavs-waiting{border:1px solid rgba(255,255,255,.1);border-radius:14px;background:rgba(255,255,255,.04);padding:11px 14px;color:rgba(255,255,255,.7);font-size:12px}
         @media(max-width:900px){.kavs-select-shell{padding:12px 14px 18px}.kavs-select-head{margin-bottom:11px}.kavs-select-head span{font-size:11px}.kavs-ready-count{padding:8px 10px}.kavs-ready-count strong{font-size:18px}.kavs-nova-grid{grid-template-columns:repeat(4,minmax(120px,1fr));overflow-x:auto}.kavs-monster-grid{grid-template-columns:repeat(4,minmax(110px,1fr));overflow-x:auto}.kavs-sprite-box{height:90px}.kavs-choice{padding:7px;border-radius:13px}.kavs-roster{display:none}.kavs-actions{position:sticky;bottom:0;padding-top:8px;background:linear-gradient(180deg,transparent,#090a18 28%)}.kavs-confirm,.kavs-start{min-width:0;flex:1;padding:10px 12px;font-size:11px}}
+        @media(max-width:700px) and (orientation:portrait){
+          .kavs-select-shell{height:100%;overflow-y:auto;padding:10px 12px 16px}
+          .kavs-choice-section{margin-top:10px}
+          .kavs-grid.kavs-nova-grid,.kavs-grid.kavs-monster-grid{grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible;gap:8px}
+          .kavs-sprite-box{height:82px}
+          .kavs-choice{padding:6px}
+          .kavs-choice strong{margin-top:5px;font-size:11px}
+          .kavs-choice span{min-height:22px;font-size:8px}
+          .kavs-section-title{margin-bottom:6px;font-size:10px}
+          .kavs-actions{bottom:-1px}
+        }
       `}</style>
     </div>
   );

@@ -2201,14 +2201,17 @@ const accountHeaderButton: CSSProperties = {
 
 function garageShell(isMobile: boolean): CSSProperties {
   return {
-    width: "min(1500px,100%)",
-    margin: "0 auto",
-    padding: isMobile ? "12px" : "22px",
+    width: "100%",
+    maxWidth: "none",
+    margin: 0,
+    padding: isMobile
+      ? "12px"
+      : "22px clamp(22px, 2.4vw, 44px) 30px",
     display: "grid",
     gridTemplateColumns: isMobile
       ? "1fr"
-      : "minmax(360px,0.92fr) minmax(0,1.25fr)",
-    gap: "18px",
+      : "minmax(520px, 0.94fr) minmax(720px, 1.16fr)",
+    gap: "clamp(18px, 1.6vw, 30px)",
     alignItems: "start",
   };
 }
@@ -2227,7 +2230,7 @@ function previewCard(accent: string): CSSProperties {
     background:
       "linear-gradient(145deg, rgba(6,24,52,0.9), rgba(3,13,34,0.97))",
     boxShadow: `0 0 30px ${accent}20, 0 24px 70px rgba(0,0,0,0.38)`,
-    padding: "20px",
+    padding: "clamp(18px, 1.5vw, 26px)",
     overflow: "hidden",
   };
 }
@@ -2274,11 +2277,12 @@ function previewStage(isMobile: boolean): CSSProperties {
   return {
     position: "relative",
     marginTop: "16px",
-    height: isMobile ? "245px" : "330px",
+    height: isMobile ? "255px" : "clamp(390px, 34vw, 540px)",
+    minHeight: isMobile ? undefined : "390px",
     borderRadius: "22px",
     border: "1px solid rgba(255,255,255,0.1)",
     background:
-      "radial-gradient(circle at 50% 48%, rgba(126,232,255,0.15), rgba(255,255,255,0.035) 46%, rgba(0,0,0,0.18))",
+      "radial-gradient(circle at 50% 48%, rgba(126,232,255,0.17), rgba(255,255,255,0.035) 50%, rgba(0,0,0,0.2))",
     overflow: "hidden",
     display: "flex",
     alignItems: "center",
@@ -2289,10 +2293,11 @@ function previewStage(isMobile: boolean): CSSProperties {
 const roverImage: CSSProperties = {
   position: "relative",
   zIndex: 4,
-  width: "88%",
-  height: "80%",
+  width: "97%",
+  height: "93%",
+  maxWidth: "none",
   objectFit: "contain",
-  filter: "drop-shadow(0 24px 34px rgba(0,0,0,0.55))",
+  filter: "drop-shadow(0 30px 42px rgba(0,0,0,0.58))",
 };
 
 const loadoutLabels: CSSProperties = {

@@ -524,8 +524,11 @@ export default function RoverChallengeClient({
     Boolean(userId && access?.unlocked) && levelConfig.status === "playable";
 
   return (
-    <main className="fixed inset-0 h-[100dvh] w-screen overflow-hidden bg-[#050713] text-white">
-      <div ref={gameAreaRef} className="relative h-full w-full overflow-hidden bg-[#050713]">
+    <main className="fixed inset-0 h-[100dvh] w-[100vw] max-w-none overflow-hidden bg-[#050713] text-white">
+      <div
+        ref={gameAreaRef}
+        className="absolute inset-0 h-full w-full max-w-none overflow-hidden bg-[#050713]"
+      >
         {loading ? (
           <LoadingScreen label="CHECKING LEVEL ACCESS" />
         ) : canPlay ? (
