@@ -18,6 +18,7 @@ import {
   type KnowledgeArenaBattleTopic,
   type KnowledgeArenaBattleMonster,
 } from "./useKnowledgeArenaBattle";
+import { NOVA_VARIANTS, getNovaVariant, type NovaVariantSlug } from "./novaVariants";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 type TimerSeconds = 10 | 20;
@@ -667,6 +668,8 @@ export default function KnowledgeArenaPage() {
   const [attemptSaveMessage, setAttemptSaveMessage] = useState("");
   const [selectedChallengeMode, setSelectedChallengeMode] =
     useState<ChallengeMode>("quick_play");
+  const [selectedNovaVariant, setSelectedNovaVariant] =
+    useState<NovaVariantSlug>("original");
   const [activeChallengePlan, setActiveChallengePlan] =
     useState<ChallengePlan | null>(null);
   const [knowledgeProfile, setKnowledgeProfile] =
@@ -1099,6 +1102,19 @@ export default function KnowledgeArenaPage() {
     void loadKnowledgeProfile();
   }, [userId]);
 
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const storedNova = window.localStorage.getItem("knowledge-arena-solo-nova");
+    if (NOVA_VARIANTS.some((variant) => variant.slug === storedNova)) {
+      setSelectedNovaVariant(storedNova as NovaVariantSlug);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("knowledge-arena-solo-nova", selectedNovaVariant);
+  }, [selectedNovaVariant]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -3241,6 +3257,35 @@ export default function KnowledgeArenaPage() {
                 />
               </div>
 
+              <div className="ka-nova-select-section">
+                <div className="ka-setup-label-row">
+                  <div>
+                    <span>Choose Nova</span>
+                    <small>Your selected Nova also determines your laser colour.</small>
+                  </div>
+                </div>
+                <div className="ka-nova-select-grid">
+                  {NOVA_VARIANTS.map((variant) => {
+                    const selected = selectedNovaVariant === variant.slug;
+                    return (
+                      <button
+                        key={variant.slug}
+                        type="button"
+                        className={`ka-nova-select-card ${selected ? "is-selected" : ""}`}
+                        onClick={() => setSelectedNovaVariant(variant.slug)}
+                        aria-pressed={selected}
+                      >
+                        <img src={variant.sprite} alt="" draggable={false} />
+                        <span>
+                          <strong>{variant.label}</strong>
+                          <small>{selected ? "Selected" : variant.shortLabel}</small>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="ka-setup-lower">
                 <div data-nova-guide-target="timer">
                   <ArenaTimerSelector
@@ -3651,6 +3696,7 @@ export default function KnowledgeArenaPage() {
               onReviveDG={() => void reviveNova("DG")}
               onAcceptDefeat={battle.acceptDefeat}
               isMobile={screenMode === "mobile"}
+              novaVariant={selectedNovaVariant}
             />
           )}
 
@@ -3723,6 +3769,7 @@ export default function KnowledgeArenaPage() {
               battleMonster={battle.monster}
               battleResult={lastBattleResult}
               battleTopic={battleTopic}
+              novaVariant={selectedNovaVariant}
               onStartFocus={startFocusFromResults}
               onNextChallenge={() => {
                 battle.resetBattle();
@@ -4656,6 +4703,62 @@ export default function KnowledgeArenaPage() {
           color: rgba(255, 255, 255, 0.55);
           font-size: 8px;
           line-height: 1.3;
+        }
+
+        .ka-nova-select-section {
+          display: grid;
+          gap: 8px;
+          min-width: 0;
+        }
+        .ka-nova-select-grid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 8px;
+        }
+        .ka-nova-select-card {
+          display: grid;
+          min-width: 0;
+          grid-template-columns: 50px minmax(0,1fr);
+          gap: 8px;
+          align-items: center;
+          border: 1px solid rgba(255,255,255,.10);
+          border-radius: 14px;
+          background: rgba(255,255,255,.035);
+          padding: 7px 9px;
+          color: white;
+          text-align: left;
+          cursor: pointer;
+          transition: .16s ease;
+        }
+        .ka-nova-select-card:hover {
+          border-color: rgba(126,232,255,.32);
+          background: rgba(126,232,255,.06);
+        }
+        .ka-nova-select-card.is-selected {
+          border-color: rgba(126,232,255,.66);
+          background: linear-gradient(135deg,rgba(126,232,255,.12),rgba(110,74,255,.09));
+          box-shadow: 0 0 0 2px rgba(126,232,255,.08);
+        }
+        .ka-nova-select-card > img {
+          width: 50px;
+          height: 58px;
+          object-fit: contain;
+          object-position: center;
+        }
+        .ka-nova-select-card > span {
+          display: grid;
+          gap: 2px;
+          min-width: 0;
+        }
+        .ka-nova-select-card strong {
+          overflow: hidden;
+          font-size: 11px;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .ka-nova-select-card small {
+          color: rgba(255,255,255,.50);
+          font-size: 8px;
         }
 
         .ka-setup-lower {
@@ -9057,6 +9160,7 @@ function ArenaResultsPanel({
   battleMonster,
   battleResult,
   battleTopic,
+  novaVariant,
   onStartFocus,
   onNextChallenge,
   onExit,
@@ -9085,6 +9189,7 @@ function ArenaResultsPanel({
   battleMonster: KnowledgeArenaBattleMonster | null;
   battleResult: KnowledgeArenaBattleResultState | null;
   battleTopic: KnowledgeArenaTopic;
+  novaVariant: NovaVariantSlug;
   onStartFocus: () => void;
   onNextChallenge: () => void;
   onExit: () => void;
@@ -9119,6 +9224,7 @@ function ArenaResultsPanel({
           damageReceived={battleResult.damageReceived}
           revivesUsed={battleResult.revivesUsed}
           collection={battleResult.collection}
+          novaVariant={novaVariant}
         />
       )}
 
@@ -9242,6 +9348,12 @@ function ArenaResultsPanel({
           backdrop-filter: blur(16px);
         }
         @media (max-width: 700px) {
+          .ka-nova-select-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap:6px; }
+          .ka-nova-select-card { grid-template-columns:42px minmax(0,1fr); padding:5px 7px; border-radius:11px; }
+          .ka-nova-select-card > img { width:42px; height:48px; }
+          .ka-nova-select-card strong { font-size:10px; }
+          .ka-nova-select-card small { font-size:7px; }
+
           .ka-pause-full { display:none; }
           .ka-pause-short { display:inline; }
 

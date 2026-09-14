@@ -277,20 +277,51 @@ export const roverPerformanceCategories: RoverPerformanceCategoryConfig[] = [
     id: "energy",
     title: "Energy System",
     statLabel: "boost",
-    shortDescription: "Expands boost reserves while improving recharge and power delivery.",
+    shortDescription:
+      "Expands boost reserves while improving recharge and power delivery.",
     effectSummary: "Boost · Capacity · Recharge · Efficiency",
     tiers: [
-      ["Boost Cell", "Adds a compact reserve cell for longer boost bursts."],
-      ["Dual Cell", "Pairs energy cells to improve capacity and recharge."],
-      ["Pulse Capacitor", "Stores high-output energy with lower sustained drain."],
-      ["Flux Battery", "Large-capacity power unit for repeated high-speed boosts."],
-      ["Nova Energy Core", "Maximum Skyforge boost capacity and regeneration."],
-    ].map(([name, description], index) => ({
-      level: index + 1,
-      name,
-      description,
-      priceDt: PRICE_BY_LEVEL[index],
-    })),
+      {
+        level: 1,
+        name: "Boost Cell",
+        description:
+          "Compact reserve cell adds extra stored energy for longer boost bursts.",
+        priceDt: PRICE_BY_LEVEL[0],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/energy/boost-cell.png`,
+      },
+      {
+        level: 2,
+        name: "Dual Cell Pack",
+        description:
+          "Paired high-density energy cells increase boost capacity and recharge performance.",
+        priceDt: PRICE_BY_LEVEL[1],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/energy/dual-cell-pack.png`,
+      },
+      {
+        level: 3,
+        name: "Pulse Capacitor",
+        description:
+          "High-discharge capacitor bank delivers stronger boost response with lower sustained drain.",
+        priceDt: PRICE_BY_LEVEL[2],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/energy/pulse-capacitor.png`,
+      },
+      {
+        level: 4,
+        name: "Flux Battery",
+        description:
+          "Advanced high-capacity battery system supports repeated high-speed boost cycles.",
+        priceDt: PRICE_BY_LEVEL[3],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/energy/flux-battery.png`,
+      },
+      {
+        level: 5,
+        name: "Nova Energy Core",
+        description:
+          "Ultimate Skyforge power core delivers maximum boost capacity, recharge and efficiency.",
+        priceDt: PRICE_BY_LEVEL[4],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/energy/nova-energy-core.png`,
+      },
+    ],
   },
 ];
 

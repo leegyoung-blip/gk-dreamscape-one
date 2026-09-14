@@ -1,5 +1,7 @@
 "use client";
 
+import { NOVA_VARIANTS } from "./novaVariants";
+
 export type VersusMonsterChoice = {
   slug: string;
   name: string;
@@ -16,12 +18,7 @@ export type VersusPlayerChoice = {
   character_confirmed: boolean;
 };
 
-const novaChoices = [
-  { slug: "original", label: "Original Nova", subtitle: "Classic battle suit", sprite: "/activities/learning-missions/knowledge-arena/nova/nova-battle-idle.png" },
-  { slug: "striker", label: "Striker Nova", subtitle: "Crimson speed suit", sprite: "/activities/learning-missions/knowledge-arena/versus/novas/nova-striker.png" },
-  { slug: "pulse", label: "Pulse Nova", subtitle: "Violet tech suit", sprite: "/activities/learning-missions/knowledge-arena/versus/novas/nova-pulse.png" },
-  { slug: "vanguard", label: "Vanguard Nova", subtitle: "Gold guardian suit", sprite: "/activities/learning-missions/knowledge-arena/versus/novas/nova-vanguard.png" },
-] as const;
+const novaChoices = NOVA_VARIANTS;
 
 const monsterOrder = ["atlas-golem", "tempest-roc", "worldbreaker-leviathan", "verdant-sabertooth"] as const;
 const novaLabelBySlug = Object.fromEntries(novaChoices.map((choice) => [choice.slug, choice.label])) as Record<string, string>;

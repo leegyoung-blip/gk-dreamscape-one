@@ -792,18 +792,6 @@ export default function RoverGarageClient() {
         return;
       }
 
-      const confirmed = window.confirm(
-        [
-          `Install ${buildRow.next_name} on Rover ${equippedStage + 1}?`,
-          "",
-          `Cost: ${price.toLocaleString("en-SG")} Dream Tokens`,
-          `This upgrade belongs only to Rover ${equippedStage + 1}.`,
-          "Switching to another rover will use that rover's own Custom Build purchases.",
-        ].join("\n"),
-      );
-
-      if (!confirmed) return;
-
       setPurchasingPerformanceCategory(category);
       setPerformanceMessage("");
 
@@ -1838,6 +1826,13 @@ function CustomBuildPanel({
     coreUpgradeTrack.find((item) => item.stage === equippedStage) ??
     coreUpgradeTrack[0];
 
+  const [confirmingCategory, setConfirmingCategory] =
+    useState<RoverPerformanceCategory | null>(null);
+
+  useEffect(() => {
+    setConfirmingCategory(null);
+  }, [equippedStage]);
+
   return (
     <div style={scrollPanel}>
       <div style={panelHeading}>
@@ -1964,19 +1959,62 @@ function CustomBuildPanel({
 
                   {maxed ? (
                     <span style={performanceMaxBadge}>MAXIMUM</span>
+                  ) : confirmingCategory === category.id ? (
+                    <div style={performanceConfirmActions}>
+                      <button
+                        type="button"
+                        disabled={purchasingCategory !== null}
+                        onClick={() => setConfirmingCategory(null)}
+                        style={performanceCancelButton(
+                          purchasingCategory === null,
+                        )}
+                      >
+                        Cancel
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={
+                          !canAfford ||
+                          purchasingCategory !== null
+                        }
+                        onClick={() => {
+                          setConfirmingCategory(null);
+                          onPurchase(category.id);
+                        }}
+                        style={performanceConfirmButton(
+                          canAfford &&
+                            purchasingCategory === null,
+                        )}
+                      >
+                        {purchasing
+                          ? "Installing..."
+                          : `Confirm · ${Number(
+                              row.next_price_dt,
+                            ).toLocaleString("en-SG")} DT`}
+                      </button>
+                    </div>
                   ) : (
                     <button
                       type="button"
-                      disabled={!canAfford || purchasingCategory !== null}
-                      onClick={() => onPurchase(category.id)}
+                      disabled={
+                        !canAfford ||
+                        purchasingCategory !== null
+                      }
+                      onClick={() =>
+                        setConfirmingCategory(category.id)
+                      }
                       style={purchaseRoverButton(
-                        canAfford && purchasingCategory === null,
+                        canAfford &&
+                          purchasingCategory === null,
                       )}
                     >
                       {purchasing
                         ? "Installing..."
                         : canAfford
-                          ? `${Number(row.next_price_dt).toLocaleString("en-SG")} DT · Install`
+                          ? `${Number(
+                              row.next_price_dt,
+                            ).toLocaleString("en-SG")} DT · Install`
                           : "Need DT"}
                     </button>
                   )}
@@ -2753,20 +2791,18 @@ const performanceRatingBadge: CSSProperties = {
   gap: "3px",
 };
 
-function performanceTierGrid(_isMobile: boolean): CSSProperties {
+function performanceTierGrid(isMobile: boolean): CSSProperties {
   return {
-    display: "flex",
+    display: "grid",
     width: "100%",
     maxWidth: "100%",
     minWidth: 0,
+    gridTemplateColumns: isMobile
+      ? "1fr"
+      : "repeat(auto-fit, minmax(150px, 1fr))",
     gap: "10px",
     marginTop: "14px",
-    paddingBottom: "8px",
-    overflowX: "auto",
-    overflowY: "hidden",
-    overscrollBehaviorX: "contain",
-    WebkitOverflowScrolling: "touch",
-    scrollSnapType: "x proximity",
+    overflow: "hidden",
   };
 }
 
@@ -2776,11 +2812,8 @@ function performanceTierCard(
   unavailable: boolean,
 ): CSSProperties {
   return {
-    flex: "1 0 205px",
-    minWidth: "205px",
-    maxWidth: "290px",
+    minWidth: 0,
     minHeight: "280px",
-    scrollSnapAlign: "start",
     borderRadius: "14px",
     border: owned
       ? "1px solid rgba(111,255,184,0.28)"
@@ -2884,6 +2917,55 @@ const performanceCategoryFooter: CSSProperties = {
   color: "rgba(255,255,255,0.53)",
   fontSize: "11px",
 };
+
+const performanceConfirmActions: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "flex-end",
+  gap: "8px",
+  flexWrap: "wrap",
+};
+
+function performanceCancelButton(enabled: boolean): CSSProperties {
+  return {
+    minHeight: "40px",
+    borderRadius: "11px",
+    border: "1px solid rgba(255,255,255,0.16)",
+    background: enabled
+      ? "rgba(255,255,255,0.055)"
+      : "rgba(255,255,255,0.025)",
+    color: enabled
+      ? "rgba(255,255,255,0.82)"
+      : "rgba(255,255,255,0.32)",
+    padding: "0 15px",
+    fontSize: "10px",
+    fontWeight: 900,
+    cursor: enabled ? "pointer" : "not-allowed",
+  };
+}
+
+function performanceConfirmButton(enabled: boolean): CSSProperties {
+  return {
+    minHeight: "40px",
+    borderRadius: "11px",
+    border: enabled
+      ? "1px solid rgba(255,224,120,0.58)"
+      : "1px solid rgba(255,255,255,0.08)",
+    background: enabled
+      ? "linear-gradient(135deg,#ffd76a,#ff9f43)"
+      : "rgba(255,255,255,0.035)",
+    color: enabled
+      ? "#241400"
+      : "rgba(255,255,255,0.34)",
+    padding: "0 15px",
+    fontSize: "10px",
+    fontWeight: 950,
+    cursor: enabled ? "pointer" : "not-allowed",
+    boxShadow: enabled
+      ? "0 0 18px rgba(255,215,106,0.18)"
+      : "none",
+  };
+}
 
 const performanceMaxBadge: CSSProperties = {
   borderRadius: "10px",

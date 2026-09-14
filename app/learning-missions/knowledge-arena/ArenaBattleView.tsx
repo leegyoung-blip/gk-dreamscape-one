@@ -7,6 +7,7 @@ import type {
   KnowledgeArenaBattleMonster,
   KnowledgeArenaBattleTopic,
 } from "./useKnowledgeArenaBattle";
+import { getNovaVariant, type NovaVariantSlug } from "./novaVariants";
 
 type Answer = "A" | "B" | "C" | "D";
 
@@ -30,13 +31,6 @@ const arenaBackgrounds: Record<KnowledgeArenaBattleTopic, string> = {
     "/activities/learning-missions/knowledge-arena/arenas/time-traveller-arena.png",
   science_sparks:
     "/activities/learning-missions/knowledge-arena/arenas/science-sparks-arena.png",
-};
-
-const novaSprites: Record<"idle" | "firing" | "hit" | "defeated", string> = {
-  idle: "/activities/learning-missions/knowledge-arena/nova/nova-battle-idle.png",
-  firing: "/activities/learning-missions/knowledge-arena/nova/nova-battle-firing.png",
-  hit: "/activities/learning-missions/knowledge-arena/nova/nova-battle-hit.png",
-  defeated: "/activities/learning-missions/knowledge-arena/nova/nova-battle-defeated.png",
 };
 
 type MonsterPose = "idle" | "defense" | "attack" | "hit" | "defeated";
@@ -86,8 +80,16 @@ function hpPercent(current: number, max: number) {
   return Math.max(0, Math.min(100, (current / max) * 100));
 }
 
-function NovaSprite({ phase, imageRef }: { phase: BattlePhase; imageRef?: Ref<HTMLImageElement> }) {
-  const key =
+function NovaSprite({
+  phase,
+  imageRef,
+  variant,
+}: {
+  phase: BattlePhase;
+  imageRef?: Ref<HTMLImageElement>;
+  variant: NovaVariantSlug;
+}) {
+  const pose =
     phase === "firing"
       ? "firing"
       : phase === "monster_attack" || phase === "hit"
@@ -95,12 +97,13 @@ function NovaSprite({ phase, imageRef }: { phase: BattlePhase; imageRef?: Ref<HT
         : phase === "revive" || phase === "defeat"
           ? "defeated"
           : "idle";
+  const selected = getNovaVariant(variant);
 
   return (
-    <div className={`kab-character kab-nova is-${key}`} aria-label="Nova">
+    <div className={`kab-character kab-nova is-${pose}`} aria-label={selected.label}>
       <img
         ref={imageRef}
-        src={novaSprites[key]}
+        src={selected.sprite}
         alt=""
         draggable={false}
         onError={(event) => {
@@ -336,15 +339,6 @@ type ShotVisual = {
   length: number;
 };
 
-// Exact barrel calibration for nova-battle-firing.png.
-// Source asset: 1122 × 1402 px. The centre of the visible muzzle opening
-// is at approximately pixel (898, 376). Keeping this as a normalized
-// hotspot means it remains aligned after responsive scaling/object-fit.
-const NOVA_FIRING_BARREL_HOTSPOT = {
-  x: 898 / 1122,
-  y: 376 / 1402,
-} as const;
-
 const MONSTER_IMPACT_HOTSPOTS: Record<string, { x: number; y: number }> = {
   "atlas-golem": { x: 0.36, y: 0.46 },
   "tempest-roc": { x: 0.42, y: 0.46 },
@@ -433,6 +427,7 @@ export function ArenaBattleView({
   onReviveDG,
   onAcceptDefeat,
   isMobile = false,
+  novaVariant = "original",
 }: {
   topic: KnowledgeArenaBattleTopic;
   topicTitle: string;
@@ -470,6 +465,7 @@ export function ArenaBattleView({
   onReviveDG: () => void;
   onAcceptDefeat: () => void;
   isMobile?: boolean;
+  novaVariant?: NovaVariantSlug;
 }) {
   const options: [Answer, string][] = [
     ["A", question.option_a],
@@ -477,6 +473,8 @@ export function ArenaBattleView({
     ["C", question.option_c],
     ["D", question.option_d],
   ];
+
+  const selectedNova = getNovaVariant(novaVariant);
 
   const stageRef = useRef<HTMLDivElement | null>(null);
   const novaImageRef = useRef<HTMLImageElement | null>(null);
@@ -504,12 +502,12 @@ export function ArenaBattleView({
     if (!stage || !novaImage || !monsterImage) return;
 
     const stageBox = stage.getBoundingClientRect();
-    // nova-battle-firing.png is 1122 × 1402. Using those source dimensions avoids
-    // first-shot drift if the DOM image has only just switched from the idle pose.
+    // Each regenerated Nova suit has its own measured barrel hotspot.
+    // The source images are 1086 × 1448 and use the same bottom-aligned contain layout.
     const muzzlePoint = imageHotspot(
       novaImage,
-      NOVA_FIRING_BARREL_HOTSPOT,
-      { width: 1122, height: 1402 },
+      { x: selectedNova.muzzle.x, y: selectedNova.muzzle.y },
+      { width: selectedNova.muzzle.sourceWidth, height: selectedNova.muzzle.sourceHeight },
       "bottom",
     );
     const impactPoint = imageHotspot(
@@ -546,7 +544,7 @@ export function ArenaBattleView({
     }
 
     lastVisualShotRef.current = shotsThisTurn;
-  }, [shotsThisTurn, phase, monster.slug]);
+  }, [shotsThisTurn, phase, monster.slug, novaVariant, selectedNova.muzzle.x, selectedNova.muzzle.y]);
 
   useEffect(() => {
     if (damageFlash === null) return;
@@ -566,7 +564,13 @@ export function ArenaBattleView({
     <div
       ref={stageRef}
       className={`kab-stage kab-stage-v3 ${isMobile ? "kab-is-mobile" : ""}`}
-      style={{ backgroundImage: `url("${arenaBackgrounds[topic]}")` }}
+      style={{
+        backgroundImage: `url("${arenaBackgrounds[topic]}")`,
+        "--nova-beam-core": selectedNova.beam.core,
+        "--nova-beam-mid": selectedNova.beam.mid,
+        "--nova-beam-edge": selectedNova.beam.edge,
+        "--nova-beam-glow": selectedNova.beam.glow,
+      } as CSSProperties}
     >
       <div className="kab-vignette" />
 
@@ -628,7 +632,7 @@ export function ArenaBattleView({
 
       <div className="kab-battle-center">
         <div className="kab-fighter kab-fighter-left">
-          <NovaSprite phase={phase} imageRef={novaImageRef} />
+          <NovaSprite phase={phase} imageRef={novaImageRef} variant={novaVariant} />
           <span ref={muzzleAnchorRef} className="kab-muzzle-anchor" aria-hidden="true" />
           {damagePopups
             .filter((item) => item.target === "nova")
@@ -961,6 +965,11 @@ export function ArenaBattleView({
           object-position: center bottom;
           filter: drop-shadow(0 12px 24px rgba(0,0,0,.28));
         }
+        .kab-nova img { transition: transform .16s ease, filter .16s ease, opacity .16s ease; }
+        .kab-nova.is-firing img { transform: translateX(2px) scale(1.01); }
+        .kab-nova.is-hit img { transform: translateX(-5px) rotate(-2deg); filter: drop-shadow(0 12px 24px rgba(0,0,0,.28)) brightness(1.18) saturate(.8); }
+        .kab-nova.is-defeated img { transform: translateY(9px) rotate(-10deg) scale(.95); opacity:.76; filter:grayscale(.28) brightness(.72); }
+
         .kab-center-status {
           display: flex;
           flex-direction: column;
@@ -1014,8 +1023,8 @@ export function ArenaBattleView({
           margin-left: -9px;
           margin-top: -9px;
           border-radius: 999px;
-          background: radial-gradient(circle, #fff 0 15%, #d6fbff 27%, #65e8ff 48%, rgba(40,142,255,.22) 68%, transparent 74%);
-          box-shadow: 0 0 8px #fff, 0 0 18px rgba(91,232,255,.95), 0 0 32px rgba(42,127,255,.72);
+          background: radial-gradient(circle, var(--nova-beam-core) 0 15%, var(--nova-beam-mid) 28%, var(--nova-beam-edge) 50%, transparent 74%);
+          box-shadow: 0 0 8px var(--nova-beam-core), 0 0 18px var(--nova-beam-mid), 0 0 32px var(--nova-beam-glow);
           animation: kabMuzzle .38s ease-out forwards;
         }
         .kab-laser-beam {
@@ -1029,24 +1038,24 @@ export function ArenaBattleView({
           opacity:1;
           background:linear-gradient(
             180deg,
-            #ffffff 0 22%,
-            #d7fcff 23% 40%,
-            #62e8ff 41% 68%,
-            #1c86ff 69% 100%
+            var(--nova-beam-core) 0 22%,
+            var(--nova-beam-core) 23% 40%,
+            var(--nova-beam-mid) 41% 68%,
+            var(--nova-beam-edge) 69% 100%
           );
           box-shadow:
-            0 0 5px #fff,
-            0 0 11px rgba(146,247,255,1),
-            0 0 23px rgba(43,187,255,.96),
-            0 0 42px rgba(29,103,255,.68);
+            0 0 5px var(--nova-beam-core),
+            0 0 11px var(--nova-beam-mid),
+            0 0 23px var(--nova-beam-edge),
+            0 0 42px var(--nova-beam-glow);
           animation:kabLaserBeam .58s ease-out forwards;
         }
         .kab-laser-beam::after {
           position:absolute;
           inset:2.5px 0;
           border-radius:999px;
-          background:#fff;
-          box-shadow:0 0 8px rgba(255,255,255,.98);
+          background:var(--nova-beam-core);
+          box-shadow:0 0 8px var(--nova-beam-core);
           content:"";
         }
         .kab-shot-impact {
@@ -1062,7 +1071,7 @@ export function ArenaBattleView({
         .kab-shot-impact b {
           position: absolute;
           inset: 0;
-          border: 2px solid rgba(255,132,102,.95);
+          border: 2px solid var(--nova-beam-mid);
           border-radius: 999px;
         }
         .kab-shot-impact b:nth-child(2) { transform: scale(1.45); opacity: .58; }
@@ -1428,6 +1437,7 @@ export function ArenaBattleResultCard({
   damageReceived,
   revivesUsed,
   collection,
+  novaVariant = "original",
 }: {
   outcome: "victory" | "escaped" | "defeat" | "in_progress";
   monster: KnowledgeArenaBattleMonster | null;
@@ -1437,6 +1447,7 @@ export function ArenaBattleResultCard({
   damageReceived: number;
   revivesUsed: number;
   collection?: { is_new?: boolean; quantity?: number } | null;
+  novaVariant?: NovaVariantSlug;
 }) {
   if (!monster) return null;
 
@@ -1449,8 +1460,7 @@ export function ArenaBattleResultCard({
           ? "DEFEAT"
           : "BATTLE COMPLETE";
 
-  const novaResultSprite =
-    outcome === "defeat" ? novaSprites.defeated : novaSprites.idle;
+  const novaResultSprite = getNovaVariant(novaVariant).sprite;
   const monsterResultPose: MonsterPose =
     outcome === "victory" ? "defeated" : "idle";
   const monsterResultSprite =
