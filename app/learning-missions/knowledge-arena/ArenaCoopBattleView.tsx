@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { playArenaSound } from "./arenaAudio";
 
 type Answer = "A" | "B" | "C" | "D";
 
@@ -142,6 +143,8 @@ export function ArenaCoopBattleView({
   roundStatus,
   roundResult,
   myAttackScore,
+  masterVolume = 80,
+  soundMuted = false,
 }: {
   topic: string;
   question: CoopQuestion;
@@ -163,6 +166,8 @@ export function ArenaCoopBattleView({
   roundStatus: string;
   roundResult: CoopRoundResult | null;
   myAttackScore: number;
+  masterVolume?: number;
+  soundMuted?: boolean;
 }) {
   const [sequenceIndex, setSequenceIndex] = useState(-1);
 
@@ -209,6 +214,23 @@ export function ArenaCoopBattleView({
     sequenceIndex >= 0 && sequenceIndex < sequence.length
       ? sequence[sequenceIndex]
       : null;
+
+  useEffect(() => {
+    if (!activeEvent) return;
+
+    if (activeEvent.type === "attack") {
+      playArenaSound("blaster", masterVolume, soundMuted, 0.66);
+    } else if (activeEvent.type === "retaliation") {
+      playArenaSound("hurt", masterVolume, soundMuted, 0.76);
+    }
+  }, [
+    sequenceIndex,
+    activeEvent?.type,
+    activeEvent?.playerId,
+    masterVolume,
+    soundMuted,
+  ]);
+
   const options = answerEntries(question);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const novaImageRefs = useRef<Record<string, HTMLImageElement | null>>({});
@@ -420,7 +442,12 @@ export function ArenaCoopBattleView({
         )}
 
         {feedback && answerLocked && (
-          <div className="kac-feedback">{feedback}</div>
+          <div className="kac-feedback">
+            <strong>{feedback}</strong>
+            <span className="kac-explanation-line">
+              <b>Explanation:</b> {question.explanation}
+            </span>
+          </div>
         )}
       </div>
 
@@ -514,6 +541,10 @@ export function ArenaCoopBattleView({
         .kac-damage-player { left: 50%; top: 24%; transform: translateX(-50%); }
         .kac-bottom-status { display: grid; gap: 6px; padding: 0 14px 12px; }
         .kac-status-card, .kac-round-result, .kac-feedback { justify-self: center; width: min(700px, 100%); border-radius: 12px; padding: 9px 12px; text-align: center; }
+        .kac-feedback { display:grid; gap:6px; background:rgba(4,12,28,.90); }
+        .kac-feedback > strong { font-size:13px; }
+        .kac-explanation-line { display:block; border-top:1px solid rgba(255,255,255,.12); padding-top:6px; color:rgba(255,255,255,.90); font-size:12px; font-weight:650; line-height:1.38; }
+        .kac-explanation-line b { color:#8beaff; font-weight:950; }
         .kac-status-card strong, .kac-round-result strong { display: block; font-size: 16px; }
         .kac-status-card span, .kac-round-result span, .kac-feedback { font-size: 13px; line-height: 1.4; }
         .kac-round-result { border-color: rgba(255,197,95,.30); background: rgba(48,22,4,.82); }

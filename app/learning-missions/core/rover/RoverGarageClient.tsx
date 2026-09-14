@@ -11,6 +11,7 @@ import {
   roverPerformanceCategories,
   type RoverPerformanceBuildRow,
   type RoverPerformanceCategory,
+  type RoverPerformanceLevels,
   type RoverPerformancePurchaseRow,
 } from "@/lib/coreRoverPerformance";
 import type {
@@ -262,10 +263,20 @@ export default function RoverGarageClient() {
   const [purchasingLevel, setPurchasingLevel] =
     useState<RoverLevelId | null>(null);
 
-  const [performanceBuild, setPerformanceBuild] = useState<RoverPerformanceBuildRow[]>([]);
+  const [performanceBuild, setPerformanceBuild] =
+    useState<RoverPerformanceBuildRow[]>([]);
   const [performanceMessage, setPerformanceMessage] = useState("");
   const [purchasingPerformanceCategory, setPurchasingPerformanceCategory] =
     useState<RoverPerformanceCategory | null>(null);
+  const [
+    confirmingPerformanceCategory,
+    setConfirmingPerformanceCategory,
+  ] = useState<RoverPerformanceCategory | null>(null);
+  const [novaGuideOpen, setNovaGuideOpen] = useState(false);
+
+  useEffect(() => {
+    setConfirmingPerformanceCategory(null);
+  }, [equippedStage]);
 
   const displayedUpgrade = useMemo(() => {
     const requestedStage = selectedUpgradeStage ?? equippedStage;
@@ -826,6 +837,7 @@ export default function RoverGarageClient() {
       window.dispatchEvent(new Event("rover-performance-updated"));
 
       await loadGarage({ showLoading: false });
+      setConfirmingPerformanceCategory(null);
       setPerformanceMessage(successMessage);
     },
     [
@@ -1051,6 +1063,11 @@ export default function RoverGarageClient() {
               performanceBuild={
                 viewingEquippedBuild ? performanceBuild : []
               }
+              previewCategory={
+                viewingEquippedBuild && tab === "custom"
+                  ? confirmingPerformanceCategory
+                  : null
+              }
             />
 
             {loadoutMessage && (
@@ -1196,7 +1213,11 @@ export default function RoverGarageClient() {
               performanceBuild={performanceBuild}
               message={performanceMessage}
               purchasingCategory={purchasingPerformanceCategory}
+              confirmingCategory={confirmingPerformanceCategory}
               isAdmin={isAdmin}
+              onConfirmingCategoryChange={
+                setConfirmingPerformanceCategory
+              }
               onPurchase={(category) =>
                 void purchasePerformanceUpgrade(category)
               }
@@ -1204,7 +1225,94 @@ export default function RoverGarageClient() {
           )}
         </div>
       </section>
+
+      <NovaGarageGuide
+        open={novaGuideOpen}
+        tab={tab}
+        roverName={displayedUpgrade.name}
+        onToggle={() => setNovaGuideOpen((current) => !current)}
+        onClose={() => setNovaGuideOpen(false)}
+      />
     </main>
+  );
+}
+
+function NovaGarageGuide({
+  open,
+  tab,
+  roverName,
+  onToggle,
+  onClose,
+}: {
+  open: boolean;
+  tab: GarageTab;
+  roverName: string;
+  onToggle: () => void;
+  onClose: () => void;
+}) {
+  const content =
+    tab === "courses"
+      ? {
+          title: "Rover Courses",
+          body:
+            "Complete courses in order. Your equipped rover determines normal course access, while Dream Gems can permanently unlock an eligible course early.",
+        }
+      : tab === "upgrades"
+        ? {
+            title: "Rover Upgrades",
+            body:
+              "Rovers are permanent Dream Token purchases. Buy them in sequence, then equip any rover you own. The equipped rover is the one used in Rover Challenge.",
+          }
+        : {
+            title: `${roverName} · Custom Build`,
+            body:
+              "Custom parts belong only to this rover. Press Install to preview the next stat gain in green. Press Confirm only when you want to spend the Dream Tokens.",
+          };
+
+  return (
+    <>
+      {open && (
+        <aside style={novaGuidePanel} aria-label="Nova rover guide">
+          <div style={novaGuidePanelTop}>
+            <div style={novaGuideIdentity}>
+              <span style={novaGuideAvatar}>✦</span>
+              <div>
+                <p style={novaGuideEyebrow}>NOVA GUIDE</p>
+                <strong style={novaGuideTitle}>{content.title}</strong>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close Nova guide"
+              style={novaGuideClose}
+            >
+              ×
+            </button>
+          </div>
+
+          <p style={novaGuideBody}>{content.body}</p>
+
+          {tab === "custom" && (
+            <div style={novaGuideTip}>
+              Green on the Build Stats bars is a preview only. No DT is spent
+              until you press Confirm.
+            </div>
+          )}
+        </aside>
+      )}
+
+      <button
+        type="button"
+        onClick={onToggle}
+        style={novaGuideButton}
+        aria-expanded={open}
+        aria-label="Open Nova guide"
+      >
+        <span style={novaGuideButtonIcon}>✦</span>
+        <span>NOVA GUIDE</span>
+      </button>
+    </>
   );
 }
 
@@ -1503,14 +1611,16 @@ function RoverBuildStats({
   stage,
   accent,
   performanceBuild,
+  previewCategory,
 }: {
   stage: number;
   accent: string;
   performanceBuild: RoverPerformanceBuildRow[];
+  previewCategory: RoverPerformanceCategory | null;
 }) {
   const base = getRoverBaseRatings(stage);
 
-  const levels = {
+  const levels: RoverPerformanceLevels = {
     engine:
       performanceBuild.find((row) => row.category === "engine")?.current_level ?? 0,
     traction:
@@ -1521,15 +1631,62 @@ function RoverBuildStats({
       performanceBuild.find((row) => row.category === "suspension")?.current_level ?? 0,
     energy:
       performanceBuild.find((row) => row.category === "energy")?.current_level ?? 0,
-  } as const;
+  };
 
   const effective = getEffectiveRoverRatings(stage, levels);
+  const previewLevels: RoverPerformanceLevels = { ...levels };
+
+  if (previewCategory) {
+    const previewRow = performanceBuild.find(
+      (row) => row.category === previewCategory,
+    );
+
+    if (previewRow?.can_purchase && previewRow.next_level != null) {
+      previewLevels[previewCategory] = Math.min(
+        Number(previewRow.max_useful_level ?? 5),
+        Number(previewRow.next_level),
+      );
+    }
+  }
+
+  const previewEffective = getEffectiveRoverRatings(stage, previewLevels);
+
   const stats = [
-    { label: "Speed", base: base.speed, value: effective.speed },
-    { label: "Handling", base: base.handling, value: effective.handling },
-    { label: "Balance", base: base.balance, value: effective.balance },
-    { label: "Air Mobility", base: base.airMobility, value: effective.airMobility },
-    { label: "Boost", base: base.boost, value: effective.boost },
+    {
+      label: "Speed",
+      category: "engine" as const,
+      base: base.speed,
+      value: effective.speed,
+      previewValue: previewEffective.speed,
+    },
+    {
+      label: "Handling",
+      category: "traction" as const,
+      base: base.handling,
+      value: effective.handling,
+      previewValue: previewEffective.handling,
+    },
+    {
+      label: "Balance",
+      category: "stability" as const,
+      base: base.balance,
+      value: effective.balance,
+      previewValue: previewEffective.balance,
+    },
+    {
+      label: "Air Mobility",
+      category: "suspension" as const,
+      base: base.airMobility,
+      value: effective.airMobility,
+      previewValue: previewEffective.airMobility,
+    },
+    {
+      label: "Boost",
+      category: "energy" as const,
+      base: base.boost,
+      value: effective.boost,
+      previewValue: previewEffective.boost,
+    },
   ];
 
   return (
@@ -1544,17 +1701,28 @@ function RoverBuildStats({
 
       <div style={buildStatsGrid}>
         {stats.map((stat) => {
-          const bonus = Math.max(0, stat.value - stat.base);
+          const installedBonus = Math.max(0, stat.value - stat.base);
+          const previewGain = Math.max(0, stat.previewValue - stat.value);
+          const previewing =
+            previewCategory === stat.category && previewGain > 0;
 
           return (
             <div key={stat.label} style={buildStatRow}>
               <div style={buildStatLabelRow}>
                 <span>{stat.label}</span>
-                <strong style={{ color: accent }}>
-                  {stat.value}/100
-                  {bonus > 0 ? `  +${bonus}` : ""}
-                </strong>
+                <span style={buildStatValueGroup}>
+                  <strong style={{ color: accent }}>
+                    {stat.value}/100
+                    {installedBonus > 0 ? ` +${installedBonus}` : ""}
+                  </strong>
+                  {previewing && (
+                    <strong style={buildStatPreviewValue}>
+                      +{previewGain} preview
+                    </strong>
+                  )}
+                </span>
               </div>
+
               <div style={buildStatTrack}>
                 <div
                   style={{
@@ -1564,6 +1732,15 @@ function RoverBuildStats({
                     boxShadow: `0 0 12px ${accent}55`,
                   }}
                 />
+                {previewing && (
+                  <div
+                    style={{
+                      ...buildStatPreviewFill,
+                      left: `${stat.value}%`,
+                      width: `${previewGain}%`,
+                    }}
+                  />
+                )}
               </div>
             </div>
           );
@@ -1810,7 +1987,9 @@ function CustomBuildPanel({
   performanceBuild,
   message,
   purchasingCategory,
+  confirmingCategory,
   isAdmin: _isAdmin,
+  onConfirmingCategoryChange,
   onPurchase,
 }: {
   tokenBalance: number;
@@ -1819,19 +1998,16 @@ function CustomBuildPanel({
   performanceBuild: RoverPerformanceBuildRow[];
   message: string;
   purchasingCategory: RoverPerformanceCategory | null;
+  confirmingCategory: RoverPerformanceCategory | null;
   isAdmin: boolean;
+  onConfirmingCategoryChange: (
+    category: RoverPerformanceCategory | null,
+  ) => void;
   onPurchase: (category: RoverPerformanceCategory) => void;
 }) {
   const rover =
     coreUpgradeTrack.find((item) => item.stage === equippedStage) ??
     coreUpgradeTrack[0];
-
-  const [confirmingCategory, setConfirmingCategory] =
-    useState<RoverPerformanceCategory | null>(null);
-
-  useEffect(() => {
-    setConfirmingCategory(null);
-  }, [equippedStage]);
 
   return (
     <div style={scrollPanel}>
@@ -1964,7 +2140,7 @@ function CustomBuildPanel({
                       <button
                         type="button"
                         disabled={purchasingCategory !== null}
-                        onClick={() => setConfirmingCategory(null)}
+                        onClick={() => onConfirmingCategoryChange(null)}
                         style={performanceCancelButton(
                           purchasingCategory === null,
                         )}
@@ -1979,7 +2155,7 @@ function CustomBuildPanel({
                           purchasingCategory !== null
                         }
                         onClick={() => {
-                          setConfirmingCategory(null);
+                          onConfirmingCategoryChange(null);
                           onPurchase(category.id);
                         }}
                         style={performanceConfirmButton(
@@ -2002,7 +2178,7 @@ function CustomBuildPanel({
                         purchasingCategory !== null
                       }
                       onClick={() =>
-                        setConfirmingCategory(category.id)
+                        onConfirmingCategoryChange(category.id)
                       }
                       style={purchaseRoverButton(
                         canAfford &&
@@ -2395,6 +2571,7 @@ const buildStatLabelRow: CSSProperties = {
 };
 
 const buildStatTrack: CSSProperties = {
+  position: "relative",
   marginTop: "6px",
   height: "7px",
   borderRadius: "999px",
@@ -2403,9 +2580,34 @@ const buildStatTrack: CSSProperties = {
 };
 
 const buildStatFill: CSSProperties = {
+  position: "absolute",
+  inset: "0 auto 0 0",
   height: "100%",
   borderRadius: "999px",
   transition: "width 220ms ease",
+};
+
+const buildStatPreviewFill: CSSProperties = {
+  position: "absolute",
+  top: 0,
+  bottom: 0,
+  background: "linear-gradient(90deg,#6fff9d,#3eea76)",
+  boxShadow: "0 0 12px rgba(111,255,157,0.72)",
+  transition: "left 180ms ease, width 180ms ease",
+};
+
+const buildStatValueGroup: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "flex-end",
+  gap: "7px",
+  flexWrap: "wrap",
+};
+
+const buildStatPreviewValue: CSSProperties = {
+  color: "#6fff9d",
+  fontSize: "9px",
+  fontWeight: 900,
 };
 
 const progressTrack: CSSProperties = {
@@ -3201,6 +3403,128 @@ const emptyLeaderboard: CSSProperties = {
   color: "rgba(255,255,255,0.45)",
   fontSize: "11px",
   textAlign: "center",
+};
+
+const novaGuideButton: CSSProperties = {
+  position: "fixed",
+  left: "18px",
+  bottom: "18px",
+  zIndex: 80,
+  minHeight: "46px",
+  borderRadius: "999px",
+  border: "1px solid rgba(126,232,255,0.48)",
+  background:
+    "linear-gradient(135deg, rgba(4,25,48,0.96), rgba(28,43,98,0.96))",
+  color: "white",
+  padding: "0 16px 0 10px",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "9px",
+  boxShadow:
+    "0 14px 38px rgba(0,0,0,0.42), 0 0 22px rgba(83,215,255,0.18)",
+  backdropFilter: "blur(14px)",
+  cursor: "pointer",
+  fontSize: "10px",
+  fontWeight: 950,
+  letterSpacing: "0.09em",
+};
+
+const novaGuideButtonIcon: CSSProperties = {
+  width: "28px",
+  height: "28px",
+  borderRadius: "50%",
+  display: "grid",
+  placeItems: "center",
+  background:
+    "radial-gradient(circle at 35% 30%, #d8fbff, #53d7ff 46%, #526cff 100%)",
+  color: "#041025",
+  boxShadow: "0 0 14px rgba(83,215,255,0.55)",
+  fontSize: "15px",
+};
+
+const novaGuidePanel: CSSProperties = {
+  position: "fixed",
+  left: "18px",
+  bottom: "76px",
+  zIndex: 81,
+  width: "min(380px, calc(100vw - 36px))",
+  borderRadius: "18px",
+  border: "1px solid rgba(126,232,255,0.34)",
+  background:
+    "linear-gradient(145deg, rgba(4,17,37,0.98), rgba(12,27,60,0.98))",
+  boxShadow: "0 24px 65px rgba(0,0,0,0.5)",
+  padding: "15px",
+  backdropFilter: "blur(18px)",
+};
+
+const novaGuidePanelTop: CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: "12px",
+};
+
+const novaGuideIdentity: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+};
+
+const novaGuideAvatar: CSSProperties = {
+  width: "38px",
+  height: "38px",
+  flex: "0 0 38px",
+  borderRadius: "50%",
+  display: "grid",
+  placeItems: "center",
+  background:
+    "radial-gradient(circle at 35% 30%, #e9fdff, #53d7ff 48%, #5967ff 100%)",
+  color: "#061023",
+  fontSize: "19px",
+  boxShadow: "0 0 18px rgba(83,215,255,0.5)",
+};
+
+const novaGuideEyebrow: CSSProperties = {
+  margin: 0,
+  color: "#7ee8ff",
+  fontSize: "8px",
+  fontWeight: 950,
+  letterSpacing: "0.14em",
+};
+
+const novaGuideTitle: CSSProperties = {
+  display: "block",
+  marginTop: "3px",
+  fontSize: "14px",
+};
+
+const novaGuideClose: CSSProperties = {
+  width: "30px",
+  height: "30px",
+  borderRadius: "9px",
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(255,255,255,0.04)",
+  color: "rgba(255,255,255,0.8)",
+  cursor: "pointer",
+  fontSize: "18px",
+};
+
+const novaGuideBody: CSSProperties = {
+  margin: "13px 0 0",
+  color: "rgba(255,255,255,0.72)",
+  fontSize: "12px",
+  lineHeight: 1.55,
+};
+
+const novaGuideTip: CSSProperties = {
+  marginTop: "11px",
+  borderRadius: "11px",
+  border: "1px solid rgba(111,255,157,0.22)",
+  background: "rgba(111,255,157,0.07)",
+  color: "#aaffc4",
+  padding: "9px 10px",
+  fontSize: "10px",
+  lineHeight: 1.45,
 };
 
 const loadingFill: CSSProperties = {

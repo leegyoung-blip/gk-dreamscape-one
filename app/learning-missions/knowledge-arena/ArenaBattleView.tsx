@@ -428,6 +428,8 @@ export function ArenaBattleView({
   onAcceptDefeat,
   isMobile = false,
   novaVariant = "original",
+  masterVolume = 80,
+  soundMuted = false,
 }: {
   topic: KnowledgeArenaBattleTopic;
   topicTitle: string;
@@ -466,6 +468,8 @@ export function ArenaBattleView({
   onAcceptDefeat: () => void;
   isMobile?: boolean;
   novaVariant?: NovaVariantSlug;
+  masterVolume?: number;
+  soundMuted?: boolean;
 }) {
   const options: [Answer, string][] = [
     ["A", question.option_a],
@@ -518,6 +522,7 @@ export function ArenaBattleView({
     );
 
     for (let shot = lastVisualShotRef.current + 1; shot <= shotsThisTurn; shot += 1) {
+      playArenaSound("blaster", masterVolume, soundMuted, 0.72);
       const startX = muzzlePoint.x - stageBox.left;
       const startY = muzzlePoint.y - stageBox.top;
       const endX = impactPoint.x - stageBox.left;
@@ -544,17 +549,32 @@ export function ArenaBattleView({
     }
 
     lastVisualShotRef.current = shotsThisTurn;
-  }, [shotsThisTurn, phase, monster.slug, novaVariant, selectedNova.muzzle.x, selectedNova.muzzle.y]);
+  }, [
+    shotsThisTurn,
+    phase,
+    monster.slug,
+    novaVariant,
+    selectedNova.muzzle.x,
+    selectedNova.muzzle.y,
+    masterVolume,
+    soundMuted,
+  ]);
 
   useEffect(() => {
     if (damageFlash === null) return;
-    const target: "nova" | "monster" = phase === "firing" || phase === "monster_defeated" ? "monster" : "nova";
+    const target: "nova" | "monster" =
+      phase === "firing" || phase === "monster_defeated" ? "monster" : "nova";
+
+    if (target === "nova") {
+      playArenaSound("hurt", masterVolume, soundMuted, 0.82);
+    }
+
     const id = Date.now() + Math.random();
     setDamagePopups((current) => [...current, { id, target, value: damageFlash }]);
     window.setTimeout(() => {
       setDamagePopups((current) => current.filter((item) => item.id !== id));
     }, 1500);
-  }, [damageFlash, phase]);
+  }, [damageFlash, phase, masterVolume, soundMuted]);
 
   const correct = selectedAnswer !== null && selectedAnswer === question.correct_answer;
   const fireSecondsLeft = Math.max(0, fireMsRemaining / 1000);
@@ -601,10 +621,15 @@ export function ArenaBattleView({
           </div>
           {feedback && answerLocked && (
             <div className={`kab-feedback ${correct ? "is-correct" : "is-wrong"}`}>
-              {feedback}
-              {wrongStreak > 1 && !correct && monsterHp > 0 && (
-                <strong> Wrong streak: {wrongStreak}</strong>
-              )}
+              <strong className="kab-feedback-main">
+                {feedback}
+                {wrongStreak > 1 && !correct && monsterHp > 0 && (
+                  <> · Wrong streak: {wrongStreak}</>
+                )}
+              </strong>
+              <span className="kab-explanation-line">
+                <b>Explanation:</b> {question.explanation}
+              </span>
             </div>
           )}
         </div>
@@ -911,12 +936,26 @@ export function ArenaBattleView({
           font-weight: 800;
         }
         .kab-feedback {
+          display:grid;
+          gap:7px;
           border-radius: 14px;
           padding: 10px 12px;
           font-size: 14px;
           font-weight: 800;
-          background: rgba(8,12,26,.76);
+          background: rgba(8,12,26,.88);
+          backdrop-filter:blur(8px);
         }
+        .kab-feedback-main { font-size:14px; line-height:1.25; }
+        .kab-explanation-line {
+          display:block;
+          border-top:1px solid rgba(255,255,255,.12);
+          padding-top:7px;
+          color:rgba(255,255,255,.90);
+          font-size:12px;
+          font-weight:650;
+          line-height:1.38;
+        }
+        .kab-explanation-line b { color:#8beaff; font-weight:950; }
         .kab-feedback.is-correct { border: 1px solid rgba(75, 255, 171, .35); }
         .kab-feedback.is-wrong { border: 1px solid rgba(255, 102, 130, .35); }
         .kab-battle-center {
@@ -1269,10 +1308,13 @@ export function ArenaBattleView({
           line-height: 1.18;
         }
         .kab-is-mobile .kab-feedback {
+          gap:5px;
           padding: 8px 10px;
-          font-size: 14px;
+          font-size: 13px;
           line-height: 1.32;
         }
+        .kab-is-mobile .kab-feedback-main { font-size:13px; }
+        .kab-is-mobile .kab-explanation-line { padding-top:5px; font-size:11px; }
 
         /* The fighter row starts only after the question/option row.
            Fighters are capped to the remaining row height, so the whole sprite

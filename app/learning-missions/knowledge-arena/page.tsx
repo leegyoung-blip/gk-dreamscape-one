@@ -662,6 +662,8 @@ export default function KnowledgeArenaPage() {
   const [answerLocked, setAnswerLocked] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [nextCountdown, setNextCountdown] = useState(3);
+  const [roundTransitionRound, setRoundTransitionRound] = useState<number | null>(null);
+  const roundTransitionTimerRef = useRef<number | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tokensEarned, setTokensEarned] = useState(0);
   const [rewardSaved, setRewardSaved] = useState(false);
@@ -751,7 +753,14 @@ export default function KnowledgeArenaPage() {
 
     if (!gameplayBlocked && pendingBattleTransitionRef.current) {
       pendingBattleTransitionRef.current = false;
-      void nextQuestion();
+
+      if (questionIndex >= questions.length - 1) {
+        void nextQuestion();
+      } else {
+        startRoundTransition(questionIndex + 2, () => {
+          void nextQuestion();
+        });
+      }
     }
   }, [gameplayBlocked]);
 
@@ -1160,6 +1169,14 @@ export default function KnowledgeArenaPage() {
   }, [stage]);
 
   useEffect(() => {
+    return () => {
+      if (roundTransitionTimerRef.current) {
+        window.clearTimeout(roundTransitionTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (stage !== "solo-quiz" && stage !== "multiplayer-quiz") return;
     if (novaGuideOpen || gameplayBlocked) return;
     if (!currentQuestion) return;
@@ -1307,6 +1324,7 @@ export default function KnowledgeArenaPage() {
 
     const nextIndex = Number(lobby.current_question_index || 0);
     if (questionIndex !== nextIndex) {
+      setRoundTransitionRound(null);
       setQuestionIndex(nextIndex);
       setSelectedAnswer(null);
       setTimeLeft(lobby.timer_seconds);
@@ -1333,12 +1351,25 @@ export default function KnowledgeArenaPage() {
     if (stage !== "multiplayer-quiz" || lobby?.game_mode !== "coop") return;
     if (lobby.round_status !== "resolved") return;
 
+    const currentIndex = Number(lobby.current_question_index || 0);
+    const hasNextRound = currentIndex < questions.length - 1;
+
+    if (hasNextRound) setRoundTransitionRound(currentIndex + 2);
+
     const timer = window.setTimeout(() => {
+      setRoundTransitionRound(null);
       void tryAdvanceCoopRound();
-    }, 2600);
+    }, hasNextRound ? 3000 : 1100);
 
     return () => window.clearTimeout(timer);
-  }, [stage, lobby?.id, lobby?.game_mode, lobby?.round_status, lobby?.current_question_index]);
+  }, [
+    stage,
+    lobby?.id,
+    lobby?.game_mode,
+    lobby?.round_status,
+    lobby?.current_question_index,
+    questions.length,
+  ]);
 
   useEffect(() => {
     if (stage !== "multiplayer-quiz" || lobby?.game_mode !== "versus") return;
@@ -1346,6 +1377,7 @@ export default function KnowledgeArenaPage() {
 
     const nextIndex = Number(lobby.current_question_index || 0);
     if (questionIndex !== nextIndex) {
+      setRoundTransitionRound(null);
       setQuestionIndex(nextIndex);
       setSelectedAnswer(null);
       setTimeLeft(lobby.timer_seconds);
@@ -1367,10 +1399,27 @@ export default function KnowledgeArenaPage() {
   useEffect(() => {
     if (stage !== "multiplayer-quiz" || lobby?.game_mode !== "versus") return;
     if (lobby.round_status !== "resolved") return;
+
     setVersusRoundResolved(true);
-    const timer = window.setTimeout(() => void tryAdvanceVersusRound(), 1600);
+    const currentIndex = Number(lobby.current_question_index || 0);
+    const hasNextRound = currentIndex < questions.length - 1;
+
+    if (hasNextRound) setRoundTransitionRound(currentIndex + 2);
+
+    const timer = window.setTimeout(() => {
+      setRoundTransitionRound(null);
+      void tryAdvanceVersusRound();
+    }, hasNextRound ? 3000 : 1100);
+
     return () => window.clearTimeout(timer);
-  }, [stage, lobby?.id, lobby?.game_mode, lobby?.round_status, lobby?.current_question_index]);
+  }, [
+    stage,
+    lobby?.id,
+    lobby?.game_mode,
+    lobby?.round_status,
+    lobby?.current_question_index,
+    questions.length,
+  ]);
 
   useEffect(() => {
     if (stage !== "multiplayer-results" || !lobby?.id) return;
@@ -2426,10 +2475,10 @@ export default function KnowledgeArenaPage() {
     setCorrectCount(nextCorrectCount);
     setFeedback(
       answer === null
-        ? `Time's up. The correct answer is ${currentQuestion.correct_answer}. ${currentQuestion.explanation}`
+        ? `Time's up. Correct answer: ${currentQuestion.correct_answer}.`
         : isCorrect
-        ? `Correct! +${points} points. ${currentQuestion.explanation}`
-        : `Not quite. The correct answer is ${currentQuestion.correct_answer}. ${currentQuestion.explanation}`
+        ? `Correct! +${points} points.`
+        : `Not quite. Correct answer: ${currentQuestion.correct_answer}.`
     );
     setAnswerLocked(true);
 
@@ -2482,12 +2531,12 @@ export default function KnowledgeArenaPage() {
         setCoopMyAttackScore(attackScore);
         setFeedback(
           answer === null
-            ? `Time's up. The correct answer is ${currentQuestion.correct_answer}. ${currentQuestion.explanation}`
+            ? `Time's up. Correct answer: ${currentQuestion.correct_answer}.`
             : isCorrect
               ? wasGhost
-                ? `Correct! You are a skeleton ghost, so this answer deals 0 damage. ${currentQuestion.explanation}`
-                : `Correct! Attack ready: ${attackScore} damage. ${currentQuestion.explanation}`
-              : `Not quite. The correct answer is ${currentQuestion.correct_answer}. ${currentQuestion.explanation}`
+                ? `Correct! You are a skeleton ghost, so this answer deals 0 damage.`
+                : `Correct! Attack ready: ${attackScore} damage.`
+              : `Not quite. Correct answer: ${currentQuestion.correct_answer}.`
         );
 
         await loadLobbyState(lobby.id);
@@ -2511,10 +2560,10 @@ export default function KnowledgeArenaPage() {
         const gained = Number(result?.distance_gained || 0);
         setFeedback(
           answer === null
-            ? `Time's up. No movement. The correct answer is ${currentQuestion.correct_answer}. ${currentQuestion.explanation}`
+            ? `Time's up. No movement. Correct answer: ${currentQuestion.correct_answer}.`
             : isCorrect
-              ? `Correct! +${Math.round(gained)} race distance. ${currentQuestion.explanation}`
-              : `Not quite. No movement. The correct answer is ${currentQuestion.correct_answer}. ${currentQuestion.explanation}`
+              ? `Correct! +${Math.round(gained)} race distance.`
+              : `Not quite. No movement. Correct answer: ${currentQuestion.correct_answer}.`
         );
         await loadLobbyState(lobby.id);
         await tryResolveVersusRound();
@@ -2603,13 +2652,33 @@ export default function KnowledgeArenaPage() {
     await saveKnowledgeArenaAttempt("solo", completionStatus);
   }
 
+  function startRoundTransition(nextRound: number, onComplete: () => void) {
+    if (roundTransitionTimerRef.current) {
+      window.clearTimeout(roundTransitionTimerRef.current);
+    }
+
+    setRoundTransitionRound(nextRound);
+    roundTransitionTimerRef.current = window.setTimeout(() => {
+      setRoundTransitionRound(null);
+      roundTransitionTimerRef.current = null;
+      onComplete();
+    }, 3000);
+  }
+
   function handleBattleTransitionComplete() {
     if (gameplayBlockedRef.current) {
       pendingBattleTransitionRef.current = true;
       return;
     }
 
-    void nextQuestion();
+    if (questionIndex >= questions.length - 1) {
+      void nextQuestion();
+      return;
+    }
+
+    startRoundTransition(questionIndex + 2, () => {
+      void nextQuestion();
+    });
   }
 
   function handleBattleDefeat() {
@@ -2857,9 +2926,19 @@ export default function KnowledgeArenaPage() {
 
     if (isCorrectSelected) {
       return {
-        border: "1px solid rgba(74,222,128,0.9)",
+        border: "2px solid rgba(74,222,128,1)",
         background:
           "linear-gradient(135deg, rgba(34,197,94,0.95), rgba(22,163,74,0.95))",
+        boxShadow: "0 0 0 2px rgba(74,222,128,0.18), 0 0 18px rgba(74,222,128,0.28)",
+        color: "white",
+      };
+    }
+
+    if (answerLocked && isCorrectChoice) {
+      return {
+        border: "2px solid rgba(74,222,128,1)",
+        background: "rgba(34,197,94,0.16)",
+        boxShadow: "0 0 0 2px rgba(74,222,128,0.16), 0 0 18px rgba(74,222,128,0.30)",
         color: "white",
       };
     }
@@ -3697,6 +3776,8 @@ export default function KnowledgeArenaPage() {
               onAcceptDefeat={battle.acceptDefeat}
               isMobile={screenMode === "mobile"}
               novaVariant={selectedNovaVariant}
+              masterVolume={masterVolume}
+              soundMuted={soundMuted}
             />
           )}
 
@@ -3723,6 +3804,8 @@ export default function KnowledgeArenaPage() {
                 roundStatus={lobby.round_status}
                 roundResult={coopRoundResult}
                 myAttackScore={coopMyAttackScore}
+                masterVolume={masterVolume}
+                soundMuted={soundMuted}
               />
             ) : (
               <ArenaVersusRaceView
@@ -3742,6 +3825,11 @@ export default function KnowledgeArenaPage() {
               />
             )
           )}
+
+          {roundTransitionRound !== null &&
+            (stage === "solo-quiz" || stage === "multiplayer-quiz") && (
+              <ArenaRoundTransition round={roundTransitionRound} />
+            )}
 
           {stage === "solo-results" && (
             <ArenaResultsPanel
@@ -4305,6 +4393,7 @@ export default function KnowledgeArenaPage() {
         }
 
         .ka-stage-shell {
+          position: relative;
           width: 100%;
           height: 100%;
           min-height: 0;
@@ -8435,6 +8524,110 @@ export default function KnowledgeArenaPage() {
         }
       `}</style>
     </main>
+  );
+}
+
+function ArenaRoundTransition({ round }: { round: number }) {
+  return (
+    <div className="kart-layer" aria-live="polite" aria-label={`Round ${round}`}>
+      <div className="kart-ring">
+        <i className="kart-orbit kart-orbit-a" />
+        <i className="kart-orbit kart-orbit-b" />
+        <div className="kart-core">✦</div>
+      </div>
+      <small>NEXT ENCOUNTER</small>
+      <strong>ROUND {round}</strong>
+      <span>Preparing the next question…</span>
+
+      <style jsx>{`
+        .kart-layer {
+          position:absolute;
+          inset:0;
+          z-index:90;
+          display:flex;
+          flex-direction:column;
+          align-items:center;
+          justify-content:center;
+          overflow:hidden;
+          border-radius:18px;
+          background:
+            radial-gradient(circle at 50% 48%,rgba(70,211,255,.16),transparent 30%),
+            linear-gradient(180deg,rgba(2,9,24,.92),rgba(3,8,21,.96));
+          color:white;
+          backdrop-filter:blur(12px);
+        }
+        .kart-ring {
+          position:relative;
+          display:grid;
+          width:clamp(110px,18vh,170px);
+          aspect-ratio:1;
+          place-items:center;
+        }
+        .kart-orbit {
+          position:absolute;
+          border:1px solid rgba(126,232,255,.38);
+          border-radius:50%;
+          box-shadow:0 0 28px rgba(83,215,255,.16);
+          animation:kartSpin 1.05s linear infinite;
+        }
+        .kart-orbit-a { inset:5%; }
+        .kart-orbit-b {
+          inset:19%;
+          border-color:rgba(188,134,255,.38);
+          animation-direction:reverse;
+          animation-duration:.72s;
+        }
+        .kart-orbit::before {
+          position:absolute;
+          top:-5px;
+          left:50%;
+          width:10px;
+          height:10px;
+          border-radius:999px;
+          background:#7ee8ff;
+          box-shadow:0 0 14px #7ee8ff;
+          content:"";
+        }
+        .kart-core {
+          display:grid;
+          width:52%;
+          aspect-ratio:1;
+          place-items:center;
+          border:1px solid rgba(126,232,255,.24);
+          border-radius:50%;
+          background:radial-gradient(circle,rgba(82,221,255,.22),rgba(65,80,196,.10) 54%,rgba(3,10,25,.82));
+          color:#a9f3ff;
+          font-size:clamp(28px,4vw,48px);
+          text-shadow:0 0 18px rgba(126,232,255,.76);
+        }
+        .kart-layer small {
+          margin-top:8px;
+          color:#83eaff;
+          font-size:10px;
+          font-weight:950;
+          letter-spacing:.18em;
+        }
+        .kart-layer strong {
+          margin-top:5px;
+          font-size:clamp(32px,5vw,60px);
+          line-height:1;
+          letter-spacing:.03em;
+          text-shadow:0 0 22px rgba(83,215,255,.30);
+        }
+        .kart-layer span {
+          margin-top:7px;
+          color:rgba(255,255,255,.62);
+          font-size:12px;
+          font-weight:700;
+        }
+        @keyframes kartSpin { to { transform:rotate(360deg); } }
+        @media(max-height:620px) and (orientation:landscape) {
+          .kart-ring { width:96px; }
+          .kart-layer strong { font-size:32px; }
+          .kart-layer span { font-size:10px; }
+        }
+      `}</style>
+    </div>
   );
 }
 

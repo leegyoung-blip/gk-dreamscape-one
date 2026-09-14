@@ -3358,12 +3358,12 @@ export default function PhaserGame({
 
       scale: {
         /*
-         * EXPAND gives the canvas the full parent area (like RESIZE) while
-         * retaining the configured 1600×900 game coordinate system for the
-         * scene (like FIT). This removes the unused side bands on wide
-         * desktop screens without stretching the game artwork.
+         * Cover the complete game area while preserving the 1600×900 scene
+         * aspect ratio. Any excess outer edge is cropped instead of leaving a
+         * black side strip. The rover body and wheel layers receive the same
+         * uniform canvas scale, so wheel alignment is preserved.
          */
-        mode: Phaser.Scale.EXPAND,
+        mode: Phaser.Scale.ENVELOP,
 
         autoCenter:
           Phaser.Scale.CENTER_BOTH,
