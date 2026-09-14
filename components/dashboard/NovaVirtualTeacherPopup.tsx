@@ -2,12 +2,153 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ChangeEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import { useNovaFeatureFlags } from "@/hooks/useNovaFeatureFlags";
 
 type SubjectKey = "english" | "math" | "science" | "knowledge";
 type PopupTab = "analytics" | "plan" | "profile";
+
+type LearnerAvatarChoice =
+  | {
+      kind: "preset";
+      value: string;
+      presetId: string;
+    }
+  | {
+      kind: "upload";
+      value: string;
+      presetId?: never;
+    };
+
+const LEARNER_AVATAR_PRESETS = [
+  { id: "star", symbol: "★", label: "Star", className: "avatar-star" },
+  { id: "rocket", symbol: "↗", label: "Explorer", className: "avatar-rocket" },
+  { id: "orbit", symbol: "◎", label: "Orbit", className: "avatar-orbit" },
+  { id: "puzzle", symbol: "◆", label: "Thinker", className: "avatar-puzzle" },
+  { id: "spark", symbol: "✦", label: "Spark", className: "avatar-spark" },
+  { id: "moon", symbol: "◐", label: "Moon", className: "avatar-moon" },
+  { id: "compass", symbol: "⌖", label: "Discoverer", className: "avatar-compass" },
+  { id: "bolt", symbol: "ϟ", label: "Bolt", className: "avatar-bolt" },
+] as const;
+
+const DEFAULT_LEARNER_AVATAR: LearnerAvatarChoice = {
+  kind: "preset",
+  value: "★",
+  presetId: "star",
+};
+
+function learnerAvatarStorageKey(
+  studentUserId: string | null,
+  studentLabel: string,
+) {
+  return `dreamscape:nova-plus-avatar:${studentUserId || studentLabel}`;
+}
+
+function subjectHealthMeta(
+  masteryValue: number | null | undefined,
+  questionsAttempted: number,
+) {
+  const mastery = Math.max(0, Math.min(100, safeNumber(masteryValue)));
+
+  if (questionsAttempted < 5) {
+    return {
+      key: "building",
+      label: "Building picture",
+      colour: "#94a3b8",
+      soft: "rgba(148,163,184,0.14)",
+      border: "rgba(148,163,184,0.36)",
+    };
+  }
+
+  if (mastery >= 80) {
+    return {
+      key: "strong",
+      label: "Strong",
+      colour: "#45e59a",
+      soft: "rgba(69,229,154,0.16)",
+      border: "rgba(69,229,154,0.46)",
+    };
+  }
+
+  if (mastery >= 65) {
+    return {
+      key: "developing",
+      label: "Developing",
+      colour: "#ffad42",
+      soft: "rgba(255,173,66,0.16)",
+      border: "rgba(255,173,66,0.48)",
+    };
+  }
+
+  return {
+    key: "attention",
+    label: "Needs attention",
+    colour: "#ff646e",
+    soft: "rgba(255,100,110,0.16)",
+    border: "rgba(255,100,110,0.48)",
+  };
+}
+
+function resizeLearnerAvatar(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    if (!file.type.startsWith("image/")) {
+      reject(new Error("Choose an image file."));
+      return;
+    }
+
+    if (file.size > 12 * 1024 * 1024) {
+      reject(new Error("Choose an image smaller than 12 MB."));
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onerror = () => reject(new Error("The image could not be read."));
+
+    reader.onload = () => {
+      const image = new Image();
+
+      image.onerror = () => reject(new Error("The image could not be opened."));
+
+      image.onload = () => {
+        const size = 512;
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+
+        const context = canvas.getContext("2d");
+
+        if (!context) {
+          reject(new Error("The image could not be prepared."));
+          return;
+        }
+
+        const sourceSize = Math.min(image.width, image.height);
+        const sourceX = Math.max(0, (image.width - sourceSize) / 2);
+        const sourceY = Math.max(0, (image.height - sourceSize) / 2);
+
+        context.drawImage(
+          image,
+          sourceX,
+          sourceY,
+          sourceSize,
+          sourceSize,
+          0,
+          0,
+          size,
+          size,
+        );
+
+        resolve(canvas.toDataURL("image/jpeg", 0.88));
+      };
+
+      image.src = String(reader.result || "");
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
 
 type NovaAgeContext = {
   available: boolean;
@@ -596,23 +737,6 @@ function evidenceQualityLabel(
   }
 }
 
-function patternLabel(patternKey: string) {
-  const labels: Record<string, string> = {
-    weekly_consistency: "Weekly consistency",
-    retry_persistence: "Retry persistence",
-    error_review_effectiveness: "Error-review effectiveness",
-    speed_accuracy_balance: "Speed and accuracy balance",
-    endurance: "Practice endurance",
-    challenge_readiness: "Challenge readiness",
-    independent_completion: "Independent completion",
-    hint_reliance: "Hint reliance",
-    practice_spacing: "Practice spacing",
-    completion_follow_through: "Completion follow-through",
-  };
-
-  return labels[patternKey] || titleCase(patternKey);
-}
-
 function formatPatternValue(
   value: number | null,
   unit: string,
@@ -806,6 +930,10 @@ export default function NovaVirtualTeacherPopup({
   const [profileError, setProfileError] = useState("");
   const [expandedTopics, setExpandedTopics] =
     useState<Set<string>>(new Set());
+  const [learnerAvatar, setLearnerAvatar] =
+    useState<LearnerAvatarChoice>(DEFAULT_LEARNER_AVATAR);
+  const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
+  const [avatarUploadError, setAvatarUploadError] = useState("");
 
   const {
     isEnabled: featureEnabled,
@@ -846,6 +974,72 @@ export default function NovaVirtualTeacherPopup({
   useEffect(() => {
     setPortalReady(true);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const key = learnerAvatarStorageKey(studentUserId, studentLabel);
+    const saved = window.localStorage.getItem(key);
+
+    if (!saved) {
+      setLearnerAvatar(DEFAULT_LEARNER_AVATAR);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(saved) as LearnerAvatarChoice;
+
+      if (
+        parsed &&
+        (parsed.kind === "preset" || parsed.kind === "upload") &&
+        typeof parsed.value === "string"
+      ) {
+        setLearnerAvatar(parsed);
+      } else {
+        setLearnerAvatar(DEFAULT_LEARNER_AVATAR);
+      }
+    } catch {
+      setLearnerAvatar(DEFAULT_LEARNER_AVATAR);
+    }
+  }, [studentUserId, studentLabel]);
+
+  function saveLearnerAvatar(nextAvatar: LearnerAvatarChoice) {
+    setLearnerAvatar(nextAvatar);
+    setAvatarUploadError("");
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        learnerAvatarStorageKey(studentUserId, studentLabel),
+        JSON.stringify(nextAvatar),
+      );
+    }
+  }
+
+  async function handleLearnerAvatarUpload(
+    event: ChangeEvent<HTMLInputElement>,
+  ) {
+    const file = event.target.files?.[0] || null;
+    event.target.value = "";
+
+    if (!file) return;
+
+    setAvatarUploadError("");
+
+    try {
+      const value = await resizeLearnerAvatar(file);
+      saveLearnerAvatar({
+        kind: "upload",
+        value,
+      });
+      setAvatarPickerOpen(false);
+    } catch (error) {
+      setAvatarUploadError(
+        error instanceof Error
+          ? error.message
+          : "The image could not be prepared.",
+      );
+    }
+  }
 
   useEffect(() => {
     if (!open || !viewerUserId) {
@@ -897,6 +1091,21 @@ export default function NovaVirtualTeacherPopup({
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
   }, [open, onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const previousOverscrollBehavior = document.body.style.overscrollBehavior;
+
+    document.body.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "none";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.overscrollBehavior = previousOverscrollBehavior;
+    };
+  }, [open]);
 
   useEffect(() => {
     setReport(null);
@@ -1386,7 +1595,6 @@ export default function NovaVirtualTeacherPopup({
     : (profilePayload?.skills || []).filter(
         (skill) => skill.is_topic_level,
       );
-  const profilePatterns = profilePayload?.patterns || [];
   const profileInsights = granularInsightsFeatureEnabled
     ? profilePayload?.insights || []
     : (profilePayload?.insights || []).filter(
@@ -1545,16 +1753,49 @@ export default function NovaVirtualTeacherPopup({
       safeNumber(second.mastery_score),
   )[0] || null;
 
+  const novaPlusCurriculumSubjects = useMemo(
+    () =>
+      ["english", "math", "science"]
+        .map((subjectKey) =>
+          profileSubjectSummaries.find(
+            (subject) => subject.subject === subjectKey,
+          ),
+        )
+        .filter(
+          (
+            subject,
+          ): subject is ProfileSubjectSummary =>
+            Boolean(subject),
+        ),
+    [profileSubjectSummaries],
+  );
+
+  const novaPlusKnowledgeSubject =
+    profileSubjectSummaries.find(
+      (subject) => subject.subject === "knowledge",
+    ) || null;
+
+  const novaPlusStrongestCurriculumSubject =
+    [...novaPlusCurriculumSubjects]
+      .filter((subject) => subject.questions_attempted >= 5)
+      .sort(
+        (first, second) =>
+          safeNumber(second.mastery_score) -
+          safeNumber(first.mastery_score),
+      )[0] || null;
+
+  const novaPlusPriorityCurriculumSubject =
+    [...novaPlusCurriculumSubjects]
+      .filter((subject) => subject.questions_attempted >= 5)
+      .sort(
+        (first, second) =>
+          safeNumber(first.mastery_score) -
+          safeNumber(second.mastery_score),
+      )[0] || null;
+
   const profileSnapshot = profilePayload?.latest_snapshot || {};
   const reportAgeContext = ageContextFeatureEnabled
     ? analytics?.age_context || null
-    : null;
-  const profileAgeContext = ageContextFeatureEnabled
-    ? profilePayload?.age_context ||
-      ((profileSnapshot.age_context &&
-        typeof profileSnapshot.age_context === "object")
-        ? (profileSnapshot.age_context as NovaAgeContext)
-        : null)
     : null;
   const granularReadyCount = profileSkills.filter(
     (skill) =>
@@ -1756,7 +1997,7 @@ export default function NovaVirtualTeacherPopup({
         position: "fixed",
         inset: 0,
         zIndex: 2147483000,
-        padding: "clamp(14px, 2.2vw, 32px)",
+        padding: 0,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -1776,20 +2017,20 @@ export default function NovaVirtualTeacherPopup({
         style={{
           position: "relative",
           zIndex: 1,
-          width: "min(1480px, calc(100vw - 48px))",
-          maxHeight: "calc(100dvh - 48px)",
+          width: "100vw",
+          height: "100dvh",
+          maxHeight: "100dvh",
           margin: 0,
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
           overscrollBehavior: "contain",
-          borderRadius: "30px",
-          border: "1px solid rgba(142, 232, 255, 0.34)",
+          borderRadius: 0,
+          border: 0,
           background:
             "linear-gradient(145deg, #071a32, #030916 74%)",
           color: "white",
-          boxShadow:
-            "0 42px 110px rgba(0, 0, 0, 0.68), 0 0 44px rgba(83, 215, 255, 0.12)",
+          boxShadow: "none",
           fontFamily: "Arial, Helvetica, sans-serif",
         }}
       >
@@ -2369,6 +2610,87 @@ export default function NovaVirtualTeacherPopup({
                 ))}
               </nav>
 
+              {avatarPickerOpen && (
+                <div
+                  className="nova-plus-avatar-picker-backdrop"
+                  role="presentation"
+                  onMouseDown={() => setAvatarPickerOpen(false)}
+                >
+                  <section
+                    className="nova-plus-avatar-picker"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Choose learner profile picture"
+                    onMouseDown={(event) => event.stopPropagation()}
+                  >
+                    <header>
+                      <div>
+                        <p className="nova-vt-eyebrow">Profile picture</p>
+                        <h4>Choose a picture for {studentLabel}</h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setAvatarPickerOpen(false)}
+                        aria-label="Close profile picture selector"
+                      >
+                        ×
+                      </button>
+                    </header>
+
+                    <div className="nova-plus-avatar-options">
+                      {LEARNER_AVATAR_PRESETS.map((preset) => {
+                        const selected =
+                          learnerAvatar.kind === "preset" &&
+                          learnerAvatar.presetId === preset.id;
+
+                        return (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            className={`nova-plus-avatar-option ${selected ? "selected" : ""}`}
+                            onClick={() => {
+                              saveLearnerAvatar({
+                                kind: "preset",
+                                value: preset.symbol,
+                                presetId: preset.id,
+                              });
+                              setAvatarPickerOpen(false);
+                            }}
+                          >
+                            <span className={preset.className} aria-hidden="true">
+                              {preset.symbol}
+                            </span>
+                            <strong>{preset.label}</strong>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="nova-plus-avatar-upload-row">
+                      <div>
+                        <strong>Use your own picture</strong>
+                        <span>Choose any image from this device.</span>
+                      </div>
+
+                      <label className="nova-plus-avatar-upload-button">
+                        Choose image
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(event) => void handleLearnerAvatarUpload(event)}
+                        />
+                      </label>
+                    </div>
+
+                    {avatarUploadError && (
+                      <div className="nova-plus-avatar-error">
+                        {avatarUploadError}
+                      </div>
+                    )}
+                  </section>
+                </div>
+              )}
+
               {profileLoading && (
                 <div className="nova-plus-loading">
                   <span className="nova-plus-loading-orb" aria-hidden="true" />
@@ -2389,148 +2711,221 @@ export default function NovaVirtualTeacherPopup({
 
               {!profileLoading && profilePayload && profileView === "learning" && (
                 <div className="nova-plus-view nova-plus-learning-view">
-                  <section className="nova-plus-learning-stage">
-                    <div className="nova-plus-learning-orbit">
-                      <div className="nova-plus-learning-center">
-                        <div
-                          className="nova-plus-master-ring"
-                          style={{
-                            background: `conic-gradient(#8dfcff ${Math.max(
-                              0,
-                              Math.min(
-                                100,
-                                safeNumber(
-                                  profileSnapshot.overall_mastery,
-                                  displayedAccuracy,
-                                ),
-                              ),
-                            )}%, rgba(141,252,255,0.08) 0)`,
-                          }}
-                        >
-                          <div>
-                            <img src="/nova/nova-character.png" alt="Nova" />
-                          </div>
-                        </div>
-                        <span>Nova’s current picture</span>
-                        <strong>
-                          {priorityProfileSubject
-                            ? `${profileSubjectLabel(priorityProfileSubject.subject)} needs the next push`
-                            : "Building a clearer learning picture"}
-                        </strong>
+                  <section className="nova-plus-learning-stage nova-plus-learning-stage-simple">
+                    <div className="nova-plus-learning-heading">
+                      <div>
+                        <p className="nova-vt-eyebrow">{studentLabel}</p>
+                        <h4>Your learning at a glance</h4>
                       </div>
 
-                      <div className="nova-plus-subject-planets">
-                        {profileSubjectSummaries.slice(0, 4).map((subject) => {
-                          const mastery = Math.max(
-                            0,
-                            Math.min(100, safeNumber(subject.mastery_score)),
+                      <div className="nova-plus-status-legend" aria-label="Subject status colours">
+                        <span><i className="strong" /> Strong</span>
+                        <span><i className="developing" /> Developing</span>
+                        <span><i className="attention" /> Needs attention</span>
+                      </div>
+                    </div>
+
+                    <div className="nova-plus-learning-main">
+                      <div className="nova-plus-learner-card">
+                        <button
+                          type="button"
+                          className="nova-plus-avatar-button"
+                          onClick={() => {
+                            setAvatarUploadError("");
+                            setAvatarPickerOpen(true);
+                          }}
+                          aria-label={`Change ${studentLabel}'s profile picture`}
+                        >
+                          <div className="nova-plus-learner-avatar">
+                            {learnerAvatar.kind === "upload" ? (
+                              <img
+                                src={learnerAvatar.value}
+                                alt={`${studentLabel}'s profile`}
+                              />
+                            ) : (
+                              <span
+                                className={
+                                  LEARNER_AVATAR_PRESETS.find(
+                                    (preset) =>
+                                      preset.id === learnerAvatar.presetId,
+                                  )?.className || "avatar-star"
+                                }
+                                aria-hidden="true"
+                              >
+                                {learnerAvatar.value}
+                              </span>
+                            )}
+                          </div>
+                          <span className="nova-plus-avatar-edit" aria-hidden="true">✎</span>
+                        </button>
+
+                        <strong>{studentLabel}</strong>
+                        <button
+                          type="button"
+                          className="nova-plus-change-avatar-link"
+                          onClick={() => {
+                            setAvatarUploadError("");
+                            setAvatarPickerOpen(true);
+                          }}
+                        >
+                          Change picture
+                        </button>
+
+                        <div className="nova-plus-learner-coach">
+                          <img src="/nova/nova-character.png" alt="" aria-hidden="true" />
+                          <span>Nova is learning what helps you improve.</span>
+                        </div>
+                      </div>
+
+                      <div className="nova-plus-curriculum-grid">
+                        {(["english", "math", "science"] as const).map((subjectKey) => {
+                          const subject = novaPlusCurriculumSubjects.find(
+                            (item) => item.subject === subjectKey,
                           );
-                          const accent = subjectAccent(subject.subject);
+                          const health = subjectHealthMeta(
+                            subject?.mastery_score,
+                            subject?.questions_attempted || 0,
+                          );
+                          const subjectMeta = SUBJECT_META[subjectKey];
 
                           return (
                             <article
-                              key={subject.subject}
-                              className="nova-plus-planet"
-                              style={{ borderColor: `${accent}55` }}
+                              key={subjectKey}
+                              className={`nova-plus-subject-zone ${health.key}`}
+                              style={{
+                                borderColor: health.border,
+                                background: `linear-gradient(145deg, ${health.soft}, rgba(4,11,26,0.82))`,
+                                boxShadow: `inset 0 0 42px ${health.soft}`,
+                              }}
                             >
                               <div
-                                className="nova-plus-planet-ring"
+                                className="nova-plus-subject-zone-icon"
                                 style={{
-                                  background: `conic-gradient(${accent} ${mastery}%, rgba(255,255,255,0.08) 0)`,
+                                  color: health.colour,
+                                  borderColor: health.border,
+                                  background: health.soft,
                                 }}
                               >
-                                <div style={{ color: accent }}>
-                                  {SUBJECT_META[subject.subject as SubjectKey]?.icon || "◇"}
-                                </div>
+                                {subjectMeta.icon}
                               </div>
-                              <strong>{profileSubjectLabel(subject.subject)}</strong>
-                              <span>
-                                {subject.priority_skills > 0
-                                  ? `${subject.priority_skills} areas to strengthen`
-                                  : "Looking secure"}
-                              </span>
+
+                              <div className="nova-plus-subject-zone-copy">
+                                <strong>{subjectMeta.label}</strong>
+                                <span style={{ color: health.colour }}>
+                                  {health.label}
+                                </span>
+                              </div>
+
+                              <div
+                                className="nova-plus-subject-state-light"
+                                style={{
+                                  background: health.colour,
+                                  boxShadow: `0 0 24px ${health.colour}`,
+                                }}
+                                aria-hidden="true"
+                              />
                             </article>
                           );
                         })}
+
+                        {(() => {
+                          const subject = novaPlusKnowledgeSubject;
+                          const health = subjectHealthMeta(
+                            subject?.mastery_score,
+                            subject?.questions_attempted || 0,
+                          );
+
+                          return (
+                            <article
+                              className={`nova-plus-knowledge-zone ${health.key}`}
+                              style={{
+                                borderColor: health.border,
+                                background: `linear-gradient(145deg, ${health.soft}, rgba(4,11,26,0.76))`,
+                              }}
+                            >
+                              <div className="nova-plus-knowledge-left">
+                                <span
+                                  className="nova-plus-knowledge-icon"
+                                  style={{
+                                    color: health.colour,
+                                    borderColor: health.border,
+                                    background: health.soft,
+                                  }}
+                                >
+                                  ◎
+                                </span>
+                                <div>
+                                  <small>General knowledge</small>
+                                  <strong>Knowledge Arena</strong>
+                                </div>
+                              </div>
+
+                              <span
+                                className="nova-plus-knowledge-status"
+                                style={{
+                                  color: health.colour,
+                                  borderColor: health.border,
+                                  background: health.soft,
+                                }}
+                              >
+                                {health.label}
+                              </span>
+                            </article>
+                          );
+                        })()}
                       </div>
                     </div>
 
-                    <div className="nova-plus-learning-path">
-                      <div className="nova-plus-path-node completed">
-                        <span>1</span>
+                    <div className="nova-plus-learning-actions">
+                      <article className="nova-plus-quick-answer strong-answer">
+                        <span className="nova-plus-quick-icon">✓</span>
                         <div>
-                          <small>Build on</small>
+                          <small>Strongest right now</small>
                           <strong>
-                            {strongestProfileSubject
-                              ? profileSubjectLabel(strongestProfileSubject.subject)
-                              : "Current strengths"}
+                            {novaPlusStrongestCurriculumSubject
+                              ? profileSubjectLabel(
+                                  novaPlusStrongestCurriculumSubject.subject,
+                                )
+                              : "Still building the picture"}
                           </strong>
                         </div>
-                      </div>
-                      <div className="nova-plus-path-line" />
-                      <div className="nova-plus-path-node focus">
-                        <span>2</span>
+                      </article>
+
+                      <article className="nova-plus-quick-answer focus-answer">
+                        <span className="nova-plus-quick-icon">!</span>
                         <div>
-                          <small>Focus now</small>
+                          <small>Needs attention</small>
                           <strong>
                             {novaPlusGapSkills[0]?.skill_name ||
-                              (priorityProfileSubject
-                                ? profileSubjectLabel(priorityProfileSubject.subject)
-                                : "Gather more evidence")}
+                              (novaPlusPriorityCurriculumSubject
+                                ? profileSubjectLabel(
+                                    novaPlusPriorityCurriculumSubject.subject,
+                                  )
+                                : "No priority confirmed yet")}
                           </strong>
                         </div>
-                      </div>
-                      <div className="nova-plus-path-line" />
-                      <div className="nova-plus-path-node future">
-                        <span>3</span>
-                        <div>
-                          <small>Next checkpoint</small>
+                      </article>
+
+                      <button
+                        type="button"
+                        className="nova-plus-next-mission"
+                        onClick={() => setProfileView("recommends")}
+                      >
+                        <span className="nova-plus-next-nova">
+                          <img src="/nova/nova-character.png" alt="" aria-hidden="true" />
+                        </span>
+                        <span className="nova-plus-next-copy">
+                          <small>Nova recommends</small>
                           <strong>
-                            {novaPlusReviewSkills[0]?.skill_name ||
-                              "Nova will reassess after practice"}
+                            {novaPlusRecommendations[0]?.title ||
+                              "Complete another mission"}
                           </strong>
-                        </div>
-                      </div>
+                          <span>See what to do next</span>
+                        </span>
+                        <span className="nova-plus-next-arrow" aria-hidden="true">→</span>
+                      </button>
                     </div>
                   </section>
-
-                  <section className="nova-plus-pattern-strip">
-                    {profilePatterns.slice(0, 4).map((pattern) => {
-                      const value = Math.max(
-                        0,
-                        Math.min(100, safeNumber(pattern.current_value)),
-                      );
-
-                      return (
-                        <article key={pattern.id}>
-                          <div
-                            className="nova-plus-pattern-gauge"
-                            style={{
-                              background: `conic-gradient(#c4b5fd ${value}%, rgba(196,181,253,0.08) 0)`,
-                            }}
-                          >
-                            <span>◇</span>
-                          </div>
-                          <div>
-                            <strong>{patternLabel(pattern.pattern_key)}</strong>
-                            <p>{pattern.interpretation || "Nova is still watching this pattern."}</p>
-                          </div>
-                        </article>
-                      );
-                    })}
-                  </section>
-
-                  {profileAgeContext?.available && (
-                    <section className="nova-plus-age-ribbon">
-                      <span className="nova-plus-age-icon">◌</span>
-                      <div>
-                        <small>Age-aware guidance</small>
-                        <strong>{ageContextSummary(profileAgeContext)}</strong>
-                      </div>
-                      <p>{profileAgeContext.support_guidance}</p>
-                      <InfoTip text="Age changes wording, session length and support guidance only. It does not change marks, mastery, curriculum standards, quiz eligibility or rewards." />
-                    </section>
-                  )}
                 </div>
               )}
 
@@ -2988,7 +3383,7 @@ export default function NovaVirtualTeacherPopup({
             position: fixed;
             inset: 0;
             z-index: 2147483000;
-            padding: clamp(14px, 2.2vw, 32px);
+            padding: 0;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -3004,8 +3399,9 @@ export default function NovaVirtualTeacherPopup({
           .nova-vt-modal {
             position: relative;
             z-index: 1;
-            width: min(1480px, calc(100vw - 48px));
-            max-height: calc(100dvh - 48px);
+            width: 100vw;
+            height: 100dvh;
+            max-height: 100dvh;
             margin: 0;
             display: flex;
             flex-direction: column;
@@ -3013,13 +3409,11 @@ export default function NovaVirtualTeacherPopup({
             visibility: visible;
             opacity: 1;
             transform: none;
-            border-radius: 30px;
-            border: 1px solid rgba(142, 232, 255, 0.34);
+            border-radius: 0;
+            border: 0;
             background: linear-gradient(145deg, #071a32, #030916 74%);
             color: white;
-            box-shadow:
-              0 42px 110px rgba(0, 0, 0, 0.68),
-              0 0 44px rgba(83, 215, 255, 0.12);
+            box-shadow: none;
             font-family: Arial, Helvetica, sans-serif;
             font-size: 15px;
           }
@@ -3944,13 +4338,14 @@ export default function NovaVirtualTeacherPopup({
 
           @media (max-width: 1180px) {
             .nova-vt-backdrop {
-              padding: 14px;
+              padding: 0;
             }
 
             .nova-vt-modal {
-              width: calc(100vw - 28px);
-              max-height: calc(100dvh - 28px);
-              border-radius: 24px;
+              width: 100vw;
+              height: 100dvh;
+              max-height: 100dvh;
+              border-radius: 0;
             }
           }
 
@@ -3980,15 +4375,16 @@ export default function NovaVirtualTeacherPopup({
               line-height: 1.35;
             }
             .nova-vt-backdrop {
-              padding: 8px;
-              align-items: center;
-              justify-content: center;
+              padding: 0;
+              align-items: stretch;
+              justify-content: stretch;
             }
 
             .nova-vt-modal {
-              width: calc(100vw - 16px);
-              max-height: calc(100dvh - 16px);
-              border-radius: 22px;
+              width: 100vw;
+              height: 100dvh;
+              max-height: 100dvh;
+              border-radius: 0;
             }
 
             .nova-vt-header {
@@ -5425,6 +5821,612 @@ export default function NovaVirtualTeacherPopup({
             border-radius: 20px;
           }
 
+          .nova-plus-learning-stage-simple {
+            padding: 24px;
+          }
+
+          .nova-plus-learning-heading {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 18px;
+            margin-bottom: 18px;
+          }
+
+          .nova-plus-learning-heading h4 {
+            margin: 6px 0 0;
+            font-size: clamp(22px, 2.4vw, 31px);
+            letter-spacing: -0.035em;
+          }
+
+          .nova-plus-status-legend {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 10px;
+            color: rgba(235,247,255,0.5);
+            font-size: 9px;
+            font-weight: 800;
+          }
+
+          .nova-plus-status-legend span {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+          }
+
+          .nova-plus-status-legend i {
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            box-shadow: 0 0 12px currentColor;
+          }
+
+          .nova-plus-status-legend i.strong {
+            background: #45e59a;
+            color: #45e59a;
+          }
+
+          .nova-plus-status-legend i.developing {
+            background: #ffad42;
+            color: #ffad42;
+          }
+
+          .nova-plus-status-legend i.attention {
+            background: #ff646e;
+            color: #ff646e;
+          }
+
+          .nova-plus-learning-main {
+            display: grid;
+            grid-template-columns: minmax(220px, 0.7fr) minmax(0, 2fr);
+            gap: 16px;
+            align-items: stretch;
+          }
+
+          .nova-plus-learner-card {
+            min-height: 330px;
+            padding: 20px;
+            border-radius: 22px;
+            border: 1px solid rgba(141,252,255,0.13);
+            background:
+              radial-gradient(circle at 50% 24%, rgba(83,215,255,0.12), transparent 32%),
+              linear-gradient(155deg, rgba(16,44,70,0.72), rgba(4,11,26,0.86));
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+          }
+
+          .nova-plus-avatar-button {
+            position: relative;
+            width: 178px;
+            height: 178px;
+            padding: 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(141,252,255,0.4);
+            background:
+              conic-gradient(
+                from 25deg,
+                rgba(141,252,255,0.92),
+                rgba(167,139,250,0.72),
+                rgba(141,252,255,0.92)
+              );
+            box-shadow:
+              0 0 34px rgba(83,215,255,0.18),
+              inset 0 0 26px rgba(255,255,255,0.06);
+            cursor: pointer;
+          }
+
+          .nova-plus-learner-avatar {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            border-radius: inherit;
+            border: 1px solid rgba(255,255,255,0.16);
+            background:
+              radial-gradient(circle at 50% 34%, rgba(19,63,92,0.96), rgba(4,11,26,0.98));
+            display: grid;
+            place-items: center;
+          }
+
+          .nova-plus-learner-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+          }
+
+          .nova-plus-learner-avatar > span,
+          .nova-plus-avatar-option > span {
+            display: grid;
+            place-items: center;
+            color: white;
+            font-weight: 950;
+            text-shadow: 0 6px 22px rgba(0,0,0,0.35);
+          }
+
+          .nova-plus-learner-avatar > span {
+            width: 100%;
+            height: 100%;
+            font-size: 66px;
+          }
+
+          .avatar-star {
+            background: radial-gradient(circle at 35% 30%, #fef3c7, #7c3aed 68%, #172554);
+          }
+
+          .avatar-rocket {
+            background: radial-gradient(circle at 35% 30%, #bae6fd, #0369a1 62%, #082f49);
+          }
+
+          .avatar-orbit {
+            background: radial-gradient(circle at 40% 35%, #d8b4fe, #6d28d9 60%, #1e1b4b);
+          }
+
+          .avatar-puzzle {
+            background: radial-gradient(circle at 35% 30%, #bbf7d0, #047857 62%, #052e16);
+          }
+
+          .avatar-spark {
+            background: radial-gradient(circle at 40% 30%, #fde68a, #ea580c 63%, #431407);
+          }
+
+          .avatar-moon {
+            background: radial-gradient(circle at 35% 30%, #e2e8f0, #475569 62%, #0f172a);
+          }
+
+          .avatar-compass {
+            background: radial-gradient(circle at 35% 30%, #fecdd3, #be123c 62%, #4c0519);
+          }
+
+          .avatar-bolt {
+            background: radial-gradient(circle at 35% 30%, #cffafe, #0e7490 62%, #083344);
+          }
+
+          .nova-plus-avatar-edit {
+            position: absolute;
+            right: 6px;
+            bottom: 12px;
+            width: 38px;
+            height: 38px;
+            border-radius: 999px;
+            border: 2px solid #071326;
+            background: #8dfcff;
+            color: #071326;
+            display: grid;
+            place-items: center;
+            font-size: 14px;
+            font-weight: 950;
+            box-shadow: 0 9px 28px rgba(0,0,0,0.35);
+          }
+
+          .nova-plus-learner-card > strong {
+            margin-top: 14px;
+            font-size: 20px;
+            letter-spacing: -0.025em;
+          }
+
+          .nova-plus-change-avatar-link {
+            margin-top: 5px;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: #8dfcff;
+            font-size: 10px;
+            font-weight: 850;
+            cursor: pointer;
+          }
+
+          .nova-plus-learner-coach {
+            width: 100%;
+            margin-top: auto;
+            padding: 10px 12px;
+            border-radius: 15px;
+            border: 1px solid rgba(196,181,253,0.14);
+            background: rgba(124,58,237,0.08);
+            display: grid;
+            grid-template-columns: 38px minmax(0,1fr);
+            align-items: center;
+            gap: 9px;
+            text-align: left;
+          }
+
+          .nova-plus-learner-coach img {
+            width: 32px;
+            height: 42px;
+            object-fit: contain;
+            object-position: center bottom;
+          }
+
+          .nova-plus-learner-coach span {
+            color: rgba(235,247,255,0.58);
+            font-size: 10px;
+            line-height: 1.4;
+          }
+
+          .nova-plus-curriculum-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0,1fr));
+            gap: 12px;
+            align-content: stretch;
+          }
+
+          .nova-plus-subject-zone {
+            position: relative;
+            min-height: 210px;
+            padding: 18px;
+            overflow: hidden;
+            border-radius: 22px;
+            border: 1px solid;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: space-between;
+          }
+
+          .nova-plus-subject-zone::after {
+            content: "";
+            position: absolute;
+            right: -38px;
+            bottom: -48px;
+            width: 150px;
+            height: 150px;
+            border-radius: 999px;
+            border: 1px solid currentColor;
+            opacity: 0.07;
+          }
+
+          .nova-plus-subject-zone-icon {
+            width: 54px;
+            height: 54px;
+            border-radius: 17px;
+            border: 1px solid;
+            display: grid;
+            place-items: center;
+            font-size: 24px;
+            font-weight: 950;
+          }
+
+          .nova-plus-subject-zone-copy {
+            position: relative;
+            z-index: 1;
+          }
+
+          .nova-plus-subject-zone-copy > strong {
+            display: block;
+            font-size: 17px;
+            letter-spacing: -0.02em;
+          }
+
+          .nova-plus-subject-zone-copy > span {
+            display: block;
+            margin-top: 7px;
+            font-size: 11px;
+            font-weight: 900;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+          }
+
+          .nova-plus-subject-state-light {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+          }
+
+          .nova-plus-knowledge-zone {
+            grid-column: 1 / -1;
+            min-height: 80px;
+            padding: 13px 15px;
+            border-radius: 18px;
+            border: 1px solid;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+          }
+
+          .nova-plus-knowledge-left {
+            display: flex;
+            align-items: center;
+            gap: 11px;
+          }
+
+          .nova-plus-knowledge-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 13px;
+            border: 1px solid;
+            display: grid;
+            place-items: center;
+            font-size: 17px;
+            font-weight: 950;
+          }
+
+          .nova-plus-knowledge-left small {
+            color: rgba(235,247,255,0.4);
+            font-size: 8px;
+            font-weight: 900;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+          }
+
+          .nova-plus-knowledge-left strong {
+            display: block;
+            margin-top: 3px;
+            font-size: 13px;
+          }
+
+          .nova-plus-knowledge-status {
+            padding: 7px 10px;
+            border-radius: 999px;
+            border: 1px solid;
+            font-size: 9px;
+            font-weight: 900;
+            text-transform: uppercase;
+          }
+
+          .nova-plus-learning-actions {
+            margin-top: 14px;
+            display: grid;
+            grid-template-columns: minmax(0,0.85fr) minmax(0,0.95fr) minmax(0,1.35fr);
+            gap: 11px;
+          }
+
+          .nova-plus-quick-answer,
+          .nova-plus-next-mission {
+            min-height: 104px;
+            border-radius: 18px;
+          }
+
+          .nova-plus-quick-answer {
+            padding: 14px;
+            border: 1px solid rgba(255,255,255,0.09);
+            background: rgba(255,255,255,0.025);
+            display: grid;
+            grid-template-columns: 40px minmax(0,1fr);
+            align-items: center;
+            gap: 10px;
+          }
+
+          .nova-plus-quick-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 13px;
+            display: grid;
+            place-items: center;
+            font-weight: 950;
+          }
+
+          .strong-answer .nova-plus-quick-icon {
+            color: #45e59a;
+            border: 1px solid rgba(69,229,154,0.35);
+            background: rgba(69,229,154,0.1);
+          }
+
+          .focus-answer .nova-plus-quick-icon {
+            color: #ff646e;
+            border: 1px solid rgba(255,100,110,0.35);
+            background: rgba(255,100,110,0.1);
+          }
+
+          .nova-plus-quick-answer small,
+          .nova-plus-next-copy small {
+            color: rgba(235,247,255,0.42);
+            font-size: 8px;
+            font-weight: 900;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+          }
+
+          .nova-plus-quick-answer strong {
+            display: block;
+            margin-top: 5px;
+            font-size: 13px;
+            line-height: 1.35;
+          }
+
+          .nova-plus-next-mission {
+            padding: 12px 14px;
+            border: 1px solid rgba(196,181,253,0.3);
+            background:
+              linear-gradient(135deg, rgba(124,58,237,0.2), rgba(83,215,255,0.08));
+            color: white;
+            display: grid;
+            grid-template-columns: 50px minmax(0,1fr) 32px;
+            align-items: center;
+            gap: 10px;
+            text-align: left;
+            cursor: pointer;
+            box-shadow: 0 0 26px rgba(124,58,237,0.08);
+          }
+
+          .nova-plus-next-nova {
+            width: 48px;
+            height: 62px;
+            display: grid;
+            place-items: end center;
+          }
+
+          .nova-plus-next-nova img {
+            width: 42px;
+            height: 58px;
+            object-fit: contain;
+            object-position: center bottom;
+          }
+
+          .nova-plus-next-copy > strong {
+            display: block;
+            margin-top: 4px;
+            font-size: 14px;
+          }
+
+          .nova-plus-next-copy > span {
+            display: block;
+            margin-top: 5px;
+            color: #c4b5fd;
+            font-size: 9px;
+            font-weight: 850;
+          }
+
+          .nova-plus-next-arrow {
+            width: 30px;
+            height: 30px;
+            border-radius: 999px;
+            border: 1px solid rgba(196,181,253,0.26);
+            background: rgba(196,181,253,0.08);
+            display: grid;
+            place-items: center;
+            color: #ddd6fe;
+            font-size: 15px;
+          }
+
+          .nova-plus-avatar-picker-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 2147483400;
+            padding: 24px;
+            display: grid;
+            place-items: center;
+            background: rgba(0,3,12,0.82);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+          }
+
+          .nova-plus-avatar-picker {
+            width: min(720px, calc(100vw - 30px));
+            max-height: min(760px, calc(100dvh - 30px));
+            overflow-y: auto;
+            border-radius: 24px;
+            border: 1px solid rgba(141,252,255,0.28);
+            background:
+              radial-gradient(circle at 15% 0%, rgba(83,215,255,0.08), transparent 30%),
+              linear-gradient(145deg, #071a32, #030916 74%);
+            box-shadow: 0 32px 90px rgba(0,0,0,0.68);
+            padding: 20px;
+          }
+
+          .nova-plus-avatar-picker header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 14px;
+          }
+
+          .nova-plus-avatar-picker header h4 {
+            margin: 6px 0 0;
+            font-size: 22px;
+          }
+
+          .nova-plus-avatar-picker header > button {
+            width: 38px;
+            height: 38px;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.13);
+            background: rgba(255,255,255,0.05);
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+          }
+
+          .nova-plus-avatar-options {
+            margin-top: 18px;
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0,1fr));
+            gap: 10px;
+          }
+
+          .nova-plus-avatar-option {
+            min-height: 128px;
+            padding: 10px;
+            border-radius: 17px;
+            border: 1px solid rgba(255,255,255,0.09);
+            background: rgba(255,255,255,0.025);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+          }
+
+          .nova-plus-avatar-option.selected {
+            border-color: rgba(141,252,255,0.55);
+            box-shadow: 0 0 24px rgba(83,215,255,0.12);
+          }
+
+          .nova-plus-avatar-option > span {
+            width: 76px;
+            height: 76px;
+            border-radius: 999px;
+            font-size: 30px;
+          }
+
+          .nova-plus-avatar-option > strong {
+            font-size: 10px;
+          }
+
+          .nova-plus-avatar-upload-row {
+            margin-top: 16px;
+            padding: 14px;
+            border-radius: 17px;
+            border: 1px solid rgba(196,181,253,0.16);
+            background: rgba(124,58,237,0.07);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+          }
+
+          .nova-plus-avatar-upload-row strong {
+            display: block;
+            font-size: 12px;
+          }
+
+          .nova-plus-avatar-upload-row span {
+            display: block;
+            margin-top: 4px;
+            color: rgba(235,247,255,0.44);
+            font-size: 10px;
+          }
+
+          .nova-plus-avatar-upload-button {
+            min-height: 42px;
+            padding: 0 15px;
+            border-radius: 13px;
+            border: 1px solid rgba(141,252,255,0.3);
+            background: rgba(83,215,255,0.09);
+            color: #c7f7ff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 900;
+            cursor: pointer;
+            white-space: nowrap;
+          }
+
+          .nova-plus-avatar-upload-button input {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+          }
+
+          .nova-plus-avatar-error {
+            margin-top: 10px;
+            padding: 10px 12px;
+            border-radius: 13px;
+            border: 1px solid rgba(255,100,110,0.25);
+            background: rgba(255,100,110,0.08);
+            color: #fecaca;
+            font-size: 10px;
+          }
+
           .nova-plus-learning-stage {
             padding: 22px;
             background:
@@ -6694,6 +7696,26 @@ export default function NovaVirtualTeacherPopup({
             .nova-plus-orbit.orbit-two { width: 108px; height: 108px; }
             .nova-plus-core { width: 86px; height: 86px; }
 
+            .nova-plus-learning-main {
+              grid-template-columns: 1fr;
+            }
+
+            .nova-plus-learner-card {
+              min-height: auto;
+            }
+
+            .nova-plus-curriculum-grid {
+              grid-template-columns: repeat(3, minmax(0,1fr));
+            }
+
+            .nova-plus-learning-actions {
+              grid-template-columns: 1fr 1fr;
+            }
+
+            .nova-plus-next-mission {
+              grid-column: 1 / -1;
+            }
+
             .nova-plus-learning-orbit {
               grid-template-columns: 1fr;
             }
@@ -6798,6 +7820,53 @@ export default function NovaVirtualTeacherPopup({
 
             .nova-plus-nav button {
               min-height: 52px;
+            }
+
+            .nova-plus-learning-heading {
+              align-items: flex-start;
+              flex-direction: column;
+            }
+
+            .nova-plus-status-legend {
+              justify-content: flex-start;
+            }
+
+            .nova-plus-curriculum-grid {
+              grid-template-columns: 1fr;
+            }
+
+            .nova-plus-subject-zone {
+              min-height: 132px;
+              display: grid;
+              grid-template-columns: 54px minmax(0,1fr);
+              align-items: center;
+              gap: 12px;
+            }
+
+            .nova-plus-subject-state-light {
+              top: 14px;
+              right: 14px;
+            }
+
+            .nova-plus-knowledge-zone {
+              grid-column: auto;
+            }
+
+            .nova-plus-learning-actions {
+              grid-template-columns: 1fr;
+            }
+
+            .nova-plus-next-mission {
+              grid-column: auto;
+            }
+
+            .nova-plus-avatar-options {
+              grid-template-columns: repeat(2, minmax(0,1fr));
+            }
+
+            .nova-plus-avatar-upload-row {
+              align-items: flex-start;
+              flex-direction: column;
             }
 
             .nova-plus-subject-planets,

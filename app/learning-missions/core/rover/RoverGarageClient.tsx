@@ -192,6 +192,39 @@ export default function RoverGarageClient() {
   const isMobile = screenMode === "mobile";
   const isCompact = screenMode !== "desktop";
 
+  const [isPortrait, setIsPortrait] = useState(false);
+
+  useEffect(() => {
+    function updateOrientation() {
+      setIsPortrait(window.innerHeight > window.innerWidth);
+    }
+
+    updateOrientation();
+    window.addEventListener("resize", updateOrientation);
+    window.addEventListener("orientationchange", updateOrientation);
+
+    return () => {
+      window.removeEventListener("resize", updateOrientation);
+      window.removeEventListener("orientationchange", updateOrientation);
+    };
+  }, []);
+
+  useEffect(() => {
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, []);
+
+  const shouldRotate =
+    screenMode !== "desktop" && isPortrait;
+
   const [roverOrigin, setRoverOrigin] = useState<RoverOrigin>("core");
 
   useEffect(() => {
@@ -1062,6 +1095,22 @@ export default function RoverGarageClient() {
     );
   }
 
+  if (shouldRotate) {
+    return (
+      <main style={rotateGatePage}>
+        <div style={rotateGateCard}>
+          <div style={rotateDeviceIcon}>↻</div>
+          <p style={smallEyebrow}>SKYFORGE HANGAR</p>
+          <h1 style={rotateGateTitle}>Rotate to landscape</h1>
+          <p style={rotateGateCopy}>
+            My Rover is designed as a landscape hangar. Rotate your phone or
+            iPad to continue.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   const selectedOwned =
     isAdmin ||
     displayedUpgrade.stage === 0 ||
@@ -1129,14 +1178,11 @@ export default function RoverGarageClient() {
           onOpenLevel={openRoverChallenge}
         />
       ) : (
-        <section style={hangarLayout(isCompact)}>
-          <aside style={fleetRail(isCompact)}>
-            <div style={hangarSectionHeading}>
+        <section style={hangarWorkspace(isCompact)}>
+          <aside style={fleetPane(isCompact)}>
+            <div style={compactPaneHeading}>
               <p style={smallEyebrow}>ROVER FLEET</p>
-              <h2 style={hangarSectionTitle}>Select Your Rover</h2>
-              <p style={hangarSectionCopy}>
-                Purchase rovers in sequence, then equip any rover you own.
-              </p>
+              <h2 style={compactPaneTitle}>Select Rover</h2>
             </div>
 
             <UpgradeTrack
@@ -1153,90 +1199,83 @@ export default function RoverGarageClient() {
             />
           </aside>
 
-          <section style={centerRoverColumn(isCompact)}>
-            <div style={centerRoverCard(displayedUpgrade.accent)}>
-              <div style={centerRoverTopRow}>
-                <div>
-                  <p style={smallEyebrow}>
-                    {selectedEquipped
-                      ? "EQUIPPED ROVER"
-                      : selectedOwned
-                        ? "OWNED ROVER"
-                        : "ROVER PREVIEW"}
-                  </p>
-                  <h2 style={centerRoverTitle}>
-                    Rover {displayedUpgrade.roverNumber} · {displayedUpgrade.name}
-                  </h2>
-                </div>
-
-                {rank && <div style={rankPill(rank)}>Rank #{rank}</div>}
+          <section style={roverFocusPane(isCompact)}>
+            <div style={roverFocusTop}>
+              <div>
+                <p style={smallEyebrow}>
+                  {selectedEquipped
+                    ? "EQUIPPED ROVER"
+                    : selectedOwned
+                      ? "OWNED ROVER"
+                      : "ROVER PREVIEW"}
+                </p>
+                <h2 style={roverFocusTitle}>
+                  Rover {displayedUpgrade.roverNumber} · {displayedUpgrade.name}
+                </h2>
               </div>
 
-              <div style={centerVehicleStage}>
-                <div style={vehicleHalo(displayedUpgrade.accent)} />
-                <img
-                  src={displayedUpgrade.imageSrc}
-                  alt={displayedUpgrade.name}
-                  draggable={false}
-                  style={centerVehicleImage}
-                />
-              </div>
+              {rank && <div style={rankPill(rank)}>Rank #{rank}</div>}
+            </div>
 
-              <p style={centerVehicleDescription}>
-                {displayedUpgrade.description}
-              </p>
+            <div style={roverFocusVehicleStage}>
+              <div style={vehicleHalo(displayedUpgrade.accent)} />
+              <img
+                src={displayedUpgrade.imageSrc}
+                alt={displayedUpgrade.name}
+                draggable={false}
+                style={roverFocusVehicleImage}
+              />
+            </div>
 
-              <div style={centerPrimaryActions}>
-                {selectedEquipped ? (
-                  <button
-                    type="button"
-                    onClick={() => setGarageView("expeditions")}
-                    style={expeditionsButton}
-                  >
-                    To Expeditions ›
-                  </button>
-                ) : selectedOwned ? (
-                  <button
-                    type="button"
-                    disabled={savingRoverStage !== null}
-                    onClick={() =>
-                      void selectAndEquipRover(displayedUpgrade.stage)
-                    }
-                    style={expeditionsButton}
-                  >
-                    {savingRoverStage === displayedUpgrade.stage
-                      ? "Equipping..."
-                      : "Equip This Rover"}
-                  </button>
-                ) : selectedCanPurchase ? (
-                  <button
-                    type="button"
-                    disabled={!selectedCanAfford || purchasingRoverStage !== null}
-                    onClick={() => void purchaseRover(displayedUpgrade.stage)}
-                    style={expeditionsButton}
-                  >
-                    {selectedCanAfford
-                      ? `Purchase · ${Number(
-                          displayedCatalog?.price_dt ?? displayedUpgrade.priceDt,
-                        ).toLocaleString("en-SG")} DT`
-                      : "Need More DT"}
-                  </button>
-                ) : (
-                  <button type="button" disabled style={disabledCenterButton}>
-                    Purchase Previous Rover First
-                  </button>
-                )}
-              </div>
-
-              {loadoutMessage && (
-                <div style={courseNotice}>{loadoutMessage}</div>
-              )}
-              {purchaseMessage && (
-                <div style={purchaseNotice}>{purchaseMessage}</div>
+            <div style={roverFocusActionArea}>
+              {selectedEquipped ? (
+                <button
+                  type="button"
+                  onClick={() => setGarageView("expeditions")}
+                  style={expeditionsButton}
+                >
+                  To Expeditions ›
+                </button>
+              ) : selectedOwned ? (
+                <button
+                  type="button"
+                  disabled={savingRoverStage !== null}
+                  onClick={() =>
+                    void selectAndEquipRover(displayedUpgrade.stage)
+                  }
+                  style={expeditionsButton}
+                >
+                  {savingRoverStage === displayedUpgrade.stage
+                    ? "Equipping..."
+                    : "Equip This Rover"}
+                </button>
+              ) : selectedCanPurchase ? (
+                <button
+                  type="button"
+                  disabled={!selectedCanAfford || purchasingRoverStage !== null}
+                  onClick={() => void purchaseRover(displayedUpgrade.stage)}
+                  style={expeditionsButton}
+                >
+                  {selectedCanAfford
+                    ? `Purchase · ${Number(
+                        displayedCatalog?.price_dt ?? displayedUpgrade.priceDt,
+                      ).toLocaleString("en-SG")} DT`
+                    : "Need More DT"}
+                </button>
+              ) : (
+                <button type="button" disabled style={disabledCenterButton}>
+                  Purchase Previous Rover First
+                </button>
               )}
             </div>
 
-            <div style={centerStatsCard}>
+            {(loadoutMessage || purchaseMessage) && (
+              <div style={focusMessageStrip}>
+                {loadoutMessage || purchaseMessage}
+              </div>
+            )}
+
+            <div style={statsBottomDock}>
               <RoverBuildStats
                 stage={displayedUpgrade.stage}
                 accent={displayedUpgrade.accent}
@@ -1248,9 +1287,9 @@ export default function RoverGarageClient() {
                 }
               />
 
-              <div style={centerRunSummary}>
+              <div style={compactRunSummary}>
                 <SummaryStat
-                  label="Current Rank"
+                  label="Rank"
                   value={rank ? `#${rank}` : "—"}
                 />
                 <SummaryStat
@@ -1271,13 +1310,10 @@ export default function RoverGarageClient() {
             </div>
           </section>
 
-          <aside style={partsRail(isCompact)}>
-            <div style={hangarSectionHeading}>
+          <aside style={buildPane(isCompact)}>
+            <div style={compactPaneHeading}>
               <p style={smallEyebrow}>CUSTOM BUILD</p>
-              <h2 style={hangarSectionTitle}>Performance Parts</h2>
-              <p style={hangarSectionCopy}>
-                Upgrades belong permanently to the rover on which they are installed.
-              </p>
+              <h2 style={compactPaneTitle}>Performance Parts</h2>
             </div>
 
             {selectedEquipped ? (
@@ -1296,21 +1332,21 @@ export default function RoverGarageClient() {
                 }
               />
             ) : (
-              <div style={equipToTuneCard}>
+              <div style={equipToTuneCompact}>
                 <span style={equipToTuneIcon}>◇</span>
-                <h3 style={{ margin: 0 }}>Equip this rover to customise it</h3>
-                <p style={hangarSectionCopy}>
-                  Performance parts are stored separately for every rover.
-                  Equip Rover {displayedUpgrade.roverNumber} before installing
-                  parts for this build.
-                </p>
+                <strong>Equip Rover {displayedUpgrade.roverNumber}</strong>
+                <span style={compactMutedText}>
+                  Custom parts are stored separately for every rover.
+                </span>
                 {selectedOwned && (
                   <button
                     type="button"
-                    onClick={() => void selectAndEquipRover(displayedUpgrade.stage)}
+                    onClick={() =>
+                      void selectAndEquipRover(displayedUpgrade.stage)
+                    }
                     style={equipRoverButton(true)}
                   >
-                    Equip Rover {displayedUpgrade.roverNumber}
+                    Equip
                   </button>
                 )}
               </div>
@@ -2013,214 +2049,119 @@ function UpgradeTrack({
   onPurchaseStage: (stage: number) => void;
 }) {
   return (
-    <div style={scrollPanel}>
-      <div style={panelHeading}>
-        <p style={smallEyebrow}>YOUR ROVER COLLECTION</p>
+    <div style={fleetCompactList}>
+      {coreUpgradeTrack.map((upgrade) => {
+        const catalogRow = catalog.find(
+          (row) => Number(row.stage) === upgrade.stage,
+        );
 
-        <h2 style={{ margin: "7px 0 0" }}>Rover Fleet</h2>
+        const owned =
+          isAdmin ||
+          upgrade.stage === 0 ||
+          Boolean(catalogRow?.owned);
 
-        <p style={panelDescription}>
-          Select a rover to preview it. Owned rovers can be equipped here;
-          new rovers unlock in purchase order. Balance:{" "}
-          <strong>{tokenBalance.toLocaleString("en-SG")} DT</strong>.
-        </p>
-      </div>
+        const equipped = equippedStage === upgrade.stage;
+        const selected = selectedStage === upgrade.stage;
+        const saving = savingStage === upgrade.stage;
+        const purchasing = purchasingStage === upgrade.stage;
+        const price = Number(
+          catalogRow?.price_dt ?? upgrade.priceDt,
+        );
 
-      <div style={upgradeList}>
-        {coreUpgradeTrack.map((upgrade) => {
-          const catalogRow = catalog.find(
-            (row) => Number(row.stage) === upgrade.stage,
-          );
+        const canPurchase =
+          !isAdmin &&
+          !owned &&
+          Boolean(catalogRow?.can_purchase);
 
-          const owned =
-            isAdmin ||
-            upgrade.stage === 0 ||
-            Boolean(catalogRow?.owned);
+        const canAfford =
+          canPurchase &&
+          tokenBalance >= price;
 
-          const equipped = equippedStage === upgrade.stage;
-          const selected = selectedStage === upgrade.stage;
-          const saving = savingStage === upgrade.stage;
-          const purchasing = purchasingStage === upgrade.stage;
+        return (
+          <article
+            key={upgrade.stage}
+            onClick={() => onPreviewStage(upgrade.stage)}
+            style={fleetCompactRow(selected, equipped, upgrade.accent)}
+          >
+            <img
+              src={upgrade.imageSrc}
+              alt={upgrade.name}
+              draggable={false}
+              style={fleetCompactImage}
+            />
 
-          const price = Number(
-            catalogRow?.price_dt ?? upgrade.priceDt,
-          );
+            <div style={fleetCompactIdentity}>
+              <strong style={fleetCompactName}>
+                Rover {upgrade.roverNumber} · {upgrade.name}
+              </strong>
 
-          const canPurchase =
-            !isAdmin &&
-            !owned &&
-            Boolean(catalogRow?.can_purchase);
+              <span style={fleetCompactMeta(equipped, upgrade.accent)}>
+                {equipped
+                  ? "Equipped"
+                  : owned
+                    ? "Owned"
+                    : upgrade.stage === 0
+                      ? "Free"
+                      : `${price.toLocaleString("en-SG")} DT`}
+              </span>
+            </div>
 
-          const canAfford =
-            canPurchase &&
-            tokenBalance >= price;
-
-          const previousRequiredRover = Math.max(
-            1,
-            upgrade.stage,
-          );
-
-          let status = "";
-
-          if (equipped) {
-            status = "EQUIPPED · USED IN ROVER EXPEDITIONS";
-          } else if (saving) {
-            status = "EQUIPPING...";
-          } else if (owned) {
-            status = isAdmin
-              ? "ADMIN ACCESS · SELECT TO EQUIP"
-              : catalogRow?.acquisition_method === "legacy"
-                ? "OWNED · LEGACY UNLOCK · SELECT TO EQUIP"
-                : catalogRow?.acquisition_method === "purchase"
-                  ? "OWNED · PERMANENT PURCHASE · SELECT TO EQUIP"
-                  : "OWNED · SELECT TO EQUIP";
-          } else if (purchasing) {
-            status = "PURCHASING...";
-          } else if (!catalogRow) {
-            status = "OWNERSHIP DATA UNAVAILABLE";
-          } else if (!catalogRow.previous_stage_owned) {
-            status = `LOCKED · PURCHASE ROVER ${previousRequiredRover} FIRST`;
-          } else if (canAfford) {
-            status = `AVAILABLE · ${price.toLocaleString("en-SG")} DT`;
-          } else {
-            status = `NEED ${Math.max(
-              0,
-              price - tokenBalance,
-            ).toLocaleString("en-SG")} MORE DT`;
-          }
-
-          return (
-            <article
-              key={upgrade.stage}
-              onClick={() => onPreviewStage(upgrade.stage)}
-              style={upgradeRow(
-                owned || canPurchase,
-                equipped,
-                selected,
-                upgrade.accent,
-              )}
-            >
-              <div style={stageNumber(owned, upgrade.accent)}>
-                {upgrade.roverNumber}
-              </div>
-
-              <img
-                src={upgrade.imageSrc}
-                alt={`Rover ${upgrade.roverNumber} · ${upgrade.name}`}
-                draggable={false}
-                style={{
-                  width: "82px",
-                  height: "58px",
-                  objectFit: "contain",
-                  opacity: owned || canPurchase ? 1 : 0.4,
-                }}
-              />
-
-              <div
-                style={{
-                  minWidth: 0,
-                  flex: 1,
-                  textAlign: "left",
-                }}
-              >
-                <p
-                  style={upgradeStatus(
-                    owned || canPurchase,
-                    equipped,
-                    selected,
-                    upgrade.accent,
+            <div style={fleetCompactAction}>
+              {equipped ? (
+                <span style={compactEquippedBadge}>✓</span>
+              ) : owned ? (
+                <button
+                  type="button"
+                  disabled={
+                    savingStage !== null ||
+                    purchasingStage !== null
+                  }
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onEquipStage(upgrade.stage);
+                  }}
+                  style={compactFleetButton(
+                    savingStage === null &&
+                      purchasingStage === null,
+                    "equip",
                   )}
                 >
-                  {status}
-                </p>
-
-                <h3
-                  style={{
-                    margin: "5px 0 0",
-                    fontSize: "18px",
+                  {saving ? "..." : "Equip"}
+                </button>
+              ) : canPurchase ? (
+                <button
+                  type="button"
+                  disabled={
+                    !canAfford ||
+                    purchasingStage !== null ||
+                    savingStage !== null
+                  }
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onPurchaseStage(upgrade.stage);
                   }}
+                  style={compactFleetButton(
+                    canAfford &&
+                      purchasingStage === null &&
+                      savingStage === null,
+                    "buy",
+                  )}
                 >
-                  Rover {upgrade.roverNumber} · {upgrade.name}
-                </h3>
-
-                <p style={upgradeRowDescription}>
-                  {upgrade.description}
-                </p>
-
-                {upgrade.stage > 0 && (
-                  <p style={roverPriceText}>
-                    Permanent price:{" "}
-                    <strong>
-                      {price.toLocaleString("en-SG")} DT
-                    </strong>
-                  </p>
-                )}
-              </div>
-
-              <div style={upgradeActionColumn}>
-                {equipped ? (
-                  <span style={equippedBadge}>Equipped</span>
-                ) : owned ? (
-                  <button
-                    type="button"
-                    disabled={
-                      savingStage !== null ||
-                      purchasingStage !== null
-                    }
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onEquipStage(upgrade.stage);
-                    }}
-                    style={equipRoverButton(
-                      savingStage === null &&
-                        purchasingStage === null,
-                    )}
-                  >
-                    {saving ? "Equipping..." : "Equip"}
-                  </button>
-                ) : canPurchase ? (
-                  <button
-                    type="button"
-                    disabled={
-                      !canAfford ||
-                      purchasingStage !== null ||
-                      savingStage !== null
-                    }
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onPurchaseStage(upgrade.stage);
-                    }}
-                    style={purchaseRoverButton(
-                      canAfford &&
-                        purchasingStage === null &&
-                        savingStage === null,
-                    )}
-                  >
-                    {purchasing
-                      ? "Purchasing..."
-                      : canAfford
-                        ? `${price.toLocaleString("en-SG")} DT`
-                        : "Need DT"}
-                  </button>
-                ) : (
-                  <span style={lockedRoverBadge}>
-                    {upgrade.stage === 0
-                      ? "Starter"
-                      : `Rover ${previousRequiredRover} first`}
-                  </span>
-                )}
-              </div>
-            </article>
-          );
-        })}
-      </div>
+                  {purchasing ? "..." : "Buy"}
+                </button>
+              ) : (
+                <span style={compactLockedBadge}>Locked</span>
+              )}
+            </div>
+          </article>
+        );
+      })}
     </div>
   );
 }
 
 function CustomBuildPanel({
   tokenBalance,
-  isMobile,
   equippedStage,
   performanceBuild,
   message,
@@ -2247,198 +2188,290 @@ function CustomBuildPanel({
     coreUpgradeTrack.find((item) => item.stage === equippedStage) ??
     coreUpgradeTrack[0];
 
+  if (performanceBuild.length === 0) {
+    return (
+      <div style={compactBuildUnavailable}>
+        Custom Build data is unavailable.
+      </div>
+    );
+  }
+
   return (
-    <div style={scrollPanel}>
-      <div style={panelHeading}>
-        <p style={smallEyebrow}>PER-ROVER PERFORMANCE TUNING</p>
+    <div style={compactBuildShell}>
+      <div style={compactBuildGrid}>
+        {roverPerformanceCategories.map((category) => {
+          const row = performanceBuild.find(
+            (item) => item.category === category.id,
+          );
 
-        <h2 style={{ margin: "7px 0 0" }}>
-          {rover.name} · Custom Build
-        </h2>
+          if (!row) return null;
 
-        <p style={panelDescription}>
-          Performance parts are live purchases permanently attached to this
-          rover only. The highest purchased tier in each category is installed
-          automatically whenever Rover {equippedStage + 1} enters Rover
-          Expeditions. Balance:{" "}
-          <strong>{tokenBalance.toLocaleString("en-SG")} DT</strong>
-        </p>
+          return (
+            <PerformanceUpgradeBox
+              key={`${equippedStage}-${category.id}-${row.current_level}`}
+              category={category}
+              row={row}
+              tokenBalance={tokenBalance}
+              purchasingCategory={purchasingCategory}
+              confirmingCategory={confirmingCategory}
+              onConfirmingCategoryChange={onConfirmingCategoryChange}
+              onPurchase={onPurchase}
+            />
+          );
+        })}
+
+        <AppearanceUpgradeBox
+          key={`appearance-${equippedStage}`}
+          roverName={rover.name}
+          roverImageSrc={rover.imageSrc}
+        />
       </div>
 
-      {message && <div style={purchaseNotice}>{message}</div>}
-
-      {performanceBuild.length === 0 ? (
-        <div style={courseNotice}>
-          Custom Build data is unavailable. Run the Rover Performance Custom
-          Build SQL in Supabase.
-        </div>
-      ) : (
-        <div style={{ display: "grid", gap: "16px" }}>
-          {roverPerformanceCategories.map((category) => {
-            const row = performanceBuild.find(
-              (item) => item.category === category.id,
-            );
-
-            if (!row) return null;
-
-            const currentLevel = Number(row.current_level ?? 0);
-            const currentRating = Number(row.current_rating ?? row.base_rating);
-            const maxed = !row.can_purchase || row.next_level == null;
-            const purchasing = purchasingCategory === category.id;
-            const canAfford = Boolean(row.can_afford);
-
-            return (
-              <section key={category.id} style={performanceCategoryCard}>
-                <div style={performanceCategoryHeader}>
-                  <div>
-                    <p style={performanceCategoryEyebrow}>
-                      {category.effectSummary.toUpperCase()}
-                    </p>
-                    <h3 style={performanceCategoryTitle}>{category.title}</h3>
-                    <p style={performanceCategoryDescription}>
-                      {category.shortDescription}
-                    </p>
-                  </div>
-
-                  <div style={performanceRatingBadge}>
-                    <strong>{currentRating}</strong>
-                    <span>/100</span>
-                  </div>
-                </div>
-
-                <div style={performanceTierGrid(isMobile)}>
-                  {category.tiers.map((tier) => {
-                    const owned = tier.level <= currentLevel;
-                    const next = tier.level === row.next_level;
-                    const unavailable = tier.level > Number(row.max_useful_level);
-
-                    return (
-                      <div
-                        key={tier.level}
-                        style={performanceTierCard(owned, next, unavailable)}
-                      >
-                        <div style={performanceTierTopRow}>
-                          <div style={performanceTierNumber}>{tier.level}</div>
-
-                          <strong style={performanceTierMiniStatus(owned, next)}>
-                            {unavailable
-                              ? "NOT NEEDED"
-                              : owned
-                                ? "INSTALLED"
-                                : next
-                                  ? "NEXT"
-                                  : "LOCKED"}
-                          </strong>
-                        </div>
-
-                        {tier.imageSrc && (
-                          <div style={performanceTierImageStage}>
-                            <img
-                              src={tier.imageSrc}
-                              alt={tier.name}
-                              draggable={false}
-                              style={performanceTierImage}
-                            />
-                          </div>
-                        )}
-
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <p style={performanceTierName}>{tier.name}</p>
-                          <p style={performanceTierDescription}>
-                            {tier.description}
-                          </p>
-                        </div>
-
-                        <strong style={performanceTierStatus(owned, next)}>
-                          {unavailable
-                            ? "MAX NOT NEEDED"
-                            : owned
-                              ? "INSTALLED"
-                              : next
-                                ? `${tier.priceDt} DT`
-                                : "LOCKED"}
-                        </strong>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div style={performanceCategoryFooter}>
-                  <span>
-                    Installed tier: <strong>{currentLevel}/5</strong>
-                    {Number(row.max_useful_level) < 5
-                      ? ` · Rover reaches 100 at Tier ${row.max_useful_level}`
-                      : ""}
-                  </span>
-
-                  {maxed ? (
-                    <span style={performanceMaxBadge}>MAXIMUM</span>
-                  ) : confirmingCategory === category.id ? (
-                    <div style={performanceConfirmActions}>
-                      <button
-                        type="button"
-                        disabled={purchasingCategory !== null}
-                        onClick={() => onConfirmingCategoryChange(null)}
-                        style={performanceCancelButton(
-                          purchasingCategory === null,
-                        )}
-                      >
-                        Cancel
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={
-                          !canAfford ||
-                          purchasingCategory !== null
-                        }
-                        onClick={() => {
-                          onConfirmingCategoryChange(null);
-                          onPurchase(category.id);
-                        }}
-                        style={performanceConfirmButton(
-                          canAfford &&
-                            purchasingCategory === null,
-                        )}
-                      >
-                        {purchasing
-                          ? "Installing..."
-                          : `Confirm · ${Number(
-                              row.next_price_dt,
-                            ).toLocaleString("en-SG")} DT`}
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled={
-                        !canAfford ||
-                        purchasingCategory !== null
-                      }
-                      onClick={() =>
-                        onConfirmingCategoryChange(category.id)
-                      }
-                      style={purchaseRoverButton(
-                        canAfford &&
-                          purchasingCategory === null,
-                      )}
-                    >
-                      {purchasing
-                        ? "Installing..."
-                        : canAfford
-                          ? `${Number(
-                              row.next_price_dt,
-                            ).toLocaleString("en-SG")} DT · Install`
-                          : "Need DT"}
-                    </button>
-                  )}
-                </div>
-              </section>
-            );
-          })}
-        </div>
+      {message && (
+        <div style={compactBuildMessage}>{message}</div>
       )}
     </div>
+  );
+}
+
+function PerformanceUpgradeBox({
+  category,
+  row,
+  tokenBalance,
+  purchasingCategory,
+  confirmingCategory,
+  onConfirmingCategoryChange,
+  onPurchase,
+}: {
+  category: (typeof roverPerformanceCategories)[number];
+  row: RoverPerformanceBuildRow;
+  tokenBalance: number;
+  purchasingCategory: RoverPerformanceCategory | null;
+  confirmingCategory: RoverPerformanceCategory | null;
+  onConfirmingCategoryChange: (
+    category: RoverPerformanceCategory | null,
+  ) => void;
+  onPurchase: (category: RoverPerformanceCategory) => void;
+}) {
+  const currentLevel = Number(row.current_level ?? 0);
+  const initialLevel = Math.max(
+    1,
+    Math.min(
+      5,
+      Number(row.next_level ?? (currentLevel || 1)),
+    ),
+  );
+
+  const [viewLevel, setViewLevel] = useState(initialLevel);
+
+  const tier =
+    category.tiers[Math.max(0, Math.min(category.tiers.length - 1, viewLevel - 1))];
+
+  const owned = viewLevel <= currentLevel;
+  const isNext = viewLevel === Number(row.next_level);
+  const unavailable =
+    viewLevel > Number(row.max_useful_level ?? 5);
+  const locked =
+    !owned &&
+    !isNext &&
+    !unavailable;
+
+  const canAfford =
+    Boolean(row.can_afford) &&
+    tokenBalance >= Number(row.next_price_dt ?? 0);
+
+  const purchasing =
+    purchasingCategory === category.id;
+
+  const confirming =
+    confirmingCategory === category.id && isNext;
+
+  function move(delta: number) {
+    onConfirmingCategoryChange(null);
+    setViewLevel((current) =>
+      Math.max(1, Math.min(5, current + delta)),
+    );
+  }
+
+  return (
+    <section style={upgradeCarouselBox}>
+      <div style={upgradeCarouselHeader}>
+        <div>
+          <p style={upgradeCarouselEyebrow}>
+            {category.statLabel.toUpperCase()}
+          </p>
+          <h3 style={upgradeCarouselTitle}>{category.title}</h3>
+        </div>
+
+        <span style={upgradeCarouselRating}>
+          {Number(row.current_rating ?? row.base_rating)}/100
+        </span>
+      </div>
+
+      <div style={upgradeCarouselViewer}>
+        <button
+          type="button"
+          onClick={() => move(-1)}
+          disabled={viewLevel <= 1}
+          style={upgradeArrow(viewLevel > 1)}
+          aria-label={`Previous ${category.title} upgrade`}
+        >
+          ‹
+        </button>
+
+        <div style={upgradeCarouselPart}>
+          {tier?.imageSrc ? (
+            <img
+              src={tier.imageSrc}
+              alt={tier.name}
+              draggable={false}
+              style={upgradeCarouselImage}
+            />
+          ) : (
+            <div style={upgradeCarouselFallback}>◇</div>
+          )}
+
+          <strong style={upgradeCarouselPartName}>
+            {tier?.name ?? category.title}
+          </strong>
+
+          <span style={upgradeCarouselTier}>
+            Tier {viewLevel}/5
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => move(1)}
+          disabled={viewLevel >= 5}
+          style={upgradeArrow(viewLevel < 5)}
+          aria-label={`Next ${category.title} upgrade`}
+        >
+          ›
+        </button>
+      </div>
+
+      <div style={upgradeCarouselFooter}>
+        {unavailable ? (
+          <span style={upgradeStateMuted}>Not needed</span>
+        ) : owned ? (
+          <span style={upgradeStateInstalled}>Installed</span>
+        ) : locked ? (
+          <span style={upgradeStateMuted}>Locked</span>
+        ) : confirming ? (
+          <div style={upgradeConfirmRow}>
+            <button
+              type="button"
+              disabled={purchasingCategory !== null}
+              onClick={() => onConfirmingCategoryChange(null)}
+              style={smallCancelButton}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={!canAfford || purchasingCategory !== null}
+              onClick={() => {
+                onConfirmingCategoryChange(null);
+                onPurchase(category.id);
+              }}
+              style={smallConfirmButton(
+                canAfford && purchasingCategory === null,
+              )}
+            >
+              {purchasing
+                ? "Installing..."
+                : `Confirm ${Number(
+                    row.next_price_dt,
+                  ).toLocaleString("en-SG")} DT`}
+            </button>
+          </div>
+        ) : isNext ? (
+          <button
+            type="button"
+            disabled={!canAfford || purchasingCategory !== null}
+            onClick={() =>
+              onConfirmingCategoryChange(category.id)
+            }
+            style={smallInstallButton(
+              canAfford && purchasingCategory === null,
+            )}
+          >
+            {canAfford
+              ? `Install · ${tier.priceDt.toLocaleString("en-SG")} DT`
+              : `Need ${Math.max(
+                  0,
+                  Number(row.next_price_dt ?? 0) - tokenBalance,
+                ).toLocaleString("en-SG")} DT`}
+          </button>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function AppearanceUpgradeBox({
+  roverName,
+  roverImageSrc,
+}: {
+  roverName: string;
+  roverImageSrc: string;
+}) {
+  const [slot, setSlot] = useState(1);
+
+  return (
+    <section style={upgradeCarouselBox}>
+      <div style={upgradeCarouselHeader}>
+        <div>
+          <p style={upgradeCarouselEyebrow}>APPEARANCE</p>
+          <h3 style={upgradeCarouselTitle}>Colorways</h3>
+        </div>
+        <span style={appearanceBadge}>Visual</span>
+      </div>
+
+      <div style={upgradeCarouselViewer}>
+        <button
+          type="button"
+          onClick={() => setSlot((current) => Math.max(1, current - 1))}
+          disabled={slot <= 1}
+          style={upgradeArrow(slot > 1)}
+          aria-label="Previous colorway"
+        >
+          ‹
+        </button>
+
+        <div style={upgradeCarouselPart}>
+          <img
+            src={roverImageSrc}
+            alt={`${roverName} colorway preview`}
+            draggable={false}
+            style={appearancePreviewImage}
+          />
+          <strong style={upgradeCarouselPartName}>
+            {slot === 1 ? "Factory Colorway" : `Colorway ${slot}`}
+          </strong>
+          <span style={upgradeCarouselTier}>{slot}/5</span>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setSlot((current) => Math.min(5, current + 1))}
+          disabled={slot >= 5}
+          style={upgradeArrow(slot < 5)}
+          aria-label="Next colorway"
+        >
+          ›
+        </button>
+      </div>
+
+      <div style={upgradeCarouselFooter}>
+        {slot === 1 ? (
+          <span style={upgradeStateInstalled}>Equipped</span>
+        ) : (
+          <span style={upgradeStateMuted}>Colorways coming next</span>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -2462,8 +2495,10 @@ function formatMilliseconds(milliseconds: number) {
 }
 
 const pageBackground: CSSProperties = {
+  height: "100dvh",
   minHeight: "100dvh",
   width: "100%",
+  overflow: "hidden",
   backgroundImage: `
     radial-gradient(circle at 14% 8%, rgba(38, 193, 255, 0.16), transparent 29%),
     radial-gradient(circle at 88% 17%, rgba(155, 92, 255, 0.14), transparent 27%),
@@ -2482,7 +2517,7 @@ const pageBackground: CSSProperties = {
 
 function topHeader(isMobile: boolean): CSSProperties {
   return {
-    position: "sticky",
+    position: "relative",
     top: 0,
     zIndex: 30,
     minHeight: isMobile ? "112px" : "72px",
@@ -3764,6 +3799,562 @@ const novaGuideTip: CSSProperties = {
   fontSize: "10px",
   lineHeight: 1.45,
 };
+
+const rotateGatePage: CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 999,
+  display: "grid",
+  placeItems: "center",
+  padding: "24px",
+  background:
+    "radial-gradient(circle at 50% 30%, rgba(53,197,255,0.18), transparent 34%), linear-gradient(180deg,#07152b,#020711)",
+  color: "white",
+  fontFamily: "Arial, Helvetica, sans-serif",
+};
+
+const rotateGateCard: CSSProperties = {
+  width: "min(420px, 92vw)",
+  textAlign: "center",
+  borderRadius: "24px",
+  border: "1px solid rgba(126,232,255,0.28)",
+  background: "rgba(5,17,39,0.92)",
+  padding: "30px 24px",
+  boxShadow: "0 24px 60px rgba(0,0,0,0.45)",
+};
+
+const rotateDeviceIcon: CSSProperties = {
+  width: "74px",
+  height: "74px",
+  margin: "0 auto 18px",
+  borderRadius: "22px",
+  border: "1px solid rgba(126,232,255,0.42)",
+  display: "grid",
+  placeItems: "center",
+  fontSize: "38px",
+  color: "#7ee8ff",
+  background: "rgba(126,232,255,0.07)",
+};
+
+const rotateGateTitle: CSSProperties = {
+  margin: "8px 0 0",
+  fontSize: "27px",
+};
+
+const rotateGateCopy: CSSProperties = {
+  margin: "12px auto 0",
+  maxWidth: "330px",
+  color: "rgba(255,255,255,0.68)",
+  lineHeight: 1.55,
+  fontSize: "13px",
+};
+
+function hangarWorkspace(isCompact: boolean): CSSProperties {
+  return {
+    height: "calc(100dvh - 72px)",
+    width: "100%",
+    minHeight: 0,
+    display: "grid",
+    gridTemplateColumns: isCompact
+      ? "minmax(210px, 25%) minmax(360px, 42%) minmax(330px, 33%)"
+      : "minmax(250px, 18%) minmax(560px, 48%) minmax(430px, 34%)",
+    gap: 0,
+    overflow: "hidden",
+    padding: isCompact ? "10px 12px 12px" : "12px 18px 16px",
+  };
+}
+
+function fleetPane(_isCompact: boolean): CSSProperties {
+  return {
+    minWidth: 0,
+    minHeight: 0,
+    height: "100%",
+    display: "grid",
+    gridTemplateRows: "auto minmax(0,1fr)",
+    overflow: "hidden",
+    padding: "6px 14px 6px 2px",
+    borderRight: "1px solid rgba(126,232,255,0.14)",
+  };
+}
+
+function roverFocusPane(_isCompact: boolean): CSSProperties {
+  return {
+    minWidth: 0,
+    minHeight: 0,
+    height: "100%",
+    display: "grid",
+    gridTemplateRows: "auto minmax(0,1fr) auto auto auto",
+    overflow: "hidden",
+    padding: "6px clamp(16px,2vw,30px)",
+  };
+}
+
+function buildPane(_isCompact: boolean): CSSProperties {
+  return {
+    minWidth: 0,
+    minHeight: 0,
+    height: "100%",
+    display: "grid",
+    gridTemplateRows: "auto minmax(0,1fr)",
+    overflow: "hidden",
+    padding: "6px 2px 6px 16px",
+    borderLeft: "1px solid rgba(126,232,255,0.14)",
+  };
+}
+
+const compactPaneHeading: CSSProperties = {
+  minHeight: "52px",
+  padding: "2px 4px 8px",
+};
+
+const compactPaneTitle: CSSProperties = {
+  margin: "5px 0 0",
+  fontSize: "18px",
+};
+
+const fleetCompactList: CSSProperties = {
+  minHeight: 0,
+  height: "100%",
+  display: "grid",
+  gridTemplateRows: "repeat(6, minmax(0, 1fr))",
+  gap: "7px",
+  overflow: "hidden",
+};
+
+function fleetCompactRow(
+  selected: boolean,
+  equipped: boolean,
+  accent: string,
+): CSSProperties {
+  return {
+    minWidth: 0,
+    minHeight: 0,
+    borderRadius: "13px",
+    border: selected
+      ? `1px solid ${accent}aa`
+      : equipped
+        ? `1px solid ${accent}66`
+        : "1px solid rgba(255,255,255,0.08)",
+    background: selected
+      ? `linear-gradient(135deg,${accent}20,rgba(255,255,255,0.045))`
+      : "rgba(255,255,255,0.025)",
+    display: "grid",
+    gridTemplateColumns: "64px minmax(0,1fr) auto",
+    alignItems: "center",
+    gap: "9px",
+    padding: "7px 8px",
+    cursor: "pointer",
+    overflow: "hidden",
+  };
+}
+
+const fleetCompactImage: CSSProperties = {
+  width: "64px",
+  height: "52px",
+  objectFit: "contain",
+};
+
+const fleetCompactIdentity: CSSProperties = {
+  minWidth: 0,
+  display: "grid",
+  gap: "4px",
+};
+
+const fleetCompactName: CSSProperties = {
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  fontSize: "12px",
+};
+
+function fleetCompactMeta(
+  equipped: boolean,
+  accent: string,
+): CSSProperties {
+  return {
+    color: equipped ? accent : "rgba(255,255,255,0.52)",
+    fontSize: "9px",
+    fontWeight: 800,
+    letterSpacing: "0.03em",
+  };
+}
+
+const fleetCompactAction: CSSProperties = {
+  display: "grid",
+  placeItems: "center",
+};
+
+function compactFleetButton(
+  enabled: boolean,
+  kind: "equip" | "buy",
+): CSSProperties {
+  return {
+    minWidth: kind === "buy" ? "48px" : "54px",
+    minHeight: "32px",
+    borderRadius: "9px",
+    border: enabled
+      ? kind === "buy"
+        ? "1px solid rgba(255,215,106,0.55)"
+        : "1px solid rgba(126,232,255,0.4)"
+      : "1px solid rgba(255,255,255,0.07)",
+    background: enabled
+      ? kind === "buy"
+        ? "linear-gradient(135deg,#ffd76a,#ff9f43)"
+        : "linear-gradient(135deg,#35c5ff,#5867ff)"
+      : "rgba(255,255,255,0.03)",
+    color: enabled
+      ? kind === "buy"
+        ? "#241400"
+        : "white"
+      : "rgba(255,255,255,0.3)",
+    padding: "0 8px",
+    fontSize: "9px",
+    fontWeight: 950,
+    cursor: enabled ? "pointer" : "not-allowed",
+  };
+}
+
+const compactEquippedBadge: CSSProperties = {
+  width: "30px",
+  height: "30px",
+  borderRadius: "50%",
+  display: "grid",
+  placeItems: "center",
+  color: "#8dffbf",
+  border: "1px solid rgba(111,255,184,0.34)",
+  background: "rgba(111,255,184,0.08)",
+  fontWeight: 950,
+};
+
+const compactLockedBadge: CSSProperties = {
+  color: "rgba(255,255,255,0.3)",
+  fontSize: "8px",
+  fontWeight: 900,
+  textTransform: "uppercase",
+};
+
+const roverFocusTop: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "12px",
+};
+
+const roverFocusTitle: CSSProperties = {
+  margin: "5px 0 0",
+  fontSize: "clamp(22px,2.2vw,34px)",
+  lineHeight: 1.05,
+};
+
+const roverFocusVehicleStage: CSSProperties = {
+  position: "relative",
+  minHeight: 0,
+  display: "grid",
+  placeItems: "center",
+  overflow: "hidden",
+};
+
+const roverFocusVehicleImage: CSSProperties = {
+  position: "relative",
+  zIndex: 2,
+  width: "97%",
+  height: "97%",
+  objectFit: "contain",
+  filter: "drop-shadow(0 34px 34px rgba(0,0,0,0.55))",
+};
+
+const roverFocusActionArea: CSSProperties = {
+  display: "flex",
+  justifyContent: "center",
+  paddingTop: "4px",
+};
+
+const focusMessageStrip: CSSProperties = {
+  margin: "6px auto 0",
+  width: "min(520px,100%)",
+  minHeight: "28px",
+  display: "grid",
+  placeItems: "center",
+  borderRadius: "10px",
+  border: "1px solid rgba(126,232,255,0.16)",
+  background: "rgba(126,232,255,0.04)",
+  color: "rgba(255,255,255,0.7)",
+  padding: "5px 10px",
+  fontSize: "9px",
+  textAlign: "center",
+};
+
+const statsBottomDock: CSSProperties = {
+  minWidth: 0,
+  display: "grid",
+  gridTemplateColumns: "minmax(0,1.5fr) minmax(250px,0.8fr)",
+  gap: "10px",
+  alignItems: "stretch",
+  paddingTop: "8px",
+};
+
+const compactRunSummary: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+  gap: "7px",
+};
+
+const equipToTuneCompact: CSSProperties = {
+  minHeight: 0,
+  height: "100%",
+  display: "grid",
+  alignContent: "center",
+  justifyItems: "center",
+  gap: "10px",
+  textAlign: "center",
+  color: "rgba(255,255,255,0.72)",
+};
+
+const compactMutedText: CSSProperties = {
+  maxWidth: "260px",
+  color: "rgba(255,255,255,0.48)",
+  fontSize: "10px",
+  lineHeight: 1.45,
+};
+
+const compactBuildShell: CSSProperties = {
+  minHeight: 0,
+  height: "100%",
+  display: "grid",
+  gridTemplateRows: "minmax(0,1fr) auto",
+  gap: "8px",
+  overflow: "hidden",
+};
+
+const compactBuildGrid: CSSProperties = {
+  minHeight: 0,
+  height: "100%",
+  display: "grid",
+  gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+  gridTemplateRows: "repeat(3,minmax(0,1fr))",
+  gap: "9px",
+  overflow: "hidden",
+};
+
+const compactBuildUnavailable: CSSProperties = {
+  height: "100%",
+  display: "grid",
+  placeItems: "center",
+  color: "rgba(255,255,255,0.5)",
+  fontSize: "11px",
+};
+
+const compactBuildMessage: CSSProperties = {
+  minHeight: "26px",
+  borderRadius: "9px",
+  border: "1px solid rgba(126,232,255,0.14)",
+  background: "rgba(126,232,255,0.04)",
+  color: "#c8f8ff",
+  padding: "6px 9px",
+  fontSize: "9px",
+};
+
+const upgradeCarouselBox: CSSProperties = {
+  minWidth: 0,
+  minHeight: 0,
+  overflow: "hidden",
+  borderRadius: "14px",
+  border: "1px solid rgba(126,232,255,0.12)",
+  background: "rgba(255,255,255,0.025)",
+  padding: "9px",
+  display: "grid",
+  gridTemplateRows: "auto minmax(0,1fr) auto",
+  gap: "6px",
+};
+
+const upgradeCarouselHeader: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "8px",
+};
+
+const upgradeCarouselEyebrow: CSSProperties = {
+  margin: 0,
+  color: "#7ee8ff",
+  fontSize: "7px",
+  fontWeight: 900,
+  letterSpacing: "0.1em",
+};
+
+const upgradeCarouselTitle: CSSProperties = {
+  margin: "3px 0 0",
+  fontSize: "12px",
+};
+
+const upgradeCarouselRating: CSSProperties = {
+  borderRadius: "8px",
+  border: "1px solid rgba(126,232,255,0.2)",
+  background: "rgba(83,215,255,0.06)",
+  color: "#9af6ff",
+  padding: "4px 6px",
+  fontSize: "9px",
+  fontWeight: 900,
+  whiteSpace: "nowrap",
+};
+
+const appearanceBadge: CSSProperties = {
+  ...upgradeCarouselRating,
+  color: "#ffd76a",
+  border: "1px solid rgba(255,215,106,0.22)",
+  background: "rgba(255,215,106,0.05)",
+};
+
+const upgradeCarouselViewer: CSSProperties = {
+  minHeight: 0,
+  display: "grid",
+  gridTemplateColumns: "30px minmax(0,1fr) 30px",
+  alignItems: "center",
+  gap: "4px",
+};
+
+function upgradeArrow(enabled: boolean): CSSProperties {
+  return {
+    width: "28px",
+    height: "36px",
+    borderRadius: "9px",
+    border: enabled
+      ? "1px solid rgba(126,232,255,0.26)"
+      : "1px solid rgba(255,255,255,0.05)",
+    background: enabled
+      ? "rgba(126,232,255,0.055)"
+      : "rgba(255,255,255,0.015)",
+    color: enabled ? "#bdf7ff" : "rgba(255,255,255,0.18)",
+    cursor: enabled ? "pointer" : "not-allowed",
+    fontSize: "22px",
+    lineHeight: 1,
+  };
+}
+
+const upgradeCarouselPart: CSSProperties = {
+  minWidth: 0,
+  minHeight: 0,
+  height: "100%",
+  display: "grid",
+  gridTemplateRows: "minmax(0,1fr) auto auto",
+  placeItems: "center",
+  textAlign: "center",
+  gap: "2px",
+};
+
+const upgradeCarouselImage: CSSProperties = {
+  width: "100%",
+  height: "100%",
+  minHeight: 0,
+  maxHeight: "110px",
+  objectFit: "contain",
+  filter: "drop-shadow(0 10px 12px rgba(0,0,0,0.4))",
+};
+
+const appearancePreviewImage: CSSProperties = {
+  ...upgradeCarouselImage,
+  maxHeight: "100px",
+};
+
+const upgradeCarouselFallback: CSSProperties = {
+  width: "54px",
+  height: "54px",
+  borderRadius: "14px",
+  display: "grid",
+  placeItems: "center",
+  border: "1px solid rgba(126,232,255,0.2)",
+  color: "#7ee8ff",
+};
+
+const upgradeCarouselPartName: CSSProperties = {
+  maxWidth: "100%",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  fontSize: "9px",
+};
+
+const upgradeCarouselTier: CSSProperties = {
+  color: "rgba(255,255,255,0.4)",
+  fontSize: "8px",
+  fontWeight: 800,
+};
+
+const upgradeCarouselFooter: CSSProperties = {
+  minHeight: "30px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const upgradeStateInstalled: CSSProperties = {
+  color: "#8dffbf",
+  fontSize: "8px",
+  fontWeight: 950,
+  textTransform: "uppercase",
+};
+
+const upgradeStateMuted: CSSProperties = {
+  color: "rgba(255,255,255,0.32)",
+  fontSize: "8px",
+  fontWeight: 900,
+  textTransform: "uppercase",
+  textAlign: "center",
+};
+
+const upgradeConfirmRow: CSSProperties = {
+  width: "100%",
+  display: "grid",
+  gridTemplateColumns: "0.8fr 1.2fr",
+  gap: "5px",
+};
+
+const smallCancelButton: CSSProperties = {
+  minHeight: "28px",
+  borderRadius: "8px",
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(255,255,255,0.035)",
+  color: "rgba(255,255,255,0.76)",
+  fontSize: "8px",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+
+function smallConfirmButton(enabled: boolean): CSSProperties {
+  return {
+    minHeight: "28px",
+    borderRadius: "8px",
+    border: enabled
+      ? "1px solid rgba(111,255,157,0.38)"
+      : "1px solid rgba(255,255,255,0.06)",
+    background: enabled
+      ? "linear-gradient(135deg,#79f5a6,#39d77a)"
+      : "rgba(255,255,255,0.025)",
+    color: enabled ? "#052112" : "rgba(255,255,255,0.28)",
+    fontSize: "8px",
+    fontWeight: 950,
+    cursor: enabled ? "pointer" : "not-allowed",
+  };
+}
+
+function smallInstallButton(enabled: boolean): CSSProperties {
+  return {
+    minHeight: "28px",
+    width: "100%",
+    borderRadius: "8px",
+    border: enabled
+      ? "1px solid rgba(255,215,106,0.4)"
+      : "1px solid rgba(255,255,255,0.06)",
+    background: enabled
+      ? "linear-gradient(135deg,#ffd76a,#ff9f43)"
+      : "rgba(255,255,255,0.025)",
+    color: enabled ? "#241400" : "rgba(255,255,255,0.3)",
+    padding: "0 6px",
+    fontSize: "8px",
+    fontWeight: 950,
+    cursor: enabled ? "pointer" : "not-allowed",
+  };
+}
 
 function hangarLayout(isCompact: boolean): CSSProperties {
   return {

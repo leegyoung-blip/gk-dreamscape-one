@@ -39,6 +39,7 @@ type PageStage =
   | "mode"
   | "solo-mode"
   | "topic"
+  | "solo-nova-select"
   | "loading"
   | "solo-quiz"
   | "solo-results"
@@ -672,6 +673,7 @@ export default function KnowledgeArenaPage() {
     useState<ChallengeMode>("quick_play");
   const [selectedNovaVariant, setSelectedNovaVariant] =
     useState<NovaVariantSlug>("original");
+  const [soloNovaStarting, setSoloNovaStarting] = useState(false);
   const [activeChallengePlan, setActiveChallengePlan] =
     useState<ChallengePlan | null>(null);
   const [knowledgeProfile, setKnowledgeProfile] =
@@ -1169,6 +1171,12 @@ export default function KnowledgeArenaPage() {
   }, [stage]);
 
   useEffect(() => {
+    if (stage !== "solo-nova-select" && stage !== "loading") {
+      setSoloNovaStarting(false);
+    }
+  }, [stage]);
+
+  useEffect(() => {
     return () => {
       if (roundTransitionTimerRef.current) {
         window.clearTimeout(roundTransitionTimerRef.current);
@@ -1491,7 +1499,7 @@ export default function KnowledgeArenaPage() {
     }
 
     setSelectedChallengeMode(challengeMode);
-    setStage("loading");
+    setSoloNovaStarting(true);
     setLoadingMessage(
       challengeMode === "nova_challenge"
         ? "Nova is building your personalised challenge..."
@@ -1519,7 +1527,8 @@ export default function KnowledgeArenaPage() {
       setLoadError(
         planError?.message || "Nova could not build this challenge right now."
       );
-      setStage("solo-mode");
+      setSoloNovaStarting(false);
+      setStage("solo-nova-select");
       return;
     }
 
@@ -1540,7 +1549,8 @@ export default function KnowledgeArenaPage() {
         questionError?.message ||
           "This challenge does not have enough eligible questions yet."
       );
-      setStage("solo-mode");
+      setSoloNovaStarting(false);
+      setStage("solo-nova-select");
       return;
     }
 
@@ -1581,6 +1591,7 @@ export default function KnowledgeArenaPage() {
         challengeMode,
         soloTimerSeconds
       );
+      setSoloNovaStarting(false);
       setStage("loading");
     } catch (encounterError) {
       console.error("Knowledge Arena monster encounter failed:", encounterError);
@@ -1589,7 +1600,8 @@ export default function KnowledgeArenaPage() {
           ? encounterError.message
           : "The arena monster encounter could not be prepared."
       );
-      setStage("solo-mode");
+      setSoloNovaStarting(false);
+      setStage("solo-nova-select");
     }
   }
 
@@ -1619,11 +1631,27 @@ export default function KnowledgeArenaPage() {
     }
 
     if (
+      (selectedChallengeMode === "quick_play" ||
+        selectedChallengeMode === "expert_challenge") &&
+      !selectedTopic
+    ) {
+      setLoadError("Choose a knowledge world first.");
+      return;
+    }
+
+    setStage("solo-nova-select");
+  }
+
+  function confirmSoloNovaSelection() {
+    if (soloNovaStarting) return;
+
+    if (
       selectedChallengeMode === "quick_play" ||
       selectedChallengeMode === "expert_challenge"
     ) {
       if (!selectedTopic) {
         setLoadError("Choose a knowledge world first.");
+        setStage("solo-mode");
         return;
       }
 
@@ -1639,7 +1667,8 @@ export default function KnowledgeArenaPage() {
     if (knowledgeProfile?.recommended_topic) {
       setSelectedTopic(knowledgeProfile.recommended_topic);
     }
-    void startSoloChallenge("focus_mission");
+    setLoadError(null);
+    setStage("solo-nova-select");
   }
 
   async function loadQuestionsByIds(questionIds: string[]) {
@@ -3336,35 +3365,6 @@ export default function KnowledgeArenaPage() {
                 />
               </div>
 
-              <div className="ka-nova-select-section">
-                <div className="ka-setup-label-row">
-                  <div>
-                    <span>Choose Nova</span>
-                    <small>Your selected Nova also determines your laser colour.</small>
-                  </div>
-                </div>
-                <div className="ka-nova-select-grid">
-                  {NOVA_VARIANTS.map((variant) => {
-                    const selected = selectedNovaVariant === variant.slug;
-                    return (
-                      <button
-                        key={variant.slug}
-                        type="button"
-                        className={`ka-nova-select-card ${selected ? "is-selected" : ""}`}
-                        onClick={() => setSelectedNovaVariant(variant.slug)}
-                        aria-pressed={selected}
-                      >
-                        <img src={variant.sprite} alt="" draggable={false} />
-                        <span>
-                          <strong>{variant.label}</strong>
-                          <small>{selected ? "Selected" : variant.shortLabel}</small>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
               <div className="ka-setup-lower">
                 <div data-nova-guide-target="timer">
                   <ArenaTimerSelector
@@ -3395,6 +3395,97 @@ export default function KnowledgeArenaPage() {
                   ? `Start Focus Mission · ${knowledgeProfile.recommended_topic_title}`
                   : `Start ${challengeModeMeta[selectedChallengeMode].title}`}
               </button>
+            </div>
+          )}
+
+          {stage === "solo-nova-select" && (
+            <div className="ka-stage ka-solo-nova-stage">
+              <div className="ka-stage-toolbar">
+                <button
+                  type="button"
+                  className="ka-inline-back"
+                  disabled={soloNovaStarting}
+                  onClick={() => setStage("solo-mode")}
+                >
+                  ← Back
+                </button>
+                <div>
+                  <p className="ka-kicker">Single Player · Step 2</p>
+                  <strong>Choose your Nova</strong>
+                </div>
+              </div>
+
+              <div className="ka-solo-nova-intro">
+                <div>
+                  <small>SELECT YOUR FIGHTER</small>
+                  <h2>Which Nova will enter the Arena?</h2>
+                  <p>
+                    Your Nova choice is cosmetic, but it also determines the colour
+                    of your blaster beam.
+                  </p>
+                </div>
+                <div className="ka-solo-nova-step">
+                  <span>1</span>
+                  <i />
+                  <b>2</b>
+                  <i />
+                  <span>3</span>
+                  <small>World · Nova · Monster</small>
+                </div>
+              </div>
+
+              <div className="ka-solo-nova-large-grid">
+                {NOVA_VARIANTS.map((variant) => {
+                  const selected = selectedNovaVariant === variant.slug;
+                  return (
+                    <button
+                      key={variant.slug}
+                      type="button"
+                      className={`ka-solo-nova-large-card ${selected ? "is-selected" : ""}`}
+                      disabled={soloNovaStarting}
+                      onClick={() => setSelectedNovaVariant(variant.slug)}
+                      aria-pressed={selected}
+                    >
+                      <div className="ka-solo-nova-image">
+                        <img src={variant.sprite} alt="" draggable={false} />
+                      </div>
+                      <div className="ka-solo-nova-name">
+                        <strong>{variant.label}</strong>
+                        <small>{variant.shortLabel}</small>
+                      </div>
+                      <div
+                        className="ka-solo-nova-laser"
+                        style={{ "--nova-laser": variant.beam.core } as CSSProperties}
+                      >
+                        <i />
+                        <span>{variant.shortLabel} laser</span>
+                      </div>
+                      <span className="ka-solo-nova-check">
+                        {selected ? "✓ SELECTED" : "SELECT"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {loadError && <p className="ka-error-banner">{loadError}</p>}
+
+              <div className="ka-solo-nova-actions">
+                <div>
+                  <small>NEXT</small>
+                  <strong>Monster Encounter RNG</strong>
+                </div>
+                <button
+                  type="button"
+                  className="ka-start-button"
+                  disabled={soloNovaStarting}
+                  onClick={confirmSoloNovaSelection}
+                >
+                  {soloNovaStarting
+                    ? "Preparing Arena…"
+                    : `Continue with ${getNovaVariant(selectedNovaVariant).label} →`}
+                </button>
+              </div>
             </div>
           )}
 
@@ -4792,6 +4883,239 @@ export default function KnowledgeArenaPage() {
           color: rgba(255, 255, 255, 0.55);
           font-size: 8px;
           line-height: 1.3;
+        }
+
+
+        .ka-solo-nova-stage {
+          display:flex;
+          min-height:0;
+          flex-direction:column;
+          gap:12px;
+          overflow:hidden;
+        }
+
+        .ka-solo-nova-intro {
+          display:flex;
+          flex:0 0 auto;
+          align-items:flex-end;
+          justify-content:space-between;
+          gap:18px;
+          border:1px solid rgba(126,232,255,.12);
+          border-radius:18px;
+          background:
+            radial-gradient(circle at 12% 0%,rgba(126,232,255,.09),transparent 34%),
+            rgba(255,255,255,.025);
+          padding:14px 16px;
+        }
+
+        .ka-solo-nova-intro > div:first-child {
+          min-width:0;
+        }
+
+        .ka-solo-nova-intro small {
+          color:#7ee8ff;
+          font-size:9px;
+          font-weight:950;
+          letter-spacing:.14em;
+        }
+
+        .ka-solo-nova-intro h2 {
+          margin:4px 0 0;
+          font-size:clamp(23px,2.5vw,34px);
+          line-height:1.05;
+        }
+
+        .ka-solo-nova-intro p {
+          margin:6px 0 0;
+          color:rgba(255,255,255,.57);
+          font-size:11px;
+          line-height:1.42;
+        }
+
+        .ka-solo-nova-step {
+          display:grid;
+          flex:0 0 auto;
+          grid-template-columns:auto 24px auto 24px auto;
+          gap:5px;
+          align-items:center;
+        }
+
+        .ka-solo-nova-step > span,
+        .ka-solo-nova-step > b {
+          display:grid;
+          width:30px;
+          height:30px;
+          place-items:center;
+          border-radius:999px;
+          font-size:11px;
+          font-weight:950;
+        }
+
+        .ka-solo-nova-step > span {
+          border:1px solid rgba(255,255,255,.14);
+          background:rgba(255,255,255,.05);
+          color:rgba(255,255,255,.5);
+        }
+
+        .ka-solo-nova-step > b {
+          border:1px solid rgba(126,232,255,.48);
+          background:linear-gradient(135deg,rgba(51,198,229,.28),rgba(111,78,255,.26));
+          color:#fff;
+          box-shadow:0 0 18px rgba(83,215,255,.14);
+        }
+
+        .ka-solo-nova-step > i {
+          height:1px;
+          background:rgba(126,232,255,.22);
+        }
+
+        .ka-solo-nova-step > small {
+          grid-column:1 / -1;
+          margin-top:2px;
+          color:rgba(255,255,255,.37);
+          font-size:7px;
+          text-align:center;
+          letter-spacing:.04em;
+        }
+
+        .ka-solo-nova-large-grid {
+          display:grid;
+          min-height:0;
+          flex:1 1 auto;
+          grid-template-columns:repeat(4,minmax(0,1fr));
+          gap:10px;
+        }
+
+        .ka-solo-nova-large-card {
+          position:relative;
+          display:grid;
+          min-width:0;
+          min-height:0;
+          grid-template-rows:minmax(0,1fr) auto auto auto;
+          overflow:hidden;
+          border:1px solid rgba(255,255,255,.11);
+          border-radius:20px;
+          background:
+            radial-gradient(circle at 50% 27%,rgba(126,232,255,.08),transparent 36%),
+            linear-gradient(180deg,rgba(10,24,48,.82),rgba(7,13,30,.94));
+          padding:10px;
+          color:white;
+          cursor:pointer;
+          transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease;
+        }
+
+        .ka-solo-nova-large-card:hover {
+          transform:translateY(-2px);
+          border-color:rgba(126,232,255,.32);
+        }
+
+        .ka-solo-nova-large-card.is-selected {
+          border-color:rgba(126,232,255,.82);
+          box-shadow:
+            0 0 0 2px rgba(126,232,255,.08),
+            0 18px 44px rgba(0,0,0,.24),
+            inset 0 0 36px rgba(83,215,255,.05);
+        }
+
+        .ka-solo-nova-image {
+          display:grid;
+          min-height:0;
+          place-items:center;
+          overflow:hidden;
+        }
+
+        .ka-solo-nova-image img {
+          width:100%;
+          height:100%;
+          max-height:clamp(180px,38vh,390px);
+          object-fit:contain;
+          object-position:center bottom;
+          filter:drop-shadow(0 16px 22px rgba(0,0,0,.30));
+        }
+
+        .ka-solo-nova-name {
+          display:grid;
+          gap:2px;
+          padding-top:6px;
+          text-align:center;
+        }
+
+        .ka-solo-nova-name strong {
+          font-size:clamp(14px,1.45vw,19px);
+          line-height:1.15;
+        }
+
+        .ka-solo-nova-name small {
+          color:rgba(255,255,255,.45);
+          font-size:9px;
+        }
+
+        .ka-solo-nova-laser {
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          gap:7px;
+          margin-top:8px;
+          color:rgba(255,255,255,.64);
+          font-size:8px;
+          font-weight:850;
+          text-transform:uppercase;
+          letter-spacing:.07em;
+        }
+
+        .ka-solo-nova-laser i {
+          width:30px;
+          height:4px;
+          border-radius:999px;
+          background:var(--nova-laser);
+          box-shadow:0 0 7px var(--nova-laser),0 0 14px var(--nova-laser);
+        }
+
+        .ka-solo-nova-check {
+          display:flex;
+          min-height:29px;
+          align-items:center;
+          justify-content:center;
+          margin-top:8px;
+          border:1px solid rgba(255,255,255,.10);
+          border-radius:10px;
+          background:rgba(255,255,255,.04);
+          color:rgba(255,255,255,.50);
+          font-size:8px;
+          font-weight:950;
+          letter-spacing:.08em;
+        }
+
+        .ka-solo-nova-large-card.is-selected .ka-solo-nova-check {
+          border-color:rgba(126,232,255,.30);
+          background:rgba(126,232,255,.10);
+          color:#bff5ff;
+        }
+
+        .ka-solo-nova-actions {
+          display:grid;
+          flex:0 0 auto;
+          grid-template-columns:minmax(160px,.55fr) minmax(250px,1fr);
+          gap:10px;
+          align-items:center;
+          border-top:1px solid rgba(255,255,255,.08);
+          padding-top:10px;
+        }
+
+        .ka-solo-nova-actions > div {
+          display:grid;
+          gap:2px;
+        }
+
+        .ka-solo-nova-actions small {
+          color:#7ee8ff;
+          font-size:8px;
+          font-weight:950;
+          letter-spacing:.13em;
+        }
+
+        .ka-solo-nova-actions strong {
+          font-size:12px;
         }
 
         .ka-nova-select-section {
@@ -9541,6 +9865,58 @@ function ArenaResultsPanel({
           backdrop-filter: blur(16px);
         }
         @media (max-width: 700px) {
+          .ka-solo-nova-stage {
+            gap:8px;
+            overflow:hidden;
+          }
+          .ka-solo-nova-intro {
+            padding:9px 10px;
+          }
+          .ka-solo-nova-intro h2 {
+            font-size:18px;
+          }
+          .ka-solo-nova-intro p {
+            font-size:9px;
+          }
+          .ka-solo-nova-step {
+            display:none;
+          }
+          .ka-solo-nova-large-grid {
+            display:flex;
+            min-height:0;
+            gap:8px;
+            overflow-x:auto;
+            overflow-y:hidden;
+            scroll-snap-type:x mandatory;
+            padding:2px 2px 5px;
+            scrollbar-width:thin;
+            scrollbar-color:rgba(126,232,255,.25) transparent;
+          }
+          .ka-solo-nova-large-card {
+            flex:0 0 min(43vw,190px);
+            min-height:0;
+            scroll-snap-align:start;
+            border-radius:15px;
+            padding:7px;
+          }
+          .ka-solo-nova-image img {
+            max-height:34vh;
+          }
+          .ka-solo-nova-name strong {
+            font-size:12px;
+          }
+          .ka-solo-nova-name small,
+          .ka-solo-nova-laser {
+            font-size:7px;
+          }
+          .ka-solo-nova-actions {
+            grid-template-columns:1fr;
+            gap:6px;
+          }
+          .ka-solo-nova-actions > div {
+            display:none;
+          }
+
           .ka-nova-select-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap:6px; }
           .ka-nova-select-card { grid-template-columns:42px minmax(0,1fr); padding:5px 7px; border-radius:11px; }
           .ka-nova-select-card > img { width:42px; height:48px; }
@@ -9555,6 +9931,20 @@ function ArenaResultsPanel({
         }
 
         @media (max-height: 700px) and (orientation: landscape) {
+          .ka-solo-nova-stage { gap:7px; }
+          .ka-solo-nova-intro { padding:8px 11px; }
+          .ka-solo-nova-intro h2 { font-size:20px; }
+          .ka-solo-nova-intro p { font-size:9px; margin-top:3px; }
+          .ka-solo-nova-large-grid { gap:7px; }
+          .ka-solo-nova-large-card { border-radius:14px; padding:6px; }
+          .ka-solo-nova-image img { max-height:33vh; }
+          .ka-solo-nova-name { padding-top:3px; }
+          .ka-solo-nova-name strong { font-size:12px; }
+          .ka-solo-nova-name small { font-size:7px; }
+          .ka-solo-nova-laser { margin-top:4px; font-size:7px; }
+          .ka-solo-nova-check { min-height:24px; margin-top:4px; font-size:7px; }
+          .ka-solo-nova-actions { padding-top:6px; }
+
           .ka-results-arena-backdrop { align-items: stretch; padding: 5px 8px; }
           .ka-results-popup { width: min(1180px,100%); height:100%; max-height:100%; overflow-x:hidden; overflow-y:auto; border-radius:17px; padding:10px; scrollbar-width:thin; scrollbar-color:rgba(126,232,255,.30) transparent; }
           .ka-results-popup .ka-results-scroll { flex:0 0 auto; min-height:auto; overflow:visible; padding-right:0; }
