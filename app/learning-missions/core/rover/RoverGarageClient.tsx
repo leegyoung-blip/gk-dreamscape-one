@@ -1472,147 +1472,317 @@ function ExpeditionMap({
   isAdmin: boolean;
   onOpenLevel: (level: RoverLevelId) => void;
 }) {
-  const positions: Record<
-    RoverLevelId,
-    { left: string; top: string; x: number; y: number }
-  > = {
-    1: { left: "12%", top: "69%", x: 120, y: 440 },
-    2: { left: "35%", top: "43%", x: 350, y: 270 },
-    3: { left: "61%", top: "61%", x: 610, y: 390 },
-    4: { left: "83%", top: "27%", x: 830, y: 170 },
-  };
+  const router = useRouter();
+  const [mapStage, setMapStage] = useState<1 | 2>(1);
+
+  useEffect(() => {
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, []);
 
   const accessFor = (levelId: RoverLevelId) =>
     access.find((row) => Number(row.level_id) === levelId);
 
+  const levelFour = accessFor(4);
+
+  /*
+   * Map-stage progression is deliberately completion-based.
+   * Owning a stronger rover is not enough to skip into Stage 2.
+   */
+  const stageTwoUnlocked =
+    isAdmin || Boolean(levelFour?.completed);
+
+  const positions: Record<
+    RoverLevelId,
+    { left: string; top: string }
+  > = {
+    1: { left: "13.2%", top: "61.5%" },
+    2: { left: "34.2%", top: "44.8%" },
+    3: { left: "54.4%", top: "35.1%" },
+    4: { left: "73.6%", top: "31.8%" },
+  };
+
+  function levelUnlocked(levelId: RoverLevelId) {
+    const row = accessFor(levelId);
+    return isAdmin || Boolean(row?.unlocked) || levelId === 1;
+  }
+
+  function openStage(stage: 1 | 2) {
+    if (stage === 2 && !stageTwoUnlocked) return;
+    setMapStage(stage);
+  }
+
+  if (mapStage === 2) {
+    return (
+      <StageTwoMap
+        isAdmin={isAdmin}
+        stageTwoUnlocked={stageTwoUnlocked}
+        equippedRover={equippedRover}
+        onBack={() => setMapStage(1)}
+      />
+    );
+  }
+
   return (
-    <section style={expeditionShell}>
-      <div style={expeditionTopRow}>
+    <section style={stageMapShell}>
+      <img
+        src="/activities/learning-missions/core/rover/maps/dreamscape-expeditions-stage-1.png"
+        alt="Dreamscape Stage 1 expedition map"
+        draggable={false}
+        style={stageMapImage}
+      />
+
+      <div style={stageMapVignette} />
+
+      <div style={stageMapHeader}>
         <div>
-          <p style={smallEyebrow}>DREAMSCAPE ROUTE</p>
-          <h2 style={expeditionHeading}>Expedition Map</h2>
-          <p style={expeditionLead}>
-            Explore each location in order. Completed routes remain open for replay.
-          </p>
+          <p style={smallEyebrow}>DREAMSCAPE EXPEDITIONS</p>
+          <h2 style={stageMapHeading}>Stage 1 · Dreamscape Frontier</h2>
         </div>
 
-        <div style={expeditionRoverPill}>
-          <img
-            src={equippedRover.imageSrc}
-            alt=""
-            style={expeditionRoverThumb}
-          />
-          <div>
-            <span style={expeditionPillLabel}>EQUIPPED</span>
-            <strong>
+        <div style={stageMapHeaderActions}>
+          {(isAdmin || stageTwoUnlocked) && (
+            <div style={stageMapSwitcher}>
+              <button
+                type="button"
+                onClick={() => openStage(1)}
+                style={stageMapSwitchButton(true)}
+              >
+                Stage 1
+              </button>
+              <button
+                type="button"
+                onClick={() => openStage(2)}
+                style={stageMapSwitchButton(false)}
+              >
+                Stage 2
+              </button>
+            </div>
+          )}
+
+          <div style={stageEquippedRover}>
+            <img
+              src={equippedRover.imageSrc}
+              alt=""
+              style={stageEquippedRoverImage}
+            />
+            <span>
               Rover {equippedRover.roverNumber} · {equippedRover.name}
-            </strong>
+            </span>
           </div>
         </div>
       </div>
 
-      <div style={dreamscapeMapCanvas}>
-        <div style={mapNebulaOne} />
-        <div style={mapNebulaTwo} />
-        <div style={mapPlanet} />
-        <div style={mapMountainA} />
-        <div style={mapMountainB} />
+      {ROVER_COURSES.map((course) => {
+        const row = accessFor(course.id);
+        const completed = Boolean(row?.completed);
+        const unlocked = levelUnlocked(course.id);
+        const position = positions[course.id];
 
-        <svg
-          viewBox="0 0 1000 620"
-          preserveAspectRatio="none"
-          style={expeditionRouteSvg}
-          aria-hidden="true"
-        >
-          <path
-            d="M120 440 C210 420 250 300 350 270 C445 240 510 390 610 390 C705 390 750 210 830 170"
-            fill="none"
-            stroke="rgba(126,232,255,0.22)"
-            strokeWidth="12"
-            strokeLinecap="round"
-          />
-          <path
-            d="M120 440 C210 420 250 300 350 270 C445 240 510 390 610 390 C705 390 750 210 830 170"
-            fill="none"
-            stroke="rgba(126,232,255,0.72)"
-            strokeWidth="3"
-            strokeDasharray="11 13"
-            strokeLinecap="round"
-          />
-        </svg>
-
-        {ROVER_COURSES.map((course) => {
-          const row = accessFor(course.id);
-          const completed = Boolean(row?.completed);
-          const unlocked = isAdmin || Boolean(row?.unlocked) || course.id === 1;
-          const position = positions[course.id];
-
-          let status = "LOCKED";
-          let detail = "Complete the previous expedition first.";
-
-          if (completed) {
-            status = "COMPLETED";
-            detail = "Replay available";
-          } else if (unlocked) {
-            status = "UNLOCKED";
-            detail = "Ready to explore";
-          } else if (row && !row.prerequisite_completed) {
-            detail = `Complete Expedition ${row.prerequisite_level} first`;
-          } else if (row) {
-            detail = `Requires Rover ${Number(row.minimum_rover_stage) + 1}`;
-          }
-
-          return (
-            <div
-              key={course.id}
-              style={{
-                ...expeditionNodeWrap,
-                left: position.left,
-                top: position.top,
-              }}
+        return (
+          <button
+            key={course.id}
+            type="button"
+            disabled={!unlocked}
+            onClick={() => unlocked && onOpenLevel(course.id)}
+            style={{
+              ...mapLocationButton(unlocked),
+              left: position.left,
+              top: position.top,
+            }}
+            aria-label={`${course.title} ${
+              completed
+                ? "completed"
+                : unlocked
+                  ? "unlocked"
+                  : "locked"
+            }`}
+          >
+            <span
+              style={mapLocationRing(unlocked, completed)}
             >
-              <button
-                type="button"
-                disabled={!unlocked}
-                onClick={() => unlocked && onOpenLevel(course.id)}
-                style={expeditionNode(unlocked, completed)}
-                aria-label={`${course.title} · ${status}`}
-              >
-                <span style={expeditionNodeNumber(unlocked, completed)}>
-                  {completed ? "✓" : course.id}
-                </span>
-              </button>
+              {completed ? "✓" : course.id}
+            </span>
 
-              <div style={expeditionNodeCard(unlocked, completed)}>
-                <p style={expeditionNodeStatus(unlocked, completed)}>
-                  EXPEDITION {course.id} · {status}
-                </p>
-                <h3 style={expeditionNodeTitle}>{course.title}</h3>
-                <p style={expeditionNodeDetail}>{detail}</p>
-                {unlocked && (
-                  <button
-                    type="button"
-                    onClick={() => onOpenLevel(course.id)}
-                    style={mapEnterButton}
-                  >
-                    {completed ? "Replay Expedition" : "Enter Expedition"}
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })}
+            <span style={mapLocationCard(unlocked, completed)}>
+              <strong>Expedition {course.id}</strong>
+              <small>{course.title}</small>
+              <em>
+                {completed
+                  ? "Completed"
+                  : unlocked
+                    ? "Unlocked"
+                    : "Locked"}
+              </em>
+            </span>
+          </button>
+        );
+      })}
 
-        <div style={mapLegend}>
-          <span>● Unlocked</span>
-          <span>✓ Completed</span>
-          <span>◆ Locked</span>
-          {!isAdmin && <span>Highest owned: Rover {currentStage + 1}</span>}
+      <button
+        type="button"
+        disabled={!stageTwoUnlocked}
+        onClick={() => openStage(2)}
+        style={stageTwoGateway(stageTwoUnlocked)}
+        aria-label={
+          stageTwoUnlocked
+            ? "Enter Stage 2 through the dark clouds"
+            : "Stage 2 locked until Expedition 4 is completed"
+        }
+      >
+        <span style={stageTwoGatewayCloud}>☁</span>
+        <span style={stageTwoGatewayCopy}>
+          <strong>
+            {stageTwoUnlocked
+              ? "Into the Darkness"
+              : "Stage 2 Locked"}
+          </strong>
+          <small>
+            {stageTwoUnlocked
+              ? "Continue beyond Fracture Run"
+              : "Clear Expedition 4"}
+          </small>
+        </span>
+      </button>
+
+      {!stageTwoUnlocked && (
+        <div style={stageProgressNotice}>
+          Complete <strong>Expedition 4 · Fracture Run</strong> to unlock
+          the next Dreamscape map.
         </div>
+      )}
+
+      {isAdmin && (
+        <div style={adminMapNotice}>
+          Admin map access · all stages unlocked
+        </div>
+      )}
+
+      <div style={stageMapLegend}>
+        <span>Glowing = unlocked</span>
+        <span>✓ = completed</span>
+        <span>Dim = locked</span>
+        {!isAdmin && (
+          <span>Highest owned rover: {currentStage + 1}</span>
+        )}
       </div>
     </section>
   );
 }
+
+function StageTwoMap({
+  isAdmin,
+  stageTwoUnlocked,
+  equippedRover,
+  onBack,
+}: {
+  isAdmin: boolean;
+  stageTwoUnlocked: boolean;
+  equippedRover: (typeof coreUpgradeTrack)[number];
+  onBack: () => void;
+}) {
+  const router = useRouter();
+
+  if (!isAdmin && !stageTwoUnlocked) {
+    return (
+      <section style={stageTwoLockedMap}>
+        <div style={stageTwoLockedPanel}>
+          <div style={stageTwoLockSymbol}>◇</div>
+          <p style={smallEyebrow}>STAGE 2 LOCKED</p>
+          <h2 style={stageTwoLockedHeading}>Beyond the Fracture</h2>
+          <p style={stageTwoLockedText}>
+            Complete Expedition 4 before entering the next Dreamscape region.
+          </p>
+
+          <button
+            type="button"
+            onClick={onBack}
+            style={stageTwoBackButton}
+          >
+            ← Return to Stage 1
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section style={stageTwoMapShell}>
+      <div style={stageTwoStars} />
+      <div style={stageTwoMistA} />
+      <div style={stageTwoMistB} />
+      <div style={stageTwoIslandA} />
+      <div style={stageTwoIslandB} />
+      <div style={stageTwoRouteLine} />
+
+      <div style={stageTwoHeader}>
+        <div>
+          <p style={smallEyebrow}>DREAMSCAPE EXPEDITIONS</p>
+          <h2 style={stageMapHeading}>Stage 2 · Beyond the Fracture</h2>
+        </div>
+
+        <div style={stageMapHeaderActions}>
+          <button
+            type="button"
+            onClick={onBack}
+            style={stageTwoBackButton}
+          >
+            ← Stage 1
+          </button>
+
+          <div style={stageEquippedRover}>
+            <img
+              src={equippedRover.imageSrc}
+              alt=""
+              style={stageEquippedRoverImage}
+            />
+            <span>
+              Rover {equippedRover.roverNumber} · {equippedRover.name}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={() =>
+          router.push(
+            "/learning-missions/core/rover-challenge/expedition-05",
+          )
+        }
+        style={stageFiveNode}
+      >
+        <span style={mapLocationRing(true, false)}>5</span>
+
+        <span style={mapLocationCard(true, false)}>
+          <strong>Expedition 5</strong>
+          <small>Unknown Sector</small>
+          <em>Unlocked</em>
+        </span>
+      </button>
+
+      <div style={stageTwoFutureRegion}>
+        <span>Further regions</span>
+        <strong>Coming later</strong>
+      </div>
+
+      {isAdmin && (
+        <div style={adminMapNotice}>
+          Admin map access · all stages unlocked
+        </div>
+      )}
+    </section>
+  );
+}
+
 function RoverCoursesPanel({
   access,
   leaderboards,
@@ -4699,6 +4869,462 @@ const mapLegend: CSSProperties = {
   flexWrap: "wrap", padding: "9px 11px", borderRadius: "10px",
   background: "rgba(3,12,29,0.74)", border: "1px solid rgba(255,255,255,0.08)",
   color: "rgba(255,255,255,0.55)", fontSize: "8px",
+};
+
+const stageMapShell: CSSProperties = {
+  position: "relative",
+  height: "calc(100dvh - 72px)",
+  minHeight: 0,
+  width: "100%",
+  overflow: "hidden",
+  background: "#030713",
+};
+
+const stageMapImage: CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  width: "100%",
+  height: "100%",
+  objectFit: "cover",
+  objectPosition: "center",
+  userSelect: "none",
+  pointerEvents: "none",
+};
+
+const stageMapVignette: CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  pointerEvents: "none",
+  background:
+    "linear-gradient(180deg,rgba(0,5,14,0.25),transparent 18%,transparent 78%,rgba(0,5,14,0.45)), radial-gradient(circle at 50% 45%,transparent 55%,rgba(0,0,0,0.18) 100%)",
+};
+
+const stageMapHeader: CSSProperties = {
+  position: "absolute",
+  zIndex: 20,
+  left: "18px",
+  right: "18px",
+  top: "12px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "18px",
+  pointerEvents: "none",
+};
+
+const stageMapHeading: CSSProperties = {
+  margin: "4px 0 0",
+  fontSize: "clamp(18px,1.8vw,26px)",
+};
+
+const stageMapHeaderActions: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "9px",
+  pointerEvents: "auto",
+};
+
+const stageMapSwitcher: CSSProperties = {
+  display: "flex",
+  gap: "4px",
+  padding: "4px",
+  borderRadius: "12px",
+  border: "1px solid rgba(126,232,255,0.16)",
+  background: "rgba(3,14,31,0.78)",
+  backdropFilter: "blur(10px)",
+};
+
+function stageMapSwitchButton(active: boolean): CSSProperties {
+  return {
+    minHeight: "32px",
+    borderRadius: "8px",
+    border: active
+      ? "1px solid rgba(126,232,255,0.38)"
+      : "1px solid transparent",
+    background: active
+      ? "rgba(83,215,255,0.12)"
+      : "transparent",
+    color: active
+      ? "#c6faff"
+      : "rgba(255,255,255,0.5)",
+    padding: "0 11px",
+    fontSize: "9px",
+    fontWeight: 900,
+    cursor: "pointer",
+  };
+}
+
+const stageEquippedRover: CSSProperties = {
+  minHeight: "38px",
+  maxWidth: "280px",
+  borderRadius: "12px",
+  border: "1px solid rgba(126,232,255,0.16)",
+  background: "rgba(3,14,31,0.78)",
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+  padding: "4px 10px 4px 5px",
+  color: "rgba(255,255,255,0.72)",
+  fontSize: "9px",
+  fontWeight: 850,
+  backdropFilter: "blur(10px)",
+};
+
+const stageEquippedRoverImage: CSSProperties = {
+  width: "48px",
+  height: "30px",
+  objectFit: "contain",
+};
+
+function mapLocationButton(unlocked: boolean): CSSProperties {
+  return {
+    position: "absolute",
+    zIndex: 12,
+    transform: "translate(-50%,-50%)",
+    border: "none",
+    background: "transparent",
+    padding: 0,
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    color: "white",
+    cursor: unlocked ? "pointer" : "not-allowed",
+    opacity: unlocked ? 1 : 0.36,
+    filter: unlocked ? "none" : "grayscale(0.85) brightness(0.55)",
+  };
+}
+
+function mapLocationRing(
+  unlocked: boolean,
+  completed: boolean,
+): CSSProperties {
+  return {
+    width: "clamp(46px,3.8vw,64px)",
+    height: "clamp(46px,3.8vw,64px)",
+    flex: "0 0 auto",
+    borderRadius: "50%",
+    border: unlocked
+      ? completed
+        ? "3px solid #8dffbf"
+        : "3px solid #7ee8ff"
+      : "2px solid rgba(255,255,255,0.25)",
+    background: unlocked
+      ? completed
+        ? "radial-gradient(circle,#173d2e 0%,#071b1a 70%)"
+        : "radial-gradient(circle,#123b65 0%,#061326 72%)"
+      : "rgba(3,8,17,0.86)",
+    color: unlocked
+      ? completed
+        ? "#adffc8"
+        : "#d8fbff"
+      : "rgba(255,255,255,0.4)",
+    display: "grid",
+    placeItems: "center",
+    fontSize: "16px",
+    fontWeight: 950,
+    boxShadow: unlocked
+      ? completed
+        ? "0 0 18px rgba(111,255,157,0.78),0 0 45px rgba(111,255,157,0.36)"
+        : "0 0 18px rgba(83,215,255,0.85),0 0 48px rgba(83,215,255,0.4)"
+      : "none",
+  };
+}
+
+function mapLocationCard(
+  unlocked: boolean,
+  completed: boolean,
+): CSSProperties {
+  return {
+    minWidth: "128px",
+    maxWidth: "178px",
+    borderRadius: "10px",
+    border: unlocked
+      ? completed
+        ? "1px solid rgba(111,255,157,0.25)"
+        : "1px solid rgba(126,232,255,0.23)"
+      : "1px solid rgba(255,255,255,0.07)",
+    background: unlocked
+      ? "rgba(3,13,29,0.83)"
+      : "rgba(3,8,16,0.76)",
+    padding: "6px 8px",
+    display: "grid",
+    gap: "2px",
+    textAlign: "left",
+    backdropFilter: "blur(9px)",
+    boxShadow: "0 9px 24px rgba(0,0,0,0.28)",
+  };
+}
+
+const stageTwoGateway = (
+  unlocked: boolean,
+): CSSProperties => ({
+  position: "absolute",
+  zIndex: 14,
+  right: "2.8%",
+  top: "31%",
+  transform: "translateY(-50%)",
+  borderRadius: "16px",
+  border: unlocked
+    ? "1px solid rgba(178,112,255,0.46)"
+    : "1px solid rgba(255,255,255,0.07)",
+  background: unlocked
+    ? "linear-gradient(135deg,rgba(39,13,67,0.94),rgba(4,8,19,0.95))"
+    : "rgba(2,5,12,0.82)",
+  color: unlocked
+    ? "#ebd2ff"
+    : "rgba(255,255,255,0.3)",
+  padding: "9px 12px",
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+  cursor: unlocked ? "pointer" : "not-allowed",
+  boxShadow: unlocked
+    ? "0 0 30px rgba(157,76,255,0.34)"
+    : "none",
+});
+
+const stageTwoGatewayCloud: CSSProperties = {
+  fontSize: "28px",
+  lineHeight: 1,
+};
+
+const stageTwoGatewayCopy: CSSProperties = {
+  display: "grid",
+  gap: "2px",
+  textAlign: "left",
+  fontSize: "9px",
+};
+
+const stageProgressNotice: CSSProperties = {
+  position: "absolute",
+  right: "2%",
+  bottom: "5%",
+  zIndex: 11,
+  width: "min(340px,32vw)",
+  borderRadius: "12px",
+  border: "1px solid rgba(255,255,255,0.07)",
+  background: "rgba(2,7,16,0.8)",
+  color: "rgba(255,255,255,0.55)",
+  padding: "8px 10px",
+  fontSize: "9px",
+  lineHeight: 1.4,
+  backdropFilter: "blur(8px)",
+};
+
+const adminMapNotice: CSSProperties = {
+  position: "absolute",
+  left: "18px",
+  bottom: "16px",
+  zIndex: 15,
+  borderRadius: "999px",
+  border: "1px solid rgba(141,255,191,0.24)",
+  background: "rgba(5,30,23,0.76)",
+  color: "#9affbc",
+  padding: "7px 11px",
+  fontSize: "8px",
+  fontWeight: 900,
+  letterSpacing: "0.06em",
+  textTransform: "uppercase",
+};
+
+const stageMapLegend: CSSProperties = {
+  position: "absolute",
+  right: "18px",
+  bottom: "16px",
+  zIndex: 15,
+  display: "flex",
+  gap: "10px",
+  flexWrap: "wrap",
+  justifyContent: "flex-end",
+  borderRadius: "10px",
+  border: "1px solid rgba(126,232,255,0.11)",
+  background: "rgba(3,12,27,0.72)",
+  color: "rgba(255,255,255,0.48)",
+  padding: "6px 9px",
+  fontSize: "8px",
+  backdropFilter: "blur(8px)",
+};
+
+const stageTwoLockedMap: CSSProperties = {
+  position: "relative",
+  height: "calc(100dvh - 72px)",
+  overflow: "hidden",
+  display: "grid",
+  placeItems: "center",
+  background:
+    "radial-gradient(circle at 72% 30%,rgba(116,66,187,0.2),transparent 28%),linear-gradient(140deg,#040711,#090416)",
+};
+
+const stageTwoLockedPanel: CSSProperties = {
+  width: "min(420px,86vw)",
+  borderRadius: "20px",
+  border: "1px solid rgba(126,232,255,0.14)",
+  background: "rgba(5,13,28,0.88)",
+  padding: "26px",
+  textAlign: "center",
+};
+
+const stageTwoLockSymbol: CSSProperties = {
+  width: "62px",
+  height: "62px",
+  margin: "0 auto 13px",
+  borderRadius: "18px",
+  border: "1px solid rgba(126,232,255,0.2)",
+  display: "grid",
+  placeItems: "center",
+  color: "#7ee8ff",
+  fontSize: "26px",
+};
+
+const stageTwoLockedHeading: CSSProperties = {
+  margin: "6px 0 0",
+  fontSize: "22px",
+};
+
+const stageTwoLockedText: CSSProperties = {
+  margin: "11px auto 17px",
+  maxWidth: "310px",
+  color: "rgba(255,255,255,0.55)",
+  fontSize: "11px",
+  lineHeight: 1.5,
+};
+
+const stageTwoBackButton: CSSProperties = {
+  minHeight: "35px",
+  borderRadius: "10px",
+  border: "1px solid rgba(126,232,255,0.22)",
+  background: "rgba(6,22,45,0.82)",
+  color: "white",
+  padding: "0 12px",
+  cursor: "pointer",
+  fontSize: "9px",
+  fontWeight: 900,
+};
+
+const stageTwoMapShell: CSSProperties = {
+  position: "relative",
+  height: "calc(100dvh - 72px)",
+  overflow: "hidden",
+  background:
+    "linear-gradient(135deg,#02040d 0%,#071126 44%,#160922 100%)",
+};
+
+const stageTwoHeader: CSSProperties = {
+  position: "absolute",
+  zIndex: 20,
+  left: "18px",
+  right: "18px",
+  top: "12px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "18px",
+};
+
+const stageTwoStars: CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  opacity: 0.9,
+  backgroundImage:
+    "radial-gradient(circle at 10% 20%,#fff 0 1px,transparent 1.5px),radial-gradient(circle at 72% 18%,#7ee8ff 0 1px,transparent 1.5px),radial-gradient(circle at 46% 64%,#caa4ff 0 1px,transparent 1.5px),radial-gradient(circle at 84% 72%,#fff 0 1px,transparent 1.5px)",
+  backgroundSize: "150px 130px,190px 170px,210px 190px,175px 155px",
+};
+
+const stageTwoMistA: CSSProperties = {
+  position: "absolute",
+  width: "58vw",
+  height: "40vw",
+  right: "-10vw",
+  top: "-14vw",
+  borderRadius: "50%",
+  background:
+    "radial-gradient(circle,rgba(100,64,190,0.3),rgba(100,64,190,0.04) 50%,transparent 70%)",
+  filter: "blur(18px)",
+};
+
+const stageTwoMistB: CSSProperties = {
+  position: "absolute",
+  width: "52vw",
+  height: "32vw",
+  left: "-8vw",
+  bottom: "-13vw",
+  borderRadius: "50%",
+  background:
+    "radial-gradient(circle,rgba(32,148,210,0.22),transparent 68%)",
+  filter: "blur(15px)",
+};
+
+const stageTwoIslandA: CSSProperties = {
+  position: "absolute",
+  left: "42%",
+  top: "28%",
+  width: "31%",
+  height: "37%",
+  borderRadius: "46% 54% 55% 45% / 42% 46% 54% 58%",
+  background:
+    "radial-gradient(circle at 46% 28%,rgba(71,114,161,0.75),rgba(27,37,62,0.94) 52%,rgba(8,10,19,0.98) 74%)",
+  boxShadow:
+    "0 36px 80px rgba(0,0,0,0.56),inset 0 0 38px rgba(83,215,255,0.12)",
+  transform: "rotate(-7deg)",
+};
+
+const stageTwoIslandB: CSSProperties = {
+  position: "absolute",
+  right: "6%",
+  bottom: "8%",
+  width: "20%",
+  height: "23%",
+  borderRadius: "50%",
+  background:
+    "radial-gradient(circle at 40% 30%,rgba(61,57,104,0.64),rgba(12,12,28,0.97) 73%)",
+  opacity: 0.68,
+};
+
+const stageTwoRouteLine: CSSProperties = {
+  position: "absolute",
+  left: "10%",
+  top: "50%",
+  width: "45%",
+  height: "5px",
+  borderRadius: "999px",
+  background:
+    "linear-gradient(90deg,rgba(126,232,255,0.22),rgba(126,232,255,0.92),rgba(173,105,255,0.86))",
+  boxShadow: "0 0 18px rgba(83,215,255,0.48)",
+  transform: "rotate(-7deg)",
+};
+
+const stageFiveNode: CSSProperties = {
+  position: "absolute",
+  zIndex: 12,
+  left: "55%",
+  top: "42%",
+  transform: "translate(-50%,-50%)",
+  border: "none",
+  background: "transparent",
+  padding: 0,
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+  color: "white",
+  cursor: "pointer",
+};
+
+const stageTwoFutureRegion: CSSProperties = {
+  position: "absolute",
+  right: "7%",
+  top: "56%",
+  width: "170px",
+  height: "105px",
+  borderRadius: "50%",
+  border: "1px dashed rgba(255,255,255,0.12)",
+  background: "rgba(0,0,0,0.18)",
+  color: "rgba(255,255,255,0.28)",
+  display: "grid",
+  placeItems: "center",
+  alignContent: "center",
+  gap: "3px",
+  textAlign: "center",
+  fontSize: "9px",
 };
 
 const loadingFill: CSSProperties = {
