@@ -158,10 +158,10 @@ export default function RoverChallengeProgressDock() {
   );
 
   return (
-    <aside style={shell(collapsed)} aria-label="Rover Challenge level progress">
+    <aside style={shell(collapsed)} aria-label="Rover Expeditions level progress">
       <div style={headingRow}>
         <div style={{ minWidth: 0 }}>
-          <p style={eyebrow}>ROVER CHALLENGE</p>
+          <p style={eyebrow}>ROVER EXPEDITIONS</p>
           <h2 style={title}>Level Progress</h2>
         </div>
 
@@ -186,7 +186,7 @@ export default function RoverChallengeProgressDock() {
               Log in to view levels
             </button>
           ) : loading ? (
-            <p style={statusMessage}>Loading challenge progress...</p>
+            <p style={statusMessage}>Loading expedition progress...</p>
           ) : rows.length === 0 ? (
             <p style={errorMessage}>
               {message || "Rover Level access could not be loaded."}

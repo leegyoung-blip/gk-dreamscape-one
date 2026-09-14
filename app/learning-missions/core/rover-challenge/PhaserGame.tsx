@@ -2398,6 +2398,39 @@ class RoverMatterScene extends Phaser.Scene {
 
     const currentRotation = Phaser.Math.Angle.Wrap(this.roverBody.rotation);
 
+    if (this.roverGameMode === "hover") {
+      const terrainAngle =
+        this.getTerrainAngleAtX(this.roverBody.x) ?? 0;
+
+      // Hover X should read as a flying craft, not a wheeled chassis glued to
+      // every slope. Follow only a small portion of the road pitch and become
+      // even flatter as speed increases.
+      const speedRatio = Phaser.Math.Clamp(
+        Math.abs(body.velocity.x) / Math.max(1, this.boostedMaximumSpeed),
+        0,
+        1,
+      );
+      const maxHoverPitch = Phaser.Math.DegToRad(8 - speedRatio * 3);
+      const targetHoverPitch = grounded
+        ? Phaser.Math.Clamp(terrainAngle * 0.28, -maxHoverPitch, maxHoverPitch)
+        : 0;
+      const hoverLevelingRate = 10 + speedRatio * 10;
+      const hoverSmoothing =
+        1 - Math.exp(-hoverLevelingRate * (delta / 1000));
+
+      this.roverBody.setRotation(
+        Phaser.Math.Linear(
+          currentRotation,
+          targetHoverPitch,
+          hoverSmoothing,
+        ),
+      );
+      this.roverBody.setAngularVelocity(
+        Phaser.Math.Linear(body.angularVelocity, 0, hoverSmoothing),
+      );
+      return;
+    }
+
     if (grounded) {
       const terrainAngle =
         this.getTerrainAngleAtX(this.roverBody.x) ?? currentRotation;
@@ -2613,7 +2646,15 @@ class RoverMatterScene extends Phaser.Scene {
       return;
     }
 
-    const rotation = this.roverBody.rotation;
+    const physicsRotation = this.roverBody.rotation;
+    const rotation =
+      this.roverGameMode === "hover"
+        ? Phaser.Math.Clamp(
+            physicsRotation * 0.45,
+            -Phaser.Math.DegToRad(5.5),
+            Phaser.Math.DegToRad(5.5),
+          )
+        : physicsRotation;
 
     const hoverBob =
       this.roverGameMode === "hover"
@@ -3428,7 +3469,7 @@ export default function PhaserGame({
     <div
       ref={gameContainerRef}
       className="absolute inset-0 h-full w-full overflow-hidden bg-[#070a18]"
-      aria-label="Rover Challenge game"
+      aria-label="Rover Expedition game"
       style={{
         width: "100%",
         height: "100%",

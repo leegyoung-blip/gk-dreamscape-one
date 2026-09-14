@@ -53,6 +53,7 @@ function getNovaReturnPath() {
 }
 
 type GarageTab = "courses" | "upgrades" | "custom";
+type GarageView = "hangar" | "expeditions";
 type ScreenMode = "desktop" | "tablet" | "mobile";
 
 type SummaryRow = {
@@ -84,6 +85,13 @@ type RoverLoadoutRow = {
   selected_stage: number;
   max_unlocked_stage: number;
   admin_access: boolean;
+};
+
+type CoreRoverOwnershipRow = {
+  stage: number;
+  acquisition_method: "starter" | "legacy" | "purchase" | null;
+  dt_spent: number | null;
+  acquired_at: string | null;
 };
 
 type RoverCatalogRow = {
@@ -202,6 +210,11 @@ export default function RoverGarageClient() {
   }, []);
 
   function goBack() {
+    if (garageView === "expeditions") {
+      setGarageView("hangar");
+      return;
+    }
+
     const destination =
       roverOrigin === "nova" ? getNovaReturnPath() : "/learning-missions/core";
 
@@ -221,7 +234,8 @@ export default function RoverGarageClient() {
     router.push(`/learning-missions/core/rover-challenge/${level}`);
   }
 
-  const [tab, setTab] = useState<GarageTab>("courses");
+  const [tab, setTab] = useState<GarageTab>("custom");
+  const [garageView, setGarageView] = useState<GarageView>("hangar");
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
 
@@ -339,6 +353,7 @@ export default function RoverGarageClient() {
 
       const [
         catalogResult,
+        ownershipResult,
         tokensResult,
         profileResult,
         loadoutResult,
@@ -351,6 +366,11 @@ export default function RoverGarageClient() {
         levelFourLeaderboardResult,
       ] = await Promise.all([
         supabase.rpc("get_my_core_rover_catalog"),
+
+        supabase
+          .from("core_rover_ownership")
+          .select("stage,acquisition_method,dt_spent,acquired_at")
+          .eq("user_id", user.id),
 
         supabase
           .from("dream_token_transactions")
@@ -417,15 +437,78 @@ export default function RoverGarageClient() {
 
       let catalogRows: RoverCatalogRow[] = [];
 
+      const fallbackTokenBalance =
+        tokensResult.data?.reduce(
+          (sum, row) => sum + Number(row.amount || 0),
+          0,
+        ) || 0;
+
+      const fallbackSelectedStage = Number(
+        ((loadoutResult.data ?? []) as RoverLoadoutRow[])[0]?.selected_stage ?? 0,
+      );
+
       if (catalogResult.error) {
         console.warn(
-          "Could not load rover ownership catalogue:",
+          "Could not load rover ownership catalogue RPC; using direct ownership fallback:",
           catalogResult.error.message,
         );
-        setRoverCatalog([]);
-        setPurchaseMessage(
-          "Rover ownership could not be loaded. Check that Phase 1A is installed.",
+
+        const ownershipRows = ownershipResult.error
+          ? []
+          : ((ownershipResult.data ?? []) as CoreRoverOwnershipRow[]);
+
+        const ownershipByStage = new Map(
+          ownershipRows.map((row) => [Number(row.stage), row]),
         );
+
+        catalogRows = coreUpgradeTrack.map((upgrade) => {
+          const row = ownershipByStage.get(upgrade.stage);
+          const owned =
+            resolvedAdmin || upgrade.stage === 0 || Boolean(row);
+          const previousStageOwned =
+            resolvedAdmin ||
+            upgrade.stage === 0 ||
+            upgrade.stage === 1 ||
+            ownershipByStage.has(upgrade.stage - 1);
+
+          return {
+            stage: upgrade.stage,
+            rover_number: upgrade.roverNumber,
+            display_name: upgrade.name,
+            price_dt: upgrade.priceDt,
+            owned,
+            equipped: fallbackSelectedStage === upgrade.stage,
+            previous_stage_owned: previousStageOwned,
+            can_purchase:
+              !resolvedAdmin &&
+              !owned &&
+              upgrade.stage > 0 &&
+              previousStageOwned,
+            can_afford: fallbackTokenBalance >= upgrade.priceDt,
+            dt_balance: fallbackTokenBalance,
+            acquisition_method:
+              upgrade.stage === 0
+                ? "starter"
+                : row?.acquisition_method ?? null,
+            dt_spent: row?.dt_spent ?? null,
+            acquired_at: row?.acquired_at ?? null,
+            admin_access: resolvedAdmin,
+          };
+        });
+
+        setRoverCatalog(catalogRows);
+        setTokenBalance(Math.max(0, fallbackTokenBalance));
+
+        if (ownershipResult.error && !resolvedAdmin) {
+          console.warn(
+            "Direct rover ownership fallback also failed:",
+            ownershipResult.error.message,
+          );
+        }
+
+        // Do not expose the old migration-stage warning to users.
+        // The repair SQL supplied with this release fixes the RPCs themselves.
+        setPurchaseMessage("");
       } else {
         catalogRows = (catalogResult.data ?? []) as RoverCatalogRow[];
         setRoverCatalog(catalogRows);
@@ -488,7 +571,7 @@ export default function RoverGarageClient() {
           ),
         );
         setLoadoutMessage(
-          "Equipped rover could not be loaded. Check the Phase 1A rover loadout RPC.",
+          "Equipped rover data could not be loaded. Run the supplied Rover Ownership repair SQL.",
         );
       } else {
         const loadout = ((loadoutResult.data ?? []) as RoverLoadoutRow[])[0];
@@ -569,7 +652,7 @@ export default function RoverGarageClient() {
         );
         setLevelAccess([]);
         setCourseLoadMessage(
-          "Course access is unavailable. Check the Phase 1A rover-level functions.",
+          "Expedition access is unavailable. Run the supplied Rover Ownership repair SQL.",
         );
       } else {
         setLevelAccess((accessResult.data ?? []) as RoverLevelAccess[]);
@@ -674,7 +757,7 @@ export default function RoverGarageClient() {
       });
 
       setLoadoutMessage(
-        `Rover ${stage + 1} · ${upgrade.name} equipped. Rover Challenge will use this build.`,
+        `Rover ${stage + 1} · ${upgrade.name} equipped. Rover Expeditions will use this build.`,
       );
     },
     [
@@ -979,6 +1062,15 @@ export default function RoverGarageClient() {
     );
   }
 
+  const selectedOwned =
+    isAdmin ||
+    displayedUpgrade.stage === 0 ||
+    Boolean(displayedCatalog?.owned);
+
+  const selectedEquipped = displayedUpgrade.stage === equippedStage;
+  const selectedCanPurchase = Boolean(displayedCatalog?.can_purchase);
+  const selectedCanAfford = Boolean(displayedCatalog?.can_afford);
+
   return (
     <main style={pageBackground}>
       <header style={topHeader(isMobile)}>
@@ -987,12 +1079,18 @@ export default function RoverGarageClient() {
           onClick={goBack}
           style={headerButton}
         >
-          ← Back
+          ← {garageView === "expeditions" ? "Hangar" : "Back"}
         </button>
 
         <div style={headerIdentity(isMobile)}>
-          <p style={headerEyebrow}>SKYFORGE HANGAR</p>
-          <h1 style={headerTitle}>My Rover</h1>
+          <p style={headerEyebrow}>
+            {garageView === "expeditions"
+              ? "DREAMSCAPE EXPEDITIONS"
+              : "SKYFORGE HANGAR"}
+          </p>
+          <h1 style={headerTitle}>
+            {garageView === "expeditions" ? "Rover Expeditions" : "My Rover"}
+          </h1>
         </div>
 
         <div style={headerRight(isMobile)}>
@@ -1002,7 +1100,6 @@ export default function RoverGarageClient() {
             <strong style={pillValue("dt")}>
               {tokenBalance.toLocaleString("en-SG")} DT
             </strong>
-            <span style={pillChevron}>⌄</span>
           </div>
 
           <div style={balancePill("dg")}>
@@ -1011,7 +1108,6 @@ export default function RoverGarageClient() {
             <strong style={pillValue("dg")}>
               {dreamGemBalance.toLocaleString("en-SG")} DG
             </strong>
-            <span style={pillChevron}>⌄</span>
           </div>
 
           <button
@@ -1024,175 +1120,25 @@ export default function RoverGarageClient() {
         </div>
       </header>
 
-      <section style={garageShell(isMobile)}>
-        <div style={previewColumn(isCompact)}>
-          <div style={previewCard(displayedUpgrade.accent)}>
-            <div style={previewTopRow}>
-              <div>
-                <p style={smallEyebrow}>
-                  {viewingEquippedBuild
-                    ? "EQUIPPED ROVER"
-                    : displayedCatalog?.owned || isAdmin
-                      ? "OWNED ROVER"
-                      : "ROVER PREVIEW"}
-                </p>
-
-                <h2 style={currentBuildTitle}>
-                  Rover {displayedUpgrade.stage + 1} ·{" "}
-                  {displayedUpgrade.name}
-                </h2>
-              </div>
-
-              <div style={rankPill(rank)}>
-                {rank ? `Rank #${rank}` : "Unranked"}
-              </div>
+      {garageView === "expeditions" ? (
+        <ExpeditionMap
+          access={levelAccess}
+          currentStage={highestOwnedStage}
+          equippedRover={coreUpgradeTrack[equippedStage] ?? coreUpgradeTrack[0]}
+          isAdmin={isAdmin}
+          onOpenLevel={openRoverChallenge}
+        />
+      ) : (
+        <section style={hangarLayout(isCompact)}>
+          <aside style={fleetRail(isCompact)}>
+            <div style={hangarSectionHeading}>
+              <p style={smallEyebrow}>ROVER FLEET</p>
+              <h2 style={hangarSectionTitle}>Select Your Rover</h2>
+              <p style={hangarSectionCopy}>
+                Purchase rovers in sequence, then equip any rover you own.
+              </p>
             </div>
 
-            <RoverPreview
-              imageSrc={displayedUpgrade.imageSrc}
-              isMobile={isMobile}
-            />
-
-            <p style={upgradeDescription}>
-              {displayedUpgrade.description}
-            </p>
-
-            <RoverBuildStats
-              stage={displayedUpgrade.stage}
-              accent={displayedUpgrade.accent}
-              performanceBuild={
-                viewingEquippedBuild ? performanceBuild : []
-              }
-              previewCategory={
-                viewingEquippedBuild && tab === "custom"
-                  ? confirmingPerformanceCategory
-                  : null
-              }
-            />
-
-            {loadoutMessage && (
-              <div style={courseNotice}>{loadoutMessage}</div>
-            )}
-
-            {purchaseMessage && (
-              <div style={purchaseNotice}>{purchaseMessage}</div>
-            )}
-
-            <div style={ownershipPanel}>
-              <div style={ownershipRow}>
-                <span style={ownershipLabel}>ROVERS OWNED</span>
-                <strong style={ownershipValue}>
-                  {ownedRoverCount}/{coreUpgradeTrack.length}
-                </strong>
-              </div>
-
-              <div style={ownershipRow}>
-                <span style={ownershipLabel}>EQUIPPED</span>
-                <strong style={ownershipValue}>
-                  Rover {equippedStage + 1}
-                </strong>
-              </div>
-
-              <div style={ownershipRow}>
-                <span style={ownershipLabel}>
-                  {nextPurchasableRover
-                    ? "NEXT PURCHASE"
-                    : "COLLECTION"}
-                </span>
-
-                <strong style={ownershipValue}>
-                  {isAdmin
-                    ? "Admin access"
-                    : nextPurchasableRover
-                      ? `Rover ${nextPurchasableRover.rover_number} · ${Number(
-                          nextPurchasableRover.price_dt,
-                        ).toLocaleString("en-SG")} DT`
-                      : "All rovers owned"}
-                </strong>
-              </div>
-            </div>
-
-            <div style={summaryGrid(isMobile)}>
-              <SummaryStat
-                label="Current Rank"
-                value={rank ? `#${rank}` : "—"}
-              />
-              <SummaryStat
-                label="Best Score"
-                value={bestScore === null ? "—" : bestScore.toLocaleString()}
-              />
-              <SummaryStat
-                label="Best Time"
-                value={
-                  bestTimeMs === null ? "—" : formatMilliseconds(bestTimeMs)
-                }
-              />
-              <SummaryStat
-                label="Best Orbs"
-                value={orbsCollected === null ? "—" : `${orbsCollected}/8`}
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={() => openRoverChallenge(1)}
-              style={largeChallengeButton}
-            >
-              Enter Rover Challenge ›
-            </button>
-          </div>
-        </div>
-
-        <div style={controlColumn}>
-          <div style={tabBar}>
-            <button
-              type="button"
-              onClick={() => setTab("courses")}
-              style={tabButton(tab === "courses")}
-            >
-              Rover Courses
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setTab("upgrades")}
-              style={tabButton(tab === "upgrades")}
-            >
-              Rover Upgrades
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setTab("custom");
-                setSelectedUpgradeStage(equippedStage);
-              }}
-              style={tabButton(tab === "custom")}
-            >
-              Custom Build
-            </button>
-          </div>
-
-          {tab === "courses" ? (
-            <RoverCoursesPanel
-              access={levelAccess}
-              leaderboards={leaderboards}
-              loadMessage={courseLoadMessage}
-              actionMessage={courseActionMessage}
-              currentStage={
-                isAdmin
-                  ? coreUpgradeTrack[coreUpgradeTrack.length - 1].stage
-                  : highestOwnedStage
-              }
-              dreamGemBalance={dreamGemBalance}
-              purchasingLevel={purchasingLevel}
-              userId={userId}
-              onOpenLevel={openRoverChallenge}
-              onPurchaseEarlyUnlock={(level) =>
-                void purchaseEarlyUnlock(level)
-              }
-            />
-          ) : tab === "upgrades" ? (
             <UpgradeTrack
               catalog={roverCatalog}
               tokenBalance={tokenBalance}
@@ -1205,30 +1151,177 @@ export default function RoverGarageClient() {
               onEquipStage={(stage) => void selectAndEquipRover(stage)}
               onPurchaseStage={(stage) => void purchaseRover(stage)}
             />
-          ) : (
-            <CustomBuildPanel
-              tokenBalance={tokenBalance}
-              isMobile={isMobile}
-              equippedStage={equippedStage}
-              performanceBuild={performanceBuild}
-              message={performanceMessage}
-              purchasingCategory={purchasingPerformanceCategory}
-              confirmingCategory={confirmingPerformanceCategory}
-              isAdmin={isAdmin}
-              onConfirmingCategoryChange={
-                setConfirmingPerformanceCategory
-              }
-              onPurchase={(category) =>
-                void purchasePerformanceUpgrade(category)
-              }
-            />
-          )}
-        </div>
-      </section>
+          </aside>
+
+          <section style={centerRoverColumn(isCompact)}>
+            <div style={centerRoverCard(displayedUpgrade.accent)}>
+              <div style={centerRoverTopRow}>
+                <div>
+                  <p style={smallEyebrow}>
+                    {selectedEquipped
+                      ? "EQUIPPED ROVER"
+                      : selectedOwned
+                        ? "OWNED ROVER"
+                        : "ROVER PREVIEW"}
+                  </p>
+                  <h2 style={centerRoverTitle}>
+                    Rover {displayedUpgrade.roverNumber} · {displayedUpgrade.name}
+                  </h2>
+                </div>
+
+                {rank && <div style={rankPill(rank)}>Rank #{rank}</div>}
+              </div>
+
+              <div style={centerVehicleStage}>
+                <div style={vehicleHalo(displayedUpgrade.accent)} />
+                <img
+                  src={displayedUpgrade.imageSrc}
+                  alt={displayedUpgrade.name}
+                  draggable={false}
+                  style={centerVehicleImage}
+                />
+              </div>
+
+              <p style={centerVehicleDescription}>
+                {displayedUpgrade.description}
+              </p>
+
+              <div style={centerPrimaryActions}>
+                {selectedEquipped ? (
+                  <button
+                    type="button"
+                    onClick={() => setGarageView("expeditions")}
+                    style={expeditionsButton}
+                  >
+                    To Expeditions ›
+                  </button>
+                ) : selectedOwned ? (
+                  <button
+                    type="button"
+                    disabled={savingRoverStage !== null}
+                    onClick={() =>
+                      void selectAndEquipRover(displayedUpgrade.stage)
+                    }
+                    style={expeditionsButton}
+                  >
+                    {savingRoverStage === displayedUpgrade.stage
+                      ? "Equipping..."
+                      : "Equip This Rover"}
+                  </button>
+                ) : selectedCanPurchase ? (
+                  <button
+                    type="button"
+                    disabled={!selectedCanAfford || purchasingRoverStage !== null}
+                    onClick={() => void purchaseRover(displayedUpgrade.stage)}
+                    style={expeditionsButton}
+                  >
+                    {selectedCanAfford
+                      ? `Purchase · ${Number(
+                          displayedCatalog?.price_dt ?? displayedUpgrade.priceDt,
+                        ).toLocaleString("en-SG")} DT`
+                      : "Need More DT"}
+                  </button>
+                ) : (
+                  <button type="button" disabled style={disabledCenterButton}>
+                    Purchase Previous Rover First
+                  </button>
+                )}
+              </div>
+
+              {loadoutMessage && (
+                <div style={courseNotice}>{loadoutMessage}</div>
+              )}
+              {purchaseMessage && (
+                <div style={purchaseNotice}>{purchaseMessage}</div>
+              )}
+            </div>
+
+            <div style={centerStatsCard}>
+              <RoverBuildStats
+                stage={displayedUpgrade.stage}
+                accent={displayedUpgrade.accent}
+                performanceBuild={
+                  selectedEquipped ? performanceBuild : []
+                }
+                previewCategory={
+                  selectedEquipped ? confirmingPerformanceCategory : null
+                }
+              />
+
+              <div style={centerRunSummary}>
+                <SummaryStat
+                  label="Current Rank"
+                  value={rank ? `#${rank}` : "—"}
+                />
+                <SummaryStat
+                  label="Best Score"
+                  value={bestScore === null ? "—" : bestScore.toLocaleString()}
+                />
+                <SummaryStat
+                  label="Best Time"
+                  value={
+                    bestTimeMs === null ? "—" : formatMilliseconds(bestTimeMs)
+                  }
+                />
+                <SummaryStat
+                  label="Best Orbs"
+                  value={orbsCollected === null ? "—" : `${orbsCollected}/8`}
+                />
+              </div>
+            </div>
+          </section>
+
+          <aside style={partsRail(isCompact)}>
+            <div style={hangarSectionHeading}>
+              <p style={smallEyebrow}>CUSTOM BUILD</p>
+              <h2 style={hangarSectionTitle}>Performance Parts</h2>
+              <p style={hangarSectionCopy}>
+                Upgrades belong permanently to the rover on which they are installed.
+              </p>
+            </div>
+
+            {selectedEquipped ? (
+              <CustomBuildPanel
+                tokenBalance={tokenBalance}
+                isMobile={isMobile}
+                equippedStage={equippedStage}
+                performanceBuild={performanceBuild}
+                message={performanceMessage}
+                purchasingCategory={purchasingPerformanceCategory}
+                confirmingCategory={confirmingPerformanceCategory}
+                isAdmin={isAdmin}
+                onConfirmingCategoryChange={setConfirmingPerformanceCategory}
+                onPurchase={(category) =>
+                  void purchasePerformanceUpgrade(category)
+                }
+              />
+            ) : (
+              <div style={equipToTuneCard}>
+                <span style={equipToTuneIcon}>◇</span>
+                <h3 style={{ margin: 0 }}>Equip this rover to customise it</h3>
+                <p style={hangarSectionCopy}>
+                  Performance parts are stored separately for every rover.
+                  Equip Rover {displayedUpgrade.roverNumber} before installing
+                  parts for this build.
+                </p>
+                {selectedOwned && (
+                  <button
+                    type="button"
+                    onClick={() => void selectAndEquipRover(displayedUpgrade.stage)}
+                    style={equipRoverButton(true)}
+                  >
+                    Equip Rover {displayedUpgrade.roverNumber}
+                  </button>
+                )}
+              </div>
+            )}
+          </aside>
+        </section>
+      )}
 
       <NovaGarageGuide
         open={novaGuideOpen}
-        tab={tab}
+        mode={garageView}
         roverName={displayedUpgrade.name}
         onToggle={() => setNovaGuideOpen((current) => !current)}
         onClose={() => setNovaGuideOpen(false)}
@@ -1239,35 +1332,29 @@ export default function RoverGarageClient() {
 
 function NovaGarageGuide({
   open,
-  tab,
+  mode,
   roverName,
   onToggle,
   onClose,
 }: {
   open: boolean;
-  tab: GarageTab;
+  mode: GarageView;
   roverName: string;
   onToggle: () => void;
   onClose: () => void;
 }) {
   const content =
-    tab === "courses"
+    mode === "expeditions"
       ? {
-          title: "Rover Courses",
+          title: "Rover Expeditions",
           body:
-            "Complete courses in order. Your equipped rover determines normal course access, while Dream Gems can permanently unlock an eligible course early.",
+            "Travel through Dreamscape in order. Complete an unlocked location to open the next route, while meeting the rover requirement for that expedition.",
         }
-      : tab === "upgrades"
-        ? {
-            title: "Rover Upgrades",
-            body:
-              "Rovers are permanent Dream Token purchases. Buy them in sequence, then equip any rover you own. The equipped rover is the one used in Rover Challenge.",
-          }
-        : {
-            title: `${roverName} · Custom Build`,
-            body:
-              "Custom parts belong only to this rover. Press Install to preview the next stat gain in green. Press Confirm only when you want to spend the Dream Tokens.",
-          };
+      : {
+          title: `${roverName} · Skyforge Hangar`,
+          body:
+            "Choose a rover from the left, equip it, then tune that rover's performance parts on the right. Your stats appear beneath the vehicle. When your build is ready, press To Expeditions.",
+        };
 
   return (
     <>
@@ -1290,13 +1377,11 @@ function NovaGarageGuide({
               ×
             </button>
           </div>
-
           <p style={novaGuideBody}>{content.body}</p>
-
-          {tab === "custom" && (
+          {mode === "hangar" && (
             <div style={novaGuideTip}>
-              Green on the Build Stats bars is a preview only. No DT is spent
-              until you press Confirm.
+              When you press Install on a performance part, the stat bar previews
+              the increase in green before you confirm the purchase.
             </div>
           )}
         </aside>
@@ -1316,6 +1401,160 @@ function NovaGarageGuide({
   );
 }
 
+function ExpeditionMap({
+  access,
+  currentStage,
+  equippedRover,
+  isAdmin,
+  onOpenLevel,
+}: {
+  access: RoverLevelAccess[];
+  currentStage: number;
+  equippedRover: (typeof coreUpgradeTrack)[number];
+  isAdmin: boolean;
+  onOpenLevel: (level: RoverLevelId) => void;
+}) {
+  const positions: Record<
+    RoverLevelId,
+    { left: string; top: string; x: number; y: number }
+  > = {
+    1: { left: "12%", top: "69%", x: 120, y: 440 },
+    2: { left: "35%", top: "43%", x: 350, y: 270 },
+    3: { left: "61%", top: "61%", x: 610, y: 390 },
+    4: { left: "83%", top: "27%", x: 830, y: 170 },
+  };
+
+  const accessFor = (levelId: RoverLevelId) =>
+    access.find((row) => Number(row.level_id) === levelId);
+
+  return (
+    <section style={expeditionShell}>
+      <div style={expeditionTopRow}>
+        <div>
+          <p style={smallEyebrow}>DREAMSCAPE ROUTE</p>
+          <h2 style={expeditionHeading}>Expedition Map</h2>
+          <p style={expeditionLead}>
+            Explore each location in order. Completed routes remain open for replay.
+          </p>
+        </div>
+
+        <div style={expeditionRoverPill}>
+          <img
+            src={equippedRover.imageSrc}
+            alt=""
+            style={expeditionRoverThumb}
+          />
+          <div>
+            <span style={expeditionPillLabel}>EQUIPPED</span>
+            <strong>
+              Rover {equippedRover.roverNumber} · {equippedRover.name}
+            </strong>
+          </div>
+        </div>
+      </div>
+
+      <div style={dreamscapeMapCanvas}>
+        <div style={mapNebulaOne} />
+        <div style={mapNebulaTwo} />
+        <div style={mapPlanet} />
+        <div style={mapMountainA} />
+        <div style={mapMountainB} />
+
+        <svg
+          viewBox="0 0 1000 620"
+          preserveAspectRatio="none"
+          style={expeditionRouteSvg}
+          aria-hidden="true"
+        >
+          <path
+            d="M120 440 C210 420 250 300 350 270 C445 240 510 390 610 390 C705 390 750 210 830 170"
+            fill="none"
+            stroke="rgba(126,232,255,0.22)"
+            strokeWidth="12"
+            strokeLinecap="round"
+          />
+          <path
+            d="M120 440 C210 420 250 300 350 270 C445 240 510 390 610 390 C705 390 750 210 830 170"
+            fill="none"
+            stroke="rgba(126,232,255,0.72)"
+            strokeWidth="3"
+            strokeDasharray="11 13"
+            strokeLinecap="round"
+          />
+        </svg>
+
+        {ROVER_COURSES.map((course) => {
+          const row = accessFor(course.id);
+          const completed = Boolean(row?.completed);
+          const unlocked = isAdmin || Boolean(row?.unlocked) || course.id === 1;
+          const position = positions[course.id];
+
+          let status = "LOCKED";
+          let detail = "Complete the previous expedition first.";
+
+          if (completed) {
+            status = "COMPLETED";
+            detail = "Replay available";
+          } else if (unlocked) {
+            status = "UNLOCKED";
+            detail = "Ready to explore";
+          } else if (row && !row.prerequisite_completed) {
+            detail = `Complete Expedition ${row.prerequisite_level} first`;
+          } else if (row) {
+            detail = `Requires Rover ${Number(row.minimum_rover_stage) + 1}`;
+          }
+
+          return (
+            <div
+              key={course.id}
+              style={{
+                ...expeditionNodeWrap,
+                left: position.left,
+                top: position.top,
+              }}
+            >
+              <button
+                type="button"
+                disabled={!unlocked}
+                onClick={() => unlocked && onOpenLevel(course.id)}
+                style={expeditionNode(unlocked, completed)}
+                aria-label={`${course.title} · ${status}`}
+              >
+                <span style={expeditionNodeNumber(unlocked, completed)}>
+                  {completed ? "✓" : course.id}
+                </span>
+              </button>
+
+              <div style={expeditionNodeCard(unlocked, completed)}>
+                <p style={expeditionNodeStatus(unlocked, completed)}>
+                  EXPEDITION {course.id} · {status}
+                </p>
+                <h3 style={expeditionNodeTitle}>{course.title}</h3>
+                <p style={expeditionNodeDetail}>{detail}</p>
+                {unlocked && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenLevel(course.id)}
+                    style={mapEnterButton}
+                  >
+                    {completed ? "Replay Expedition" : "Enter Expedition"}
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        <div style={mapLegend}>
+          <span>● Unlocked</span>
+          <span>✓ Completed</span>
+          <span>◆ Locked</span>
+          {!isAdmin && <span>Highest owned: Rover {currentStage + 1}</span>}
+        </div>
+      </div>
+    </section>
+  );
+}
 function RoverCoursesPanel({
   access,
   leaderboards,
@@ -1351,9 +1590,9 @@ function RoverCoursesPanel({
     <div style={coursesPanel}>
       <div>
         <p style={smallEyebrow}>COURSE SELECT</p>
-        <h2 style={{ margin: "7px 0 0" }}>Rover Challenge</h2>
+        <h2 style={{ margin: "7px 0 0" }}>Rover Expeditions</h2>
         <p style={coursesIntro}>
-          Complete Rover Challenge levels in order. Some courses require a
+          Complete Rover Expeditions levels in order. Some courses require a
           stronger rover that you own. Dream Gems can still permanently unlock
           the next eligible course early without purchasing the required rover.
           Admin accounts can enter every level immediately.
@@ -1776,14 +2015,13 @@ function UpgradeTrack({
   return (
     <div style={scrollPanel}>
       <div style={panelHeading}>
-        <p style={smallEyebrow}>PERMANENT ROVER UPGRADES</p>
+        <p style={smallEyebrow}>YOUR ROVER COLLECTION</p>
 
-        <h2 style={{ margin: "7px 0 0" }}>Rover Upgrade Track</h2>
+        <h2 style={{ margin: "7px 0 0" }}>Rover Fleet</h2>
 
         <p style={panelDescription}>
-          Rover 1 is included free. Purchase stronger rovers permanently with
-          Dream Tokens, then switch freely between every rover you own.
-          Purchases unlock in order. Your current balance is{" "}
+          Select a rover to preview it. Owned rovers can be equipped here;
+          new rovers unlock in purchase order. Balance:{" "}
           <strong>{tokenBalance.toLocaleString("en-SG")} DT</strong>.
         </p>
       </div>
@@ -1825,7 +2063,7 @@ function UpgradeTrack({
           let status = "";
 
           if (equipped) {
-            status = "EQUIPPED · USED IN ROVER CHALLENGE";
+            status = "EQUIPPED · USED IN ROVER EXPEDITIONS";
           } else if (saving) {
             status = "EQUIPPING...";
           } else if (owned) {
@@ -1871,8 +2109,8 @@ function UpgradeTrack({
                 alt={`Rover ${upgrade.roverNumber} · ${upgrade.name}`}
                 draggable={false}
                 style={{
-                  width: "110px",
-                  height: "76px",
+                  width: "82px",
+                  height: "58px",
                   objectFit: "contain",
                   opacity: owned || canPurchase ? 1 : 0.4,
                 }}
@@ -2022,7 +2260,7 @@ function CustomBuildPanel({
           Performance parts are live purchases permanently attached to this
           rover only. The highest purchased tier in each category is installed
           automatically whenever Rover {equippedStage + 1} enters Rover
-          Challenge. Balance:{" "}
+          Expeditions. Balance:{" "}
           <strong>{tokenBalance.toLocaleString("en-SG")} DT</strong>
         </p>
       </div>
@@ -2857,7 +3095,7 @@ const ownershipValue: CSSProperties = {
 
 const upgradeActionColumn: CSSProperties = {
   flex: "0 0 auto",
-  minWidth: "102px",
+  minWidth: "82px",
   display: "flex",
   justifyContent: "flex-end",
   alignItems: "center",
@@ -3525,6 +3763,370 @@ const novaGuideTip: CSSProperties = {
   padding: "9px 10px",
   fontSize: "10px",
   lineHeight: 1.45,
+};
+
+function hangarLayout(isCompact: boolean): CSSProperties {
+  return {
+    width: "100%",
+    maxWidth: "none",
+    padding: isCompact ? "14px" : "20px clamp(18px,2vw,34px) 34px",
+    display: "grid",
+    gridTemplateColumns: isCompact
+      ? "1fr"
+      : "minmax(285px,0.72fr) minmax(520px,1.28fr) minmax(390px,1fr)",
+    gap: "18px",
+    alignItems: "start",
+  };
+}
+
+function fleetRail(isCompact: boolean): CSSProperties {
+  return {
+    minWidth: 0,
+    maxHeight: isCompact ? "none" : "calc(100dvh - 112px)",
+    overflowY: isCompact ? "visible" : "auto",
+    overflowX: "hidden",
+    borderRadius: "22px",
+    border: "1px solid rgba(126,232,255,0.16)",
+    background: "rgba(4,15,34,0.74)",
+    padding: "14px",
+  };
+}
+
+function centerRoverColumn(isCompact: boolean): CSSProperties {
+  return {
+    minWidth: 0,
+    display: "grid",
+    gap: "14px",
+    position: isCompact ? "static" : "sticky",
+    top: isCompact ? undefined : "82px",
+  };
+}
+
+function partsRail(isCompact: boolean): CSSProperties {
+  return {
+    minWidth: 0,
+    maxHeight: isCompact ? "none" : "calc(100dvh - 112px)",
+    overflowY: isCompact ? "visible" : "auto",
+    overflowX: "hidden",
+    borderRadius: "22px",
+    border: "1px solid rgba(126,232,255,0.16)",
+    background: "rgba(4,15,34,0.74)",
+    padding: "14px",
+  };
+}
+
+const hangarSectionHeading: CSSProperties = {
+  padding: "4px 4px 12px",
+};
+
+const hangarSectionTitle: CSSProperties = {
+  margin: "6px 0 0",
+  fontSize: "20px",
+};
+
+const hangarSectionCopy: CSSProperties = {
+  margin: "7px 0 0",
+  color: "rgba(255,255,255,0.57)",
+  fontSize: "11px",
+  lineHeight: 1.5,
+};
+
+function centerRoverCard(accent: string): CSSProperties {
+  return {
+    position: "relative",
+    overflow: "hidden",
+    borderRadius: "24px",
+    border: `1px solid ${accent}50`,
+    background:
+      "linear-gradient(155deg,rgba(6,21,47,0.98),rgba(8,15,38,0.96))",
+    boxShadow: `0 0 44px ${accent}12`,
+    padding: "clamp(18px,1.6vw,26px)",
+  };
+}
+
+const centerRoverTopRow: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "15px",
+};
+
+const centerRoverTitle: CSSProperties = {
+  margin: "5px 0 0",
+  fontSize: "clamp(22px,2vw,34px)",
+  lineHeight: 1.08,
+};
+
+const centerVehicleStage: CSSProperties = {
+  position: "relative",
+  height: "clamp(390px,42vw,610px)",
+  minHeight: "390px",
+  marginTop: "10px",
+  display: "grid",
+  placeItems: "center",
+  overflow: "hidden",
+};
+
+function vehicleHalo(accent: string): CSSProperties {
+  return {
+    position: "absolute",
+    width: "72%",
+    aspectRatio: "1 / 0.42",
+    borderRadius: "50%",
+    background: `radial-gradient(ellipse, ${accent}32, transparent 68%)`,
+    filter: "blur(12px)",
+    bottom: "12%",
+  };
+}
+
+const centerVehicleImage: CSSProperties = {
+  position: "relative",
+  zIndex: 2,
+  width: "98%",
+  height: "96%",
+  objectFit: "contain",
+  filter: "drop-shadow(0 34px 34px rgba(0,0,0,0.56))",
+};
+
+const centerVehicleDescription: CSSProperties = {
+  margin: "0 auto",
+  maxWidth: "760px",
+  color: "rgba(255,255,255,0.68)",
+  textAlign: "center",
+  fontSize: "12px",
+  lineHeight: 1.55,
+};
+
+const centerPrimaryActions: CSSProperties = {
+  display: "flex",
+  justifyContent: "center",
+  marginTop: "16px",
+};
+
+const expeditionsButton: CSSProperties = {
+  width: "min(420px,100%)",
+  minHeight: "54px",
+  border: "1px solid rgba(126,232,255,0.48)",
+  borderRadius: "15px",
+  background: "linear-gradient(135deg,#35c5ff,#5867ff)",
+  color: "white",
+  fontWeight: 950,
+  fontSize: "15px",
+  cursor: "pointer",
+  boxShadow: "0 14px 34px rgba(53,197,255,0.18)",
+};
+
+const disabledCenterButton: CSSProperties = {
+  ...expeditionsButton,
+  background: "rgba(255,255,255,0.045)",
+  border: "1px solid rgba(255,255,255,0.09)",
+  color: "rgba(255,255,255,0.35)",
+  cursor: "not-allowed",
+  boxShadow: "none",
+};
+
+const centerStatsCard: CSSProperties = {
+  borderRadius: "20px",
+  border: "1px solid rgba(126,232,255,0.15)",
+  background: "rgba(5,17,39,0.9)",
+  padding: "14px",
+};
+
+const centerRunSummary: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(4,minmax(0,1fr))",
+  gap: "9px",
+  marginTop: "10px",
+};
+
+const equipToTuneCard: CSSProperties = {
+  borderRadius: "18px",
+  border: "1px dashed rgba(126,232,255,0.25)",
+  background: "rgba(126,232,255,0.035)",
+  padding: "24px 18px",
+  display: "grid",
+  gap: "12px",
+  justifyItems: "start",
+};
+
+const equipToTuneIcon: CSSProperties = {
+  width: "42px",
+  height: "42px",
+  borderRadius: "12px",
+  display: "grid",
+  placeItems: "center",
+  color: "#7ee8ff",
+  border: "1px solid rgba(126,232,255,0.25)",
+  background: "rgba(126,232,255,0.06)",
+};
+
+const expeditionShell: CSSProperties = {
+  padding: "18px clamp(16px,3vw,48px) 36px",
+  minHeight: "calc(100dvh - 70px)",
+};
+
+const expeditionTopRow: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "18px",
+  marginBottom: "14px",
+};
+
+const expeditionHeading: CSSProperties = {
+  margin: "5px 0 0",
+  fontSize: "clamp(26px,3vw,42px)",
+};
+
+const expeditionLead: CSSProperties = {
+  margin: "7px 0 0",
+  color: "rgba(255,255,255,0.58)",
+  fontSize: "12px",
+};
+
+const expeditionRoverPill: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "11px",
+  padding: "8px 13px 8px 8px",
+  borderRadius: "15px",
+  border: "1px solid rgba(126,232,255,0.22)",
+  background: "rgba(7,24,50,0.82)",
+};
+
+const expeditionRoverThumb: CSSProperties = {
+  width: "78px",
+  height: "48px",
+  objectFit: "contain",
+};
+
+const expeditionPillLabel: CSSProperties = {
+  display: "block",
+  color: "#7ee8ff",
+  fontSize: "7px",
+  fontWeight: 950,
+  letterSpacing: "0.13em",
+};
+
+const dreamscapeMapCanvas: CSSProperties = {
+  position: "relative",
+  minHeight: "clamp(620px,72vh,860px)",
+  overflow: "hidden",
+  borderRadius: "28px",
+  border: "1px solid rgba(126,232,255,0.2)",
+  background:
+    "radial-gradient(circle at 22% 24%,rgba(72,92,255,0.22),transparent 26%), radial-gradient(circle at 77% 35%,rgba(183,78,255,0.18),transparent 24%), linear-gradient(180deg,#071631 0%,#0a1740 48%,#071123 100%)",
+  boxShadow: "inset 0 0 120px rgba(0,0,0,0.42)",
+};
+
+const mapNebulaOne: CSSProperties = {
+  position: "absolute", left: "8%", top: "5%", width: "38%", height: "38%",
+  background: "radial-gradient(circle,rgba(71,209,255,0.18),transparent 66%)",
+  filter: "blur(18px)",
+};
+const mapNebulaTwo: CSSProperties = {
+  position: "absolute", right: "3%", top: "8%", width: "40%", height: "38%",
+  background: "radial-gradient(circle,rgba(184,80,255,0.18),transparent 66%)",
+  filter: "blur(20px)",
+};
+const mapPlanet: CSSProperties = {
+  position: "absolute", right: "10%", top: "7%", width: "150px", height: "150px",
+  borderRadius: "50%",
+  background: "radial-gradient(circle at 35% 35%,#5c7aff,#27347e 52%,#101737 74%)",
+  opacity: 0.42,
+  boxShadow: "0 0 60px rgba(92,122,255,0.24)",
+};
+const mapMountainA: CSSProperties = {
+  position: "absolute", left: "-5%", bottom: "0", width: "60%", height: "38%",
+  background: "linear-gradient(150deg,transparent 37%,rgba(13,35,67,0.95) 38% 62%,transparent 63%)",
+  opacity: 0.8,
+};
+const mapMountainB: CSSProperties = {
+  position: "absolute", right: "-8%", bottom: "0", width: "68%", height: "42%",
+  background: "linear-gradient(32deg,transparent 36%,rgba(15,31,67,0.96) 37% 63%,transparent 64%)",
+  opacity: 0.76,
+};
+
+const expeditionRouteSvg: CSSProperties = {
+  position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none",
+};
+
+const expeditionNodeWrap: CSSProperties = {
+  position: "absolute",
+  transform: "translate(-50%,-50%)",
+  zIndex: 5,
+};
+
+function expeditionNode(unlocked: boolean, completed: boolean): CSSProperties {
+  return {
+    width: "66px", height: "66px", borderRadius: "50%",
+    border: completed
+      ? "2px solid rgba(111,255,157,0.9)"
+      : unlocked
+        ? "2px solid rgba(126,232,255,0.92)"
+        : "2px solid rgba(255,255,255,0.16)",
+    background: completed
+      ? "radial-gradient(circle,#1c6d49,#0b2d25 72%)"
+      : unlocked
+        ? "radial-gradient(circle,#186f8f,#0b2b4c 72%)"
+        : "radial-gradient(circle,#222b3b,#111723 72%)",
+    color: "white",
+    cursor: unlocked ? "pointer" : "not-allowed",
+    boxShadow: unlocked ? "0 0 30px rgba(83,215,255,0.34)" : "none",
+  };
+}
+
+function expeditionNodeNumber(unlocked: boolean, completed: boolean): CSSProperties {
+  return {
+    display: "grid", placeItems: "center", fontSize: "19px", fontWeight: 950,
+    color: completed ? "#aaffc4" : unlocked ? "#c7f8ff" : "rgba(255,255,255,0.36)",
+  };
+}
+
+function expeditionNodeCard(unlocked: boolean, completed: boolean): CSSProperties {
+  return {
+    position: "absolute",
+    left: "78px",
+    top: "50%",
+    transform: "translateY(-50%)",
+    width: "220px",
+    borderRadius: "14px",
+    border: completed
+      ? "1px solid rgba(111,255,157,0.28)"
+      : unlocked
+        ? "1px solid rgba(126,232,255,0.28)"
+        : "1px solid rgba(255,255,255,0.1)",
+    background: "rgba(5,16,37,0.9)",
+    padding: "11px 12px",
+    backdropFilter: "blur(12px)",
+    opacity: unlocked || completed ? 1 : 0.7,
+  };
+}
+
+function expeditionNodeStatus(unlocked: boolean, completed: boolean): CSSProperties {
+  return {
+    margin: 0,
+    color: completed ? "#8dffbc" : unlocked ? "#7ee8ff" : "rgba(255,255,255,0.38)",
+    fontSize: "7px", fontWeight: 950, letterSpacing: "0.11em",
+  };
+}
+
+const expeditionNodeTitle: CSSProperties = {
+  margin: "5px 0 0", fontSize: "14px",
+};
+const expeditionNodeDetail: CSSProperties = {
+  margin: "5px 0 0", color: "rgba(255,255,255,0.55)", fontSize: "9px", lineHeight: 1.4,
+};
+const mapEnterButton: CSSProperties = {
+  marginTop: "9px", minHeight: "30px", borderRadius: "8px",
+  border: "1px solid rgba(126,232,255,0.3)", background: "rgba(53,197,255,0.12)",
+  color: "#bdf5ff", padding: "0 10px", fontSize: "8px", fontWeight: 900, cursor: "pointer",
+};
+const mapLegend: CSSProperties = {
+  position: "absolute", left: "18px", bottom: "16px", display: "flex", gap: "14px",
+  flexWrap: "wrap", padding: "9px 11px", borderRadius: "10px",
+  background: "rgba(3,12,29,0.74)", border: "1px solid rgba(255,255,255,0.08)",
+  color: "rgba(255,255,255,0.55)", fontSize: "8px",
 };
 
 const loadingFill: CSSProperties = {

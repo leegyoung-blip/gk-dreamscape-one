@@ -131,11 +131,12 @@ type WeeklyReportResponse = {
 
 
 type ProfileView =
-  | "overview"
+  | "learning"
+  | "strengths"
   | "mastery"
-  | "patterns"
-  | "timeline"
-  | "insights";
+  | "recommends"
+  | "progress"
+  | "parent";
 
 type ProfileSubjectSummary = {
   subject: string;
@@ -560,6 +561,26 @@ function profileStatusLabel(status: ProfileSkill["status"]) {
   }
 }
 
+
+function profileStatusColour(status: ProfileSkill["status"]) {
+  switch (status) {
+    case "mastered":
+      return "#2dd4bf";
+    case "secure":
+      return "#34d399";
+    case "developing":
+      return "#facc15";
+    case "emerging":
+      return "#fb923c";
+    case "needs_support":
+      return "#f87171";
+    case "review_due":
+      return "#a78bfa";
+    default:
+      return "#94a3b8";
+  }
+}
+
 function evidenceQualityLabel(
   value: ProfileSkill["evidence_quality"],
 ) {
@@ -775,7 +796,7 @@ export default function NovaVirtualTeacherPopup({
   const [viewerRole, setViewerRole] = useState<string | null>(null);
   const [viewerRoleLoading, setViewerRoleLoading] = useState(false);
   const [profileView, setProfileView] =
-    useState<ProfileView>("overview");
+    useState<ProfileView>("learning");
   const [profileSubjectFilter, setProfileSubjectFilter] =
     useState<"all" | "english" | "math" | "science">("all");
   const [profilePayload, setProfilePayload] =
@@ -901,7 +922,7 @@ export default function NovaVirtualTeacherPopup({
     setProfilePayload(null);
     setProfileError("");
     setExpandedTopics(new Set());
-    setProfileView("overview");
+    setProfileView("learning");
     setProfileSubjectFilter("all");
   }, [studentUserId]);
 
@@ -1542,6 +1563,174 @@ export default function NovaVirtualTeacherPopup({
       skill.evidence_quality === "ready",
   ).length;
 
+  const novaPlusStrongSkills = useMemo(
+    () =>
+      [...profileSkills]
+        .filter((skill) =>
+          ["secure", "mastered"].includes(skill.status),
+        )
+        .sort(
+          (first, second) =>
+            safeNumber(second.mastery_score) -
+            safeNumber(first.mastery_score),
+        )
+        .slice(0, 8),
+    [profileSkills],
+  );
+
+  const novaPlusGapSkills = useMemo(
+    () =>
+      [...profileSkills]
+        .filter((skill) =>
+          [
+            "needs_support",
+            "emerging",
+            "developing",
+          ].includes(skill.status),
+        )
+        .sort(
+          (first, second) =>
+            safeNumber(first.mastery_score) -
+              safeNumber(second.mastery_score) ||
+            safeNumber(second.confidence_score) -
+              safeNumber(first.confidence_score),
+        )
+        .slice(0, 8),
+    [profileSkills],
+  );
+
+  const novaPlusImprovingSkills = useMemo(
+    () =>
+      [...profileSkills]
+        .filter((skill) => skill.trend === "improving")
+        .sort(
+          (first, second) =>
+            safeNumber(second.trend_points) -
+            safeNumber(first.trend_points),
+        )
+        .slice(0, 6),
+    [profileSkills],
+  );
+
+  const novaPlusReviewSkills = useMemo(
+    () =>
+      [...profileSkills]
+        .filter((skill) => skill.status === "review_due")
+        .sort(
+          (first, second) =>
+            new Date(first.last_attempted_at || 0).getTime() -
+            new Date(second.last_attempted_at || 0).getTime(),
+        )
+        .slice(0, 6),
+    [profileSkills],
+  );
+
+  const novaPlusRecommendations = useMemo(() => {
+    const focusSkill = novaPlusGapSkills[0] || null;
+    const revisitSkill =
+      novaPlusReviewSkills[0] || novaPlusGapSkills[1] || null;
+    const stretchSkill =
+      novaPlusStrongSkills[0] || novaPlusImprovingSkills[0] || null;
+    const reassessSkill =
+      novaPlusGapSkills[2] || novaPlusReviewSkills[1] || null;
+
+    return [
+      {
+        key: "focus",
+        icon: "◎",
+        label: "Focus now",
+        title:
+          focusSkill?.skill_name ||
+          (priorityProfileSubject
+            ? profileSubjectLabel(priorityProfileSubject.subject)
+            : "Build more evidence"),
+        reason: focusSkill
+          ? `Nova has identified this ${profileSubjectLabel(
+              focusSkill.subject,
+            )} skill as the clearest current priority.`
+          : "Complete a few more varied missions so Nova can identify a reliable priority.",
+      },
+      {
+        key: "revisit",
+        icon: "↺",
+        label: "Revisit",
+        title: revisitSkill?.skill_name || "Refresh a developing skill",
+        reason: revisitSkill
+          ? `A short return to this ${profileSubjectLabel(
+              revisitSkill.subject,
+            )} area can strengthen retention before it slips further.`
+          : "Nova will surface a revisit target once enough repeated evidence is available.",
+      },
+      {
+        key: "stretch",
+        icon: "✦",
+        label: "Stretch",
+        title: stretchSkill?.skill_name || "Extend a secure strength",
+        reason: stretchSkill
+          ? `This ${profileSubjectLabel(
+              stretchSkill.subject,
+            )} skill is secure enough for a more demanding challenge.`
+          : "Nova will add a stretch target once a stable strength is confirmed.",
+      },
+      {
+        key: "reassess",
+        icon: "✓",
+        label: "Reassess",
+        title: reassessSkill?.skill_name || "Check whether practice worked",
+        reason: reassessSkill
+          ? "After targeted practice, Nova should check this same area again to confirm whether the gap has narrowed."
+          : "Reassessment targets will appear after Nova identifies and supports a persistent gap.",
+      },
+    ];
+  }, [
+    novaPlusGapSkills,
+    novaPlusReviewSkills,
+    novaPlusStrongSkills,
+    novaPlusImprovingSkills,
+    priorityProfileSubject,
+  ]);
+
+  const novaPlusProgressSeries = useMemo(
+    () =>
+      [...profileTimeline]
+        .filter(
+          (entry) =>
+            entry.overall_mastery !== null &&
+            entry.overall_mastery !== undefined &&
+            Boolean(entry.snapshot_date),
+        )
+        .sort(
+          (first, second) =>
+            new Date(first.snapshot_date).getTime() -
+            new Date(second.snapshot_date).getTime(),
+        )
+        .slice(-12)
+        .map((entry) => ({
+          date: entry.snapshot_date,
+          mastery: safeNumber(entry.overall_mastery),
+        })),
+    [profileTimeline],
+  );
+
+  const novaPlusProgressPoints = useMemo(
+    () =>
+      novaPlusProgressSeries
+        .map((entry, index) => {
+          const x =
+            (index /
+              Math.max(1, novaPlusProgressSeries.length - 1)) *
+            700;
+          const y =
+            190 -
+            (Math.max(0, Math.min(100, entry.mastery)) / 100) *
+              160;
+
+          return `${x.toFixed(1)},${y.toFixed(1)}`;
+        })
+        .join(" "),
+    [novaPlusProgressSeries],
+  );
+
   function toggleTopic(topicKey: string) {
     setExpandedTopics((current) => {
       const next = new Set(current);
@@ -1708,6 +1897,7 @@ export default function NovaVirtualTeacherPopup({
               aria-disabled={!learningProfileUnlocked}
               disabled={!learningProfileUnlocked}
               className={[
+                "nova-plus-tab",
                 tab === "profile" ? "active" : "",
                 !learningProfileUnlocked ? "locked" : "",
               ]
@@ -1720,13 +1910,16 @@ export default function NovaVirtualTeacherPopup({
               }}
               title={
                 learningProfileUnlocked
-                  ? "Open Nova’s Learning Profile"
+                  ? "Open Nova+ Learning Intelligence"
                   : learningProfileFeatureEnabled
-                    ? "Learning Profile is currently available to admins only"
-                    : "Learning Profile is disabled by the production release controls"
+                    ? "Nova+ is currently available as an admin preview"
+                    : "Nova+ is disabled by the production release controls"
               }
             >
-              Learning Profile
+              <span className="nova-plus-tab-label">
+                <span className="nova-plus-tab-star" aria-hidden="true">✦</span>
+                NOVA+
+              </span>
               {!learningProfileUnlocked && (
                 <span className="nova-vt-tab-lock" aria-hidden="true">
                   🔒
@@ -2118,1004 +2311,670 @@ export default function NovaVirtualTeacherPopup({
               </div>
             </section>
           ) : (
-            <section className="nova-vt-profile-section">
-              <div className="nova-vt-profile-heading">
-                <div>
-                  <p className="nova-vt-eyebrow">Persistent learner record</p>
-                  <h3>{studentLabel}’s Learning Profile</h3>
+            <section className="nova-plus-shell">
+              <div className="nova-plus-hero">
+                <div className="nova-plus-hero-copy">
+                  <div className="nova-plus-brand-line">
+                    <span className="nova-plus-kicker">NOVA+</span>
+                    <span className="nova-plus-preview-badge">Admin preview</span>
+                  </div>
+                  <h3>Learning Intelligence</h3>
                   <p>
-                    Nova combines recorded Learning Missions activity,
-                    question-level evidence and long-term trends into one
-                    structured profile.
+                    A visual learning map that shows where {studentLabel} is strongest,
+                    what needs attention, and what Nova recommends next.
                   </p>
                 </div>
 
-                <div className="nova-profile-heading-actions">
-                  <span className="nova-vt-admin-badge">
-                    Admin only
-                  </span>
-                  <button
-                    type="button"
-                    className="nova-profile-refresh-button"
-                    disabled={
-                      profileLoading ||
-                      profileRefreshing ||
-                      !studentUserId
-                    }
-                    onClick={() =>
-                      void loadLearningProfile(true)
-                    }
-                  >
-                    {profileRefreshing
-                      ? "Refreshing…"
-                      : "Refresh profile"}
-                  </button>
+                <div className="nova-plus-hero-visual" aria-hidden="true">
+                  <div className="nova-plus-orbit orbit-one" />
+                  <div className="nova-plus-orbit orbit-two" />
+                  <div className="nova-plus-core">
+                    <img src="/nova/nova-character.png" alt="" />
+                  </div>
+                  <span className="nova-plus-spark spark-a">✦</span>
+                  <span className="nova-plus-spark spark-b">✧</span>
+                  <span className="nova-plus-spark spark-c">✦</span>
                 </div>
+
+                <button
+                  type="button"
+                  className="nova-plus-refresh"
+                  disabled={profileLoading || profileRefreshing || !studentUserId}
+                  onClick={() => void loadLearningProfile(true)}
+                >
+                  {profileRefreshing ? "Refreshing…" : "Refresh intelligence"}
+                </button>
               </div>
 
-              <div className="nova-profile-safety-note">
-                <span>
-                  The profile describes recorded learning evidence.
-                </span>
-                <InfoTip text="Nova reports patterns found in saved academic activity. It does not diagnose ability, personality or a learning condition." />
-              </div>
-
-              <nav
-                className="nova-profile-nav"
-                aria-label="Learning Profile sections"
-              >
+              <nav className="nova-plus-nav" aria-label="Nova+ Intelligence sections">
                 {(
                   [
-                    ["overview", "Overview"],
-                    ["mastery", "Mastery Map"],
-                    ["patterns", "Learning Patterns"],
-                    ["timeline", "Development Timeline"],
-                    ["insights", "Nova’s Understanding"],
-                  ] as Array<[ProfileView, string]>
-                ).map(([value, label]) => (
+                    ["learning", "My Learning", "◎"],
+                    ["strengths", "Strengths & Gaps", "✦"],
+                    ["mastery", "Mastery Map", "⌘"],
+                    ["recommends", "Nova Recommends", "➜"],
+                    ["progress", "Progress", "↗"],
+                    ["parent", "Parent Report", "◇"],
+                  ] as Array<[ProfileView, string, string]>
+                ).map(([value, label, icon]) => (
                   <button
                     key={value}
                     type="button"
-                    className={
-                      profileView === value ? "active" : ""
-                    }
+                    className={profileView === value ? "active" : ""}
                     onClick={() => setProfileView(value)}
                   >
-                    {label}
+                    <span aria-hidden="true">{icon}</span>
+                    <strong>{label}</strong>
                   </button>
                 ))}
               </nav>
 
               {profileLoading && (
-                <div className="nova-profile-loading">
-                  Building the persistent Learning Profile…
+                <div className="nova-plus-loading">
+                  <span className="nova-plus-loading-orb" aria-hidden="true" />
+                  <strong>Nova is building the learning map…</strong>
+                  <p>Combining mastery, trends, question evidence and long-term patterns.</p>
                 </div>
               )}
 
               {profileError && (
-                <div className="nova-vt-message error">
-                  {profileError}
+                <div className="nova-vt-message error">{profileError}</div>
+              )}
+
+              {!profileLoading && !profileError && !profilePayload && (
+                <div className="nova-plus-empty">
+                  Nova does not have enough processed profile data yet.
                 </div>
               )}
 
-              {!profileLoading &&
-                !profileError &&
-                !profilePayload && (
-                  <div className="nova-profile-empty">
-                    No persistent Learning Profile payload was returned.
-                  </div>
-                )}
-
-              {!profileLoading &&
-                profilePayload &&
-                profileView === "overview" && (
-                  <div className="nova-profile-view">
-                    <div className="nova-vt-profile-overview">
-                      <article>
-                        <span>Overall mastery</span>
-                        <strong>
-                          {profileSnapshot.overall_mastery !== null &&
-                          profileSnapshot.overall_mastery !== undefined
-                            ? `${Math.round(
+              {!profileLoading && profilePayload && profileView === "learning" && (
+                <div className="nova-plus-view nova-plus-learning-view">
+                  <section className="nova-plus-learning-stage">
+                    <div className="nova-plus-learning-orbit">
+                      <div className="nova-plus-learning-center">
+                        <div
+                          className="nova-plus-master-ring"
+                          style={{
+                            background: `conic-gradient(#8dfcff ${Math.max(
+                              0,
+                              Math.min(
+                                100,
                                 safeNumber(
                                   profileSnapshot.overall_mastery,
+                                  displayedAccuracy,
                                 ),
-                              )}%`
-                            : `${Math.round(
-                                displayedAccuracy,
-                              )}%`}
-                        </strong>
-                        <p>
-                          Combined curriculum evidence currently
-                          available to Nova.
-                        </p>
-                      </article>
-
-                      <article>
-                        <span>Profile confidence</span>
+                              ),
+                            )}%, rgba(141,252,255,0.08) 0)`,
+                          }}
+                        >
+                          <div>
+                            <img src="/nova/nova-character.png" alt="Nova" />
+                          </div>
+                        </div>
+                        <span>Nova’s current picture</span>
                         <strong>
-                          {profileSnapshot.profile_confidence !== null &&
-                          profileSnapshot.profile_confidence !== undefined
-                            ? `${Math.round(
-                                safeNumber(
-                                  profileSnapshot.profile_confidence,
-                                ),
-                              )}%`
-                            : titleCase(
-                                analytics?.confidence || "medium",
-                              )}
+                          {priorityProfileSubject
+                            ? `${profileSubjectLabel(priorityProfileSubject.subject)} needs the next push`
+                            : "Building a clearer learning picture"}
                         </strong>
-                        <p>
-                          Confidence rises as evidence covers more
-                          questions, skills and weeks.
-                        </p>
-                      </article>
-
-                      <article>
-                        <span>Specific skills ready</span>
-                        <strong>{granularReadyCount}</strong>
-                        <p>
-                          Granular skills with enough direct evidence
-                          and mapping coverage.
-                        </p>
-                      </article>
-
-                      <article>
-                        <span>Questions recorded</span>
-                        <strong>
-                          {safeNumber(
-                            profileSnapshot.source_question_count,
-                            clientAnswerCount,
-                          )}
-                        </strong>
-                        <p>
-                          Verified answer records contributing to the
-                          current profile.
-                        </p>
-                      </article>
-
-                      <article>
-                        <span>
-                          Age context
-                          <InfoTip text="Age changes how Nova explains findings, suggests session length and describes adult support. It never changes quiz marks, mastery calculations, curriculum standards or rewards." />
-                        </span>
-                        <strong>
-                          {profileAgeContext?.available &&
-                          profileAgeContext.age_years !== null
-                            ? `${profileAgeContext.age_years} years`
-                            : "Not available"}
-                        </strong>
-                        <p>
-                          {profileAgeContext?.available
-                            ? ageContextSummary(profileAgeContext)
-                            : "Complete the learner DOB profile to activate age-aware guidance."}
-                        </p>
-                      </article>
-                    </div>
-
-                    <div className="nova-vt-profile-columns">
-                      <article className="nova-vt-profile-card">
-                        <div className="nova-profile-card-heading">
-                          <div>
-                            <p className="nova-vt-eyebrow">
-                              Current understanding
-                            </p>
-                            <h4>What Nova knows now</h4>
-                          </div>
-                          <InfoTip text="These conclusions are recalculated from stored evidence. They may change as the learner completes more work." />
-                        </div>
-
-                        <div className="nova-vt-profile-facts">
-                          <div>
-                            <span>Strongest current subject</span>
-                            <strong>
-                              {strongestProfileSubject
-                                ? `${profileSubjectLabel(
-                                    strongestProfileSubject.subject,
-                                  )} · ${Math.round(
-                                    safeNumber(
-                                      strongestProfileSubject.mastery_score,
-                                    ),
-                                  )}% mastery`
-                                : strongestSubject
-                                  ? `${strongestSubject.label} · ${strongestSubject.accuracy}%`
-                                  : "More activity needed"}
-                            </strong>
-                          </div>
-
-                          <div>
-                            <span>Highest-priority subject</span>
-                            <strong>
-                              {priorityProfileSubject
-                                ? `${profileSubjectLabel(
-                                    priorityProfileSubject.subject,
-                                  )} · ${Math.round(
-                                    safeNumber(
-                                      priorityProfileSubject.mastery_score,
-                                    ),
-                                  )}% mastery`
-                                : prioritySubject
-                                  ? `${prioritySubject.label} · ${prioritySubject.accuracy}%`
-                                  : "More activity needed"}
-                            </strong>
-                          </div>
-
-                          <div>
-                            <span>Current priority skills</span>
-                            <strong>
-                              {profileInsights.filter(
-                                (insight) =>
-                                  insight.insight_type ===
-                                    "persistent_weakness" ||
-                                  insight.insight_type ===
-                                    "review_due",
-                              ).length > 0
-                                ? profileInsights
-                                    .filter(
-                                      (insight) =>
-                                        insight.insight_type ===
-                                          "persistent_weakness" ||
-                                        insight.insight_type ===
-                                          "review_due",
-                                    )
-                                    .slice(0, 3)
-                                    .map(
-                                      (insight) => insight.title,
-                                    )
-                                    .join(", ")
-                                : weaknesses.length > 0
-                                  ? weaknesses
-                                      .slice(0, 3)
-                                      .map((area) => area.label)
-                                      .join(", ")
-                                  : "No reliable priority detected yet"}
-                            </strong>
-                          </div>
-
-                          <div>
-                            <span>Age contextualisation</span>
-                            <strong>
-                              {profileAgeContext?.available
-                                ? `${profileAgeContext.age_band_label} · ${readableGuidance(
-                                    profileAgeContext.independence_guidance,
-                                  )}`
-                                : "Waiting for completed learner DOB"}
-                            </strong>
-                          </div>
-
-                          <div>
-                            <span>Current weekly direction</span>
-                            <strong>{displayedSummary}</strong>
-                          </div>
-                        </div>
-                      </article>
-
-                      <article className="nova-vt-profile-card">
-                        <p className="nova-vt-eyebrow">
-                          Academic data coverage
-                        </p>
-                        <h4>Connected Learning Missions</h4>
-
-                        <div className="nova-vt-source-list">
-                          {(
-                            [
-                              ["english", "English Missions"],
-                              ["math", "Mathematics Missions"],
-                              ["science", "Science Missions"],
-                            ] as const
-                          ).map(([subject, label]) => {
-                            const summary =
-                              profileSubjectSummaries.find(
-                                (row) =>
-                                  row.subject === subject,
-                              );
-                            const skillCount =
-                              profileSkills.filter(
-                                (skill) =>
-                                  skill.subject === subject,
-                              ).length;
-
-                            return (
-                              <div
-                                key={subject}
-                                className={
-                                  summary || skillCount > 0
-                                    ? "connected"
-                                    : "pending"
-                                }
-                              >
-                                <span>
-                                  {summary || skillCount > 0
-                                    ? "✓"
-                                    : "…"}
-                                </span>
-                                <div>
-                                  <strong>{label}</strong>
-                                  <small>
-                                    {summary
-                                      ? `${summary.questions_attempted} questions · ${skillCount} profile rows`
-                                      : "Waiting for recorded activity"}
-                                  </small>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </article>
-                    </div>
-
-                    <section className="nova-profile-insight-strip">
-                      <div className="nova-profile-card-heading">
-                        <div>
-                          <p className="nova-vt-eyebrow">
-                            Latest evidence-backed findings
-                          </p>
-                          <h4>What deserves attention</h4>
-                        </div>
-                        <InfoTip text="A specific weakness is shown only after repeated direct errors across different questions and attempts. Secondary supporting mappings cannot create a misconception by themselves." />
                       </div>
 
-                      {profileInsights.length === 0 ? (
-                        <p className="nova-profile-muted-copy">
-                          More completed mapped questions are needed
-                          before Nova can form a reliable long-term
-                          finding.
-                        </p>
-                      ) : (
-                        <div className="nova-profile-insight-grid">
-                          {profileInsights
-                            .slice(0, 4)
-                            .map((insight) => (
-                              <article
-                                key={insight.id}
-                                className={`severity-${insight.severity}`}
-                              >
-                                <span>
-                                  {profileSubjectLabel(
-                                    insight.subject,
-                                  )}
-                                </span>
-                                <strong>{insight.title}</strong>
-                                <p>{insight.summary}</p>
-                              </article>
-                            ))}
-                        </div>
-                      )}
-                    </section>
-                  </div>
-                )}
-
-              {!profileLoading &&
-                profilePayload &&
-                profileView === "mastery" && (
-                  <div className="nova-profile-view">
-                    <div className="nova-profile-section-heading">
-                      <div>
-                        <p className="nova-vt-eyebrow">
-                          Curriculum understanding
-                        </p>
-                        <h4>
-                          Mastery Map
-                          <InfoTip text="Mastery Map shows broad curriculum areas and the specific skills Nova has enough evidence to assess. Select a topic to view the skills underneath." />
-                        </h4>
-                        <p>
-                          Select a topic to see the specific skills,
-                          evidence quality and recent learning signals
-                          underneath it.
-                        </p>
-                      </div>
-
-                      <div className="nova-profile-subject-filter">
-                        {(
-                          [
-                            ["all", "All"],
-                            ["english", "English"],
-                            ["math", "Mathematics"],
-                            ["science", "Science"],
-                          ] as const
-                        ).map(([value, label]) => (
-                          <button
-                            key={value}
-                            type="button"
-                            className={
-                              profileSubjectFilter === value
-                                ? "active"
-                                : ""
-                            }
-                            onClick={() =>
-                              setProfileSubjectFilter(value)
-                            }
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {filteredProfileTopicGroups.length === 0 ? (
-                      <div className="nova-profile-empty">
-                        No mastery rows are available for the selected
-                        subject yet.
-                      </div>
-                    ) : (
-                      <div className="nova-mastery-map">
-                        {filteredProfileTopicGroups.map((group) => {
-                          const expanded =
-                            expandedTopics.has(group.key);
+                      <div className="nova-plus-subject-planets">
+                        {profileSubjectSummaries.slice(0, 4).map((subject) => {
+                          const mastery = Math.max(
+                            0,
+                            Math.min(100, safeNumber(subject.mastery_score)),
+                          );
+                          const accent = subjectAccent(subject.subject);
 
                           return (
                             <article
-                              key={group.key}
-                              className={`nova-mastery-topic ${expanded ? "expanded" : ""}`}
+                              key={subject.subject}
+                              className="nova-plus-planet"
+                              style={{ borderColor: `${accent}55` }}
                             >
-                              <button
-                                type="button"
-                                className="nova-mastery-topic-row"
-                                onClick={() =>
-                                  toggleTopic(group.key)
-                                }
-                                aria-expanded={expanded}
+                              <div
+                                className="nova-plus-planet-ring"
+                                style={{
+                                  background: `conic-gradient(${accent} ${mastery}%, rgba(255,255,255,0.08) 0)`,
+                                }}
                               >
-                                <div className="nova-mastery-topic-title">
-                                  <span
-                                    className="nova-mastery-subject-dot"
-                                    style={{
-                                      background:
-                                        subjectAccent(
-                                          group.subject,
-                                        ),
-                                    }}
-                                  />
-                                  <div>
-                                    <small>
-                                      {profileSubjectLabel(
-                                        group.subject,
-                                      )}{" "}
-                                      · Primary {group.primaryLevel}
-                                      {group.domain
-                                        ? ` · ${group.domain}`
-                                        : ""}
-                                    </small>
-                                    <strong>{group.topic}</strong>
-                                    <p>
-                                      {group.totalSkills > 0
-                                        ? `${group.readySkills} of ${group.totalSkills} specific skills have reliable evidence`
-                                        : "Broad topic evidence only"}
-                                    </p>
-                                  </div>
+                                <div style={{ color: accent }}>
+                                  {SUBJECT_META[subject.subject as SubjectKey]?.icon || "◇"}
                                 </div>
-
-                                <div className="nova-mastery-topic-metrics">
-                                  <div>
-                                    <span>Mastery</span>
-                                    <strong>
-                                      {Math.round(
-                                        group.masteryScore,
-                                      )}
-                                      %
-                                    </strong>
-                                  </div>
-                                  <div>
-                                    <span>Confidence</span>
-                                    <strong>
-                                      {Math.round(
-                                        group.confidenceScore,
-                                      )}
-                                      %
-                                    </strong>
-                                  </div>
-                                  <div>
-                                    <span>Status</span>
-                                    <strong
-                                      className={`status-${group.status}`}
-                                    >
-                                      {profileStatusLabel(
-                                        group.status,
-                                      )}
-                                    </strong>
-                                  </div>
-                                  <span className="nova-mastery-arrow">
-                                    {expanded ? "⌃" : "⌄"}
-                                  </span>
-                                </div>
-                              </button>
-
-                              {expanded && (
-                                <div className="nova-mastery-topic-detail">
-                                  {group.topicSkill && (
-                                    <div className="nova-mastery-broad-row">
-                                      <div>
-                                        <span>Broad topic result</span>
-                                        <strong>
-                                          {profileStatusLabel(
-                                            group.topicSkill.status,
-                                          )}
-                                        </strong>
-                                      </div>
-                                      <p>
-                                        Based on{" "}
-                                        {
-                                          group.topicSkill
-                                            .questions_attempted
-                                        }{" "}
-                                        recorded questions across{" "}
-                                        {
-                                          group.topicSkill
-                                            .unique_activities
-                                        }{" "}
-                                        activities.
-                                      </p>
-                                    </div>
-                                  )}
-
-                                  {group.granularSkills.length === 0 ? (
-                                    <div className="nova-mastery-no-skills">
-                                      Nova will show specific skills here
-                                      after more questions have been
-                                      mapped and attempted.
-                                    </div>
-                                  ) : (
-                                    <div className="nova-mastery-skill-list">
-                                      {group.granularSkills.map(
-                                        (skill) => (
-                                          <article
-                                            key={skill.skill_id}
-                                            className="nova-mastery-skill"
-                                          >
-                                            <div className="nova-mastery-skill-heading">
-                                              <div>
-                                                <span>
-                                                  {skill.skill_code}
-                                                </span>
-                                                <h5>
-                                                  {skill.skill_name}
-                                                  {skill.public_explanation && (
-                                                    <InfoTip
-                                                      text={
-                                                        skill.public_explanation
-                                                      }
-                                                    />
-                                                  )}
-                                                </h5>
-                                              </div>
-
-                                              <span
-                                                className={`nova-mastery-status status-${skill.status}`}
-                                              >
-                                                {profileStatusLabel(
-                                                  skill.status,
-                                                )}
-                                              </span>
-                                            </div>
-
-                                            <div className="nova-mastery-skill-metrics">
-                                              <MetricBox
-                                                label="Mastery"
-                                                value={`${Math.round(
-                                                  safeNumber(
-                                                    skill.mastery_score,
-                                                  ),
-                                                )}%`}
-                                                help="Mastery combines recent accuracy, longer-term accuracy, repeated evidence and recency."
-                                              />
-                                              <MetricBox
-                                                label="Confidence"
-                                                value={`${Math.round(
-                                                  safeNumber(
-                                                    skill.confidence_score,
-                                                  ),
-                                                )}%`}
-                                                help="Confidence measures how much evidence supports the mastery estimate. It is separate from the mastery score."
-                                              />
-                                              <MetricBox
-                                                label="Mapping coverage"
-                                                value={
-                                                  skill.mapping_coverage ===
-                                                    null ||
-                                                  skill.mapping_coverage ===
-                                                    undefined
-                                                    ? "Building"
-                                                    : `${Math.round(
-                                                        safeNumber(
-                                                          skill.mapping_coverage,
-                                                        ),
-                                                      )}%`
-                                                }
-                                                help="Mapping coverage shows how much of the related question bank has approved skill mappings."
-                                              />
-                                              <MetricBox
-                                                label="Direct questions"
-                                                value={String(
-                                                  skill.primary_unique_questions,
-                                                )}
-                                                help="Direct questions are questions where this was the primary skill being tested."
-                                              />
-                                            </div>
-
-                                            <div className="nova-mastery-evidence-row">
-                                              <div>
-                                                <span>
-                                                  Evidence quality
-                                                </span>
-                                                <strong>
-                                                  {evidenceQualityLabel(
-                                                    skill.evidence_quality,
-                                                  )}
-                                                </strong>
-                                              </div>
-                                              <div>
-                                                <span>
-                                                  Direct attempts
-                                                </span>
-                                                <strong>
-                                                  {
-                                                    skill.primary_unique_attempts
-                                                  }
-                                                </strong>
-                                              </div>
-                                              <div>
-                                                <span>
-                                                  Recent direct errors
-                                                </span>
-                                                <strong>
-                                                  {
-                                                    skill.recent_primary_wrong_answers
-                                                  }
-                                                </strong>
-                                              </div>
-                                              <div>
-                                                <span>Trend</span>
-                                                <strong>
-                                                  {titleCase(
-                                                    skill.trend,
-                                                  )}
-                                                  {skill.trend_points !==
-                                                    null &&
-                                                  skill.trend_points !==
-                                                    undefined
-                                                    ? ` · ${
-                                                        skill
-                                                          .trend_points >
-                                                        0
-                                                          ? "+"
-                                                          : ""
-                                                      }${Math.round(
-                                                        safeNumber(
-                                                          skill.trend_points,
-                                                        ),
-                                                      )} pts`
-                                                    : ""}
-                                                </strong>
-                                              </div>
-                                              <div>
-                                                <span>Last activity</span>
-                                                <strong>
-                                                  {formatProfileDate(
-                                                    skill.last_attempted_at,
-                                                  )}
-                                                </strong>
-                                              </div>
-                                            </div>
-
-                                            {!skill.granular_eligible && (
-                                              <p className="nova-mastery-building-note">
-                                                This skill remains in
-                                                evidence-building mode and
-                                                will not be presented as a
-                                                firm strength or weakness
-                                                yet.
-                                              </p>
-                                            )}
-                                          </article>
-                                        ),
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
+                              </div>
+                              <strong>{profileSubjectLabel(subject.subject)}</strong>
+                              <span>
+                                {subject.priority_skills > 0
+                                  ? `${subject.priority_skills} areas to strengthen`
+                                  : "Looking secure"}
+                              </span>
                             </article>
                           );
                         })}
                       </div>
-                    )}
-                  </div>
-                )}
-
-              {!profileLoading &&
-                profilePayload &&
-                profileView === "patterns" && (
-                  <div className="nova-profile-view">
-                    <div className="nova-profile-section-heading">
-                      <div>
-                        <p className="nova-vt-eyebrow">
-                          Recorded study behaviour
-                        </p>
-                        <h4>
-                          Learning Patterns
-                          <InfoTip text="These patterns describe recorded activity, such as consistency or retry behaviour. They are not personality labels or diagnoses." />
-                        </h4>
-                        <p>
-                          Patterns are calculated from completed work
-                          over time and remain separate from academic
-                          mastery.
-                        </p>
-                      </div>
                     </div>
 
-                    {profilePatterns.length === 0 ? (
-                      <div className="nova-profile-empty">
-                        More activity over several weeks is needed
-                        before learning patterns can be calculated.
-                      </div>
-                    ) : (
-                      <div className="nova-pattern-grid">
-                        {profilePatterns.map((pattern) => (
-                          <article key={pattern.id}>
-                            <div className="nova-pattern-heading">
-                              <span>
-                                {profileSubjectLabel(
-                                  pattern.subject,
-                                )}
-                              </span>
-                              <strong>
-                                {Math.round(
-                                  safeNumber(
-                                    pattern.confidence_score,
-                                  ),
-                                )}
-                                % confidence
-                              </strong>
-                            </div>
-                            <h5>
-                              {patternLabel(
-                                pattern.pattern_key,
-                              )}
-                            </h5>
-                            <div className="nova-pattern-value">
-                              {formatPatternValue(
-                                pattern.current_value,
-                                pattern.unit,
-                              )}
-                            </div>
-                            <p>
-                              {pattern.interpretation ||
-                                "Nova needs more evidence before describing this pattern."}
-                            </p>
-                            <small>
-                              {pattern.evidence_count} evidence
-                              record
-                              {pattern.evidence_count === 1
-                                ? ""
-                                : "s"}
-                            </small>
-                          </article>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-              {!profileLoading &&
-                profilePayload &&
-                profileView === "timeline" && (
-                  <div className="nova-profile-view">
-                    <div className="nova-profile-section-heading">
-                      <div>
-                        <p className="nova-vt-eyebrow">
-                          Long-term development
-                        </p>
-                        <h4>Development Timeline</h4>
-                        <p>
-                          Weekly, monthly and manual snapshots show how
-                          the recorded profile changes over time.
-                        </p>
-                      </div>
-                    </div>
-
-                    {profileTimeline.length === 0 ? (
-                      <div className="nova-profile-empty">
-                        The first timeline point will appear after a
-                        Learning Profile snapshot has been generated.
-                      </div>
-                    ) : (
-                      <div className="nova-timeline">
-                        {profileTimeline.map((snapshot) => (
-                          <article key={snapshot.id}>
-                            <div className="nova-timeline-marker" />
-                            <div className="nova-timeline-card">
-                              <div className="nova-timeline-heading">
-                                <div>
-                                  <span>
-                                    {titleCase(
-                                      snapshot.snapshot_type,
-                                    )}{" "}
-                                    snapshot
-                                  </span>
-                                  <h5>
-                                    {formatProfileDate(
-                                      snapshot.snapshot_date,
-                                    )}
-                                  </h5>
-                                </div>
-                                <strong>
-                                  {snapshot.overall_mastery !== null
-                                    ? `${Math.round(
-                                        safeNumber(
-                                          snapshot.overall_mastery,
-                                        ),
-                                      )}% mastery`
-                                    : "Mastery building"}
-                                </strong>
-                              </div>
-
-                              <div className="nova-timeline-metrics">
-                                <div>
-                                  <span>Confidence</span>
-                                  <strong>
-                                    {snapshot.profile_confidence !==
-                                    null
-                                      ? `${Math.round(
-                                          safeNumber(
-                                            snapshot.profile_confidence,
-                                          ),
-                                        )}%`
-                                      : "—"}
-                                  </strong>
-                                </div>
-                                <div>
-                                  <span>Strongest subject</span>
-                                  <strong>
-                                    {profileSubjectLabel(
-                                      snapshot.strongest_subject,
-                                    ) || "—"}
-                                  </strong>
-                                </div>
-                                <div>
-                                  <span>Priority subject</span>
-                                  <strong>
-                                    {profileSubjectLabel(
-                                      snapshot.priority_subject,
-                                    ) || "—"}
-                                  </strong>
-                                </div>
-                                <div>
-                                  <span>Questions recorded</span>
-                                  <strong>
-                                    {
-                                      snapshot.source_question_count
-                                    }
-                                  </strong>
-                                </div>
-                              </div>
-                            </div>
-                          </article>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-              {!profileLoading &&
-                profilePayload &&
-                profileView === "insights" && (
-                  <div className="nova-profile-view">
-                    <div className="nova-profile-section-heading">
-                      <div>
-                        <p className="nova-vt-eyebrow">
-                          Evidence-backed interpretation
-                        </p>
-                        <h4>
-                          Nova’s Understanding
-                          <InfoTip text="Nova explains calculations already produced by deterministic analytics. AI wording does not alter mastery scores, evidence counts or reward eligibility." />
-                        </h4>
-                        <p>
-                          Active findings remain visible while the
-                          supporting evidence is current. Resolved
-                          findings remain in history.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="nova-understanding-columns">
-                      <section>
-                        <div className="nova-understanding-title">
-                          <h5>Active findings</h5>
-                          <span>{profileInsights.length}</span>
+                    <div className="nova-plus-learning-path">
+                      <div className="nova-plus-path-node completed">
+                        <span>1</span>
+                        <div>
+                          <small>Build on</small>
+                          <strong>
+                            {strongestProfileSubject
+                              ? profileSubjectLabel(strongestProfileSubject.subject)
+                              : "Current strengths"}
+                          </strong>
                         </div>
+                      </div>
+                      <div className="nova-plus-path-line" />
+                      <div className="nova-plus-path-node focus">
+                        <span>2</span>
+                        <div>
+                          <small>Focus now</small>
+                          <strong>
+                            {novaPlusGapSkills[0]?.skill_name ||
+                              (priorityProfileSubject
+                                ? profileSubjectLabel(priorityProfileSubject.subject)
+                                : "Gather more evidence")}
+                          </strong>
+                        </div>
+                      </div>
+                      <div className="nova-plus-path-line" />
+                      <div className="nova-plus-path-node future">
+                        <span>3</span>
+                        <div>
+                          <small>Next checkpoint</small>
+                          <strong>
+                            {novaPlusReviewSkills[0]?.skill_name ||
+                              "Nova will reassess after practice"}
+                          </strong>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
 
-                        {profileInsights.length === 0 ? (
-                          <div className="nova-profile-empty compact">
-                            No active long-term finding is currently
-                            supported by enough evidence.
+                  <section className="nova-plus-pattern-strip">
+                    {profilePatterns.slice(0, 4).map((pattern) => {
+                      const value = Math.max(
+                        0,
+                        Math.min(100, safeNumber(pattern.current_value)),
+                      );
+
+                      return (
+                        <article key={pattern.id}>
+                          <div
+                            className="nova-plus-pattern-gauge"
+                            style={{
+                              background: `conic-gradient(#c4b5fd ${value}%, rgba(196,181,253,0.08) 0)`,
+                            }}
+                          >
+                            <span>◇</span>
+                          </div>
+                          <div>
+                            <strong>{patternLabel(pattern.pattern_key)}</strong>
+                            <p>{pattern.interpretation || "Nova is still watching this pattern."}</p>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </section>
+
+                  {profileAgeContext?.available && (
+                    <section className="nova-plus-age-ribbon">
+                      <span className="nova-plus-age-icon">◌</span>
+                      <div>
+                        <small>Age-aware guidance</small>
+                        <strong>{ageContextSummary(profileAgeContext)}</strong>
+                      </div>
+                      <p>{profileAgeContext.support_guidance}</p>
+                      <InfoTip text="Age changes wording, session length and support guidance only. It does not change marks, mastery, curriculum standards, quiz eligibility or rewards." />
+                    </section>
+                  )}
+                </div>
+              )}
+
+              {!profileLoading && profilePayload && profileView === "strengths" && (
+                <div className="nova-plus-view nova-plus-strengths-view">
+                  <section className="nova-plus-constellation-card positive">
+                    <div className="nova-plus-section-title">
+                      <div>
+                        <p className="nova-vt-eyebrow">Strength constellation</p>
+                        <h4>What is becoming secure</h4>
+                      </div>
+                      <span className="nova-plus-section-symbol">✦</span>
+                    </div>
+
+                    <div className="nova-plus-constellation">
+                      <div className="nova-plus-constellation-lines" aria-hidden="true" />
+                      {novaPlusStrongSkills.length === 0 ? (
+                        <div className="nova-plus-empty compact">
+                          Nova needs more evidence before confirming stable strengths.
+                        </div>
+                      ) : (
+                        novaPlusStrongSkills.slice(0, 6).map((skill, index) => {
+                          const accent = subjectAccent(skill.subject);
+                          return (
+                            <article
+                              key={skill.skill_id}
+                              className={`nova-plus-skill-star star-${index + 1}`}
+                              style={{ borderColor: `${accent}66`, boxShadow: `0 0 28px ${accent}20` }}
+                            >
+                              <span style={{ color: accent }}>✦</span>
+                              <strong>{skill.skill_name}</strong>
+                              <small>{profileSubjectLabel(skill.subject)}</small>
+                            </article>
+                          );
+                        })
+                      )}
+                    </div>
+                  </section>
+
+                  <section className="nova-plus-gap-card">
+                    <div className="nova-plus-section-title">
+                      <div>
+                        <p className="nova-vt-eyebrow">Focus radar</p>
+                        <h4>Where attention will have the biggest effect</h4>
+                      </div>
+                      <span className="nova-plus-section-symbol warning">◎</span>
+                    </div>
+
+                    <div className="nova-plus-gap-radar">
+                      <div className="nova-plus-radar-disc" aria-hidden="true">
+                        <span className="ring r1" />
+                        <span className="ring r2" />
+                        <span className="ring r3" />
+                        <span className="sweep" />
+                        {novaPlusGapSkills.slice(0, 4).map((skill, index) => (
+                          <span key={skill.skill_id} className={`blip b${index + 1}`} />
+                        ))}
+                      </div>
+
+                      <div className="nova-plus-gap-list">
+                        {novaPlusGapSkills.length === 0 ? (
+                          <div className="nova-plus-empty compact">
+                            No persistent learning gap currently has enough evidence.
                           </div>
                         ) : (
-                          <div className="nova-understanding-list">
-                            {profileInsights.map((insight) => (
-                              <article
-                                key={insight.id}
-                                className={`severity-${insight.severity}`}
-                              >
+                          novaPlusGapSkills.slice(0, 5).map((skill) => {
+                            const accent = subjectAccent(skill.subject);
+                            return (
+                              <article key={skill.skill_id}>
+                                <span
+                                  className="nova-plus-gap-status"
+                                  style={{ background: profileStatusColour(skill.status) }}
+                                />
                                 <div>
-                                  <span>
-                                    {profileSubjectLabel(
-                                      insight.subject,
-                                    )}{" "}
-                                    ·{" "}
-                                    {titleCase(
-                                      insight.insight_type,
-                                    )}
-                                  </span>
-                                  <strong>{insight.title}</strong>
+                                  <strong>{skill.skill_name}</strong>
+                                  <small>{profileSubjectLabel(skill.subject)} · {profileStatusLabel(skill.status)}</small>
                                 </div>
-                                <p>{insight.summary}</p>
-                                <footer>
-                                  <span>
-                                    {Math.round(
-                                      safeNumber(
-                                        insight.confidence_score,
-                                      ),
-                                    )}
-                                    % confidence
-                                  </span>
-                                  <span>
-                                    Confirmed{" "}
-                                    {formatProfileDate(
-                                      insight.last_confirmed_at,
-                                    )}
-                                  </span>
-                                </footer>
+                                <div
+                                  className="nova-plus-gap-meter"
+                                  aria-label={`${skill.skill_name} mastery ${Math.round(skill.mastery_score)} percent`}
+                                >
+                                  <span
+                                    style={{
+                                      width: `${Math.max(6, Math.min(100, skill.mastery_score))}%`,
+                                      background: accent,
+                                    }}
+                                  />
+                                </div>
                               </article>
-                            ))}
-                          </div>
+                            );
+                          })
                         )}
-                      </section>
-
-                      <section>
-                        <div className="nova-understanding-title">
-                          <h5>Resolved history</h5>
-                          <span>
-                            {resolvedProfileInsights.length}
-                          </span>
-                        </div>
-
-                        {resolvedProfileInsights.length === 0 ? (
-                          <div className="nova-profile-empty compact">
-                            Resolved findings will appear here as the
-                            learner’s evidence changes.
-                          </div>
-                        ) : (
-                          <div className="nova-understanding-list resolved">
-                            {resolvedProfileInsights
-                              .slice(0, 20)
-                              .map((insight) => (
-                                <article key={insight.id}>
-                                  <div>
-                                    <span>
-                                      {profileSubjectLabel(
-                                        insight.subject,
-                                      )}
-                                    </span>
-                                    <strong>
-                                      {insight.title}
-                                    </strong>
-                                  </div>
-                                  <p>{insight.summary}</p>
-                                  <footer>
-                                    <span>
-                                      Resolved{" "}
-                                      {formatProfileDate(
-                                        insight.resolved_at,
-                                      )}
-                                    </span>
-                                  </footer>
-                                </article>
-                              ))}
-                          </div>
-                        )}
-                      </section>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  </section>
+
+                  <section className="nova-plus-insight-ribbon">
+                    <span>↗</span>
+                    <div>
+                      <small>Movement Nova has noticed</small>
+                      <strong>
+                        {novaPlusImprovingSkills[0]
+                          ? `${novaPlusImprovingSkills[0].skill_name} is trending upward.`
+                          : "Nova is waiting for enough repeated evidence to confirm a trend."}
+                      </strong>
+                    </div>
+                  </section>
+                </div>
+              )}
+
+              {!profileLoading && profilePayload && profileView === "mastery" && (
+                <div className="nova-plus-view nova-plus-mastery-view">
+                  <section className="nova-plus-map-toolbar">
+                    <div>
+                      <p className="nova-vt-eyebrow">Curriculum mastery map</p>
+                      <h4>Explore the learner’s skill landscape</h4>
+                    </div>
+
+                    <div className="nova-plus-subject-pills">
+                      {(["all", "english", "math", "science"] as const).map((subject) => (
+                        <button
+                          key={subject}
+                          type="button"
+                          className={profileSubjectFilter === subject ? "active" : ""}
+                          onClick={() => setProfileSubjectFilter(subject)}
+                        >
+                          {subject === "all" ? "All" : profileSubjectLabel(subject)}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="nova-plus-map-grid">
+                    {filteredProfileTopicGroups.length === 0 ? (
+                      <div className="nova-plus-empty">No mapped topics are available yet.</div>
+                    ) : (
+                      filteredProfileTopicGroups.map((group) => {
+                        const accent = subjectAccent(group.subject);
+                        const expanded = expandedTopics.has(group.key);
+
+                        return (
+                          <article
+                            key={group.key}
+                            className={`nova-plus-topic-world ${expanded ? "expanded" : ""}`}
+                            style={{ borderColor: `${accent}35` }}
+                          >
+                            <button
+                              type="button"
+                              className="nova-plus-topic-world-head"
+                              onClick={() => toggleTopic(group.key)}
+                            >
+                              <div
+                                className="nova-plus-topic-ring"
+                                style={{
+                                  background: `conic-gradient(${accent} ${Math.max(
+                                    0,
+                                    Math.min(100, group.masteryScore),
+                                  )}%, rgba(255,255,255,0.07) 0)`,
+                                }}
+                              >
+                                <div style={{ color: accent }}>
+                                  {SUBJECT_META[group.subject as SubjectKey]?.icon || "◇"}
+                                </div>
+                              </div>
+
+                              <div className="nova-plus-topic-copy">
+                                <small>{profileSubjectLabel(group.subject)}{group.primaryLevel ? ` · Primary ${group.primaryLevel}` : ""}</small>
+                                <strong>{group.topic}</strong>
+                                <span>{profileStatusLabel(group.status)}</span>
+                              </div>
+
+                              <span className="nova-plus-topic-expand">{expanded ? "−" : "+"}</span>
+                            </button>
+
+                            <div className="nova-plus-topic-legend">
+                              <span><i className="mastered" /> Mastered</span>
+                              <span><i className="secure" /> Secure</span>
+                              <span><i className="developing" /> Developing</span>
+                              <span><i className="support" /> Needs attention</span>
+                            </div>
+
+                            {expanded && (
+                              <div className="nova-plus-skill-node-map">
+                                {group.granularSkills.length === 0 ? (
+                                  <div className="nova-plus-empty compact">
+                                    This topic is currently represented at topic level.
+                                  </div>
+                                ) : (
+                                  group.granularSkills.map((skill) => (
+                                    <article
+                                      key={skill.skill_id}
+                                      className="nova-plus-skill-node"
+                                      title={`${profileStatusLabel(skill.status)} · ${evidenceQualityLabel(skill.evidence_quality)}`}
+                                    >
+                                      <span
+                                        style={{
+                                          background: profileStatusColour(skill.status),
+                                          boxShadow: `0 0 18px ${profileStatusColour(skill.status)}55`,
+                                        }}
+                                      />
+                                      <strong>{skill.skill_name}</strong>
+                                      <small>{profileStatusLabel(skill.status)}</small>
+                                    </article>
+                                  ))
+                                )}
+                              </div>
+                            )}
+                          </article>
+                        );
+                      })
+                    )}
+                  </section>
+                </div>
+              )}
+
+              {!profileLoading && profilePayload && profileView === "recommends" && (
+                <div className="nova-plus-view nova-plus-recommend-view">
+                  <section className="nova-plus-recommend-hero">
+                    <div>
+                      <p className="nova-vt-eyebrow">Nova’s next move</p>
+                      <h4>Turn the learning profile into action</h4>
+                      <p>
+                        Nova prioritises practice that closes a real gap, refreshes fading knowledge,
+                        stretches secure skills and checks whether support worked.
+                      </p>
+                    </div>
+                    <button type="button" onClick={() => setTab("plan")}>Open seven-day plan →</button>
+                  </section>
+
+                  <section className="nova-plus-recommend-grid">
+                    {novaPlusRecommendations.map((item) => (
+                      <article key={item.key} className={`nova-plus-recommend-card ${item.key}`}>
+                        <div className="nova-plus-recommend-visual">
+                          <span>{item.icon}</span>
+                          <div className="nova-plus-recommend-pulse" />
+                        </div>
+                        <div className="nova-plus-recommend-copy">
+                          <small>{item.label}</small>
+                          <h5>{item.title}</h5>
+                          <p>{item.reason}</p>
+                        </div>
+                        <button type="button" onClick={() => setTab("plan")}>View plan</button>
+                      </article>
+                    ))}
+                  </section>
+
+                  <section className="nova-plus-reassess-flow">
+                    <div className="nova-plus-flow-step done"><span>1</span><strong>Identify</strong></div>
+                    <i />
+                    <div className="nova-plus-flow-step active"><span>2</span><strong>Practise</strong></div>
+                    <i />
+                    <div className="nova-plus-flow-step"><span>3</span><strong>Reassess</strong></div>
+                    <i />
+                    <div className="nova-plus-flow-step"><span>4</span><strong>Confirm growth</strong></div>
+                  </section>
+                </div>
+              )}
+
+              {!profileLoading && profilePayload && profileView === "progress" && (
+                <div className="nova-plus-view nova-plus-progress-view">
+                  <section className="nova-plus-progress-chart-card">
+                    <div className="nova-plus-section-title">
+                      <div>
+                        <p className="nova-vt-eyebrow">Learning journey</p>
+                        <h4>How the profile is moving over time</h4>
+                      </div>
+                      <span className="nova-plus-progress-arrow">↗</span>
+                    </div>
+
+                    {novaPlusProgressSeries.length < 2 ? (
+                      <div className="nova-plus-empty">
+                        Nova needs at least two saved snapshots before a progress journey can be drawn.
+                      </div>
+                    ) : (
+                      <div className="nova-plus-chart-wrap">
+                        <svg viewBox="0 0 700 230" role="img" aria-label="Overall mastery progress over time">
+                          <defs>
+                            <linearGradient id="novaPlusArea" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#8dfcff" stopOpacity="0.3" />
+                              <stop offset="100%" stopColor="#8dfcff" stopOpacity="0" />
+                            </linearGradient>
+                          </defs>
+                          <line x1="0" x2="700" y1="190" y2="190" className="nova-plus-chart-axis" />
+                          <line x1="0" x2="700" y1="110" y2="110" className="nova-plus-chart-grid" />
+                          <line x1="0" x2="700" y1="30" y2="30" className="nova-plus-chart-grid" />
+                          <polygon points={`0,190 ${novaPlusProgressPoints} 700,190`} fill="url(#novaPlusArea)" />
+                          <polyline points={novaPlusProgressPoints} className="nova-plus-chart-line" />
+                          {novaPlusProgressSeries.map((entry, index) => {
+                            const x = (index / Math.max(1, novaPlusProgressSeries.length - 1)) * 700;
+                            const y = 190 - (Math.max(0, Math.min(100, entry.mastery)) / 100) * 160;
+                            return <circle key={`${entry.date}-${index}`} cx={x} cy={y} r="6" className="nova-plus-chart-dot" />;
+                          })}
+                        </svg>
+                        <div className="nova-plus-chart-labels">
+                          <span>{formatProfileDate(novaPlusProgressSeries[0]?.date)}</span>
+                          <span>{formatProfileDate(novaPlusProgressSeries[novaPlusProgressSeries.length - 1]?.date)}</span>
+                        </div>
+                      </div>
+                    )}
+                  </section>
+
+                  <section className="nova-plus-progress-subjects">
+                    {profileSubjectSummaries.slice(0, 4).map((subject) => {
+                      const accent = subjectAccent(subject.subject);
+                      return (
+                        <article key={subject.subject}>
+                          <div className="nova-plus-progress-subject-head">
+                            <span style={{ color: accent }}>{SUBJECT_META[subject.subject as SubjectKey]?.icon || "◇"}</span>
+                            <strong>{profileSubjectLabel(subject.subject)}</strong>
+                          </div>
+                          <div className="nova-plus-progress-track">
+                            <span style={{ width: `${Math.max(0, Math.min(100, safeNumber(subject.mastery_score)))}%`, background: accent }} />
+                          </div>
+                          <small>
+                            {subject.secure_skills > 0
+                              ? `${subject.secure_skills} secure areas`
+                              : "Still gathering secure evidence"}
+                          </small>
+                        </article>
+                      );
+                    })}
+                  </section>
+
+                  <section className="nova-plus-milestones">
+                    <article className="celebrate">
+                      <span>✦</span>
+                      <div>
+                        <small>Latest growth signal</small>
+                        <strong>{novaPlusImprovingSkills[0]?.skill_name || "More progress data is being collected"}</strong>
+                      </div>
+                    </article>
+                    <article className="watch">
+                      <span>◎</span>
+                      <div>
+                        <small>Watch next</small>
+                        <strong>{novaPlusReviewSkills[0]?.skill_name || novaPlusGapSkills[0]?.skill_name || "No review is due yet"}</strong>
+                      </div>
+                    </article>
+                    <article className="history">
+                      <span>↺</span>
+                      <div>
+                        <small>Resolved findings</small>
+                        <strong>{resolvedProfileInsights.length} learning signal{resolvedProfileInsights.length === 1 ? "" : "s"} resolved</strong>
+                      </div>
+                    </article>
+                  </section>
+                </div>
+              )}
+
+              {!profileLoading && profilePayload && profileView === "parent" && (
+                <div className="nova-plus-view nova-plus-parent-view">
+                  <section className="nova-plus-parent-cover">
+                    <div className="nova-plus-parent-nova">
+                      <img src="/nova/nova-character.png" alt="Nova" />
+                    </div>
+                    <div>
+                      <p className="nova-vt-eyebrow">Parent learning report</p>
+                      <h4>{studentLabel}’s current learning picture</h4>
+                      <p>{displayedParentNote}</p>
+                    </div>
+                    <div className="nova-plus-parent-status">
+                      <span>{priorityProfileSubject ? "Focus identified" : "Profile developing"}</span>
+                      <strong>
+                        {priorityProfileSubject
+                          ? profileSubjectLabel(priorityProfileSubject.subject)
+                          : "Nova is collecting evidence"}
+                      </strong>
+                    </div>
+                  </section>
+
+                  <section className="nova-plus-parent-triptych">
+                    <article className="celebrate">
+                      <div className="nova-plus-report-icon">✦</div>
+                      <small>Celebrate</small>
+                      <strong>
+                        {novaPlusStrongSkills[0]?.skill_name ||
+                          (strongestProfileSubject
+                            ? profileSubjectLabel(strongestProfileSubject.subject)
+                            : "Steady participation")}
+                      </strong>
+                      <p>
+                        {novaPlusStrongSkills[0]
+                          ? `This is one of Nova’s clearest current strengths in ${profileSubjectLabel(novaPlusStrongSkills[0].subject)}.`
+                          : "More varied evidence will let Nova confirm specific strengths."}
+                      </p>
+                    </article>
+
+                    <article className="focus">
+                      <div className="nova-plus-report-icon">◎</div>
+                      <small>Focus</small>
+                      <strong>{novaPlusGapSkills[0]?.skill_name || "No persistent gap confirmed"}</strong>
+                      <p>
+                        {novaPlusGapSkills[0]
+                          ? `Nova is prioritising this ${profileSubjectLabel(novaPlusGapSkills[0].subject)} skill before moving on.`
+                          : "Current evidence does not show a stable weakness that needs intervention."}
+                      </p>
+                    </article>
+
+                    <article className="next">
+                      <div className="nova-plus-report-icon">➜</div>
+                      <small>Next</small>
+                      <strong>{recommendations[0] || "Continue regular practice"}</strong>
+                      <p>Nova will update the profile as new work is completed.</p>
+                    </article>
+                  </section>
+
+                  <section className="nova-plus-parent-visual-summary">
+                    <div className="nova-plus-parent-rings">
+                      {profileSubjectSummaries.slice(0, 3).map((subject) => {
+                        const accent = subjectAccent(subject.subject);
+                        const mastery = Math.max(0, Math.min(100, safeNumber(subject.mastery_score)));
+                        return (
+                          <article key={subject.subject}>
+                            <div
+                              className="nova-plus-parent-ring"
+                              style={{ background: `conic-gradient(${accent} ${mastery}%, rgba(255,255,255,0.07) 0)` }}
+                            >
+                              <span style={{ color: accent }}>{SUBJECT_META[subject.subject as SubjectKey]?.icon || "◇"}</span>
+                            </div>
+                            <strong>{profileSubjectLabel(subject.subject)}</strong>
+                          </article>
+                        );
+                      })}
+                    </div>
+
+                    <div className="nova-plus-parent-actions">
+                      <p className="nova-vt-eyebrow">What to encourage at home</p>
+                      <ol>
+                        {recommendations.slice(0, 3).map((recommendation, index) => (
+                          <li key={`${recommendation}-${index}`}>
+                            <span>{index + 1}</span>
+                            <p>{recommendation}</p>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  </section>
+
+                  <footer className="nova-plus-parent-footer">
+                    <span>Last profile update: {formatProfileDate(profileSnapshot.generated_at || profilePayload.generated_at)}</span>
+                    <span>{granularReadyCount} specific skills currently have reliable direct evidence</span>
+                  </footer>
+                </div>
+              )}
             </section>
           )}
         </div>
@@ -5224,6 +5083,1797 @@ export default function NovaVirtualTeacherPopup({
 
             .nova-vt-age-context-grid {
               grid-template-columns: 1fr;
+            }
+          }
+
+          /* ============================================================
+             NOVA+ INTELLIGENCE
+             Graphic-first premium learning workspace
+             ============================================================ */
+
+          .nova-vt-tabs .nova-plus-tab {
+            position: relative;
+            overflow: hidden;
+          }
+
+          .nova-vt-tabs .nova-plus-tab::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background:
+              radial-gradient(circle at 20% 15%, rgba(192, 132, 252, 0.18), transparent 42%),
+              radial-gradient(circle at 82% 82%, rgba(83, 215, 255, 0.12), transparent 42%);
+            opacity: 0.8;
+            pointer-events: none;
+          }
+
+          .nova-vt-tabs .nova-plus-tab.active {
+            border-color: rgba(196, 181, 253, 0.46);
+            background:
+              linear-gradient(135deg, rgba(76, 29, 149, 0.34), rgba(8, 145, 178, 0.18));
+            box-shadow:
+              inset 0 0 0 1px rgba(255, 255, 255, 0.02),
+              0 0 28px rgba(167, 139, 250, 0.18);
+          }
+
+          .nova-plus-tab-label {
+            position: relative;
+            z-index: 1;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            letter-spacing: 0.08em;
+          }
+
+          .nova-plus-tab-star {
+            color: #ddd6fe;
+            text-shadow: 0 0 14px rgba(196, 181, 253, 0.75);
+          }
+
+          .nova-plus-shell {
+            display: grid;
+            gap: 14px;
+            min-height: 0;
+          }
+
+          .nova-plus-hero {
+            position: relative;
+            min-height: 190px;
+            padding: 24px 270px 24px 24px;
+            overflow: hidden;
+            border-radius: 24px;
+            border: 1px solid rgba(196, 181, 253, 0.22);
+            background:
+              radial-gradient(circle at 83% 45%, rgba(124, 58, 237, 0.27), transparent 28%),
+              radial-gradient(circle at 64% 20%, rgba(14, 165, 233, 0.12), transparent 35%),
+              linear-gradient(135deg, rgba(30, 18, 65, 0.72), rgba(4, 16, 34, 0.76));
+            box-shadow:
+              inset 0 1px 0 rgba(255, 255, 255, 0.035),
+              0 20px 55px rgba(0, 0, 0, 0.2);
+          }
+
+          .nova-plus-hero::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background-image:
+              radial-gradient(circle at 10% 20%, rgba(255,255,255,0.33) 0 1px, transparent 1.5px),
+              radial-gradient(circle at 34% 70%, rgba(255,255,255,0.22) 0 1px, transparent 1.5px),
+              radial-gradient(circle at 58% 34%, rgba(255,255,255,0.28) 0 1px, transparent 1.5px),
+              radial-gradient(circle at 91% 70%, rgba(255,255,255,0.28) 0 1px, transparent 1.5px);
+            background-size: 150px 110px, 190px 130px, 170px 120px, 210px 150px;
+            opacity: 0.45;
+            pointer-events: none;
+          }
+
+          .nova-plus-hero-copy {
+            position: relative;
+            z-index: 2;
+            max-width: 760px;
+          }
+
+          .nova-plus-brand-line {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+          }
+
+          .nova-plus-kicker,
+          .nova-plus-preview-badge {
+            min-height: 28px;
+            padding: 0 10px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            font-size: 10px;
+            font-weight: 900;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+          }
+
+          .nova-plus-kicker {
+            border: 1px solid rgba(196, 181, 253, 0.45);
+            background: rgba(124, 58, 237, 0.2);
+            color: #ede9fe;
+            box-shadow: 0 0 24px rgba(167, 139, 250, 0.17);
+          }
+
+          .nova-plus-preview-badge {
+            border: 1px solid rgba(83, 215, 255, 0.22);
+            background: rgba(83, 215, 255, 0.07);
+            color: #bdf6ff;
+          }
+
+          .nova-plus-hero h3 {
+            margin: 12px 0 0;
+            font-size: clamp(30px, 4.3vw, 48px);
+            line-height: 1;
+            letter-spacing: -0.05em;
+          }
+
+          .nova-plus-hero-copy > p {
+            max-width: 710px;
+            margin: 12px 0 0;
+            color: rgba(235, 247, 255, 0.63);
+            font-size: 13px;
+            line-height: 1.65;
+          }
+
+          .nova-plus-hero-visual {
+            position: absolute;
+            right: 42px;
+            top: 50%;
+            z-index: 2;
+            width: 180px;
+            height: 180px;
+            transform: translateY(-50%);
+          }
+
+          .nova-plus-orbit {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            border-radius: 999px;
+            border: 1px solid rgba(196, 181, 253, 0.24);
+            transform: translate(-50%, -50%);
+          }
+
+          .nova-plus-orbit.orbit-one {
+            width: 176px;
+            height: 176px;
+            box-shadow: 0 0 30px rgba(139, 92, 246, 0.12);
+          }
+
+          .nova-plus-orbit.orbit-two {
+            width: 132px;
+            height: 132px;
+            border-color: rgba(83, 215, 255, 0.2);
+          }
+
+          .nova-plus-core {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 104px;
+            height: 104px;
+            overflow: hidden;
+            border-radius: 999px;
+            border: 1px solid rgba(141, 252, 255, 0.38);
+            background:
+              radial-gradient(circle at 50% 55%, rgba(83, 215, 255, 0.18), rgba(20, 9, 51, 0.93));
+            transform: translate(-50%, -50%);
+            box-shadow:
+              0 0 32px rgba(83, 215, 255, 0.24),
+              0 0 60px rgba(139, 92, 246, 0.18);
+          }
+
+          .nova-plus-core img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            object-position: center bottom;
+          }
+
+          .nova-plus-spark {
+            position: absolute;
+            color: #ede9fe;
+            text-shadow: 0 0 14px rgba(196, 181, 253, 0.85);
+          }
+
+          .nova-plus-spark.spark-a { left: 12px; top: 48px; }
+          .nova-plus-spark.spark-b { right: 14px; top: 30px; }
+          .nova-plus-spark.spark-c { right: 2px; bottom: 35px; }
+
+          .nova-plus-refresh {
+            position: absolute;
+            left: 24px;
+            bottom: 18px;
+            z-index: 3;
+            min-height: 38px;
+            padding: 0 14px;
+            border-radius: 999px;
+            border: 1px solid rgba(196, 181, 253, 0.3);
+            background: rgba(124, 58, 237, 0.12);
+            color: #ede9fe;
+            font-size: 10px;
+            font-weight: 850;
+            cursor: pointer;
+          }
+
+          .nova-plus-refresh:disabled {
+            opacity: 0.5;
+            cursor: wait;
+          }
+
+          .nova-plus-nav {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+            gap: 7px;
+            padding: 6px;
+            border-radius: 18px;
+            border: 1px solid rgba(196, 181, 253, 0.11);
+            background: rgba(255, 255, 255, 0.02);
+          }
+
+          .nova-plus-nav button {
+            min-height: 58px;
+            padding: 8px 7px;
+            border-radius: 14px;
+            border: 1px solid transparent;
+            background: transparent;
+            color: rgba(235, 247, 255, 0.5);
+            display: grid;
+            grid-template-columns: 24px minmax(0, 1fr);
+            align-items: center;
+            gap: 6px;
+            text-align: left;
+            font-family: inherit;
+            cursor: pointer;
+          }
+
+          .nova-plus-nav button > span {
+            width: 24px;
+            height: 24px;
+            border-radius: 9px;
+            display: grid;
+            place-items: center;
+            border: 1px solid rgba(196, 181, 253, 0.12);
+            background: rgba(196, 181, 253, 0.05);
+            color: #c4b5fd;
+            font-size: 12px;
+          }
+
+          .nova-plus-nav button strong {
+            font-size: 10px;
+            line-height: 1.2;
+          }
+
+          .nova-plus-nav button.active {
+            border-color: rgba(196, 181, 253, 0.28);
+            background:
+              linear-gradient(135deg, rgba(124, 58, 237, 0.15), rgba(8, 145, 178, 0.08));
+            color: white;
+            box-shadow: 0 0 22px rgba(124, 58, 237, 0.1);
+          }
+
+          .nova-plus-nav button.active > span {
+            border-color: rgba(196, 181, 253, 0.34);
+            background: rgba(124, 58, 237, 0.16);
+            color: #ede9fe;
+          }
+
+          .nova-plus-loading,
+          .nova-plus-empty {
+            min-height: 170px;
+            border-radius: 20px;
+            border: 1px dashed rgba(196, 181, 253, 0.17);
+            background: rgba(255, 255, 255, 0.018);
+            color: rgba(235, 247, 255, 0.5);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 24px;
+            text-align: center;
+            font-size: 12px;
+            line-height: 1.5;
+          }
+
+          .nova-plus-empty.compact {
+            min-height: 100px;
+          }
+
+          .nova-plus-loading-orb {
+            width: 36px;
+            height: 36px;
+            border-radius: 999px;
+            border: 2px solid rgba(196, 181, 253, 0.15);
+            border-top-color: #c4b5fd;
+            box-shadow: 0 0 24px rgba(167, 139, 250, 0.18);
+            animation: nova-plus-spin 0.9s linear infinite;
+          }
+
+          @keyframes nova-plus-spin {
+            to { transform: rotate(360deg); }
+          }
+
+          .nova-plus-view {
+            display: grid;
+            gap: 14px;
+          }
+
+          .nova-plus-learning-stage,
+          .nova-plus-constellation-card,
+          .nova-plus-gap-card,
+          .nova-plus-map-toolbar,
+          .nova-plus-topic-world,
+          .nova-plus-recommend-hero,
+          .nova-plus-recommend-card,
+          .nova-plus-reassess-flow,
+          .nova-plus-progress-chart-card,
+          .nova-plus-progress-subjects,
+          .nova-plus-milestones,
+          .nova-plus-parent-cover,
+          .nova-plus-parent-triptych > article,
+          .nova-plus-parent-visual-summary,
+          .nova-plus-pattern-strip,
+          .nova-plus-age-ribbon,
+          .nova-plus-insight-ribbon {
+            border: 1px solid rgba(196, 181, 253, 0.1);
+            background: rgba(255, 255, 255, 0.024);
+            border-radius: 20px;
+          }
+
+          .nova-plus-learning-stage {
+            padding: 22px;
+            background:
+              radial-gradient(circle at 50% 48%, rgba(83, 215, 255, 0.08), transparent 30%),
+              radial-gradient(circle at 12% 18%, rgba(124, 58, 237, 0.11), transparent 32%),
+              rgba(255, 255, 255, 0.022);
+          }
+
+          .nova-plus-learning-orbit {
+            min-height: 335px;
+            display: grid;
+            grid-template-columns: minmax(250px, 0.75fr) minmax(0, 1.35fr);
+            align-items: center;
+            gap: 28px;
+          }
+
+          .nova-plus-learning-center {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+          }
+
+          .nova-plus-master-ring {
+            width: 188px;
+            height: 188px;
+            padding: 10px;
+            border-radius: 999px;
+            box-shadow:
+              0 0 36px rgba(83, 215, 255, 0.15),
+              inset 0 0 25px rgba(83, 215, 255, 0.06);
+          }
+
+          .nova-plus-master-ring > div {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            border-radius: inherit;
+            border: 1px solid rgba(141, 252, 255, 0.17);
+            background:
+              radial-gradient(circle, rgba(7, 32, 61, 0.96), rgba(4, 11, 26, 0.98));
+          }
+
+          .nova-plus-master-ring img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            object-position: center bottom;
+          }
+
+          .nova-plus-learning-center > span {
+            margin-top: 14px;
+            color: #8dfcff;
+            font-size: 9px;
+            font-weight: 900;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+          }
+
+          .nova-plus-learning-center > strong {
+            max-width: 280px;
+            margin-top: 7px;
+            font-size: 18px;
+            line-height: 1.25;
+          }
+
+          .nova-plus-subject-planets {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+          }
+
+          .nova-plus-planet {
+            min-height: 145px;
+            padding: 14px;
+            border-radius: 18px;
+            border: 1px solid;
+            background:
+              linear-gradient(145deg, rgba(255,255,255,0.032), rgba(255,255,255,0.012));
+            display: grid;
+            grid-template-columns: 66px minmax(0, 1fr);
+            grid-template-rows: auto auto;
+            align-items: center;
+            gap: 4px 12px;
+          }
+
+          .nova-plus-planet-ring {
+            grid-row: 1 / 3;
+            width: 66px;
+            height: 66px;
+            padding: 6px;
+            border-radius: 999px;
+          }
+
+          .nova-plus-planet-ring > div {
+            width: 100%;
+            height: 100%;
+            border-radius: inherit;
+            display: grid;
+            place-items: center;
+            background: #071326;
+            font-size: 22px;
+            font-weight: 900;
+          }
+
+          .nova-plus-planet > strong {
+            align-self: end;
+            font-size: 13px;
+          }
+
+          .nova-plus-planet > span {
+            align-self: start;
+            color: rgba(235, 247, 255, 0.45);
+            font-size: 9.5px;
+            line-height: 1.35;
+          }
+
+          .nova-plus-learning-path {
+            margin-top: 12px;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 54px minmax(0, 1fr) 54px minmax(0, 1fr);
+            align-items: center;
+            gap: 0;
+          }
+
+          .nova-plus-path-node {
+            min-height: 84px;
+            padding: 12px;
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.026);
+            display: grid;
+            grid-template-columns: 36px minmax(0,1fr);
+            align-items: center;
+            gap: 10px;
+          }
+
+          .nova-plus-path-node > span {
+            width: 36px;
+            height: 36px;
+            border-radius: 999px;
+            display: grid;
+            place-items: center;
+            font-size: 12px;
+            font-weight: 900;
+            border: 1px solid rgba(196,181,253,0.2);
+          }
+
+          .nova-plus-path-node small,
+          .nova-plus-parent-triptych small,
+          .nova-plus-milestones small,
+          .nova-plus-parent-status span {
+            color: rgba(235,247,255,0.4);
+            font-size: 8.5px;
+            font-weight: 900;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+          }
+
+          .nova-plus-path-node strong {
+            display: block;
+            margin-top: 4px;
+            font-size: 11px;
+            line-height: 1.35;
+          }
+
+          .nova-plus-path-node.completed > span {
+            color: #a7f3d0;
+            border-color: rgba(52,211,153,0.3);
+            background: rgba(52,211,153,0.08);
+          }
+
+          .nova-plus-path-node.focus {
+            border-color: rgba(248,113,113,0.18);
+            background: rgba(248,113,113,0.04);
+          }
+
+          .nova-plus-path-node.focus > span {
+            color: #fecaca;
+            border-color: rgba(248,113,113,0.3);
+            background: rgba(248,113,113,0.08);
+          }
+
+          .nova-plus-path-node.future > span {
+            color: #ddd6fe;
+            border-color: rgba(167,139,250,0.3);
+            background: rgba(167,139,250,0.08);
+          }
+
+          .nova-plus-path-line {
+            height: 1px;
+            background: linear-gradient(90deg, rgba(141,252,255,0.18), rgba(196,181,253,0.32));
+          }
+
+          .nova-plus-pattern-strip {
+            padding: 12px;
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 9px;
+          }
+
+          .nova-plus-pattern-strip > article {
+            min-height: 100px;
+            padding: 11px;
+            border-radius: 15px;
+            border: 1px solid rgba(196,181,253,0.08);
+            background: rgba(255,255,255,0.02);
+            display: grid;
+            grid-template-columns: 46px minmax(0,1fr);
+            align-items: center;
+            gap: 9px;
+          }
+
+          .nova-plus-pattern-gauge {
+            width: 44px;
+            height: 44px;
+            padding: 5px;
+            border-radius: 999px;
+          }
+
+          .nova-plus-pattern-gauge > span {
+            width: 100%;
+            height: 100%;
+            border-radius: inherit;
+            display: grid;
+            place-items: center;
+            background: #071326;
+            color: #ddd6fe;
+          }
+
+          .nova-plus-pattern-strip strong {
+            font-size: 10.5px;
+          }
+
+          .nova-plus-pattern-strip p {
+            margin: 5px 0 0;
+            color: rgba(235,247,255,0.42);
+            font-size: 9px;
+            line-height: 1.4;
+          }
+
+          .nova-plus-age-ribbon,
+          .nova-plus-insight-ribbon {
+            min-height: 72px;
+            padding: 12px 14px;
+            display: grid;
+            grid-template-columns: 38px minmax(160px,0.65fr) minmax(0,1.35fr) auto;
+            align-items: center;
+            gap: 12px;
+          }
+
+          .nova-plus-age-icon,
+          .nova-plus-insight-ribbon > span {
+            width: 38px;
+            height: 38px;
+            border-radius: 13px;
+            display: grid;
+            place-items: center;
+            border: 1px solid rgba(196,181,253,0.18);
+            background: rgba(196,181,253,0.07);
+            color: #ddd6fe;
+          }
+
+          .nova-plus-age-ribbon small,
+          .nova-plus-insight-ribbon small {
+            color: #c4b5fd;
+            font-size: 8.5px;
+            font-weight: 900;
+            letter-spacing: 0.11em;
+            text-transform: uppercase;
+          }
+
+          .nova-plus-age-ribbon strong,
+          .nova-plus-insight-ribbon strong {
+            display: block;
+            margin-top: 4px;
+            font-size: 11px;
+          }
+
+          .nova-plus-age-ribbon > p {
+            margin: 0;
+            color: rgba(235,247,255,0.48);
+            font-size: 10px;
+            line-height: 1.5;
+          }
+
+          .nova-plus-strengths-view {
+            grid-template-columns: minmax(0,1.05fr) minmax(0,0.95fr);
+          }
+
+          .nova-plus-constellation-card,
+          .nova-plus-gap-card {
+            min-height: 410px;
+            padding: 18px;
+          }
+
+          .nova-plus-section-title {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+          }
+
+          .nova-plus-section-title h4,
+          .nova-plus-map-toolbar h4,
+          .nova-plus-recommend-hero h4,
+          .nova-plus-parent-cover h4 {
+            margin: 7px 0 0;
+            font-size: 22px;
+            letter-spacing: -0.035em;
+          }
+
+          .nova-plus-section-symbol {
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+            display: grid;
+            place-items: center;
+            border: 1px solid rgba(52,211,153,0.2);
+            background: rgba(52,211,153,0.06);
+            color: #a7f3d0;
+            font-size: 17px;
+          }
+
+          .nova-plus-section-symbol.warning {
+            border-color: rgba(248,113,113,0.2);
+            background: rgba(248,113,113,0.05);
+            color: #fecaca;
+          }
+
+          .nova-plus-constellation {
+            position: relative;
+            min-height: 305px;
+            margin-top: 14px;
+            overflow: hidden;
+            border-radius: 17px;
+            background:
+              radial-gradient(circle at 50% 50%, rgba(83,215,255,0.05), transparent 30%),
+              rgba(0,0,0,0.1);
+          }
+
+          .nova-plus-constellation-lines {
+            position: absolute;
+            inset: 0;
+            background:
+              linear-gradient(25deg, transparent 32%, rgba(141,252,255,0.08) 32.2% 32.6%, transparent 32.8%),
+              linear-gradient(145deg, transparent 54%, rgba(196,181,253,0.08) 54.2% 54.6%, transparent 54.8%);
+          }
+
+          .nova-plus-skill-star {
+            position: absolute;
+            width: 124px;
+            min-height: 76px;
+            padding: 10px;
+            border-radius: 17px;
+            border: 1px solid;
+            background: rgba(4, 12, 28, 0.91);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            text-align: center;
+          }
+
+          .nova-plus-skill-star > span {
+            font-size: 14px;
+          }
+
+          .nova-plus-skill-star strong {
+            margin-top: 3px;
+            font-size: 9.5px;
+            line-height: 1.25;
+          }
+
+          .nova-plus-skill-star small {
+            margin-top: 4px;
+            color: rgba(235,247,255,0.38);
+            font-size: 8px;
+          }
+
+          .nova-plus-skill-star.star-1 { left: 8%; top: 13%; }
+          .nova-plus-skill-star.star-2 { right: 8%; top: 8%; }
+          .nova-plus-skill-star.star-3 { left: 35%; top: 38%; }
+          .nova-plus-skill-star.star-4 { left: 8%; bottom: 9%; }
+          .nova-plus-skill-star.star-5 { right: 9%; bottom: 10%; }
+          .nova-plus-skill-star.star-6 { right: 31%; top: 6%; transform: scale(0.86); }
+
+          .nova-plus-gap-radar {
+            min-height: 310px;
+            margin-top: 15px;
+            display: grid;
+            grid-template-columns: 220px minmax(0,1fr);
+            align-items: center;
+            gap: 16px;
+          }
+
+          .nova-plus-radar-disc {
+            position: relative;
+            width: 210px;
+            height: 210px;
+            margin: auto;
+            border-radius: 999px;
+            border: 1px solid rgba(83,215,255,0.13);
+            background:
+              linear-gradient(90deg, transparent 49.7%, rgba(83,215,255,0.07) 50%, transparent 50.3%),
+              linear-gradient(0deg, transparent 49.7%, rgba(83,215,255,0.07) 50%, transparent 50.3%),
+              radial-gradient(circle, rgba(83,215,255,0.06), transparent 65%);
+            overflow: hidden;
+          }
+
+          .nova-plus-radar-disc .ring {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            border-radius: 999px;
+            border: 1px solid rgba(83,215,255,0.11);
+            transform: translate(-50%,-50%);
+          }
+
+          .nova-plus-radar-disc .r1 { width: 64px; height: 64px; }
+          .nova-plus-radar-disc .r2 { width: 126px; height: 126px; }
+          .nova-plus-radar-disc .r3 { width: 188px; height: 188px; }
+
+          .nova-plus-radar-disc .sweep {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 50%;
+            height: 50%;
+            transform-origin: 0 0;
+            background: linear-gradient(25deg, rgba(83,215,255,0.18), transparent 58%);
+            animation: nova-plus-radar 4.8s linear infinite;
+          }
+
+          @keyframes nova-plus-radar {
+            to { transform: rotate(360deg); }
+          }
+
+          .nova-plus-radar-disc .blip {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: #fca5a5;
+            box-shadow: 0 0 14px rgba(248,113,113,0.85);
+          }
+
+          .nova-plus-radar-disc .b1 { left: 27%; top: 34%; }
+          .nova-plus-radar-disc .b2 { right: 23%; top: 24%; }
+          .nova-plus-radar-disc .b3 { right: 32%; bottom: 24%; }
+          .nova-plus-radar-disc .b4 { left: 22%; bottom: 28%; }
+
+          .nova-plus-gap-list {
+            display: grid;
+            gap: 8px;
+          }
+
+          .nova-plus-gap-list > article {
+            min-height: 58px;
+            padding: 9px 10px;
+            display: grid;
+            grid-template-columns: 9px minmax(0,1fr) 78px;
+            align-items: center;
+            gap: 9px;
+            border-radius: 13px;
+            background: rgba(255,255,255,0.025);
+            border: 1px solid rgba(255,255,255,0.05);
+          }
+
+          .nova-plus-gap-status {
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+          }
+
+          .nova-plus-gap-list strong {
+            display: block;
+            font-size: 10px;
+            line-height: 1.3;
+          }
+
+          .nova-plus-gap-list small {
+            display: block;
+            margin-top: 3px;
+            color: rgba(235,247,255,0.37);
+            font-size: 8px;
+          }
+
+          .nova-plus-gap-meter {
+            height: 5px;
+            overflow: hidden;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.06);
+          }
+
+          .nova-plus-gap-meter span {
+            display: block;
+            height: 100%;
+            border-radius: inherit;
+          }
+
+          .nova-plus-insight-ribbon {
+            grid-column: 1 / -1;
+            grid-template-columns: 38px minmax(0,1fr);
+          }
+
+          .nova-plus-map-toolbar {
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+          }
+
+          .nova-plus-subject-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 7px;
+          }
+
+          .nova-plus-subject-pills button {
+            min-height: 34px;
+            padding: 0 11px;
+            border-radius: 999px;
+            border: 1px solid rgba(141,252,255,0.13);
+            background: rgba(255,255,255,0.025);
+            color: rgba(235,247,255,0.48);
+            font-size: 9px;
+            font-weight: 850;
+            cursor: pointer;
+          }
+
+          .nova-plus-subject-pills button.active {
+            border-color: rgba(141,252,255,0.32);
+            background: rgba(83,215,255,0.09);
+            color: white;
+          }
+
+          .nova-plus-map-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0,1fr));
+            gap: 11px;
+          }
+
+          .nova-plus-topic-world {
+            padding: 12px;
+            transition: 180ms ease;
+          }
+
+          .nova-plus-topic-world.expanded {
+            grid-column: 1 / -1;
+            border-color: rgba(196,181,253,0.22) !important;
+            background:
+              radial-gradient(circle at 10% 10%, rgba(124,58,237,0.09), transparent 28%),
+              rgba(255,255,255,0.027);
+          }
+
+          .nova-plus-topic-world-head {
+            width: 100%;
+            min-height: 84px;
+            padding: 4px;
+            border: 0;
+            background: transparent;
+            color: white;
+            display: grid;
+            grid-template-columns: 64px minmax(0,1fr) 34px;
+            align-items: center;
+            gap: 12px;
+            text-align: left;
+            cursor: pointer;
+            font-family: inherit;
+          }
+
+          .nova-plus-topic-ring {
+            width: 60px;
+            height: 60px;
+            padding: 6px;
+            border-radius: 999px;
+          }
+
+          .nova-plus-topic-ring > div {
+            width: 100%;
+            height: 100%;
+            border-radius: inherit;
+            display: grid;
+            place-items: center;
+            background: #071326;
+            font-size: 19px;
+            font-weight: 900;
+          }
+
+          .nova-plus-topic-copy small {
+            color: rgba(235,247,255,0.35);
+            font-size: 8px;
+            font-weight: 850;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+          }
+
+          .nova-plus-topic-copy strong {
+            display: block;
+            margin-top: 4px;
+            font-size: 13px;
+          }
+
+          .nova-plus-topic-copy > span {
+            display: inline-flex;
+            margin-top: 5px;
+            padding: 4px 7px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.04);
+            color: rgba(235,247,255,0.45);
+            font-size: 8px;
+          }
+
+          .nova-plus-topic-expand {
+            width: 30px;
+            height: 30px;
+            border-radius: 999px;
+            display: grid;
+            place-items: center;
+            border: 1px solid rgba(196,181,253,0.13);
+            background: rgba(196,181,253,0.05);
+            color: #ddd6fe;
+          }
+
+          .nova-plus-topic-legend {
+            padding: 8px 4px 2px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            border-top: 1px solid rgba(255,255,255,0.045);
+            color: rgba(235,247,255,0.35);
+            font-size: 7.5px;
+          }
+
+          .nova-plus-topic-legend span {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+          }
+
+          .nova-plus-topic-legend i {
+            width: 7px;
+            height: 7px;
+            border-radius: 999px;
+          }
+
+          .nova-plus-topic-legend i.mastered { background: #2dd4bf; }
+          .nova-plus-topic-legend i.secure { background: #34d399; }
+          .nova-plus-topic-legend i.developing { background: #facc15; }
+          .nova-plus-topic-legend i.support { background: #f87171; }
+
+          .nova-plus-skill-node-map {
+            margin-top: 12px;
+            padding: 16px;
+            border-radius: 16px;
+            background:
+              radial-gradient(circle at 50% 40%, rgba(83,215,255,0.05), transparent 45%),
+              rgba(0,0,0,0.12);
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0,1fr));
+            gap: 9px;
+          }
+
+          .nova-plus-skill-node {
+            min-height: 82px;
+            padding: 10px;
+            border-radius: 15px;
+            border: 1px solid rgba(255,255,255,0.055);
+            background: rgba(4,12,28,0.74);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+          }
+
+          .nova-plus-skill-node > span {
+            width: 11px;
+            height: 11px;
+            border-radius: 999px;
+          }
+
+          .nova-plus-skill-node strong {
+            margin-top: 7px;
+            font-size: 9px;
+            line-height: 1.25;
+          }
+
+          .nova-plus-skill-node small {
+            margin-top: 4px;
+            color: rgba(235,247,255,0.32);
+            font-size: 7.5px;
+          }
+
+          .nova-plus-recommend-hero {
+            padding: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            background:
+              linear-gradient(135deg, rgba(124,58,237,0.1), rgba(83,215,255,0.035));
+          }
+
+          .nova-plus-recommend-hero > div > p:last-child {
+            max-width: 760px;
+            margin: 8px 0 0;
+            color: rgba(235,247,255,0.48);
+            font-size: 11px;
+            line-height: 1.55;
+          }
+
+          .nova-plus-recommend-hero > button,
+          .nova-plus-recommend-card > button {
+            min-height: 38px;
+            padding: 0 13px;
+            border-radius: 999px;
+            border: 1px solid rgba(196,181,253,0.24);
+            background: rgba(124,58,237,0.1);
+            color: #ede9fe;
+            font-size: 9px;
+            font-weight: 850;
+            cursor: pointer;
+          }
+
+          .nova-plus-recommend-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0,1fr));
+            gap: 10px;
+          }
+
+          .nova-plus-recommend-card {
+            min-height: 290px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+          }
+
+          .nova-plus-recommend-card.focus { border-color: rgba(248,113,113,0.17); }
+          .nova-plus-recommend-card.revisit { border-color: rgba(167,139,250,0.17); }
+          .nova-plus-recommend-card.stretch { border-color: rgba(52,211,153,0.17); }
+          .nova-plus-recommend-card.reassess { border-color: rgba(83,215,255,0.17); }
+
+          .nova-plus-recommend-visual {
+            position: relative;
+            width: 78px;
+            height: 78px;
+            margin-bottom: 16px;
+            display: grid;
+            place-items: center;
+          }
+
+          .nova-plus-recommend-visual > span {
+            position: relative;
+            z-index: 2;
+            width: 54px;
+            height: 54px;
+            border-radius: 18px;
+            display: grid;
+            place-items: center;
+            border: 1px solid rgba(196,181,253,0.2);
+            background: rgba(124,58,237,0.08);
+            color: #ddd6fe;
+            font-size: 21px;
+          }
+
+          .nova-plus-recommend-pulse {
+            position: absolute;
+            inset: 0;
+            border-radius: 999px;
+            border: 1px solid rgba(196,181,253,0.13);
+            animation: nova-plus-pulse 2.8s ease-out infinite;
+          }
+
+          @keyframes nova-plus-pulse {
+            0% { transform: scale(0.65); opacity: 0.7; }
+            80%,100% { transform: scale(1.15); opacity: 0; }
+          }
+
+          .nova-plus-recommend-copy small {
+            color: #c4b5fd;
+            font-size: 8px;
+            font-weight: 900;
+            letter-spacing: 0.11em;
+            text-transform: uppercase;
+          }
+
+          .nova-plus-recommend-copy h5 {
+            min-height: 42px;
+            margin: 6px 0 0;
+            font-size: 14px;
+            line-height: 1.25;
+          }
+
+          .nova-plus-recommend-copy p {
+            margin: 8px 0 0;
+            color: rgba(235,247,255,0.46);
+            font-size: 9.5px;
+            line-height: 1.55;
+          }
+
+          .nova-plus-recommend-card > button {
+            margin-top: auto;
+            align-self: flex-start;
+          }
+
+          .nova-plus-reassess-flow {
+            min-height: 100px;
+            padding: 15px;
+            display: grid;
+            grid-template-columns: auto minmax(20px,1fr) auto minmax(20px,1fr) auto minmax(20px,1fr) auto;
+            align-items: center;
+            gap: 8px;
+          }
+
+          .nova-plus-flow-step {
+            min-width: 105px;
+            display: grid;
+            grid-template-columns: 32px minmax(0,1fr);
+            align-items: center;
+            gap: 7px;
+          }
+
+          .nova-plus-flow-step > span {
+            width: 32px;
+            height: 32px;
+            border-radius: 999px;
+            display: grid;
+            place-items: center;
+            border: 1px solid rgba(196,181,253,0.16);
+            color: rgba(235,247,255,0.52);
+            font-size: 9px;
+          }
+
+          .nova-plus-flow-step strong {
+            font-size: 9px;
+          }
+
+          .nova-plus-flow-step.done > span {
+            color: #a7f3d0;
+            border-color: rgba(52,211,153,0.26);
+            background: rgba(52,211,153,0.07);
+          }
+
+          .nova-plus-flow-step.active > span {
+            color: #fecaca;
+            border-color: rgba(248,113,113,0.28);
+            background: rgba(248,113,113,0.07);
+            box-shadow: 0 0 18px rgba(248,113,113,0.14);
+          }
+
+          .nova-plus-reassess-flow > i {
+            height: 1px;
+            background: linear-gradient(90deg, rgba(196,181,253,0.14), rgba(83,215,255,0.18));
+          }
+
+          .nova-plus-progress-chart-card {
+            padding: 18px;
+          }
+
+          .nova-plus-progress-arrow {
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+            display: grid;
+            place-items: center;
+            border: 1px solid rgba(52,211,153,0.18);
+            background: rgba(52,211,153,0.05);
+            color: #a7f3d0;
+            font-size: 18px;
+          }
+
+          .nova-plus-chart-wrap {
+            margin-top: 14px;
+            padding: 12px 12px 8px;
+            border-radius: 17px;
+            background:
+              linear-gradient(180deg, rgba(83,215,255,0.035), rgba(0,0,0,0.08));
+          }
+
+          .nova-plus-chart-wrap svg {
+            width: 100%;
+            height: 245px;
+            overflow: visible;
+          }
+
+          .nova-plus-chart-axis {
+            stroke: rgba(235,247,255,0.11);
+            stroke-width: 1;
+          }
+
+          .nova-plus-chart-grid {
+            stroke: rgba(235,247,255,0.045);
+            stroke-width: 1;
+            stroke-dasharray: 6 9;
+          }
+
+          .nova-plus-chart-line {
+            fill: none;
+            stroke: #8dfcff;
+            stroke-width: 4;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            filter: drop-shadow(0 0 8px rgba(83,215,255,0.35));
+          }
+
+          .nova-plus-chart-dot {
+            fill: #071326;
+            stroke: #8dfcff;
+            stroke-width: 3;
+          }
+
+          .nova-plus-chart-labels {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            color: rgba(235,247,255,0.32);
+            font-size: 8px;
+          }
+
+          .nova-plus-progress-subjects {
+            padding: 12px;
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0,1fr));
+            gap: 9px;
+          }
+
+          .nova-plus-progress-subjects > article {
+            min-height: 105px;
+            padding: 12px;
+            border-radius: 15px;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.05);
+          }
+
+          .nova-plus-progress-subject-head {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
+
+          .nova-plus-progress-subject-head > span {
+            font-size: 18px;
+          }
+
+          .nova-plus-progress-subject-head strong {
+            font-size: 10px;
+          }
+
+          .nova-plus-progress-track {
+            height: 8px;
+            margin-top: 14px;
+            overflow: hidden;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.06);
+          }
+
+          .nova-plus-progress-track span {
+            display: block;
+            height: 100%;
+            border-radius: inherit;
+            box-shadow: 0 0 14px rgba(83,215,255,0.15);
+          }
+
+          .nova-plus-progress-subjects small {
+            display: block;
+            margin-top: 9px;
+            color: rgba(235,247,255,0.35);
+            font-size: 8px;
+          }
+
+          .nova-plus-milestones {
+            padding: 12px;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0,1fr));
+            gap: 9px;
+          }
+
+          .nova-plus-milestones > article {
+            min-height: 84px;
+            padding: 12px;
+            border-radius: 15px;
+            display: grid;
+            grid-template-columns: 38px minmax(0,1fr);
+            align-items: center;
+            gap: 10px;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.05);
+          }
+
+          .nova-plus-milestones > article > span {
+            width: 38px;
+            height: 38px;
+            border-radius: 13px;
+            display: grid;
+            place-items: center;
+          }
+
+          .nova-plus-milestones .celebrate > span {
+            background: rgba(52,211,153,0.07);
+            border: 1px solid rgba(52,211,153,0.18);
+            color: #a7f3d0;
+          }
+
+          .nova-plus-milestones .watch > span {
+            background: rgba(248,113,113,0.06);
+            border: 1px solid rgba(248,113,113,0.16);
+            color: #fecaca;
+          }
+
+          .nova-plus-milestones .history > span {
+            background: rgba(167,139,250,0.07);
+            border: 1px solid rgba(167,139,250,0.18);
+            color: #ddd6fe;
+          }
+
+          .nova-plus-milestones strong {
+            display: block;
+            margin-top: 4px;
+            font-size: 10px;
+            line-height: 1.35;
+          }
+
+          .nova-plus-parent-cover {
+            min-height: 150px;
+            padding: 16px 18px;
+            display: grid;
+            grid-template-columns: 88px minmax(0,1fr) auto;
+            align-items: center;
+            gap: 16px;
+            background:
+              radial-gradient(circle at 10% 50%, rgba(83,215,255,0.08), transparent 26%),
+              linear-gradient(135deg, rgba(124,58,237,0.08), rgba(255,255,255,0.018));
+          }
+
+          .nova-plus-parent-nova {
+            width: 80px;
+            height: 100px;
+            overflow: hidden;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+          }
+
+          .nova-plus-parent-nova img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            object-position: center bottom;
+          }
+
+          .nova-plus-parent-cover > div:nth-child(2) > p:last-child {
+            max-width: 710px;
+            margin: 8px 0 0;
+            color: rgba(235,247,255,0.5);
+            font-size: 10.5px;
+            line-height: 1.55;
+          }
+
+          .nova-plus-parent-status {
+            min-width: 150px;
+            padding: 13px;
+            border-radius: 16px;
+            border: 1px solid rgba(196,181,253,0.13);
+            background: rgba(196,181,253,0.05);
+          }
+
+          .nova-plus-parent-status strong {
+            display: block;
+            margin-top: 6px;
+            color: #ede9fe;
+            font-size: 12px;
+          }
+
+          .nova-plus-parent-triptych {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0,1fr));
+            gap: 10px;
+          }
+
+          .nova-plus-parent-triptych > article {
+            min-height: 210px;
+            padding: 16px;
+          }
+
+          .nova-plus-parent-triptych > article.celebrate {
+            border-color: rgba(52,211,153,0.14);
+          }
+
+          .nova-plus-parent-triptych > article.focus {
+            border-color: rgba(248,113,113,0.14);
+          }
+
+          .nova-plus-parent-triptych > article.next {
+            border-color: rgba(83,215,255,0.14);
+          }
+
+          .nova-plus-report-icon {
+            width: 50px;
+            height: 50px;
+            margin-bottom: 14px;
+            border-radius: 17px;
+            display: grid;
+            place-items: center;
+            border: 1px solid rgba(196,181,253,0.16);
+            background: rgba(196,181,253,0.055);
+            color: #ddd6fe;
+            font-size: 18px;
+          }
+
+          .nova-plus-parent-triptych strong {
+            display: block;
+            min-height: 38px;
+            margin-top: 7px;
+            font-size: 13px;
+            line-height: 1.3;
+          }
+
+          .nova-plus-parent-triptych p {
+            margin: 9px 0 0;
+            color: rgba(235,247,255,0.45);
+            font-size: 9.5px;
+            line-height: 1.55;
+          }
+
+          .nova-plus-parent-visual-summary {
+            padding: 15px;
+            display: grid;
+            grid-template-columns: minmax(300px,0.75fr) minmax(0,1.25fr);
+            gap: 18px;
+          }
+
+          .nova-plus-parent-rings {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0,1fr));
+            gap: 10px;
+            align-items: center;
+          }
+
+          .nova-plus-parent-rings > article {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+          }
+
+          .nova-plus-parent-ring {
+            width: 78px;
+            height: 78px;
+            padding: 7px;
+            border-radius: 999px;
+          }
+
+          .nova-plus-parent-ring > span {
+            width: 100%;
+            height: 100%;
+            border-radius: inherit;
+            display: grid;
+            place-items: center;
+            background: #071326;
+            font-size: 19px;
+            font-weight: 900;
+          }
+
+          .nova-plus-parent-rings strong {
+            margin-top: 8px;
+            font-size: 9px;
+          }
+
+          .nova-plus-parent-actions {
+            padding-left: 18px;
+            border-left: 1px solid rgba(196,181,253,0.08);
+          }
+
+          .nova-plus-parent-actions ol {
+            margin: 12px 0 0;
+            padding: 0;
+            display: grid;
+            gap: 8px;
+            list-style: none;
+          }
+
+          .nova-plus-parent-actions li {
+            min-height: 50px;
+            padding: 8px;
+            border-radius: 13px;
+            background: rgba(255,255,255,0.02);
+            display: grid;
+            grid-template-columns: 28px minmax(0,1fr);
+            align-items: center;
+            gap: 8px;
+          }
+
+          .nova-plus-parent-actions li > span {
+            width: 28px;
+            height: 28px;
+            border-radius: 999px;
+            display: grid;
+            place-items: center;
+            border: 1px solid rgba(83,215,255,0.16);
+            background: rgba(83,215,255,0.05);
+            color: #8dfcff;
+            font-size: 8px;
+            font-weight: 900;
+          }
+
+          .nova-plus-parent-actions li p {
+            margin: 0;
+            color: rgba(235,247,255,0.53);
+            font-size: 9.5px;
+            line-height: 1.45;
+          }
+
+          .nova-plus-parent-footer {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 0 4px;
+            color: rgba(235,247,255,0.3);
+            font-size: 8px;
+          }
+
+          @media (max-width: 1180px) {
+            .nova-plus-nav {
+              grid-template-columns: repeat(3, minmax(0,1fr));
+            }
+
+            .nova-plus-strengths-view {
+              grid-template-columns: 1fr;
+            }
+
+            .nova-plus-gap-radar {
+              grid-template-columns: 190px minmax(0,1fr);
+            }
+
+            .nova-plus-radar-disc {
+              width: 180px;
+              height: 180px;
+            }
+
+            .nova-plus-skill-node-map {
+              grid-template-columns: repeat(3, minmax(0,1fr));
+            }
+
+            .nova-plus-recommend-grid {
+              grid-template-columns: repeat(2, minmax(0,1fr));
+            }
+
+            .nova-plus-progress-subjects {
+              grid-template-columns: repeat(2, minmax(0,1fr));
+            }
+          }
+
+          @media (max-width: 900px) {
+            .nova-plus-hero {
+              padding: 20px 180px 58px 18px;
+            }
+
+            .nova-plus-hero-visual {
+              right: 16px;
+              width: 145px;
+              height: 145px;
+            }
+
+            .nova-plus-orbit.orbit-one { width: 142px; height: 142px; }
+            .nova-plus-orbit.orbit-two { width: 108px; height: 108px; }
+            .nova-plus-core { width: 86px; height: 86px; }
+
+            .nova-plus-learning-orbit {
+              grid-template-columns: 1fr;
+            }
+
+            .nova-plus-learning-path {
+              grid-template-columns: 1fr;
+              gap: 7px;
+            }
+
+            .nova-plus-path-line {
+              width: 1px;
+              height: 18px;
+              margin-left: 30px;
+            }
+
+            .nova-plus-pattern-strip {
+              grid-template-columns: repeat(2, minmax(0,1fr));
+            }
+
+            .nova-plus-age-ribbon {
+              grid-template-columns: 38px minmax(0,1fr) auto;
+            }
+
+            .nova-plus-age-ribbon > p {
+              grid-column: 2 / -1;
+            }
+
+            .nova-plus-map-grid {
+              grid-template-columns: 1fr;
+            }
+
+            .nova-plus-topic-world.expanded {
+              grid-column: auto;
+            }
+
+            .nova-plus-skill-node-map {
+              grid-template-columns: repeat(2, minmax(0,1fr));
+            }
+
+            .nova-plus-reassess-flow {
+              grid-template-columns: 1fr;
+              gap: 7px;
+            }
+
+            .nova-plus-reassess-flow > i {
+              width: 1px;
+              height: 14px;
+              margin-left: 15px;
+            }
+
+            .nova-plus-parent-cover {
+              grid-template-columns: 72px minmax(0,1fr);
+            }
+
+            .nova-plus-parent-status {
+              grid-column: 1 / -1;
+            }
+
+            .nova-plus-parent-triptych {
+              grid-template-columns: 1fr;
+            }
+
+            .nova-plus-parent-visual-summary {
+              grid-template-columns: 1fr;
+            }
+
+            .nova-plus-parent-actions {
+              padding-left: 0;
+              padding-top: 14px;
+              border-left: 0;
+              border-top: 1px solid rgba(196,181,253,0.08);
+            }
+          }
+
+          @media (max-width: 640px) {
+            .nova-plus-hero {
+              padding: 18px 16px 64px;
+              min-height: 280px;
+            }
+
+            .nova-plus-hero-copy {
+              padding-right: 0;
+            }
+
+            .nova-plus-hero-visual {
+              right: 16px;
+              bottom: 10px;
+              top: auto;
+              width: 118px;
+              height: 118px;
+              transform: none;
+              opacity: 0.86;
+            }
+
+            .nova-plus-orbit.orbit-one { width: 116px; height: 116px; }
+            .nova-plus-orbit.orbit-two { width: 88px; height: 88px; }
+            .nova-plus-core { width: 70px; height: 70px; }
+
+            .nova-plus-nav {
+              grid-template-columns: repeat(2, minmax(0,1fr));
+            }
+
+            .nova-plus-nav button {
+              min-height: 52px;
+            }
+
+            .nova-plus-subject-planets,
+            .nova-plus-pattern-strip,
+            .nova-plus-recommend-grid,
+            .nova-plus-progress-subjects,
+            .nova-plus-milestones {
+              grid-template-columns: 1fr;
+            }
+
+            .nova-plus-master-ring {
+              width: 154px;
+              height: 154px;
+            }
+
+            .nova-plus-gap-radar {
+              grid-template-columns: 1fr;
+            }
+
+            .nova-plus-gap-list > article {
+              grid-template-columns: 9px minmax(0,1fr);
+            }
+
+            .nova-plus-gap-meter {
+              grid-column: 2;
+            }
+
+            .nova-plus-constellation {
+              min-height: auto;
+              padding: 10px;
+              display: grid;
+              grid-template-columns: repeat(2, minmax(0,1fr));
+              gap: 8px;
+            }
+
+            .nova-plus-skill-star {
+              position: static;
+              width: auto;
+              min-height: 90px;
+              transform: none !important;
+            }
+
+            .nova-plus-map-toolbar,
+            .nova-plus-recommend-hero {
+              align-items: flex-start;
+              flex-direction: column;
+            }
+
+            .nova-plus-topic-world-head {
+              grid-template-columns: 54px minmax(0,1fr) 30px;
+            }
+
+            .nova-plus-topic-ring {
+              width: 50px;
+              height: 50px;
+            }
+
+            .nova-plus-skill-node-map {
+              grid-template-columns: 1fr;
+            }
+
+            .nova-plus-chart-wrap svg {
+              height: 190px;
+            }
+
+            .nova-plus-parent-rings {
+              grid-template-columns: repeat(3, minmax(0,1fr));
+            }
+
+            .nova-plus-parent-ring {
+              width: 62px;
+              height: 62px;
+            }
+
+            .nova-plus-parent-footer {
+              flex-direction: column;
             }
           }
 

@@ -77,7 +77,7 @@ type FullscreenGameElement = HTMLDivElement & {
 
 const PhaserGame = dynamic<PhaserGameProps>(() => import("./PhaserGame"), {
   ssr: false,
-  loading: () => <LoadingScreen label="PREPARING ROVER CHALLENGE" />,
+  loading: () => <LoadingScreen label="PREPARING ROVER EXPEDITION" />,
 });
 
 export default function RoverChallengeClient({
@@ -149,7 +149,7 @@ export default function RoverChallengeClient({
 
       if (userError) {
         console.warn(
-          "Could not check the current Rover Challenge user:",
+          "Could not check the current Rover Expedition user:",
           userError.message,
         );
 
@@ -159,7 +159,7 @@ export default function RoverChallengeClient({
          */
         if (showLoading) {
           setLoadError(
-            "Rover Challenge access could not be checked. Please try again.",
+            "Rover Expedition access could not be checked. Please try again.",
           );
         }
 
@@ -522,7 +522,7 @@ export default function RoverChallengeClient({
         await gameElement.webkitRequestFullscreen?.();
       }
     } catch (error) {
-      console.warn("Could not change Rover Challenge fullscreen mode:", error);
+      console.warn("Could not change Rover Expedition fullscreen mode:", error);
     }
 
     refreshGameSize();
@@ -689,7 +689,7 @@ function LevelGate({
     <div className="grid h-full place-items-center bg-[radial-gradient(circle_at_50%_20%,#173354_0%,#081225_45%,#050713_100%)] px-5">
       <section className="w-full max-w-xl rounded-3xl border border-cyan-200/25 bg-[#071126]/90 p-8 text-center shadow-[0_30px_100px_rgba(0,0,0,0.55)] backdrop-blur-xl">
         <p className="text-xs font-bold tracking-[0.28em] text-cyan-300">
-          ROVER CHALLENGE · LEVEL {level.id}
+          ROVER EXPEDITION · LEVEL {level.id}
         </p>
         <h1 className="mt-4 text-3xl font-black sm:text-4xl">{title}</h1>
         <p className="mx-auto mt-4 max-w-md leading-7 text-slate-300">
