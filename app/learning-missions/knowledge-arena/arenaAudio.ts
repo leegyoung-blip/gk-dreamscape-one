@@ -19,6 +19,11 @@ export function playArenaSound(
   audio.preload = "auto";
   audio.volume = Math.max(0, Math.min(1, (masterVolume / 100) * gain));
 
+  // Small pitch variation keeps repeated blaster shots from sounding identical.
+  if (sound === "blaster") {
+    audio.playbackRate = 0.94 + Math.random() * 0.12;
+  }
+
   void audio.play().catch(() => {
     // Browsers can reject playback before the first user gesture.
   });

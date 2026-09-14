@@ -8,6 +8,7 @@ import type {
   KnowledgeArenaBattleTopic,
 } from "./useKnowledgeArenaBattle";
 import { getNovaVariant, type NovaVariantSlug } from "./novaVariants";
+import { playArenaSound } from "./arenaAudio";
 
 type Answer = "A" | "B" | "C" | "D";
 
