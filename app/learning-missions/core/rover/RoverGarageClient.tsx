@@ -2278,7 +2278,7 @@ function PerformanceUpgradeBox({
     1,
     Math.min(
       5,
-      Number(row.next_level ?? currentLevel || 1),
+      Number((row.next_level ?? currentLevel) || 1),
     ),
   );
 
