@@ -1267,46 +1267,46 @@ export function ArenaBattleView({
         .kab-is-mobile .kab-overlay-top {
           z-index: 5;
           grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr);
-          gap: 6px;
-          padding: 4px 8px 0;
+          gap: 5px;
+          padding: 1px 6px 0;
         }
         .kab-is-mobile .kab-question-panel {
           gap: 5px;
         }
         .kab-is-mobile .kab-question-card {
-          border-radius: 13px;
-          padding: 9px 11px;
+          border-radius: 11px;
+          padding: 7px 9px;
         }
         .kab-is-mobile .kab-question-card small {
-          font-size: 8px;
-          letter-spacing: .10em;
+          font-size: 7px;
+          letter-spacing: .09em;
         }
         .kab-is-mobile .kab-question-card h2 {
-          margin-top: 5px;
-          font-size: clamp(13px, 2.15vw, 17px);
-          line-height: 1.18;
+          margin-top: 4px;
+          font-size: clamp(12px, 1.95vw, 15px);
+          line-height: 1.16;
         }
         .kab-is-mobile .kab-question-image {
           max-height: 74px;
           margin-top: 6px;
         }
         .kab-is-mobile .kab-answer-grid--top {
-          gap: 6px;
+          gap: 4px;
         }
         .kab-is-mobile .kab-answer {
-          min-height: 48px;
-          gap: 7px;
-          border-radius: 13px;
-          padding: 7px 9px;
+          min-height: 42px;
+          gap: 5px;
+          border-radius: 10px;
+          padding: 4px 6px;
         }
         .kab-is-mobile .kab-answer strong {
-          width: 25px;
-          height: 25px;
-          font-size: 11px;
+          width: 22px;
+          height: 22px;
+          font-size: 10px;
         }
         .kab-is-mobile .kab-answer span {
-          font-size: clamp(10px, 1.55vw, 12px);
-          line-height: 1.18;
+          font-size: clamp(9px, 1.40vw, 11px);
+          line-height: 1.14;
         }
         .kab-is-mobile .kab-feedback {
           gap:5px;
@@ -1355,24 +1355,24 @@ export function ArenaBattleView({
 
         .kab-is-mobile .kab-bottom-hud {
           grid-template-columns: minmax(0,1fr) auto minmax(0,1fr);
-          gap: 7px;
-          padding: 0 8px 8px;
-          align-items: stretch;
+          gap: 6px;
+          padding: 0 6px 6px;
+          align-items: center;
         }
         .kab-is-mobile .kab-hp-card {
           display: flex;
-          min-height: 48px;
+          min-height: 40px;
           flex-direction: column;
           justify-content: center;
-          border-radius: 11px;
-          padding: 7px 9px;
+          border-radius: 10px;
+          padding: 5px 7px;
         }
         .kab-is-mobile .kab-hp-title {
-          margin-bottom: 5px;
-          font-size: 10px;
+          margin-bottom: 4px;
+          font-size: 9px;
         }
         .kab-is-mobile .kab-hp-track {
-          height: 8px;
+          height: 6px;
         }
         .kab-is-mobile .kab-monster-stats {
           display: none !important;
@@ -1466,7 +1466,13 @@ export function ArenaBattleView({
           transform:none;
           max-height:100%;
         }
-        .kab-is-mobile .kab-monster-stats { display:none !important; }
+        .kab-is-mobile .kab-monster-stats {
+          display:none !important;
+          height:0 !important;
+          margin:0 !important;
+          padding:0 !important;
+          overflow:hidden !important;
+        }
       `}</style>
     </div>
   );

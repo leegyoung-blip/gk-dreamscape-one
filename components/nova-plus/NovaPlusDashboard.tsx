@@ -14,11 +14,11 @@ import styles from "./NovaPlusDashboard.module.css";
 
 const TABS: Array<{ key: NovaPlusTab; label: string; icon: string }> = [
   { key: "learning", label: "My Learning", icon: "◎" },
-  { key: "strengths", label: "Strengths & Gaps", icon: "◐" },
-  { key: "mastery", label: "Mastery Map", icon: "◇" },
-  { key: "recommendations", label: "Nova Recommends", icon: "✦" },
+  { key: "strengths", label: "Strengths & Gaps", icon: "✦" },
+  { key: "mastery", label: "Mastery Map", icon: "⌘" },
+  { key: "recommendations", label: "Nova Recommends", icon: "→" },
   { key: "progress", label: "Progress", icon: "↗" },
-  { key: "parent", label: "Parent Report", icon: "▤" },
+  { key: "parent", label: "Parent Report", icon: "◇" },
 ];
 
 export default function NovaPlusDashboard() {
@@ -40,9 +40,9 @@ export default function NovaPlusDashboard() {
     refresh,
   } = useNovaPlusProfile(requestedLearnerId);
 
-  const title = useMemo(() => {
+  const learnerName = useMemo(() => {
     const label = selectedLearner?.label?.trim();
-    return label && label !== "Learner" ? `${label}'s Learning` : "Learner Intelligence";
+    return label && label !== "Learner" ? label : "Learner";
   }, [selectedLearner?.label]);
 
   function closeNovaPlus() {
@@ -53,20 +53,18 @@ export default function NovaPlusDashboard() {
     <main className={styles.page}>
       <div className={styles.grid} aria-hidden="true" />
 
-      <header className={styles.header}>
-        <div className={styles.brandBlock}>
-          <div className={styles.logoMark}>N+</div>
-          <div>
-            <div className={styles.brandLine}>
-              <span>NOVA+</span>
-              {isAdminPreview && <em>Admin Preview</em>}
-            </div>
-            <h1>Learning Intelligence</h1>
-            <p>{title}</p>
+      <section className={styles.hero}>
+        <div className={styles.heroCopy}>
+          <div className={styles.brandLine}>
+            <span className={styles.kicker}>NOVA+</span>
+            {isAdminPreview && <em className={styles.previewBadge}>Admin Preview</em>}
           </div>
-        </div>
 
-        <div className={styles.headerActions}>
+          <h1>Learning Intelligence</h1>
+          <p>
+            A clear view of {learnerName}&apos;s strengths, learning gaps and what to focus on next.
+          </p>
+
           {learners.length > 1 && (
             <label className={styles.learnerPicker}>
               <span>Learner</span>
@@ -82,7 +80,17 @@ export default function NovaPlusDashboard() {
               </select>
             </label>
           )}
+        </div>
 
+        <div className={styles.heroVisual} aria-hidden="true">
+          <div className={`${styles.orbit} ${styles.orbitOuter}`} />
+          <div className={`${styles.orbit} ${styles.orbitInner}`} />
+          <div className={styles.novaCore}>
+            <img src="/nova/nova-character.png" alt="" />
+          </div>
+        </div>
+
+        <div className={styles.heroActions}>
           <button
             type="button"
             className={styles.refreshButton}
@@ -101,7 +109,7 @@ export default function NovaPlusDashboard() {
             ×
           </button>
         </div>
-      </header>
+      </section>
 
       <nav className={styles.tabs} aria-label="NOVA+ sections">
         {TABS.map((item) => (
@@ -112,7 +120,7 @@ export default function NovaPlusDashboard() {
             onClick={() => setTab(item.key)}
           >
             <span>{item.icon}</span>
-            {item.label}
+            <strong>{item.label}</strong>
           </button>
         ))}
       </nav>
@@ -138,7 +146,7 @@ export default function NovaPlusDashboard() {
         ) : tab === "learning" ? (
           <MyLearningTab
             learnerId={selectedLearnerId}
-            learnerLabel={selectedLearner?.label || "Learner"}
+            learnerLabel={learnerName}
             profile={profile}
             onOpenRecommendations={() => setTab("recommendations")}
           />

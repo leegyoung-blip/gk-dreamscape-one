@@ -465,7 +465,11 @@ function useResponsiveMode() {
       const height = window.innerHeight;
       const isPortrait = height > width;
 
-      if (width <= 720) {
+      // Phones commonly become wider than 720px in landscape. Treat a short
+      // landscape viewport as mobile so the phone layout remains active after rotation.
+      const isLandscapePhone = !isPortrait && height <= 600;
+
+      if (width <= 720 || isLandscapePhone) {
         setScreenMode("mobile");
       } else if (width <= 1180 || isPortrait) {
         setScreenMode("tablet");
@@ -4330,15 +4334,15 @@ export default function KnowledgeArenaPage() {
         }
         .ka-mobile-battle-metrics span {
           display: inline-flex;
-          min-height: 33px;
+          min-height: 30px;
           align-items: center;
           justify-content: center;
           border: 1px solid rgba(126,232,255,.22);
           border-radius: 999px;
           background: rgba(5,13,28,.80);
-          padding: 0 10px;
+          padding: 0 8px;
           color: white;
-          font-size: 10px;
+          font-size: 9px;
           font-weight: 900;
           box-shadow: 0 8px 20px rgba(0,0,0,.18);
           backdrop-filter: blur(14px);
@@ -6701,13 +6705,34 @@ export default function KnowledgeArenaPage() {
 
         @media (max-height: 610px) and (orientation: landscape) {
           .ka-topbar {
-            min-height: 39px;
+            min-height: 38px;
             padding-top: max(3px, env(safe-area-inset-top));
             padding-bottom: 3px;
           }
 
           .ka-nav-button {
-            min-height: 30px;
+            min-height: 29px;
+            padding-inline: 9px;
+            font-size: 9px;
+          }
+
+          .ka-guide-launcher {
+            min-height: 29px;
+            padding: 3px 8px;
+          }
+
+          .ka-guide-copy strong {
+            font-size: 9px;
+          }
+
+          .ka-mobile-battle-metrics {
+            gap: 4px;
+          }
+
+          .ka-mobile-battle-metrics span {
+            min-height: 29px;
+            padding-inline: 7px;
+            font-size: 9px;
           }
 
           .ka-hero {

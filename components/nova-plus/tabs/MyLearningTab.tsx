@@ -11,6 +11,7 @@ import {
   SUBJECT_META,
   subjectState,
   subjectStateLabel,
+  type SubjectState,
 } from "@/lib/nova-plus/helpers";
 import styles from "./MyLearningTab.module.css";
 
@@ -22,6 +23,32 @@ type Props = {
 };
 
 const CURRICULUM_SUBJECTS: NovaSubjectKey[] = ["english", "math", "science"];
+
+const STATE_META: Record<
+  SubjectState,
+  { colour: string; soft: string; border: string }
+> = {
+  strong: {
+    colour: "#4de2a1",
+    soft: "rgba(77, 226, 161, 0.09)",
+    border: "rgba(77, 226, 161, 0.34)",
+  },
+  developing: {
+    colour: "#ffae57",
+    soft: "rgba(255, 174, 87, 0.09)",
+    border: "rgba(255, 174, 87, 0.34)",
+  },
+  attention: {
+    colour: "#ff6c72",
+    soft: "rgba(255, 108, 114, 0.09)",
+    border: "rgba(255, 108, 114, 0.36)",
+  },
+  unknown: {
+    colour: "#8ea2ba",
+    soft: "rgba(142, 162, 186, 0.07)",
+    border: "rgba(142, 162, 186, 0.22)",
+  },
+};
 
 function summaryFor(profile: NovaPlusProfilePayload, subject: NovaSubjectKey) {
   return (
@@ -73,8 +100,8 @@ export default function MyLearningTab({
 
   return (
     <div className={styles.page}>
-      <section className={styles.heroCard}>
-        <div className={styles.heroCopy}>
+      <section className={styles.introCard}>
+        <div>
           <span className={styles.eyebrow}>MY LEARNING</span>
           <h2>Your learning at a glance</h2>
           <p>See what is strong, what needs work, and what Nova recommends next.</p>
@@ -87,53 +114,144 @@ export default function MyLearningTab({
         </div>
       </section>
 
-      <section className={styles.learningMap}>
-        <div className={styles.orbitLineOne} aria-hidden="true" />
-        <div className={styles.orbitLineTwo} aria-hidden="true" />
-
-        <div className={styles.learnerCore}>
-          <LearnerAvatarPicker learnerId={learnerId} learnerLabel={learnerLabel} />
-          <strong>{learnerLabel || "Learner"}</strong>
-          <span>Learning profile</span>
-        </div>
-
-        {CURRICULUM_SUBJECTS.map((subject, index) => {
-          const summary = summaryFor(profile, subject);
-          const state = subjectState(summary);
-          const meta = SUBJECT_META[subject];
-
-          return (
-            <article
-              key={subject}
-              className={`${styles.subjectNode} ${styles[`subject${index + 1}`]}`}
-              data-state={state}
-            >
-              <div className={styles.subjectIcon}>{meta.icon}</div>
-              <div>
-                <strong>{meta.label}</strong>
-                <span>{subjectStateLabel(state)}</span>
-              </div>
-              {summary && summary.questions_attempted >= 5 ? (
-                <small>{Math.round(safeNumber(summary.mastery_score))}% mastery</small>
-              ) : (
-                <small>More evidence needed</small>
-              )}
-            </article>
-          );
-        })}
-
-        <article className={styles.knowledgeNode} data-state={subjectState(knowledge)}>
-          <div className={styles.knowledgeIcon}>◎</div>
-          <div>
-            <span>GENERAL KNOWLEDGE</span>
-            <strong>{subjectStateLabel(subjectState(knowledge))}</strong>
+      <section className={styles.overviewGrid}>
+        <aside className={styles.learnerPanel}>
+          <div className={styles.avatarWrap}>
+            <LearnerAvatarPicker learnerId={learnerId} learnerLabel={learnerLabel} />
           </div>
-        </article>
+
+          <div className={styles.learnerIdentity}>
+            <span>LEARNER PROFILE</span>
+            <strong>{learnerLabel || "Learner"}</strong>
+            <small>Choose the profile picture above at any time.</small>
+          </div>
+
+          <div className={styles.coachNote}>
+            <img src="/nova/nova-character.png" alt="" aria-hidden="true" />
+            <div>
+              <span>NOVA</span>
+              <strong>Learning from every piece of evidence.</strong>
+              <small>Quiz results now. Uploaded work can feed this same profile later.</small>
+            </div>
+          </div>
+        </aside>
+
+        <div className={styles.subjectPanel}>
+          <div className={styles.panelHeading}>
+            <div>
+              <span className={styles.eyebrow}>ACADEMIC PICTURE</span>
+              <h3>English, Mathematics & Science</h3>
+            </div>
+            <small>Colour shows the current learning status.</small>
+          </div>
+
+          <div className={styles.subjectGrid}>
+            {CURRICULUM_SUBJECTS.map((subjectKey) => {
+              const summary = summaryFor(profile, subjectKey);
+              const state = subjectState(summary);
+              const stateMeta = STATE_META[state];
+              const subjectMeta = SUBJECT_META[subjectKey];
+              const hasEvidence = Boolean(summary && summary.questions_attempted >= 5);
+
+              return (
+                <article
+                  key={subjectKey}
+                  className={styles.subjectCard}
+                  style={{
+                    borderColor: stateMeta.border,
+                    background: `linear-gradient(145deg, ${stateMeta.soft}, rgba(4, 13, 29, 0.88))`,
+                    boxShadow: `inset 0 0 36px ${stateMeta.soft}`,
+                  }}
+                >
+                  <div className={styles.subjectTop}>
+                    <span
+                      className={styles.subjectIcon}
+                      style={{
+                        color: stateMeta.colour,
+                        borderColor: stateMeta.border,
+                        background: stateMeta.soft,
+                      }}
+                    >
+                      {subjectMeta.icon}
+                    </span>
+                    <span
+                      className={styles.statusPill}
+                      style={{
+                        color: stateMeta.colour,
+                        borderColor: stateMeta.border,
+                        background: stateMeta.soft,
+                      }}
+                    >
+                      {subjectStateLabel(state)}
+                    </span>
+                  </div>
+
+                  <h4>{subjectMeta.label}</h4>
+
+                  <div className={styles.masteryLine}>
+                    <strong style={{ color: stateMeta.colour }}>
+                      {hasEvidence ? `${Math.round(safeNumber(summary?.mastery_score))}%` : "—"}
+                    </strong>
+                    <span>{hasEvidence ? "mastery" : "building picture"}</span>
+                  </div>
+
+                  <div className={styles.statusBar}>
+                    <div
+                      style={{
+                        width: hasEvidence
+                          ? `${Math.max(0, Math.min(100, safeNumber(summary?.mastery_score)))}%`
+                          : "18%",
+                        background: stateMeta.colour,
+                      }}
+                    />
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          {(() => {
+            const state = subjectState(knowledge);
+            const stateMeta = STATE_META[state];
+            const hasEvidence = Boolean(knowledge && knowledge.questions_attempted >= 5);
+
+            return (
+              <article
+                className={styles.knowledgeRow}
+                style={{
+                  borderColor: stateMeta.border,
+                  background: `linear-gradient(145deg, ${stateMeta.soft}, rgba(4, 13, 29, 0.76))`,
+                }}
+              >
+                <span
+                  className={styles.knowledgeIcon}
+                  style={{
+                    color: stateMeta.colour,
+                    borderColor: stateMeta.border,
+                    background: stateMeta.soft,
+                  }}
+                >
+                  ◎
+                </span>
+                <div>
+                  <small>GENERAL KNOWLEDGE</small>
+                  <strong>Knowledge Arena</strong>
+                </div>
+                <span className={styles.knowledgeStatus} style={{ color: stateMeta.colour }}>
+                  {subjectStateLabel(state)}
+                </span>
+                <b>
+                  {hasEvidence ? `${Math.round(safeNumber(knowledge?.mastery_score))}%` : "—"}
+                </b>
+              </article>
+            );
+          })()}
+        </div>
       </section>
 
       <section className={styles.actionGrid}>
         <article className={`${styles.actionCard} ${styles.strongCard}`}>
-          <div className={styles.actionIcon}>↗</div>
+          <span className={styles.actionMarker}>↗</span>
           <div>
             <span>STRONGEST RIGHT NOW</span>
             <strong>
@@ -150,7 +268,7 @@ export default function MyLearningTab({
         </article>
 
         <article className={`${styles.actionCard} ${styles.attentionCard}`}>
-          <div className={styles.actionIcon}>!</div>
+          <span className={styles.actionMarker}>!</span>
           <div>
             <span>NEEDS ATTENTION</span>
             <strong>
@@ -173,7 +291,7 @@ export default function MyLearningTab({
           className={`${styles.actionCard} ${styles.recommendCard}`}
           onClick={onOpenRecommendations}
         >
-          <div className={styles.novaBadge}>N+</div>
+          <span className={styles.novaMark}>N+</span>
           <div>
             <span>NOVA RECOMMENDS</span>
             <strong>{nextSkill?.skill_name || recommendationSubject}</strong>

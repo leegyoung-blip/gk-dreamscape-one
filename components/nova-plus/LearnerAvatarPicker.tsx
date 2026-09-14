@@ -11,12 +11,12 @@ type AvatarPreset = {
 };
 
 const PRESETS: AvatarPreset[] = [
-  { id: "rocket", symbol: "🚀", label: "Rocket", className: styles.blue },
-  { id: "planet", symbol: "🪐", label: "Planet", className: styles.purple },
-  { id: "star", symbol: "★", label: "Star", className: styles.gold },
-  { id: "robot", symbol: "🤖", label: "Robot", className: styles.cyan },
-  { id: "owl", symbol: "🦉", label: "Owl", className: styles.orange },
-  { id: "fox", symbol: "🦊", label: "Fox", className: styles.green },
+  { id: "aurora", symbol: "✦", label: "Aurora", className: styles.blue },
+  { id: "prism", symbol: "◇", label: "Prism", className: styles.purple },
+  { id: "orbit", symbol: "◎", label: "Orbit", className: styles.gold },
+  { id: "summit", symbol: "△", label: "Summit", className: styles.cyan },
+  { id: "hex", symbol: "⬡", label: "Hex", className: styles.orange },
+  { id: "spark", symbol: "✧", label: "Spark", className: styles.green },
 ];
 
 type StoredAvatar =
@@ -63,7 +63,7 @@ export default function LearnerAvatarPicker({
 }) {
   const [avatar, setAvatar] = useState<StoredAvatar>({
     kind: "preset",
-    value: "rocket",
+    value: "aurora",
   });
   const [open, setOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -73,9 +73,9 @@ export default function LearnerAvatarPicker({
     try {
       const stored = localStorage.getItem(storageKey(learnerId));
       if (stored) setAvatar(JSON.parse(stored) as StoredAvatar);
-      else setAvatar({ kind: "preset", value: "rocket" });
+      else setAvatar({ kind: "preset", value: "aurora" });
     } catch {
-      setAvatar({ kind: "preset", value: "rocket" });
+      setAvatar({ kind: "preset", value: "aurora" });
     }
   }, [learnerId]);
 

@@ -1513,21 +1513,21 @@ export default function TeachingDashboardPage() {
             <strong>{selectedStudent?.label || "My learning"}</strong>
           </div>
         </div>
-        <header className="hero">
+        <header className="dashboard-hero">
           <div>
             <p className="eyebrow">{dashboardAudienceLabel}</p>
             <h1>Teaching Dashboard</h1>
-            <p className="hero-copy">
+            <p className="dashboard-hero-copy">
               {isTeachingViewer
                 ? "Review assigned student activity, subject performance, and every recorded answer."
                 : "Review weekly quiz activity, subject performance, and every recorded answer."}
             </p>
           </div>
 
-          <div className="hero-insights">
+          <div className="dashboard-hero-actions">
             <button
               type="button"
-              className="learning-summary-card"
+              className="dashboard-learning-summary-card"
               onClick={() => void openAnalytics()}
             >
               <span>NOVA</span>
@@ -1542,7 +1542,7 @@ export default function TeachingDashboardPage() {
                   ? `/nova-plus?student=${encodeURIComponent(selectedStudentId)}`
                   : "/nova-plus"
               }
-              className="nova-plus-card"
+              className="dashboard-nova-plus-card"
             >
               <span>
                 NOVA+
@@ -2222,11 +2222,16 @@ export default function TeachingDashboardPage() {
           padding: 100px 0 70px;
         }
 
-        .hero {
+        .dashboard-hero {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) auto;
-          align-items: end;
-          gap: 28px;
+          grid-template-columns: minmax(390px, 0.92fr) minmax(560px, 1.08fr);
+          align-items: center;
+          gap: clamp(28px, 4vw, 64px);
+        }
+
+        .dashboard-hero > div:first-child {
+          min-width: 0;
+          max-width: 660px;
         }
 
         .eyebrow,
@@ -2239,35 +2244,37 @@ export default function TeachingDashboardPage() {
           text-transform: uppercase;
         }
 
-        .hero h1 {
+        .dashboard-hero h1 {
           margin: 10px 0 0;
           font-family: Georgia, "Times New Roman", serif;
-          font-size: clamp(48px, 7vw, 82px);
+          font-size: clamp(52px, 6vw, 78px);
           font-weight: 400;
-          line-height: 0.96;
+          line-height: 0.98;
           letter-spacing: -0.055em;
         }
 
-        .hero-copy {
-          max-width: 760px;
+        .dashboard-hero-copy {
+          max-width: 620px;
           margin: 17px 0 0;
           color: rgba(235, 247, 255, 0.72);
-          font-size: clamp(16px, 2vw, 20px);
-          line-height: 1.55;
+          font-size: clamp(15px, 1.4vw, 18px);
+          line-height: 1.62;
         }
 
-        .hero-insights {
+        .dashboard-hero-actions {
+          min-width: 0;
           display: grid;
-          grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr);
-          gap: 12px;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 14px;
+          align-self: center;
         }
 
-        .learning-summary-card,
-        .nova-plus-card {
-          min-width: 245px;
-          min-height: 150px;
-          padding: 20px 22px;
-          border-radius: 22px;
+        .dashboard-learning-summary-card,
+        .dashboard-nova-plus-card {
+          min-width: 0;
+          min-height: 168px;
+          padding: 22px 23px;
+          border-radius: 24px;
           border: 1px solid rgba(126, 232, 255, 0.2);
           box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
           color: white;
@@ -2277,47 +2284,49 @@ export default function TeachingDashboardPage() {
           transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
         }
 
-        .learning-summary-card {
-          background: linear-gradient(145deg, rgba(24, 76, 112, 0.72), rgba(8, 28, 56, 0.92));
-        }
-
-        .nova-plus-card {
+        .dashboard-learning-summary-card {
           background:
-            radial-gradient(circle at 90% 5%, rgba(216, 180, 254, 0.2), transparent 32%),
-            linear-gradient(145deg, rgba(79, 41, 126, 0.86), rgba(20, 13, 57, 0.94));
-          border-color: rgba(216, 180, 254, 0.3);
+            radial-gradient(circle at 88% 10%, rgba(83, 215, 255, 0.16), transparent 34%),
+            linear-gradient(145deg, rgba(24, 76, 112, 0.78), rgba(8, 28, 56, 0.94));
         }
 
-        .learning-summary-card:hover,
-        .nova-plus-card:hover {
+        .dashboard-nova-plus-card {
+          background:
+            radial-gradient(circle at 90% 5%, rgba(216, 180, 254, 0.22), transparent 34%),
+            linear-gradient(145deg, rgba(79, 41, 126, 0.9), rgba(20, 13, 57, 0.96));
+          border-color: rgba(216, 180, 254, 0.34);
+        }
+
+        .dashboard-learning-summary-card:hover,
+        .dashboard-nova-plus-card:hover {
           transform: translateY(-2px);
           box-shadow: 0 28px 66px rgba(0, 0, 0, 0.32);
         }
 
-        .learning-summary-card:hover {
-          border-color: rgba(126, 232, 255, 0.5);
+        .dashboard-learning-summary-card:hover {
+          border-color: rgba(126, 232, 255, 0.52);
         }
 
-        .nova-plus-card:hover {
-          border-color: rgba(216, 180, 254, 0.62);
+        .dashboard-nova-plus-card:hover {
+          border-color: rgba(216, 180, 254, 0.64);
           box-shadow:
             0 28px 66px rgba(0, 0, 0, 0.34),
             0 0 30px rgba(192, 132, 252, 0.14);
         }
 
-        .learning-summary-card span,
-        .learning-summary-card strong,
-        .learning-summary-card small,
-        .learning-summary-card b,
-        .nova-plus-card span,
-        .nova-plus-card strong,
-        .nova-plus-card small,
-        .nova-plus-card b {
+        .dashboard-learning-summary-card span,
+        .dashboard-learning-summary-card strong,
+        .dashboard-learning-summary-card small,
+        .dashboard-learning-summary-card b,
+        .dashboard-nova-plus-card span,
+        .dashboard-nova-plus-card strong,
+        .dashboard-nova-plus-card small,
+        .dashboard-nova-plus-card b {
           display: block;
         }
 
-        .learning-summary-card span,
-        .nova-plus-card > span {
+        .dashboard-learning-summary-card span,
+        .dashboard-nova-plus-card > span {
           color: #8dfcff;
           font-size: 10px;
           font-weight: 900;
@@ -2325,14 +2334,14 @@ export default function TeachingDashboardPage() {
           text-transform: uppercase;
         }
 
-        .nova-plus-card > span {
+        .dashboard-nova-plus-card > span {
           color: #e9d5ff;
           display: flex;
           align-items: center;
           gap: 7px;
         }
 
-        .nova-plus-card em {
+        .dashboard-nova-plus-card em {
           padding: 4px 7px;
           border-radius: 999px;
           border: 1px solid rgba(255, 215, 106, 0.25);
@@ -2343,27 +2352,29 @@ export default function TeachingDashboardPage() {
           letter-spacing: 0.08em;
         }
 
-        .learning-summary-card strong,
-        .nova-plus-card strong {
-          margin-top: 9px;
-          font-size: 20px;
+        .dashboard-learning-summary-card strong,
+        .dashboard-nova-plus-card strong {
+          margin-top: 10px;
+          font-size: clamp(19px, 1.6vw, 23px);
+          line-height: 1.12;
         }
 
-        .learning-summary-card small,
-        .nova-plus-card small {
-          margin-top: 7px;
-          color: rgba(235, 247, 255, 0.58);
-          line-height: 1.4;
+        .dashboard-learning-summary-card small,
+        .dashboard-nova-plus-card small {
+          margin-top: 8px;
+          color: rgba(235, 247, 255, 0.62);
+          font-size: 12px;
+          line-height: 1.5;
         }
 
-        .learning-summary-card b,
-        .nova-plus-card b {
-          margin-top: 13px;
+        .dashboard-learning-summary-card b,
+        .dashboard-nova-plus-card b {
+          margin-top: 14px;
           color: #bdf6ff;
           font-size: 11px;
         }
 
-        .nova-plus-card b {
+        .dashboard-nova-plus-card b {
           color: #e9d5ff;
         }
 
@@ -3405,8 +3416,18 @@ export default function TeachingDashboardPage() {
         }
 
         @media (max-width: 1180px) {
-          .hero-insights {
+          .dashboard-hero {
             grid-template-columns: 1fr;
+            align-items: start;
+          }
+
+          .dashboard-hero > div:first-child {
+            max-width: 780px;
+          }
+
+          .dashboard-hero-actions {
+            width: 100%;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
           }
 
           .analytics-subject-grid {
@@ -3473,16 +3494,13 @@ export default function TeachingDashboardPage() {
             padding-top: 84px;
           }
 
-          .hero {
-            grid-template-columns: 1fr;
-          }
-
-          .hero h1 {
+          .dashboard-hero h1 {
             font-size: clamp(44px, 14vw, 60px);
           }
 
-          .hero-insights {
+          .dashboard-hero-actions {
             width: 100%;
+            grid-template-columns: 1fr;
           }
 
           .monthly-panel-heading {

@@ -30,7 +30,8 @@
 .presetFace {
   display: grid;
   place-items: center;
-  font-size: clamp(46px, 5vw, 72px);
+  font-size: clamp(38px, 4.2vw, 58px);
+  font-family: Georgia, "Times New Roman", serif;
   color: white;
 }
 
@@ -112,7 +113,7 @@
 }
 
 .presetGrid button.selected { border-color: rgba(142,232,255,0.72); }
-.presetGrid .presetFace { font-size: 34px; }
+.presetGrid .presetFace { font-size: 28px; }
 
 .uploadButton {
   width: 100%;
