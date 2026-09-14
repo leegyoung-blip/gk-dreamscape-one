@@ -1222,7 +1222,7 @@ export default function RoverGarageClient() {
               <div>
                 <p style={smallEyebrow}>
                   {selectedEquipped
-                    ? "EQUIPPED ROVER"
+                    ? "ACTIVE ROVER"
                     : selectedOwned
                       ? "OWNED ROVER"
                       : "ROVER PREVIEW"}
@@ -1265,7 +1265,7 @@ export default function RoverGarageClient() {
                 >
                   {savingRoverStage === displayedUpgrade.stage
                     ? "Equipping..."
-                    : "Equip This Rover"}
+                    : "Set Active Rover"}
                 </button>
               ) : selectedCanPurchase ? (
                 <button
@@ -1356,7 +1356,7 @@ export default function RoverGarageClient() {
             ) : (
               <div style={equipToTuneCompact}>
                 <span style={equipToTuneIcon}>◇</span>
-                <strong>Equip Rover {displayedUpgrade.roverNumber}</strong>
+                <strong>Set Rover {displayedUpgrade.roverNumber} Active</strong>
                 <span style={compactMutedText}>
                   Custom parts are stored separately for every rover.
                 </span>
@@ -1411,7 +1411,7 @@ function NovaGarageGuide({
       : {
           title: `${roverName} · Skyforge Hangar`,
           body:
-            "Choose a rover from the left, equip it, then tune that rover's Custom Build on the right. Weapons unlock after Expedition 4. Your stats appear beneath the vehicle. When your build is ready, press To Expeditions.",
+            "Choose a rover from the left, set it active, then tune that rover's Custom Build on the right. Weapons unlock after Expedition 4. Your stats appear beneath the vehicle. When your build is ready, press To Expeditions.",
         };
 
   return (
@@ -2289,7 +2289,7 @@ function UpgradeTrack({
 
               <span style={fleetCompactMeta(equipped, upgrade.accent)}>
                 {equipped
-                  ? "Equipped"
+                  ? "Active"
                   : owned
                     ? "Owned"
                     : upgrade.stage === 0
@@ -2318,7 +2318,7 @@ function UpgradeTrack({
                     "equip",
                   )}
                 >
-                  {saving ? "..." : "Equip"}
+                  {saving ? "..." : "Set Active"}
                 </button>
               ) : canPurchase ? (
                 <button
@@ -2448,7 +2448,7 @@ function PerformanceUpgradeBox({
     1,
     Math.min(
       5,
-      Number((row.next_level ?? currentLevel) || 1),
+      Number(row.next_level ?? (currentLevel || 1)),
     ),
   );
 
@@ -3315,19 +3315,19 @@ const lockedRoverBadge: CSSProperties = {
 
 function equipRoverButton(enabled: boolean): CSSProperties {
   return {
-    minWidth: "88px",
+    minWidth: "104px",
     minHeight: "40px",
     borderRadius: "11px",
     border: enabled
-      ? "1px solid rgba(126,232,255,0.44)"
+      ? "1px solid rgba(255,224,120,0.6)"
       : "1px solid rgba(255,255,255,0.08)",
     background: enabled
-      ? "linear-gradient(135deg,#35c5ff,#5c6cff)"
+      ? "linear-gradient(135deg,#ffe08a,#efa93e)"
       : "rgba(255,255,255,0.035)",
-    color: enabled ? "white" : "rgba(255,255,255,0.35)",
+    color: enabled ? "#241704" : "rgba(255,255,255,0.35)",
     padding: "0 13px",
-    fontSize: "11px",
-    fontWeight: 900,
+    fontSize: "10px",
+    fontWeight: 950,
     cursor: enabled ? "pointer" : "not-allowed",
   };
 }
@@ -3822,31 +3822,31 @@ const emptyLeaderboard: CSSProperties = {
 
 const novaGuideButton: CSSProperties = {
   position: "fixed",
-  left: "18px",
-  bottom: "18px",
-  zIndex: 80,
-  minHeight: "46px",
+  left: "126px",
+  top: "14px",
+  zIndex: 86,
+  minHeight: "40px",
   borderRadius: "999px",
-  border: "1px solid rgba(126,232,255,0.48)",
+  border: "1px solid rgba(126,232,255,0.42)",
   background:
     "linear-gradient(135deg, rgba(4,25,48,0.96), rgba(28,43,98,0.96))",
   color: "white",
-  padding: "0 16px 0 10px",
+  padding: "0 14px 0 8px",
   display: "inline-flex",
   alignItems: "center",
-  gap: "9px",
+  gap: "7px",
   boxShadow:
-    "0 14px 38px rgba(0,0,0,0.42), 0 0 22px rgba(83,215,255,0.18)",
+    "0 8px 22px rgba(0,0,0,0.32), 0 0 16px rgba(83,215,255,0.14)",
   backdropFilter: "blur(14px)",
   cursor: "pointer",
-  fontSize: "10px",
+  fontSize: "9px",
   fontWeight: 950,
-  letterSpacing: "0.09em",
+  letterSpacing: "0.08em",
 };
 
 const novaGuideButtonIcon: CSSProperties = {
-  width: "28px",
-  height: "28px",
+  width: "25px",
+  height: "25px",
   borderRadius: "50%",
   display: "grid",
   placeItems: "center",
@@ -3860,8 +3860,8 @@ const novaGuideButtonIcon: CSSProperties = {
 const novaGuidePanel: CSSProperties = {
   position: "fixed",
   left: "18px",
-  bottom: "76px",
-  zIndex: 81,
+  top: "66px",
+  zIndex: 87,
   width: "min(380px, calc(100vw - 36px))",
   borderRadius: "18px",
   border: "1px solid rgba(126,232,255,0.34)",
@@ -4025,7 +4025,12 @@ function roverFocusPane(_isCompact: boolean): CSSProperties {
     minHeight: 0,
     height: "100%",
     display: "grid",
-    gridTemplateRows: "auto minmax(0,1fr) auto auto auto",
+    /*
+     * The 62px action row is deliberately reserved outside the vehicle stage.
+     * The 3D rover is clipped inside its own row, so neither the Expeditions
+     * button nor any other centre control can overlap the vehicle artwork.
+     */
+    gridTemplateRows: "auto minmax(0,1fr) 62px auto auto",
     overflow: "hidden",
     padding: "6px clamp(16px,2vw,30px)",
   };
@@ -4131,28 +4136,23 @@ function compactFleetButton(
   kind: "equip" | "buy",
 ): CSSProperties {
   return {
-    minWidth: kind === "buy" ? "48px" : "54px",
+    minWidth: kind === "buy" ? "48px" : "66px",
     minHeight: "32px",
     borderRadius: "9px",
     border: enabled
-      ? kind === "buy"
-        ? "1px solid rgba(255,215,106,0.55)"
-        : "1px solid rgba(126,232,255,0.4)"
+      ? "1px solid rgba(255,224,120,0.62)"
       : "1px solid rgba(255,255,255,0.07)",
     background: enabled
-      ? kind === "buy"
-        ? "linear-gradient(135deg,#ffd76a,#ff9f43)"
-        : "linear-gradient(135deg,#35c5ff,#5867ff)"
+      ? "linear-gradient(135deg,#ffe08a,#efa93e)"
       : "rgba(255,255,255,0.03)",
-    color: enabled
-      ? kind === "buy"
-        ? "#241400"
-        : "white"
-      : "rgba(255,255,255,0.3)",
+    color: enabled ? "#241704" : "rgba(255,255,255,0.3)",
     padding: "0 8px",
-    fontSize: "9px",
+    fontSize: "8px",
     fontWeight: 950,
     cursor: enabled ? "pointer" : "not-allowed",
+    boxShadow: enabled
+      ? "0 6px 15px rgba(226,163,56,0.14)"
+      : "none",
   };
 }
 
@@ -4194,21 +4194,29 @@ const roverFocusVehicleStage: CSSProperties = {
   display: "grid",
   placeItems: "center",
   overflow: "hidden",
+  padding: "10px 3% 20px",
 };
 
 const roverFocusVehicleImage: CSSProperties = {
   position: "relative",
   zIndex: 2,
-  width: "97%",
-  height: "97%",
+  width: "92%",
+  height: "90%",
+  maxWidth: "100%",
+  maxHeight: "100%",
   objectFit: "contain",
-  filter: "drop-shadow(0 34px 34px rgba(0,0,0,0.55))",
+  objectPosition: "center",
+  filter: "drop-shadow(0 30px 32px rgba(0,0,0,0.52))",
 };
 
 const roverFocusActionArea: CSSProperties = {
+  position: "relative",
+  zIndex: 4,
+  minHeight: "62px",
   display: "flex",
+  alignItems: "center",
   justifyContent: "center",
-  paddingTop: "4px",
+  padding: "4px 0 6px",
 };
 
 const focusMessageStrip: CSSProperties = {
@@ -4646,16 +4654,18 @@ const centerPrimaryActions: CSSProperties = {
 };
 
 const expeditionsButton: CSSProperties = {
-  width: "min(420px,100%)",
-  minHeight: "54px",
-  border: "1px solid rgba(126,232,255,0.48)",
-  borderRadius: "15px",
-  background: "linear-gradient(135deg,#35c5ff,#5867ff)",
-  color: "white",
+  width: "min(390px,92%)",
+  minHeight: "50px",
+  border: "1px solid rgba(255,224,120,0.72)",
+  borderRadius: "14px",
+  background:
+    "linear-gradient(135deg,#ffe39a 0%,#f4c85d 46%,#d99b32 100%)",
+  color: "#241704",
   fontWeight: 950,
-  fontSize: "15px",
+  fontSize: "14px",
   cursor: "pointer",
-  boxShadow: "0 14px 34px rgba(53,197,255,0.18)",
+  boxShadow:
+    "0 12px 30px rgba(217,155,50,0.2), inset 0 1px 0 rgba(255,255,255,0.32)",
 };
 
 const disabledCenterButton: CSSProperties = {

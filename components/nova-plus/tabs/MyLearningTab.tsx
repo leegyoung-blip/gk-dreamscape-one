@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import LearnerAvatarPicker from "@/components/nova-plus/LearnerAvatarPicker";
 import type {
   NovaPlusProfilePayload,
@@ -68,6 +69,38 @@ function prioritySubject(rows: Array<ProfileSubjectSummary | null>) {
   return [...rows]
     .filter((row): row is ProfileSubjectSummary => Boolean(row && row.questions_attempted >= 5))
     .sort((a, b) => safeNumber(a.mastery_score) - safeNumber(b.mastery_score))[0] ?? null;
+}
+
+function ScoreInfo() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <span
+      className={`${styles.scoreInfo} ${open ? styles.scoreInfoOpen : ""}`}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        className={styles.scoreInfoButton}
+        aria-label="What do the mastery scores mean?"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+      >
+        i
+      </button>
+
+      <span className={styles.scoreInfoPopover} role="tooltip">
+        <strong>What the scores mean</strong>
+        <span><b className={styles.infoGreen}>85–100%</b> Strong</span>
+        <span><b className={styles.infoOrange}>70–84%</b> Developing</span>
+        <span><b className={styles.infoRed}>Below 70%</b> Needs attention</span>
+        <small>
+          Nova only shows a status after enough recorded learning evidence is available. Scores reflect the learner&apos;s current mastery picture and can change as new evidence is added.
+        </small>
+      </span>
+    </span>
+  );
 }
 
 export default function MyLearningTab({
@@ -142,7 +175,7 @@ export default function MyLearningTab({
               <span className={styles.eyebrow}>ACADEMIC PICTURE</span>
               <h3>English, Mathematics & Science</h3>
             </div>
-            <small>Colour shows the current learning status.</small>
+            <ScoreInfo />
           </div>
 
           <div className={styles.subjectGrid}>

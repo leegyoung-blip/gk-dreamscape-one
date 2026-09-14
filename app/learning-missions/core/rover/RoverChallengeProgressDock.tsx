@@ -161,8 +161,8 @@ export default function RoverChallengeProgressDock() {
     <aside style={shell(collapsed)} aria-label="Rover Expeditions level progress">
       <div style={headingRow}>
         <div style={{ minWidth: 0 }}>
-          <p style={eyebrow}>ROVER EXPEDITIONS</p>
-          <h2 style={title}>Level Progress</h2>
+          {!collapsed && <p style={eyebrow}>ROVER EXPEDITIONS</p>}
+          <h2 style={collapsed ? collapsedTitle : title}>Level Progress</h2>
         </div>
 
         <button
@@ -313,18 +313,25 @@ export default function RoverChallengeProgressDock() {
 function shell(collapsed: boolean): React.CSSProperties {
   return {
     position: "fixed",
-    right: "14px",
-    bottom: "14px",
-    zIndex: 80,
-    width: collapsed ? "250px" : "min(430px, calc(100vw - 28px))",
-    borderRadius: "20px",
-    border: "1px solid rgba(126,232,255,0.3)",
-    background: "rgba(3,11,25,0.95)",
-    boxShadow:
-      "0 22px 70px rgba(0,0,0,0.52), 0 0 28px rgba(83,215,255,0.12)",
+    left: collapsed ? "268px" : "18px",
+    top: collapsed ? "11px" : "66px",
+    right: "auto",
+    bottom: "auto",
+    zIndex: 85,
+    width: collapsed
+      ? "178px"
+      : "min(430px, calc(100vw - 36px))",
+    maxHeight: collapsed ? "48px" : "calc(100dvh - 82px)",
+    overflowY: collapsed ? "hidden" : "auto",
+    borderRadius: collapsed ? "999px" : "18px",
+    border: "1px solid rgba(126,232,255,0.28)",
+    background: "rgba(3,11,25,0.96)",
+    boxShadow: collapsed
+      ? "0 8px 22px rgba(0,0,0,0.3)"
+      : "0 20px 60px rgba(0,0,0,0.5), 0 0 24px rgba(83,215,255,0.1)",
     backdropFilter: "blur(18px)",
     color: "white",
-    padding: collapsed ? "12px 14px" : "14px",
+    padding: collapsed ? "7px 8px 7px 13px" : "14px",
     fontFamily: "Arial, Helvetica, sans-serif",
   };
 }
@@ -349,10 +356,18 @@ const title: React.CSSProperties = {
   fontSize: "18px",
 };
 
+const collapsedTitle: React.CSSProperties = {
+  margin: 0,
+  fontSize: "11px",
+  fontWeight: 900,
+  letterSpacing: "0.03em",
+};
+
 const collapseButton: React.CSSProperties = {
-  width: "34px",
-  height: "34px",
-  borderRadius: "10px",
+  width: "30px",
+  height: "30px",
+  flex: "0 0 30px",
+  borderRadius: "9px",
   border: "1px solid rgba(126,232,255,0.25)",
   background: "rgba(255,255,255,0.05)",
   color: "#c8f8ff",
