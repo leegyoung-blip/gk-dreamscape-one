@@ -63,6 +63,7 @@ type PhaserGameProps = {
   roverFrontWheelSrc: string | null;
   roverBackWheelSrc: string | null;
   roverGameMode: "wheeled" | "hover";
+  weaponLevel: number;
   gameStats: CoreRoverGameStats;
 };
 
@@ -93,6 +94,7 @@ export default function RoverChallengeClient({
   const [currentGameStats, setCurrentGameStats] = useState<CoreRoverGameStats>(
     coreUpgradeTrack[0].gameStats,
   );
+  const [currentWeaponLevel, setCurrentWeaponLevel] = useState(0);
   const [highestOwnedStage, setHighestOwnedStage] = useState(0);
   const [access, setAccess] = useState<RoverLevelAccess | null>(null);
   const [loading, setLoading] = useState(true);
@@ -200,6 +202,7 @@ export default function RoverChallengeClient({
         if (showLoading) {
           setCurrentUpgrade(coreUpgradeTrack[0]);
           setCurrentGameStats(coreUpgradeTrack[0].gameStats);
+          setCurrentWeaponLevel(0);
           setHighestOwnedStage(0);
         }
       } else {
@@ -224,10 +227,23 @@ export default function RoverChallengeClient({
             performanceResult.error.message,
           );
           setCurrentGameStats(selectedUpgrade.gameStats);
+          setCurrentWeaponLevel(0);
         } else {
           const buildRows =
             (performanceResult.data ?? []) as RoverPerformanceBuildRow[];
           const performanceLevels = performanceLevelsFromRows(buildRows);
+          const weaponLevel = Math.max(
+            0,
+            Math.min(
+              5,
+              Number(
+                buildRows.find((row) => row.category === "weapon")
+                  ?.current_level ?? 0,
+              ),
+            ),
+          );
+
+          setCurrentWeaponLevel(weaponLevel);
           setCurrentGameStats(
             applyRoverPerformanceUpgrades(
               selectedUpgrade.gameStats,
@@ -576,6 +592,7 @@ export default function RoverChallengeClient({
             roverFrontWheelSrc={currentUpgrade.gameFrontWheelSrc}
             roverBackWheelSrc={currentUpgrade.gameBackWheelSrc}
             roverGameMode={currentUpgrade.gameMode}
+            weaponLevel={currentWeaponLevel}
             gameStats={currentGameStats}
           />
         ) : (

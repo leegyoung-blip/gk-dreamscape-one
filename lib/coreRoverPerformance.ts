@@ -7,6 +7,8 @@ export type RoverPerformanceCategory =
   | "suspension"
   | "energy";
 
+export type RoverCustomBuildCategory = RoverPerformanceCategory | "weapon";
+
 export type RoverPerformanceLevels = Record<RoverPerformanceCategory, number>;
 
 export type RoverPerformanceRatings = {
@@ -21,7 +23,7 @@ export type RoverPerformanceBuildRow = {
   selected_stage: number;
   rover_number: number;
   rover_name: string;
-  category: RoverPerformanceCategory;
+  category: RoverCustomBuildCategory;
   category_title: string;
   base_rating: number;
   current_level: number;
@@ -41,7 +43,7 @@ export type RoverPerformanceBuildRow = {
 export type RoverPerformancePurchaseRow = {
   success: boolean;
   rover_stage: number;
-  category: RoverPerformanceCategory;
+  category: RoverCustomBuildCategory;
   purchased_level: number;
   upgrade_name: string;
   dt_cost: number;
@@ -59,9 +61,9 @@ export type RoverPerformanceTier = {
 };
 
 export type RoverPerformanceCategoryConfig = {
-  id: RoverPerformanceCategory;
+  id: RoverCustomBuildCategory;
   title: string;
-  statLabel: keyof RoverPerformanceRatings;
+  statLabel: keyof RoverPerformanceRatings | null;
   shortDescription: string;
   effectSummary: string;
   tiers: RoverPerformanceTier[];
@@ -323,6 +325,56 @@ export const roverPerformanceCategories: RoverPerformanceCategoryConfig[] = [
       },
     ],
   },
+  {
+    id: "weapon",
+    title: "Weapons",
+    statLabel: null,
+    shortDescription:
+      "Projectile systems for combat expeditions. Unlocks after completing Expedition 4.",
+    effectSummary: "Firepower · Projectile type · Guidance",
+    tiers: [
+      {
+        level: 1,
+        name: "Skyforge Machine Gun",
+        description:
+          "Rapid-fire starter weapon using light kinetic rounds.",
+        priceDt: PRICE_BY_LEVEL[0],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/weapons/skyforge-machine-gun.png`,
+      },
+      {
+        level: 2,
+        name: "Twin Autocannon",
+        description:
+          "Paired heavy cannons fire stronger armour-piercing rounds.",
+        priceDt: PRICE_BY_LEVEL[1],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/weapons/twin-autocannon.png`,
+      },
+      {
+        level: 3,
+        name: "Micro-Rocket Pod",
+        description:
+          "Compact rocket pod launches explosive unguided micro-rockets.",
+        priceDt: PRICE_BY_LEVEL[2],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/weapons/micro-rocket-pod.png`,
+      },
+      {
+        level: 4,
+        name: "Seeker Missile Rack",
+        description:
+          "Guided missiles can correct course toward moving targets.",
+        priceDt: PRICE_BY_LEVEL[3],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/weapons/seeker-missile-rack.png`,
+      },
+      {
+        level: 5,
+        name: "Nova Homing Missile System",
+        description:
+          "Full lock-on homing missiles continuously pursue their selected target.",
+        priceDt: PRICE_BY_LEVEL[4],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/weapons/nova-homing-missile-system.png`,
+      },
+    ],
+  },
 ];
 
 export const roverBaseRatingsByStage: Record<number, RoverPerformanceRatings> = {
@@ -357,12 +409,33 @@ export function performanceLevelsFromRows(
   const levels = { ...emptyRoverPerformanceLevels };
 
   for (const row of rows) {
-    if (row.category in levels) {
-      levels[row.category] = Math.max(0, Math.min(5, Number(row.current_level) || 0));
+    if (
+      row.category === "engine" ||
+      row.category === "traction" ||
+      row.category === "stability" ||
+      row.category === "suspension" ||
+      row.category === "energy"
+    ) {
+      levels[row.category] = Math.max(
+        0,
+        Math.min(5, Number(row.current_level) || 0),
+      );
     }
   }
 
   return levels;
+}
+
+export function isRoverPerformanceCategory(
+  category: RoverCustomBuildCategory | null | undefined,
+): category is RoverPerformanceCategory {
+  return (
+    category === "engine" ||
+    category === "traction" ||
+    category === "stability" ||
+    category === "suspension" ||
+    category === "energy"
+  );
 }
 
 export function getEffectiveRoverRatings(

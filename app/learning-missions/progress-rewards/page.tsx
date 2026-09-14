@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
-import NovaVirtualTeacherPopup from "@/components/dashboard/NovaVirtualTeacherPopup";
+import NovaLearningSummaryPopup from "@/components/dashboard/NovaLearningSummaryPopup";
 import DashboardTopControls from "@/components/dashboard/DashboardTopControls";
 import ParentalControlsPanel from "@/components/parental-controls/ParentalControlsPanel";
 
@@ -524,7 +524,18 @@ export default function TeachingDashboardPage() {
       if (cancelled) return;
 
       setStudents(accessibleStudents);
-      setSelectedStudentId((current) => current ?? accessibleStudents[0].id);
+
+      // If this account has a linked learner, show the learner by default rather
+      // than treating the parent/teacher account itself as the learner.
+      const preferredStudent =
+        accessibleStudents.find((student) => student.relationship !== "self") ||
+        accessibleStudents[0];
+
+      setSelectedStudentId((current) =>
+        current && accessibleStudents.some((student) => student.id === current)
+          ? current
+          : preferredStudent.id,
+      );
       setIsLoading(false);
     }
 
@@ -1516,22 +1527,33 @@ export default function TeachingDashboardPage() {
           <div className="hero-insights">
             <button
               type="button"
-              className="analytics-tab"
+              className="learning-summary-card"
               onClick={() => void openAnalytics()}
             >
-              <span>Results Analytics</span>
-              <strong>Nova’s quick summary</strong>
-              <small>Weaknesses, trends and next steps →</small>
+              <span>NOVA</span>
+              <strong>Learning Summary</strong>
+              <small>Weekly performance, strengths and next steps.</small>
+              <b>Open summary →</b>
             </button>
 
-            <div className="week-comparison">
-              <span>This week</span>
-              <strong>{thisWeekAttempts.length} quizzes</strong>
-              <small>
-                {thisWeekAttempts.length - previousWeekAttempts.length >= 0 ? "+" : ""}
-                {thisWeekAttempts.length - previousWeekAttempts.length} compared with last week
-              </small>
-            </div>
+            <Link
+              href={
+                selectedStudentId
+                  ? `/nova-plus?student=${encodeURIComponent(selectedStudentId)}`
+                  : "/nova-plus"
+              }
+              className="nova-plus-card"
+            >
+              <span>
+                NOVA+
+                {normaliseRole(viewerRole) === "admin" && (
+                  <em>Admin Preview</em>
+                )}
+              </span>
+              <strong>Learning Intelligence</strong>
+              <small>Strengths, learning gaps, mastery and personalised next steps.</small>
+              <b>Open NOVA+ →</b>
+            </Link>
           </div>
         </header>
 
@@ -1893,7 +1915,7 @@ export default function TeachingDashboardPage() {
         )}
       </section>
 
-      <NovaVirtualTeacherPopup
+      <NovaLearningSummaryPopup
         open={analyticsOpen}
         onClose={() => setAnalyticsOpen(false)}
         viewerUserId={viewerId}
@@ -2240,65 +2262,62 @@ export default function TeachingDashboardPage() {
           gap: 12px;
         }
 
-        .analytics-tab,
-        .week-comparison {
-          min-width: 220px;
+        .learning-summary-card,
+        .nova-plus-card {
+          min-width: 245px;
+          min-height: 150px;
           padding: 20px 22px;
           border-radius: 22px;
           border: 1px solid rgba(126, 232, 255, 0.2);
           box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
-        }
-
-        .analytics-tab {
-          background:
-            linear-gradient(145deg, rgba(71, 35, 112, 0.78), rgba(19, 13, 55, 0.9));
           color: white;
           text-align: left;
+          text-decoration: none;
           cursor: pointer;
+          transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
         }
 
-        .analytics-tab:hover {
-          border-color: rgba(216, 180, 254, 0.48);
+        .learning-summary-card {
+          background: linear-gradient(145deg, rgba(24, 76, 112, 0.72), rgba(8, 28, 56, 0.92));
+        }
+
+        .nova-plus-card {
+          background:
+            radial-gradient(circle at 90% 5%, rgba(216, 180, 254, 0.2), transparent 32%),
+            linear-gradient(145deg, rgba(79, 41, 126, 0.86), rgba(20, 13, 57, 0.94));
+          border-color: rgba(216, 180, 254, 0.3);
+        }
+
+        .learning-summary-card:hover,
+        .nova-plus-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 28px 66px rgba(0, 0, 0, 0.32);
+        }
+
+        .learning-summary-card:hover {
+          border-color: rgba(126, 232, 255, 0.5);
+        }
+
+        .nova-plus-card:hover {
+          border-color: rgba(216, 180, 254, 0.62);
           box-shadow:
-            0 24px 60px rgba(0, 0, 0, 0.3),
-            0 0 28px rgba(192, 132, 252, 0.16);
+            0 28px 66px rgba(0, 0, 0, 0.34),
+            0 0 30px rgba(192, 132, 252, 0.14);
         }
 
-        .analytics-tab span,
-        .analytics-tab strong,
-        .analytics-tab small {
+        .learning-summary-card span,
+        .learning-summary-card strong,
+        .learning-summary-card small,
+        .learning-summary-card b,
+        .nova-plus-card span,
+        .nova-plus-card strong,
+        .nova-plus-card small,
+        .nova-plus-card b {
           display: block;
         }
 
-        .analytics-tab span {
-          color: #e9d5ff;
-          font-size: 10px;
-          font-weight: 900;
-          letter-spacing: 0.16em;
-          text-transform: uppercase;
-        }
-
-        .analytics-tab strong {
-          margin-top: 8px;
-          font-size: 19px;
-        }
-
-        .analytics-tab small {
-          margin-top: 6px;
-          color: rgba(245, 235, 255, 0.58);
-          line-height: 1.4;
-        }
-
-        .week-comparison {
-          background: rgba(6, 22, 47, 0.74);
-        }
-
-        .week-comparison span,
-        .week-comparison small {
-          display: block;
-        }
-
-        .week-comparison span {
+        .learning-summary-card span,
+        .nova-plus-card > span {
           color: #8dfcff;
           font-size: 10px;
           font-weight: 900;
@@ -2306,16 +2325,46 @@ export default function TeachingDashboardPage() {
           text-transform: uppercase;
         }
 
-        .week-comparison strong {
-          display: block;
-          margin-top: 8px;
-          font-size: 27px;
+        .nova-plus-card > span {
+          color: #e9d5ff;
+          display: flex;
+          align-items: center;
+          gap: 7px;
         }
 
-        .week-comparison small {
-          margin-top: 6px;
-          color: rgba(235, 247, 255, 0.55);
+        .nova-plus-card em {
+          padding: 4px 7px;
+          border-radius: 999px;
+          border: 1px solid rgba(255, 215, 106, 0.25);
+          background: rgba(255, 215, 106, 0.08);
+          color: #ffe29a;
+          font-size: 7px;
+          font-style: normal;
+          letter-spacing: 0.08em;
+        }
+
+        .learning-summary-card strong,
+        .nova-plus-card strong {
+          margin-top: 9px;
+          font-size: 20px;
+        }
+
+        .learning-summary-card small,
+        .nova-plus-card small {
+          margin-top: 7px;
+          color: rgba(235, 247, 255, 0.58);
           line-height: 1.4;
+        }
+
+        .learning-summary-card b,
+        .nova-plus-card b {
+          margin-top: 13px;
+          color: #bdf6ff;
+          font-size: 11px;
+        }
+
+        .nova-plus-card b {
+          color: #e9d5ff;
         }
 
         .summary-grid {
@@ -3432,17 +3481,8 @@ export default function TeachingDashboardPage() {
             font-size: clamp(44px, 14vw, 60px);
           }
 
-          .week-comparison {
-            min-width: 0;
-          }
-
           .hero-insights {
             width: 100%;
-          }
-
-          .analytics-tab,
-          .week-comparison {
-            min-width: 0;
           }
 
           .monthly-panel-heading {

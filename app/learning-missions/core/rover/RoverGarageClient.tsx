@@ -8,7 +8,9 @@ import { coreUpgradeTrack } from "@/lib/coreRoverProgress";
 import {
   getEffectiveRoverRatings,
   getRoverBaseRatings,
+  isRoverPerformanceCategory,
   roverPerformanceCategories,
+  type RoverCustomBuildCategory,
   type RoverPerformanceBuildRow,
   type RoverPerformanceCategory,
   type RoverPerformanceLevels,
@@ -314,11 +316,11 @@ export default function RoverGarageClient() {
     useState<RoverPerformanceBuildRow[]>([]);
   const [performanceMessage, setPerformanceMessage] = useState("");
   const [purchasingPerformanceCategory, setPurchasingPerformanceCategory] =
-    useState<RoverPerformanceCategory | null>(null);
+    useState<RoverCustomBuildCategory | null>(null);
   const [
     confirmingPerformanceCategory,
     setConfirmingPerformanceCategory,
-  ] = useState<RoverPerformanceCategory | null>(null);
+  ] = useState<RoverCustomBuildCategory | null>(null);
   const [novaGuideOpen, setNovaGuideOpen] = useState(false);
 
   useEffect(() => {
@@ -348,6 +350,10 @@ export default function RoverGarageClient() {
   );
 
   const viewingEquippedBuild = displayedUpgrade.stage === equippedStage;
+
+  const weaponsUnlocked = Boolean(
+    levelAccess.find((row) => Number(row.level_id) === 4)?.completed,
+  );
 
   const ownedRoverCount = useMemo(() => {
     if (isAdmin) return coreUpgradeTrack.length;
@@ -896,16 +902,25 @@ export default function RoverGarageClient() {
   );
 
   const purchasePerformanceUpgrade = useCallback(
-    async (category: RoverPerformanceCategory) => {
+    async (category: RoverCustomBuildCategory) => {
       if (purchasingPerformanceCategory !== null) return;
 
       const buildRow = performanceBuild.find(
         (row) => row.category === category,
       );
 
+      if (category === "weapon" && !weaponsUnlocked) {
+        setPerformanceMessage(
+          "Weapons unlock after you complete Expedition 4 · Fracture Run.",
+        );
+        return;
+      }
+
       if (!buildRow?.can_purchase || !buildRow.next_level) {
         setPerformanceMessage(
-          "This performance stat is already at its maximum for the equipped rover.",
+          category === "weapon"
+            ? "The equipped rover already has the highest weapon tier available."
+            : "This performance stat is already at its maximum for the equipped rover.",
         );
         return;
       }
@@ -962,6 +977,7 @@ export default function RoverGarageClient() {
       performanceBuild,
       purchasingPerformanceCategory,
       tokenBalance,
+      weaponsUnlocked,
     ],
   );
 
@@ -1048,12 +1064,14 @@ export default function RoverGarageClient() {
     window.addEventListener("dream-gems-updated", handleBalanceUpdate);
     window.addEventListener("rover-loadout-updated", handleBalanceUpdate);
     window.addEventListener("rover-performance-updated", handleBalanceUpdate);
+    window.addEventListener("rover-level-progress-updated", handleBalanceUpdate);
 
     return () => {
       window.removeEventListener("dream-tokens-updated", handleBalanceUpdate);
       window.removeEventListener("dream-gems-updated", handleBalanceUpdate);
       window.removeEventListener("rover-loadout-updated", handleBalanceUpdate);
       window.removeEventListener("rover-performance-updated", handleBalanceUpdate);
+      window.removeEventListener("rover-level-progress-updated", handleBalanceUpdate);
     };
   }, [loadGarage]);
 
@@ -1283,7 +1301,10 @@ export default function RoverGarageClient() {
                   selectedEquipped ? performanceBuild : []
                 }
                 previewCategory={
-                  selectedEquipped ? confirmingPerformanceCategory : null
+                  selectedEquipped &&
+                  isRoverPerformanceCategory(confirmingPerformanceCategory)
+                    ? confirmingPerformanceCategory
+                    : null
                 }
               />
 
@@ -1325,6 +1346,7 @@ export default function RoverGarageClient() {
                 message={performanceMessage}
                 purchasingCategory={purchasingPerformanceCategory}
                 confirmingCategory={confirmingPerformanceCategory}
+                weaponsUnlocked={weaponsUnlocked}
                 isAdmin={isAdmin}
                 onConfirmingCategoryChange={setConfirmingPerformanceCategory}
                 onPurchase={(category) =>
@@ -1389,7 +1411,7 @@ function NovaGarageGuide({
       : {
           title: `${roverName} · Skyforge Hangar`,
           body:
-            "Choose a rover from the left, equip it, then tune that rover's performance parts on the right. Your stats appear beneath the vehicle. When your build is ready, press To Expeditions.",
+            "Choose a rover from the left, equip it, then tune that rover's Custom Build on the right. Weapons unlock after Expedition 4. Your stats appear beneath the vehicle. When your build is ready, press To Expeditions.",
         };
 
   return (
@@ -2167,6 +2189,7 @@ function CustomBuildPanel({
   message,
   purchasingCategory,
   confirmingCategory,
+  weaponsUnlocked,
   isAdmin: _isAdmin,
   onConfirmingCategoryChange,
   onPurchase,
@@ -2176,18 +2199,15 @@ function CustomBuildPanel({
   equippedStage: number;
   performanceBuild: RoverPerformanceBuildRow[];
   message: string;
-  purchasingCategory: RoverPerformanceCategory | null;
-  confirmingCategory: RoverPerformanceCategory | null;
+  purchasingCategory: RoverCustomBuildCategory | null;
+  confirmingCategory: RoverCustomBuildCategory | null;
+  weaponsUnlocked: boolean;
   isAdmin: boolean;
   onConfirmingCategoryChange: (
-    category: RoverPerformanceCategory | null,
+    category: RoverCustomBuildCategory | null,
   ) => void;
-  onPurchase: (category: RoverPerformanceCategory) => void;
+  onPurchase: (category: RoverCustomBuildCategory) => void;
 }) {
-  const rover =
-    coreUpgradeTrack.find((item) => item.stage === equippedStage) ??
-    coreUpgradeTrack[0];
-
   if (performanceBuild.length === 0) {
     return (
       <div style={compactBuildUnavailable}>
@@ -2214,17 +2234,14 @@ function CustomBuildPanel({
               tokenBalance={tokenBalance}
               purchasingCategory={purchasingCategory}
               confirmingCategory={confirmingCategory}
+              categoryUnlocked={
+                category.id !== "weapon" || weaponsUnlocked
+              }
               onConfirmingCategoryChange={onConfirmingCategoryChange}
               onPurchase={onPurchase}
             />
           );
         })}
-
-        <AppearanceUpgradeBox
-          key={`appearance-${equippedStage}`}
-          roverName={rover.name}
-          roverImageSrc={rover.imageSrc}
-        />
       </div>
 
       {message && (
@@ -2240,49 +2257,53 @@ function PerformanceUpgradeBox({
   tokenBalance,
   purchasingCategory,
   confirmingCategory,
+  categoryUnlocked,
   onConfirmingCategoryChange,
   onPurchase,
 }: {
   category: (typeof roverPerformanceCategories)[number];
   row: RoverPerformanceBuildRow;
   tokenBalance: number;
-  purchasingCategory: RoverPerformanceCategory | null;
-  confirmingCategory: RoverPerformanceCategory | null;
+  purchasingCategory: RoverCustomBuildCategory | null;
+  confirmingCategory: RoverCustomBuildCategory | null;
+  categoryUnlocked: boolean;
   onConfirmingCategoryChange: (
-    category: RoverPerformanceCategory | null,
+    category: RoverCustomBuildCategory | null,
   ) => void;
-  onPurchase: (category: RoverPerformanceCategory) => void;
+  onPurchase: (category: RoverCustomBuildCategory) => void;
 }) {
+  const isWeapon = category.id === "weapon";
   const currentLevel = Number(row.current_level ?? 0);
   const initialLevel = Math.max(
     1,
     Math.min(
       5,
-      Number(row.next_level ?? (currentLevel || 1)),
+      Number(row.next_level ?? currentLevel || 1),
     ),
   );
 
   const [viewLevel, setViewLevel] = useState(initialLevel);
 
   const tier =
-    category.tiers[Math.max(0, Math.min(category.tiers.length - 1, viewLevel - 1))];
+    category.tiers[
+      Math.max(0, Math.min(category.tiers.length - 1, viewLevel - 1))
+    ];
 
   const owned = viewLevel <= currentLevel;
   const isNext = viewLevel === Number(row.next_level);
   const unavailable =
-    viewLevel > Number(row.max_useful_level ?? 5);
+    !isWeapon && viewLevel > Number(row.max_useful_level ?? 5);
   const locked =
     !owned &&
     !isNext &&
     !unavailable;
 
   const canAfford =
+    categoryUnlocked &&
     Boolean(row.can_afford) &&
     tokenBalance >= Number(row.next_price_dt ?? 0);
 
-  const purchasing =
-    purchasingCategory === category.id;
-
+  const purchasing = purchasingCategory === category.id;
   const confirming =
     confirmingCategory === category.id && isNext;
 
@@ -2294,26 +2315,38 @@ function PerformanceUpgradeBox({
   }
 
   return (
-    <section style={upgradeCarouselBox}>
+    <section
+      style={upgradeCarouselBox}
+      aria-disabled={isWeapon && !categoryUnlocked}
+    >
       <div style={upgradeCarouselHeader}>
         <div>
           <p style={upgradeCarouselEyebrow}>
-            {category.statLabel.toUpperCase()}
+            {isWeapon
+              ? "UNLOCKS AFTER EXPEDITION 4"
+              : category.statLabel?.toUpperCase() ?? "CUSTOM BUILD"}
           </p>
           <h3 style={upgradeCarouselTitle}>{category.title}</h3>
         </div>
 
         <span style={upgradeCarouselRating}>
-          {Number(row.current_rating ?? row.base_rating)}/100
+          {isWeapon
+            ? `Tier ${currentLevel}/5`
+            : `${Number(row.current_rating ?? row.base_rating)}/100`}
         </span>
       </div>
 
-      <div style={upgradeCarouselViewer}>
+      <div
+        style={{
+          ...upgradeCarouselViewer,
+          opacity: isWeapon && !categoryUnlocked ? 0.42 : 1,
+        }}
+      >
         <button
           type="button"
           onClick={() => move(-1)}
-          disabled={viewLevel <= 1}
-          style={upgradeArrow(viewLevel > 1)}
+          disabled={!categoryUnlocked || viewLevel <= 1}
+          style={upgradeArrow(categoryUnlocked && viewLevel > 1)}
           aria-label={`Previous ${category.title} upgrade`}
         >
           ‹
@@ -2343,8 +2376,8 @@ function PerformanceUpgradeBox({
         <button
           type="button"
           onClick={() => move(1)}
-          disabled={viewLevel >= 5}
-          style={upgradeArrow(viewLevel < 5)}
+          disabled={!categoryUnlocked || viewLevel >= 5}
+          style={upgradeArrow(categoryUnlocked && viewLevel < 5)}
           aria-label={`Next ${category.title} upgrade`}
         >
           ›
@@ -2352,7 +2385,11 @@ function PerformanceUpgradeBox({
       </div>
 
       <div style={upgradeCarouselFooter}>
-        {unavailable ? (
+        {isWeapon && !categoryUnlocked ? (
+          <span style={weaponLockedState}>
+            🔒 Complete Expedition 4
+          </span>
+        ) : unavailable ? (
           <span style={upgradeStateMuted}>Not needed</span>
         ) : owned ? (
           <span style={upgradeStateInstalled}>Installed</span>
@@ -2405,71 +2442,6 @@ function PerformanceUpgradeBox({
                 ).toLocaleString("en-SG")} DT`}
           </button>
         ) : null}
-      </div>
-    </section>
-  );
-}
-
-function AppearanceUpgradeBox({
-  roverName,
-  roverImageSrc,
-}: {
-  roverName: string;
-  roverImageSrc: string;
-}) {
-  const [slot, setSlot] = useState(1);
-
-  return (
-    <section style={upgradeCarouselBox}>
-      <div style={upgradeCarouselHeader}>
-        <div>
-          <p style={upgradeCarouselEyebrow}>APPEARANCE</p>
-          <h3 style={upgradeCarouselTitle}>Colorways</h3>
-        </div>
-        <span style={appearanceBadge}>Visual</span>
-      </div>
-
-      <div style={upgradeCarouselViewer}>
-        <button
-          type="button"
-          onClick={() => setSlot((current) => Math.max(1, current - 1))}
-          disabled={slot <= 1}
-          style={upgradeArrow(slot > 1)}
-          aria-label="Previous colorway"
-        >
-          ‹
-        </button>
-
-        <div style={upgradeCarouselPart}>
-          <img
-            src={roverImageSrc}
-            alt={`${roverName} colorway preview`}
-            draggable={false}
-            style={appearancePreviewImage}
-          />
-          <strong style={upgradeCarouselPartName}>
-            {slot === 1 ? "Factory Colorway" : `Colorway ${slot}`}
-          </strong>
-          <span style={upgradeCarouselTier}>{slot}/5</span>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setSlot((current) => Math.min(5, current + 1))}
-          disabled={slot >= 5}
-          style={upgradeArrow(slot < 5)}
-          aria-label="Next colorway"
-        >
-          ›
-        </button>
-      </div>
-
-      <div style={upgradeCarouselFooter}>
-        {slot === 1 ? (
-          <span style={upgradeStateInstalled}>Equipped</span>
-        ) : (
-          <span style={upgradeStateMuted}>Colorways coming next</span>
-        )}
       </div>
     </section>
   );
@@ -4285,6 +4257,15 @@ const upgradeCarouselFooter: CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
+};
+
+const weaponLockedState: CSSProperties = {
+  color: "#ffcf72",
+  fontSize: "8px",
+  fontWeight: 950,
+  textTransform: "uppercase",
+  textAlign: "center",
+  letterSpacing: "0.04em",
 };
 
 const upgradeStateInstalled: CSSProperties = {

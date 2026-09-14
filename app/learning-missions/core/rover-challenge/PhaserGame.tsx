@@ -53,6 +53,57 @@ const HOVER_CLEARANCE = 48;
 const HOVER_BOB_AMOUNT = 4;
 const HOVER_BOB_SPEED = 0.0042;
 
+/*
+ * Stage 5 weapon preparation.
+ *
+ * The garage now stores a per-rover weapon tier. Expeditions 1–4 do not fire
+ * these projectiles yet, but Phaser already resolves and loads the equipped
+ * tier's side-view ammunition texture. Stage 5 can therefore spawn
+ * "selected-rover-ammo" without changing the asset pipeline again.
+ */
+const ROVER_AMMO_ASSET_ROOT =
+  "/activities/learning-missions/core/rover/weapons/ammo";
+
+type RoverAmmoAsset = {
+  level: number;
+  name: string;
+  projectileType: "bullet" | "heavy-round" | "rocket" | "guided" | "homing";
+  src: string;
+};
+
+const ROVER_AMMO_BY_LEVEL: Record<number, RoverAmmoAsset> = {
+  1: {
+    level: 1,
+    name: "Machine Gun Round",
+    projectileType: "bullet",
+    src: `${ROVER_AMMO_ASSET_ROOT}/machine-gun-round.png`,
+  },
+  2: {
+    level: 2,
+    name: "Autocannon Round",
+    projectileType: "heavy-round",
+    src: `${ROVER_AMMO_ASSET_ROOT}/autocannon-round.png`,
+  },
+  3: {
+    level: 3,
+    name: "Micro Rocket",
+    projectileType: "rocket",
+    src: `${ROVER_AMMO_ASSET_ROOT}/micro-rocket.png`,
+  },
+  4: {
+    level: 4,
+    name: "Seeker Missile",
+    projectileType: "guided",
+    src: `${ROVER_AMMO_ASSET_ROOT}/seeker-missile.png`,
+  },
+  5: {
+    level: 5,
+    name: "Nova Homing Missile",
+    projectileType: "homing",
+    src: `${ROVER_AMMO_ASSET_ROOT}/nova-homing-missile.png`,
+  },
+};
+
 type OpaqueBounds = {
   minX: number;
   minY: number;
@@ -80,6 +131,7 @@ export type PhaserGameProps = {
   roverFrontWheelSrc: string | null;
   roverBackWheelSrc: string | null;
   roverGameMode: "wheeled" | "hover";
+  weaponLevel: number;
   gameStats: CoreRoverGameStats;
 };
 
@@ -237,6 +289,8 @@ class RoverMatterScene extends Phaser.Scene {
   private roverFrontWheelSrc: string | null = null;
   private roverBackWheelSrc: string | null = null;
   private roverGameMode: "wheeled" | "hover" = "wheeled";
+  private weaponLevel = 0;
+  private selectedAmmoAsset: RoverAmmoAsset | null = null;
   private levelConfig: RoverLevelWithPulseGates;
 
   private normalMaximumSpeed = 5.5;
@@ -266,6 +320,7 @@ class RoverMatterScene extends Phaser.Scene {
     roverFrontWheelSrc,
     roverBackWheelSrc,
     roverGameMode,
+    weaponLevel,
     gameStats,
   }: PhaserGameProps) {
     super({
@@ -279,6 +334,8 @@ class RoverMatterScene extends Phaser.Scene {
     this.roverFrontWheelSrc = roverFrontWheelSrc;
     this.roverBackWheelSrc = roverBackWheelSrc;
     this.roverGameMode = roverGameMode;
+    this.weaponLevel = Math.max(0, Math.min(5, Math.floor(weaponLevel || 0)));
+    this.selectedAmmoAsset = ROVER_AMMO_BY_LEVEL[this.weaponLevel] ?? null;
 
     this.normalMaximumSpeed = gameStats.normalSpeed;
 
@@ -343,6 +400,14 @@ class RoverMatterScene extends Phaser.Scene {
       if (this.roverBackWheelSrc) {
         this.load.image("selected-rover-back-wheel", this.roverBackWheelSrc);
       }
+    }
+
+    /*
+     * Only the equipped weapon tier's ammunition is loaded. This keeps current
+     * expeditions light while giving Stage 5 a stable texture key to spawn.
+     */
+    if (this.selectedAmmoAsset) {
+      this.load.image("selected-rover-ammo", this.selectedAmmoAsset.src);
     }
 
     this.load.on(
@@ -3259,6 +3324,7 @@ export default function PhaserGame({
   roverFrontWheelSrc,
   roverBackWheelSrc,
   roverGameMode,
+  weaponLevel,
   gameStats,
 }: PhaserGameProps) {
   const gameContainerRef =
@@ -3272,7 +3338,8 @@ export default function PhaserGame({
    * allowing ordinary React prop refreshes to destroy the current run.
    *
    * The old implementation placed levelConfig, roverStage, roverName,
-   * roverBodySrc, roverFrontWheelSrc, roverBackWheelSrc, roverGameMode and gameStats in the Phaser creation effect dependency list. Any refreshed
+   * roverBodySrc, roverFrontWheelSrc, roverBackWheelSrc, roverGameMode,
+   * weaponLevel and gameStats in the Phaser creation effect dependency list. Any refreshed
    * object identity could therefore destroy Phaser.Game and create a new one.
    */
   const latestGamePropsRef =
@@ -3284,6 +3351,7 @@ export default function PhaserGame({
       roverFrontWheelSrc,
       roverBackWheelSrc,
       roverGameMode,
+      weaponLevel,
       gameStats,
     });
 
@@ -3295,6 +3363,7 @@ export default function PhaserGame({
     roverFrontWheelSrc,
     roverBackWheelSrc,
     roverGameMode,
+    weaponLevel,
     gameStats,
   };
 
@@ -3363,6 +3432,8 @@ export default function PhaserGame({
           currentProps.roverBackWheelSrc,
         roverGameMode:
           currentProps.roverGameMode,
+        weaponLevel:
+          currentProps.weaponLevel,
         gameStats:
           currentProps.gameStats,
       });
