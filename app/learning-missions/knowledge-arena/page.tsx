@@ -584,11 +584,57 @@ export default function KnowledgeArenaPage() {
     router.push("/learning-missions");
   }
 
+  function openPauseMenu() {
+    setPauseQuitConfirm(false);
+    setNovaGuideOpen(false);
+    setPauseMenuOpen(true);
+  }
+
+  function closePauseMenu() {
+    setPauseQuitConfirm(false);
+    setPauseMenuOpen(false);
+  }
+
+  async function quitActiveGameFromPause() {
+    setPauseQuitConfirm(false);
+
+    if (stage === "solo-quiz") {
+      if (battle.battleId && userId) {
+        await supabase.rpc("abandon_knowledge_arena_battle_v1", {
+          p_battle_id: battle.battleId,
+        });
+      }
+
+      battle.resetBattle();
+      setQuestions([]);
+      setLastBattleResult(null);
+      currentBattleCollectionRef.current = null;
+      monsterClaimStartedRef.current = false;
+      recordedAnswersRef.current = [];
+      attemptSaveStartedRef.current = false;
+      resetQuestionState(soloTimerSeconds);
+      setPauseMenuOpen(false);
+      setStage("solo-mode");
+      return;
+    }
+
+    if (stage === "multiplayer-quiz") {
+      setPauseMenuOpen(false);
+      await exitMultiplayerLobby();
+      return;
+    }
+
+    setPauseMenuOpen(false);
+  }
+
   const [stage, setStage] = useState<PageStage>("mode");
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [isAdminPaused, setIsAdminPaused] = useState(false);
+  const [pauseMenuOpen, setPauseMenuOpen] = useState(false);
+  const [pauseQuitConfirm, setPauseQuitConfirm] = useState(false);
+  const [masterVolume, setMasterVolume] = useState(80);
+  const [soundMuted, setSoundMuted] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [tokenBalance, setTokenBalance] = useState(0);
   const [gemBalance, setGemBalance] = useState(0);
@@ -694,7 +740,8 @@ export default function KnowledgeArenaPage() {
 
   const landscapeRequired = ["loading", "solo-quiz", "multiplayer-quiz"].includes(stage);
   const landscapeBlocked = landscapeRequired && isPortrait;
-  const gameplayBlocked = isAdminPaused || landscapeBlocked;
+  const soloPauseActive = stage === "solo-quiz" && pauseMenuOpen;
+  const gameplayBlocked = soloPauseActive || landscapeBlocked;
 
   useEffect(() => {
     gameplayBlockedRef.current = gameplayBlocked;
@@ -1051,6 +1098,50 @@ export default function KnowledgeArenaPage() {
 
     void loadKnowledgeProfile();
   }, [userId]);
+
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const storedVolume = Number(window.localStorage.getItem("dreamscape-master-volume"));
+    const storedMuted = window.localStorage.getItem("dreamscape-sound-muted");
+
+    if (Number.isFinite(storedVolume)) {
+      setMasterVolume(Math.max(0, Math.min(100, storedVolume)));
+    }
+    if (storedMuted !== null) {
+      setSoundMuted(storedMuted === "true");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const normalizedVolume = Math.max(0, Math.min(1, masterVolume / 100));
+    window.localStorage.setItem("dreamscape-master-volume", String(masterVolume));
+    window.localStorage.setItem("dreamscape-sound-muted", String(soundMuted));
+
+    document.querySelectorAll<HTMLMediaElement>("audio, video").forEach((media) => {
+      media.volume = normalizedVolume;
+      media.muted = soundMuted;
+    });
+
+    window.dispatchEvent(
+      new CustomEvent("dreamscape-audio-settings-changed", {
+        detail: {
+          volume: normalizedVolume,
+          muted: soundMuted,
+        },
+      })
+    );
+  }, [masterVolume, soundMuted]);
+
+  useEffect(() => {
+    if (stage !== "solo-quiz" && stage !== "multiplayer-quiz") {
+      setPauseMenuOpen(false);
+      setPauseQuitConfirm(false);
+    }
+  }, [stage]);
 
   useEffect(() => {
     if (stage !== "solo-quiz" && stage !== "multiplayer-quiz") return;
@@ -2534,7 +2625,8 @@ export default function KnowledgeArenaPage() {
       }
     }
 
-    setIsAdminPaused(false);
+    setPauseMenuOpen(false);
+    setPauseQuitConfirm(false);
     pendingBattleTransitionRef.current = false;
     battle.resetBattle();
     resetQuestionState(soloTimerSeconds);
@@ -2733,7 +2825,8 @@ export default function KnowledgeArenaPage() {
     setLastBattleResult(null);
     currentBattleCollectionRef.current = null;
     monsterClaimStartedRef.current = false;
-    setIsAdminPaused(false);
+    setPauseMenuOpen(false);
+    setPauseQuitConfirm(false);
     pendingBattleTransitionRef.current = false;
     battle.resetBattle();
     resetQuestionState(20);
@@ -2984,6 +3077,17 @@ export default function KnowledgeArenaPage() {
         )}
 
         <div className="ka-top-actions">
+          {(stage === "solo-quiz" || stage === "multiplayer-quiz") && (
+            <button
+              type="button"
+              className="ka-nav-button ka-game-pause-button"
+              onClick={openPauseMenu}
+              aria-label="Pause and open game settings"
+            >
+              <span className="ka-pause-full">Ⅱ Pause</span>
+              <span className="ka-pause-short">Ⅱ</span>
+            </button>
+          )}
           <Link href={userEmail ? "/profile" : "/login"} className="ka-nav-button">
             {userEmail ? "My Account" : "Log In"}
           </Link>
@@ -3540,9 +3644,7 @@ export default function KnowledgeArenaPage() {
               tokenBalance={tokenBalance}
               gemBalance={gemBalance}
               isAuthenticated={Boolean(userId)}
-              isAdmin={isAdmin}
-              isPaused={isAdminPaused}
-              onTogglePause={() => setIsAdminPaused((current) => !current)}
+              isPaused={soloPauseActive}
               onStartFiring={battle.startFiring}
               onStopFiring={battle.stopFiring}
               onReviveDT={() => void reviveNova("DT")}
@@ -3791,6 +3893,21 @@ export default function KnowledgeArenaPage() {
         </div>
       )}
 
+      {pauseMenuOpen && (stage === "solo-quiz" || stage === "multiplayer-quiz") && (
+        <ArenaPauseMenu
+          mode={stage === "solo-quiz" ? "solo" : (lobby?.game_mode || "coop")}
+          volume={masterVolume}
+          muted={soundMuted}
+          quitConfirm={pauseQuitConfirm}
+          onVolumeChange={setMasterVolume}
+          onMutedChange={setSoundMuted}
+          onResume={closePauseMenu}
+          onRequestQuit={() => setPauseQuitConfirm(true)}
+          onCancelQuit={() => setPauseQuitConfirm(false)}
+          onConfirmQuit={() => void quitActiveGameFromPause()}
+        />
+      )}
+
       {novaGuideOpen && (
         <div className="ka-guide-layer" role="presentation">
           <button
@@ -4003,6 +4120,13 @@ export default function KnowledgeArenaPage() {
         .ka-mobile-battle-metrics span.is-low {
           border-color: rgba(255,111,111,.40);
           color: #ff9b9b;
+        }
+
+        .ka-game-pause-button {
+          cursor: pointer;
+        }
+        .ka-pause-short {
+          display: none;
         }
 
         .ka-nav-button {
@@ -8211,6 +8335,329 @@ export default function KnowledgeArenaPage() {
   );
 }
 
+function ArenaPauseMenu({
+  mode,
+  volume,
+  muted,
+  quitConfirm,
+  onVolumeChange,
+  onMutedChange,
+  onResume,
+  onRequestQuit,
+  onCancelQuit,
+  onConfirmQuit,
+}: {
+  mode: "solo" | "coop" | "versus";
+  volume: number;
+  muted: boolean;
+  quitConfirm: boolean;
+  onVolumeChange: (value: number) => void;
+  onMutedChange: (value: boolean) => void;
+  onResume: () => void;
+  onRequestQuit: () => void;
+  onCancelQuit: () => void;
+  onConfirmQuit: () => void;
+}) {
+  const isSolo = mode === "solo";
+
+  return (
+    <div className="kap-layer" role="dialog" aria-modal="true" aria-label="Game pause and settings menu">
+      <div className="kap-card">
+        <div className="kap-heading">
+          <div>
+            <small>{isSolo ? "GAME PAUSED" : "GAME MENU"}</small>
+            <h2>{isSolo ? "Paused" : mode === "coop" ? "Co-op Settings" : "Versus Settings"}</h2>
+          </div>
+          <button type="button" className="kap-close" onClick={onResume} aria-label="Resume game">
+            ×
+          </button>
+        </div>
+
+        <div className={`kap-mode-note ${isSolo ? "is-solo" : "is-live"}`}>
+          <strong>{isSolo ? "Solo battle is frozen." : "Multiplayer remains live."}</strong>
+          <span>
+            {isSolo
+              ? "The question timer, firing window and combat transitions resume from the same point."
+              : "Other players and the shared round timer continue while this menu is open, so resume quickly if you still want to answer."}
+          </span>
+        </div>
+
+        <div className="kap-setting">
+          <div className="kap-setting-copy">
+            <strong>Master Volume</strong>
+            <span>{muted ? "Muted" : `${volume}%`}</span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            step="5"
+            value={volume}
+            onChange={(event) => onVolumeChange(Number(event.target.value))}
+            aria-label="Master volume"
+          />
+        </div>
+
+        <button
+          type="button"
+          className={`kap-toggle ${muted ? "is-muted" : ""}`}
+          onClick={() => onMutedChange(!muted)}
+        >
+          <span>{muted ? "🔇" : "🔊"}</span>
+          <strong>{muted ? "Sound Muted" : "Sound On"}</strong>
+          <i>{muted ? "Turn sound on" : "Mute all sound"}</i>
+        </button>
+
+        {!quitConfirm ? (
+          <div className="kap-actions">
+            <button type="button" className="kap-resume" onClick={onResume}>
+              ▶ Resume
+            </button>
+            <button type="button" className="kap-quit" onClick={onRequestQuit}>
+              Quit Game
+            </button>
+          </div>
+        ) : (
+          <div className="kap-confirm">
+            <strong>Quit this game?</strong>
+            <span>
+              {isSolo
+                ? "The current Solo battle will be abandoned and you will return to the Solo Arena menu."
+                : "You will leave this multiplayer lobby. The match continues for the other players."}
+            </span>
+            <div>
+              <button type="button" className="kap-cancel" onClick={onCancelQuit}>
+                Keep Playing
+              </button>
+              <button type="button" className="kap-confirm-quit" onClick={onConfirmQuit}>
+                Yes, Quit
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <style jsx>{`
+        .kap-layer {
+          position: fixed;
+          inset: 0;
+          z-index: 10050;
+          display: grid;
+          place-items: center;
+          padding: 18px;
+          background: rgba(1, 5, 14, .72);
+          backdrop-filter: blur(12px);
+        }
+        .kap-card {
+          width: min(520px, 100%);
+          overflow: hidden;
+          border: 1px solid rgba(126,232,255,.24);
+          border-radius: 24px;
+          background:
+            radial-gradient(circle at 18% 0%,rgba(85,218,255,.13),transparent 32%),
+            linear-gradient(180deg,rgba(8,20,40,.98),rgba(4,10,24,.98));
+          padding: 20px;
+          color: white;
+          box-shadow: 0 24px 70px rgba(0,0,0,.52), inset 0 0 40px rgba(126,232,255,.025);
+        }
+        .kap-heading {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 12px;
+        }
+        .kap-heading small {
+          color: #7ee8ff;
+          font-size: 10px;
+          font-weight: 950;
+          letter-spacing: .16em;
+        }
+        .kap-heading h2 {
+          margin: 3px 0 0;
+          font-size: 32px;
+          line-height: 1;
+        }
+        .kap-close {
+          display: grid;
+          width: 40px;
+          height: 40px;
+          place-items: center;
+          border: 1px solid rgba(255,255,255,.14);
+          border-radius: 999px;
+          background: rgba(255,255,255,.05);
+          color: white;
+          font-size: 25px;
+          cursor: pointer;
+        }
+        .kap-mode-note {
+          display: grid;
+          gap: 4px;
+          margin-top: 16px;
+          border: 1px solid rgba(126,232,255,.16);
+          border-radius: 14px;
+          padding: 11px 12px;
+        }
+        .kap-mode-note.is-solo {
+          background: rgba(66,211,153,.07);
+          border-color: rgba(66,211,153,.22);
+        }
+        .kap-mode-note.is-live {
+          background: rgba(255,187,72,.07);
+          border-color: rgba(255,187,72,.24);
+        }
+        .kap-mode-note strong {
+          font-size: 13px;
+        }
+        .kap-mode-note span {
+          color: rgba(255,255,255,.64);
+          font-size: 11px;
+          line-height: 1.42;
+        }
+        .kap-setting {
+          margin-top: 14px;
+          border: 1px solid rgba(255,255,255,.10);
+          border-radius: 15px;
+          background: rgba(255,255,255,.035);
+          padding: 12px;
+        }
+        .kap-setting-copy {
+          display: flex;
+          justify-content: space-between;
+          gap: 10px;
+          align-items: center;
+        }
+        .kap-setting-copy strong {
+          font-size: 13px;
+        }
+        .kap-setting-copy span {
+          color: #7ee8ff;
+          font-size: 12px;
+          font-weight: 900;
+        }
+        .kap-setting input {
+          width: 100%;
+          margin-top: 10px;
+          accent-color: #63dcff;
+        }
+        .kap-toggle {
+          display: grid;
+          width: 100%;
+          grid-template-columns: auto 1fr auto;
+          gap: 9px;
+          align-items: center;
+          margin-top: 9px;
+          border: 1px solid rgba(255,255,255,.10);
+          border-radius: 14px;
+          background: rgba(255,255,255,.035);
+          padding: 11px 12px;
+          color: white;
+          text-align: left;
+          cursor: pointer;
+        }
+        .kap-toggle > span {
+          font-size: 19px;
+        }
+        .kap-toggle strong {
+          font-size: 12px;
+        }
+        .kap-toggle i {
+          color: rgba(255,255,255,.46);
+          font-size: 9px;
+          font-style: normal;
+        }
+        .kap-actions {
+          display: grid;
+          grid-template-columns: 1.35fr .65fr;
+          gap: 9px;
+          margin-top: 16px;
+        }
+        .kap-actions button,
+        .kap-confirm button {
+          min-height: 47px;
+          border-radius: 14px;
+          color: white;
+          font-size: 13px;
+          font-weight: 950;
+          cursor: pointer;
+        }
+        .kap-resume {
+          border: 1px solid rgba(126,232,255,.36);
+          background: linear-gradient(90deg,#18bfd0,#6c5cff);
+          box-shadow: 0 10px 28px rgba(63,177,255,.20);
+        }
+        .kap-quit {
+          border: 1px solid rgba(248,113,113,.25);
+          background: rgba(248,113,113,.08);
+        }
+        .kap-confirm {
+          display: grid;
+          gap: 7px;
+          margin-top: 16px;
+          border: 1px solid rgba(248,113,113,.24);
+          border-radius: 16px;
+          background: rgba(248,113,113,.07);
+          padding: 13px;
+        }
+        .kap-confirm > strong {
+          color: #ff9a9a;
+          font-size: 15px;
+        }
+        .kap-confirm > span {
+          color: rgba(255,255,255,.64);
+          font-size: 11px;
+          line-height: 1.42;
+        }
+        .kap-confirm > div {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+          margin-top: 4px;
+        }
+        .kap-cancel {
+          border: 1px solid rgba(255,255,255,.14);
+          background: rgba(255,255,255,.05);
+        }
+        .kap-confirm-quit {
+          border: 1px solid rgba(248,113,113,.36);
+          background: rgba(213,49,65,.68);
+        }
+        @media(max-width:700px), (max-height:620px) {
+          .kap-layer {
+            padding: 8px;
+          }
+          .kap-card {
+            max-height: 96vh;
+            overflow-y: auto;
+            border-radius: 18px;
+            padding: 14px;
+          }
+          .kap-heading h2 {
+            font-size: 24px;
+          }
+          .kap-mode-note {
+            margin-top: 10px;
+            padding: 8px 10px;
+          }
+          .kap-setting {
+            margin-top: 9px;
+            padding: 9px 10px;
+          }
+          .kap-toggle {
+            padding: 8px 10px;
+          }
+          .kap-actions {
+            margin-top: 10px;
+          }
+          .kap-actions button,
+          .kap-confirm button {
+            min-height: 40px;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 function ArenaTimerSelector({
   title,
   value,
@@ -8795,6 +9242,9 @@ function ArenaResultsPanel({
           backdrop-filter: blur(16px);
         }
         @media (max-width: 700px) {
+          .ka-pause-full { display:none; }
+          .ka-pause-short { display:inline; }
+
           .ka-results-arena-backdrop { padding: 8px; }
           .ka-results-popup { width: 98%; height: 96%; border-radius: 18px; }
         }

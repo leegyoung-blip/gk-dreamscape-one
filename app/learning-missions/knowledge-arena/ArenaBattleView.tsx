@@ -356,8 +356,9 @@ function imageHotspot(
   image: HTMLImageElement,
   hotspot: { x: number; y: number },
   sourceSize?: { width: number; height: number },
+  objectPositionY: "center" | "bottom" = "center",
 ) {
-  const rect = containedImageRect(image, sourceSize);
+  const rect = containedImageRect(image, sourceSize, objectPositionY);
   return {
     x: rect.left + rect.width * hotspot.x,
     y: rect.top + rect.height * hotspot.y,
@@ -367,6 +368,7 @@ function imageHotspot(
 function containedImageRect(
   image: HTMLImageElement,
   sourceSize?: { width: number; height: number },
+  objectPositionY: "center" | "bottom" = "center",
 ) {
   const box = image.getBoundingClientRect();
   const naturalWidth = sourceSize?.width || image.naturalWidth || box.width || 1;
@@ -374,9 +376,19 @@ function containedImageRect(
   const scale = Math.min(box.width / naturalWidth, box.height / naturalHeight);
   const width = naturalWidth * scale;
   const height = naturalHeight * scale;
+
+  // Combat sprites use object-fit: contain + object-position: center bottom.
+  // The older calculation vertically centred the actual PNG inside the <img> box,
+  // which moved the barrel hotspot away from the weapon whenever the box was taller
+  // than the contained artwork.
+  const top =
+    objectPositionY === "bottom"
+      ? box.bottom - height
+      : box.top + (box.height - height) / 2;
+
   return {
     left: box.left + (box.width - width) / 2,
-    top: box.top + (box.height - height) / 2,
+    top,
     width,
     height,
   };
@@ -414,9 +426,7 @@ export function ArenaBattleView({
   tokenBalance,
   gemBalance,
   isAuthenticated,
-  isAdmin,
   isPaused,
-  onTogglePause,
   onStartFiring,
   onStopFiring,
   onReviveDT,
@@ -453,9 +463,7 @@ export function ArenaBattleView({
   tokenBalance: number;
   gemBalance: number;
   isAuthenticated: boolean;
-  isAdmin: boolean;
   isPaused: boolean;
-  onTogglePause: () => void;
   onStartFiring: () => void;
   onStopFiring: () => void;
   onReviveDT: () => void;
@@ -502,10 +510,13 @@ export function ArenaBattleView({
       novaImage,
       NOVA_FIRING_BARREL_HOTSPOT,
       { width: 1122, height: 1402 },
+      "bottom",
     );
     const impactPoint = imageHotspot(
       monsterImage,
       MONSTER_IMPACT_HOTSPOTS[monster.slug] || { x: 0.4, y: 0.45 },
+      undefined,
+      "bottom",
     );
 
     for (let shot = lastVisualShotRef.current + 1; shot <= shotsThisTurn; shot += 1) {
@@ -531,7 +542,7 @@ export function ArenaBattleView({
       setProjectiles((current) => [...current, visual]);
       window.setTimeout(() => {
         setProjectiles((current) => current.filter((item) => item.id !== visual.id));
-      }, 620);
+      }, 760);
     }
 
     lastVisualShotRef.current = shotsThisTurn;
@@ -566,15 +577,6 @@ export function ArenaBattleView({
           <span className="kab-chip kab-chip--hide-mobile">Correct {correctCount}</span>
         </div>
         <div className="kab-top-right">
-          {isAdmin && (
-            <button
-              type="button"
-              className={`kab-chip kab-chip-button ${isPaused ? "is-paused" : ""}`}
-              onClick={onTogglePause}
-            >
-              {isPaused ? "▶ Resume" : "Ⅱ Pause"}
-            </button>
-          )}
           <span className={`kab-chip kab-timer-chip ${timeLeft <= 3 ? "is-low" : ""}`}>{timeLeft}s</span>
         </div>
       </div>
@@ -665,26 +667,27 @@ export function ArenaBattleView({
             ))}
         </div>
 
-        {projectiles.map((shot) => (
-          <div key={shot.id} className="kab-shot-layer" aria-hidden="true">
-            <i className="kab-shot-muzzle" style={{ left: shot.startX, top: shot.startY }} />
-            <span
-              className="kab-laser-beam"
-              style={{
-                left: shot.startX,
-                top: shot.startY,
-                width: `${shot.length}px`,
-                "--shot-angle": `${shot.angle}deg`,
-              } as CSSProperties}
-            />
-            <i className="kab-shot-impact" style={{ left: shot.endX, top: shot.endY }}>
-              <b />
-              <b />
-              <b />
-            </i>
-          </div>
-        ))}
       </div>
+
+      {projectiles.map((shot) => (
+        <div key={shot.id} className="kab-shot-layer" aria-hidden="true">
+          <i className="kab-shot-muzzle" style={{ left: shot.startX, top: shot.startY }} />
+          <span
+            className="kab-laser-beam"
+            style={{
+              left: shot.startX,
+              top: shot.startY,
+              width: `${shot.length}px`,
+              "--shot-angle": `${shot.angle}deg`,
+            } as CSSProperties}
+          />
+          <i className="kab-shot-impact" style={{ left: shot.endX, top: shot.endY }}>
+            <b />
+            <b />
+            <b />
+          </i>
+        </div>
+      ))}
 
       <div className="kab-bottom-hud">
         <div className="kab-hp-card kab-bottom-card">
@@ -726,17 +729,6 @@ export function ArenaBattleView({
           </div>
         </div>
       </div>
-
-      {isPaused && (
-        <div className="kab-pause-layer">
-          <div className="kab-pause-card">
-            <small>ADMIN CONTROL</small>
-            <strong>Battle Paused</strong>
-            <span>Question and blaster timers are frozen.</span>
-            <button type="button" onClick={onTogglePause}>Resume Battle</button>
-          </div>
-        </div>
-      )}
 
       {(phase === "revive" || phase === "defeat") && (
         <div className="kab-defeat-layer">
@@ -1010,28 +1002,52 @@ export function ArenaBattleView({
         .kab-shot-layer {
           position: absolute;
           inset: 0;
+          z-index: 60;
+          overflow: visible;
           pointer-events: none;
         }
         .kab-shot-muzzle {
           position: absolute;
-          width: 10px;
-          height: 10px;
-          margin-left: -5px;
-          margin-top: -5px;
+          z-index: 62;
+          width: 18px;
+          height: 18px;
+          margin-left: -9px;
+          margin-top: -9px;
           border-radius: 999px;
-          background: radial-gradient(circle, #ffffff 0 16%, #ffc6a0 44%, rgba(255,120,54,.12) 74%, transparent 76%);
-          animation: kabMuzzle .18s ease-out forwards;
+          background: radial-gradient(circle, #fff 0 15%, #d6fbff 27%, #65e8ff 48%, rgba(40,142,255,.22) 68%, transparent 74%);
+          box-shadow: 0 0 8px #fff, 0 0 18px rgba(91,232,255,.95), 0 0 32px rgba(42,127,255,.72);
+          animation: kabMuzzle .38s ease-out forwards;
         }
         .kab-laser-beam {
           position:absolute;
-          height:5px;
-          margin-top:-2.5px;
+          z-index:61;
+          height:9px;
+          margin-top:-4.5px;
           border-radius:999px;
           transform:rotate(var(--shot-angle));
           transform-origin:left center;
-          background:linear-gradient(180deg,#ffffff 0 20%,#87efff 24% 65%,#23a9ff 70% 100%);
-          box-shadow:0 0 6px #ffffff,0 0 12px rgba(56,200,255,.95),0 0 22px rgba(38,130,255,.58);
-          animation:kabLaserBeam .24s ease-out forwards;
+          opacity:1;
+          background:linear-gradient(
+            180deg,
+            #ffffff 0 22%,
+            #d7fcff 23% 40%,
+            #62e8ff 41% 68%,
+            #1c86ff 69% 100%
+          );
+          box-shadow:
+            0 0 5px #fff,
+            0 0 11px rgba(146,247,255,1),
+            0 0 23px rgba(43,187,255,.96),
+            0 0 42px rgba(29,103,255,.68);
+          animation:kabLaserBeam .58s ease-out forwards;
+        }
+        .kab-laser-beam::after {
+          position:absolute;
+          inset:2.5px 0;
+          border-radius:999px;
+          background:#fff;
+          box-shadow:0 0 8px rgba(255,255,255,.98);
+          content:"";
         }
         .kab-shot-impact {
           position: absolute;
@@ -1167,10 +1183,10 @@ export function ArenaBattleView({
           gap: 10px;
         }
         @keyframes kabLaserBeam {
-          0% { opacity:0; filter:brightness(1.8); }
-          18% { opacity:1; }
-          70% { opacity:1; }
-          100% { opacity:0; filter:brightness(1); }
+          0% { opacity:0; filter:brightness(1.9); }
+          7% { opacity:1; }
+          80% { opacity:1; }
+          100% { opacity:0; filter:brightness(1.1); }
         }
         @keyframes kabImpact {
           0% { opacity: 0; transform: scale(.35); }

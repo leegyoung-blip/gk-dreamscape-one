@@ -177,39 +177,101 @@ export const roverPerformanceCategories: RoverPerformanceCategoryConfig[] = [
     id: "stability",
     title: "Stability Core",
     statLabel: "balance",
-    shortDescription: "Keeps the chassis composed through landings, impacts and steep terrain.",
+    shortDescription:
+      "Keeps the chassis composed through landings, impacts and steep terrain.",
     effectSummary: "Balance · Landing tolerance · Overturn resistance",
     tiers: [
-      ["Gyro Module", "Adds basic inertial correction during rough course transitions."],
-      ["Dual Gyro", "Two-axis stabilisation reduces unwanted chassis rotation."],
-      ["Stability Matrix", "Predictive control steadies landings before wheel contact."],
-      ["Aegis Stabiliser", "Heavy-duty stabilisation for severe impacts and gradients."],
-      ["Inertial Anchor", "Maximum active balance control for the Skyforge platform."],
-    ].map(([name, description], index) => ({
-      level: index + 1,
-      name,
-      description,
-      priceDt: PRICE_BY_LEVEL[index],
-    })),
+      {
+        level: 1,
+        name: "Gyro Module",
+        description:
+          "Compact gyroscopic correction steadies the rover through rough course transitions.",
+        priceDt: PRICE_BY_LEVEL[0],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/stability/gyro-module.png`,
+      },
+      {
+        level: 2,
+        name: "Dual Gyro Array",
+        description:
+          "Paired gyroscopes broaden active stabilisation across multiple chassis axes.",
+        priceDt: PRICE_BY_LEVEL[1],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/stability/dual-gyro-array.png`,
+      },
+      {
+        level: 3,
+        name: "Stability Matrix",
+        description:
+          "A distributed active-balance network predicts and corrects unstable movement.",
+        priceDt: PRICE_BY_LEVEL[2],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/stability/stability-matrix.png`,
+      },
+      {
+        level: 4,
+        name: "Aegis Stabiliser",
+        description:
+          "Armoured heavy-duty stabilisation resists severe impacts, roll and steep gradients.",
+        priceDt: PRICE_BY_LEVEL[3],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/stability/aegis-stabiliser.png`,
+      },
+      {
+        level: 5,
+        name: "Inertial Anchor",
+        description:
+          "Ultimate inertial control keeps the Skyforge platform composed under extreme motion.",
+        priceDt: PRICE_BY_LEVEL[4],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/stability/inertial-anchor.png`,
+      },
+    ],
   },
   {
     id: "suspension",
     title: "Suspension / Lift",
     statLabel: "airMobility",
-    shortDescription: "Improves jump response, aerial control and landing compliance.",
+    shortDescription:
+      "Improves jump response, aerial control and landing compliance.",
     effectSummary: "Air Mobility · Jump · Mid-air control",
     tiers: [
-      ["Flex Suspension", "Improves travel and gives the rover a cleaner take-off."],
-      ["Launch Suspension", "Stores and releases more energy during jump initiation."],
-      ["Aero Struts", "Combines suspension travel with stronger aerial correction."],
-      ["Gravity Dampers", "Reduces instability through hard transitions and landings."],
-      ["Skyforge Lift System", "Maximum jump and aerial-control package for wheeled rovers."],
-    ].map(([name, description], index) => ({
-      level: index + 1,
-      name,
-      description,
-      priceDt: PRICE_BY_LEVEL[index],
-    })),
+      {
+        level: 1,
+        name: "Flex Suspension",
+        description:
+          "Adaptive performance coilovers increase suspension travel and smooth take-off and landing.",
+        priceDt: PRICE_BY_LEVEL[0],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/suspension/flex-suspension.png`,
+      },
+      {
+        level: 2,
+        name: "Launch Suspension",
+        description:
+          "Reinforced high-pressure suspension stores and releases more energy during jump initiation.",
+        priceDt: PRICE_BY_LEVEL[1],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/suspension/launch-suspension.png`,
+      },
+      {
+        level: 3,
+        name: "Aero Struts",
+        description:
+          "Long-travel active struts combine wheel control with stronger aerial attitude correction.",
+        priceDt: PRICE_BY_LEVEL[2],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/suspension/aero-struts.png`,
+      },
+      {
+        level: 4,
+        name: "Gravity Dampers",
+        description:
+          "Electromagnetic damping absorbs harsh transitions and stabilises high-energy landings.",
+        priceDt: PRICE_BY_LEVEL[3],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/suspension/gravity-dampers.png`,
+      },
+      {
+        level: 5,
+        name: "Skyforge Lift System",
+        description:
+          "Ultimate active lift platform delivers maximum jump, landing and aerial control.",
+        priceDt: PRICE_BY_LEVEL[4],
+        imageSrc: `${ROVER_CUSTOM_BUILD_ASSET_ROOT}/suspension/skyforge-lift-system.png`,
+      },
+    ],
   },
   {
     id: "energy",

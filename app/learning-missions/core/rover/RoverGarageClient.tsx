@@ -785,7 +785,7 @@ export default function RoverGarageClient() {
 
       const price = Number(buildRow.next_price_dt ?? 0);
 
-      if (!isAdmin && tokenBalance < price) {
+      if (tokenBalance < price) {
         setPerformanceMessage(
           `You need ${price - tokenBalance} more Dream Tokens for ${buildRow.next_name}.`,
         );
@@ -796,9 +796,7 @@ export default function RoverGarageClient() {
         [
           `Install ${buildRow.next_name} on Rover ${equippedStage + 1}?`,
           "",
-          isAdmin
-            ? "Admin test install: 0 DT"
-            : `Cost: ${price.toLocaleString("en-SG")} Dream Tokens`,
+          `Cost: ${price.toLocaleString("en-SG")} Dream Tokens`,
           `This upgrade belongs only to Rover ${equippedStage + 1}.`,
           "Switching to another rover will use that rover's own Custom Build purchases.",
         ].join("\n"),
@@ -844,7 +842,6 @@ export default function RoverGarageClient() {
     },
     [
       equippedStage,
-      isAdmin,
       loadGarage,
       performanceBuild,
       purchasingPerformanceCategory,
@@ -1825,7 +1822,7 @@ function CustomBuildPanel({
   performanceBuild,
   message,
   purchasingCategory,
-  isAdmin,
+  isAdmin: _isAdmin,
   onPurchase,
 }: {
   tokenBalance: number;
@@ -1851,9 +1848,10 @@ function CustomBuildPanel({
         </h2>
 
         <p style={panelDescription}>
-          Performance parts are permanently attached to this rover only. The
-          highest purchased tier in each category is installed automatically
-          whenever Rover {equippedStage + 1} enters Rover Challenge. Balance:{" "}
+          Performance parts are live purchases permanently attached to this
+          rover only. The highest purchased tier in each category is installed
+          automatically whenever Rover {equippedStage + 1} enters Rover
+          Challenge. Balance:{" "}
           <strong>{tokenBalance.toLocaleString("en-SG")} DT</strong>
         </p>
       </div>
@@ -1878,7 +1876,7 @@ function CustomBuildPanel({
             const currentRating = Number(row.current_rating ?? row.base_rating);
             const maxed = !row.can_purchase || row.next_level == null;
             const purchasing = purchasingCategory === category.id;
-            const canAfford = isAdmin || Boolean(row.can_afford);
+            const canAfford = Boolean(row.can_afford);
 
             return (
               <section key={category.id} style={performanceCategoryCard}>
@@ -1948,9 +1946,7 @@ function CustomBuildPanel({
                             : owned
                               ? "INSTALLED"
                               : next
-                                ? isAdmin
-                                  ? "ADMIN"
-                                  : `${tier.priceDt} DT`
+                                ? `${tier.priceDt} DT`
                                 : "LOCKED"}
                         </strong>
                       </div>
@@ -1979,11 +1975,9 @@ function CustomBuildPanel({
                     >
                       {purchasing
                         ? "Installing..."
-                        : isAdmin
-                          ? `Install ${row.next_name}`
-                          : canAfford
-                            ? `${Number(row.next_price_dt).toLocaleString("en-SG")} DT · Install`
-                            : "Need DT"}
+                        : canAfford
+                          ? `${Number(row.next_price_dt).toLocaleString("en-SG")} DT · Install`
+                          : "Need DT"}
                     </button>
                   )}
                 </div>
@@ -2707,6 +2701,10 @@ function purchaseRoverButton(enabled: boolean): CSSProperties {
 
 
 const performanceCategoryCard: CSSProperties = {
+  width: "100%",
+  maxWidth: "100%",
+  minWidth: 0,
+  overflow: "hidden",
   borderRadius: "18px",
   border: "1px solid rgba(126,232,255,0.13)",
   background: "rgba(255,255,255,0.028)",
@@ -2755,14 +2753,20 @@ const performanceRatingBadge: CSSProperties = {
   gap: "3px",
 };
 
-function performanceTierGrid(isMobile: boolean): CSSProperties {
+function performanceTierGrid(_isMobile: boolean): CSSProperties {
   return {
-    display: "grid",
-    gridTemplateColumns: isMobile
-      ? "1fr"
-      : "repeat(auto-fit,minmax(190px,1fr))",
-    gap: "9px",
+    display: "flex",
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    gap: "10px",
     marginTop: "14px",
+    paddingBottom: "8px",
+    overflowX: "auto",
+    overflowY: "hidden",
+    overscrollBehaviorX: "contain",
+    WebkitOverflowScrolling: "touch",
+    scrollSnapType: "x proximity",
   };
 }
 
@@ -2772,7 +2776,11 @@ function performanceTierCard(
   unavailable: boolean,
 ): CSSProperties {
   return {
+    flex: "1 0 205px",
+    minWidth: "205px",
+    maxWidth: "290px",
     minHeight: "280px",
+    scrollSnapAlign: "start",
     borderRadius: "14px",
     border: owned
       ? "1px solid rgba(111,255,184,0.28)"
