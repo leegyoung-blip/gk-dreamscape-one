@@ -3,6 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
 import type { CoreRoverGameStats } from "@/lib/coreRoverProgress";
+import {
+  getCoreRoverWeaponSpec,
+  type CoreRoverCombatStats,
+  type CoreRoverWeaponSpec,
+} from "@/lib/coreRoverCombat";
 import type { RoverLevelConfig } from "./levels";
 import type { RoverTrap } from "./levels/types";
 
@@ -132,6 +137,8 @@ export type PhaserGameProps = {
   roverBackWheelSrc: string | null;
   roverGameMode: "wheeled" | "hover";
   weaponLevel: number;
+  combatMode: boolean;
+  combatStats: CoreRoverCombatStats;
   gameStats: CoreRoverGameStats;
 };
 
@@ -160,6 +167,17 @@ type CheckpointItem = {
 type TouchButton = {
   background: Phaser.GameObjects.Arc;
   label: Phaser.GameObjects.Text;
+};
+
+type CombatProjectile = {
+  sprite: Phaser.GameObjects.Image;
+  velocityX: number;
+  velocityY: number;
+  expiresAt: number;
+  damage: number;
+  projectileType: CoreRoverWeaponSpec["projectileType"];
+  blastRadius: number;
+  trackingStrength: number;
 };
 
 type TrapItem = Omit<RoverTrap, "y"> & {
@@ -230,10 +248,12 @@ class RoverMatterScene extends Phaser.Scene {
   private keyW?: Phaser.Input.Keyboard.Key;
   private keyR?: Phaser.Input.Keyboard.Key;
   private boostKey?: Phaser.Input.Keyboard.Key;
+  private fireKey?: Phaser.Input.Keyboard.Key;
 
   private touchLeft = false;
   private touchRight = false;
   private touchBoost = false;
+  private touchFire = false;
 
   private speedText?: Phaser.GameObjects.Text;
   private distanceText?: Phaser.GameObjects.Text;
@@ -245,6 +265,12 @@ class RoverMatterScene extends Phaser.Scene {
   private roverStageText?: Phaser.GameObjects.Text;
   private boostText?: Phaser.GameObjects.Text;
   private boostBarFill?: Phaser.GameObjects.Rectangle;
+
+  private combatShieldText?: Phaser.GameObjects.Text;
+  private combatHpText?: Phaser.GameObjects.Text;
+  private combatWeaponText?: Phaser.GameObjects.Text;
+  private combatShieldBarFill?: Phaser.GameObjects.Rectangle;
+  private combatHpBarFill?: Phaser.GameObjects.Rectangle;
 
   private collectibles: CollectibleItem[] = [];
   private checkpoints: CheckpointItem[] = [];
@@ -291,6 +317,18 @@ class RoverMatterScene extends Phaser.Scene {
   private roverGameMode: "wheeled" | "hover" = "wheeled";
   private weaponLevel = 0;
   private selectedAmmoAsset: RoverAmmoAsset | null = null;
+  private weaponSpec: CoreRoverWeaponSpec | null = null;
+
+  private combatMode = false;
+  private combatStats: CoreRoverCombatStats;
+  private roverHp = 0;
+  private roverShield = 0;
+  private lastCombatDamageAt = -100000;
+  private lastWeaponFireAt = -100000;
+  private roverDisabled = false;
+  private shotsFired = 0;
+  private combatProjectiles: CombatProjectile[] = [];
+
   private levelConfig: RoverLevelWithPulseGates;
 
   private normalMaximumSpeed = 5.5;
@@ -321,6 +359,8 @@ class RoverMatterScene extends Phaser.Scene {
     roverBackWheelSrc,
     roverGameMode,
     weaponLevel,
+    combatMode,
+    combatStats,
     gameStats,
   }: PhaserGameProps) {
     super({
@@ -336,6 +376,12 @@ class RoverMatterScene extends Phaser.Scene {
     this.roverGameMode = roverGameMode;
     this.weaponLevel = Math.max(0, Math.min(5, Math.floor(weaponLevel || 0)));
     this.selectedAmmoAsset = ROVER_AMMO_BY_LEVEL[this.weaponLevel] ?? null;
+    this.weaponSpec = getCoreRoverWeaponSpec(this.weaponLevel);
+
+    this.combatMode = Boolean(combatMode);
+    this.combatStats = combatStats;
+    this.roverHp = combatStats.maxHp;
+    this.roverShield = combatStats.maxShield;
 
     this.normalMaximumSpeed = gameStats.normalSpeed;
 
@@ -453,6 +499,7 @@ class RoverMatterScene extends Phaser.Scene {
     this.createTouchControls();
     this.configureCamera();
     this.registerCollisionHandlers();
+    this.registerCombatFoundation();
 
     this.input.keyboard?.addCapture([
       Phaser.Input.Keyboard.KeyCodes.LEFT,
@@ -463,6 +510,7 @@ class RoverMatterScene extends Phaser.Scene {
       Phaser.Input.Keyboard.KeyCodes.D,
       Phaser.Input.Keyboard.KeyCodes.W,
       Phaser.Input.Keyboard.KeyCodes.R,
+      Phaser.Input.Keyboard.KeyCodes.F,
     ]);
 
     this.cameras.main.fadeIn(450, 5, 7, 19);
@@ -485,6 +533,7 @@ class RoverMatterScene extends Phaser.Scene {
     this.updateTraps();
     this.updatePulseGates();
     this.updateCollapsibleTerrain();
+    this.updateCombat(delta);
     this.updateScore();
     this.updateInterface();
     this.checkFinish();
@@ -504,8 +553,18 @@ class RoverMatterScene extends Phaser.Scene {
     this.touchLeft = false;
     this.touchRight = false;
     this.touchBoost = false;
+    this.touchFire = false;
 
     this.boostEnergy = this.maximumBoostEnergy;
+
+    this.roverHp = this.combatStats.maxHp;
+    this.roverShield = this.combatStats.maxShield;
+    this.lastCombatDamageAt = -100000;
+    this.lastWeaponFireAt = -100000;
+    this.roverDisabled = false;
+    this.shotsFired = 0;
+    this.combatProjectiles.forEach((projectile) => projectile.sprite.destroy());
+    this.combatProjectiles = [];
 
     this.score = 0;
     this.distanceScore = 0;
@@ -1823,10 +1882,19 @@ class RoverMatterScene extends Phaser.Scene {
     this.boostKey = this.input.keyboard.addKey(
       Phaser.Input.Keyboard.KeyCodes.SPACE,
     );
+
+    this.fireKey = this.input.keyboard.addKey(
+      Phaser.Input.Keyboard.KeyCodes.F,
+    );
   }
 
   private createInterface() {
-    const statusPanel = this.createHudPanel(42, 42, 390, 245);
+    const statusPanel = this.createHudPanel(
+      42,
+      42,
+      390,
+      this.combatMode ? 395 : 245,
+    );
 
     statusPanel.setOrigin(0, 0);
 
@@ -1940,6 +2008,89 @@ class RoverMatterScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(101);
 
+    if (this.combatMode) {
+      this.add
+        .text(70, 286, "COMBAT SYSTEMS", {
+          fontFamily: "Arial, sans-serif",
+          fontSize: "10px",
+          fontStyle: "bold",
+          color: "#ffd76a",
+          letterSpacing: 2,
+        })
+        .setScrollFactor(0)
+        .setDepth(101);
+
+      this.combatShieldText = this.add
+        .text(70, 309, `SHIELD  ${Math.round(this.roverShield)} / ${this.combatStats.maxShield}`, {
+          fontFamily: "Arial, sans-serif",
+          fontSize: "11px",
+          fontStyle: "bold",
+          color: "#77ecff",
+        })
+        .setScrollFactor(0)
+        .setDepth(101);
+
+      const shieldBg = this.add.rectangle(70, 332, 326, 9, 0x26314d, 1);
+      shieldBg.setOrigin(0, 0.5).setScrollFactor(0).setDepth(101);
+
+      this.combatShieldBarFill = this.add.rectangle(
+        70,
+        332,
+        326,
+        9,
+        0x62edff,
+        1,
+      );
+      this.combatShieldBarFill
+        .setOrigin(0, 0.5)
+        .setScrollFactor(0)
+        .setDepth(102);
+
+      this.combatHpText = this.add
+        .text(70, 347, `HP  ${Math.round(this.roverHp)} / ${this.combatStats.maxHp}`, {
+          fontFamily: "Arial, sans-serif",
+          fontSize: "11px",
+          fontStyle: "bold",
+          color: "#9cffb3",
+        })
+        .setScrollFactor(0)
+        .setDepth(101);
+
+      const hpBg = this.add.rectangle(70, 370, 326, 9, 0x26314d, 1);
+      hpBg.setOrigin(0, 0.5).setScrollFactor(0).setDepth(101);
+
+      this.combatHpBarFill = this.add.rectangle(
+        70,
+        370,
+        326,
+        9,
+        0x79f5a6,
+        1,
+      );
+      this.combatHpBarFill
+        .setOrigin(0, 0.5)
+        .setScrollFactor(0)
+        .setDepth(102);
+
+      this.combatWeaponText = this.add
+        .text(
+          70,
+          382,
+          this.weaponSpec
+            ? `WEAPON  ${this.weaponSpec.name.toUpperCase()}`
+            : "WEAPON  NOT INSTALLED",
+          {
+            fontFamily: "Arial, sans-serif",
+            fontSize: "9px",
+            fontStyle: "bold",
+            color: this.weaponSpec ? "#ffd76a" : "#ff9d9d",
+            letterSpacing: 1,
+          },
+        )
+        .setScrollFactor(0)
+        .setDepth(101);
+    }
+
     const timerPanel = this.createHudPanel(GAME_WIDTH / 2 - 115, 42, 230, 92);
 
     timerPanel.setOrigin(0, 0);
@@ -2028,9 +2179,13 @@ class RoverMatterScene extends Phaser.Scene {
       .text(
         GAME_WIDTH / 2,
         GAME_HEIGHT - 62,
-        this.jumpVelocity < 0
-          ? "A / D OR ← / →  DRIVE     W OR ↑  JUMP     SPACE  BOOST     R  RESTART"
-          : "A / D OR ← / →  DRIVE     JUMP MODULE LOCKED     SPACE  BOOST     R  RESTART",
+        this.combatMode
+          ? this.jumpVelocity < 0
+            ? "A / D OR ← / →  DRIVE     W OR ↑  JUMP     SPACE  BOOST     F  FIRE     R  RESTART"
+            : "A / D OR ← / →  DRIVE     JUMP LOCKED     SPACE  BOOST     F  FIRE     R  RESTART"
+          : this.jumpVelocity < 0
+            ? "A / D OR ← / →  DRIVE     W OR ↑  JUMP     SPACE  BOOST     R  RESTART"
+            : "A / D OR ← / →  DRIVE     JUMP MODULE LOCKED     SPACE  BOOST     R  RESTART",
         {
           fontFamily: "Arial, sans-serif",
           fontSize: "14px",
@@ -2098,8 +2253,28 @@ class RoverMatterScene extends Phaser.Scene {
       },
     );
 
+    if (this.combatMode) {
+      this.createTouchButton(
+        GAME_WIDTH - 455,
+        GAME_HEIGHT - 125,
+        88,
+        this.weaponSpec ? "FIRE" : "NO GUN",
+        () => {
+          if (this.weaponSpec) {
+            this.touchFire = true;
+            this.tryFireWeapon();
+          } else {
+            this.showStatusMessage("NO WEAPON INSTALLED", "#ff9d9d");
+          }
+        },
+        () => {
+          this.touchFire = false;
+        },
+      );
+    }
+
     this.createTouchButton(
-      GAME_WIDTH - 330,
+      this.combatMode ? GAME_WIDTH - 340 : GAME_WIDTH - 330,
       GAME_HEIGHT - 125,
       88,
       this.jumpVelocity < 0 ? "JUMP" : "LOCKED",
@@ -2110,7 +2285,7 @@ class RoverMatterScene extends Phaser.Scene {
     );
 
     this.createTouchButton(
-      GAME_WIDTH - 205,
+      this.combatMode ? GAME_WIDTH - 220 : GAME_WIDTH - 205,
       GAME_HEIGHT - 125,
       100,
       "BOOST",
@@ -2157,7 +2332,11 @@ class RoverMatterScene extends Phaser.Scene {
       .text(x, y, label, {
         fontFamily: "Arial, sans-serif",
         fontSize:
-          label === "BOOST" || label === "JUMP" || label === "LOCKED"
+          label === "BOOST" ||
+          label === "JUMP" ||
+          label === "LOCKED" ||
+          label === "FIRE" ||
+          label === "NO GUN"
             ? "12px"
             : "28px",
         fontStyle: "bold",
@@ -2248,8 +2427,8 @@ class RoverMatterScene extends Phaser.Scene {
       this.tryJump();
     }
 
-    if (this.hasFinished) {
-      roverBody.setVelocityX(body.velocity.x * 0.95);
+    if (this.hasFinished || this.roverDisabled) {
+      roverBody.setVelocityX(body.velocity.x * 0.92);
 
       return;
     }
@@ -3081,6 +3260,429 @@ class RoverMatterScene extends Phaser.Scene {
     } else {
       this.boostBarFill.setFillStyle(0x62edff, 1);
     }
+
+    if (
+      this.combatMode &&
+      this.combatShieldText &&
+      this.combatHpText &&
+      this.combatShieldBarFill &&
+      this.combatHpBarFill
+    ) {
+      const shieldRatio = Phaser.Math.Clamp(
+        this.roverShield / Math.max(1, this.combatStats.maxShield),
+        0,
+        1,
+      );
+      const hpRatio = Phaser.Math.Clamp(
+        this.roverHp / Math.max(1, this.combatStats.maxHp),
+        0,
+        1,
+      );
+
+      this.combatShieldText.setText(
+        `SHIELD  ${Math.ceil(this.roverShield)} / ${this.combatStats.maxShield}`,
+      );
+      this.combatHpText.setText(
+        `HP  ${Math.ceil(this.roverHp)} / ${this.combatStats.maxHp}`,
+      );
+
+      this.combatShieldBarFill.width = 326 * shieldRatio;
+      this.combatHpBarFill.width = 326 * hpRatio;
+
+      if (shieldRatio <= 0.2) {
+        this.combatShieldBarFill.setFillStyle(0xffbd72, 1);
+      } else {
+        this.combatShieldBarFill.setFillStyle(0x62edff, 1);
+      }
+
+      if (hpRatio <= 0.25) {
+        this.combatHpBarFill.setFillStyle(0xff6b72, 1);
+        this.combatHpText.setColor("#ff9297");
+      } else if (hpRatio <= 0.5) {
+        this.combatHpBarFill.setFillStyle(0xffc15f, 1);
+        this.combatHpText.setColor("#ffd38a");
+      } else {
+        this.combatHpBarFill.setFillStyle(0x79f5a6, 1);
+        this.combatHpText.setColor("#9cffb3");
+      }
+    }
+  }
+
+  private registerCombatFoundation() {
+    if (!this.combatMode) {
+      return;
+    }
+
+    const damageListener = (event: Event) => {
+      const detail = (event as CustomEvent<{ amount?: number }>).detail;
+      const amount = Number(detail?.amount ?? 0);
+
+      if (Number.isFinite(amount) && amount > 0) {
+        this.applyRoverDamage(amount);
+      }
+    };
+
+    window.addEventListener("rover-combat-damage", damageListener);
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      window.removeEventListener("rover-combat-damage", damageListener);
+    });
+  }
+
+  private updateCombat(delta: number) {
+    if (!this.combatMode) {
+      return;
+    }
+
+    this.handleWeaponInput();
+    this.updateCombatProjectiles(delta);
+
+    if (
+      this.roverDisabled ||
+      this.hasFinished ||
+      this.roverShield >= this.combatStats.maxShield
+    ) {
+      return;
+    }
+
+    const timeSinceDamage = this.time.now - this.lastCombatDamageAt;
+
+    if (timeSinceDamage < this.combatStats.shieldRegenDelayMs) {
+      return;
+    }
+
+    this.roverShield = Math.min(
+      this.combatStats.maxShield,
+      this.roverShield +
+        this.combatStats.shieldRegenPerSecond * (delta / 1000),
+    );
+  }
+
+  private handleWeaponInput() {
+    if (
+      !this.fireKey ||
+      this.hasFinished ||
+      this.roverDisabled ||
+      !this.weaponSpec
+    ) {
+      return;
+    }
+
+    if (this.fireKey.isDown || this.touchFire) {
+      this.tryFireWeapon();
+    }
+  }
+
+  private tryFireWeapon() {
+    if (
+      !this.combatMode ||
+      !this.roverBody ||
+      !this.weaponSpec ||
+      !this.selectedAmmoAsset ||
+      !this.textures.exists("selected-rover-ammo") ||
+      this.hasFinished ||
+      this.roverDisabled
+    ) {
+      return;
+    }
+
+    const now = this.time.now;
+
+    if (now - this.lastWeaponFireAt < this.weaponSpec.fireCooldownMs) {
+      return;
+    }
+
+    this.lastWeaponFireAt = now;
+    this.shotsFired += 1;
+
+    if (!this.hasStarted) {
+      this.hasStarted = true;
+    }
+
+    const body = this.roverBody.body as MatterJS.BodyType | null;
+    const angle = body?.angle ?? 0;
+    const muzzleDistance = this.roverBodyDisplayWidth * 0.43;
+    const muzzleLift = this.roverBodyDisplayHeight * 0.13;
+
+    const perpendicularX = -Math.sin(angle);
+    const perpendicularY = Math.cos(angle);
+
+    const muzzleX =
+      this.roverBody.x +
+      Math.cos(angle) * muzzleDistance -
+      perpendicularX * muzzleLift;
+    const muzzleY =
+      this.roverBody.y +
+      Math.sin(angle) * muzzleDistance -
+      perpendicularY * muzzleLift;
+
+    const sprite = this.add.image(
+      muzzleX,
+      muzzleY,
+      "selected-rover-ammo",
+    );
+
+    sprite.setDepth(46);
+    sprite.setRotation(angle);
+    sprite.setOrigin(0.5);
+
+    const source = this.textures
+      .get("selected-rover-ammo")
+      .getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+    const sourceWidth = Math.max(1, Number(source.width) || 1);
+    const sourceHeight = Math.max(1, Number(source.height) || 1);
+    const displayWidth = this.weaponSpec.projectileWidth;
+    const displayHeight = Math.max(
+      6,
+      displayWidth * (sourceHeight / sourceWidth),
+    );
+
+    sprite.setDisplaySize(displayWidth, displayHeight);
+
+    const projectileSpeed = this.weaponSpec.projectileSpeed;
+    const inheritedSpeed = Math.max(0, body?.velocity.x ?? 0) * 20;
+
+    this.combatProjectiles.push({
+      sprite,
+      velocityX:
+        Math.cos(angle) * (projectileSpeed + inheritedSpeed),
+      velocityY: Math.sin(angle) * projectileSpeed,
+      expiresAt: now + this.weaponSpec.projectileLifetimeMs,
+      damage: this.weaponSpec.damage,
+      projectileType: this.weaponSpec.projectileType,
+      blastRadius: this.weaponSpec.blastRadius,
+      trackingStrength: this.weaponSpec.trackingStrength,
+    });
+
+    this.createMuzzleFlash(muzzleX, muzzleY, angle);
+  }
+
+  private createMuzzleFlash(x: number, y: number, angle: number) {
+    const flash = this.add
+      .ellipse(x, y, 34, 14, 0xffd76a, 0.95)
+      .setRotation(angle)
+      .setDepth(47)
+      .setBlendMode(Phaser.BlendModes.ADD);
+
+    this.tweens.add({
+      targets: flash,
+      scaleX: 1.8,
+      scaleY: 0.65,
+      alpha: 0,
+      duration: 90,
+      ease: "Cubic.easeOut",
+      onComplete: () => flash.destroy(),
+    });
+  }
+
+  private updateCombatProjectiles(delta: number) {
+    if (this.combatProjectiles.length === 0) {
+      return;
+    }
+
+    const dt = delta / 1000;
+    const now = this.time.now;
+
+    this.combatProjectiles = this.combatProjectiles.filter((projectile) => {
+      if (!projectile.sprite.active) {
+        return false;
+      }
+
+      projectile.sprite.x += projectile.velocityX * dt;
+      projectile.sprite.y += projectile.velocityY * dt;
+
+      const expired = now >= projectile.expiresAt;
+      const outsideWorld =
+        projectile.sprite.x < -200 ||
+        projectile.sprite.x > this.levelConfig.worldWidth + 200 ||
+        projectile.sprite.y < -200 ||
+        projectile.sprite.y > this.levelConfig.worldHeight + 200;
+
+      if (expired || outsideWorld) {
+        projectile.sprite.destroy();
+        return false;
+      }
+
+      return true;
+    });
+  }
+
+  /**
+   * Stage 5 Bone Guards will call this directly when a blaster bolt hits.
+   * Phase 5A also exposes a browser CustomEvent with the same behaviour so the
+   * shield/HP system can be tested before enemies are added:
+   *
+   * window.dispatchEvent(new CustomEvent("rover-combat-damage", {
+   *   detail: { amount: 60 },
+   * }));
+   */
+  private applyRoverDamage(amount: number) {
+    if (
+      !this.combatMode ||
+      this.hasFinished ||
+      this.roverDisabled ||
+      amount <= 0
+    ) {
+      return;
+    }
+
+    this.lastCombatDamageAt = this.time.now;
+
+    const shieldBefore = this.roverShield;
+    const absorbedByShield = Math.min(this.roverShield, amount);
+    this.roverShield = Math.max(0, this.roverShield - absorbedByShield);
+
+    const remainingDamage = Math.max(0, amount - absorbedByShield);
+
+    if (absorbedByShield > 0) {
+      this.showShieldImpact(absorbedByShield);
+    }
+
+    if (remainingDamage > 0) {
+      this.roverHp = Math.max(0, this.roverHp - remainingDamage);
+      this.flashRoverDamage();
+
+      if (shieldBefore > 0 && this.roverShield <= 0) {
+        this.showStatusMessage("SHIELD DOWN", "#ffbd72");
+      }
+    }
+
+    if (this.roverHp <= 0) {
+      this.disableRover();
+    }
+  }
+
+  private showShieldImpact(absorbedDamage: number) {
+    if (!this.roverBody) {
+      return;
+    }
+
+    const shield = this.add
+      .ellipse(
+        this.roverBody.x,
+        this.roverBody.y,
+        this.roverBodyDisplayWidth * 1.08,
+        this.roverBodyDisplayHeight * 0.82,
+        0x48dfff,
+        0.08,
+      )
+      .setStrokeStyle(5, 0x76efff, 0.86)
+      .setDepth(60)
+      .setBlendMode(Phaser.BlendModes.ADD);
+
+    this.tweens.add({
+      targets: shield,
+      scaleX: 1.1,
+      scaleY: 1.15,
+      alpha: 0,
+      duration: 220,
+      ease: "Cubic.easeOut",
+      onComplete: () => shield.destroy(),
+    });
+
+    this.showStatusMessage(
+      `SHIELD  -${Math.round(absorbedDamage)}`,
+      "#84efff",
+    );
+  }
+
+  private flashRoverDamage() {
+    this.cameras.main.flash(90, 255, 72, 82, false, undefined, this);
+
+    const visuals = [
+      this.roverBodyVisual,
+      ...this.roverWheelVisuals.map((wheel) => wheel.sprite),
+    ].filter(Boolean) as Phaser.GameObjects.Image[];
+
+    visuals.forEach((visual) => visual.setTint(0xff767d));
+
+    this.time.delayedCall(120, () => {
+      visuals.forEach((visual) => {
+        if (visual.active) {
+          visual.clearTint();
+        }
+      });
+    });
+  }
+
+  private disableRover() {
+    if (this.roverDisabled) {
+      return;
+    }
+
+    this.roverDisabled = true;
+    this.hasFinished = true;
+    this.touchFire = false;
+    this.touchBoost = false;
+
+    if (this.roverBody) {
+      this.roverBody.setVelocity(0, 0);
+      this.roverBody.setAngularVelocity(0);
+    }
+
+    this.cameras.main.shake(300, 0.012);
+    this.cameras.main.flash(140, 255, 70, 70);
+    this.showRoverDisabledOverlay();
+  }
+
+  private showRoverDisabledOverlay() {
+    const overlay = this.add
+      .rectangle(
+        GAME_WIDTH / 2,
+        GAME_HEIGHT / 2,
+        720,
+        330,
+        0x050816,
+        0.95,
+      )
+      .setStrokeStyle(2, 0xff6e78, 0.42)
+      .setScrollFactor(0)
+      .setDepth(220);
+
+    this.add
+      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 88, "ROVER DISABLED", {
+        fontFamily: "Arial, sans-serif",
+        fontSize: "38px",
+        fontStyle: "bold",
+        color: "#ff969c",
+        letterSpacing: 4,
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(221);
+
+    this.add
+      .text(
+        GAME_WIDTH / 2,
+        GAME_HEIGHT / 2 - 18,
+        "Your vehicle has lost all HP.",
+        {
+          fontFamily: "Arial, sans-serif",
+          fontSize: "18px",
+          color: "#d4dced",
+        },
+      )
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(221);
+
+    this.add
+      .text(
+        GAME_WIDTH / 2,
+        GAME_HEIGHT / 2 + 48,
+        "Press R to restart the expedition.",
+        {
+          fontFamily: "Arial, sans-serif",
+          fontSize: "16px",
+          fontStyle: "bold",
+          color: "#ffd76a",
+        },
+      )
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(221);
+
+    overlay.setInteractive();
   }
 
   private formatTime(seconds: number) {
@@ -3325,6 +3927,8 @@ export default function PhaserGame({
   roverBackWheelSrc,
   roverGameMode,
   weaponLevel,
+  combatMode,
+  combatStats,
   gameStats,
 }: PhaserGameProps) {
   const gameContainerRef =
@@ -3352,6 +3956,8 @@ export default function PhaserGame({
       roverBackWheelSrc,
       roverGameMode,
       weaponLevel,
+      combatMode,
+      combatStats,
       gameStats,
     });
 
@@ -3364,6 +3970,8 @@ export default function PhaserGame({
     roverBackWheelSrc,
     roverGameMode,
     weaponLevel,
+    combatMode,
+    combatStats,
     gameStats,
   };
 
@@ -3434,6 +4042,10 @@ export default function PhaserGame({
           currentProps.roverGameMode,
         weaponLevel:
           currentProps.weaponLevel,
+        combatMode:
+          currentProps.combatMode,
+        combatStats:
+          currentProps.combatStats,
         gameStats:
           currentProps.gameStats,
       });

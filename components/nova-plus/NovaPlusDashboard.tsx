@@ -46,7 +46,7 @@ export default function NovaPlusDashboard() {
   }, [selectedLearner?.label]);
 
   function closeNovaPlus() {
-    router.push("/progress-rewards");
+    router.push("/learning-missions/progress-rewards");
   }
 
   return (

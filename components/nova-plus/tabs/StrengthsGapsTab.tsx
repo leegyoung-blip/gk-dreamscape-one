@@ -5,7 +5,12 @@ import type {
   NovaSubjectKey,
   ProfileSkill,
 } from "@/lib/nova-plus/types";
-import { safeNumber, SUBJECT_META } from "@/lib/nova-plus/helpers";
+import {
+  dedupeConceptSkills,
+  isQuizFallbackSkill,
+  safeNumber,
+  SUBJECT_META,
+} from "@/lib/nova-plus/helpers";
 import styles from "./StrengthsGapsTab.module.css";
 
 type Props = {
@@ -122,30 +127,44 @@ function subjectLabel(subject: string) {
   return SUBJECT_META[subject as NovaSubjectKey]?.label ?? subject;
 }
 
-function conceptRows(profile: NovaPlusProfilePayload, includeKnowledge = false) {
-  const filtered = profile.skills.filter((skill) => {
+function academicConceptRows(profile: NovaPlusProfilePayload) {
+  return dedupeConceptSkills(
+    profile.skills.filter((skill) => {
+      const subject = String(skill.subject || "").toLowerCase();
+
+      return (
+        ACADEMIC_SUBJECTS.has(subject) &&
+        safeNumber(skill.questions_attempted) >= 2
+      );
+    }),
+  );
+}
+
+function knowledgeRows(profile: NovaPlusProfilePayload) {
+  const rows = profile.skills.filter((skill) => {
     const subject = String(skill.subject || "").toLowerCase();
-    const subjectMatches = includeKnowledge
-      ? subject === "knowledge"
-      : ACADEMIC_SUBJECTS.has(subject);
 
     return (
-      subjectMatches &&
-      !skill.is_topic_level &&
+      subject === "knowledge" &&
+      !isQuizFallbackSkill(skill) &&
       safeNumber(skill.questions_attempted) >= 2
     );
   });
 
-  if (filtered.length > 0) return filtered;
+  // Knowledge Arena is intentionally broader than curriculum mastery, so its
+  // topic-level categories may be shown when no granular concept rows exist.
+  const granular = dedupeConceptSkills(rows);
+  if (granular.length > 0) return granular;
 
-  return profile.skills.filter((skill) => {
-    const subject = String(skill.subject || "").toLowerCase();
-    const subjectMatches = includeKnowledge
-      ? subject === "knowledge"
-      : ACADEMIC_SUBJECTS.has(subject);
+  const bySkill = new Map<string, ProfileSkill>();
+  for (const skill of rows.filter((row) => row.is_topic_level)) {
+    const key = String(skill.skill_code || skill.skill_id || skill.skill_name)
+      .trim()
+      .toLowerCase();
+    if (!bySkill.has(key)) bySkill.set(key, skill);
+  }
 
-    return subjectMatches && skill.is_topic_level && safeNumber(skill.questions_attempted) >= 2;
-  });
+  return [...bySkill.values()];
 }
 
 function ConceptCard({
@@ -260,8 +279,8 @@ export default function StrengthsGapsTab({
   profile,
   onOpenRecommendations,
 }: Props) {
-  const academicSkills = conceptRows(profile, false);
-  const knowledgeSkills = conceptRows(profile, true);
+  const academicSkills = academicConceptRows(profile);
+  const knowledgeSkills = knowledgeRows(profile);
 
   const strong = academicSkills.filter((skill) => conceptState(skill) === "strong");
   const developing = academicSkills.filter((skill) => conceptState(skill) === "developing");

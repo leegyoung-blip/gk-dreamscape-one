@@ -31,7 +31,10 @@ export type ProfileSkill = {
   topic: string;
   skill_name: string;
   skill_code: string;
-  public_explanation: string | null;
+  /** Taxonomy provenance. NOVA+ uses this to exclude quiz-title fallback rows. */
+  source?: string | null;
+  external_ref?: string | null;
+  public_explanation?: string | null;
   parent_skill_id: string | null;
   is_topic_level: boolean;
   mastery_score: number;

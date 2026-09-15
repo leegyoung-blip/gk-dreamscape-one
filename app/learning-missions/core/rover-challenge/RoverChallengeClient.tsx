@@ -15,6 +15,10 @@ import {
   type RoverPerformanceBuildRow,
 } from "@/lib/coreRoverPerformance";
 import {
+  getCoreRoverCombatStats,
+  type CoreRoverCombatStats,
+} from "@/lib/coreRoverCombat";
+import {
   getRoverLevel,
   type RoverLevelAccess,
   type RoverLevelConfig,
@@ -64,6 +68,8 @@ type PhaserGameProps = {
   roverBackWheelSrc: string | null;
   roverGameMode: "wheeled" | "hover";
   weaponLevel: number;
+  combatMode: boolean;
+  combatStats: CoreRoverCombatStats;
   gameStats: CoreRoverGameStats;
 };
 
@@ -593,6 +599,8 @@ export default function RoverChallengeClient({
             roverBackWheelSrc={currentUpgrade.gameBackWheelSrc}
             roverGameMode={currentUpgrade.gameMode}
             weaponLevel={currentWeaponLevel}
+            combatMode={Number(levelConfig.id) >= 5}
+            combatStats={getCoreRoverCombatStats(currentUpgrade.stage)}
             gameStats={currentGameStats}
           />
         ) : (
