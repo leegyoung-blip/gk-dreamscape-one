@@ -69,6 +69,49 @@ export type ProfileSkill = {
   last_attempted_at: string | null;
 };
 
+
+export type CurriculumConcept = {
+  skill_id: string;
+  subject: "english" | "math" | "science" | string;
+  primary_level: number;
+  domain: string;
+  topic: string;
+  skill_name: string;
+  skill_code: string;
+  source?: string | null;
+  external_ref?: string | null;
+  has_evidence: boolean;
+  mastery_score: number | null;
+  confidence_score: number | null;
+  recent_accuracy: number | null;
+  lifetime_accuracy: number | null;
+  questions_attempted: number;
+  correct_answers: number;
+  wrong_answers: number;
+  recent_wrong_answers: number;
+  unique_activities: number;
+  active_weeks: number;
+  mapping_coverage: number | null;
+  granular_eligible: boolean;
+  evidence_quality:
+    | "broad"
+    | "insufficient_mapping"
+    | "limited_primary_evidence"
+    | "ready";
+  trend_points: number | null;
+  trend: "improving" | "declining" | "stable" | "no_data";
+  status:
+    | "not_enough_data"
+    | "needs_support"
+    | "emerging"
+    | "developing"
+    | "secure"
+    | "mastered"
+    | "review_due";
+  first_seen_at: string | null;
+  last_attempted_at: string | null;
+};
+
 export type ProfilePattern = {
   id: string;
   pattern_key: string;
@@ -127,6 +170,7 @@ export type NovaPlusProfilePayload = {
   latest_snapshot: ProfileSnapshot;
   subject_summaries: ProfileSubjectSummary[];
   skills: ProfileSkill[];
+  curriculum_concepts?: CurriculumConcept[];
   patterns: ProfilePattern[];
   insights: ProfileInsight[];
   resolved_insights: ProfileInsight[];

@@ -156,7 +156,10 @@ export default function NovaPlusDashboard() {
             onOpenRecommendations={() => setTab("recommendations")}
           />
         ) : tab === "mastery" ? (
-          <MasteryMapTab />
+          <MasteryMapTab
+            profile={profile}
+            onOpenRecommendations={() => setTab("recommendations")}
+          />
         ) : tab === "recommendations" ? (
           <NovaRecommendsTab />
         ) : tab === "progress" ? (

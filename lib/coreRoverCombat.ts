@@ -123,3 +123,32 @@ export function getCoreRoverWeaponSpec(
   const level = Math.max(0, Math.min(5, Math.floor(weaponLevel || 0)));
   return roverWeaponSpecs[level] ?? null;
 }
+
+
+export type BoneGuardCombatSpec = {
+  maxHp: number;
+  moveSpeed: number;
+  stopRange: number;
+  blasterDamage: number;
+  fireCooldownMs: number;
+  blasterSpeed: number;
+  blasterLifetimeMs: number;
+  waveSize: number;
+  spawnIntervalMs: number;
+  maximumAlive: number;
+  defeatScore: number;
+};
+
+export const boneGuardCombatSpec: BoneGuardCombatSpec = {
+  maxHp: 180,
+  moveSpeed: 118,
+  stopRange: 560,
+  blasterDamage: 60,
+  fireCooldownMs: 1450,
+  blasterSpeed: 520,
+  blasterLifetimeMs: 2800,
+  waveSize: 5,
+  spawnIntervalMs: 3400,
+  maximumAlive: 3,
+  defeatScore: 250,
+};

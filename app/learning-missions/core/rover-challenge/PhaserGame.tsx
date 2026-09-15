@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
 import type { CoreRoverGameStats } from "@/lib/coreRoverProgress";
 import {
+  boneGuardCombatSpec,
   getCoreRoverWeaponSpec,
   type CoreRoverCombatStats,
   type CoreRoverWeaponSpec,
@@ -68,6 +69,12 @@ const HOVER_BOB_SPEED = 0.0042;
  */
 const ROVER_AMMO_ASSET_ROOT =
   "/activities/learning-missions/core/rover/weapons/ammo";
+
+const BONE_GUARD_SPRITE_SRC =
+  "/activities/learning-missions/core/rover/enemies/bone-guard/bone-guard-spritesheet.png";
+const BONE_GUARD_FRAME_SIZE = 362;
+const BONE_GUARD_DISPLAY_HEIGHT = 184;
+const BONE_GUARD_BLASTER_TEXTURE = "bone-guard-blaster-bolt";
 
 type RoverAmmoAsset = {
   level: number;
@@ -178,6 +185,33 @@ type CombatProjectile = {
   projectileType: CoreRoverWeaponSpec["projectileType"];
   blastRadius: number;
   trackingStrength: number;
+};
+
+type BoneGuardState =
+  | "walking"
+  | "firing"
+  | "hit"
+  | "dying"
+  | "dead";
+
+type BoneGuardEnemy = {
+  id: number;
+  sprite: Phaser.GameObjects.Sprite;
+  hp: number;
+  maxHp: number;
+  state: BoneGuardState;
+  surfaceY: number;
+  lastFireAt: number;
+  healthBackground: Phaser.GameObjects.Rectangle;
+  healthFill: Phaser.GameObjects.Rectangle;
+};
+
+type BoneGuardBlasterProjectile = {
+  sprite: Phaser.GameObjects.Image;
+  velocityX: number;
+  velocityY: number;
+  expiresAt: number;
+  damage: number;
 };
 
 type TrapItem = Omit<RoverTrap, "y"> & {
@@ -329,6 +363,20 @@ class RoverMatterScene extends Phaser.Scene {
   private shotsFired = 0;
   private combatProjectiles: CombatProjectile[] = [];
 
+  private boneGuards: BoneGuardEnemy[] = [];
+  private boneGuardProjectiles: BoneGuardBlasterProjectile[] = [];
+  private boneGuardPortal?: Phaser.GameObjects.Container;
+  private boneGuardPortalX = 0;
+  private boneGuardPortalY = 0;
+  private nextBoneGuardId = 1;
+  private boneGuardsSpawned = 0;
+  private boneGuardsDefeated = 0;
+  private nextBoneGuardSpawnAt = 0;
+  private boneGuardWaveStarted = false;
+  private boneGuardWaveComplete = false;
+  private combatScore = 0;
+  private combatEnemyText?: Phaser.GameObjects.Text;
+
   private levelConfig: RoverLevelWithPulseGates;
 
   private normalMaximumSpeed = 5.5;
@@ -456,6 +504,17 @@ class RoverMatterScene extends Phaser.Scene {
       this.load.image("selected-rover-ammo", this.selectedAmmoAsset.src);
     }
 
+    if (this.combatMode) {
+      this.load.spritesheet(
+        "bone-guard",
+        BONE_GUARD_SPRITE_SRC,
+        {
+          frameWidth: BONE_GUARD_FRAME_SIZE,
+          frameHeight: BONE_GUARD_FRAME_SIZE,
+        },
+      );
+    }
+
     this.load.on(
       Phaser.Loader.Events.FILE_LOAD_ERROR,
       (file: Phaser.Loader.File) => {
@@ -500,6 +559,7 @@ class RoverMatterScene extends Phaser.Scene {
     this.configureCamera();
     this.registerCollisionHandlers();
     this.registerCombatFoundation();
+    this.createBoneGuardCombatFoundation();
 
     this.input.keyboard?.addCapture([
       Phaser.Input.Keyboard.KeyCodes.LEFT,
@@ -534,6 +594,7 @@ class RoverMatterScene extends Phaser.Scene {
     this.updatePulseGates();
     this.updateCollapsibleTerrain();
     this.updateCombat(delta);
+    this.updateBoneGuardCombat(delta);
     this.updateScore();
     this.updateInterface();
     this.checkFinish();
@@ -565,6 +626,28 @@ class RoverMatterScene extends Phaser.Scene {
     this.shotsFired = 0;
     this.combatProjectiles.forEach((projectile) => projectile.sprite.destroy());
     this.combatProjectiles = [];
+
+    this.boneGuards.forEach((guard) => {
+      guard.sprite.destroy();
+      guard.healthBackground.destroy();
+      guard.healthFill.destroy();
+    });
+    this.boneGuards = [];
+
+    this.boneGuardProjectiles.forEach((projectile) =>
+      projectile.sprite.destroy(),
+    );
+    this.boneGuardProjectiles = [];
+
+    this.boneGuardPortal?.destroy(true);
+    this.boneGuardPortal = undefined;
+    this.nextBoneGuardId = 1;
+    this.boneGuardsSpawned = 0;
+    this.boneGuardsDefeated = 0;
+    this.nextBoneGuardSpawnAt = 0;
+    this.boneGuardWaveStarted = false;
+    this.boneGuardWaveComplete = false;
+    this.combatScore = 0;
 
     this.score = 0;
     this.distanceScore = 0;
@@ -632,6 +715,13 @@ class RoverMatterScene extends Phaser.Scene {
 
     if (!this.textures.exists("energy-orb")) {
       missingAssets.push("public/games/rover/energy-orb.png");
+    }
+
+    if (
+      this.combatMode &&
+      !this.textures.exists("bone-guard")
+    ) {
+      missingAssets.push(`public${BONE_GUARD_SPRITE_SRC}`);
     }
 
     if (
@@ -1893,7 +1983,7 @@ class RoverMatterScene extends Phaser.Scene {
       42,
       42,
       390,
-      this.combatMode ? 395 : 245,
+      this.combatMode ? 425 : 245,
     );
 
     statusPanel.setOrigin(0, 0);
@@ -1970,11 +2060,13 @@ class RoverMatterScene extends Phaser.Scene {
       .text(
         70,
         227,
-        this.levelConfig.terrainSections.some(
-          (section) => !Array.isArray(section) && section.unstable,
-        )
-          ? "OBJECTIVE  KEEP MOVING · SURVIVE FRACTURES · FINISH"
-          : (this.levelConfig.pulseGates?.length ?? 0) > 0
+        this.combatMode
+          ? "OBJECTIVE  SURVIVE BONE GUARDS · REACH FINISH"
+          : this.levelConfig.terrainSections.some(
+              (section) => !Array.isArray(section) && section.unstable,
+            )
+            ? "OBJECTIVE  KEEP MOVING · SURVIVE FRACTURES · FINISH"
+            : (this.levelConfig.pulseGates?.length ?? 0) > 0
             ? (this.levelConfig.traps?.length ?? 0) > 0
               ? "OBJECTIVE  TIME GATES · AVOID TRAPS · FINISH"
               : "OBJECTIVE  TIME PULSE GATES · REACH FINISH"
@@ -2084,6 +2176,22 @@ class RoverMatterScene extends Phaser.Scene {
             fontSize: "9px",
             fontStyle: "bold",
             color: this.weaponSpec ? "#ffd76a" : "#ff9d9d",
+            letterSpacing: 1,
+          },
+        )
+        .setScrollFactor(0)
+        .setDepth(101);
+
+      this.combatEnemyText = this.add
+        .text(
+          70,
+          402,
+          `BONE GUARDS  0 / ${boneGuardCombatSpec.waveSize}`,
+          {
+            fontFamily: "Arial, sans-serif",
+            fontSize: "9px",
+            fontStyle: "bold",
+            color: "#c8a7ff",
             letterSpacing: 1,
           },
         )
@@ -3196,6 +3304,7 @@ class RoverMatterScene extends Phaser.Scene {
       this.distanceScore +
         this.collectibleScore +
         this.checkpointScore +
+        this.combatScore +
         this.completionScore +
         this.timeBonus -
         this.crashPenalty,
@@ -3293,6 +3402,18 @@ class RoverMatterScene extends Phaser.Scene {
         this.combatShieldBarFill.setFillStyle(0xffbd72, 1);
       } else {
         this.combatShieldBarFill.setFillStyle(0x62edff, 1);
+      }
+
+      if (this.combatEnemyText) {
+        this.combatEnemyText.setText(
+          `BONE GUARDS  ${this.boneGuardsDefeated} / ${boneGuardCombatSpec.waveSize}`,
+        );
+
+        if (this.boneGuardWaveComplete) {
+          this.combatEnemyText.setColor("#8dffbf");
+        } else {
+          this.combatEnemyText.setColor("#c8a7ff");
+        }
       }
 
       if (hpRatio <= 0.25) {
@@ -3491,6 +3612,36 @@ class RoverMatterScene extends Phaser.Scene {
       projectile.sprite.x += projectile.velocityX * dt;
       projectile.sprite.y += projectile.velocityY * dt;
 
+      const guardHit = this.findBoneGuardHitByPlayerProjectile(
+        projectile.sprite.x,
+        projectile.sprite.y,
+      );
+
+      if (guardHit) {
+        if (projectile.blastRadius > 0) {
+          this.damageBoneGuardsInRadius(
+            projectile.sprite.x,
+            projectile.sprite.y,
+            projectile.blastRadius,
+            projectile.damage,
+          );
+          this.createProjectileExplosion(
+            projectile.sprite.x,
+            projectile.sprite.y,
+            projectile.blastRadius,
+          );
+        } else {
+          this.damageBoneGuard(guardHit, projectile.damage);
+          this.createPlayerImpact(
+            projectile.sprite.x,
+            projectile.sprite.y,
+          );
+        }
+
+        projectile.sprite.destroy();
+        return false;
+      }
+
       const expired = now >= projectile.expiresAt;
       const outsideWorld =
         projectile.sprite.x < -200 ||
@@ -3505,6 +3656,758 @@ class RoverMatterScene extends Phaser.Scene {
 
       return true;
     });
+  }
+
+  private findBoneGuardHitByPlayerProjectile(
+    x: number,
+    y: number,
+  ) {
+    return this.boneGuards.find((guard) => {
+      if (
+        guard.state === "dying" ||
+        guard.state === "dead" ||
+        !guard.sprite.active
+      ) {
+        return false;
+      }
+
+      const bounds = guard.sprite.getBounds();
+      return (
+        x >= bounds.left - 8 &&
+        x <= bounds.right + 8 &&
+        y >= bounds.top - 8 &&
+        y <= bounds.bottom + 8
+      );
+    });
+  }
+
+  private damageBoneGuardsInRadius(
+    x: number,
+    y: number,
+    radius: number,
+    damage: number,
+  ) {
+    this.boneGuards.forEach((guard) => {
+      if (
+        guard.state === "dying" ||
+        guard.state === "dead" ||
+        !guard.sprite.active
+      ) {
+        return;
+      }
+
+      const targetX = guard.sprite.x;
+      const targetY = guard.sprite.y - BONE_GUARD_DISPLAY_HEIGHT * 0.48;
+      const distance = Phaser.Math.Distance.Between(
+        x,
+        y,
+        targetX,
+        targetY,
+      );
+
+      if (distance > radius) {
+        return;
+      }
+
+      const falloff = Phaser.Math.Clamp(
+        1 - distance / Math.max(1, radius),
+        0.45,
+        1,
+      );
+
+      this.damageBoneGuard(
+        guard,
+        Math.max(1, Math.round(damage * falloff)),
+      );
+    });
+  }
+
+  private createPlayerImpact(x: number, y: number) {
+    const impact = this.add
+      .circle(x, y, 13, 0x8defff, 0.9)
+      .setDepth(53)
+      .setBlendMode(Phaser.BlendModes.ADD);
+
+    this.tweens.add({
+      targets: impact,
+      scale: 2.2,
+      alpha: 0,
+      duration: 150,
+      ease: "Cubic.easeOut",
+      onComplete: () => impact.destroy(),
+    });
+  }
+
+  private createProjectileExplosion(
+    x: number,
+    y: number,
+    radius: number,
+  ) {
+    const explosion = this.add
+      .circle(x, y, Math.max(18, radius * 0.3), 0xffb05f, 0.72)
+      .setDepth(53)
+      .setBlendMode(Phaser.BlendModes.ADD);
+
+    this.tweens.add({
+      targets: explosion,
+      scale: Math.max(2, radius / Math.max(18, radius * 0.3)),
+      alpha: 0,
+      duration: 230,
+      ease: "Cubic.easeOut",
+      onComplete: () => explosion.destroy(),
+    });
+  }
+
+  private createBoneGuardCombatFoundation() {
+    if (!this.combatMode || !this.textures.exists("bone-guard")) {
+      return;
+    }
+
+    this.createBoneGuardAnimations();
+    this.createBoneGuardBlasterTexture();
+    this.createBoneGuardPortal();
+
+    this.nextBoneGuardSpawnAt = this.time.now + 1800;
+  }
+
+  private createBoneGuardAnimations() {
+    if (!this.anims.exists("bone-guard-walk")) {
+      this.anims.create({
+        key: "bone-guard-walk",
+        frames: this.anims.generateFrameNumbers("bone-guard", {
+          start: 0,
+          end: 3,
+        }),
+        frameRate: 7,
+        repeat: -1,
+      });
+    }
+
+    if (!this.anims.exists("bone-guard-fire")) {
+      this.anims.create({
+        key: "bone-guard-fire",
+        frames: this.anims.generateFrameNumbers("bone-guard", {
+          start: 4,
+          end: 7,
+        }),
+        frameRate: 9,
+        repeat: 0,
+      });
+    }
+
+    if (!this.anims.exists("bone-guard-death")) {
+      this.anims.create({
+        key: "bone-guard-death",
+        frames: this.anims.generateFrameNumbers("bone-guard", {
+          start: 8,
+          end: 11,
+        }),
+        frameRate: 7,
+        repeat: 0,
+      });
+    }
+  }
+
+  private createBoneGuardBlasterTexture() {
+    if (this.textures.exists(BONE_GUARD_BLASTER_TEXTURE)) {
+      return;
+    }
+
+    const graphics = this.add.graphics();
+    graphics.fillStyle(0x6b31ff, 0.35);
+    graphics.fillRoundedRect(0, 3, 46, 14, 7);
+    graphics.fillStyle(0xd2b6ff, 1);
+    graphics.fillRoundedRect(4, 7, 36, 6, 3);
+    graphics.fillStyle(0xffffff, 0.95);
+    graphics.fillRoundedRect(8, 9, 26, 2, 1);
+    graphics.generateTexture(BONE_GUARD_BLASTER_TEXTURE, 46, 20);
+    graphics.destroy();
+  }
+
+  private createBoneGuardPortal() {
+    const portalX = Math.max(
+      this.levelConfig.start.x + 1200,
+      this.levelConfig.finish.x - 260,
+    );
+
+    const preferredY = this.levelConfig.finish.y;
+    const pose = this.getTerrainPoseAtX(portalX, preferredY);
+    const surfaceY = pose?.y ?? preferredY;
+
+    this.boneGuardPortalX = portalX;
+    this.boneGuardPortalY = surfaceY;
+
+    const container = this.add.container(
+      portalX,
+      surfaceY - 115,
+    );
+
+    const outerGlow = this.add
+      .ellipse(0, 0, 168, 226, 0x7c31ff, 0.13)
+      .setStrokeStyle(7, 0xa65cff, 0.55)
+      .setBlendMode(Phaser.BlendModes.ADD);
+
+    const middleRing = this.add
+      .ellipse(0, 0, 128, 190, 0x2a0a52, 0.48)
+      .setStrokeStyle(4, 0x8b45ff, 0.95)
+      .setBlendMode(Phaser.BlendModes.ADD);
+
+    const innerGlow = this.add
+      .ellipse(0, 0, 82, 150, 0x4f1a96, 0.84)
+      .setStrokeStyle(3, 0xd2a2ff, 0.85)
+      .setBlendMode(Phaser.BlendModes.ADD);
+
+    const label = this.add
+      .text(0, -132, "BONE GATE", {
+        fontFamily: "Arial, sans-serif",
+        fontSize: "11px",
+        fontStyle: "bold",
+        color: "#d9b9ff",
+        letterSpacing: 2,
+      })
+      .setOrigin(0.5);
+
+    container.add([outerGlow, middleRing, innerGlow, label]);
+    container.setDepth(14);
+
+    this.tweens.add({
+      targets: outerGlow,
+      scaleX: 1.08,
+      scaleY: 1.08,
+      alpha: 0.7,
+      duration: 1350,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+
+    this.tweens.add({
+      targets: innerGlow,
+      scaleX: 0.9,
+      scaleY: 1.04,
+      alpha: 0.58,
+      duration: 950,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+
+    this.boneGuardPortal = container;
+  }
+
+  private updateBoneGuardCombat(delta: number) {
+    if (
+      !this.combatMode ||
+      !this.roverBody ||
+      this.roverDisabled ||
+      this.hasFinished
+    ) {
+      return;
+    }
+
+    const now = this.time.now;
+
+    if (!this.boneGuardWaveStarted && this.hasStarted) {
+      this.boneGuardWaveStarted = true;
+      this.nextBoneGuardSpawnAt = now + 900;
+      this.showStatusMessage("BONE GATE ACTIVE", "#cf9dff");
+    }
+
+    if (
+      this.boneGuardWaveStarted &&
+      !this.boneGuardWaveComplete &&
+      this.boneGuardsSpawned < boneGuardCombatSpec.waveSize &&
+      this.getLivingBoneGuardCount() < boneGuardCombatSpec.maximumAlive &&
+      now >= this.nextBoneGuardSpawnAt
+    ) {
+      this.spawnBoneGuard();
+      this.nextBoneGuardSpawnAt =
+        now + boneGuardCombatSpec.spawnIntervalMs;
+    }
+
+    const dt = delta / 1000;
+
+    this.boneGuards.forEach((guard) => {
+      if (
+        guard.state === "dying" ||
+        guard.state === "dead" ||
+        !guard.sprite.active
+      ) {
+        return;
+      }
+
+      const horizontalDistance =
+        guard.sprite.x - this.roverBody!.x;
+
+      if (horizontalDistance > boneGuardCombatSpec.stopRange) {
+        this.updateWalkingBoneGuard(guard, dt);
+      } else {
+        this.updateFiringBoneGuard(guard, now);
+      }
+
+      this.updateBoneGuardHealthBar(guard);
+    });
+
+    this.updateBoneGuardBlasterProjectiles(delta);
+
+    if (
+      !this.boneGuardWaveComplete &&
+      this.boneGuardsSpawned >= boneGuardCombatSpec.waveSize &&
+      this.boneGuardsDefeated >= boneGuardCombatSpec.waveSize
+    ) {
+      this.boneGuardWaveComplete = true;
+      this.showStatusMessage("BONE GUARD WAVE CLEARED", "#8dffbf");
+    }
+  }
+
+  private spawnBoneGuard() {
+    const spawnOffset = Phaser.Math.Between(-28, 28);
+    const spawnX = this.boneGuardPortalX + spawnOffset;
+    const pose = this.getTerrainPoseAtX(
+      spawnX,
+      this.boneGuardPortalY,
+    );
+
+    const surfaceY = pose?.y ?? this.boneGuardPortalY;
+
+    const sprite = this.add.sprite(
+      spawnX,
+      surfaceY + 4,
+      "bone-guard",
+      0,
+    );
+
+    sprite.setOrigin(0.5, 1);
+    sprite.setDepth(34);
+    sprite.setFlipX(false);
+
+    const scale =
+      BONE_GUARD_DISPLAY_HEIGHT / BONE_GUARD_FRAME_SIZE;
+    sprite.setScale(scale);
+
+    const healthBackground = this.add
+      .rectangle(
+        spawnX - 42,
+        surfaceY - BONE_GUARD_DISPLAY_HEIGHT - 13,
+        84,
+        6,
+        0x1d1730,
+        0.9,
+      )
+      .setOrigin(0, 0.5)
+      .setDepth(36);
+
+    const healthFill = this.add
+      .rectangle(
+        spawnX - 42,
+        surfaceY - BONE_GUARD_DISPLAY_HEIGHT - 13,
+        84,
+        6,
+        0xb776ff,
+        1,
+      )
+      .setOrigin(0, 0.5)
+      .setDepth(37);
+
+    const guard: BoneGuardEnemy = {
+      id: this.nextBoneGuardId++,
+      sprite,
+      hp: boneGuardCombatSpec.maxHp,
+      maxHp: boneGuardCombatSpec.maxHp,
+      state: "walking",
+      surfaceY,
+      lastFireAt:
+        this.time.now +
+        Phaser.Math.Between(500, 1100) -
+        boneGuardCombatSpec.fireCooldownMs,
+      healthBackground,
+      healthFill,
+    };
+
+    sprite.play("bone-guard-walk");
+
+    this.boneGuards.push(guard);
+    this.boneGuardsSpawned += 1;
+
+    const portalFlash = this.add
+      .ellipse(
+        this.boneGuardPortalX,
+        this.boneGuardPortalY - 105,
+        92,
+        150,
+        0xb56aff,
+        0.48,
+      )
+      .setDepth(35)
+      .setBlendMode(Phaser.BlendModes.ADD);
+
+    this.tweens.add({
+      targets: portalFlash,
+      scaleX: 1.5,
+      scaleY: 1.35,
+      alpha: 0,
+      duration: 420,
+      ease: "Cubic.easeOut",
+      onComplete: () => portalFlash.destroy(),
+    });
+  }
+
+  private getLivingBoneGuardCount() {
+    return this.boneGuards.filter(
+      (guard) =>
+        guard.state !== "dying" &&
+        guard.state !== "dead" &&
+        guard.sprite.active,
+    ).length;
+  }
+
+  private updateWalkingBoneGuard(
+    guard: BoneGuardEnemy,
+    dt: number,
+  ) {
+    if (guard.state !== "walking") {
+      guard.state = "walking";
+      guard.sprite.play("bone-guard-walk", true);
+    }
+
+    const nextX =
+      guard.sprite.x - boneGuardCombatSpec.moveSpeed * dt;
+
+    const pose = this.getTerrainPoseAtX(
+      nextX,
+      guard.surfaceY,
+    );
+
+    guard.sprite.x = nextX;
+
+    if (pose) {
+      guard.surfaceY = pose.y;
+      guard.sprite.y = pose.y + 4;
+    }
+
+    guard.sprite.setRotation(
+      pose
+        ? Phaser.Math.Clamp(pose.angle * 0.22, -0.08, 0.08)
+        : 0,
+    );
+  }
+
+  private updateFiringBoneGuard(
+    guard: BoneGuardEnemy,
+    now: number,
+  ) {
+    guard.sprite.setRotation(0);
+
+    if (
+      guard.state !== "firing" &&
+      now - guard.lastFireAt < boneGuardCombatSpec.fireCooldownMs
+    ) {
+      guard.sprite.setFrame(4);
+      return;
+    }
+
+    if (
+      now - guard.lastFireAt <
+      boneGuardCombatSpec.fireCooldownMs
+    ) {
+      return;
+    }
+
+    guard.lastFireAt = now;
+    guard.state = "firing";
+    guard.sprite.play("bone-guard-fire", true);
+
+    this.time.delayedCall(170, () => {
+      if (
+        !guard.sprite.active ||
+        guard.state === "dying" ||
+        guard.state === "dead" ||
+        !this.roverBody ||
+        this.roverDisabled ||
+        this.hasFinished
+      ) {
+        return;
+      }
+
+      this.fireBoneGuardBlaster(guard);
+    });
+
+    guard.sprite.once(
+      Phaser.Animations.Events.ANIMATION_COMPLETE,
+      () => {
+        if (
+          guard.state !== "dying" &&
+          guard.state !== "dead" &&
+          guard.sprite.active
+        ) {
+          guard.state = "firing";
+          guard.sprite.setFrame(4);
+        }
+      },
+    );
+  }
+
+  private fireBoneGuardBlaster(guard: BoneGuardEnemy) {
+    if (!this.roverBody) {
+      return;
+    }
+
+    const muzzleX = guard.sprite.x - 64;
+    const muzzleY =
+      guard.sprite.y - BONE_GUARD_DISPLAY_HEIGHT * 0.58;
+
+    const targetX = this.roverBody.x + 25;
+    const targetY = this.roverBody.y - 5;
+
+    const angle = Phaser.Math.Angle.Between(
+      muzzleX,
+      muzzleY,
+      targetX,
+      targetY,
+    );
+
+    const sprite = this.add
+      .image(
+        muzzleX,
+        muzzleY,
+        BONE_GUARD_BLASTER_TEXTURE,
+      )
+      .setDepth(45)
+      .setRotation(angle)
+      .setBlendMode(Phaser.BlendModes.ADD);
+
+    const speed = boneGuardCombatSpec.blasterSpeed;
+
+    this.boneGuardProjectiles.push({
+      sprite,
+      velocityX: Math.cos(angle) * speed,
+      velocityY: Math.sin(angle) * speed,
+      expiresAt:
+        this.time.now + boneGuardCombatSpec.blasterLifetimeMs,
+      damage: boneGuardCombatSpec.blasterDamage,
+    });
+
+    const flash = this.add
+      .circle(muzzleX, muzzleY, 13, 0xcaa8ff, 0.92)
+      .setDepth(46)
+      .setBlendMode(Phaser.BlendModes.ADD);
+
+    this.tweens.add({
+      targets: flash,
+      scale: 2.1,
+      alpha: 0,
+      duration: 120,
+      onComplete: () => flash.destroy(),
+    });
+  }
+
+  private updateBoneGuardBlasterProjectiles(delta: number) {
+    if (
+      this.boneGuardProjectiles.length === 0 ||
+      !this.roverBody
+    ) {
+      return;
+    }
+
+    const dt = delta / 1000;
+    const now = this.time.now;
+
+    this.boneGuardProjectiles =
+      this.boneGuardProjectiles.filter((projectile) => {
+        if (!projectile.sprite.active) {
+          return false;
+        }
+
+        projectile.sprite.x += projectile.velocityX * dt;
+        projectile.sprite.y += projectile.velocityY * dt;
+
+        const roverHit =
+          Math.abs(projectile.sprite.x - this.roverBody!.x) < 92 &&
+          Math.abs(projectile.sprite.y - this.roverBody!.y) < 66;
+
+        if (roverHit) {
+          this.applyRoverDamage(projectile.damage);
+
+          const hit = this.add
+            .circle(
+              projectile.sprite.x,
+              projectile.sprite.y,
+              15,
+              0xb37aff,
+              0.78,
+            )
+            .setDepth(47)
+            .setBlendMode(Phaser.BlendModes.ADD);
+
+          this.tweens.add({
+            targets: hit,
+            scale: 2.2,
+            alpha: 0,
+            duration: 160,
+            onComplete: () => hit.destroy(),
+          });
+
+          projectile.sprite.destroy();
+          return false;
+        }
+
+        const expired = now >= projectile.expiresAt;
+        const outside =
+          projectile.sprite.x < -120 ||
+          projectile.sprite.x > this.levelConfig.worldWidth + 120 ||
+          projectile.sprite.y < -120 ||
+          projectile.sprite.y > this.levelConfig.worldHeight + 120;
+
+        if (expired || outside) {
+          projectile.sprite.destroy();
+          return false;
+        }
+
+        return true;
+      });
+  }
+
+  private damageBoneGuard(
+    guard: BoneGuardEnemy,
+    damage: number,
+  ) {
+    if (
+      guard.state === "dying" ||
+      guard.state === "dead" ||
+      damage <= 0
+    ) {
+      return;
+    }
+
+    guard.hp = Math.max(0, guard.hp - damage);
+
+    guard.sprite.setTintFill(0xf2d7ff);
+    this.time.delayedCall(70, () => {
+      if (
+        guard.sprite.active &&
+        guard.state !== "dying" &&
+        guard.state !== "dead"
+      ) {
+        guard.sprite.clearTint();
+      }
+    });
+
+    const impact = this.add
+      .circle(
+        guard.sprite.x - 18,
+        guard.sprite.y - BONE_GUARD_DISPLAY_HEIGHT * 0.56,
+        11,
+        0x93eeff,
+        0.82,
+      )
+      .setDepth(48)
+      .setBlendMode(Phaser.BlendModes.ADD);
+
+    this.tweens.add({
+      targets: impact,
+      scale: 2,
+      alpha: 0,
+      duration: 120,
+      onComplete: () => impact.destroy(),
+    });
+
+    this.updateBoneGuardHealthBar(guard);
+
+    if (guard.hp <= 0) {
+      this.defeatBoneGuard(guard);
+    }
+  }
+
+  private updateBoneGuardHealthBar(
+    guard: BoneGuardEnemy,
+  ) {
+    if (
+      !guard.sprite.active ||
+      guard.state === "dead"
+    ) {
+      return;
+    }
+
+    const topY =
+      guard.sprite.y - BONE_GUARD_DISPLAY_HEIGHT - 13;
+    const leftX = guard.sprite.x - 42;
+
+    guard.healthBackground.setPosition(leftX, topY);
+    guard.healthFill.setPosition(leftX, topY);
+
+    guard.healthFill.width =
+      84 *
+      Phaser.Math.Clamp(
+        guard.hp / Math.max(1, guard.maxHp),
+        0,
+        1,
+      );
+
+    if (guard.hp / guard.maxHp <= 0.3) {
+      guard.healthFill.setFillStyle(0xff759b, 1);
+    } else {
+      guard.healthFill.setFillStyle(0xb776ff, 1);
+    }
+  }
+
+  private defeatBoneGuard(guard: BoneGuardEnemy) {
+    if (
+      guard.state === "dying" ||
+      guard.state === "dead"
+    ) {
+      return;
+    }
+
+    guard.state = "dying";
+    guard.healthBackground.setVisible(false);
+    guard.healthFill.setVisible(false);
+    guard.sprite.clearTint();
+    guard.sprite.play("bone-guard-death", true);
+
+    this.boneGuardsDefeated += 1;
+    this.combatScore += boneGuardCombatSpec.defeatScore;
+
+    const deathPulse = this.add
+      .circle(
+        guard.sprite.x,
+        guard.sprite.y - BONE_GUARD_DISPLAY_HEIGHT * 0.5,
+        30,
+        0x7d32c9,
+        0.3,
+      )
+      .setDepth(33)
+      .setBlendMode(Phaser.BlendModes.ADD);
+
+    this.tweens.add({
+      targets: deathPulse,
+      scale: 2.3,
+      alpha: 0,
+      duration: 420,
+      onComplete: () => deathPulse.destroy(),
+    });
+
+    guard.sprite.once(
+      Phaser.Animations.Events.ANIMATION_COMPLETE,
+      () => {
+        if (!guard.sprite.active) {
+          return;
+        }
+
+        guard.state = "dead";
+
+        this.tweens.add({
+          targets: guard.sprite,
+          alpha: 0,
+          duration: 600,
+          delay: 220,
+          onComplete: () => {
+            guard.sprite.destroy();
+            guard.healthBackground.destroy();
+            guard.healthFill.destroy();
+          },
+        });
+      },
+    );
   }
 
   /**
