@@ -68,7 +68,7 @@ const HOVER_BOB_SPEED = 0.0042;
  * "selected-rover-ammo" without changing the asset pipeline again.
  */
 const ROVER_AMMO_ASSET_ROOT =
-  "/activities/learning-missions/core/rover/weapons/ammo";
+  "/activities/learning-missions/core/rover/custom-build/weapons/ammo";
 
 const BONE_GUARD_SPRITE_SRC =
   "/activities/learning-missions/core/rover/enemies/bone-guard/bone-guard-spritesheet.png";

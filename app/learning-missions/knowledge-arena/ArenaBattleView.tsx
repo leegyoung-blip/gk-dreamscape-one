@@ -1331,20 +1331,21 @@ export function ArenaBattleView({
 
           /* The HUD is pinned to the bottom independently. Reserve its height
              here so both fighters always stand immediately above it. */
-          padding: 3px 10px 68px;
+          padding: 3px 10px 60px;
         }
         .kab-is-mobile .kab-fighter {
           width: min(15vw, 108px);
           height: min(26vh, 142px);
           max-height: 100%;
           flex: 0 1 auto;
-          transform: none;
+          transform: translateY(16px);
         }
         .kab-is-mobile .kab-fighter-right {
           width: min(27vw, 184px);
           height: min(29vh, 158px);
           max-height: 100%;
           align-self: flex-end;
+          transform: translateY(16px);
         }
         .kab-is-mobile .kab-fighter-left,
         .kab-is-mobile .kab-fighter-right {
@@ -1479,13 +1480,13 @@ export function ArenaBattleView({
         .kab-is-mobile .kab-fighter,
         .kab-is-mobile .kab-fighter-left,
         .kab-is-mobile .kab-fighter-right {
-          transform:none;
+          transform:translateY(16px);
           max-height:100%;
         }
 
         .kab-is-mobile .kab-battle-center {
           box-sizing:border-box;
-          padding-bottom:68px;
+          padding-bottom:60px;
         }
 
         .kab-is-mobile .kab-bottom-hud {

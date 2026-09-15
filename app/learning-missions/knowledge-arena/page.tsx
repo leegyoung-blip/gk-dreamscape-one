@@ -669,6 +669,7 @@ export default function KnowledgeArenaPage() {
   const [nextCountdown, setNextCountdown] = useState(3);
   const [roundTransitionRound, setRoundTransitionRound] = useState<number | null>(null);
   const roundTransitionTimerRef = useRef<number | null>(null);
+  const preRoundPauseTimerRef = useRef<number | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tokensEarned, setTokensEarned] = useState(0);
   const [rewardSaved, setRewardSaved] = useState(false);
@@ -1175,6 +1176,17 @@ export default function KnowledgeArenaPage() {
   }, [stage]);
 
   useEffect(() => {
+    return () => {
+      if (preRoundPauseTimerRef.current) {
+        window.clearTimeout(preRoundPauseTimerRef.current);
+      }
+      if (roundTransitionTimerRef.current) {
+        window.clearTimeout(roundTransitionTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (stage !== "solo-nova-select" && stage !== "loading") {
       setSoloNovaStarting(false);
     }
@@ -1366,14 +1378,30 @@ export default function KnowledgeArenaPage() {
     const currentIndex = Number(lobby.current_question_index || 0);
     const hasNextRound = currentIndex < questions.length - 1;
 
-    if (hasNextRound) setRoundTransitionRound(currentIndex + 2);
+    if (!hasNextRound) {
+      const finalTimer = window.setTimeout(() => {
+        void tryAdvanceCoopRound();
+      }, 1100);
+      return () => window.clearTimeout(finalTimer);
+    }
 
-    const timer = window.setTimeout(() => {
-      setRoundTransitionRound(null);
-      void tryAdvanceCoopRound();
-    }, hasNextRound ? 3000 : 1100);
+    const pauseTimer = window.setTimeout(() => {
+      setRoundTransitionRound(currentIndex + 2);
 
-    return () => window.clearTimeout(timer);
+      roundTransitionTimerRef.current = window.setTimeout(() => {
+        setRoundTransitionRound(null);
+        roundTransitionTimerRef.current = null;
+        void tryAdvanceCoopRound();
+      }, 3000);
+    }, 1000);
+
+    return () => {
+      window.clearTimeout(pauseTimer);
+      if (roundTransitionTimerRef.current) {
+        window.clearTimeout(roundTransitionTimerRef.current);
+        roundTransitionTimerRef.current = null;
+      }
+    };
   }, [
     stage,
     lobby?.id,
@@ -1416,14 +1444,30 @@ export default function KnowledgeArenaPage() {
     const currentIndex = Number(lobby.current_question_index || 0);
     const hasNextRound = currentIndex < questions.length - 1;
 
-    if (hasNextRound) setRoundTransitionRound(currentIndex + 2);
+    if (!hasNextRound) {
+      const finalTimer = window.setTimeout(() => {
+        void tryAdvanceVersusRound();
+      }, 1100);
+      return () => window.clearTimeout(finalTimer);
+    }
 
-    const timer = window.setTimeout(() => {
-      setRoundTransitionRound(null);
-      void tryAdvanceVersusRound();
-    }, hasNextRound ? 3000 : 1100);
+    const pauseTimer = window.setTimeout(() => {
+      setRoundTransitionRound(currentIndex + 2);
 
-    return () => window.clearTimeout(timer);
+      roundTransitionTimerRef.current = window.setTimeout(() => {
+        setRoundTransitionRound(null);
+        roundTransitionTimerRef.current = null;
+        void tryAdvanceVersusRound();
+      }, 3000);
+    }, 1000);
+
+    return () => {
+      window.clearTimeout(pauseTimer);
+      if (roundTransitionTimerRef.current) {
+        window.clearTimeout(roundTransitionTimerRef.current);
+        roundTransitionTimerRef.current = null;
+      }
+    };
   }, [
     stage,
     lobby?.id,
@@ -2686,16 +2730,25 @@ export default function KnowledgeArenaPage() {
   }
 
   function startRoundTransition(nextRound: number, onComplete: () => void) {
+    if (preRoundPauseTimerRef.current) {
+      window.clearTimeout(preRoundPauseTimerRef.current);
+    }
     if (roundTransitionTimerRef.current) {
       window.clearTimeout(roundTransitionTimerRef.current);
     }
 
-    setRoundTransitionRound(nextRound);
-    roundTransitionTimerRef.current = window.setTimeout(() => {
-      setRoundTransitionRound(null);
-      roundTransitionTimerRef.current = null;
-      onComplete();
-    }, 3000);
+    // Keep the completed attack/result visible for one full second before
+    // the ROUND X screen takes over.
+    preRoundPauseTimerRef.current = window.setTimeout(() => {
+      preRoundPauseTimerRef.current = null;
+      setRoundTransitionRound(nextRound);
+
+      roundTransitionTimerRef.current = window.setTimeout(() => {
+        setRoundTransitionRound(null);
+        roundTransitionTimerRef.current = null;
+        onComplete();
+      }, 3000);
+    }, 1000);
   }
 
   function handleBattleTransitionComplete() {
@@ -9953,6 +10006,46 @@ function ArenaResultsPanel({
 
           .ka-results-arena-backdrop { padding: 8px; }
           .ka-results-popup { width: 98%; height: 96%; border-radius: 18px; }
+        }
+
+
+        @media (max-width: 700px) and (orientation: portrait) {
+          .ka-solo-nova-stage {
+            overflow-y: auto;
+          }
+
+          .ka-solo-nova-large-grid {
+            display: grid;
+            flex: 0 0 auto;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 9px;
+            overflow: visible;
+            padding: 2px 0 5px;
+            scroll-snap-type: none;
+          }
+
+          .ka-solo-nova-large-card {
+            width: 100%;
+            min-width: 0;
+            flex: none;
+            padding: 7px;
+          }
+
+          .ka-solo-nova-image img {
+            max-height: 23vh;
+          }
+
+          .ka-solo-nova-actions {
+            position: sticky;
+            bottom: 0;
+            z-index: 4;
+            padding: 8px 0 max(4px, env(safe-area-inset-bottom));
+            background: linear-gradient(
+              180deg,
+              rgba(3,10,24,0),
+              rgba(3,10,24,.96) 28%
+            );
+          }
         }
 
         @media (max-height: 700px) and (orientation: landscape) {

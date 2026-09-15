@@ -213,6 +213,10 @@ export default function RoverGarageClient() {
   const isMobile = screenMode === "mobile";
   const isCompact = screenMode !== "desktop";
 
+  const [mobileHangarPanel, setMobileHangarPanel] = useState<
+    "fleet" | "build" | null
+  >(null);
+
   const [isPortrait, setIsPortrait] = useState(false);
 
   useEffect(() => {
@@ -1205,13 +1209,15 @@ export default function RoverGarageClient() {
             </strong>
           </div>
 
-          <button
-            type="button"
-            onClick={() => router.push("/profile")}
-            style={accountHeaderButton}
-          >
-            My Account
-          </button>
+          {!isMobile && (
+            <button
+              type="button"
+              onClick={() => router.push("/profile")}
+              style={accountHeaderButton}
+            >
+              My Account
+            </button>
+          )}
         </div>
       </header>
 
@@ -1224,11 +1230,41 @@ export default function RoverGarageClient() {
           onOpenLevel={openRoverChallenge}
         />
       ) : (
-        <section style={hangarWorkspace(isCompact)}>
-          <aside style={fleetPane(isCompact)}>
+        <section style={hangarWorkspace(isCompact, isMobile)}>
+          {isMobile && mobileHangarPanel && (
+            <button
+              type="button"
+              aria-label="Close side menu"
+              onClick={() => setMobileHangarPanel(null)}
+              style={mobileSideMenuBackdrop}
+            />
+          )}
+
+          <aside
+            style={fleetPane(
+              isCompact,
+              isMobile,
+              mobileHangarPanel === "fleet",
+            )}
+          >
             <div style={compactPaneHeading}>
-              <p style={smallEyebrow}>ROVER FLEET</p>
-              <h2 style={compactPaneTitle}>Select Rover</h2>
+              <div style={sideMenuHeadingRow}>
+                <div>
+                  <p style={smallEyebrow}>ROVER FLEET</p>
+                  <h2 style={compactPaneTitle}>Select Rover</h2>
+                </div>
+
+                {isMobile && (
+                  <button
+                    type="button"
+                    onClick={() => setMobileHangarPanel(null)}
+                    style={sideMenuCloseButton}
+                    aria-label="Close Rover Fleet"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
             </div>
 
             <UpgradeTrack
@@ -1245,8 +1281,8 @@ export default function RoverGarageClient() {
             />
           </aside>
 
-          <section style={roverFocusPane(isCompact)}>
-            <div style={roverFocusTop}>
+          <section style={roverFocusPane(isCompact, isMobile)}>
+            <div style={roverFocusTopLayout(isMobile)}>
               <div>
                 <p style={smallEyebrow}>
                   {selectedEquipped
@@ -1260,20 +1296,44 @@ export default function RoverGarageClient() {
                 </h2>
               </div>
 
-              {rank && <div style={rankPill(rank)}>Rank #{rank}</div>}
+              <div style={focusTopRight}>
+                {rank && !isMobile && (
+                  <div style={rankPill(rank)}>Rank #{rank}</div>
+                )}
+
+                {isMobile && (
+                  <div style={mobileHangarMenuButtons}>
+                    <button
+                      type="button"
+                      onClick={() => setMobileHangarPanel("fleet")}
+                      style={mobileHangarMenuButton}
+                    >
+                      Rovers
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setMobileHangarPanel("build")}
+                      style={mobileHangarMenuButton}
+                    >
+                      Custom Build
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div style={roverFocusVehicleStage}>
+            <div style={roverFocusVehicleStageLayout(isMobile)}>
               <div style={vehicleHalo(displayedUpgrade.accent)} />
               <img
                 src={displayedUpgrade.imageSrc}
                 alt={displayedUpgrade.name}
                 draggable={false}
-                style={roverFocusVehicleImage}
+                style={roverFocusVehicleImageLayout(isMobile)}
               />
             </div>
 
-            <div style={roverFocusActionArea}>
+            <div style={roverFocusActionAreaLayout(isMobile)}>
               {selectedEquipped ? (
                 <button
                   type="button"
@@ -1316,15 +1376,16 @@ export default function RoverGarageClient() {
             </div>
 
             {(loadoutMessage || purchaseMessage) && (
-              <div style={focusMessageStrip}>
+              <div style={focusMessageStripLayout(isMobile)}>
                 {loadoutMessage || purchaseMessage}
               </div>
             )}
 
-            <div style={statsBottomDock}>
+            <div style={statsBottomDockLayout(isMobile)}>
               <RoverBuildStats
                 stage={displayedUpgrade.stage}
                 accent={displayedUpgrade.accent}
+                compact={isMobile}
                 performanceBuild={
                   selectedEquipped ? performanceBuild : []
                 }
@@ -1336,7 +1397,7 @@ export default function RoverGarageClient() {
                 }
               />
 
-              <div style={compactRunSummary}>
+              <div style={compactRunSummaryLayout(isMobile)}>
                 <SummaryStat
                   label="Rank"
                   value={rank ? `#${rank}` : "—"}
@@ -1359,10 +1420,31 @@ export default function RoverGarageClient() {
             </div>
           </section>
 
-          <aside style={buildPane(isCompact)}>
+          <aside
+            style={buildPane(
+              isCompact,
+              isMobile,
+              mobileHangarPanel === "build",
+            )}
+          >
             <div style={compactPaneHeading}>
-              <p style={smallEyebrow}>CUSTOM BUILD</p>
-              <h2 style={compactPaneTitle}>Performance Parts</h2>
+              <div style={sideMenuHeadingRow}>
+                <div>
+                  <p style={smallEyebrow}>CUSTOM BUILD</p>
+                  <h2 style={compactPaneTitle}>Performance Parts</h2>
+                </div>
+
+                {isMobile && (
+                  <button
+                    type="button"
+                    onClick={() => setMobileHangarPanel(null)}
+                    style={sideMenuCloseButton}
+                    aria-label="Close Custom Build"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
             </div>
 
             {selectedEquipped ? (
@@ -2145,11 +2227,13 @@ function RoverPreview({
 function RoverBuildStats({
   stage,
   accent,
+  compact = false,
   performanceBuild,
   previewCategory,
 }: {
   stage: number;
   accent: string;
+  compact?: boolean;
   performanceBuild: RoverPerformanceBuildRow[];
   previewCategory: RoverPerformanceCategory | null;
 }) {
@@ -2228,14 +2312,14 @@ function RoverBuildStats({
   return (
     <section
       aria-label={`Rover ${stage + 1} build statistics`}
-      style={buildStatsPanel}
+      style={buildStatsPanelLayout(compact)}
     >
       <div style={buildStatsHeadingRow}>
         <p style={smallEyebrow}>BUILD STATS</p>
         <span style={buildStatsScale}>0–100</span>
       </div>
 
-      <div style={buildStatsGrid}>
+      <div style={buildStatsGridLayout(compact)}>
         {stats.map((stat) => {
           const installedBonus = Math.max(0, stat.value - stat.base);
           const previewGain = Math.max(0, stat.previewValue - stat.value);
@@ -2292,7 +2376,7 @@ function RoverBuildStats({
         </span>
       </div>
 
-      <div style={combatRatingsGrid}>
+      <div style={combatRatingsGridLayout(compact)}>
         <CombatRating
           label="HP"
           value={combat.maxHp}
@@ -2800,13 +2884,15 @@ function topHeader(isMobile: boolean): CSSProperties {
     position: "relative",
     top: 0,
     zIndex: 30,
-    minHeight: isMobile ? "112px" : "72px",
-    padding: isMobile ? "9px 12px 10px" : "10px 20px",
+    minHeight: isMobile ? "64px" : "72px",
+    padding: isMobile ? "8px 10px" : "10px 20px",
     display: "grid",
-    gridTemplateColumns: isMobile ? "1fr auto" : "1fr auto 1fr",
-    gridTemplateRows: isMobile ? "auto auto" : "auto",
+    gridTemplateColumns: isMobile
+      ? "auto minmax(0,1fr)"
+      : "1fr auto 1fr",
+    gridTemplateRows: "auto",
     alignItems: "center",
-    gap: isMobile ? "8px 10px" : "14px",
+    gap: isMobile ? "8px" : "14px",
     borderBottom: "1px solid rgba(126,232,255,0.14)",
     background: "rgba(3,11,25,0.9)",
     boxShadow: "0 12px 35px rgba(0,0,0,0.22)",
@@ -2836,9 +2922,7 @@ function headerIdentity(isMobile: boolean): CSSProperties {
     minWidth: 0,
     ...(isMobile
       ? {
-          gridColumn: "2",
-          gridRow: "1",
-          justifySelf: "end",
+          display: "none",
         }
       : {}),
   };
@@ -2863,17 +2947,14 @@ function headerRight(isMobile: boolean): CSSProperties {
     justifySelf: "end",
     display: "flex",
     alignItems: "center",
-    gap: "9px",
+    gap: isMobile ? "6px" : "9px",
     minWidth: 0,
     ...(isMobile
       ? {
-          gridColumn: "1 / -1",
-          gridRow: "2",
-          justifySelf: "stretch",
-          width: "100%",
-          overflowX: "auto",
-          paddingBottom: "1px",
-          scrollbarWidth: "none",
+          gridColumn: "2",
+          gridRow: "1",
+          justifySelf: "end",
+          overflow: "hidden",
         }
       : {}),
   };
@@ -3081,13 +3162,15 @@ const upgradeDescription: CSSProperties = {
   lineHeight: 1.5,
 };
 
-const buildStatsPanel: CSSProperties = {
-  marginTop: "14px",
-  borderRadius: "16px",
-  border: "1px solid rgba(126,232,255,0.16)",
-  background: "rgba(255,255,255,0.035)",
-  padding: "13px",
-};
+function buildStatsPanelLayout(compact: boolean): CSSProperties {
+  return {
+    marginTop: compact ? 0 : "14px",
+    borderRadius: compact ? "12px" : "16px",
+    border: "1px solid rgba(126,232,255,0.16)",
+    background: "rgba(255,255,255,0.035)",
+    padding: compact ? "8px" : "13px",
+  };
+}
 
 const buildStatsHeadingRow: CSSProperties = {
   display: "flex",
@@ -3103,12 +3186,16 @@ const buildStatsScale: CSSProperties = {
   fontWeight: 800,
 };
 
-const buildStatsGrid: CSSProperties = {
-  marginTop: "10px",
-  display: "grid",
-  gridTemplateColumns: "repeat(2,minmax(0,1fr))",
-  gap: "11px 14px",
-};
+function buildStatsGridLayout(compact: boolean): CSSProperties {
+  return {
+    marginTop: compact ? "7px" : "10px",
+    display: "grid",
+    gridTemplateColumns: compact
+      ? "minmax(0,1fr)"
+      : "repeat(2,minmax(0,1fr))",
+    gap: compact ? "7px" : "11px 14px",
+  };
+}
 
 const buildStatRow: CSSProperties = {
   minWidth: 0,
@@ -3143,12 +3230,18 @@ const combatRoleLabel: CSSProperties = {
   letterSpacing: "0.06em",
 };
 
-const combatRatingsGrid: CSSProperties = {
-  marginTop: "8px",
-  display: "grid",
-  gridTemplateColumns: "repeat(2,minmax(0,1fr))",
-  gap: "12px",
-};
+function combatRatingsGridLayout(
+  compact: boolean,
+): CSSProperties {
+  return {
+    marginTop: compact ? "6px" : "8px",
+    display: "grid",
+    gridTemplateColumns: compact
+      ? "minmax(0,1fr)"
+      : "repeat(2,minmax(0,1fr))",
+    gap: compact ? "7px" : "12px",
+  };
+}
 
 const combatRatingItem: CSSProperties = {
   minWidth: 0,
@@ -4194,22 +4287,58 @@ const rotateGateCopy: CSSProperties = {
   fontSize: "13px",
 };
 
-function hangarWorkspace(isCompact: boolean): CSSProperties {
+function hangarWorkspace(
+  isCompact: boolean,
+  isMobile: boolean,
+): CSSProperties {
   return {
-    height: "calc(100dvh - 72px)",
+    height: `calc(100dvh - ${isMobile ? 64 : 72}px)`,
     width: "100%",
     minHeight: 0,
     display: "grid",
-    gridTemplateColumns: isCompact
-      ? "minmax(210px, 25%) minmax(360px, 42%) minmax(330px, 33%)"
-      : "minmax(250px, 18%) minmax(560px, 48%) minmax(430px, 34%)",
+    gridTemplateColumns: isMobile
+      ? "minmax(0,1fr)"
+      : isCompact
+        ? "minmax(210px, 25%) minmax(360px, 42%) minmax(330px, 33%)"
+        : "minmax(250px, 18%) minmax(560px, 48%) minmax(430px, 34%)",
     gap: 0,
     overflow: "hidden",
-    padding: isCompact ? "10px 12px 12px" : "12px 18px 16px",
+    padding: isMobile
+      ? "8px 10px 10px"
+      : isCompact
+        ? "10px 12px 12px"
+        : "12px 18px 16px",
   };
 }
 
-function fleetPane(_isCompact: boolean): CSSProperties {
+function fleetPane(
+  _isCompact: boolean,
+  isMobile: boolean,
+  open: boolean,
+): CSSProperties {
+  if (isMobile) {
+    return {
+      position: "fixed",
+      left: 0,
+      top: "64px",
+      bottom: 0,
+      zIndex: 72,
+      width: "min(440px, 78vw)",
+      minWidth: 0,
+      display: "grid",
+      gridTemplateRows: "auto minmax(0,1fr)",
+      overflow: "hidden",
+      padding: "12px",
+      borderRight: "1px solid rgba(126,232,255,0.3)",
+      background:
+        "linear-gradient(145deg,rgba(3,14,31,0.99),rgba(8,19,46,0.99))",
+      boxShadow: "20px 0 50px rgba(0,0,0,0.52)",
+      transform: open ? "translateX(0)" : "translateX(-105%)",
+      transition: "transform 180ms ease",
+      pointerEvents: open ? "auto" : "none",
+    };
+  }
+
   return {
     minWidth: 0,
     minHeight: 0,
@@ -4222,24 +4351,69 @@ function fleetPane(_isCompact: boolean): CSSProperties {
   };
 }
 
-function roverFocusPane(_isCompact: boolean): CSSProperties {
+function roverFocusPane(
+  _isCompact: boolean,
+  isMobile: boolean,
+): CSSProperties {
+  if (isMobile) {
+    return {
+      minWidth: 0,
+      minHeight: 0,
+      height: "100%",
+      display: "grid",
+      gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr)",
+      gridTemplateRows: "auto minmax(0,1fr) 58px auto",
+      gridTemplateAreas: `
+        "top stats"
+        "vehicle stats"
+        "action stats"
+        "message stats"
+      `,
+      columnGap: "10px",
+      overflow: "hidden",
+      padding: "4px 2px",
+    };
+  }
+
   return {
     minWidth: 0,
     minHeight: 0,
     height: "100%",
     display: "grid",
-    /*
-     * The 62px action row is deliberately reserved outside the vehicle stage.
-     * The 3D rover is clipped inside its own row, so neither the Expeditions
-     * button nor any other centre control can overlap the vehicle artwork.
-     */
-    gridTemplateRows: "auto minmax(0,1fr) 72px auto auto",
+    gridTemplateRows: "auto minmax(0,1fr) 78px auto auto",
     overflow: "hidden",
     padding: "6px clamp(16px,2vw,30px)",
   };
 }
 
-function buildPane(_isCompact: boolean): CSSProperties {
+function buildPane(
+  _isCompact: boolean,
+  isMobile: boolean,
+  open: boolean,
+): CSSProperties {
+  if (isMobile) {
+    return {
+      position: "fixed",
+      right: 0,
+      top: "64px",
+      bottom: 0,
+      zIndex: 72,
+      width: "min(520px, 84vw)",
+      minWidth: 0,
+      display: "grid",
+      gridTemplateRows: "auto minmax(0,1fr)",
+      overflow: "hidden",
+      padding: "12px",
+      borderLeft: "1px solid rgba(126,232,255,0.3)",
+      background:
+        "linear-gradient(145deg,rgba(5,14,34,0.99),rgba(18,18,54,0.99))",
+      boxShadow: "-20px 0 50px rgba(0,0,0,0.52)",
+      transform: open ? "translateX(0)" : "translateX(105%)",
+      transition: "transform 180ms ease",
+      pointerEvents: open ? "auto" : "none",
+    };
+  }
+
   return {
     minWidth: 0,
     minHeight: 0,
@@ -4255,6 +4429,37 @@ function buildPane(_isCompact: boolean): CSSProperties {
 const compactPaneHeading: CSSProperties = {
   minHeight: "52px",
   padding: "2px 4px 8px",
+};
+
+const sideMenuHeadingRow: CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: "12px",
+};
+
+const sideMenuCloseButton: CSSProperties = {
+  width: "34px",
+  height: "34px",
+  flexShrink: 0,
+  borderRadius: "10px",
+  border: "1px solid rgba(126,232,255,0.22)",
+  background: "rgba(255,255,255,0.045)",
+  color: "white",
+  display: "grid",
+  placeItems: "center",
+  fontSize: "20px",
+  cursor: "pointer",
+};
+
+const mobileSideMenuBackdrop: CSSProperties = {
+  position: "fixed",
+  inset: "64px 0 0",
+  zIndex: 70,
+  border: 0,
+  background: "rgba(0,0,0,0.5)",
+  backdropFilter: "blur(2px)",
+  cursor: "default",
 };
 
 const compactPaneTitle: CSSProperties = {
@@ -4378,49 +4583,110 @@ const compactLockedBadge: CSSProperties = {
   textTransform: "uppercase",
 };
 
-const roverFocusTop: CSSProperties = {
+function roverFocusTopLayout(isMobile: boolean): CSSProperties {
+  return {
+    gridArea: isMobile ? "top" : undefined,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: "10px",
+    minWidth: 0,
+  };
+}
+
+const focusTopRight: CSSProperties = {
+  flexShrink: 0,
+  display: "grid",
+  justifyItems: "end",
+  gap: "7px",
+};
+
+const mobileHangarMenuButtons: CSSProperties = {
   display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: "12px",
+  gap: "6px",
+};
+
+const mobileHangarMenuButton: CSSProperties = {
+  minHeight: "30px",
+  borderRadius: "9px",
+  border: "1px solid rgba(255,215,106,0.42)",
+  background:
+    "linear-gradient(135deg,rgba(255,224,138,0.14),rgba(217,155,50,0.1))",
+  color: "#ffe09a",
+  padding: "0 9px",
+  fontSize: "8px",
+  fontWeight: 950,
+  letterSpacing: "0.05em",
+  cursor: "pointer",
+  whiteSpace: "nowrap",
 };
 
 const roverFocusTitle: CSSProperties = {
   margin: "5px 0 0",
-  fontSize: "clamp(22px,2.2vw,34px)",
+  fontSize: "clamp(18px,2.2vw,34px)",
   lineHeight: 1.05,
-};
-
-const roverFocusVehicleStage: CSSProperties = {
-  position: "relative",
-  minHeight: 0,
-  display: "grid",
-  placeItems: "center",
   overflow: "hidden",
-  padding: "6px 4% 58px",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
 };
 
-const roverFocusVehicleImage: CSSProperties = {
-  position: "relative",
-  zIndex: 2,
-  width: "88%",
-  height: "84%",
-  maxWidth: "100%",
-  maxHeight: "calc(100% - 24px)",
-  objectFit: "contain",
-  objectPosition: "center 44%",
-  filter: "drop-shadow(0 28px 30px rgba(0,0,0,0.52))",
-};
+function roverFocusVehicleStageLayout(
+  isMobile: boolean,
+): CSSProperties {
+  return {
+    gridArea: isMobile ? "vehicle" : undefined,
+    position: "relative",
+    minHeight: 0,
+    display: "grid",
+    placeItems: "center",
+    overflow: "hidden",
+    padding: isMobile
+      ? "2px 3% 8px"
+      : "8px 7% 28px",
+  };
+}
 
-const roverFocusActionArea: CSSProperties = {
-  position: "relative",
-  zIndex: 4,
-  minHeight: "68px",
-  display: "flex",
-  alignItems: "flex-start",
-  justifyContent: "center",
-  padding: "0 0 8px",
-};
+function roverFocusVehicleImageLayout(
+  isMobile: boolean,
+): CSSProperties {
+  return {
+    position: "relative",
+    zIndex: 2,
+    width: isMobile ? "92%" : "80%",
+    height: isMobile ? "88%" : "76%",
+    maxWidth: "100%",
+    maxHeight: isMobile ? "100%" : "82%",
+    objectFit: "contain",
+    objectPosition: "center",
+    filter: "drop-shadow(0 28px 30px rgba(0,0,0,0.52))",
+  };
+}
+
+function roverFocusActionAreaLayout(
+  isMobile: boolean,
+): CSSProperties {
+  return {
+    gridArea: isMobile ? "action" : undefined,
+    position: "relative",
+    zIndex: 4,
+    minHeight: isMobile ? "54px" : "72px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: isMobile ? "3px 0 2px" : "6px 0 10px",
+    borderTop: "1px solid rgba(255,215,106,0.08)",
+  };
+}
+
+function focusMessageStripLayout(
+  isMobile: boolean,
+): CSSProperties {
+  return {
+    ...focusMessageStrip,
+    gridArea: isMobile ? "message" : undefined,
+    margin: isMobile ? "2px auto 0" : focusMessageStrip.margin,
+  };
+}
 
 const focusMessageStrip: CSSProperties = {
   margin: "6px auto 0",
@@ -4437,20 +4703,36 @@ const focusMessageStrip: CSSProperties = {
   textAlign: "center",
 };
 
-const statsBottomDock: CSSProperties = {
-  minWidth: 0,
-  display: "grid",
-  gridTemplateColumns: "minmax(0,1.5fr) minmax(250px,0.8fr)",
-  gap: "10px",
-  alignItems: "stretch",
-  paddingTop: "8px",
-};
+function statsBottomDockLayout(isMobile: boolean): CSSProperties {
+  return {
+    gridArea: isMobile ? "stats" : undefined,
+    minWidth: 0,
+    minHeight: 0,
+    display: "grid",
+    gridTemplateColumns: isMobile
+      ? "minmax(0,1fr)"
+      : "minmax(0,1.5fr) minmax(250px,0.8fr)",
+    gridTemplateRows: isMobile ? "auto auto" : undefined,
+    alignContent: isMobile ? "start" : undefined,
+    gap: isMobile ? "7px" : "10px",
+    alignItems: "stretch",
+    padding: isMobile ? "0 0 0 10px" : "8px 0 0",
+    borderLeft: isMobile
+      ? "1px solid rgba(126,232,255,0.13)"
+      : undefined,
+    overflowY: isMobile ? "auto" : "visible",
+    overflowX: "hidden",
+    scrollbarWidth: "thin",
+  };
+}
 
-const compactRunSummary: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(2,minmax(0,1fr))",
-  gap: "7px",
-};
+function compactRunSummaryLayout(isMobile: boolean): CSSProperties {
+  return {
+    display: "grid",
+    gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+    gap: isMobile ? "5px" : "7px",
+  };
+}
 
 const equipToTuneCompact: CSSProperties = {
   minHeight: 0,
