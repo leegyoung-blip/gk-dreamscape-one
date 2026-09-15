@@ -9,7 +9,7 @@ import {
   type RoverLevelId,
 } from "../rover-challenge/levels";
 
-const LEVEL_IDS: RoverLevelId[] = [1, 2, 3, 4];
+const LEVEL_IDS: RoverLevelId[] = [1, 2, 3, 4, 5];
 
 type PurchaseUnlockRow = {
   success: boolean;
@@ -27,9 +27,8 @@ export default function RoverChallengeProgressDock() {
   const [rows, setRows] = useState<RoverLevelAccess[]>([]);
   const [message, setMessage] = useState("");
   const [collapsed, setCollapsed] = useState(false);
-  const [purchasingLevel, setPurchasingLevel] = useState<RoverLevelId | null>(
-    null,
-  );
+  const [purchasingLevel, setPurchasingLevel] =
+    useState<RoverLevelId | null>(null);
 
   const loadProgress = useCallback(async () => {
     setLoading(true);

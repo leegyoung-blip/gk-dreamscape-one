@@ -208,6 +208,18 @@ type BoneGuardEnemy = {
   state: BoneGuardState;
   surfaceY: number;
   lastFireAt: number;
+
+  /**
+   * 1 = Approach
+   * 2 = Fracture Pass
+   * 3 = Portal Assault
+   *
+   * Damage is locked to the phase in which the guard spawned, so an existing
+   * guard does not suddenly become stronger just because Nova crosses a later
+   * course threshold.
+   */
+  spawnPhase: 1 | 2 | 3;
+
   healthBackground: Phaser.GameObjects.Rectangle;
   healthFill: Phaser.GameObjects.Rectangle;
 };
@@ -308,6 +320,7 @@ class RoverMatterScene extends Phaser.Scene {
 
   private combatShieldText?: Phaser.GameObjects.Text;
   private combatHpText?: Phaser.GameObjects.Text;
+  private combatRoleText?: Phaser.GameObjects.Text;
   private combatWeaponText?: Phaser.GameObjects.Text;
   private combatShieldBarFill?: Phaser.GameObjects.Rectangle;
   private combatHpBarFill?: Phaser.GameObjects.Rectangle;
@@ -366,7 +379,18 @@ class RoverMatterScene extends Phaser.Scene {
   private lastCombatDamageAt = -100000;
   private lastWeaponFireAt = -100000;
   private roverDisabled = false;
+  private shieldRegenActive = false;
+  private shieldRegenAnnounced = false;
+
+  // Phase 5G combat report metrics.
   private shotsFired = 0;
+  private shotsHit = 0;
+  private damageDealt = 0;
+  private damageReceived = 0;
+  private shieldDamageAbsorbed = 0;
+  private combatAccuracyBonus = 0;
+  private combatSurvivalBonus = 0;
+
   private combatProjectiles: CombatProjectile[] = [];
   private autocannonBarrelSide: -1 | 1 = -1;
 
@@ -386,8 +410,13 @@ class RoverMatterScene extends Phaser.Scene {
   private nextBoneGuardSpawnAt = 0;
   private boneGuardWaveStarted = false;
   private boneGuardWaveComplete = false;
+  private boneGuardWavePhase = 0;
   private combatScore = 0;
   private combatEnemyText?: Phaser.GameObjects.Text;
+
+  private combatFinishBarrier?: MatterJS.BodyType;
+  private combatFinishBarrierVisual?: Phaser.GameObjects.Rectangle;
+  private combatFinishBarrierGlow?: Phaser.GameObjects.Rectangle;
 
   private levelConfig: RoverLevelWithPulseGates;
 
@@ -635,7 +664,16 @@ class RoverMatterScene extends Phaser.Scene {
     this.lastCombatDamageAt = -100000;
     this.lastWeaponFireAt = -100000;
     this.roverDisabled = false;
+    this.shieldRegenActive = false;
+    this.shieldRegenAnnounced = false;
     this.shotsFired = 0;
+    this.shotsHit = 0;
+    this.damageDealt = 0;
+    this.damageReceived = 0;
+    this.shieldDamageAbsorbed = 0;
+    this.combatAccuracyBonus = 0;
+    this.combatSurvivalBonus = 0;
+
     this.combatProjectiles.forEach((projectile) => projectile.sprite.destroy());
     this.combatProjectiles = [];
     this.autocannonBarrelSide = -1;
@@ -668,7 +706,18 @@ class RoverMatterScene extends Phaser.Scene {
     this.nextBoneGuardSpawnAt = 0;
     this.boneGuardWaveStarted = false;
     this.boneGuardWaveComplete = false;
+    this.boneGuardWavePhase = 0;
     this.combatScore = 0;
+
+    if (this.combatFinishBarrier) {
+      this.matter.world.remove(this.combatFinishBarrier);
+      this.combatFinishBarrier = undefined;
+    }
+
+    this.combatFinishBarrierVisual?.destroy();
+    this.combatFinishBarrierVisual = undefined;
+    this.combatFinishBarrierGlow?.destroy();
+    this.combatFinishBarrierGlow = undefined;
 
     this.score = 0;
     this.distanceScore = 0;
@@ -827,6 +876,47 @@ class RoverMatterScene extends Phaser.Scene {
       .setOrigin(0)
       .setScrollFactor(0)
       .setDepth(-1000);
+
+    if (Number(this.levelConfig.id) >= 5) {
+      this.add
+        .rectangle(
+          GAME_WIDTH / 2,
+          GAME_HEIGHT / 2,
+          GAME_WIDTH,
+          GAME_HEIGHT,
+          0x160a31,
+          0.26,
+        )
+        .setScrollFactor(0)
+        .setDepth(-999)
+        .setBlendMode(Phaser.BlendModes.MULTIPLY);
+
+      this.add
+        .ellipse(
+          GAME_WIDTH * 0.78,
+          GAME_HEIGHT * 0.27,
+          760,
+          520,
+          0x7728c9,
+          0.12,
+        )
+        .setScrollFactor(0)
+        .setDepth(-998)
+        .setBlendMode(Phaser.BlendModes.ADD);
+
+      this.add
+        .ellipse(
+          GAME_WIDTH * 0.25,
+          GAME_HEIGHT * 0.6,
+          900,
+          560,
+          0x1a7cc9,
+          0.07,
+        )
+        .setScrollFactor(0)
+        .setDepth(-998)
+        .setBlendMode(Phaser.BlendModes.ADD);
+    }
   }
 
   private updateBackgroundParallax() {
@@ -2004,7 +2094,7 @@ class RoverMatterScene extends Phaser.Scene {
       42,
       42,
       390,
-      this.combatMode ? 425 : 245,
+      this.combatMode ? 452 : 245,
     );
 
     statusPanel.setOrigin(0, 0);
@@ -2133,8 +2223,24 @@ class RoverMatterScene extends Phaser.Scene {
         .setScrollFactor(0)
         .setDepth(101);
 
+      this.combatRoleText = this.add
+        .text(
+          70,
+          305,
+          `${this.combatStats.combatRole} · ${this.combatStats.combatTrait}`,
+          {
+            fontFamily: "Arial, sans-serif",
+            fontSize: "8px",
+            fontStyle: "bold",
+            color: "#d7c8ff",
+            letterSpacing: 1,
+          },
+        )
+        .setScrollFactor(0)
+        .setDepth(101);
+
       this.combatShieldText = this.add
-        .text(70, 309, `SHIELD  ${Math.round(this.roverShield)} / ${this.combatStats.maxShield}`, {
+        .text(70, 326, `SHIELD  ${Math.round(this.roverShield)} / ${this.combatStats.maxShield}`, {
           fontFamily: "Arial, sans-serif",
           fontSize: "11px",
           fontStyle: "bold",
@@ -2143,12 +2249,12 @@ class RoverMatterScene extends Phaser.Scene {
         .setScrollFactor(0)
         .setDepth(101);
 
-      const shieldBg = this.add.rectangle(70, 332, 326, 9, 0x26314d, 1);
+      const shieldBg = this.add.rectangle(70, 349, 326, 9, 0x26314d, 1);
       shieldBg.setOrigin(0, 0.5).setScrollFactor(0).setDepth(101);
 
       this.combatShieldBarFill = this.add.rectangle(
         70,
-        332,
+        349,
         326,
         9,
         0x62edff,
@@ -2160,7 +2266,7 @@ class RoverMatterScene extends Phaser.Scene {
         .setDepth(102);
 
       this.combatHpText = this.add
-        .text(70, 347, `HP  ${Math.round(this.roverHp)} / ${this.combatStats.maxHp}`, {
+        .text(70, 364, `HP  ${Math.round(this.roverHp)} / ${this.combatStats.maxHp}`, {
           fontFamily: "Arial, sans-serif",
           fontSize: "11px",
           fontStyle: "bold",
@@ -2169,12 +2275,12 @@ class RoverMatterScene extends Phaser.Scene {
         .setScrollFactor(0)
         .setDepth(101);
 
-      const hpBg = this.add.rectangle(70, 370, 326, 9, 0x26314d, 1);
+      const hpBg = this.add.rectangle(70, 387, 326, 9, 0x26314d, 1);
       hpBg.setOrigin(0, 0.5).setScrollFactor(0).setDepth(101);
 
       this.combatHpBarFill = this.add.rectangle(
         70,
-        370,
+        387,
         326,
         9,
         0x79f5a6,
@@ -2199,7 +2305,7 @@ class RoverMatterScene extends Phaser.Scene {
       this.combatWeaponText = this.add
         .text(
           70,
-          382,
+          399,
           this.weaponSpec
             ? `WEAPON  ${this.weaponSpec.name.toUpperCase()} · ${weaponBehaviour}`
             : "WEAPON  NOT INSTALLED",
@@ -2217,7 +2323,7 @@ class RoverMatterScene extends Phaser.Scene {
       this.combatEnemyText = this.add
         .text(
           70,
-          402,
+          419,
           `BONE GUARDS  0 / ${boneGuardCombatSpec.waveSize}`,
           {
             fontFamily: "Arial, sans-serif",
@@ -3337,6 +3443,8 @@ class RoverMatterScene extends Phaser.Scene {
         this.collectibleScore +
         this.checkpointScore +
         this.combatScore +
+        this.combatAccuracyBonus +
+        this.combatSurvivalBonus +
         this.completionScore +
         this.timeBonus -
         this.crashPenalty,
@@ -3430,10 +3538,15 @@ class RoverMatterScene extends Phaser.Scene {
       this.combatShieldBarFill.width = 326 * shieldRatio;
       this.combatHpBarFill.width = 326 * hpRatio;
 
-      if (shieldRatio <= 0.2) {
+      if (this.shieldRegenActive) {
+        this.combatShieldBarFill.setFillStyle(0x76ffd9, 1);
+        this.combatShieldText.setColor("#9dffe5");
+      } else if (shieldRatio <= 0.2) {
         this.combatShieldBarFill.setFillStyle(0xffbd72, 1);
+        this.combatShieldText.setColor("#ffd08a");
       } else {
         this.combatShieldBarFill.setFillStyle(0x62edff, 1);
+        this.combatShieldText.setColor("#77ecff");
       }
 
       if (this.combatEnemyText) {
@@ -3495,13 +3608,26 @@ class RoverMatterScene extends Phaser.Scene {
       this.hasFinished ||
       this.roverShield >= this.combatStats.maxShield
     ) {
+      this.shieldRegenActive = false;
       return;
     }
 
-    const timeSinceDamage = this.time.now - this.lastCombatDamageAt;
+    const timeSinceDamage =
+      this.time.now - this.lastCombatDamageAt;
 
     if (timeSinceDamage < this.combatStats.shieldRegenDelayMs) {
+      this.shieldRegenActive = false;
       return;
+    }
+
+    this.shieldRegenActive = true;
+
+    if (!this.shieldRegenAnnounced) {
+      this.shieldRegenAnnounced = true;
+      this.showStatusMessage(
+        "SHIELD RECHARGING",
+        "#8dffe2",
+      );
     }
 
     this.roverShield = Math.min(
@@ -3509,6 +3635,10 @@ class RoverMatterScene extends Phaser.Scene {
       this.roverShield +
         this.combatStats.shieldRegenPerSecond * (delta / 1000),
     );
+
+    if (this.roverShield >= this.combatStats.maxShield) {
+      this.shieldRegenActive = false;
+    }
   }
 
   private handleWeaponInput() {
@@ -3844,6 +3974,8 @@ class RoverMatterScene extends Phaser.Scene {
       );
 
       if (guardHit) {
+        this.shotsHit += 1;
+
         if (projectile.blastRadius > 0) {
           this.damageBoneGuardsInRadius(
             projectile.sprite.x,
@@ -4162,6 +4294,10 @@ class RoverMatterScene extends Phaser.Scene {
     this.createBoneGuardPortal();
     this.createCombatTargetReticle();
 
+    if (Number(this.levelConfig.id) === 5) {
+      this.createCombatFinishBarrier();
+    }
+
     this.nextBoneGuardSpawnAt = this.time.now + 1800;
   }
 
@@ -4424,17 +4560,56 @@ class RoverMatterScene extends Phaser.Scene {
     }
 
     const now = this.time.now;
+    const roverX = this.roverBody.x;
 
-    if (!this.boneGuardWaveStarted && this.hasStarted) {
-      this.boneGuardWaveStarted = true;
-      this.nextBoneGuardSpawnAt = now + 900;
-      this.showStatusMessage("BONE GATE ACTIVE", "#cf9dff");
+    let desiredPhase = 0;
+    let spawnTarget = 0;
+
+    // Approach: 2 guards.
+    if (roverX >= 1050) {
+      desiredPhase = 1;
+      spawnTarget = 2;
+    }
+
+    // Fracture Pass: 2 more guards.
+    if (roverX >= 3000) {
+      desiredPhase = 2;
+      spawnTarget = 4;
+    }
+
+    // Portal Assault: final 3 guards.
+    if (roverX >= 5050) {
+      desiredPhase = 3;
+      spawnTarget = boneGuardCombatSpec.waveSize;
+    }
+
+    if (desiredPhase > this.boneGuardWavePhase) {
+      this.boneGuardWavePhase = desiredPhase;
+      this.boneGuardWaveStarted = desiredPhase > 0;
+      this.nextBoneGuardSpawnAt = now + 350;
+
+      if (desiredPhase === 1) {
+        this.showStatusMessage(
+          "FIRST CONTACT · BONE GUARDS INBOUND",
+          "#cf9dff",
+        );
+      } else if (desiredPhase === 2) {
+        this.showStatusMessage(
+          "FRACTURE PASS · HOSTILES ADVANCING",
+          "#cf9dff",
+        );
+      } else if (desiredPhase === 3) {
+        this.showStatusMessage(
+          "PORTAL ASSAULT · CLEAR THE GATE",
+          "#ffb4ff",
+        );
+      }
     }
 
     if (
       this.boneGuardWaveStarted &&
       !this.boneGuardWaveComplete &&
-      this.boneGuardsSpawned < boneGuardCombatSpec.waveSize &&
+      this.boneGuardsSpawned < spawnTarget &&
       this.getLivingBoneGuardCount() < boneGuardCombatSpec.maximumAlive &&
       now >= this.nextBoneGuardSpawnAt
     ) {
@@ -4475,7 +4650,122 @@ class RoverMatterScene extends Phaser.Scene {
       this.boneGuardsDefeated >= boneGuardCombatSpec.waveSize
     ) {
       this.boneGuardWaveComplete = true;
-      this.showStatusMessage("BONE GUARD WAVE CLEARED", "#8dffbf");
+      this.showStatusMessage(
+        "BONE GATE SECURED · EXIT OPEN",
+        "#8dffbf",
+      );
+      this.unlockCombatFinish();
+    }
+  }
+
+  private createCombatFinishBarrier() {
+    if (this.combatFinishBarrier) {
+      return;
+    }
+
+    const barrierX = this.levelConfig.finish.x - 115;
+    const pose = this.getTerrainPoseAtX(
+      barrierX,
+      this.levelConfig.finish.y,
+    );
+
+    const surfaceY = pose?.y ?? this.levelConfig.finish.y;
+    const height = 500;
+    const centreY = Math.max(120, surfaceY - height / 2);
+
+    this.combatFinishBarrier = this.matter.add.rectangle(
+      barrierX,
+      centreY,
+      34,
+      height,
+      {
+        isStatic: true,
+        label: "bone-gate-exit-barrier",
+      },
+    );
+
+    this.combatFinishBarrierGlow = this.add
+      .rectangle(
+        barrierX,
+        centreY,
+        72,
+        height,
+        0x8f3dff,
+        0.12,
+      )
+      .setDepth(28)
+      .setBlendMode(Phaser.BlendModes.ADD);
+
+    this.combatFinishBarrierVisual = this.add
+      .rectangle(
+        barrierX,
+        centreY,
+        16,
+        height,
+        0xb36cff,
+        0.82,
+      )
+      .setDepth(29)
+      .setBlendMode(Phaser.BlendModes.ADD);
+
+    this.add
+      .text(
+        barrierX - 18,
+        Math.max(85, surfaceY - height - 15),
+        "BONE GATE LOCK",
+        {
+          fontFamily: "Arial, sans-serif",
+          fontSize: "10px",
+          fontStyle: "bold",
+          color: "#d7b7ff",
+          letterSpacing: 2,
+        },
+      )
+      .setOrigin(1, 0.5)
+      .setDepth(30);
+
+    this.tweens.add({
+      targets: [
+        this.combatFinishBarrierGlow,
+        this.combatFinishBarrierVisual,
+      ],
+      alpha: { from: 0.45, to: 0.9 },
+      duration: 520,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+  }
+
+  private unlockCombatFinish() {
+    if (this.combatFinishBarrier) {
+      this.matter.world.remove(this.combatFinishBarrier);
+      this.combatFinishBarrier = undefined;
+    }
+
+    const visuals = [
+      this.combatFinishBarrierGlow,
+      this.combatFinishBarrierVisual,
+    ].filter(Boolean) as Phaser.GameObjects.Rectangle[];
+
+    for (const visual of visuals) {
+      this.tweens.killTweensOf(visual);
+    }
+
+    if (visuals.length > 0) {
+      this.tweens.add({
+        targets: visuals,
+        alpha: 0,
+        scaleX: 2.4,
+        duration: 430,
+        ease: "Cubic.easeOut",
+        onComplete: () => {
+          this.combatFinishBarrierGlow?.destroy();
+          this.combatFinishBarrierGlow = undefined;
+          this.combatFinishBarrierVisual?.destroy();
+          this.combatFinishBarrierVisual = undefined;
+        },
+      });
     }
   }
 
@@ -4539,6 +4829,11 @@ class RoverMatterScene extends Phaser.Scene {
         this.time.now +
         Phaser.Math.Between(500, 1100) -
         boneGuardCombatSpec.fireCooldownMs,
+      spawnPhase: Phaser.Math.Clamp(
+        this.boneGuardWavePhase,
+        1,
+        3,
+      ) as 1 | 2 | 3,
       healthBackground,
       healthFill,
     };
@@ -4678,12 +4973,24 @@ class RoverMatterScene extends Phaser.Scene {
     const targetX = this.roverBody.x + 25;
     const targetY = this.roverBody.y - 5;
 
-    const angle = Phaser.Math.Angle.Between(
+    const directAngle = Phaser.Math.Angle.Between(
       muzzleX,
       muzzleY,
       targetX,
       targetY,
     );
+
+    /*
+     * Phase 5F: Bone Guard fire is deliberately not hitscan-perfect.
+     * A small spread makes high-speed driving and jumping meaningful defensive
+     * tools while preserving a clear threat from several guards at once.
+     */
+    const angle =
+      directAngle +
+      Phaser.Math.FloatBetween(
+        -boneGuardCombatSpec.aimSpreadRadians,
+        boneGuardCombatSpec.aimSpreadRadians,
+      );
 
     const sprite = this.add
       .image(
@@ -4696,6 +5003,18 @@ class RoverMatterScene extends Phaser.Scene {
       .setBlendMode(Phaser.BlendModes.ADD);
 
     const speed = boneGuardCombatSpec.blasterSpeed;
+    const phaseMultiplier =
+      boneGuardCombatSpec.phaseDamageMultipliers[
+        guard.spawnPhase - 1
+      ] ?? 1;
+
+    const phaseDamage = Math.max(
+      1,
+      Math.round(
+        boneGuardCombatSpec.blasterDamage *
+          phaseMultiplier,
+      ),
+    );
 
     this.boneGuardProjectiles.push({
       sprite,
@@ -4703,7 +5022,7 @@ class RoverMatterScene extends Phaser.Scene {
       velocityY: Math.sin(angle) * speed,
       expiresAt:
         this.time.now + boneGuardCombatSpec.blasterLifetimeMs,
-      damage: boneGuardCombatSpec.blasterDamage,
+      damage: phaseDamage,
     });
 
     const flash = this.add
@@ -4798,6 +5117,12 @@ class RoverMatterScene extends Phaser.Scene {
       return;
     }
 
+    const actualDamage = Math.min(
+      guard.hp,
+      Math.max(0, damage),
+    );
+
+    this.damageDealt += actualDamage;
     guard.hp = Math.max(0, guard.hp - damage);
 
     guard.sprite.setTintFill(0xf2d7ff);
@@ -4953,23 +5278,75 @@ class RoverMatterScene extends Phaser.Scene {
     }
 
     this.lastCombatDamageAt = this.time.now;
+    this.shieldRegenActive = false;
+    this.shieldRegenAnnounced = false;
 
     const shieldBefore = this.roverShield;
-    const absorbedByShield = Math.min(this.roverShield, amount);
-    this.roverShield = Math.max(0, this.roverShield - absorbedByShield);
+    const absorbedByShield = Math.min(
+      this.roverShield,
+      amount,
+    );
 
-    const remainingDamage = Math.max(0, amount - absorbedByShield);
+    this.roverShield = Math.max(
+      0,
+      this.roverShield - absorbedByShield,
+    );
+
+    const remainingDamage = Math.max(
+      0,
+      amount - absorbedByShield,
+    );
 
     if (absorbedByShield > 0) {
+      this.shieldDamageAbsorbed += absorbedByShield;
+      this.damageReceived += absorbedByShield;
       this.showShieldImpact(absorbedByShield);
     }
 
+    if (
+      shieldBefore > 0 &&
+      this.roverShield <= 0
+    ) {
+      this.showStatusMessage("SHIELD DOWN", "#ffbd72");
+    }
+
     if (remainingDamage > 0) {
-      this.roverHp = Math.max(0, this.roverHp - remainingDamage);
+      /*
+       * Phase 5E: rover identity now affects actual combat survivability.
+       * Shield damage remains universal; hull armour only changes damage that
+       * penetrates the shield.
+       */
+      const hullDamage = Math.max(
+        1,
+        Math.round(
+          remainingDamage *
+            this.combatStats.hullDamageMultiplier,
+        ),
+      );
+
+      this.roverHp = Math.max(
+        0,
+        this.roverHp - hullDamage,
+      );
+
+      this.damageReceived += hullDamage;
       this.flashRoverDamage();
 
-      if (shieldBefore > 0 && this.roverShield <= 0) {
-        this.showStatusMessage("SHIELD DOWN", "#ffbd72");
+      if (
+        this.combatStats.hullDamageMultiplier < 1 &&
+        hullDamage < remainingDamage
+      ) {
+        const mitigated = Math.max(
+          0,
+          Math.round(remainingDamage - hullDamage),
+        );
+
+        if (mitigated > 0) {
+          this.showStatusMessage(
+            `ARMOUR ABSORBED ${mitigated}`,
+            "#ffd98a",
+          );
+        }
       }
     }
 
@@ -5130,6 +5507,23 @@ class RoverMatterScene extends Phaser.Scene {
       return;
     }
 
+    if (
+      Number(this.levelConfig.id) === 5 &&
+      !this.boneGuardWaveComplete
+    ) {
+      this.objectiveText
+        .setText(
+          `OBJECTIVE  DEFEAT BONE GUARDS · ${this.boneGuardsDefeated}/${boneGuardCombatSpec.waveSize}`,
+        )
+        .setColor("#e0b7ff");
+
+      this.showStatusMessage(
+        "EXIT SEALED · CLEAR THE BONE GATE",
+        "#d8adff",
+      );
+      return;
+    }
+
     const body = this.roverBody.body as MatterJS.BodyType | null;
 
     if (!body) {
@@ -5145,6 +5539,39 @@ class RoverMatterScene extends Phaser.Scene {
         (this.levelConfig.timeLimitSeconds - this.elapsedSeconds) * 15,
       ),
     );
+
+    if (this.combatMode) {
+      const accuracy =
+        this.shotsFired > 0
+          ? this.shotsHit / this.shotsFired
+          : 0;
+
+      const hpRatio = Phaser.Math.Clamp(
+        this.roverHp / Math.max(1, this.combatStats.maxHp),
+        0,
+        1,
+      );
+
+      const shieldRatio = Phaser.Math.Clamp(
+        this.roverShield /
+          Math.max(1, this.combatStats.maxShield),
+        0,
+        1,
+      );
+
+      /*
+       * Accuracy rewards controlled fire without overwhelming the course score.
+       * Survival rewards both hull preservation and intelligent shield use.
+       */
+      this.combatAccuracyBonus = Math.round(
+        accuracy * 750,
+      );
+
+      this.combatSurvivalBonus = Math.round(
+        hpRatio * 500 +
+          shieldRatio * 350,
+      );
+    }
 
     this.updateScore();
 
@@ -5170,34 +5597,72 @@ class RoverMatterScene extends Phaser.Scene {
           orbsCollected: this.collectedCount,
           checkpointsReached: this.reachedCheckpointCount,
           crashPenalty: this.crashPenalty,
+
+          combatMode: this.combatMode,
+          weaponLevel: this.weaponLevel,
+          weaponName: this.weaponSpec?.name ?? null,
+          boneGuardsDefeated: this.boneGuardsDefeated,
+          shotsFired: this.shotsFired,
+          shotsHit: this.shotsHit,
+          accuracyPercent:
+            this.shotsFired > 0
+              ? Math.round(
+                  (this.shotsHit / this.shotsFired) * 1000,
+                ) / 10
+              : 0,
+          damageDealt: Math.round(this.damageDealt),
+          damageReceived: Math.round(this.damageReceived),
+          shieldDamageAbsorbed: Math.round(
+            this.shieldDamageAbsorbed,
+          ),
+          remainingHp: Math.round(this.roverHp),
+          maxHp: this.combatStats.maxHp,
+          remainingShield: Math.round(this.roverShield),
+          maxShield: this.combatStats.maxShield,
+          combatScore: this.combatScore,
+          accuracyBonus: this.combatAccuracyBonus,
+          survivalBonus: this.combatSurvivalBonus,
         },
       }),
     );
   }
 
   private showFinishResults() {
+    const isCombatResult = this.combatMode;
+
     const overlay = this.add.rectangle(
       GAME_WIDTH / 2,
       GAME_HEIGHT / 2,
-      840,
-      550,
+      isCombatResult ? 980 : 840,
+      isCombatResult ? 650 : 550,
       0x050816,
-      0.95,
+      0.96,
     );
 
-    overlay.setStrokeStyle(2, 0x7fffe5, 0.35);
+    overlay.setStrokeStyle(
+      2,
+      isCombatResult ? 0xb77cff : 0x7fffe5,
+      0.42,
+    );
 
     overlay.setScrollFactor(0);
     overlay.setDepth(200);
 
     this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 210, "COURSE COMPLETE", {
-        fontFamily: "Arial, sans-serif",
-        fontSize: "42px",
-        fontStyle: "bold",
-        color: "#baffdf",
-        letterSpacing: 4,
-      })
+      .text(
+        GAME_WIDTH / 2,
+        GAME_HEIGHT / 2 - (isCombatResult ? 270 : 210),
+        isCombatResult
+          ? "BONE GATE SECURED"
+          : "COURSE COMPLETE",
+        {
+          fontFamily: "Arial, sans-serif",
+          fontSize: isCombatResult ? "40px" : "42px",
+          fontStyle: "bold",
+          color: isCombatResult ? "#e2c1ff" : "#baffdf",
+          letterSpacing: 4,
+        },
+      )
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(201);
@@ -5205,7 +5670,7 @@ class RoverMatterScene extends Phaser.Scene {
     this.add
       .text(
         GAME_WIDTH / 2,
-        GAME_HEIGHT / 2 - 140,
+        GAME_HEIGHT / 2 - (isCombatResult ? 216 : 140),
         `FINAL SCORE  ${this.score.toLocaleString()}`,
         {
           fontFamily: "Arial, sans-serif",
@@ -5218,39 +5683,123 @@ class RoverMatterScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(201);
 
-    const results = [
-      `Course time: ${this.formatTime(this.elapsedSeconds)}`,
-      `Distance points: ${this.distanceScore.toLocaleString()}`,
-      `Energy orbs: ${this.collectedCount} / ${this.collectibles.length}  (+${this.collectibleScore.toLocaleString()})`,
-      `Checkpoints: ${this.reachedCheckpointCount} / ${this.checkpoints.length}  (+${this.checkpointScore.toLocaleString()})`,
-      `Completion bonus: +${this.completionScore.toLocaleString()}`,
-      `Time bonus: +${this.timeBonus.toLocaleString()}`,
-      `Crash penalties: -${this.crashPenalty.toLocaleString()}`,
-    ];
+    if (isCombatResult) {
+      const accuracy =
+        this.shotsFired > 0
+          ? (this.shotsHit / this.shotsFired) * 100
+          : 0;
 
-    this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 25, results.join("\n"), {
-        fontFamily: "Arial, sans-serif",
-        fontSize: "18px",
-        color: "#c7d4e8",
-        align: "center",
-        lineSpacing: 11,
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(201);
+      const leftResults = [
+        `Course time: ${this.formatTime(this.elapsedSeconds)}`,
+        `Bone Guards: ${this.boneGuardsDefeated} / ${boneGuardCombatSpec.waveSize}`,
+        `Shots fired: ${this.shotsFired}`,
+        `Shots hit: ${this.shotsHit}`,
+        `Accuracy: ${accuracy.toFixed(1)}%`,
+        `Damage dealt: ${Math.round(this.damageDealt).toLocaleString()}`,
+      ];
+
+      const rightResults = [
+        `Damage received: ${Math.round(this.damageReceived).toLocaleString()}`,
+        `Shield absorbed: ${Math.round(this.shieldDamageAbsorbed).toLocaleString()}`,
+        `HP remaining: ${Math.round(this.roverHp)} / ${this.combatStats.maxHp}`,
+        `Shield remaining: ${Math.round(this.roverShield)} / ${this.combatStats.maxShield}`,
+        `Accuracy bonus: +${this.combatAccuracyBonus.toLocaleString()}`,
+        `Survival bonus: +${this.combatSurvivalBonus.toLocaleString()}`,
+      ];
+
+      this.add
+        .text(
+          GAME_WIDTH / 2 - 230,
+          GAME_HEIGHT / 2 - 40,
+          leftResults.join("\n"),
+          {
+            fontFamily: "Arial, sans-serif",
+            fontSize: "17px",
+            color: "#d6dfef",
+            align: "left",
+            lineSpacing: 12,
+          },
+        )
+        .setOrigin(0.5, 0)
+        .setScrollFactor(0)
+        .setDepth(201);
+
+      this.add
+        .text(
+          GAME_WIDTH / 2 + 230,
+          GAME_HEIGHT / 2 - 40,
+          rightResults.join("\n"),
+          {
+            fontFamily: "Arial, sans-serif",
+            fontSize: "17px",
+            color: "#d6dfef",
+            align: "left",
+            lineSpacing: 12,
+          },
+        )
+        .setOrigin(0.5, 0)
+        .setScrollFactor(0)
+        .setDepth(201);
+
+      this.add
+        .text(
+          GAME_WIDTH / 2,
+          GAME_HEIGHT / 2 + 205,
+          `${this.weaponSpec?.name ?? "No weapon"} · Combat +${(
+            this.combatScore +
+            this.combatAccuracyBonus +
+            this.combatSurvivalBonus
+          ).toLocaleString()} pts`,
+          {
+            fontFamily: "Arial, sans-serif",
+            fontSize: "15px",
+            fontStyle: "bold",
+            color: "#ffd98a",
+          },
+        )
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(201);
+    } else {
+      const results = [
+        `Course time: ${this.formatTime(this.elapsedSeconds)}`,
+        `Distance points: ${this.distanceScore.toLocaleString()}`,
+        `Energy orbs: ${this.collectedCount} / ${this.collectibles.length}  (+${this.collectibleScore.toLocaleString()})`,
+        `Checkpoints: ${this.reachedCheckpointCount} / ${this.checkpoints.length}  (+${this.checkpointScore.toLocaleString()})`,
+        `Completion bonus: +${this.completionScore.toLocaleString()}`,
+        `Time bonus: +${this.timeBonus.toLocaleString()}`,
+        `Crash penalties: -${this.crashPenalty.toLocaleString()}`,
+      ];
+
+      this.add
+        .text(
+          GAME_WIDTH / 2,
+          GAME_HEIGHT / 2 + 25,
+          results.join("\n"),
+          {
+            fontFamily: "Arial, sans-serif",
+            fontSize: "18px",
+            color: "#c7d4e8",
+            align: "center",
+            lineSpacing: 11,
+          },
+        )
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(201);
+    }
 
     this.add
       .text(
         GAME_WIDTH / 2,
-        GAME_HEIGHT / 2 + 235,
+        GAME_HEIGHT / 2 + (isCombatResult ? 280 : 235),
         "PRESS R TO RUN THE COURSE AGAIN",
         {
           fontFamily: "Arial, sans-serif",
           fontSize: "15px",
           fontStyle: "bold",
-          color: "#7cecff",
-          letterSpacing: 3,
+          color: "#ffd76a",
+          letterSpacing: 2,
         },
       )
       .setOrigin(0.5)

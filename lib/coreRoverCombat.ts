@@ -1,6 +1,19 @@
 export type CoreRoverCombatStats = {
   maxHp: number;
   maxShield: number;
+
+  /**
+   * Phase 5E combat identity.
+   *
+   * hullDamageMultiplier applies only after the shield has been depleted.
+   * 1.00 = normal hull damage
+   * 0.78 = 22% hull damage reduction
+   * 1.05 = 5% additional hull damage
+   */
+  combatRole: string;
+  combatTrait: string;
+  hullDamageMultiplier: number;
+
   shieldRegenDelayMs: number;
   shieldRegenPerSecond: number;
 };
@@ -32,32 +45,101 @@ export type CoreRoverWeaponSpec = {
   canReacquireTarget: boolean;
 };
 
-const BASE_REGEN_DELAY_MS = 4000;
-const BASE_REGEN_FRACTION_PER_SECOND = 0.08;
+type CoreRoverCombatProfile = {
+  maxHp: number;
+  maxShield: number;
+  combatRole: string;
+  combatTrait: string;
+  hullDamageMultiplier: number;
+  shieldRegenDelayMs: number;
+  shieldRegenFractionPerSecond: number;
+};
 
-const COMBAT_BY_STAGE: Record<
-  number,
-  { maxHp: number; maxShield: number }
-> = {
-  0: { maxHp: 750, maxShield: 250 }, // Scout Buggy
-  1: { maxHp: 800, maxShield: 300 }, // Ignition Runner
-  2: { maxHp: 850, maxShield: 400 }, // Pathfinder Command
-  3: { maxHp: 780, maxShield: 350 }, // Turbo Striker
-  4: { maxHp: 1200, maxShield: 600 }, // Aegis Defender
-  5: { maxHp: 950, maxShield: 700 }, // Nova Hover X
+const COMBAT_BY_STAGE: Record<number, CoreRoverCombatProfile> = {
+  0: {
+    // Rover 1 · Scout Buggy
+    maxHp: 750,
+    maxShield: 250,
+    combatRole: "RECON SKIRMISHER",
+    combatTrait: "FAST SHIELD RECOVERY",
+    hullDamageMultiplier: 1,
+    shieldRegenDelayMs: 3400,
+    shieldRegenFractionPerSecond: 0.1,
+  },
+
+  1: {
+    // Rover 2 · Ignition Runner
+    maxHp: 800,
+    maxShield: 300,
+    combatRole: "ASSAULT RUNNER",
+    combatTrait: "MOBILE ATTACK PLATFORM",
+    hullDamageMultiplier: 0.98,
+    shieldRegenDelayMs: 3700,
+    shieldRegenFractionPerSecond: 0.09,
+  },
+
+  2: {
+    // Rover 3 · Pathfinder Command
+    maxHp: 850,
+    maxShield: 400,
+    combatRole: "TACTICAL ALL-ROUNDER",
+    combatTrait: "BALANCED ARMOUR + SHIELD",
+    hullDamageMultiplier: 0.92,
+    shieldRegenDelayMs: 3900,
+    shieldRegenFractionPerSecond: 0.085,
+  },
+
+  3: {
+    // Rover 4 · Turbo Striker
+    maxHp: 780,
+    maxShield: 350,
+    combatRole: "GLASS CANNON",
+    combatTrait: "HIGH PERFORMANCE · LIGHT ARMOUR",
+    hullDamageMultiplier: 1.05,
+    shieldRegenDelayMs: 3500,
+    shieldRegenFractionPerSecond: 0.085,
+  },
+
+  4: {
+    // Rover 5 · Aegis Defender
+    maxHp: 1200,
+    maxShield: 600,
+    combatRole: "HEAVY TANK",
+    combatTrait: "22% HULL DAMAGE REDUCTION",
+    hullDamageMultiplier: 0.78,
+    shieldRegenDelayMs: 4400,
+    shieldRegenFractionPerSecond: 0.065,
+  },
+
+  5: {
+    // Rover 6 · Nova Hover X
+    maxHp: 950,
+    maxShield: 700,
+    combatRole: "SHIELD VANGUARD",
+    combatTrait: "FASTEST SHIELD RECHARGE",
+    hullDamageMultiplier: 0.9,
+    shieldRegenDelayMs: 3000,
+    shieldRegenFractionPerSecond: 0.11,
+  },
 };
 
 export function getCoreRoverCombatStats(
   roverStage: number,
 ): CoreRoverCombatStats {
-  const resolved = COMBAT_BY_STAGE[roverStage] ?? COMBAT_BY_STAGE[0];
+  const resolved =
+    COMBAT_BY_STAGE[roverStage] ??
+    COMBAT_BY_STAGE[0];
 
   return {
     maxHp: resolved.maxHp,
     maxShield: resolved.maxShield,
-    shieldRegenDelayMs: BASE_REGEN_DELAY_MS,
+    combatRole: resolved.combatRole,
+    combatTrait: resolved.combatTrait,
+    hullDamageMultiplier: resolved.hullDamageMultiplier,
+    shieldRegenDelayMs: resolved.shieldRegenDelayMs,
     shieldRegenPerSecond:
-      resolved.maxShield * BASE_REGEN_FRACTION_PER_SECOND,
+      resolved.maxShield *
+      resolved.shieldRegenFractionPerSecond,
   };
 }
 
@@ -166,7 +248,15 @@ export type BoneGuardCombatSpec = {
   maxHp: number;
   moveSpeed: number;
   stopRange: number;
+
+  /**
+   * Phase 5F balancing.
+   * The three course sections scale incoming Bone Guard damage gradually.
+   */
   blasterDamage: number;
+  phaseDamageMultipliers: readonly [number, number, number];
+  aimSpreadRadians: number;
+
   fireCooldownMs: number;
   blasterSpeed: number;
   blasterLifetimeMs: number;
@@ -178,14 +268,20 @@ export type BoneGuardCombatSpec = {
 
 export const boneGuardCombatSpec: BoneGuardCombatSpec = {
   maxHp: 180,
-  moveSpeed: 118,
-  stopRange: 560,
-  blasterDamage: 60,
-  fireCooldownMs: 1450,
-  blasterSpeed: 520,
-  blasterLifetimeMs: 2800,
-  waveSize: 5,
-  spawnIntervalMs: 3400,
+  moveSpeed: 210,
+  stopRange: 610,
+
+  // Base hit = 52.
+  // Approach = 44, Fracture Pass = 52, Portal Assault = 57.
+  blasterDamage: 52,
+  phaseDamageMultipliers: [0.85, 1, 1.1],
+  aimSpreadRadians: 0.045,
+
+  fireCooldownMs: 1600,
+  blasterSpeed: 500,
+  blasterLifetimeMs: 3000,
+  waveSize: 7,
+  spawnIntervalMs: 2600,
   maximumAlive: 3,
   defeatScore: 250,
 };

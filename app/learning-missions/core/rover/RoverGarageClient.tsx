@@ -1523,6 +1523,7 @@ function ExpeditionMap({
   if (mapStage === 2) {
     return (
       <StageTwoMap
+        access={access}
         isAdmin={isAdmin}
         stageTwoUnlocked={stageTwoUnlocked}
         equippedRover={equippedRover}
@@ -1679,17 +1680,26 @@ function ExpeditionMap({
 }
 
 function StageTwoMap({
+  access,
   isAdmin,
   stageTwoUnlocked,
   equippedRover,
   onBack,
 }: {
+  access: RoverLevelAccess[];
   isAdmin: boolean;
   stageTwoUnlocked: boolean;
   equippedRover: (typeof coreUpgradeTrack)[number];
   onBack: () => void;
 }) {
   const router = useRouter();
+
+  const expeditionFiveAccess = access.find(
+    (row) => Number(row.level_id) === 5,
+  );
+
+  const expeditionFiveCompleted =
+    Boolean(expeditionFiveAccess?.completed);
 
   if (!isAdmin && !stageTwoUnlocked) {
     return (
@@ -1755,23 +1765,53 @@ function StageTwoMap({
         type="button"
         onClick={() =>
           router.push(
-            "/learning-missions/core/rover-challenge/expedition-05",
+            "/learning-missions/core/rover-challenge/5",
           )
         }
         style={stageFiveNode}
       >
-        <span style={mapLocationRing(true, false)}>5</span>
+        <span
+          style={mapLocationRing(true, expeditionFiveCompleted)}
+        >
+          {expeditionFiveCompleted ? "✓" : "5"}
+        </span>
 
-        <span style={mapLocationCard(true, false)}>
+        <span
+          style={mapLocationCard(true, expeditionFiveCompleted)}
+        >
           <strong>Expedition 5</strong>
-          <small>Unknown Sector</small>
-          <em>Unlocked</em>
+          <small>Boneguard Breach</small>
+          <em>
+            {expeditionFiveCompleted
+              ? "Completed · Bone Gate Secured"
+              : "Unlocked · Combat Expedition"}
+          </em>
         </span>
       </button>
 
-      <div style={stageTwoFutureRegion}>
-        <span>Further regions</span>
-        <strong>Coming later</strong>
+      <div
+        style={{
+          ...stageTwoFutureRegion,
+          ...(expeditionFiveCompleted
+            ? stageTwoFutureRegionRevealed
+            : {}),
+        }}
+      >
+        <span>
+          {expeditionFiveCompleted
+            ? "NEXT SECTOR DETECTED"
+            : "Further regions"}
+        </span>
+        <strong>
+          {expeditionFiveCompleted
+            ? "Expedition 6 · Coming Soon"
+            : "Coming later"}
+        </strong>
+        {expeditionFiveCompleted && (
+          <small>
+            Boneguard Breach cleared
+          </small>
+        )}
       </div>
 
       {isAdmin && (
@@ -2448,7 +2488,7 @@ function PerformanceUpgradeBox({
     1,
     Math.min(
       5,
-      Number(row.next_level ?? (currentLevel || 1)),
+      Number(row.next_level ?? currentLevel || 1),
     ),
   );
 
@@ -5335,6 +5375,15 @@ const stageTwoFutureRegion: CSSProperties = {
   gap: "3px",
   textAlign: "center",
   fontSize: "9px",
+};
+
+const stageTwoFutureRegionRevealed: CSSProperties = {
+  border: "1px solid rgba(191,141,255,0.42)",
+  background:
+    "radial-gradient(circle,rgba(103,61,164,0.24),rgba(8,9,24,0.58) 70%)",
+  color: "rgba(230,211,255,0.88)",
+  boxShadow:
+    "0 0 24px rgba(143,80,230,0.22), inset 0 0 20px rgba(126,232,255,0.05)",
 };
 
 const loadingFill: CSSProperties = {

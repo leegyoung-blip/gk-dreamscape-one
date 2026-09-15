@@ -34,6 +34,25 @@ type RoverCourseCompleteDetail = {
   orbsCollected: number;
   checkpointsReached: number;
   crashPenalty: number;
+
+  // Phase 5G combat report.
+  combatMode?: boolean;
+  weaponLevel?: number;
+  weaponName?: string | null;
+  boneGuardsDefeated?: number;
+  shotsFired?: number;
+  shotsHit?: number;
+  accuracyPercent?: number;
+  damageDealt?: number;
+  damageReceived?: number;
+  shieldDamageAbsorbed?: number;
+  remainingHp?: number;
+  maxHp?: number;
+  remainingShield?: number;
+  maxShield?: number;
+  combatScore?: number;
+  accuracyBonus?: number;
+  survivalBonus?: number;
 };
 
 type SubmitLevelRow = {
@@ -306,6 +325,9 @@ export default function RoverChallengeClient({
         result.completionTimeMs,
         result.orbsCollected,
         result.crashPenalty,
+        result.boneGuardsDefeated ?? 0,
+        result.shotsFired ?? 0,
+        result.shotsHit ?? 0,
       ].join(":");
 
       if (submittedRunRef.current === runKey) return;
@@ -338,7 +360,7 @@ export default function RoverChallengeClient({
       }
 
       const saved = ((data ?? []) as SubmitLevelRow[])[0];
-      const hasNextLevel = result.levelId < 4;
+      const hasNextLevel = result.levelId < 5;
       const nextIsReady = Boolean(saved?.accepted && saved.unlocked_next_level);
 
       setNextLevelUnlocked(nextIsReady);
@@ -350,7 +372,9 @@ export default function RoverChallengeClient({
             ? nextIsReady
               ? `Level ${result.levelId} completion saved. Level ${result.levelId + 1} is ready.`
               : `Level ${result.levelId} completion saved. Level ${result.levelId + 1} now needs its required rover ownership or a Dream Gem early unlock.`
-            : "Completion saved. You can replay this level at any time.",
+            : result.levelId === 5
+              ? "Boneguard Breach saved. The next Stage 2 sector has been revealed."
+              : "Completion saved. You can replay this level at any time.",
       );
 
       window.dispatchEvent(new Event("rover-level-progress-updated"));
@@ -578,8 +602,15 @@ export default function RoverChallengeClient({
     window.dispatchEvent(new Event("rover-restart-requested"));
   };
 
+  const combatWeaponRequired =
+    levelId >= 5 &&
+    Boolean(userId && access?.unlocked) &&
+    currentWeaponLevel <= 0;
+
   const canPlay =
-    Boolean(userId && access?.unlocked) && levelConfig.status === "playable";
+    Boolean(userId && access?.unlocked) &&
+    levelConfig.status === "playable" &&
+    !combatWeaponRequired;
 
   return (
     <main className="fixed inset-0 h-[100dvh] w-[100vw] max-w-none overflow-hidden bg-[#050713] text-white">
@@ -589,6 +620,10 @@ export default function RoverChallengeClient({
       >
         {loading ? (
           <LoadingScreen label="CHECKING LEVEL ACCESS" />
+        ) : combatWeaponRequired ? (
+          <CombatLoadoutGate
+            roverName={currentUpgrade.name}
+          />
         ) : canPlay ? (
           <PhaserGame
             levelConfig={levelConfig}
@@ -647,6 +682,47 @@ export default function RoverChallengeClient({
         )}
       </div>
     </main>
+  );
+}
+
+function CombatLoadoutGate({
+  roverName,
+}: {
+  roverName: string;
+}) {
+  return (
+    <div className="grid h-full place-items-center bg-[radial-gradient(circle_at_50%_24%,#29134b_0%,#0b1025_46%,#050713_100%)] px-5">
+      <section className="w-full max-w-xl rounded-3xl border border-amber-200/25 bg-[#071126]/95 p-8 text-center shadow-[0_30px_100px_rgba(0,0,0,0.6)]">
+        <p className="text-xs font-black tracking-[0.28em] text-amber-300">
+          EXPEDITION 5 · COMBAT LOADOUT
+        </p>
+
+        <h1 className="mt-4 text-3xl font-black">
+          Install a weapon before deployment
+        </h1>
+
+        <p className="mx-auto mt-4 max-w-md leading-7 text-slate-300">
+          Boneguard Breach requires you to defeat the Bone Guards before the
+          exit opens. Your active rover, <strong>{roverName}</strong>, currently
+          has no weapon installed.
+        </p>
+
+        <div className="mx-auto mt-6 max-w-md rounded-2xl border border-amber-200/15 bg-amber-300/[0.06] p-4 text-left text-sm text-amber-50/80">
+          <strong className="text-amber-200">Minimum requirement</strong>
+          <p className="mt-1">
+            Install at least the Tier 1 Skyforge Machine Gun in My Rover →
+            Custom Build → Weapons.
+          </p>
+        </div>
+
+        <Link
+          href="/learning-missions/core/rover"
+          className="mt-7 inline-flex rounded-xl bg-gradient-to-r from-[#ffe08a] to-[#efa93e] px-6 py-3 font-black text-[#241704] shadow-[0_12px_30px_rgba(217,155,50,0.2)]"
+        >
+          Return to My Rover
+        </Link>
+      </section>
+    </div>
   );
 }
 
@@ -802,21 +878,137 @@ function CompletionOverlay({
   nextLevelUnlocked: boolean;
   onReplay: () => void;
 }) {
+  const isCombatResult =
+    result.levelId >= 5 || Boolean(result.combatMode);
+
+  const combatBonus =
+    (result.combatScore ?? 0) +
+    (result.accuracyBonus ?? 0) +
+    (result.survivalBonus ?? 0);
+
   return (
-    <div className="absolute inset-0 z-[120] grid place-items-center bg-[#02040c]/80 px-5 backdrop-blur-sm">
-      <section className="w-full max-w-2xl rounded-3xl border border-emerald-200/30 bg-[#071126]/95 p-7 text-center shadow-[0_30px_100px_rgba(0,0,0,0.65)] sm:p-10">
-        <p className="text-xs font-black tracking-[0.28em] text-emerald-300">LEVEL {result.levelId} COMPLETE</p>
-        <h2 className="mt-3 text-4xl font-black">{result.score.toLocaleString()} points</h2>
-        <div className="mx-auto mt-6 grid max-w-lg grid-cols-3 gap-3 text-sm">
-          <ResultStat label="Time" value={formatMilliseconds(result.completionTimeMs)} />
-          <ResultStat label="Orbs" value={String(result.orbsCollected)} />
-          <ResultStat label="Checkpoints" value={String(result.checkpointsReached)} />
-        </div>
-        <p className="mt-5 min-h-6 text-sm text-cyan-100/75">{saveMessage}</p>
+    <div className="absolute inset-0 z-[120] grid place-items-center overflow-y-auto bg-[#02040c]/85 px-5 py-5 backdrop-blur-sm">
+      <section
+        className={
+          isCombatResult
+            ? "w-full max-w-4xl rounded-3xl border border-violet-200/30 bg-[#071126]/95 p-6 text-center shadow-[0_30px_100px_rgba(0,0,0,0.7)] sm:p-8"
+            : "w-full max-w-2xl rounded-3xl border border-emerald-200/30 bg-[#071126]/95 p-7 text-center shadow-[0_30px_100px_rgba(0,0,0,0.65)] sm:p-10"
+        }
+      >
+        <p
+          className={
+            isCombatResult
+              ? "text-xs font-black tracking-[0.28em] text-violet-300"
+              : "text-xs font-black tracking-[0.28em] text-emerald-300"
+          }
+        >
+          {isCombatResult
+            ? "EXPEDITION 5 · BONE GATE SECURED"
+            : `LEVEL ${result.levelId} COMPLETE`}
+        </p>
+
+        <h2 className="mt-3 text-4xl font-black">
+          {result.score.toLocaleString()} points
+        </h2>
+
+        {isCombatResult ? (
+          <>
+            <div className="mx-auto mt-5 grid max-w-3xl grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+              <ResultStat
+                label="Bone Guards"
+                value={`${result.boneGuardsDefeated ?? 0}/7`}
+              />
+              <ResultStat
+                label="Accuracy"
+                value={`${(result.accuracyPercent ?? 0).toFixed(1)}%`}
+              />
+              <ResultStat
+                label="Damage Dealt"
+                value={(result.damageDealt ?? 0).toLocaleString()}
+              />
+              <ResultStat
+                label="Damage Taken"
+                value={(result.damageReceived ?? 0).toLocaleString()}
+              />
+              <ResultStat
+                label="Shield Absorbed"
+                value={(result.shieldDamageAbsorbed ?? 0).toLocaleString()}
+              />
+              <ResultStat
+                label="HP Remaining"
+                value={`${result.remainingHp ?? 0}/${result.maxHp ?? 0}`}
+              />
+              <ResultStat
+                label="Shield Remaining"
+                value={`${result.remainingShield ?? 0}/${result.maxShield ?? 0}`}
+              />
+              <ResultStat
+                label="Time"
+                value={formatMilliseconds(result.completionTimeMs)}
+              />
+            </div>
+
+            <div className="mx-auto mt-4 grid max-w-3xl grid-cols-3 gap-3 text-sm">
+              <ResultStat
+                label="Shots"
+                value={`${result.shotsHit ?? 0}/${result.shotsFired ?? 0}`}
+              />
+              <ResultStat
+                label="Combat Bonus"
+                value={`+${combatBonus.toLocaleString()}`}
+              />
+              <ResultStat
+                label="Weapon"
+                value={result.weaponName ?? "Unknown"}
+              />
+            </div>
+          </>
+        ) : (
+          <div className="mx-auto mt-6 grid max-w-lg grid-cols-3 gap-3 text-sm">
+            <ResultStat
+              label="Time"
+              value={formatMilliseconds(result.completionTimeMs)}
+            />
+            <ResultStat
+              label="Orbs"
+              value={String(result.orbsCollected)}
+            />
+            <ResultStat
+              label="Checkpoints"
+              value={String(result.checkpointsReached)}
+            />
+          </div>
+        )}
+
+        <p className="mt-5 min-h-6 text-sm text-cyan-100/75">
+          {saveMessage}
+        </p>
+
+        {isCombatResult && (
+          <div className="mx-auto mt-3 max-w-2xl rounded-2xl border border-violet-200/15 bg-violet-400/[0.06] px-4 py-3 text-sm text-violet-100/75">
+            Stage 2 progression updated. The next sector is now visible on the
+            Expeditions map, but its expedition will remain unavailable until
+            the next mission is built.
+          </div>
+        )}
+
         <div className="mt-6 flex flex-wrap justify-center gap-3">
-          <button type="button" onClick={onReplay} className="rounded-xl border border-white/20 px-5 py-3 font-bold hover:bg-white/10">Replay</button>
-          <Link href="/learning-missions/core/rover" className="rounded-xl border border-white/20 px-5 py-3 font-bold hover:bg-white/10">Back to My Rover</Link>
-          {result.levelId < 4 && (
+          <button
+            type="button"
+            onClick={onReplay}
+            className="rounded-xl border border-white/20 px-5 py-3 font-bold hover:bg-white/10"
+          >
+            Replay
+          </button>
+
+          <Link
+            href="/learning-missions/core/rover"
+            className="rounded-xl border border-white/20 px-5 py-3 font-bold hover:bg-white/10"
+          >
+            {isCombatResult ? "Return to Expeditions" : "Back to My Rover"}
+          </Link>
+
+          {result.levelId < 5 && (
             <Link
               href={`/learning-missions/core/rover-challenge/${result.levelId + 1}`}
               className={
