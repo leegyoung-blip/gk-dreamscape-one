@@ -165,7 +165,25 @@ const ROVER_COURSES: RoverCourseMeta[] = [
       "Keep moving across unstable roads as the Dreamkeeper tears the course apart.",
     orbTotal: 9,
   },
+  {
+    id: 5,
+    courseId: "boneguard-breach-05",
+    title: "Boneguard Breach",
+    description:
+      "Enter Beyond the Fracture, fight off the Bone Guards and secure the Bone Gate.",
+    orbTotal: 8,
+  },
 ];
+
+const STAGE_ONE_LEVEL_IDS = [1, 2, 3, 4] as const;
+type StageOneLevelId = (typeof STAGE_ONE_LEVEL_IDS)[number];
+
+const STAGE_ONE_COURSES = ROVER_COURSES.filter(
+  (
+    course,
+  ): course is RoverCourseMeta & { id: StageOneLevelId } =>
+    STAGE_ONE_LEVEL_IDS.includes(course.id as StageOneLevelId),
+);
 
 function useResponsiveMode() {
   const [mode, setMode] = useState<ScreenMode>("desktop");
@@ -305,6 +323,7 @@ export default function RoverGarageClient() {
     2: [],
     3: [],
     4: [],
+    5: [],
   });
 
   const [courseLoadMessage, setCourseLoadMessage] = useState("");
@@ -403,6 +422,7 @@ export default function RoverGarageClient() {
         levelTwoLeaderboardResult,
         levelThreeLeaderboardResult,
         levelFourLeaderboardResult,
+        levelFiveLeaderboardResult,
       ] = await Promise.all([
         supabase.rpc("get_my_core_rover_catalog"),
 
@@ -450,6 +470,11 @@ export default function RoverGarageClient() {
 
         supabase.rpc("get_rover_challenge_visible_leaderboard", {
           p_course_id: "fracture-run-04",
+          p_limit: 10,
+        }),
+
+        supabase.rpc("get_rover_challenge_visible_leaderboard", {
+          p_course_id: "boneguard-breach-05",
           p_limit: 10,
         }),
       ]);
@@ -702,20 +727,22 @@ export default function RoverGarageClient() {
         levelOneLeaderboardResult.error ||
         levelTwoLeaderboardResult.error ||
         levelThreeLeaderboardResult.error ||
-        levelFourLeaderboardResult.error;
+        levelFourLeaderboardResult.error ||
+        levelFiveLeaderboardResult.error;
 
       if (leaderboardError) {
         console.warn(
           "Could not load rover leaderboard:",
           leaderboardError.message,
         );
-        setLeaderboards({ 1: [], 2: [], 3: [], 4: [] });
+        setLeaderboards({ 1: [], 2: [], 3: [], 4: [], 5: [] });
       } else {
         setLeaderboards({
           1: (levelOneLeaderboardResult.data ?? []) as LeaderboardRow[],
           2: (levelTwoLeaderboardResult.data ?? []) as LeaderboardRow[],
           3: (levelThreeLeaderboardResult.data ?? []) as LeaderboardRow[],
           4: (levelFourLeaderboardResult.data ?? []) as LeaderboardRow[],
+          5: (levelFiveLeaderboardResult.data ?? []) as LeaderboardRow[],
         });
       }
 
@@ -1501,7 +1528,7 @@ function ExpeditionMap({
     isAdmin || Boolean(levelFour?.completed);
 
   const positions: Record<
-    RoverLevelId,
+    StageOneLevelId,
     { left: string; top: string }
   > = {
     1: { left: "13.2%", top: "61.5%" },
@@ -1582,7 +1609,7 @@ function ExpeditionMap({
         </div>
       </div>
 
-      {ROVER_COURSES.map((course) => {
+      {STAGE_ONE_COURSES.map((course) => {
         const row = accessFor(course.id);
         const completed = Boolean(row?.completed);
         const unlocked = levelUnlocked(course.id);
@@ -1905,7 +1932,7 @@ function RoverCoursesPanel({
         <div
           style={{
             ...leaderboardLevelTabs,
-            gridTemplateColumns: "repeat(4,minmax(0,1fr))",
+            gridTemplateColumns: "repeat(5,minmax(0,1fr))",
           }}
         >
           {ROVER_COURSES.map((course) => (
@@ -2488,7 +2515,7 @@ function PerformanceUpgradeBox({
     1,
     Math.min(
       5,
-      Number(row.next_level ?? currentLevel || 1),
+      Number(row.next_level ?? currentLevel),
     ),
   );
 
