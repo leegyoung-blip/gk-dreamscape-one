@@ -82,6 +82,10 @@ export type CurriculumConcept = {
   external_ref?: string | null;
   /** Parent-friendly explanation used by Mastery Map info tips. */
   public_explanation?: string | null;
+  /** Active/review flags exposed by the canonical Mastery Map catalogue. */
+  is_active?: boolean;
+  review_status?: string | null;
+  parent_skill_id?: string | null;
   has_evidence: boolean;
   mastery_score: number | null;
   confidence_score: number | null;

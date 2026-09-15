@@ -81,12 +81,19 @@ export type NovaConceptScope = {
 };
 
 /**
- * English Listening / Viewing is intentionally outside NOVA+ assessment scope.
- * Keep this shared so Strengths & Gaps, Mastery Map, recommendations and reports
- * all use the same curriculum boundary.
+ * Customer-facing NOVA+ assessment boundary.
+ *
+ * - Science remains intentionally locked until its canonical question mapping
+ *   is rolled out. Do not let old/broad Science rows leak into premium views.
+ * - English Listening / Viewing is intentionally outside the assessed product.
+ *
+ * Keep this shared so Strengths & Gaps, Mastery Map, recommendations, reports
+ * and the future uploaded-work pipeline all use the same curriculum boundary.
  */
 export function isNovaPlusAssessedConcept(scope: NovaConceptScope) {
   const subject = String(scope.subject || "").trim().toLowerCase();
+
+  if (subject === "science") return false;
   if (subject !== "english") return true;
 
   const area = [scope.domain, scope.topic, scope.skill_name]

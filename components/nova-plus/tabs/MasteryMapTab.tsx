@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   CurriculumConcept,
   NovaPlusProfilePayload,
@@ -19,6 +19,7 @@ type Props = {
 };
 
 type AcademicSubject = "english" | "math" | "science";
+type LiveAcademicSubject = "english" | "math";
 type MapState = "strong" | "developing" | "attention" | "unknown";
 
 type TopicGroup = {
@@ -34,7 +35,91 @@ type TopicGroup = {
   assessed: number;
 };
 
+type SubjectSummary = {
+  subject: AcademicSubject;
+  total: number;
+  assessed: number;
+  strong: number;
+  developing: number;
+  attention: number;
+  unknown: number;
+  locked: boolean;
+};
+
 const SUBJECT_ORDER: AcademicSubject[] = ["english", "math", "science"];
+const LIVE_SUBJECTS: LiveAcademicSubject[] = ["english", "math"];
+const CANONICAL_SOURCE = "nova_curriculum_rollout_sql";
+
+const MATH_TOPIC_ORDER: Record<number, string[]> = {
+  1: [
+    "Whole Numbers and Operations",
+    "Measurement",
+    "Geometry",
+    "Data",
+    "Problem Solving",
+  ],
+  2: [
+    "Whole Numbers and Operations",
+    "Fractions",
+    "Measurement",
+    "Geometry",
+    "Data",
+    "Problem Solving",
+  ],
+  3: [
+    "Whole Numbers",
+    "Fractions",
+    "Measurement",
+    "Geometry",
+    "Data",
+    "Problem Solving",
+  ],
+  4: [
+    "Whole Numbers",
+    "Fractions",
+    "Decimals",
+    "Measurement",
+    "Geometry",
+    "Data",
+    "Problem Solving",
+    "Money",
+  ],
+  5: [
+    "Whole Numbers",
+    "Fractions",
+    "Decimals",
+    "Percentage",
+    "Ratio and Rate",
+    "Measurement",
+    "Geometry",
+    "Data",
+    "Problem Solving",
+  ],
+  6: [
+    "Whole Numbers and Algebra",
+    "Fractions and Decimals",
+    "Percentage",
+    "Ratio and Proportion",
+    "Geometry",
+    "Problem Solving",
+    "Circles",
+    "Average",
+  ],
+};
+
+const ENGLISH_TOPIC_HINTS = [
+  "grammar",
+  "vocabulary",
+  "reading",
+  "comprehension",
+  "cloze",
+  "writing",
+  "composition",
+  "speaking",
+  "oral",
+  "mixed",
+  "assessment",
+];
 
 const STATE_META: Record<
   MapState,
@@ -65,6 +150,26 @@ const STATE_META: Record<
     border: "rgba(137,153,173,.19)",
   },
 };
+
+function normalise(value: string | null | undefined) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isCanonicalMapConcept(concept: CurriculumConcept) {
+  const subject = normalise(concept.subject);
+  if (!LIVE_SUBJECTS.includes(subject as LiveAcademicSubject)) return false;
+  if (!isNovaPlusAssessedConcept(concept)) return false;
+  if (concept.is_active === false) return false;
+
+  const source = normalise(concept.source);
+  if (source && source !== CANONICAL_SOURCE) return false;
+
+  return Boolean(
+    String(concept.skill_id || "").trim() &&
+      String(concept.skill_code || "").trim() &&
+      String(concept.skill_name || "").trim(),
+  );
+}
 
 function hasRepeatedEvidence(concept: CurriculumConcept) {
   return (
@@ -125,7 +230,9 @@ function parentFriendlyExplanation(concept: CurriculumConcept) {
   if (supplied) return supplied;
 
   const name = String(concept.skill_name || "this concept").trim();
-  const verbLed = /^(identify|recognise|recognize|use|retrieve|answer|compare|order|represent|solve|add|subtract|multiply|divide|read|write|interpret|explain|apply|find|measure|estimate|classify|describe|infer|sequence|distinguish|calculate|convert|complete|choose|determine|construct|name|match|count|arrange)\b/i.test(name);
+  const verbLed = /^(identify|recognise|recognize|use|retrieve|answer|compare|order|represent|solve|add|subtract|multiply|divide|read|write|interpret|explain|apply|find|measure|estimate|classify|describe|infer|sequence|distinguish|calculate|convert|complete|choose|determine|construct|name|match|count|arrange|reason|understand|connect|express|simplify|partition|continue|compose)\b/i.test(
+    name,
+  );
 
   if (verbLed) {
     return `This checks whether the learner can ${name.charAt(0).toLowerCase()}${name.slice(1)} accurately and independently.`;
@@ -143,39 +250,95 @@ function inferCurrentLevel(
   concepts: CurriculumConcept[],
   profile: NovaPlusProfilePayload,
 ) {
-  const evidence = new Map<number, number>();
+  const canonicalEvidence = new Map<number, number>();
 
-  for (const skill of profile.skills) {
-    const level = safeNumber(skill.primary_level);
-    if (level <= 0 || !["english", "math", "science"].includes(skill.subject)) {
-      continue;
-    }
+  for (const concept of concepts) {
+    const level = safeNumber(concept.primary_level);
+    if (level <= 0 || !concept.has_evidence) continue;
 
-    evidence.set(
+    canonicalEvidence.set(
       level,
-      (evidence.get(level) || 0) + Math.max(1, safeNumber(skill.questions_attempted)),
+      (canonicalEvidence.get(level) || 0) +
+        Math.max(1, safeNumber(concept.questions_attempted)),
     );
   }
 
-  const ranked = [...evidence.entries()].sort(
+  const canonicalRanked = [...canonicalEvidence.entries()].sort(
     (a, b) => b[1] - a[1] || b[0] - a[0],
   );
-  if (ranked[0]) return ranked[0][0];
+  if (canonicalRanked[0]) return canonicalRanked[0][0];
 
-  const availableLevels = [...new Set(concepts.map((concept) => safeNumber(concept.primary_level)))]
+  // Fallback only for choosing the learner's likely level. These rows are never
+  // displayed as Mastery Map concepts.
+  const historicEvidence = new Map<number, number>();
+
+  for (const skill of profile.skills) {
+    const level = safeNumber(skill.primary_level);
+    const subject = normalise(skill.subject);
+    if (level <= 0 || !LIVE_SUBJECTS.includes(subject as LiveAcademicSubject)) {
+      continue;
+    }
+
+    historicEvidence.set(
+      level,
+      (historicEvidence.get(level) || 0) +
+        Math.max(1, safeNumber(skill.questions_attempted)),
+    );
+  }
+
+  const historicRanked = [...historicEvidence.entries()].sort(
+    (a, b) => b[1] - a[1] || b[0] - a[0],
+  );
+  if (historicRanked[0]) return historicRanked[0][0];
+
+  const availableLevels = [
+    ...new Set(concepts.map((concept) => safeNumber(concept.primary_level))),
+  ]
     .filter((level) => level > 0)
     .sort((a, b) => a - b);
 
   return availableLevels[0] || 1;
 }
 
-function groupTopics(concepts: CurriculumConcept[]): TopicGroup[] {
+function conceptSequence(concept: CurriculumConcept) {
+  const code = String(concept.skill_code || "");
+  const canonicalMatch = code.match(/-C(\d+)$/i);
+  if (canonicalMatch) return Number(canonicalMatch[1]);
+
+  const lastNumber = code.match(/(\d+)(?!.*\d)/);
+  return lastNumber ? Number(lastNumber[1]) : 9999;
+}
+
+function englishTopicRank(topic: string) {
+  const clean = topic.toLowerCase();
+  const index = ENGLISH_TOPIC_HINTS.findIndex((hint) => clean.includes(hint));
+  return index === -1 ? 999 : index;
+}
+
+function topicRank(subject: LiveAcademicSubject, level: number, topic: string) {
+  if (subject === "math") {
+    const order = MATH_TOPIC_ORDER[level] || [];
+    const index = order.findIndex(
+      (candidate) => candidate.toLowerCase() === topic.toLowerCase(),
+    );
+    return index === -1 ? 999 : index;
+  }
+
+  return englishTopicRank(topic);
+}
+
+function groupTopics(
+  concepts: CurriculumConcept[],
+  subject: LiveAcademicSubject,
+  level: number,
+): TopicGroup[] {
   const groups = new Map<string, CurriculumConcept[]>();
 
   for (const concept of concepts) {
     const domain = String(concept.domain || "Curriculum").trim() || "Curriculum";
-    const topic = String(concept.topic || concept.skill_name || "Other").trim() || "Other";
-    const key = `${domain.toLowerCase()}::${topic.toLowerCase()}`;
+    const topic =
+      String(concept.topic || concept.skill_name || "Other").trim() || "Other";
+    const key = `${subject}::p${level}::${domain.toLowerCase()}::${topic.toLowerCase()}`;
     const current = groups.get(key) || [];
     current.push(concept);
     groups.set(key, current);
@@ -188,18 +351,11 @@ function groupTopics(concepts: CurriculumConcept[]): TopicGroup[] {
         key,
         domain: String(rows[0]?.domain || "Curriculum"),
         topic: String(rows[0]?.topic || "Other"),
-        concepts: [...rows].sort((a, b) => {
-          const rank: Record<MapState, number> = {
-            attention: 0,
-            developing: 1,
-            strong: 2,
-            unknown: 3,
-          };
-          return (
-            rank[conceptState(a)] - rank[conceptState(b)] ||
-            a.skill_name.localeCompare(b.skill_name)
-          );
-        }),
+        concepts: [...rows].sort(
+          (a, b) =>
+            conceptSequence(a) - conceptSequence(b) ||
+            a.skill_name.localeCompare(b.skill_name),
+        ),
         state: topicState(rows),
         strong: states.filter((state) => state === "strong").length,
         developing: states.filter((state) => state === "developing").length,
@@ -208,7 +364,12 @@ function groupTopics(concepts: CurriculumConcept[]): TopicGroup[] {
         assessed: states.filter((state) => state !== "unknown").length,
       } satisfies TopicGroup;
     })
-    .sort((a, b) => a.domain.localeCompare(b.domain) || a.topic.localeCompare(b.topic));
+    .sort(
+      (a, b) =>
+        topicRank(subject, level, a.topic) - topicRank(subject, level, b.topic) ||
+        a.domain.localeCompare(b.domain) ||
+        a.topic.localeCompare(b.topic),
+    );
 }
 
 export default function MasteryMapTab({
@@ -216,13 +377,17 @@ export default function MasteryMapTab({
   onOpenRecommendations,
 }: Props) {
   const curriculumConcepts = useMemo(
-    () => (profile.curriculum_concepts ?? []).filter(isNovaPlusAssessedConcept),
+    () => (profile.curriculum_concepts ?? []).filter(isCanonicalMapConcept),
     [profile.curriculum_concepts],
   );
 
   const availableLevels = useMemo(
     () =>
-      [...new Set(curriculumConcepts.map((concept) => safeNumber(concept.primary_level)))]
+      [
+        ...new Set(
+          curriculumConcepts.map((concept) => safeNumber(concept.primary_level)),
+        ),
+      ]
         .filter((level) => level > 0)
         .sort((a, b) => a - b),
     [curriculumConcepts],
@@ -234,23 +399,43 @@ export default function MasteryMapTab({
   );
 
   const [selectedLevel, setSelectedLevel] = useState(inferredLevel);
-  const [subject, setSubject] = useState<AcademicSubject>("english");
+  const [subject, setSubject] = useState<LiveAcademicSubject>("english");
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
-  const [selectedConcept, setSelectedConcept] = useState<CurriculumConcept | null>(null);
+  const [selectedConcept, setSelectedConcept] =
+    useState<CurriculumConcept | null>(null);
   const [openInfoId, setOpenInfoId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelectedLevel(inferredLevel);
+    setSubject("english");
+    setExpandedTopics(new Set());
+    setSelectedConcept(null);
+    setOpenInfoId(null);
+  }, [profile.student_user_id, inferredLevel]);
 
   const levelConcepts = useMemo(
     () =>
       curriculumConcepts.filter(
-        (concept) =>
-          safeNumber(concept.primary_level) === selectedLevel &&
-          SUBJECT_ORDER.includes(concept.subject as AcademicSubject),
+        (concept) => safeNumber(concept.primary_level) === selectedLevel,
       ),
     [curriculumConcepts, selectedLevel],
   );
 
-  const subjectSummaries = useMemo(() => {
+  const subjectSummaries = useMemo<SubjectSummary[]>(() => {
     return SUBJECT_ORDER.map((key) => {
+      if (key === "science") {
+        return {
+          subject: key,
+          total: 0,
+          assessed: 0,
+          strong: 0,
+          developing: 0,
+          attention: 0,
+          unknown: 0,
+          locked: true,
+        };
+      }
+
       const rows = levelConcepts.filter((concept) => concept.subject === key);
       const states = rows.map(conceptState);
       return {
@@ -261,6 +446,7 @@ export default function MasteryMapTab({
         developing: states.filter((state) => state === "developing").length,
         attention: states.filter((state) => state === "attention").length,
         unknown: states.filter((state) => state === "unknown").length,
+        locked: false,
       };
     });
   }, [levelConcepts]);
@@ -270,7 +456,10 @@ export default function MasteryMapTab({
     [levelConcepts, subject],
   );
 
-  const topics = useMemo(() => groupTopics(visibleConcepts), [visibleConcepts]);
+  const topics = useMemo(
+    () => groupTopics(visibleConcepts, subject, selectedLevel),
+    [visibleConcepts, subject, selectedLevel],
+  );
 
   const currentSummary = subjectSummaries.find((row) => row.subject === subject);
   const subjectMeta = SUBJECT_META[subject as NovaSubjectKey];
@@ -290,7 +479,8 @@ export default function MasteryMapTab({
         <span className={styles.eyebrow}>MASTERY MAP</span>
         <h2>Curriculum map data is not available yet.</h2>
         <p>
-          Run the NOVA+ Mastery Map payload SQL, then refresh the learner profile.
+          Refresh the NOVA+ learner profile after installing the current Mastery
+          Map payload function.
         </p>
       </section>
     );
@@ -303,7 +493,9 @@ export default function MasteryMapTab({
           <span className={styles.eyebrow}>MASTERY MAP</span>
           <h2>See the curriculum. See what is secure. See what comes next.</h2>
           <p>
-            Concepts are organised by subject and topic. Grey concepts have not been assessed yet.
+            English and Mathematics use the canonical concept map. Grey concepts
+            are part of the curriculum but have not been assessed yet. Science
+            remains locked until its assessment mapping is released.
           </p>
         </div>
 
@@ -320,7 +512,9 @@ export default function MasteryMapTab({
               }}
             >
               {availableLevels.map((level) => (
-                <option key={level} value={level}>Primary {level}</option>
+                <option key={level} value={level}>
+                  Primary {level}
+                </option>
               ))}
             </select>
           </label>
@@ -340,13 +534,36 @@ export default function MasteryMapTab({
         {subjectSummaries.map((summary) => {
           const meta = SUBJECT_META[summary.subject as NovaSubjectKey];
           const active = subject === summary.subject;
+
+          if (summary.locked) {
+            return (
+              <button
+                key={summary.subject}
+                type="button"
+                className={styles.subjectLocked}
+                disabled
+                aria-label="Science Mastery Map is locked"
+              >
+                <span className={`${styles.subjectIcon} ${styles.subjectIconLocked}`}>
+                  {meta.icon}
+                </span>
+                <span className={styles.subjectCopy}>
+                  <strong>{meta.label}</strong>
+                  <small>Assessment map locked</small>
+                </span>
+                <span className={styles.lockedBadge}>LOCKED</span>
+              </button>
+            );
+          }
+
           return (
             <button
               key={summary.subject}
               type="button"
               className={active ? styles.subjectActive : styles.subjectButton}
               onClick={() => {
-                setSubject(summary.subject);
+                setSubject(summary.subject as LiveAcademicSubject);
+                setExpandedTopics(new Set());
                 setSelectedConcept(null);
                 setOpenInfoId(null);
               }}
@@ -372,21 +589,36 @@ export default function MasteryMapTab({
       <section className={styles.mapShell}>
         <header className={styles.mapHeader}>
           <div>
-            <span className={styles.eyebrow}>PRIMARY {selectedLevel} · {subjectMeta.label.toUpperCase()}</span>
+            <span className={styles.eyebrow}>
+              PRIMARY {selectedLevel} · {subjectMeta.label.toUpperCase()}
+            </span>
             <h3>{subjectMeta.label} curriculum pathway</h3>
-            <p>Open a topic to see the individual concepts inside it.</p>
+            <p>
+              Open a topic to see every canonical concept inside it. Status comes
+              from recorded learner evidence; untouched concepts stay grey.
+            </p>
           </div>
 
           <div className={styles.mapTotals}>
-            <span><b>{currentSummary?.strong ?? 0}</b> Strong</span>
-            <span><b>{currentSummary?.developing ?? 0}</b> Developing</span>
-            <span><b>{currentSummary?.attention ?? 0}</b> Needs attention</span>
-            <span><b>{currentSummary?.unknown ?? 0}</b> Not assessed</span>
+            <span>
+              <b>{currentSummary?.strong ?? 0}</b> Strong
+            </span>
+            <span>
+              <b>{currentSummary?.developing ?? 0}</b> Developing
+            </span>
+            <span>
+              <b>{currentSummary?.attention ?? 0}</b> Needs attention
+            </span>
+            <span>
+              <b>{currentSummary?.unknown ?? 0}</b> Not assessed
+            </span>
           </div>
         </header>
 
         {topics.length === 0 ? (
-          <div className={styles.noTopics}>No curriculum concepts are available for this subject and level yet.</div>
+          <div className={styles.noTopics}>
+            No canonical concepts are available for this subject and level yet.
+          </div>
         ) : (
           <div className={styles.pathway}>
             {topics.map((topic, index) => {
@@ -396,7 +628,10 @@ export default function MasteryMapTab({
 
               return (
                 <article key={topic.key} className={styles.topicStep}>
-                  <div className={styles.pathNode} style={{ borderColor: meta.border }}>
+                  <div
+                    className={styles.pathNode}
+                    style={{ borderColor: meta.border }}
+                  >
                     <span style={{ background: meta.colour }} />
                     <b>{String(index + 1).padStart(2, "0")}</b>
                   </div>
@@ -414,7 +649,9 @@ export default function MasteryMapTab({
                       <div className={styles.topicTitle}>
                         <span>{topic.domain}</span>
                         <h4>{topic.topic}</h4>
-                        <small>{topic.assessed} of {topic.concepts.length} concepts assessed</small>
+                        <small>
+                          {topic.assessed} of {topic.concepts.length} concepts assessed
+                        </small>
                       </div>
 
                       <div className={styles.topicStatus}>
@@ -425,16 +662,28 @@ export default function MasteryMapTab({
 
                     <div className={styles.topicBar} aria-hidden="true">
                       {topic.strong > 0 && (
-                        <i className={styles.barGreen} style={{ width: `${(topic.strong / total) * 100}%` }} />
+                        <i
+                          className={styles.barGreen}
+                          style={{ width: `${(topic.strong / total) * 100}%` }}
+                        />
                       )}
                       {topic.developing > 0 && (
-                        <i className={styles.barOrange} style={{ width: `${(topic.developing / total) * 100}%` }} />
+                        <i
+                          className={styles.barOrange}
+                          style={{ width: `${(topic.developing / total) * 100}%` }}
+                        />
                       )}
                       {topic.attention > 0 && (
-                        <i className={styles.barRed} style={{ width: `${(topic.attention / total) * 100}%` }} />
+                        <i
+                          className={styles.barRed}
+                          style={{ width: `${(topic.attention / total) * 100}%` }}
+                        />
                       )}
                       {topic.unknown > 0 && (
-                        <i className={styles.barGrey} style={{ width: `${(topic.unknown / total) * 100}%` }} />
+                        <i
+                          className={styles.barGrey}
+                          style={{ width: `${(topic.unknown / total) * 100}%` }}
+                        />
                       )}
                     </div>
 
@@ -452,7 +701,9 @@ export default function MasteryMapTab({
                                 background: stateMeta.soft,
                               }}
                               onMouseLeave={() => {
-                                if (openInfoId === concept.skill_id) setOpenInfoId(null);
+                                if (openInfoId === concept.skill_id) {
+                                  setOpenInfoId(null);
+                                }
                               }}
                             >
                               <button
@@ -460,9 +711,14 @@ export default function MasteryMapTab({
                                 className={styles.conceptMain}
                                 onClick={() => setSelectedConcept(concept)}
                               >
-                                <span className={styles.conceptDot} style={{ background: stateMeta.colour }} />
+                                <span
+                                  className={styles.conceptDot}
+                                  style={{ background: stateMeta.colour }}
+                                />
                                 <strong>{concept.skill_name}</strong>
-                                <small style={{ color: stateMeta.colour }}>{stateMeta.label}</small>
+                                <small style={{ color: stateMeta.colour }}>
+                                  {stateMeta.label}
+                                </small>
                               </button>
 
                               <button
@@ -476,7 +732,9 @@ export default function MasteryMapTab({
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   setOpenInfoId((current) =>
-                                    current === concept.skill_id ? null : concept.skill_id,
+                                    current === concept.skill_id
+                                      ? null
+                                      : concept.skill_id,
                                   );
                                 }}
                               >
@@ -484,7 +742,10 @@ export default function MasteryMapTab({
                               </button>
 
                               {openInfoId === concept.skill_id && (
-                                <div className={styles.conceptInfoPopover} role="tooltip">
+                                <div
+                                  className={styles.conceptInfoPopover}
+                                  role="tooltip"
+                                >
                                   <span>WHAT THIS MEANS</span>
                                   <p>{parentFriendlyExplanation(concept)}</p>
                                   <small>{teacherPrompt(concept)}</small>
@@ -503,59 +764,80 @@ export default function MasteryMapTab({
         )}
       </section>
 
-      {selectedConcept && (() => {
-        const state = conceptState(selectedConcept);
-        const meta = STATE_META[state];
-        return (
-          <section className={styles.detailPanel} style={{ borderColor: meta.border }}>
-            <div className={styles.detailMain}>
-              <span className={styles.detailStatus} style={{ color: meta.colour }}>
-                <i style={{ background: meta.colour }} /> {meta.label}
-              </span>
-              <h3>{selectedConcept.skill_name}</h3>
-              <p>
-                {subjectMeta.label} · Primary {selectedConcept.primary_level} · {selectedConcept.topic}
-              </p>
-            </div>
+      {selectedConcept &&
+        (() => {
+          const state = conceptState(selectedConcept);
+          const meta = STATE_META[state];
+          return (
+            <section
+              className={styles.detailPanel}
+              style={{ borderColor: meta.border }}
+            >
+              <div className={styles.detailMain}>
+                <span className={styles.detailStatus} style={{ color: meta.colour }}>
+                  <i style={{ background: meta.colour }} /> {meta.label}
+                </span>
+                <h3>{selectedConcept.skill_name}</h3>
+                <p>
+                  {subjectMeta.label} · Primary {selectedConcept.primary_level} ·{" "}
+                  {selectedConcept.topic}
+                </p>
+              </div>
 
-            <div className={styles.detailMetrics}>
-              <span>
-                <small>Mastery</small>
-                <strong>{selectedConcept.has_evidence && selectedConcept.mastery_score !== null ? `${Math.round(selectedConcept.mastery_score)}%` : "—"}</strong>
-              </span>
-              <span>
-                <small>Confidence</small>
-                <strong>{selectedConcept.has_evidence && selectedConcept.confidence_score !== null ? `${Math.round(selectedConcept.confidence_score)}%` : "—"}</strong>
-              </span>
-              <span>
-                <small>Questions</small>
-                <strong>{selectedConcept.questions_attempted}</strong>
-              </span>
-              <span>
-                <small>Trend</small>
-                <strong>{selectedConcept.trend === "no_data" ? "—" : selectedConcept.trend}</strong>
-              </span>
-            </div>
+              <div className={styles.detailMetrics}>
+                <span>
+                  <small>Mastery</small>
+                  <strong>
+                    {selectedConcept.has_evidence &&
+                    selectedConcept.mastery_score !== null
+                      ? `${Math.round(selectedConcept.mastery_score)}%`
+                      : "—"}
+                  </strong>
+                </span>
+                <span>
+                  <small>Confidence</small>
+                  <strong>
+                    {selectedConcept.has_evidence &&
+                    selectedConcept.confidence_score !== null
+                      ? `${Math.round(selectedConcept.confidence_score)}%`
+                      : "—"}
+                  </strong>
+                </span>
+                <span>
+                  <small>Questions</small>
+                  <strong>{selectedConcept.questions_attempted}</strong>
+                </span>
+                <span>
+                  <small>Trend</small>
+                  <strong>
+                    {selectedConcept.trend === "no_data"
+                      ? "—"
+                      : selectedConcept.trend}
+                  </strong>
+                </span>
+              </div>
 
-            <div className={styles.detailFooter}>
-              <span>Last practised: {formatDate(selectedConcept.last_attempted_at)}</span>
-              {state !== "unknown" && (
-                <button type="button" onClick={onOpenRecommendations}>
-                  See Nova&apos;s recommendation →
+              <div className={styles.detailFooter}>
+                <span>
+                  Last practised: {formatDate(selectedConcept.last_attempted_at)}
+                </span>
+                {state !== "unknown" && (
+                  <button type="button" onClick={onOpenRecommendations}>
+                    See Nova&apos;s recommendation →
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={styles.closeDetail}
+                  onClick={() => setSelectedConcept(null)}
+                  aria-label="Close concept detail"
+                >
+                  ×
                 </button>
-              )}
-              <button
-                type="button"
-                className={styles.closeDetail}
-                onClick={() => setSelectedConcept(null)}
-                aria-label="Close concept detail"
-              >
-                ×
-              </button>
-            </div>
-          </section>
-        );
-      })()}
+              </div>
+            </section>
+          );
+        })()}
     </div>
   );
 }

@@ -464,12 +464,31 @@ function useResponsiveMode() {
       const width = window.innerWidth;
       const height = window.innerHeight;
       const isPortrait = height > width;
+      const shortEdge = Math.min(width, height);
 
-      // Phones commonly become wider than 720px in landscape. Treat a short
-      // landscape viewport as mobile so the phone layout remains active after rotation.
-      const isLandscapePhone = !isPortrait && height <= 600;
+      const nav = navigator as Navigator & {
+        userAgentData?: { mobile?: boolean };
+      };
 
-      if (width <= 720 || isLandscapePhone) {
+      const reportsMobile = Boolean(nav.userAgentData?.mobile);
+      const mobileUserAgent =
+        /Android|iPhone|iPod|IEMobile|Opera Mini|Mobile/i.test(
+          navigator.userAgent || ""
+        );
+      const coarsePointer = window.matchMedia(
+        "(hover: none) and (pointer: coarse)"
+      ).matches;
+
+      // Do not rely only on CSS width. A real phone can report a wide landscape
+      // viewport, browser zoom can alter CSS dimensions, and some mobile browsers
+      // expose tablet-like widths. Device hints + short-edge detection keep the
+      // phone layout active in both orientations.
+      const isPhoneLike =
+        reportsMobile ||
+        mobileUserAgent ||
+        (coarsePointer && shortEdge <= 760);
+
+      if (isPhoneLike || width <= 720) {
         setScreenMode("mobile");
       } else if (width <= 1180 || isPortrait) {
         setScreenMode("tablet");
@@ -479,9 +498,20 @@ function useResponsiveMode() {
     }
 
     checkScreenSize();
-    window.addEventListener("resize", checkScreenSize);
 
-    return () => window.removeEventListener("resize", checkScreenSize);
+    const coarseQuery = window.matchMedia(
+      "(hover: none) and (pointer: coarse)"
+    );
+
+    window.addEventListener("resize", checkScreenSize);
+    window.addEventListener("orientationchange", checkScreenSize);
+    coarseQuery.addEventListener?.("change", checkScreenSize);
+
+    return () => {
+      window.removeEventListener("resize", checkScreenSize);
+      window.removeEventListener("orientationchange", checkScreenSize);
+      coarseQuery.removeEventListener?.("change", checkScreenSize);
+    };
   }, []);
 
   return screenMode;
@@ -10009,33 +10039,33 @@ function ArenaResultsPanel({
         }
 
 
-        @media (max-width: 700px) and (orientation: portrait) {
-          .ka-solo-nova-stage {
+        @media (orientation: portrait) {
+          .ka-screen-mobile .ka-solo-nova-stage {
             overflow-y: auto;
           }
 
-          .ka-solo-nova-large-grid {
-            display: grid;
-            flex: 0 0 auto;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+          .ka-screen-mobile .ka-solo-nova-large-grid {
+            display: grid !important;
+            flex: 0 0 auto !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
             gap: 9px;
-            overflow: visible;
+            overflow: visible !important;
             padding: 2px 0 5px;
             scroll-snap-type: none;
           }
 
-          .ka-solo-nova-large-card {
+          .ka-screen-mobile .ka-solo-nova-large-card {
             width: 100%;
             min-width: 0;
-            flex: none;
+            flex: none !important;
             padding: 7px;
           }
 
-          .ka-solo-nova-image img {
+          .ka-screen-mobile .ka-solo-nova-image img {
             max-height: 23vh;
           }
 
-          .ka-solo-nova-actions {
+          .ka-screen-mobile .ka-solo-nova-actions {
             position: sticky;
             bottom: 0;
             z-index: 4;
@@ -10045,6 +10075,21 @@ function ArenaResultsPanel({
               rgba(3,10,24,0),
               rgba(3,10,24,.96) 28%
             );
+          }
+        }
+
+        @media (orientation: portrait) and (hover: none) and (pointer: coarse) {
+          .ka-solo-nova-large-grid {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            overflow: visible !important;
+            scroll-snap-type: none !important;
+          }
+
+          .ka-solo-nova-large-card {
+            width: 100% !important;
+            min-width: 0 !important;
+            flex: none !important;
           }
         }
 

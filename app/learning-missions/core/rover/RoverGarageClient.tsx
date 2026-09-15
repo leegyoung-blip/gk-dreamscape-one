@@ -194,9 +194,22 @@ function useResponsiveMode() {
       const width = window.innerWidth;
       const height = window.innerHeight;
 
-      if (width <= 720) setMode("mobile");
-      else if (width <= 1180 || height > width) setMode("tablet");
-      else setMode("desktop");
+      const shortLandscape =
+        width > height &&
+        width <= 1280 &&
+        height <= 720;
+
+      /*
+       * Landscape phones can be much wider than 720 CSS pixels.
+       * Treat short landscape viewports as the mobile hangar layout too.
+       */
+      if (width <= 720 || shortLandscape) {
+        setMode("mobile");
+      } else if (width <= 1180 || height > width) {
+        setMode("tablet");
+      } else {
+        setMode("desktop");
+      }
     }
 
     update();
@@ -1240,13 +1253,14 @@ export default function RoverGarageClient() {
             />
           )}
 
-          <aside
-            style={fleetPane(
-              isCompact,
-              isMobile,
-              mobileHangarPanel === "fleet",
-            )}
-          >
+          {(!isMobile || mobileHangarPanel === "fleet") && (
+            <aside
+              style={fleetPane(
+                isCompact,
+                isMobile,
+                mobileHangarPanel === "fleet",
+              )}
+            >
             <div style={compactPaneHeading}>
               <div style={sideMenuHeadingRow}>
                 <div>
@@ -1279,7 +1293,8 @@ export default function RoverGarageClient() {
               onEquipStage={(stage) => void selectAndEquipRover(stage)}
               onPurchaseStage={(stage) => void purchaseRover(stage)}
             />
-          </aside>
+            </aside>
+          )}
 
           <section style={roverFocusPane(isCompact, isMobile)}>
             <div style={roverFocusTopLayout(isMobile)}>
@@ -1420,13 +1435,14 @@ export default function RoverGarageClient() {
             </div>
           </section>
 
-          <aside
-            style={buildPane(
-              isCompact,
-              isMobile,
-              mobileHangarPanel === "build",
-            )}
-          >
+          {(!isMobile || mobileHangarPanel === "build") && (
+            <aside
+              style={buildPane(
+                isCompact,
+                isMobile,
+                mobileHangarPanel === "build",
+              )}
+            >
             <div style={compactPaneHeading}>
               <div style={sideMenuHeadingRow}>
                 <div>
@@ -1483,7 +1499,8 @@ export default function RoverGarageClient() {
                 )}
               </div>
             )}
-          </aside>
+            </aside>
+          )}
         </section>
       )}
 
@@ -4361,7 +4378,7 @@ function roverFocusPane(
       minHeight: 0,
       height: "100%",
       display: "grid",
-      gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr)",
+      gridTemplateColumns: "minmax(0,67fr) minmax(260px,33fr)",
       gridTemplateRows: "auto minmax(0,1fr) 58px auto",
       gridTemplateAreas: `
         "top stats"
@@ -4652,12 +4669,12 @@ function roverFocusVehicleImageLayout(
   return {
     position: "relative",
     zIndex: 2,
-    width: isMobile ? "92%" : "80%",
-    height: isMobile ? "88%" : "76%",
+    width: isMobile ? "96%" : "80%",
+    height: isMobile ? "96%" : "76%",
     maxWidth: "100%",
     maxHeight: isMobile ? "100%" : "82%",
     objectFit: "contain",
-    objectPosition: "center",
+    objectPosition: "center center",
     filter: "drop-shadow(0 28px 30px rgba(0,0,0,0.52))",
   };
 }
@@ -4716,7 +4733,7 @@ function statsBottomDockLayout(isMobile: boolean): CSSProperties {
     alignContent: isMobile ? "start" : undefined,
     gap: isMobile ? "7px" : "10px",
     alignItems: "stretch",
-    padding: isMobile ? "0 0 0 10px" : "8px 0 0",
+    padding: isMobile ? "0 0 0 7px" : "8px 0 0",
     borderLeft: isMobile
       ? "1px solid rgba(126,232,255,0.13)"
       : undefined,

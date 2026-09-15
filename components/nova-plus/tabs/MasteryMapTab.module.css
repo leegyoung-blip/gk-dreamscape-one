@@ -648,3 +648,45 @@
   .topicStatus strong { display: none; }
   .detailMetrics { grid-template-columns: 1fr 1fr; }
 }
+
+/* v7 — Science is deliberately visible-but-locked until its canonical mapping rolls out. */
+.subjectLocked {
+  min-height: 83px;
+  padding: 13px 15px;
+  display: grid;
+  grid-template-columns: 42px minmax(0,1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(154,169,187,.1);
+  background: rgba(154,169,187,.025);
+  color: rgba(235,247,255,.46);
+  text-align: left;
+  cursor: not-allowed;
+  opacity: .72;
+}
+
+.subjectIconLocked {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  border: 1px solid rgba(154,169,187,.12);
+  background: rgba(154,169,187,.045);
+  color: #8e9caf;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.lockedBadge {
+  padding: 7px 9px;
+  border-radius: 9px;
+  border: 1px solid rgba(154,169,187,.13);
+  background: rgba(154,169,187,.05);
+  color: rgba(213,224,236,.58);
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}

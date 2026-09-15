@@ -323,6 +323,39 @@ export function ArenaEncounterLoader({
         }
         .kab-rng-stats strong { color: white; }
         @keyframes kabOrbit { to { transform: rotate(360deg); } }
+
+        /* Hardware-level mobile fallback. This does not depend on screenMode. */
+        @media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+          .kab-stage-v3 .kab-top-strip {
+            display: none;
+          }
+
+          .kab-stage-v3 .kab-battle-center {
+            overflow: visible;
+            padding-bottom: 26px;
+          }
+
+          .kab-stage-v3 .kab-fighter,
+          .kab-stage-v3 .kab-fighter-left,
+          .kab-stage-v3 .kab-fighter-right {
+            transform: translateY(38px);
+          }
+
+          .kab-stage-v3 .kab-bottom-hud {
+            position: absolute;
+            left: 6px;
+            right: 6px;
+            bottom: max(6px, env(safe-area-inset-bottom));
+            z-index: 12;
+            padding: 0;
+            align-items: end;
+          }
+
+          .kab-stage-v3 .kab-monster-stats {
+            display: none !important;
+          }
+        }
+
       `}</style>
     </div>
   );
@@ -1325,31 +1358,27 @@ export function ArenaBattleView({
           z-index: 1;
           box-sizing: border-box;
           min-height: 0;
-          overflow: hidden;
+          overflow: visible;
           align-items: flex-end;
           gap: clamp(28px, 10vw, 86px);
 
           /* The HUD is pinned to the bottom independently. Reserve its height
              here so both fighters always stand immediately above it. */
-          padding: 3px 10px 60px;
+          padding: 3px 10px 26px;
         }
         .kab-is-mobile .kab-fighter {
           width: min(15vw, 108px);
           height: min(26vh, 142px);
           max-height: 100%;
           flex: 0 1 auto;
-          transform: translateY(16px);
+          transform: translateY(38px);
         }
         .kab-is-mobile .kab-fighter-right {
           width: min(27vw, 184px);
           height: min(29vh, 158px);
           max-height: 100%;
           align-self: flex-end;
-          transform: translateY(16px);
-        }
-        .kab-is-mobile .kab-fighter-left,
-        .kab-is-mobile .kab-fighter-right {
-          transform: none;
+          transform: translateY(38px);
         }
         .kab-is-mobile .kab-character,
         .kab-is-mobile .kab-character img {
@@ -1480,13 +1509,13 @@ export function ArenaBattleView({
         .kab-is-mobile .kab-fighter,
         .kab-is-mobile .kab-fighter-left,
         .kab-is-mobile .kab-fighter-right {
-          transform:translateY(16px);
+          transform:translateY(38px);
           max-height:100%;
         }
 
         .kab-is-mobile .kab-battle-center {
           box-sizing:border-box;
-          padding-bottom:60px;
+          padding-bottom:26px;
         }
 
         .kab-is-mobile .kab-bottom-hud {
