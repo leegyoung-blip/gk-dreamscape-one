@@ -6,7 +6,11 @@ import type {
   NovaPlusProfilePayload,
   NovaSubjectKey,
 } from "@/lib/nova-plus/types";
-import { safeNumber, SUBJECT_META } from "@/lib/nova-plus/helpers";
+import {
+  isNovaPlusAssessedConcept,
+  safeNumber,
+  SUBJECT_META,
+} from "@/lib/nova-plus/helpers";
 import styles from "./MasteryMapTab.module.css";
 
 type Props = {
@@ -116,6 +120,25 @@ function formatDate(value: string | null) {
   }).format(date);
 }
 
+function parentFriendlyExplanation(concept: CurriculumConcept) {
+  const supplied = String(concept.public_explanation || "").trim();
+  if (supplied) return supplied;
+
+  const name = String(concept.skill_name || "this concept").trim();
+  const verbLed = /^(identify|recognise|recognize|use|retrieve|answer|compare|order|represent|solve|add|subtract|multiply|divide|read|write|interpret|explain|apply|find|measure|estimate|classify|describe|infer|sequence|distinguish|calculate|convert|complete|choose|determine|construct|name|match|count|arrange)\b/i.test(name);
+
+  if (verbLed) {
+    return `This checks whether the learner can ${name.charAt(0).toLowerCase()}${name.slice(1)} accurately and independently.`;
+  }
+
+  return `This checks the learner's understanding and application of ${name.toLowerCase()}.`;
+}
+
+function teacherPrompt(concept: CurriculumConcept) {
+  const name = String(concept.skill_name || "this concept").trim();
+  return `You can ask the teacher: “How is the learner doing with ${name} in class? Can they apply it independently and consistently?”`;
+}
+
 function inferCurrentLevel(
   concepts: CurriculumConcept[],
   profile: NovaPlusProfilePayload,
@@ -193,7 +216,7 @@ export default function MasteryMapTab({
   onOpenRecommendations,
 }: Props) {
   const curriculumConcepts = useMemo(
-    () => profile.curriculum_concepts ?? [],
+    () => (profile.curriculum_concepts ?? []).filter(isNovaPlusAssessedConcept),
     [profile.curriculum_concepts],
   );
 
@@ -214,6 +237,7 @@ export default function MasteryMapTab({
   const [subject, setSubject] = useState<AcademicSubject>("english");
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
   const [selectedConcept, setSelectedConcept] = useState<CurriculumConcept | null>(null);
+  const [openInfoId, setOpenInfoId] = useState<string | null>(null);
 
   const levelConcepts = useMemo(
     () =>
@@ -292,6 +316,7 @@ export default function MasteryMapTab({
                 setSelectedLevel(Number(event.target.value));
                 setExpandedTopics(new Set());
                 setSelectedConcept(null);
+                setOpenInfoId(null);
               }}
             >
               {availableLevels.map((level) => (
@@ -323,6 +348,7 @@ export default function MasteryMapTab({
               onClick={() => {
                 setSubject(summary.subject);
                 setSelectedConcept(null);
+                setOpenInfoId(null);
               }}
             >
               <span className={styles.subjectIcon}>{meta.icon}</span>
@@ -418,20 +444,53 @@ export default function MasteryMapTab({
                           const state = conceptState(concept);
                           const stateMeta = STATE_META[state];
                           return (
-                            <button
+                            <div
                               key={concept.skill_id}
-                              type="button"
                               className={styles.conceptNode}
                               style={{
                                 borderColor: stateMeta.border,
                                 background: stateMeta.soft,
                               }}
-                              onClick={() => setSelectedConcept(concept)}
+                              onMouseLeave={() => {
+                                if (openInfoId === concept.skill_id) setOpenInfoId(null);
+                              }}
                             >
-                              <span className={styles.conceptDot} style={{ background: stateMeta.colour }} />
-                              <strong>{concept.skill_name}</strong>
-                              <small style={{ color: stateMeta.colour }}>{stateMeta.label}</small>
-                            </button>
+                              <button
+                                type="button"
+                                className={styles.conceptMain}
+                                onClick={() => setSelectedConcept(concept)}
+                              >
+                                <span className={styles.conceptDot} style={{ background: stateMeta.colour }} />
+                                <strong>{concept.skill_name}</strong>
+                                <small style={{ color: stateMeta.colour }}>{stateMeta.label}</small>
+                              </button>
+
+                              <button
+                                type="button"
+                                className={styles.conceptInfoButton}
+                                aria-label={`Explain ${concept.skill_name}`}
+                                aria-expanded={openInfoId === concept.skill_id}
+                                onMouseEnter={() => setOpenInfoId(concept.skill_id)}
+                                onFocus={() => setOpenInfoId(concept.skill_id)}
+                                onBlur={() => setOpenInfoId(null)}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setOpenInfoId((current) =>
+                                    current === concept.skill_id ? null : concept.skill_id,
+                                  );
+                                }}
+                              >
+                                i
+                              </button>
+
+                              {openInfoId === concept.skill_id && (
+                                <div className={styles.conceptInfoPopover} role="tooltip">
+                                  <span>WHAT THIS MEANS</span>
+                                  <p>{parentFriendlyExplanation(concept)}</p>
+                                  <small>{teacherPrompt(concept)}</small>
+                                </div>
+                              )}
+                            </div>
                           );
                         })}
                       </div>

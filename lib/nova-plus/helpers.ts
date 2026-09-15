@@ -72,6 +72,30 @@ const QUIZ_FALLBACK_SOURCES = new Set([
   "core_quiz",
 ]);
 
+
+export type NovaConceptScope = {
+  subject?: string | null;
+  domain?: string | null;
+  topic?: string | null;
+  skill_name?: string | null;
+};
+
+/**
+ * English Listening / Viewing is intentionally outside NOVA+ assessment scope.
+ * Keep this shared so Strengths & Gaps, Mastery Map, recommendations and reports
+ * all use the same curriculum boundary.
+ */
+export function isNovaPlusAssessedConcept(scope: NovaConceptScope) {
+  const subject = String(scope.subject || "").trim().toLowerCase();
+  if (subject !== "english") return true;
+
+  const area = [scope.domain, scope.topic, scope.skill_name]
+    .map((value) => String(value || "").trim().toLowerCase())
+    .join(" ");
+
+  return !(/\blistening\b/.test(area) || /\bviewing\b/.test(area));
+}
+
 function normaliseSource(value: string | null | undefined) {
   return String(value || "").trim().toLowerCase();
 }
@@ -96,6 +120,7 @@ export function isQuizFallbackSkill(skill: ProfileSkill) {
 
 export function isTrueConceptSkill(skill: ProfileSkill) {
   if (skill.is_topic_level) return false;
+  if (!isNovaPlusAssessedConcept(skill)) return false;
   if (isQuizFallbackSkill(skill)) return false;
 
   return Boolean(

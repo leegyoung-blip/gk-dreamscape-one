@@ -80,6 +80,8 @@ export type CurriculumConcept = {
   skill_code: string;
   source?: string | null;
   external_ref?: string | null;
+  /** Parent-friendly explanation used by Mastery Map info tips. */
+  public_explanation?: string | null;
   has_evidence: boolean;
   mastery_score: number | null;
   confidence_score: number | null;

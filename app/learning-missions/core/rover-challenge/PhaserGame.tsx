@@ -180,11 +180,17 @@ type CombatProjectile = {
   sprite: Phaser.GameObjects.Image;
   velocityX: number;
   velocityY: number;
+  speed: number;
   expiresAt: number;
   damage: number;
   projectileType: CoreRoverWeaponSpec["projectileType"];
   blastRadius: number;
   trackingStrength: number;
+  targetGuardId: number | null;
+  guidanceRange: number;
+  turnRateRadPerSecond: number;
+  canReacquireTarget: boolean;
+  nextTrailAt: number;
 };
 
 type BoneGuardState =
@@ -362,6 +368,12 @@ class RoverMatterScene extends Phaser.Scene {
   private roverDisabled = false;
   private shotsFired = 0;
   private combatProjectiles: CombatProjectile[] = [];
+  private autocannonBarrelSide: -1 | 1 = -1;
+
+  private combatLockTargetId: number | null = null;
+  private combatTargetReticle?: Phaser.GameObjects.Arc;
+  private combatTargetReticleInner?: Phaser.GameObjects.Arc;
+  private combatTargetText?: Phaser.GameObjects.Text;
 
   private boneGuards: BoneGuardEnemy[] = [];
   private boneGuardProjectiles: BoneGuardBlasterProjectile[] = [];
@@ -626,6 +638,15 @@ class RoverMatterScene extends Phaser.Scene {
     this.shotsFired = 0;
     this.combatProjectiles.forEach((projectile) => projectile.sprite.destroy());
     this.combatProjectiles = [];
+    this.autocannonBarrelSide = -1;
+    this.combatLockTargetId = null;
+
+    this.combatTargetReticle?.destroy();
+    this.combatTargetReticle = undefined;
+    this.combatTargetReticleInner?.destroy();
+    this.combatTargetReticleInner = undefined;
+    this.combatTargetText?.destroy();
+    this.combatTargetText = undefined;
 
     this.boneGuards.forEach((guard) => {
       guard.sprite.destroy();
@@ -2164,12 +2185,23 @@ class RoverMatterScene extends Phaser.Scene {
         .setScrollFactor(0)
         .setDepth(102);
 
+      const weaponBehaviour =
+        this.weaponSpec?.projectileType === "homing"
+          ? "LOCK-ON"
+          : this.weaponSpec?.projectileType === "guided"
+            ? "SEEKER"
+            : this.weaponSpec?.projectileType === "rocket"
+              ? "3-ROCKET BURST"
+              : this.weaponSpec?.projectileType === "heavy-round"
+                ? "TWIN AUTOCANNON"
+                : "RAPID FIRE";
+
       this.combatWeaponText = this.add
         .text(
           70,
           382,
           this.weaponSpec
-            ? `WEAPON  ${this.weaponSpec.name.toUpperCase()}`
+            ? `WEAPON  ${this.weaponSpec.name.toUpperCase()} · ${weaponBehaviour}`
             : "WEAPON  NOT INSTALLED",
           {
             fontFamily: "Arial, sans-serif",
@@ -3514,28 +3546,104 @@ class RoverMatterScene extends Phaser.Scene {
     }
 
     this.lastWeaponFireAt = now;
-    this.shotsFired += 1;
 
     if (!this.hasStarted) {
       this.hasStarted = true;
     }
 
-    const body = this.roverBody.body as MatterJS.BodyType | null;
-    const angle = body?.angle ?? 0;
-    const muzzleDistance = this.roverBodyDisplayWidth * 0.43;
-    const muzzleLift = this.roverBodyDisplayHeight * 0.13;
+    const burstCount = Math.max(1, this.weaponSpec.burstCount);
 
-    const perpendicularX = -Math.sin(angle);
-    const perpendicularY = Math.cos(angle);
+    for (let shotIndex = 0; shotIndex < burstCount; shotIndex += 1) {
+      const delay =
+        shotIndex * Math.max(0, this.weaponSpec.burstIntervalMs);
+
+      if (delay === 0) {
+        this.fireSingleRoverProjectile(shotIndex, burstCount);
+      } else {
+        this.time.delayedCall(delay, () => {
+          if (
+            this.hasFinished ||
+            this.roverDisabled ||
+            !this.roverBody ||
+            !this.weaponSpec
+          ) {
+            return;
+          }
+
+          this.fireSingleRoverProjectile(shotIndex, burstCount);
+        });
+      }
+    }
+  }
+
+  private fireSingleRoverProjectile(
+    shotIndex: number,
+    burstCount: number,
+  ) {
+    if (
+      !this.roverBody ||
+      !this.weaponSpec ||
+      !this.selectedAmmoAsset ||
+      !this.textures.exists("selected-rover-ammo")
+    ) {
+      return;
+    }
+
+    const now = this.time.now;
+    const body = this.roverBody.body as MatterJS.BodyType | null;
+    const bodyAngle = body?.angle ?? 0;
+
+    let muzzleDistance = this.roverBodyDisplayWidth * 0.43;
+    let muzzleLift = this.roverBodyDisplayHeight * 0.13;
+
+    if (this.weaponSpec.projectileType === "heavy-round") {
+      muzzleLift += this.autocannonBarrelSide * 9;
+      this.autocannonBarrelSide =
+        this.autocannonBarrelSide === -1 ? 1 : -1;
+    }
+
+    if (
+      this.weaponSpec.projectileType === "rocket" &&
+      burstCount > 1
+    ) {
+      const burstCenter = (burstCount - 1) / 2;
+      muzzleLift += (shotIndex - burstCenter) * 11;
+      muzzleDistance -= Math.abs(shotIndex - burstCenter) * 3;
+    }
+
+    const perpendicularX = -Math.sin(bodyAngle);
+    const perpendicularY = Math.cos(bodyAngle);
 
     const muzzleX =
       this.roverBody.x +
-      Math.cos(angle) * muzzleDistance -
+      Math.cos(bodyAngle) * muzzleDistance -
       perpendicularX * muzzleLift;
+
     const muzzleY =
       this.roverBody.y +
-      Math.sin(angle) * muzzleDistance -
+      Math.sin(bodyAngle) * muzzleDistance -
       perpendicularY * muzzleLift;
+
+    const target = this.acquireWeaponTarget(
+      this.weaponSpec,
+      muzzleX,
+      muzzleY,
+      bodyAngle,
+    );
+
+    let launchAngle = bodyAngle;
+
+    if (
+      target &&
+      this.weaponSpec.projectileType === "homing"
+    ) {
+      launchAngle = Phaser.Math.Angle.Between(
+        muzzleX,
+        muzzleY,
+        target.sprite.x,
+        target.sprite.y - BONE_GUARD_DISPLAY_HEIGHT * 0.52,
+      );
+    }
 
     const sprite = this.add.image(
       muzzleX,
@@ -3543,13 +3651,15 @@ class RoverMatterScene extends Phaser.Scene {
       "selected-rover-ammo",
     );
 
-    sprite.setDepth(46);
-    sprite.setRotation(angle);
-    sprite.setOrigin(0.5);
+    sprite
+      .setDepth(46)
+      .setRotation(launchAngle)
+      .setOrigin(0.5);
 
     const source = this.textures
       .get("selected-rover-ammo")
       .getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+
     const sourceWidth = Math.max(1, Number(source.width) || 1);
     const sourceHeight = Math.max(1, Number(source.height) || 1);
     const displayWidth = this.weaponSpec.projectileWidth;
@@ -3560,22 +3670,128 @@ class RoverMatterScene extends Phaser.Scene {
 
     sprite.setDisplaySize(displayWidth, displayHeight);
 
-    const projectileSpeed = this.weaponSpec.projectileSpeed;
-    const inheritedSpeed = Math.max(0, body?.velocity.x ?? 0) * 20;
+    const inheritedSpeed =
+      Math.max(0, body?.velocity.x ?? 0) * 20;
+
+    const projectileSpeed =
+      this.weaponSpec.projectileSpeed + inheritedSpeed;
 
     this.combatProjectiles.push({
       sprite,
-      velocityX:
-        Math.cos(angle) * (projectileSpeed + inheritedSpeed),
-      velocityY: Math.sin(angle) * projectileSpeed,
+      velocityX: Math.cos(launchAngle) * projectileSpeed,
+      velocityY: Math.sin(launchAngle) * projectileSpeed,
+      speed: projectileSpeed,
       expiresAt: now + this.weaponSpec.projectileLifetimeMs,
       damage: this.weaponSpec.damage,
       projectileType: this.weaponSpec.projectileType,
       blastRadius: this.weaponSpec.blastRadius,
       trackingStrength: this.weaponSpec.trackingStrength,
+      targetGuardId: target?.id ?? null,
+      guidanceRange: this.weaponSpec.guidanceRange,
+      turnRateRadPerSecond: this.weaponSpec.turnRateRadPerSecond,
+      canReacquireTarget: this.weaponSpec.canReacquireTarget,
+      nextTrailAt: now,
     });
 
-    this.createMuzzleFlash(muzzleX, muzzleY, angle);
+    this.shotsFired += 1;
+    this.createMuzzleFlash(muzzleX, muzzleY, launchAngle);
+
+    if (
+      this.weaponSpec.projectileType === "guided" ||
+      this.weaponSpec.projectileType === "homing"
+    ) {
+      this.combatLockTargetId = target?.id ?? null;
+    }
+  }
+
+  private acquireWeaponTarget(
+    spec: CoreRoverWeaponSpec,
+    originX: number,
+    originY: number,
+    facingAngle: number,
+  ): BoneGuardEnemy | null {
+    if (
+      spec.projectileType !== "guided" &&
+      spec.projectileType !== "homing"
+    ) {
+      return null;
+    }
+
+    const halfConeRadians =
+      Phaser.Math.DegToRad(spec.lockConeDegrees) / 2;
+
+    let selected: BoneGuardEnemy | null = null;
+    let selectedScore = Number.POSITIVE_INFINITY;
+
+    for (const guard of this.boneGuards) {
+      if (!this.isBoneGuardTargetable(guard)) {
+        continue;
+      }
+
+      const targetX = guard.sprite.x;
+      const targetY =
+        guard.sprite.y - BONE_GUARD_DISPLAY_HEIGHT * 0.52;
+
+      const distance = Phaser.Math.Distance.Between(
+        originX,
+        originY,
+        targetX,
+        targetY,
+      );
+
+      if (distance > spec.guidanceRange) {
+        continue;
+      }
+
+      const targetAngle = Phaser.Math.Angle.Between(
+        originX,
+        originY,
+        targetX,
+        targetY,
+      );
+
+      const angleError = Math.abs(
+        Phaser.Math.Angle.Wrap(targetAngle - facingAngle),
+      );
+
+      if (angleError > halfConeRadians) {
+        continue;
+      }
+
+      const anglePenalty =
+        spec.projectileType === "guided"
+          ? angleError * 260
+          : angleError * 70;
+
+      const score = distance + anglePenalty;
+
+      if (score < selectedScore) {
+        selected = guard;
+        selectedScore = score;
+      }
+    }
+
+    return selected;
+  }
+
+  private isBoneGuardTargetable(guard: BoneGuardEnemy) {
+    return (
+      guard.state !== "dying" &&
+      guard.state !== "dead" &&
+      guard.sprite.active
+    );
+  }
+
+  private findBoneGuardById(id: number | null) {
+    if (id == null) return null;
+
+    return (
+      this.boneGuards.find(
+        (guard) =>
+          guard.id === id &&
+          this.isBoneGuardTargetable(guard),
+      ) ?? null
+    );
   }
 
   private createMuzzleFlash(x: number, y: number, angle: number) {
@@ -3609,8 +3825,18 @@ class RoverMatterScene extends Phaser.Scene {
         return false;
       }
 
+      this.updateProjectileGuidance(projectile, dt);
+
       projectile.sprite.x += projectile.velocityX * dt;
       projectile.sprite.y += projectile.velocityY * dt;
+
+      if (
+        projectile.projectileType === "rocket" ||
+        projectile.projectileType === "guided" ||
+        projectile.projectileType === "homing"
+      ) {
+        this.updateMissileTrail(projectile, now);
+      }
 
       const guardHit = this.findBoneGuardHitByPlayerProjectile(
         projectile.sprite.x,
@@ -3625,6 +3851,7 @@ class RoverMatterScene extends Phaser.Scene {
             projectile.blastRadius,
             projectile.damage,
           );
+
           this.createProjectileExplosion(
             projectile.sprite.x,
             projectile.sprite.y,
@@ -3643,6 +3870,7 @@ class RoverMatterScene extends Phaser.Scene {
       }
 
       const expired = now >= projectile.expiresAt;
+
       const outsideWorld =
         projectile.sprite.x < -200 ||
         projectile.sprite.x > this.levelConfig.worldWidth + 200 ||
@@ -3655,6 +3883,172 @@ class RoverMatterScene extends Phaser.Scene {
       }
 
       return true;
+    });
+  }
+
+  private updateProjectileGuidance(
+    projectile: CombatProjectile,
+    dt: number,
+  ) {
+    if (
+      projectile.projectileType !== "guided" &&
+      projectile.projectileType !== "homing"
+    ) {
+      return;
+    }
+
+    let target = this.findBoneGuardById(
+      projectile.targetGuardId,
+    );
+
+    if (!target && projectile.canReacquireTarget) {
+      const currentAngle = Math.atan2(
+        projectile.velocityY,
+        projectile.velocityX,
+      );
+
+      if (
+        this.weaponSpec &&
+        this.weaponSpec.projectileType === "homing"
+      ) {
+        target = this.acquireWeaponTarget(
+          this.weaponSpec,
+          projectile.sprite.x,
+          projectile.sprite.y,
+          currentAngle,
+        );
+
+        projectile.targetGuardId = target?.id ?? null;
+      }
+    }
+
+    if (!target) {
+      return;
+    }
+
+    const targetX = target.sprite.x;
+    const targetY =
+      target.sprite.y - BONE_GUARD_DISPLAY_HEIGHT * 0.52;
+
+    const distance = Phaser.Math.Distance.Between(
+      projectile.sprite.x,
+      projectile.sprite.y,
+      targetX,
+      targetY,
+    );
+
+    if (distance > projectile.guidanceRange * 1.25) {
+      if (projectile.canReacquireTarget) {
+        projectile.targetGuardId = null;
+      }
+      return;
+    }
+
+    const currentAngle = Math.atan2(
+      projectile.velocityY,
+      projectile.velocityX,
+    );
+
+    const desiredAngle = Phaser.Math.Angle.Between(
+      projectile.sprite.x,
+      projectile.sprite.y,
+      targetX,
+      targetY,
+    );
+
+    const angularError = Phaser.Math.Angle.Wrap(
+      desiredAngle - currentAngle,
+    );
+
+    const guidanceModifier =
+      projectile.projectileType === "guided"
+        ? 0.78
+        : 1;
+
+    const maximumTurn =
+      projectile.turnRateRadPerSecond *
+      guidanceModifier *
+      dt;
+
+    const appliedTurn = Phaser.Math.Clamp(
+      angularError,
+      -maximumTurn,
+      maximumTurn,
+    );
+
+    const newAngle = currentAngle + appliedTurn;
+
+    projectile.velocityX =
+      Math.cos(newAngle) * projectile.speed;
+    projectile.velocityY =
+      Math.sin(newAngle) * projectile.speed;
+    projectile.sprite.setRotation(newAngle);
+  }
+
+  private updateMissileTrail(
+    projectile: CombatProjectile,
+    now: number,
+  ) {
+    if (now < projectile.nextTrailAt) {
+      return;
+    }
+
+    projectile.nextTrailAt =
+      now +
+      (projectile.projectileType === "homing"
+        ? 36
+        : projectile.projectileType === "guided"
+          ? 44
+          : 58);
+
+    const angle = Math.atan2(
+      projectile.velocityY,
+      projectile.velocityX,
+    );
+
+    const trailDistance = Math.max(
+      10,
+      projectile.sprite.displayWidth * 0.38,
+    );
+
+    const trailX =
+      projectile.sprite.x -
+      Math.cos(angle) * trailDistance;
+
+    const trailY =
+      projectile.sprite.y -
+      Math.sin(angle) * trailDistance;
+
+    const color =
+      projectile.projectileType === "homing"
+        ? 0x63e9ff
+        : projectile.projectileType === "guided"
+          ? 0x9d8bff
+          : 0xffb264;
+
+    const trail = this.add
+      .circle(
+        trailX,
+        trailY,
+        projectile.projectileType === "homing"
+          ? 5
+          : 4,
+        color,
+        0.64,
+      )
+      .setDepth(44)
+      .setBlendMode(Phaser.BlendModes.ADD);
+
+    this.tweens.add({
+      targets: trail,
+      scale: 0.25,
+      alpha: 0,
+      duration:
+        projectile.projectileType === "homing"
+          ? 260
+          : 210,
+      ease: "Cubic.easeOut",
+      onComplete: () => trail.destroy(),
     });
   }
 
@@ -3766,8 +4160,132 @@ class RoverMatterScene extends Phaser.Scene {
     this.createBoneGuardAnimations();
     this.createBoneGuardBlasterTexture();
     this.createBoneGuardPortal();
+    this.createCombatTargetReticle();
 
     this.nextBoneGuardSpawnAt = this.time.now + 1800;
+  }
+
+  private createCombatTargetReticle() {
+    if (
+      !this.combatMode ||
+      !this.weaponSpec ||
+      (
+        this.weaponSpec.projectileType !== "guided" &&
+        this.weaponSpec.projectileType !== "homing"
+      )
+    ) {
+      return;
+    }
+
+    const reticleColor =
+      this.weaponSpec.projectileType === "homing"
+        ? 0x65efff
+        : 0xb39cff;
+
+    this.combatTargetReticle = this.add
+      .circle(0, 0, 48)
+      .setStrokeStyle(3, reticleColor, 0.92)
+      .setFillStyle(0x000000, 0)
+      .setDepth(55)
+      .setVisible(false);
+
+    this.combatTargetReticleInner = this.add
+      .circle(0, 0, 29)
+      .setStrokeStyle(1, reticleColor, 0.62)
+      .setFillStyle(0x000000, 0)
+      .setDepth(55)
+      .setVisible(false);
+
+    this.combatTargetText = this.add
+      .text(
+        0,
+        0,
+        this.weaponSpec.projectileType === "homing"
+          ? "LOCK"
+          : "SEEK",
+        {
+          fontFamily: "Arial, sans-serif",
+          fontSize: "9px",
+          fontStyle: "bold",
+          color:
+            this.weaponSpec.projectileType === "homing"
+              ? "#9ff8ff"
+              : "#d6c5ff",
+          letterSpacing: 2,
+        },
+      )
+      .setOrigin(0.5)
+      .setDepth(56)
+      .setVisible(false);
+
+    this.tweens.add({
+      targets: [
+        this.combatTargetReticle,
+        this.combatTargetReticleInner,
+      ],
+      scale: 1.08,
+      duration: 520,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+  }
+
+  private updateCombatTargetReticle() {
+    if (
+      !this.combatTargetReticle ||
+      !this.combatTargetReticleInner ||
+      !this.combatTargetText ||
+      !this.weaponSpec ||
+      !this.roverBody ||
+      this.roverDisabled ||
+      this.hasFinished
+    ) {
+      return;
+    }
+
+    const body =
+      this.roverBody.body as MatterJS.BodyType | null;
+
+    const facingAngle = body?.angle ?? 0;
+
+    let target = this.findBoneGuardById(
+      this.combatLockTargetId,
+    );
+
+    if (!target) {
+      target = this.acquireWeaponTarget(
+        this.weaponSpec,
+        this.roverBody.x,
+        this.roverBody.y,
+        facingAngle,
+      );
+
+      this.combatLockTargetId = target?.id ?? null;
+    }
+
+    if (!target) {
+      this.combatTargetReticle.setVisible(false);
+      this.combatTargetReticleInner.setVisible(false);
+      this.combatTargetText.setVisible(false);
+      return;
+    }
+
+    const targetX = target.sprite.x;
+    const targetY =
+      target.sprite.y - BONE_GUARD_DISPLAY_HEIGHT * 0.53;
+
+    this.combatTargetReticle
+      .setVisible(true)
+      .setPosition(targetX, targetY);
+
+    this.combatTargetReticleInner
+      .setVisible(true)
+      .setPosition(targetX, targetY);
+
+    this.combatTargetText
+      .setVisible(true)
+      .setPosition(targetX, targetY - 62);
   }
 
   private createBoneGuardAnimations() {
@@ -3949,6 +4467,7 @@ class RoverMatterScene extends Phaser.Scene {
     });
 
     this.updateBoneGuardBlasterProjectiles(delta);
+    this.updateCombatTargetReticle();
 
     if (
       !this.boneGuardWaveComplete &&
@@ -4366,6 +4885,10 @@ class RoverMatterScene extends Phaser.Scene {
 
     this.boneGuardsDefeated += 1;
     this.combatScore += boneGuardCombatSpec.defeatScore;
+
+    if (this.combatLockTargetId === guard.id) {
+      this.combatLockTargetId = null;
+    }
 
     const deathPulse = this.add
       .circle(
