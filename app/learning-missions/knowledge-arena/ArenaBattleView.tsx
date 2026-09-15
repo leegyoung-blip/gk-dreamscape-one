@@ -1321,24 +1321,30 @@ export function ArenaBattleView({
            Fighters are capped to the remaining row height, so the whole sprite
            scales down instead of being hidden behind or clipped by the cards. */
         .kab-is-mobile .kab-battle-center {
+          position: relative;
           z-index: 1;
+          box-sizing: border-box;
+          min-height: 0;
           overflow: hidden;
           align-items: flex-end;
-          gap: clamp(24px, 9vw, 78px);
-          padding: 2px 10px 0;
+          gap: clamp(28px, 10vw, 86px);
+
+          /* The HUD is pinned to the bottom independently. Reserve its height
+             here so both fighters always stand immediately above it. */
+          padding: 3px 10px 68px;
         }
         .kab-is-mobile .kab-fighter {
-          width: min(13vw, 92px);
-          height: min(22vh, 118px);
+          width: min(15vw, 108px);
+          height: min(26vh, 142px);
           max-height: 100%;
           flex: 0 1 auto;
           transform: none;
         }
         .kab-is-mobile .kab-fighter-right {
-          width:min(24vw,160px);
-          height:100%;
-          max-height:100%;
-          align-self:stretch;
+          width: min(27vw, 184px);
+          height: min(29vh, 158px);
+          max-height: 100%;
+          align-self: flex-end;
         }
         .kab-is-mobile .kab-fighter-left,
         .kab-is-mobile .kab-fighter-right {
@@ -1354,10 +1360,20 @@ export function ArenaBattleView({
         }
 
         .kab-is-mobile .kab-bottom-hud {
+          position: absolute;
+          left: 6px;
+          right: 6px;
+          bottom: max(6px, env(safe-area-inset-bottom));
+          z-index: 12;
           grid-template-columns: minmax(0,1fr) auto minmax(0,1fr);
           gap: 6px;
-          padding: 0 6px 6px;
-          align-items: center;
+          padding: 0;
+          align-items: end;
+          pointer-events: none;
+        }
+
+        .kab-is-mobile .kab-bottom-hud > * {
+          pointer-events: auto;
         }
         .kab-is-mobile .kab-hp-card {
           display: flex;
@@ -1378,9 +1394,9 @@ export function ArenaBattleView({
           display: none !important;
         }
         .kab-is-mobile .kab-floating-fire {
-          width: 60px;
-          height: 60px;
-          align-self: center;
+          width: 56px;
+          height: 56px;
+          align-self: end;
         }
         .kab-is-mobile .kab-floating-fire span {
           font-size: 13px;
@@ -1466,6 +1482,28 @@ export function ArenaBattleView({
           transform:none;
           max-height:100%;
         }
+
+        .kab-is-mobile .kab-battle-center {
+          box-sizing:border-box;
+          padding-bottom:68px;
+        }
+
+        .kab-is-mobile .kab-bottom-hud {
+          position:absolute;
+          left:6px;
+          right:6px;
+          bottom:max(6px, env(safe-area-inset-bottom));
+          z-index:12;
+          padding:0;
+          align-items:end;
+        }
+
+        .kab-is-mobile .kab-floating-fire {
+          width:56px;
+          height:56px;
+          align-self:end;
+        }
+
         .kab-is-mobile .kab-monster-stats {
           display:none !important;
           height:0 !important;

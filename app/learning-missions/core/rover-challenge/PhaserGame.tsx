@@ -73,7 +73,7 @@ const ROVER_AMMO_ASSET_ROOT =
 const BONE_GUARD_SPRITE_SRC =
   "/activities/learning-missions/core/rover/enemies/bone-guard/bone-guard-spritesheet.png";
 const BONE_GUARD_FRAME_SIZE = 362;
-const BONE_GUARD_DISPLAY_HEIGHT = 184;
+const BONE_GUARD_DISPLAY_HEIGHT = 132;
 const BONE_GUARD_BLASTER_TEXTURE = "bone-guard-blaster-bolt";
 
 type RoverAmmoAsset = {
@@ -81,6 +81,7 @@ type RoverAmmoAsset = {
   name: string;
   projectileType: "bullet" | "heavy-round" | "rocket" | "guided" | "homing";
   src: string;
+  textureKey: string;
 };
 
 const ROVER_AMMO_BY_LEVEL: Record<number, RoverAmmoAsset> = {
@@ -89,30 +90,35 @@ const ROVER_AMMO_BY_LEVEL: Record<number, RoverAmmoAsset> = {
     name: "Machine Gun Round",
     projectileType: "bullet",
     src: `${ROVER_AMMO_ASSET_ROOT}/machine-gun-round.png`,
+    textureKey: "rover-ammo-tier-1",
   },
   2: {
     level: 2,
     name: "Autocannon Round",
     projectileType: "heavy-round",
     src: `${ROVER_AMMO_ASSET_ROOT}/autocannon-round.png`,
+    textureKey: "rover-ammo-tier-2",
   },
   3: {
     level: 3,
     name: "Micro Rocket",
     projectileType: "rocket",
     src: `${ROVER_AMMO_ASSET_ROOT}/micro-rocket.png`,
+    textureKey: "rover-ammo-tier-3",
   },
   4: {
     level: 4,
     name: "Seeker Missile",
     projectileType: "guided",
     src: `${ROVER_AMMO_ASSET_ROOT}/seeker-missile.png`,
+    textureKey: "rover-ammo-tier-4",
   },
   5: {
     level: 5,
     name: "Nova Homing Missile",
     projectileType: "homing",
     src: `${ROVER_AMMO_ASSET_ROOT}/nova-homing-missile.png`,
+    textureKey: "rover-ammo-tier-5",
   },
 };
 
@@ -220,6 +226,12 @@ type BoneGuardEnemy = {
    */
   spawnPhase: 1 | 2 | 3;
 
+  /**
+   * Once true, the guard reached the end of the current blue zone and must
+   * remain there instead of stepping onto orange/collapsing terrain.
+   */
+  terrainBlocked: boolean;
+
   healthBackground: Phaser.GameObjects.Rectangle;
   healthFill: Phaser.GameObjects.Rectangle;
 };
@@ -293,6 +305,14 @@ class RoverMatterScene extends Phaser.Scene {
   private roverVisualOffsetY = 0;
 
   private terrainSections: Array<Array<{ x: number; y: number }>> = [];
+
+  /**
+   * Bone Guards only walk on permanent blue terrain.
+   * Unstable/orange sections are excluded from enemy navigation.
+   */
+  private boneGuardTerrainSections: Array<
+    Array<{ x: number; y: number }>
+  > = [];
 
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private keyA?: Phaser.Input.Keyboard.Key;
@@ -542,7 +562,10 @@ class RoverMatterScene extends Phaser.Scene {
      * expeditions light while giving Stage 5 a stable texture key to spawn.
      */
     if (this.selectedAmmoAsset) {
-      this.load.image("selected-rover-ammo", this.selectedAmmoAsset.src);
+      this.load.image(
+        this.selectedAmmoAsset.textureKey,
+        this.selectedAmmoAsset.src,
+      );
     }
 
     if (this.combatMode) {
@@ -634,6 +657,7 @@ class RoverMatterScene extends Phaser.Scene {
     this.updateTraps();
     this.updatePulseGates();
     this.updateCollapsibleTerrain();
+    this.handleWeaponInput();
     this.updateCombat(delta);
     this.updateBoneGuardCombat(delta);
     this.updateScore();
@@ -650,6 +674,7 @@ class RoverMatterScene extends Phaser.Scene {
     this.pulseGates = [];
     this.collapsibleTerrain = [];
     this.terrainSections = [];
+    this.boneGuardTerrainSections = [];
     this.trapCollisionLocked = false;
 
     this.touchLeft = false;
@@ -789,6 +814,19 @@ class RoverMatterScene extends Phaser.Scene {
 
     if (
       this.combatMode &&
+      this.weaponSpec &&
+      this.selectedAmmoAsset &&
+      !this.textures.exists(
+        this.selectedAmmoAsset.textureKey,
+      )
+    ) {
+      missingAssets.push(
+        `public${this.selectedAmmoAsset.src}`,
+      );
+    }
+
+    if (
+      this.combatMode &&
       !this.textures.exists("bone-guard")
     ) {
       missingAssets.push(`public${BONE_GUARD_SPRITE_SRC}`);
@@ -829,7 +867,7 @@ class RoverMatterScene extends Phaser.Scene {
       .text(
         GAME_WIDTH / 2,
         GAME_HEIGHT / 2 - 105,
-        "ROVER IMAGE FILES NOT FOUND",
+        "ROVER GAME ASSET FILES NOT FOUND",
         {
           fontFamily: "Arial, sans-serif",
           fontSize: "34px",
@@ -977,6 +1015,10 @@ class RoverMatterScene extends Phaser.Scene {
     }
 
     this.terrainSections.push(sampledPoints);
+
+    if (!options?.unstable) {
+      this.boneGuardTerrainSections.push(sampledPoints);
+    }
 
     const fill = this.add.graphics();
     fill.setDepth(10);
@@ -2609,12 +2651,17 @@ class RoverMatterScene extends Phaser.Scene {
     };
 
     background.on("pointerdown", press);
-
     background.on("pointerup", release);
-
     background.on("pointerout", release);
-
     background.on("pointerupoutside", release);
+
+    buttonLabel.setInteractive({
+      useHandCursor: true,
+    });
+    buttonLabel.on("pointerdown", press);
+    buttonLabel.on("pointerup", release);
+    buttonLabel.on("pointerout", release);
+    buttonLabel.on("pointerupoutside", release);
 
     return {
       background,
@@ -3073,6 +3120,72 @@ class RoverMatterScene extends Phaser.Scene {
     }
 
     return closest?.angle ?? null;
+  }
+
+  private getBoneGuardTerrainPoseAtX(
+    x: number,
+    preferredSurfaceY?: number,
+  ) {
+    const candidates: Array<{ y: number; angle: number }> = [];
+
+    for (const section of this.boneGuardTerrainSections) {
+      if (section.length < 2) {
+        continue;
+      }
+
+      const firstPoint = section[0];
+      const lastPoint = section[section.length - 1];
+
+      if (x < firstPoint.x || x > lastPoint.x) {
+        continue;
+      }
+
+      for (
+        let index = 0;
+        index < section.length - 1;
+        index += 1
+      ) {
+        const current = section[index];
+        const next = section[index + 1];
+
+        if (x < current.x || x > next.x) {
+          continue;
+        }
+
+        const span = Math.max(0.001, next.x - current.x);
+        const ratio = Phaser.Math.Clamp(
+          (x - current.x) / span,
+          0,
+          1,
+        );
+
+        candidates.push({
+          y: Phaser.Math.Linear(current.y, next.y, ratio),
+          angle: Math.atan2(
+            next.y - current.y,
+            next.x - current.x,
+          ),
+        });
+
+        break;
+      }
+    }
+
+    if (candidates.length === 0) {
+      return null;
+    }
+
+    if (preferredSurfaceY === undefined) {
+      return candidates[0];
+    }
+
+    return candidates.reduce(
+      (closest, candidate) =>
+        Math.abs(candidate.y - preferredSurfaceY) <
+        Math.abs(closest.y - preferredSurfaceY)
+          ? candidate
+          : closest,
+    );
   }
 
   private getTerrainPoseAtX(x: number, preferredSurfaceY?: number) {
@@ -3661,11 +3774,29 @@ class RoverMatterScene extends Phaser.Scene {
       !this.combatMode ||
       !this.roverBody ||
       !this.weaponSpec ||
-      !this.selectedAmmoAsset ||
-      !this.textures.exists("selected-rover-ammo") ||
       this.hasFinished ||
       this.roverDisabled
     ) {
+      return;
+    }
+
+    if (!this.selectedAmmoAsset) {
+      this.showStatusMessage(
+        "AMMO CONFIGURATION MISSING",
+        "#ff9d9d",
+      );
+      return;
+    }
+
+    if (
+      !this.textures.exists(
+        this.selectedAmmoAsset.textureKey,
+      )
+    ) {
+      this.showStatusMessage(
+        `AMMO FILE MISSING · TIER ${this.weaponLevel}`,
+        "#ff9d9d",
+      );
       return;
     }
 
@@ -3714,7 +3845,9 @@ class RoverMatterScene extends Phaser.Scene {
       !this.roverBody ||
       !this.weaponSpec ||
       !this.selectedAmmoAsset ||
-      !this.textures.exists("selected-rover-ammo")
+      !this.textures.exists(
+        this.selectedAmmoAsset.textureKey,
+      )
     ) {
       return;
     }
@@ -3778,7 +3911,7 @@ class RoverMatterScene extends Phaser.Scene {
     const sprite = this.add.image(
       muzzleX,
       muzzleY,
-      "selected-rover-ammo",
+      this.selectedAmmoAsset.textureKey,
     );
 
     sprite
@@ -3787,7 +3920,7 @@ class RoverMatterScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     const source = this.textures
-      .get("selected-rover-ammo")
+      .get(this.selectedAmmoAsset.textureKey)
       .getSourceImage() as HTMLImageElement | HTMLCanvasElement;
 
     const sourceWidth = Math.max(1, Number(source.width) || 1);
@@ -4632,7 +4765,10 @@ class RoverMatterScene extends Phaser.Scene {
       const horizontalDistance =
         guard.sprite.x - this.roverBody!.x;
 
-      if (horizontalDistance > boneGuardCombatSpec.stopRange) {
+      if (
+        !guard.terrainBlocked &&
+        horizontalDistance > boneGuardCombatSpec.stopRange
+      ) {
         this.updateWalkingBoneGuard(guard, dt);
       } else {
         this.updateFiringBoneGuard(guard, now);
@@ -4772,10 +4908,15 @@ class RoverMatterScene extends Phaser.Scene {
   private spawnBoneGuard() {
     const spawnOffset = Phaser.Math.Between(-28, 28);
     const spawnX = this.boneGuardPortalX + spawnOffset;
-    const pose = this.getTerrainPoseAtX(
-      spawnX,
-      this.boneGuardPortalY,
-    );
+    const pose =
+      this.getBoneGuardTerrainPoseAtX(
+        spawnX,
+        this.boneGuardPortalY,
+      ) ??
+      this.getTerrainPoseAtX(
+        spawnX,
+        this.boneGuardPortalY,
+      );
 
     const surfaceY = pose?.y ?? this.boneGuardPortalY;
 
@@ -4834,6 +4975,7 @@ class RoverMatterScene extends Phaser.Scene {
         1,
         3,
       ) as 1 | 2 | 3,
+      terrainBlocked: false,
       healthBackground,
       healthFill,
     };
@@ -4887,22 +5029,40 @@ class RoverMatterScene extends Phaser.Scene {
     const nextX =
       guard.sprite.x - boneGuardCombatSpec.moveSpeed * dt;
 
-    const pose = this.getTerrainPoseAtX(
+    const pose = this.getBoneGuardTerrainPoseAtX(
       nextX,
       guard.surfaceY,
     );
 
-    guard.sprite.x = nextX;
-
-    if (pose) {
-      guard.surfaceY = pose.y;
-      guard.sprite.y = pose.y + 4;
+    if (!pose) {
+      /*
+       * Stop on the last supported blue pixel. Do not cross orange sections
+       * or unsupported gaps, even if those surfaces still exist elsewhere in
+       * the general terrain lookup.
+       */
+      guard.terrainBlocked = true;
+      guard.state = "firing";
+      guard.sprite.setRotation(0);
+      guard.sprite.setFrame(4);
+      guard.lastFireAt = Math.min(
+        guard.lastFireAt,
+        this.time.now -
+          boneGuardCombatSpec.fireCooldownMs +
+          220,
+      );
+      return;
     }
 
+    guard.sprite.x = nextX;
+    guard.surfaceY = pose.y;
+    guard.sprite.y = pose.y + 4;
+
     guard.sprite.setRotation(
-      pose
-        ? Phaser.Math.Clamp(pose.angle * 0.22, -0.08, 0.08)
-        : 0,
+      Phaser.Math.Clamp(
+        pose.angle * 0.22,
+        -0.08,
+        0.08,
+      ),
     );
   }
 

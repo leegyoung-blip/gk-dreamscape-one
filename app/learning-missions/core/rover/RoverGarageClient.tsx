@@ -5,6 +5,7 @@ import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { coreUpgradeTrack } from "@/lib/coreRoverProgress";
+import { getCoreRoverCombatStats } from "@/lib/coreRoverCombat";
 import {
   getEffectiveRoverRatings,
   getRoverBaseRatings,
@@ -2153,6 +2154,7 @@ function RoverBuildStats({
   previewCategory: RoverPerformanceCategory | null;
 }) {
   const base = getRoverBaseRatings(stage);
+  const combat = getCoreRoverCombatStats(stage);
 
   const levels: RoverPerformanceLevels = {
     engine:
@@ -2280,7 +2282,76 @@ function RoverBuildStats({
           );
         })}
       </div>
+
+      <div style={combatRatingsDivider} />
+
+      <div style={combatRatingsHeadingRow}>
+        <p style={combatRatingsHeading}>COMBAT RATINGS</p>
+        <span style={combatRoleLabel}>
+          {combat.combatRole}
+        </span>
+      </div>
+
+      <div style={combatRatingsGrid}>
+        <CombatRating
+          label="HP"
+          value={combat.maxHp}
+          maximum={1200}
+          accent="#8dffbf"
+          suffix=" HP"
+        />
+
+        <CombatRating
+          label="Shield"
+          value={combat.maxShield}
+          maximum={700}
+          accent="#62edff"
+          suffix=" Shield"
+        />
+      </div>
     </section>
+  );
+}
+
+function CombatRating({
+  label,
+  value,
+  maximum,
+  accent,
+  suffix,
+}: {
+  label: string;
+  value: number;
+  maximum: number;
+  accent: string;
+  suffix: string;
+}) {
+  const percentage = Math.max(
+    0,
+    Math.min(100, (value / maximum) * 100),
+  );
+
+  return (
+    <div style={combatRatingItem}>
+      <div style={combatRatingLabelRow}>
+        <span>{label}</span>
+        <strong style={{ color: accent }}>
+          {value.toLocaleString("en-SG")}
+          {suffix}
+        </strong>
+      </div>
+
+      <div style={combatRatingTrack}>
+        <div
+          style={{
+            ...combatRatingFill,
+            width: `${percentage}%`,
+            background: `linear-gradient(90deg, ${accent}, #ffffff)`,
+            boxShadow: `0 0 10px ${accent}44`,
+          }}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -3041,6 +3112,71 @@ const buildStatsGrid: CSSProperties = {
 
 const buildStatRow: CSSProperties = {
   minWidth: 0,
+};
+
+const combatRatingsDivider: CSSProperties = {
+  height: "1px",
+  margin: "11px 0 9px",
+  background:
+    "linear-gradient(90deg,rgba(126,232,255,0.02),rgba(126,232,255,0.2),rgba(126,232,255,0.02))",
+};
+
+const combatRatingsHeadingRow: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "10px",
+};
+
+const combatRatingsHeading: CSSProperties = {
+  margin: 0,
+  color: "#ffd98a",
+  fontSize: "9px",
+  fontWeight: 950,
+  letterSpacing: "0.11em",
+};
+
+const combatRoleLabel: CSSProperties = {
+  color: "rgba(225,211,255,0.66)",
+  fontSize: "8px",
+  fontWeight: 850,
+  letterSpacing: "0.06em",
+};
+
+const combatRatingsGrid: CSSProperties = {
+  marginTop: "8px",
+  display: "grid",
+  gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+  gap: "12px",
+};
+
+const combatRatingItem: CSSProperties = {
+  minWidth: 0,
+};
+
+const combatRatingLabelRow: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "8px",
+  color: "rgba(255,255,255,0.68)",
+  fontSize: "10px",
+};
+
+const combatRatingTrack: CSSProperties = {
+  position: "relative",
+  height: "6px",
+  marginTop: "5px",
+  overflow: "hidden",
+  borderRadius: "999px",
+  background: "rgba(255,255,255,0.08)",
+};
+
+const combatRatingFill: CSSProperties = {
+  position: "absolute",
+  inset: "0 auto 0 0",
+  height: "100%",
+  borderRadius: "999px",
 };
 
 const buildStatLabelRow: CSSProperties = {
@@ -4097,7 +4233,7 @@ function roverFocusPane(_isCompact: boolean): CSSProperties {
      * The 3D rover is clipped inside its own row, so neither the Expeditions
      * button nor any other centre control can overlap the vehicle artwork.
      */
-    gridTemplateRows: "auto minmax(0,1fr) 62px auto auto",
+    gridTemplateRows: "auto minmax(0,1fr) 72px auto auto",
     overflow: "hidden",
     padding: "6px clamp(16px,2vw,30px)",
   };
@@ -4261,29 +4397,29 @@ const roverFocusVehicleStage: CSSProperties = {
   display: "grid",
   placeItems: "center",
   overflow: "hidden",
-  padding: "10px 3% 20px",
+  padding: "6px 4% 58px",
 };
 
 const roverFocusVehicleImage: CSSProperties = {
   position: "relative",
   zIndex: 2,
-  width: "92%",
-  height: "90%",
+  width: "88%",
+  height: "84%",
   maxWidth: "100%",
-  maxHeight: "100%",
+  maxHeight: "calc(100% - 24px)",
   objectFit: "contain",
-  objectPosition: "center",
-  filter: "drop-shadow(0 30px 32px rgba(0,0,0,0.52))",
+  objectPosition: "center 44%",
+  filter: "drop-shadow(0 28px 30px rgba(0,0,0,0.52))",
 };
 
 const roverFocusActionArea: CSSProperties = {
   position: "relative",
   zIndex: 4,
-  minHeight: "62px",
+  minHeight: "68px",
   display: "flex",
-  alignItems: "center",
+  alignItems: "flex-start",
   justifyContent: "center",
-  padding: "4px 0 6px",
+  padding: "0 0 8px",
 };
 
 const focusMessageStrip: CSSProperties = {
