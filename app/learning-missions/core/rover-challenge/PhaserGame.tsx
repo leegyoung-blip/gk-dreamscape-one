@@ -187,6 +187,8 @@ type CombatProjectile = {
   velocityX: number;
   velocityY: number;
   speed: number;
+  launchedAt: number;
+  guidanceStartsAt: number;
   expiresAt: number;
   damage: number;
   projectileType: CoreRoverWeaponSpec["projectileType"];
@@ -194,8 +196,10 @@ type CombatProjectile = {
   trackingStrength: number;
   targetGuardId: number | null;
   guidanceRange: number;
+  lockConeDegrees: number;
   turnRateRadPerSecond: number;
   canReacquireTarget: boolean;
+  hasEverLockedTarget: boolean;
   nextTrailAt: number;
 };
 
@@ -3894,19 +3898,12 @@ class RoverMatterScene extends Phaser.Scene {
       bodyAngle,
     );
 
-    let launchAngle = bodyAngle;
-
-    if (
-      target &&
-      this.weaponSpec.projectileType === "homing"
-    ) {
-      launchAngle = Phaser.Math.Angle.Between(
-        muzzleX,
-        muzzleY,
-        target.sprite.x,
-        target.sprite.y - BONE_GUARD_DISPLAY_HEIGHT * 0.52,
-      );
-    }
+    /*
+     * Guided missiles deliberately launch along the rover's current heading.
+     * Guidance begins a fraction of a second later so the player can actually
+     * see the projectile curve onto the target.
+     */
+    const launchAngle = bodyAngle;
 
     const sprite = this.add.image(
       muzzleX,
@@ -3944,6 +3941,14 @@ class RoverMatterScene extends Phaser.Scene {
       velocityX: Math.cos(launchAngle) * projectileSpeed,
       velocityY: Math.sin(launchAngle) * projectileSpeed,
       speed: projectileSpeed,
+      launchedAt: now,
+      guidanceStartsAt:
+        now +
+        (this.weaponSpec.projectileType === "homing"
+          ? 90
+          : this.weaponSpec.projectileType === "guided"
+            ? 120
+            : 0),
       expiresAt: now + this.weaponSpec.projectileLifetimeMs,
       damage: this.weaponSpec.damage,
       projectileType: this.weaponSpec.projectileType,
@@ -3951,8 +3956,10 @@ class RoverMatterScene extends Phaser.Scene {
       trackingStrength: this.weaponSpec.trackingStrength,
       targetGuardId: target?.id ?? null,
       guidanceRange: this.weaponSpec.guidanceRange,
+      lockConeDegrees: this.weaponSpec.lockConeDegrees,
       turnRateRadPerSecond: this.weaponSpec.turnRateRadPerSecond,
       canReacquireTarget: this.weaponSpec.canReacquireTarget,
+      hasEverLockedTarget: Boolean(target),
       nextTrailAt: now,
     });
 
@@ -4037,6 +4044,81 @@ class RoverMatterScene extends Phaser.Scene {
     return selected;
   }
 
+  private acquireProjectileTarget(
+    projectile: CombatProjectile,
+    allowFullCircle = false,
+  ): BoneGuardEnemy | null {
+    const facingAngle = Math.atan2(
+      projectile.velocityY,
+      projectile.velocityX,
+    );
+
+    const halfConeRadians = allowFullCircle
+      ? Math.PI
+      : Phaser.Math.DegToRad(
+          Math.max(1, projectile.lockConeDegrees),
+        ) / 2;
+
+    let selected: BoneGuardEnemy | null = null;
+    let selectedScore = Number.POSITIVE_INFINITY;
+
+    for (const guard of this.boneGuards) {
+      if (!this.isBoneGuardTargetable(guard)) {
+        continue;
+      }
+
+      const targetX = guard.sprite.x;
+      const targetY =
+        guard.sprite.y - BONE_GUARD_DISPLAY_HEIGHT * 0.5;
+
+      const distance = Phaser.Math.Distance.Between(
+        projectile.sprite.x,
+        projectile.sprite.y,
+        targetX,
+        targetY,
+      );
+
+      if (distance > projectile.guidanceRange) {
+        continue;
+      }
+
+      const targetAngle = Phaser.Math.Angle.Between(
+        projectile.sprite.x,
+        projectile.sprite.y,
+        targetX,
+        targetY,
+      );
+
+      const angleError = Math.abs(
+        Phaser.Math.Angle.Wrap(
+          targetAngle - facingAngle,
+        ),
+      );
+
+      if (angleError > halfConeRadians) {
+        continue;
+      }
+
+      /*
+       * Prefer nearby guards, but for homing missiles strongly favour targets
+       * already close to the missile's current heading.
+       */
+      const score =
+        distance +
+        angleError *
+          (projectile.projectileType === "homing"
+            ? 45
+            : 150);
+
+      if (score < selectedScore) {
+        selected = guard;
+        selectedScore = score;
+      }
+    }
+
+    return selected;
+  }
+
   private isBoneGuardTargetable(guard: BoneGuardEnemy) {
     return (
       guard.state !== "dying" &&
@@ -4101,10 +4183,45 @@ class RoverMatterScene extends Phaser.Scene {
         this.updateMissileTrail(projectile, now);
       }
 
-      const guardHit = this.findBoneGuardHitByPlayerProjectile(
-        projectile.sprite.x,
-        projectile.sprite.y,
-      );
+      let guardHit =
+        this.findBoneGuardHitByPlayerProjectile(
+          projectile.sprite.x,
+          projectile.sprite.y,
+        );
+
+      /*
+       * Guided missiles use a proximity fuse. They do not need a single-pixel
+       * collision with the Bone Guard sprite after successfully homing in.
+       */
+      if (
+        !guardHit &&
+        (projectile.projectileType === "guided" ||
+          projectile.projectileType === "homing")
+      ) {
+        const lockedTarget = this.findBoneGuardById(
+          projectile.targetGuardId,
+        );
+
+        if (lockedTarget) {
+          const fuseDistance =
+            projectile.projectileType === "homing"
+              ? 54
+              : 42;
+
+          const distanceToTarget =
+            Phaser.Math.Distance.Between(
+              projectile.sprite.x,
+              projectile.sprite.y,
+              lockedTarget.sprite.x,
+              lockedTarget.sprite.y -
+                BONE_GUARD_DISPLAY_HEIGHT * 0.48,
+            );
+
+          if (distanceToTarget <= fuseDistance) {
+            guardHit = lockedTarget;
+          }
+        }
+      }
 
       if (guardHit) {
         this.shotsHit += 1;
@@ -4162,28 +4279,46 @@ class RoverMatterScene extends Phaser.Scene {
       return;
     }
 
+    const now = this.time.now;
+
+    if (now < projectile.guidanceStartsAt) {
+      return;
+    }
+
     let target = this.findBoneGuardById(
       projectile.targetGuardId,
     );
 
-    if (!target && projectile.canReacquireTarget) {
-      const currentAngle = Math.atan2(
-        projectile.velocityY,
-        projectile.velocityX,
-      );
+    /*
+     * Tier 4 Seeker:
+     * - may acquire its first target shortly after launch if the initial lock
+     *   was missed
+     * - once a locked target dies, it does not jump to another target
+     *
+     * Tier 5 Nova Homing:
+     * - continuously reacquires any valid Bone Guard
+     * - reacquisition is effectively 360 degrees
+     */
+    if (!target) {
+      const seekerInitialLockWindow =
+        projectile.projectileType === "guided" &&
+        !projectile.hasEverLockedTarget &&
+        now - projectile.launchedAt <= 900;
 
-      if (
-        this.weaponSpec &&
-        this.weaponSpec.projectileType === "homing"
-      ) {
-        target = this.acquireWeaponTarget(
-          this.weaponSpec,
-          projectile.sprite.x,
-          projectile.sprite.y,
-          currentAngle,
+      const novaReacquire =
+        projectile.projectileType === "homing" &&
+        projectile.canReacquireTarget;
+
+      if (seekerInitialLockWindow || novaReacquire) {
+        target = this.acquireProjectileTarget(
+          projectile,
+          novaReacquire,
         );
 
-        projectile.targetGuardId = target?.id ?? null;
+        if (target) {
+          projectile.targetGuardId = target.id;
+          projectile.hasEverLockedTarget = true;
+        }
       }
     }
 
@@ -4191,23 +4326,66 @@ class RoverMatterScene extends Phaser.Scene {
       return;
     }
 
-    const targetX = target.sprite.x;
-    const targetY =
-      target.sprite.y - BONE_GUARD_DISPLAY_HEIGHT * 0.52;
+    const currentX = projectile.sprite.x;
+    const currentY = projectile.sprite.y;
+
+    const rawTargetX = target.sprite.x;
+    const rawTargetY =
+      target.sprite.y - BONE_GUARD_DISPLAY_HEIGHT * 0.5;
 
     const distance = Phaser.Math.Distance.Between(
-      projectile.sprite.x,
-      projectile.sprite.y,
-      targetX,
-      targetY,
+      currentX,
+      currentY,
+      rawTargetX,
+      rawTargetY,
     );
 
-    if (distance > projectile.guidanceRange * 1.25) {
-      if (projectile.canReacquireTarget) {
-        projectile.targetGuardId = null;
+    /*
+     * If the target moves out of guidance range:
+     * - Seeker loses it permanently.
+     * - Nova Homing drops it and may acquire a new target next frame.
+     */
+    if (distance > projectile.guidanceRange * 1.12) {
+      projectile.targetGuardId = null;
+
+      if (projectile.projectileType === "guided") {
+        projectile.hasEverLockedTarget = true;
       }
+
       return;
     }
+
+    /*
+     * Lead a walking Bone Guard instead of steering only toward its current
+     * coordinates. This is especially noticeable when the rover and guard are
+     * both moving.
+     */
+    const flightTime = Phaser.Math.Clamp(
+      distance / Math.max(1, projectile.speed),
+      0,
+      projectile.projectileType === "homing"
+        ? 0.55
+        : 0.38,
+    );
+
+    const guardWalking =
+      target.state === "walking" &&
+      !target.terrainBlocked;
+
+    const leadFactor =
+      projectile.projectileType === "homing"
+        ? 0.92
+        : 0.62;
+
+    const targetX =
+      rawTargetX -
+      (guardWalking
+        ? boneGuardCombatSpec.moveSpeed *
+          flightTime *
+          leadFactor
+        : 0);
+
+    const targetY = rawTargetY;
 
     const currentAngle = Math.atan2(
       projectile.velocityY,
@@ -4215,8 +4393,8 @@ class RoverMatterScene extends Phaser.Scene {
     );
 
     const desiredAngle = Phaser.Math.Angle.Between(
-      projectile.sprite.x,
-      projectile.sprite.y,
+      currentX,
+      currentY,
       targetX,
       targetY,
     );
@@ -4225,14 +4403,30 @@ class RoverMatterScene extends Phaser.Scene {
       desiredAngle - currentAngle,
     );
 
-    const guidanceModifier =
-      projectile.projectileType === "guided"
-        ? 0.78
-        : 1;
+    /*
+     * trackingStrength now actually affects the steering.
+     * Close-range homing becomes more aggressive so the missile can finish a
+     * turn instead of sailing past a nearby Bone Guard.
+     */
+    const proximity =
+      1 -
+      Phaser.Math.Clamp(
+        distance / Math.max(1, projectile.guidanceRange),
+        0,
+        1,
+      );
+
+    const trackingBoost =
+      0.75 +
+      projectile.trackingStrength * 0.85 +
+      proximity *
+        (projectile.projectileType === "homing"
+          ? 0.8
+          : 0.35);
 
     const maximumTurn =
       projectile.turnRateRadPerSecond *
-      guidanceModifier *
+      trackingBoost *
       dt;
 
     const appliedTurn = Phaser.Math.Clamp(
@@ -4247,6 +4441,7 @@ class RoverMatterScene extends Phaser.Scene {
       Math.cos(newAngle) * projectile.speed;
     projectile.velocityY =
       Math.sin(newAngle) * projectile.speed;
+
     projectile.sprite.setRotation(newAngle);
   }
 
@@ -4296,10 +4491,14 @@ class RoverMatterScene extends Phaser.Scene {
         trailX,
         trailY,
         projectile.projectileType === "homing"
-          ? 5
-          : 4,
+          ? 6
+          : projectile.projectileType === "guided"
+            ? 5
+            : 4,
         color,
-        0.64,
+        projectile.projectileType === "homing"
+          ? 0.78
+          : 0.64,
       )
       .setDepth(44)
       .setBlendMode(Phaser.BlendModes.ADD);
