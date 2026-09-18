@@ -433,12 +433,40 @@ function printReport({
   recommendation: NovaRecommendation | null;
   tips: HomeTip[];
 }) {
-  const printWindow = window.open("", "_blank", "noopener,noreferrer");
+  /*
+   * IMPORTANT:
+   * Do NOT use window.open() here.
+   * Browsers can treat a newly opened report window as a pop-up and block it.
+   *
+   * Instead we create a temporary off-screen iframe, write the clean A4 report
+   * into it, then call print() from that iframe. This avoids the pop-up blocker.
+   * The browser's normal print dialog still appears so the parent can choose
+   * "Save as PDF".
+   */
+  const previousFrame = document.getElementById(
+    "nova-parent-report-print-frame",
+  );
 
-  if (!printWindow) {
-    window.alert("Please allow pop-ups so the report can open for PDF saving.");
-    return;
-  }
+  previousFrame?.remove();
+
+  const frame = document.createElement("iframe");
+  frame.id = "nova-parent-report-print-frame";
+  frame.setAttribute("title", "NOVA+ Parent Report PDF");
+  frame.setAttribute("aria-hidden", "true");
+
+  Object.assign(frame.style, {
+    position: "fixed",
+    right: "0",
+    bottom: "0",
+    width: "1px",
+    height: "1px",
+    border: "0",
+    opacity: "0",
+    pointerEvents: "none",
+    zIndex: "-1",
+  });
+
+  document.body.appendChild(frame);
 
   const strengthHtml = strengths.length
     ? strengths
@@ -503,7 +531,7 @@ function printReport({
     )
     .join("");
 
-  printWindow.document.write(`
+  const reportHtml = `
     <!doctype html>
     <html>
       <head>
@@ -511,36 +539,53 @@ function printReport({
         <meta charset="utf-8" />
         <style>
           @page { size: A4; margin: 14mm; }
+
           * { box-sizing: border-box; }
+
+          html,
           body {
             margin: 0;
-            color: #142033;
+            padding: 0;
             background: white;
-            font-family: Arial, Helvetica, sans-serif;
           }
-          .report { width: 100%; }
+
+          body {
+            color: #142033;
+            font-family: Arial, Helvetica, sans-serif;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+
+          .report {
+            width: 100%;
+          }
+
           .header {
             padding: 22px;
             border-radius: 18px;
             color: white;
             background: linear-gradient(135deg, #0f3558, #221b50);
           }
+
           .brand {
             color: #9eefff;
             font-size: 10px;
             font-weight: 900;
             letter-spacing: .16em;
           }
+
           h1 {
             margin: 8px 0 0;
             font-size: 29px;
             letter-spacing: -.04em;
           }
+
           .period {
             margin-top: 8px;
             color: rgba(255,255,255,.72);
             font-size: 11px;
           }
+
           .summary {
             margin-top: 14px;
             padding: 16px 18px;
@@ -549,17 +594,21 @@ function printReport({
             font-size: 13px;
             line-height: 1.55;
           }
+
           .metrics {
             margin-top: 14px;
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 8px;
           }
+
           .metric {
             padding: 11px;
             border: 1px solid #e2e9ef;
             border-radius: 12px;
+            break-inside: avoid;
           }
+
           .metric span {
             display: block;
             color: #607284;
@@ -567,59 +616,88 @@ function printReport({
             font-weight: 900;
             letter-spacing: .09em;
           }
+
           .metric strong {
             display: block;
             margin-top: 5px;
             font-size: 20px;
           }
+
           .metric p {
             margin: 5px 0 0;
             color: #6f7f8f;
             font-size: 8px;
             line-height: 1.4;
           }
-          .section { margin-top: 17px; }
+
+          .section {
+            margin-top: 17px;
+            break-inside: avoid-page;
+          }
+
           .section-title {
             margin: 0 0 8px;
             font-size: 15px;
           }
+
           .grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 8px;
           }
-          .item, .tip, .recommend {
+
+          .item,
+          .tip,
+          .recommend {
             padding: 12px;
             border: 1px solid #e2e9ef;
             border-radius: 12px;
+            break-inside: avoid;
           }
-          .item span, .tip span, .recommend span {
+
+          .item span,
+          .tip span,
+          .recommend span {
             font-size: 7px;
             font-weight: 900;
             letter-spacing: .09em;
           }
+
           .green { color: #14875b; }
           .amber { color: #b77810; }
-          .tip span, .recommend span { color: #6b55b5; }
-          .item h3, .tip h3, .recommend h3 {
+
+          .tip span,
+          .recommend span {
+            color: #6b55b5;
+          }
+
+          .item h3,
+          .tip h3,
+          .recommend h3 {
             margin: 6px 0 0;
             font-size: 11px;
           }
-          .item p, .tip p, .recommend p {
+
+          .item p,
+          .tip p,
+          .recommend p {
             margin: 5px 0 0;
             color: #667788;
             font-size: 8px;
             line-height: 1.45;
           }
+
           .recommend {
             border-color: #d8caef;
             background: #faf8ff;
           }
+
           .recommend b {
             display: block;
             margin-top: 8px;
             font-size: 9px;
           }
+
           .empty {
             padding: 12px;
             border: 1px solid #e2e9ef;
@@ -627,6 +705,7 @@ function printReport({
             color: #71808d;
             font-size: 9px;
           }
+
           .footer {
             margin-top: 20px;
             padding-top: 10px;
@@ -635,24 +714,28 @@ function printReport({
             font-size: 7px;
             line-height: 1.4;
           }
-          @media print {
-            body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-          }
         </style>
       </head>
+
       <body>
         <main class="report">
           <section class="header">
             <div class="brand">NOVA+ PARENT REPORT</div>
             <h1>${escapeHtml(learnerLabel)} — Learning Report</h1>
-            <div class="period">${escapeHtml(periodLabel)} · Generated ${escapeHtml(
-              formatDate(new Date().toISOString()),
-            )}</div>
+            <div class="period">
+              ${escapeHtml(periodLabel)} · Generated ${escapeHtml(
+                formatDate(new Date().toISOString()),
+              )}
+            </div>
           </section>
 
-          <section class="summary">${escapeHtml(summary)}</section>
+          <section class="summary">
+            ${escapeHtml(summary)}
+          </section>
 
-          <section class="metrics">${metricHtml}</section>
+          <section class="metrics">
+            ${metricHtml}
+          </section>
 
           <section class="section">
             <h2 class="section-title">What’s Going Well</h2>
@@ -676,22 +759,67 @@ function printReport({
 
           <div class="footer">
             This report summarises the learner’s recorded English and Mathematics evidence.
-            It is designed to support discussion and planning, not to rank the learner against other students.
+            It is designed to support discussion and planning, not to rank the learner
+            against other students.
           </div>
         </main>
-
-        <script>
-          window.onload = function () {
-            setTimeout(function () {
-              window.print();
-            }, 200);
-          };
-        </script>
       </body>
     </html>
-  `);
+  `;
 
-  printWindow.document.close();
+  const frameWindow = frame.contentWindow;
+  const frameDocument = frame.contentDocument;
+
+  if (!frameWindow || !frameDocument) {
+    frame.remove();
+    return;
+  }
+
+  // Keep non-null references for the nested callbacks below.
+  // TypeScript does not preserve the narrowing of frameWindow/frameDocument
+  // across later function closures.
+  const printWindow: Window = frameWindow;
+  const printDocument: Document = frameDocument;
+
+  printDocument.open();
+  printDocument.write(reportHtml);
+  printDocument.close();
+
+  let cleanedUp = false;
+
+  function cleanup() {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    frame.remove();
+  }
+
+  function openPrintDialog() {
+    /*
+     * Give the iframe one render cycle before printing so its CSS/layout is
+     * complete. No new browser window or tab is opened.
+     */
+    window.setTimeout(() => {
+      try {
+        printWindow.focus();
+        printWindow.print();
+      } finally {
+        /*
+         * afterprint fires after the print/save dialog closes in modern browsers.
+         * The timeout is a fallback for browsers that do not fire afterprint
+         * reliably for iframe printing.
+         */
+        window.setTimeout(cleanup, 60_000);
+      }
+    }, 120);
+  }
+
+  printWindow.addEventListener("afterprint", cleanup, { once: true });
+
+  if (printDocument.readyState === "complete") {
+    openPrintDialog();
+  } else {
+    frame.addEventListener("load", openPrintDialog, { once: true });
+  }
 }
 
 export default function ParentReportTab({

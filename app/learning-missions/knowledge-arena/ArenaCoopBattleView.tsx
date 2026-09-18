@@ -99,6 +99,8 @@ const COOP_MONSTER_HOTSPOTS: Record<string, { x: number; y: number }> = {
   "tempest-roc": { x: .42, y: .46 },
   "worldbreaker-leviathan": { x: .30, y: .46 },
   "verdant-sabertooth": { x: .34, y: .46 },
+  "ironhide-rambeast": { x: .47, y: .49 },
+  "stormfang-wyvern": { x: .45, y: .48 },
 };
 function containedRect(image: HTMLImageElement, source?: {width:number;height:number}) {
   const box=image.getBoundingClientRect();

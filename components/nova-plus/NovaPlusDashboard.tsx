@@ -8,6 +8,7 @@ import MasteryMapTab from "@/components/nova-plus/tabs/MasteryMapTab";
 import NovaRecommendsTab from "@/components/nova-plus/tabs/NovaRecommendsTab";
 import ProgressTab from "@/components/nova-plus/tabs/ProgressTab";
 import ParentReportTab from "@/components/nova-plus/tabs/ParentReportTab";
+import NovaSchoolworkUploader from "@/components/nova-plus/NovaSchoolworkUploader";
 import { useNovaPlusProfile } from "@/hooks/useNovaPlusProfile";
 import { supabase } from "@/lib/supabase";
 import type { NovaPlusTab } from "@/lib/nova-plus/types";
@@ -28,6 +29,7 @@ export default function NovaPlusDashboard() {
   const requestedLearnerId = searchParams.get("student");
   const [tab, setTab] = useState<NovaPlusTab>("learning");
   const [viewerId, setViewerId] = useState<string | null>(null);
+  const [schoolworkOpen, setSchoolworkOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,6 +115,15 @@ export default function NovaPlusDashboard() {
         </div>
 
         <div className={styles.heroActions}>
+          <button
+            type="button"
+            className={styles.refreshButton}
+            disabled={loading || !selectedLearnerId}
+            onClick={() => setSchoolworkOpen(true)}
+          >
+            + Add Work
+          </button>
+
           <button
             type="button"
             className={styles.refreshButton}
@@ -204,6 +215,15 @@ export default function NovaPlusDashboard() {
           />
         )}
       </section>
+
+      {selectedLearnerId && (
+        <NovaSchoolworkUploader
+          open={schoolworkOpen}
+          learnerId={selectedLearnerId}
+          learnerLabel={learnerName}
+          onClose={() => setSchoolworkOpen(false)}
+        />
+      )}
     </main>
   );
 }

@@ -65,6 +65,20 @@ const monsterPoseSprites: Record<string, Record<MonsterPose, string>> = {
     hit: "/activities/learning-missions/knowledge-arena/monsters/verdant-sabertooth/hit.png",
     defeated: "/activities/learning-missions/knowledge-arena/monsters/verdant-sabertooth/defeated.png",
   },
+  "ironhide-rambeast": {
+    idle: "/activities/learning-missions/knowledge-arena/monsters/ironhide-rambeast/idle.png",
+    defense: "/activities/learning-missions/knowledge-arena/monsters/ironhide-rambeast/defense.png",
+    attack: "/activities/learning-missions/knowledge-arena/monsters/ironhide-rambeast/attack.png",
+    hit: "/activities/learning-missions/knowledge-arena/monsters/ironhide-rambeast/hit.png",
+    defeated: "/activities/learning-missions/knowledge-arena/monsters/ironhide-rambeast/defeated.png",
+  },
+  "stormfang-wyvern": {
+    idle: "/activities/learning-missions/knowledge-arena/monsters/stormfang-wyvern/idle.png",
+    defense: "/activities/learning-missions/knowledge-arena/monsters/stormfang-wyvern/defense.png",
+    attack: "/activities/learning-missions/knowledge-arena/monsters/stormfang-wyvern/attack.png",
+    hit: "/activities/learning-missions/knowledge-arena/monsters/stormfang-wyvern/hit.png",
+    defeated: "/activities/learning-missions/knowledge-arena/monsters/stormfang-wyvern/defeated.png",
+  },
 };
 
 function rarityLabel(value: string) {
@@ -378,6 +392,8 @@ const MONSTER_IMPACT_HOTSPOTS: Record<string, { x: number; y: number }> = {
   "tempest-roc": { x: 0.42, y: 0.46 },
   "worldbreaker-leviathan": { x: 0.30, y: 0.46 },
   "verdant-sabertooth": { x: 0.34, y: 0.46 },
+  "ironhide-rambeast": { x: 0.47, y: 0.49 },
+  "stormfang-wyvern": { x: 0.45, y: 0.48 },
 };
 
 function imageHotspot(
@@ -1081,6 +1097,8 @@ export function ArenaBattleView({
         .kab-impact-anchor--tempest-roc { left: 38%; top: 36%; }
         .kab-impact-anchor--worldbreaker-leviathan { left: 26%; top: 44%; }
         .kab-impact-anchor--verdant-sabertooth { left: 31%; top: 45%; }
+        .kab-impact-anchor--ironhide-rambeast { left: 45%; top: 48%; }
+        .kab-impact-anchor--stormfang-wyvern { left: 43%; top: 47%; }
         .kab-shot-layer {
           position: absolute;
           inset: 0;
