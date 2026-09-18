@@ -1834,9 +1834,12 @@ function StageTwoMap({
         <div style={stageTwoLockedPanel}>
           <div style={stageTwoLockSymbol}>◇</div>
           <p style={smallEyebrow}>STAGE 2 LOCKED</p>
-          <h2 style={stageTwoLockedHeading}>Beyond the Fracture</h2>
+          <h2 style={stageTwoLockedHeading}>
+            Beyond the Fracture
+          </h2>
           <p style={stageTwoLockedText}>
-            Complete Expedition 4 before entering the next Dreamscape region.
+            Complete Expedition 4 before entering the next
+            Dreamscape region.
           </p>
 
           <button
@@ -1851,19 +1854,56 @@ function StageTwoMap({
     );
   }
 
+  const locations = [
+    {
+      id: 5,
+      title: "Boneguard Breach",
+      left: "18.8%",
+      top: "55%",
+      playable: true,
+    },
+    {
+      id: 6,
+      title: "Fractured Frontier",
+      left: "38.7%",
+      top: "39%",
+      playable: false,
+    },
+    {
+      id: 7,
+      title: "Boneguard Stronghold",
+      left: "59.3%",
+      top: "43%",
+      playable: false,
+    },
+    {
+      id: 8,
+      title: "The Fracture Gate",
+      left: "77%",
+      top: "55%",
+      playable: false,
+    },
+  ] as const;
+
   return (
-    <section style={stageTwoMapShell}>
-      <div style={stageTwoStars} />
-      <div style={stageTwoMistA} />
-      <div style={stageTwoMistB} />
-      <div style={stageTwoIslandA} />
-      <div style={stageTwoIslandB} />
-      <div style={stageTwoRouteLine} />
+    <section style={stageTwoMapImageShell}>
+      <img
+        src="/activities/learning-missions/core/rover/maps/dreamscape-expeditions-stage-2.png"
+        alt="Dreamscape Stage 2 expedition map"
+        draggable={false}
+        style={stageMapImage}
+      />
+
+      <div style={stageTwoMapImageVignette} />
 
       <div style={stageTwoHeader}>
         <div>
-          <p style={smallEyebrow}>DREAMSCAPE EXPEDITIONS</p>
-          <h2 style={stageMapHeading}>Stage 2 · Beyond the Fracture</h2>
+          <p style={smallEyebrow}>
+            DREAMSCAPE EXPEDITIONS
+          </p>
+          <h2 style={stageMapHeading}>
+            Stage 2 · Beyond the Fracture
+          </h2>
         </div>
 
         <div style={stageMapHeaderActions}>
@@ -1882,70 +1922,106 @@ function StageTwoMap({
               style={stageEquippedRoverImage}
             />
             <span>
-              Rover {equippedRover.roverNumber} · {equippedRover.name}
+              Rover {equippedRover.roverNumber} ·{" "}
+              {equippedRover.name}
             </span>
           </div>
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={() =>
-          router.push(
-            "/learning-missions/core/rover-challenge/5",
-          )
-        }
-        style={stageFiveNode}
-      >
-        <span
-          style={mapLocationRing(true, expeditionFiveCompleted)}
-        >
-          {expeditionFiveCompleted ? "✓" : "5"}
+      {locations.map((location) => {
+        const isFive = location.id === 5;
+        const unlocked =
+          isFive && (isAdmin || stageTwoUnlocked);
+        const completed =
+          isFive && expeditionFiveCompleted;
+
+        return (
+          <button
+            key={location.id}
+            type="button"
+            disabled={!location.playable}
+            onClick={() => {
+              if (location.id === 5 && unlocked) {
+                router.push(
+                  "/learning-missions/core/rover-challenge/5",
+                );
+              }
+            }}
+            style={{
+              ...stageTwoExpeditionNode(
+                location.playable,
+              ),
+              left: location.left,
+              top: location.top,
+            }}
+          >
+            <span
+              style={
+                location.playable
+                  ? mapLocationRing(
+                      unlocked,
+                      completed,
+                    )
+                  : stageTwoComingSoonRing
+              }
+            >
+              {completed ? "✓" : location.id}
+            </span>
+
+            <span
+              style={
+                location.playable
+                  ? mapLocationCard(
+                      unlocked,
+                      completed,
+                    )
+                  : stageTwoComingSoonCard
+              }
+            >
+              <strong>
+                Expedition {location.id}
+              </strong>
+
+              <small>{location.title}</small>
+
+              <em>
+                {completed
+                  ? "Completed · Bone Gate Secured"
+                  : location.playable
+                    ? "Unlocked · Combat Expedition"
+                    : "Coming Soon"}
+              </em>
+            </span>
+          </button>
+        );
+      })}
+
+      <div style={stageTwoStageThreePortal}>
+        <span style={stageTwoStageThreePortalIcon}>
+          ◇
         </span>
 
-        <span
-          style={mapLocationCard(true, expeditionFiveCompleted)}
-        >
-          <strong>Expedition 5</strong>
-          <small>Boneguard Breach</small>
-          <em>
-            {expeditionFiveCompleted
-              ? "Completed · Bone Gate Secured"
-              : "Unlocked · Combat Expedition"}
-          </em>
-        </span>
-      </button>
-
-      <div
-        style={{
-          ...stageTwoFutureRegion,
-          ...(expeditionFiveCompleted
-            ? stageTwoFutureRegionRevealed
-            : {}),
-        }}
-      >
-        <span>
-          {expeditionFiveCompleted
-            ? "NEXT SECTOR DETECTED"
-            : "Further regions"}
-        </span>
-        <strong>
-          {expeditionFiveCompleted
-            ? "Expedition 6 · Coming Soon"
-            : "Coming later"}
-        </strong>
-        {expeditionFiveCompleted && (
+        <div style={stageTwoStageThreePortalCopy}>
+          <strong>Stage 3 Portal</strong>
           <small>
-            Boneguard Breach cleared
+            Sealed · Continue after Expedition 8
           </small>
-        )}
+        </div>
       </div>
 
       {isAdmin && (
         <div style={adminMapNotice}>
-          Admin map access · all stages unlocked
+          Admin map access · future expeditions visible
         </div>
       )}
+
+      <div style={stageMapLegend}>
+        <span>5 = playable</span>
+        <span>6–8 = coming soon</span>
+        <span>✓ = completed</span>
+        <span>Portal = Stage 3</span>
+      </div>
     </section>
   );
 }
@@ -5846,6 +5922,127 @@ const stageTwoFutureRegionRevealed: CSSProperties = {
   color: "rgba(230,211,255,0.88)",
   boxShadow:
     "0 0 24px rgba(143,80,230,0.22), inset 0 0 20px rgba(126,232,255,0.05)",
+};
+
+
+/* =========================================================
+   STAGE 2 GENERATED MAP OVERLAY
+   These are intentionally additive so shared garage styles
+   remain untouched.
+   ========================================================= */
+
+const stageTwoMapImageShell: CSSProperties = {
+  position: "relative",
+  height: "calc(100dvh - 72px)",
+  width: "100%",
+  overflow: "hidden",
+  background: "#02040d",
+};
+
+const stageTwoMapImageVignette: CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  zIndex: 2,
+  pointerEvents: "none",
+  background:
+    "linear-gradient(180deg,rgba(2,5,16,0.36),transparent 18%,transparent 78%,rgba(2,4,13,0.28)),linear-gradient(90deg,rgba(1,4,13,0.14),transparent 16%,transparent 82%,rgba(20,4,33,0.18))",
+  boxShadow:
+    "inset 0 0 110px rgba(1,3,11,0.34)",
+};
+
+function stageTwoExpeditionNode(
+  playable: boolean,
+): CSSProperties {
+  return {
+    position: "absolute",
+    zIndex: 12,
+    transform: "translate(-50%,-50%)",
+    border: "none",
+    background: "transparent",
+    padding: 0,
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    color: "white",
+    cursor: playable ? "pointer" : "default",
+    opacity: playable ? 1 : 0.88,
+  };
+}
+
+const stageTwoComingSoonRing: CSSProperties = {
+  width: "46px",
+  height: "46px",
+  flexShrink: 0,
+  borderRadius: "50%",
+  border: "2px solid rgba(209,177,255,0.66)",
+  background:
+    "radial-gradient(circle,rgba(126,76,202,0.4),rgba(12,10,32,0.94) 72%)",
+  boxShadow:
+    "0 0 17px rgba(160,101,242,0.3),inset 0 0 12px rgba(255,255,255,0.04)",
+  color: "#eadcff",
+  display: "grid",
+  placeItems: "center",
+  fontSize: "14px",
+  fontWeight: 950,
+};
+
+const stageTwoComingSoonCard: CSSProperties = {
+  minWidth: "142px",
+  display: "grid",
+  gap: "2px",
+  borderRadius: "12px",
+  border: "1px solid rgba(203,168,255,0.24)",
+  background:
+    "linear-gradient(135deg,rgba(13,14,35,0.9),rgba(31,15,54,0.86))",
+  boxShadow:
+    "0 10px 28px rgba(0,0,0,0.28)",
+  padding: "8px 10px",
+  textAlign: "left",
+  color: "rgba(242,235,255,0.92)",
+  backdropFilter: "blur(8px)",
+};
+
+const stageTwoStageThreePortal: CSSProperties = {
+  position: "absolute",
+  zIndex: 12,
+  right: "2.8%",
+  top: "24%",
+  width: "190px",
+  display: "flex",
+  alignItems: "center",
+  gap: "9px",
+  borderRadius: "14px",
+  border: "1px solid rgba(189,126,255,0.36)",
+  background:
+    "linear-gradient(135deg,rgba(19,9,39,0.86),rgba(40,10,67,0.78))",
+  boxShadow:
+    "0 0 28px rgba(139,70,224,0.28)",
+  padding: "9px 11px",
+  color: "#eadbff",
+  pointerEvents: "none",
+};
+
+const stageTwoStageThreePortalIcon: CSSProperties = {
+  width: "34px",
+  height: "34px",
+  flexShrink: 0,
+  display: "grid",
+  placeItems: "center",
+  borderRadius: "50%",
+  border: "1px solid rgba(209,171,255,0.55)",
+  background:
+    "radial-gradient(circle,rgba(160,92,255,0.48),rgba(47,14,84,0.9))",
+  boxShadow:
+    "0 0 18px rgba(177,102,255,0.55)",
+  color: "#f1dcff",
+  fontWeight: 950,
+};
+
+const stageTwoStageThreePortalCopy: CSSProperties = {
+  display: "grid",
+  gap: "2px",
+  textAlign: "left",
+  fontSize: "9px",
 };
 
 const loadingFill: CSSProperties = {
