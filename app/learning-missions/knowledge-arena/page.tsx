@@ -676,7 +676,7 @@ export default function KnowledgeArenaPage() {
   const [gemBalance, setGemBalance] = useState(0);
   const [novaAttackLevel, setNovaAttackLevel] = useState(0);
   const [novaAttackBonusPct, setNovaAttackBonusPct] = useState(0);
-  const [novaAttackDamage, setNovaAttackDamage] = useState(12);
+  const [novaAttackDamage, setNovaAttackDamage] = useState(20);
   const [novaNextUpgradeCost, setNovaNextUpgradeCost] = useState(20);
   const [novaAttackMaxLevel, setNovaAttackMaxLevel] = useState(50);
   const [novaUpgradeWorking, setNovaUpgradeWorking] = useState(false);
@@ -1080,7 +1080,7 @@ export default function KnowledgeArenaPage() {
         setGemBalance(0);
         setNovaAttackLevel(0);
         setNovaAttackBonusPct(0);
-        setNovaAttackDamage(12);
+        setNovaAttackDamage(20);
         setNovaNextUpgradeCost(20);
         setNovaUpgradeMessage("");
         return;
@@ -1115,7 +1115,7 @@ export default function KnowledgeArenaPage() {
         const upgrade = Array.isArray(upgradeData) ? upgradeData[0] : upgradeData;
         setNovaAttackLevel(Number(upgrade?.attack_level ?? 0));
         setNovaAttackBonusPct(Number(upgrade?.attack_bonus_pct ?? 0));
-        setNovaAttackDamage(Number(upgrade?.effective_base_damage ?? 12));
+        setNovaAttackDamage(Number(upgrade?.effective_base_damage ?? 20));
         setNovaNextUpgradeCost(Number(upgrade?.next_upgrade_cost ?? 20));
         setNovaAttackMaxLevel(Number(upgrade?.max_level ?? 50));
       }

@@ -696,7 +696,7 @@ export function ArenaBattleView({
           {damagePopups
             .filter((item) => item.target === "nova")
             .map((item) => (
-              <div key={item.id} className="kab-damage-float kab-damage-float--nova">-{item.value}</div>
+              <div key={item.id} className="kab-damage-float kab-damage-float--nova">-{Math.round(item.value)}</div>
             ))}
         </div>
 
@@ -726,7 +726,7 @@ export function ArenaBattleView({
           {damagePopups
             .filter((item) => item.target === "monster")
             .map((item) => (
-              <div key={item.id} className="kab-damage-float kab-damage-float--monster">-{item.value}</div>
+              <div key={item.id} className="kab-damage-float kab-damage-float--monster">-{Math.round(item.value)}</div>
             ))}
         </div>
 
@@ -756,7 +756,7 @@ export function ArenaBattleView({
         <div className="kab-hp-card kab-bottom-card">
           <div className="kab-hp-title">
             <strong>NOVA</strong>
-            <span>{novaHp} / 1000 HP</span>
+            <span>{Math.max(0, Math.ceil(novaHp))} / 1000 HP</span>
           </div>
           <div className="kab-hp-track">
             <i style={{ width: `${hpPercent(novaHp, 1000)}%` }} />
@@ -780,7 +780,7 @@ export function ArenaBattleView({
         <div className="kab-hp-card kab-bottom-card kab-monster-card">
           <div className="kab-hp-title">
             <strong>{monster.name}</strong>
-            <span>{monsterHp} / {monster.hp} HP</span>
+            <span>{Math.max(0, Math.ceil(monsterHp))} / {monster.hp} HP</span>
           </div>
           <div className="kab-hp-track kab-monster-hp">
             <i style={{ width: `${hpPercent(monsterHp, monster.hp)}%` }} />
@@ -1618,10 +1618,10 @@ export function ArenaBattleResultCard({
         </div>
 
         <div className="kab-result-stats">
-          <span>Nova HP <strong>{novaHp}</strong></span>
-          <span>Monster HP <strong>{monsterHp}</strong></span>
-          <span>Damage dealt <strong>{damageDealt}</strong></span>
-          <span>Damage received <strong>{damageReceived}</strong></span>
+          <span>Nova HP <strong>{Math.max(0, Math.ceil(novaHp))}</strong></span>
+          <span>Monster HP <strong>{Math.max(0, Math.ceil(monsterHp))}</strong></span>
+          <span>Damage dealt <strong>{Math.round(damageDealt)}</strong></span>
+          <span>Damage received <strong>{Math.round(damageReceived)}</strong></span>
           <span>Revives <strong>{revivesUsed}</strong></span>
         </div>
       </div>

@@ -74,7 +74,7 @@ export type ReviveResponse = {
   gem_balance: number | null;
 };
 
-const BASE_SHOT_DAMAGE = 12;
+const BASE_SHOT_DAMAGE = 20;
 const SHOTS_PER_SECOND = 5;
 const SHOT_INTERVAL_MS = 1000 / SHOTS_PER_SECOND;
 const NOVA_START_HP = 1000;
@@ -88,9 +88,12 @@ function defenseReduction(defenseRating: number) {
 function damagePerShot(defenseRating: number, attackLevel: number) {
   const safeLevel = Math.max(0, Math.min(50, Math.round(attackLevel || 0)));
   const upgradedBaseDamage = BASE_SHOT_DAMAGE * (1 + safeLevel * 0.05);
+
+  // Keep fractional damage internally. The UI rounds only what it displays.
+  // This prevents purchased levels from being lost to per-shot integer rounding.
   return Math.max(
     1,
-    Math.round(upgradedBaseDamage * (1 - defenseReduction(defenseRating))),
+    upgradedBaseDamage * (1 - Math.min(0.4, defenseReduction(defenseRating))),
   );
 }
 
@@ -100,6 +103,14 @@ export function fireWindowForSecondsUsed(secondsUsed: number) {
   if (secondsUsed <= 5) return 3;
   if (secondsUsed <= 7) return 2;
   return 1;
+}
+
+export function maxShotsForSecondsUsed(secondsUsed: number) {
+  if (secondsUsed <= 1) return 7;
+  if (secondsUsed <= 3) return 6;
+  if (secondsUsed <= 5) return 5;
+  if (secondsUsed <= 7) return 4;
+  return 3;
 }
 
 function wrongStreakMultiplier(streak: number) {
@@ -355,7 +366,7 @@ export function useKnowledgeArenaBattle({
     const resolution = currentResolutionRef.current;
     if (!resolution) return false;
 
-    const maxShots = fireWindowSeconds * SHOTS_PER_SECOND;
+    const maxShots = maxShotsForSecondsUsed(resolution.secondsUsed);
     if (shotsRef.current >= maxShots) return false;
 
     const now = performance.now();
@@ -382,10 +393,19 @@ export function useKnowledgeArenaBattle({
     if (nextHp <= 0) {
       fireHeldRef.current = false;
       window.setTimeout(() => finishFiringTurn(), 80);
+      return true;
+    }
+
+    // Answer speed now determines a hard shot allowance. Once the player has
+    // used the allowance, finish the firing turn immediately instead of making
+    // them wait for the remaining visual firing window.
+    if (shotsRef.current >= maxShots) {
+      fireHeldRef.current = false;
+      window.setTimeout(() => finishFiringTurn(), 120);
     }
 
     return true;
-  }, [fireWindowSeconds, finishFiringTurn, monsterDamagePerShot]);
+  }, [finishFiringTurn, monsterDamagePerShot]);
 
   useEffect(() => {
     if (phase !== "firing" || isPaused) return;
@@ -475,10 +495,11 @@ export function useKnowledgeArenaBattle({
         fireDeadlineRef.current = performance.now() + fireSeconds * 1000;
         pausedFireRemainingRef.current = 0;
         setPhase("firing");
+        const shotCap = maxShotsForSecondsUsed(resolution.secondsUsed);
         setBattleMessage(
           monsterHpRef.current > 0
-            ? `CORRECT — FIRE! ${fireSeconds}s attack window`
-            : `CORRECT — TARGET PRACTICE! ${fireSeconds}s`,
+            ? `CORRECT — FIRE! ${shotCap} shots · ${fireSeconds}s max`
+            : `CORRECT — TARGET PRACTICE! ${shotCap} shots · ${fireSeconds}s max`,
         );
         return;
       }

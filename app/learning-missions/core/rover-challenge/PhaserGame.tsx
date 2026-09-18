@@ -4172,6 +4172,9 @@ class RoverMatterScene extends Phaser.Scene {
 
       this.updateProjectileGuidance(projectile, dt);
 
+      const previousX = projectile.sprite.x;
+      const previousY = projectile.sprite.y;
+
       projectile.sprite.x += projectile.velocityX * dt;
       projectile.sprite.y += projectile.velocityY * dt;
 
@@ -4187,6 +4190,8 @@ class RoverMatterScene extends Phaser.Scene {
         this.findBoneGuardHitByPlayerProjectile(
           projectile.sprite.x,
           projectile.sprite.y,
+          previousX,
+          previousY,
         );
 
       /*
@@ -4227,11 +4232,30 @@ class RoverMatterScene extends Phaser.Scene {
         this.shotsHit += 1;
 
         if (projectile.blastRadius > 0) {
+          /*
+           * Explosive weapons used to rely entirely on radius damage.
+           * That allowed a visible direct hit to deal zero damage when the
+           * projectile touched the guard's sprite edge but the explosion
+           * centre sat just outside the radius measured from the guard's
+           * internal torso point.
+           *
+           * Direct hits now ALWAYS deal full weapon damage first.
+           */
+          this.damageBoneGuard(
+            guardHit,
+            projectile.damage,
+          );
+
+          /*
+           * The blast then damages OTHER nearby Bone Guards.
+           * The primary target is excluded so it is not damaged twice.
+           */
           this.damageBoneGuardsInRadius(
             projectile.sprite.x,
             projectile.sprite.y,
             projectile.blastRadius,
             projectile.damage,
+            guardHit.id,
           );
 
           this.createProjectileExplosion(
@@ -4240,7 +4264,11 @@ class RoverMatterScene extends Phaser.Scene {
             projectile.blastRadius,
           );
         } else {
-          this.damageBoneGuard(guardHit, projectile.damage);
+          this.damageBoneGuard(
+            guardHit,
+            projectile.damage,
+          );
+
           this.createPlayerImpact(
             projectile.sprite.x,
             projectile.sprite.y,
@@ -4519,6 +4547,8 @@ class RoverMatterScene extends Phaser.Scene {
   private findBoneGuardHitByPlayerProjectile(
     x: number,
     y: number,
+    previousX = x,
+    previousY = y,
   ) {
     return this.boneGuards.find((guard) => {
       if (
@@ -4530,12 +4560,47 @@ class RoverMatterScene extends Phaser.Scene {
       }
 
       const bounds = guard.sprite.getBounds();
-      return (
-        x >= bounds.left - 8 &&
-        x <= bounds.right + 8 &&
-        y >= bounds.top - 8 &&
-        y <= bounds.bottom + 8
+
+      const expandedBounds = new Phaser.Geom.Rectangle(
+        bounds.x - 10,
+        bounds.y - 10,
+        bounds.width + 20,
+        bounds.height + 20,
       );
+
+      if (
+        Phaser.Geom.Rectangle.Contains(
+          expandedBounds,
+          x,
+          y,
+        )
+      ) {
+        return true;
+      }
+
+      /*
+       * High-speed ammo can move many pixels in one frame. Check the entire
+       * travelled line segment so rockets, autocannon rounds and missiles
+       * cannot pass through an enemy between frames.
+       */
+      if (
+        previousX !== x ||
+        previousY !== y
+      ) {
+        const travelLine = new Phaser.Geom.Line(
+          previousX,
+          previousY,
+          x,
+          y,
+        );
+
+        return Phaser.Geom.Intersects.LineToRectangle(
+          travelLine,
+          expandedBounds,
+        );
+      }
+
+      return false;
     });
   }
 
@@ -4544,9 +4609,11 @@ class RoverMatterScene extends Phaser.Scene {
     y: number,
     radius: number,
     damage: number,
+    excludedGuardId: number | null = null,
   ) {
     this.boneGuards.forEach((guard) => {
       if (
+        guard.id === excludedGuardId ||
         guard.state === "dying" ||
         guard.state === "dead" ||
         !guard.sprite.active

@@ -18,39 +18,48 @@ type NovaRecommendsTabProps = {
 
 type LaneMeta = {
   eyebrow: string;
-  title: string;
-  description: string;
-  shortLabel: string;
+  sectionTitle: string;
+  sectionDescription: string;
+  cardLabel: string;
+  actionLabel: string;
   icon: string;
 };
 
 const LANE_META: Record<NovaRecommendationLane, LaneMeta> = {
   focus_now: {
     eyebrow: "TOP PRIORITY",
-    title: "Focus Now",
-    description: "The clearest evidence-backed priority in the learner profile.",
-    shortLabel: "Focus Now",
+    sectionTitle: "Focus Now",
+    sectionDescription:
+      "The clearest evidence-backed concept to work on next.",
+    cardLabel: "Priority Now",
+    actionLabel: "Start Practice",
     icon: "01",
   },
   build_next: {
-    eyebrow: "BUILDING",
-    title: "Build Next",
-    description: "Concepts that are developing or need more evidence before Nova confirms a gap.",
-    shortLabel: "Build Next",
+    eyebrow: "UP NEXT",
+    sectionTitle: "Next Best Moves",
+    sectionDescription:
+      "Concepts that are building and worth strengthening soon.",
+    cardLabel: "Build Next",
+    actionLabel: "Start Practice",
     icon: "02",
   },
   reassess: {
     eyebrow: "CHECK AGAIN",
-    title: "Reassess",
-    description: "A concept ready for a fresh check after earlier difficulty or review signals.",
-    shortLabel: "Reassess",
+    sectionTitle: "Reassess",
+    sectionDescription:
+      "A concept that should be checked again instead of repeated blindly.",
+    cardLabel: "Ready to Reassess",
+    actionLabel: "Reassess Now",
     icon: "03",
   },
   stretch: {
-    eyebrow: "READY TO EXTEND",
-    title: "Stretch",
-    description: "A secure concept that can support a harder challenge.",
-    shortLabel: "Stretch",
+    eyebrow: "READY TO STRETCH",
+    sectionTitle: "Stretch Further",
+    sectionDescription:
+      "A secure concept that can handle a stronger challenge.",
+    cardLabel: "Stretch",
+    actionLabel: "Start Challenge",
     icon: "04",
   },
 };
@@ -106,13 +115,6 @@ function laneClass(lane: NovaRecommendationLane) {
   }
 }
 
-function actionLabel(lane: NovaRecommendationLane, preview: boolean) {
-  if (preview) return "Preview Mission";
-  if (lane === "reassess") return "Reassess Now";
-  if (lane === "stretch") return "Start Challenge";
-  return "Start Practice";
-}
-
 function RecommendationCard({
   item,
   canLaunchPractice,
@@ -136,11 +138,11 @@ function RecommendationCard({
       }`}
     >
       <div className={styles.cardTop}>
-        <div className={styles.laneIdentity}>
+        <div className={styles.cardPriority}>
           <span className={styles.laneNumber}>{meta.icon}</span>
           <div>
             <small>{meta.eyebrow}</small>
-            <strong>{meta.shortLabel}</strong>
+            <strong>{meta.cardLabel}</strong>
           </div>
         </div>
 
@@ -176,15 +178,14 @@ function RecommendationCard({
 
         {mayOpen ? (
           <a className={styles.startButton} href={quizHref}>
-            {actionLabel(item.lane, preview)}
+            {preview ? "Preview Mission" : meta.actionLabel}
             <span>→</span>
           </a>
         ) : (
           <div className={styles.viewerNotice}>
-            <strong>For {SUBJECT_LABELS[item.subject]} practice</strong>
+            <strong>Open from the learner account</strong>
             <span>
-              Open NOVA+ from the learner account to start this mission without
-              recording the attempt under the viewer&apos;s account.
+              This keeps the practice attempt recorded under the learner, not the viewer.
             </span>
           </div>
         )}
@@ -193,7 +194,7 @@ function RecommendationCard({
       <details className={styles.whyPanel}>
         <summary>
           <span>Why this?</span>
-          <b>View evidence</b>
+          <b>View Evidence</b>
         </summary>
 
         <div className={styles.evidenceGrid}>
@@ -227,16 +228,13 @@ function RecommendationCard({
           </div>
           <div>
             <small>Quiz coverage</small>
-            <strong>
-              {percentage(item.quiz.quiz_skill_coverage_percentage)}
-            </strong>
+            <strong>{percentage(item.quiz.quiz_skill_coverage_percentage)}</strong>
           </div>
         </div>
 
         {item.evidence_quality !== "ready" && (
           <p className={styles.evidenceNote}>
-            Nova is treating this as developing evidence, not a confirmed
-            learning gap.
+            Nova is still gathering evidence here, so this is not being treated as a confirmed gap yet.
           </p>
         )}
 
@@ -245,19 +243,13 @@ function RecommendationCard({
             <small>OTHER SUITABLE MISSIONS</small>
             <div>
               {item.alternatives.map((alternative) =>
-                alternative.quiz_href &&
-                (canLaunchPractice || isAdminPreview) ? (
-                  <a
-                    href={alternative.quiz_href}
-                    key={alternative.quiz_id}
-                  >
+                alternative.quiz_href && (canLaunchPractice || isAdminPreview) ? (
+                  <a href={alternative.quiz_href} key={alternative.quiz_id}>
                     <span>{alternative.quiz_title}</span>
                     <b>
                       {alternative.quiz_skill_coverage_percentage !== null
                         ? `${Math.round(
-                            numberValue(
-                              alternative.quiz_skill_coverage_percentage,
-                            ),
+                            numberValue(alternative.quiz_skill_coverage_percentage),
                           )}%`
                         : "Open"}
                     </b>
@@ -268,9 +260,7 @@ function RecommendationCard({
                     <b>
                       {alternative.quiz_skill_coverage_percentage !== null
                         ? `${Math.round(
-                            numberValue(
-                              alternative.quiz_skill_coverage_percentage,
-                            ),
+                            numberValue(alternative.quiz_skill_coverage_percentage),
                           )}%`
                         : "Mapped"}
                     </b>
@@ -355,8 +345,7 @@ export default function NovaRecommendsTab({
           <span className={styles.eyebrow}>NOVA RECOMMENDS</span>
           <h2>Know exactly what to work on next</h2>
           <p>
-            Nova turns {learnerLabel}&apos;s latest concept evidence into a
-            small number of priorities — not another long analytics list.
+            Nova turns {learnerLabel}&apos;s latest concept evidence into a small number of clear next steps.
           </p>
         </div>
 
@@ -367,15 +356,15 @@ export default function NovaRecommendsTab({
           </span>
           <span>
             <i className={styles.buildDot} />
-            Developing evidence
+            Building up
           </span>
           <span>
             <i className={styles.reassessDot} />
-            Ready to check again
+            Check again
           </span>
           <span>
             <i className={styles.stretchDot} />
-            Ready to stretch
+            Stretch further
           </span>
         </div>
       </header>
@@ -385,8 +374,7 @@ export default function NovaRecommendsTab({
           <span className={styles.loader} />
           <strong>Nova is ranking the next best actions…</strong>
           <p>
-            Using current mastery, evidence confidence, recent errors and
-            available mapped missions.
+            Using current mastery, evidence confidence, recent errors and available mapped missions.
           </p>
         </div>
       ) : error ? (
@@ -402,9 +390,7 @@ export default function NovaRecommendsTab({
             <span className={styles.eyebrow}>BUILDING THE PICTURE</span>
             <h3>No priority needs to be forced yet.</h3>
             <p>
-              Nova needs more mapped English or Mathematics evidence before it
-              can make a confident recommendation. Untouched concepts are not
-              treated as weaknesses.
+              Nova needs more mapped English or Mathematics evidence before it can make a confident recommendation.
             </p>
           </div>
         </div>
@@ -415,10 +401,10 @@ export default function NovaRecommendsTab({
               <div className={styles.sectionHeading}>
                 <div>
                   <span>{LANE_META.focus_now.eyebrow}</span>
-                  <h3>{LANE_META.focus_now.title}</h3>
-                  <p>{LANE_META.focus_now.description}</p>
+                  <h3>{LANE_META.focus_now.sectionTitle}</h3>
+                  <p>{LANE_META.focus_now.sectionDescription}</p>
                 </div>
-                <b>1 priority</b>
+                <b>1 concept</b>
               </div>
               <RecommendationCard
                 item={focus}
@@ -434,8 +420,8 @@ export default function NovaRecommendsTab({
               <div className={styles.sectionHeading}>
                 <div>
                   <span>{LANE_META.build_next.eyebrow}</span>
-                  <h3>{LANE_META.build_next.title}</h3>
-                  <p>{LANE_META.build_next.description}</p>
+                  <h3>{LANE_META.build_next.sectionTitle}</h3>
+                  <p>{LANE_META.build_next.sectionDescription}</p>
                 </div>
                 <b>{build.length} {build.length === 1 ? "concept" : "concepts"}</b>
               </div>
@@ -458,10 +444,10 @@ export default function NovaRecommendsTab({
               <div className={styles.sectionHeading}>
                 <div>
                   <span>{LANE_META[finish.lane].eyebrow}</span>
-                  <h3>{LANE_META[finish.lane].title}</h3>
-                  <p>{LANE_META[finish.lane].description}</p>
+                  <h3>{LANE_META[finish.lane].sectionTitle}</h3>
+                  <p>{LANE_META[finish.lane].sectionDescription}</p>
                 </div>
-                <b>{finish.lane === "reassess" ? "Fresh check" : "Extension"}</b>
+                <b>{finish.lane === "reassess" ? "1 concept" : "1 stretch"}</b>
               </div>
 
               <RecommendationCard
@@ -477,11 +463,9 @@ export default function NovaRecommendsTab({
       <footer className={styles.planBridge}>
         <div>
           <span className={styles.eyebrow}>SEVEN-DAY PLAN</span>
-          <h3>Priorities decide what. The weekly plan decides when.</h3>
+          <h3>Nova Recommends decides what. Your weekly plan decides when.</h3>
           <p>
-            Nova Recommends stays concept-driven and changes with learning
-            evidence. The standard Seven-Day Plan remains the learner&apos;s
-            weekly schedule.
+            This page stays concept-based and updates with learning evidence. The weekly plan remains the learner&apos;s schedule.
           </p>
         </div>
         <a href="/learning-missions/progress-rewards">
