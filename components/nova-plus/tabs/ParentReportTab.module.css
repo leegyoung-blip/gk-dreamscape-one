@@ -1,0 +1,758 @@
+.page {
+  display: grid;
+  gap: 16px;
+}
+
+.header,
+.reportIntro,
+.sectionCard,
+.progressSection,
+.recommendSection,
+.homeSection,
+.footerNote {
+  border: 1px solid rgba(142, 232, 255, 0.11);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.022);
+}
+
+.header {
+  padding: 24px 26px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 26px;
+  background:
+    radial-gradient(circle at 88% 12%, rgba(124, 58, 237, 0.1), transparent 31%),
+    linear-gradient(145deg, rgba(12, 37, 70, 0.64), rgba(7, 15, 34, 0.77));
+}
+
+.eyebrow,
+.goodEyebrow,
+.supportEyebrow {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.eyebrow {
+  color: #8dfcff;
+}
+
+.goodEyebrow {
+  color: #72efb2;
+}
+
+.supportEyebrow {
+  color: #ffc273;
+}
+
+.header h2 {
+  margin: 8px 0 0;
+  font-size: clamp(30px, 3vw, 42px);
+  line-height: 1.06;
+  letter-spacing: -0.045em;
+}
+
+.header p {
+  max-width: 760px;
+  margin: 10px 0 0;
+  color: rgba(235, 247, 255, 0.58);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.timeframes {
+  padding: 4px;
+  display: flex;
+  gap: 4px;
+  border: 1px solid rgba(142, 232, 255, 0.09);
+  border-radius: 13px;
+  background: rgba(2, 9, 21, 0.5);
+}
+
+.timeframes button {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: rgba(235, 247, 255, 0.48);
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.timeframes .activeTimeframe {
+  background:
+    linear-gradient(135deg, rgba(83, 215, 255, 0.11), rgba(124, 58, 237, 0.15));
+  color: white;
+  box-shadow: inset 0 0 0 1px rgba(142, 232, 255, 0.11);
+}
+
+.pdfButton,
+.recommendSection .sectionHeading > button,
+.footerNote > button {
+  min-height: 42px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid rgba(251, 215, 110, 0.52);
+  border-radius: 11px;
+  background: linear-gradient(135deg, #f2c45b, #d89c2e);
+  box-shadow: 0 10px 24px rgba(216, 156, 46, 0.2);
+  color: #1c1205;
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.reportIntro {
+  padding: 20px 22px;
+  display: grid;
+  grid-template-columns: minmax(260px, 0.42fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.learnerIdentity,
+.novaSummary {
+  border-radius: 16px;
+  background: rgba(2, 9, 21, 0.5);
+}
+
+.learnerIdentity {
+  padding: 16px;
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  align-items: center;
+  gap: 13px;
+}
+
+.avatarMark {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(184, 150, 255, 0.24);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 35% 25%, rgba(141, 252, 255, 0.14), transparent 35%),
+    rgba(124, 58, 237, 0.11);
+  color: #ede9fe;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.learnerIdentity small {
+  color: rgba(235, 247, 255, 0.38);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.11em;
+}
+
+.learnerIdentity h3 {
+  margin: 4px 0 0;
+  font-size: 20px;
+  letter-spacing: -0.03em;
+}
+
+.learnerIdentity p {
+  margin: 4px 0 0;
+  color: rgba(235, 247, 255, 0.42);
+  font-size: 9px;
+}
+
+.novaSummary {
+  padding: 17px 18px;
+  border: 1px solid rgba(142, 232, 255, 0.08);
+  background:
+    linear-gradient(120deg, rgba(83, 215, 255, 0.045), rgba(124, 58, 237, 0.055));
+}
+
+.novaSummary span {
+  color: #8dfcff;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.novaSummary p {
+  margin: 8px 0 0;
+  color: rgba(245, 251, 255, 0.8);
+  font-size: 14px;
+  line-height: 1.58;
+}
+
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.metricsGrid article {
+  min-height: 136px;
+  padding: 16px;
+  border: 1px solid rgba(142, 232, 255, 0.09);
+  border-radius: 17px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(83, 215, 255, 0.05), transparent 33%),
+    rgba(2, 9, 21, 0.48);
+}
+
+.metricsGrid small {
+  color: rgba(235, 247, 255, 0.42);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.metricsGrid strong {
+  display: block;
+  margin-top: 7px;
+  font-size: 26px;
+  letter-spacing: -0.04em;
+}
+
+.metricsGrid p {
+  margin: 8px 0 0;
+  color: rgba(235, 247, 255, 0.39);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.twoColumn {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.sectionCard,
+.progressSection,
+.recommendSection,
+.homeSection {
+  padding: 20px;
+}
+
+.sectionHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.sectionHeading h3 {
+  margin: 6px 0 0;
+  font-size: 22px;
+  letter-spacing: -0.035em;
+}
+
+.sectionHeading > b {
+  padding: 7px 9px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.035);
+  color: rgba(235, 247, 255, 0.5);
+  font-size: 9px;
+}
+
+.sectionHeading > p {
+  max-width: 430px;
+  margin: 2px 0 0;
+  color: rgba(235, 247, 255, 0.4);
+  font-size: 9px;
+  line-height: 1.5;
+  text-align: right;
+}
+
+.conceptList {
+  margin-top: 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.conceptItem {
+  padding: 12px;
+  border: 1px solid rgba(142, 232, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(2, 9, 21, 0.45);
+}
+
+.conceptItem summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.conceptItem summary::-webkit-details-marker {
+  display: none;
+}
+
+.conceptLead {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.strongMark,
+.supportMark {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.strongMark {
+  border: 1px solid rgba(77, 226, 161, 0.2);
+  background: rgba(77, 226, 161, 0.07);
+  color: #7df3ba;
+}
+
+.supportMark {
+  border: 1px solid rgba(255, 174, 87, 0.2);
+  background: rgba(255, 174, 87, 0.07);
+  color: #ffc681;
+}
+
+.conceptLead small,
+.conceptLead strong,
+.conceptLead p {
+  display: block;
+}
+
+.conceptLead small {
+  color: rgba(235, 247, 255, 0.34);
+  font-size: 8px;
+}
+
+.conceptLead strong {
+  margin-top: 4px;
+  color: white;
+  font-size: 12px;
+}
+
+.conceptLead p {
+  margin: 5px 0 0;
+  color: rgba(235, 247, 255, 0.42);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.strongPill,
+.supportPill {
+  padding: 6px 8px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.strongPill {
+  background: rgba(77, 226, 161, 0.08);
+  color: #7df3ba;
+}
+
+.supportPill {
+  background: rgba(255, 174, 87, 0.08);
+  color: #ffc681;
+}
+
+.evidenceRow {
+  margin-top: 11px;
+  padding-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.055);
+}
+
+.evidenceRow span {
+  padding: 7px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.evidenceRow small,
+.evidenceRow b {
+  display: block;
+}
+
+.evidenceRow small {
+  color: rgba(235, 247, 255, 0.3);
+  font-size: 7px;
+}
+
+.evidenceRow b {
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 9px;
+}
+
+.buildingEvidence {
+  margin-top: 4px;
+  padding: 11px;
+  border-radius: 12px;
+  background: rgba(255, 174, 87, 0.035);
+}
+
+.buildingEvidence > small {
+  color: #ffc681;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+.buildingEvidence > div {
+  margin-top: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.buildingEvidence span {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 9px;
+}
+
+.buildingEvidence b {
+  color: rgba(255, 198, 129, 0.62);
+  font-size: 8px;
+}
+
+.emptyState {
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.022);
+  color: rgba(235, 247, 255, 0.42);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.progressGrid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.progressGrid article {
+  padding: 11px;
+  border-radius: 12px;
+  background: rgba(2, 9, 21, 0.46);
+}
+
+.progressGrid article > span {
+  color: #8dfcff;
+  font-size: 12px;
+}
+
+.progressGrid small,
+.progressGrid strong {
+  display: block;
+}
+
+.progressGrid small {
+  margin-top: 8px;
+  color: rgba(235, 247, 255, 0.35);
+  font-size: 8px;
+}
+
+.progressGrid strong {
+  margin-top: 4px;
+  font-size: 21px;
+}
+
+.movementStrip {
+  margin-top: 11px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.movementStrip > div {
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(77, 226, 161, 0.035);
+}
+
+.movementStrip span,
+.movementStrip strong,
+.movementStrip b {
+  display: block;
+}
+
+.movementStrip span {
+  color: #7df3ba;
+  font-size: 7px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.movementStrip strong {
+  margin-top: 5px;
+  font-size: 9px;
+  line-height: 1.3;
+}
+
+.movementStrip b {
+  margin-top: 6px;
+  color: rgba(125, 243, 186, 0.72);
+  font-size: 8px;
+}
+
+.recommendCard {
+  margin-top: 14px;
+  padding: 15px;
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: 13px;
+  border: 1px solid rgba(216, 180, 254, 0.15);
+  border-radius: 15px;
+  background:
+    linear-gradient(120deg, rgba(124, 58, 237, 0.075), rgba(83, 215, 255, 0.035));
+}
+
+.recommendBadge {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(216, 180, 254, 0.22);
+  border-radius: 13px;
+  background: rgba(139, 92, 246, 0.12);
+  color: #e7dcff;
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.recommendCopy small {
+  color: rgba(235, 247, 255, 0.38);
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.recommendCopy h4 {
+  margin: 5px 0 0;
+  font-size: 17px;
+}
+
+.recommendCopy p {
+  margin: 7px 0 0;
+  color: rgba(235, 247, 255, 0.5);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.recommendCopy > div {
+  margin-top: 10px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.recommendCopy > div span,
+.recommendCopy > div b {
+  display: block;
+}
+
+.recommendCopy > div span {
+  color: rgba(235, 247, 255, 0.33);
+  font-size: 7px;
+  text-transform: uppercase;
+}
+
+.recommendCopy > div b {
+  margin-top: 4px;
+  color: #f5dc91;
+  font-size: 10px;
+}
+
+.recommendLoading {
+  margin-top: 14px;
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.022);
+  color: rgba(235, 247, 255, 0.42);
+  font-size: 10px;
+}
+
+.tipGrid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tipGrid article {
+  min-height: 160px;
+  padding: 14px;
+  border: 1px solid rgba(142, 232, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(2, 9, 21, 0.45);
+}
+
+.tipNumber {
+  width: 31px;
+  height: 31px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(240, 199, 94, 0.2);
+  border-radius: 9px;
+  background: rgba(240, 199, 94, 0.065);
+  color: #f5d67a;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.tipGrid small {
+  display: block;
+  margin-top: 12px;
+  color: #8dfcff;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.tipGrid h4 {
+  margin: 5px 0 0;
+  font-size: 13px;
+}
+
+.tipGrid p {
+  margin: 7px 0 0;
+  color: rgba(235, 247, 255, 0.46);
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.footerNote {
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.footerNote strong {
+  font-size: 11px;
+}
+
+.footerNote p {
+  max-width: 760px;
+  margin: 5px 0 0;
+  color: rgba(235, 247, 255, 0.38);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+@media (max-width: 1050px) {
+  .metricsGrid,
+  .progressGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .twoColumn {
+    grid-template-columns: 1fr;
+  }
+
+  .movementStrip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 820px) {
+  .header,
+  .sectionHeading,
+  .footerNote {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .headerActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .timeframes {
+    width: fit-content;
+  }
+
+  .reportIntro {
+    grid-template-columns: 1fr;
+  }
+
+  .sectionHeading > p {
+    text-align: left;
+  }
+
+  .tipGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .header,
+  .reportIntro,
+  .sectionCard,
+  .progressSection,
+  .recommendSection,
+  .homeSection,
+  .footerNote {
+    padding: 16px;
+  }
+
+  .metricsGrid,
+  .progressGrid,
+  .movementStrip {
+    grid-template-columns: 1fr;
+  }
+
+  .timeframes {
+    width: 100%;
+  }
+
+  .timeframes button {
+    flex: 1;
+  }
+
+  .pdfButton {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .evidenceRow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .conceptItem summary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .strongPill,
+  .supportPill {
+    width: fit-content;
+  }
+
+  .footerNote > button {
+    width: 100%;
+    justify-content: center;
+  }
+}

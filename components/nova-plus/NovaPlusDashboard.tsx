@@ -196,7 +196,12 @@ export default function NovaPlusDashboard() {
             onOpenRecommendations={() => setTab("recommendations")}
           />
         ) : (
-          <ParentReportTab />
+          <ParentReportTab
+            profile={profile}
+            learnerId={selectedLearnerId}
+            learnerLabel={learnerName}
+            onOpenRecommendations={() => setTab("recommendations")}
+          />
         )}
       </section>
     </main>

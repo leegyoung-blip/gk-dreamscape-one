@@ -205,6 +205,7 @@ type CombatProjectile = {
 
 type BoneGuardState =
   | "walking"
+  | "jumping"
   | "firing"
   | "hit"
   | "dying"
@@ -235,6 +236,18 @@ type BoneGuardEnemy = {
    * remain there instead of stepping onto orange/collapsing terrain.
    */
   terrainBlocked: boolean;
+
+  gapJump:
+    | {
+        startX: number;
+        startY: number;
+        endX: number;
+        endY: number;
+        elapsedSeconds: number;
+        durationSeconds: number;
+        arcHeight: number;
+      }
+    | null;
 
   healthBackground: Phaser.GameObjects.Rectangle;
   healthFill: Phaser.GameObjects.Rectangle;
@@ -315,6 +328,13 @@ class RoverMatterScene extends Phaser.Scene {
    * Unstable/orange sections are excluded from enemy navigation.
    */
   private boneGuardTerrainSections: Array<
+    Array<{ x: number; y: number }>
+  > = [];
+
+  /**
+   * Bone Guards may jump genuine gaps, but never cross orange/unstable road.
+   */
+  private boneGuardForbiddenTerrainSections: Array<
     Array<{ x: number; y: number }>
   > = [];
 
@@ -679,6 +699,7 @@ class RoverMatterScene extends Phaser.Scene {
     this.collapsibleTerrain = [];
     this.terrainSections = [];
     this.boneGuardTerrainSections = [];
+    this.boneGuardForbiddenTerrainSections = [];
     this.trapCollisionLocked = false;
 
     this.touchLeft = false;
@@ -1020,7 +1041,11 @@ class RoverMatterScene extends Phaser.Scene {
 
     this.terrainSections.push(sampledPoints);
 
-    if (!options?.unstable) {
+    if (options?.unstable) {
+      this.boneGuardForbiddenTerrainSections.push(
+        sampledPoints,
+      );
+    } else {
       this.boneGuardTerrainSections.push(sampledPoints);
     }
 
@@ -2751,7 +2776,7 @@ class RoverMatterScene extends Phaser.Scene {
       : this.normalMaximumSpeed;
 
     const targetVelocityX = direction * maximumSpeed;
-    const grounded = this.activeTerrainContacts.size > 0;
+    const grounded = this.isRoverGroundedForControls();
     const terrainAngle = grounded
       ? (this.getTerrainAngleAtX(roverBody.x) ?? 0)
       : 0;
@@ -2874,6 +2899,108 @@ class RoverMatterScene extends Phaser.Scene {
     );
   }
 
+  private isRoverGroundedForControls() {
+    if (!this.roverBody) {
+      return false;
+    }
+
+    if (
+      this.activeTerrainContacts.size > 0
+    ) {
+      return true;
+    }
+
+    const body =
+      this.roverBody.body as
+        | MatterJS.BodyType
+        | null;
+
+    if (!body) {
+      return false;
+    }
+
+    /*
+     * Matter contact IDs can briefly disappear while the rover crosses the
+     * small collision segments used to build curved roads. Orange collapsing
+     * sections expose this most clearly.
+     *
+     * A live-surface proximity fallback keeps DRIVE/JUMP/STABILITY consistent.
+     */
+    if (body.velocity.y < -2.2) {
+      return false;
+    }
+
+    const roverBottomY =
+      this.roverBody.y +
+      ROVER_COLLISION_HEIGHT / 2;
+
+    const collapsedSections =
+      new Set(
+        this.collapsibleTerrain
+          .filter(
+            (item) => item.collapsed,
+          )
+          .map(
+            (item) =>
+              item.sampledPoints,
+          ),
+      );
+
+    for (
+      const section of
+        this.terrainSections
+    ) {
+      if (
+        section.length < 2 ||
+        collapsedSections.has(
+          section,
+        )
+      ) {
+        continue;
+      }
+
+      const first = section[0];
+      const last =
+        section[
+          section.length - 1
+        ];
+
+      if (
+        this.roverBody.x <
+          first.x - 8 ||
+        this.roverBody.x >
+          last.x + 8
+      ) {
+        continue;
+      }
+
+      const surfaceY =
+        this.getSurfaceYForSectionAtX(
+          section,
+          Phaser.Math.Clamp(
+            this.roverBody.x,
+            first.x,
+            last.x,
+          ),
+        );
+
+      if (surfaceY === null) {
+        continue;
+      }
+
+      if (
+        Math.abs(
+          roverBottomY -
+          surfaceY,
+        ) <= 34
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   private tryJump() {
     if (!this.roverBody) {
       return;
@@ -2895,7 +3022,7 @@ class RoverMatterScene extends Phaser.Scene {
 
     const jumpReady = now - this.lastJumpAt >= this.jumpCooldownMs;
 
-    const grounded = this.activeTerrainContacts.size > 0;
+    const grounded = this.isRoverGroundedForControls();
 
     if (!jumpReady || !grounded || this.hasFinished) {
       return;
@@ -2910,7 +3037,9 @@ class RoverMatterScene extends Phaser.Scene {
   }
 
   private updateGroundState(delta: number) {
-    if (this.activeTerrainContacts.size === 0) {
+    if (
+      !this.isRoverGroundedForControls()
+    ) {
       this.airborneTime += delta;
     } else {
       this.airborneTime = 0;
@@ -2919,8 +3048,9 @@ class RoverMatterScene extends Phaser.Scene {
 
   private isProbablyAirborne() {
     return (
-      this.activeTerrainContacts.size === 0 &&
-      this.airborneTime >= this.airborneTiltDelayMs
+      !this.isRoverGroundedForControls() &&
+      this.airborneTime >=
+        this.airborneTiltDelayMs
     );
   }
 
@@ -2935,7 +3065,7 @@ class RoverMatterScene extends Phaser.Scene {
       return;
     }
 
-    const grounded = this.activeTerrainContacts.size > 0;
+    const grounded = this.isRoverGroundedForControls();
 
     const currentRotation = Phaser.Math.Angle.Wrap(this.roverBody.rotation);
 
@@ -5028,6 +5158,18 @@ class RoverMatterScene extends Phaser.Scene {
         return;
       }
 
+      if (
+        guard.state === "jumping" &&
+        guard.gapJump
+      ) {
+        this.updateJumpingBoneGuard(
+          guard,
+          dt,
+        );
+        this.updateBoneGuardHealthBar(guard);
+        return;
+      }
+
       const horizontalDistance =
         guard.sprite.x - this.roverBody!.x;
 
@@ -5242,6 +5384,7 @@ class RoverMatterScene extends Phaser.Scene {
         3,
       ) as 1 | 2 | 3,
       terrainBlocked: false,
+      gapJump: null,
       healthBackground,
       healthFill,
     };
@@ -5283,6 +5426,303 @@ class RoverMatterScene extends Phaser.Scene {
     ).length;
   }
 
+  private isBoneGuardForbiddenAtX(x: number) {
+    return this.boneGuardForbiddenTerrainSections.some(
+      (section) => {
+        if (section.length < 2) {
+          return false;
+        }
+
+        const first = section[0];
+        const last =
+          section[section.length - 1];
+
+        return (
+          x >= first.x - 8 &&
+          x <= last.x + 8
+        );
+      },
+    );
+  }
+
+  private findBoneGuardGapLanding(
+    guard: BoneGuardEnemy,
+  ) {
+    const currentSection =
+      this.boneGuardTerrainSections
+        .filter(
+          (section) => section.length >= 2,
+        )
+        .map((section) => {
+          const first = section[0];
+          const last =
+            section[section.length - 1];
+
+          const withinX =
+            guard.sprite.x >= first.x - 28 &&
+            guard.sprite.x <= last.x + 28;
+
+          const surfaceY = withinX
+            ? this.getSurfaceYForSectionAtX(
+                section,
+                Phaser.Math.Clamp(
+                  guard.sprite.x,
+                  first.x,
+                  last.x,
+                ),
+              )
+            : null;
+
+          return {
+            section,
+            withinX,
+            surfaceDistance:
+              surfaceY === null
+                ? Number.POSITIVE_INFINITY
+                : Math.abs(
+                    surfaceY -
+                      guard.surfaceY,
+                  ),
+          };
+        })
+        .filter((entry) => entry.withinX)
+        .sort(
+          (a, b) =>
+            a.surfaceDistance -
+            b.surfaceDistance,
+        )[0]?.section;
+
+    if (!currentSection) {
+      return null;
+    }
+
+    const currentLeft =
+      currentSection[0].x;
+
+    const candidates =
+      this.boneGuardTerrainSections
+        .filter((section) => {
+          if (
+            section === currentSection ||
+            section.length < 2
+          ) {
+            return false;
+          }
+
+          const candidateRight =
+            section[
+              section.length - 1
+            ].x;
+
+          return (
+            candidateRight <
+            currentLeft - 14
+          );
+        })
+        .map((section) => {
+          const candidateRight =
+            section[
+              section.length - 1
+            ].x;
+
+          return {
+            section,
+            gapDistance:
+              currentLeft -
+              candidateRight,
+          };
+        })
+        .filter(
+          (entry) =>
+            entry.gapDistance >= 28 &&
+            entry.gapDistance <= 460,
+        )
+        .sort(
+          (a, b) =>
+            a.gapDistance -
+            b.gapDistance,
+        );
+
+    for (const candidate of candidates) {
+      const candidateRight =
+        candidate.section[
+          candidate.section.length - 1
+        ].x;
+
+      /*
+       * A jump is legal only if the space between the two blue sections is
+       * actually empty. Orange terrain between them is a hard boundary.
+       */
+      const crossesForbidden =
+        this.boneGuardForbiddenTerrainSections.some(
+          (section) => {
+            if (section.length < 2) {
+              return false;
+            }
+
+            const forbiddenLeft =
+              section[0].x;
+            const forbiddenRight =
+              section[
+                section.length - 1
+              ].x;
+
+            return (
+              forbiddenRight >
+                candidateRight + 6 &&
+              forbiddenLeft <
+                currentLeft - 6
+            );
+          },
+        );
+
+      if (crossesForbidden) {
+        continue;
+      }
+
+      const landingX =
+        candidateRight - 18;
+
+      const landingPose =
+        this.getBoneGuardTerrainPoseAtX(
+          landingX,
+          guard.surfaceY,
+        );
+
+      if (!landingPose) {
+        continue;
+      }
+
+      return {
+        x: landingX,
+        y: landingPose.y,
+        gapDistance:
+          candidate.gapDistance,
+      };
+    }
+
+    return null;
+  }
+
+  private startBoneGuardGapJump(
+    guard: BoneGuardEnemy,
+  ) {
+    const landing =
+      this.findBoneGuardGapLanding(
+        guard,
+      );
+
+    if (!landing) {
+      return false;
+    }
+
+    const durationSeconds =
+      Phaser.Math.Clamp(
+        landing.gapDistance /
+          (
+            boneGuardCombatSpec.moveSpeed *
+            1.45
+          ),
+        0.42,
+        0.82,
+      );
+
+    guard.state = "jumping";
+    guard.terrainBlocked = false;
+    guard.sprite.stop();
+    guard.sprite.setFrame(2);
+
+    guard.gapJump = {
+      startX: guard.sprite.x,
+      startY: guard.surfaceY,
+      endX: landing.x,
+      endY: landing.y,
+      elapsedSeconds: 0,
+      durationSeconds,
+      arcHeight: Phaser.Math.Clamp(
+        54 +
+          landing.gapDistance * 0.18,
+        66,
+        125,
+      ),
+    };
+
+    return true;
+  }
+
+  private updateJumpingBoneGuard(
+    guard: BoneGuardEnemy,
+    dt: number,
+  ) {
+    const jump = guard.gapJump;
+
+    if (!jump) {
+      guard.state = "walking";
+      return;
+    }
+
+    jump.elapsedSeconds += dt;
+
+    const progress =
+      Phaser.Math.Clamp(
+        jump.elapsedSeconds /
+          Math.max(
+            0.001,
+            jump.durationSeconds,
+          ),
+        0,
+        1,
+      );
+
+    const x = Phaser.Math.Linear(
+      jump.startX,
+      jump.endX,
+      progress,
+    );
+
+    const baseY = Phaser.Math.Linear(
+      jump.startY,
+      jump.endY,
+      progress,
+    );
+
+    const arc =
+      4 *
+      jump.arcHeight *
+      progress *
+      (1 - progress);
+
+    guard.sprite.setPosition(
+      x,
+      baseY + 4 - arc,
+    );
+
+    guard.sprite.setRotation(
+      Phaser.Math.Linear(
+        -0.08,
+        0.08,
+        progress,
+      ),
+    );
+
+    if (progress < 1) {
+      return;
+    }
+
+    guard.surfaceY = jump.endY;
+    guard.sprite.setPosition(
+      jump.endX,
+      jump.endY + 4,
+    );
+    guard.sprite.setRotation(0);
+    guard.gapJump = null;
+    guard.state = "walking";
+    guard.sprite.play(
+      "bone-guard-walk",
+      true,
+    );
+  }
+
   private updateWalkingBoneGuard(
     guard: BoneGuardEnemy,
     dt: number,
@@ -5302,11 +5742,22 @@ class RoverMatterScene extends Phaser.Scene {
 
     if (!pose) {
       /*
-       * Stop on the last supported blue pixel. Do not cross orange sections
-       * or unsupported gaps, even if those surfaces still exist elsewhere in
-       * the general terrain lookup.
+       * Orange terrain is a hard boundary.
+       * A genuine empty gap between blue sections may be jumped.
        */
+      if (
+        !this.isBoneGuardForbiddenAtX(
+          nextX,
+        ) &&
+        this.startBoneGuardGapJump(
+          guard,
+        )
+      ) {
+        return;
+      }
+
       guard.terrainBlocked = true;
+      guard.gapJump = null;
       guard.state = "firing";
       guard.sprite.setRotation(0);
       guard.sprite.setFrame(4);
@@ -6273,7 +6724,7 @@ class RoverMatterScene extends Phaser.Scene {
     const movingSlowly =
       Math.abs(body.velocity.x) < 0.8 && Math.abs(body.velocity.y) < 0.8;
 
-    const grounded = this.activeTerrainContacts.size > 0;
+    const grounded = this.isRoverGroundedForControls();
 
     if (badlyOverturned && movingSlowly && grounded) {
       this.overturnedTime += delta;
