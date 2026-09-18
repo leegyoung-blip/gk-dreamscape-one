@@ -1469,6 +1469,9 @@ export default function TeachingDashboardPage() {
         ? "Teacher Dashboard"
         : "Parents & Teachers";
 
+  // NOVA+ remains admin-only for now, but the UI no longer labels it as a preview.
+  const canAccessNovaPlus = normaliseRole(viewerRole) === "admin";
+
   return (
     <main className="dashboard-page">
       <div className="background-grid" aria-hidden="true" />
@@ -1524,36 +1527,65 @@ export default function TeachingDashboardPage() {
             </p>
           </div>
 
-          <div className="dashboard-hero-actions">
+          <div
+            className={`dashboard-hero-actions ${
+              canAccessNovaPlus ? "has-nova-plus" : "summary-only"
+            }`}
+          >
             <button
               type="button"
               className="dashboard-learning-summary-card"
               onClick={() => void openAnalytics()}
             >
-              <span>NOVA</span>
-              <strong>Learning Summary</strong>
-              <small>Weekly performance, strengths and next steps.</small>
-              <b>Open summary →</b>
+              <div className="nova-entry-top">
+                <span>NOVA</span>
+                <i aria-hidden="true">◎</i>
+              </div>
+
+              <div className="nova-entry-copy">
+                <strong>Learning Summary</strong>
+                <small>
+                  Weekly performance, strengths and next steps from recent
+                  learning activity.
+                </small>
+              </div>
+
+              <b>
+                Open summary
+                <span aria-hidden="true">→</span>
+              </b>
             </button>
 
-            <Link
-              href={
-                selectedStudentId
-                  ? `/nova-plus?student=${encodeURIComponent(selectedStudentId)}`
-                  : "/nova-plus"
-              }
-              className="dashboard-nova-plus-card"
-            >
-              <span>
-                NOVA+
-                {normaliseRole(viewerRole) === "admin" && (
-                  <em>Admin Preview</em>
-                )}
-              </span>
-              <strong>Learning Intelligence</strong>
-              <small>Strengths, learning gaps, mastery and personalised next steps.</small>
-              <b>Open NOVA+ →</b>
-            </Link>
+            {canAccessNovaPlus && (
+              <Link
+                href={
+                  selectedStudentId
+                    ? `/nova-plus?student=${encodeURIComponent(
+                        selectedStudentId,
+                      )}`
+                    : "/nova-plus"
+                }
+                className="dashboard-nova-plus-card"
+              >
+                <div className="nova-entry-top">
+                  <span>NOVA+</span>
+                  <i aria-hidden="true">✦</i>
+                </div>
+
+                <div className="nova-entry-copy">
+                  <strong>Learning Intelligence</strong>
+                  <small>
+                    Deeper strengths, learning gaps, mastery progress and
+                    personalised next steps.
+                  </small>
+                </div>
+
+                <b>
+                  Open NOVA+
+                  <span aria-hidden="true">→</span>
+                </b>
+              </Link>
+            )}
           </div>
         </header>
 
@@ -2263,119 +2295,213 @@ export default function TeachingDashboardPage() {
 
         .dashboard-hero-actions {
           min-width: 0;
+          width: 100%;
           display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 14px;
           align-self: center;
         }
 
+        .dashboard-hero-actions.has-nova-plus {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .dashboard-hero-actions.summary-only {
+          grid-template-columns: minmax(280px, 360px);
+          justify-content: end;
+        }
+
         .dashboard-learning-summary-card,
         .dashboard-nova-plus-card {
+          position: relative;
           min-width: 0;
-          min-height: 168px;
-          padding: 22px 23px;
-          border-radius: 24px;
-          border: 1px solid rgba(126, 232, 255, 0.2);
-          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+          min-height: 184px;
+          padding: 21px 22px 19px;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          border: 1px solid;
+          border-radius: 22px;
           color: white;
           text-align: left;
           text-decoration: none;
           cursor: pointer;
-          transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+          appearance: none;
+          font: inherit;
+          box-shadow: 0 22px 58px rgba(0, 0, 0, 0.24);
+          transition:
+            transform 160ms ease,
+            border-color 160ms ease,
+            box-shadow 160ms ease;
+        }
+
+        .dashboard-learning-summary-card::after,
+        .dashboard-nova-plus-card::after {
+          content: "";
+          position: absolute;
+          width: 190px;
+          height: 190px;
+          right: -74px;
+          bottom: -116px;
+          border-radius: 999px;
+          pointer-events: none;
+          opacity: 0.11;
         }
 
         .dashboard-learning-summary-card {
+          border-color: rgba(83, 215, 255, 0.25);
           background:
-            radial-gradient(circle at 88% 10%, rgba(83, 215, 255, 0.16), transparent 34%),
-            linear-gradient(145deg, rgba(24, 76, 112, 0.78), rgba(8, 28, 56, 0.94));
+            radial-gradient(
+              circle at 88% 7%,
+              rgba(83, 215, 255, 0.13),
+              transparent 34%
+            ),
+            linear-gradient(
+              145deg,
+              rgba(17, 72, 107, 0.9),
+              rgba(8, 30, 58, 0.98)
+            );
+        }
+
+        .dashboard-learning-summary-card::after {
+          background: #53d7ff;
         }
 
         .dashboard-nova-plus-card {
+          border-color: rgba(190, 157, 255, 0.38);
           background:
-            radial-gradient(circle at 90% 5%, rgba(216, 180, 254, 0.22), transparent 34%),
-            linear-gradient(145deg, rgba(79, 41, 126, 0.9), rgba(20, 13, 57, 0.96));
-          border-color: rgba(216, 180, 254, 0.34);
+            radial-gradient(
+              circle at 90% 4%,
+              rgba(175, 121, 255, 0.2),
+              transparent 35%
+            ),
+            linear-gradient(
+              145deg,
+              rgba(47, 36, 99, 0.98),
+              rgba(18, 22, 59, 0.99)
+            );
+          box-shadow:
+            0 22px 58px rgba(0, 0, 0, 0.26),
+            inset 0 0 0 1px rgba(216, 180, 254, 0.025);
+        }
+
+        .dashboard-nova-plus-card::after {
+          background: #a576ff;
         }
 
         .dashboard-learning-summary-card:hover,
         .dashboard-nova-plus-card:hover {
           transform: translateY(-2px);
-          box-shadow: 0 28px 66px rgba(0, 0, 0, 0.32);
         }
 
         .dashboard-learning-summary-card:hover {
-          border-color: rgba(126, 232, 255, 0.52);
+          border-color: rgba(83, 215, 255, 0.48);
+          box-shadow: 0 26px 64px rgba(17, 91, 132, 0.19);
         }
 
         .dashboard-nova-plus-card:hover {
-          border-color: rgba(216, 180, 254, 0.64);
+          border-color: rgba(190, 157, 255, 0.64);
           box-shadow:
-            0 28px 66px rgba(0, 0, 0, 0.34),
-            0 0 30px rgba(192, 132, 252, 0.14);
+            0 28px 68px rgba(44, 26, 103, 0.31),
+            0 0 30px rgba(139, 92, 246, 0.08);
         }
 
-        .dashboard-learning-summary-card span,
-        .dashboard-learning-summary-card strong,
-        .dashboard-learning-summary-card small,
-        .dashboard-learning-summary-card b,
-        .dashboard-nova-plus-card span,
-        .dashboard-nova-plus-card strong,
-        .dashboard-nova-plus-card small,
-        .dashboard-nova-plus-card b {
-          display: block;
+        .nova-entry-top {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
         }
 
-        .dashboard-learning-summary-card span,
-        .dashboard-nova-plus-card > span {
+        .nova-entry-top > span {
           color: #8dfcff;
           font-size: 10px;
-          font-weight: 900;
+          font-weight: 950;
           letter-spacing: 0.16em;
           text-transform: uppercase;
         }
 
-        .dashboard-nova-plus-card > span {
-          color: #e9d5ff;
-          display: flex;
-          align-items: center;
-          gap: 7px;
+        .dashboard-nova-plus-card .nova-entry-top > span {
+          color: #dccbff;
         }
 
-        .dashboard-nova-plus-card em {
-          padding: 4px 7px;
-          border-radius: 999px;
-          border: 1px solid rgba(255, 215, 106, 0.25);
-          background: rgba(255, 215, 106, 0.08);
-          color: #ffe29a;
-          font-size: 7px;
-          font-style: normal;
-          letter-spacing: 0.08em;
-        }
-
-        .dashboard-learning-summary-card strong,
-        .dashboard-nova-plus-card strong {
-          margin-top: 10px;
-          font-size: clamp(19px, 1.6vw, 23px);
-          line-height: 1.12;
-        }
-
-        .dashboard-learning-summary-card small,
-        .dashboard-nova-plus-card small {
-          margin-top: 8px;
-          color: rgba(235, 247, 255, 0.62);
+        .nova-entry-top > i {
+          width: 32px;
+          height: 32px;
+          display: grid;
+          place-items: center;
+          border: 1px solid rgba(141, 252, 255, 0.16);
+          border-radius: 10px;
+          background: rgba(83, 215, 255, 0.07);
+          color: #8dfcff;
           font-size: 12px;
+          font-style: normal;
+          font-weight: 900;
+        }
+
+        .dashboard-nova-plus-card .nova-entry-top > i {
+          border-color: rgba(216, 180, 254, 0.24);
+          background: rgba(139, 92, 246, 0.13);
+          color: #dccbff;
+          box-shadow: 0 0 18px rgba(139, 92, 246, 0.11);
+        }
+
+        .nova-entry-copy {
+          position: relative;
+          z-index: 1;
+          margin-top: 17px;
+        }
+
+        .nova-entry-copy > strong,
+        .nova-entry-copy > small {
+          display: block;
+        }
+
+        .nova-entry-copy > strong {
+          color: white;
+          font-size: clamp(20px, 1.65vw, 24px);
+          line-height: 1.1;
+          letter-spacing: -0.035em;
+        }
+
+        .nova-entry-copy > small {
+          max-width: 315px;
+          margin-top: 8px;
+          color: rgba(235, 247, 255, 0.6);
+          font-size: 11px;
           line-height: 1.5;
         }
 
-        .dashboard-learning-summary-card b,
-        .dashboard-nova-plus-card b {
-          margin-top: 14px;
-          color: #bdf6ff;
-          font-size: 11px;
+        .dashboard-learning-summary-card > b,
+        .dashboard-nova-plus-card > b {
+          position: relative;
+          z-index: 1;
+          width: fit-content;
+          margin-top: auto;
+          padding-top: 17px;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          color: #a8f8ff;
+          font-size: 10px;
+          font-weight: 900;
         }
 
-        .dashboard-nova-plus-card b {
-          color: #e9d5ff;
+        .dashboard-nova-plus-card > b {
+          color: #e2d5ff;
+        }
+
+        .dashboard-learning-summary-card > b span,
+        .dashboard-nova-plus-card > b span {
+          font-size: 15px;
+          line-height: 1;
+          transition: transform 160ms ease;
+        }
+
+        .dashboard-learning-summary-card:hover > b span,
+        .dashboard-nova-plus-card:hover > b span {
+          transform: translateX(3px);
         }
 
         .summary-grid {
@@ -3427,7 +3553,15 @@ export default function TeachingDashboardPage() {
 
           .dashboard-hero-actions {
             width: 100%;
+          }
+
+          .dashboard-hero-actions.has-nova-plus {
             grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .dashboard-hero-actions.summary-only {
+            grid-template-columns: minmax(280px, 360px);
+            justify-content: start;
           }
 
           .analytics-subject-grid {
@@ -3498,9 +3632,17 @@ export default function TeachingDashboardPage() {
             font-size: clamp(44px, 14vw, 60px);
           }
 
-          .dashboard-hero-actions {
+          .dashboard-hero-actions,
+          .dashboard-hero-actions.has-nova-plus,
+          .dashboard-hero-actions.summary-only {
             width: 100%;
             grid-template-columns: 1fr;
+            justify-content: stretch;
+          }
+
+          .dashboard-learning-summary-card,
+          .dashboard-nova-plus-card {
+            min-height: 162px;
           }
 
           .monthly-panel-heading {

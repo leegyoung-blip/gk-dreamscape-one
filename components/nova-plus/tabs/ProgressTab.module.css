@@ -1,0 +1,770 @@
+.page {
+  display: grid;
+  gap: 16px;
+}
+
+.header,
+.trendCard,
+.subjectSection,
+.changedSection,
+.listSection,
+.timelineSection,
+.recommendBridge {
+  border: 1px solid rgba(142, 232, 255, 0.11);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.022);
+}
+
+.header {
+  padding: 24px 26px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  background:
+    radial-gradient(circle at 89% 8%, rgba(124, 58, 237, 0.09), transparent 28%),
+    linear-gradient(145deg, rgba(12, 37, 70, 0.62), rgba(7, 15, 34, 0.76));
+}
+
+.eyebrow {
+  color: #8dfcff;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.header h2 {
+  margin: 8px 0 0;
+  font-size: clamp(30px, 3vw, 42px);
+  line-height: 1.06;
+  letter-spacing: -0.045em;
+}
+
+.header p {
+  max-width: 760px;
+  margin: 10px 0 0;
+  color: rgba(235, 247, 255, 0.58);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.timeframes,
+.subjectToggle {
+  padding: 4px;
+  display: flex;
+  gap: 4px;
+  border: 1px solid rgba(142, 232, 255, 0.09);
+  border-radius: 13px;
+  background: rgba(2, 9, 21, 0.5);
+}
+
+.timeframes button,
+.subjectToggle button {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: rgba(235, 247, 255, 0.48);
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.timeframes button:hover,
+.subjectToggle button:hover {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.timeframes .activeTimeframe,
+.subjectToggle .activeSubject {
+  background:
+    linear-gradient(135deg, rgba(83, 215, 255, 0.11), rgba(124, 58, 237, 0.15));
+  color: white;
+  box-shadow: inset 0 0 0 1px rgba(142, 232, 255, 0.11);
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.summaryCard {
+  position: relative;
+  min-height: 160px;
+  padding: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(142, 232, 255, 0.09);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(83, 215, 255, 0.06), transparent 34%),
+    rgba(2, 9, 21, 0.48);
+}
+
+.summaryIcon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(142, 232, 255, 0.13);
+  border-radius: 10px;
+  background: rgba(83, 215, 255, 0.05);
+  color: #8dfcff;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.summaryCard small {
+  display: block;
+  margin-top: 17px;
+  color: rgba(235, 247, 255, 0.42);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+.summaryCard strong {
+  display: block;
+  margin-top: 5px;
+  color: white;
+  font-size: 28px;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.summaryCard p {
+  margin: 8px 0 0;
+  color: rgba(235, 247, 255, 0.4);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.trendCard,
+.subjectSection,
+.changedSection,
+.timelineSection {
+  padding: 22px;
+}
+
+.trendHeader,
+.sectionHeading,
+.sectionHeadingCompact {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.trendHeader h3,
+.sectionHeading h3,
+.sectionHeadingCompact h3 {
+  margin: 6px 0 0;
+  color: white;
+  font-size: 23px;
+  letter-spacing: -0.035em;
+}
+
+.trendHeader p,
+.sectionHeading > p {
+  margin: 6px 0 0;
+  color: rgba(235, 247, 255, 0.42);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.chartWrap {
+  position: relative;
+  margin-top: 18px;
+  min-height: 255px;
+  overflow: hidden;
+  border: 1px solid rgba(142, 232, 255, 0.07);
+  border-radius: 17px;
+  background:
+    linear-gradient(180deg, rgba(83, 215, 255, 0.025), transparent 65%),
+    rgba(2, 9, 21, 0.46);
+}
+
+.chart {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.gridLine {
+  stroke: rgba(235, 247, 255, 0.07);
+  stroke-width: 1;
+}
+
+.axisText,
+.dateText {
+  fill: rgba(235, 247, 255, 0.32);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.chartArea {
+  fill: rgba(83, 215, 255, 0.07);
+}
+
+.chartLine {
+  fill: none;
+  stroke: #8dfcff;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 8px rgba(83, 215, 255, 0.22));
+}
+
+.chartDot {
+  fill: #112c49;
+  stroke: #8dfcff;
+  stroke-width: 2;
+}
+
+.chartDotCurrent {
+  fill: #f0c75e;
+  stroke: #ffeaa4;
+  stroke-width: 2.5;
+  filter: drop-shadow(0 0 7px rgba(240, 199, 94, 0.5));
+}
+
+.chartCurrent {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  padding: 8px 10px;
+  border: 1px solid rgba(240, 199, 94, 0.18);
+  border-radius: 10px;
+  background: rgba(21, 17, 7, 0.72);
+}
+
+.chartCurrent small,
+.chartCurrent strong {
+  display: block;
+}
+
+.chartCurrent small {
+  color: rgba(255, 232, 166, 0.52);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+.chartCurrent strong {
+  margin-top: 3px;
+  color: #f7d77c;
+  font-size: 15px;
+}
+
+.chartEmpty {
+  min-height: 250px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.chartEmptyMark {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(142, 232, 255, 0.13);
+  border-radius: 12px;
+  background: rgba(83, 215, 255, 0.05);
+  color: #8dfcff;
+}
+
+.chartEmpty strong {
+  font-size: 17px;
+}
+
+.chartEmpty p {
+  max-width: 500px;
+  margin: 0;
+  color: rgba(235, 247, 255, 0.42);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.subjectGrid {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.subjectCard {
+  padding: 18px;
+  border: 1px solid rgba(142, 232, 255, 0.09);
+  border-radius: 17px;
+  background:
+    radial-gradient(circle at 96% 4%, rgba(124, 58, 237, 0.06), transparent 30%),
+    rgba(2, 9, 21, 0.48);
+}
+
+.subjectCardTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.subjectCardTop small,
+.subjectCardTop strong {
+  display: block;
+}
+
+.subjectCardTop small {
+  color: rgba(235, 247, 255, 0.45);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.subjectCardTop strong {
+  margin-top: 5px;
+  font-size: 30px;
+  letter-spacing: -0.045em;
+}
+
+.deltaPositive,
+.deltaNegative,
+.deltaNeutral {
+  padding: 7px 9px;
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.deltaPositive {
+  background: rgba(77, 226, 161, 0.08);
+  color: #7df3ba;
+}
+
+.deltaNegative {
+  background: rgba(255, 108, 114, 0.08);
+  color: #ff9296;
+}
+
+.deltaNeutral {
+  background: rgba(255, 255, 255, 0.035);
+  color: rgba(235, 247, 255, 0.48);
+}
+
+.subjectBar {
+  height: 7px;
+  margin-top: 14px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.subjectBar span {
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #5bdcff, #9f80ff);
+  box-shadow: 0 0 14px rgba(83, 215, 255, 0.2);
+}
+
+.subjectStats {
+  margin-top: 15px;
+  display: grid;
+  grid-template-columns: 0.7fr 1.15fr 1.15fr;
+  gap: 8px;
+}
+
+.subjectStats > div {
+  min-height: 67px;
+  padding: 9px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.subjectStats small,
+.subjectStats b {
+  display: block;
+}
+
+.subjectStats small {
+  color: rgba(235, 247, 255, 0.34);
+  font-size: 8px;
+}
+
+.subjectStats b {
+  margin-top: 6px;
+  color: rgba(255, 255, 255, 0.83);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.changeGrid {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 11px;
+}
+
+.changeCard {
+  padding: 15px;
+  border: 1px solid rgba(142, 232, 255, 0.08);
+  border-radius: 15px;
+  background: rgba(2, 9, 21, 0.48);
+}
+
+.changeTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.changeTop > small {
+  color: rgba(235, 247, 255, 0.34);
+  font-size: 8px;
+}
+
+.statusPill {
+  padding: 5px 7px;
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.status_strong {
+  background: rgba(77, 226, 161, 0.08);
+  color: #7df3ba;
+}
+
+.status_developing {
+  background: rgba(255, 174, 87, 0.08);
+  color: #ffc681;
+}
+
+.status_attention {
+  background: rgba(255, 108, 114, 0.08);
+  color: #ff9296;
+}
+
+.status_reassess {
+  background: rgba(184, 150, 255, 0.09);
+  color: #cbb2ff;
+}
+
+.changeCard h4 {
+  margin: 13px 0 0;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.changeCard > p {
+  margin: 5px 0 0;
+  color: rgba(235, 247, 255, 0.4);
+  font-size: 9px;
+}
+
+.changeMetrics {
+  margin-top: 13px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.changeMetrics span {
+  padding: 7px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.changeMetrics small,
+.changeMetrics b {
+  display: block;
+}
+
+.changeMetrics small {
+  color: rgba(235, 247, 255, 0.3);
+  font-size: 7px;
+}
+
+.changeMetrics b {
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 9px;
+}
+
+.dualGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.listSection {
+  padding: 19px;
+}
+
+.skillList {
+  margin-top: 13px;
+  display: grid;
+  gap: 7px;
+}
+
+.skillList article {
+  min-height: 54px;
+  padding: 9px 10px;
+  display: grid;
+  grid-template-columns: 35px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.rank {
+  width: 31px;
+  height: 31px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: rgba(77, 226, 161, 0.07);
+  color: #7df3ba;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.attentionRank {
+  background: rgba(255, 174, 87, 0.07);
+  color: #ffc681;
+}
+
+.skillList article > div strong,
+.skillList article > div small {
+  display: block;
+}
+
+.skillList article > div strong {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skillList article > div small {
+  margin-top: 4px;
+  color: rgba(235, 247, 255, 0.34);
+  font-size: 8px;
+}
+
+.skillList article > b {
+  color: rgba(235, 247, 255, 0.58);
+  font-size: 9px;
+  text-align: right;
+}
+
+.listEmpty,
+.inlineEmpty {
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.022);
+  color: rgba(235, 247, 255, 0.42);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.inlineEmpty {
+  margin-top: 15px;
+}
+
+.timeline {
+  margin-top: 16px;
+  display: grid;
+}
+
+.timeline article {
+  position: relative;
+  min-height: 62px;
+  display: grid;
+  grid-template-columns: 18px 72px minmax(0, 1fr);
+  gap: 11px;
+}
+
+.timeline article:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 19px;
+  bottom: -4px;
+  width: 1px;
+  background: rgba(142, 232, 255, 0.09);
+}
+
+.timelineDot {
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+  border: 3px solid rgba(5, 17, 34, 0.95);
+  border-radius: 999px;
+}
+
+.timelinePositive {
+  background: #4de2a1;
+  box-shadow: 0 0 8px rgba(77, 226, 161, 0.28);
+}
+
+.timelineAttention {
+  background: #ffae57;
+  box-shadow: 0 0 8px rgba(255, 174, 87, 0.25);
+}
+
+.timelineNeutral {
+  background: #8dfcff;
+}
+
+.timeline time {
+  padding-top: 2px;
+  color: rgba(235, 247, 255, 0.34);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.timeline strong {
+  display: block;
+  font-size: 11px;
+}
+
+.timeline p {
+  margin: 4px 0 0;
+  color: rgba(235, 247, 255, 0.4);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.recommendBridge {
+  padding: 20px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  background:
+    radial-gradient(circle at 90% 50%, rgba(240, 199, 94, 0.07), transparent 30%),
+    rgba(255, 255, 255, 0.02);
+}
+
+.recommendBridge h3 {
+  margin: 6px 0 0;
+  font-size: 19px;
+  letter-spacing: -0.03em;
+}
+
+.recommendBridge p {
+  max-width: 680px;
+  margin: 6px 0 0;
+  color: rgba(235, 247, 255, 0.43);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.recommendBridge button {
+  min-height: 44px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(251, 215, 110, 0.5);
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f2c45b, #d89c2e);
+  box-shadow: 0 10px 24px rgba(216, 156, 46, 0.2);
+  color: #1c1205;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.recommendBridge button span {
+  font-size: 17px;
+}
+
+@media (max-width: 1100px) {
+  .summaryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .changeGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .header,
+  .trendHeader,
+  .sectionHeading,
+  .recommendBridge {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .timeframes,
+  .subjectToggle {
+    width: fit-content;
+  }
+
+  .subjectGrid,
+  .dualGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 650px) {
+  .header,
+  .trendCard,
+  .subjectSection,
+  .changedSection,
+  .listSection,
+  .timelineSection,
+  .recommendBridge {
+    padding: 16px;
+  }
+
+  .summaryGrid,
+  .changeGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .timeframes {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .timeframes button {
+    flex: 1 0 auto;
+  }
+
+  .subjectToggle {
+    width: 100%;
+  }
+
+  .subjectToggle button {
+    flex: 1;
+  }
+
+  .subjectStats,
+  .changeMetrics {
+    grid-template-columns: 1fr;
+  }
+
+  .timeline article {
+    grid-template-columns: 18px 58px minmax(0, 1fr);
+  }
+
+  .recommendBridge button {
+    width: 100%;
+    justify-content: space-between;
+  }
+}

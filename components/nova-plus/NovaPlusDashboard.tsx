@@ -79,7 +79,7 @@ export default function NovaPlusDashboard() {
         <div className={styles.heroCopy}>
           <div className={styles.brandLine}>
             <span className={styles.kicker}>NOVA+</span>
-            {isAdminPreview && <em className={styles.previewBadge}>Admin Preview</em>}
+            
           </div>
 
           <h1>Learning Intelligence</h1>
@@ -157,7 +157,7 @@ export default function NovaPlusDashboard() {
         ) : error && !profile ? (
           <div className={styles.stateCard}>
             <div className={styles.lockIcon}>N+</div>
-            <strong>{isAdminPreview ? "NOVA+ could not load" : "NOVA+ is coming soon"}</strong>
+            <strong>NOVA+ could not load</strong>
             <p>{error}</p>
             <button type="button" onClick={closeNovaPlus}>Return to Progress & Rewards</button>
           </div>
@@ -190,7 +190,11 @@ export default function NovaPlusDashboard() {
             isAdminPreview={isAdminPreview}
           />
         ) : tab === "progress" ? (
-          <ProgressTab />
+          <ProgressTab
+            profile={profile}
+            learnerLabel={learnerName}
+            onOpenRecommendations={() => setTab("recommendations")}
+          />
         ) : (
           <ParentReportTab />
         )}

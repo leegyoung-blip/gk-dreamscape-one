@@ -129,7 +129,6 @@ function RecommendationCard({
   const meta = LANE_META[item.lane];
   const quizHref = item.quiz?.quiz_href || "";
   const mayOpen = Boolean(quizHref) && (canLaunchPractice || isAdminPreview);
-  const preview = isAdminPreview && !canLaunchPractice;
 
   return (
     <article
@@ -178,7 +177,7 @@ function RecommendationCard({
 
         {mayOpen ? (
           <a className={styles.startButton} href={quizHref}>
-            {preview ? "Preview Mission" : meta.actionLabel}
+            {canLaunchPractice ? meta.actionLabel : "Open Mission"}
             <span>→</span>
           </a>
         ) : (
