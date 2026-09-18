@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import MyLearningTab from "@/components/nova-plus/tabs/MyLearningTab";
 import StrengthsGapsTab from "@/components/nova-plus/tabs/StrengthsGapsTab";
@@ -9,6 +9,7 @@ import NovaRecommendsTab from "@/components/nova-plus/tabs/NovaRecommendsTab";
 import ProgressTab from "@/components/nova-plus/tabs/ProgressTab";
 import ParentReportTab from "@/components/nova-plus/tabs/ParentReportTab";
 import { useNovaPlusProfile } from "@/hooks/useNovaPlusProfile";
+import { supabase } from "@/lib/supabase";
 import type { NovaPlusTab } from "@/lib/nova-plus/types";
 import styles from "./NovaPlusDashboard.module.css";
 
@@ -26,6 +27,27 @@ export default function NovaPlusDashboard() {
   const searchParams = useSearchParams();
   const requestedLearnerId = searchParams.get("student");
   const [tab, setTab] = useState<NovaPlusTab>("learning");
+  const [viewerId, setViewerId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadViewer() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!cancelled) {
+        setViewerId(user?.id ?? null);
+      }
+    }
+
+    void loadViewer();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const {
     learners,
@@ -161,7 +183,12 @@ export default function NovaPlusDashboard() {
             onOpenRecommendations={() => setTab("recommendations")}
           />
         ) : tab === "recommendations" ? (
-          <NovaRecommendsTab />
+          <NovaRecommendsTab
+            learnerId={selectedLearnerId}
+            learnerLabel={learnerName}
+            canLaunchPractice={Boolean(viewerId && viewerId === selectedLearnerId)}
+            isAdminPreview={isAdminPreview}
+          />
         ) : tab === "progress" ? (
           <ProgressTab />
         ) : (

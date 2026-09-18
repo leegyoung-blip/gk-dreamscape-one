@@ -192,3 +192,82 @@ export type NovaPlusLearner = {
   label: string;
   relationship: string;
 };
+
+
+export type NovaRecommendationLane =
+  | "focus_now"
+  | "build_next"
+  | "reassess"
+  | "stretch";
+
+export type NovaRecommendationAlternative = {
+  quiz_id: string;
+  quiz_title: string;
+  quiz_type: string | null;
+  quiz_href: string | null;
+  quiz_skill_coverage_percentage: number | null;
+};
+
+export type NovaRecommendationQuiz = {
+  quiz_id: string;
+  quiz_title: string;
+  quiz_type: string | null;
+  quiz_href: string | null;
+  quiz_skill_coverage_percentage: number | null;
+  mapped_question_count: number | null;
+  primary_question_count: number | null;
+  total_questions: number | null;
+  last_accuracy: number | null;
+  best_accuracy: number | null;
+  last_attempt_at: string | null;
+  days_since_last_attempt: number | null;
+};
+
+export type NovaRecommendation = {
+  id: string;
+  lane: NovaRecommendationLane;
+  subject: "english" | "math";
+  primary_level: number;
+  domain: string;
+  topic: string;
+  skill_id: string;
+  skill_code: string;
+  skill_name: string;
+  public_explanation: string | null;
+  mastery_score: number;
+  confidence_score: number;
+  recent_accuracy: number | null;
+  lifetime_accuracy: number | null;
+  questions_analyzed: number;
+  primary_questions_analyzed: number;
+  separate_attempts: number;
+  recent_errors: number;
+  mapping_coverage: number | null;
+  evidence_quality: string;
+  trend: "improving" | "declining" | "stable" | "no_data";
+  trend_points: number | null;
+  last_practised_at: string | null;
+  persistent_weakness: boolean;
+  review_due: boolean;
+  recommendation_score: number;
+  reason: string;
+  quiz: NovaRecommendationQuiz;
+  alternatives: NovaRecommendationAlternative[];
+};
+
+export type NovaRecommendationsPayload = {
+  student_user_id: string;
+  generated_at: string;
+  subjects: Array<"english" | "math">;
+  science_status?: "not_mapped_yet" | string;
+  recommendations: NovaRecommendation[];
+  recommendation_count: number;
+  rules?: {
+    max_visible?: number;
+    focus_now_max?: number;
+    build_next_max?: number;
+    reassess_or_stretch_max?: number;
+    focus_requires_repeated_evidence?: boolean;
+    unassessed_concepts_are_not_recommended?: boolean;
+  };
+};

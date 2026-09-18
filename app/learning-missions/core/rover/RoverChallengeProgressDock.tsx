@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import {
   getRoverLevel,
@@ -22,11 +22,12 @@ type PurchaseUnlockRow = {
 
 export default function RoverChallengeProgressDock() {
   const router = useRouter();
+  const pathname = usePathname();
   const [loading, setLoading] = useState(true);
   const [signedIn, setSignedIn] = useState(false);
   const [rows, setRows] = useState<RoverLevelAccess[]>([]);
   const [message, setMessage] = useState("");
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [purchasingLevel, setPurchasingLevel] =
     useState<RoverLevelId | null>(null);
 
@@ -79,6 +80,17 @@ export default function RoverChallengeProgressDock() {
       window.removeEventListener("dream-gems-updated", refresh);
     };
   }, [loadProgress]);
+
+  /*
+   * The Level Progress dock must always return to its compact state when the
+   * user comes back to My Rover. This also works when the surrounding layout
+   * remains mounted across Next.js route changes.
+   */
+  useEffect(() => {
+    if (pathname === "/learning-missions/core/rover") {
+      setCollapsed(true);
+    }
+  }, [pathname]);
 
   const accessByLevel = useMemo(() => {
     const map = new Map<RoverLevelId, RoverLevelAccess>();

@@ -179,6 +179,94 @@ const ROVER_COURSES: RoverCourseMeta[] = [
 const STAGE_ONE_LEVEL_IDS = [1, 2, 3, 4] as const;
 type StageOneLevelId = (typeof STAGE_ONE_LEVEL_IDS)[number];
 
+type ExpeditionStoryId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+type ExpeditionStoryStatus = "playable" | "locked" | "coming-soon";
+
+type ExpeditionStory = {
+  id: ExpeditionStoryId;
+  title: string;
+  stage: 1 | 2;
+  lines: string[];
+};
+
+const NOVA_EXPEDITION_STORY_IMAGE =
+  "/activities/learning-missions/core/rover/nova-expedition-guide.png";
+
+const EXPEDITION_STORIES: Record<ExpeditionStoryId, ExpeditionStory> = {
+  1: {
+    id: 1,
+    stage: 1,
+    title: "Skyforge Test Track",
+    lines: [
+      "Before we leave the Hangar, I need to see how your rover handles.",
+      "Follow the route, collect the energy orbs and clear every checkpoint. Reach the finish and we can open the road deeper into Dreamscape.",
+    ],
+  },
+  2: {
+    id: 2,
+    stage: 1,
+    title: "Dreamkeeper Divide",
+    lines: [
+      "The Dreamkeeper has split the road ahead. One route is faster, but neither route is safe.",
+      "Watch the terrain, choose your path carefully and keep moving. He has planted dynamite along the way.",
+    ],
+  },
+  3: {
+    id: 3,
+    stage: 1,
+    title: "Dreamkeeper's Gauntlet",
+    lines: [
+      "He knows we're coming. Pulse gates and broken roads are blocking the route.",
+      "Time your movement, keep your boost ready and make it through the Dreamkeeper's final ambush.",
+    ],
+  },
+  4: {
+    id: 4,
+    stage: 1,
+    title: "Fracture Run",
+    lines: [
+      "Something is wrong with the road itself. The Fracture is spreading through Dreamscape.",
+      "Don't stop on unstable sections. Once they begin to collapse, they won't hold us. Cross the fracture and find out what is hiding beyond the darkness.",
+    ],
+  },
+  5: {
+    id: 5,
+    stage: 2,
+    title: "Boneguard Breach",
+    lines: [
+      "We found the source of the disturbance. Bone Guards are emerging from the gate, and they're armed.",
+      "Your rover's shield will absorb the first hits. Return fire, defeat all seven Bone Guards and secure the Bone Gate before they break through.",
+    ],
+  },
+  6: {
+    id: 6,
+    stage: 2,
+    title: "Fractured Frontier",
+    lines: [
+      "The breach didn't end at the Bone Gate. The land beyond it is breaking apart faster than our maps can track.",
+      "I'm picking up movement across the fractured islands. We'll need to push deeper once the route is stable enough to enter.",
+    ],
+  },
+  7: {
+    id: 7,
+    stage: 2,
+    title: "Boneguard Stronghold",
+    lines: [
+      "Those Bone Guards weren't wandering into Dreamscape by accident. Their signals are converging on a fortified region ahead.",
+      "Whatever is controlling them has built a stronghold here. When we reach it, expect heavier resistance.",
+    ],
+  },
+  8: {
+    id: 8,
+    stage: 2,
+    title: "The Fracture Gate",
+    lines: [
+      "There it is—the largest fracture signature we've seen. That gate is feeding energy into the entire region.",
+      "If we can reach it and shut it down, we may finally discover where the Bone Guards are coming from—and what waits beyond Stage 2.",
+    ],
+  },
+};
+
 const STAGE_ONE_COURSES = ROVER_COURSES.filter(
   (
     course,
@@ -1601,6 +1689,7 @@ function ExpeditionMap({
 }) {
   const router = useRouter();
   const [mapStage, setMapStage] = useState<1 | 2>(1);
+  const [storyId, setStoryId] = useState<ExpeditionStoryId | null>(null);
 
   useEffect(() => {
     const previousBodyOverflow = document.body.style.overflow;
@@ -1644,6 +1733,7 @@ function ExpeditionMap({
 
   function openStage(stage: 1 | 2) {
     if (stage === 2 && !stageTwoUnlocked) return;
+    setStoryId(null);
     setMapStage(stage);
   }
 
@@ -1654,7 +1744,10 @@ function ExpeditionMap({
         isAdmin={isAdmin}
         stageTwoUnlocked={stageTwoUnlocked}
         equippedRover={equippedRover}
-        onBack={() => setMapStage(1)}
+        onBack={() => {
+          setStoryId(null);
+          setMapStage(1);
+        }}
       />
     );
   }
@@ -1719,8 +1812,7 @@ function ExpeditionMap({
           <button
             key={course.id}
             type="button"
-            disabled={!unlocked}
-            onClick={() => unlocked && onOpenLevel(course.id)}
+            onClick={() => setStoryId(course.id)}
             style={{
               ...mapLocationButton(unlocked),
               left: position.left,
@@ -1754,6 +1846,21 @@ function ExpeditionMap({
           </button>
         );
       })}
+
+      {storyId && storyId <= 4 && (
+        <ExpeditionStoryDialogue
+          story={EXPEDITION_STORIES[storyId]}
+          status={
+            levelUnlocked(storyId as RoverLevelId)
+              ? "playable"
+              : "locked"
+          }
+          onClose={() => setStoryId(null)}
+          onEnter={() =>
+            onOpenLevel(storyId as RoverLevelId)
+          }
+        />
+      )}
 
       <button
         type="button"
@@ -1806,6 +1913,168 @@ function ExpeditionMap({
   );
 }
 
+function ExpeditionStoryDialogue({
+  story,
+  status,
+  onClose,
+  onEnter,
+}: {
+  story: ExpeditionStory;
+  status: ExpeditionStoryStatus;
+  onClose: () => void;
+  onEnter?: () => void;
+}) {
+  const [lineIndex, setLineIndex] = useState(0);
+  const [visibleCharacters, setVisibleCharacters] = useState(0);
+  const [novaImageVisible, setNovaImageVisible] = useState(true);
+
+  const currentLine = story.lines[lineIndex] ?? "";
+  const lineComplete =
+    visibleCharacters >= currentLine.length;
+  const finalLine =
+    lineIndex >= story.lines.length - 1;
+
+  useEffect(() => {
+    setLineIndex(0);
+    setVisibleCharacters(0);
+  }, [story.id]);
+
+  useEffect(() => {
+    if (lineComplete) return;
+
+    const timer = window.setTimeout(() => {
+      setVisibleCharacters((current) =>
+        Math.min(
+          current + 1,
+          currentLine.length,
+        ),
+      );
+    }, 18);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    currentLine,
+    lineComplete,
+    visibleCharacters,
+  ]);
+
+  function advanceDialogue() {
+    if (!lineComplete) {
+      setVisibleCharacters(currentLine.length);
+      return;
+    }
+
+    if (!finalLine) {
+      setLineIndex((current) => current + 1);
+      setVisibleCharacters(0);
+    }
+  }
+
+  const actionLabel =
+    status === "playable"
+      ? `Begin Expedition ${story.id} ›`
+      : status === "locked"
+        ? "Expedition Locked"
+        : "Coming Soon";
+
+  return (
+    <div
+      style={expeditionStoryLayer}
+      aria-label={`Nova briefing for Expedition ${story.id}`}
+    >
+      <div style={novaStoryCharacterArea}>
+        <div style={novaStoryFallback}>
+          <span>✦</span>
+          <strong>NOVA</strong>
+        </div>
+
+        {novaImageVisible && (
+          <img
+            src={NOVA_EXPEDITION_STORY_IMAGE}
+            alt="Nova"
+            draggable={false}
+            onError={() => setNovaImageVisible(false)}
+            style={novaStoryCharacterImage}
+          />
+        )}
+      </div>
+
+      <section
+        style={novaStoryDialogueBox}
+        onClick={advanceDialogue}
+      >
+        <div style={novaStoryDialogueHeader}>
+          <div>
+            <p style={novaStorySpeaker}>NOVA</p>
+            <strong style={novaStoryMissionTitle}>
+              Expedition {story.id} · {story.title}
+            </strong>
+          </div>
+
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onClose();
+            }}
+            style={novaStoryCloseButton}
+            aria-label="Close expedition briefing"
+          >
+            ×
+          </button>
+        </div>
+
+        <p style={novaStoryDialogueText}>
+          {currentLine.slice(0, visibleCharacters)}
+          {!lineComplete && (
+            <span style={novaStoryCursor}>▋</span>
+          )}
+        </p>
+
+        <div style={novaStoryFooter}>
+          <span style={novaStoryProgress}>
+            {lineIndex + 1}/{story.lines.length}
+          </span>
+
+          {!finalLine || !lineComplete ? (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                advanceDialogue();
+              }}
+              style={novaStoryContinueButton}
+            >
+              {lineComplete
+                ? "Continue ›"
+                : "Tap to finish line"}
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={status !== "playable"}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (
+                  status === "playable" &&
+                  onEnter
+                ) {
+                  onEnter();
+                }
+              }}
+              style={novaStoryActionButton(
+                status === "playable",
+              )}
+            >
+              {actionLabel}
+            </button>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function StageTwoMap({
   access,
   isAdmin,
@@ -1820,6 +2089,7 @@ function StageTwoMap({
   onBack: () => void;
 }) {
   const router = useRouter();
+  const [storyId, setStoryId] = useState<ExpeditionStoryId | null>(null);
 
   const expeditionFiveAccess = access.find(
     (row) => Number(row.level_id) === 5,
@@ -1940,14 +2210,11 @@ function StageTwoMap({
           <button
             key={location.id}
             type="button"
-            disabled={!location.playable}
-            onClick={() => {
-              if (location.id === 5 && unlocked) {
-                router.push(
-                  "/learning-missions/core/rover-challenge/5",
-                );
-              }
-            }}
+            onClick={() =>
+              setStoryId(
+                location.id as ExpeditionStoryId,
+              )
+            }
             style={{
               ...stageTwoExpeditionNode(
                 location.playable,
@@ -1996,6 +2263,28 @@ function StageTwoMap({
           </button>
         );
       })}
+
+      {storyId && storyId >= 5 && (
+        <ExpeditionStoryDialogue
+          story={EXPEDITION_STORIES[storyId]}
+          status={
+            storyId === 5
+              ? isAdmin || stageTwoUnlocked
+                ? "playable"
+                : "locked"
+              : "coming-soon"
+          }
+          onClose={() => setStoryId(null)}
+          onEnter={
+            storyId === 5
+              ? () =>
+                  router.push(
+                    "/learning-missions/core/rover-challenge/5",
+                  )
+              : undefined
+          }
+        />
+      )}
 
       <div style={stageTwoStageThreePortal}>
         <span style={stageTwoStageThreePortalIcon}>
@@ -6044,6 +6333,184 @@ const stageTwoStageThreePortalCopy: CSSProperties = {
   textAlign: "left",
   fontSize: "9px",
 };
+
+/* =========================================================
+   EXPEDITION STORYLINE / NOVA TYPEWRITER BRIEFING
+   ========================================================= */
+
+const expeditionStoryLayer: CSSProperties = {
+  position: "absolute",
+  left: "2.5%",
+  right: "2.5%",
+  bottom: "16px",
+  zIndex: 60,
+  minHeight: "162px",
+  display: "grid",
+  gridTemplateColumns:
+    "clamp(110px,14vw,190px) minmax(0,1fr)",
+  alignItems: "end",
+  gap: "0",
+  pointerEvents: "none",
+};
+
+const novaStoryCharacterArea: CSSProperties = {
+  position: "relative",
+  height: "176px",
+  alignSelf: "end",
+  display: "grid",
+  placeItems: "end center",
+  pointerEvents: "none",
+};
+
+const novaStoryFallback: CSSProperties = {
+  position: "absolute",
+  left: "10px",
+  bottom: "10px",
+  width: "96px",
+  height: "118px",
+  display: "grid",
+  placeItems: "center",
+  alignContent: "center",
+  gap: "4px",
+  borderRadius: "52% 52% 24% 24%",
+  border: "1px solid rgba(126,232,255,0.42)",
+  background:
+    "radial-gradient(circle at 50% 28%,rgba(126,232,255,0.34),rgba(22,42,79,0.94) 45%,rgba(4,10,25,0.98) 78%)",
+  boxShadow:
+    "0 0 30px rgba(75,193,255,0.28)",
+  color: "#dff8ff",
+  fontSize: "24px",
+};
+
+const novaStoryCharacterImage: CSSProperties = {
+  position: "relative",
+  zIndex: 2,
+  width: "100%",
+  height: "100%",
+  objectFit: "contain",
+  objectPosition: "center bottom",
+  filter:
+    "drop-shadow(0 14px 18px rgba(0,0,0,0.48)) drop-shadow(0 0 14px rgba(89,207,255,0.16))",
+};
+
+const novaStoryDialogueBox: CSSProperties = {
+  pointerEvents: "auto",
+  minHeight: "142px",
+  marginLeft: "-12px",
+  borderRadius: "18px",
+  border: "1px solid rgba(126,232,255,0.33)",
+  background:
+    "linear-gradient(135deg,rgba(5,17,37,0.97),rgba(14,20,55,0.96))",
+  boxShadow:
+    "0 20px 50px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.04)",
+  padding: "14px 16px 12px 22px",
+  color: "white",
+  backdropFilter: "blur(12px)",
+  cursor: "pointer",
+};
+
+const novaStoryDialogueHeader: CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: "12px",
+};
+
+const novaStorySpeaker: CSSProperties = {
+  margin: 0,
+  color: "#7ee8ff",
+  fontSize: "9px",
+  fontWeight: 950,
+  letterSpacing: "0.18em",
+};
+
+const novaStoryMissionTitle: CSSProperties = {
+  display: "block",
+  marginTop: "2px",
+  color: "#ffe09a",
+  fontSize: "13px",
+  fontWeight: 950,
+};
+
+const novaStoryCloseButton: CSSProperties = {
+  width: "30px",
+  height: "30px",
+  flexShrink: 0,
+  display: "grid",
+  placeItems: "center",
+  borderRadius: "9px",
+  border: "1px solid rgba(255,255,255,0.13)",
+  background: "rgba(255,255,255,0.05)",
+  color: "rgba(255,255,255,0.8)",
+  fontSize: "18px",
+  cursor: "pointer",
+};
+
+const novaStoryDialogueText: CSSProperties = {
+  minHeight: "52px",
+  margin: "10px 0 7px",
+  color: "rgba(240,248,255,0.9)",
+  fontSize: "clamp(12px,1.05vw,15px)",
+  lineHeight: 1.55,
+  fontWeight: 650,
+};
+
+const novaStoryCursor: CSSProperties = {
+  marginLeft: "2px",
+  color: "#7ee8ff",
+  animation: "none",
+};
+
+const novaStoryFooter: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "12px",
+};
+
+const novaStoryProgress: CSSProperties = {
+  color: "rgba(166,204,224,0.58)",
+  fontSize: "9px",
+  fontWeight: 850,
+  letterSpacing: "0.08em",
+};
+
+const novaStoryContinueButton: CSSProperties = {
+  minHeight: "32px",
+  borderRadius: "10px",
+  border: "1px solid rgba(126,232,255,0.24)",
+  background: "rgba(126,232,255,0.08)",
+  color: "#bdefff",
+  padding: "0 12px",
+  fontSize: "10px",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+
+function novaStoryActionButton(
+  enabled: boolean,
+): CSSProperties {
+  return {
+    minHeight: "36px",
+    borderRadius: "10px",
+    border: enabled
+      ? "1px solid rgba(255,222,128,0.54)"
+      : "1px solid rgba(255,255,255,0.1)",
+    background: enabled
+      ? "linear-gradient(135deg,#ffe08a,#efa93e)"
+      : "rgba(255,255,255,0.06)",
+    color: enabled
+      ? "#241704"
+      : "rgba(255,255,255,0.42)",
+    padding: "0 16px",
+    fontSize: "10px",
+    fontWeight: 950,
+    cursor: enabled ? "pointer" : "default",
+    boxShadow: enabled
+      ? "0 8px 22px rgba(239,169,62,0.2)"
+      : "none",
+  };
+}
 
 const loadingFill: CSSProperties = {
   minHeight: "100dvh",
