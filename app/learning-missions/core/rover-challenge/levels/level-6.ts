@@ -84,10 +84,10 @@ export const levelSix: RoverLevelConfig = {
       x: 1850,
       y: 625,
       maxHp: 180,
-      width: 190,
-      height: 96,
+      width: 248,
+      height: 112,
       guards: [
-        { offsetX: 48, hp: 220 },
+        { offsetX: 38, hp: 220 },
       ],
     },
     {
@@ -95,10 +95,10 @@ export const levelSix: RoverLevelConfig = {
       x: 3450,
       y: 625,
       maxHp: 220,
-      width: 200,
-      height: 98,
+      width: 252,
+      height: 114,
       guards: [
-        { offsetX: 50, hp: 230 },
+        { offsetX: 40, hp: 230 },
       ],
     },
     {
@@ -106,10 +106,10 @@ export const levelSix: RoverLevelConfig = {
       x: 4380,
       y: 595,
       maxHp: 320,
-      width: 215,
-      height: 104,
+      width: 262,
+      height: 118,
       guards: [
-        { offsetX: 52, hp: 250 },
+        { offsetX: 42, hp: 250 },
       ],
     },
     {
@@ -117,11 +117,11 @@ export const levelSix: RoverLevelConfig = {
       x: 6060,
       y: 612,
       maxHp: 320,
-      width: 230,
-      height: 108,
+      width: 270,
+      height: 122,
       guards: [
-        { offsetX: 38, hp: 260 },
-        { offsetX: 94, hp: 260 },
+        { offsetX: 28, hp: 260 },
+        { offsetX: 82, hp: 260 },
       ],
     },
     {
@@ -129,10 +129,10 @@ export const levelSix: RoverLevelConfig = {
       x: 6980,
       y: 574,
       maxHp: 320,
-      width: 220,
-      height: 106,
+      width: 265,
+      height: 120,
       guards: [
-        { offsetX: 56, hp: 280 },
+        { offsetX: 44, hp: 280 },
       ],
     },
     {
@@ -140,10 +140,10 @@ export const levelSix: RoverLevelConfig = {
       x: 8300,
       y: 608,
       maxHp: 240,
-      width: 205,
-      height: 100,
+      width: 255,
+      height: 116,
       guards: [
-        { offsetX: 52, hp: 280 },
+        { offsetX: 40, hp: 280 },
       ],
     },
     {
@@ -151,11 +151,11 @@ export const levelSix: RoverLevelConfig = {
       x: 9250,
       y: 585,
       maxHp: 500,
-      width: 250,
-      height: 118,
+      width: 294,
+      height: 128,
       guards: [
-        { offsetX: 40, hp: 320 },
-        { offsetX: 102, hp: 480, heavy: true },
+        { offsetX: 30, hp: 320 },
+        { offsetX: 88, hp: 480, heavy: true },
       ],
     },
   ],

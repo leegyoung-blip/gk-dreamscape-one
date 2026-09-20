@@ -93,6 +93,20 @@ const monsterPoseSprites: Record<string, Record<MonsterPose, string>> = {
     hit: "/activities/learning-missions/knowledge-arena/monsters/brambleback-tortoise/hit.png",
     defeated: "/activities/learning-missions/knowledge-arena/monsters/brambleback-tortoise/defeated.png",
   },
+  "dunebreaker-scorpion": {
+    idle: "/activities/learning-missions/knowledge-arena/monsters/dunebreaker-scorpion/idle.png",
+    defense: "/activities/learning-missions/knowledge-arena/monsters/dunebreaker-scorpion/defense.png",
+    attack: "/activities/learning-missions/knowledge-arena/monsters/dunebreaker-scorpion/attack.png",
+    hit: "/activities/learning-missions/knowledge-arena/monsters/dunebreaker-scorpion/hit.png",
+    defeated: "/activities/learning-missions/knowledge-arena/monsters/dunebreaker-scorpion/defeated.png",
+  },
+  "prismhorn-stag": {
+    idle: "/activities/learning-missions/knowledge-arena/monsters/prismhorn-stag/idle.png",
+    defense: "/activities/learning-missions/knowledge-arena/monsters/prismhorn-stag/defense.png",
+    attack: "/activities/learning-missions/knowledge-arena/monsters/prismhorn-stag/attack.png",
+    hit: "/activities/learning-missions/knowledge-arena/monsters/prismhorn-stag/hit.png",
+    defeated: "/activities/learning-missions/knowledge-arena/monsters/prismhorn-stag/defeated.png",
+  },
 };
 
 function rarityLabel(value: string) {
@@ -410,6 +424,8 @@ const MONSTER_IMPACT_HOTSPOTS: Record<string, { x: number; y: number }> = {
   "stormfang-wyvern": { x: 0.45, y: 0.48 },
   "frostclaw-prowler": { x: 0.44, y: 0.47 },
   "brambleback-tortoise": { x: 0.46, y: 0.50 },
+  "dunebreaker-scorpion": { x: 0.49, y: 0.51 },
+  "prismhorn-stag": { x: 0.43, y: 0.46 },
 };
 
 function imageHotspot(
@@ -1117,6 +1133,8 @@ export function ArenaBattleView({
         .kab-impact-anchor--stormfang-wyvern { left: 43%; top: 47%; }
         .kab-impact-anchor--frostclaw-prowler { left: 42%; top: 46%; }
         .kab-impact-anchor--brambleback-tortoise { left: 45%; top: 49%; }
+        .kab-impact-anchor--dunebreaker-scorpion { left: 47%; top: 50%; }
+        .kab-impact-anchor--prismhorn-stag { left: 41%; top: 45%; }
         .kab-shot-layer {
           position: absolute;
           inset: 0;

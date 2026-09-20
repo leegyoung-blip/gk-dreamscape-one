@@ -103,6 +103,8 @@ const COOP_MONSTER_HOTSPOTS: Record<string, { x: number; y: number }> = {
   "stormfang-wyvern": { x: .45, y: .48 },
   "frostclaw-prowler": { x: .44, y: .47 },
   "brambleback-tortoise": { x: .46, y: .50 },
+  "dunebreaker-scorpion": { x: .49, y: .51 },
+  "prismhorn-stag": { x: .43, y: .46 },
 };
 function containedRect(image: HTMLImageElement, source?: {width:number;height:number}) {
   const box=image.getBoundingClientRect();

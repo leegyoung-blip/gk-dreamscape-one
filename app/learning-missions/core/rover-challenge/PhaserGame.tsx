@@ -262,6 +262,14 @@ type BoneGuardBlasterProjectile = {
 type FrontierBarricadeItem = RoverBarricadeConfig & {
   hp: number;
   destroyed: boolean;
+
+  /**
+   * Exact road surface Y resolved from the terrain spline.
+   * Both intact and destroyed art use this same value so the barricade never
+   * floats, sinks or jumps vertically when its texture changes.
+   */
+  surfaceY: number;
+
   sprite: Phaser.GameObjects.Image;
   healthBackground: Phaser.GameObjects.Rectangle;
   healthFill: Phaser.GameObjects.Rectangle;
@@ -5030,7 +5038,7 @@ class RoverMatterScene extends Phaser.Scene {
         barricade.x - barWidth / 2,
         barricade.sprite.y -
           barricade.height -
-          18,
+          12,
       );
 
     barricade.healthFill
@@ -5039,7 +5047,7 @@ class RoverMatterScene extends Phaser.Scene {
         barricade.x - barWidth / 2,
         barricade.sprite.y -
           barricade.height -
-          18,
+          12,
       );
 
     barricade.healthBackground.width =
@@ -5156,13 +5164,13 @@ class RoverMatterScene extends Phaser.Scene {
           "frontier-barricade-destroyed",
         )
         .setDisplaySize(
-          barricade.width * 1.08,
-          barricade.height * 0.78,
+          barricade.width * 1.04,
+          barricade.height * 0.46,
         )
         .setOrigin(0.5, 1)
         .setPosition(
           barricade.x,
-          barricade.sprite.y,
+          barricade.surfaceY,
         );
     } else {
       barricade.sprite
@@ -5251,7 +5259,7 @@ class RoverMatterScene extends Phaser.Scene {
     const sprite = this.add
       .image(
         config.x,
-        surfaceY + 5,
+        surfaceY,
         "frontier-barricade",
       )
       .setOrigin(0.5, 1)
@@ -5267,11 +5275,12 @@ class RoverMatterScene extends Phaser.Scene {
      * fair obstacle to jump over.
      */
     const collisionWidth =
-      config.width * 0.74;
+      config.width * 0.68;
+
     const collisionHeight =
       Math.max(
-        54,
-        config.height * 0.64,
+        50,
+        config.height * 0.52,
       );
 
     const body =
@@ -5301,7 +5310,7 @@ class RoverMatterScene extends Phaser.Scene {
         config.x - barWidth / 2,
         surfaceY -
           config.height -
-          18,
+          12,
         barWidth,
         7,
         0x1f2941,
@@ -5315,7 +5324,7 @@ class RoverMatterScene extends Phaser.Scene {
         config.x - barWidth / 2,
         surfaceY -
           config.height -
-          18,
+          12,
         barWidth,
         7,
         0x76eaff,
@@ -5329,6 +5338,7 @@ class RoverMatterScene extends Phaser.Scene {
         ...config,
         hp: config.maxHp,
         destroyed: false,
+        surfaceY,
         sprite,
         healthBackground,
         healthFill,
