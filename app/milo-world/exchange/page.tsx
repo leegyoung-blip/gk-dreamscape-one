@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
+import MiloExchangeGuide from "./components/MiloExchangeGuide";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 
@@ -1175,7 +1176,7 @@ export default function MiloExchangeMainPage() {
           </p>
         )}
 
-        <section
+        <section data-milo-guide="home-portfolio-summary"
           style={{
             display: "grid",
             gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, minmax(0, 1fr))",
@@ -1210,7 +1211,7 @@ export default function MiloExchangeMainPage() {
             gap: "18px",
           }}
         >
-          <Link
+          <Link data-milo-guide="home-stock-market"
             href="/milo-world/exchange/stocks"
             style={{
               ...glassPanel,
@@ -1241,7 +1242,7 @@ export default function MiloExchangeMainPage() {
             </strong>
           </Link>
 
-          <Link
+          <Link data-milo-guide="home-property-market"
             href="/milo-world/exchange/property"
             style={{
               ...glassPanel,
@@ -1285,7 +1286,7 @@ export default function MiloExchangeMainPage() {
             alignItems: "start",
           }}
         >
-          <section style={{ ...glassPanel, padding: isMobile ? "20px" : "26px", minWidth: 0 }}>
+          <section data-milo-guide="home-transactions" style={{ ...glassPanel, padding: isMobile ? "20px" : "26px", minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: "14px", alignItems: "flex-end", marginBottom: "18px" }}>
               <div>
                 <p style={{ margin: 0, color: "#8ee8ff", fontSize: "12px", fontWeight: 900, letterSpacing: "0.19em", textTransform: "uppercase" }}>
@@ -1342,7 +1343,7 @@ export default function MiloExchangeMainPage() {
             )}
           </section>
 
-          <section style={{ ...glassPanel, padding: isMobile ? "20px" : "24px" }}>
+          <section data-milo-guide="home-leaderboard" style={{ ...glassPanel, padding: isMobile ? "20px" : "24px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
               <div>
                 <p style={{ margin: 0, color: "#ffd18a", fontSize: "12px", fontWeight: 900, letterSpacing: "0.19em", textTransform: "uppercase" }}>
@@ -1405,7 +1406,7 @@ export default function MiloExchangeMainPage() {
             )}
           </section>
 
-          <section style={{ ...glassPanel, padding: isMobile ? "20px" : "24px" }}>
+          <section data-milo-guide="home-friends" style={{ ...glassPanel, padding: isMobile ? "20px" : "24px" }}>
             <p style={{ margin: 0, color: "#8ee8ff", fontSize: "12px", fontWeight: 900, letterSpacing: "0.19em", textTransform: "uppercase" }}>
               Social Portfolio
             </p>
@@ -1531,53 +1532,8 @@ export default function MiloExchangeMainPage() {
           </section>
         </section>
 
-        <section
-          style={{
-            marginTop: "28px",
-            display: "flex",
-            flexDirection: isMobile ? "column-reverse" : "row",
-            justifyContent: "flex-end",
-            alignItems: isMobile ? "stretch" : "flex-end",
-            gap: isMobile ? "4px" : "12px",
-          }}
-        >
-          <div
-            style={{
-              position: "relative",
-              width: isMobile ? "100%" : "min(500px, 44vw)",
-              marginBottom: isMobile ? 0 : "76px",
-              borderRadius: "24px 24px 6px 24px",
-              border: "1px solid rgba(132,218,255,0.28)",
-              background: "rgba(5,13,28,0.86)",
-              boxShadow: "0 24px 70px rgba(0,0,0,0.42)",
-              backdropFilter: "blur(18px)",
-              WebkitBackdropFilter: "blur(18px)",
-              padding: isMobile ? "18px" : "21px 23px",
-            }}
-          >
-            <p style={{ margin: 0, color: "#8ee8ff", fontSize: "12px", letterSpacing: "0.17em", textTransform: "uppercase", fontWeight: 900 }}>
-              Milo says
-            </p>
-            <p style={{ margin: "9px 0 0", color: "rgba(255,255,255,0.78)", fontSize: isMobile ? "14px" : "15px", lineHeight: 1.6 }}>
-              This is your economy home. Check your cash and investments, review your stock and property transactions, compare your portfolio on the leaderboard and connect with friends before entering the stock or property markets.
-            </p>
-          </div>
-
-          <img
-            src="/milo-world/milo-character.png"
-            alt="Milo"
-            style={{
-              width: "auto",
-              height: isMobile ? "150px" : "210px",
-              objectFit: "contain",
-              alignSelf: isMobile ? "flex-end" : "auto",
-              marginRight: isMobile ? "8px" : 0,
-              filter: "drop-shadow(0 18px 40px rgba(0,0,0,0.58))",
-              pointerEvents: "none",
-            }}
-          />
-        </section>
       </div>
+      <MiloExchangeGuide page="home" isMobile={isMobile} />
     </main>
   );
 }

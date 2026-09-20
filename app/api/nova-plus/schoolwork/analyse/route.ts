@@ -129,6 +129,34 @@ function cleanText(value: unknown) {
   return String(value ?? "").trim();
 }
 
+
+function uniqueSkillCodes(
+  values: unknown,
+  validCodes: Set<string>,
+  limit: number,
+) {
+  const source = Array.isArray(values) ? values : [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const value of source) {
+    const code = cleanText(value);
+
+    if (!code || !validCodes.has(code) || seen.has(code)) {
+      continue;
+    }
+
+    seen.add(code);
+    result.push(code);
+
+    if (result.length >= limit) {
+      break;
+    }
+  }
+
+  return result;
+}
+
 async function requireCurrentUser(request: Request) {
   const authHeader = request.headers.get("authorization") || "";
   const token = authHeader.startsWith("Bearer ")
@@ -284,6 +312,46 @@ function estimateCostUsd(model: string, usage: UsageLike) {
 
 function retryableOpenAIStatus(status: number) {
   return status === 408 || status === 409 || status === 429 || status >= 500;
+}
+
+function friendlyAnalysisError(error: unknown) {
+  const raw =
+    error instanceof Error
+      ? error.message
+      : String(error || "");
+
+  if (
+    raw.includes(
+      "Invalid schema for response_format",
+    )
+  ) {
+    return "The worksheet analysis format was rejected. Retry after the latest system update.";
+  }
+
+  if (
+    raw.includes("OPENAI_API_KEY_MISSING")
+  ) {
+    return "The worksheet analysis service is not configured yet.";
+  }
+
+  if (
+    raw.includes("PAGE_LIMIT_EXCEEDED")
+  ) {
+    return raw
+      .replace("PAGE_LIMIT_EXCEEDED:", "")
+      .trim();
+  }
+
+  if (
+    raw.includes("OPENAI_API_ERROR")
+  ) {
+    return "The worksheet analysis service returned an error. Please retry.";
+  }
+
+  return (
+    raw ||
+    "The worksheet analysis could not be completed."
+  );
 }
 
 function analysisErrorCode(error: unknown) {
@@ -641,7 +709,7 @@ function extractionSchema() {
   };
 }
 
-function reasoningSchema(skillCodes: string[]) {
+function reasoningSchema(skillCodes: string[], maxQuestions: number) {
   const skillEnum = ["", ...skillCodes];
 
   return {
@@ -660,7 +728,6 @@ function reasoningSchema(skillCodes: string[]) {
       overall_summary: { type: "string" },
       strength_skill_codes: {
         type: "array",
-        uniqueItems: true,
         maxItems: 8,
         items: {
           type: "string",
@@ -669,7 +736,6 @@ function reasoningSchema(skillCodes: string[]) {
       },
       support_skill_codes: {
         type: "array",
-        uniqueItems: true,
         maxItems: 8,
         items: {
           type: "string",
@@ -678,7 +744,7 @@ function reasoningSchema(skillCodes: string[]) {
       },
       items: {
         type: "array",
-        maxItems: 80,
+        maxItems: Math.max(1, Math.min(200, maxQuestions)),
         items: {
           type: "object",
           properties: {
@@ -731,8 +797,7 @@ function reasoningSchema(skillCodes: string[]) {
             },
             supporting_skill_codes: {
               type: "array",
-              uniqueItems: true,
-              maxItems: 2,
+                    maxItems: 2,
               items: {
                 type: "string",
                 enum: skillCodes,
@@ -931,30 +996,38 @@ async function createAnalysisRun(params: {
 }
 
 async function markFailed(uploadId: string, error: unknown) {
-  const message =
-    error instanceof Error ? error.message : String(error || "Unexpected error");
+  const rawMessage =
+    error instanceof Error
+      ? error.message
+      : String(error || "Unexpected error");
+
+  const friendlyMessage =
+    friendlyAnalysisError(error);
 
   await supabaseAdmin
     .from("nova_schoolwork_uploads")
     .update({
       status: "failed",
-      error_message: message.slice(0, 4000),
-      analysis_completed_at: new Date().toISOString(),
+      error_message:
+        friendlyMessage.slice(0, 1000),
+      analysis_completed_at:
+        new Date().toISOString(),
     })
     .eq("id", uploadId);
 
-  // Best-effort secondary failure logging. Supabase's query builder is
-  // PromiseLike, not a full Promise, so chaining .catch() is not type-safe.
+  // Preserve the raw technical error internally for diagnostics.
   try {
     await supabaseAdmin
       .from("nova_schoolwork_analyses")
       .update({
-        error_message: message.slice(0, 4000),
-        completed_at: new Date().toISOString(),
+        error_message:
+          rawMessage.slice(0, 4000),
+        completed_at:
+          new Date().toISOString(),
       })
       .eq("upload_id", uploadId);
   } catch {
-    // Do not mask the original analysis failure if this logging update fails.
+    // Do not mask the original analysis failure if logging fails.
   }
 }
 
@@ -1453,7 +1526,10 @@ Re-check the original file, then produce the final verified analysis.
 `,
       filePart,
       schemaName: "nova_schoolwork_reasoned_analysis_v1",
-      schema: reasoningSchema(taxonomy.map((skill) => skill.skill_code)),
+      schema: reasoningSchema(
+        taxonomy.map((skill) => skill.skill_code),
+        settings.max_questions,
+      ),
       reasoningEffort: "medium",
       maxAutomaticRetries:
         settings.automatic_retry_count,
@@ -1463,7 +1539,55 @@ Re-check the original file, then produce the final verified analysis.
         settings.fallback_model,
     });
 
-    const reasoned = reasoningCall.parsed as ReasonedResult;
+    const rawReasoned =
+      reasoningCall.parsed as ReasonedResult;
+
+    const validSkillCodes = new Set(
+      taxonomy.map((skill) => skill.skill_code),
+    );
+
+    const reasoned: ReasonedResult = {
+      ...rawReasoned,
+
+      strength_skill_codes: uniqueSkillCodes(
+        rawReasoned.strength_skill_codes,
+        validSkillCodes,
+        8,
+      ),
+
+      support_skill_codes: uniqueSkillCodes(
+        rawReasoned.support_skill_codes,
+        validSkillCodes,
+        8,
+      ),
+
+      items: (rawReasoned.items ?? []).map((item) => {
+        const primarySkillCode =
+          validSkillCodes.has(
+            cleanText(item.primary_skill_code),
+          )
+            ? cleanText(item.primary_skill_code)
+            : "";
+
+        const supportingSkillCodes =
+          uniqueSkillCodes(
+            item.supporting_skill_codes,
+            validSkillCodes,
+            2,
+          ).filter(
+            (code) =>
+              code !== primarySkillCode,
+          );
+
+        return {
+          ...item,
+          primary_skill_code:
+            primarySkillCode,
+          supporting_skill_codes:
+            supportingSkillCodes,
+        };
+      }),
+    };
 
     await supabaseAdmin
       .from("nova_schoolwork_analysis_runs")
@@ -1799,7 +1923,8 @@ Re-check the original file, then produce the final verified analysis.
 
     return json(
       {
-        error: message,
+        error:
+          friendlyAnalysisError(error),
       },
       500,
     );

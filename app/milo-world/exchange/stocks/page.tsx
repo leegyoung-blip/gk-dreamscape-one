@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
+import MiloExchangeGuide from "../components/MiloExchangeGuide";
 
 type ScreenMode = "desktop" | "tablet" | "mobile";
 type ExchangeSection = "portfolio" | "market" | "trade";
@@ -1778,7 +1779,7 @@ export default function MiloStockExchangePage() {
             alignItems: "start",
           }}
         >
-          <aside
+          <aside data-milo-guide="stock-navigation"
             style={{
               ...glassPanel,
               padding: isMobile ? "10px" : "14px",
@@ -1871,7 +1872,7 @@ export default function MiloStockExchangePage() {
           <div className="milo-content-column" style={{ minWidth: 0, width: "100%", maxWidth: "100%" }}>
             {activeSection === "portfolio" && (
               <div style={{ display: "grid", gap: "18px" }}>
-                <section
+                <section data-milo-guide="stock-portfolio-summary"
                   className="milo-summary-grid"
                   style={{
                     display: "grid",
@@ -1960,7 +1961,7 @@ export default function MiloStockExchangePage() {
                   ))}
                 </section>
 
-                <section style={{ ...glassPanel, padding: isMobile ? "20px" : "26px" }}>
+                <section data-milo-guide="stock-allocation" style={{ ...glassPanel, padding: isMobile ? "20px" : "26px" }}>
                   <p
                     style={{
                       margin: 0,
@@ -2171,7 +2172,7 @@ export default function MiloStockExchangePage() {
 
             {activeSection === "market" && (
               <div className="milo-market-layout" style={{ display: "grid", gap: "18px", minWidth: 0, width: "100%" }}>
-                <section style={{ ...glassPanel, padding: isMobile ? "14px" : "22px", minWidth: 0, width: "100%", overflow: "hidden" }}>
+                <section data-milo-guide="stock-market-list" style={{ ...glassPanel, padding: isMobile ? "14px" : "22px", minWidth: 0, width: "100%", overflow: "hidden" }}>
                   <div
                     className="milo-market-strip"
                     style={{
@@ -2263,7 +2264,7 @@ export default function MiloStockExchangePage() {
 
                 {selectedStock ? (
                   <>
-                    <section
+                    <section data-milo-guide="stock-analysis"
                       style={{
                         ...glassPanel,
                         padding: isMobile ? "16px" : "26px",
@@ -2627,7 +2628,7 @@ export default function MiloStockExchangePage() {
                   </div>
                 </section>
 
-                <aside
+                <aside data-milo-guide="stock-trade-panel"
                   style={{
                     ...glassPanel,
                     padding: isMobile ? "20px" : "24px",
@@ -2862,69 +2863,16 @@ export default function MiloStockExchangePage() {
           </div>
         </div>
 
-        <section
-          style={{
-            marginTop: "24px",
-            display: "flex",
-            flexDirection: isMobile ? "column-reverse" : "row",
-            justifyContent: "flex-end",
-            alignItems: isMobile ? "stretch" : "flex-end",
-            gap: "8px",
-          }}
-        >
-          <div
-            style={{
-              width: isMobile ? "100%" : "min(430px, 42vw)",
-              marginBottom: isMobile ? 0 : "66px",
-              borderRadius: "22px",
-              border: "1px solid rgba(132,218,255,0.24)",
-              background: "rgba(5,13,28,0.84)",
-              padding: isMobile ? "17px" : "20px",
-              backdropFilter: "blur(18px)",
-              WebkitBackdropFilter: "blur(18px)",
-            }}
-          >
-            <p
-              style={{
-                margin: 0,
-                color: "#8ee8ff",
-                fontSize: "11px",
-                letterSpacing: "0.17em",
-                textTransform: "uppercase",
-                fontWeight: 900,
-              }}
-            >
-              Milo says
-            </p>
-            <p
-              style={{
-                margin: "8px 0 0",
-                color: "rgba(255,255,255,0.72)",
-                fontSize: "14px",
-                lineHeight: 1.55,
-              }}
-            >
-              Use My Portfolio to review your allocation and unrealised P/L,
-              Market to study prices and news, and Trade to place a fictional
-              buy or sell order.
-            </p>
-          </div>
-
-          <img
-            src="/milo-world/milo-character.png"
-            alt="Milo"
-            style={{
-              width: "auto",
-              height: isMobile ? "135px" : "190px",
-              objectFit: "contain",
-              alignSelf: isMobile ? "flex-end" : "auto",
-              marginRight: isMobile ? "8px" : 0,
-              filter: "drop-shadow(0 18px 40px rgba(0,0,0,0.58))",
-              pointerEvents: "none",
-            }}
-          />
-        </section>
       </div>
+      <MiloExchangeGuide
+        page="stocks"
+        isMobile={isMobile}
+        onStepChange={(step) => {
+          if (step.section && step.section !== activeSection) {
+            setActiveSection(step.section);
+          }
+        }}
+      />
     </main>
   );
 }

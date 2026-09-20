@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
+import MiloExchangeGuide from "../components/MiloExchangeGuide";
 import PropertyResaleMarket, {
   type MyPropertyListing,
   type PropertyResaleListing,
@@ -829,7 +830,7 @@ export default function PropertyExchangeClient() {
     zIndex: 5,
     width: "min(1440px, calc(100% - 32px))",
     margin: "0 auto",
-    padding: isMobile ? "16px 0 150px" : "26px 0 170px",
+    padding: isMobile ? "16px 0 82px" : "26px 0 96px",
   };
 
   const glassPanel: CSSProperties = {
@@ -1660,7 +1661,7 @@ export default function PropertyExchangeClient() {
           </p>
         </section>
 
-        <section style={{ marginTop: "28px", display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, minmax(0, 1fr))", gap: "12px" }}>
+        <section data-milo-guide="property-summary" style={{ marginTop: "28px", display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, minmax(0, 1fr))", gap: "12px" }}>
           {[
             ["Cash Holdings", `${formatNumber(dreamTokens)} DT`],
             ["Property Value", `${formatNumber(propertyPortfolioValue)} DT`],
@@ -1684,7 +1685,7 @@ export default function PropertyExchangeClient() {
           </p>
         )}
 
-        <section style={{ ...glassPanel, marginTop: "18px", padding: isMobile ? "16px" : "24px" }}>
+        <section data-milo-guide="property-world-map" style={{ ...glassPanel, marginTop: "18px", padding: isMobile ? "16px" : "24px" }}>
           <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "flex-end", gap: "12px", marginBottom: "20px" }}>
             <div>
               <p style={{ margin: 0, color: "#8ee8ff", fontSize: "12px", letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 900 }}>
@@ -1911,6 +1912,7 @@ export default function PropertyExchangeClient() {
           </section>
         )}
 
+        <div data-milo-guide="property-resale-market">
         <PropertyResaleMarket
           properties={properties}
           holdings={holdings}
@@ -1937,8 +1939,9 @@ export default function PropertyExchangeClient() {
             if (property) openPreview(property);
           }}
         />
+        </div>
 
-        <section style={{ ...glassPanel, marginTop: "18px", padding: isMobile ? "18px" : "24px" }}>
+        <section data-milo-guide="property-virtual-notice" style={{ ...glassPanel, marginTop: "18px", padding: isMobile ? "18px" : "24px" }}>
           <h2 style={{ margin: 0, fontFamily: 'Georgia, "Times New Roman", serif', fontSize: isMobile ? "30px" : "38px", fontWeight: 500 }}>
             Virtual Property Notice
           </h2>
@@ -1950,37 +1953,7 @@ export default function PropertyExchangeClient() {
         </section>
       </div>
 
-      <div
-        style={{
-          position: isMobile ? "relative" : "fixed",
-          right: isMobile ? "auto" : "22px",
-          bottom: isMobile ? "auto" : "20px",
-          zIndex: 18,
-          width: isMobile ? "calc(100% - 28px)" : "min(430px, calc(100vw - 44px))",
-          margin: isMobile ? "-118px 14px 18px" : 0,
-          display: "grid",
-          gridTemplateColumns: "86px 1fr",
-          gap: "12px",
-          alignItems: "end",
-          pointerEvents: "none",
-        }}
-      >
-        <img
-          src="/milo-world/milo-character.png"
-          alt="Milo"
-          style={{ width: "92px", height: "auto", objectFit: "contain", filter: "drop-shadow(0 14px 30px rgba(0,0,0,0.55))" }}
-        />
-        <div style={{ marginBottom: "20px", borderRadius: "20px 20px 20px 6px", border: "1px solid rgba(132,218,255,0.24)", background: "rgba(5,13,28,0.9)", color: "white", padding: "15px 17px", boxShadow: "0 20px 48px rgba(0,0,0,0.4)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)" }}>
-          <strong style={{ color: "#8ee8ff", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.12em" }}>
-            Milo says
-          </strong>
-          <p style={{ margin: "7px 0 0", color: "rgba(255,255,255,0.72)", fontSize: "13px", lineHeight: 1.5 }}>
-            I built the first two hubs before opening the surrounding forest.
-            Choose a district, compare the remaining supply and preview each unit
-            before purchasing it.
-          </p>
-        </div>
-      </div>
+      <MiloExchangeGuide page="property" isMobile={isMobile} />
     </main>
   );
 }
