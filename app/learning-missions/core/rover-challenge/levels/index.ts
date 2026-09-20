@@ -3,6 +3,7 @@ import { levelTwo } from "./level-2";
 import { levelThree } from "./level-3";
 import { levelFour } from "./level-4";
 import { levelFive } from "./level-5";
+import { levelSix } from "./level-6";
 import type { RoverLevelConfig, RoverLevelId } from "./types";
 
 export const roverLevels: Record<RoverLevelId, RoverLevelConfig> = {
@@ -11,6 +12,7 @@ export const roverLevels: Record<RoverLevelId, RoverLevelConfig> = {
   3: levelThree,
   4: levelFour,
   5: levelFive,
+  6: levelSix,
 };
 
 export function isRoverLevelId(value: number): value is RoverLevelId {
@@ -19,7 +21,8 @@ export function isRoverLevelId(value: number): value is RoverLevelId {
     value === 2 ||
     value === 3 ||
     value === 4 ||
-    value === 5
+    value === 5 ||
+    value === 6
   );
 }
 
@@ -33,4 +36,6 @@ export type {
   RoverLevelId,
   RoverPulseGate,
   RoverTerrainSection,
+  RoverBarricadeConfig,
+  RoverDefenseGuardConfig,
 } from "./types";

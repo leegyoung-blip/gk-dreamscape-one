@@ -1,4 +1,4 @@
-export type RoverLevelId = 1 | 2 | 3 | 4 | 5;
+export type RoverLevelId = 1 | 2 | 3 | 4 | 5 | 6;
 
 export type CoursePoint = {
   x: number;
@@ -41,6 +41,20 @@ export type RoverRouteLabel = CoursePoint & {
   color: string;
 };
 
+export type RoverDefenseGuardConfig = {
+  offsetX: number;
+  hp: number;
+  heavy?: boolean;
+};
+
+export type RoverBarricadeConfig = CoursePoint & {
+  id: string;
+  maxHp: number;
+  width: number;
+  height: number;
+  guards: RoverDefenseGuardConfig[];
+};
+
 export type RoverLevelConfig = {
   id: RoverLevelId;
   courseId: string;
@@ -61,11 +75,14 @@ export type RoverLevelConfig = {
   traps?: RoverTrap[];
   pulseGates?: RoverPulseGate[];
   routeLabels?: RoverRouteLabel[];
+  barricades?: RoverBarricadeConfig[];
   assets: {
     background: string;
     orb: string;
     dynamite?: string;
     explosion?: string;
+    barricade?: string;
+    barricadeDestroyed?: string;
   };
 };
 

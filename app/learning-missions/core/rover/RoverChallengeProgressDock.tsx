@@ -9,7 +9,7 @@ import {
   type RoverLevelId,
 } from "../rover-challenge/levels";
 
-const LEVEL_IDS: RoverLevelId[] = [1, 2, 3, 4, 5];
+const LEVEL_IDS: RoverLevelId[] = [1, 2, 3, 4, 5, 6];
 
 type PurchaseUnlockRow = {
   success: boolean;

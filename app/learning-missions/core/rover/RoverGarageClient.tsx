@@ -174,6 +174,14 @@ const ROVER_COURSES: RoverCourseMeta[] = [
       "Enter Beyond the Fracture, fight off the Bone Guards and secure the Bone Gate.",
     orbTotal: 8,
   },
+  {
+    id: 6,
+    courseId: "fractured-frontier-06",
+    title: "Fractured Frontier",
+    description:
+      "Break Bone Guard cover, destroy their barricades and clear the fortified frontier.",
+    orbTotal: 9,
+  },
 ];
 
 const STAGE_ONE_LEVEL_IDS = [1, 2, 3, 4] as const;
@@ -243,8 +251,8 @@ const EXPEDITION_STORIES: Record<ExpeditionStoryId, ExpeditionStory> = {
     stage: 2,
     title: "Fractured Frontier",
     lines: [
-      "The breach didn't end at the Bone Gate. The land beyond it is breaking apart faster than our maps can track.",
-      "I'm picking up movement across the fractured islands. We'll need to push deeper once the route is stable enough to enter.",
+      "The Bone Guards have fortified the frontier. Their barricades are blocking the Skyforge road, and I'm detecting defenders behind every position.",
+      "Break their cover first. Once a barricade falls, the guards behind it are exposed. Keep moving, jump the roadblocks when you need to, and clear the entire frontier.",
     ],
   },
   7: {
@@ -430,6 +438,7 @@ export default function RoverGarageClient() {
     3: [],
     4: [],
     5: [],
+    6: [],
   });
 
   const [courseLoadMessage, setCourseLoadMessage] = useState("");
@@ -529,6 +538,7 @@ export default function RoverGarageClient() {
         levelThreeLeaderboardResult,
         levelFourLeaderboardResult,
         levelFiveLeaderboardResult,
+        levelSixLeaderboardResult,
       ] = await Promise.all([
         supabase.rpc("get_my_core_rover_catalog"),
 
@@ -581,6 +591,11 @@ export default function RoverGarageClient() {
 
         supabase.rpc("get_rover_challenge_visible_leaderboard", {
           p_course_id: "boneguard-breach-05",
+          p_limit: 10,
+        }),
+
+        supabase.rpc("get_rover_challenge_visible_leaderboard", {
+          p_course_id: "fractured-frontier-06",
           p_limit: 10,
         }),
       ]);
@@ -834,14 +849,15 @@ export default function RoverGarageClient() {
         levelTwoLeaderboardResult.error ||
         levelThreeLeaderboardResult.error ||
         levelFourLeaderboardResult.error ||
-        levelFiveLeaderboardResult.error;
+        levelFiveLeaderboardResult.error ||
+        levelSixLeaderboardResult.error;
 
       if (leaderboardError) {
         console.warn(
           "Could not load rover leaderboard:",
           leaderboardError.message,
         );
-        setLeaderboards({ 1: [], 2: [], 3: [], 4: [], 5: [] });
+        setLeaderboards({ 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] });
       } else {
         setLeaderboards({
           1: (levelOneLeaderboardResult.data ?? []) as LeaderboardRow[],
@@ -849,6 +865,7 @@ export default function RoverGarageClient() {
           3: (levelThreeLeaderboardResult.data ?? []) as LeaderboardRow[],
           4: (levelFourLeaderboardResult.data ?? []) as LeaderboardRow[],
           5: (levelFiveLeaderboardResult.data ?? []) as LeaderboardRow[],
+          6: (levelSixLeaderboardResult.data ?? []) as LeaderboardRow[],
         });
       }
 
@@ -2098,6 +2115,13 @@ function StageTwoMap({
   const expeditionFiveCompleted =
     Boolean(expeditionFiveAccess?.completed);
 
+  const expeditionSixAccess = access.find(
+    (row) => Number(row.level_id) === 6,
+  );
+
+  const expeditionSixCompleted =
+    Boolean(expeditionSixAccess?.completed);
+
   if (!isAdmin && !stageTwoUnlocked) {
     return (
       <section style={stageTwoLockedMap}>
@@ -2137,7 +2161,7 @@ function StageTwoMap({
       title: "Fractured Frontier",
       left: "38.7%",
       top: "39%",
-      playable: false,
+      playable: true,
     },
     {
       id: 7,
@@ -2201,10 +2225,22 @@ function StageTwoMap({
 
       {locations.map((location) => {
         const isFive = location.id === 5;
+        const isSix = location.id === 6;
+
         const unlocked =
-          isFive && (isAdmin || stageTwoUnlocked);
+          isFive
+            ? isAdmin || stageTwoUnlocked
+            : isSix
+              ? isAdmin ||
+                Boolean(expeditionSixAccess?.unlocked)
+              : false;
+
         const completed =
-          isFive && expeditionFiveCompleted;
+          isFive
+            ? expeditionFiveCompleted
+            : isSix
+              ? expeditionSixCompleted
+              : false;
 
         return (
           <button
@@ -2254,9 +2290,13 @@ function StageTwoMap({
 
               <em>
                 {completed
-                  ? "Completed · Bone Gate Secured"
+                  ? location.id === 6
+                    ? "Completed · Frontier Secured"
+                    : "Completed · Bone Gate Secured"
                   : location.playable
-                    ? "Unlocked · Combat Expedition"
+                    ? unlocked
+                      ? "Unlocked · Combat Expedition"
+                      : "Complete the previous expedition"
                     : "Coming Soon"}
               </em>
             </span>
@@ -2272,14 +2312,19 @@ function StageTwoMap({
               ? isAdmin || stageTwoUnlocked
                 ? "playable"
                 : "locked"
-              : "coming-soon"
+              : storyId === 6
+                ? isAdmin ||
+                  Boolean(expeditionSixAccess?.unlocked)
+                  ? "playable"
+                  : "locked"
+                : "coming-soon"
           }
           onClose={() => setStoryId(null)}
           onEnter={
-            storyId === 5
+            storyId === 5 || storyId === 6
               ? () =>
                   router.push(
-                    "/learning-missions/core/rover-challenge/5",
+                    `/learning-missions/core/rover-challenge/${storyId}`,
                   )
               : undefined
           }
@@ -2306,8 +2351,8 @@ function StageTwoMap({
       )}
 
       <div style={stageMapLegend}>
-        <span>5 = playable</span>
-        <span>6–8 = coming soon</span>
+        <span>5–6 = playable</span>
+        <span>7–8 = coming soon</span>
         <span>✓ = completed</span>
         <span>Portal = Stage 3</span>
       </div>
@@ -2397,7 +2442,7 @@ function RoverCoursesPanel({
         <div
           style={{
             ...leaderboardLevelTabs,
-            gridTemplateColumns: "repeat(5,minmax(0,1fr))",
+            gridTemplateColumns: "repeat(6,minmax(0,1fr))",
           }}
         >
           {ROVER_COURSES.map((course) => (

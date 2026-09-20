@@ -79,6 +79,20 @@ const monsterPoseSprites: Record<string, Record<MonsterPose, string>> = {
     hit: "/activities/learning-missions/knowledge-arena/monsters/stormfang-wyvern/hit.png",
     defeated: "/activities/learning-missions/knowledge-arena/monsters/stormfang-wyvern/defeated.png",
   },
+  "frostclaw-prowler": {
+    idle: "/activities/learning-missions/knowledge-arena/monsters/frostclaw-prowler/idle.png",
+    defense: "/activities/learning-missions/knowledge-arena/monsters/frostclaw-prowler/defense.png",
+    attack: "/activities/learning-missions/knowledge-arena/monsters/frostclaw-prowler/attack.png",
+    hit: "/activities/learning-missions/knowledge-arena/monsters/frostclaw-prowler/hit.png",
+    defeated: "/activities/learning-missions/knowledge-arena/monsters/frostclaw-prowler/defeated.png",
+  },
+  "brambleback-tortoise": {
+    idle: "/activities/learning-missions/knowledge-arena/monsters/brambleback-tortoise/idle.png",
+    defense: "/activities/learning-missions/knowledge-arena/monsters/brambleback-tortoise/defense.png",
+    attack: "/activities/learning-missions/knowledge-arena/monsters/brambleback-tortoise/attack.png",
+    hit: "/activities/learning-missions/knowledge-arena/monsters/brambleback-tortoise/hit.png",
+    defeated: "/activities/learning-missions/knowledge-arena/monsters/brambleback-tortoise/defeated.png",
+  },
 };
 
 function rarityLabel(value: string) {
@@ -394,6 +408,8 @@ const MONSTER_IMPACT_HOTSPOTS: Record<string, { x: number; y: number }> = {
   "verdant-sabertooth": { x: 0.34, y: 0.46 },
   "ironhide-rambeast": { x: 0.47, y: 0.49 },
   "stormfang-wyvern": { x: 0.45, y: 0.48 },
+  "frostclaw-prowler": { x: 0.44, y: 0.47 },
+  "brambleback-tortoise": { x: 0.46, y: 0.50 },
 };
 
 function imageHotspot(
@@ -1099,6 +1115,8 @@ export function ArenaBattleView({
         .kab-impact-anchor--verdant-sabertooth { left: 31%; top: 45%; }
         .kab-impact-anchor--ironhide-rambeast { left: 45%; top: 48%; }
         .kab-impact-anchor--stormfang-wyvern { left: 43%; top: 47%; }
+        .kab-impact-anchor--frostclaw-prowler { left: 42%; top: 46%; }
+        .kab-impact-anchor--brambleback-tortoise { left: 45%; top: 49%; }
         .kab-shot-layer {
           position: absolute;
           inset: 0;

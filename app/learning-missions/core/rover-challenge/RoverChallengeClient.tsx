@@ -40,6 +40,9 @@ type RoverCourseCompleteDetail = {
   weaponLevel?: number;
   weaponName?: string | null;
   boneGuardsDefeated?: number;
+  boneGuardsTotal?: number;
+  barricadesDestroyed?: number;
+  barricadesTotal?: number;
   shotsFired?: number;
   shotsHit?: number;
   accuracyPercent?: number;
@@ -350,7 +353,7 @@ export default function RoverChallengeClient({
       }
 
       const saved = ((data ?? []) as SubmitLevelRow[])[0];
-      const hasNextLevel = result.levelId < 5;
+      const hasNextLevel = result.levelId < 6;
       const nextIsReady = Boolean(saved?.accepted && saved.unlocked_next_level);
 
       setNextLevelUnlocked(nextIsReady);
@@ -362,9 +365,11 @@ export default function RoverChallengeClient({
             ? nextIsReady
               ? `Level ${result.levelId} completion saved. Level ${result.levelId + 1} is ready.`
               : `Level ${result.levelId} completion saved. Level ${result.levelId + 1} now needs its required rover ownership or a Dream Gem early unlock.`
-            : result.levelId === 5
-              ? "Boneguard Breach saved. The next Stage 2 sector has been revealed."
-              : "Completion saved. You can replay this level at any time.",
+            : result.levelId === 6
+              ? "Fractured Frontier saved. The frontier is secure; Boneguard Stronghold remains sealed for now."
+              : result.levelId === 5
+                ? "Boneguard Breach saved. Fractured Frontier is now available."
+                : "Completion saved. You can replay this level at any time.",
       );
 
       window.dispatchEvent(new Event("rover-level-progress-updated"));
@@ -563,6 +568,8 @@ export default function RoverChallengeClient({
         ) : combatWeaponRequired ? (
           <CombatLoadoutGate
             roverName={currentUpgrade.name}
+            levelId={levelId}
+            title={levelConfig.title}
           />
         ) : canPlay ? (
           <PhaserGame
@@ -616,14 +623,18 @@ export default function RoverChallengeClient({
 
 function CombatLoadoutGate({
   roverName,
+  levelId,
+  title,
 }: {
   roverName: string;
+  levelId: RoverLevelId;
+  title: string;
 }) {
   return (
     <div className="grid h-full place-items-center bg-[radial-gradient(circle_at_50%_24%,#29134b_0%,#0b1025_46%,#050713_100%)] px-5">
       <section className="w-full max-w-xl rounded-3xl border border-amber-200/25 bg-[#071126]/95 p-8 text-center shadow-[0_30px_100px_rgba(0,0,0,0.6)]">
         <p className="text-xs font-black tracking-[0.28em] text-amber-300">
-          EXPEDITION 5 · COMBAT LOADOUT
+          EXPEDITION {levelId} · COMBAT LOADOUT
         </p>
 
         <h1 className="mt-4 text-3xl font-black">
@@ -631,9 +642,9 @@ function CombatLoadoutGate({
         </h1>
 
         <p className="mx-auto mt-4 max-w-md leading-7 text-slate-300">
-          Boneguard Breach requires you to defeat the Bone Guards before the
-          exit opens. Your active rover, <strong>{roverName}</strong>, currently
-          has no weapon installed.
+          {title} is a combat expedition and requires an installed weapon.
+          Your active rover, <strong>{roverName}</strong>, currently has no
+          weapon installed.
         </p>
 
         <div className="mx-auto mt-6 max-w-md rounded-2xl border border-amber-200/15 bg-amber-300/[0.06] p-4 text-left text-sm text-amber-50/80">
@@ -816,6 +827,13 @@ function CompletionOverlay({
     (result.survivalBonus ?? 0);
 
   const accuracy = result.accuracyPercent ?? 0;
+  const totalGuards =
+    result.boneGuardsTotal ??
+    (result.levelId === 6 ? 9 : 7);
+  const totalBarricades =
+    result.barricadesTotal ?? 0;
+  const barricadesDestroyed =
+    result.barricadesDestroyed ?? 0;
   const hpRatio =
     (result.maxHp ?? 0) > 0
       ? (result.remainingHp ?? 0) / (result.maxHp ?? 1)
@@ -828,8 +846,14 @@ function CompletionOverlay({
 
   const achievements = isCombatResult
     ? [
-        (result.boneGuardsDefeated ?? 0) >= 7
-          ? "ALL 7 BONE GUARDS DEFEATED"
+        (result.boneGuardsDefeated ?? 0) >= totalGuards &&
+        totalGuards > 0
+          ? `ALL ${totalGuards} BONE GUARDS DEFEATED`
+          : null,
+        result.levelId === 6 &&
+        totalBarricades > 0 &&
+        barricadesDestroyed >= totalBarricades
+          ? "ALL COVER DESTROYED"
           : null,
         hpRatio >= 0.999 ? "FLAWLESS HULL" : null,
         shieldRatio >= 0.75 ? "SHIELD MASTER" : null,
@@ -855,11 +879,13 @@ function CompletionOverlay({
 
               <div className="relative mx-auto inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-300/10 px-4 py-2 text-[10px] font-black tracking-[0.24em] text-amber-200 sm:text-xs">
                 <span className="h-2 w-2 animate-pulse rounded-full bg-amber-300 shadow-[0_0_14px_rgba(253,211,77,0.9)]" />
-                EXPEDITION 5 COMPLETE
+                EXPEDITION {result.levelId} COMPLETE
               </div>
 
               <p className="relative mt-4 text-xs font-black tracking-[0.34em] text-violet-300 sm:text-sm">
-                BONE GATE SECURED
+                {result.levelId === 6
+                  ? "FRONTIER SECURED"
+                  : "BONE GATE SECURED"}
               </p>
 
               <div className="relative mt-2">
@@ -872,18 +898,37 @@ function CompletionOverlay({
               </div>
 
               <div className="relative mx-auto mt-5 grid max-w-4xl grid-cols-2 gap-3 sm:grid-cols-4">
-                <VictoryStat
-                  label="Bone Guards"
-                  value={`${result.boneGuardsDefeated ?? 0}/7`}
-                  note="Sector Cleared"
-                  tone="gold"
-                />
-                <VictoryStat
-                  label="Combat Bonus"
-                  value={`+${combatBonus.toLocaleString()}`}
-                  note="Performance"
-                  tone="violet"
-                />
+                {result.levelId === 6 ? (
+                  <>
+                    <VictoryStat
+                      label="Barricades"
+                      value={`${barricadesDestroyed}/${totalBarricades}`}
+                      note="Cover Destroyed"
+                      tone="gold"
+                    />
+                    <VictoryStat
+                      label="Bone Guards"
+                      value={`${result.boneGuardsDefeated ?? 0}/${totalGuards}`}
+                      note="Frontier Cleared"
+                      tone="violet"
+                    />
+                  </>
+                ) : (
+                  <>
+                    <VictoryStat
+                      label="Bone Guards"
+                      value={`${result.boneGuardsDefeated ?? 0}/${totalGuards}`}
+                      note="Sector Cleared"
+                      tone="gold"
+                    />
+                    <VictoryStat
+                      label="Combat Bonus"
+                      value={`+${combatBonus.toLocaleString()}`}
+                      note="Performance"
+                      tone="violet"
+                    />
+                  </>
+                )}
                 <VictoryStat
                   label="Accuracy"
                   value={`${accuracy.toFixed(1)}%`}
@@ -941,8 +986,16 @@ function CompletionOverlay({
                   accent="text-sky-200"
                 />
                 <ResultStat
-                  label="Weapon"
-                  value={result.weaponName ?? "Unknown"}
+                  label={
+                    result.levelId === 6
+                      ? "Combat Bonus"
+                      : "Weapon"
+                  }
+                  value={
+                    result.levelId === 6
+                      ? `+${combatBonus.toLocaleString()}`
+                      : result.weaponName ?? "Unknown"
+                  }
                   accent="text-violet-200"
                 />
               </div>
@@ -959,8 +1012,9 @@ function CompletionOverlay({
                     NEXT SECTOR DETECTED
                   </strong>
                   <span className="mx-2 text-violet-400/50">·</span>
-                  Stage 2 progression updated. Expedition 6 remains sealed
-                  until the next mission is deployed.
+                  {result.levelId === 6
+                    ? "The Fractured Frontier is secure. Boneguard Stronghold has been located, but Expedition 7 remains sealed for now."
+                    : "Stage 2 progression updated. Fractured Frontier is now available as Expedition 6."}
                 </div>
               </div>
 

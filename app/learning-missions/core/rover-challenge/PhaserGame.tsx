@@ -10,7 +10,11 @@ import {
   type CoreRoverWeaponSpec,
 } from "@/lib/coreRoverCombat";
 import type { RoverLevelConfig } from "./levels";
-import type { RoverTrap } from "./levels/types";
+import type {
+  RoverTrap,
+  RoverBarricadeConfig,
+  RoverDefenseGuardConfig,
+} from "./levels/types";
 
 const GAME_WIDTH = 1600;
 const GAME_HEIGHT = 900;
@@ -205,7 +209,6 @@ type CombatProjectile = {
 
 type BoneGuardState =
   | "walking"
-  | "jumping"
   | "firing"
   | "hit"
   | "dying"
@@ -237,17 +240,12 @@ type BoneGuardEnemy = {
    */
   terrainBlocked: boolean;
 
-  gapJump:
-    | {
-        startX: number;
-        startY: number;
-        endX: number;
-        endY: number;
-        elapsedSeconds: number;
-        durationSeconds: number;
-        arcHeight: number;
-      }
-    | null;
+  /**
+   * Expedition 6 defenders remain behind one barricade until it is destroyed.
+   */
+  coverBarricadeId: string | null;
+  defensePost: boolean;
+  heavy: boolean;
 
   healthBackground: Phaser.GameObjects.Rectangle;
   healthFill: Phaser.GameObjects.Rectangle;
@@ -259,6 +257,15 @@ type BoneGuardBlasterProjectile = {
   velocityY: number;
   expiresAt: number;
   damage: number;
+};
+
+type FrontierBarricadeItem = RoverBarricadeConfig & {
+  hp: number;
+  destroyed: boolean;
+  sprite: Phaser.GameObjects.Image;
+  healthBackground: Phaser.GameObjects.Rectangle;
+  healthFill: Phaser.GameObjects.Rectangle;
+  body?: MatterJS.BodyType;
 };
 
 type TrapItem = Omit<RoverTrap, "y"> & {
@@ -328,13 +335,6 @@ class RoverMatterScene extends Phaser.Scene {
    * Unstable/orange sections are excluded from enemy navigation.
    */
   private boneGuardTerrainSections: Array<
-    Array<{ x: number; y: number }>
-  > = [];
-
-  /**
-   * Bone Guards may jump genuine gaps, but never cross orange/unstable road.
-   */
-  private boneGuardForbiddenTerrainSections: Array<
     Array<{ x: number; y: number }>
   > = [];
 
@@ -445,6 +445,10 @@ class RoverMatterScene extends Phaser.Scene {
 
   private boneGuards: BoneGuardEnemy[] = [];
   private boneGuardProjectiles: BoneGuardBlasterProjectile[] = [];
+
+  private frontierBarricades: FrontierBarricadeItem[] = [];
+  private frontierBarricadesDestroyed = 0;
+  private frontierDefenseTotalGuards = 0;
   private boneGuardPortal?: Phaser.GameObjects.Container;
   private boneGuardPortalX = 0;
   private boneGuardPortalY = 0;
@@ -562,6 +566,20 @@ class RoverMatterScene extends Phaser.Scene {
 
     if (this.levelConfig.assets.explosion) {
       this.load.image("dreamkeeper-explosion", this.levelConfig.assets.explosion);
+    }
+
+    if (this.levelConfig.assets.barricade) {
+      this.load.image(
+        "frontier-barricade",
+        this.levelConfig.assets.barricade,
+      );
+    }
+
+    if (this.levelConfig.assets.barricadeDestroyed) {
+      this.load.image(
+        "frontier-barricade-destroyed",
+        this.levelConfig.assets.barricadeDestroyed,
+      );
     }
 
     /*
@@ -699,7 +717,6 @@ class RoverMatterScene extends Phaser.Scene {
     this.collapsibleTerrain = [];
     this.terrainSections = [];
     this.boneGuardTerrainSections = [];
-    this.boneGuardForbiddenTerrainSections = [];
     this.trapCollisionLocked = false;
 
     this.touchLeft = false;
@@ -747,6 +764,18 @@ class RoverMatterScene extends Phaser.Scene {
       projectile.sprite.destroy(),
     );
     this.boneGuardProjectiles = [];
+
+    for (const barricade of this.frontierBarricades) {
+      if (barricade.body) {
+        this.matter.world.remove(barricade.body);
+      }
+      barricade.sprite.destroy();
+      barricade.healthBackground.destroy();
+      barricade.healthFill.destroy();
+    }
+    this.frontierBarricades = [];
+    this.frontierBarricadesDestroyed = 0;
+    this.frontierDefenseTotalGuards = 0;
 
     this.boneGuardPortal?.destroy(true);
     this.boneGuardPortal = undefined;
@@ -855,6 +884,28 @@ class RoverMatterScene extends Phaser.Scene {
       !this.textures.exists("bone-guard")
     ) {
       missingAssets.push(`public${BONE_GUARD_SPRITE_SRC}`);
+    }
+
+    if (
+      (this.levelConfig.barricades?.length ?? 0) > 0 &&
+      !this.textures.exists("frontier-barricade")
+    ) {
+      missingAssets.push(
+        this.levelConfig.assets.barricade
+          ? `public${this.levelConfig.assets.barricade}`
+          : "frontier barricade PNG",
+      );
+    }
+
+    if (
+      (this.levelConfig.barricades?.length ?? 0) > 0 &&
+      !this.textures.exists("frontier-barricade-destroyed")
+    ) {
+      missingAssets.push(
+        this.levelConfig.assets.barricadeDestroyed
+          ? `public${this.levelConfig.assets.barricadeDestroyed}`
+          : "destroyed frontier barricade PNG",
+      );
     }
 
     if (
@@ -1041,11 +1092,7 @@ class RoverMatterScene extends Phaser.Scene {
 
     this.terrainSections.push(sampledPoints);
 
-    if (options?.unstable) {
-      this.boneGuardForbiddenTerrainSections.push(
-        sampledPoints,
-      );
-    } else {
+    if (!options?.unstable) {
       this.boneGuardTerrainSections.push(sampledPoints);
     }
 
@@ -2243,7 +2290,9 @@ class RoverMatterScene extends Phaser.Scene {
         70,
         227,
         this.combatMode
-          ? "OBJECTIVE  SURVIVE BONE GUARDS · REACH FINISH"
+          ? Number(this.levelConfig.id) === 6
+            ? "OBJECTIVE  DESTROY COVER · CLEAR DEFENDERS · FINISH"
+            : "OBJECTIVE  SURVIVE BONE GUARDS · REACH FINISH"
           : this.levelConfig.terrainSections.some(
               (section) => !Array.isArray(section) && section.unstable,
             )
@@ -2368,7 +2417,7 @@ class RoverMatterScene extends Phaser.Scene {
           : this.weaponSpec?.projectileType === "guided"
             ? "SEEKER"
             : this.weaponSpec?.projectileType === "rocket"
-              ? "3-ROCKET BURST"
+              ? "HEAVY ROCKET"
               : this.weaponSpec?.projectileType === "heavy-round"
                 ? "TWIN AUTOCANNON"
                 : "RAPID FIRE";
@@ -2395,7 +2444,9 @@ class RoverMatterScene extends Phaser.Scene {
         .text(
           70,
           419,
-          `BONE GUARDS  0 / ${boneGuardCombatSpec.waveSize}`,
+          Number(this.levelConfig.id) === 6
+            ? "BONE GUARDS  0 / 9 · COVER  0 / 7"
+            : `BONE GUARDS  0 / ${boneGuardCombatSpec.waveSize}`,
           {
             fontFamily: "Arial, sans-serif",
             fontSize: "9px",
@@ -2919,13 +2970,6 @@ class RoverMatterScene extends Phaser.Scene {
       return false;
     }
 
-    /*
-     * Matter contact IDs can briefly disappear while the rover crosses the
-     * small collision segments used to build curved roads. Orange collapsing
-     * sections expose this most clearly.
-     *
-     * A live-surface proximity fallback keeps DRIVE/JUMP/STABILITY consistent.
-     */
     if (body.velocity.y < -2.2) {
       return false;
     }
@@ -2984,14 +3028,11 @@ class RoverMatterScene extends Phaser.Scene {
           ),
         );
 
-      if (surfaceY === null) {
-        continue;
-      }
-
       if (
+        surfaceY !== null &&
         Math.abs(
           roverBottomY -
-          surfaceY,
+            surfaceY,
         ) <= 34
       ) {
         return true;
@@ -3797,8 +3838,13 @@ class RoverMatterScene extends Phaser.Scene {
       }
 
       if (this.combatEnemyText) {
+        const requiredGuards =
+          this.getRequiredBoneGuardCount();
+
         this.combatEnemyText.setText(
-          `BONE GUARDS  ${this.boneGuardsDefeated} / ${boneGuardCombatSpec.waveSize}`,
+          Number(this.levelConfig.id) === 6
+            ? `BONE GUARDS  ${this.boneGuardsDefeated} / ${requiredGuards} · COVER  ${this.frontierBarricadesDestroyed} / ${this.frontierBarricades.length}`
+            : `BONE GUARDS  ${this.boneGuardsDefeated} / ${requiredGuards}`,
         );
 
         if (this.boneGuardWaveComplete) {
@@ -4253,8 +4299,21 @@ class RoverMatterScene extends Phaser.Scene {
     return (
       guard.state !== "dying" &&
       guard.state !== "dead" &&
-      guard.sprite.active
+      guard.sprite.active &&
+      !this.isBoneGuardCovered(guard)
     );
+  }
+
+  private isBoneGuardCovered(guard: BoneGuardEnemy) {
+    if (!guard.coverBarricadeId) {
+      return false;
+    }
+
+    const barricade = this.frontierBarricades.find(
+      (item) => item.id === guard.coverBarricadeId,
+    );
+
+    return Boolean(barricade && !barricade.destroyed);
   }
 
   private findBoneGuardById(id: number | null) {
@@ -4314,6 +4373,54 @@ class RoverMatterScene extends Phaser.Scene {
         projectile.projectileType === "homing"
       ) {
         this.updateMissileTrail(projectile, now);
+      }
+
+      const barricadeHit =
+        this.findFrontierBarricadeHitByProjectile(
+          projectile.sprite.x,
+          projectile.sprite.y,
+          previousX,
+          previousY,
+        );
+
+      if (barricadeHit) {
+        this.shotsHit += 1;
+
+        const structuralMultiplier =
+          projectile.projectileType === "rocket"
+            ? 1.35
+            : projectile.projectileType === "guided" ||
+                projectile.projectileType === "homing"
+              ? 1.3
+              : projectile.projectileType === "heavy-round"
+                ? 1.12
+                : 1;
+
+        this.damageFrontierBarricade(
+          barricadeHit,
+          Math.max(
+            1,
+            Math.round(
+              projectile.damage * structuralMultiplier,
+            ),
+          ),
+        );
+
+        if (projectile.blastRadius > 0) {
+          this.createProjectileExplosion(
+            projectile.sprite.x,
+            projectile.sprite.y,
+            projectile.blastRadius,
+          );
+        } else {
+          this.createPlayerImpact(
+            projectile.sprite.x,
+            projectile.sprite.y,
+          );
+        }
+
+        projectile.sprite.destroy();
+        return false;
       }
 
       let guardHit =
@@ -4681,11 +4788,7 @@ class RoverMatterScene extends Phaser.Scene {
     previousY = y,
   ) {
     return this.boneGuards.find((guard) => {
-      if (
-        guard.state === "dying" ||
-        guard.state === "dead" ||
-        !guard.sprite.active
-      ) {
+      if (!this.isBoneGuardTargetable(guard)) {
         return false;
       }
 
@@ -4744,9 +4847,7 @@ class RoverMatterScene extends Phaser.Scene {
     this.boneGuards.forEach((guard) => {
       if (
         guard.id === excludedGuardId ||
-        guard.state === "dying" ||
-        guard.state === "dead" ||
-        !guard.sprite.active
+        !this.isBoneGuardTargetable(guard)
       ) {
         return;
       }
@@ -4813,6 +4914,700 @@ class RoverMatterScene extends Phaser.Scene {
     });
   }
 
+  private getRequiredBoneGuardCount() {
+    if (Number(this.levelConfig.id) === 6) {
+      return Math.max(
+        0,
+        this.frontierDefenseTotalGuards,
+      );
+    }
+
+    return boneGuardCombatSpec.waveSize;
+  }
+
+  private findFrontierBarricadeById(
+    id: string | null,
+  ) {
+    if (!id) return null;
+
+    return (
+      this.frontierBarricades.find(
+        (item) =>
+          item.id === id &&
+          !item.destroyed,
+      ) ?? null
+    );
+  }
+
+  private findFrontierBarricadeHitByProjectile(
+    x: number,
+    y: number,
+    previousX = x,
+    previousY = y,
+  ) {
+    if (Number(this.levelConfig.id) !== 6) {
+      return null;
+    }
+
+    for (const barricade of this.frontierBarricades) {
+      if (
+        barricade.destroyed ||
+        !barricade.sprite.active
+      ) {
+        continue;
+      }
+
+      const bounds = barricade.sprite.getBounds();
+
+      const expandedBounds =
+        new Phaser.Geom.Rectangle(
+          bounds.x - 6,
+          bounds.y - 6,
+          bounds.width + 12,
+          bounds.height + 12,
+        );
+
+      if (
+        Phaser.Geom.Rectangle.Contains(
+          expandedBounds,
+          x,
+          y,
+        )
+      ) {
+        return barricade;
+      }
+
+      if (
+        previousX !== x ||
+        previousY !== y
+      ) {
+        const travelLine =
+          new Phaser.Geom.Line(
+            previousX,
+            previousY,
+            x,
+            y,
+          );
+
+        if (
+          Phaser.Geom.Intersects.LineToRectangle(
+            travelLine,
+            expandedBounds,
+          )
+        ) {
+          return barricade;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  private updateFrontierBarricadeHealthBar(
+    barricade: FrontierBarricadeItem,
+  ) {
+    if (barricade.destroyed) {
+      barricade.healthBackground.setVisible(false);
+      barricade.healthFill.setVisible(false);
+      return;
+    }
+
+    const ratio = Phaser.Math.Clamp(
+      barricade.hp /
+        Math.max(1, barricade.maxHp),
+      0,
+      1,
+    );
+
+    const barWidth = Math.max(
+      82,
+      Math.min(154, barricade.width * 0.7),
+    );
+
+    barricade.healthBackground
+      .setVisible(true)
+      .setPosition(
+        barricade.x - barWidth / 2,
+        barricade.sprite.y -
+          barricade.height -
+          18,
+      );
+
+    barricade.healthFill
+      .setVisible(true)
+      .setPosition(
+        barricade.x - barWidth / 2,
+        barricade.sprite.y -
+          barricade.height -
+          18,
+      );
+
+    barricade.healthBackground.width =
+      barWidth;
+
+    barricade.healthFill.width =
+      barWidth * ratio;
+
+    if (ratio <= 0.35) {
+      barricade.healthFill.setFillStyle(
+        0xff756f,
+        1,
+      );
+      barricade.sprite.setTint(
+        0xffb6a5,
+      );
+    } else if (ratio <= 0.7) {
+      barricade.healthFill.setFillStyle(
+        0xffbd72,
+        1,
+      );
+      barricade.sprite.setTint(
+        0xffe2b3,
+      );
+    } else {
+      barricade.healthFill.setFillStyle(
+        0x76eaff,
+        1,
+      );
+      barricade.sprite.clearTint();
+    }
+  }
+
+  private damageFrontierBarricade(
+    barricade: FrontierBarricadeItem,
+    damage: number,
+  ) {
+    if (
+      barricade.destroyed ||
+      damage <= 0
+    ) {
+      return;
+    }
+
+    barricade.hp = Math.max(
+      0,
+      barricade.hp - damage,
+    );
+
+    const impact = this.add
+      .circle(
+        barricade.x - 8,
+        barricade.sprite.y -
+          barricade.height * 0.52,
+        14,
+        0x9cecff,
+        0.78,
+      )
+      .setDepth(53)
+      .setBlendMode(
+        Phaser.BlendModes.ADD,
+      );
+
+    this.tweens.add({
+      targets: impact,
+      scale: 2.2,
+      alpha: 0,
+      duration: 150,
+      onComplete: () =>
+        impact.destroy(),
+    });
+
+    this.updateFrontierBarricadeHealthBar(
+      barricade,
+    );
+
+    if (barricade.hp <= 0) {
+      this.destroyFrontierBarricade(
+        barricade,
+      );
+    }
+  }
+
+  private destroyFrontierBarricade(
+    barricade: FrontierBarricadeItem,
+  ) {
+    if (barricade.destroyed) {
+      return;
+    }
+
+    barricade.destroyed = true;
+    barricade.hp = 0;
+    barricade.sprite.clearTint();
+
+    if (barricade.body) {
+      this.matter.world.remove(
+        barricade.body,
+      );
+      barricade.body = undefined;
+    }
+
+    barricade.healthBackground.setVisible(
+      false,
+    );
+    barricade.healthFill.setVisible(false);
+
+    if (
+      this.textures.exists(
+        "frontier-barricade-destroyed",
+      )
+    ) {
+      barricade.sprite
+        .setTexture(
+          "frontier-barricade-destroyed",
+        )
+        .setDisplaySize(
+          barricade.width * 1.08,
+          barricade.height * 0.78,
+        )
+        .setOrigin(0.5, 1)
+        .setPosition(
+          barricade.x,
+          barricade.sprite.y,
+        );
+    } else {
+      barricade.sprite
+        .setAlpha(0.22)
+        .setScale(1, 0.34);
+    }
+
+    this.frontierBarricadesDestroyed += 1;
+    this.combatScore += 180;
+
+    this.showStatusMessage(
+      "COVER DESTROYED · GUARDS EXPOSED",
+      "#ffd98a",
+    );
+
+    for (let index = 0; index < 8; index += 1) {
+      const debris = this.add
+        .rectangle(
+          barricade.x +
+            Phaser.Math.Between(
+              -Math.round(
+                barricade.width * 0.4,
+              ),
+              Math.round(
+                barricade.width * 0.4,
+              ),
+            ),
+          barricade.sprite.y -
+            Phaser.Math.Between(
+              12,
+              Math.round(
+                barricade.height * 0.7,
+              ),
+            ),
+          Phaser.Math.Between(8, 20),
+          Phaser.Math.Between(5, 12),
+          0x76849c,
+          0.82,
+        )
+        .setDepth(39)
+        .setRotation(
+          Phaser.Math.FloatBetween(
+            -0.8,
+            0.8,
+          ),
+        );
+
+      this.tweens.add({
+        targets: debris,
+        x:
+          debris.x +
+          Phaser.Math.Between(-60, 60),
+        y:
+          debris.y +
+          Phaser.Math.Between(30, 80),
+        rotation:
+          debris.rotation +
+          Phaser.Math.FloatBetween(
+            -2,
+            2,
+          ),
+        alpha: 0,
+        duration:
+          Phaser.Math.Between(
+            360,
+            620,
+          ),
+        ease: "Quad.easeOut",
+        onComplete: () =>
+          debris.destroy(),
+      });
+    }
+  }
+
+  private createFrontierBarricade(
+    config: RoverBarricadeConfig,
+  ) {
+    const pose = this.getTerrainPoseAtX(
+      config.x,
+      config.y,
+    );
+
+    const surfaceY =
+      pose?.y ?? config.y;
+
+    const sprite = this.add
+      .image(
+        config.x,
+        surfaceY + 5,
+        "frontier-barricade",
+      )
+      .setOrigin(0.5, 1)
+      .setDisplaySize(
+        config.width,
+        config.height,
+      )
+      .setDepth(35);
+
+    /*
+     * The art is intentionally taller/wider than the physics body.
+     * This keeps the barricade visually substantial while still making it a
+     * fair obstacle to jump over.
+     */
+    const collisionWidth =
+      config.width * 0.74;
+    const collisionHeight =
+      Math.max(
+        54,
+        config.height * 0.64,
+      );
+
+    const body =
+      this.matter.add.rectangle(
+        config.x,
+        surfaceY -
+          collisionHeight / 2,
+        collisionWidth,
+        collisionHeight,
+        {
+          isStatic: true,
+          label:
+            `frontier-barricade:${config.id}`,
+        },
+      );
+
+    const barWidth = Math.max(
+      82,
+      Math.min(
+        154,
+        config.width * 0.7,
+      ),
+    );
+
+    const healthBackground = this.add
+      .rectangle(
+        config.x - barWidth / 2,
+        surfaceY -
+          config.height -
+          18,
+        barWidth,
+        7,
+        0x1f2941,
+        0.94,
+      )
+      .setOrigin(0, 0.5)
+      .setDepth(39);
+
+    const healthFill = this.add
+      .rectangle(
+        config.x - barWidth / 2,
+        surfaceY -
+          config.height -
+          18,
+        barWidth,
+        7,
+        0x76eaff,
+        1,
+      )
+      .setOrigin(0, 0.5)
+      .setDepth(40);
+
+    const barricade:
+      FrontierBarricadeItem = {
+        ...config,
+        hp: config.maxHp,
+        destroyed: false,
+        sprite,
+        healthBackground,
+        healthFill,
+        body,
+      };
+
+    this.frontierBarricades.push(
+      barricade,
+    );
+
+    this.updateFrontierBarricadeHealthBar(
+      barricade,
+    );
+
+    config.guards.forEach(
+      (guardConfig, index) => {
+        this.spawnFrontierDefenseGuard(
+          barricade,
+          guardConfig,
+          index,
+        );
+      },
+    );
+  }
+
+  private spawnFrontierDefenseGuard(
+    barricade: FrontierBarricadeItem,
+    guardConfig: RoverDefenseGuardConfig,
+    index: number,
+  ) {
+    const guardX =
+      barricade.x +
+      guardConfig.offsetX;
+
+    const pose =
+      this.getTerrainPoseAtX(
+        guardX,
+        barricade.y,
+      );
+
+    const surfaceY =
+      pose?.y ?? barricade.y;
+
+    const sprite = this.add.sprite(
+      guardX,
+      surfaceY + 4,
+      "bone-guard",
+      4,
+    );
+
+    sprite
+      .setOrigin(0.5, 1)
+      .setDepth(34)
+      .setFlipX(false);
+
+    const scale =
+      BONE_GUARD_DISPLAY_HEIGHT /
+      BONE_GUARD_FRAME_SIZE;
+
+    sprite.setScale(
+      scale *
+        (guardConfig.heavy
+          ? 1.12
+          : 1),
+    );
+
+    if (guardConfig.heavy) {
+      sprite.setTint(0xe2b5ff);
+
+      const aura = this.add
+        .ellipse(
+          guardX,
+          surfaceY -
+            BONE_GUARD_DISPLAY_HEIGHT *
+              0.48,
+          110,
+          150,
+          0xa63cff,
+          0.07,
+        )
+        .setDepth(32)
+        .setBlendMode(
+          Phaser.BlendModes.ADD,
+        );
+
+      this.tweens.add({
+        targets: aura,
+        alpha: {
+          from: 0.04,
+          to: 0.2,
+        },
+        scale: {
+          from: 0.92,
+          to: 1.1,
+        },
+        duration: 680,
+        yoyo: true,
+        repeat: -1,
+      });
+    }
+
+    const healthBackground = this.add
+      .rectangle(
+        guardX - 42,
+        surfaceY -
+          BONE_GUARD_DISPLAY_HEIGHT -
+          13,
+        84,
+        6,
+        0x1d1730,
+        0.9,
+      )
+      .setOrigin(0, 0.5)
+      .setDepth(36)
+      .setVisible(false);
+
+    const healthFill = this.add
+      .rectangle(
+        guardX - 42,
+        surfaceY -
+          BONE_GUARD_DISPLAY_HEIGHT -
+          13,
+        84,
+        6,
+        0xb776ff,
+        1,
+      )
+      .setOrigin(0, 0.5)
+      .setDepth(37)
+      .setVisible(false);
+
+    const phase =
+      barricade.x < 4300
+        ? 1
+        : barricade.x < 7600
+          ? 2
+          : 3;
+
+    const guard: BoneGuardEnemy = {
+      id: this.nextBoneGuardId++,
+      sprite,
+      hp: guardConfig.hp,
+      maxHp: guardConfig.hp,
+      state: "firing",
+      surfaceY,
+      lastFireAt:
+        this.time.now +
+        Phaser.Math.Between(
+          450 + index * 220,
+          900 + index * 260,
+        ) -
+        boneGuardCombatSpec.fireCooldownMs,
+      spawnPhase: phase,
+      terrainBlocked: true,
+      coverBarricadeId:
+        barricade.id,
+      defensePost: true,
+      heavy:
+        Boolean(guardConfig.heavy),
+      healthBackground,
+      healthFill,
+    };
+
+    this.boneGuards.push(guard);
+    this.boneGuardsSpawned += 1;
+    this.frontierDefenseTotalGuards += 1;
+  }
+
+  private createFrontierDefenseFoundation() {
+    if (
+      Number(this.levelConfig.id) !== 6
+    ) {
+      return;
+    }
+
+    const barricades =
+      this.levelConfig.barricades ?? [];
+
+    barricades.forEach(
+      (config) =>
+        this.createFrontierBarricade(
+          config,
+        ),
+    );
+
+    this.boneGuardWaveStarted = true;
+    this.boneGuardWavePhase = 3;
+
+    this.createCombatFinishBarrier();
+
+    this.time.delayedCall(
+      900,
+      () => {
+        this.showStatusMessage(
+          "FRACTURED FRONTIER · BREAK THEIR COVER",
+          "#ffd98a",
+        );
+      },
+    );
+  }
+
+  private updateFrontierDefenseCombat(
+    delta: number,
+  ) {
+    if (
+      Number(this.levelConfig.id) !== 6 ||
+      !this.roverBody
+    ) {
+      return;
+    }
+
+    const now = this.time.now;
+
+    this.boneGuards.forEach(
+      (guard) => {
+        if (
+          guard.state === "dying" ||
+          guard.state === "dead" ||
+          !guard.sprite.active
+        ) {
+          return;
+        }
+
+        /*
+         * Expedition 6 defenders HOLD their positions.
+         * Cover controls targetability, not movement.
+         */
+        guard.sprite.setRotation(0);
+
+        const distance =
+          guard.sprite.x -
+          this.roverBody!.x;
+
+        if (
+          distance > 1650 ||
+          distance < -700
+        ) {
+          guard.sprite.setFrame(4);
+          this.updateBoneGuardHealthBar(
+            guard,
+          );
+          return;
+        }
+
+        this.updateFiringBoneGuard(
+          guard,
+          now,
+        );
+
+        this.updateBoneGuardHealthBar(
+          guard,
+        );
+      },
+    );
+
+    this.updateBoneGuardBlasterProjectiles(
+      delta,
+    );
+
+    this.updateCombatTargetReticle();
+
+    const required =
+      this.getRequiredBoneGuardCount();
+
+    if (
+      !this.boneGuardWaveComplete &&
+      required > 0 &&
+      this.boneGuardsDefeated >=
+        required
+    ) {
+      this.boneGuardWaveComplete = true;
+      this.showStatusMessage(
+        "FRONTIER SECURED · EXIT OPEN",
+        "#8dffbf",
+      );
+      this.unlockCombatFinish();
+    }
+  }
+
   private createBoneGuardCombatFoundation() {
     if (!this.combatMode || !this.textures.exists("bone-guard")) {
       return;
@@ -4820,14 +5615,19 @@ class RoverMatterScene extends Phaser.Scene {
 
     this.createBoneGuardAnimations();
     this.createBoneGuardBlasterTexture();
-    this.createBoneGuardPortal();
     this.createCombatTargetReticle();
 
     if (Number(this.levelConfig.id) === 5) {
+      this.createBoneGuardPortal();
       this.createCombatFinishBarrier();
+      this.nextBoneGuardSpawnAt =
+        this.time.now + 1800;
+      return;
     }
 
-    this.nextBoneGuardSpawnAt = this.time.now + 1800;
+    if (Number(this.levelConfig.id) === 6) {
+      this.createFrontierDefenseFoundation();
+    }
   }
 
   private createCombatTargetReticle() {
@@ -5088,6 +5888,13 @@ class RoverMatterScene extends Phaser.Scene {
       return;
     }
 
+    if (Number(this.levelConfig.id) === 6) {
+      this.updateFrontierDefenseCombat(
+        delta,
+      );
+      return;
+    }
+
     const now = this.time.now;
     const roverX = this.roverBody.x;
 
@@ -5155,18 +5962,6 @@ class RoverMatterScene extends Phaser.Scene {
         guard.state === "dead" ||
         !guard.sprite.active
       ) {
-        return;
-      }
-
-      if (
-        guard.state === "jumping" &&
-        guard.gapJump
-      ) {
-        this.updateJumpingBoneGuard(
-          guard,
-          dt,
-        );
-        this.updateBoneGuardHealthBar(guard);
         return;
       }
 
@@ -5256,7 +6051,9 @@ class RoverMatterScene extends Phaser.Scene {
       .text(
         barrierX - 18,
         Math.max(85, surfaceY - height - 15),
-        "BONE GATE LOCK",
+        Number(this.levelConfig.id) === 6
+          ? "FRONTIER LOCK"
+          : "BONE GATE LOCK",
         {
           fontFamily: "Arial, sans-serif",
           fontSize: "10px",
@@ -5384,7 +6181,9 @@ class RoverMatterScene extends Phaser.Scene {
         3,
       ) as 1 | 2 | 3,
       terrainBlocked: false,
-      gapJump: null,
+      coverBarricadeId: null,
+      defensePost: false,
+      heavy: false,
       healthBackground,
       healthFill,
     };
@@ -5426,303 +6225,6 @@ class RoverMatterScene extends Phaser.Scene {
     ).length;
   }
 
-  private isBoneGuardForbiddenAtX(x: number) {
-    return this.boneGuardForbiddenTerrainSections.some(
-      (section) => {
-        if (section.length < 2) {
-          return false;
-        }
-
-        const first = section[0];
-        const last =
-          section[section.length - 1];
-
-        return (
-          x >= first.x - 8 &&
-          x <= last.x + 8
-        );
-      },
-    );
-  }
-
-  private findBoneGuardGapLanding(
-    guard: BoneGuardEnemy,
-  ) {
-    const currentSection =
-      this.boneGuardTerrainSections
-        .filter(
-          (section) => section.length >= 2,
-        )
-        .map((section) => {
-          const first = section[0];
-          const last =
-            section[section.length - 1];
-
-          const withinX =
-            guard.sprite.x >= first.x - 28 &&
-            guard.sprite.x <= last.x + 28;
-
-          const surfaceY = withinX
-            ? this.getSurfaceYForSectionAtX(
-                section,
-                Phaser.Math.Clamp(
-                  guard.sprite.x,
-                  first.x,
-                  last.x,
-                ),
-              )
-            : null;
-
-          return {
-            section,
-            withinX,
-            surfaceDistance:
-              surfaceY === null
-                ? Number.POSITIVE_INFINITY
-                : Math.abs(
-                    surfaceY -
-                      guard.surfaceY,
-                  ),
-          };
-        })
-        .filter((entry) => entry.withinX)
-        .sort(
-          (a, b) =>
-            a.surfaceDistance -
-            b.surfaceDistance,
-        )[0]?.section;
-
-    if (!currentSection) {
-      return null;
-    }
-
-    const currentLeft =
-      currentSection[0].x;
-
-    const candidates =
-      this.boneGuardTerrainSections
-        .filter((section) => {
-          if (
-            section === currentSection ||
-            section.length < 2
-          ) {
-            return false;
-          }
-
-          const candidateRight =
-            section[
-              section.length - 1
-            ].x;
-
-          return (
-            candidateRight <
-            currentLeft - 14
-          );
-        })
-        .map((section) => {
-          const candidateRight =
-            section[
-              section.length - 1
-            ].x;
-
-          return {
-            section,
-            gapDistance:
-              currentLeft -
-              candidateRight,
-          };
-        })
-        .filter(
-          (entry) =>
-            entry.gapDistance >= 28 &&
-            entry.gapDistance <= 460,
-        )
-        .sort(
-          (a, b) =>
-            a.gapDistance -
-            b.gapDistance,
-        );
-
-    for (const candidate of candidates) {
-      const candidateRight =
-        candidate.section[
-          candidate.section.length - 1
-        ].x;
-
-      /*
-       * A jump is legal only if the space between the two blue sections is
-       * actually empty. Orange terrain between them is a hard boundary.
-       */
-      const crossesForbidden =
-        this.boneGuardForbiddenTerrainSections.some(
-          (section) => {
-            if (section.length < 2) {
-              return false;
-            }
-
-            const forbiddenLeft =
-              section[0].x;
-            const forbiddenRight =
-              section[
-                section.length - 1
-              ].x;
-
-            return (
-              forbiddenRight >
-                candidateRight + 6 &&
-              forbiddenLeft <
-                currentLeft - 6
-            );
-          },
-        );
-
-      if (crossesForbidden) {
-        continue;
-      }
-
-      const landingX =
-        candidateRight - 18;
-
-      const landingPose =
-        this.getBoneGuardTerrainPoseAtX(
-          landingX,
-          guard.surfaceY,
-        );
-
-      if (!landingPose) {
-        continue;
-      }
-
-      return {
-        x: landingX,
-        y: landingPose.y,
-        gapDistance:
-          candidate.gapDistance,
-      };
-    }
-
-    return null;
-  }
-
-  private startBoneGuardGapJump(
-    guard: BoneGuardEnemy,
-  ) {
-    const landing =
-      this.findBoneGuardGapLanding(
-        guard,
-      );
-
-    if (!landing) {
-      return false;
-    }
-
-    const durationSeconds =
-      Phaser.Math.Clamp(
-        landing.gapDistance /
-          (
-            boneGuardCombatSpec.moveSpeed *
-            1.45
-          ),
-        0.42,
-        0.82,
-      );
-
-    guard.state = "jumping";
-    guard.terrainBlocked = false;
-    guard.sprite.stop();
-    guard.sprite.setFrame(2);
-
-    guard.gapJump = {
-      startX: guard.sprite.x,
-      startY: guard.surfaceY,
-      endX: landing.x,
-      endY: landing.y,
-      elapsedSeconds: 0,
-      durationSeconds,
-      arcHeight: Phaser.Math.Clamp(
-        54 +
-          landing.gapDistance * 0.18,
-        66,
-        125,
-      ),
-    };
-
-    return true;
-  }
-
-  private updateJumpingBoneGuard(
-    guard: BoneGuardEnemy,
-    dt: number,
-  ) {
-    const jump = guard.gapJump;
-
-    if (!jump) {
-      guard.state = "walking";
-      return;
-    }
-
-    jump.elapsedSeconds += dt;
-
-    const progress =
-      Phaser.Math.Clamp(
-        jump.elapsedSeconds /
-          Math.max(
-            0.001,
-            jump.durationSeconds,
-          ),
-        0,
-        1,
-      );
-
-    const x = Phaser.Math.Linear(
-      jump.startX,
-      jump.endX,
-      progress,
-    );
-
-    const baseY = Phaser.Math.Linear(
-      jump.startY,
-      jump.endY,
-      progress,
-    );
-
-    const arc =
-      4 *
-      jump.arcHeight *
-      progress *
-      (1 - progress);
-
-    guard.sprite.setPosition(
-      x,
-      baseY + 4 - arc,
-    );
-
-    guard.sprite.setRotation(
-      Phaser.Math.Linear(
-        -0.08,
-        0.08,
-        progress,
-      ),
-    );
-
-    if (progress < 1) {
-      return;
-    }
-
-    guard.surfaceY = jump.endY;
-    guard.sprite.setPosition(
-      jump.endX,
-      jump.endY + 4,
-    );
-    guard.sprite.setRotation(0);
-    guard.gapJump = null;
-    guard.state = "walking";
-    guard.sprite.play(
-      "bone-guard-walk",
-      true,
-    );
-  }
-
   private updateWalkingBoneGuard(
     guard: BoneGuardEnemy,
     dt: number,
@@ -5742,22 +6244,11 @@ class RoverMatterScene extends Phaser.Scene {
 
     if (!pose) {
       /*
-       * Orange terrain is a hard boundary.
-       * A genuine empty gap between blue sections may be jumped.
+       * Stop on the last supported blue pixel. Do not cross orange sections
+       * or unsupported gaps, even if those surfaces still exist elsewhere in
+       * the general terrain lookup.
        */
-      if (
-        !this.isBoneGuardForbiddenAtX(
-          nextX,
-        ) &&
-        this.startBoneGuardGapJump(
-          guard,
-        )
-      ) {
-        return;
-      }
-
       guard.terrainBlocked = true;
-      guard.gapJump = null;
       guard.state = "firing";
       guard.sprite.setRotation(0);
       guard.sprite.setFrame(4);
@@ -5789,9 +6280,20 @@ class RoverMatterScene extends Phaser.Scene {
   ) {
     guard.sprite.setRotation(0);
 
+    const covered =
+      this.isBoneGuardCovered(guard);
+
+    const fireCooldown =
+      boneGuardCombatSpec.fireCooldownMs *
+      (covered
+        ? 1.6
+        : guard.heavy
+          ? 0.88
+          : 1);
+
     if (
       guard.state !== "firing" &&
-      now - guard.lastFireAt < boneGuardCombatSpec.fireCooldownMs
+      now - guard.lastFireAt < fireCooldown
     ) {
       guard.sprite.setFrame(4);
       return;
@@ -5799,7 +6301,7 @@ class RoverMatterScene extends Phaser.Scene {
 
     if (
       now - guard.lastFireAt <
-      boneGuardCombatSpec.fireCooldownMs
+      fireCooldown
     ) {
       return;
     }
@@ -5889,7 +6391,8 @@ class RoverMatterScene extends Phaser.Scene {
       1,
       Math.round(
         boneGuardCombatSpec.blasterDamage *
-          phaseMultiplier,
+          phaseMultiplier *
+          (guard.heavy ? 1.25 : 1),
       ),
     );
 
@@ -5987,8 +6490,7 @@ class RoverMatterScene extends Phaser.Scene {
     damage: number,
   ) {
     if (
-      guard.state === "dying" ||
-      guard.state === "dead" ||
+      !this.isBoneGuardTargetable(guard) ||
       damage <= 0
     ) {
       return;
@@ -6046,6 +6548,15 @@ class RoverMatterScene extends Phaser.Scene {
       !guard.sprite.active ||
       guard.state === "dead"
     ) {
+      return;
+    }
+
+    const covered = this.isBoneGuardCovered(guard);
+
+    guard.healthBackground.setVisible(!covered);
+    guard.healthFill.setVisible(!covered);
+
+    if (covered) {
       return;
     }
 
@@ -6390,13 +6901,30 @@ class RoverMatterScene extends Phaser.Scene {
     ) {
       this.objectiveText
         .setText(
-          `OBJECTIVE  DEFEAT BONE GUARDS · ${this.boneGuardsDefeated}/${boneGuardCombatSpec.waveSize}`,
+          `OBJECTIVE  DEFEAT BONE GUARDS · ${this.boneGuardsDefeated}/${this.getRequiredBoneGuardCount()}`,
         )
         .setColor("#e0b7ff");
 
       this.showStatusMessage(
         "EXIT SEALED · CLEAR THE BONE GATE",
         "#d8adff",
+      );
+      return;
+    }
+
+    if (
+      Number(this.levelConfig.id) === 6 &&
+      !this.boneGuardWaveComplete
+    ) {
+      this.objectiveText
+        .setText(
+          `OBJECTIVE  CLEAR DEFENDERS · ${this.boneGuardsDefeated}/${this.getRequiredBoneGuardCount()} · COVER ${this.frontierBarricadesDestroyed}/${this.frontierBarricades.length}`,
+        )
+        .setColor("#ffd98a");
+
+      this.showStatusMessage(
+        "EXIT SEALED · SECURE THE FRONTIER",
+        "#ffd98a",
       );
       return;
     }
@@ -6479,6 +7007,9 @@ class RoverMatterScene extends Phaser.Scene {
           weaponLevel: this.weaponLevel,
           weaponName: this.weaponSpec?.name ?? null,
           boneGuardsDefeated: this.boneGuardsDefeated,
+          boneGuardsTotal: this.getRequiredBoneGuardCount(),
+          barricadesDestroyed: this.frontierBarricadesDestroyed,
+          barricadesTotal: this.frontierBarricades.length,
           shotsFired: this.shotsFired,
           shotsHit: this.shotsHit,
           accuracyPercent:
@@ -6530,7 +7061,9 @@ class RoverMatterScene extends Phaser.Scene {
         GAME_WIDTH / 2,
         GAME_HEIGHT / 2 - (isCombatResult ? 270 : 210),
         isCombatResult
-          ? "BONE GATE SECURED"
+          ? Number(this.levelConfig.id) === 6
+            ? "FRONTIER SECURED"
+            : "BONE GATE SECURED"
           : "COURSE COMPLETE",
         {
           fontFamily: "Arial, sans-serif",
@@ -6568,7 +7101,12 @@ class RoverMatterScene extends Phaser.Scene {
 
       const leftResults = [
         `Course time: ${this.formatTime(this.elapsedSeconds)}`,
-        `Bone Guards: ${this.boneGuardsDefeated} / ${boneGuardCombatSpec.waveSize}`,
+        `Bone Guards: ${this.boneGuardsDefeated} / ${this.getRequiredBoneGuardCount()}`,
+        ...(Number(this.levelConfig.id) === 6
+          ? [
+              `Barricades: ${this.frontierBarricadesDestroyed} / ${this.frontierBarricades.length}`,
+            ]
+          : []),
         `Shots fired: ${this.shotsFired}`,
         `Shots hit: ${this.shotsHit}`,
         `Accuracy: ${accuracy.toFixed(1)}%`,

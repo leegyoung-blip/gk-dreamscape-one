@@ -184,16 +184,6 @@ export const roverWeaponSpecs: Record<number, CoreRoverWeaponSpec> = {
     level: 3,
     name: "Micro-Rocket Pod",
     projectileType: "rocket",
-
-    /*
-     * Tier 3 is a heavier, slower step up from the Twin Autocannon.
-     *
-     * Tier 2: 42 damage / 240ms  ~= 175 single-target DPS
-     * Tier 3: 78 damage / 420ms  ~= 186 single-target DPS
-     *
-     * Each hit is much stronger, the rate of fire is slower, and Tier 3
-     * retains splash damage as its additional advantage.
-     */
     damage: 78,
     fireCooldownMs: 420,
     projectileSpeed: 900,
