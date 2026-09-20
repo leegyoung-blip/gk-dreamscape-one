@@ -1172,7 +1172,7 @@ export async function POST(request: Request) {
       .from("nova_schoolwork_uploads")
       .update({
         status: "analysing",
-        extraction_model: extractionCall.modelUsed,
+        extraction_model: extractionModel,
         analysis_model: reasoningModel,
         analysis_version: ANALYSIS_VERSION,
         analysis_started_at: startedAt,
@@ -1325,8 +1325,8 @@ Hints are context only. Do not force them when the document clearly contradicts 
       .upsert(
         {
           upload_id: uploadId,
-          extraction_model: extractionModel,
-          reasoning_model: reasoningCall.modelUsed,
+          extraction_model: extractionCall.modelUsed,
+          reasoning_model: reasoningModel,
           extraction_response_id: extractionCall.responseId,
           extraction_raw: extraction,
           extraction_usage: extractionCall.usage,
@@ -1488,7 +1488,7 @@ Re-check the original file, then produce the final verified analysis.
 
     const validItems = [...(reasoned.items ?? [])]
       .sort((a, b) => Number(a.item_index) - Number(b.item_index))
-      .slice(0, 80);
+      .slice(0, settings.max_questions);
 
     const confidenceValues = validItems
       .map((item) => clamp01(item.mapping_confidence))
@@ -1610,7 +1610,7 @@ Re-check the original file, then produce the final verified analysis.
     const { error: analysisUpdateError } = await supabaseAdmin
       .from("nova_schoolwork_analyses")
       .update({
-        reasoning_model: reasoningModel,
+        reasoning_model: reasoningCall.modelUsed,
         reasoning_response_id: reasoningCall.responseId,
         analysis_raw: reasoned,
         overall_summary: cleanText(reasoned.overall_summary),
