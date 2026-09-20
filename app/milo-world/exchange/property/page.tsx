@@ -79,6 +79,19 @@ type RecentPropertySale = {
   sold_at: string;
 };
 
+type PropertyResaleListing = {
+  listing_id: string;
+  property_id: string;
+  property_name: string;
+  district: string;
+  property_type: string;
+  seller_name: string;
+  asking_price: number;
+  current_value: number;
+  primary_listing_price: number;
+  expires_at: string;
+};
+
 const DISTRICTS: DistrictDefinition[] = [
   {
     id: "residential-hub",
@@ -744,6 +757,7 @@ export default function MiloPropertyExchangePage() {
   const [properties, setProperties] = useState<PropertyOffering[]>([]);
   const [holdings, setHoldings] = useState<PropertyHolding[]>([]);
   const [recentSales, setRecentSales] = useState<RecentPropertySale[]>([]);
+  const [resaleListings, setResaleListings] = useState<PropertyResaleListing[]>([]);
 
   const [selectedDistrict, setSelectedDistrict] = useState<DistrictId | null>(null);
   const [hoveredDistrict, setHoveredDistrict] = useState<DistrictId | null>(null);
@@ -757,6 +771,7 @@ export default function MiloPropertyExchangePage() {
   const [gateError, setGateError] = useState("");
   const [pageMessage, setPageMessage] = useState("");
   const [tradeMessage, setTradeMessage] = useState("");
+  const [resaleMessage, setResaleMessage] = useState("");
 
   const selectedDistrictDefinition =
     DISTRICTS.find((district) => district.id === selectedDistrict) || null;
@@ -898,29 +913,13 @@ export default function MiloPropertyExchangePage() {
   useEffect(() => {
     if (!canEnterExchange || !userId) return;
 
-    const channel = supabase
-      .channel("milo-property-inventory-live")
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "milo_exchange_properties",
-        },
-        () => {
-          refreshMarket();
-        }
-      )
-      .subscribe();
-
     function handleFocus() {
-      refreshMarket();
+      void refreshMarket();
     }
 
     window.addEventListener("focus", handleFocus);
 
     return () => {
-      supabase.removeChannel(channel);
       window.removeEventListener("focus", handleFocus);
     };
   }, [canEnterExchange, userId]);
@@ -971,10 +970,10 @@ export default function MiloPropertyExchangePage() {
 
   async function loadDreamTokens(id: string) {
     const { data, error } = await supabase
-      .from("dream_token_transactions")
-      .select("amount")
-      .eq("user_id", id)
-      .eq("token_kind", "virtual");
+      .from("profiles")
+      .select("dream_token_balance")
+      .eq("id", id)
+      .single();
 
     if (error) {
       console.warn("Could not load Dreamscape Tokens:", error.message);
@@ -982,17 +981,18 @@ export default function MiloPropertyExchangePage() {
       return;
     }
 
-    const total = (data || []).reduce(
-      (sum, row) => sum + Number(row.amount || 0),
-      0
-    );
-    setDreamTokens(total);
+    setDreamTokens(Number(data?.dream_token_balance || 0));
   }
 
   async function loadPropertyMarket(id: string) {
     setMarketLoading(true);
 
-    const [propertiesResult, holdingsResult, salesResult] = await Promise.all([
+    const [
+      propertiesResult,
+      holdingsResult,
+      salesResult,
+      resaleResult,
+    ] = await Promise.all([
       supabase
         .from("milo_exchange_properties")
         .select(
@@ -1009,6 +1009,9 @@ export default function MiloPropertyExchangePage() {
         .eq("user_id", id)
         .order("created_at", { ascending: false }),
       supabase.rpc("get_milo_exchange_recent_property_sales", {
+        p_limit: 20,
+      }),
+      supabase.rpc("get_milo_exchange_property_resale_listings", {
         p_limit: 20,
       }),
     ]);
@@ -1063,6 +1066,26 @@ export default function MiloPropertyExchangePage() {
           price_per_unit: Number(row.price_per_unit || 0),
           total_price: Number(row.total_price || 0),
           sold_at: String(row.sold_at || ""),
+        }))
+      );
+    }
+
+    if (resaleResult.error) {
+      console.warn("Could not load property resale listings:", resaleResult.error.message);
+      setResaleListings([]);
+    } else {
+      setResaleListings(
+        (resaleResult.data || []).map((row: Record<string, unknown>) => ({
+          listing_id: String(row.listing_id || ""),
+          property_id: String(row.property_id || ""),
+          property_name: String(row.property_name || "Property Unit"),
+          district: String(row.district || ""),
+          property_type: String(row.property_type || ""),
+          seller_name: String(row.seller_name || "Dreamscape User"),
+          asking_price: Number(row.asking_price || 0),
+          current_value: Number(row.current_value || 0),
+          primary_listing_price: Number(row.primary_listing_price || 0),
+          expires_at: String(row.expires_at || ""),
         }))
       );
     }
@@ -1223,6 +1246,71 @@ export default function MiloPropertyExchangePage() {
       const refreshed = properties.find((item) => item.id === current.id);
       return refreshed || current;
     });
+  }
+
+  async function buyResaleProperty(listing: PropertyResaleListing) {
+    if (!userId || !canEnterExchange || actionLoading) return;
+
+    if (listing.asking_price > dreamTokens) {
+      setResaleMessage(
+        `You need ${formatNumber(
+          listing.asking_price
+        )} DT to purchase this resale property.`
+      );
+      return;
+    }
+
+    setActionLoading(true);
+    setResaleMessage("");
+
+    try {
+      const { data, error } = await supabase.rpc(
+        "buy_milo_exchange_property_listing",
+        {
+          p_listing_id: listing.listing_id,
+        }
+      );
+
+      if (error) {
+        console.warn("Resale property purchase failed:", error.message);
+        setResaleMessage(`Purchase failed: ${error.message}`);
+        return;
+      }
+
+      const result = (data || {}) as Record<string, unknown>;
+
+      if (result.ok === false || result.success === false) {
+        const reason = String(
+          result.reason || "This listing is no longer available."
+        );
+
+        setResaleMessage(
+          reason === "listing_not_active"
+            ? "This property has already been purchased."
+            : reason === "listing_expired"
+            ? "This resale listing has expired."
+            : reason === "buyer_is_seller"
+            ? "You cannot purchase your own listing."
+            : reason === "seller_no_longer_owns_property"
+            ? "This property is no longer available from the seller."
+            : reason
+        );
+
+        await refreshMarket();
+        return;
+      }
+
+      setResaleMessage(
+        `Purchased ${listing.property_name} for ${formatNumber(
+          listing.asking_price
+        )} DT from ${listing.seller_name}.`
+      );
+
+      window.dispatchEvent(new Event("dream-tokens-updated"));
+      await refreshMarket();
+    } finally {
+      setActionLoading(false);
+    }
   }
 
   if (loading) {
@@ -1496,7 +1584,8 @@ export default function MiloPropertyExchangePage() {
           </h1>
           <p style={{ margin: "18px auto 0", maxWidth: "760px", color: "rgba(255,255,255,0.64)", lineHeight: 1.7, fontSize: isMobile ? "15px" : "17px" }}>
             Explore the first two built districts, compare unit supply and rental
-            income, and purchase virtual properties directly from Dreamscape.
+            income, and purchase virtual properties from Dreamscape or other
+            Exchange owners.
           </p>
         </section>
 
@@ -1751,6 +1840,404 @@ export default function MiloPropertyExchangePage() {
           </section>
         )}
 
+        <section
+          style={{
+            ...glassPanel,
+            marginTop: "18px",
+            padding: isMobile ? "18px" : "24px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              flexDirection: isMobile ? "column" : "row",
+              justifyContent: "space-between",
+              alignItems: isMobile ? "flex-start" : "flex-end",
+              gap: "14px",
+            }}
+          >
+            <div>
+              <p
+                style={{
+                  margin: 0,
+                  color: "#ffd18a",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.18em",
+                  fontWeight: 900,
+                }}
+              >
+                Secondary Market
+              </p>
+
+              <h2
+                style={{
+                  margin: "10px 0 0",
+                  fontFamily: 'Georgia, "Times New Roman", serif',
+                  fontSize: isMobile ? "34px" : "42px",
+                  fontWeight: 500,
+                }}
+              >
+                Property Resales
+              </h2>
+
+              <p
+                style={{
+                  margin: "10px 0 0",
+                  maxWidth: "680px",
+                  color: "rgba(255,255,255,0.55)",
+                  fontSize: "13px",
+                  lineHeight: 1.55,
+                }}
+              >
+                Purchase virtual properties currently offered for resale by other
+                Dreamscape owners. Resale transfers an existing unit between owners
+                and does not reduce Dreamscape&apos;s primary inventory.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                void refreshMarket();
+              }}
+              disabled={marketLoading || actionLoading}
+              style={{
+                ...secondaryButton,
+                minHeight: "42px",
+                opacity: marketLoading || actionLoading ? 0.55 : 1,
+                cursor:
+                  marketLoading || actionLoading ? "not-allowed" : "pointer",
+              }}
+            >
+              {marketLoading ? "Refreshing..." : "↻ Refresh Listings"}
+            </button>
+          </div>
+
+          {resaleMessage && (
+            <div
+              style={{
+                marginTop: "18px",
+                padding: "13px 15px",
+                borderRadius: "14px",
+                border: "1px solid rgba(255,209,138,0.2)",
+                background: "rgba(255,209,138,0.08)",
+                color: "#ffe5bb",
+                fontSize: "13px",
+                fontWeight: 750,
+                lineHeight: 1.5,
+              }}
+            >
+              {resaleMessage}
+            </div>
+          )}
+
+          {resaleListings.length === 0 ? (
+            <div
+              style={{
+                marginTop: "20px",
+                minHeight: "150px",
+                display: "grid",
+                placeItems: "center",
+                padding: "24px",
+                borderRadius: "18px",
+                border: "1px dashed rgba(255,209,138,0.2)",
+                background: "rgba(255,255,255,0.025)",
+                color: "rgba(255,255,255,0.52)",
+                textAlign: "center",
+              }}
+            >
+              <div>
+                <strong
+                  style={{
+                    display: "block",
+                    color: "rgba(255,255,255,0.82)",
+                  }}
+                >
+                  No resale properties available right now.
+                </strong>
+
+                <span
+                  style={{
+                    display: "block",
+                    marginTop: "6px",
+                    fontSize: "13px",
+                  }}
+                >
+                  Check again later for new listings.
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div
+              style={{
+                marginTop: "20px",
+                display: "grid",
+                gridTemplateColumns: isMobile
+                  ? "1fr"
+                  : isCompact
+                  ? "repeat(2, minmax(0, 1fr))"
+                  : "repeat(3, minmax(0, 1fr))",
+                gap: "14px",
+              }}
+            >
+              {resaleListings.map((listing) => {
+                const property =
+                  properties.find((item) => item.id === listing.property_id) ||
+                  null;
+
+                const referencePrice =
+                  listing.primary_listing_price > 0
+                    ? listing.primary_listing_price
+                    : listing.current_value;
+
+                const priceDifference =
+                  referencePrice > 0
+                    ? listing.asking_price - referencePrice
+                    : 0;
+
+                const priceDifferencePct =
+                  referencePrice > 0
+                    ? Math.round((priceDifference / referencePrice) * 100)
+                    : 0;
+
+                const isDiscount = priceDifference < 0;
+                const canAfford = dreamTokens >= listing.asking_price;
+
+                return (
+                  <article
+                    key={listing.listing_id}
+                    style={{
+                      overflow: "hidden",
+                      borderRadius: "20px",
+                      border: "1px solid rgba(255,209,138,0.16)",
+                      background:
+                        "linear-gradient(145deg, rgba(85,49,18,0.26), rgba(5,13,28,0.82))",
+                    }}
+                  >
+                    {property ? (
+                      <div
+                        style={{
+                          height: isMobile ? "190px" : "180px",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <UnitPreviewIllustration property={property} />
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          height: isMobile ? "190px" : "180px",
+                          display: "grid",
+                          placeItems: "center",
+                          padding: "20px",
+                          background:
+                            "linear-gradient(145deg, rgba(15,35,48,0.96), rgba(4,13,23,0.98))",
+                          color: "rgba(255,255,255,0.58)",
+                          textAlign: "center",
+                        }}
+                      >
+                        Property preview unavailable
+                      </div>
+                    )}
+
+                    <div style={{ padding: "18px" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: "10px",
+                          alignItems: "flex-start",
+                        }}
+                      >
+                        <div>
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              minHeight: "25px",
+                              alignItems: "center",
+                              padding: "0 9px",
+                              borderRadius: "999px",
+                              border: "1px solid rgba(255,209,138,0.18)",
+                              background: "rgba(255,209,138,0.08)",
+                              color: "#ffd18a",
+                              fontSize: "9px",
+                              fontWeight: 900,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.12em",
+                            }}
+                          >
+                            Resale
+                          </span>
+
+                          <h3
+                            style={{
+                              margin: "10px 0 0",
+                              fontSize: "19px",
+                              lineHeight: 1.2,
+                            }}
+                          >
+                            {listing.property_name}
+                          </h3>
+
+                          <p
+                            style={{
+                              margin: "6px 0 0",
+                              color: "rgba(255,255,255,0.46)",
+                              fontSize: "12px",
+                            }}
+                          >
+                            {listing.district} · {titleCase(listing.property_type)}
+                          </p>
+                        </div>
+
+                        {priceDifferencePct !== 0 && (
+                          <span
+                            style={{
+                              flexShrink: 0,
+                              borderRadius: "999px",
+                              padding: "6px 9px",
+                              background: isDiscount
+                                ? "rgba(121,242,206,0.1)"
+                                : "rgba(255,209,138,0.08)",
+                              color: isDiscount ? "#79f2ce" : "#ffd18a",
+                              fontSize: "10px",
+                              fontWeight: 900,
+                            }}
+                          >
+                            {isDiscount
+                              ? `${Math.abs(priceDifferencePct)}% below market`
+                              : `${priceDifferencePct}% above market`}
+                          </span>
+                        )}
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: "18px",
+                          display: "grid",
+                          gridTemplateColumns: "1fr 1fr",
+                          gap: "9px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            borderRadius: "13px",
+                            padding: "11px",
+                            background: "rgba(255,255,255,0.045)",
+                          }}
+                        >
+                          <small
+                            style={{
+                              display: "block",
+                              color: "rgba(255,255,255,0.42)",
+                            }}
+                          >
+                            Asking Price
+                          </small>
+
+                          <strong
+                            style={{
+                              display: "block",
+                              marginTop: "4px",
+                              color: "#ffd18a",
+                            }}
+                          >
+                            {formatNumber(listing.asking_price)} DT
+                          </strong>
+                        </div>
+
+                        <div
+                          style={{
+                            borderRadius: "13px",
+                            padding: "11px",
+                            background: "rgba(255,255,255,0.045)",
+                          }}
+                        >
+                          <small
+                            style={{
+                              display: "block",
+                              color: "rgba(255,255,255,0.42)",
+                            }}
+                          >
+                            Market Price
+                          </small>
+
+                          <strong
+                            style={{
+                              display: "block",
+                              marginTop: "4px",
+                            }}
+                          >
+                            {formatNumber(referencePrice)} DT
+                          </strong>
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: "14px",
+                          paddingTop: "13px",
+                          borderTop: "1px solid rgba(255,255,255,0.08)",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: "12px",
+                          flexWrap: "wrap",
+                          color: "rgba(255,255,255,0.52)",
+                          fontSize: "12px",
+                        }}
+                      >
+                        <span>
+                          Seller:{" "}
+                          <strong
+                            style={{
+                              color: "rgba(255,255,255,0.82)",
+                            }}
+                          >
+                            {listing.seller_name}
+                          </strong>
+                        </span>
+
+                        <span>Ends {formatDateTime(listing.expires_at)}</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void buyResaleProperty(listing);
+                        }}
+                        disabled={actionLoading || !canAfford}
+                        style={{
+                          ...primaryButton,
+                          width: "100%",
+                          marginTop: "16px",
+                          border: "1px solid rgba(255,209,138,0.3)",
+                          background: canAfford
+                            ? "linear-gradient(135deg, rgba(181,110,37,0.48), rgba(255,209,138,0.18))"
+                            : "rgba(255,255,255,0.06)",
+                          opacity: actionLoading || !canAfford ? 0.5 : 1,
+                          cursor:
+                            actionLoading || !canAfford
+                              ? "not-allowed"
+                              : "pointer",
+                        }}
+                      >
+                        {actionLoading
+                          ? "Processing..."
+                          : canAfford
+                          ? `Buy for ${formatNumber(listing.asking_price)} DT`
+                          : `Need ${formatNumber(
+                              listing.asking_price - dreamTokens
+                            )} more DT`}
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
         <section style={{ marginTop: "18px", display: "grid", gridTemplateColumns: isDesktop ? "0.95fr 1.05fr" : "1fr", gap: "18px", alignItems: "start" }}>
           <section style={{ ...glassPanel, padding: isMobile ? "18px" : "24px" }}>
             <p style={{ margin: 0, color: "#8ee8ff", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.18em", fontWeight: 900 }}>
@@ -1890,8 +2377,8 @@ export default function MiloPropertyExchangePage() {
           </strong>
           <p style={{ margin: "7px 0 0", color: "rgba(255,255,255,0.72)", fontSize: "13px", lineHeight: 1.5 }}>
             I built the first two hubs before opening the surrounding forest.
-            Choose a district, compare the remaining supply and preview each unit
-            before purchasing it.
+            Compare Dreamscape inventory with owner resales, then choose the unit
+            that suits your strategy.
           </p>
         </div>
       </div>

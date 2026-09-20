@@ -69,17 +69,39 @@ export function useNovaSchoolworkEvidence(
     async function load() {
       setLoading(true);
 
-      const { data: result, error } = await supabase.rpc(
-        "get_nova_schoolwork_evidence_summary",
-        {
-          p_student_user_id: learnerId,
-        },
-      );
+      const [summaryResult, statusResult] = await Promise.all([
+        supabase.rpc(
+          "get_nova_schoolwork_evidence_summary",
+          {
+            p_student_user_id: learnerId,
+          },
+        ),
+
+        supabase
+          .from("nova_schoolwork_uploads")
+          .select("status")
+          .eq("student_user_id", learnerId),
+      ]);
 
       if (cancelled) return;
 
-      if (!error && result) {
-        setData(result as NovaSchoolworkEvidencePayload);
+      if (!summaryResult.error && summaryResult.data) {
+        const payload =
+          summaryResult.data as NovaSchoolworkEvidencePayload;
+
+        const statuses =
+          statusResult.data ?? [];
+
+        const actionable = statuses.filter((row) =>
+          ["review_ready", "needs_input", "failed"].includes(
+            String(row.status),
+          ),
+        ).length;
+
+        setData({
+          ...payload,
+          awaiting_review: actionable,
+        });
       }
 
       setLoading(false);

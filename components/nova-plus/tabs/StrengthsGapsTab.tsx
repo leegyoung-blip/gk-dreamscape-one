@@ -11,9 +11,12 @@ import {
   safeNumber,
   SUBJECT_META,
 } from "@/lib/nova-plus/helpers";
+import { useNovaSchoolworkEvidence } from "@/hooks/useNovaSchoolworkEvidence";
+import type { NovaSchoolworkSkillEvidence } from "@/hooks/useNovaSchoolworkEvidence";
 import styles from "./StrengthsGapsTab.module.css";
 
 type Props = {
+  learnerId: string;
   profile: NovaPlusProfilePayload;
   onOpenRecommendations: () => void;
 };
@@ -170,9 +173,11 @@ function knowledgeRows(profile: NovaPlusProfilePayload) {
 function ConceptCard({
   skill,
   state,
+  schoolwork,
 }: {
   skill: ProfileSkill;
   state: ConceptState;
+  schoolwork?: NovaSchoolworkSkillEvidence;
 }) {
   const meta = STATE_META[state];
   const recentAccuracy =
@@ -196,6 +201,12 @@ function ConceptCard({
           {SUBJECT_META[skill.subject as NovaSubjectKey]?.icon ?? "◇"}
         </span>
         <small>{subjectLabel(skill.subject)}</small>
+
+        {schoolwork && (
+          <span className={styles.schoolworkBadge}>
+            Includes uploaded work
+          </span>
+        )}
       </div>
 
       <strong>{skill.skill_name}</strong>
@@ -208,15 +219,62 @@ function ConceptCard({
         <div className={styles.evidenceBox}>
           {skill.public_explanation && <p>{skill.public_explanation}</p>}
           <div className={styles.evidenceGrid}>
-            <span><b>{skill.questions_attempted}</b> questions</span>
-            <span><b>{skill.unique_activities}</b> activities</span>
-            <span><b>{skill.recent_wrong_answers}</b> recent errors</span>
             <span>
-              <b>{recentAccuracy === null ? "—" : `${recentAccuracy}%`}</b> recent accuracy
+              <b>
+                {Math.max(
+                  0,
+                  safeNumber(skill.questions_attempted) -
+                    safeNumber(schoolwork?.event_count),
+                )}
+              </b>
+              Dreamscape questions
+            </span>
+
+            <span>
+              <b>{schoolwork?.event_count ?? 0}</b>
+              uploaded-work questions
+            </span>
+
+            <span>
+              <b>{skill.unique_activities}</b>
+              activities
+            </span>
+
+            <span>
+              <b>{recentAccuracy === null ? "—" : `${recentAccuracy}%`}</b>
+              recent accuracy
             </span>
           </div>
+
+          {schoolwork && (
+            <div className={styles.schoolworkEvidence}>
+              <span>UPLOADED SCHOOLWORK</span>
+              <strong>
+                {schoolwork.event_count} approved question
+                {schoolwork.event_count === 1 ? "" : "s"} from{" "}
+                {schoolwork.upload_count} document
+                {schoolwork.upload_count === 1 ? "" : "s"}
+              </strong>
+              <small>
+                Last added{" "}
+                {schoolwork.last_evidence_at
+                  ? new Intl.DateTimeFormat("en-SG", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    }).format(new Date(schoolwork.last_evidence_at))
+                  : "recently"}
+                . Uploaded work is reviewed and carries a lower evidence weight
+                than native Dreamscape quiz evidence.
+              </small>
+            </div>
+          )}
+
           {state === "attention" && (
-            <small>Nova marks a gap only after repeated evidence, not from one weak result.</small>
+            <small>
+              Nova marks a gap only after repeated evidence, not from one weak
+              result.
+            </small>
           )}
         </div>
       </details>
@@ -227,9 +285,11 @@ function ConceptCard({
 function StateColumn({
   state,
   skills,
+  schoolworkBySkillId,
 }: {
   state: ConceptState;
   skills: ProfileSkill[];
+  schoolworkBySkillId: Map<string, NovaSchoolworkSkillEvidence>;
 }) {
   const meta = STATE_META[state];
   const visible = sortConcepts(state, skills).slice(0, 8);
@@ -257,7 +317,12 @@ function StateColumn({
       <div className={styles.conceptList}>
         {visible.length > 0 ? (
           visible.map((skill) => (
-            <ConceptCard key={skill.skill_id} skill={skill} state={state} />
+            <ConceptCard
+              key={skill.skill_id}
+              skill={skill}
+              state={state}
+              schoolwork={schoolworkBySkillId.get(String(skill.skill_id))}
+            />
           ))
         ) : (
           <div className={styles.emptyState}>
@@ -276,9 +341,11 @@ function StateColumn({
 }
 
 export default function StrengthsGapsTab({
+  learnerId,
   profile,
   onOpenRecommendations,
 }: Props) {
+  const schoolworkEvidence = useNovaSchoolworkEvidence(learnerId);
   const academicSkills = academicConceptRows(profile);
   const knowledgeSkills = knowledgeRows(profile);
 
@@ -323,9 +390,21 @@ export default function StrengthsGapsTab({
       </section>
 
       <section className={styles.columns}>
-        <StateColumn state="strong" skills={strong} />
-        <StateColumn state="developing" skills={developing} />
-        <StateColumn state="attention" skills={attention} />
+        <StateColumn
+          state="strong"
+          skills={strong}
+          schoolworkBySkillId={schoolworkEvidence.bySkillId}
+        />
+        <StateColumn
+          state="developing"
+          skills={developing}
+          schoolworkBySkillId={schoolworkEvidence.bySkillId}
+        />
+        <StateColumn
+          state="attention"
+          skills={attention}
+          schoolworkBySkillId={schoolworkEvidence.bySkillId}
+        />
       </section>
 
       <section className={styles.lowerGrid}>

@@ -151,6 +151,27 @@ export async function GET(request: Request) {
       if (analysisResult.error) throw analysisResult.error;
       if (itemsResult.error) throw itemsResult.error;
 
+      const { data: runRows, error: runError } =
+        await supabaseAdmin
+          .from("nova_schoolwork_analysis_runs")
+          .select(
+            "id,run_number,trigger_source,status,stage,extraction_model,reasoning_model,extraction_response_id,reasoning_response_id,extraction_usage,reasoning_usage,extraction_cost_usd,reasoning_cost_usd,total_cost_usd,automatic_retry_count,page_count,question_count,duration_ms,error_code,error_message,started_at,completed_at",
+          )
+          .eq("upload_id", uploadId)
+          .order("run_number", { ascending: false });
+
+      if (runError) throw runError;
+
+      const { data: signedPreview, error: previewError } =
+        await supabaseAdmin.storage
+          .from(upload.storage_bucket)
+          .createSignedUrl(upload.storage_path, 10 * 60);
+
+      const previewUrl =
+        previewError || !signedPreview?.signedUrl
+          ? null
+          : signedPreview.signedUrl;
+
       const items = itemsResult.data ?? [];
       const itemIds = items.map((item) => item.id);
 
@@ -243,6 +264,8 @@ export async function GET(request: Request) {
       return json({
         upload,
         analysis: analysisResult.data,
+        analysis_runs: runRows ?? [],
+        preview_url: previewUrl,
         detail_items: detailItems,
         analysis_result: {
           status: "review_ready",
@@ -327,7 +350,7 @@ export async function GET(request: Request) {
     let query = supabaseAdmin
       .from("nova_schoolwork_uploads")
       .select(
-        "id,student_user_id,original_filename,mime_type,file_size_bytes,assignment_title,detected_subject,detected_primary_level,page_count,teacher_marked,document_quality,analysis_confidence,status,analysis_started_at,analysis_completed_at,reviewed_at,archived_at,created_at,updated_at",
+        "id,student_user_id,original_filename,mime_type,file_size_bytes,file_sha256,analysis_revision,assignment_title,detected_subject,detected_primary_level,page_count,teacher_marked,document_quality,analysis_confidence,status,error_message,analysis_started_at,analysis_completed_at,reviewed_at,archived_at,created_at,updated_at",
       )
       .eq("student_user_id", studentId)
       .order("created_at", { ascending: false })

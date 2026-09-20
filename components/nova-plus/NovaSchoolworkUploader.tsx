@@ -19,6 +19,7 @@ type NovaSchoolworkUploaderProps = {
   onCommitted?: () => void | Promise<void>;
   resumeUploadId?: string | null;
   onResumeHandled?: () => void;
+  onViewExistingUpload?: (uploadId: string) => void;
 };
 
 type SubjectHint = "" | "english" | "math";
@@ -113,6 +114,23 @@ type CommitResult = {
   reviewed_at: string;
 };
 
+type ImpactResult = {
+  questions_added: number;
+  questions_excluded: number;
+  concepts_updated: number;
+  strengths_reinforced: number;
+  concepts_needing_more_evidence: number;
+  priority_changed: boolean;
+};
+
+type DuplicateUpload = {
+  id: string;
+  assignment_title: string | null;
+  original_filename: string;
+  status: string;
+  created_at: string;
+};
+
 const MAX_BYTES = 20 * 1024 * 1024;
 
 const ALLOWED_TYPES = new Set([
@@ -137,6 +155,32 @@ function fileSizeLabel(bytes: number) {
   }
 
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+async function sha256File(file: File) {
+  const buffer = await file.arrayBuffer();
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    buffer,
+  );
+
+  return [...new Uint8Array(digest)]
+    .map((byte) =>
+      byte.toString(16).padStart(2, "0"),
+    )
+    .join("");
+}
+
+function dateLabel(value: string) {
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime())
+    ? ""
+    : new Intl.DateTimeFormat("en-SG", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }).format(date);
 }
 
 function confidenceLabel(value: number) {
@@ -251,6 +295,7 @@ export default function NovaSchoolworkUploader({
   onCommitted,
   resumeUploadId = null,
   onResumeHandled,
+  onViewExistingUpload,
 }: NovaSchoolworkUploaderProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -273,6 +318,15 @@ export default function NovaSchoolworkUploader({
 
   const [commitResult, setCommitResult] =
     useState<CommitResult | null>(null);
+
+  const [impactResult, setImpactResult] =
+    useState<ImpactResult | null>(null);
+
+  const [fileHash, setFileHash] = useState("");
+  const [duplicateUpload, setDuplicateUpload] =
+    useState<DuplicateUpload | null>(null);
+  const [uploadDuplicateAnyway, setUploadDuplicateAnyway] =
+    useState(false);
 
   const [dragActive, setDragActive] = useState(false);
 
@@ -420,6 +474,10 @@ export default function NovaSchoolworkUploader({
     setResult(null);
     setReviewState({});
     setCommitResult(null);
+    setImpactResult(null);
+    setFileHash("");
+    setDuplicateUpload(null);
+    setUploadDuplicateAnyway(false);
     setDragActive(false);
 
     if (inputRef.current) {
@@ -456,7 +514,9 @@ export default function NovaSchoolworkUploader({
     return "";
   }
 
-  function chooseFile(nextFile: File | null) {
+  async function chooseFile(
+    nextFile: File | null,
+  ) {
     if (!nextFile) return;
 
     const validation = validateFile(nextFile);
@@ -472,19 +532,46 @@ export default function NovaSchoolworkUploader({
     setResult(null);
     setReviewState({});
     setCommitResult(null);
+    setImpactResult(null);
+    setDuplicateUpload(null);
+    setUploadDuplicateAnyway(false);
     setStage("select");
+
+    try {
+      const hash = await sha256File(nextFile);
+      setFileHash(hash);
+
+      const { data, error } = await supabase
+        .from("nova_schoolwork_uploads")
+        .select(
+          "id,assignment_title,original_filename,status,created_at",
+        )
+        .eq("student_user_id", learnerId)
+        .eq("file_sha256", hash)
+        .neq("status", "archived")
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (!error && data?.[0]) {
+        setDuplicateUpload(
+          data[0] as DuplicateUpload,
+        );
+      }
+    } catch {
+      // Duplicate detection must not block upload.
+    }
   }
 
   function onFileChange(
     event: ChangeEvent<HTMLInputElement>,
   ) {
-    chooseFile(event.target.files?.[0] ?? null);
+    void chooseFile(event.target.files?.[0] ?? null);
   }
 
   function onDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
     setDragActive(false);
-    chooseFile(event.dataTransfer.files?.[0] ?? null);
+    void chooseFile(event.dataTransfer.files?.[0] ?? null);
   }
 
   function updateReview(
@@ -502,6 +589,16 @@ export default function NovaSchoolworkUploader({
 
   async function analyse() {
     if (!file) return;
+
+    if (
+      duplicateUpload &&
+      !uploadDuplicateAnyway
+    ) {
+      setError(
+        "This file appears to have been uploaded before. View the existing analysis or choose Upload anyway.",
+      );
+      return;
+    }
 
     const validation = validateFile(file);
 
@@ -565,6 +662,7 @@ export default function NovaSchoolworkUploader({
         original_filename: file.name,
         mime_type: file.type,
         file_size_bytes: file.size,
+        file_sha256: fileHash || null,
         subject_hint: subjectHint || null,
         primary_level_hint:
           levelHint ? Number(levelHint) : null,
@@ -688,6 +786,9 @@ export default function NovaSchoolworkUploader({
 
     setCommitResult(
       (body?.result ?? null) as CommitResult | null,
+    );
+    setImpactResult(
+      (body?.impact ?? null) as ImpactResult | null,
     );
 
     setStage("complete");
@@ -818,7 +919,7 @@ export default function NovaSchoolworkUploader({
                       or click to choose a file
                     </span>
                     <small>
-                      PDF, PNG or JPG · maximum 20 MB
+                      PDF, PNG or JPG · maximum 20 MB · up to 20 pages
                     </small>
                   </div>
                 )}
@@ -884,6 +985,54 @@ export default function NovaSchoolworkUploader({
                   </small>
                 </label>
               </div>
+
+              {duplicateUpload && (
+                <div className={styles.duplicateWarning}>
+                  <div>
+                    <strong>Possible duplicate upload</strong>
+                    <p>
+                      This same file was uploaded on{" "}
+                      {dateLabel(
+                        duplicateUpload.created_at,
+                      )}{" "}
+                      as “
+                      {duplicateUpload.assignment_title ||
+                        duplicateUpload.original_filename}
+                      ”.
+                    </p>
+                  </div>
+
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onViewExistingUpload?.(
+                          duplicateUpload.id,
+                        )
+                      }
+                    >
+                      View existing analysis
+                    </button>
+
+                    <button
+                      type="button"
+                      className={
+                        uploadDuplicateAnyway
+                          ? styles.duplicateConfirmed
+                          : ""
+                      }
+                      onClick={() => {
+                        setUploadDuplicateAnyway(true);
+                        setError("");
+                      }}
+                    >
+                      {uploadDuplicateAnyway
+                        ? "Upload anyway selected"
+                        : "Upload anyway"}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className={styles.privacyNote}>
                 <div className={styles.lockMark}>
@@ -1493,6 +1642,40 @@ export default function NovaSchoolworkUploader({
                     </strong>
                   </article>
                 </div>
+
+                {impactResult && (
+                  <div className={styles.impactGrid}>
+                    <article>
+                      <small>Concepts updated</small>
+                      <strong>
+                        {impactResult.concepts_updated}
+                      </strong>
+                    </article>
+
+                    <article>
+                      <small>Strengths reinforced</small>
+                      <strong>
+                        {impactResult.strengths_reinforced}
+                      </strong>
+                    </article>
+
+                    <article>
+                      <small>Need more evidence</small>
+                      <strong>
+                        {impactResult.concepts_needing_more_evidence}
+                      </strong>
+                    </article>
+
+                    <article>
+                      <small>Top priority</small>
+                      <strong>
+                        {impactResult.priority_changed
+                          ? "Updated"
+                          : "Unchanged"}
+                      </strong>
+                    </article>
+                  </div>
+                )}
 
                 <button
                   type="button"
